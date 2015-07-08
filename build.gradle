@@ -3,7 +3,7 @@ buildscript {
       jcenter()
    }
 
-  dependencies { classpath 'io.reactivesocket:gradle-nebula-plugin-reactivesocket:0.1.0' }
+  dependencies { classpath 'io.reactivesocket:gradle-nebula-plugin-reactivesocket:1.0.0' }
 }
 
 description = 'ReactiveSocket: stream oriented messaging passing with Reactive Stream semantics.'
