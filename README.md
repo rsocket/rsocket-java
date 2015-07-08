@@ -24,9 +24,26 @@ ReactiveSocket is for communicating across network boundaries thus it is intende
 
 Others can be found in the [ReactiveSocket Github](https://github.com/ReactiveSocket) project.
 
-## Master Build Status
+## Build and Binaries
 
 <a href='https://travis-ci.org/ReactiveSocket/reactivesocket-java/builds'><img src='https://travis-ci.org/ReactiveSocket/reactivesocket-java.svg?branch=1.x'></a>
+
+Snapshots are available via JFrog. 
+
+Example:
+
+```groovy
+repositories {
+    maven { url 'https://oss.jfrog.org/libs-snapshot' }
+}
+
+dependencies {
+    compile 'io.reactivesocket:reactivesocket:0.0.1-SNAPSHOT'
+}
+```
+
+No releases to Maven Central or JCenter have occurred yet.
+
 
 ## Bugs and Feedback
 
