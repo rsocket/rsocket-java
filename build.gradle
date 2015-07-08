@@ -1,7 +1,6 @@
 buildscript {
   repositories { 
       jcenter()
-      maven { url 'http://dl.bintray.com/reactivesocket/ReactiveSocket' }
    }
 
   dependencies { classpath 'io.reactivesocket:gradle-nebula-plugin-reactivesocket:0.1.0' }
