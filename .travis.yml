@@ -2,7 +2,7 @@ language: java
 jdk:
 - oraclejdk8
 
-# trying as per https://github.com/travis-ci/travis-ci/issues/4042 
+# force upgrade Java8 as per https://github.com/travis-ci/travis-ci/issues/4042 (fixes compilation issue)
 addons:
   apt:
     packages:
