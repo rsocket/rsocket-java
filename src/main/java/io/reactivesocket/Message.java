@@ -127,7 +127,10 @@ public class Message {
 		/**
 		 * This is NOT how we want it for real. Just representing the idea for discussion.
 		 */
-		String data = new String(b.array());
+		byte[] copy = new byte[b.limit()];
+		b.get(copy);
+		String data = new String(copy);
+		System.out.println("RAW: " + data);
 		int separator = data.indexOf('|');
 		String prefix = data.substring(0, separator);
 		this.type = MessageType.values[Integer.parseInt(prefix.substring(1, data.indexOf(']')))];
@@ -135,4 +138,15 @@ public class Message {
 		this.message = data.substring(separator + 1, data.length());
 	}
 
+	@Override
+	public String toString() {
+		if (type == null) {
+			try {
+				decode();
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+		}
+		return "Message => ID: " + messageId + " Type: " + type + " Data: " + message;
+	}
 }
