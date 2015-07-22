@@ -49,7 +49,6 @@ public class ReactiveSocketServerProtocol {
 		final ConcurrentHashMap<Integer, CancellationToken> cancellationObservables = new ConcurrentHashMap<>();
 
 		return toPublisher(toObservable(ws.getInput()).flatMap(message -> {
-			System.out.println("message: " + message);
 			if (message.getMessageType() == MessageType.SUBSCRIBE_REQUEST_RESPONSE) {
 				CancellationToken cancellationToken = CancellationToken.create();
 				cancellationObservables.put(message.getMessageId(), cancellationToken);

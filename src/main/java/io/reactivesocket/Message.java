@@ -130,7 +130,6 @@ public class Message {
 		byte[] copy = new byte[b.limit()];
 		b.get(copy);
 		String data = new String(copy);
-		System.out.println("RAW: " + data);
 		int separator = data.indexOf('|');
 		String prefix = data.substring(0, separator);
 		this.type = MessageType.values[Integer.parseInt(prefix.substring(1, data.indexOf(']')))];
