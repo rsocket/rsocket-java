@@ -29,11 +29,17 @@ public class ReactiveSocketServerProtocol {
 	private Func1<String, Publisher<String>> requestResponseHandler;
 	private Func1<String, Publisher<String>> requestStreamHandler;
 
-	ReactiveSocketServerProtocol(
+	private ReactiveSocketServerProtocol(
 			Func1<String, Publisher<String>> requestResponseHandler,
 			Func1<String, Publisher<String>> requestStreamHandler) {
 		this.requestResponseHandler = requestResponseHandler;
 		this.requestStreamHandler = requestStreamHandler;
+	}
+
+	public static ReactiveSocketServerProtocol create(
+			Func1<String, Publisher<String>> requestResponseHandler,
+			Func1<String, Publisher<String>> requestStreamHandler) {
+		return new ReactiveSocketServerProtocol(requestResponseHandler, requestStreamHandler);
 	}
 
 	public Publisher<Void> acceptConnection(DuplexConnection ws) {
@@ -43,6 +49,7 @@ public class ReactiveSocketServerProtocol {
 		final ConcurrentHashMap<Integer, CancellationToken> cancellationObservables = new ConcurrentHashMap<>();
 
 		return toPublisher(toObservable(ws.getInput()).flatMap(message -> {
+			System.out.println("message: " + message);
 			if (message.getMessageType() == MessageType.SUBSCRIBE_REQUEST_RESPONSE) {
 				CancellationToken cancellationToken = CancellationToken.create();
 				cancellationObservables.put(message.getMessageId(), cancellationToken);

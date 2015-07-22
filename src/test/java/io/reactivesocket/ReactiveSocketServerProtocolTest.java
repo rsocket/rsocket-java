@@ -35,7 +35,7 @@ public class ReactiveSocketServerProtocolTest {
 
 	@Test
 	public void testRequestResponseSuccess() {
-		ReactiveSocketServerProtocol p = new ReactiveSocketServerProtocol(
+		ReactiveSocketServerProtocol p = ReactiveSocketServerProtocol.create(
 				request -> toPublisher(just(request + " world")),
 				null);
 
@@ -54,7 +54,7 @@ public class ReactiveSocketServerProtocolTest {
 
 	@Test
 	public void testRequestResponseError() {
-		ReactiveSocketServerProtocol p = new ReactiveSocketServerProtocol(
+		ReactiveSocketServerProtocol p = ReactiveSocketServerProtocol.create(
 				request -> toPublisher(error(new Exception("Request Not Found"))),
 				null);
 
@@ -78,7 +78,7 @@ public class ReactiveSocketServerProtocolTest {
 				.cast(String.class)
 				.doOnUnsubscribe(() -> unsubscribed.set(true));
 
-		ReactiveSocketServerProtocol p = new ReactiveSocketServerProtocol(
+		ReactiveSocketServerProtocol p = ReactiveSocketServerProtocol.create(
 				request -> toPublisher(delayed),
 				null);
 
@@ -97,7 +97,7 @@ public class ReactiveSocketServerProtocolTest {
 
 	@Test
 	public void testRequestStreamSuccess() {
-		ReactiveSocketServerProtocol p = new ReactiveSocketServerProtocol(
+		ReactiveSocketServerProtocol p = ReactiveSocketServerProtocol.create(
 				null,
 				request -> toPublisher(range(Integer.parseInt(request), 10).map(i -> i + "!")));
 
@@ -126,7 +126,7 @@ public class ReactiveSocketServerProtocolTest {
 
 	@Test
 	public void testRequestStreamError() {
-		ReactiveSocketServerProtocol p = new ReactiveSocketServerProtocol(
+		ReactiveSocketServerProtocol p = ReactiveSocketServerProtocol.create(
 				null,
 				request -> toPublisher(range(Integer.parseInt(request), 3)
 						.map(i -> i + "!")
@@ -158,7 +158,7 @@ public class ReactiveSocketServerProtocolTest {
 	@Test
 	public void testRequestStreamCancel() {
 		TestScheduler ts = Schedulers.test();
-		ReactiveSocketServerProtocol p = new ReactiveSocketServerProtocol(
+		ReactiveSocketServerProtocol p = ReactiveSocketServerProtocol.create(
 				null,
 				request -> toPublisher(interval(1000, TimeUnit.MILLISECONDS, ts).map(i -> i + "!")));
 
@@ -196,7 +196,7 @@ public class ReactiveSocketServerProtocolTest {
 	@Test
 	public void testMultiplexedStreams() {
 		TestScheduler ts = Schedulers.test();
-		ReactiveSocketServerProtocol p = new ReactiveSocketServerProtocol(
+		ReactiveSocketServerProtocol p = ReactiveSocketServerProtocol.create(
 				null,
 				request -> toPublisher(interval(1000, TimeUnit.MILLISECONDS, ts).map(i -> i + "_" + request)));
 
