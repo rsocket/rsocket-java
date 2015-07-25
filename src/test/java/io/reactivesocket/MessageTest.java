@@ -25,32 +25,32 @@ public class MessageTest {
 
 	@Test
 	public void testWriteThenRead() {
-		Message f = Message.from(1, MessageType.SUBSCRIBE_REQUEST_RESPONSE, "hello");
+		Message f = Message.from(1, MessageType.REQUEST_RESPONSE, "hello");
 		assertEquals("hello", f.getMessage());
-		assertEquals(MessageType.SUBSCRIBE_REQUEST_RESPONSE, f.getMessageType());
-		assertEquals(1, f.getMessageId());
+		assertEquals(MessageType.REQUEST_RESPONSE, f.getMessageType());
+		assertEquals(1, f.getStreamId());
 
 		ByteBuffer b = f.getBytes();
 
 		Message f2 = Message.from(b);
 		assertEquals("hello", f2.getMessage());
-		assertEquals(MessageType.SUBSCRIBE_REQUEST_RESPONSE, f2.getMessageType());
-		assertEquals(1, f2.getMessageId());
+		assertEquals(MessageType.REQUEST_RESPONSE, f2.getMessageType());
+		assertEquals(1, f2.getStreamId());
 	}
 
 	@Test
 	public void testWrapMessage() {
-		Message f = Message.from(1, MessageType.SUBSCRIBE_REQUEST_RESPONSE, "hello");
+		Message f = Message.from(1, MessageType.REQUEST_RESPONSE, "hello");
 
 		f.wrap(2, MessageType.COMPLETE, "done");
 		assertEquals("done", f.getMessage());
 		assertEquals(MessageType.COMPLETE, f.getMessageType());
-		assertEquals(2, f.getMessageId());
+		assertEquals(2, f.getStreamId());
 	}
 
 	@Test
 	public void testWrapBytes() {
-		Message f = Message.from(1, MessageType.SUBSCRIBE_REQUEST_RESPONSE, "hello");
+		Message f = Message.from(1, MessageType.REQUEST_RESPONSE, "hello");
 		Message f2 = Message.from(20, MessageType.COMPLETE, "another");
 
 		ByteBuffer b = f2.getBytes();
@@ -58,6 +58,6 @@ public class MessageTest {
 
 		assertEquals("another", f.getMessage());
 		assertEquals(MessageType.COMPLETE, f.getMessageType());
-		assertEquals(20, f.getMessageId());
+		assertEquals(20, f.getStreamId());
 	}
 }

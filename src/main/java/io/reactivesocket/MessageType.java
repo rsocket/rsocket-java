@@ -15,8 +15,53 @@
  */
 package io.reactivesocket;
 
-enum MessageType {
-	// DO NOT REORDER OR INSERT NEW ELEMENTS. THE ORDINAL IS PART OF THE PROTOCOL
-	SUBSCRIBE_REQUEST_RESPONSE, SUBSCRIBE_STREAM, STREAM_REQUEST, DISPOSE, NEXT_COMPLETE, NEXT, ERROR, COMPLETE;
-	public static MessageType[] values = MessageType.values(); // cached for performance
+/**
+ * Types of {@link Message} that can be sent.
+ */
+public enum MessageType {
+
+    SETUP(0x01),
+     // Messages from Requestor
+     REQUEST_RESPONSE(0x11),
+     FIRE_AND_FORGET(0x12),
+     REQUEST_STREAM(0x13),
+     REQUEST_SUBSCRIPTION(0x14),
+     REQUEST_N(0x15),
+     CANCEL(0x16),
+     // Messages from Responder
+     NEXT(0x22),
+     COMPLETE(0x23),
+     ERROR(0x24);
+    
+    private static MessageType[] typesById;
+
+    /**
+     * Index types by id for indexed lookup. 
+     */
+    static {
+        int max = 0;
+        for (MessageType t : values()) {
+            if (t.id > max) {
+                max = t.id;
+            }
+        }
+        typesById = new MessageType[max + 1];
+        for (MessageType t : values()) {
+            typesById[t.id] = t;
+        }
+    }
+
+    private final int id;
+
+    private MessageType(int id) {
+        this.id = id;
+    }
+    
+    public int getMessageId() {
+        return id;
+    }
+
+    public static MessageType from(int id) {
+        return typesById[id];
+    }
 }
