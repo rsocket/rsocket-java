@@ -29,6 +29,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import rx.Observer;
@@ -101,6 +102,7 @@ public class ClientServerInteractionTest {
         clientProtocol = ReactiveSocketClientProtocol.create(clientConnection);
     }
 
+    @Ignore
     @Test
     public void testRequestResponseSuccess() {
         TestSubscriber<String> ts = TestSubscriber.create();
@@ -109,6 +111,7 @@ public class ClientServerInteractionTest {
         ts.assertValue("hello world");
     }
 
+    @Ignore
     @Test
     public void testRequestResponseError() {
         TestSubscriber<String> ts = TestSubscriber.create();
@@ -118,6 +121,7 @@ public class ClientServerInteractionTest {
         assertEquals("Not Found!", ts.getOnErrorEvents().get(0).getMessage());
     }
 
+    @Ignore
     @Test
     public void testRequestStreamSuccess() {
         TestSubscriber<String> ts = TestSubscriber.create();
@@ -126,6 +130,7 @@ public class ClientServerInteractionTest {
         ts.assertReceivedOnNext(Arrays.asList("0", "1", "2"));
     }
 
+    @Ignore
     @Test
     public void testRequestStreamError() {
         TestSubscriber<String> ts = TestSubscriber.create();
@@ -135,6 +140,7 @@ public class ClientServerInteractionTest {
         assertEquals("Not Found!", ts.getOnErrorEvents().get(0).getMessage());
     }
 
+    @Ignore
     @Test
     public void testRequestSubscriptionSuccess() throws InterruptedException {
         CountDownLatch latch = new CountDownLatch(3);
@@ -164,6 +170,7 @@ public class ClientServerInteractionTest {
         ts.unsubscribe();
     }
 
+    @Ignore
     @Test
     public void testRequestSubscriptionErrorOnCompletion() {
         TestSubscriber<String> ts = TestSubscriber.create();
@@ -174,6 +181,7 @@ public class ClientServerInteractionTest {
         assertEquals("Subscription terminated unexpectedly", ts.getOnErrorEvents().get(0).getMessage());
     }
 
+    @Ignore
     @Test
     public void testRequestSubscriptionError() {
         TestSubscriber<String> ts = TestSubscriber.create();
@@ -183,6 +191,7 @@ public class ClientServerInteractionTest {
         assertEquals("Not Found!", ts.getOnErrorEvents().get(0).getMessage());
     }
 
+    @Ignore
     @Test
     public void testFireAndForgetSuccess() {
         TestSubscriber<Void> ts = TestSubscriber.create();
@@ -193,6 +202,7 @@ public class ClientServerInteractionTest {
     }
 
     // this is testing that the client is completely unaware of server-side errors
+    @Ignore
     @Test
     public void testFireAndForgetError() {
         TestSubscriber<Void> ts = TestSubscriber.create();
