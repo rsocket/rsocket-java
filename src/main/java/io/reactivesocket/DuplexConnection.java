@@ -17,10 +17,14 @@ package io.reactivesocket;
 
 import org.reactivestreams.Publisher;
 
+/**
+ * Represents a connection with input/output that the protocol uses. 
+ */
 public interface DuplexConnection {
+    // TODO should we call this 'Connection'? 'SocketConnection'? 'ReactiveSocketConnection'?
 
 	Publisher<Message> getInput();
 
-	Publisher<Void> write(Message o);
+	Publisher<Void> write(Publisher<Message> o);
 	
 }
