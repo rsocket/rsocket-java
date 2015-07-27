@@ -58,7 +58,7 @@ public class ReactiveSocketServerProtocol {
         final ConcurrentHashMap<Integer, CancellationToken> cancellationObservables = new ConcurrentHashMap<>();
         /* streams in flight that can receive REQUEST_N messages */
         final ConcurrentHashMap<Integer, RequestOperator<?>> inFlight = new ConcurrentHashMap<>();
-
+        
         return toPublisher(toObservable(ws.getInput()).flatMap(message -> {
             if (message.getMessageType() == MessageType.REQUEST_RESPONSE) {
                 return handleRequestResponse(ws, message, cancellationObservables);
@@ -159,7 +159,6 @@ public class ReactiveSocketServerProtocol {
                         .takeUntil(cancellationToken)
                         .finallyDo(() -> {
                             cancellationObservables.remove(streamId);
-                            System.out.println("remove streamId");
                             inflight.remove(streamId);
                         }))));
     }
