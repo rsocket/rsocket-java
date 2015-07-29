@@ -24,6 +24,9 @@ import java.nio.ByteBuffer;
  */
 public class Message {
 
+    // TODO: make thread local to demonstrate idea
+    private static final ThreadLocal<FrameHandler> FRAME_HANDLER = ThreadLocal.withInitial(FrameHandler::new);
+
     private Message() {
     }
 
@@ -118,9 +121,17 @@ public class Message {
         /**
          * This is NOT how we want it for real. Just representing the idea for discussion.
          */
-        String s = "[" + type.getMessageId() + "]" + getIdString(messageId) + message;
+//        String s = "[" + type.getMessageId() + "]" + getIdString(messageId) + message;
         // TODO stop allocating ... use flywheels
-        return ByteBuffer.wrap(s.getBytes());
+//        return ByteBuffer.wrap(s.getBytes());
+
+        final FrameHandler frameHandler = FRAME_HANDLER.get();
+
+        // TODO: allocation side effect of how this works currently with the rest of the machinery.
+        final ByteBuffer buffer = ByteBuffer.allocate(FrameHandler.frameLength(message.length()));
+
+        frameHandler.encode(buffer, messageId, type, message.getBytes());
+        return buffer;
     }
 
     private static String getIdString(int id) {
@@ -132,14 +143,25 @@ public class Message {
         /**
          * This is NOT how we want it for real. Just representing the idea for discussion.
          */
-        byte[] copy = new byte[b.limit()];
-        b.get(copy);
-        String data = new String(copy);
-        int separator = data.indexOf('|');
-        String prefix = data.substring(0, separator);
-        this.type = MessageType.from(Integer.parseInt(prefix.substring(1, data.indexOf(']'))));
-        this.streamId = Integer.parseInt(prefix.substring(prefix.lastIndexOf("[") + 1, prefix.length() - 1));
-        this.message = data.substring(separator + 1, data.length());
+//        byte[] copy = new byte[b.limit()];
+//        b.get(copy);
+//        String data = new String(copy);
+//        int separator = data.indexOf('|');
+//        String prefix = data.substring(0, separator);
+//        this.type = MessageType.from(Integer.parseInt(prefix.substring(1, data.indexOf(']'))));
+//        this.streamId = Integer.parseInt(prefix.substring(prefix.lastIndexOf("[") + 1, prefix.length() - 1));
+//        this.message = data.substring(separator + 1, data.length());
+
+        final FrameHandler frameHandler = FRAME_HANDLER.get();
+
+        frameHandler.decode(b);
+        this.type = frameHandler.messageType();
+        this.streamId = (int)frameHandler.streamId();  // TODO: temp cast to only touch as little as possible
+
+        // TODO: temp allocation to touch as little as possible
+        final byte[] data = new byte[frameHandler.dataLength()];
+        frameHandler.getDataBytes(data);
+        this.message = new String(data);
     }
 
     @Override

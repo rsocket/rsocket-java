@@ -20,7 +20,7 @@ package io.reactivesocket;
  */
 public enum MessageType {
 
-    SETUP(0x01),
+     SETUP(0x01),
      // Messages from Requestor
      REQUEST_RESPONSE(0x11),
      FIRE_AND_FORGET(0x12),
