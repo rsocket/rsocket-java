@@ -16,10 +16,10 @@
 package io.reactivesocket;
 
 /**
- * Types of {@link Message} that can be sent.
+ * Types of {@link Frame} that can be sent.
  */
-public enum MessageType {
-
+public enum FrameType
+{
      SETUP(0x01),
      // Messages from Requestor
      REQUEST_RESPONSE(0x11),
@@ -33,27 +33,27 @@ public enum MessageType {
      COMPLETE(0x23),
      ERROR(0x24);
     
-    private static MessageType[] typesById;
+    private static FrameType[] typesById;
 
     /**
      * Index types by id for indexed lookup. 
      */
     static {
         int max = 0;
-        for (MessageType t : values()) {
+        for (FrameType t : values()) {
             if (t.id > max) {
                 max = t.id;
             }
         }
-        typesById = new MessageType[max + 1];
-        for (MessageType t : values()) {
+        typesById = new FrameType[max + 1];
+        for (FrameType t : values()) {
             typesById[t.id] = t;
         }
     }
 
     private final int id;
 
-    private MessageType(int id) {
+    FrameType(int id) {
         this.id = id;
     }
     
@@ -61,7 +61,7 @@ public enum MessageType {
         return id;
     }
 
-    public static MessageType from(int id) {
+    public static FrameType from(int id) {
         return typesById[id];
     }
 }

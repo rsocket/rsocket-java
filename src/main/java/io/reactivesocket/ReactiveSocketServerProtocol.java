@@ -60,17 +60,17 @@ public class ReactiveSocketServerProtocol {
         final ConcurrentHashMap<Integer, RequestOperator<?>> inFlight = new ConcurrentHashMap<>();
         
         return toPublisher(toObservable(ws.getInput()).flatMap(message -> {
-            if (message.getMessageType() == MessageType.REQUEST_RESPONSE) {
+            if (message.getMessageType() == FrameType.REQUEST_RESPONSE) {
                 return handleRequestResponse(ws, message, cancellationObservables);
-            } else if (message.getMessageType() == MessageType.REQUEST_STREAM) {
+            } else if (message.getMessageType() == FrameType.REQUEST_STREAM) {
                 return handleRequestStream(ws, message, cancellationObservables, inFlight);
-            } else if (message.getMessageType() == MessageType.FIRE_AND_FORGET) {
+            } else if (message.getMessageType() == FrameType.FIRE_AND_FORGET) {
                 return handleFireAndForget(message);
-            } else if (message.getMessageType() == MessageType.REQUEST_SUBSCRIPTION) {
+            } else if (message.getMessageType() == FrameType.REQUEST_SUBSCRIPTION) {
                 return handleRequestSubscription(ws, message, cancellationObservables, inFlight);
-            } else if (message.getMessageType() == MessageType.CANCEL) {
+            } else if (message.getMessageType() == FrameType.CANCEL) {
                 return handleCancellationRequest(cancellationObservables, message);
-            } else if (message.getMessageType() == MessageType.REQUEST_N) {
+            } else if (message.getMessageType() == FrameType.REQUEST_N) {
                 return handleRequestN(message, inFlight);
             } else {
                 return error(new IllegalStateException("Unexpected prefix: " + message.getMessageType()));
@@ -90,45 +90,45 @@ public class ReactiveSocketServerProtocol {
      * TODO explore if there is a better way of doing this while only exposing Publisher APIs
      */
 
-    private Observable<Void> handleRequestResponse(DuplexConnection ws, Message requestMessage, final ConcurrentHashMap<Integer, CancellationToken> cancellationObservables) {
-        int streamId = requestMessage.getStreamId();
+    private Observable<Void> handleRequestResponse(DuplexConnection ws, Frame requestFrame, final ConcurrentHashMap<Integer, CancellationToken> cancellationObservables) {
+        int streamId = requestFrame.getStreamId();
         CancellationToken cancellationToken = CancellationToken.create();
-        cancellationObservables.put(requestMessage.getStreamId(), cancellationToken);
+        cancellationObservables.put(requestFrame.getStreamId(), cancellationToken);
 
         return toObservable(ws.write(toPublisher(
-                toObservable(requestHandler.handleRequestResponse(requestMessage.getMessage()))
+                toObservable(requestHandler.handleRequestResponse(requestFrame.getMessage()))
                         .single()// enforce that it is a request/response
                         .flatMap(v -> just(
                                 // TODO evaluate this ... as it is less efficient than a special NEXT_COMPLETE type
                                 // TODO as a stream of 2 can not be as easily optimized like a scalar response
                                 // NEXT with immediate COMPLETE as we have a single NEXT
-                                Message.from(streamId, MessageType.NEXT, v),
-                                Message.from(streamId, MessageType.COMPLETE, "")))
-                        .onErrorReturn(err -> Message.from(streamId, MessageType.ERROR, err.getMessage()))
+                                Frame.from(streamId, FrameType.NEXT, v),
+                                Frame.from(streamId, FrameType.COMPLETE, "")))
+                        .onErrorReturn(err -> Frame.from(streamId, FrameType.ERROR, err.getMessage()))
                         .takeUntil(cancellationToken)
                         .finallyDo(() -> cancellationObservables.remove(streamId)))));
     }
 
-    private Observable<Void> handleRequestStream(DuplexConnection ws, Message message, final ConcurrentHashMap<Integer, CancellationToken> cancellationObservables, ConcurrentHashMap<Integer, RequestOperator<?>> inflight) {
-        return handleStream(ws, message,
+    private Observable<Void> handleRequestStream(DuplexConnection ws, Frame frame, final ConcurrentHashMap<Integer, CancellationToken> cancellationObservables, ConcurrentHashMap<Integer, RequestOperator<?>> inflight) {
+        return handleStream(ws, frame,
                 requestHandler::handleRequestStream,
                 cancellationObservables, inflight,
-                () -> just(Message.from(message.getStreamId(), MessageType.COMPLETE, "")));
+                () -> just(Frame.from(frame.getStreamId(), FrameType.COMPLETE, "")));
     }
 
-    private Observable<Void> handleRequestSubscription(DuplexConnection ws, Message message, final ConcurrentHashMap<Integer, CancellationToken> cancellationObservables, ConcurrentHashMap<Integer, RequestOperator<?>> inflight) {
-        return handleStream(ws, message,
+    private Observable<Void> handleRequestSubscription(DuplexConnection ws, Frame frame, final ConcurrentHashMap<Integer, CancellationToken> cancellationObservables, ConcurrentHashMap<Integer, RequestOperator<?>> inflight) {
+        return handleStream(ws, frame,
                 requestHandler::handleRequestSubscription,
                 cancellationObservables, inflight,
                 // we emit an error if the subscription completes as it is expected to be infinite
-                () -> just(Message.from(message.getStreamId(), MessageType.ERROR, "Subscription terminated unexpectedly")));
+                () -> just(Frame.from(frame.getStreamId(), FrameType.ERROR, "Subscription terminated unexpectedly")));
     }
 
     /**
      * Common behavior between requestStream and requestSubscription
      * 
      * @param ws
-     * @param message
+     * @param frame
      * @param cancellationObservables
      * @param inflight
      * @param onCompletedHandler
@@ -136,13 +136,13 @@ public class ReactiveSocketServerProtocol {
      */
     private Observable<Void> handleStream(
             DuplexConnection ws,
-            Message message,
+            Frame frame,
             Func1<String, Publisher<String>> messageHandler,
             final ConcurrentHashMap<Integer, CancellationToken> cancellationObservables,
             ConcurrentHashMap<Integer, RequestOperator<?>> inflight,
-            Func0<? extends Observable<Message>> onCompletedHandler) {
+            Func0<? extends Observable<Frame>> onCompletedHandler) {
 
-        int streamId = message.getStreamId();
+        int streamId = frame.getStreamId();
         CancellationToken cancellationToken = CancellationToken.create();
         cancellationObservables.put(streamId, cancellationToken);
 
@@ -150,11 +150,11 @@ public class ReactiveSocketServerProtocol {
         inflight.put(streamId, requestor);
 
         return toObservable(ws.write(toPublisher(
-                toObservable(messageHandler.call(message.getMessage()))
+                toObservable(messageHandler.call(frame.getMessage()))
                         // TODO pulling out requestN/backpressure for now as it's not working
                         //                                                .lift(requestor)
-                        .flatMap(s -> just(Message.from(streamId, MessageType.NEXT, s)),
-                                err -> just(Message.from(streamId, MessageType.ERROR, err.getMessage())),
+                        .flatMap(s -> just(Frame.from(streamId, FrameType.NEXT, s)),
+                                err -> just(Frame.from(streamId, FrameType.ERROR, err.getMessage())),
                                 onCompletedHandler)
                         .takeUntil(cancellationToken)
                         .finallyDo(() -> {
@@ -167,11 +167,11 @@ public class ReactiveSocketServerProtocol {
      * Fire-and-Forget so we invoke the handler and return nothing, not even errors.
      * 
      * @param ws
-     * @param requestMessage
+     * @param requestFrame
      * @return
      */
-    private Observable<Void> handleFireAndForget(Message requestMessage) {
-        return toObservable(requestHandler.handleFireAndForget(requestMessage.getMessage()))
+    private Observable<Void> handleFireAndForget(Frame requestFrame) {
+        return toObservable(requestHandler.handleFireAndForget(requestFrame.getMessage()))
                 .onErrorResumeNext(error -> {
                     // swallow errors for fireAndForget ... no responses to client
                     // TODO add some kind of logging here
@@ -180,8 +180,8 @@ public class ReactiveSocketServerProtocol {
                 });
     }
 
-    private Observable<? extends Void> handleCancellationRequest(final ConcurrentHashMap<Integer, CancellationToken> cancellationObservables, Message message) {
-        CancellationToken cancellationToken = cancellationObservables.get(message.getStreamId());
+    private Observable<? extends Void> handleCancellationRequest(final ConcurrentHashMap<Integer, CancellationToken> cancellationObservables, Frame frame) {
+        CancellationToken cancellationToken = cancellationObservables.get(frame.getStreamId());
         if (cancellationToken != null) {
             cancellationToken.cancel();
         }
@@ -189,15 +189,15 @@ public class ReactiveSocketServerProtocol {
     }
 
     // TODO this needs further thought ... very prototypish implementation right now
-    private Observable<? extends Void> handleRequestN(Message message, final ConcurrentHashMap<Integer, RequestOperator<?>> inFlight) {
-        RequestOperator<?> requestor = inFlight.get(message.getStreamId());
+    private Observable<? extends Void> handleRequestN(Frame frame, final ConcurrentHashMap<Integer, RequestOperator<?>> inFlight) {
+        RequestOperator<?> requestor = inFlight.get(frame.getStreamId());
         // TODO commented out as this isn't working yet
         //        System.out.println("*** requestN " + requestor);
         //        if (requestor == null || requestor.s == null) {
         //            // TODO need to figure out this race condition
         //            return error(new Exception("Not Yet Handled"));
         //        }
-        //        requestor.s.requestMore(Long.parseLong(message.getMessage()));
+        //        requestor.s.requestMore(Long.parseLong(frame.getMessage()));
         return empty();
     }
 

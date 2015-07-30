@@ -18,22 +18,22 @@ package io.reactivesocket;
 import java.nio.ByteBuffer;
 
 /**
- * Represents a Message sent over a {@link DuplexConnection}.
+ * Represents a Frame sent over a {@link DuplexConnection}.
  * <p>
  * This provides encoding, decoding and field accessors.
  */
-public class Message {
-
+public class Frame
+{
     // TODO: make thread local to demonstrate idea
-    private static final ThreadLocal<FrameHandler> FRAME_HANDLER = ThreadLocal.withInitial(FrameHandler::new);
+    private static final ThreadLocal<FrameFlyweight> FRAME_HANDLER = ThreadLocal.withInitial(FrameFlyweight::new);
 
-    private Message() {
+    private Frame() {
     }
 
     // not final so we can reuse this object
     private ByteBuffer b;
     private int streamId;
-    private MessageType type;
+    private FrameType type;
     private String message;
 
     public ByteBuffer getBytes() {
@@ -54,7 +54,7 @@ public class Message {
         return streamId;
     }
 
-    public MessageType getMessageType() {
+    public FrameType getMessageType() {
         if (type == null) {
             decode();
         }
@@ -79,8 +79,8 @@ public class Message {
      * @param b
      * @return
      */
-    public static Message from(ByteBuffer b) {
-        Message f = new Message();
+    public static Frame from(ByteBuffer b) {
+        Frame f = new Frame();
         f.b = b;
         return f;
     }
@@ -92,7 +92,7 @@ public class Message {
      * @param type
      * @param message
      */
-    public void wrap(int streamId, MessageType type, String message) {
+    public void wrap(int streamId, FrameType type, String message) {
         this.streamId = streamId;
         this.type = type;
         this.message = message;
@@ -107,8 +107,8 @@ public class Message {
      * @param message
      * @return
      */
-    public static Message from(int streamId, MessageType type, String message) {
-        Message f = new Message();
+    public static Frame from(int streamId, FrameType type, String message) {
+        Frame f = new Frame();
         f.b = getBytes(streamId, type, message);
         f.streamId = streamId;
         f.type = type;
@@ -116,51 +116,26 @@ public class Message {
         return f;
     }
 
-    private static ByteBuffer getBytes(int messageId, MessageType type, String message) {
-        // TODO replace with binary
-        /**
-         * This is NOT how we want it for real. Just representing the idea for discussion.
-         */
-//        String s = "[" + type.getMessageId() + "]" + getIdString(messageId) + message;
-        // TODO stop allocating ... use flywheels
-//        return ByteBuffer.wrap(s.getBytes());
-
-        final FrameHandler frameHandler = FRAME_HANDLER.get();
+    private static ByteBuffer getBytes(int messageId, FrameType type, String message) {
+        final FrameFlyweight frameFlyweight = FRAME_HANDLER.get();
 
         // TODO: allocation side effect of how this works currently with the rest of the machinery.
-        final ByteBuffer buffer = ByteBuffer.allocate(FrameHandler.frameLength(message.length()));
+        final ByteBuffer buffer = ByteBuffer.allocate(FrameFlyweight.frameLength(message.length()));
 
-        frameHandler.encode(buffer, messageId, type, message.getBytes());
+        frameFlyweight.encode(buffer, messageId, type, message.getBytes());
         return buffer;
     }
 
-    private static String getIdString(int id) {
-        return "[" + id + "]|";
-    }
-
     private void decode() {
-        // TODO replace with binary
-        /**
-         * This is NOT how we want it for real. Just representing the idea for discussion.
-         */
-//        byte[] copy = new byte[b.limit()];
-//        b.get(copy);
-//        String data = new String(copy);
-//        int separator = data.indexOf('|');
-//        String prefix = data.substring(0, separator);
-//        this.type = MessageType.from(Integer.parseInt(prefix.substring(1, data.indexOf(']'))));
-//        this.streamId = Integer.parseInt(prefix.substring(prefix.lastIndexOf("[") + 1, prefix.length() - 1));
-//        this.message = data.substring(separator + 1, data.length());
+        final FrameFlyweight frameFlyweight = FRAME_HANDLER.get();
 
-        final FrameHandler frameHandler = FRAME_HANDLER.get();
-
-        frameHandler.decode(b);
-        this.type = frameHandler.messageType();
-        this.streamId = (int)frameHandler.streamId();  // TODO: temp cast to only touch as little as possible
+        frameFlyweight.decode(b);
+        this.type = frameFlyweight.messageType();
+        this.streamId = (int) frameFlyweight.streamId();  // TODO: temp cast to only touch as little as possible
 
         // TODO: temp allocation to touch as little as possible
-        final byte[] data = new byte[frameHandler.dataLength()];
-        frameHandler.getDataBytes(data);
+        final byte[] data = new byte[frameFlyweight.dataLength()];
+        frameFlyweight.getDataBytes(data);
         this.message = new String(data);
     }
 
@@ -173,6 +148,6 @@ public class Message {
                 e.printStackTrace();
             }
         }
-        return "Message => ID: " + streamId + " Type: " + type + " Data: " + message;
+        return "Frame => ID: " + streamId + " Type: " + type + " Data: " + message;
     }
 }

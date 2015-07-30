@@ -34,24 +34,24 @@ public class ReactiveSocketClientProtocolTest {
     public void testRequestResponseSuccess() {
         TestConnection conn = establishConnection();
         ReactiveSocketClientProtocol p = ReactiveSocketClientProtocol.create(conn);
-        ReplaySubject<Message> requests = captureRequests(conn);
+        ReplaySubject<Frame> requests = captureRequests(conn);
 
         TestSubscriber<String> ts = TestSubscriber.create();
         toObservable(p.requestResponse("hello")).subscribe(ts);
 
         assertEquals(1, requests.getValues().length);
-        List<Message> requested = requests.take(1).toList().toBlocking().single();
+        List<Frame> requested = requests.take(1).toList().toBlocking().single();
 
-        Message one = requested.get(0);
+        Frame one = requested.get(0);
         assertEquals(1, one.getStreamId());// need to start at 1, not 0
         assertEquals("hello", one.getMessage());
-        assertEquals(MessageType.REQUEST_RESPONSE, one.getMessageType());
+        assertEquals(FrameType.REQUEST_RESPONSE, one.getMessageType());
 
         // now emit a response to ensure the Publisher receives and completes
-        conn.toInput.onNext(Message.from(1, MessageType.NEXT, "world"));
+        conn.toInput.onNext(Frame.from(1, FrameType.NEXT, "world"));
         ts.assertValue("world");
 
-        conn.toInput.onNext(Message.from(1, MessageType.COMPLETE, ""));
+        conn.toInput.onNext(Frame.from(1, FrameType.COMPLETE, ""));
         ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
         ts.assertCompleted();
     }
@@ -60,24 +60,24 @@ public class ReactiveSocketClientProtocolTest {
     public void testRequestResponseError() {
         TestConnection conn = establishConnection();
         ReactiveSocketClientProtocol p = ReactiveSocketClientProtocol.create(conn);
-        ReplaySubject<Message> requests = captureRequests(conn);
+        ReplaySubject<Frame> requests = captureRequests(conn);
 
         TestSubscriber<String> ts = TestSubscriber.create();
         toObservable(p.requestResponse("hello")).subscribe(ts);
 
         assertEquals(1, requests.getValues().length);
-        List<Message> requested = requests.take(1).toList().toBlocking().single();
+        List<Frame> requested = requests.take(1).toList().toBlocking().single();
 
-        Message one = requested.get(0);
+        Frame one = requested.get(0);
         assertEquals(1, one.getStreamId());// need to start at 1, not 0
         assertEquals("hello", one.getMessage());
-        assertEquals(MessageType.REQUEST_RESPONSE, one.getMessageType());
+        assertEquals(FrameType.REQUEST_RESPONSE, one.getMessageType());
 
         // now emit a response to ensure the Publisher receives and completes
-        conn.toInput.onNext(Message.from(1, MessageType.NEXT, "world"));
+        conn.toInput.onNext(Frame.from(1, FrameType.NEXT, "world"));
         ts.assertValue("world");
 
-        conn.toInput.onNext(Message.from(1, MessageType.ERROR, "Failed"));
+        conn.toInput.onNext(Frame.from(1, FrameType.ERROR, "Failed"));
         ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
         ts.assertError(Exception.class);
         assertEquals("Failed", ts.getOnErrorEvents().get(0).getMessage());
@@ -87,24 +87,24 @@ public class ReactiveSocketClientProtocolTest {
     public void testRequestResponseCancel() {
         TestConnection conn = establishConnection();
         ReactiveSocketClientProtocol p = ReactiveSocketClientProtocol.create(conn);
-        ReplaySubject<Message> requests = captureRequests(conn);
+        ReplaySubject<Frame> requests = captureRequests(conn);
 
         TestSubscriber<String> ts = TestSubscriber.create();
         Subscription s = toObservable(p.requestResponse("hello")).subscribe(ts);
         s.unsubscribe();
 
         assertEquals(2, requests.getValues().length);
-        List<Message> requested = requests.take(2).toList().toBlocking().single();
+        List<Frame> requested = requests.take(2).toList().toBlocking().single();
 
-        Message one = requested.get(0);
+        Frame one = requested.get(0);
         assertEquals(1, one.getStreamId());// need to start at 1, not 0
         assertEquals("hello", one.getMessage());
-        assertEquals(MessageType.REQUEST_RESPONSE, one.getMessageType());
+        assertEquals(FrameType.REQUEST_RESPONSE, one.getMessageType());
 
-        Message two = requested.get(1);
+        Frame two = requested.get(1);
         assertEquals(1, two.getStreamId());// still the same stream
         assertEquals("", two.getMessage());
-        assertEquals(MessageType.CANCEL, two.getMessageType());
+        assertEquals(FrameType.CANCEL, two.getMessageType());
 
         ts.assertNoTerminalEvent();
         ts.assertUnsubscribed();
@@ -115,28 +115,28 @@ public class ReactiveSocketClientProtocolTest {
     public void testRequestStreamSuccess() {
         TestConnection conn = establishConnection();
         ReactiveSocketClientProtocol p = ReactiveSocketClientProtocol.create(conn);
-        ReplaySubject<Message> requests = captureRequests(conn);
+        ReplaySubject<Frame> requests = captureRequests(conn);
 
         TestSubscriber<String> ts = TestSubscriber.create();
         toObservable(p.requestStream("hello")).subscribe(ts);
 
         assertEquals(2, requests.getValues().length);
-        List<Message> requested = requests.take(2).toList().toBlocking().single();
+        List<Frame> requested = requests.take(2).toList().toBlocking().single();
 
-        Message one = requested.get(0);
+        Frame one = requested.get(0);
         assertEquals(1, one.getStreamId());// need to start at 1, not 0
         assertEquals("hello", one.getMessage());
-        assertEquals(MessageType.REQUEST_STREAM, one.getMessageType());
+        assertEquals(FrameType.REQUEST_STREAM, one.getMessageType());
 
-        Message two = requested.get(1);
+        Frame two = requested.get(1);
         assertEquals(1, two.getStreamId());// still the same stream
         assertEquals(String.valueOf(Long.MAX_VALUE), two.getMessage());// TODO we should alter the default to something like 1024 when MAX_VALUE is requested
-        assertEquals(MessageType.REQUEST_N, two.getMessageType());
+        assertEquals(FrameType.REQUEST_N, two.getMessageType());
 
         // emit data
-        conn.toInput.onNext(Message.from(1, MessageType.NEXT, "hello"));
-        conn.toInput.onNext(Message.from(1, MessageType.NEXT, "world"));
-        conn.toInput.onNext(Message.from(1, MessageType.COMPLETE, ""));
+        conn.toInput.onNext(Frame.from(1, FrameType.NEXT, "hello"));
+        conn.toInput.onNext(Frame.from(1, FrameType.NEXT, "world"));
+        conn.toInput.onNext(Frame.from(1, FrameType.COMPLETE, ""));
 
         ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
         ts.assertCompleted();
@@ -147,67 +147,67 @@ public class ReactiveSocketClientProtocolTest {
     public void testRequestStreamSuccessTake2AndCancel() {
         TestConnection conn = establishConnection();
         ReactiveSocketClientProtocol p = ReactiveSocketClientProtocol.create(conn);
-        ReplaySubject<Message> requests = captureRequests(conn);
+        ReplaySubject<Frame> requests = captureRequests(conn);
 
         TestSubscriber<String> ts = TestSubscriber.create();
         toObservable(p.requestStream("hello")).take(2).subscribe(ts);
 
         assertEquals(2, requests.getValues().length);
-        List<Message> requested = requests.take(2).toList().toBlocking().single();
+        List<Frame> requested = requests.take(2).toList().toBlocking().single();
 
-        Message one = requested.get(0);
+        Frame one = requested.get(0);
         assertEquals(1, one.getStreamId());// need to start at 1, not 0
         assertEquals("hello", one.getMessage());
-        assertEquals(MessageType.REQUEST_STREAM, one.getMessageType());
+        assertEquals(FrameType.REQUEST_STREAM, one.getMessageType());
 
-        Message two = requested.get(1);
+        Frame two = requested.get(1);
         assertEquals(1, two.getStreamId());// still the same stream
         assertEquals(String.valueOf(2), two.getMessage());
-        assertEquals(MessageType.REQUEST_N, two.getMessageType());
+        assertEquals(FrameType.REQUEST_N, two.getMessageType());
 
         // emit data
-        conn.toInput.onNext(Message.from(1, MessageType.NEXT, "hello"));
-        conn.toInput.onNext(Message.from(1, MessageType.NEXT, "world"));
+        conn.toInput.onNext(Frame.from(1, FrameType.NEXT, "hello"));
+        conn.toInput.onNext(Frame.from(1, FrameType.NEXT, "world"));
 
         ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
         ts.assertCompleted();
         ts.assertReceivedOnNext(Arrays.asList("hello", "world"));
 
         assertEquals(3, requests.getValues().length);
-        List<Message> requested2 = requests.take(3).toList().toBlocking().single();
+        List<Frame> requested2 = requests.take(3).toList().toBlocking().single();
 
         // we should have sent a CANCEL
-        Message three = requested2.get(2);
+        Frame three = requested2.get(2);
         assertEquals(1, three.getStreamId());// still the same stream
         assertEquals("", three.getMessage());
-        assertEquals(MessageType.CANCEL, three.getMessageType());
+        assertEquals(FrameType.CANCEL, three.getMessageType());
     }
 
     @Test
     public void testRequestStreamError() {
         TestConnection conn = establishConnection();
         ReactiveSocketClientProtocol p = ReactiveSocketClientProtocol.create(conn);
-        ReplaySubject<Message> requests = captureRequests(conn);
+        ReplaySubject<Frame> requests = captureRequests(conn);
 
         TestSubscriber<String> ts = TestSubscriber.create();
         toObservable(p.requestStream("hello")).subscribe(ts);
 
         assertEquals(2, requests.getValues().length);
-        List<Message> requested = requests.take(2).toList().toBlocking().single();
+        List<Frame> requested = requests.take(2).toList().toBlocking().single();
 
-        Message one = requested.get(0);
+        Frame one = requested.get(0);
         assertEquals(1, one.getStreamId());// need to start at 1, not 0
         assertEquals("hello", one.getMessage());
-        assertEquals(MessageType.REQUEST_STREAM, one.getMessageType());
+        assertEquals(FrameType.REQUEST_STREAM, one.getMessageType());
 
-        Message two = requested.get(1);
+        Frame two = requested.get(1);
         assertEquals(1, two.getStreamId());// still the same stream
         assertEquals(String.valueOf(Long.MAX_VALUE), two.getMessage());// TODO we should alter the default to something like 1024 when MAX_VALUE is requested
-        assertEquals(MessageType.REQUEST_N, two.getMessageType());
+        assertEquals(FrameType.REQUEST_N, two.getMessageType());
 
         // emit data
-        conn.toInput.onNext(Message.from(1, MessageType.NEXT, "hello"));
-        conn.toInput.onNext(Message.from(1, MessageType.ERROR, "Failure"));
+        conn.toInput.onNext(Frame.from(1, FrameType.NEXT, "hello"));
+        conn.toInput.onNext(Frame.from(1, FrameType.ERROR, "Failure"));
 
         ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
         ts.assertError(Exception.class);
@@ -227,8 +227,8 @@ public class ReactiveSocketClientProtocolTest {
         return conn;
     }
 
-    private ReplaySubject<Message> captureRequests(TestConnection conn) {
-        ReplaySubject<Message> rs = ReplaySubject.create();
+    private ReplaySubject<Frame> captureRequests(TestConnection conn) {
+        ReplaySubject<Frame> rs = ReplaySubject.create();
         rs.forEach(i -> System.out.println("capturedRequest => " + i));
         conn.writes.subscribe(rs);
         return rs;

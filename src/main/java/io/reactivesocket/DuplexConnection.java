@@ -23,8 +23,8 @@ import org.reactivestreams.Publisher;
 public interface DuplexConnection {
     // TODO should we call this 'Connection'? 'SocketConnection'? 'ReactiveSocketConnection'?
 
-	Publisher<Message> getInput();
+	Publisher<Frame> getInput();
 
-	Publisher<Void> write(Publisher<Message> o);
+	Publisher<Void> write(Publisher<Frame> o);
 	
 }

@@ -18,28 +18,27 @@ package io.reactivesocket;
 import static rx.RxReactiveStreams.*;
 
 import org.reactivestreams.Publisher;
-import org.reactivestreams.Subscriber;
 
 import rx.Observable;
 import rx.subjects.PublishSubject;
 
 class TestConnection implements DuplexConnection {
 
-    final PublishSubject<Message> toInput = PublishSubject.create();
-    private PublishSubject<Message> writeSubject = PublishSubject.create();
-    final Observable<Message> writes = writeSubject;
+    final PublishSubject<Frame> toInput = PublishSubject.create();
+    private PublishSubject<Frame> writeSubject = PublishSubject.create();
+    final Observable<Frame> writes = writeSubject;
 
     @Override
-    public Publisher<Void> write(Publisher<Message> o) {
+    public Publisher<Void> write(Publisher<Frame> o) {
         return toPublisher(toObservable(o).flatMap(m -> {
             // no backpressure on a Subject so just firehosing for this test
             writeSubject.onNext(m);
-            return Observable.<Void> empty();
+            return Observable.<Void>empty();
         }));
     }
 
     @Override
-    public Publisher<Message> getInput() {
+    public Publisher<Frame> getInput() {
         return toPublisher(toInput);
     }
 }

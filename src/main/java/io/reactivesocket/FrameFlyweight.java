@@ -26,7 +26,7 @@ import java.nio.ByteOrder;
  * Per connection frame handling.
  * Holds codecs and DirectBuffers for wrapping
  */
-public class FrameHandler
+public class FrameFlyweight
 {
     /**
      * Not the real frame layout, just an iteration on the ASCII version
@@ -46,7 +46,7 @@ public class FrameHandler
 
     // set by decode
     private long streamId;
-    private MessageType messageType;
+    private FrameType frameType;
     private byte version;
     private int dataLength;
 
@@ -55,7 +55,7 @@ public class FrameHandler
         return DATA_OFFSET + dataLength;
     }
 
-    public void encode(final ByteBuffer byteBuffer, final long streamId, final MessageType type, final byte[] data)
+    public void encode(final ByteBuffer byteBuffer, final long streamId, final FrameType type, final byte[] data)
     {
         frameBuffer.wrap(byteBuffer);
         frameBuffer.putByte(VERSION_FIELD_OFFSET, CURRENT_VERSION);
@@ -74,7 +74,7 @@ public class FrameHandler
 
         version = frameBuffer.getByte(VERSION_FIELD_OFFSET);
         streamId = frameBuffer.getLong(STREAM_ID_FIELD_OFFSET, ByteOrder.BIG_ENDIAN);
-        messageType = MessageType.from(frameBuffer.getInt(TYPE_FIELD_OFFSET, ByteOrder.BIG_ENDIAN));
+        frameType = FrameType.from(frameBuffer.getInt(TYPE_FIELD_OFFSET, ByteOrder.BIG_ENDIAN));
         dataLength = frameBuffer.getInt(DATA_LENGTH_OFFSET, ByteOrder.BIG_ENDIAN);
     }
 
@@ -88,9 +88,9 @@ public class FrameHandler
         return version;
     }
 
-    public MessageType messageType()
+    public FrameType messageType()
     {
-        return messageType;
+        return frameType;
     }
 
     public long streamId()
