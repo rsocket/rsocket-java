@@ -40,6 +40,7 @@ public class Frame
 
     private long streamId;
     private int version;
+    private int flags;
     private int messageLength = 0;
 
     public ByteBuffer getByteBuffer() {
@@ -76,12 +77,21 @@ public class Frame
         return version;
     }
 
+    public int getFlags()
+    {
+        if (frameType == null)
+        {
+            decode();
+        }
+        return flags;
+    }
+
     /**
      * Mutates this Frame to contain the given ByteBuffer
      * 
      * @param b
      */
-    public void wrap(ByteBuffer b) {
+    public void wrap(final ByteBuffer b) {
         this.streamId = -1;
         this.frameType = null;
         this.byteBuffer = b;
@@ -93,7 +103,7 @@ public class Frame
      * @param b
      * @return
      */
-    public static Frame from(ByteBuffer b) {
+    public static Frame from(final ByteBuffer b) {
         Frame f = new Frame();
         f.byteBuffer = b;
         return f;
@@ -106,7 +116,7 @@ public class Frame
      * @param type
      * @param message
      */
-    public void wrap(long streamId, FrameType type, String message) {
+    public void wrap(final long streamId, final FrameType type, final String message) {
         this.streamId = streamId;
         this.frameType = type;
 
@@ -119,11 +129,12 @@ public class Frame
         this.byteBuffer = createByteBufferAndEncode(streamId, type, messageBytes);
     }
 
-    public void setFromDecode(final int version, final long streamId, final FrameType type)
+    public void setFromDecode(final int version, final long streamId, final FrameType type, final int flags)
     {
         this.version = version;
         this.streamId = streamId;
         this.frameType = type;
+        this.flags = flags;
     }
 
     public void setFromDecode(final DirectBuffer buffer, final int offset, final int messageLength)
@@ -160,7 +171,7 @@ public class Frame
         final FrameFlyweight frameFlyweight = FRAME_HANDLER.get();
 
         // TODO: allocation side effect of how this works currently with the rest of the machinery.
-        final ByteBuffer buffer = ByteBuffer.allocate(FrameFlyweight.frameLength(message.length));
+        final ByteBuffer buffer = ByteBuffer.allocate(FrameFlyweight.computeFrameLength(message.length));
 
         frameFlyweight.encode(buffer, streamId, type, message);
         return buffer;
@@ -169,7 +180,7 @@ public class Frame
     private void decode() {
         final FrameFlyweight frameFlyweight = FRAME_HANDLER.get();
 
-        frameFlyweight.decode(this, byteBuffer);
+        frameFlyweight.decode(this, byteBuffer, 0);
     }
 
     private void ensureMessageArrayCapacity(final int length)

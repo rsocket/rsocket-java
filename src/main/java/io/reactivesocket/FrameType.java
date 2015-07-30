@@ -29,10 +29,12 @@ public enum FrameType
      REQUEST_N(0x15),
      CANCEL(0x16),
      // Messages from Responder
+     RESPONSE(0x20),
+     ERROR(0x21),
+     // synthetic types from Responder for use by the rest of the machinery
      NEXT(0x22),
-     COMPLETE(0x23),
-     ERROR(0x24);
-    
+     COMPLETE(0x23);
+
     private static FrameType[] typesById;
 
     /**
@@ -40,12 +42,13 @@ public enum FrameType
      */
     static {
         int max = 0;
+
         for (FrameType t : values()) {
-            if (t.id > max) {
-                max = t.id;
-            }
+            max = Math.max(t.id, max);
         }
+
         typesById = new FrameType[max + 1];
+
         for (FrameType t : values()) {
             typesById[t.id] = t;
         }
@@ -57,7 +60,7 @@ public enum FrameType
         this.id = id;
     }
     
-    public int getMessageId() {
+    public int getEncodedType() {
         return id;
     }
 
