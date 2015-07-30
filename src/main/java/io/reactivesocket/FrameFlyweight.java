@@ -44,12 +44,6 @@ public class FrameFlyweight
     // single threaded assumed
     private final MutableDirectBuffer frameBuffer = new UnsafeBuffer(EMPTY_BUFFER);
 
-    // set by decode
-    private long streamId;
-    private FrameType frameType;
-    private byte version;
-    private int dataLength;
-
     public static int frameLength(final int dataLength)
     {
         return DATA_OFFSET + dataLength;
@@ -65,47 +59,17 @@ public class FrameFlyweight
         frameBuffer.putBytes(DATA_OFFSET, data);
     }
 
-    /**
-     * populate streamId, type, dataLength, etc.
-     */
-    public void decode(final ByteBuffer byteBuffer)
+    public void decode(Frame frame, final ByteBuffer byteBuffer)
     {
         frameBuffer.wrap(byteBuffer);
 
-        version = frameBuffer.getByte(VERSION_FIELD_OFFSET);
-        streamId = frameBuffer.getLong(STREAM_ID_FIELD_OFFSET, ByteOrder.BIG_ENDIAN);
-        frameType = FrameType.from(frameBuffer.getInt(TYPE_FIELD_OFFSET, ByteOrder.BIG_ENDIAN));
-        dataLength = frameBuffer.getInt(DATA_LENGTH_OFFSET, ByteOrder.BIG_ENDIAN);
-    }
+        final int version = frameBuffer.getByte(VERSION_FIELD_OFFSET);
+        final long streamId = frameBuffer.getLong(STREAM_ID_FIELD_OFFSET, ByteOrder.BIG_ENDIAN);
+        final FrameType frameType = FrameType.from(frameBuffer.getInt(TYPE_FIELD_OFFSET, ByteOrder.BIG_ENDIAN));
+        final int dataLength = frameBuffer.getInt(DATA_LENGTH_OFFSET, ByteOrder.BIG_ENDIAN);
 
-    public ByteBuffer buffer()
-    {
-        return frameBuffer.byteBuffer();
+        // fill in Frame fields
+        frame.setFromDecode(version, streamId, frameType);
+        frame.setFromDecode(frameBuffer, DATA_OFFSET, dataLength);
     }
-
-    public byte version()
-    {
-        return version;
-    }
-
-    public FrameType messageType()
-    {
-        return frameType;
-    }
-
-    public long streamId()
-    {
-        return streamId;
-    }
-
-    public int dataLength()
-    {
-        return dataLength;
-    }
-
-    public void getDataBytes(final byte[] array)
-    {
-        frameBuffer.getBytes(DATA_OFFSET, array);
-    }
-
 }

@@ -15,6 +15,8 @@
  */
 package io.reactivesocket;
 
+import uk.co.real_logic.agrona.DirectBuffer;
+
 import java.nio.ByteBuffer;
 
 /**
@@ -24,6 +26,7 @@ import java.nio.ByteBuffer;
  */
 public class Frame
 {
+    private static final int INITIAL_MESSAGE_ARRAY_SIZE = 256;
     // TODO: make thread local to demonstrate idea
     private static final ThreadLocal<FrameFlyweight> FRAME_HANDLER = ThreadLocal.withInitial(FrameFlyweight::new);
 
@@ -31,34 +34,46 @@ public class Frame
     }
 
     // not final so we can reuse this object
-    private ByteBuffer b;
-    private int streamId;
-    private FrameType type;
-    private String message;
+    private ByteBuffer byteBuffer;
+    private byte[] messageArray = new byte[INITIAL_MESSAGE_ARRAY_SIZE];
+    private FrameType frameType;
 
-    public ByteBuffer getBytes() {
-        return b;
+    private long streamId;
+    private int version;
+    private int messageLength = 0;
+
+    public ByteBuffer getByteBuffer() {
+        return byteBuffer;
     }
 
     public String getMessage() {
-        if (type == null) {
+        if (frameType == null) {
             decode();
         }
-        return message;
+        return new String(messageArray, 0, messageLength);
     }
 
-    public int getStreamId() {
-        if (type == null) {
+    public long getStreamId() {
+        if (frameType == null) {
             decode();
         }
         return streamId;
     }
 
     public FrameType getMessageType() {
-        if (type == null) {
+        if (frameType == null) {
             decode();
         }
-        return type;
+        return frameType;
+    }
+
+    public int getVersion()
+    {
+        if (frameType == null)
+        {
+            decode();
+        }
+        return version;
     }
 
     /**
@@ -68,9 +83,8 @@ public class Frame
      */
     public void wrap(ByteBuffer b) {
         this.streamId = -1;
-        this.type = null;
-        this.message = null;
-        this.b = b;
+        this.frameType = null;
+        this.byteBuffer = b;
     }
 
     /**
@@ -81,7 +95,7 @@ public class Frame
      */
     public static Frame from(ByteBuffer b) {
         Frame f = new Frame();
-        f.b = b;
+        f.byteBuffer = b;
         return f;
     }
 
@@ -92,11 +106,31 @@ public class Frame
      * @param type
      * @param message
      */
-    public void wrap(int streamId, FrameType type, String message) {
+    public void wrap(long streamId, FrameType type, String message) {
         this.streamId = streamId;
-        this.type = type;
-        this.message = message;
-        this.b = getBytes(streamId, type, message);
+        this.frameType = type;
+
+        final byte[] messageBytes = message.getBytes();
+        ensureMessageArrayCapacity(messageBytes.length);
+
+        System.arraycopy(messageBytes, 0, this.messageArray, 0, messageBytes.length);
+        this.messageLength = messageBytes.length;
+
+        this.byteBuffer = createByteBufferAndEncode(streamId, type, messageBytes);
+    }
+
+    public void setFromDecode(final int version, final long streamId, final FrameType type)
+    {
+        this.version = version;
+        this.streamId = streamId;
+        this.frameType = type;
+    }
+
+    public void setFromDecode(final DirectBuffer buffer, final int offset, final int messageLength)
+    {
+        ensureMessageArrayCapacity(messageLength);
+        this.messageLength = messageLength;
+        buffer.getBytes(offset, this.messageArray, 0, messageLength);
     }
 
     /**
@@ -107,47 +141,54 @@ public class Frame
      * @param message
      * @return
      */
-    public static Frame from(int streamId, FrameType type, String message) {
+    public static Frame from(long streamId, FrameType type, String message) {
         Frame f = new Frame();
-        f.b = getBytes(streamId, type, message);
         f.streamId = streamId;
-        f.type = type;
-        f.message = message;
+        f.frameType = type;
+
+        final byte[] messageBytes = message.getBytes();
+        f.ensureMessageArrayCapacity(messageBytes.length);
+
+        f.byteBuffer = createByteBufferAndEncode(streamId, type, messageBytes);
+
+        System.arraycopy(messageBytes, 0, f.messageArray, 0, messageBytes.length);
+        f.messageLength = messageBytes.length;
         return f;
     }
 
-    private static ByteBuffer getBytes(int messageId, FrameType type, String message) {
+    private static ByteBuffer createByteBufferAndEncode(long streamId, FrameType type, final byte[] message) {
         final FrameFlyweight frameFlyweight = FRAME_HANDLER.get();
 
         // TODO: allocation side effect of how this works currently with the rest of the machinery.
-        final ByteBuffer buffer = ByteBuffer.allocate(FrameFlyweight.frameLength(message.length()));
+        final ByteBuffer buffer = ByteBuffer.allocate(FrameFlyweight.frameLength(message.length));
 
-        frameFlyweight.encode(buffer, messageId, type, message.getBytes());
+        frameFlyweight.encode(buffer, streamId, type, message);
         return buffer;
     }
 
     private void decode() {
         final FrameFlyweight frameFlyweight = FRAME_HANDLER.get();
 
-        frameFlyweight.decode(b);
-        this.type = frameFlyweight.messageType();
-        this.streamId = (int) frameFlyweight.streamId();  // TODO: temp cast to only touch as little as possible
+        frameFlyweight.decode(this, byteBuffer);
+    }
 
-        // TODO: temp allocation to touch as little as possible
-        final byte[] data = new byte[frameFlyweight.dataLength()];
-        frameFlyweight.getDataBytes(data);
-        this.message = new String(data);
+    private void ensureMessageArrayCapacity(final int length)
+    {
+        if (messageArray.length < length)
+        {
+            messageArray = new byte[length];
+        }
     }
 
     @Override
     public String toString() {
-        if (type == null) {
+        if (frameType == null) {
             try {
                 decode();
             } catch (Exception e) {
                 e.printStackTrace();
             }
         }
-        return "Frame => ID: " + streamId + " Type: " + type + " Data: " + message;
+        return "Frame => ID: " + streamId + " Type: " + frameType + " Data: " + getMessage();
     }
 }

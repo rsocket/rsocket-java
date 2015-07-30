@@ -55,9 +55,9 @@ public class ReactiveSocketServerProtocol {
         // TODO consider alternate to PublishSubject that assumes a single subscriber and is lighter
 
         /* state of cancellation subjects during connection */
-        final ConcurrentHashMap<Integer, CancellationToken> cancellationObservables = new ConcurrentHashMap<>();
+        final ConcurrentHashMap<Long, CancellationToken> cancellationObservables = new ConcurrentHashMap<>();
         /* streams in flight that can receive REQUEST_N messages */
-        final ConcurrentHashMap<Integer, RequestOperator<?>> inFlight = new ConcurrentHashMap<>();
+        final ConcurrentHashMap<Long, RequestOperator<?>> inFlight = new ConcurrentHashMap<>();
         
         return toPublisher(toObservable(ws.getInput()).flatMap(message -> {
             if (message.getMessageType() == FrameType.REQUEST_RESPONSE) {
@@ -90,8 +90,8 @@ public class ReactiveSocketServerProtocol {
      * TODO explore if there is a better way of doing this while only exposing Publisher APIs
      */
 
-    private Observable<Void> handleRequestResponse(DuplexConnection ws, Frame requestFrame, final ConcurrentHashMap<Integer, CancellationToken> cancellationObservables) {
-        int streamId = requestFrame.getStreamId();
+    private Observable<Void> handleRequestResponse(DuplexConnection ws, Frame requestFrame, final ConcurrentHashMap<Long, CancellationToken> cancellationObservables) {
+        long streamId = requestFrame.getStreamId();
         CancellationToken cancellationToken = CancellationToken.create();
         cancellationObservables.put(requestFrame.getStreamId(), cancellationToken);
 
@@ -109,14 +109,24 @@ public class ReactiveSocketServerProtocol {
                         .finallyDo(() -> cancellationObservables.remove(streamId)))));
     }
 
-    private Observable<Void> handleRequestStream(DuplexConnection ws, Frame frame, final ConcurrentHashMap<Integer, CancellationToken> cancellationObservables, ConcurrentHashMap<Integer, RequestOperator<?>> inflight) {
+    private Observable<Void> handleRequestStream(
+        DuplexConnection ws,
+        Frame frame,
+        final ConcurrentHashMap<Long, CancellationToken> cancellationObservables,
+        ConcurrentHashMap<Long, RequestOperator<?>> inflight)
+    {
         return handleStream(ws, frame,
                 requestHandler::handleRequestStream,
                 cancellationObservables, inflight,
                 () -> just(Frame.from(frame.getStreamId(), FrameType.COMPLETE, "")));
     }
 
-    private Observable<Void> handleRequestSubscription(DuplexConnection ws, Frame frame, final ConcurrentHashMap<Integer, CancellationToken> cancellationObservables, ConcurrentHashMap<Integer, RequestOperator<?>> inflight) {
+    private Observable<Void> handleRequestSubscription(
+        DuplexConnection ws,
+        Frame frame,
+        final ConcurrentHashMap<Long, CancellationToken> cancellationObservables,
+        ConcurrentHashMap<Long, RequestOperator<?>> inflight)
+    {
         return handleStream(ws, frame,
                 requestHandler::handleRequestSubscription,
                 cancellationObservables, inflight,
@@ -138,11 +148,11 @@ public class ReactiveSocketServerProtocol {
             DuplexConnection ws,
             Frame frame,
             Func1<String, Publisher<String>> messageHandler,
-            final ConcurrentHashMap<Integer, CancellationToken> cancellationObservables,
-            ConcurrentHashMap<Integer, RequestOperator<?>> inflight,
-            Func0<? extends Observable<Frame>> onCompletedHandler) {
-
-        int streamId = frame.getStreamId();
+            final ConcurrentHashMap<Long, CancellationToken> cancellationObservables,
+            ConcurrentHashMap<Long, RequestOperator<?>> inflight,
+            Func0<? extends Observable<Frame>> onCompletedHandler)
+    {
+        long streamId = frame.getStreamId();
         CancellationToken cancellationToken = CancellationToken.create();
         cancellationObservables.put(streamId, cancellationToken);
 
@@ -180,7 +190,7 @@ public class ReactiveSocketServerProtocol {
                 });
     }
 
-    private Observable<? extends Void> handleCancellationRequest(final ConcurrentHashMap<Integer, CancellationToken> cancellationObservables, Frame frame) {
+    private Observable<? extends Void> handleCancellationRequest(final ConcurrentHashMap<Long, CancellationToken> cancellationObservables, Frame frame) {
         CancellationToken cancellationToken = cancellationObservables.get(frame.getStreamId());
         if (cancellationToken != null) {
             cancellationToken.cancel();
@@ -189,7 +199,7 @@ public class ReactiveSocketServerProtocol {
     }
 
     // TODO this needs further thought ... very prototypish implementation right now
-    private Observable<? extends Void> handleRequestN(Frame frame, final ConcurrentHashMap<Integer, RequestOperator<?>> inFlight) {
+    private Observable<? extends Void> handleRequestN(Frame frame, final ConcurrentHashMap<Long, RequestOperator<?>> inFlight) {
         RequestOperator<?> requestor = inFlight.get(frame.getStreamId());
         // TODO commented out as this isn't working yet
         //        System.out.println("*** requestN " + requestor);

@@ -24,41 +24,41 @@ import org.junit.Test;
 public class FrameTest
 {
 
-	@Test
-	public void testWriteThenRead() {
-		Frame f = Frame.from(1, FrameType.REQUEST_RESPONSE, "hello");
-		assertEquals("hello", f.getMessage());
-		assertEquals(FrameType.REQUEST_RESPONSE, f.getMessageType());
-		assertEquals(1, f.getStreamId());
+    @Test
+    public void testWriteThenRead() {
+        Frame f = Frame.from(1, FrameType.REQUEST_RESPONSE, "hello");
+        assertEquals("hello", f.getMessage());
+        assertEquals(FrameType.REQUEST_RESPONSE, f.getMessageType());
+        assertEquals(1, f.getStreamId());
 
-		ByteBuffer b = f.getBytes();
+        ByteBuffer b = f.getByteBuffer();
 
-		Frame f2 = Frame.from(b);
-		assertEquals("hello", f2.getMessage());
-		assertEquals(FrameType.REQUEST_RESPONSE, f2.getMessageType());
-		assertEquals(1, f2.getStreamId());
-	}
+        Frame f2 = Frame.from(b);
+        assertEquals("hello", f2.getMessage());
+        assertEquals(FrameType.REQUEST_RESPONSE, f2.getMessageType());
+        assertEquals(1, f2.getStreamId());
+    }
 
-	@Test
-	public void testWrapMessage() {
-		Frame f = Frame.from(1, FrameType.REQUEST_RESPONSE, "hello");
+    @Test
+    public void testWrapMessage() {
+        Frame f = Frame.from(1, FrameType.REQUEST_RESPONSE, "hello");
 
-		f.wrap(2, FrameType.COMPLETE, "done");
-		assertEquals("done", f.getMessage());
-		assertEquals(FrameType.COMPLETE, f.getMessageType());
-		assertEquals(2, f.getStreamId());
-	}
+        f.wrap(2, FrameType.COMPLETE, "done");
+        assertEquals("done", f.getMessage());
+        assertEquals(FrameType.COMPLETE, f.getMessageType());
+        assertEquals(2, f.getStreamId());
+    }
 
-	@Test
-	public void testWrapBytes() {
-		Frame f = Frame.from(1, FrameType.REQUEST_RESPONSE, "hello");
-		Frame f2 = Frame.from(20, FrameType.COMPLETE, "another");
+    @Test
+    public void testWrapBytes() {
+        Frame f = Frame.from(1, FrameType.REQUEST_RESPONSE, "hello");
+        Frame f2 = Frame.from(20, FrameType.COMPLETE, "another");
 
-		ByteBuffer b = f2.getBytes();
-		f.wrap(b);
+        ByteBuffer b = f2.getByteBuffer();
+        f.wrap(b);
 
-		assertEquals("another", f.getMessage());
-		assertEquals(FrameType.COMPLETE, f.getMessageType());
-		assertEquals(20, f.getStreamId());
-	}
+        assertEquals("another", f.getMessage());
+        assertEquals(FrameType.COMPLETE, f.getMessageType());
+        assertEquals(20, f.getStreamId());
+    }
 }
