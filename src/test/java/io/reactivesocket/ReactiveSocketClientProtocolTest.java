@@ -44,8 +44,8 @@ public class ReactiveSocketClientProtocolTest {
 
         Frame one = requested.get(0);
         assertEquals(1, one.getStreamId());// need to start at 1, not 0
-        assertEquals("hello", one.getMessage());
-        assertEquals(FrameType.REQUEST_RESPONSE, one.getMessageType());
+        assertEquals("hello", one.getData());
+        assertEquals(FrameType.REQUEST_RESPONSE, one.getType());
 
         // now emit a response to ensure the Publisher receives and completes
         conn.toInput.onNext(Frame.from(1, FrameType.NEXT, "world"));
@@ -70,8 +70,8 @@ public class ReactiveSocketClientProtocolTest {
 
         Frame one = requested.get(0);
         assertEquals(1, one.getStreamId());// need to start at 1, not 0
-        assertEquals("hello", one.getMessage());
-        assertEquals(FrameType.REQUEST_RESPONSE, one.getMessageType());
+        assertEquals("hello", one.getData());
+        assertEquals(FrameType.REQUEST_RESPONSE, one.getType());
 
         // now emit a response to ensure the Publisher receives and completes
         conn.toInput.onNext(Frame.from(1, FrameType.NEXT, "world"));
@@ -98,13 +98,13 @@ public class ReactiveSocketClientProtocolTest {
 
         Frame one = requested.get(0);
         assertEquals(1, one.getStreamId());// need to start at 1, not 0
-        assertEquals("hello", one.getMessage());
-        assertEquals(FrameType.REQUEST_RESPONSE, one.getMessageType());
+        assertEquals("hello", one.getData());
+        assertEquals(FrameType.REQUEST_RESPONSE, one.getType());
 
         Frame two = requested.get(1);
         assertEquals(1, two.getStreamId());// still the same stream
-        assertEquals("", two.getMessage());
-        assertEquals(FrameType.CANCEL, two.getMessageType());
+        assertEquals("", two.getData());
+        assertEquals(FrameType.CANCEL, two.getType());
 
         ts.assertNoTerminalEvent();
         ts.assertUnsubscribed();
@@ -125,13 +125,13 @@ public class ReactiveSocketClientProtocolTest {
 
         Frame one = requested.get(0);
         assertEquals(1, one.getStreamId());// need to start at 1, not 0
-        assertEquals("hello", one.getMessage());
-        assertEquals(FrameType.REQUEST_STREAM, one.getMessageType());
+        assertEquals("hello", one.getData());
+        assertEquals(FrameType.REQUEST_STREAM, one.getType());
 
         Frame two = requested.get(1);
         assertEquals(1, two.getStreamId());// still the same stream
-        assertEquals(String.valueOf(Long.MAX_VALUE), two.getMessage());// TODO we should alter the default to something like 1024 when MAX_VALUE is requested
-        assertEquals(FrameType.REQUEST_N, two.getMessageType());
+        assertEquals(String.valueOf(Long.MAX_VALUE), two.getData());// TODO we should alter the default to something like 1024 when MAX_VALUE is requested
+        assertEquals(FrameType.REQUEST_N, two.getType());
 
         // emit data
         conn.toInput.onNext(Frame.from(1, FrameType.NEXT, "hello"));
@@ -157,13 +157,13 @@ public class ReactiveSocketClientProtocolTest {
 
         Frame one = requested.get(0);
         assertEquals(1, one.getStreamId());// need to start at 1, not 0
-        assertEquals("hello", one.getMessage());
-        assertEquals(FrameType.REQUEST_STREAM, one.getMessageType());
+        assertEquals("hello", one.getData());
+        assertEquals(FrameType.REQUEST_STREAM, one.getType());
 
         Frame two = requested.get(1);
         assertEquals(1, two.getStreamId());// still the same stream
-        assertEquals(String.valueOf(2), two.getMessage());
-        assertEquals(FrameType.REQUEST_N, two.getMessageType());
+        assertEquals(String.valueOf(2), two.getData());
+        assertEquals(FrameType.REQUEST_N, two.getType());
 
         // emit data
         conn.toInput.onNext(Frame.from(1, FrameType.NEXT, "hello"));
@@ -179,8 +179,8 @@ public class ReactiveSocketClientProtocolTest {
         // we should have sent a CANCEL
         Frame three = requested2.get(2);
         assertEquals(1, three.getStreamId());// still the same stream
-        assertEquals("", three.getMessage());
-        assertEquals(FrameType.CANCEL, three.getMessageType());
+        assertEquals("", three.getData());
+        assertEquals(FrameType.CANCEL, three.getType());
     }
 
     @Test
@@ -197,13 +197,13 @@ public class ReactiveSocketClientProtocolTest {
 
         Frame one = requested.get(0);
         assertEquals(1, one.getStreamId());// need to start at 1, not 0
-        assertEquals("hello", one.getMessage());
-        assertEquals(FrameType.REQUEST_STREAM, one.getMessageType());
+        assertEquals("hello", one.getData());
+        assertEquals(FrameType.REQUEST_STREAM, one.getType());
 
         Frame two = requested.get(1);
         assertEquals(1, two.getStreamId());// still the same stream
-        assertEquals(String.valueOf(Long.MAX_VALUE), two.getMessage());// TODO we should alter the default to something like 1024 when MAX_VALUE is requested
-        assertEquals(FrameType.REQUEST_N, two.getMessageType());
+        assertEquals(String.valueOf(Long.MAX_VALUE), two.getData());// TODO we should alter the default to something like 1024 when MAX_VALUE is requested
+        assertEquals(FrameType.REQUEST_N, two.getType());
 
         // emit data
         conn.toInput.onNext(Frame.from(1, FrameType.NEXT, "hello"));

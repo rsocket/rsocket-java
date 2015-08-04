@@ -52,13 +52,13 @@ public class ReactiveSocketServerProtocolTest {
         // assert
         Frame first = frames.get(0);
         assertEquals(1, first.getStreamId());
-        assertEquals(FrameType.NEXT, first.getMessageType());
-        assertEquals("hello world", first.getMessage());
+        assertEquals(FrameType.NEXT, first.getType());
+        assertEquals("hello world", first.getData());
 
         Frame second = frames.get(1);
         assertEquals(1, second.getStreamId());
-        assertEquals(FrameType.COMPLETE, second.getMessageType());
-        assertEquals("", second.getMessage());
+        assertEquals(FrameType.COMPLETE, second.getType());
+        assertEquals("", second.getData());
     }
 
     @Test
@@ -76,8 +76,8 @@ public class ReactiveSocketServerProtocolTest {
         // assert
         Frame first = cachedResponses.toBlocking().first();
         assertEquals(1, first.getStreamId());
-        assertEquals(FrameType.ERROR, first.getMessageType());
-        assertEquals("Request Not Found", first.getMessage());
+        assertEquals(FrameType.ERROR, first.getType());
+        assertEquals("Request Not Found", first.getData());
     }
 
     @Test
@@ -124,14 +124,14 @@ public class ReactiveSocketServerProtocolTest {
         // 10 onNext frames
         for (int i = 0; i < 10; i++) {
             assertEquals(1, frames.get(i).getStreamId());
-            assertEquals(FrameType.NEXT, frames.get(i).getMessageType());
-            assertEquals((i + 10) + "!", frames.get(i).getMessage());
+            assertEquals(FrameType.NEXT, frames.get(i).getType());
+            assertEquals((i + 10) + "!", frames.get(i).getData());
         }
 
         // last message is a COMPLETE
         assertEquals(1, frames.get(10).getStreamId());
-        assertEquals(FrameType.COMPLETE, frames.get(10).getMessageType());
-        assertEquals("", frames.get(10).getMessage());
+        assertEquals(FrameType.COMPLETE, frames.get(10).getType());
+        assertEquals("", frames.get(10).getData());
     }
 
     @Test
@@ -156,14 +156,14 @@ public class ReactiveSocketServerProtocolTest {
         // 3 onNext frames
         for (int i = 0; i < 3; i++) {
             assertEquals(1, frames.get(i).getStreamId());
-            assertEquals(FrameType.NEXT, frames.get(i).getMessageType());
-            assertEquals(i + "!", frames.get(i).getMessage());
+            assertEquals(FrameType.NEXT, frames.get(i).getType());
+            assertEquals(i + "!", frames.get(i).getData());
         }
 
         // last message is an ERROR
         assertEquals(1, frames.get(3).getStreamId());
-        assertEquals(FrameType.ERROR, frames.get(3).getMessageType());
-        assertEquals("Error Occurred!", frames.get(3).getMessage());
+        assertEquals(FrameType.ERROR, frames.get(3).getType());
+        assertEquals("Error Occurred!", frames.get(3).getData());
     }
 
     @Test
@@ -200,8 +200,8 @@ public class ReactiveSocketServerProtocolTest {
         // 3 onNext frames
         for (int i = 0; i < 3; i++) {
             assertEquals(1, frames.get(i).getStreamId());
-            assertEquals(FrameType.NEXT, frames.get(i).getMessageType());
-            assertEquals(i + "!", frames.get(i).getMessage());
+            assertEquals(FrameType.NEXT, frames.get(i).getType());
+            assertEquals(i + "!", frames.get(i).getData());
         }
     }
 
@@ -242,21 +242,21 @@ public class ReactiveSocketServerProtocolTest {
 
         // A frames (positions 0, 1, 3) incrementing 0, 1, 2
         assertEquals(1, frames.get(0).getStreamId());
-        assertEquals("0_requestA", frames.get(0).getMessage());
+        assertEquals("0_requestA", frames.get(0).getData());
         assertEquals(1, frames.get(1).getStreamId());
-        assertEquals("1_requestA", frames.get(1).getMessage());
+        assertEquals("1_requestA", frames.get(1).getData());
         assertEquals(1, frames.get(3).getStreamId());
-        assertEquals("2_requestA", frames.get(3).getMessage());
+        assertEquals("2_requestA", frames.get(3).getData());
 
         // B frames (positions 2, 4, 5, 6) incrementing 0, 1, 2, 3
         assertEquals(2, frames.get(2).getStreamId());
-        assertEquals("0_requestB", frames.get(2).getMessage());
+        assertEquals("0_requestB", frames.get(2).getData());
         assertEquals(2, frames.get(4).getStreamId());
-        assertEquals("1_requestB", frames.get(4).getMessage());
+        assertEquals("1_requestB", frames.get(4).getData());
         assertEquals(2, frames.get(5).getStreamId());
-        assertEquals("2_requestB", frames.get(5).getMessage());
+        assertEquals("2_requestB", frames.get(5).getData());
         assertEquals(2, frames.get(6).getStreamId());
-        assertEquals("3_requestB", frames.get(6).getMessage());
+        assertEquals("3_requestB", frames.get(6).getData());
     }
 
     /* **********************************************************************************************/

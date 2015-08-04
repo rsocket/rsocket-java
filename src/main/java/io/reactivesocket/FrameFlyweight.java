@@ -24,18 +24,21 @@ import java.nio.ByteOrder;
 
 /**
  * Per connection frame flyweight.
- * Holds codecs and DirectBuffer for wrapping
+ *
+ * Not the latest frame layout, but close.
+ * Does not include
+ * - (initial) request N for REQUEST_STREAM and REQUEST_SUB and REQUEST
+ * - fragmentation / reassembly
+ * - encode should remove Type param and have it as part of method name (1 encode per type)
+ * - metadata
+ *
+ * Not thread-safe. Assumed to be used single-threaded or
  */
 public class FrameFlyweight
 {
-    /**
-     * Not the latest frame layout, but close
-     * Does not include
-     * - (initial) request N for REQUEST_STREAM and REQUEST_SUB and REQUEST
-     * - fragmentation / reassembly
-     * - encode should remove Type param and have it as part of method name (1 encode per type)
-     */
     private static final boolean INCLUDE_FRAME_LENGTH = true;
+
+    private static final int INITIAL_MESSAGE_ARRAY_SIZE = 256;
 
     private static final int FRAME_LENGTH_FIELD_OFFSET;
     private static final int VERSION_FIELD_OFFSET;
@@ -59,7 +62,7 @@ public class FrameFlyweight
         }
         else
         {
-            FRAME_LENGTH_FIELD_OFFSET = - BitUtil.SIZE_OF_INT;
+            FRAME_LENGTH_FIELD_OFFSET = -BitUtil.SIZE_OF_INT;
         }
 
         VERSION_FIELD_OFFSET = FRAME_LENGTH_FIELD_OFFSET + BitUtil.SIZE_OF_INT;
@@ -71,12 +74,19 @@ public class FrameFlyweight
 
     private static final ByteBuffer EMPTY_BUFFER = ByteBuffer.allocate(0);
 
-    // single threaded assumed
     private final MutableDirectBuffer frameBuffer = new UnsafeBuffer(EMPTY_BUFFER);
+    private byte[] byteArray = new byte[INITIAL_MESSAGE_ARRAY_SIZE];
 
     public static int computeFrameLength(final int dataLength)
     {
         return DATA_OFFSET + dataLength;
+    }
+
+    public int encode(final ByteBuffer byteBuffer, final long streamId, final FrameType type, final String data)
+    {
+        final byte[] dataBytes = data.getBytes();
+
+        return encode(byteBuffer, streamId, type, dataBytes);
     }
 
     public int encode(final ByteBuffer byteBuffer, final long streamId, final FrameType type, final byte[] data)
@@ -109,14 +119,54 @@ public class FrameFlyweight
 
         frameBuffer.putByte(VERSION_FIELD_OFFSET, CURRENT_VERSION);
         frameBuffer.putByte(FLAGS_FIELD_OFFSET, (byte) flags);
-        frameBuffer.putShort(TYPE_FIELD_OFFSET, (short)outFrameType.getEncodedType(), ByteOrder.BIG_ENDIAN);
+        frameBuffer.putShort(TYPE_FIELD_OFFSET, (short) outFrameType.getEncodedType(), ByteOrder.BIG_ENDIAN);
         frameBuffer.putLong(STREAM_ID_FIELD_OFFSET, streamId, ByteOrder.BIG_ENDIAN);
         frameBuffer.putBytes(DATA_OFFSET, data);
 
         return frameLength;
     }
 
-    public void decode(Frame frame, final ByteBuffer byteBuffer, final int length)
+    public int version(final ByteBuffer byteBuffer)
+    {
+        frameBuffer.wrap(byteBuffer);
+        return frameBuffer.getByte(VERSION_FIELD_OFFSET);
+    }
+
+    public int flags(final ByteBuffer byteBuffer)
+    {
+        frameBuffer.wrap(byteBuffer);
+        return frameBuffer.getByte(FLAGS_FIELD_OFFSET);
+    }
+
+    public FrameType frameType(final ByteBuffer byteBuffer)
+    {
+        frameBuffer.wrap(byteBuffer);
+        FrameType result = FrameType.from(frameBuffer.getShort(TYPE_FIELD_OFFSET, ByteOrder.BIG_ENDIAN));
+
+        if (FrameType.RESPONSE == result)
+        {
+            final int flags = flags(byteBuffer);
+
+            if (FLAGS_C == (flags & FLAGS_C))
+            {
+                result = FrameType.COMPLETE;
+            }
+            else
+            {
+                result = FrameType.NEXT;
+            }
+        }
+
+        return result;
+    }
+
+    public long streamId(final ByteBuffer byteBuffer)
+    {
+        frameBuffer.wrap(byteBuffer);
+        return frameBuffer.getLong(STREAM_ID_FIELD_OFFSET, ByteOrder.BIG_ENDIAN);
+    }
+
+    public String framePayload(final ByteBuffer byteBuffer, final int length)
     {
         frameBuffer.wrap(byteBuffer);
 
@@ -127,41 +177,22 @@ public class FrameFlyweight
             frameLength = frameBuffer.getInt(FRAME_LENGTH_FIELD_OFFSET, ByteOrder.BIG_ENDIAN);
         }
 
-        final int version = frameBuffer.getByte(VERSION_FIELD_OFFSET);
-        final int flags = frameBuffer.getByte(FLAGS_FIELD_OFFSET);
-        FrameType frameType = FrameType.from(frameBuffer.getShort(TYPE_FIELD_OFFSET, ByteOrder.BIG_ENDIAN));
-
-        final long streamId = frameBuffer.getLong(STREAM_ID_FIELD_OFFSET, ByteOrder.BIG_ENDIAN);
-
         final int dataLength = frameLength - DATA_OFFSET;
         int dataOffset = DATA_OFFSET;
 
-        switch (frameType)
-        {
-            case RESPONSE:
-                if (FLAGS_C == (flags & FLAGS_C))
-                {
-                    frameType = FrameType.COMPLETE;
-                }
-                else
-                {
-                    frameType = FrameType.NEXT;
-                }
-                break;
+        // byteArray used as a re-usable temporary for generating payload String
+        ensureByteArrayCapacity(dataLength);
+        frameBuffer.getBytes(dataOffset, byteArray, 0, dataLength);
 
-            case REQUEST_N:
-                // TODO: grab N value
-                break;
-            case REQUEST_STREAM:
-                // TODO: grab N value, and move DATA_OFFSET value
-                break;
-            case REQUEST_SUBSCRIPTION:
-                // TODO: grab N value, and move DATA_OFFSET value
-                break;
-        }
-
-        // fill in Frame fields
-        frame.setFromDecode(version, streamId, frameType, flags);
-        frame.setFromDecode(frameBuffer, dataOffset, dataLength);
+        return new String(byteArray, 0, dataLength);
     }
+
+    private void ensureByteArrayCapacity(final int length)
+    {
+        if (byteArray.length < length)
+        {
+            byteArray = new byte[length];
+        }
+    }
+
 }

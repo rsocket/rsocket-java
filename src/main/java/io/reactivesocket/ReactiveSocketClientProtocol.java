@@ -128,7 +128,7 @@ public class ReactiveSocketClientProtocol {
                         start();
                     }
                     // send REQUEST_N over network for streaming request types
-                    if (requestFrame.getMessageType() == FrameType.REQUEST_STREAM || requestFrame.getMessageType() == FrameType.REQUEST_SUBSCRIPTION) {
+                    if (requestFrame.getType() == FrameType.REQUEST_STREAM || requestFrame.getType() == FrameType.REQUEST_SUBSCRIPTION) {
                         writer.onNext(just(Frame.from(requestFrame.getStreamId(), FrameType.REQUEST_N, String.valueOf(n))));
                     }
                 }
@@ -141,18 +141,18 @@ public class ReactiveSocketClientProtocol {
                     // combine input and output so errors and unsubscription are composed, then subscribe
                     rx.Subscription subscription = Observable
                             .merge(input, written.cast(Frame.class))
-                            .takeUntil(m -> (m.getMessageType() == FrameType.COMPLETE
-                                    || m.getMessageType() == FrameType.ERROR))
+                            .takeUntil(m -> (m.getType() == FrameType.COMPLETE
+                                    || m.getType() == FrameType.ERROR))
                             .flatMap(m -> {
                         // convert ERROR/COMPLETE messages into terminal events
-                        if (m.getMessageType() == FrameType.ERROR) {
-                            return error(new Exception(m.getMessage()));
-                        } else if (m.getMessageType() == FrameType.COMPLETE) {
+                        if (m.getType() == FrameType.ERROR) {
+                            return error(new Exception(m.getData()));
+                        } else if (m.getType() == FrameType.COMPLETE) {
                             return empty();// unsubscribe handled in takeUntil above
-                        } else if (m.getMessageType() == FrameType.NEXT) {
-                            return just(m.getMessage());
+                        } else if (m.getType() == FrameType.NEXT) {
+                            return just(m.getData());
                         } else {
-                            return error(new Exception("Unexpected FrameType: " + m.getMessageType()));
+                            return error(new Exception("Unexpected FrameType: " + m.getType()));
                         }
                     }).subscribe(Subscribers.from(child));// only propagate Observer methods, backpressure is via Producer above
 

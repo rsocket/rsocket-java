@@ -60,20 +60,20 @@ public class ReactiveSocketServerProtocol {
         final ConcurrentHashMap<Long, RequestOperator<?>> inFlight = new ConcurrentHashMap<>();
         
         return toPublisher(toObservable(ws.getInput()).flatMap(message -> {
-            if (message.getMessageType() == FrameType.REQUEST_RESPONSE) {
+            if (message.getType() == FrameType.REQUEST_RESPONSE) {
                 return handleRequestResponse(ws, message, cancellationObservables);
-            } else if (message.getMessageType() == FrameType.REQUEST_STREAM) {
+            } else if (message.getType() == FrameType.REQUEST_STREAM) {
                 return handleRequestStream(ws, message, cancellationObservables, inFlight);
-            } else if (message.getMessageType() == FrameType.FIRE_AND_FORGET) {
+            } else if (message.getType() == FrameType.FIRE_AND_FORGET) {
                 return handleFireAndForget(message);
-            } else if (message.getMessageType() == FrameType.REQUEST_SUBSCRIPTION) {
+            } else if (message.getType() == FrameType.REQUEST_SUBSCRIPTION) {
                 return handleRequestSubscription(ws, message, cancellationObservables, inFlight);
-            } else if (message.getMessageType() == FrameType.CANCEL) {
+            } else if (message.getType() == FrameType.CANCEL) {
                 return handleCancellationRequest(cancellationObservables, message);
-            } else if (message.getMessageType() == FrameType.REQUEST_N) {
+            } else if (message.getType() == FrameType.REQUEST_N) {
                 return handleRequestN(message, inFlight);
             } else {
-                return error(new IllegalStateException("Unexpected prefix: " + message.getMessageType()));
+                return error(new IllegalStateException("Unexpected prefix: " + message.getType()));
             }
         }));
     }
@@ -96,7 +96,7 @@ public class ReactiveSocketServerProtocol {
         cancellationObservables.put(requestFrame.getStreamId(), cancellationToken);
 
         return toObservable(ws.write(toPublisher(
-                toObservable(requestHandler.handleRequestResponse(requestFrame.getMessage()))
+                toObservable(requestHandler.handleRequestResponse(requestFrame.getData()))
                         .single()// enforce that it is a request/response
                         .flatMap(v -> just(
                                 // TODO evaluate this ... as it is less efficient than a special NEXT_COMPLETE type
@@ -160,7 +160,7 @@ public class ReactiveSocketServerProtocol {
         inflight.put(streamId, requestor);
 
         return toObservable(ws.write(toPublisher(
-                toObservable(messageHandler.call(frame.getMessage()))
+                toObservable(messageHandler.call(frame.getData()))
                         // TODO pulling out requestN/backpressure for now as it's not working
                         //                                                .lift(requestor)
                         .flatMap(s -> just(Frame.from(streamId, FrameType.NEXT, s)),
@@ -181,7 +181,7 @@ public class ReactiveSocketServerProtocol {
      * @return
      */
     private Observable<Void> handleFireAndForget(Frame requestFrame) {
-        return toObservable(requestHandler.handleFireAndForget(requestFrame.getMessage()))
+        return toObservable(requestHandler.handleFireAndForget(requestFrame.getData()))
                 .onErrorResumeNext(error -> {
                     // swallow errors for fireAndForget ... no responses to client
                     // TODO add some kind of logging here
@@ -207,7 +207,7 @@ public class ReactiveSocketServerProtocol {
         //            // TODO need to figure out this race condition
         //            return error(new Exception("Not Yet Handled"));
         //        }
-        //        requestor.s.requestMore(Long.parseLong(frame.getMessage()));
+        //        requestor.s.requestMore(Long.parseLong(frame.getData()));
         return empty();
     }
 
