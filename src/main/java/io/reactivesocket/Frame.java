@@ -54,6 +54,16 @@ public class Frame
     }
 
     /**
+     * Return {@link ByteBuffer} that is a {@link ByteBuffer#slice()} for the frame data
+     *
+     * @return ByteBuffer containing the data
+     */
+    public ByteBuffer sliceData()
+    {
+        return FRAME_HANDLER.get().sliceFramePayload(byteBuffer, 0);
+    }
+
+    /**
      * Return frame stream identifier
      *
      * @return frame stream identifier

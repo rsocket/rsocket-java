@@ -50,8 +50,8 @@ public class FrameFlyweight
     private static final byte CURRENT_VERSION = 0;
 
     private static final int FLAGS_I = 0b1000_000;
-    private static final int FLAGS_B = 0b0100_000;
-    private static final int FLAGS_E = 0b0010_000;
+    private static final int FLAGS_M = 0b0100_000;
+    private static final int FLAGS_F = 0b0010_000;
     private static final int FLAGS_C = 0b0001_000;
 
     static
@@ -170,21 +170,39 @@ public class FrameFlyweight
     {
         frameBuffer.wrap(byteBuffer);
 
-        int frameLength = length;
-
-        if (INCLUDE_FRAME_LENGTH)
-        {
-            frameLength = frameBuffer.getInt(FRAME_LENGTH_FIELD_OFFSET, ByteOrder.BIG_ENDIAN);
-        }
-
-        final int dataLength = frameLength - DATA_OFFSET;
-        int dataOffset = DATA_OFFSET;
+        final int dataLength = dataLength(byteBuffer, length);
+        final int dataOffset = dataOffset(byteBuffer);
 
         // byteArray used as a re-usable temporary for generating payload String
         ensureByteArrayCapacity(dataLength);
         frameBuffer.getBytes(dataOffset, byteArray, 0, dataLength);
 
         return new String(byteArray, 0, dataLength);
+    }
+
+    public ByteBuffer sliceFramePayload(final ByteBuffer byteBuffer, final int length)
+    {
+        frameBuffer.wrap(byteBuffer);
+
+        final int dataLength = dataLength(byteBuffer, length);
+        final int dataOffset = dataOffset(byteBuffer);
+
+        return slice(byteBuffer, dataOffset, dataOffset + dataLength);
+    }
+
+    // really should be an interface to ByteBuffer... sigh
+    // TODO: move to some utility package
+    public static ByteBuffer slice(final ByteBuffer byteBuffer, final int position, final int limit)
+    {
+        final int savedPosition = byteBuffer.position();
+        final int savedLimit = byteBuffer.limit();
+
+        byteBuffer.limit(limit).position(position);
+
+        final ByteBuffer result = byteBuffer.slice();
+
+        byteBuffer.limit(savedLimit).position(savedPosition);
+        return byteBuffer.slice();
     }
 
     private void ensureByteArrayCapacity(final int length)
@@ -195,4 +213,22 @@ public class FrameFlyweight
         }
     }
 
+    private int dataLength(final ByteBuffer byteBuffer, final int length)
+    {
+        frameBuffer.wrap(byteBuffer);
+
+        int frameLength = length;
+
+        if (INCLUDE_FRAME_LENGTH)
+        {
+            frameLength = frameBuffer.getInt(FRAME_LENGTH_FIELD_OFFSET, ByteOrder.BIG_ENDIAN);
+        }
+
+        return frameLength - DATA_OFFSET;
+    }
+
+    private int dataOffset(final ByteBuffer byteBuffer)
+    {
+        return DATA_OFFSET;
+    }
 }
