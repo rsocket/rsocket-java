@@ -142,12 +142,17 @@ public class FrameFlyweight
     {
         frameBuffer.wrap(byteBuffer);
         FrameType result = FrameType.from(frameBuffer.getShort(TYPE_FIELD_OFFSET, ByteOrder.BIG_ENDIAN));
+        final int dataLength = dataLength(byteBuffer, 0);
 
         if (FrameType.RESPONSE == result)
         {
             final int flags = flags(byteBuffer);
 
-            if (FLAGS_C == (flags & FLAGS_C))
+            if (FLAGS_C == (flags & FLAGS_C) && 0 < dataLength)
+            {
+                result = FrameType.NEXT_COMPLETE;
+            }
+            else if (FLAGS_C == (flags & FLAGS_C))
             {
                 result = FrameType.COMPLETE;
             }
@@ -202,7 +207,7 @@ public class FrameFlyweight
         final ByteBuffer result = byteBuffer.slice();
 
         byteBuffer.limit(savedLimit).position(savedPosition);
-        return byteBuffer.slice();
+        return result;
     }
 
     private void ensureByteArrayCapacity(final int length)
