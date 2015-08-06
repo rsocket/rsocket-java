@@ -33,7 +33,8 @@ public enum FrameType
      ERROR(0x21),
      // synthetic types from Responder for use by the rest of the machinery
      NEXT(0x22),
-     COMPLETE(0x23);
+     COMPLETE(0x23),
+     NEXT_COMPLETE(0x24);
 
     private static FrameType[] typesById;
 

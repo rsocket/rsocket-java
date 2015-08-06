@@ -45,7 +45,7 @@ public class FrameTest
 
         f.wrap(2, FrameType.COMPLETE, "done");
         assertEquals("done", f.getData());
-        assertEquals(FrameType.COMPLETE, f.getType());
+        assertEquals(FrameType.NEXT_COMPLETE, f.getType());
         assertEquals(2, f.getStreamId());
     }
 
@@ -58,7 +58,7 @@ public class FrameTest
         f.wrap(b);
 
         assertEquals("another", f.getData());
-        assertEquals(FrameType.COMPLETE, f.getType());
+        assertEquals(FrameType.NEXT_COMPLETE, f.getType());
         assertEquals(20, f.getStreamId());
     }
 }
