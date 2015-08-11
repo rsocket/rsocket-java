@@ -112,6 +112,16 @@ public class Frame
     }
 
     /**
+     * Mutates this Frame to contain the given MutableDirectBuffer
+     *
+     * @param directBuffer to wrap
+     */
+    public void wrap(final MutableDirectBuffer directBuffer)
+    {
+        this.directBuffer = directBuffer;
+    }
+
+    /**
      * Construct a new Frame from the given ByteBuffer
      * 
      * @param byteBuffer to wrap
