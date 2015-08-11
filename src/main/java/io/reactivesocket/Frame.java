@@ -50,7 +50,7 @@ public class Frame
     public String getData() {
         final FrameFlyweight frameFlyweight = FRAME_HANDLER.get();
 
-        return frameFlyweight.framePayload(byteBuffer, 0);
+        return frameFlyweight.frameData(byteBuffer, 0);
     }
 
     /**
@@ -60,7 +60,7 @@ public class Frame
      */
     public ByteBuffer sliceData()
     {
-        return FRAME_HANDLER.get().sliceFramePayload(byteBuffer, 0);
+        return FRAME_HANDLER.get().sliceFrameData(byteBuffer, 0);
     }
 
     /**
@@ -161,9 +161,9 @@ public class Frame
         final FrameFlyweight frameFlyweight = FRAME_HANDLER.get();
 
         // TODO: allocation side effect of how this works currently with the rest of the machinery.
-        final ByteBuffer buffer = ByteBuffer.allocate(FrameFlyweight.computeFrameLength(message.length()));
+        final ByteBuffer buffer = ByteBuffer.allocate(FrameFlyweight.computeFrameLength(type, 0, message.length()));
 
-        frameFlyweight.encode(buffer, streamId, type, message);
+        frameFlyweight.encode(buffer, streamId, type, null, message);
         return buffer;
     }
 
@@ -177,7 +177,7 @@ public class Frame
         try
         {
             type = frameFlyweight.frameType(byteBuffer);
-            payload = frameFlyweight.framePayload(byteBuffer, 0);
+            payload = frameFlyweight.frameData(byteBuffer, 0);
             streamId = frameFlyweight.streamId(byteBuffer);
         } catch (Exception e) {
             e.printStackTrace();
