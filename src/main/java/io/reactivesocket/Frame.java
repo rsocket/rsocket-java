@@ -15,6 +15,9 @@
  */
 package io.reactivesocket;
 
+import uk.co.real_logic.agrona.MutableDirectBuffer;
+import uk.co.real_logic.agrona.concurrent.UnsafeBuffer;
+
 import java.nio.ByteBuffer;
 
 /**
@@ -25,10 +28,10 @@ import java.nio.ByteBuffer;
 public class Frame
 {
     // thread local as it needs to be single-threaded access
-    private static final ThreadLocal<FrameFlyweight> FRAME_HANDLER = ThreadLocal.withInitial(FrameFlyweight::new);
+//    private static final ThreadLocal<FrameFlyweight> FRAME_HANDLER = ThreadLocal.withInitial(FrameFlyweight::new);
 
     // not final so we can reuse this object
-    private ByteBuffer byteBuffer;
+    private MutableDirectBuffer directBuffer;
 
     private Frame() {
     }
@@ -39,7 +42,7 @@ public class Frame
      * @return underlying {@link ByteBuffer} for frame
      */
     public ByteBuffer getByteBuffer() {
-        return byteBuffer;
+        return directBuffer.byteBuffer();
     }
 
     /**
@@ -48,9 +51,7 @@ public class Frame
      * @return frame data as {@link System}
      */
     public String getData() {
-        final FrameFlyweight frameFlyweight = FRAME_HANDLER.get();
-
-        return frameFlyweight.frameData(byteBuffer, 0);
+        return FrameFlyweight.frameData(directBuffer, 0);
     }
 
     /**
@@ -60,7 +61,7 @@ public class Frame
      */
     public ByteBuffer sliceData()
     {
-        return FRAME_HANDLER.get().sliceFrameData(byteBuffer, 0);
+        return FrameFlyweight.sliceFrameData(directBuffer, 0);
     }
 
     /**
@@ -69,9 +70,7 @@ public class Frame
      * @return frame stream identifier
      */
     public long getStreamId() {
-        final FrameFlyweight frameFlyweight = FRAME_HANDLER.get();
-
-        return frameFlyweight.streamId(byteBuffer);
+        return FrameFlyweight.streamId(directBuffer);
     }
 
     /**
@@ -80,9 +79,7 @@ public class Frame
      * @return frame type
      */
     public FrameType getType() {
-        final FrameFlyweight frameFlyweight = FRAME_HANDLER.get();
-
-        return frameFlyweight.frameType(byteBuffer);
+        return FrameFlyweight.frameType(directBuffer);
     }
 
     /**
@@ -92,9 +89,7 @@ public class Frame
      */
     public int getVersion()
     {
-        final FrameFlyweight frameFlyweight = FRAME_HANDLER.get();
-
-        return frameFlyweight.version(byteBuffer);
+        return FrameFlyweight.version(directBuffer);
     }
 
     /**
@@ -104,9 +99,7 @@ public class Frame
      */
     public int getFlags()
     {
-        final FrameFlyweight frameFlyweight = FRAME_HANDLER.get();
-
-        return frameFlyweight.flags(byteBuffer);
+        return FrameFlyweight.flags(directBuffer);
     }
 
     /**
@@ -115,7 +108,7 @@ public class Frame
      * @param byteBuffer to wrap
      */
     public void wrap(final ByteBuffer byteBuffer) {
-        this.byteBuffer = byteBuffer;
+        this.directBuffer = new UnsafeBuffer(byteBuffer);
     }
 
     /**
@@ -126,7 +119,7 @@ public class Frame
      */
     public static Frame from(final ByteBuffer byteBuffer) {
         Frame f = new Frame();
-        f.byteBuffer = byteBuffer;
+        f.directBuffer = new UnsafeBuffer(byteBuffer);
         return f;
     }
 
@@ -140,7 +133,7 @@ public class Frame
      * @param message  to include in frame
      */
     public void wrap(final long streamId, final FrameType type, final String message) {
-        this.byteBuffer = createByteBufferAndEncode(streamId, type, message);
+        this.directBuffer = createByteBufferAndEncode(streamId, type, message);
     }
 
     /**
@@ -153,32 +146,30 @@ public class Frame
      */
     public static Frame from(long streamId, FrameType type, String message) {
         Frame f = new Frame();
-        f.byteBuffer = createByteBufferAndEncode(streamId, type, message);
+        f.directBuffer = createByteBufferAndEncode(streamId, type, message);
         return f;
     }
 
-    private static ByteBuffer createByteBufferAndEncode(long streamId, FrameType type, final String message) {
-        final FrameFlyweight frameFlyweight = FRAME_HANDLER.get();
-
+    private static MutableDirectBuffer createByteBufferAndEncode(long streamId, FrameType type, final String message) {
         // TODO: allocation side effect of how this works currently with the rest of the machinery.
-        final ByteBuffer buffer = ByteBuffer.allocate(FrameFlyweight.computeFrameLength(type, 0, message.length()));
+        final MutableDirectBuffer buffer =
+            new UnsafeBuffer(ByteBuffer.allocate(FrameFlyweight.computeFrameLength(type, 0, message.length())));
 
-        frameFlyweight.encode(buffer, streamId, type, null, message);
+        FrameFlyweight.encode(buffer, streamId, type, null, message);
         return buffer;
     }
 
     @Override
     public String toString() {
-        final FrameFlyweight frameFlyweight = FRAME_HANDLER.get();
         FrameType type = FrameType.SETUP;
         String payload = "";
         long streamId = -1;
 
         try
         {
-            type = frameFlyweight.frameType(byteBuffer);
-            payload = frameFlyweight.frameData(byteBuffer, 0);
-            streamId = frameFlyweight.streamId(byteBuffer);
+            type = FrameFlyweight.frameType(directBuffer);
+            payload = FrameFlyweight.frameData(directBuffer, 0);
+            streamId = FrameFlyweight.streamId(directBuffer);
         } catch (Exception e) {
             e.printStackTrace();
         }
