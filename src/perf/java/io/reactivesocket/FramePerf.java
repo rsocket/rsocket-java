@@ -31,12 +31,15 @@ import org.openjdk.jmh.infra.Blackhole;
 public class FramePerf {
 
 	@Benchmark
-	public void encodeNextCompleteHello(Input input) throws InterruptedException {
-		Frame.from(0, FrameType.NEXT_COMPLETE, "hello");
+	public Frame encodeNextCompleteHello(Input input) throws InterruptedException {
+		return Frame.from(0, FrameType.NEXT_COMPLETE, "hello");
 	}
 	
 	@State(Scope.Thread)
 	public static class Input {
+		/**
+		 * Use to consume values when the test needs to return more than a single value.
+		 */
 		public Blackhole bh;
 
 		@Setup
