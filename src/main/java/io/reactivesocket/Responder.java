@@ -31,23 +31,23 @@ import rx.functions.Func0;
 import rx.functions.Func1;
 
 /**
- * Server-side protocol implementation abstracted over a {@link DuplexConnection}.
+ * Protocol implementation abstracted over a {@link DuplexConnection}.
  * <p>
  * Concrete implementations of {@link DuplexConnection} over TCP, WebSockets, Aeron, etc
  * can be passed to this class for protocol handling. The request handlers passed in at creation
  * will be invoked for each request over the connection.
  */
-public class ReactiveSocketServerProtocol {
-
+public class Responder
+{
     // TODO only handle String right now
     private final RequestHandler requestHandler;
 
-    private ReactiveSocketServerProtocol(RequestHandler requestHandler) {
+    private Responder(RequestHandler requestHandler) {
         this.requestHandler = requestHandler;
     }
 
-    public static <T> ReactiveSocketServerProtocol create(RequestHandler requestHandler) {
-        return new ReactiveSocketServerProtocol(requestHandler);
+    public static <T> Responder create(RequestHandler requestHandler) {
+        return new Responder(requestHandler);
     }
 
     public Publisher<Void> acceptConnection(DuplexConnection ws) {
@@ -185,7 +185,7 @@ public class ReactiveSocketServerProtocol {
                 .onErrorResumeNext(error -> {
                     // swallow errors for fireAndForget ... no responses to client
                     // TODO add some kind of logging here
-                    System.err.println("Server-side error for fireAndForget request: " + error);
+                    System.err.println("Responder error for fireAndForget request: " + error);
                     return empty();
                 });
     }

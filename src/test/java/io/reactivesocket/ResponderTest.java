@@ -31,13 +31,13 @@ import rx.schedulers.Schedulers;
 import rx.schedulers.TestScheduler;
 import rx.subjects.ReplaySubject;
 
-public class ReactiveSocketServerProtocolTest {
-
+public class ResponderTest
+{
     @Test
     public void testRequestResponseSuccess() {
-        ReactiveSocketServerProtocol p = ReactiveSocketServerProtocol.create(RequestHandler.create(
-                request -> toPublisher(just(request + " world")),
-                null, null, null));
+        Responder p = Responder.create(RequestHandler.create(
+            request -> toPublisher(just(request + " world")),
+            null, null, null));
 
         TestConnection conn = establishConnection(p);
         ReplaySubject<Frame> cachedResponses = captureResponses(conn);
@@ -63,9 +63,9 @@ public class ReactiveSocketServerProtocolTest {
 
     @Test
     public void testRequestResponseError() {
-        ReactiveSocketServerProtocol p = ReactiveSocketServerProtocol.create(RequestHandler.create(
-                request -> toPublisher(Observable.<String> error(new Exception("Request Not Found"))),
-                null, null, null));
+        Responder p = Responder.create(RequestHandler.create(
+            request -> toPublisher(Observable.<String>error(new Exception("Request Not Found"))),
+            null, null, null));
 
         TestConnection conn = establishConnection(p);
         Observable<Frame> cachedResponses = captureResponses(conn);
@@ -87,9 +87,9 @@ public class ReactiveSocketServerProtocolTest {
                 .cast(String.class)
                 .doOnUnsubscribe(() -> unsubscribed.set(true));
 
-        ReactiveSocketServerProtocol p = ReactiveSocketServerProtocol.create(RequestHandler.create(
-                request -> toPublisher(delayed),
-                null, null, null));
+        Responder p = Responder.create(RequestHandler.create(
+            request -> toPublisher(delayed),
+            null, null, null));
 
         TestConnection conn = establishConnection(p);
         ReplaySubject<Frame> cachedResponses = captureResponses(conn);
@@ -106,10 +106,10 @@ public class ReactiveSocketServerProtocolTest {
 
     @Test
     public void testRequestStreamSuccess() {
-        ReactiveSocketServerProtocol p = ReactiveSocketServerProtocol.create(RequestHandler.create(
-                null,
-                request -> toPublisher(range(Integer.parseInt(request), 10).map(i -> i + "!")),
-                null, null));
+        Responder p = Responder.create(RequestHandler.create(
+            null,
+            request -> toPublisher(range(Integer.parseInt(request), 10).map(i -> i + "!")),
+            null, null));
 
         TestConnection conn = establishConnection(p);
         ReplaySubject<Frame> cachedResponses = captureResponses(conn);
@@ -136,12 +136,12 @@ public class ReactiveSocketServerProtocolTest {
 
     @Test
     public void testRequestStreamError() {
-        ReactiveSocketServerProtocol p = ReactiveSocketServerProtocol.create(RequestHandler.create(
-                null,
-                request -> toPublisher(range(Integer.parseInt(request), 3)
-                        .map(i -> i + "!")
-                        .concatWith(error(new Exception("Error Occurred!")))),
-                null, null));
+        Responder p = Responder.create(RequestHandler.create(
+            null,
+            request -> toPublisher(range(Integer.parseInt(request), 3)
+                .map(i -> i + "!")
+                .concatWith(error(new Exception("Error Occurred!")))),
+            null, null));
 
         TestConnection conn = establishConnection(p);
         ReplaySubject<Frame> cachedResponses = captureResponses(conn);
@@ -169,10 +169,10 @@ public class ReactiveSocketServerProtocolTest {
     @Test
     public void testRequestStreamCancel() {
         TestScheduler ts = Schedulers.test();
-        ReactiveSocketServerProtocol p = ReactiveSocketServerProtocol.create(RequestHandler.create(
-                null,
-                request -> toPublisher(interval(1000, TimeUnit.MILLISECONDS, ts).map(i -> i + "!")),
-                null, null));
+        Responder p = Responder.create(RequestHandler.create(
+            null,
+            request -> toPublisher(interval(1000, TimeUnit.MILLISECONDS, ts).map(i -> i + "!")),
+            null, null));
 
         TestConnection conn = establishConnection(p);
         ReplaySubject<Frame> cachedResponses = captureResponses(conn);
@@ -208,10 +208,10 @@ public class ReactiveSocketServerProtocolTest {
     @Test
     public void testMultiplexedStreams() {
         TestScheduler ts = Schedulers.test();
-        ReactiveSocketServerProtocol p = ReactiveSocketServerProtocol.create(RequestHandler.create(
-                null,
-                request -> toPublisher(interval(1000, TimeUnit.MILLISECONDS, ts).map(i -> i + "_" + request)),
-                null, null));
+        Responder p = Responder.create(RequestHandler.create(
+            null,
+            request -> toPublisher(interval(1000, TimeUnit.MILLISECONDS, ts).map(i -> i + "_" + request)),
+            null, null));
 
         TestConnection conn = establishConnection(p);
         ReplaySubject<Frame> cachedResponses = captureResponses(conn);
@@ -268,7 +268,7 @@ public class ReactiveSocketServerProtocolTest {
         return rs;
     }
 
-    private TestConnection establishConnection(ReactiveSocketServerProtocol p) {
+    private TestConnection establishConnection(Responder p) {
         TestConnection conn = new TestConnection();
         p.acceptConnection(conn).subscribe(PROTOCOL_SUBSCRIBER);
         return conn;

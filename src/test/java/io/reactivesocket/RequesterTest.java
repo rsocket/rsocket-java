@@ -28,12 +28,12 @@ import rx.Subscription;
 import rx.observers.TestSubscriber;
 import rx.subjects.ReplaySubject;
 
-public class ReactiveSocketClientProtocolTest {
-
+public class RequesterTest
+{
     @Test
     public void testRequestResponseSuccess() {
         TestConnection conn = establishConnection();
-        ReactiveSocketClientProtocol p = ReactiveSocketClientProtocol.create(conn);
+        Requester p = Requester.create(conn);
         ReplaySubject<Frame> requests = captureRequests(conn);
 
         TestSubscriber<String> ts = TestSubscriber.create();
@@ -59,7 +59,7 @@ public class ReactiveSocketClientProtocolTest {
     @Test
     public void testRequestResponseError() {
         TestConnection conn = establishConnection();
-        ReactiveSocketClientProtocol p = ReactiveSocketClientProtocol.create(conn);
+        Requester p = Requester.create(conn);
         ReplaySubject<Frame> requests = captureRequests(conn);
 
         TestSubscriber<String> ts = TestSubscriber.create();
@@ -86,7 +86,7 @@ public class ReactiveSocketClientProtocolTest {
     @Test
     public void testRequestResponseCancel() {
         TestConnection conn = establishConnection();
-        ReactiveSocketClientProtocol p = ReactiveSocketClientProtocol.create(conn);
+        Requester p = Requester.create(conn);
         ReplaySubject<Frame> requests = captureRequests(conn);
 
         TestSubscriber<String> ts = TestSubscriber.create();
@@ -114,7 +114,7 @@ public class ReactiveSocketClientProtocolTest {
     @Test
     public void testRequestStreamSuccess() {
         TestConnection conn = establishConnection();
-        ReactiveSocketClientProtocol p = ReactiveSocketClientProtocol.create(conn);
+        Requester p = Requester.create(conn);
         ReplaySubject<Frame> requests = captureRequests(conn);
 
         TestSubscriber<String> ts = TestSubscriber.create();
@@ -146,7 +146,7 @@ public class ReactiveSocketClientProtocolTest {
     @Test
     public void testRequestStreamSuccessTake2AndCancel() {
         TestConnection conn = establishConnection();
-        ReactiveSocketClientProtocol p = ReactiveSocketClientProtocol.create(conn);
+        Requester p = Requester.create(conn);
         ReplaySubject<Frame> requests = captureRequests(conn);
 
         TestSubscriber<String> ts = TestSubscriber.create();
@@ -186,7 +186,7 @@ public class ReactiveSocketClientProtocolTest {
     @Test
     public void testRequestStreamError() {
         TestConnection conn = establishConnection();
-        ReactiveSocketClientProtocol p = ReactiveSocketClientProtocol.create(conn);
+        Requester p = Requester.create(conn);
         ReplaySubject<Frame> requests = captureRequests(conn);
 
         TestSubscriber<String> ts = TestSubscriber.create();

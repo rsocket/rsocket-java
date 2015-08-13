@@ -36,10 +36,10 @@ import rx.Observer;
 import rx.observers.TestSubscriber;
 import rx.schedulers.Schedulers;
 
-public class ClientServerInteractionTest {
-
-    ReactiveSocketServerProtocol serverProtocol;
-    ReactiveSocketClientProtocol clientProtocol;
+public class RequesterResponderInteractionTest
+{
+    Responder responder;
+    Requester requester;
 
     /**
      * Connect a client/server with protocols on either end.
@@ -64,49 +64,63 @@ public class ClientServerInteractionTest {
                 .observeOn(Schedulers.computation())
                 .subscribe(clientConnection.toInput);
 
-        serverProtocol = ReactiveSocketServerProtocol.create(RequestHandler.create(
-                requestResponse -> {
-                    if (requestResponse.equals("hello")) {
-                        return toPublisher(just(requestResponse + " world"));
-                    } else {
-                        return toPublisher(error(new Exception("Not Found!")));
-                    }
-                } ,
-                requestStream -> {
-                    if (requestStream.equals("range")) {
-                        return toPublisher(range(0, 3).map(String::valueOf));
-                    } else {
-                        return toPublisher(error(new Exception("Not Found!")));
-                    }
-                } ,
-                requestSubscription -> {
-                    if (requestSubscription.equals("range")) {
-                        return toPublisher(range(0, 3).map(String::valueOf)
-                                .mergeWith(never()));// never() so it doesn't complete
-                    } else if (requestSubscription.equals("rangeThatCompletes")) {
-                        // complete and show it turns into an error
-                        return toPublisher(range(0, 2).map(String::valueOf));
-                    } else {
-                        return toPublisher(error(new Exception("Not Found!")));
-                    }
-                } ,
-                fireAndForget -> {
-                    if (fireAndForget.equals("hello")) {
-                        return toPublisher(empty());// nothing responds
-                    } else {
-                        return toPublisher(error(new Exception("Not Found!")));
-                    }
-                }));
+        responder = Responder.create(RequestHandler.create(
+            requestResponse -> {
+                if (requestResponse.equals("hello"))
+                {
+                    return toPublisher(just(requestResponse + " world"));
+                }
+                else
+                {
+                    return toPublisher(error(new Exception("Not Found!")));
+                }
+            },
+            requestStream -> {
+                if (requestStream.equals("range"))
+                {
+                    return toPublisher(range(0, 3).map(String::valueOf));
+                }
+                else
+                {
+                    return toPublisher(error(new Exception("Not Found!")));
+                }
+            },
+            requestSubscription -> {
+                if (requestSubscription.equals("range"))
+                {
+                    return toPublisher(range(0, 3).map(String::valueOf)
+                        .mergeWith(never()));// never() so it doesn't complete
+                }
+                else if (requestSubscription.equals("rangeThatCompletes"))
+                {
+                    // complete and show it turns into an error
+                    return toPublisher(range(0, 2).map(String::valueOf));
+                }
+                else
+                {
+                    return toPublisher(error(new Exception("Not Found!")));
+                }
+            },
+            fireAndForget -> {
+                if (fireAndForget.equals("hello"))
+                {
+                    return toPublisher(empty());// nothing responds
+                }
+                else
+                {
+                    return toPublisher(error(new Exception("Not Found!")));
+                }
+            }));
 
-        toObservable(serverProtocol.acceptConnection(serverConnection)).subscribe();// start handling the connection
-        clientProtocol = ReactiveSocketClientProtocol.create(clientConnection);
+        toObservable(responder.acceptConnection(serverConnection)).subscribe();// start handling the connection
+        requester = Requester.create(clientConnection);
     }
 
     @Ignore
     @Test
     public void testRequestResponseSuccess() {
         TestSubscriber<String> ts = TestSubscriber.create();
-        toObservable(clientProtocol.requestResponse("hello")).subscribe(ts);
+        toObservable(requester.requestResponse("hello")).subscribe(ts);
         ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
         ts.assertValue("hello world");
     }
@@ -115,7 +129,7 @@ public class ClientServerInteractionTest {
     @Test
     public void testRequestResponseError() {
         TestSubscriber<String> ts = TestSubscriber.create();
-        toObservable(clientProtocol.requestResponse("doesntExist")).subscribe(ts);
+        toObservable(requester.requestResponse("doesntExist")).subscribe(ts);
         ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS); // TODO this fails non-deterministically
         ts.assertError(Exception.class);
         assertEquals("Not Found!", ts.getOnErrorEvents().get(0).getMessage());
@@ -125,7 +139,7 @@ public class ClientServerInteractionTest {
     @Test
     public void testRequestStreamSuccess() {
         TestSubscriber<String> ts = TestSubscriber.create();
-        toObservable(clientProtocol.requestStream("range")).subscribe(ts);
+        toObservable(requester.requestStream("range")).subscribe(ts);
         ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
         ts.assertReceivedOnNext(Arrays.asList("0", "1", "2"));
     }
@@ -134,7 +148,7 @@ public class ClientServerInteractionTest {
     @Test
     public void testRequestStreamError() {
         TestSubscriber<String> ts = TestSubscriber.create();
-        toObservable(clientProtocol.requestStream("doesntExist")).subscribe(ts);
+        toObservable(requester.requestStream("doesntExist")).subscribe(ts);
         ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
         ts.assertError(Exception.class);
         assertEquals("Not Found!", ts.getOnErrorEvents().get(0).getMessage());
@@ -162,7 +176,7 @@ public class ClientServerInteractionTest {
             }
             
         });
-        toObservable(clientProtocol.requestSubscription("range")).subscribe(ts);
+        toObservable(requester.requestSubscription("range")).subscribe(ts);
         // wait for 3 events (but no terminal event)
         latch.await(500, TimeUnit.MILLISECONDS);
         ts.assertReceivedOnNext(Arrays.asList("0", "1", "2"));
@@ -174,7 +188,7 @@ public class ClientServerInteractionTest {
     @Test
     public void testRequestSubscriptionErrorOnCompletion() {
         TestSubscriber<String> ts = TestSubscriber.create();
-        toObservable(clientProtocol.requestSubscription("rangeThatCompletes")).subscribe(ts);
+        toObservable(requester.requestSubscription("rangeThatCompletes")).subscribe(ts);
         ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS); // TODO this fails non-deterministically
         ts.assertReceivedOnNext(Arrays.asList("0", "1"));
         ts.assertError(Exception.class);
@@ -185,7 +199,7 @@ public class ClientServerInteractionTest {
     @Test
     public void testRequestSubscriptionError() {
         TestSubscriber<String> ts = TestSubscriber.create();
-        toObservable(clientProtocol.requestStream("doesntExist")).subscribe(ts);
+        toObservable(requester.requestStream("doesntExist")).subscribe(ts);
         ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS); // TODO this fails non-deterministically
         ts.assertError(Exception.class);
         assertEquals("Not Found!", ts.getOnErrorEvents().get(0).getMessage());
@@ -195,7 +209,7 @@ public class ClientServerInteractionTest {
     @Test
     public void testFireAndForgetSuccess() {
         TestSubscriber<Void> ts = TestSubscriber.create();
-        toObservable(clientProtocol.fireAndForget("hello")).subscribe(ts);
+        toObservable(requester.fireAndForget("hello")).subscribe(ts);
         ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
         ts.assertValueCount(0);
         ts.assertNoErrors();
@@ -206,7 +220,7 @@ public class ClientServerInteractionTest {
     @Test
     public void testFireAndForgetError() {
         TestSubscriber<Void> ts = TestSubscriber.create();
-        toObservable(clientProtocol.fireAndForget("doesntExist")).subscribe(ts);
+        toObservable(requester.fireAndForget("doesntExist")).subscribe(ts);
         ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
         ts.assertNoErrors();// because we "forget"
     }

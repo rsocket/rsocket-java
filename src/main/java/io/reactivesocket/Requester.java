@@ -34,13 +34,13 @@ import rx.subjects.PublishSubject;
 import rx.subscriptions.Subscriptions;
 
 /**
- * Client-side protocol implementation abstracted over a {@link DuplexConnection}.
+ * RProtocol implementation abstracted over a {@link DuplexConnection}.
  * <p>
  * Concrete implementations of {@link DuplexConnection} over TCP, WebSockets, Aeron, etc
  * can be passed to this class for protocol handling.
  */
-public class ReactiveSocketClientProtocol {
-
+public class Requester
+{
     // TODO replace String with whatever ByteBuffer/byte[]/ByteBuf/etc variant we choose
 
     private final DuplexConnection connection;
@@ -52,7 +52,7 @@ public class ReactiveSocketClientProtocol {
     private final Observable<Frame> multicastedInputStream;
     private int streamCount = 0;// 0 is reserved for setup, all normal messages are >= 1
 
-    private ReactiveSocketClientProtocol(DuplexConnection connection) {
+    private Requester(DuplexConnection connection) {
         this.connection = connection;
         // multicast input stream to any requestor (with backpressure support via RxJava .publish() operator)
         ConnectableObservable<Frame> published = toObservable(connection.getInput()).publish();
@@ -61,8 +61,8 @@ public class ReactiveSocketClientProtocol {
         published.connect();
     }
 
-    public static ReactiveSocketClientProtocol create(DuplexConnection connection) {
-        return new ReactiveSocketClientProtocol(connection);
+    public static Requester create(DuplexConnection connection) {
+        return new Requester(connection);
     }
 
     /**
