@@ -12,22 +12,21 @@ import uk.co.real_logic.aeron.Image;
 import uk.co.real_logic.aeron.Publication;
 import uk.co.real_logic.aeron.Subscription;
 import uk.co.real_logic.aeron.logbuffer.Header;
+import uk.co.real_logic.agrona.BitUtil;
 import uk.co.real_logic.agrona.DirectBuffer;
 import uk.co.real_logic.agrona.collections.Int2ObjectHashMap;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
-public class ReactiveSocketAeronServer implements Closeable {
+import static io.reactivesocket.aeron.Constants.CLIENT_STREAM_ID;
+import static io.reactivesocket.aeron.Constants.SERVER_STREAM_ID;
+
+public class ReactiveSocketAeronServer implements AutoCloseable {
 
     private final ReactiveSocketServerProtocol rsServerProtocol;
 
     private final Aeron aeron;
-
-    private final int SERVER_STREAM_ID = 1;
-
-    private final int CLIENT_STREAM_ID = 2;
 
     private final int port;
 
@@ -78,32 +77,43 @@ public class ReactiveSocketAeronServer implements Closeable {
 
     void fragmentHandler(DirectBuffer buffer, int offset, int length, Header header) {
         final int sessionId = header.sessionId();
-        AeronServerDuplexConnection connection = connections.get(sessionId);
 
-        if (connection != null) {
-            final PublishSubject<Frame> subject = connection.getSubject();
-            ByteBuffer bytes = ByteBuffer.allocate(buffer.capacity());
-            buffer.getBytes(0, bytes, buffer.capacity());
-            final Frame frame = Frame.from(bytes);
-            subject.onNext(frame);
-        } else {
-            System.out.println("No connection found for session id " + sessionId);
+        int messageTypeInt = buffer.getInt(0);
+        MessageType type = MessageType.from(messageTypeInt);
+
+        if (MessageType.FRAME == type) {
+
+            AeronServerDuplexConnection connection = connections.get(sessionId);
+
+            if (connection != null) {
+                final PublishSubject<Frame> subject = connection.getSubject();
+                ByteBuffer bytes = ByteBuffer.allocate(buffer.capacity());
+                buffer.getBytes(BitUtil.SIZE_OF_INT, bytes, buffer.capacity());
+                final Frame frame = Frame.from(bytes);
+                subject.onNext(frame);
+            }
+        } else if (MessageType.ESTABLISH_CONNECTION_REQUEST == type) {
+            AeronServerDuplexConnection connection = connections.get(sessionId);
+            connection.establishConnection();
         }
+
     }
 
     void newImageHandler(Image image, String channel, int streamId, int sessionId, long joiningPosition, String sourceIdentity) {
+        System.out.println(String.format("Handling new image for session id => %d and stream id => %d", streamId, sessionId));
         if (SERVER_STREAM_ID == streamId) {
-
             final AeronServerDuplexConnection connection = connections.computeIfAbsent(sessionId, (_s) -> {
                 final String responseChannel = "udp://" + sourceIdentity.substring(0, sourceIdentity.indexOf(':')) + ":" + port;
                 Publication publication = aeron.addPublication(responseChannel, CLIENT_STREAM_ID);
-                return new AeronServerDuplexConnection(publication, streamId, sessionId);
+                System.out.println(String.format("Creating new connection for responseChannel => %s, streamId => %d, and sessionId => %d", responseChannel, streamId, sessionId));
+                return new AeronServerDuplexConnection(publication);
             });
             rsServerProtocol.acceptConnection(connection);
         } else {
             System.out.println("Unsupported stream id " + streamId);
         }
     }
+
 
     @Override
     public void close() throws IOException {

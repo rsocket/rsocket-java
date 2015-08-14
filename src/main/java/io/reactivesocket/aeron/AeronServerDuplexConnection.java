@@ -8,29 +8,23 @@ import rx.RxReactiveStreams;
 import rx.subjects.PublishSubject;
 import uk.co.real_logic.aeron.Publication;
 import uk.co.real_logic.aeron.logbuffer.BufferClaim;
+import uk.co.real_logic.agrona.BitUtil;
 import uk.co.real_logic.agrona.MutableDirectBuffer;
 
 import java.nio.ByteBuffer;
+import java.util.concurrent.TimeUnit;
 
-public class AeronServerDuplexConnection implements DuplexConnection {
-    private static final byte[] EMTPY = new byte[0];
+public class AeronServerDuplexConnection implements DuplexConnection, AutoCloseable {
 
     private static final ThreadLocal<BufferClaim> bufferClaims = ThreadLocal.withInitial(BufferClaim::new);
 
     private Publication publication;
     private PublishSubject<Frame> subject;
 
-    private int aeronStreamId;
-    private int aeronSessionId;
-
     public AeronServerDuplexConnection(
-        Publication publication,
-        int aeronStreamId,
-        int aeronSessionId) {
+        Publication publication) {
         this.publication = publication;
         this.subject = PublishSubject.create();
-        this.aeronStreamId = aeronStreamId;
-        this.aeronSessionId = aeronSessionId;
     }
 
     PublishSubject<Frame> getSubject() {
@@ -47,15 +41,16 @@ public class AeronServerDuplexConnection implements DuplexConnection {
             .toObservable(o)
             .map(frame -> {
                 final ByteBuffer byteBuffer = frame.getByteBuffer();
-
+                final int length = byteBuffer.capacity() + BitUtil.SIZE_OF_INT;
                 for (;;) {
                     final BufferClaim bufferClaim = bufferClaims.get();
-                    final long offer = publication.tryClaim(byteBuffer.capacity(), bufferClaim);
+                    final long offer = publication.tryClaim(length, bufferClaim);
                     if (offer >= 0) {
                         try {
                             final MutableDirectBuffer buffer = bufferClaim.buffer();
                             final int offset = bufferClaim.offset();
-                            buffer.putBytes(offset, byteBuffer, 0, byteBuffer.capacity());
+                            buffer.putInt(offset, MessageType.FRAME.getEncodedType());
+                            buffer.putBytes(offset + BitUtil.SIZE_OF_INT, byteBuffer, 0, byteBuffer.capacity());
                         } finally {
                             bufferClaim.commit();
                         }
@@ -71,5 +66,38 @@ public class AeronServerDuplexConnection implements DuplexConnection {
             });
 
         return RxReactiveStreams.toPublisher(req);
+    }
+
+    void establishConnection() {
+        final long start = System.nanoTime();
+        final int sessionId = publication.sessionId();
+        final BufferClaim bufferClaim = bufferClaims.get();
+
+        for (;;) {
+            final long current = System.nanoTime();
+            if (current - start > TimeUnit.SECONDS.toNanos(30)) {
+                throw new RuntimeException("Timed out waiting to establish connection for session id => " + sessionId);
+            }
+
+            final long offer = publication.tryClaim(BitUtil.SIZE_OF_INT, bufferClaim);
+            if (offer >= 0) {
+                try {
+                    final MutableDirectBuffer buffer = bufferClaim.buffer();
+                    final int offeset = bufferClaim.offset();
+                    buffer.putInt(offeset, MessageType.ESTABLISH_CONNECTION_RESPONSE.getEncodedType());
+                } finally {
+                    bufferClaim.commit();
+                }
+
+                break;
+            }
+
+        }
+    }
+
+    @Override
+    public void close() throws Exception {
+        subject.onCompleted();
+        publication.close();
     }
 }

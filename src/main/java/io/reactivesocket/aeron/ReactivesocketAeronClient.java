@@ -14,27 +14,30 @@ import uk.co.real_logic.aeron.FragmentAssembler;
 import uk.co.real_logic.aeron.Publication;
 import uk.co.real_logic.aeron.Subscription;
 import uk.co.real_logic.aeron.logbuffer.Header;
+import uk.co.real_logic.agrona.BitUtil;
 import uk.co.real_logic.agrona.DirectBuffer;
 import uk.co.real_logic.agrona.collections.Int2ObjectHashMap;
 import uk.co.real_logic.agrona.concurrent.UnsafeBuffer;
 
 import java.nio.ByteBuffer;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+
+import static io.reactivesocket.aeron.Constants.CLIENT_STREAM_ID;
+import static io.reactivesocket.aeron.Constants.EMTPY;
+import static io.reactivesocket.aeron.Constants.SERVER_STREAM_ID;
 
 /**
  * Created by rroeser on 8/13/15.
  */
 public class ReactivesocketAeronClient {
-    private static final byte[] EMTPY = new byte[0];
-
     private static final ThreadLocal<UnsafeBuffer> buffers = ThreadLocal.withInitial(() -> new UnsafeBuffer(EMTPY));
 
     private static final Int2ObjectHashMap<Subscription> subscriptions = new Int2ObjectHashMap<>();
 
     private static final Int2ObjectHashMap<PublishSubject<Frame>> subjects = new Int2ObjectHashMap<>();
 
-    private static final int SERVER_STREAM_ID = 1;
-
-    private static final int CLIENT_STREAM_ID = 2;
+    private static final Int2ObjectHashMap<CountDownLatch> establishConnectionLatches = new Int2ObjectHashMap<>();
 
     private final ReactiveSocketClientProtocol rsClientProtocol;
 
@@ -52,6 +55,8 @@ public class ReactivesocketAeronClient {
 
         final String channel = "udp://" + host + ":" + port;
 
+        System.out.println("Creating a publication to channel => " + channel);
+
         final Publication publication = aeron.addPublication(channel, SERVER_STREAM_ID);
 
         final int sessionId = publication.sessionId();
@@ -68,11 +73,13 @@ public class ReactivesocketAeronClient {
             return subscription;
         });
 
+        establishConnection(publication, sessionId);
+
         this.rsClientProtocol =
             ReactiveSocketClientProtocol.create(new DuplexConnection() {
 
                 public Publisher<Frame> getInput() {
-                    PublishSubject publishSubject = subjects.get(port);
+                    PublishSubject publishSubject = subjects.get(sessionId);
                     return RxReactiveStreams.toPublisher(publishSubject);
                 }
 
@@ -81,9 +88,14 @@ public class ReactivesocketAeronClient {
                     Observable<Void> req = RxReactiveStreams
                         .toObservable(o)
                         .map(frame -> {
+                            final ByteBuffer frameBuffer = frame.getByteBuffer();
+                            final int frameBufferLength = frameBuffer.capacity();
                             final UnsafeBuffer buffer = buffers.get();
-                            ByteBuffer byteBuffer = frame.getByteBuffer();
-                            buffer.wrap(byteBuffer);
+                            final byte[] bytes = new byte[frameBufferLength + BitUtil.SIZE_OF_INT];
+
+                            buffer.wrap(bytes);
+                            buffer.putInt(0, MessageType.FRAME.getEncodedType());
+                            buffer.putBytes(BitUtil.SIZE_OF_INT, frameBuffer, frameBufferLength);
 
                             for (;;) {
                                 final long offer = publication.offer(buffer);
@@ -112,11 +124,20 @@ public class ReactivesocketAeronClient {
     }
 
     void fragmentHandler(DirectBuffer buffer, int offset, int length, Header header) {
-        final PublishSubject<Frame> subject = subjects.get(header.sessionId());
-        ByteBuffer bytes = ByteBuffer.allocate(buffer.capacity());
-        buffer.getBytes(0, bytes, buffer.capacity());
-        final Frame frame = Frame.from(bytes);
-        subject.onNext(frame);
+        int messageTypeInt = buffer.getInt(0);
+        MessageType messageType = MessageType.from(messageTypeInt);
+        if (messageType == MessageType.FRAME) {
+            final PublishSubject<Frame> subject = subjects.get(header.sessionId());
+            ByteBuffer bytes = ByteBuffer.allocate(buffer.capacity());
+            buffer.getBytes(BitUtil.SIZE_OF_INT, bytes, buffer.capacity());
+            final Frame frame = Frame.from(bytes);
+            subject.onNext(frame);
+        } else if (messageType == MessageType.ESTABLISH_CONNECTION_RESPONSE) {
+            CountDownLatch latch = establishConnectionLatches.get(header.sessionId());
+            latch.countDown();
+        } else {
+            System.out.println("Unknow message type => " + messageTypeInt);
+        }
     }
 
     void poll(FragmentAssembler fragmentAssembler, Subscription subscription, Scheduler.Worker worker) {
@@ -126,6 +147,44 @@ public class ReactivesocketAeronClient {
                 poll(fragmentAssembler, subscription, worker);
             });
         }
+    }
+
+    /**
+     * Establishes a connection between the client and server. Waits for 30 seconds before throwing a exception.
+     */
+    void establishConnection(final Publication publication, final int sessionId) {
+        try {
+            UnsafeBuffer buffer = buffers.get();
+            buffer.wrap(new byte[BitUtil.SIZE_OF_INT]);
+            buffer.putInt(0, MessageType.ESTABLISH_CONNECTION_REQUEST.getEncodedType());
+
+            CountDownLatch latch = new CountDownLatch(1);
+            establishConnectionLatches.put(sessionId, latch);
+
+            long offer = -1;
+            final long start = System.nanoTime();
+            for (;;) {
+                final long current = System.nanoTime();
+                if (current - start > TimeUnit.SECONDS.toNanos(30)) {
+                    throw new RuntimeException("Timed out waiting to establish connection for session id => " + sessionId);
+                }
+
+                if (offer < 0) {
+                    offer = publication.offer(buffer);
+                }
+
+                if (latch.getCount() > 0) {
+                    break;
+                }
+            }
+
+            System.out.println(String.format("Connection established for channel => %s, stream id => %d",
+                publication.channel(),
+                publication.sessionId()));
+        } finally {
+            establishConnectionLatches.remove(sessionId);
+        }
+
     }
 
     public Publisher<String> requestResponse(String payload) {
