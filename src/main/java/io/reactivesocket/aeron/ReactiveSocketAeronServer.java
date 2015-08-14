@@ -18,6 +18,7 @@ import uk.co.real_logic.agrona.collections.Int2ObjectHashMap;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.concurrent.TimeUnit;
 
 import static io.reactivesocket.aeron.Constants.CLIENT_STREAM_ID;
 import static io.reactivesocket.aeron.Constants.SERVER_STREAM_ID;
@@ -30,7 +31,7 @@ public class ReactiveSocketAeronServer implements AutoCloseable {
 
     private final int port;
 
-    private final Int2ObjectHashMap<AeronServerDuplexConnection> connections;
+    private volatile Int2ObjectHashMap<AeronServerDuplexConnection> connections;
 
     private final Scheduler.Worker worker;
 
@@ -78,7 +79,7 @@ public class ReactiveSocketAeronServer implements AutoCloseable {
     void fragmentHandler(DirectBuffer buffer, int offset, int length, Header header) {
         final int sessionId = header.sessionId();
 
-        int messageTypeInt = buffer.getInt(0);
+        int messageTypeInt = buffer.getInt(offset);
         MessageType type = MessageType.from(messageTypeInt);
 
         if (MessageType.FRAME == type) {
@@ -88,26 +89,39 @@ public class ReactiveSocketAeronServer implements AutoCloseable {
             if (connection != null) {
                 final PublishSubject<Frame> subject = connection.getSubject();
                 ByteBuffer bytes = ByteBuffer.allocate(buffer.capacity());
-                buffer.getBytes(BitUtil.SIZE_OF_INT, bytes, buffer.capacity());
+                buffer.getBytes(BitUtil.SIZE_OF_INT + offset, bytes, buffer.capacity());
                 final Frame frame = Frame.from(bytes);
                 subject.onNext(frame);
             }
         } else if (MessageType.ESTABLISH_CONNECTION_REQUEST == type) {
-            AeronServerDuplexConnection connection = connections.get(sessionId);
-            connection.establishConnection();
+            final long start = System.nanoTime();
+            AeronServerDuplexConnection connection = null;
+            System.out.println("Looking a connection to ack establish connection for session id => " + sessionId);
+            while (connection == null) {
+                final long current = System.nanoTime();
+
+                if (current - start > TimeUnit.SECONDS.toNanos(30)) {
+                    throw new RuntimeException("unable to find connection to ack establish connection for session id => " + sessionId);
+                }
+
+                connection = connections.get(sessionId);
+            }
+            System.out.println("Found a connection to ack establish connection for session id => " + sessionId);
+            connection.ackEstablishConnection(sessionId);
         }
 
     }
 
     void newImageHandler(Image image, String channel, int streamId, int sessionId, long joiningPosition, String sourceIdentity) {
-        System.out.println(String.format("Handling new image for session id => %d and stream id => %d", streamId, sessionId));
         if (SERVER_STREAM_ID == streamId) {
+            System.out.println(String.format("Handling new image for session id => %d and stream id => %d", streamId, sessionId));
             final AeronServerDuplexConnection connection = connections.computeIfAbsent(sessionId, (_s) -> {
                 final String responseChannel = "udp://" + sourceIdentity.substring(0, sourceIdentity.indexOf(':')) + ":" + port;
                 Publication publication = aeron.addPublication(responseChannel, CLIENT_STREAM_ID);
                 System.out.println(String.format("Creating new connection for responseChannel => %s, streamId => %d, and sessionId => %d", responseChannel, streamId, sessionId));
                 return new AeronServerDuplexConnection(publication);
             });
+            System.out.println("Accepting ReactiveSocket connection");
             rsServerProtocol.acceptConnection(connection);
         } else {
             System.out.println("Unsupported stream id " + streamId);

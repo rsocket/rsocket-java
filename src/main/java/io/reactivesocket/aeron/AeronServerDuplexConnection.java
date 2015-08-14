@@ -68,10 +68,12 @@ public class AeronServerDuplexConnection implements DuplexConnection, AutoClosea
         return RxReactiveStreams.toPublisher(req);
     }
 
-    void establishConnection() {
+    void ackEstablishConnection(int ackSessionId) {
         final long start = System.nanoTime();
         final int sessionId = publication.sessionId();
         final BufferClaim bufferClaim = bufferClaims.get();
+
+        System.out.print("Acking establish connection for session id => " + ackSessionId);
 
         for (;;) {
             final long current = System.nanoTime();
@@ -79,12 +81,13 @@ public class AeronServerDuplexConnection implements DuplexConnection, AutoClosea
                 throw new RuntimeException("Timed out waiting to establish connection for session id => " + sessionId);
             }
 
-            final long offer = publication.tryClaim(BitUtil.SIZE_OF_INT, bufferClaim);
+            final long offer = publication.tryClaim(2 * BitUtil.SIZE_OF_INT, bufferClaim);
             if (offer >= 0) {
                 try {
                     final MutableDirectBuffer buffer = bufferClaim.buffer();
                     final int offeset = bufferClaim.offset();
                     buffer.putInt(offeset, MessageType.ESTABLISH_CONNECTION_RESPONSE.getEncodedType());
+                    buffer.putInt(offeset + BitUtil.SIZE_OF_INT, ackSessionId);
                 } finally {
                     bufferClaim.commit();
                 }

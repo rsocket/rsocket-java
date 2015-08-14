@@ -124,7 +124,7 @@ public class ReactivesocketAeronClient {
     }
 
     void fragmentHandler(DirectBuffer buffer, int offset, int length, Header header) {
-        int messageTypeInt = buffer.getInt(0);
+        int messageTypeInt = buffer.getInt(offset);
         MessageType messageType = MessageType.from(messageTypeInt);
         if (messageType == MessageType.FRAME) {
             final PublishSubject<Frame> subject = subjects.get(header.sessionId());
@@ -133,7 +133,9 @@ public class ReactivesocketAeronClient {
             final Frame frame = Frame.from(bytes);
             subject.onNext(frame);
         } else if (messageType == MessageType.ESTABLISH_CONNECTION_RESPONSE) {
-            CountDownLatch latch = establishConnectionLatches.get(header.sessionId());
+            int ackSessionId = buffer.getInt(offset + BitUtil.SIZE_OF_INT);
+            System.out.println(String.format("Received establish connection ack for session id => %d", ackSessionId));
+            CountDownLatch latch = establishConnectionLatches.get(ackSessionId);
             latch.countDown();
         } else {
             System.out.println("Unknow message type => " + messageTypeInt);
@@ -150,7 +152,7 @@ public class ReactivesocketAeronClient {
     }
 
     /**
-     * Establishes a connection between the client and server. Waits for 30 seconds before throwing a exception.
+     * Establishes a connection between the client and server. Waits for 39 seconds before throwing a exception.
      */
     void establishConnection(final Publication publication, final int sessionId) {
         try {
@@ -173,7 +175,7 @@ public class ReactivesocketAeronClient {
                     offer = publication.offer(buffer);
                 }
 
-                if (latch.getCount() > 0) {
+                if (latch.getCount() == 0) {
                     break;
                 }
             }
