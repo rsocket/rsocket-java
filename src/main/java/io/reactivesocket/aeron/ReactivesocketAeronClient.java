@@ -2,7 +2,7 @@ package io.reactivesocket.aeron;
 
 import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
-import io.reactivesocket.ReactiveSocketClientProtocol;
+import io.reactivesocket.ReactiveSocket;
 import org.reactivestreams.Publisher;
 import rx.Observable;
 import rx.RxReactiveStreams;
@@ -39,9 +39,11 @@ public class ReactivesocketAeronClient {
 
     private static final Int2ObjectHashMap<CountDownLatch> establishConnectionLatches = new Int2ObjectHashMap<>();
 
-    private final ReactiveSocketClientProtocol rsClientProtocol;
+    private ReactiveSocket rsClientProtocol;
 
     private final Aeron aeron;
+
+    private final Publication publication;
 
     private volatile boolean running = true;
 
@@ -57,12 +59,8 @@ public class ReactivesocketAeronClient {
 
         System.out.println("Creating a publication to channel => " + channel);
 
-        final Publication publication = aeron.addPublication(channel, SERVER_STREAM_ID);
-
+        publication = aeron.addPublication(channel, SERVER_STREAM_ID);
         final int sessionId = publication.sessionId();
-
-        subjects.computeIfAbsent(sessionId, (_p) -> PublishSubject.create());
-
         subscriptions.computeIfAbsent(port, (_p) -> {
             Subscription subscription = aeron.addSubscription(channel, CLIENT_STREAM_ID);
 
@@ -75,44 +73,6 @@ public class ReactivesocketAeronClient {
 
         establishConnection(publication, sessionId);
 
-        this.rsClientProtocol =
-            ReactiveSocketClientProtocol.create(new DuplexConnection() {
-
-                public Publisher<Frame> getInput() {
-                    PublishSubject publishSubject = subjects.get(sessionId);
-                    return RxReactiveStreams.toPublisher(publishSubject);
-                }
-
-                @Override
-                public Publisher<Void> write(Publisher<Frame> o) {
-                    Observable<Void> req = RxReactiveStreams
-                        .toObservable(o)
-                        .map(frame -> {
-                            final ByteBuffer frameBuffer = frame.getByteBuffer();
-                            final int frameBufferLength = frameBuffer.capacity();
-                            final UnsafeBuffer buffer = buffers.get();
-                            final byte[] bytes = new byte[frameBufferLength + BitUtil.SIZE_OF_INT];
-
-                            buffer.wrap(bytes);
-                            buffer.putInt(0, MessageType.FRAME.getEncodedType());
-                            buffer.putBytes(BitUtil.SIZE_OF_INT, frameBuffer, frameBufferLength);
-
-                            for (;;) {
-                                final long offer = publication.offer(buffer);
-
-                                if (offer >= 0) {
-                                    break;
-                                } else if (Publication.NOT_CONNECTED == offer) {
-                                    throw new RuntimeException("not connected");
-                                }
-                            }
-
-                            return null;
-                        });
-
-                    return RxReactiveStreams.toPublisher(req);
-                }
-            });
     }
 
     public static ReactivesocketAeronClient create(String host, int port) {
@@ -128,15 +88,58 @@ public class ReactivesocketAeronClient {
         MessageType messageType = MessageType.from(messageTypeInt);
         if (messageType == MessageType.FRAME) {
             final PublishSubject<Frame> subject = subjects.get(header.sessionId());
-            ByteBuffer bytes = ByteBuffer.allocate(buffer.capacity());
-            buffer.getBytes(BitUtil.SIZE_OF_INT, bytes, buffer.capacity());
+            ByteBuffer bytes = ByteBuffer.allocate(length);
+            buffer.getBytes(BitUtil.SIZE_OF_INT + offset, bytes, length);
             final Frame frame = Frame.from(bytes);
             subject.onNext(frame);
         } else if (messageType == MessageType.ESTABLISH_CONNECTION_RESPONSE) {
             int ackSessionId = buffer.getInt(offset + BitUtil.SIZE_OF_INT);
             System.out.println(String.format("Received establish connection ack for session id => %d", ackSessionId));
+
+            subjects.computeIfAbsent(header.sessionId(), (_p) -> PublishSubject.create());
+
+            this.rsClientProtocol =
+                ReactiveSocket.connect(new DuplexConnection() {
+
+                    public Publisher<Frame> getInput() {
+                        PublishSubject publishSubject = subjects.get(header.sessionId());
+                        return RxReactiveStreams.toPublisher(publishSubject);
+                    }
+
+                    @Override
+                    public Publisher<Void> write(Publisher<Frame> o) {
+                        Observable<Void> req = RxReactiveStreams
+                            .toObservable(o)
+                            .flatMap(frame -> {
+                                final ByteBuffer frameBuffer = frame.getByteBuffer();
+                                final int frameBufferLength = frameBuffer.capacity();
+                                final UnsafeBuffer buffer = buffers.get();
+                                final byte[] bytes = new byte[frameBufferLength + BitUtil.SIZE_OF_INT];
+
+                                buffer.wrap(bytes);
+                                buffer.putInt(0, MessageType.FRAME.getEncodedType());
+                                buffer.putBytes(BitUtil.SIZE_OF_INT, frameBuffer, frameBufferLength);
+
+                                for (; ; ) {
+                                    final long offer = publication.offer(buffer);
+
+                                    if (offer >= 0) {
+                                        break;
+                                    } else if (Publication.NOT_CONNECTED == offer) {
+                                        Observable.error(new RuntimeException("not connected"));
+                                    }
+                                }
+
+                                return Observable.empty();
+                            });
+
+                        return RxReactiveStreams.toPublisher(req);
+                    }
+                });
+
             CountDownLatch latch = establishConnectionLatches.get(ackSessionId);
             latch.countDown();
+
         } else {
             System.out.println("Unknow message type => " + messageTypeInt);
         }
@@ -189,20 +192,23 @@ public class ReactivesocketAeronClient {
 
     }
 
-    public Publisher<String> requestResponse(String payload) {
-        return rsClientProtocol.requestResponse(payload);
+    public Publisher<String> requestResponse(String data, String metadata) {
+        return rsClientProtocol.requestResponse(data, metadata);
     }
 
-    public Publisher<String> requestStream(String payload) {
-        return rsClientProtocol.requestStream(payload);
+    public Publisher<Void> fireAndForget(String data, String metadata) {
+        return rsClientProtocol.fireAndForget(data, metadata);
     }
 
-    public Publisher<Void> fireAndForget(String payload) {
-        return rsClientProtocol.fireAndForget(payload);
+    public Publisher<String> requestStream(String data, String metadata) {
+        return rsClientProtocol.requestStream(data, metadata);
     }
 
-    public Publisher<String> requestSubscription(String payload) {
-        return rsClientProtocol.requestSubscription(payload);
+    public Publisher<String> requestSubscription(String data, String metadata) {
+        return rsClientProtocol.requestSubscription(data, metadata);
     }
 
+    public Publisher<Void> responderPublisher() {
+        return rsClientProtocol.responderPublisher();
+    }
 }

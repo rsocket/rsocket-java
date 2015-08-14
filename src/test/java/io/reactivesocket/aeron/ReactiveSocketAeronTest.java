@@ -3,9 +3,13 @@ package io.reactivesocket.aeron;
 import io.reactivesocket.RequestHandler;
 import org.junit.Test;
 import org.reactivestreams.Publisher;
+import org.reactivestreams.Subscriber;
+import org.reactivestreams.Subscription;
 import rx.Observable;
 import rx.RxReactiveStreams;
 import uk.co.real_logic.aeron.driver.MediaDriver;
+
+import java.util.concurrent.CountDownLatch;
 
 /**
  * Created by rroeser on 8/14/15.
@@ -45,10 +49,33 @@ public class ReactiveSocketAeronTest {
             }
         });
 
-        ReactivesocketAeronClient client = ReactivesocketAeronClient.create("localhost");
-        //Publisher<String> ping = client.requestResponse("ping");
-        //RxReactiveStreams.toObservable(ping).doOnError(Throwable::printStackTrace).forEach(a -> System.out.println("pong from the server => " + a));
+        CountDownLatch latch = new CountDownLatch(1);
 
+        ReactivesocketAeronClient client = ReactivesocketAeronClient.create("localhost");
+        client.requestResponse("ping", "ping metadata").subscribe(new Subscriber<String>() {
+            @Override
+            public void onSubscribe(Subscription s) {
+                s.request(Long.MAX_VALUE);
+                System.out.println("here we go");
+            }
+
+            @Override
+            public void onNext(String s) {
+                System.out.println(s);
+            }
+
+            @Override
+            public void onError(Throwable t) {
+                t.printStackTrace();
+            }
+
+            @Override
+            public void onComplete() {
+                latch.countDown();
+            }
+        });
+
+        latch.await();
     }
 
 

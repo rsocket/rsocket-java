@@ -39,7 +39,7 @@ public class AeronServerDuplexConnection implements DuplexConnection, AutoClosea
     public Publisher<Void> write(Publisher<Frame> o) {
         Observable<Void> req = RxReactiveStreams
             .toObservable(o)
-            .map(frame -> {
+            .flatMap(frame -> {
                 final ByteBuffer byteBuffer = frame.getByteBuffer();
                 final int length = byteBuffer.capacity() + BitUtil.SIZE_OF_INT;
                 for (;;) {
@@ -57,12 +57,12 @@ public class AeronServerDuplexConnection implements DuplexConnection, AutoClosea
 
                         break;
                     } else if (Publication.NOT_CONNECTED == offer) {
-                        throw new RuntimeException("not connected");
+                       return Observable.error(new RuntimeException("not connected"));
                     }
 
                 }
 
-                return null;
+                return Observable.empty();
             });
 
         return RxReactiveStreams.toPublisher(req);
@@ -73,7 +73,7 @@ public class AeronServerDuplexConnection implements DuplexConnection, AutoClosea
         final int sessionId = publication.sessionId();
         final BufferClaim bufferClaim = bufferClaims.get();
 
-        System.out.print("Acking establish connection for session id => " + ackSessionId);
+        System.out.println("Acking establish connection for session id => " + ackSessionId);
 
         for (;;) {
             final long current = System.nanoTime();

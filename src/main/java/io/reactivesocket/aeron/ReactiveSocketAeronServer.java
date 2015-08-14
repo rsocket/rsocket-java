@@ -1,7 +1,7 @@
 package io.reactivesocket.aeron;
 
 import io.reactivesocket.Frame;
-import io.reactivesocket.ReactiveSocketServerProtocol;
+import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.RequestHandler;
 import rx.Scheduler;
 import rx.schedulers.Schedulers;
@@ -25,8 +25,6 @@ import static io.reactivesocket.aeron.Constants.SERVER_STREAM_ID;
 
 public class ReactiveSocketAeronServer implements AutoCloseable {
 
-    private final ReactiveSocketServerProtocol rsServerProtocol;
-
     private final Aeron aeron;
 
     private final int port;
@@ -39,9 +37,34 @@ public class ReactiveSocketAeronServer implements AutoCloseable {
 
     private volatile boolean running = true;
 
+    private final RequestHandler requestHandler;
+
+    private static final org.reactivestreams.Subscriber<Void> PROTOCOL_SUBSCRIBER = new org.reactivestreams.Subscriber<Void>() {
+        @Override
+        public void onSubscribe(org.reactivestreams.Subscription s) {
+            s.request(Long.MAX_VALUE);
+        }
+
+        @Override
+        public void onNext(Void t) {
+
+        }
+
+        @Override
+        public void onError(Throwable t) {
+            t.printStackTrace();
+        }
+
+        @Override
+        public void onComplete() {
+
+        }
+    };
+
     private ReactiveSocketAeronServer(int port, RequestHandler requestHandler) {
         this.port = port;
         this.connections = new Int2ObjectHashMap<>();
+        this.requestHandler = requestHandler;
 
         final Aeron.Context ctx = new Aeron.Context();
         ctx.newImageHandler(this::newImageHandler);
@@ -56,7 +79,6 @@ public class ReactiveSocketAeronServer implements AutoCloseable {
 
         poll(fragmentAssembler);
 
-        rsServerProtocol = ReactiveSocketServerProtocol.create(requestHandler);
     }
 
     public static ReactiveSocketAeronServer create(int port, RequestHandler requestHandler) {
@@ -88,8 +110,8 @@ public class ReactiveSocketAeronServer implements AutoCloseable {
 
             if (connection != null) {
                 final PublishSubject<Frame> subject = connection.getSubject();
-                ByteBuffer bytes = ByteBuffer.allocate(buffer.capacity());
-                buffer.getBytes(BitUtil.SIZE_OF_INT + offset, bytes, buffer.capacity());
+                ByteBuffer bytes = ByteBuffer.allocate(length);
+                buffer.getBytes(BitUtil.SIZE_OF_INT + offset, bytes, length);
                 final Frame frame = Frame.from(bytes);
                 subject.onNext(frame);
             }
@@ -122,12 +144,12 @@ public class ReactiveSocketAeronServer implements AutoCloseable {
                 return new AeronServerDuplexConnection(publication);
             });
             System.out.println("Accepting ReactiveSocket connection");
-            rsServerProtocol.acceptConnection(connection);
+            ReactiveSocket socket = ReactiveSocket.accept(connection, requestHandler);
+            socket.responderPublisher().subscribe(PROTOCOL_SUBSCRIBER);
         } else {
             System.out.println("Unsupported stream id " + streamId);
         }
     }
-
 
     @Override
     public void close() throws IOException {
@@ -135,4 +157,5 @@ public class ReactiveSocketAeronServer implements AutoCloseable {
         worker.unsubscribe();
         aeron.close();
     }
+
 }
