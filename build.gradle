@@ -1,0 +1,36 @@
+buildscript {
+    repositories {
+        jcenter()
+    }
+
+    dependencies { classpath 'io.reactivesocket:gradle-nebula-plugin-reactivesocket:1.0.0' }
+}
+
+description = 'ReactiveSocket: stream oriented messaging passing with Reactive Stream semantics.'
+
+apply plugin: 'reactivesocket-project'
+apply plugin: 'java'
+
+repositories {
+    maven { url 'https://oss.jfrog.org/libs-snapshot' }
+}
+
+dependencies {
+    compile 'io.reactivex:rxjava:1.0.13'
+    compile 'io.reactivesocket:reactivesocket:0.0.1-SNAPSHOT'
+    compile 'uk.co.real-logic:Agrona:0.4.2'
+    compile 'uk.co.real-logic:aeron-all:0.1.2'
+    testCompile 'junit:junit-dep:4.10'
+    testCompile 'org.mockito:mockito-core:1.8.5'
+}
+
+
+// support for snapshot/final releases via versioned branch names like 1.x
+nebulaRelease {
+    addReleaseBranchPattern(/\d+\.\d+\.\d+/)
+    addReleaseBranchPattern('HEAD')
+}
+
+if (project.hasProperty('release.useLastTag')) {
+    tasks.prepare.enabled = false
+}
