@@ -15,18 +15,17 @@
  */
 package io.reactivesocket;
 
-import static org.junit.Assert.assertEquals;
-import static rx.RxReactiveStreams.toObservable;
+import org.junit.Test;
+import rx.Subscription;
+import rx.observers.TestSubscriber;
+import rx.subjects.ReplaySubject;
 
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import org.junit.Test;
-
-import rx.Subscription;
-import rx.observers.TestSubscriber;
-import rx.subjects.ReplaySubject;
+import static org.junit.Assert.assertEquals;
+import static rx.RxReactiveStreams.toObservable;
 
 public class RequesterTest
 {
@@ -48,10 +47,9 @@ public class RequesterTest
         assertEquals(FrameType.REQUEST_RESPONSE, one.getType());
 
         // now emit a response to ensure the Publisher receives and completes
-        conn.toInput.onNext(Frame.from(1, FrameType.NEXT, "world"));
+        conn.toInput.onNext(Frame.from(1, FrameType.NEXT_COMPLETE, "world"));
         ts.assertValue("world");
 
-        conn.toInput.onNext(Frame.from(1, FrameType.COMPLETE, ""));
         ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
         ts.assertCompleted();
     }
@@ -72,10 +70,6 @@ public class RequesterTest
         assertEquals(1, one.getStreamId());// need to start at 1, not 0
         assertEquals("hello", one.getData());
         assertEquals(FrameType.REQUEST_RESPONSE, one.getType());
-
-        // now emit a response to ensure the Publisher receives and completes
-        conn.toInput.onNext(Frame.from(1, FrameType.NEXT, "world"));
-        ts.assertValue("world");
 
         conn.toInput.onNext(Frame.from(1, FrameType.ERROR, "Failed"));
         ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);

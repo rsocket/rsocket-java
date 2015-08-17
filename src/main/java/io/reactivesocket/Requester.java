@@ -142,7 +142,8 @@ public class Requester
                     rx.Subscription subscription = Observable
                         .merge(input, written.cast(Frame.class))
                         .takeUntil(m -> (m.getType() == FrameType.COMPLETE
-                            || m.getType() == FrameType.ERROR))
+                            || m.getType() == FrameType.ERROR)
+                            || m.getType() == FrameType.NEXT_COMPLETE)
                         .flatMap(m -> {
                             // convert ERROR/COMPLETE messages into terminal events
                             if (m.getType() == FrameType.ERROR) {
