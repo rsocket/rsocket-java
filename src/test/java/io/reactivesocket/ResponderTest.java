@@ -15,21 +15,26 @@
  */
 package io.reactivesocket;
 
-import static org.junit.Assert.*;
-import static rx.Observable.*;
-import static rx.RxReactiveStreams.*;
+import org.junit.Test;
+import org.reactivestreams.Subscription;
+import rx.Observable;
+import rx.schedulers.Schedulers;
+import rx.schedulers.TestScheduler;
+import rx.subjects.ReplaySubject;
 
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import org.junit.Test;
-import org.reactivestreams.Subscription;
-
-import rx.Observable;
-import rx.schedulers.Schedulers;
-import rx.schedulers.TestScheduler;
-import rx.subjects.ReplaySubject;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+import static rx.Observable.error;
+import static rx.Observable.interval;
+import static rx.Observable.just;
+import static rx.Observable.never;
+import static rx.Observable.range;
+import static rx.RxReactiveStreams.toPublisher;
 
 public class ResponderTest
 {
@@ -45,20 +50,14 @@ public class ResponderTest
         // perform a request/response
         conn.toInput.onNext(Frame.from(1, FrameType.REQUEST_RESPONSE, "hello"));
 
-        // TODO do we want to receive 2 frames, or just a single NEXT_COMPLETE?
-        assertEquals(2, cachedResponses.getValues().length);// 1 onNext + 1 onCompleted
-        List<Frame> frames = cachedResponses.take(2).toList().toBlocking().first();
+        assertEquals(1, cachedResponses.getValues().length);// 1 onNext + 1 onCompleted
+        List<Frame> frames = cachedResponses.take(1).toList().toBlocking().first();
 
         // assert
         Frame first = frames.get(0);
         assertEquals(1, first.getStreamId());
-        assertEquals(FrameType.NEXT, first.getType());
+        assertEquals(FrameType.NEXT_COMPLETE, first.getType());
         assertEquals("hello world", first.getData());
-
-        Frame second = frames.get(1);
-        assertEquals(1, second.getStreamId());
-        assertEquals(FrameType.COMPLETE, second.getType());
-        assertEquals("", second.getData());
     }
 
     @Test
