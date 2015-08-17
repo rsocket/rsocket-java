@@ -15,20 +15,19 @@
  */
 package io.reactivesocket;
 
+import org.reactivestreams.Publisher;
+import rx.Observable;
+import rx.Subscriber;
+import rx.functions.Func0;
+import rx.functions.Func1;
+
+import java.util.concurrent.ConcurrentHashMap;
+
 import static rx.Observable.empty;
 import static rx.Observable.error;
 import static rx.Observable.just;
 import static rx.RxReactiveStreams.toObservable;
 import static rx.RxReactiveStreams.toPublisher;
-
-import java.util.concurrent.ConcurrentHashMap;
-
-import org.reactivestreams.Publisher;
-
-import rx.Observable;
-import rx.Subscriber;
-import rx.functions.Func0;
-import rx.functions.Func1;
 
 /**
  * Protocol implementation abstracted over a {@link DuplexConnection}.
@@ -99,11 +98,7 @@ public class Responder
                 toObservable(requestHandler.handleRequestResponse(requestFrame.getData()))
                         .single()// enforce that it is a request/response
                         .flatMap(v -> just(
-                                // TODO evaluate this ... as it is less efficient than a special NEXT_COMPLETE type
-                                // TODO as a stream of 2 can not be as easily optimized like a scalar response
-                                // NEXT with immediate COMPLETE as we have a single NEXT
-                                Frame.from(streamId, FrameType.NEXT, v),
-                                Frame.from(streamId, FrameType.COMPLETE, "")))
+                                Frame.from(streamId, FrameType.NEXT_COMPLETE, v)))
                         .onErrorReturn(err -> Frame.from(streamId, FrameType.ERROR, err.getMessage()))
                         .takeUntil(cancellationToken)
                         .finallyDo(() -> cancellationObservables.remove(streamId)))));
@@ -175,8 +170,7 @@ public class Responder
 
     /**
      * Fire-and-Forget so we invoke the handler and return nothing, not even errors.
-     * 
-     * @param ws
+     *
      * @param requestFrame
      * @return
      */
