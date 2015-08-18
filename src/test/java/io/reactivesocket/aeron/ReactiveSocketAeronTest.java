@@ -2,6 +2,7 @@ package io.reactivesocket.aeron;
 
 import io.reactivesocket.RequestHandler;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.reactivestreams.Publisher;
 import rx.Observable;
@@ -13,6 +14,7 @@ import java.util.concurrent.CountDownLatch;
 /**
  * Created by rroeser on 8/14/15.
  */
+@Ignore
 public class ReactiveSocketAeronTest {
     @BeforeClass
     public static void init() {
