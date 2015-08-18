@@ -19,15 +19,14 @@ import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import rx.Observable;
 import rx.Producer;
-import rx.observables.ConnectableObservable;
 import rx.observers.Subscribers;
 import rx.subjects.PublishSubject;
 import rx.subscriptions.Subscriptions;
+import uk.co.real_logic.agrona.collections.Long2ObjectHashMap;
 
+import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static rx.Observable.empty;
-import static rx.Observable.error;
 import static rx.Observable.just;
 import static rx.RxReactiveStreams.toObservable;
 import static rx.RxReactiveStreams.toPublisher;
@@ -43,34 +42,25 @@ public class Requester
     // TODO replace String with whatever ByteBuffer/byte[]/ByteBuf/etc variant we choose
 
     private final DuplexConnection connection;
-    /**
-     * TODO determine if Subject with multicast+filter is better or
-     * a Map each containing a single Subject for lookup+delivery is better
-     * for doing demux ... currently chosen multicast+filter
-     */
-    private final Observable<Frame> multicastedInputStream;
+    private final Long2ObjectHashMap<UnicastSubject> streamInputMap;
     private int streamCount = 0;// 0 is reserved for setup, all normal messages are >= 1
 
-    private Requester(DuplexConnection connection) {
+    private Requester(DuplexConnection connection, Long2ObjectHashMap<UnicastSubject> streamInputMap) {
         this.connection = connection;
-        // multicast input stream to any requestor (with backpressure support via RxJava .publish() operator)
-        ConnectableObservable<Frame> published = toObservable(connection.getInput()).publish();
-        multicastedInputStream = published;
-        // start listening ... ignoring returned subscription as we don't control connection lifecycle here
-        published.connect();
+        this.streamInputMap = streamInputMap;
     }
 
-    public static Requester create(DuplexConnection connection) {
-        return new Requester(connection);
+    public static Requester create(DuplexConnection connection, Long2ObjectHashMap<UnicastSubject> streamInputMap) {
+        return new Requester(connection, streamInputMap);
     }
 
     /**
      * Request/Response with a single message response.
      * 
-     * @param payload
+     * @param data
      * @return
      */
-    public Publisher<String> requestResponse(String payload) {
+    public Publisher<Payload> requestResponse(final Payload payload) {
         return startStream(Frame.from(nextStreamId(), FrameType.REQUEST_RESPONSE, payload));
     }
 
@@ -78,10 +68,10 @@ public class Requester
      * Request/Stream with a finite multi-message response followed by a terminal
      * state {@link Subscriber#onComplete()} or {@link Subscriber#onError(Throwable)}.
      * 
-     * @param payload
+     * @param data
      * @return
      */
-    public Publisher<String> requestStream(String payload) {
+    public Publisher<Payload> requestStream(final Payload payload) {
         return startStream(Frame.from(nextStreamId(), FrameType.REQUEST_STREAM, payload));
     }
 
@@ -92,10 +82,10 @@ public class Requester
      * {@link Subscriber#onError(Throwable)} to represent success or failure in sending
      * from the client side, but no feedback from the server will be returned.
      * 
-     * @param payload
+     * @param data
      * @return
      */
-    public Publisher<Void> fireAndForget(String payload) {
+    public Publisher<Void> fireAndForget(final Payload payload) {
         return connection.write(toPublisher(just(Frame.from(nextStreamId(), FrameType.FIRE_AND_FORGET, payload))));
     }
 
@@ -103,17 +93,16 @@ public class Requester
      * Event subscription with an infinite multi-message response potentially
      * terminated with an {@link Subscriber#onError(Throwable)}.
      * 
-     * @param payload
+     * @param data
      * @return
      */
-    public Publisher<String> requestSubscription(String payload) {
+    public Publisher<Payload> requestSubscription(final Payload payload) {
         return startStream(Frame.from(nextStreamId(), FrameType.REQUEST_SUBSCRIPTION, payload));
     }
 
-    private Publisher<String> startStream(Frame requestFrame) {
+    private Publisher<Payload> startStream(Frame requestFrame) {
         return toPublisher(Observable.create(child -> {
 
-            // TODO replace this with a UnicastSubject without the overhead of multicast support
             PublishSubject<Observable<Frame>> writer = PublishSubject.create();
             Observable<Void> written = toObservable(connection.write(toPublisher(Observable.merge(writer))));
 
@@ -124,41 +113,48 @@ public class Requester
                 @Override
                 public void request(long n) {
                     if (started.compareAndSet(false, true)) {
-                        start();
+                        start(n);
                     }
-                    // send REQUEST_N over network for streaming request types
-                    if (requestFrame.getType() == FrameType.REQUEST_STREAM || requestFrame.getType() == FrameType.REQUEST_SUBSCRIPTION) {
-                        writer.onNext(just(Frame.from(requestFrame.getStreamId(), FrameType.REQUEST_N, String.valueOf(n))));
+                    else if (requestFrame.getType() == FrameType.REQUEST_STREAM || requestFrame.getType() == FrameType.REQUEST_SUBSCRIPTION) {
+                        writer.onNext(just(Frame.from(requestFrame.getStreamId(), FrameType.REQUEST_N)));
                     }
                 }
 
-                private void start() {
+                private void start(final long n) {
                     // wire up the response handler before emitting request
-                    Observable<Frame> input = multicastedInputStream
-                            .filter(m -> m.getStreamId() == requestFrame.getStreamId());
+                    Observable<Frame> input = streamInputMap.get(requestFrame.getStreamId());
 
                     AtomicBoolean terminated = new AtomicBoolean(false);
                     // combine input and output so errors and unsubscription are composed, then subscribe
                     rx.Subscription subscription = Observable
                         .merge(input, written.cast(Frame.class))
-                        .takeUntil(m -> (m.getType() == FrameType.COMPLETE
-                            || m.getType() == FrameType.ERROR)
-                            || m.getType() == FrameType.NEXT_COMPLETE)
-                        .flatMap(m -> {
-                            // convert ERROR/COMPLETE messages into terminal events
-                            if (m.getType() == FrameType.ERROR) {
+                        .takeUntil(frame -> (frame.getType() == FrameType.COMPLETE
+                            || frame.getType() == FrameType.ERROR)
+                            || frame.getType() == FrameType.NEXT_COMPLETE)
+                        .filter(frame -> frame.getType() != FrameType.COMPLETE)
+                        .map(frame -> {
+                            // convert ERROR messages into terminal events
+                            if (frame.getType() == FrameType.NEXT)
+                            {
+                                return frame;
+                            }
+                            else if (frame.getType() == FrameType.NEXT_COMPLETE)
+                            {
                                 terminated.set(true);
-                                return error(new Exception(m.getData()));
-                            } else if (m.getType() == FrameType.COMPLETE) {
+                                return frame;
+                            }
+                            else if (frame.getType() == FrameType.ERROR)
+                            {
                                 terminated.set(true);
-                                return empty();// unsubscribe handled in takeUntil above
-                            } else if (m.getType() == FrameType.NEXT) {
-                                return just(m.getData());
-                            } else if (m.getType() == FrameType.NEXT_COMPLETE) {
-                                terminated.set(true);
-                                return just(m.getData());
-                            } else {
-                                return error(new Exception("Unexpected FrameType: " + m.getType()));
+                                final ByteBuffer byteBuffer = frame.getData();
+                                final byte[] bytes = new byte[byteBuffer.capacity()];
+                                byteBuffer.get(bytes);
+
+                                throw new RuntimeException(new String(bytes));
+                            }
+                            else
+                            {
+                                throw new RuntimeException("Unexpected FrameType: " + frame.getType());
                             }
                         })
                         .subscribe(Subscribers.from(child));// only propagate Observer methods, backpressure is via Producer above
@@ -166,13 +162,15 @@ public class Requester
                     // if the child unsubscribes, we need to send a CANCEL message if we're not terminated
                     child.add(Subscriptions.create(() -> {
                         if (!terminated.get()) {
-                            writer.onNext(just(Frame.from(requestFrame.getStreamId(), FrameType.CANCEL, "")));
+                            writer.onNext(just(Frame.from(requestFrame.getStreamId(), FrameType.CANCEL)));
                         }
                         // after sending the CANCEL we then tear down this stream
                         subscription.unsubscribe();
+                        streamInputMap.remove(requestFrame.getStreamId());
                     }));
 
                     // send the request to start everything
+                    // TODO: modify requestFrame initial request N with 'n' value that was passed in
                     writer.onNext(just(requestFrame));
                 }
 

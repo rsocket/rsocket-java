@@ -25,7 +25,7 @@ import java.nio.ByteBuffer;
  * <p>
  * This provides encoding, decoding and field accessors.
  */
-public class Frame
+public class Frame implements Payload
 {
     // thread local as it needs to be single-threaded access
 //    private static final ThreadLocal<FrameFlyweight> FRAME_HANDLER = ThreadLocal.withInitial(FrameFlyweight::new);
@@ -46,22 +46,23 @@ public class Frame
     }
 
     /**
-     * Return frame data as a String
-     *
-     * @return frame data as {@link System}
-     */
-    public String getData() {
-        return FrameFlyweight.frameData(directBuffer, 0);
-    }
-
-    /**
      * Return {@link ByteBuffer} that is a {@link ByteBuffer#slice()} for the frame data
      *
      * @return ByteBuffer containing the data
      */
-    public ByteBuffer sliceData()
+    public ByteBuffer getData()
     {
         return FrameFlyweight.sliceFrameData(directBuffer, 0);
+    }
+
+    /**
+     * Return {@link ByteBuffer} that is a {@link ByteBuffer#slice()} for the frame metadata
+     *
+     * @return ByteBuffer containing the data
+     */
+    public ByteBuffer getMetadata()
+    {
+        return FrameFlyweight.sliceFrameMetadata(directBuffer, 0);
     }
 
     /**
@@ -146,18 +147,34 @@ public class Frame
         this.directBuffer = createByteBufferAndEncode(streamId, type, message);
     }
 
-    /**
-     * Construct a new Frame with the given parameters.
-     * 
-     * @param streamId to include in frame
-     * @param type     to include in frame
-     * @param message  to include in frame
-     * @return         new {@link Frame}
-     */
-    public static Frame from(long streamId, FrameType type, String message) {
+    public static Frame from(long streamId, FrameType type, ByteBuffer data, ByteBuffer metadata)
+    {
         Frame f = new Frame();
-        f.directBuffer = createByteBufferAndEncode(streamId, type, message);
+        f.directBuffer = createByteBufferAndEncode(streamId, type, data, metadata);
         return f;
+    }
+
+    public static Frame from(long streamId, FrameType type, ByteBuffer data)
+    {
+        return from(streamId, type, data, FrameFlyweight.NULL_BYTEBUFFER);
+    }
+
+    public static Frame from(long streamId, FrameType type, Payload payload)
+    {
+        return from(streamId, type, payload.getData(), payload.getMetadata());
+    }
+
+    public static Frame from(long streamId, FrameType type)
+    {
+        return from(streamId, type, FrameFlyweight.NULL_BYTEBUFFER, FrameFlyweight.NULL_BYTEBUFFER);
+    }
+
+    public static Frame from(long streamId, final Throwable throwable)
+    {
+        final byte[] bytes = throwable.getMessage().getBytes();
+        final ByteBuffer byteBuffer = ByteBuffer.allocate(bytes.length);
+
+        return from(streamId, FrameType.ERROR, byteBuffer);
     }
 
     private static MutableDirectBuffer createByteBufferAndEncode(long streamId, FrameType type, final String message) {
@@ -166,6 +183,16 @@ public class Frame
             new UnsafeBuffer(ByteBuffer.allocate(FrameFlyweight.computeFrameLength(type, 0, message.length())));
 
         FrameFlyweight.encode(buffer, streamId, type, null, message);
+        return buffer;
+    }
+
+    private static MutableDirectBuffer createByteBufferAndEncode(
+        long streamId, FrameType type, ByteBuffer data, ByteBuffer metadata)
+    {
+        final MutableDirectBuffer buffer =
+            new UnsafeBuffer(ByteBuffer.allocate(FrameFlyweight.computeFrameLength(type, metadata.capacity(), data.capacity())));
+
+        FrameFlyweight.encode(buffer, streamId, type, metadata, data);
         return buffer;
     }
 

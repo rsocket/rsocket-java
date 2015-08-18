@@ -26,7 +26,7 @@ import rx.Subscriber;
  * <p>
  * This is NOT thread-safe.
  */
-final class UnicastSubject extends Observable<Frame>implements Observer<Frame> {
+final class UnicastSubject extends Observable<Frame> implements Observer<Frame> {
 
 	public static UnicastSubject create() {
 		return new UnicastSubject(new State());

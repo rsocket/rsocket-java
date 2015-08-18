@@ -15,8 +15,10 @@
  */
 package io.reactivesocket;
 
+import java.nio.ByteBuffer;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.commons.math3.stat.inference.TestUtils;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Mode;
@@ -30,9 +32,17 @@ import org.openjdk.jmh.infra.Blackhole;
 @OutputTimeUnit(TimeUnit.SECONDS)
 public class FramePerf {
 
+	public static Frame utf8EncodedFrame(final long streamId, final FrameType type, final String data)
+	{
+		final byte[] bytes = data.getBytes();
+		final ByteBuffer byteBuffer = ByteBuffer.wrap(bytes);
+
+		return Frame.from(streamId, type, byteBuffer);
+	}
+
 	@Benchmark
 	public Frame encodeNextCompleteHello(Input input) throws InterruptedException {
-		return Frame.from(0, FrameType.NEXT_COMPLETE, "hello");
+		return utf8EncodedFrame(0, FrameType.NEXT_COMPLETE, "hello");
 	}
 	
 	@State(Scope.Thread)

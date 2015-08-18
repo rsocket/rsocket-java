@@ -15,22 +15,10 @@
  */
 package io.reactivesocket;
 
-import org.reactivestreams.Publisher;
-import rx.Observable;
+import java.nio.ByteBuffer;
 
-import static rx.RxReactiveStreams.toPublisher;
-
-/**
- * Client-side processing for connection establishment.
- */
-public class ReactiveSocketClient
+public interface Payload
 {
-    public static Publisher<Void> connect()
-    {
-        return toPublisher(Observable.create(
-            child ->
-            {
-
-            }));
-    }
+    ByteBuffer getData();
+    ByteBuffer getMetadata();
 }

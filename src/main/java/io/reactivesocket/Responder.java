@@ -20,12 +20,12 @@ import rx.Observable;
 import rx.Subscriber;
 import rx.functions.Func0;
 import rx.functions.Func1;
+import rx.functions.Func2;
+import uk.co.real_logic.agrona.collections.Long2ObjectHashMap;
 
-import java.util.concurrent.ConcurrentHashMap;
+import java.nio.ByteBuffer;
 
-import static rx.Observable.empty;
-import static rx.Observable.error;
-import static rx.Observable.just;
+import static rx.Observable.*;
 import static rx.RxReactiveStreams.toObservable;
 import static rx.RxReactiveStreams.toPublisher;
 
@@ -49,30 +49,31 @@ public class Responder
         return new Responder(requestHandler);
     }
 
+    // TODO: make static method and pass in RequestHandler
     public Publisher<Void> acceptConnection(DuplexConnection ws) {
         // TODO consider using the LongObjectHashMap from Agrona for perf improvement
         // TODO consider alternate to PublishSubject that assumes a single subscriber and is lighter
 
         /* state of cancellation subjects during connection */
-        final ConcurrentHashMap<Long, CancellationToken> cancellationObservables = new ConcurrentHashMap<>();
+        final Long2ObjectHashMap<CancellationToken> cancellationObservables = new Long2ObjectHashMap<>();
         /* streams in flight that can receive REQUEST_N messages */
-        final ConcurrentHashMap<Long, RequestOperator<?>> inFlight = new ConcurrentHashMap<>();
+        final Long2ObjectHashMap<RequestOperator<?>> inFlight = new Long2ObjectHashMap<>();
         
-        return toPublisher(toObservable(ws.getInput()).flatMap(message -> {
-            if (message.getType() == FrameType.REQUEST_RESPONSE) {
-                return handleRequestResponse(ws, message, cancellationObservables);
-            } else if (message.getType() == FrameType.REQUEST_STREAM) {
-                return handleRequestStream(ws, message, cancellationObservables, inFlight);
-            } else if (message.getType() == FrameType.FIRE_AND_FORGET) {
-                return handleFireAndForget(message);
-            } else if (message.getType() == FrameType.REQUEST_SUBSCRIPTION) {
-                return handleRequestSubscription(ws, message, cancellationObservables, inFlight);
-            } else if (message.getType() == FrameType.CANCEL) {
-                return handleCancellationRequest(cancellationObservables, message);
-            } else if (message.getType() == FrameType.REQUEST_N) {
-                return handleRequestN(message, inFlight);
+        return toPublisher(toObservable(ws.getInput()).flatMap(frame -> {
+            if (frame.getType() == FrameType.REQUEST_RESPONSE) {
+                return handleRequestResponse(ws, frame, cancellationObservables);
+            } else if (frame.getType() == FrameType.REQUEST_STREAM) {
+                return handleRequestStream(ws, frame, cancellationObservables, inFlight);
+            } else if (frame.getType() == FrameType.FIRE_AND_FORGET) {
+                return handleFireAndForget(frame);
+            } else if (frame.getType() == FrameType.REQUEST_SUBSCRIPTION) {
+                return handleRequestSubscription(ws, frame, cancellationObservables, inFlight);
+            } else if (frame.getType() == FrameType.CANCEL) {
+                return handleCancellationRequest(cancellationObservables, frame);
+            } else if (frame.getType() == FrameType.REQUEST_N) {
+                return handleRequestN(frame, inFlight);
             } else {
-                return error(new IllegalStateException("Unexpected prefix: " + message.getType()));
+                return error(new IllegalStateException("Unexpected prefix: " + frame.getType()));
             }
         }));
     }
@@ -89,17 +90,21 @@ public class Responder
      * TODO explore if there is a better way of doing this while only exposing Publisher APIs
      */
 
-    private Observable<Void> handleRequestResponse(DuplexConnection ws, Frame requestFrame, final ConcurrentHashMap<Long, CancellationToken> cancellationObservables) {
+    private Observable<Void> handleRequestResponse(
+        DuplexConnection ws,
+        Frame requestFrame,
+        final Long2ObjectHashMap<CancellationToken> cancellationObservables)
+    {
         long streamId = requestFrame.getStreamId();
         CancellationToken cancellationToken = CancellationToken.create();
         cancellationObservables.put(requestFrame.getStreamId(), cancellationToken);
 
         return toObservable(ws.write(toPublisher(
-                toObservable(requestHandler.handleRequestResponse(requestFrame.getData()))
+                toObservable(requestHandler.handleRequestResponse(requestFrame))
                         .single()// enforce that it is a request/response
                         .flatMap(v -> just(
                                 Frame.from(streamId, FrameType.NEXT_COMPLETE, v)))
-                        .onErrorReturn(err -> Frame.from(streamId, FrameType.ERROR, err.getMessage()))
+                        .onErrorReturn(err -> Frame.from(streamId, err))
                         .takeUntil(cancellationToken)
                         .finallyDo(() -> cancellationObservables.remove(streamId)))));
     }
@@ -107,26 +112,26 @@ public class Responder
     private Observable<Void> handleRequestStream(
         DuplexConnection ws,
         Frame frame,
-        final ConcurrentHashMap<Long, CancellationToken> cancellationObservables,
-        ConcurrentHashMap<Long, RequestOperator<?>> inflight)
+        final Long2ObjectHashMap<CancellationToken> cancellationObservables,
+        Long2ObjectHashMap<RequestOperator<?>> inflight)
     {
         return handleStream(ws, frame,
                 requestHandler::handleRequestStream,
                 cancellationObservables, inflight,
-                () -> just(Frame.from(frame.getStreamId(), FrameType.COMPLETE, "")));
+                () -> just(Frame.from(frame.getStreamId(), FrameType.COMPLETE)));
     }
 
     private Observable<Void> handleRequestSubscription(
         DuplexConnection ws,
         Frame frame,
-        final ConcurrentHashMap<Long, CancellationToken> cancellationObservables,
-        ConcurrentHashMap<Long, RequestOperator<?>> inflight)
+        final Long2ObjectHashMap<CancellationToken> cancellationObservables,
+        Long2ObjectHashMap<RequestOperator<?>> inflight)
     {
         return handleStream(ws, frame,
                 requestHandler::handleRequestSubscription,
                 cancellationObservables, inflight,
                 // we emit an error if the subscription completes as it is expected to be infinite
-                () -> just(Frame.from(frame.getStreamId(), FrameType.ERROR, "Subscription terminated unexpectedly")));
+                () -> just(Frame.from(frame.getStreamId(), new RuntimeException("Subscription terminated unexpectedly"))));
     }
 
     /**
@@ -142,9 +147,9 @@ public class Responder
     private Observable<Void> handleStream(
             DuplexConnection ws,
             Frame frame,
-            Func1<String, Publisher<String>> messageHandler,
-            final ConcurrentHashMap<Long, CancellationToken> cancellationObservables,
-            ConcurrentHashMap<Long, RequestOperator<?>> inflight,
+            Func1<Payload, Publisher<Payload>> messageHandler,
+            final Long2ObjectHashMap<CancellationToken> cancellationObservables,
+            Long2ObjectHashMap<RequestOperator<?>> inflight,
             Func0<? extends Observable<Frame>> onCompletedHandler)
     {
         long streamId = frame.getStreamId();
@@ -155,11 +160,11 @@ public class Responder
         inflight.put(streamId, requestor);
 
         return toObservable(ws.write(toPublisher(
-                toObservable(messageHandler.call(frame.getData()))
+                toObservable(messageHandler.call(frame))
                         // TODO pulling out requestN/backpressure for now as it's not working
                         //                                                .lift(requestor)
                         .flatMap(s -> just(Frame.from(streamId, FrameType.NEXT, s)),
-                                err -> just(Frame.from(streamId, FrameType.ERROR, err.getMessage())),
+                                err -> just(Frame.from(streamId, err)),
                                 onCompletedHandler)
                         .takeUntil(cancellationToken)
                         .finallyDo(() -> {
@@ -175,7 +180,7 @@ public class Responder
      * @return
      */
     private Observable<Void> handleFireAndForget(Frame requestFrame) {
-        return toObservable(requestHandler.handleFireAndForget(requestFrame.getData()))
+        return toObservable(requestHandler.handleFireAndForget(requestFrame))
                 .onErrorResumeNext(error -> {
                     // swallow errors for fireAndForget ... no responses to client
                     // TODO add some kind of logging here
@@ -184,7 +189,9 @@ public class Responder
                 });
     }
 
-    private Observable<? extends Void> handleCancellationRequest(final ConcurrentHashMap<Long, CancellationToken> cancellationObservables, Frame frame) {
+    private Observable<? extends Void> handleCancellationRequest(
+        final Long2ObjectHashMap<CancellationToken> cancellationObservables,
+        Frame frame) {
         CancellationToken cancellationToken = cancellationObservables.get(frame.getStreamId());
         if (cancellationToken != null) {
             cancellationToken.cancel();
@@ -193,7 +200,9 @@ public class Responder
     }
 
     // TODO this needs further thought ... very prototypish implementation right now
-    private Observable<? extends Void> handleRequestN(Frame frame, final ConcurrentHashMap<Long, RequestOperator<?>> inFlight) {
+    private Observable<? extends Void> handleRequestN(
+        Frame frame,
+        final Long2ObjectHashMap<RequestOperator<?>> inFlight) {
         RequestOperator<?> requestor = inFlight.get(frame.getStreamId());
         // TODO commented out as this isn't working yet
         //        System.out.println("*** requestN " + requestor);

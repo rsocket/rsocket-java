@@ -20,21 +20,21 @@ package io.reactivesocket;
  */
 public enum FrameType
 {
-     SETUP(0x01),
+     SETUP(0x01, true),
      // Messages from Requestor
-     REQUEST_RESPONSE(0x11),
-     FIRE_AND_FORGET(0x12),
-     REQUEST_STREAM(0x13),
-     REQUEST_SUBSCRIPTION(0x14),
-     REQUEST_N(0x15),
-     CANCEL(0x16),
+     REQUEST_RESPONSE(0x11, true),
+     FIRE_AND_FORGET(0x12, true),
+     REQUEST_STREAM(0x13, true),
+     REQUEST_SUBSCRIPTION(0x14, true),
+     REQUEST_N(0x15, true),
+     CANCEL(0x16, true),
      // Messages from Responder
-     RESPONSE(0x20),
-     ERROR(0x21),
+     RESPONSE(0x20, false),
+     ERROR(0x21, false),
      // synthetic types from Responder for use by the rest of the machinery
-     NEXT(0x22),
-     COMPLETE(0x23),
-     NEXT_COMPLETE(0x24);
+     NEXT(0x22, false),
+     COMPLETE(0x23, false),
+     NEXT_COMPLETE(0x24, false);
 
     private static FrameType[] typesById;
 
@@ -56,13 +56,20 @@ public enum FrameType
     }
 
     private final int id;
+    private final boolean requestType;
 
-    FrameType(int id) {
+    FrameType(int id, boolean requestType) {
         this.id = id;
+        this.requestType = requestType;
     }
     
     public int getEncodedType() {
         return id;
+    }
+
+    public boolean isRequestType()
+    {
+        return requestType;
     }
 
     public static FrameType from(int id) {

@@ -36,6 +36,7 @@ import java.nio.ByteOrder;
 public class FrameFlyweight
 {
     public static final byte[] NULL_BYTE_ARRAY = new byte[0];
+    public static final ByteBuffer NULL_BYTEBUFFER = ByteBuffer.allocate(0);
 
     private static final boolean INCLUDE_FRAME_LENGTH = true;
 
@@ -85,18 +86,20 @@ public class FrameFlyweight
     {
         final byte[] metadataBytes = (null != metadata) ? metadata.getBytes() : NULL_BYTE_ARRAY;
         final byte[] dataBytes = (null != data) ? data.getBytes() : NULL_BYTE_ARRAY;
+        final ByteBuffer metadataBuffer = ByteBuffer.wrap(metadataBytes);
+        final ByteBuffer dataBuffer = ByteBuffer.wrap(dataBytes);
 
-        return encode(mutableDirectBuffer, streamId, type, metadataBytes, dataBytes);
+        return encode(mutableDirectBuffer, streamId, type, metadataBuffer, dataBuffer);
     }
 
     public static int encode(
         final MutableDirectBuffer mutableDirectBuffer,
         final long streamId,
         final FrameType frameType,
-        final byte[] metadata,
-        final byte[] data)
+        final ByteBuffer metadata,
+        final ByteBuffer data)
     {
-        final int frameLength = computeFrameLength(frameType, metadata.length, data.length);
+        final int frameLength = computeFrameLength(frameType, metadata.capacity(), data.capacity());
 
         if (INCLUDE_FRAME_LENGTH)
         {
@@ -106,7 +109,7 @@ public class FrameFlyweight
         final FrameType outFrameType;
         int flags = 0;
         int offset = payloadOffset(frameType);
-        int metadataLength = metadataLength(metadata.length);
+        int metadataLength = metadataLength(metadata.capacity());
 
         switch (frameType)
         {
@@ -131,9 +134,9 @@ public class FrameFlyweight
         mutableDirectBuffer.putByte(FLAGS_FIELD_OFFSET, (byte) flags);
         mutableDirectBuffer.putShort(TYPE_FIELD_OFFSET, (short) outFrameType.getEncodedType(), ByteOrder.BIG_ENDIAN);
         mutableDirectBuffer.putLong(STREAM_ID_FIELD_OFFSET, streamId, ByteOrder.BIG_ENDIAN);
-        mutableDirectBuffer.putBytes(offset, metadata);
+        mutableDirectBuffer.putBytes(offset, metadata, metadataLength);
         offset += metadataLength;
-        mutableDirectBuffer.putBytes(offset, data);
+        mutableDirectBuffer.putBytes(offset, data, data.capacity());
 
         return frameLength;
     }

@@ -23,7 +23,7 @@ public class UnicastSubjectTest {
 
 	@Test
 	public void testSubscribeReceiveValue() {
-		Frame f = Frame.from(1, FrameType.NEXT_COMPLETE, "response");
+		Frame f = TestUtil.utf8EncodedFrame(1, FrameType.NEXT_COMPLETE, "response");
 		UnicastSubject us = UnicastSubject.create();
 		TestSubscriber<Frame> ts = TestSubscriber.create();
 		us.subscribe(ts);
@@ -34,7 +34,7 @@ public class UnicastSubjectTest {
 
 	@Test(expected = NullPointerException.class)
 	public void testNullPointerSendingWithoutSubscriber() {
-		Frame f = Frame.from(1, FrameType.NEXT_COMPLETE, "response");
+		Frame f = TestUtil.utf8EncodedFrame(1, FrameType.NEXT_COMPLETE, "response");
 		UnicastSubject us = UnicastSubject.create();
 		us.onNext(f);
 	}

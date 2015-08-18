@@ -16,6 +16,9 @@
 package io.reactivesocket;
 
 import org.reactivestreams.Publisher;
+import org.reactivestreams.Subscription;
+import org.reactivestreams.Subscriber;
+import uk.co.real_logic.agrona.collections.Long2ObjectHashMap;
 
 import static rx.Observable.error;
 import static rx.RxReactiveStreams.toPublisher;
@@ -28,26 +31,26 @@ import static rx.RxReactiveStreams.toPublisher;
  */
 public class ReactiveSocket
 {
-    private static final Publisher<String> NOT_FOUND_ERROR_STRING = toPublisher(error(new Exception("Not Found!")));
+    private static final Publisher<Payload> NOT_FOUND_ERROR_PAYLOAD = toPublisher(error(new Exception("Not Found!")));
     private static final Publisher<Void> NOT_FOUND_ERROR_VOID = toPublisher(error(new Exception("Not Found!")));
     private static final RequestHandler EMPTY_HANDLER = new RequestHandler()
     {
-        public Publisher<String> handleRequestResponse(String request)
+        public Publisher<Payload> handleRequestResponse(Payload payload)
         {
-            return NOT_FOUND_ERROR_STRING;
+            return NOT_FOUND_ERROR_PAYLOAD;
         }
 
-        public Publisher<String> handleRequestStream(String request)
+        public Publisher<Payload> handleRequestStream(Payload payload)
         {
-            return NOT_FOUND_ERROR_STRING;
+            return NOT_FOUND_ERROR_PAYLOAD;
         }
 
-        public Publisher<String> handleRequestSubscription(String request)
+        public Publisher<Payload> handleRequestSubscription(Payload payload)
         {
-            return NOT_FOUND_ERROR_STRING;
+            return NOT_FOUND_ERROR_PAYLOAD;
         }
 
-        public Publisher<Void> handleFireAndForget(String request)
+        public Publisher<Void> handleFireAndForget(Payload payload)
         {
             return NOT_FOUND_ERROR_VOID;
         }
@@ -55,6 +58,8 @@ public class ReactiveSocket
 
     private final Requester requester;
     private final Publisher<Void> responderPublisher;
+
+    private final Long2ObjectHashMap<UnicastSubject> requesterStreamInputMap = new Long2ObjectHashMap<>();
 
     public static ReactiveSocket connect(final DuplexConnection connection)
     {
@@ -70,7 +75,7 @@ public class ReactiveSocket
      */
     public static ReactiveSocket connect(final DuplexConnection connection, final RequestHandler requestHandler)
     {
-        final ReactiveSocket socket = new ReactiveSocket(connection, Responder.create(requestHandler));
+        final ReactiveSocket socket = new ReactiveSocket(connection, requestHandler);
 
         // TODO: initiate connect logic as a client
 
@@ -86,7 +91,7 @@ public class ReactiveSocket
      */
     public static ReactiveSocket accept(final DuplexConnection connection, final RequestHandler requestHandler)
     {
-        final ReactiveSocket socket = new ReactiveSocket(connection, Responder.create(requestHandler));
+        final ReactiveSocket socket = new ReactiveSocket(connection, requestHandler);
 
         // TODO: passively wait for a SETUP and accept or reject it
 
@@ -100,24 +105,24 @@ public class ReactiveSocket
      * @param metadata
      * @return
      */
-    public Publisher<String> requestResponse(final String data, final String metadata)
+    public Publisher<Payload> requestResponse(final Payload payload)
     {
-        return requester.requestResponse(data);
+        return requester.requestResponse(payload);
     }
 
-    public Publisher<Void> fireAndForget(final String data, final String metadata)
+    public Publisher<Void> fireAndForget(final Payload payload)
     {
-        return requester.fireAndForget(data);
+        return requester.fireAndForget(payload);
     }
 
-    public Publisher<String> requestStream(final String data, final String metadata)
+    public Publisher<Payload> requestStream(final Payload payload)
     {
-        return requester.requestStream(data);
+        return requester.requestStream(payload);
     }
 
-    public Publisher<String> requestSubscription(final String data, final String metadata)
+    public Publisher<Payload> requestSubscription(final Payload payload)
     {
-        return requester.requestSubscription(data);
+        return requester.requestSubscription(payload);
     }
 
     public Publisher<Void> responderPublisher()
@@ -125,9 +130,43 @@ public class ReactiveSocket
         return responderPublisher;
     }
 
-    private ReactiveSocket(final DuplexConnection connection, final Responder responder)
+    private ReactiveSocket(final DuplexConnection connection, final RequestHandler requestHandler)
     {
-        this.requester = Requester.create(connection);
-        this.responderPublisher = responder.acceptConnection(connection);
+        this.requester = Requester.create(connection, requesterStreamInputMap);
+        this.responderPublisher = Responder.create(requestHandler).acceptConnection(connection);
+
+        connection.getInput().subscribe(new Subscriber<Frame>()
+        {
+            public void onSubscribe(Subscription s)
+            {
+                s.request(Long.MAX_VALUE);
+            }
+
+            public void onNext(Frame frame)
+            {
+                if (frame.getType().isRequestType())
+                {
+                    requesterStreamInputMap.get(frame.getStreamId()).onNext(frame);
+                }
+                else
+                {
+
+                }
+            }
+
+            public void onError(Throwable t)
+            {
+                requesterStreamInputMap.forEach((id, subject) -> subject.onError(t));
+                // TODO: iterate over responder side and destroy world
+            }
+
+            public void onComplete()
+            {
+                // TODO: might be a RuntimeException
+                requesterStreamInputMap.forEach((id, subject) -> subject.onCompleted());
+                // TODO: iterate over responder side and destroy world
+            }
+        });
+
     }
 }

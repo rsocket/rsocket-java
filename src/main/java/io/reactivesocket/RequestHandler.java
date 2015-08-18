@@ -16,46 +16,45 @@
 package io.reactivesocket;
 
 import org.reactivestreams.Publisher;
-
 import rx.functions.Func1;
 
 public abstract class RequestHandler {
 
     // TODO replace String with whatever ByteBuffer/byte[]/ByteBuf/etc variant we choose
     
-    public abstract Publisher<String> handleRequestResponse(String request);
+    public abstract Publisher<Payload> handleRequestResponse(final Payload payload);
 
-    public abstract Publisher<String> handleRequestStream(String request);
+    public abstract Publisher<Payload> handleRequestStream(final Payload payload);
 
-    public abstract Publisher<String> handleRequestSubscription(String request);
+    public abstract Publisher<Payload> handleRequestSubscription(final Payload payload);
 
-    public abstract Publisher<Void> handleFireAndForget(String request);
+    public abstract Publisher<Void> handleFireAndForget(final Payload payload);
 
     public static RequestHandler create(
-            Func1<String, Publisher<String>> requestResponseHandler,
-            Func1<String, Publisher<String>> requestStreamHandler,
-            Func1<String, Publisher<String>> requestSubscriptionHandler,
-            Func1<String, Publisher<Void>> fireAndForgetHandler) {
+            Func1<Payload, Publisher<Payload>> requestResponseHandler,
+            Func1<Payload, Publisher<Payload>> requestStreamHandler,
+            Func1<Payload, Publisher<Payload>> requestSubscriptionHandler,
+            Func1<Payload, Publisher<Void>> fireAndForgetHandler) {
         return new RequestHandler() {
 
             @Override
-            public Publisher<String> handleRequestResponse(String request) {
-                return requestResponseHandler.call(request);
+            public Publisher<Payload> handleRequestResponse(final Payload payload) {
+                return requestResponseHandler.call(payload);
             }
 
             @Override
-            public Publisher<String> handleRequestStream(String request) {
-                return requestStreamHandler.call(request);
+            public Publisher<Payload> handleRequestStream(final Payload payload) {
+                return requestStreamHandler.call(payload);
             }
 
             @Override
-            public Publisher<String> handleRequestSubscription(String request) {
-                return requestSubscriptionHandler.call(request);
+            public Publisher<Payload> handleRequestSubscription(final Payload payload) {
+                return requestSubscriptionHandler.call(payload);
             }
 
             @Override
-            public Publisher<Void> handleFireAndForget(String request) {
-                return fireAndForgetHandler.call(request);
+            public Publisher<Void> handleFireAndForget(final Payload payload) {
+                return fireAndForgetHandler.call(payload);
             }
 
         };

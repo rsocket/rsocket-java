@@ -19,6 +19,7 @@ import org.junit.Test;
 import rx.Subscription;
 import rx.observers.TestSubscriber;
 import rx.subjects.ReplaySubject;
+import uk.co.real_logic.agrona.collections.Long2ObjectHashMap;
 
 import java.util.Arrays;
 import java.util.List;
@@ -29,26 +30,28 @@ import static rx.RxReactiveStreams.toObservable;
 
 public class RequesterTest
 {
+    private final Long2ObjectHashMap<UnicastSubject> streamInputMap = new Long2ObjectHashMap<>();
+
     @Test
     public void testRequestResponseSuccess() {
         TestConnection conn = establishConnection();
-        Requester p = Requester.create(conn);
+        Requester p = Requester.create(conn, streamInputMap);
         ReplaySubject<Frame> requests = captureRequests(conn);
 
-        TestSubscriber<String> ts = TestSubscriber.create();
-        toObservable(p.requestResponse("hello")).subscribe(ts);
+        TestSubscriber<Payload> ts = TestSubscriber.create();
+        toObservable(p.requestResponse(TestUtil.utf8EncodedPayload("hello", null))).subscribe(ts);
 
         assertEquals(1, requests.getValues().length);
         List<Frame> requested = requests.take(1).toList().toBlocking().single();
 
         Frame one = requested.get(0);
         assertEquals(1, one.getStreamId());// need to start at 1, not 0
-        assertEquals("hello", one.getData());
+        assertEquals("hello", TestUtil.toString(one.getData()));
         assertEquals(FrameType.REQUEST_RESPONSE, one.getType());
 
         // now emit a response to ensure the Publisher receives and completes
-        conn.toInput.onNext(Frame.from(1, FrameType.NEXT_COMPLETE, "world"));
-        ts.assertValue("world");
+        conn.toInput.onNext(TestUtil.utf8EncodedFrame(1, FrameType.NEXT_COMPLETE, "world"));
+        ts.assertValue(TestUtil.utf8EncodedPayload("world", null));
 
         ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
         ts.assertCompleted();
@@ -57,21 +60,21 @@ public class RequesterTest
     @Test
     public void testRequestResponseError() {
         TestConnection conn = establishConnection();
-        Requester p = Requester.create(conn);
+        Requester p = Requester.create(conn, streamInputMap);
         ReplaySubject<Frame> requests = captureRequests(conn);
 
-        TestSubscriber<String> ts = TestSubscriber.create();
-        toObservable(p.requestResponse("hello")).subscribe(ts);
+        TestSubscriber<Payload> ts = TestSubscriber.create();
+        toObservable(p.requestResponse(TestUtil.utf8EncodedPayload("hello", null))).subscribe(ts);
 
         assertEquals(1, requests.getValues().length);
         List<Frame> requested = requests.take(1).toList().toBlocking().single();
 
         Frame one = requested.get(0);
         assertEquals(1, one.getStreamId());// need to start at 1, not 0
-        assertEquals("hello", one.getData());
+        assertEquals("hello", TestUtil.toString(one.getData()));
         assertEquals(FrameType.REQUEST_RESPONSE, one.getType());
 
-        conn.toInput.onNext(Frame.from(1, FrameType.ERROR, "Failed"));
+        conn.toInput.onNext(Frame.from(1, new RuntimeException("Failed")));
         ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
         ts.assertError(Exception.class);
         assertEquals("Failed", ts.getOnErrorEvents().get(0).getMessage());
@@ -80,11 +83,11 @@ public class RequesterTest
     @Test
     public void testRequestResponseCancel() {
         TestConnection conn = establishConnection();
-        Requester p = Requester.create(conn);
+        Requester p = Requester.create(conn, streamInputMap);
         ReplaySubject<Frame> requests = captureRequests(conn);
 
-        TestSubscriber<String> ts = TestSubscriber.create();
-        Subscription s = toObservable(p.requestResponse("hello")).subscribe(ts);
+        TestSubscriber<Payload> ts = TestSubscriber.create();
+        Subscription s = toObservable(p.requestResponse(TestUtil.utf8EncodedPayload("hello", null))).subscribe(ts);
         s.unsubscribe();
 
         assertEquals(2, requests.getValues().length);
@@ -92,12 +95,12 @@ public class RequesterTest
 
         Frame one = requested.get(0);
         assertEquals(1, one.getStreamId());// need to start at 1, not 0
-        assertEquals("hello", one.getData());
+        assertEquals("hello", TestUtil.toString(one.getData()));
         assertEquals(FrameType.REQUEST_RESPONSE, one.getType());
 
         Frame two = requested.get(1);
         assertEquals(1, two.getStreamId());// still the same stream
-        assertEquals("", two.getData());
+        assertEquals("", TestUtil.toString(two.getData()));
         assertEquals(FrameType.CANCEL, two.getType());
 
         ts.assertNoTerminalEvent();
@@ -108,64 +111,64 @@ public class RequesterTest
     @Test
     public void testRequestStreamSuccess() {
         TestConnection conn = establishConnection();
-        Requester p = Requester.create(conn);
+        Requester p = Requester.create(conn, streamInputMap);
         ReplaySubject<Frame> requests = captureRequests(conn);
 
-        TestSubscriber<String> ts = TestSubscriber.create();
-        toObservable(p.requestStream("hello")).subscribe(ts);
+        TestSubscriber<Payload> ts = TestSubscriber.create();
+        toObservable(p.requestStream(TestUtil.utf8EncodedPayload("hello", null))).subscribe(ts);
 
         assertEquals(2, requests.getValues().length);
         List<Frame> requested = requests.take(2).toList().toBlocking().single();
 
         Frame one = requested.get(0);
         assertEquals(1, one.getStreamId());// need to start at 1, not 0
-        assertEquals("hello", one.getData());
+        assertEquals("hello", TestUtil.toString(one.getData()));
         assertEquals(FrameType.REQUEST_STREAM, one.getType());
 
         Frame two = requested.get(1);
         assertEquals(1, two.getStreamId());// still the same stream
-        assertEquals(String.valueOf(Long.MAX_VALUE), two.getData());// TODO we should alter the default to something like 1024 when MAX_VALUE is requested
+        assertEquals(String.valueOf(Long.MAX_VALUE), TestUtil.toString(two.getData()));// TODO we should alter the default to something like 1024 when MAX_VALUE is requested
         assertEquals(FrameType.REQUEST_N, two.getType());
 
         // emit data
-        conn.toInput.onNext(Frame.from(1, FrameType.NEXT, "hello"));
-        conn.toInput.onNext(Frame.from(1, FrameType.NEXT, "world"));
-        conn.toInput.onNext(Frame.from(1, FrameType.COMPLETE, ""));
+        conn.toInput.onNext(TestUtil.utf8EncodedFrame(1, FrameType.NEXT, "hello"));
+        conn.toInput.onNext(TestUtil.utf8EncodedFrame(1, FrameType.NEXT, "world"));
+        conn.toInput.onNext(TestUtil.utf8EncodedFrame(1, FrameType.COMPLETE, ""));
 
         ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
         ts.assertCompleted();
-        ts.assertReceivedOnNext(Arrays.asList("hello", "world"));
+        ts.assertReceivedOnNext(Arrays.asList(TestUtil.utf8EncodedPayload("hello", null), TestUtil.utf8EncodedPayload("world", null)));
     }
 
     @Test
     public void testRequestStreamSuccessTake2AndCancel() {
         TestConnection conn = establishConnection();
-        Requester p = Requester.create(conn);
+        Requester p = Requester.create(conn, streamInputMap);
         ReplaySubject<Frame> requests = captureRequests(conn);
 
-        TestSubscriber<String> ts = TestSubscriber.create();
-        toObservable(p.requestStream("hello")).take(2).subscribe(ts);
+        TestSubscriber<Payload> ts = TestSubscriber.create();
+        toObservable(p.requestStream(TestUtil.utf8EncodedPayload("hello", null))).take(2).subscribe(ts);
 
         assertEquals(2, requests.getValues().length);
         List<Frame> requested = requests.take(2).toList().toBlocking().single();
 
         Frame one = requested.get(0);
         assertEquals(1, one.getStreamId());// need to start at 1, not 0
-        assertEquals("hello", one.getData());
+        assertEquals("hello", TestUtil.toString(one.getData()));
         assertEquals(FrameType.REQUEST_STREAM, one.getType());
 
         Frame two = requested.get(1);
         assertEquals(1, two.getStreamId());// still the same stream
-        assertEquals(String.valueOf(2), two.getData());
+        assertEquals(String.valueOf(2), TestUtil.toString(two.getData()));
         assertEquals(FrameType.REQUEST_N, two.getType());
 
         // emit data
-        conn.toInput.onNext(Frame.from(1, FrameType.NEXT, "hello"));
-        conn.toInput.onNext(Frame.from(1, FrameType.NEXT, "world"));
+        conn.toInput.onNext(TestUtil.utf8EncodedFrame(1, FrameType.NEXT, "hello"));
+        conn.toInput.onNext(TestUtil.utf8EncodedFrame(1, FrameType.NEXT, "world"));
 
         ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
         ts.assertCompleted();
-        ts.assertReceivedOnNext(Arrays.asList("hello", "world"));
+        ts.assertReceivedOnNext(Arrays.asList(TestUtil.utf8EncodedPayload("hello", null), TestUtil.utf8EncodedPayload("world", null)));
 
         assertEquals(3, requests.getValues().length);
         List<Frame> requested2 = requests.take(3).toList().toBlocking().single();
@@ -173,39 +176,39 @@ public class RequesterTest
         // we should have sent a CANCEL
         Frame three = requested2.get(2);
         assertEquals(1, three.getStreamId());// still the same stream
-        assertEquals("", three.getData());
+        assertEquals("", TestUtil.toString(three.getData()));
         assertEquals(FrameType.CANCEL, three.getType());
     }
 
     @Test
     public void testRequestStreamError() {
         TestConnection conn = establishConnection();
-        Requester p = Requester.create(conn);
+        Requester p = Requester.create(conn, streamInputMap);
         ReplaySubject<Frame> requests = captureRequests(conn);
 
-        TestSubscriber<String> ts = TestSubscriber.create();
-        toObservable(p.requestStream("hello")).subscribe(ts);
+        TestSubscriber<Payload> ts = TestSubscriber.create();
+        toObservable(p.requestStream(TestUtil.utf8EncodedPayload("hello", null))).subscribe(ts);
 
         assertEquals(2, requests.getValues().length);
         List<Frame> requested = requests.take(2).toList().toBlocking().single();
 
         Frame one = requested.get(0);
         assertEquals(1, one.getStreamId());// need to start at 1, not 0
-        assertEquals("hello", one.getData());
+        assertEquals("hello", TestUtil.toString(one.getData()));
         assertEquals(FrameType.REQUEST_STREAM, one.getType());
 
         Frame two = requested.get(1);
         assertEquals(1, two.getStreamId());// still the same stream
-        assertEquals(String.valueOf(Long.MAX_VALUE), two.getData());// TODO we should alter the default to something like 1024 when MAX_VALUE is requested
+        assertEquals(String.valueOf(Long.MAX_VALUE), TestUtil.toString(two.getData()));// TODO we should alter the default to something like 1024 when MAX_VALUE is requested
         assertEquals(FrameType.REQUEST_N, two.getType());
 
         // emit data
-        conn.toInput.onNext(Frame.from(1, FrameType.NEXT, "hello"));
-        conn.toInput.onNext(Frame.from(1, FrameType.ERROR, "Failure"));
+        conn.toInput.onNext(TestUtil.utf8EncodedFrame(1, FrameType.NEXT, "hello"));
+        conn.toInput.onNext(TestUtil.utf8EncodedFrame(1, FrameType.ERROR, "Failure"));
 
         ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
         ts.assertError(Exception.class);
-        ts.assertReceivedOnNext(Arrays.asList("hello"));
+        ts.assertReceivedOnNext(Arrays.asList(TestUtil.utf8EncodedPayload("hello", null)));
         assertEquals("Failure", ts.getOnErrorEvents().get(0).getMessage());
     }
 

@@ -41,14 +41,14 @@ public class ResponderTest
     @Test
     public void testRequestResponseSuccess() {
         Responder p = Responder.create(RequestHandler.create(
-            request -> toPublisher(just(request + " world")),
+            request -> toPublisher(just(TestUtil.utf8EncodedPayload(request + " world", null))),
             null, null, null));
 
         TestConnection conn = establishConnection(p);
         ReplaySubject<Frame> cachedResponses = captureResponses(conn);
 
         // perform a request/response
-        conn.toInput.onNext(Frame.from(1, FrameType.REQUEST_RESPONSE, "hello"));
+        conn.toInput.onNext(TestUtil.utf8EncodedFrame(1, FrameType.REQUEST_RESPONSE, "hello"));
 
         assertEquals(1, cachedResponses.getValues().length);// 1 onNext + 1 onCompleted
         List<Frame> frames = cachedResponses.take(1).toList().toBlocking().first();
@@ -57,33 +57,33 @@ public class ResponderTest
         Frame first = frames.get(0);
         assertEquals(1, first.getStreamId());
         assertEquals(FrameType.NEXT_COMPLETE, first.getType());
-        assertEquals("hello world", first.getData());
+        assertEquals("hello world", TestUtil.toString(first.getData()));
     }
 
     @Test
     public void testRequestResponseError() {
         Responder p = Responder.create(RequestHandler.create(
-            request -> toPublisher(Observable.<String>error(new Exception("Request Not Found"))),
+            request -> toPublisher(Observable.<Payload>error(new Exception("Request Not Found"))),
             null, null, null));
 
         TestConnection conn = establishConnection(p);
         Observable<Frame> cachedResponses = captureResponses(conn);
 
         // perform a request/response
-        conn.toInput.onNext(Frame.from(1, FrameType.REQUEST_RESPONSE, "hello"));
+        conn.toInput.onNext(TestUtil.utf8EncodedFrame(1, FrameType.REQUEST_RESPONSE, "hello"));
 
         // assert
         Frame first = cachedResponses.toBlocking().first();
         assertEquals(1, first.getStreamId());
         assertEquals(FrameType.ERROR, first.getType());
-        assertEquals("Request Not Found", first.getData());
+        assertEquals("Request Not Found", TestUtil.toString(first.getData()));
     }
 
     @Test
     public void testRequestResponseCancel() {
         AtomicBoolean unsubscribed = new AtomicBoolean();
-        Observable<String> delayed = never()
-                .cast(String.class)
+        Observable<Payload> delayed = never()
+                .cast(Payload.class)
                 .doOnUnsubscribe(() -> unsubscribed.set(true));
 
         Responder p = Responder.create(RequestHandler.create(
@@ -94,12 +94,12 @@ public class ResponderTest
         ReplaySubject<Frame> cachedResponses = captureResponses(conn);
 
         // perform a request/response
-        conn.toInput.onNext(Frame.from(1, FrameType.REQUEST_RESPONSE, "hello"));
+        conn.toInput.onNext(TestUtil.utf8EncodedFrame(1, FrameType.REQUEST_RESPONSE, "hello"));
         // assert no response
         assertFalse(cachedResponses.hasAnyValue());
         // unsubscribe
         assertFalse(unsubscribed.get());
-        conn.toInput.onNext(Frame.from(1, FrameType.CANCEL, ""));
+        conn.toInput.onNext(Frame.from(1, FrameType.CANCEL));
         assertTrue(unsubscribed.get());
     }
 
@@ -107,14 +107,14 @@ public class ResponderTest
     public void testRequestStreamSuccess() {
         Responder p = Responder.create(RequestHandler.create(
             null,
-            request -> toPublisher(range(Integer.parseInt(request), 10).map(i -> i + "!")),
+            request -> toPublisher(range(Integer.parseInt(TestUtil.toString(request.getData())), 10).map(i -> TestUtil.utf8EncodedPayload(i + "!", null))),
             null, null));
 
         TestConnection conn = establishConnection(p);
         ReplaySubject<Frame> cachedResponses = captureResponses(conn);
 
         // perform a request/response
-        conn.toInput.onNext(Frame.from(1, FrameType.REQUEST_STREAM, "10"));
+        conn.toInput.onNext(TestUtil.utf8EncodedFrame(1, FrameType.REQUEST_STREAM, "10"));
 
         // assert
         assertEquals(11, cachedResponses.getValues().length);// 10 onNext + 1 onCompleted
@@ -124,21 +124,21 @@ public class ResponderTest
         for (int i = 0; i < 10; i++) {
             assertEquals(1, frames.get(i).getStreamId());
             assertEquals(FrameType.NEXT, frames.get(i).getType());
-            assertEquals((i + 10) + "!", frames.get(i).getData());
+            assertEquals((i + 10) + "!", TestUtil.toString(frames.get(i).getData()));
         }
 
         // last message is a COMPLETE
         assertEquals(1, frames.get(10).getStreamId());
         assertEquals(FrameType.COMPLETE, frames.get(10).getType());
-        assertEquals("", frames.get(10).getData());
+        assertEquals("", TestUtil.toString(frames.get(10).getData()));
     }
 
     @Test
     public void testRequestStreamError() {
         Responder p = Responder.create(RequestHandler.create(
             null,
-            request -> toPublisher(range(Integer.parseInt(request), 3)
-                .map(i -> i + "!")
+            request -> toPublisher(range(Integer.parseInt(TestUtil.toString(request.getData())), 3)
+                .map(i -> TestUtil.utf8EncodedPayload(i + "!", null))
                 .concatWith(error(new Exception("Error Occurred!")))),
             null, null));
 
@@ -146,7 +146,7 @@ public class ResponderTest
         ReplaySubject<Frame> cachedResponses = captureResponses(conn);
 
         // perform a request/response
-        conn.toInput.onNext(Frame.from(1, FrameType.REQUEST_STREAM, "0"));
+        conn.toInput.onNext(TestUtil.utf8EncodedFrame(1, FrameType.REQUEST_STREAM, "0"));
 
         // assert
         assertEquals(4, cachedResponses.getValues().length);// 3 onNext + 1 onError
@@ -156,13 +156,13 @@ public class ResponderTest
         for (int i = 0; i < 3; i++) {
             assertEquals(1, frames.get(i).getStreamId());
             assertEquals(FrameType.NEXT, frames.get(i).getType());
-            assertEquals(i + "!", frames.get(i).getData());
+            assertEquals(i + "!", TestUtil.toString(frames.get(i).getData()));
         }
 
         // last message is an ERROR
         assertEquals(1, frames.get(3).getStreamId());
         assertEquals(FrameType.ERROR, frames.get(3).getType());
-        assertEquals("Error Occurred!", frames.get(3).getData());
+        assertEquals("Error Occurred!", TestUtil.toString(frames.get(3).getData()));
     }
 
     @Test
@@ -170,14 +170,14 @@ public class ResponderTest
         TestScheduler ts = Schedulers.test();
         Responder p = Responder.create(RequestHandler.create(
             null,
-            request -> toPublisher(interval(1000, TimeUnit.MILLISECONDS, ts).map(i -> i + "!")),
+            request -> toPublisher(interval(1000, TimeUnit.MILLISECONDS, ts).map(i -> TestUtil.utf8EncodedPayload(i + "!", null))),
             null, null));
 
         TestConnection conn = establishConnection(p);
         ReplaySubject<Frame> cachedResponses = captureResponses(conn);
 
         // perform a request/response
-        conn.toInput.onNext(Frame.from(1, FrameType.REQUEST_STREAM, "/aRequest"));
+        conn.toInput.onNext(TestUtil.utf8EncodedFrame(1, FrameType.REQUEST_STREAM, "/aRequest"));
 
         // no time has passed, so no values
         assertEquals(0, cachedResponses.getValues().length);
@@ -186,7 +186,7 @@ public class ResponderTest
         ts.advanceTimeBy(2000, TimeUnit.MILLISECONDS);
         assertEquals(3, cachedResponses.getValues().length);
         // dispose
-        conn.toInput.onNext(Frame.from(1, FrameType.CANCEL, ""));
+        conn.toInput.onNext(Frame.from(1, FrameType.CANCEL));
         // still only 1 message
         assertEquals(3, cachedResponses.getValues().length);
         // advance again, nothing should happen
@@ -200,7 +200,7 @@ public class ResponderTest
         for (int i = 0; i < 3; i++) {
             assertEquals(1, frames.get(i).getStreamId());
             assertEquals(FrameType.NEXT, frames.get(i).getType());
-            assertEquals(i + "!", frames.get(i).getData());
+            assertEquals(i + "!", TestUtil.toString(frames.get(i).getData()));
         }
     }
 
@@ -209,14 +209,14 @@ public class ResponderTest
         TestScheduler ts = Schedulers.test();
         Responder p = Responder.create(RequestHandler.create(
             null,
-            request -> toPublisher(interval(1000, TimeUnit.MILLISECONDS, ts).map(i -> i + "_" + request)),
+            request -> toPublisher(interval(1000, TimeUnit.MILLISECONDS, ts).map(i -> TestUtil.utf8EncodedPayload(i + "_" + request, null))),
             null, null));
 
         TestConnection conn = establishConnection(p);
         ReplaySubject<Frame> cachedResponses = captureResponses(conn);
 
         // perform a request/response
-        conn.toInput.onNext(Frame.from(1, FrameType.REQUEST_STREAM, "requestA"));
+        conn.toInput.onNext(TestUtil.utf8EncodedFrame(1, FrameType.REQUEST_STREAM, "requestA"));
 
         // no time has passed, so no values
         assertEquals(0, cachedResponses.getValues().length);
@@ -224,13 +224,13 @@ public class ResponderTest
         // we should have 1 message from A
         assertEquals(1, cachedResponses.getValues().length);
         // now request another stream
-        conn.toInput.onNext(Frame.from(2, FrameType.REQUEST_STREAM, "requestB"));
+        conn.toInput.onNext(TestUtil.utf8EncodedFrame(2, FrameType.REQUEST_STREAM, "requestB"));
         // advance some more
         ts.advanceTimeBy(2000, TimeUnit.MILLISECONDS);
         // should have 3 from A and 2 from B
         assertEquals(5, cachedResponses.getValues().length);
         // dispose A, but leave B
-        conn.toInput.onNext(Frame.from(1, FrameType.CANCEL, ""));
+        conn.toInput.onNext(Frame.from(1, FrameType.CANCEL));
         // still same 5 frames
         assertEquals(5, cachedResponses.getValues().length);
         // advance again, should get 2 from B
@@ -241,21 +241,21 @@ public class ResponderTest
 
         // A frames (positions 0, 1, 3) incrementing 0, 1, 2
         assertEquals(1, frames.get(0).getStreamId());
-        assertEquals("0_requestA", frames.get(0).getData());
+        assertEquals("0_requestA", TestUtil.toString(frames.get(0).getData()));
         assertEquals(1, frames.get(1).getStreamId());
-        assertEquals("1_requestA", frames.get(1).getData());
+        assertEquals("1_requestA", TestUtil.toString(frames.get(1).getData()));
         assertEquals(1, frames.get(3).getStreamId());
-        assertEquals("2_requestA", frames.get(3).getData());
+        assertEquals("2_requestA", TestUtil.toString(frames.get(3).getData()));
 
         // B frames (positions 2, 4, 5, 6) incrementing 0, 1, 2, 3
         assertEquals(2, frames.get(2).getStreamId());
-        assertEquals("0_requestB", frames.get(2).getData());
+        assertEquals("0_requestB", TestUtil.toString(frames.get(2).getData()));
         assertEquals(2, frames.get(4).getStreamId());
-        assertEquals("1_requestB", frames.get(4).getData());
+        assertEquals("1_requestB", TestUtil.toString(frames.get(4).getData()));
         assertEquals(2, frames.get(5).getStreamId());
-        assertEquals("2_requestB", frames.get(5).getData());
+        assertEquals("2_requestB", TestUtil.toString(frames.get(5).getData()));
         assertEquals(2, frames.get(6).getStreamId());
-        assertEquals("3_requestB", frames.get(6).getData());
+        assertEquals("3_requestB", TestUtil.toString(frames.get(6).getData()));
     }
 
     /* **********************************************************************************************/
