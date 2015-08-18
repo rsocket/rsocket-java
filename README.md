@@ -1,6 +1,6 @@
 # ReactiveSocket over Aeron
 
-This is an implementation of Aeron.
+This is an implementation over Aeron.
 
 ## Master Build Status
 
