@@ -57,7 +57,7 @@ import rx.Subscriber;
 		}
 	}
 
-	public static class State {
+	private static class State {
 		private Subscriber<?> subscriber;
 		private boolean cancelled = false;
 	}
