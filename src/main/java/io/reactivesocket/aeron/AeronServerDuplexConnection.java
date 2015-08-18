@@ -3,15 +3,14 @@ package io.reactivesocket.aeron;
 import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
 import org.reactivestreams.Publisher;
+import org.reactivestreams.Subscriber;
 import rx.Observable;
 import rx.RxReactiveStreams;
-import rx.subjects.PublishSubject;
 import uk.co.real_logic.aeron.Publication;
 import uk.co.real_logic.aeron.logbuffer.BufferClaim;
 import uk.co.real_logic.agrona.BitUtil;
 import uk.co.real_logic.agrona.MutableDirectBuffer;
 
-import java.nio.ByteBuffer;
 import java.util.concurrent.TimeUnit;
 
 public class AeronServerDuplexConnection implements DuplexConnection, AutoCloseable {
@@ -19,53 +18,30 @@ public class AeronServerDuplexConnection implements DuplexConnection, AutoClosea
     private static final ThreadLocal<BufferClaim> bufferClaims = ThreadLocal.withInitial(BufferClaim::new);
 
     private Publication publication;
-    private PublishSubject<Frame> subject;
+    private Subscriber<? super Frame> subscriber;
+    private Publisher<Frame> publisher;
 
     public AeronServerDuplexConnection(
         Publication publication) {
         this.publication = publication;
-        this.subject = PublishSubject.create();
+        this.publisher = (Subscriber<? super Frame> s) -> subscriber = s;
     }
 
-    PublishSubject<Frame> getSubject() {
-        return subject;
+    public Subscriber<? super Frame> getSubscriber() {
+        return subscriber;
     }
 
     @Override
     public Publisher<Frame> getInput() {
-        return RxReactiveStreams.toPublisher(subject);
+        return publisher;
     }
 
     public Publisher<Void> write(Publisher<Frame> o) {
-        Observable<Void> req = RxReactiveStreams
-            .toObservable(o)
-            .flatMap(frame -> {
-                final ByteBuffer byteBuffer = frame.getByteBuffer();
-                final int length = byteBuffer.capacity() + BitUtil.SIZE_OF_INT;
-                for (;;) {
-                    final BufferClaim bufferClaim = bufferClaims.get();
-                    final long offer = publication.tryClaim(length, bufferClaim);
-                    if (offer >= 0) {
-                        try {
-                            final MutableDirectBuffer buffer = bufferClaim.buffer();
-                            final int offset = bufferClaim.offset();
-                            buffer.putInt(offset, MessageType.FRAME.getEncodedType());
-                            buffer.putBytes(offset + BitUtil.SIZE_OF_INT, byteBuffer, 0, byteBuffer.capacity());
-                        } finally {
-                            bufferClaim.commit();
-                        }
+        final Observable<Frame> frameObservable = RxReactiveStreams.toObservable(o);
+        final Observable<Void> voidObservable = frameObservable
+            .lift(new OperatorPublish(publication));
 
-                        break;
-                    } else if (Publication.NOT_CONNECTED == offer) {
-                       return Observable.error(new RuntimeException("not connected"));
-                    }
-
-                }
-
-                return Observable.empty();
-            });
-
-        return RxReactiveStreams.toPublisher(req);
+        return RxReactiveStreams.toPublisher(voidObservable);
     }
 
     void ackEstablishConnection(int ackSessionId) {
@@ -85,9 +61,9 @@ public class AeronServerDuplexConnection implements DuplexConnection, AutoClosea
             if (offer >= 0) {
                 try {
                     final MutableDirectBuffer buffer = bufferClaim.buffer();
-                    final int offeset = bufferClaim.offset();
-                    buffer.putInt(offeset, MessageType.ESTABLISH_CONNECTION_RESPONSE.getEncodedType());
-                    buffer.putInt(offeset + BitUtil.SIZE_OF_INT, ackSessionId);
+                    final int offset = bufferClaim.offset();
+                    buffer.putInt(offset, MessageType.ESTABLISH_CONNECTION_RESPONSE.getEncodedType());
+                    buffer.putInt(offset + BitUtil.SIZE_OF_INT, ackSessionId);
                 } finally {
                     bufferClaim.commit();
                 }
@@ -100,7 +76,7 @@ public class AeronServerDuplexConnection implements DuplexConnection, AutoClosea
 
     @Override
     public void close() throws Exception {
-        subject.onCompleted();
+        subscriber.onComplete();
         publication.close();
     }
 }

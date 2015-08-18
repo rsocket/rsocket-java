@@ -1,14 +1,11 @@
 package io.reactivesocket.aeron;
 
-import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
 import io.reactivesocket.ReactiveSocket;
 import org.reactivestreams.Publisher;
-import rx.Observable;
-import rx.RxReactiveStreams;
+import org.reactivestreams.Subscriber;
 import rx.Scheduler;
 import rx.schedulers.Schedulers;
-import rx.subjects.PublishSubject;
 import uk.co.real_logic.aeron.Aeron;
 import uk.co.real_logic.aeron.FragmentAssembler;
 import uk.co.real_logic.aeron.Publication;
@@ -30,12 +27,10 @@ import static io.reactivesocket.aeron.Constants.SERVER_STREAM_ID;
 /**
  * Created by rroeser on 8/13/15.
  */
-public class ReactivesocketAeronClient {
-    private static final ThreadLocal<UnsafeBuffer> buffers = ThreadLocal.withInitial(() -> new UnsafeBuffer(EMTPY));
-
+public class ReactivesocketAeronClient implements AutoCloseable {
     private static final Int2ObjectHashMap<Subscription> subscriptions = new Int2ObjectHashMap<>();
 
-    private static final Int2ObjectHashMap<PublishSubject<Frame>> subjects = new Int2ObjectHashMap<>();
+    private static final Int2ObjectHashMap<AeronClientDuplexConnection> connections = new Int2ObjectHashMap<>();
 
     private static final Int2ObjectHashMap<CountDownLatch> establishConnectionLatches = new Int2ObjectHashMap<>();
 
@@ -56,7 +51,6 @@ public class ReactivesocketAeronClient {
         aeron = Aeron.connect(ctx);
 
         final String channel = "udp://" + host + ":" + port;
-
         System.out.println("Creating a publication to channel => " + channel);
 
         publication = aeron.addPublication(channel, SERVER_STREAM_ID);
@@ -87,55 +81,20 @@ public class ReactivesocketAeronClient {
         int messageTypeInt = buffer.getInt(offset);
         MessageType messageType = MessageType.from(messageTypeInt);
         if (messageType == MessageType.FRAME) {
-            final PublishSubject<Frame> subject = subjects.get(header.sessionId());
-            ByteBuffer bytes = ByteBuffer.allocate(length);
+            final AeronClientDuplexConnection connection = connections.get(header.sessionId());
+            final Subscriber<? super Frame> subscriber = connection.getSubscriber();
+            final ByteBuffer bytes = ByteBuffer.allocate(length);
             buffer.getBytes(BitUtil.SIZE_OF_INT + offset, bytes, length);
             final Frame frame = Frame.from(bytes);
-            subject.onNext(frame);
+            subscriber.onNext(frame);
         } else if (messageType == MessageType.ESTABLISH_CONNECTION_RESPONSE) {
             int ackSessionId = buffer.getInt(offset + BitUtil.SIZE_OF_INT);
             System.out.println(String.format("Received establish connection ack for session id => %d", ackSessionId));
 
-            subjects.computeIfAbsent(header.sessionId(), (_p) -> PublishSubject.create());
+            AeronClientDuplexConnection connection = connections.computeIfAbsent(header.sessionId(), (_p) -> new AeronClientDuplexConnection(publication));
 
             this.rsClientProtocol =
-                ReactiveSocket.connect(new DuplexConnection() {
-
-                    public Publisher<Frame> getInput() {
-                        PublishSubject publishSubject = subjects.get(header.sessionId());
-                        return RxReactiveStreams.toPublisher(publishSubject);
-                    }
-
-                    @Override
-                    public Publisher<Void> write(Publisher<Frame> o) {
-                        Observable<Void> req = RxReactiveStreams
-                            .toObservable(o)
-                            .flatMap(frame -> {
-                                final ByteBuffer frameBuffer = frame.getByteBuffer();
-                                final int frameBufferLength = frameBuffer.capacity();
-                                final UnsafeBuffer buffer = buffers.get();
-                                final byte[] bytes = new byte[frameBufferLength + BitUtil.SIZE_OF_INT];
-
-                                buffer.wrap(bytes);
-                                buffer.putInt(0, MessageType.FRAME.getEncodedType());
-                                buffer.putBytes(BitUtil.SIZE_OF_INT, frameBuffer, frameBufferLength);
-
-                                for (; ; ) {
-                                    final long offer = publication.offer(buffer);
-
-                                    if (offer >= 0) {
-                                        break;
-                                    } else if (Publication.NOT_CONNECTED == offer) {
-                                        Observable.error(new RuntimeException("not connected"));
-                                    }
-                                }
-
-                                return Observable.empty();
-                            });
-
-                        return RxReactiveStreams.toPublisher(req);
-                    }
-                });
+                ReactiveSocket.connect(connection);
 
             CountDownLatch latch = establishConnectionLatches.get(ackSessionId);
             latch.countDown();
@@ -155,11 +114,11 @@ public class ReactivesocketAeronClient {
     }
 
     /**
-     * Establishes a connection between the client and server. Waits for 39 seconds before throwing a exception.
+     * Establishes a connection between the client and server. Waits for 30 seconds before throwing a exception.
      */
     void establishConnection(final Publication publication, final int sessionId) {
         try {
-            UnsafeBuffer buffer = buffers.get();
+            final UnsafeBuffer buffer = new UnsafeBuffer(EMTPY);
             buffer.wrap(new byte[BitUtil.SIZE_OF_INT]);
             buffer.putInt(0, MessageType.ESTABLISH_CONNECTION_REQUEST.getEncodedType());
 
@@ -210,5 +169,16 @@ public class ReactivesocketAeronClient {
 
     public Publisher<Void> responderPublisher() {
         return rsClientProtocol.responderPublisher();
+    }
+
+    @Override
+    public void close() throws Exception {
+        for (Subscription subscription : subscriptions.values()) {
+            subscription.close();
+        }
+
+        for (AeronClientDuplexConnection connection : connections.values()) {
+            connection.close();
+        }
     }
 }

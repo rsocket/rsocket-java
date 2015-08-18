@@ -1,10 +1,9 @@
 package io.reactivesocket.aeron;
 
 import io.reactivesocket.RequestHandler;
+import org.junit.BeforeClass;
 import org.junit.Test;
 import org.reactivestreams.Publisher;
-import org.reactivestreams.Subscriber;
-import org.reactivestreams.Subscription;
 import rx.Observable;
 import rx.RxReactiveStreams;
 import uk.co.real_logic.aeron.driver.MediaDriver;
@@ -15,16 +14,16 @@ import java.util.concurrent.CountDownLatch;
  * Created by rroeser on 8/14/15.
  */
 public class ReactiveSocketAeronTest {
-    @Test
-    public void test() throws Exception {
-
-
-
+    @BeforeClass
+    public static void init() {
         final MediaDriver.Context context = new MediaDriver.Context();
         context.dirsDeleteOnStart();
 
         final MediaDriver mediaDriver = MediaDriver.launch(context);
+    }
 
+    @Test(timeout = 5000)
+    public void testRequestReponse() throws Exception {
         ReactiveSocketAeronServer.create(new RequestHandler() {
             @Override
             public Publisher<String> handleRequestResponse(String request) {
@@ -49,34 +48,34 @@ public class ReactiveSocketAeronTest {
             }
         });
 
-        CountDownLatch latch = new CountDownLatch(1);
+        CountDownLatch latch = new CountDownLatch(10_000);
+
 
         ReactivesocketAeronClient client = ReactivesocketAeronClient.create("localhost");
-        client.requestResponse("ping", "ping metadata").subscribe(new Subscriber<String>() {
-            @Override
-            public void onSubscribe(Subscription s) {
-                s.request(Long.MAX_VALUE);
-                System.out.println("here we go");
-            }
 
-            @Override
-            public void onNext(String s) {
-                System.out.println(s);
-            }
+        Observable
+            .range(1, 10_000)
+            .flatMap(i ->
+                RxReactiveStreams.toObservable(client.requestResponse("ping =>" + i, "ping metadata"))
+            )
+            .subscribe(new rx.Subscriber<String>() {
+                @Override
+                public void onCompleted() {
+                }
 
-            @Override
-            public void onError(Throwable t) {
-                t.printStackTrace();
-            }
+                @Override
+                public void onError(Throwable e) {
+                    e.printStackTrace();
+                }
 
-            @Override
-            public void onComplete() {
-                latch.countDown();
-            }
-        });
+                @Override
+                public void onNext(String s) {
+                    System.out.println(s + " countdown => " + latch.getCount());
+                    latch.countDown();
+                }
+            });
 
         latch.await();
     }
-
 
 }

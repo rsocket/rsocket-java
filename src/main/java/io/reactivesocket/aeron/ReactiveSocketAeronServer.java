@@ -3,9 +3,9 @@ package io.reactivesocket.aeron;
 import io.reactivesocket.Frame;
 import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.RequestHandler;
+import org.reactivestreams.Subscriber;
 import rx.Scheduler;
 import rx.schedulers.Schedulers;
-import rx.subjects.PublishSubject;
 import uk.co.real_logic.aeron.Aeron;
 import uk.co.real_logic.aeron.FragmentAssembler;
 import uk.co.real_logic.aeron.Image;
@@ -16,7 +16,6 @@ import uk.co.real_logic.agrona.BitUtil;
 import uk.co.real_logic.agrona.DirectBuffer;
 import uk.co.real_logic.agrona.collections.Int2ObjectHashMap;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.concurrent.TimeUnit;
 
@@ -105,15 +104,13 @@ public class ReactiveSocketAeronServer implements AutoCloseable {
         MessageType type = MessageType.from(messageTypeInt);
 
         if (MessageType.FRAME == type) {
-
             AeronServerDuplexConnection connection = connections.get(sessionId);
-
             if (connection != null) {
-                final PublishSubject<Frame> subject = connection.getSubject();
+                final Subscriber<? super Frame> subscriber = connection.getSubscriber();
                 ByteBuffer bytes = ByteBuffer.allocate(length);
                 buffer.getBytes(BitUtil.SIZE_OF_INT + offset, bytes, length);
                 final Frame frame = Frame.from(bytes);
-                subject.onNext(frame);
+                subscriber.onNext(frame);
             }
         } else if (MessageType.ESTABLISH_CONNECTION_REQUEST == type) {
             final long start = System.nanoTime();
@@ -145,6 +142,7 @@ public class ReactiveSocketAeronServer implements AutoCloseable {
             });
             System.out.println("Accepting ReactiveSocket connection");
             ReactiveSocket socket = ReactiveSocket.accept(connection, requestHandler);
+
             socket.responderPublisher().subscribe(PROTOCOL_SUBSCRIBER);
         } else {
             System.out.println("Unsupported stream id " + streamId);
@@ -152,10 +150,14 @@ public class ReactiveSocketAeronServer implements AutoCloseable {
     }
 
     @Override
-    public void close() throws IOException {
+    public void close() throws Exception {
         running = false;
         worker.unsubscribe();
         aeron.close();
+
+        for (AeronServerDuplexConnection connection : connections.values()) {
+            connection.close();
+        }
     }
 
 }
