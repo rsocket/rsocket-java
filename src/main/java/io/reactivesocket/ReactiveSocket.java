@@ -17,11 +17,18 @@ package io.reactivesocket;
 
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscription;
+
+import io.reactivesocket.internal.Requester;
+import io.reactivesocket.internal.Responder;
+import io.reactivesocket.internal.UnicastSubject;
+import rx.Observable;
+
 import org.reactivestreams.Subscriber;
 import uk.co.real_logic.agrona.collections.Long2ObjectHashMap;
 
 import static rx.Observable.error;
 import static rx.RxReactiveStreams.toPublisher;
+import static rx.RxReactiveStreams.toObservable;
 
 /**
  * Interface for a connection that supports sending requests and receiving responses
@@ -55,17 +62,20 @@ public class ReactiveSocket
             return NOT_FOUND_ERROR_VOID;
         }
     };
+    private static final Responder EMPTY_RESPONDER = Responder.create(EMPTY_HANDLER);
 
+    private final boolean isServer;
     private final Requester requester;
-    private final Publisher<Void> responderPublisher;
 
     private final Long2ObjectHashMap<UnicastSubject> requesterStreamInputMap = new Long2ObjectHashMap<>();
 
-    public static ReactiveSocket connect(final DuplexConnection connection)
+    public static ReactiveSocket createRequestor(final DuplexConnection connection)
     {
         return connect(connection, EMPTY_HANDLER);
     }
 
+    // TODO private for now as the bi-directional bit is NOT working
+    
     /**
      * Create a ReactiveSocket and initiate connect processing as a client
      *
@@ -73,15 +83,18 @@ public class ReactiveSocket
      * @param requestHandler
      * @return
      */
-    public static ReactiveSocket connect(final DuplexConnection connection, final RequestHandler requestHandler)
+    private static ReactiveSocket connect(final DuplexConnection connection, final RequestHandler requestHandler)
     {
-        final ReactiveSocket socket = new ReactiveSocket(connection, requestHandler);
+        final ReactiveSocket socket = new ReactiveSocket(false, connection, requestHandler);
 
         // TODO: initiate connect logic as a client
 
         return socket;
     }
 
+    // TODO what name makes sense for these 'create' methods?
+    // TODO what if someone wants to create just a Responder? This class has the 'request' methods on it.
+    
     /**
      * Create a ReactiveSocket and prepare for operation as a server
      *
@@ -89,9 +102,9 @@ public class ReactiveSocket
      * @param requestHandler
      * @return
      */
-    public static ReactiveSocket accept(final DuplexConnection connection, final RequestHandler requestHandler)
+    public static ReactiveSocket createResponderAndRequestor(final DuplexConnection connection, final RequestHandler requestHandler)
     {
-        final ReactiveSocket socket = new ReactiveSocket(connection, requestHandler);
+        final ReactiveSocket socket = new ReactiveSocket(true, connection, requestHandler);
 
         // TODO: passively wait for a SETUP and accept or reject it
 
@@ -125,48 +138,53 @@ public class ReactiveSocket
         return requester.requestSubscription(payload);
     }
 
-    public Publisher<Void> responderPublisher()
+    private ReactiveSocket(final boolean isServer, final DuplexConnection connection, final RequestHandler requestHandler)
     {
-        return responderPublisher;
-    }
+		this.isServer = isServer;
+		// connect the Requestor
+		Publisher<Void> requestorConnectionHandler = toPublisher(Observable.empty()); // temporary until fix birectional
+		// connect the Responder
+        Publisher<Void> responderConnectionHandler = toPublisher(Observable.empty()); // temporary until fix birectional
+        
+        
+		if (isServer) {
+			this.requester = null; // TODO until we fix the bidirectional issue
+	        
+	        if(requestHandler == EMPTY_HANDLER) {
+	        	responderConnectionHandler = EMPTY_RESPONDER.acceptConnection(connection);
+	        } else {
+	        	responderConnectionHandler = Responder.create(requestHandler).acceptConnection(connection);
+	        }
+	        
+		} else {
+			this.requester = Requester.createForConnection(isServer, connection);
+			requestorConnectionHandler = this.requester.start();
+		}
 
-    private ReactiveSocket(final DuplexConnection connection, final RequestHandler requestHandler)
-    {
-        this.requester = Requester.create(connection, requesterStreamInputMap);
-        this.responderPublisher = Responder.create(requestHandler).acceptConnection(connection);
+        // merge Publishers and subscribe to start processing messages and handle errors
+		Observable.merge(toObservable(requestorConnectionHandler), toObservable(responderConnectionHandler))
+		.doOnSubscribe(() -> System.out.println("... Starting ReactiveSocket " + (isServer ? "Server" : "Client")))
+		.doOnUnsubscribe(() -> System.out.println("... Shutting Down ReactiveSocket " + (isServer ? "Server" : "Client")))
+				.subscribe(new rx.Subscriber<Void>() {
+					public void onNext(Void frame) {
+					}
 
-        connection.getInput().subscribe(new Subscriber<Frame>()
-        {
-            public void onSubscribe(Subscription s)
-            {
-                s.request(Long.MAX_VALUE);
-            }
+					public void onError(Throwable t) {
+						requesterStreamInputMap.forEach((id, subject) -> subject.onError(t));
+						// TODO: iterate over responder side and destroy world
+						System.out.println("-- onError ReactiveSocket " + (isServer ? "Server" : "Client"));
+						t.printStackTrace();
+					}
 
-            public void onNext(Frame frame)
-            {
-                if (frame.getType().isRequestType())
-                {
-                    requesterStreamInputMap.get(frame.getStreamId()).onNext(frame);
-                }
-                else
-                {
-
-                }
-            }
-
-            public void onError(Throwable t)
-            {
-                requesterStreamInputMap.forEach((id, subject) -> subject.onError(t));
-                // TODO: iterate over responder side and destroy world
-            }
-
-            public void onComplete()
-            {
-                // TODO: might be a RuntimeException
-                requesterStreamInputMap.forEach((id, subject) -> subject.onCompleted());
-                // TODO: iterate over responder side and destroy world
-            }
-        });
+					public void onCompleted() {
+						// TODO: might be a RuntimeException
+						requesterStreamInputMap.forEach((id, subject) -> subject.onCompleted());
+						// TODO: iterate over responder side and destroy world
+						System.out.println("-- onComplete ReactiveSocket " + (isServer ? "Server" : "Client"));
+					}
+				});
+        
+        // TODO need to unsubscribe / clean up this connection somehow
 
     }
 }

@@ -22,11 +22,11 @@ import org.reactivestreams.Publisher;
 import rx.Observable;
 import rx.subjects.PublishSubject;
 
-class TestConnection implements DuplexConnection {
+public class TestConnection implements DuplexConnection {
 
-    final PublishSubject<Frame> toInput = PublishSubject.create();
+    public final PublishSubject<Frame> toInput = PublishSubject.create();
     private PublishSubject<Frame> writeSubject = PublishSubject.create();
-    final Observable<Frame> writes = writeSubject;
+    public final Observable<Frame> writes = writeSubject;
 
     @Override
     public Publisher<Void> write(Publisher<Frame> o) {

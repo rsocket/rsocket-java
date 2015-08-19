@@ -13,8 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.reactivesocket;
+package io.reactivesocket.internal;
 
+import io.reactivesocket.Frame;
 import rx.Observable;
 import rx.Observer;
 import rx.Subscriber;
@@ -26,7 +27,7 @@ import rx.Subscriber;
  * <p>
  * This is NOT thread-safe.
  */
-final class UnicastSubject extends Observable<Frame> implements Observer<Frame> {
+public final class UnicastSubject extends Observable<Frame> implements Observer<Frame> {
 
 	public static UnicastSubject create() {
 		return new UnicastSubject(new State());
@@ -36,7 +37,6 @@ final class UnicastSubject extends Observable<Frame> implements Observer<Frame> 
 
 	protected UnicastSubject(State state) {
 		super(s -> {
-			System.out.println("state: " + state.subscriber);
 			if (state.subscriber != null) {
 				s.onError(new IllegalStateException("Only 1 Subscriber permitted on a CancellationSubject"));
 			} else {

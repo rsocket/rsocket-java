@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.reactivesocket;
+package io.reactivesocket.internal;
 
 import uk.co.real_logic.agrona.BitUtil;
 import uk.co.real_logic.agrona.DirectBuffer;
@@ -21,6 +21,8 @@ import uk.co.real_logic.agrona.MutableDirectBuffer;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+
+import io.reactivesocket.FrameType;
 
 /**
  * Per connection frame flyweight.
