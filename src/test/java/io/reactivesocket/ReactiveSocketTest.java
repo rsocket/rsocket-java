@@ -60,7 +60,7 @@ public class ReactiveSocketTest {
 	@Test
 	public void testRequestResponse() {
 		// server
-		ReactiveSocket.createResponderAndRequestor(serverConnection, new RequestHandler() {
+		ReactiveSocket serverSocket = ReactiveSocket.createResponderAndRequestor(new RequestHandler() {
 
 			@Override
 			public Publisher<Payload> handleRequestResponse(Payload payload) {
@@ -91,7 +91,13 @@ public class ReactiveSocketTest {
 		});
 
 		// client
-		ReactiveSocket client = ReactiveSocket.createRequestor(clientConnection);
+		ReactiveSocket client = ReactiveSocket.createRequestor();
+		
+		// start both the server and client and monitor for errors
+		toObservable(serverSocket.connect(serverConnection)).subscribe();
+		toObservable(client.connect(clientConnection)).subscribe();
+		
+		// perform request/response
 		Publisher<Payload> response = client.requestResponse(TestUtil.utf8EncodedPayload("hello", null));
 		TestSubscriber<Payload> ts = TestSubscriber.create();
 		toObservable(response).subscribe(ts);
