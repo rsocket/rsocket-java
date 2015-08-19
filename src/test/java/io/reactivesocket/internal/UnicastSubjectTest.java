@@ -13,10 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.reactivesocket;
+package io.reactivesocket.internal;
 
 import org.junit.Test;
 
+import io.reactivesocket.Frame;
+import io.reactivesocket.FrameType;
+import io.reactivesocket.TestUtil;
+import io.reactivesocket.internal.UnicastSubject;
 import rx.observers.TestSubscriber;
 
 public class UnicastSubjectTest {

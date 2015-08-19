@@ -32,6 +32,8 @@ import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
 
+import io.reactivesocket.internal.Requester;
+import io.reactivesocket.internal.Responder;
 import rx.Observable;
 import rx.Observer;
 import rx.observers.TestSubscriber;
@@ -66,11 +68,10 @@ public class RequesterResponderInteractionTest
                 .observeOn(Schedulers.computation())
                 .subscribe(clientConnection.toInput);
 
-        final Long2ObjectHashMap<UnicastSubject> streamInputMap = new Long2ObjectHashMap<>();
 
         responder = Responder.create(RequestHandler.create(
             requestResponsePayload -> {
-                final String requestResponse = TestUtil.toString(requestResponsePayload.getData());
+                final String requestResponse = TestUtil.byteToString(requestResponsePayload.getData());
 
                 if (requestResponse.equals("hello"))
                 {
@@ -82,7 +83,7 @@ public class RequesterResponderInteractionTest
                 }
             },
             requestStreamPayload -> {
-                final String requestStream = TestUtil.toString(requestStreamPayload.getData());
+                final String requestStream = TestUtil.byteToString(requestStreamPayload.getData());
 
                 if (requestStream.equals("range"))
                 {
@@ -94,7 +95,7 @@ public class RequesterResponderInteractionTest
                 }
             },
             requestSubscriptionPayload -> {
-                final String requestSubscription = TestUtil.toString(requestSubscriptionPayload.getData());
+                final String requestSubscription = TestUtil.byteToString(requestSubscriptionPayload.getData());
 
                 if (requestSubscription.equals("range"))
                 {
@@ -112,7 +113,7 @@ public class RequesterResponderInteractionTest
                 }
             },
             fireAndForgetPayload -> {
-                final String fireAndForget = TestUtil.toString(fireAndForgetPayload.getData());
+                final String fireAndForget = TestUtil.byteToString(fireAndForgetPayload.getData());
 
                 if (fireAndForget.equals("hello"))
                 {
@@ -125,7 +126,7 @@ public class RequesterResponderInteractionTest
             }));
 
         toObservable(responder.acceptConnection(serverConnection)).subscribe();// start handling the connection
-        requester = Requester.create(clientConnection, streamInputMap);
+        requester = Requester.createForConnection(false, clientConnection);
     }
 
     @Ignore

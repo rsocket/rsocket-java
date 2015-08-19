@@ -20,6 +20,8 @@ import uk.co.real_logic.agrona.concurrent.UnsafeBuffer;
 
 import java.nio.ByteBuffer;
 
+import io.reactivesocket.internal.FrameFlyweight;
+
 /**
  * Represents a Frame sent over a {@link DuplexConnection}.
  * <p>
@@ -161,7 +163,9 @@ public class Frame implements Payload
 
     public static Frame from(long streamId, FrameType type, Payload payload)
     {
-        return from(streamId, type, payload.getData(), payload.getMetadata());
+    	final ByteBuffer d = payload.getData() != null ? payload.getData() : FrameFlyweight.NULL_BYTEBUFFER;
+    	final ByteBuffer md = payload.getMetadata() != null ? payload.getMetadata() : FrameFlyweight.NULL_BYTEBUFFER;
+        return from(streamId, type, d, md);
     }
 
     public static Frame from(long streamId, FrameType type)
@@ -172,8 +176,8 @@ public class Frame implements Payload
     public static Frame from(long streamId, final Throwable throwable)
     {
         final byte[] bytes = throwable.getMessage().getBytes();
-        final ByteBuffer byteBuffer = ByteBuffer.allocate(bytes.length);
-
+        final ByteBuffer byteBuffer = ByteBuffer.wrap(bytes);
+        
         return from(streamId, FrameType.ERROR, byteBuffer);
     }
 
@@ -210,6 +214,6 @@ public class Frame implements Payload
         } catch (Exception e) {
             e.printStackTrace();
         }
-        return "Frame => ID: " + streamId + " Type: " + type + " Data: " + payload;
+        return "Frame => ID: " + streamId + " Type: " + type + " Payload: " + payload;
     }
 }

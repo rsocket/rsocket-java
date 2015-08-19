@@ -13,10 +13,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.reactivesocket;
+package io.reactivesocket.internal;
 
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
+import org.reactivestreams.Subscription;
+
+import io.reactivesocket.DuplexConnection;
+import io.reactivesocket.Frame;
+import io.reactivesocket.FrameType;
+import io.reactivesocket.Payload;
 import rx.Observable;
 import rx.Producer;
 import rx.observers.Subscribers;
@@ -32,26 +38,42 @@ import static rx.RxReactiveStreams.toObservable;
 import static rx.RxReactiveStreams.toPublisher;
 
 /**
- * RProtocol implementation abstracted over a {@link DuplexConnection}.
+ * Protocol implementation abstracted over a {@link DuplexConnection}.
  * <p>
  * Concrete implementations of {@link DuplexConnection} over TCP, WebSockets, Aeron, etc
  * can be passed to this class for protocol handling.
  */
-public class Requester
-{
-    // TODO replace String with whatever ByteBuffer/byte[]/ByteBuf/etc variant we choose
-
+public class Requester {
+	
+	private final boolean isServer;
     private final DuplexConnection connection;
-    private final Long2ObjectHashMap<UnicastSubject> streamInputMap;
+    private final Long2ObjectHashMap<UnicastSubject> streamInputMap = new Long2ObjectHashMap<>();
     private int streamCount = 0;// 0 is reserved for setup, all normal messages are >= 1
 
-    private Requester(DuplexConnection connection, Long2ObjectHashMap<UnicastSubject> streamInputMap) {
+    private Requester(boolean isServer, DuplexConnection connection) {
+    	this.isServer = isServer;
         this.connection = connection;
-        this.streamInputMap = streamInputMap;
     }
 
-    public static Requester create(DuplexConnection connection, Long2ObjectHashMap<UnicastSubject> streamInputMap) {
-        return new Requester(connection, streamInputMap);
+    /**
+     * Create a Requester for each DuplexConnection that requests will be made over.
+     * <p>
+     * NOTE: You must start().subscribe() the Requester for it to run.
+     * 
+     * @param isServer for debugging purposes
+     * @param connection
+     * @return
+     */
+    public static Requester createForConnection(boolean isServer, DuplexConnection connection) {
+        return new Requester(isServer, connection);
+    }
+    
+    public static Requester createClientRequester(DuplexConnection connection) {
+        return new Requester(false, connection);
+    }
+    
+    public static Requester createServerRequester(DuplexConnection connection) {
+        return new Requester(true, connection);
     }
 
     /**
@@ -103,7 +125,11 @@ public class Requester
     private Publisher<Payload> startStream(Frame requestFrame) {
         return toPublisher(Observable.create(child -> {
 
+        	System.out.println("[" + (isServer ? "Server" : "Client") + "] " + " REQUESTOR.startStream " + requestFrame);
+        	streamInputMap.put(requestFrame.getStreamId(), UnicastSubject.create());
             PublishSubject<Observable<Frame>> writer = PublishSubject.create();
+            writer.flatMap(i -> i).forEach(n -> System.out.println("[" + (isServer ? "Server" : "Client") + "] " + " REQUESTOR.write.toServer => " + n));
+            
             Observable<Void> written = toObservable(connection.write(toPublisher(Observable.merge(writer))));
 
             child.setProducer(new Producer() {
@@ -122,17 +148,18 @@ public class Requester
 
                 private void start(final long n) {
                     // wire up the response handler before emitting request
-                    Observable<Frame> input = streamInputMap.get(requestFrame.getStreamId());
-
+                	Observable<Frame> input = streamInputMap.get(requestFrame.getStreamId());
                     AtomicBoolean terminated = new AtomicBoolean(false);
                     // combine input and output so errors and unsubscription are composed, then subscribe
                     rx.Subscription subscription = Observable
                         .merge(input, written.cast(Frame.class))
+                        .doOnNext(f -> System.out.println("[" + (isServer ? "Server" : "Client") + "] " + " REQUESTOR onNext " + f))
                         .takeUntil(frame -> (frame.getType() == FrameType.COMPLETE
                             || frame.getType() == FrameType.ERROR)
                             || frame.getType() == FrameType.NEXT_COMPLETE)
                         .filter(frame -> frame.getType() != FrameType.COMPLETE)
                         .map(frame -> {
+                        	System.out.println("[" + (isServer ? "Server" : "Client") + "] " + " REQUESTOR frame: " + frame);
                             // convert ERROR messages into terminal events
                             if (frame.getType() == FrameType.NEXT)
                             {
@@ -169,6 +196,7 @@ public class Requester
                         streamInputMap.remove(requestFrame.getStreamId());
                     }));
 
+                    System.out.println("[" + (isServer ? "Server" : "Client") + "] " + " REQUESTOR write request: " + requestFrame);
                     // send the request to start everything
                     // TODO: modify requestFrame initial request N with 'n' value that was passed in
                     writer.onNext(just(requestFrame));
@@ -183,5 +211,34 @@ public class Requester
         // use ++ prefix so streamCount always equals the last stream created
         return ++streamCount;
     }
+
+	public Publisher<Void> start() {
+		return toPublisher(Observable.create(terminalObserver -> {
+			// get input from responder->requestor for responses
+			connection.getInput().subscribe(new Subscriber<Frame>() {
+				public void onSubscribe(Subscription s) {
+					s.request(Long.MAX_VALUE);
+				}
+
+				public void onNext(Frame frame) {
+					System.out.println("[" + (isServer ? "Server" : "Client") + "] " + " REQUESTOR request type being routed to inputStream " + frame);
+					streamInputMap.get(frame.getStreamId()).onNext(frame);
+				}
+
+				public void onError(Throwable t) {
+					streamInputMap.forEach((id, subject) -> subject.onError(t));
+					// TODO: iterate over responder side and destroy world
+					terminalObserver.onError(t);
+				}
+
+				public void onComplete() {
+					// TODO: might be a RuntimeException
+					streamInputMap.forEach((id, subject) -> subject.onCompleted());
+					// TODO: iterate over responder side and destroy world
+					terminalObserver.onCompleted();
+				}
+			});
+		}));
+	}
 
 }

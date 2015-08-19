@@ -30,10 +30,10 @@ public class TestUtil
         return new PayloadImpl(data, metadata);
     }
 
-    public static String toString(final ByteBuffer byteBuffer)
+    public static String byteToString(final ByteBuffer byteBuffer)
     {
         final byte[] bytes = new byte[byteBuffer.capacity()];
-        byteBuffer.put(bytes);
+        byteBuffer.get(bytes);
         return new String(bytes, Charset.forName("UTF-8"));
     }
 
@@ -61,7 +61,7 @@ public class TestUtil
 
             if (null == metadata)
             {
-                this.data = ByteBuffer.allocate(0);
+                this.metadata = ByteBuffer.allocate(0);
             }
             else
             {
@@ -71,10 +71,10 @@ public class TestUtil
 
         public boolean equals(Object obj)
         {
-            final PayloadImpl rhs = (PayloadImpl)obj;
+            final Payload rhs = (Payload)obj;
 
-            return (TestUtil.toString(data).equals(TestUtil.toString(rhs.data))) &&
-                (TestUtil.toString(metadata).equals(TestUtil.toString(rhs.metadata)));
+            return (TestUtil.byteToString(data).equals(TestUtil.byteToString(rhs.getData()))) &&
+                (TestUtil.byteToString(metadata).equals(TestUtil.byteToString(rhs.getMetadata())));
         }
 
         public ByteBuffer getData()
@@ -87,4 +87,5 @@ public class TestUtil
             return metadata;
         }
     }
+
 }

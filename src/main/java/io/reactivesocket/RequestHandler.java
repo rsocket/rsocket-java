@@ -15,8 +15,9 @@
  */
 package io.reactivesocket;
 
+import java.util.function.Function;
+
 import org.reactivestreams.Publisher;
-import rx.functions.Func1;
 
 public abstract class RequestHandler {
 
@@ -31,30 +32,30 @@ public abstract class RequestHandler {
     public abstract Publisher<Void> handleFireAndForget(final Payload payload);
 
     public static RequestHandler create(
-            Func1<Payload, Publisher<Payload>> requestResponseHandler,
-            Func1<Payload, Publisher<Payload>> requestStreamHandler,
-            Func1<Payload, Publisher<Payload>> requestSubscriptionHandler,
-            Func1<Payload, Publisher<Void>> fireAndForgetHandler) {
+            Function<Payload, Publisher<Payload>> requestResponseHandler,
+            Function<Payload, Publisher<Payload>> requestStreamHandler,
+            Function<Payload, Publisher<Payload>> requestSubscriptionHandler,
+            Function<Payload, Publisher<Void>> fireAndForgetHandler) {
         return new RequestHandler() {
 
             @Override
             public Publisher<Payload> handleRequestResponse(final Payload payload) {
-                return requestResponseHandler.call(payload);
+                return requestResponseHandler.apply(payload);
             }
 
             @Override
             public Publisher<Payload> handleRequestStream(final Payload payload) {
-                return requestStreamHandler.call(payload);
+                return requestStreamHandler.apply(payload);
             }
 
             @Override
             public Publisher<Payload> handleRequestSubscription(final Payload payload) {
-                return requestSubscriptionHandler.call(payload);
+                return requestSubscriptionHandler.apply(payload);
             }
 
             @Override
             public Publisher<Void> handleFireAndForget(final Payload payload) {
-                return fireAndForgetHandler.call(payload);
+                return fireAndForgetHandler.apply(payload);
             }
 
         };

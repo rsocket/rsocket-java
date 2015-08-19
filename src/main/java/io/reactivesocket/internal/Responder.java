@@ -13,17 +13,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.reactivesocket;
+package io.reactivesocket.internal;
 
 import org.reactivestreams.Publisher;
+
+import io.reactivesocket.DuplexConnection;
+import io.reactivesocket.Frame;
+import io.reactivesocket.FrameType;
+import io.reactivesocket.Payload;
+import io.reactivesocket.RequestHandler;
 import rx.Observable;
 import rx.Subscriber;
 import rx.functions.Func0;
 import rx.functions.Func1;
-import rx.functions.Func2;
 import uk.co.real_logic.agrona.collections.Long2ObjectHashMap;
-
-import java.nio.ByteBuffer;
 
 import static rx.Observable.*;
 import static rx.RxReactiveStreams.toObservable;
@@ -49,25 +52,28 @@ public class Responder
         return new Responder(requestHandler);
     }
 
-    // TODO: make static method and pass in RequestHandler
-    public Publisher<Void> acceptConnection(DuplexConnection ws) {
-        // TODO consider using the LongObjectHashMap from Agrona for perf improvement
-        // TODO consider alternate to PublishSubject that assumes a single subscriber and is lighter
-
+	/**
+	 * Accept a new connection and apply ReactiveSocket behavior to it.
+	 * 
+	 * @param connection
+	 * @return Publisher<Void> that must be subscribed to. Receives onError or onComplete, no onNext. Can be unsubscribed to shutdown prematurely.
+	 */
+    public Publisher<Void> acceptConnection(DuplexConnection connection) {
         /* state of cancellation subjects during connection */
         final Long2ObjectHashMap<CancellationToken> cancellationObservables = new Long2ObjectHashMap<>();
         /* streams in flight that can receive REQUEST_N messages */
         final Long2ObjectHashMap<RequestOperator<?>> inFlight = new Long2ObjectHashMap<>();
         
-        return toPublisher(toObservable(ws.getInput()).flatMap(frame -> {
+        return toPublisher(toObservable(connection.getInput()).flatMap(frame -> {
+        	System.out.println("*** RESPONDER.input " + frame);
             if (frame.getType() == FrameType.REQUEST_RESPONSE) {
-                return handleRequestResponse(ws, frame, cancellationObservables);
+                return handleRequestResponse(connection, frame, cancellationObservables);
             } else if (frame.getType() == FrameType.REQUEST_STREAM) {
-                return handleRequestStream(ws, frame, cancellationObservables, inFlight);
+                return handleRequestStream(connection, frame, cancellationObservables, inFlight);
             } else if (frame.getType() == FrameType.FIRE_AND_FORGET) {
                 return handleFireAndForget(frame);
             } else if (frame.getType() == FrameType.REQUEST_SUBSCRIPTION) {
-                return handleRequestSubscription(ws, frame, cancellationObservables, inFlight);
+                return handleRequestSubscription(connection, frame, cancellationObservables, inFlight);
             } else if (frame.getType() == FrameType.CANCEL) {
                 return handleCancellationRequest(cancellationObservables, frame);
             } else if (frame.getType() == FrameType.REQUEST_N) {
