@@ -38,6 +38,8 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public class Requester {
 
+	private final static Subscription CANCELLED = new EmptySubscription();
+
 	private final boolean isServer;
 	private final DuplexConnection connection;
 	private final Long2ObjectHashMap<UnicastSubject> streamInputMap = new Long2ObjectHashMap<>();
@@ -116,80 +118,80 @@ public class Requester {
 
 	private Publisher<Payload> startStream(Frame requestFrame) {
 		System.out.println("StartStream: " + requestFrame);
-		return new Publisher<Payload>() {
 
-			@Override
-			public void subscribe(Subscriber<? super Payload> child) {
-				System.out.println("StartStream subscribe: " + requestFrame);
-				child.onSubscribe(new Subscription() {
+		return (Subscriber<? super Payload> child) ->
+		{
+			System.out.println("StartStream subscribe: " + requestFrame);
+			child.onSubscribe(new Subscription() {
 
-					boolean started = false;
-					StreamInputSubscriber streamInputSubscriber;
-					UnicastSubject writer;
+				boolean started = false;
+				StreamInputSubscriber streamInputSubscriber;
+				UnicastSubject writer;
 
-					@Override
-					public void request(long n) {
-						System.out.println("StartStream request: " + n);
-						if (!started) {
-							started = true;
+				@Override
+				public void request(long n) {
+					System.out.println("StartStream request: " + n);
+					if (!started) {
+						started = true;
 
-							// Response frames for this Stream
-							UnicastSubject transportInputSubject = UnicastSubject.create();
-							streamInputMap.put(requestFrame.getStreamId(), transportInputSubject);
-							streamInputSubscriber = new StreamInputSubscriber(child, () -> {
-								cancel();
-							});
-							transportInputSubject.subscribe(streamInputSubscriber);
+						// Response frames for this Stream
+						UnicastSubject transportInputSubject = UnicastSubject.create();
+						streamInputMap.put(requestFrame.getStreamId(), transportInputSubject);
+						streamInputSubscriber = new StreamInputSubscriber(child, () -> {
+							cancel();
+						});
+						transportInputSubject.subscribe(streamInputSubscriber);
 
-							// connect to transport
-							writer = UnicastSubject.create(w -> {
-								System.out.println(" onConnect ... write " + requestFrame);
-								// when transport connects we write the request frame for this stream
-								w.onNext(requestFrame);
+						// connect to transport
+						writer = UnicastSubject.create(w -> {
+							System.out.println(" onConnect ... write " + requestFrame);
+							// when transport connects we write the request frame for this stream
+							w.onNext(requestFrame);
 //								w.onNext(Frame.from(requestFrame.getStreamId(), FrameType.REQUEST_N)); // TODO add N
-							});
-							Publisher<Void> writeOutcome = connection.addOutput(writer); // TODO do something with this
-							writeOutcome.subscribe(new Subscriber<Void>() {
+						});
+						Publisher<Void> writeOutcome = connection.addOutput(writer); // TODO do something with this
+						writeOutcome.subscribe(new Subscriber<Void>() {
 
-								@Override
-								public void onSubscribe(Subscription s) {
-									s.request(Long.MAX_VALUE);
-								}
+							@Override
+							public void onSubscribe(Subscription s) {
+								s.request(Long.MAX_VALUE);
+							}
 
-								@Override
-								public void onNext(Void t) {
-								}
+							@Override
+							public void onNext(Void t) {
+							}
 
-								@Override
-								public void onError(Throwable t) {
-									child.onError(t);
-									cancel();
-								}
+							@Override
+							public void onError(Throwable t) {
+								child.onError(t);
+								cancel();
+							}
 
-								@Override
-								public void onComplete() {
-								}
-								
-							});
-						} else {
-							// propagate further requestN frames
-							writer.onNext(Frame.from(requestFrame.getStreamId(), FrameType.REQUEST_N)); // TODO add N
-						}
+							@Override
+							public void onComplete() {
+							}
 
+						});
+					}
+					else
+					{
+						// propagate further requestN frames
+						writer.onNext(Frame.from(requestFrame.getStreamId(), FrameType.REQUEST_N)); // TODO add N
 					}
 
-					@Override
-					public void cancel() {
-						streamInputMap.remove(requestFrame.getStreamId());
-						if (!streamInputSubscriber.terminated.get()) {
-							writer.onNext(Frame.from(requestFrame.getStreamId(), FrameType.CANCEL));
-						}
-						streamInputSubscriber.parentSubscription.cancel();
+				}
+
+				@Override
+				public void cancel() {
+					streamInputMap.remove(requestFrame.getStreamId());
+					if (!streamInputSubscriber.terminated.get())
+					{
+						writer.onNext(Frame.from(requestFrame.getStreamId(), FrameType.CANCEL));
 					}
+					streamInputSubscriber.parentSubscription.cancel();
+				}
 
-				});
-			}
-
+			});
 		};
 	}
 
@@ -261,75 +263,57 @@ public class Requester {
 	}
 
 	public Publisher<Void> start() {
-		return new Publisher<Void>() {
+		return (Subscriber<? super Void> terminalObserver) ->
+		{
+			terminalObserver.onSubscribe(new Subscription() {
 
-			@Override
-			public void subscribe(Subscriber<? super Void> terminalObserver) {
-				terminalObserver.onSubscribe(new Subscription() {
+				boolean started = false;
+				AtomicReference<Subscription> connectionSubscription = new AtomicReference<>();
 
-					boolean started = false;
-					AtomicReference<Subscription> connectionSubscription = new AtomicReference<>();
-
-					@Override
-					public void request(long n) {
-						if (!started) {
-							started = true;
-							// get input from responder->requestor for responses
-							connection.getInput().subscribe(new Subscriber<Frame>() {
-								public void onSubscribe(Subscription s) {
-									if (connectionSubscription.compareAndSet(null, s)) {
-										s.request(Long.MAX_VALUE);
-									} else {
-										// means we already were cancelled
-										s.cancel();
-									}
+				@Override
+				public void request(long n) {
+					if (!started) {
+						started = true;
+						// get input from responder->requestor for responses
+						connection.getInput().subscribe(new Subscriber<Frame>() {
+							public void onSubscribe(Subscription s) {
+								if (connectionSubscription.compareAndSet(null, s)) {
+									s.request(Long.MAX_VALUE);
+								} else {
+									// means we already were cancelled
+									s.cancel();
 								}
+							}
 
-								public void onNext(Frame frame) {
-									System.out.println("Data from connection: " + frame);
-									streamInputMap.get(frame.getStreamId()).onNext(frame);
-								}
+							public void onNext(Frame frame) {
+								System.out.println("Data from connection: " + frame);
+								streamInputMap.get(frame.getStreamId()).onNext(frame);
+							}
 
-								public void onError(Throwable t) {
-									streamInputMap.forEach((id, subject) -> subject.onError(t));
-									// TODO: iterate over responder side and destroy world
-									terminalObserver.onError(t);
-								}
+							public void onError(Throwable t) {
+								streamInputMap.forEach((id, subject) -> subject.onError(t));
+								// TODO: iterate over responder side and destroy world
+								terminalObserver.onError(t);
+							}
 
-								public void onComplete() {
-									// TODO: might be a RuntimeException
-									streamInputMap.forEach((id, subject) -> subject.onComplete());
-									// TODO: iterate over responder side and destroy world
-									terminalObserver.onComplete();
-								}
-							});
-						}
+							public void onComplete() {
+								// TODO: might be a RuntimeException
+								streamInputMap.forEach((id, subject) -> subject.onComplete());
+								// TODO: iterate over responder side and destroy world
+								terminalObserver.onComplete();
+							}
+						});
 					}
+				}
 
-					@Override
-					public void cancel() {
-						if (!connectionSubscription.compareAndSet(null, CANCELLED)) {
-							// cancel the one that was there if we failed to set the sentinel
-							connectionSubscription.get().cancel();
-						}
+				@Override
+				public void cancel() {
+					if (!connectionSubscription.compareAndSet(null, CANCELLED)) {
+						// cancel the one that was there if we failed to set the sentinel
+						connectionSubscription.get().cancel();
 					}
-
-				});
-			}
-
+				}
+			});
 		};
 	}
-
-	private final static Subscription CANCELLED = new Subscription() {
-
-		@Override
-		public void request(long n) {
-		}
-
-		@Override
-		public void cancel() {
-
-		}
-	};
-
 }
