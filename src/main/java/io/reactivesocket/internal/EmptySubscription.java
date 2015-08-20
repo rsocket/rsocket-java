@@ -19,6 +19,8 @@ import org.reactivestreams.Subscription;
 
 public class EmptySubscription implements Subscription
 {
+	public static EmptySubscription EMPTY = new EmptySubscription(); 
+	
     public void request(long n)
     {
     }

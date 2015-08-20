@@ -117,11 +117,8 @@ public class Requester {
 	}
 
 	private Publisher<Payload> startStream(Frame requestFrame) {
-		System.out.println("StartStream: " + requestFrame);
-
 		return (Subscriber<? super Payload> child) ->
 		{
-			System.out.println("StartStream subscribe: " + requestFrame);
 			child.onSubscribe(new Subscription() {
 
 				boolean started = false;
@@ -130,7 +127,6 @@ public class Requester {
 
 				@Override
 				public void request(long n) {
-					System.out.println("StartStream request: " + n);
 					if (!started) {
 						started = true;
 
@@ -144,7 +140,6 @@ public class Requester {
 
 						// connect to transport
 						writer = UnicastSubject.create(w -> {
-							System.out.println(" onConnect ... write " + requestFrame);
 							// when transport connects we write the request frame for this stream
 							w.onNext(requestFrame);
 //								w.onNext(Frame.from(requestFrame.getStreamId(), FrameType.REQUEST_N)); // TODO add N
@@ -286,7 +281,6 @@ public class Requester {
 							}
 
 							public void onNext(Frame frame) {
-								System.out.println("Data from connection: " + frame);
 								streamInputMap.get(frame.getStreamId()).onNext(frame);
 							}
 
