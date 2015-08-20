@@ -104,7 +104,7 @@ public class Responder
         CancellationToken cancellationToken = CancellationToken.create();
         cancellationObservables.put(requestFrame.getStreamId(), cancellationToken);
 
-        return toObservable(ws.write(toPublisher(
+        return toObservable(ws.addOutput(toPublisher(
                 toObservable(requestHandler.handleRequestResponse(requestFrame))
                         .single()// enforce that it is a request/response
                         .flatMap(v -> just(
@@ -164,7 +164,7 @@ public class Responder
         RequestOperator<String> requestor = new RequestOperator<String>();
         inflight.put(streamId, requestor);
 
-        return toObservable(ws.write(toPublisher(
+        return toObservable(ws.addOutput(toPublisher(
                 toObservable(messageHandler.call(frame))
                         // TODO pulling out requestN/backpressure for now as it's not working
                         //                                                .lift(requestor)

@@ -25,6 +25,6 @@ public interface DuplexConnection {
 
 	Publisher<Frame> getInput();
 
-	Publisher<Void> write(Publisher<Frame> o);
+	Publisher<Void> addOutput(Publisher<Frame> o);
 	
 }

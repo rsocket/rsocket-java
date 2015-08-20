@@ -31,7 +31,7 @@ public class PerfTestConnection implements DuplexConnection {
 	public final Observable<Frame> writes = writeSubject;
 
 	@Override
-	public Publisher<Void> write(Publisher<Frame> o) {
+	public Publisher<Void> addOutput(Publisher<Frame> o) {
 		return toPublisher(toObservable(o).flatMap(m -> {
 			writeSubject.onNext(m);
 			return Observable.<Void> empty();

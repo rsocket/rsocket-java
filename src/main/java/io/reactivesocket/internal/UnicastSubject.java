@@ -15,10 +15,13 @@
  */
 package io.reactivesocket.internal;
 
+import java.util.function.Consumer;
+
+import org.reactivestreams.Publisher;
+import org.reactivestreams.Subscriber;
+import org.reactivestreams.Subscription;
+
 import io.reactivesocket.Frame;
-import rx.Observable;
-import rx.Observer;
-import rx.Subscriber;
 
 /**
  * Intended to ONLY support a single Subscriber. It will throw an exception if more than 1 subscribe occurs.
@@ -27,41 +30,76 @@ import rx.Subscriber;
  * <p>
  * This is NOT thread-safe.
  */
-public final class UnicastSubject extends Observable<Frame> implements Observer<Frame> {
+public final class UnicastSubject implements Subscriber<Frame>, Publisher<Frame> {
+
+	private Subscriber<? super Frame> s;
+	private final Consumer<UnicastSubject> onConnect;
 
 	public static UnicastSubject create() {
-		return new UnicastSubject(new State());
+		return new UnicastSubject(null);
 	}
 
-	private State state;
-
-	protected UnicastSubject(State state) {
-		super(s -> {
-			if (state.subscriber != null) {
-				s.onError(new IllegalStateException("Only 1 Subscriber permitted on a CancellationSubject"));
-			} else {
-				state.subscriber = s;
-			}
-		});
-		this.state = state;
+	public static UnicastSubject create(Consumer<UnicastSubject> onConnect) {
+		return new UnicastSubject(onConnect);
 	}
 
-	@Override
-	public void onCompleted() {
-		state.subscriber.onCompleted();
+	private UnicastSubject(Consumer<UnicastSubject> onConnect) {
+		this.onConnect = onConnect;
+	}
+
+	private UnicastSubject() {
+		this.onConnect = null;
 	}
 
 	@Override
-	public void onError(Throwable e) {
-		state.subscriber.onError(e);
+	public void onSubscribe(Subscription s) {
+		throw new IllegalStateException("Does not support subscribing to a Publisher");
+		// this method is here because Publisher requires it
 	}
 
 	@Override
-	public void onNext(Frame t) {
-		state.subscriber.onNext(t);
+	public void onNext(Frame frame) {
+		s.onNext(frame);
 	}
 
-	private static class State {
-		private Subscriber<? super Frame> subscriber;
+	@Override
+	public void onError(Throwable t) {
+		s.onError(t);
 	}
+
+	@Override
+	public void onComplete() {
+		s.onComplete();
+	}
+
+	@Override
+	public void subscribe(Subscriber<? super Frame> s) {
+		if (this.s != null) {
+			s.onError(new IllegalStateException("Only single Subscriber supported"));
+		} else {
+			this.s = s;
+			this.s.onSubscribe(new Subscription() {
+
+				boolean started = false;
+
+				@Override
+				public void request(long n) {
+					if (!started) {
+						started = true;
+						// now actually connected
+						if (onConnect != null) {
+							onConnect.accept(UnicastSubject.this);
+						}
+					}
+				}
+
+				@Override
+				public void cancel() {
+					// transport has shut us down
+				}
+
+			});
+		}
+	}
+
 }

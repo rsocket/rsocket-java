@@ -23,6 +23,9 @@ import io.reactivesocket.TestUtil;
 import io.reactivesocket.internal.UnicastSubject;
 import rx.observers.TestSubscriber;
 
+import static rx.RxReactiveStreams.toObservable;
+import static rx.RxReactiveStreams.toPublisher;
+
 public class UnicastSubjectTest {
 
 	@Test
@@ -30,7 +33,7 @@ public class UnicastSubjectTest {
 		Frame f = TestUtil.utf8EncodedFrame(1, FrameType.NEXT_COMPLETE, "response");
 		UnicastSubject us = UnicastSubject.create();
 		TestSubscriber<Frame> ts = TestSubscriber.create();
-		us.subscribe(ts);
+		toObservable(us).subscribe(ts);
 		us.onNext(f);
 		ts.assertValue(f);
 		ts.assertNoTerminalEvent();
@@ -47,9 +50,9 @@ public class UnicastSubjectTest {
 	public void testIllegalStateIfMultiSubscribe() {
 		UnicastSubject us = UnicastSubject.create();
 		TestSubscriber<Frame> f1 = TestSubscriber.create();
-		us.subscribe(f1);
+		toObservable(us).subscribe(f1);
 		TestSubscriber<Frame> f2 = TestSubscriber.create();
-		us.subscribe(f2);
+		toObservable(us).subscribe(f2);
 
 		f1.assertNoTerminalEvent();
 		f2.assertError(IllegalStateException.class);
