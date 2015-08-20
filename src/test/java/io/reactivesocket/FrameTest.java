@@ -67,4 +67,139 @@ public class FrameTest
         assertEquals(FrameType.NEXT_COMPLETE, f.getType());
         assertEquals(20, f.getStreamId());
     }
+
+    @Test
+    public void shouldReturnCorrectDataPlusMetadataForRequestResponse()
+    {
+        final ByteBuffer requestData = TestUtil.byteBufferFromUtf8String("request data");
+        final ByteBuffer requestMetadata = TestUtil.byteBufferFromUtf8String("request metadata");
+
+        Frame f = Frame.from(1, FrameType.REQUEST_RESPONSE, requestData, requestMetadata);
+        assertEquals("request data", TestUtil.byteToString(f.getData()));
+        assertEquals("request metadata", TestUtil.byteToString(f.getMetadata()));
+        assertEquals(FrameType.REQUEST_RESPONSE, f.getType());
+        assertEquals(1, f.getStreamId());
+    }
+
+    @Test
+    public void shouldReturnCorrectDataPlusMetadataForFireAndForget()
+    {
+        final ByteBuffer requestData = TestUtil.byteBufferFromUtf8String("request data");
+        final ByteBuffer requestMetadata = TestUtil.byteBufferFromUtf8String("request metadata");
+
+        Frame f = Frame.from(1, FrameType.FIRE_AND_FORGET, requestData, requestMetadata);
+        assertEquals("request data", TestUtil.byteToString(f.getData()));
+        assertEquals("request metadata", TestUtil.byteToString(f.getMetadata()));
+        assertEquals(FrameType.FIRE_AND_FORGET, f.getType());
+        assertEquals(1, f.getStreamId());
+    }
+
+    @Test
+    public void shouldReturnCorrectDataPlusMetadataForRequestStream()
+    {
+        final ByteBuffer requestData = TestUtil.byteBufferFromUtf8String("request data");
+        final ByteBuffer requestMetadata = TestUtil.byteBufferFromUtf8String("request metadata");
+
+        Frame f = Frame.from(1, FrameType.REQUEST_STREAM, requestData, requestMetadata);
+        assertEquals("request data", TestUtil.byteToString(f.getData()));
+        assertEquals("request metadata", TestUtil.byteToString(f.getMetadata()));
+        assertEquals(FrameType.REQUEST_STREAM, f.getType());
+        assertEquals(1, f.getStreamId());
+    }
+
+    @Test
+    public void shouldReturnCorrectDataPlusMetadataForRequestSubscription()
+    {
+        final ByteBuffer requestData = TestUtil.byteBufferFromUtf8String("request data");
+        final ByteBuffer requestMetadata = TestUtil.byteBufferFromUtf8String("request metadata");
+
+        Frame f = Frame.from(1, FrameType.REQUEST_SUBSCRIPTION, requestData, requestMetadata);
+        assertEquals("request data", TestUtil.byteToString(f.getData()));
+        assertEquals("request metadata", TestUtil.byteToString(f.getMetadata()));
+        assertEquals(FrameType.REQUEST_SUBSCRIPTION, f.getType());
+        assertEquals(1, f.getStreamId());
+    }
+
+    @Test
+    public void shouldReturnCorrectDataPlusMetadataForResponse()
+    {
+        final ByteBuffer requestData = TestUtil.byteBufferFromUtf8String("response data");
+        final ByteBuffer requestMetadata = TestUtil.byteBufferFromUtf8String("response metadata");
+
+        Frame f = Frame.from(1, FrameType.RESPONSE, requestData, requestMetadata);
+        assertEquals("response data", TestUtil.byteToString(f.getData()));
+        assertEquals("response metadata", TestUtil.byteToString(f.getMetadata()));
+        assertEquals(FrameType.NEXT, f.getType());
+        assertEquals(1, f.getStreamId());
+    }
+
+    @Test
+    public void shouldReturnCorrectDataWithoutMetadataForRequestResponse()
+    {
+        final ByteBuffer requestData = TestUtil.byteBufferFromUtf8String("request data");
+
+        Frame f = Frame.from(1, FrameType.REQUEST_RESPONSE, requestData);
+        assertEquals("request data", TestUtil.byteToString(f.getData()));
+
+        final ByteBuffer metadataBuffer = f.getMetadata();
+        assertEquals(0, metadataBuffer.capacity());
+        assertEquals(FrameType.REQUEST_RESPONSE, f.getType());
+        assertEquals(1, f.getStreamId());
+    }
+
+    @Test
+    public void shouldReturnCorrectDataWithoutMetadataForFireAndForget()
+    {
+        final ByteBuffer requestData = TestUtil.byteBufferFromUtf8String("request data");
+
+        Frame f = Frame.from(1, FrameType.FIRE_AND_FORGET, requestData);
+        assertEquals("request data", TestUtil.byteToString(f.getData()));
+
+        final ByteBuffer metadataBuffer = f.getMetadata();
+        assertEquals(0, metadataBuffer.capacity());
+        assertEquals(FrameType.FIRE_AND_FORGET, f.getType());
+        assertEquals(1, f.getStreamId());
+    }
+
+    @Test
+    public void shouldReturnCorrectDataWithoutMetadataForRequestStream()
+    {
+        final ByteBuffer requestData = TestUtil.byteBufferFromUtf8String("request data");
+
+        Frame f = Frame.from(1, FrameType.REQUEST_STREAM, requestData);
+        assertEquals("request data", TestUtil.byteToString(f.getData()));
+
+        final ByteBuffer metadataBuffer = f.getMetadata();
+        assertEquals(0, metadataBuffer.capacity());
+        assertEquals(FrameType.REQUEST_STREAM, f.getType());
+        assertEquals(1, f.getStreamId());
+    }
+
+    @Test
+    public void shouldReturnCorrectDataWithoutMetadataForRequestSubscription()
+    {
+        final ByteBuffer requestData = TestUtil.byteBufferFromUtf8String("request data");
+
+        Frame f = Frame.from(1, FrameType.REQUEST_SUBSCRIPTION, requestData);
+        assertEquals("request data", TestUtil.byteToString(f.getData()));
+
+        final ByteBuffer metadataBuffer = f.getMetadata();
+        assertEquals(0, metadataBuffer.capacity());
+        assertEquals(FrameType.REQUEST_SUBSCRIPTION, f.getType());
+        assertEquals(1, f.getStreamId());
+    }
+
+    @Test
+    public void shouldReturnCorrectDataWithoutMetadataForResponse()
+    {
+        final ByteBuffer requestData = TestUtil.byteBufferFromUtf8String("response data");
+
+        Frame f = Frame.from(1, FrameType.RESPONSE, requestData);
+        assertEquals("response data", TestUtil.byteToString(f.getData()));
+
+        final ByteBuffer metadataBuffer = f.getMetadata();
+        assertEquals(0, metadataBuffer.capacity());
+        assertEquals(FrameType.NEXT, f.getType());
+        assertEquals(1, f.getStreamId());
+    }
 }

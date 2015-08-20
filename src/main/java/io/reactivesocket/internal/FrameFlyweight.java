@@ -127,17 +127,19 @@ public class FrameFlyweight
                 break;
         }
 
+        mutableDirectBuffer.putByte(VERSION_FIELD_OFFSET, CURRENT_VERSION);
+        mutableDirectBuffer.putShort(TYPE_FIELD_OFFSET, (short) outFrameType.getEncodedType(), ByteOrder.BIG_ENDIAN);
+        mutableDirectBuffer.putLong(STREAM_ID_FIELD_OFFSET, streamId, ByteOrder.BIG_ENDIAN);
+
         if (0 < metadataLength)
         {
             flags |= FLAGS_M;
+            mutableDirectBuffer.putInt(offset, metadataLength, ByteOrder.BIG_ENDIAN);
+            mutableDirectBuffer.putBytes(offset + BitUtil.SIZE_OF_INT, metadata, metadata.capacity());
+            offset += metadataLength;
         }
 
-        mutableDirectBuffer.putByte(VERSION_FIELD_OFFSET, CURRENT_VERSION);
         mutableDirectBuffer.putByte(FLAGS_FIELD_OFFSET, (byte) flags);
-        mutableDirectBuffer.putShort(TYPE_FIELD_OFFSET, (short) outFrameType.getEncodedType(), ByteOrder.BIG_ENDIAN);
-        mutableDirectBuffer.putLong(STREAM_ID_FIELD_OFFSET, streamId, ByteOrder.BIG_ENDIAN);
-        mutableDirectBuffer.putBytes(offset, metadata, metadataLength);
-        offset += metadataLength;
         mutableDirectBuffer.putBytes(offset, data, data.capacity());
 
         return frameLength;
@@ -206,8 +208,8 @@ public class FrameFlyweight
 
     public static ByteBuffer sliceFrameMetadata(final DirectBuffer directBuffer, final int length)
     {
-        final int metadataLength = metadataLength(directBuffer);
-        final int metadataOffset = metadataOffset(directBuffer);
+        final int metadataLength = Math.max(0, metadataLength(directBuffer) - BitUtil.SIZE_OF_INT);
+        final int metadataOffset = metadataOffset(directBuffer) + BitUtil.SIZE_OF_INT;
 
         return slice(directBuffer.byteBuffer(), metadataOffset, metadataOffset + metadataLength);
     }
@@ -250,7 +252,7 @@ public class FrameFlyweight
 
         if (FLAGS_M == (FLAGS_M & directBuffer.getByte(FLAGS_FIELD_OFFSET)))
         {
-            metadataLength = (directBuffer.getInt(metadataOffset(directBuffer)) & 0xFFFFFF) + BitUtil.SIZE_OF_INT;
+            metadataLength = (directBuffer.getInt(metadataOffset(directBuffer), ByteOrder.BIG_ENDIAN) & 0xFFFFFF);
         }
 
         return metadataLength;
