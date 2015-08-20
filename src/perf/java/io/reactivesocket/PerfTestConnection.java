@@ -24,7 +24,7 @@ import io.reactivesocket.Frame;
 import rx.Observable;
 import rx.subjects.PublishSubject;
 
-public class TestConnection implements DuplexConnection {
+public class PerfTestConnection implements DuplexConnection {
 
 	public final PublishSubject<Frame> toInput = PublishSubject.create();
 	private PublishSubject<Frame> writeSubject = PublishSubject.create();
@@ -33,7 +33,6 @@ public class TestConnection implements DuplexConnection {
 	@Override
 	public Publisher<Void> write(Publisher<Frame> o) {
 		return toPublisher(toObservable(o).flatMap(m -> {
-			// no backpressure on a Subject so just firehosing for this test
 			writeSubject.onNext(m);
 			return Observable.<Void> empty();
 		}));
@@ -44,21 +43,9 @@ public class TestConnection implements DuplexConnection {
 		return toPublisher(toInput);
 	}
 
-	public void connectToServerConnection(TestConnection serverConnection) {
-		serverConnection.writes.forEach(n -> System.out.println("SERVER ==> Writes from server->client: " + n));
-		serverConnection.toInput.forEach(n -> System.out.println("SERVER <== Input from client->server: " + n));
-		writes.forEach(n -> System.out.println("CLIENT ==> Writes from client->server: " + n));
-		toInput.forEach(n -> System.out.println("CLIENT <== Input from server->client: " + n));
-
-		// connect the connections (with a Scheduler to simulate async IO)
-		writes
-				// .subscribeOn(Schedulers.computation())
-				// .observeOn(Schedulers.computation())
-				.subscribe(serverConnection.toInput);
-		serverConnection.writes
-				// .subscribeOn(Schedulers.computation())
-				// .observeOn(Schedulers.computation())
-				.subscribe(toInput);
+	public void connectToServerConnection(PerfTestConnection serverConnection) {
+		writes.subscribe(serverConnection.toInput);
+		serverConnection.writes.subscribe(toInput);
 
 	}
 }

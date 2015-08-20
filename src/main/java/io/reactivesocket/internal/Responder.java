@@ -65,7 +65,6 @@ public class Responder
         final Long2ObjectHashMap<RequestOperator<?>> inFlight = new Long2ObjectHashMap<>();
         
         return toPublisher(toObservable(connection.getInput()).flatMap(frame -> {
-        	System.out.println("*** RESPONDER.input " + frame);
             if (frame.getType() == FrameType.REQUEST_RESPONSE) {
                 return handleRequestResponse(connection, frame, cancellationObservables);
             } else if (frame.getType() == FrameType.REQUEST_STREAM) {

@@ -17,6 +17,7 @@ package io.reactivesocket;
 
 import static rx.Observable.*;
 import static io.reactivesocket.TestUtil.*;
+import static org.junit.Assert.*;
 
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -35,36 +36,19 @@ public class ReactiveSocketTest {
 
 	private static TestConnection serverConnection;
 	private static TestConnection clientConnection;
+	private static ReactiveSocket socketServer;
+	private static ReactiveSocket socketClient;
 
-	@Before
-	public void setup() {
+	@BeforeClass
+	public static void setup() {
 		serverConnection = new TestConnection();
-		serverConnection.writes.forEach(n -> System.out.println("SERVER ==> Writes from server->client: " + n));
-		serverConnection.toInput.forEach(n -> System.out.println("SERVER <== Input from client->server: " + n));
 		clientConnection = new TestConnection();
-		clientConnection.writes.forEach(n -> System.out.println("CLIENT ==> Writes from client->server: " + n));
-		clientConnection.toInput.forEach(n -> System.out.println("CLIENT <== Input from server->client: " + n));
+		clientConnection.connectToServerConnection(serverConnection);
 
-		// connect the connections (with a Scheduler to simulate async IO)
-		clientConnection.writes
-//				.subscribeOn(Schedulers.computation())
-//				.observeOn(Schedulers.computation())
-				.subscribe(serverConnection.toInput);
-		serverConnection.writes
-//				.subscribeOn(Schedulers.computation())
-//				.observeOn(Schedulers.computation())
-				.subscribe(clientConnection.toInput);
-
-	}
-
-	@Test
-	public void testRequestResponse() {
-		// server
-		ReactiveSocket serverSocket = ReactiveSocket.createResponderAndRequestor(new RequestHandler() {
+		socketServer = ReactiveSocket.createResponderAndRequestor(new RequestHandler() {
 
 			@Override
 			public Publisher<Payload> handleRequestResponse(Payload payload) {
-				System.out.println("... handling request: " + payload);
 				String request = byteToString(payload.getData());
 				if ("hello".equals(request)) {
 					return toPublisher(just(utf8EncodedPayload("hello world", null)));
@@ -75,7 +59,12 @@ public class ReactiveSocketTest {
 
 			@Override
 			public Publisher<Payload> handleRequestStream(Payload payload) {
-				return toPublisher(error(new RuntimeException("Not Found")));
+				String request = byteToString(payload.getData());
+				if ("hello".equals(request)) {
+					return toPublisher(range(0, 100).map(i -> "hello world " + i).map(n -> utf8EncodedPayload(n, null)));
+				} else {
+					return toPublisher(error(new RuntimeException("Not Found")));
+				}
 			}
 
 			@Override
@@ -90,19 +79,33 @@ public class ReactiveSocketTest {
 
 		});
 
-		// client
-		ReactiveSocket client = ReactiveSocket.createRequestor();
-		
+		socketClient = ReactiveSocket.createRequestor();
+
 		// start both the server and client and monitor for errors
-		toObservable(serverSocket.connect(serverConnection)).subscribe();
-		toObservable(client.connect(clientConnection)).subscribe();
-		
+		toObservable(socketServer.connect(serverConnection)).subscribe();
+		toObservable(socketClient.connect(clientConnection)).subscribe();
+	}
+
+	@Test
+	public void testRequestResponse() {
 		// perform request/response
-		Publisher<Payload> response = client.requestResponse(TestUtil.utf8EncodedPayload("hello", null));
+		Publisher<Payload> response = socketClient.requestResponse(TestUtil.utf8EncodedPayload("hello", null));
 		TestSubscriber<Payload> ts = TestSubscriber.create();
 		toObservable(response).subscribe(ts);
 		ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
 		ts.assertNoErrors();
 		ts.assertValue(TestUtil.utf8EncodedPayload("hello world", null));
+	}
+
+	@Test
+	public void testRequestStream() {
+		// perform request/stream
+		Publisher<Payload> response = socketClient.requestStream(TestUtil.utf8EncodedPayload("hello", null));
+		TestSubscriber<Payload> ts = TestSubscriber.create();
+		toObservable(response).subscribe(ts);
+		ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
+		ts.assertNoErrors();
+		assertEquals(100, ts.getOnNextEvents().size());
+		assertEquals("hello world 99", byteToString(ts.getOnNextEvents().get(99).getData()));
 	}
 }

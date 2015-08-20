@@ -26,11 +26,14 @@ import io.reactivesocket.Payload;
 import rx.Observable;
 import rx.Producer;
 import rx.observers.Subscribers;
+import rx.schedulers.Schedulers;
 import rx.subjects.PublishSubject;
+import rx.subjects.ReplaySubject;
 import rx.subscriptions.Subscriptions;
 import uk.co.real_logic.agrona.collections.Long2ObjectHashMap;
 
 import java.nio.ByteBuffer;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static rx.Observable.just;
@@ -122,16 +125,61 @@ public class Requester {
         return startStream(Frame.from(nextStreamId(), FrameType.REQUEST_SUBSCRIPTION, payload));
     }
 
+    private AtomicBoolean started = new AtomicBoolean(false);
+    
     private Publisher<Payload> startStream(Frame requestFrame) {
         return toPublisher(Observable.create(child -> {
 
-        	System.out.println("[" + (isServer ? "Server" : "Client") + "] " + " REQUESTOR.startStream " + requestFrame);
         	streamInputMap.put(requestFrame.getStreamId(), UnicastSubject.create());
-            PublishSubject<Observable<Frame>> writer = PublishSubject.create();
-            writer.flatMap(i -> i).forEach(n -> System.out.println("[" + (isServer ? "Server" : "Client") + "] " + " REQUESTOR.write.toServer => " + n));
+            PublishSubject<Observable<Frame>> writer = PublishSubject.create(); // TODO why is there a race condition with Netty in subscribing to this?
             
-            Observable<Void> written = toObservable(connection.write(toPublisher(Observable.merge(writer))));
+//            Observable<Void> written = toObservable(connection.write(toPublisher(Observable.merge(writer))));
+            
+            connection.write(toPublisher(
+            			Observable.merge(writer).doOnSubscribe(() -> {
+//                        	System.out.println("subscribing to merged writer: " + System.currentTimeMillis());
+                        })
+            		)).subscribe(new Subscriber<Void>() {
 
+				@Override
+				public void onSubscribe(Subscription s) {
+//					System.out.println("onSubscribe: " + System.currentTimeMillis());
+					s.request(Long.MAX_VALUE);
+				}
+
+				@Override
+				public void onNext(Void t) {
+					
+				}
+
+				@Override
+				public void onError(Throwable t) {
+					t.printStackTrace();
+				}
+
+				@Override
+				public void onComplete() {
+					// TODO Auto-generated method stub
+					
+				}
+            	
+            });
+            
+            
+//					.doOnSubscribe(() -> {
+//				System.out.println("subscribe to the writing");
+//				System.out.println("writer: " + writer.hasObservers());
+//				Schedulers.computation().createWorker().schedule(() -> {
+//					// TODO what do I need to wait for here????
+//					System.out.println("writer2: " + writer.hasObservers());
+//					System.out.println("[" + (isServer ? "Server" : "Client") + "] " + " REQUESTOR write request: " + requestFrame);
+//					// send the request to start everything
+//					// TODO: modify requestFrame initial request N with 'n' value that was passed in
+//					writer.onNext(just(requestFrame));
+//					started.set(true);
+//				}, !started.get() ? 800 : 0, TimeUnit.MILLISECONDS);
+//			});
+            
             child.setProducer(new Producer() {
 
                 private final AtomicBoolean started = new AtomicBoolean(false);
@@ -139,6 +187,7 @@ public class Requester {
                 @Override
                 public void request(long n) {
                     if (started.compareAndSet(false, true)) {
+//                    	System.out.println("starting subscription ... " + System.currentTimeMillis());
                         start(n);
                     }
                     else if (requestFrame.getType() == FrameType.REQUEST_STREAM || requestFrame.getType() == FrameType.REQUEST_SUBSCRIPTION) {
@@ -147,44 +196,19 @@ public class Requester {
                 }
 
                 private void start(final long n) {
-                    // wire up the response handler before emitting request
-                	Observable<Frame> input = streamInputMap.get(requestFrame.getStreamId());
-                    AtomicBoolean terminated = new AtomicBoolean(false);
-                    // combine input and output so errors and unsubscription are composed, then subscribe
-                    rx.Subscription subscription = Observable
-                        .merge(input, written.cast(Frame.class))
-                        .doOnNext(f -> System.out.println("[" + (isServer ? "Server" : "Client") + "] " + " REQUESTOR onNext " + f))
-                        .takeUntil(frame -> (frame.getType() == FrameType.COMPLETE
-                            || frame.getType() == FrameType.ERROR)
-                            || frame.getType() == FrameType.NEXT_COMPLETE)
-                        .filter(frame -> frame.getType() != FrameType.COMPLETE)
-                        .map(frame -> {
-                        	System.out.println("[" + (isServer ? "Server" : "Client") + "] " + " REQUESTOR frame: " + frame);
-                            // convert ERROR messages into terminal events
-                            if (frame.getType() == FrameType.NEXT)
-                            {
-                                return frame;
-                            }
-                            else if (frame.getType() == FrameType.NEXT_COMPLETE)
-                            {
-                                terminated.set(true);
-                                return frame;
-                            }
-                            else if (frame.getType() == FrameType.ERROR)
-                            {
-                                terminated.set(true);
-                                final ByteBuffer byteBuffer = frame.getData();
-                                final byte[] bytes = new byte[byteBuffer.capacity()];
-                                byteBuffer.get(bytes);
-
-                                throw new RuntimeException(new String(bytes));
-                            }
-                            else
-                            {
-                                throw new RuntimeException("Unexpected FrameType: " + frame.getType());
-                            }
-                        })
-                        .subscribe(Subscribers.from(child));// only propagate Observer methods, backpressure is via Producer above
+					// wire up the response handler before emitting request
+					Observable<Frame> input = streamInputMap.get(requestFrame.getStreamId());
+					AtomicBoolean terminated = new AtomicBoolean(false);
+					// combine input and output so errors and unsubscription are composed, then subscribe
+					rx.Subscription subscription = input
+//							.merge(input, written.cast(Frame.class)) // merge written with input so we have all errors flowing through a single stream to user
+							.takeUntil(frame -> // we tear down this stream on these FrameTypes
+									  (frame.getType() == FrameType.COMPLETE
+									|| frame.getType() == FrameType.ERROR)
+									|| frame.getType() == FrameType.NEXT_COMPLETE)
+							.filter(frame -> frame.getType() != FrameType.COMPLETE) // drop COMPLETE since it has no data and we trigger unsubscribe in takeUntil above
+							.map(frame -> handleFrame(terminated, frame)) // using map with throws instead of flatMap for perf
+							.unsafeSubscribe(Subscribers.from(child)); // only propagate Observer methods, backpressure is via Producer above
 
                     // if the child unsubscribes, we need to send a CANCEL message if we're not terminated
                     child.add(Subscriptions.create(() -> {
@@ -195,18 +219,44 @@ public class Requester {
                         subscription.unsubscribe();
                         streamInputMap.remove(requestFrame.getStreamId());
                     }));
-
-                    System.out.println("[" + (isServer ? "Server" : "Client") + "] " + " REQUESTOR write request: " + requestFrame);
+                    
                     // send the request to start everything
-                    // TODO: modify requestFrame initial request N with 'n' value that was passed in
-                    writer.onNext(just(requestFrame));
+					// TODO: modify requestFrame initial request N with 'n' value that was passed in
+					writer.onNext(just(requestFrame));
                 }
+
 
             });
 
         }));
     }
 
+	private static Frame handleFrame(AtomicBoolean terminated, Frame frame) {
+		// convert ERROR messages into terminal events
+		if (frame.getType() == FrameType.NEXT)
+		{
+		    return frame;
+		}
+		else if (frame.getType() == FrameType.NEXT_COMPLETE)
+		{
+		    terminated.set(true);
+		    return frame;
+		}
+		else if (frame.getType() == FrameType.ERROR)
+		{
+		    terminated.set(true);
+		    final ByteBuffer byteBuffer = frame.getData();
+		    final byte[] bytes = new byte[byteBuffer.capacity()];
+		    byteBuffer.get(bytes);
+
+		    throw new RuntimeException(new String(bytes));
+		}
+		else
+		{
+		    throw new RuntimeException("Unexpected FrameType: " + frame.getType());
+		}
+	}
+	
     private int nextStreamId() {
         // use ++ prefix so streamCount always equals the last stream created
         return ++streamCount;
@@ -221,7 +271,6 @@ public class Requester {
 				}
 
 				public void onNext(Frame frame) {
-					System.out.println("[" + (isServer ? "Server" : "Client") + "] " + " REQUESTOR request type being routed to inputStream " + frame);
 					streamInputMap.get(frame.getStreamId()).onNext(frame);
 				}
 

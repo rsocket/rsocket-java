@@ -40,9 +40,28 @@ public class FramePerf {
 		return Frame.from(streamId, type, byteBuffer);
 	}
 
+	/**
+	 * Test encoding of "hello" frames/second with a new string->byte encoding each time
+	 * 
+	 * @param input
+	 * @return
+	 * @throws InterruptedException
+	 */
 	@Benchmark
 	public Frame encodeNextCompleteHello(Input input) throws InterruptedException {
 		return utf8EncodedFrame(0, FrameType.NEXT_COMPLETE, "hello");
+	}
+	
+	/**
+	 * Test encoding of Frame without any overhead with byte[] or ByteBuffer by reusing the same ByteBuffer
+	 * 
+	 * @param input
+	 * @return
+	 */
+	@Benchmark
+	public Frame encodeStaticHelloIntoFrame(Input input) {
+		input.HELLO.position(0);
+		return Frame.from(0, FrameType.NEXT_COMPLETE, input.HELLO);
 	}
 	
 	@State(Scope.Thread)
@@ -51,6 +70,9 @@ public class FramePerf {
 		 * Use to consume values when the test needs to return more than a single value.
 		 */
 		public Blackhole bh;
+		
+		public ByteBuffer HELLO = ByteBuffer.wrap("HELLO".getBytes());
+		
 
 		@Setup
 		public void setup(Blackhole bh) {

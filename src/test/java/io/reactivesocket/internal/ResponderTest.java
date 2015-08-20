@@ -25,7 +25,6 @@ import io.reactivesocket.FrameType;
 import io.reactivesocket.Payload;
 import io.reactivesocket.RequestHandler;
 import io.reactivesocket.TestConnection;
-
 import io.reactivesocket.internal.Responder;
 import rx.Observable;
 import rx.schedulers.Schedulers;
