@@ -1,8 +1,5 @@
 package io.reactivesocket;
 
-import static rx.Observable.*;
-import static rx.RxReactiveStreams.*;
-
 import java.nio.ByteBuffer;
 import java.util.concurrent.TimeUnit;
 
@@ -15,6 +12,8 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.infra.Blackhole;
 import org.reactivestreams.Publisher;
+import org.reactivestreams.Subscriber;
+import org.reactivestreams.Subscription;
 
 @BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(TimeUnit.SECONDS)
@@ -76,26 +75,37 @@ public class ReactiveSocketPerf {
 			clientConnection.connectToServerConnection(serverConnection);
 		}
 
+		private static Publisher<Payload> HELLO_1 = just(HELLO_WORLD_PAYLOAD);
+		private static Publisher<Payload> HELLO_1000;
+
+		static {
+			Payload[] ps = new Payload[1000];
+			for (int i = 0; i < ps.length; i++) {
+				ps[i] = HELLO_WORLD_PAYLOAD;
+			}
+			HELLO_1000 = just(ps);
+		}
+
 		final static ReactiveSocket serverSocket = ReactiveSocket.createResponderAndRequestor(new RequestHandler() {
 
 			@Override
 			public Publisher<Payload> handleRequestResponse(Payload payload) {
-				return toPublisher(just(HELLO_WORLD_PAYLOAD));
+				return HELLO_1;
 			}
 
 			@Override
 			public Publisher<Payload> handleRequestStream(Payload payload) {
-				return toPublisher(just(HELLO_WORLD_PAYLOAD).repeat(1000));
+				return HELLO_1000;
 			}
 
 			@Override
 			public Publisher<Payload> handleRequestSubscription(Payload payload) {
-				return toPublisher(error(new RuntimeException("Not Found")));
+				return null;
 			}
 
 			@Override
 			public Publisher<Void> handleFireAndForget(Payload payload) {
-				return toPublisher(error(new RuntimeException("Not Found")));
+				return null;
 			}
 
 		});
@@ -104,8 +114,8 @@ public class ReactiveSocketPerf {
 
 		static {
 			// start both the server and client and monitor for errors
-			toObservable(serverSocket.connect(serverConnection)).subscribe();
-			toObservable(client.connect(clientConnection)).subscribe();
+			serverSocket.connect(serverConnection).subscribe(new ErrorSubscriber<Void>());
+			client.connect(clientConnection).subscribe(new ErrorSubscriber<Void>());
 		}
 
 		LatchedSubscriber<Payload> latchedSubscriber;
@@ -116,4 +126,60 @@ public class ReactiveSocketPerf {
 			latchedSubscriber = new LatchedSubscriber<Payload>(bh);
 		}
 	}
+
+	private static Publisher<Payload> just(Payload... ps) {
+		return new Publisher<Payload>() {
+
+			@Override
+			public void subscribe(Subscriber<? super Payload> s) {
+				s.onSubscribe(new Subscription() {
+
+					int emitted = 0;
+
+					@Override
+					public void request(long n) {
+						// NOTE: This is not a safe implementation as it assumes synchronous request(n)
+						for (int i = 0; i < n; i++) {
+							s.onNext(ps[emitted++]);
+							if (emitted == ps.length) {
+								s.onComplete();
+							}
+						}
+					}
+
+					@Override
+					public void cancel() {
+
+					}
+
+				});
+			}
+
+		};
+	}
+
+	private static class ErrorSubscriber<T> implements Subscriber<T> {
+
+		@Override
+		public void onSubscribe(Subscription s) {
+			s.request(Long.MAX_VALUE);
+		}
+
+		@Override
+		public void onNext(T t) {
+
+		}
+
+		@Override
+		public void onError(Throwable t) {
+			t.printStackTrace();
+		}
+
+		@Override
+		public void onComplete() {
+
+		}
+
+	}
+
 }
