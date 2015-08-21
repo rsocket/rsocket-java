@@ -37,7 +37,6 @@ import io.reactivesocket.FrameType;
  */
 public class FrameFlyweight
 {
-    public static final byte[] NULL_BYTE_ARRAY = new byte[0];
     public static final ByteBuffer NULL_BYTEBUFFER = ByteBuffer.allocate(0);
 
     private static final boolean INCLUDE_FRAME_LENGTH = true;
@@ -77,21 +76,6 @@ public class FrameFlyweight
     public static int computeFrameLength(final FrameType frameType, int metadataLength, final int dataLength)
     {
         return payloadOffset(frameType) + metadataLength(metadataLength) + dataLength;
-    }
-
-    public static int encode(
-        final MutableDirectBuffer mutableDirectBuffer,
-        final long streamId,
-        final FrameType type,
-        final String metadata,
-        final String data)
-    {
-        final byte[] metadataBytes = (null != metadata) ? metadata.getBytes() : NULL_BYTE_ARRAY;
-        final byte[] dataBytes = (null != data) ? data.getBytes() : NULL_BYTE_ARRAY;
-        final ByteBuffer metadataBuffer = ByteBuffer.wrap(metadataBytes);
-        final ByteBuffer dataBuffer = ByteBuffer.wrap(dataBytes);
-
-        return encode(mutableDirectBuffer, streamId, type, metadataBuffer, dataBuffer);
     }
 
     public static int encode(

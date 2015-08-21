@@ -143,10 +143,10 @@ public class Frame implements Payload
      *
      * @param streamId to include in frame
      * @param type     to include in frame
-     * @param message  to include in frame
+     * @param data     to include in frame
      */
-    public void wrap(final long streamId, final FrameType type, final String message) {
-        this.directBuffer = createByteBufferAndEncode(streamId, type, message);
+    public void wrap(final long streamId, final FrameType type, final ByteBuffer data) {
+        this.directBuffer = createByteBufferAndEncode(streamId, type, data, FrameFlyweight.NULL_BYTEBUFFER);
     }
 
     public static Frame from(long streamId, FrameType type, ByteBuffer data, ByteBuffer metadata)
@@ -181,18 +181,10 @@ public class Frame implements Payload
         return from(streamId, FrameType.ERROR, byteBuffer);
     }
 
-    private static MutableDirectBuffer createByteBufferAndEncode(long streamId, FrameType type, final String message) {
-        // TODO: allocation side effect of how this works currently with the rest of the machinery.
-        final MutableDirectBuffer buffer =
-            new UnsafeBuffer(ByteBuffer.allocate(FrameFlyweight.computeFrameLength(type, 0, message.length())));
-
-        FrameFlyweight.encode(buffer, streamId, type, null, message);
-        return buffer;
-    }
-
     private static MutableDirectBuffer createByteBufferAndEncode(
         long streamId, FrameType type, ByteBuffer data, ByteBuffer metadata)
     {
+        // TODO: allocation side effect of how this works currently with the rest of the machinery.
         final MutableDirectBuffer buffer =
             new UnsafeBuffer(ByteBuffer.allocate(FrameFlyweight.computeFrameLength(type, metadata.capacity(), data.capacity())));
 

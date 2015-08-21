@@ -43,10 +43,11 @@ public class FrameTest
     @Test
     public void testWrapMessage() {
     	final ByteBuffer helloBuffer = TestUtil.byteBufferFromUtf8String("hello");
-        
+        final ByteBuffer doneBuffer = TestUtil.byteBufferFromUtf8String("done");
+
         Frame f = Frame.from(1, FrameType.REQUEST_RESPONSE, helloBuffer);
 
-        f.wrap(2, FrameType.COMPLETE, "done");
+        f.wrap(2, FrameType.COMPLETE, doneBuffer);
         assertEquals("done", TestUtil.byteToString(f.getData()));
         assertEquals(FrameType.NEXT_COMPLETE, f.getType());
         assertEquals(2, f.getStreamId());
