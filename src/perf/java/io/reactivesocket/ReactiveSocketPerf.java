@@ -15,6 +15,9 @@ import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
+import io.reactivesocket.perfutil.LatchedSubscriber;
+import io.reactivesocket.perfutil.PerfTestConnection;
+
 @BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(TimeUnit.SECONDS)
 public class ReactiveSocketPerf {
@@ -143,6 +146,7 @@ public class ReactiveSocketPerf {
 							s.onNext(ps[emitted++]);
 							if (emitted == ps.length) {
 								s.onComplete();
+								break;
 							}
 						}
 					}

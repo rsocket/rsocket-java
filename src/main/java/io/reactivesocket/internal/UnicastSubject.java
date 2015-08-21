@@ -53,8 +53,7 @@ public final class UnicastSubject implements Subscriber<Frame>, Publisher<Frame>
 
 	@Override
 	public void onSubscribe(Subscription s) {
-		throw new IllegalStateException("Does not support subscribing to a Publisher");
-		// this method is here because Publisher requires it
+		s.request(Long.MAX_VALUE);
 	}
 
 	@Override
