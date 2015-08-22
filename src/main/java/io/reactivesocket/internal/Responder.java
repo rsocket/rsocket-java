@@ -35,7 +35,6 @@ import uk.co.real_logic.agrona.collections.Long2ObjectHashMap;
  * for each request over the connection.
  */
 public class Responder {
-	// TODO only handle String right now
 	private final RequestHandler requestHandler;
 
 	private Responder(RequestHandler requestHandler) {
@@ -91,12 +90,15 @@ public class Responder {
 										responsePublisher = handleRequestResponse(requestFrame, cancellationSubscriptions);
 									} else if (requestFrame.getType() == FrameType.REQUEST_STREAM) {
 										responsePublisher = handleRequestStream(requestFrame, cancellationSubscriptions, inFlight);
-										// } else if (frame.getType() == FrameType.FIRE_AND_FORGET) {
+										// } else if (requestFrame.getType() == FrameType.FIRE_AND_FORGET) {
 										// responsePublisher = handleFireAndForget(frame);
-										// } else if (frame.getType() == FrameType.REQUEST_SUBSCRIPTION) {
+										// } else if (requestFrame.getType() == FrameType.REQUEST_SUBSCRIPTION) {
 										// responsePublisher = handleRequestSubscription(connection, frame, cancellationSubscriptions, inFlight);
-										// } else if (frame.getType() == FrameType.CANCEL) {
-										// handleCancellationRequest(cancellationSubscriptions, frame);
+									} else if (requestFrame.getType() == FrameType.CANCEL) {
+										Subscription s = cancellationSubscriptions.get(requestFrame.getStreamId());
+										if(s != null) {
+											s.cancel();
+										}
 										// } else if (requestFrame.getType() == FrameType.REQUEST_N) {
 										// handleRequestN(frame, inFlight); // TODO this needs to be implemented
 									} else {

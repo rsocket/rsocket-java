@@ -11,13 +11,19 @@ description = 'ReactiveSocket: stream oriented messaging passing with Reactive S
 apply plugin: 'reactivesocket-project'
 apply plugin: 'java'
 
+repositories {
+        jcenter()
+        maven { url 'https://oss.jfrog.org/libs-snapshot' }
+}
+
 dependencies {
-	compile 'io.reactivex:rxjava:1.0.13'
-	compile 'io.reactivex:rxjava-reactive-streams:1.0.1'
 	compile 'org.reactivestreams:reactive-streams:1.0.0.final'
-    compile 'uk.co.real-logic:Agrona:0.4.2'
-    testCompile 'junit:junit-dep:4.10'
-    testCompile 'org.mockito:mockito-core:1.8.5'
+	compile 'uk.co.real-logic:Agrona:0.4.2'
+	
+	testCompile 'io.reactivex:rxjava:1.0.13'
+	testCompile 'io.reactivex:rxjava-reactive-streams:1.0.1'
+	testCompile 'junit:junit-dep:4.10'
+	testCompile 'org.mockito:mockito-core:1.8.5'
 }
 
 
