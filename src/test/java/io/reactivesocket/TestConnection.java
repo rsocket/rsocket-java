@@ -22,6 +22,7 @@ import org.reactivestreams.Publisher;
 import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
 import rx.Observable;
+import rx.schedulers.Schedulers;
 import rx.subjects.PublishSubject;
 
 public class TestConnection implements DuplexConnection {
@@ -52,12 +53,10 @@ public class TestConnection implements DuplexConnection {
 
 		// connect the connections (with a Scheduler to simulate async IO)
 		writes
-				// .subscribeOn(Schedulers.computation())
-				// .observeOn(Schedulers.computation())
+				 .subscribeOn(Schedulers.computation()) // pick an event loop at random for client writes to occur on
 				.subscribe(serverConnection.toInput);
 		serverConnection.writes
-				// .subscribeOn(Schedulers.computation())
-				// .observeOn(Schedulers.computation())
+				 .subscribeOn(Schedulers.computation())  // pick an event loop at random for server writes to occur on
 				.subscribe(toInput);
 
 	}

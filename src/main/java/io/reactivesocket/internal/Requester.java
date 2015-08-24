@@ -102,8 +102,7 @@ public class Requester {
 	 * @return
 	 */
 	public Publisher<Void> fireAndForget(final Payload payload) {
-		// return connection.write(toPublisher(just(Frame.from(nextStreamId(), FrameType.FIRE_AND_FORGET, payload))));
-		return null;
+		return connection.addOutput(PublisherUtils.just(Frame.from(nextStreamId(), FrameType.FIRE_AND_FORGET, payload)));
 	}
 
 	/**
@@ -117,8 +116,7 @@ public class Requester {
 	}
 
 	private Publisher<Payload> startStream(Frame requestFrame) {
-		return (Subscriber<? super Payload> child) ->
-		{
+		return (Subscriber<? super Payload> child) -> {
 			child.onSubscribe(new Subscription() {
 
 				boolean started = false;
@@ -142,7 +140,7 @@ public class Requester {
 						writer = UnicastSubject.create(w -> {
 							// when transport connects we write the request frame for this stream
 							w.onNext(requestFrame);
-//								w.onNext(Frame.from(requestFrame.getStreamId(), FrameType.REQUEST_N)); // TODO add N
+							// w.onNext(Frame.from(requestFrame.getStreamId(), FrameType.REQUEST_N)); // TODO add N
 						});
 						Publisher<Void> writeOutcome = connection.addOutput(writer); // TODO do something with this
 						writeOutcome.subscribe(new Subscriber<Void>() {
@@ -167,9 +165,7 @@ public class Requester {
 							}
 
 						});
-					}
-					else
-					{
+					} else {
 						// propagate further requestN frames
 						writer.onNext(Frame.from(requestFrame.getStreamId(), FrameType.REQUEST_N)); // TODO add N
 					}
@@ -179,8 +175,7 @@ public class Requester {
 				@Override
 				public void cancel() {
 					streamInputMap.remove(requestFrame.getStreamId());
-					if (!streamInputSubscriber.terminated.get())
-					{
+					if (!streamInputSubscriber.terminated.get()) {
 						writer.onNext(Frame.from(requestFrame.getStreamId(), FrameType.CANCEL));
 					}
 					streamInputSubscriber.parentSubscription.cancel();
@@ -225,9 +220,8 @@ public class Requester {
 			} else if (frame.getType() == FrameType.ERROR) {
 				terminated.set(true);
 				final ByteBuffer byteBuffer = frame.getData();
-				final byte[] bytes = new byte[byteBuffer.capacity()];
-				byteBuffer.get(bytes);
-				onError(new RuntimeException(new String(bytes, Charset.forName("UTF-8"))));
+				String errorMessage = getByteBufferAsString(byteBuffer);
+				onError(new RuntimeException(errorMessage));
 				cancel();
 			} else {
 				onError(new RuntimeException("Unexpected FrameType: " + frame.getType()));
@@ -258,8 +252,7 @@ public class Requester {
 	}
 
 	public Publisher<Void> start() {
-		return (Subscriber<? super Void> terminalObserver) ->
-		{
+		return (Subscriber<? super Void> terminalObserver) -> {
 			terminalObserver.onSubscribe(new Subscription() {
 
 				boolean started = false;
@@ -281,7 +274,18 @@ public class Requester {
 							}
 
 							public void onNext(Frame frame) {
-								streamInputMap.get(frame.getStreamId()).onNext(frame);
+								UnicastSubject streamSubject = streamInputMap.get(frame.getStreamId());
+								if (streamSubject == null) {
+									// if we can't find one, we have a problem with the overall connection and must tear down
+									if (frame.getType() == FrameType.ERROR) {
+										String errorMessage = getByteBufferAsString(frame.getData());
+										onError(new RuntimeException("Received error for non-existent stream: " + frame.getStreamId() + " Message: " + errorMessage));
+									} else {
+										onError(new RuntimeException("Received message for non-existent stream: " + frame.getStreamId()));
+									}
+								} else {
+									streamSubject.onNext(frame);
+								}
 							}
 
 							public void onError(Throwable t) {
@@ -309,5 +313,11 @@ public class Requester {
 				}
 			});
 		};
+	}
+
+	private static String getByteBufferAsString(ByteBuffer bb) {
+		final byte[] bytes = new byte[bb.capacity()];
+		bb.get(bytes);
+		return new String(bytes, Charset.forName("UTF-8"));
 	}
 }

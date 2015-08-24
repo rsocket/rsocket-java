@@ -15,22 +15,22 @@
  */
 package io.reactivesocket;
 
-import static rx.Observable.*;
 import static io.reactivesocket.TestUtil.*;
 import static org.junit.Assert.*;
+import static rx.Observable.*;
+import static rx.RxReactiveStreams.*;
 
-import org.junit.Before;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.reactivestreams.Publisher;
 
+import rx.Subscription;
+import rx.observables.ConnectableObservable;
 import rx.observers.TestSubscriber;
-import rx.schedulers.Schedulers;
-
-import static rx.RxReactiveStreams.toObservable;
-import static rx.RxReactiveStreams.toPublisher;
-
-import java.util.concurrent.TimeUnit;
 
 public class ReactiveSocketTest {
 
@@ -38,6 +38,9 @@ public class ReactiveSocketTest {
 	private static TestConnection clientConnection;
 	private static ReactiveSocket socketServer;
 	private static ReactiveSocket socketClient;
+	private static AtomicBoolean helloSubscriptionRunning = new AtomicBoolean(false);
+	private static AtomicReference<String> lastFireAndForget = new AtomicReference<String>();
+	private static AtomicReference<Throwable> lastServerError = new AtomicReference<Throwable>();
 
 	@BeforeClass
 	public static void setup() {
@@ -69,15 +72,33 @@ public class ReactiveSocketTest {
 
 			@Override
 			public Publisher<Payload> handleRequestSubscription(Payload payload) {
-				return toPublisher(error(new RuntimeException("Not Found")));
+				String request = byteToString(payload.getData());
+				if ("hello".equals(request)) {
+					return toPublisher(interval(1, TimeUnit.MICROSECONDS)
+							.doOnSubscribe(() -> helloSubscriptionRunning.set(true))
+							.doOnUnsubscribe(() -> helloSubscriptionRunning.set(false))
+							.map(i -> "subscription " + i)
+							.map(n -> utf8EncodedPayload(n, null)));
+				} else {
+					return toPublisher(error(new RuntimeException("Not Found")));
+				}
 			}
 
 			@Override
 			public Publisher<Void> handleFireAndForget(Payload payload) {
-				return toPublisher(error(new RuntimeException("Not Found")));
+				String request = byteToString(payload.getData());
+				lastFireAndForget.set(request);
+				if ("log".equals(request)) {
+					return toPublisher(empty()); // success
+				} else if ("blowup".equals(request)) {
+					throw new RuntimeException("forced blowup to simulate handler error");
+				} else {
+					lastFireAndForget.set("notFound");
+					return toPublisher(error(new RuntimeException("Not Found")));
+				}
 			}
 
-		});
+		}, t -> lastServerError.set(t));
 
 		socketClient = ReactiveSocket.createRequestor();
 
@@ -107,5 +128,85 @@ public class ReactiveSocketTest {
 		ts.assertNoErrors();
 		assertEquals(100, ts.getOnNextEvents().size());
 		assertEquals("hello world 99", byteToString(ts.getOnNextEvents().get(99).getData()));
+	}
+
+	@Test
+	public void testRequestSubscription() {
+		// perform request/subscription
+		Publisher<Payload> response = socketClient.requestSubscription(TestUtil.utf8EncodedPayload("hello", null));
+		TestSubscriber<Payload> ts = TestSubscriber.create();
+		TestSubscriber<Payload> ts2 = TestSubscriber.create();
+		ConnectableObservable<Payload> published = toObservable(response).publish();
+		published.take(10).subscribe(ts);
+		published.subscribe(ts2);
+		Subscription subscription = published.connect();
+
+		// ts completed due to take
+		ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
+		ts.assertNoErrors();
+		ts.assertCompleted();
+
+		// ts2 should never complete
+		ts2.assertNoErrors();
+		ts2.assertNoTerminalEvent();
+
+		// assert it is running still
+		assertTrue(helloSubscriptionRunning.get());
+
+		// shut down the work
+		subscription.unsubscribe();
+
+		// wait for up to 2 seconds for the async CANCEL to occur (it sends a message up)
+		for (int i = 0; i < 20; i++) {
+			if (!helloSubscriptionRunning.get()) {
+				break;
+			}
+			try {
+				Thread.sleep(100);
+			} catch (InterruptedException e) {
+			}
+		}
+		// and then stopped after unsubscribing
+		assertFalse(helloSubscriptionRunning.get());
+
+		assertEquals(10, ts.getOnNextEvents().size());
+		assertEquals("subscription 9", byteToString(ts.getOnNextEvents().get(9).getData()));
+	}
+
+	@Test
+	public void testFireAndForgetSuccess() {
+		// perform request/response
+		Publisher<Void> response = socketClient.fireAndForget(TestUtil.utf8EncodedPayload("log", null));
+		TestSubscriber<Void> ts = TestSubscriber.create();
+		toObservable(response).subscribe(ts);
+		ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
+		ts.assertNoErrors();
+		ts.assertCompleted();
+		assertEquals("log", lastFireAndForget.get());
+	}
+
+	@Test
+	public void testFireAndForgetServerSideErrorNotFound() {
+		// perform request/response
+		Publisher<Void> response = socketClient.fireAndForget(TestUtil.utf8EncodedPayload("unknown", null));
+		TestSubscriber<Void> ts = TestSubscriber.create();
+		toObservable(response).subscribe(ts);
+		ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
+		ts.assertNoErrors(); // client-side won't see an error
+		ts.assertCompleted();
+		assertEquals("notFound", lastFireAndForget.get());
+	}
+
+	@Test
+	public void testFireAndForgetServerSideErrorHandlerBlowup() {
+		// perform request/response
+		Publisher<Void> response = socketClient.fireAndForget(TestUtil.utf8EncodedPayload("blowup", null));
+		TestSubscriber<Void> ts = TestSubscriber.create();
+		toObservable(response).subscribe(ts);
+		ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
+		ts.assertNoErrors(); // client-side won't see an error
+		ts.assertCompleted();
+		assertEquals("blowup", lastFireAndForget.get());
+		assertEquals("forced blowup to simulate handler error", lastServerError.get().getCause().getMessage());
 	}
 }

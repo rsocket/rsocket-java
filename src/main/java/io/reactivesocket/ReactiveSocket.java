@@ -15,6 +15,8 @@
  */
 package io.reactivesocket;
 
+import java.util.function.Consumer;
+
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
@@ -47,14 +49,13 @@ public class ReactiveSocket {
 			return NOT_FOUND_ERROR_VOID;
 		}
 	};
-	private static final Responder EMPTY_RESPONDER = Responder.create(EMPTY_HANDLER);
 
 	private final boolean isServer;
 	private Requester requester; // can't initialized until connection is accepted
 	private final Responder responder;
 
 	public static ReactiveSocket createRequestor() {
-		return new ReactiveSocket(false, EMPTY_HANDLER);
+		return new ReactiveSocket(false, EMPTY_HANDLER, t -> {});
 	}
 
 	// TODO what name makes sense for these 'create' methods?
@@ -65,14 +66,19 @@ public class ReactiveSocket {
 	 *
 	 * @param connection
 	 * @param requestHandler
+	 * @param responderErrorConsumer Callback for all errors seen while processing requests in the Responder.
 	 * @return
 	 */
-	public static ReactiveSocket createResponderAndRequestor(final RequestHandler requestHandler) {
-		final ReactiveSocket socket = new ReactiveSocket(true, requestHandler);
+	public static ReactiveSocket createResponderAndRequestor(final RequestHandler requestHandler, Consumer<Throwable> responderErrorConsumer) {
+		final ReactiveSocket socket = new ReactiveSocket(true, requestHandler, responderErrorConsumer);
 
 		// TODO: passively wait for a SETUP and accept or reject it
 
 		return socket;
+	}
+	
+	public static ReactiveSocket createResponderAndRequestor(final RequestHandler requestHandler) {
+		return createResponderAndRequestor(requestHandler, t -> {});
 	}
 
 	/**
@@ -108,9 +114,9 @@ public class ReactiveSocket {
 		}
 	}
 
-	private ReactiveSocket(final boolean isServer, final RequestHandler requestHandler) {
+	private ReactiveSocket(final boolean isServer, final RequestHandler requestHandler, Consumer<Throwable> errorStream) {
 		this.isServer = isServer;
-		this.responder = Responder.create(requestHandler);
+		this.responder = Responder.create(requestHandler, errorStream);
 
 	}
 

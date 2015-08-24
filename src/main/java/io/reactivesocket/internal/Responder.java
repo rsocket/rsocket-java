@@ -16,6 +16,8 @@
 package io.reactivesocket.internal;
 
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
+import java.util.function.Consumer;
 
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
@@ -36,13 +38,34 @@ import uk.co.real_logic.agrona.collections.Long2ObjectHashMap;
  */
 public class Responder {
 	private final RequestHandler requestHandler;
+	private final Consumer<Throwable> errorStream;
 
-	private Responder(RequestHandler requestHandler) {
+	private Responder(RequestHandler requestHandler, Consumer<Throwable> errorStream) {
 		this.requestHandler = requestHandler;
+		this.errorStream = errorStream;
 	}
 
+	/**
+	 * @param requestHandler
+	 *            Handle incoming requests.
+	 * @return
+	 */
 	public static <T> Responder create(RequestHandler requestHandler) {
-		return new Responder(requestHandler);
+		return new Responder(requestHandler, t -> {
+		});
+	}
+
+	/**
+	 * @param requestHandler
+	 *            Handle incoming requests.
+	 * @param errorStream
+	 *            A {@link Consumer<Throwable>} which will receive all errors that occurs processing requests.
+	 *            <p>
+	 *            This include fireAndForget which ONLY emit errors server-side via this mechanism.
+	 * @return
+	 */
+	public static <T> Responder create(RequestHandler requestHandler, Consumer<Throwable> errorStream) {
+		return new Responder(requestHandler, errorStream);
 	}
 
 	/**
@@ -86,25 +109,33 @@ public class Responder {
 								@Override
 								public void onNext(Frame requestFrame) {
 									Publisher<Frame> responsePublisher = null;
-									if (requestFrame.getType() == FrameType.REQUEST_RESPONSE) {
-										responsePublisher = handleRequestResponse(requestFrame, cancellationSubscriptions);
-									} else if (requestFrame.getType() == FrameType.REQUEST_STREAM) {
-										responsePublisher = handleRequestStream(requestFrame, cancellationSubscriptions, inFlight);
-										// } else if (requestFrame.getType() == FrameType.FIRE_AND_FORGET) {
-										// responsePublisher = handleFireAndForget(frame);
-										// } else if (requestFrame.getType() == FrameType.REQUEST_SUBSCRIPTION) {
-										// responsePublisher = handleRequestSubscription(connection, frame, cancellationSubscriptions, inFlight);
-									} else if (requestFrame.getType() == FrameType.CANCEL) {
-										Subscription s = cancellationSubscriptions.get(requestFrame.getStreamId());
-										if(s != null) {
-											s.cancel();
+									try {
+										if (requestFrame.getType() == FrameType.REQUEST_RESPONSE) {
+											responsePublisher = handleRequestResponse(requestFrame, cancellationSubscriptions);
+										} else if (requestFrame.getType() == FrameType.REQUEST_STREAM) {
+											responsePublisher = handleRequestStream(requestFrame, cancellationSubscriptions, inFlight);
+										} else if (requestFrame.getType() == FrameType.FIRE_AND_FORGET) {
+											responsePublisher = handleFireAndForget(requestFrame);
+										} else if (requestFrame.getType() == FrameType.REQUEST_SUBSCRIPTION) {
+											responsePublisher = handleRequestSubscription(requestFrame, cancellationSubscriptions, inFlight);
+										} else if (requestFrame.getType() == FrameType.CANCEL) {
+											Subscription s = cancellationSubscriptions.get(requestFrame.getStreamId());
+											if (s != null) {
+												s.cancel();
+											}
+											return;
+										} else if (requestFrame.getType() == FrameType.REQUEST_N) {
+											// TODO do something with this
+											return;
+										} else {
+											responsePublisher = PublisherUtils.error(requestFrame, new IllegalStateException("Unexpected prefix: " + requestFrame.getType()));
 										}
-										// } else if (requestFrame.getType() == FrameType.REQUEST_N) {
-										// handleRequestN(frame, inFlight); // TODO this needs to be implemented
-									} else {
-										responsePublisher = error(requestFrame, new IllegalStateException("Unexpected prefix: " + requestFrame.getType()));
+									} catch (Throwable e) {
+										// synchronous try/catch since we execute user functions in the handlers and they could throw
+										errorStream.accept(new RuntimeException("Error in request handling.", e));
+										// error message to user
+										responsePublisher = PublisherUtils.error(requestFrame, new RuntimeException("Unhandled error processing request"));
 									}
-
 									connection.addOutput(responsePublisher).subscribe(new Subscriber<Void>() {
 
 										@Override
@@ -246,10 +277,40 @@ public class Responder {
 		};
 	}
 
+	private static BiFunction<RequestHandler, Payload, Publisher<Payload>> requestSubscriptionHandler = (RequestHandler handler, Payload requestPayload) -> handler
+			.handleRequestSubscription(requestPayload);
+	private static BiFunction<RequestHandler, Payload, Publisher<Payload>> requestStreamHandler = (RequestHandler handler, Payload requestPayload) -> handler.handleRequestStream(requestPayload);
+
 	private Publisher<Frame> handleRequestStream(
 			Frame requestFrame,
 			final Long2ObjectHashMap<Subscription> cancellationSubscriptions,
 			final Long2ObjectHashMap<?> inFlight) {
+		return requestStream(requestStreamHandler, requestFrame, cancellationSubscriptions, inFlight, true);
+	}
+
+	private Publisher<Frame> handleRequestSubscription(
+			Frame requestFrame,
+			final Long2ObjectHashMap<Subscription> cancellationSubscriptions,
+			final Long2ObjectHashMap<?> inFlight) {
+		return requestStream(requestSubscriptionHandler, requestFrame, cancellationSubscriptions, inFlight, false);
+	}
+
+	/**
+	 * Common logic for requestStream and requestSubscription
+	 * 
+	 * @param handler
+	 * @param requestFrame
+	 * @param cancellationSubscriptions
+	 * @param inFlight
+	 * @param allowCompletion
+	 * @return
+	 */
+	private Publisher<Frame> requestStream(
+			BiFunction<RequestHandler, Payload, Publisher<Payload>> handler,
+			Frame requestFrame,
+			final Long2ObjectHashMap<Subscription> cancellationSubscriptions,
+			final Long2ObjectHashMap<?> inFlight,
+			final boolean allowCompletion) {
 
 		return new Publisher<Frame>() {
 
@@ -266,7 +327,7 @@ public class Responder {
 							started = true;
 							long streamId = requestFrame.getStreamId();
 
-							requestHandler.handleRequestStream(requestFrame).subscribe(new Subscriber<Payload>() {
+							handler.apply(requestHandler, requestFrame).subscribe(new Subscriber<Payload>() {
 
 								@Override
 								public void onSubscribe(Subscription s) {
@@ -286,14 +347,20 @@ public class Responder {
 								@Override
 								public void onError(Throwable t) {
 									child.onNext(Frame.from(streamId, t));
+									child.onComplete();
 									cleanup();
 								}
 
 								@Override
 								public void onComplete() {
-									child.onNext(Frame.from(streamId, FrameType.COMPLETE));
-									child.onComplete();
-									cleanup();
+									if (allowCompletion) {
+										child.onNext(Frame.from(streamId, FrameType.COMPLETE));
+										child.onComplete();
+										cleanup();
+									} else {
+										onError(new IllegalStateException("Unexpected onComplete occurred on 'requestSubscription'"));
+									}
+
 								}
 
 							});
@@ -318,27 +385,42 @@ public class Responder {
 			}
 
 		};
+
 	}
 
-	private static final Publisher<Frame> error(Frame requestFrame, Throwable e) {
-		return (Subscriber<? super Frame> s) -> {
-			s.onSubscribe(new Subscription() {
+	/**
+	 * Reusable for each fireAndForget since no state is shared across invocations. It just passes through errors.
+	 */
+	private final Subscriber<Void> fireAndForgetSubscriber = new Subscriber<Void>() {
 
-				@Override
-				public void request(long n) {
-					// should probably worry about n==0
-					s.onNext(Frame.from(requestFrame.getStreamId(), e));
-					s.onComplete();
-				}
+		@Override
+		public void onSubscribe(Subscription s) {
+			s.request(Long.MAX_VALUE);
+		}
 
-				@Override
-				public void cancel() {
-					// ignoring just because
-				}
+		@Override
+		public void onNext(Void t) {
+		}
 
-			});
+		@Override
+		public void onError(Throwable t) {
+			errorStream.accept(t);
+		}
 
-		};
+		@Override
+		public void onComplete() {
+		}
+
+	};
+
+	private Publisher<Frame> handleFireAndForget(Frame requestFrame) {
+		try {
+			requestHandler.handleFireAndForget(requestFrame).subscribe(fireAndForgetSubscriber);
+		} catch (Throwable e) {
+			// we catch these errors here as we don't want anything propagating back to the user on fireAndForget
+			errorStream.accept(new RuntimeException("Error processing 'fireAndForget'", e));
+		}
+		return PublisherUtils.empty(); // we always treat this as if it immediately completes as we don't want errors passing back to the user
 	}
 
 	private final static Subscription NOOP_SUBSCRIPTION = new EmptySubscription();
