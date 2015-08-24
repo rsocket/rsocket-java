@@ -206,6 +206,6 @@ public class Frame implements Payload
         } catch (Exception e) {
             e.printStackTrace();
         }
-        return "Frame => ID: " + streamId + " Type: " + type + " Payload: " + payload;
+        return "Frame => Stream ID: " + streamId + " Type: " + type + " Payload Data: " + payload;
     }
 }
