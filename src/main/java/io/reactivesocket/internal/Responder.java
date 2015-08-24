@@ -80,6 +80,9 @@ public class Responder {
 		final Long2ObjectHashMap<Subscription> cancellationSubscriptions = new Long2ObjectHashMap<>();
 		/* streams in flight that can receive REQUEST_N messages */
 		final Long2ObjectHashMap<?> inFlight = new Long2ObjectHashMap<>(); // TODO not being used
+		/* bidirectional channels */
+		final Long2ObjectHashMap<UnicastSubject<Payload>> channels = new Long2ObjectHashMap<>(); // TODO should/can we make this optional so that it only gets allocated per connection if channels are
+																									// used?
 
 		return new Publisher<Void>() {
 
@@ -121,6 +124,8 @@ public class Responder {
 											responsePublisher = handleFireAndForget(requestFrame);
 										} else if (requestFrame.getType() == FrameType.REQUEST_SUBSCRIPTION) {
 											responsePublisher = handleRequestSubscription(requestFrame, cancellationSubscriptions, inFlight);
+										} else if (requestFrame.getType() == FrameType.REQUEST_CHANNEL) {
+											responsePublisher = handleRequestChannel(requestFrame, channels, cancellationSubscriptions, inFlight);
 										} else if (requestFrame.getType() == FrameType.CANCEL) {
 											Subscription s = cancellationSubscriptions.get(requestFrame.getStreamId());
 											if (s != null) {
@@ -131,13 +136,13 @@ public class Responder {
 											// TODO do something with this
 											return;
 										} else {
-											responsePublisher = PublisherUtils.error(requestFrame, new IllegalStateException("Unexpected prefix: " + requestFrame.getType()));
+											responsePublisher = PublisherUtils.errorFrame(requestFrame, new IllegalStateException("Unexpected prefix: " + requestFrame.getType()));
 										}
 									} catch (Throwable e) {
 										// synchronous try/catch since we execute user functions in the handlers and they could throw
 										errorStream.accept(new RuntimeException("Error in request handling.", e));
 										// error message to user
-										responsePublisher = PublisherUtils.error(requestFrame, new RuntimeException("Unhandled error processing request"));
+										responsePublisher = PublisherUtils.errorFrame(requestFrame, new RuntimeException("Unhandled error processing request"));
 									}
 									connection.addOutput(responsePublisher).subscribe(new Subscriber<Void>() {
 
@@ -196,7 +201,7 @@ public class Responder {
 
 					@Override
 					public void cancel() {
-						// child has cancelled (shutdown the connection or server)  // TODO validate with unit tests
+						// child has cancelled (shutdown the connection or server) // TODO validate with unit tests
 						if (!transportSubscription.compareAndSet(null, EmptySubscription.EMPTY)) {
 							// cancel the one that was there if we failed to set the sentinel
 							transportSubscription.get().cancel();
@@ -293,7 +298,7 @@ public class Responder {
 	}
 
 	private static BiFunction<RequestHandler, Payload, Publisher<Payload>> requestSubscriptionHandler = (RequestHandler handler, Payload requestPayload) -> handler
-			.handleRequestSubscription(requestPayload);
+			.handleSubscription(requestPayload);
 	private static BiFunction<RequestHandler, Payload, Publisher<Payload>> requestStreamHandler = (RequestHandler handler, Payload requestPayload) -> handler.handleRequestStream(requestPayload);
 
 	private Publisher<Frame> handleRequestStream(
@@ -403,6 +408,16 @@ public class Responder {
 
 	}
 
+	private Publisher<Frame> handleFireAndForget(Frame requestFrame) {
+		try {
+			requestHandler.handleFireAndForget(requestFrame).subscribe(fireAndForgetSubscriber);
+		} catch (Throwable e) {
+			// we catch these errors here as we don't want anything propagating back to the user on fireAndForget
+			errorStream.accept(new RuntimeException("Error processing 'fireAndForget'", e));
+		}
+		return PublisherUtils.empty(); // we always treat this as if it immediately completes as we don't want errors passing back to the user
+	}
+
 	/**
 	 * Reusable for each fireAndForget since no state is shared across invocations. It just passes through errors.
 	 */
@@ -428,14 +443,102 @@ public class Responder {
 
 	};
 
-	private Publisher<Frame> handleFireAndForget(Frame requestFrame) {
-		try {
-			requestHandler.handleFireAndForget(requestFrame).subscribe(fireAndForgetSubscriber);
-		} catch (Throwable e) {
-			// we catch these errors here as we don't want anything propagating back to the user on fireAndForget
-			errorStream.accept(new RuntimeException("Error processing 'fireAndForget'", e));
+	private Publisher<Frame> handleRequestChannel(Frame requestFrame,
+			Long2ObjectHashMap<UnicastSubject<Payload>> channels,
+			Long2ObjectHashMap<Subscription> cancellationSubscriptions,
+			Long2ObjectHashMap<?> inFlight) {
+
+		UnicastSubject<Payload> channelSubject = channels.get(requestFrame.getStreamId());
+		if (channelSubject == null) {
+			// first request on this channel
+			channelSubject = UnicastSubject.create(s -> {
+				// after we are first subscribed to then send the initial frame
+				s.onNext(requestFrame);
+			});
+			channels.put(requestFrame.getStreamId(), channelSubject);
+
+			final UnicastSubject<Payload> channelRequests = channelSubject;
+
+			return new Publisher<Frame>() {
+
+				@Override
+				public void subscribe(Subscriber<? super Frame> child) {
+					Subscription s = new Subscription() {
+
+						boolean started = false;
+						AtomicReference<Subscription> parent = new AtomicReference<>();
+
+						@Override
+						public void request(long n) {
+							if (!started) {
+								started = true;
+								long streamId = requestFrame.getStreamId();
+
+								requestHandler.handleChannel(requestFrame, channelRequests).subscribe(new Subscriber<Payload>() {
+
+									@Override
+									public void onSubscribe(Subscription s) {
+										if (parent.compareAndSet(null, s)) {
+											s.request(Long.MAX_VALUE); // TODO need backpressure
+										} else {
+											s.cancel();
+											cleanup();
+										}
+									}
+
+									@Override
+									public void onNext(Payload v) {
+										child.onNext(Frame.from(streamId, FrameType.NEXT, v));
+									}
+
+									@Override
+									public void onError(Throwable t) {
+										child.onNext(Frame.from(streamId, t));
+										child.onComplete();
+										cleanup();
+									}
+
+									@Override
+									public void onComplete() {
+										child.onNext(Frame.from(streamId, FrameType.COMPLETE));
+										child.onComplete();
+										cleanup();
+
+									}
+
+								});
+							}
+						}
+
+						@Override
+						public void cancel() {
+							if (!parent.compareAndSet(null, EmptySubscription.EMPTY)) {
+								parent.get().cancel();
+								cleanup();
+							}
+						}
+
+						private void cleanup() {
+							cancellationSubscriptions.remove(requestFrame.getStreamId());
+						}
+
+					};
+					cancellationSubscriptions.put(requestFrame.getStreamId(), s);
+					child.onSubscribe(s);
+				}
+
+			};
+
+		} else {
+			// send data to channel
+			if (channelSubject.isSubscribedTo()) {
+				channelSubject.onNext(requestFrame);
+				return PublisherUtils.empty();
+			} else {
+				// TODO should we use a BufferUntilSubscriber solution instead to handle time-gap issues like this?
+				return PublisherUtils.errorFrame(requestFrame, new RuntimeException("Channel unavailable")); // TODO validate with unit tests.
+			}
 		}
-		return PublisherUtils.empty(); // we always treat this as if it immediately completes as we don't want errors passing back to the user
 	}
 
 }

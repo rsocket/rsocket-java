@@ -15,6 +15,11 @@
  */
 package io.reactivesocket.internal;
 
+import java.nio.ByteBuffer;
+import java.nio.charset.Charset;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
@@ -24,12 +29,6 @@ import io.reactivesocket.Frame;
 import io.reactivesocket.FrameType;
 import io.reactivesocket.Payload;
 import uk.co.real_logic.agrona.collections.Long2ObjectHashMap;
-
-import java.nio.ByteBuffer;
-import java.nio.charset.Charset;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Protocol implementation abstracted over a {@link DuplexConnection}.
@@ -42,7 +41,7 @@ public class Requester {
 
 	private final boolean isServer;
 	private final DuplexConnection connection;
-	private final Long2ObjectHashMap<UnicastSubject> streamInputMap = new Long2ObjectHashMap<>();
+	private final Long2ObjectHashMap<UnicastSubject<Frame>> streamInputMap = new Long2ObjectHashMap<>();
 	private int streamCount = 0;// 0 is reserved for setup, all normal messages are >= 1
 
 	private Requester(boolean isServer, DuplexConnection connection) {
@@ -79,7 +78,7 @@ public class Requester {
 	 * @return
 	 */
 	public Publisher<Payload> requestResponse(final Payload payload) {
-		return startStream(Frame.from(nextStreamId(), FrameType.REQUEST_RESPONSE, payload));
+		return startStream(nextStreamId(), FrameType.REQUEST_RESPONSE, payload);
 	}
 
 	/**
@@ -89,7 +88,7 @@ public class Requester {
 	 * @return
 	 */
 	public Publisher<Payload> requestStream(final Payload payload) {
-		return startStream(Frame.from(nextStreamId(), FrameType.REQUEST_STREAM, payload));
+		return startStream(nextStreamId(), FrameType.REQUEST_STREAM, payload);
 	}
 
 	/**
@@ -102,6 +101,9 @@ public class Requester {
 	 * @return
 	 */
 	public Publisher<Void> fireAndForget(final Payload payload) {
+		if (payload == null) {
+			throw new IllegalStateException("Payload can not be null");
+		}
 		return connection.addOutput(PublisherUtils.just(Frame.from(nextStreamId(), FrameType.FIRE_AND_FORGET, payload)));
 	}
 
@@ -112,25 +114,82 @@ public class Requester {
 	 * @return
 	 */
 	public Publisher<Payload> requestSubscription(final Payload payload) {
-		return startStream(Frame.from(nextStreamId(), FrameType.REQUEST_SUBSCRIPTION, payload));
+		return startStream(nextStreamId(), FrameType.REQUEST_SUBSCRIPTION, payload);
 	}
 
-	private Publisher<Payload> startStream(Frame requestFrame) {
+	/**
+	 * Request/Stream with a finite multi-message response followed by a terminal state {@link Subscriber#onComplete()} or {@link Subscriber#onError(Throwable)}.
+	 * 
+	 * @param data
+	 * @return
+	 */
+	public Publisher<Payload> requestChannel(final Publisher<Payload> payloadStream) {
+		return startStream(nextStreamId(), FrameType.REQUEST_CHANNEL, payloadStream);
+	}
+
+	/**
+	 * Start a stream with a single request Payload.
+	 * 
+	 * @param streamId
+	 * @param type
+	 * @param payload
+	 * @return
+	 */
+	private Publisher<Payload> startStream(int streamId, FrameType type, Payload payload) {
+		if (payload == null) {
+			throw new IllegalStateException("Payload can not be null");
+		}
+		if (type == null) {
+			throw new IllegalStateException("FrameType can not be null");
+		}
+		return startStream(streamId, type, payload, null);
+	}
+
+	/**
+	 * Start a bi-directional stream supporting multiple request Payloads.
+	 * 
+	 * @param streamId
+	 * @param type
+	 * @param payloads
+	 * @return
+	 */
+	private Publisher<Payload> startStream(int streamId, FrameType type, Publisher<Payload> payloads) {
+		if (payloads == null) {
+			throw new IllegalStateException("Payloads can not be null");
+		}
+		if (type == null) {
+			throw new IllegalStateException("FrameType can not be null");
+		}
+		return startStream(streamId, type, null, payloads);
+	}
+
+	/*
+	 * Using payload/payloads with null check for efficiency so I don't have to allocate a Publisher for the most common case of single Payload
+	 */
+	private Publisher<Payload> startStream(int streamId, FrameType type, Payload payload, Publisher<Payload> payloads) {
+		if (payload == null && payloads == null) {
+			throw new IllegalStateException("Both payload and payloads can not be null");
+		}
 		return (Subscriber<? super Payload> child) -> {
 			child.onSubscribe(new Subscription() {
 
 				boolean started = false;
 				StreamInputSubscriber streamInputSubscriber;
-				UnicastSubject writer;
+				UnicastSubject<Frame> writer;
+				AtomicReference<Subscription> payloadsSubscription;
 
 				@Override
 				public void request(long n) {
 					if (!started) {
 						started = true;
 
+						if(payloads != null) {
+							payloadsSubscription = new AtomicReference<Subscription>();
+						}
+						
 						// Response frames for this Stream
-						UnicastSubject transportInputSubject = UnicastSubject.create();
-						streamInputMap.put(requestFrame.getStreamId(), transportInputSubject);
+						UnicastSubject<Frame> transportInputSubject = UnicastSubject.create();
+						streamInputMap.put(streamId, transportInputSubject);
 						streamInputSubscriber = new StreamInputSubscriber(child, () -> {
 							cancel();
 						});
@@ -139,8 +198,40 @@ public class Requester {
 						// connect to transport
 						writer = UnicastSubject.create(w -> {
 							// when transport connects we write the request frame for this stream
-							w.onNext(requestFrame);
-							// w.onNext(Frame.from(requestFrame.getStreamId(), FrameType.REQUEST_N)); // TODO add N
+							if (payload != null) {
+								w.onNext(Frame.from(streamId, type, payload));
+								// w.onNext(Frame.from(requestFrame.getStreamId(), FrameType.REQUEST_N)); // TODO add N
+							} else {
+								payloads.subscribe(new Subscriber<Payload>() {
+
+									@Override
+									public void onSubscribe(Subscription s) {
+										if (!payloadsSubscription.compareAndSet(null, s)) {
+											s.cancel(); // we are already unsubscribed
+										}
+										s.request(Long.MAX_VALUE); // TODO need REQUEST_N semantics from the other end
+									}
+
+									@Override
+									public void onNext(Payload p) {
+										w.onNext(Frame.from(streamId, type, p));
+									}
+
+									@Override
+									public void onError(Throwable t) {
+										// TODO validate with unit tests
+										child.onError(new RuntimeException("Error received from request stream.", t));
+										cancel();
+									}
+
+									@Override
+									public void onComplete() {
+										// do nothing if input ends, completion is handled by response side
+									}
+
+								});
+							}
+
 						});
 						Publisher<Void> writeOutcome = connection.addOutput(writer); // TODO do something with this
 						writeOutcome.subscribe(new Subscriber<Void>() {
@@ -167,18 +258,23 @@ public class Requester {
 						});
 					} else {
 						// propagate further requestN frames
-						writer.onNext(Frame.from(requestFrame.getStreamId(), FrameType.REQUEST_N)); // TODO add N
+						writer.onNext(Frame.from(streamId, FrameType.REQUEST_N)); // TODO add N
 					}
 
 				}
 
 				@Override
 				public void cancel() {
-					streamInputMap.remove(requestFrame.getStreamId());
+					streamInputMap.remove(streamId);
 					if (!streamInputSubscriber.terminated.get()) {
-						writer.onNext(Frame.from(requestFrame.getStreamId(), FrameType.CANCEL));
+						writer.onNext(Frame.from(streamId, FrameType.CANCEL));
 					}
 					streamInputSubscriber.parentSubscription.cancel();
+					if (payloadsSubscription != null) {
+						if (!payloadsSubscription.compareAndSet(null, EmptySubscription.EMPTY)) {
+							payloadsSubscription.get().cancel(); // unsubscribe it if it already exists
+						}
+					}
 				}
 
 			});
@@ -274,7 +370,7 @@ public class Requester {
 							}
 
 							public void onNext(Frame frame) {
-								UnicastSubject streamSubject = streamInputMap.get(frame.getStreamId());
+								UnicastSubject<Frame> streamSubject = streamInputMap.get(frame.getStreamId());
 								if (streamSubject == null) {
 									// if we can't find one, we have a problem with the overall connection and must tear down
 									if (frame.getType() == FrameType.ERROR) {

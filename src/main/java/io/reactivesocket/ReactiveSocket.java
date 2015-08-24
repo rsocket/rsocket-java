@@ -41,12 +41,16 @@ public class ReactiveSocket {
 			return NOT_FOUND_ERROR_PAYLOAD;
 		}
 
-		public Publisher<Payload> handleRequestSubscription(Payload payload) {
+		public Publisher<Payload> handleSubscription(Payload payload) {
 			return NOT_FOUND_ERROR_PAYLOAD;
 		}
 
 		public Publisher<Void> handleFireAndForget(Payload payload) {
 			return NOT_FOUND_ERROR_VOID;
+		}
+		
+		public Publisher<Payload> handleChannel(Payload initialPayload, Publisher<Payload> payloads) {
+			return NOT_FOUND_ERROR_PAYLOAD;
 		}
 	};
 
@@ -106,6 +110,11 @@ public class ReactiveSocket {
 	public Publisher<Payload> requestSubscription(final Payload payload) {
 		assertRequester();
 		return requester.requestSubscription(payload);
+	}
+	
+	public Publisher<Payload> requestChannel(final Publisher<Payload> payloads) {
+		assertRequester();
+		return requester.requestChannel(payloads);
 	}
 
 	private void assertRequester() {

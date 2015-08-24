@@ -28,6 +28,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 import org.reactivestreams.Publisher;
 
+import io.reactivesocket.internal.PublisherUtils;
 import rx.Subscription;
 import rx.observables.ConnectableObservable;
 import rx.observers.TestSubscriber;
@@ -71,7 +72,7 @@ public class ReactiveSocketTest {
 			}
 
 			@Override
-			public Publisher<Payload> handleRequestSubscription(Payload payload) {
+			public Publisher<Payload> handleSubscription(Payload payload) {
 				String request = byteToString(payload.getData());
 				if ("hello".equals(request)) {
 					return toPublisher(interval(1, TimeUnit.MICROSECONDS)
@@ -96,6 +97,25 @@ public class ReactiveSocketTest {
 					lastFireAndForget.set("notFound");
 					return toPublisher(error(new RuntimeException("Not Found")));
 				}
+			}
+
+			/**
+			 * Use Payload.metadata for routing
+			 */
+			@Override
+			public Publisher<Payload> handleChannel(Payload initialPayload, Publisher<Payload> payloads) {
+				String request = byteToString(initialPayload.getMetadata());
+				if ("echo".equals(request)) {
+					return echoChannel(payloads);
+				} else {
+					return toPublisher(error(new RuntimeException("Not Found")));
+				}
+			}
+
+			private Publisher<Payload> echoChannel(Publisher<Payload> echo) {
+				return toPublisher(toObservable(echo).map(p -> {
+					return utf8EncodedPayload(byteToString(p.getData()) + "_echo", null);
+				}));
 			}
 
 		}, t -> lastServerError.set(t));
@@ -208,5 +228,31 @@ public class ReactiveSocketTest {
 		ts.assertCompleted();
 		assertEquals("blowup", lastFireAndForget.get());
 		assertEquals("forced blowup to simulate handler error", lastServerError.get().getCause().getMessage());
+	}
+
+	@Test
+	public void testRequestChannelEcho() {
+		Publisher<Payload> requestStream = toPublisher(just(TestUtil.utf8EncodedPayload("1", "echo")).concatWith(just(TestUtil.utf8EncodedPayload("2", null))));
+		Publisher<Payload> response = socketClient.requestChannel(requestStream);
+		TestSubscriber<Payload> ts = TestSubscriber.create();
+		toObservable(response).subscribe(ts);
+		ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
+		ts.assertNoErrors();
+		assertEquals(2, ts.getOnNextEvents().size());
+		assertEquals("1_echo", byteToString(ts.getOnNextEvents().get(0).getData()));
+		assertEquals("2_echo", byteToString(ts.getOnNextEvents().get(1).getData()));
+	}
+
+	@Test
+	public void testRequestChannelNotFound() {
+		Publisher<Payload> requestStream = toPublisher(just(TestUtil.utf8EncodedPayload(null, "someChannel")));
+		Publisher<Payload> response = socketClient.requestChannel(requestStream);
+		TestSubscriber<Payload> ts = TestSubscriber.create();
+		toObservable(response).subscribe(ts);
+		ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
+		ts.assertTerminalEvent();
+		ts.assertNotCompleted();
+		ts.assertNoValues();
+		assertEquals("Not Found", ts.getOnErrorEvents().get(0).getMessage());
 	}
 }

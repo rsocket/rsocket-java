@@ -21,20 +21,22 @@ package io.reactivesocket;
 public enum FrameType
 {
      SETUP(0x01, true),
-     // Messages from Requestor
+     // Messages from Requestor (start a request)
      REQUEST_RESPONSE(0x11, true),
      FIRE_AND_FORGET(0x12, true),
      REQUEST_STREAM(0x13, true),
      REQUEST_SUBSCRIPTION(0x14, true),
-     REQUEST_N(0x15, true),
-     CANCEL(0x16, true),
+     REQUEST_CHANNEL(0x15, true),
+     // Messages from Requestor (mid-stream) 
+     REQUEST_N(0x20, true),
+     CANCEL(0x21, true),
      // Messages from Responder
-     RESPONSE(0x20, false),
-     ERROR(0x21, false),
+     RESPONSE(0x30, false),
+     ERROR(0x31, false),
      // synthetic types from Responder for use by the rest of the machinery
-     NEXT(0x22, false),
-     COMPLETE(0x23, false),
-     NEXT_COMPLETE(0x24, false);
+     NEXT(0x32, false),
+     COMPLETE(0x33, false),
+     NEXT_COMPLETE(0x34, false);
 
     private static FrameType[] typesById;
 

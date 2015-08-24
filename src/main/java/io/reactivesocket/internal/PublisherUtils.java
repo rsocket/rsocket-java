@@ -15,15 +15,18 @@
  */
 package io.reactivesocket.internal;
 
+import java.nio.ByteBuffer;
+
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
 import io.reactivesocket.Frame;
+import io.reactivesocket.Payload;
 
 public class PublisherUtils {
 
-	public static final Publisher<Frame> error(Frame requestFrame, Throwable e) {
+	public static final Publisher<Frame> errorFrame(Frame requestFrame, Throwable e) {
 		return (Subscriber<? super Frame> s) -> {
 			s.onSubscribe(new Subscription() {
 
@@ -41,6 +44,64 @@ public class PublisherUtils {
 				}
 
 			});
+
+		};
+	}
+
+	private final static ByteBuffer EMPTY_BYTES = ByteBuffer.allocate(0);
+
+	public static final Publisher<Payload> errorPayload(Throwable e) {
+		return (Subscriber<? super Payload> s) -> {
+			s.onSubscribe(new Subscription() {
+
+				@Override
+				public void request(long n) {
+					if (n > 0) {
+						Payload errorPayload = new Payload() {
+
+							@Override
+							public ByteBuffer getData() {
+								final byte[] bytes = e.getMessage().getBytes();
+								final ByteBuffer byteBuffer = ByteBuffer.wrap(bytes);
+								return byteBuffer;
+							}
+
+							@Override
+							public ByteBuffer getMetadata() {
+								return EMPTY_BYTES;
+							}
+
+						};
+						s.onNext(errorPayload);
+						s.onComplete();
+					}
+				}
+
+				@Override
+				public void cancel() {
+					// ignoring as nothing to do
+				}
+
+			});
+
+		};
+	}
+
+	public static final Publisher<Void> errorVoid(Throwable e) {
+		return (Subscriber<? super Void> s) -> {
+			s.onSubscribe(new Subscription() {
+
+				@Override
+				public void request(long n) {
+				}
+
+				@Override
+				public void cancel() {
+					// ignoring as nothing to do
+				}
+
+			});
+			s.onError(e);
 
 		};
 	}
