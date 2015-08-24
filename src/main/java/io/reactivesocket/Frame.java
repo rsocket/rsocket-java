@@ -15,12 +15,12 @@
  */
 package io.reactivesocket;
 
+import io.reactivesocket.internal.FrameHeaderFlyweight;
 import uk.co.real_logic.agrona.MutableDirectBuffer;
 import uk.co.real_logic.agrona.concurrent.UnsafeBuffer;
 
 import java.nio.ByteBuffer;
-
-import io.reactivesocket.internal.FrameFlyweight;
+import java.nio.charset.Charset;
 
 /**
  * Represents a Frame sent over a {@link DuplexConnection}.
@@ -30,7 +30,7 @@ import io.reactivesocket.internal.FrameFlyweight;
 public class Frame implements Payload
 {
     // thread local as it needs to be single-threaded access
-//    private static final ThreadLocal<FrameFlyweight> FRAME_HANDLER = ThreadLocal.withInitial(FrameFlyweight::new);
+//    private static final ThreadLocal<FrameHeaderFlyweight> FRAME_HANDLER = ThreadLocal.withInitial(FrameHeaderFlyweight::new);
 
     // not final so we can reuse this object
     private MutableDirectBuffer directBuffer;
@@ -54,7 +54,7 @@ public class Frame implements Payload
      */
     public ByteBuffer getData()
     {
-        return FrameFlyweight.sliceFrameData(directBuffer, 0);
+        return FrameHeaderFlyweight.sliceFrameData(directBuffer, 0, 0);
     }
 
     /**
@@ -64,7 +64,7 @@ public class Frame implements Payload
      */
     public ByteBuffer getMetadata()
     {
-        return FrameFlyweight.sliceFrameMetadata(directBuffer, 0);
+        return FrameHeaderFlyweight.sliceFrameMetadata(directBuffer, 0, 0);
     }
 
     /**
@@ -73,7 +73,7 @@ public class Frame implements Payload
      * @return frame stream identifier
      */
     public long getStreamId() {
-        return FrameFlyweight.streamId(directBuffer);
+        return FrameHeaderFlyweight.streamId(directBuffer, 0);
     }
 
     /**
@@ -82,7 +82,7 @@ public class Frame implements Payload
      * @return frame type
      */
     public FrameType getType() {
-        return FrameFlyweight.frameType(directBuffer);
+        return FrameHeaderFlyweight.frameType(directBuffer, 0);
     }
 
     /**
@@ -92,7 +92,7 @@ public class Frame implements Payload
      */
     public int getVersion()
     {
-        return FrameFlyweight.version(directBuffer);
+        return FrameHeaderFlyweight.version(directBuffer, 0);
     }
 
     /**
@@ -102,7 +102,7 @@ public class Frame implements Payload
      */
     public int getFlags()
     {
-        return FrameFlyweight.flags(directBuffer);
+        return FrameHeaderFlyweight.flags(directBuffer, 0);
     }
 
     /**
@@ -146,7 +146,7 @@ public class Frame implements Payload
      * @param data     to include in frame
      */
     public void wrap(final long streamId, final FrameType type, final ByteBuffer data) {
-        this.directBuffer = createByteBufferAndEncode(streamId, type, data, FrameFlyweight.NULL_BYTEBUFFER);
+        this.directBuffer = createByteBufferAndEncode(streamId, type, data, FrameHeaderFlyweight.NULL_BYTEBUFFER);
     }
 
     public static Frame from(long streamId, FrameType type, ByteBuffer data, ByteBuffer metadata)
@@ -158,19 +158,19 @@ public class Frame implements Payload
 
     public static Frame from(long streamId, FrameType type, ByteBuffer data)
     {
-        return from(streamId, type, data, FrameFlyweight.NULL_BYTEBUFFER);
+        return from(streamId, type, data, FrameHeaderFlyweight.NULL_BYTEBUFFER);
     }
 
     public static Frame from(long streamId, FrameType type, Payload payload)
     {
-    	final ByteBuffer d = payload.getData() != null ? payload.getData() : FrameFlyweight.NULL_BYTEBUFFER;
-    	final ByteBuffer md = payload.getMetadata() != null ? payload.getMetadata() : FrameFlyweight.NULL_BYTEBUFFER;
+    	final ByteBuffer d = payload.getData() != null ? payload.getData() : FrameHeaderFlyweight.NULL_BYTEBUFFER;
+    	final ByteBuffer md = payload.getMetadata() != null ? payload.getMetadata() : FrameHeaderFlyweight.NULL_BYTEBUFFER;
         return from(streamId, type, d, md);
     }
 
     public static Frame from(long streamId, FrameType type)
     {
-        return from(streamId, type, FrameFlyweight.NULL_BYTEBUFFER, FrameFlyweight.NULL_BYTEBUFFER);
+        return from(streamId, type, FrameHeaderFlyweight.NULL_BYTEBUFFER, FrameHeaderFlyweight.NULL_BYTEBUFFER);
     }
 
     public static Frame from(long streamId, final Throwable throwable)
@@ -186,23 +186,41 @@ public class Frame implements Payload
     {
         // TODO: allocation side effect of how this works currently with the rest of the machinery.
         final MutableDirectBuffer buffer =
-            new UnsafeBuffer(ByteBuffer.allocate(FrameFlyweight.computeFrameLength(type, metadata.capacity(), data.capacity())));
+            new UnsafeBuffer(ByteBuffer.allocate(FrameHeaderFlyweight.computeFrameHeaderLength(type, metadata.capacity(), data.capacity())));
 
-        FrameFlyweight.encode(buffer, streamId, type, metadata, data);
+        FrameHeaderFlyweight.encode(buffer, 0, streamId, type, metadata, data);
         return buffer;
     }
 
     @Override
     public String toString() {
         FrameType type = FrameType.SETUP;
-        String payload = "";
+        StringBuilder payload = new StringBuilder();
         long streamId = -1;
 
         try
         {
-            type = FrameFlyweight.frameType(directBuffer);
-            payload = FrameFlyweight.frameData(directBuffer, 0);
-            streamId = FrameFlyweight.streamId(directBuffer);
+            type = FrameHeaderFlyweight.frameType(directBuffer, 0);
+            ByteBuffer byteBuffer;
+            byte[] bytes;
+
+            byteBuffer = FrameHeaderFlyweight.sliceFrameMetadata(directBuffer, 0, 0);
+            if (0 < byteBuffer.capacity())
+            {
+                bytes = new byte[byteBuffer.capacity()];
+                byteBuffer.get(bytes);
+                payload.append(String.format("metadata: \"%s\" ", new String(bytes, Charset.forName("UTF-8"))));
+            }
+
+            byteBuffer = FrameHeaderFlyweight.sliceFrameData(directBuffer, 0, 0);
+            if (0 < byteBuffer.capacity())
+            {
+                bytes = new byte[byteBuffer.capacity()];
+                byteBuffer.get(bytes);
+                payload.append(String.format("data: \"%s\"", new String(bytes, Charset.forName("UTF-8"))));
+            }
+
+            streamId = FrameHeaderFlyweight.streamId(directBuffer, 0);
         } catch (Exception e) {
             e.printStackTrace();
         }
