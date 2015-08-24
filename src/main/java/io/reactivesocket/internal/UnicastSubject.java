@@ -21,8 +21,6 @@ import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
-import io.reactivesocket.Frame;
-
 /**
  * Intended to ONLY support a single Subscriber. It will throw an exception if more than 1 subscribe occurs.
  * <p>
@@ -30,20 +28,21 @@ import io.reactivesocket.Frame;
  * <p>
  * This is NOT thread-safe.
  */
-public final class UnicastSubject implements Subscriber<Frame>, Publisher<Frame> {
+public final class UnicastSubject<T> implements Subscriber<T>, Publisher<T> {
 
-	private Subscriber<? super Frame> s;
-	private final Consumer<UnicastSubject> onConnect;
+	private Subscriber<? super T> s;
+	private final Consumer<UnicastSubject<T>> onConnect;
+	private boolean subscribedTo = false;
 
-	public static UnicastSubject create() {
-		return new UnicastSubject(null);
+	public static <T> UnicastSubject<T> create() {
+		return new UnicastSubject<T>(null);
 	}
 
-	public static UnicastSubject create(Consumer<UnicastSubject> onConnect) {
-		return new UnicastSubject(onConnect);
+	public static <T> UnicastSubject<T> create(Consumer<UnicastSubject<T>> onConnect) {
+		return new UnicastSubject<T>(onConnect);
 	}
 
-	private UnicastSubject(Consumer<UnicastSubject> onConnect) {
+	private UnicastSubject(Consumer<UnicastSubject<T>> onConnect) {
 		this.onConnect = onConnect;
 	}
 
@@ -53,12 +52,12 @@ public final class UnicastSubject implements Subscriber<Frame>, Publisher<Frame>
 
 	@Override
 	public void onSubscribe(Subscription s) {
-		s.request(Long.MAX_VALUE);
+		s.request(Long.MAX_VALUE); // TODO are there places we are using this that we should compose backpressure through?
 	}
 
 	@Override
-	public void onNext(Frame frame) {
-		s.onNext(frame);
+	public void onNext(T t) {
+		s.onNext(t);
 	}
 
 	@Override
@@ -72,7 +71,7 @@ public final class UnicastSubject implements Subscriber<Frame>, Publisher<Frame>
 	}
 
 	@Override
-	public void subscribe(Subscriber<? super Frame> s) {
+	public void subscribe(Subscriber<? super T> s) {
 		if (this.s != null) {
 			s.onError(new IllegalStateException("Only single Subscriber supported"));
 		} else {
@@ -85,11 +84,13 @@ public final class UnicastSubject implements Subscriber<Frame>, Publisher<Frame>
 				public void request(long n) {
 					if (!started) {
 						started = true;
+						subscribedTo = true;
 						// now actually connected
 						if (onConnect != null) {
 							onConnect.accept(UnicastSubject.this);
 						}
 					}
+					// we ignore 'n' as this is a subject that emits as it wishes
 				}
 
 				@Override
@@ -99,6 +100,10 @@ public final class UnicastSubject implements Subscriber<Frame>, Publisher<Frame>
 
 			});
 		}
+	}
+	
+	public boolean isSubscribedTo() {
+		return subscribedTo;
 	}
 
 }
