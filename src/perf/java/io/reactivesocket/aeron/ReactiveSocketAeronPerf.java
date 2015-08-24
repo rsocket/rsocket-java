@@ -1,19 +1,8 @@
 package io.reactivesocket.aeron;
 
-import io.reactivesocket.RequestHandler;
-import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Mode;
 import org.openjdk.jmh.annotations.OutputTimeUnit;
-import org.openjdk.jmh.annotations.Scope;
-import org.openjdk.jmh.annotations.Setup;
-import org.openjdk.jmh.annotations.State;
-import org.openjdk.jmh.infra.Blackhole;
-import org.reactivestreams.Publisher;
-import org.reactivestreams.Subscriber;
-import org.reactivestreams.Subscription;
-import rx.Observable;
-import rx.RxReactiveStreams;
 
 import java.util.concurrent.TimeUnit;
 
@@ -21,7 +10,7 @@ import java.util.concurrent.TimeUnit;
 @OutputTimeUnit(TimeUnit.SECONDS)
 public class ReactiveSocketAeronPerf {
      //static final MediaDriver mediaDriver = MediaDriver.launchEmbedded();
-
+/*
     static final ReactiveSocketAeronServer server = ReactiveSocketAeronServer.create(new RequestHandler() {
         @Override
         public Publisher<String> handleRequestResponse(String request) {
@@ -98,8 +87,8 @@ public class ReactiveSocketAeronPerf {
 
     @Benchmark
     public void pingPongTest(Input input) {
-        client
-            .requestResponse(input.getMessage(), input.getMetaData())
-            .subscribe(input.newSubscriber());
-    }
+        //client
+          //  .requestResponse(input.getMessage(), input.getMetaData())
+         //   .subscribe(input.newSubscriber());
+    }*/
 }

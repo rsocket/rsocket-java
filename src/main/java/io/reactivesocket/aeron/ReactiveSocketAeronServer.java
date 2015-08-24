@@ -3,6 +3,7 @@ package io.reactivesocket.aeron;
 import io.reactivesocket.Frame;
 import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.RequestHandler;
+import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import rx.Scheduler;
 import rx.schedulers.Schedulers;
@@ -141,9 +142,30 @@ public class ReactiveSocketAeronServer implements AutoCloseable {
                 return new AeronServerDuplexConnection(publication);
             });
             System.out.println("Accepting ReactiveSocket connection");
-            ReactiveSocket socket = ReactiveSocket.accept(connection, requestHandler);
+            ReactiveSocket socket = ReactiveSocket.createResponderAndRequestor(requestHandler);
+            Publisher<Void> connect = socket.connect(connection);
+            connect.subscribe(new Subscriber<Void>() {
+                @Override
+                public void onSubscribe(org.reactivestreams.Subscription s) {
+                    s.request(Long.MAX_VALUE);
+                }
 
-            socket.responderPublisher().subscribe(PROTOCOL_SUBSCRIBER);
+                @Override
+                public void onNext(Void aVoid) {
+
+                }
+
+                @Override
+                public void onError(Throwable t) {
+                    t.printStackTrace();
+                }
+
+                @Override
+                public void onComplete() {
+
+                }
+            });
+
         } else {
             System.out.println("Unsupported stream id " + streamId);
         }

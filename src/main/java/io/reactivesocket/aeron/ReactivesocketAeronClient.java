@@ -1,6 +1,7 @@
 package io.reactivesocket.aeron;
 
 import io.reactivesocket.Frame;
+import io.reactivesocket.Payload;
 import io.reactivesocket.ReactiveSocket;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
@@ -34,7 +35,7 @@ public class ReactivesocketAeronClient implements AutoCloseable {
 
     private static final Int2ObjectHashMap<CountDownLatch> establishConnectionLatches = new Int2ObjectHashMap<>();
 
-    private ReactiveSocket rsClientProtocol;
+    private final ReactiveSocket rsClientProtocol;
 
     private final Aeron aeron;
 
@@ -46,6 +47,8 @@ public class ReactivesocketAeronClient implements AutoCloseable {
 
     private ReactivesocketAeronClient(String host, int port) {
         this.port = port;
+        this.rsClientProtocol =
+            ReactiveSocket.createRequestor();
 
         final Aeron.Context ctx = new Aeron.Context();
         aeron = Aeron.connect(ctx);
@@ -91,11 +94,34 @@ public class ReactivesocketAeronClient implements AutoCloseable {
             int ackSessionId = buffer.getInt(offset + BitUtil.SIZE_OF_INT);
             System.out.println(String.format("Received establish connection ack for session id => %d", ackSessionId));
 
-            AeronClientDuplexConnection connection = connections.computeIfAbsent(header.sessionId(), (_p) -> new AeronClientDuplexConnection(publication));
+            final AeronClientDuplexConnection connection = connections.computeIfAbsent(header.sessionId(), (_p) -> new AeronClientDuplexConnection(publication));
 
-            this.rsClientProtocol =
-                ReactiveSocket.connect(connection);
+            Publisher<Void> connect = this
+                .rsClientProtocol
+                .connect(connection);
 
+            connect.subscribe(new Subscriber<Void>() {
+                @Override
+                public void onSubscribe(org.reactivestreams.Subscription s) {
+                    s.request(Long.MAX_VALUE);
+                }
+
+                @Override
+                public void onNext(Void aVoid) {
+
+                }
+
+                @Override
+                public void onError(Throwable t) {
+                    t.printStackTrace();
+                }
+
+                @Override
+                public void onComplete() {
+                }
+            });
+
+            System.out.println("ReactiveSocket connected to Aeron session => " + ackSessionId);
             CountDownLatch latch = establishConnectionLatches.get(ackSessionId);
             latch.countDown();
 
@@ -151,24 +177,20 @@ public class ReactivesocketAeronClient implements AutoCloseable {
 
     }
 
-    public Publisher<String> requestResponse(String data, String metadata) {
-        return rsClientProtocol.requestResponse(data, metadata);
+    public Publisher<Payload> requestResponse(Payload payload) {
+        return rsClientProtocol.requestResponse(payload);
     }
 
-    public Publisher<Void> fireAndForget(String data, String metadata) {
-        return rsClientProtocol.fireAndForget(data, metadata);
+    public Publisher<Void> fireAndForget(Payload payload) {
+        return rsClientProtocol.fireAndForget(payload);
     }
 
-    public Publisher<String> requestStream(String data, String metadata) {
-        return rsClientProtocol.requestStream(data, metadata);
+    public Publisher<Payload> requestStream(Payload payload) {
+        return rsClientProtocol.requestStream(payload);
     }
 
-    public Publisher<String> requestSubscription(String data, String metadata) {
-        return rsClientProtocol.requestSubscription(data, metadata);
-    }
-
-    public Publisher<Void> responderPublisher() {
-        return rsClientProtocol.responderPublisher();
+    public Publisher<Payload> requestSubscription(Payload payload) {
+        return rsClientProtocol.requestSubscription(payload);
     }
 
     @Override
