@@ -23,33 +23,34 @@ public enum FrameType
     // blank type that is not defined
     UNDEFINED(0x00),
     // Connection
-    SETUP(0x01, Flags.CAN_HAVE_DATA | Flags.CAN_HAVE_METADATA),
-    SETUP_ERROR(0x02, 0),
-    LEASE(0x03, 0),
-    KEEPALIVE(0x04, 0),
+    SETUP(0x01, Flags.CAN_HAVE_METADATA_AND_DATA),
+    SETUP_ERROR(0x02, Flags.CAN_HAVE_METADATA_AND_DATA),
+    LEASE(0x03, Flags.CAN_HAVE_METADATA),
+    KEEPALIVE(0x04, Flags.CAN_HAVE_DATA),
     // Requester to start request
-    REQUEST_RESPONSE(0x11, 0),
-    FIRE_AND_FORGET(0x12, 0),
-    REQUEST_STREAM(0x13, 0),
-    REQUEST_SUBSCRIPTION(0x14, 0),
-    REQUEST_CHANNEL(0x15, 0),
+    REQUEST_RESPONSE(0x11, Flags.CAN_HAVE_METADATA_AND_DATA),
+    FIRE_AND_FORGET(0x12, Flags.CAN_HAVE_METADATA_AND_DATA),
+    REQUEST_STREAM(0x13, Flags.CAN_HAVE_METADATA_AND_DATA),
+    REQUEST_SUBSCRIPTION(0x14, Flags.CAN_HAVE_METADATA_AND_DATA),
+    REQUEST_CHANNEL(0x15, Flags.CAN_HAVE_METADATA_AND_DATA),
     // Requester mid-stream
-    REQUEST_N(0x20, 0),
-    CANCEL(0x21, 0),
+    REQUEST_N(0x20),
+    CANCEL(0x21, Flags.CAN_HAVE_METADATA),
     // Responder
-    RESPONSE(0x30, 0),
-    ERROR(0x31, 0),
+    RESPONSE(0x30, Flags.CAN_HAVE_METADATA_AND_DATA),
+    ERROR(0x31, Flags.CAN_HAVE_METADATA_AND_DATA),
     // Requester & Responder
-    METADATA_PUSH(0x32, 0),
+    METADATA_PUSH(0x32, Flags.CAN_HAVE_METADATA),
     // synthetic types from Responder for use by the rest of the machinery
-    NEXT(0x33, 0),
-    COMPLETE(0x34, 0),
-    NEXT_COMPLETE(0x35, 0);
+    NEXT(0x33, Flags.CAN_HAVE_METADATA_AND_DATA),
+    COMPLETE(0x34),
+    NEXT_COMPLETE(0x35, Flags.CAN_HAVE_METADATA_AND_DATA);
 
     private static class Flags
     {
         private static final int CAN_HAVE_DATA = 0b001;
         private static final int CAN_HAVE_METADATA = 0b010;
+        private static final int CAN_HAVE_METADATA_AND_DATA = 0b011;
         private static final int IS_REQUEST_TYPE = 0b100;
     }
 
