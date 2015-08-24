@@ -18,8 +18,15 @@ class OperatorPublish implements  Observable.Operator<Void, Frame> {
 
     private Publication publication;
 
+    private final int mtuLength;
+
     public OperatorPublish(Publication publication) {
         this.publication = publication;
+
+        String mtuLength = System.getProperty("aeron.mtu.length", "4096");
+
+        this.mtuLength = Integer.parseInt(mtuLength);
+
     }
 
     @Override
@@ -48,7 +55,7 @@ class OperatorPublish implements  Observable.Operator<Void, Frame> {
 
                 // If the length is less the MTU size send the message using tryClaim which does not fragment the message
                 // If the message is larger the the MTU size send it using offer.
-                if (length < publication.maxMessageLength()) {
+                if (length < mtuLength) {
                     tryClaim(byteBuffer, length);
                 } else {
                     offer(byteBuffer, length);

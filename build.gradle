@@ -17,6 +17,7 @@ repositories {
 
 dependencies {
     compile 'io.reactivex:rxjava:1.0.13'
+    compile 'io.reactivex:rxjava-reactive-streams:1.0.1'
     compile 'io.reactivesocket:reactivesocket:0.0.1-SNAPSHOT'
     compile 'uk.co.real-logic:Agrona:0.4.2'
     compile 'uk.co.real-logic:aeron-all:0.1.2'
