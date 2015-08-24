@@ -40,11 +40,11 @@ public enum FrameType
     RESPONSE(0x30, Flags.CAN_HAVE_METADATA_AND_DATA),
     ERROR(0x31, Flags.CAN_HAVE_METADATA_AND_DATA),
     // Requester & Responder
-    METADATA_PUSH(0x32, Flags.CAN_HAVE_METADATA),
+    METADATA_PUSH(0x41, Flags.CAN_HAVE_METADATA),
     // synthetic types from Responder for use by the rest of the machinery
-    NEXT(0x33, Flags.CAN_HAVE_METADATA_AND_DATA),
-    COMPLETE(0x34),
-    NEXT_COMPLETE(0x35, Flags.CAN_HAVE_METADATA_AND_DATA);
+    NEXT(0x42, Flags.CAN_HAVE_METADATA_AND_DATA),
+    COMPLETE(0x43),
+    NEXT_COMPLETE(0x44, Flags.CAN_HAVE_METADATA_AND_DATA);
 
     private static class Flags
     {
