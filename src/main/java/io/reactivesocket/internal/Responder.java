@@ -197,7 +197,7 @@ public class Responder {
 					@Override
 					public void cancel() {
 						// child has cancelled (shutdown the connection or server)  // TODO validate with unit tests
-						if (!transportSubscription.compareAndSet(null, NOOP_SUBSCRIPTION)) {
+						if (!transportSubscription.compareAndSet(null, EmptySubscription.EMPTY)) {
 							// cancel the one that was there if we failed to set the sentinel
 							transportSubscription.get().cancel();
 						}
@@ -437,7 +437,5 @@ public class Responder {
 		}
 		return PublisherUtils.empty(); // we always treat this as if it immediately completes as we don't want errors passing back to the user
 	}
-
-	private final static Subscription NOOP_SUBSCRIPTION = new EmptySubscription();
 
 }
