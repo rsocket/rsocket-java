@@ -15,6 +15,7 @@
  */
 package io.reactivesocket.internal;
 
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -84,6 +85,7 @@ public class Responder {
 
 			@Override
 			public void subscribe(Subscriber<? super Void> child) {
+				final AtomicBoolean childTerminated = new AtomicBoolean(false);
 				child.onSubscribe(new Subscription() {
 
 					boolean started = false;
@@ -91,6 +93,7 @@ public class Responder {
 
 					@Override
 					public void request(long n) {
+						// REQUEST_N behavior not necessary or expected on this other than to start it
 						if (!started) {
 							started = true;
 							// subscribe to transport to get Frames
@@ -150,15 +153,19 @@ public class Responder {
 
 										@Override
 										public void onError(Throwable t) {
-											// TODO all kinds of wrong here ... need to merge with the onComplete on the outer
-											child.onError(t);
-											cancel();
+											// TODO validate with unit tests
+											errorStream.accept(new RuntimeException("Error writing", t)); // TODO should we have typed RuntimeExceptions?
+											if (childTerminated.compareAndSet(false, true)) {
+												child.onError(t);
+												cancel();
+											}
 										}
 
 										@Override
 										public void onComplete() {
-											// successful completion of IO ... nothing to do as we leave the outer connection open
-											// TODO all kinds of wrong here ... need to merge with the onComplete on the outer
+											// successful completion of write IO
+											// We don't need to do anything here onComplete. If an error occurs,
+											// or the outer connection shuts down it will terminate any IO still happening here and cleanup.
 										}
 
 									});
@@ -167,21 +174,29 @@ public class Responder {
 
 								@Override
 								public void onError(Throwable t) {
-									child.onError(t);
+									// TODO validate with unit tests
+									if (childTerminated.compareAndSet(false, true)) {
+										child.onError(t);
+										cancel();
+									}
 								}
 
 								@Override
 								public void onComplete() {
-									child.onComplete();
+									// this would mean the connection gracefully shut down, which is unexpected
+									if (childTerminated.compareAndSet(false, true)) {
+										child.onComplete();
+										cancel();
+									}
 								}
 
 							});
 						}
-						// REQUEST_N behavior not necessary or expected on this other than to start it
 					}
 
 					@Override
 					public void cancel() {
+						// child has cancelled (shutdown the connection or server)  // TODO validate with unit tests
 						if (!transportSubscription.compareAndSet(null, NOOP_SUBSCRIPTION)) {
 							// cancel the one that was there if we failed to set the sentinel
 							transportSubscription.get().cancel();
