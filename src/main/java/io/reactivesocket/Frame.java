@@ -259,6 +259,7 @@ public class Frame implements Payload
     {
         public static int getFlags(final Frame frame)
         {
+            ensureFrameType(FrameType.SETUP, frame);
             final int flags = FrameHeaderFlyweight.flags(frame.directBuffer, 0);
 
             return flags & (SetupFrameFlyweight.FLAGS_WILL_HONOR_LEASE | SetupFrameFlyweight.FLAGS_STRICT_INTERPRETATION);
@@ -266,21 +267,25 @@ public class Frame implements Payload
 
         public static int keepaliveInterval(final Frame frame)
         {
+            ensureFrameType(FrameType.SETUP, frame);
             return SetupFrameFlyweight.keepaliveInterval(frame.directBuffer, 0);
         }
 
         public static int maxLifetime(final Frame frame)
         {
+            ensureFrameType(FrameType.SETUP, frame);
             return SetupFrameFlyweight.maxLifetime(frame.directBuffer, 0);
         }
 
         public static String metadataMimeType(final Frame frame)
         {
+            ensureFrameType(FrameType.SETUP, frame);
             return SetupFrameFlyweight.metadataMimeType(frame.directBuffer, 0);
         }
 
         public static String dataMimeType(final Frame frame)
         {
+            ensureFrameType(FrameType.SETUP, frame);
             return SetupFrameFlyweight.dataMimeType(frame.directBuffer, 0);
         }
     }
@@ -289,7 +294,18 @@ public class Frame implements Payload
     {
         public static int errorCode(final Frame frame)
         {
+            ensureFrameType(FrameType.SETUP_ERROR, frame);
             return SetupErrorFrameFlyweight.errorCode(frame.directBuffer, 0);
+        }
+    }
+
+    private static void ensureFrameType(final FrameType frameType, final Frame frame)
+    {
+        final FrameType typeInFrame = frame.getType();
+
+        if (typeInFrame != frameType)
+        {
+            throw new AssertionError("expected " + frameType + ", but saw" + typeInFrame);
         }
     }
 
