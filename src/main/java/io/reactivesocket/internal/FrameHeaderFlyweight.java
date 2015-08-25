@@ -229,16 +229,28 @@ public class FrameHeaderFlyweight
     {
         final int dataLength = dataLength(directBuffer, offset, length);
         final int dataOffset = dataOffset(directBuffer, offset);
+        ByteBuffer result = NULL_BYTEBUFFER;
 
-        return preservingSlice(directBuffer.byteBuffer(), dataOffset, dataOffset + dataLength);
+        if (0 < dataLength)
+        {
+            result = preservingSlice(directBuffer.byteBuffer(), dataOffset, dataOffset + dataLength);
+        }
+
+        return result;
     }
 
     public static ByteBuffer sliceFrameMetadata(final DirectBuffer directBuffer, final int offset, final int length)
     {
         final int metadataLength = Math.max(0, metadataFieldLength(directBuffer, offset) - BitUtil.SIZE_OF_INT);
         final int metadataOffset = metadataOffset(directBuffer, offset) + BitUtil.SIZE_OF_INT;
+        ByteBuffer result = NULL_BYTEBUFFER;
 
-        return preservingSlice(directBuffer.byteBuffer(), metadataOffset, metadataOffset + metadataLength);
+        if (0 < metadataLength)
+        {
+            result = preservingSlice(directBuffer.byteBuffer(), metadataOffset, metadataOffset + metadataLength);
+        }
+
+        return result;
     }
 
     private static int frameLength(final DirectBuffer directBuffer, final int offset, final int externalFrameLength)

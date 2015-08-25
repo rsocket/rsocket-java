@@ -16,6 +16,8 @@
 package io.reactivesocket;
 
 import io.reactivesocket.internal.FrameHeaderFlyweight;
+import io.reactivesocket.internal.SetupErrorFrameFlyweight;
+import io.reactivesocket.internal.SetupFrameFlyweight;
 import uk.co.real_logic.agrona.MutableDirectBuffer;
 import uk.co.real_logic.agrona.concurrent.UnsafeBuffer;
 
@@ -29,10 +31,20 @@ import java.nio.charset.Charset;
  */
 public class Frame implements Payload
 {
+    public static final ByteBuffer NULL_BYTEBUFFER = FrameHeaderFlyweight.NULL_BYTEBUFFER;
+
     // not final so we can reuse this object
     private MutableDirectBuffer directBuffer;
+    private Setup setup = new Setup();
 
-    private Frame() {
+    private Frame()
+    {
+        this(null);
+    }
+
+    private Frame(final MutableDirectBuffer directBuffer)
+    {
+        this.directBuffer = directBuffer;
     }
 
     /**
@@ -97,16 +109,6 @@ public class Frame implements Payload
     }
 
     /**
-     * Return frame flags
-     *
-     * @return frame flags
-     */
-    public int getFlags()
-    {
-        return FrameHeaderFlyweight.flags(directBuffer, 0);
-    }
-
-    /**
      * Mutates this Frame to contain the given ByteBuffer
      * 
      * @param byteBuffer to wrap
@@ -147,7 +149,7 @@ public class Frame implements Payload
      * @param data     to include in frame
      */
     public void wrap(final long streamId, final FrameType type, final ByteBuffer data) {
-        this.directBuffer = createByteBufferAndEncode(streamId, type, data, FrameHeaderFlyweight.NULL_BYTEBUFFER);
+        this.directBuffer = createByteBufferAndEncode(streamId, type, data, NULL_BYTEBUFFER);
     }
 
     public static Frame from(long streamId, FrameType type, ByteBuffer data, ByteBuffer metadata)
@@ -159,19 +161,19 @@ public class Frame implements Payload
 
     public static Frame from(long streamId, FrameType type, ByteBuffer data)
     {
-        return from(streamId, type, data, FrameHeaderFlyweight.NULL_BYTEBUFFER);
+        return from(streamId, type, data, NULL_BYTEBUFFER);
     }
 
     public static Frame from(long streamId, FrameType type, Payload payload)
     {
-    	final ByteBuffer d = payload.getData() != null ? payload.getData() : FrameHeaderFlyweight.NULL_BYTEBUFFER;
-    	final ByteBuffer md = payload.getMetadata() != null ? payload.getMetadata() : FrameHeaderFlyweight.NULL_BYTEBUFFER;
+    	final ByteBuffer d = payload.getData() != null ? payload.getData() : NULL_BYTEBUFFER;
+    	final ByteBuffer md = payload.getMetadata() != null ? payload.getMetadata() : NULL_BYTEBUFFER;
         return from(streamId, type, d, md);
     }
 
     public static Frame from(long streamId, FrameType type)
     {
-        return from(streamId, type, FrameHeaderFlyweight.NULL_BYTEBUFFER, FrameHeaderFlyweight.NULL_BYTEBUFFER);
+        return from(streamId, type, NULL_BYTEBUFFER, NULL_BYTEBUFFER);
     }
 
     public static Frame from(long streamId, final Throwable throwable)
@@ -183,6 +185,7 @@ public class Frame implements Payload
     }
 
     /* TODO:
+     *
      * fromRequest(type, id, payload)
      * fromResponse(id, payload, flags)  - does it automatically fragment? (only if auto reassemble)
      * fromError(id, metadata, data) - taken care of by from() overload?
@@ -190,21 +193,96 @@ public class Frame implements Payload
      * fromCancel(id, metadata)
      * fromMetadataPush(id, metadata)
      *
-     * fromSetup(int flags, keepaliveInterval, maxLifetime, String metadataMimeTyp, String dataMimeType, payload)
-     * fromSetupError(int code, String metadata, String data)
      * fromLease(ttl, numberOfRequests, metadata)
      * fromKeepalive(ByteBuffer data)
      */
 
+    public static Frame fromSetup(
+        int flags,
+        int keepaliveInterval,
+        int maxLifetime,
+        String metadataMimeType,
+        String dataMimeType,
+        Payload payload)
+    {
+        final ByteBuffer metadata = payload.getMetadata();
+        final ByteBuffer data = payload.getData();
+
+        final Frame frame =
+            allocFrame(SetupFrameFlyweight.computeFrameLength(metadataMimeType, dataMimeType, metadata.capacity(), data.capacity()));
+
+        SetupFrameFlyweight.encode(
+            frame.directBuffer, 0, flags, keepaliveInterval, maxLifetime, metadataMimeType, dataMimeType, metadata, data);
+        return frame;
+    }
+
+    public static Frame fromSetupError(int code, String metadata, String data)
+    {
+        final Frame frame = allocFrame(SetupErrorFrameFlyweight.computeFrameLength(data.length(), metadata.length()));
+
+        byte[] bytes;
+
+        bytes = metadata.getBytes(Charset.forName("UTF-8"));
+        final ByteBuffer metadataBuffer = ByteBuffer.wrap(bytes);
+
+        bytes = data.getBytes(Charset.forName("UTF-8"));
+        final ByteBuffer dataBuffer = ByteBuffer.wrap(bytes);
+
+        SetupErrorFrameFlyweight.encode(frame.directBuffer, 0, code, metadataBuffer, dataBuffer);
+        return frame;
+    }
+
+    private static Frame allocFrame(final int size)
+    {
+        // TODO: pool these separately?
+        return new Frame(allocMutableDirectBuffer(size));
+    }
+
+    private static MutableDirectBuffer allocMutableDirectBuffer(final int size)
+    {
+        // TODO: pool these and underling ByteBuffers
+        // TODO: allocation side effect of how this works currently with the rest of the machinery.
+        return new UnsafeBuffer(ByteBuffer.allocate(size));
+    }
+
     private static MutableDirectBuffer createByteBufferAndEncode(
         long streamId, FrameType type, ByteBuffer data, ByteBuffer metadata)
     {
-        // TODO: allocation side effect of how this works currently with the rest of the machinery.
-        final MutableDirectBuffer buffer =
-            new UnsafeBuffer(ByteBuffer.allocate(FrameHeaderFlyweight.computeFrameHeaderLength(type, metadata.capacity(), data.capacity())));
+        final MutableDirectBuffer buffer = allocMutableDirectBuffer(FrameHeaderFlyweight.computeFrameHeaderLength(type, metadata.capacity(), data.capacity()));
 
         FrameHeaderFlyweight.encode(buffer, 0, streamId, type, metadata, data);
         return buffer;
+    }
+
+    // SETUP specific getters
+    public static class Setup
+    {
+        public static int getFlags(final Frame frame)
+        {
+            final int flags = FrameHeaderFlyweight.flags(frame.directBuffer, 0);
+
+            return flags & (SetupFrameFlyweight.FLAGS_WILL_HONOR_LEASE | SetupFrameFlyweight.FLAGS_STRICT_INTERPRETATION);
+        }
+
+        public static int keepaliveInterval(final Frame frame)
+        {
+            return SetupFrameFlyweight.keepaliveInterval(frame.directBuffer, 0);
+        }
+
+        public static int maxLifetime(final Frame frame)
+        {
+            return SetupFrameFlyweight.maxLifetime(frame.directBuffer, 0);
+        }
+
+        public static String metadataMimeType(final Frame frame)
+        {
+            return SetupFrameFlyweight.metadataMimeType(frame.directBuffer, 0);
+        }
+
+        public static String dataMimeType(final Frame frame)
+        {
+            return SetupFrameFlyweight.dataMimeType(frame.directBuffer, 0);
+        }
     }
 
     @Override

@@ -35,8 +35,8 @@ public class SetupErrorFrameFlyweight
     private static final int PAYLOAD_OFFSET = ERROR_CODE_FIELD_OFFSET + BitUtil.SIZE_OF_INT;
 
     public static int computeFrameLength(
-        final int dataLength,
-        final int metadataLength)
+        final int metadataLength,
+        final int dataLength)
     {
         int length = FrameHeaderFlyweight.computeFrameHeaderLength(FrameType.SETUP, metadataLength, dataLength);
 

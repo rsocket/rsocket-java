@@ -19,6 +19,7 @@ import static org.junit.Assert.*;
 
 import java.nio.ByteBuffer;
 
+import io.reactivesocket.internal.SetupFrameFlyweight;
 import org.junit.Test;
 
 public class FrameTest
@@ -202,5 +203,104 @@ public class FrameTest
         assertEquals(0, metadataBuffer.capacity());
         assertEquals(FrameType.NEXT, f.getType());
         assertEquals(1, f.getStreamId());
+    }
+
+    @Test
+    public void shouldReturnCorrectDataPlusMetadataForSetup()
+    {
+        final int flags = SetupFrameFlyweight.FLAGS_WILL_HONOR_LEASE | SetupFrameFlyweight.FLAGS_STRICT_INTERPRETATION;
+        final int keepaliveInterval = 1001;
+        final int maxLifetime = keepaliveInterval * 5;
+        final String metadataMimeType = "application/json";
+        final String dataMimeType = "application/cbor";
+        final ByteBuffer setupData = TestUtil.byteBufferFromUtf8String("setup data");
+        final ByteBuffer setupMetadata = TestUtil.byteBufferFromUtf8String("setup metadata");
+
+        Frame f = Frame.fromSetup(flags, keepaliveInterval, maxLifetime, metadataMimeType, dataMimeType, new Payload()
+        {
+            public ByteBuffer getData()
+            {
+                return setupData;
+            }
+
+            public ByteBuffer getMetadata()
+            {
+                return setupMetadata;
+            }
+        });
+
+        assertEquals(FrameType.SETUP, f.getType());
+        assertEquals(flags, Frame.Setup.getFlags(f));
+        assertEquals(keepaliveInterval, Frame.Setup.keepaliveInterval(f));
+        assertEquals(maxLifetime, Frame.Setup.maxLifetime(f));
+        assertEquals(metadataMimeType, Frame.Setup.metadataMimeType(f));
+        assertEquals(dataMimeType, Frame.Setup.dataMimeType(f));
+        assertEquals("setup data", TestUtil.byteToString(f.getData()));
+        assertEquals("setup metadata", TestUtil.byteToString(f.getMetadata()));
+    }
+
+    @Test
+    public void shouldReturnCorrectDataWithoutMetadataForSetup()
+    {
+        final int flags = SetupFrameFlyweight.FLAGS_WILL_HONOR_LEASE | SetupFrameFlyweight.FLAGS_STRICT_INTERPRETATION;
+        final int keepaliveInterval = 1001;
+        final int maxLifetime = keepaliveInterval * 5;
+        final String metadataMimeType = "application/json";
+        final String dataMimeType = "application/cbor";
+        final ByteBuffer setupData = TestUtil.byteBufferFromUtf8String("setup data");
+
+        Frame f = Frame.fromSetup(flags, keepaliveInterval, maxLifetime, metadataMimeType, dataMimeType, new Payload()
+        {
+            public ByteBuffer getData()
+            {
+                return setupData;
+            }
+
+            public ByteBuffer getMetadata()
+            {
+                return Frame.NULL_BYTEBUFFER;
+            }
+        });
+
+        assertEquals(FrameType.SETUP, f.getType());
+        assertEquals(flags, Frame.Setup.getFlags(f));
+        assertEquals(keepaliveInterval, Frame.Setup.keepaliveInterval(f));
+        assertEquals(maxLifetime, Frame.Setup.maxLifetime(f));
+        assertEquals(metadataMimeType, Frame.Setup.metadataMimeType(f));
+        assertEquals(dataMimeType, Frame.Setup.dataMimeType(f));
+        assertEquals("setup data", TestUtil.byteToString(f.getData()));
+        assertEquals(Frame.NULL_BYTEBUFFER, f.getMetadata());
+    }
+
+    @Test
+    public void shouldFormCorrectlyWithoutDataNorMetadataForSetup()
+    {
+        final int flags = SetupFrameFlyweight.FLAGS_WILL_HONOR_LEASE | SetupFrameFlyweight.FLAGS_STRICT_INTERPRETATION;
+        final int keepaliveInterval = 1001;
+        final int maxLifetime = keepaliveInterval * 5;
+        final String metadataMimeType = "application/json";
+        final String dataMimeType = "application/cbor";
+
+        Frame f = Frame.fromSetup(flags, keepaliveInterval, maxLifetime, metadataMimeType, dataMimeType, new Payload()
+        {
+            public ByteBuffer getData()
+            {
+                return Frame.NULL_BYTEBUFFER;
+            }
+
+            public ByteBuffer getMetadata()
+            {
+                return Frame.NULL_BYTEBUFFER;
+            }
+        });
+
+        assertEquals(FrameType.SETUP, f.getType());
+        assertEquals(flags, Frame.Setup.getFlags(f));
+        assertEquals(keepaliveInterval, Frame.Setup.keepaliveInterval(f));
+        assertEquals(maxLifetime, Frame.Setup.maxLifetime(f));
+        assertEquals(metadataMimeType, Frame.Setup.metadataMimeType(f));
+        assertEquals(dataMimeType, Frame.Setup.dataMimeType(f));
+        assertEquals(Frame.NULL_BYTEBUFFER, f.getData());
+        assertEquals(Frame.NULL_BYTEBUFFER, f.getMetadata());
     }
 }

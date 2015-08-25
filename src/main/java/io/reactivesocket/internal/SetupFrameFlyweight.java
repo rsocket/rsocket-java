@@ -35,10 +35,10 @@ public class SetupFrameFlyweight
     private static final int METADATA_MIME_TYPE_LENGTH_OFFSET = MAX_LIFETIME_FIELD_OFFSET + BitUtil.SIZE_OF_INT;
 
     public static int computeFrameLength(
-        final String dataMimeType,
         final String metadataMimeType,
-        final int dataLength,
-        final int metadataLength)
+        final String dataMimeType,
+        final int metadataLength,
+        final int dataLength)
     {
         int length = FrameHeaderFlyweight.computeFrameHeaderLength(FrameType.SETUP, metadataLength, dataLength);
 
@@ -55,12 +55,12 @@ public class SetupFrameFlyweight
         int flags,
         final int keepaliveInterval,
         final int maxLifetime,
-        final String dataMimeType,
         final String metadataMimeType,
+        final String dataMimeType,
         final ByteBuffer metadata,
         final ByteBuffer data)
     {
-        final int frameLength = computeFrameLength(dataMimeType, metadataMimeType, metadata.capacity(), data.capacity());
+        final int frameLength = computeFrameLength(metadataMimeType, dataMimeType, metadata.capacity(), data.capacity());
 
         int length = FrameHeaderFlyweight.encodeFrameHeader(mutableDirectBuffer, offset, frameLength, flags, FrameType.SETUP, 0);
 
@@ -116,8 +116,13 @@ public class SetupFrameFlyweight
     {
         int fieldOffset = offset + METADATA_MIME_TYPE_LENGTH_OFFSET;
 
-        fieldOffset += 1 + directBuffer.getByte(fieldOffset);
-        return fieldOffset + 1 + directBuffer.getByte(fieldOffset);
+        final int metadataMimeTypeLength = directBuffer.getByte(fieldOffset);
+        fieldOffset += 1 + metadataMimeTypeLength;
+
+        final int dataMimeTypeLength = directBuffer.getByte(fieldOffset);
+        fieldOffset += 1 + dataMimeTypeLength;
+
+        return fieldOffset;
     }
 
     private static int putMimeType(
