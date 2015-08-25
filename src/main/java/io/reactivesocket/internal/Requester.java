@@ -52,6 +52,11 @@ public class Requester {
 		this.isServer = isServer;
 		this.connection = connection;
 		this.setupPayload = setupPayload;
+		if(isServer) {
+			streamCount = 1; // server is odds
+		} else {
+			streamCount = 0; // client is even
+		}
 	}
 
 	public static Requester createClientRequester(DuplexConnection connection, ConnectionSetupPayload setupPayload) {
@@ -62,6 +67,10 @@ public class Requester {
 		return new Requester(true, connection, null);
 	}
 
+	public boolean isServer() {
+		return isServer;
+	}
+	
 	/**
 	 * Request/Response with a single message response.
 	 * 
@@ -335,8 +344,7 @@ public class Requester {
 	}
 
 	private int nextStreamId() {
-		// use ++ prefix so streamCount always equals the last stream created
-		return ++streamCount;
+		return streamCount+=2; // go by two since server is odd, client is even
 	}
 
 	public Publisher<Void> start() {

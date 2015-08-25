@@ -55,12 +55,12 @@ public class RequesterTest
         List<Frame> requested = requests.take(1).toList().toBlocking().single();
 
         Frame one = requested.get(0);
-        assertEquals(1, one.getStreamId());// need to start at 1, not 0
+        assertEquals(2, one.getStreamId());// need to start at 2, not 0
         assertEquals("hello", byteToString(one.getData()));
         assertEquals(FrameType.REQUEST_RESPONSE, one.getType());
         
         // now emit a response to ensure the Publisher receives and completes
-        conn.toInput.onNext(utf8EncodedFrame(1, FrameType.NEXT_COMPLETE, "world"));
+        conn.toInput.onNext(utf8EncodedFrame(2, FrameType.NEXT_COMPLETE, "world"));
 
         ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
         ts.assertValue(utf8EncodedPayload("world", null));
@@ -81,11 +81,11 @@ public class RequesterTest
         List<Frame> requested = requests.take(1).toList().toBlocking().single();
 
         Frame one = requested.get(0);
-        assertEquals(1, one.getStreamId());// need to start at 1, not 0
+        assertEquals(2, one.getStreamId());// need to start at 2, not 0
         assertEquals("hello", byteToString(one.getData()));
         assertEquals(FrameType.REQUEST_RESPONSE, one.getType());
 
-        conn.toInput.onNext(Frame.from(1, new RuntimeException("Failed")));
+        conn.toInput.onNext(Frame.from(2, new RuntimeException("Failed")));
         ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
         ts.assertError(Exception.class);
         assertEquals("Failed", ts.getOnErrorEvents().get(0).getMessage());
@@ -106,12 +106,12 @@ public class RequesterTest
         List<Frame> requested = requests.take(2).toList().toBlocking().single();
 
         Frame one = requested.get(0);
-        assertEquals(1, one.getStreamId());// need to start at 1, not 0
+        assertEquals(2, one.getStreamId());// need to start at 2, not 0
         assertEquals("hello", byteToString(one.getData()));
         assertEquals(FrameType.REQUEST_RESPONSE, one.getType());
 
         Frame two = requested.get(1);
-        assertEquals(1, two.getStreamId());// still the same stream
+        assertEquals(2, two.getStreamId());// still the same stream
         assertEquals("", byteToString(two.getData()));
         assertEquals(FrameType.CANCEL, two.getType());
 
@@ -135,15 +135,15 @@ public class RequesterTest
         List<Frame> requested = requests.take(1).toList().toBlocking().single();
 
         Frame one = requested.get(0);
-        assertEquals(1, one.getStreamId());// need to start at 1, not 0
+        assertEquals(2, one.getStreamId());// need to start at 2, not 0
         assertEquals("hello", byteToString(one.getData()));
         assertEquals(FrameType.REQUEST_STREAM, one.getType());
         // TODO assert initial requestN
         
         // emit data
-        conn.toInput.onNext(utf8EncodedFrame(1, FrameType.NEXT, "hello"));
-        conn.toInput.onNext(utf8EncodedFrame(1, FrameType.NEXT, "world"));
-        conn.toInput.onNext(utf8EncodedFrame(1, FrameType.COMPLETE, ""));
+        conn.toInput.onNext(utf8EncodedFrame(2, FrameType.NEXT, "hello"));
+        conn.toInput.onNext(utf8EncodedFrame(2, FrameType.NEXT, "world"));
+        conn.toInput.onNext(utf8EncodedFrame(2, FrameType.COMPLETE, ""));
 
         ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
         ts.assertCompleted();
@@ -165,14 +165,14 @@ public class RequesterTest
         List<Frame> requested = requests.take(1).toList().toBlocking().single();
 
         Frame one = requested.get(0);
-        assertEquals(1, one.getStreamId());// need to start at 1, not 0
+        assertEquals(2, one.getStreamId());// need to start at 2, not 0
         assertEquals("hello", byteToString(one.getData()));
         assertEquals(FrameType.REQUEST_STREAM, one.getType());
         // TODO assert initial requestN
 
         // emit data
-        conn.toInput.onNext(utf8EncodedFrame(1, FrameType.NEXT, "hello"));
-        conn.toInput.onNext(utf8EncodedFrame(1, FrameType.NEXT, "world"));
+        conn.toInput.onNext(utf8EncodedFrame(2, FrameType.NEXT, "hello"));
+        conn.toInput.onNext(utf8EncodedFrame(2, FrameType.NEXT, "world"));
 
         ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
         ts.assertCompleted();
@@ -183,7 +183,7 @@ public class RequesterTest
 
         // we should have sent a CANCEL
         Frame two = requested2.get(1);
-        assertEquals(1, two.getStreamId());// still the same stream
+        assertEquals(2, two.getStreamId());// still the same stream
         assertEquals("", byteToString(two.getData()));
         assertEquals(FrameType.CANCEL, two.getType());
     }
@@ -202,14 +202,14 @@ public class RequesterTest
         List<Frame> requested = requests.take(1).toList().toBlocking().single();
 
         Frame one = requested.get(0);
-        assertEquals(1, one.getStreamId());// need to start at 1, not 0
+        assertEquals(2, one.getStreamId());// need to start at 2, not 0
         assertEquals("hello", byteToString(one.getData()));
         assertEquals(FrameType.REQUEST_STREAM, one.getType());
         // TODO assert initial requestN
 
         // emit data
-        conn.toInput.onNext(utf8EncodedFrame(1, FrameType.NEXT, "hello"));
-        conn.toInput.onNext(utf8EncodedFrame(1, FrameType.ERROR, "Failure"));
+        conn.toInput.onNext(utf8EncodedFrame(2, FrameType.NEXT, "hello"));
+        conn.toInput.onNext(utf8EncodedFrame(2, FrameType.ERROR, "Failure"));
 
         ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
         ts.assertError(Exception.class);
