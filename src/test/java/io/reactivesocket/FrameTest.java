@@ -303,4 +303,50 @@ public class FrameTest
         assertEquals(Frame.NULL_BYTEBUFFER, f.getData());
         assertEquals(Frame.NULL_BYTEBUFFER, f.getMetadata());
     }
+
+    @Test
+    public void shouldReturnCorrectDataPlusMetadataForSetupError()
+    {
+        final int errorCode = 42;
+        final String metadata = "error metadata";
+        final String data = "error data";
+
+        Frame f = Frame.fromSetupError(errorCode, metadata, data);
+
+        assertEquals(FrameType.SETUP_ERROR, f.getType());
+        assertEquals(errorCode, Frame.SetupError.errorCode(f));
+        assertEquals(data, TestUtil.byteToString(f.getData()));
+        assertEquals(metadata, TestUtil.byteToString(f.getMetadata()));
+    }
+
+    @Test
+    public void shouldReturnCorrectDataWithoutMetadataForSetupError()
+    {
+        final int errorCode = 42;
+        final String metadata = "";
+        final String data = "error data";
+
+        Frame f = Frame.fromSetupError(errorCode, metadata, data);
+
+        assertEquals(FrameType.SETUP_ERROR, f.getType());
+        assertEquals(errorCode, Frame.SetupError.errorCode(f));
+        assertEquals(data, TestUtil.byteToString(f.getData()));
+        assertEquals(Frame.NULL_BYTEBUFFER, f.getMetadata());
+    }
+
+    @Test
+    public void shouldFormCorrectlyWithoutDataNorMetadataForSetupError()
+    {
+        final int errorCode = 42;
+        final String metadata = "";
+        final String data = "";
+
+        Frame f = Frame.fromSetupError(errorCode, metadata, data);
+
+        assertEquals(FrameType.SETUP_ERROR, f.getType());
+        assertEquals(errorCode, Frame.SetupError.errorCode(f));
+        assertEquals(Frame.NULL_BYTEBUFFER, f.getData());
+        assertEquals(Frame.NULL_BYTEBUFFER, f.getMetadata());
+    }
+
 }

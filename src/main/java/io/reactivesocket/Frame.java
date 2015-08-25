@@ -285,6 +285,14 @@ public class Frame implements Payload
         }
     }
 
+    public static class SetupError
+    {
+        public static int errorCode(final Frame frame)
+        {
+            return SetupErrorFrameFlyweight.errorCode(frame.directBuffer, 0);
+        }
+    }
+
     @Override
     public String toString() {
         FrameType type = FrameType.SETUP;
