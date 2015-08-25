@@ -29,9 +29,6 @@ import java.nio.charset.Charset;
  */
 public class Frame implements Payload
 {
-    // thread local as it needs to be single-threaded access
-//    private static final ThreadLocal<FrameHeaderFlyweight> FRAME_HANDLER = ThreadLocal.withInitial(FrameHeaderFlyweight::new);
-
     // not final so we can reuse this object
     private MutableDirectBuffer directBuffer;
 
@@ -50,6 +47,8 @@ public class Frame implements Payload
     /**
      * Return {@link ByteBuffer} that is a {@link ByteBuffer#slice()} for the frame data
      *
+     * If no data is present, the ByteBuffer will have 0 capacity.
+     *
      * @return ByteBuffer containing the data
      */
     public ByteBuffer getData()
@@ -59,6 +58,8 @@ public class Frame implements Payload
 
     /**
      * Return {@link ByteBuffer} that is a {@link ByteBuffer#slice()} for the frame metadata
+     *
+     * If no metadata is present, the ByteBuffer will have 0 capacity.
      *
      * @return ByteBuffer containing the data
      */
@@ -180,6 +181,20 @@ public class Frame implements Payload
         
         return from(streamId, FrameType.ERROR, byteBuffer);
     }
+
+    /* TODO:
+     * fromRequest(type, id, payload)
+     * fromResponse(id, payload, flags)  - does it automatically fragment? (only if auto reassemble)
+     * fromError(id, metadata, data) - taken care of by from() overload?
+     * fromRequestN(id, n)
+     * fromCancel(id, metadata)
+     * fromMetadataPush(id, metadata)
+     *
+     * fromSetup(int flags, keepaliveInterval, maxLifetime, String metadataMimeTyp, String dataMimeType, payload)
+     * fromSetupError(int code, String metadata, String data)
+     * fromLease(ttl, numberOfRequests, metadata)
+     * fromKeepalive(ByteBuffer data)
+     */
 
     private static MutableDirectBuffer createByteBufferAndEncode(
         long streamId, FrameType type, ByteBuffer data, ByteBuffer metadata)

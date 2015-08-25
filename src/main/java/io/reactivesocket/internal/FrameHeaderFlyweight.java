@@ -23,6 +23,8 @@ import uk.co.real_logic.agrona.MutableDirectBuffer;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
+import static io.reactivesocket.internal.ByteBufferUtil.preservingSlice;
+
 /**
  * Per connection frame flyweight.
  *
@@ -76,25 +78,10 @@ public class FrameHeaderFlyweight
         FRAME_HEADER_LENGTH = PAYLOAD_OFFSET;
     }
 
-
-
     public static int computeFrameHeaderLength(final FrameType frameType, int metadataLength, final int dataLength)
     {
-        return payloadOffset(frameType) + metadataLength(metadataLength) + dataLength;
+        return computePayloadOffset(frameType) + computeMetadataLength(metadataLength) + dataLength;
     }
-
-    /* TODO:
-     * encodeRequest(type, id, data, metadata)
-     * encodeResponse(id, data, metadata, flags)  - does it automatically fragment? (only if auto reassemble)
-     * encodeError(id, data, metadata)
-     * encodeRequestN(id, n)
-     * encodeCancel(id, metadata)
-     * encodeMetadataPush(id, metadata)
-     *
-     * encodeSetupError(int code, String data, String metadata)
-     * encodeLease(ttl, numberOfRequests, metadata)
-     * encodeKeepalive(data)
-     */
 
     public static int encodeFrameHeader(
         final MutableDirectBuffer mutableDirectBuffer,
@@ -155,6 +142,7 @@ public class FrameHeaderFlyweight
         return length;
     }
 
+    // only used for types simple enough that they don't have their own FrameFlyweights
     public static int encode(
         final MutableDirectBuffer mutableDirectBuffer,
         final int offset,
@@ -184,6 +172,7 @@ public class FrameHeaderFlyweight
 
         int length = FrameHeaderFlyweight.encodeFrameHeader(mutableDirectBuffer, offset, frameLength, flags, outFrameType, streamId);
 
+        // TODO: temp. Remove this.
         if (FrameType.REQUEST_STREAM == frameType || FrameType.REQUEST_SUBSCRIPTION == frameType)
         {
             length += BitUtil.SIZE_OF_LONG;
@@ -241,30 +230,15 @@ public class FrameHeaderFlyweight
         final int dataLength = dataLength(directBuffer, offset, length);
         final int dataOffset = dataOffset(directBuffer, offset);
 
-        return slice(directBuffer.byteBuffer(), dataOffset, dataOffset + dataLength);
+        return preservingSlice(directBuffer.byteBuffer(), dataOffset, dataOffset + dataLength);
     }
 
     public static ByteBuffer sliceFrameMetadata(final DirectBuffer directBuffer, final int offset, final int length)
     {
-        final int metadataLength = Math.max(0, metadataLength(directBuffer, offset) - BitUtil.SIZE_OF_INT);
+        final int metadataLength = Math.max(0, metadataFieldLength(directBuffer, offset) - BitUtil.SIZE_OF_INT);
         final int metadataOffset = metadataOffset(directBuffer, offset) + BitUtil.SIZE_OF_INT;
 
-        return slice(directBuffer.byteBuffer(), metadataOffset, metadataOffset + metadataLength);
-    }
-
-    // really should be an interface to ByteBuffer... sigh
-    // TODO: move to some utility package
-    public static ByteBuffer slice(final ByteBuffer byteBuffer, final int position, final int limit)
-    {
-        final int savedPosition = byteBuffer.position();
-        final int savedLimit = byteBuffer.limit();
-
-        byteBuffer.limit(limit).position(position);
-
-        final ByteBuffer result = byteBuffer.slice();
-
-        byteBuffer.limit(savedLimit).position(savedPosition);
-        return result;
+        return preservingSlice(directBuffer.byteBuffer(), metadataOffset, metadataOffset + metadataLength);
     }
 
     private static int frameLength(final DirectBuffer directBuffer, final int offset, final int externalFrameLength)
@@ -279,12 +253,12 @@ public class FrameHeaderFlyweight
         return frameLength;
     }
 
-    private static int metadataLength(final int metadataPayloadLength)
+    private static int computeMetadataLength(final int metadataPayloadLength)
     {
         return metadataPayloadLength + ((0 == metadataPayloadLength) ? 0 : BitUtil.SIZE_OF_INT);
     }
 
-    private static int metadataLength(final DirectBuffer directBuffer, final int offset)
+    private static int metadataFieldLength(final DirectBuffer directBuffer, final int offset)
     {
         int metadataLength = 0;
 
@@ -299,12 +273,12 @@ public class FrameHeaderFlyweight
     private static int dataLength(final DirectBuffer directBuffer, final int offset, final int externalLength)
     {
         final int frameLength = frameLength(directBuffer, offset, externalLength);
-        final int metadataLength = metadataLength(directBuffer, offset);
+        final int metadataLength = metadataFieldLength(directBuffer, offset);
 
         return frameLength - metadataLength - payloadOffset(directBuffer, offset);
     }
 
-    private static int payloadOffset(final FrameType frameType)
+    private static int computePayloadOffset(final FrameType frameType)
     {
         int result = PAYLOAD_OFFSET;
 
@@ -319,8 +293,30 @@ public class FrameHeaderFlyweight
     private static int payloadOffset(final DirectBuffer directBuffer, final int offset)
     {
         final FrameType frameType = FrameType.from(directBuffer.getShort(offset + TYPE_FIELD_OFFSET, ByteOrder.BIG_ENDIAN));
+        int result = PAYLOAD_OFFSET;
 
-        return payloadOffset(frameType);
+        switch (frameType)
+        {
+            case SETUP:
+                result = SetupFrameFlyweight.payloadOffset(directBuffer, offset);
+                break;
+            case SETUP_ERROR:
+                result = SetupErrorFrameFlyweight.payloadOffset(directBuffer, offset);
+                break;
+            case LEASE:
+                result = LeaseFrameFlyweight.payloadOffset(directBuffer, offset);
+                break;
+            case KEEPALIVE:
+                result = KeepaliveFrameFlyweight.payloadOffset(directBuffer, offset);
+                break;
+            case REQUEST_STREAM:
+            case REQUEST_SUBSCRIPTION:
+                // TODO: move this out since it shouldn't be different
+                result = PAYLOAD_OFFSET + BitUtil.SIZE_OF_LONG;
+                break;
+        }
+
+        return result;
     }
 
     private static int metadataOffset(final DirectBuffer directBuffer, final int offset)
@@ -330,6 +326,6 @@ public class FrameHeaderFlyweight
 
     private static int dataOffset(final DirectBuffer directBuffer, final int offset)
     {
-        return payloadOffset(directBuffer, offset) + metadataLength(directBuffer, offset);
+        return payloadOffset(directBuffer, offset) + metadataFieldLength(directBuffer, offset);
     }
 }

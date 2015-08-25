@@ -104,6 +104,14 @@ public class SetupFrameFlyweight
         return new String(bytes, Charset.forName("UTF-8"));
     }
 
+    public static int computePayloadOffset(
+        final int offset, final int metadataMimeTypeLength, final int dataMimeTypeLength)
+    {
+        return offset + METADATA_MIME_TYPE_LENGTH_OFFSET +
+            1 + metadataMimeTypeLength +
+            1 + dataMimeTypeLength;
+    }
+
     public static int payloadOffset(final DirectBuffer directBuffer, final int offset)
     {
         int fieldOffset = offset + METADATA_MIME_TYPE_LENGTH_OFFSET;
