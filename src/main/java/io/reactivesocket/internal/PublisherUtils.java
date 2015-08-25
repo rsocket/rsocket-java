@@ -26,14 +26,14 @@ import io.reactivesocket.Payload;
 
 public class PublisherUtils {
 
-	public static final Publisher<Frame> errorFrame(Frame requestFrame, Throwable e) {
+	public static final Publisher<Frame> errorFrame(long streamId, Throwable e) {
 		return (Subscriber<? super Frame> s) -> {
 			s.onSubscribe(new Subscription() {
 
 				@Override
 				public void request(long n) {
 					if (n > 0) {
-						s.onNext(Frame.from(requestFrame.getStreamId(), e));
+						s.onNext(Frame.from(streamId, e));
 						s.onComplete();
 					}
 				}

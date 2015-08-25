@@ -69,7 +69,7 @@ public class RequesterResponderInteractionTest
                 .subscribe(clientConnection.toInput);
 
 
-        responder = Responder.create(RequestHandler.create(
+        responder = Responder.create(setup -> RequestHandler.create(
             requestResponsePayload -> {
                 final String requestResponse = TestUtil.byteToString(requestResponsePayload.getData());
 
@@ -126,7 +126,7 @@ public class RequesterResponderInteractionTest
             }));
 
         toObservable(responder.acceptConnection(serverConnection)).subscribe();// start handling the connection
-        requester = Requester.createForConnection(false, clientConnection);
+        requester = Requester.createClientRequester(clientConnection, ConnectionSetupPayload.create("UTF-8", "UTF-8"));
     }
 
     @Ignore

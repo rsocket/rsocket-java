@@ -22,31 +22,85 @@ import java.nio.ByteBuffer;
  */
 public abstract class ConnectionSetupPayload implements Payload
 {
-    private final Frame frame;
+	public static ConnectionSetupPayload create(String metadataMimeType, String dataMimeType) {
+    	return new ConnectionSetupPayload() {
+    	    public String metadataMimeType()
+    	    {
+    	        return metadataMimeType;
+    	    }
 
-    public ConnectionSetupPayload(final Frame frame)
+    	    public String dataMimeType()
+    	    {
+    	        return dataMimeType;
+    	    }
+
+    	    public ByteBuffer getData()
+    	    {
+    	        return Frame.NULL_BYTEBUFFER;
+    	    }
+
+    	    public ByteBuffer getMetadata()
+    	    {
+    	    	return Frame.NULL_BYTEBUFFER;
+    	    }
+    	};
+	}
+	
+	public static ConnectionSetupPayload create(String metadataMimeType, String dataMimeType, Payload payload) {
+    	return new ConnectionSetupPayload() {
+    	    public String metadataMimeType()
+    	    {
+    	        return metadataMimeType;
+    	    }
+
+    	    public String dataMimeType()
+    	    {
+    	        return dataMimeType;
+    	    }
+
+    	    public ByteBuffer getData()
+    	    {
+    	        return payload.getData();
+    	    }
+
+    	    public ByteBuffer getMetadata()
+    	    {
+    	    	return payload.getMetadata();
+    	    }
+    	};
+	}
+	
+    public static ConnectionSetupPayload create(final Frame setupFrame)
     {
-        Frame.ensureFrameType(FrameType.SETUP, frame);
-        this.frame = frame;
+    	Frame.ensureFrameType(FrameType.SETUP, setupFrame);
+    	return new ConnectionSetupPayload() {
+    	    public String metadataMimeType()
+    	    {
+    	        return Frame.Setup.metadataMimeType(setupFrame);
+    	    }
+
+    	    public String dataMimeType()
+    	    {
+    	        return Frame.Setup.dataMimeType(setupFrame);
+    	    }
+
+    	    public ByteBuffer getData()
+    	    {
+    	        return setupFrame.getData();
+    	    }
+
+    	    public ByteBuffer getMetadata()
+    	    {
+    	        return setupFrame.getMetadata();
+    	    }
+    	};
     }
 
-    public String metadataMimeType()
-    {
-        return Frame.Setup.metadataMimeType(frame);
-    }
+    public abstract String metadataMimeType();
 
-    public String dataMimeType()
-    {
-        return Frame.Setup.dataMimeType(frame);
-    }
+    public abstract String dataMimeType();
 
-    public ByteBuffer getData()
-    {
-        return frame.getData();
-    }
+    public abstract ByteBuffer getData();
 
-    public ByteBuffer getMetadata()
-    {
-        return frame.getMetadata();
-    }
+    public abstract ByteBuffer getMetadata();
 }

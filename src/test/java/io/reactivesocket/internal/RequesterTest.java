@@ -21,6 +21,7 @@ import org.junit.Test;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
+import io.reactivesocket.ConnectionSetupPayload;
 import io.reactivesocket.Frame;
 import io.reactivesocket.FrameType;
 import io.reactivesocket.Payload;
@@ -42,7 +43,7 @@ public class RequesterTest
     @Test
     public void testRequestResponseSuccess() {
         TestConnection conn = establishConnection();
-        Requester p = Requester.createClientRequester(conn);
+        Requester p = Requester.createClientRequester(conn, ConnectionSetupPayload.create("UTF-8", "UTF-8"));
         toObservable(p.start()).subscribe();
         ReplaySubject<Frame> requests = captureRequests(conn);
 
@@ -69,7 +70,7 @@ public class RequesterTest
     @Test
     public void testRequestResponseError() {
         TestConnection conn = establishConnection();
-        Requester p = Requester.createClientRequester(conn);
+        Requester p = Requester.createClientRequester(conn, ConnectionSetupPayload.create("UTF-8", "UTF-8"));
         toObservable(p.start()).subscribe();
         ReplaySubject<Frame> requests = captureRequests(conn);
 
@@ -93,7 +94,7 @@ public class RequesterTest
     @Test
     public void testRequestResponseCancel() {
         TestConnection conn = establishConnection();
-        Requester p = Requester.createClientRequester(conn);
+        Requester p = Requester.createClientRequester(conn, ConnectionSetupPayload.create("UTF-8", "UTF-8"));
         toObservable(p.start()).subscribe();
         ReplaySubject<Frame> requests = captureRequests(conn);
 
@@ -123,7 +124,7 @@ public class RequesterTest
     @Test
     public void testRequestStreamSuccess() {
         TestConnection conn = establishConnection();
-        Requester p = Requester.createClientRequester(conn);
+        Requester p = Requester.createClientRequester(conn, ConnectionSetupPayload.create("UTF-8", "UTF-8"));
         toObservable(p.start()).subscribe();
         ReplaySubject<Frame> requests = captureRequests(conn);
 
@@ -153,7 +154,7 @@ public class RequesterTest
     @Test
     public void testRequestStreamSuccessTake2AndCancel() {
         TestConnection conn = establishConnection();
-        Requester p = Requester.createClientRequester(conn);
+        Requester p = Requester.createClientRequester(conn, ConnectionSetupPayload.create("UTF-8", "UTF-8"));
         toObservable(p.start()).subscribe();
         ReplaySubject<Frame> requests = captureRequests(conn);
 
@@ -190,7 +191,7 @@ public class RequesterTest
     @Test
     public void testRequestStreamError() {
         TestConnection conn = establishConnection();
-        Requester p = Requester.createClientRequester(conn);
+        Requester p = Requester.createClientRequester(conn, ConnectionSetupPayload.create("UTF-8", "UTF-8"));
         toObservable(p.start()).subscribe();
         ReplaySubject<Frame> requests = captureRequests(conn);
 

@@ -24,10 +24,13 @@ import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
+import io.reactivesocket.ConnectionSetupPayload;
 import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
 import io.reactivesocket.FrameType;
 import io.reactivesocket.Payload;
+import io.reactivesocket.exceptions.SetupException;
+import io.reactivesocket.exceptions.SetupException.SetupErrorCode;
 import uk.co.real_logic.agrona.collections.Long2ObjectHashMap;
 
 /**
@@ -43,32 +46,20 @@ public class Requester {
 	private final DuplexConnection connection;
 	private final Long2ObjectHashMap<UnicastSubject<Frame>> streamInputMap = new Long2ObjectHashMap<>();
 	private int streamCount = 0;// 0 is reserved for setup, all normal messages are >= 1
+	private final ConnectionSetupPayload setupPayload;
 
-	private Requester(boolean isServer, DuplexConnection connection) {
+	private Requester(boolean isServer, DuplexConnection connection, ConnectionSetupPayload setupPayload) {
 		this.isServer = isServer;
 		this.connection = connection;
+		this.setupPayload = setupPayload;
 	}
 
-	/**
-	 * Create a Requester for each DuplexConnection that requests will be made over.
-	 * <p>
-	 * NOTE: You must start().subscribe() the Requester for it to run.
-	 * 
-	 * @param isServer
-	 *            for debugging purposes
-	 * @param connection
-	 * @return
-	 */
-	public static Requester createForConnection(boolean isServer, DuplexConnection connection) {
-		return new Requester(isServer, connection);
-	}
-
-	public static Requester createClientRequester(DuplexConnection connection) {
-		return new Requester(false, connection);
+	public static Requester createClientRequester(DuplexConnection connection, ConnectionSetupPayload setupPayload) {
+		return new Requester(false, connection, setupPayload);
 	}
 
 	public static Requester createServerRequester(DuplexConnection connection) {
-		return new Requester(true, connection);
+		return new Requester(true, connection, null);
 	}
 
 	/**
@@ -104,6 +95,7 @@ public class Requester {
 		if (payload == null) {
 			throw new IllegalStateException("Payload can not be null");
 		}
+		// TODO assert connection is ready (after start() and SETUP frame is sent)
 		return connection.addOutput(PublisherUtils.just(Frame.from(nextStreamId(), FrameType.FIRE_AND_FORGET, payload)));
 	}
 
@@ -363,24 +355,65 @@ public class Requester {
 							public void onSubscribe(Subscription s) {
 								if (connectionSubscription.compareAndSet(null, s)) {
 									s.request(Long.MAX_VALUE);
+									
+									// now that we are connected, send SETUP frame (asynchronously, other messages can continue being written after this)
+									connection.addOutput(PublisherUtils.just(Frame.fromSetup(0, 0, 0, setupPayload.metadataMimeType(), setupPayload.dataMimeType(), setupPayload)))
+									.subscribe(new Subscriber<Void>() {
+
+										@Override
+										public void onSubscribe(Subscription s) {
+											s.request(Long.MAX_VALUE);
+										}
+
+										@Override
+										public void onNext(Void t) {
+										}
+
+										@Override
+										public void onError(Throwable t) {
+											tearDown(t);
+										}
+
+										@Override
+										public void onComplete() {
+											
+										}
+										
+									});
+									
+									
 								} else {
 									// means we already were cancelled
 									s.cancel();
 								}
 							}
 
+							private void tearDown(Throwable e) {
+								onError(e);
+							}
+							
 							public void onNext(Frame frame) {
-								UnicastSubject<Frame> streamSubject = streamInputMap.get(frame.getStreamId());
-								if (streamSubject == null) {
-									// if we can't find one, we have a problem with the overall connection and must tear down
-									if (frame.getType() == FrameType.ERROR) {
-										String errorMessage = getByteBufferAsString(frame.getData());
-										onError(new RuntimeException("Received error for non-existent stream: " + frame.getStreamId() + " Message: " + errorMessage));
+								if (frame.getStreamId() == 0) {
+									if(FrameType.SETUP_ERROR.equals(frame.getType())) {
+										onError(new SetupException(frame));
+									} else if(FrameType.LEASE.equals(frame.getType())) {
+										// TODO do magic
 									} else {
-										onError(new RuntimeException("Received message for non-existent stream: " + frame.getStreamId()));
+										onError(new RuntimeException("Received unexpected message type on stream 0: " + frame.getType().name()));
 									}
 								} else {
-									streamSubject.onNext(frame);
+									UnicastSubject<Frame> streamSubject = streamInputMap.get(frame.getStreamId());
+									if (streamSubject == null) {
+										// if we can't find one, we have a problem with the overall connection and must tear down
+										if (frame.getType() == FrameType.ERROR) {
+											String errorMessage = getByteBufferAsString(frame.getData());
+											onError(new RuntimeException("Received error for non-existent stream: " + frame.getStreamId() + " Message: " + errorMessage));
+										} else {
+											onError(new RuntimeException("Received message for non-existent stream: " + frame.getStreamId()));
+										}
+									} else {
+										streamSubject.onNext(frame);
+									}
 								}
 							}
 

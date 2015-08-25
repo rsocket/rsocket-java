@@ -49,7 +49,7 @@ public class ReactiveSocketTest {
 		clientConnection = new TestConnection();
 		clientConnection.connectToServerConnection(serverConnection);
 
-		socketServer = ReactiveSocket.createResponderAndRequestor(new RequestHandler() {
+		socketServer = ReactiveSocket.createResponderAndRequestor(setup -> new RequestHandler() {
 
 			@Override
 			public Publisher<Payload> handleRequestResponse(Payload payload) {
@@ -120,7 +120,7 @@ public class ReactiveSocketTest {
 
 		}, t -> lastServerError.set(t));
 
-		socketClient = ReactiveSocket.createRequestor();
+		socketClient = ReactiveSocket.createRequestor("UTF-8", "UTF-8");
 
 		// start both the server and client and monitor for errors
 		toObservable(socketServer.connect(serverConnection)).subscribe();

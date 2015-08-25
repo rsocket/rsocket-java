@@ -89,7 +89,7 @@ public class ReactiveSocketPerf {
 			HELLO_1000 = just(ps);
 		}
 
-		final static ReactiveSocket serverSocket = ReactiveSocket.createResponderAndRequestor(new RequestHandler() {
+		static final RequestHandler handler = new RequestHandler() {
 
 			@Override
 			public Publisher<Payload> handleRequestResponse(Payload payload) {
@@ -116,9 +116,11 @@ public class ReactiveSocketPerf {
 				return null;
 			}
 
-		});
+		};
+		
+		final static ReactiveSocket serverSocket = ReactiveSocket.createResponderAndRequestor(setupFrame -> handler);
 
-		final static ReactiveSocket client = ReactiveSocket.createRequestor();
+		final static ReactiveSocket client = ReactiveSocket.createRequestor("UTF-8", "UTF-8");
 
 		static {
 			// start both the server and client and monitor for errors

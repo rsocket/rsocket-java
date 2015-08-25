@@ -54,12 +54,27 @@ public class ReactiveSocket {
 		}
 	};
 
-	private final boolean isServer;
+	private final boolean isServer; // TODO get rid of this?
 	private Requester requester; // can't initialized until connection is accepted
 	private final Responder responder;
+	private final ConnectionSetupPayload requestorSetupPayload;
 
-	public static ReactiveSocket createRequestor() {
-		return new ReactiveSocket(false, EMPTY_HANDLER, t -> {});
+	private ReactiveSocket(final boolean isServer, ConnectionSetupPayload requestorSetupPayload, final ConnectionSetup responderConnectionHandler, Consumer<Throwable> errorStream) {
+		this.isServer = isServer;
+		this.requestorSetupPayload = requestorSetupPayload;
+		this.responder = Responder.create(responderConnectionHandler, errorStream);
+	}
+	
+	public static ReactiveSocket createRequestor(ConnectionSetupPayload setup) {
+		return new ReactiveSocket(false, setup, s -> EMPTY_HANDLER, t -> {});
+	}
+	
+	public static ReactiveSocket createRequestor(String metadataMimeType, String dataMimeType) {
+		return createRequestor(ConnectionSetupPayload.create(metadataMimeType, dataMimeType));
+	}
+	
+	public static ReactiveSocket createRequestor(String metadataMimeType, String dataMimeType, Payload payload) {
+		return createRequestor(ConnectionSetupPayload.create(metadataMimeType, dataMimeType, payload));
 	}
 
 	// TODO what name makes sense for these 'create' methods?
@@ -73,16 +88,16 @@ public class ReactiveSocket {
 	 * @param responderErrorConsumer Callback for all errors seen while processing requests in the Responder.
 	 * @return
 	 */
-	public static ReactiveSocket createResponderAndRequestor(final RequestHandler requestHandler, Consumer<Throwable> responderErrorConsumer) {
-		final ReactiveSocket socket = new ReactiveSocket(true, requestHandler, responderErrorConsumer);
+	public static ReactiveSocket createResponderAndRequestor(ConnectionSetup connectionHandler, Consumer<Throwable> errorConsumer) {
+		final ReactiveSocket socket = new ReactiveSocket(true, null, connectionHandler, errorConsumer); // TODO broken with null SetupPayload
 
 		// TODO: passively wait for a SETUP and accept or reject it
 
 		return socket;
 	}
 	
-	public static ReactiveSocket createResponderAndRequestor(final RequestHandler requestHandler) {
-		return createResponderAndRequestor(requestHandler, t -> {});
+	public static ReactiveSocket createResponderAndRequestor(ConnectionSetup connectionHandler) {
+		return createResponderAndRequestor(connectionHandler, t -> {});
 	}
 
 	/**
@@ -119,14 +134,8 @@ public class ReactiveSocket {
 
 	private void assertRequester() {
 		if (requester == null) {
-			throw new IllegalStateException("Connection not initialized. Please 'acceptConnection' before submitting requests");
+			throw new IllegalStateException("Connection not initialized. Please 'connection' before submitting requests");
 		}
-	}
-
-	private ReactiveSocket(final boolean isServer, final RequestHandler requestHandler, Consumer<Throwable> errorStream) {
-		this.isServer = isServer;
-		this.responder = Responder.create(requestHandler, errorStream);
-
 	}
 
 	/**
@@ -160,8 +169,9 @@ public class ReactiveSocket {
 
 							if (isServer) {
 								responderConnectionHandler = responder.acceptConnection(connection);
+								// requester = Requester.createServerRequester(connection);// TODO commented out until odd/even message routing is done
 							} else {
-								requester = Requester.createForConnection(isServer, connection);
+								requester = Requester.createClientRequester(connection, requestorSetupPayload);
 								requesterConnectionHandler = requester.start();
 							}
 
