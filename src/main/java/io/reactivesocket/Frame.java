@@ -299,7 +299,7 @@ public class Frame implements Payload
         }
     }
 
-    private static void ensureFrameType(final FrameType frameType, final Frame frame)
+    public static void ensureFrameType(final FrameType frameType, final Frame frame)
     {
         final FrameType typeInFrame = frame.getType();
 

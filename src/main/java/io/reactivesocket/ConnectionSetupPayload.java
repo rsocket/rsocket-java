@@ -19,23 +19,34 @@ import java.nio.ByteBuffer;
 
 /**
  * Exposed to server for determination of RequestHandler based on mime types and SETUP metadata/data
- *
- * ConnectionHandler
- * - Function<ConnectionSetupPayload, RequestHandler>
  */
 public abstract class ConnectionSetupPayload implements Payload
 {
-    public abstract String metadataMimeType();
+    private final Frame frame;
 
-    public abstract String dataMimeType();
+    public ConnectionSetupPayload(final Frame frame)
+    {
+        Frame.ensureFrameType(FrameType.SETUP, frame);
+        this.frame = frame;
+    }
+
+    public String metadataMimeType()
+    {
+        return Frame.Setup.metadataMimeType(frame);
+    }
+
+    public String dataMimeType()
+    {
+        return Frame.Setup.dataMimeType(frame);
+    }
 
     public ByteBuffer getData()
     {
-        return null;
+        return frame.getData();
     }
 
     public ByteBuffer getMetadata()
     {
-        return null;
+        return frame.getMetadata();
     }
 }
