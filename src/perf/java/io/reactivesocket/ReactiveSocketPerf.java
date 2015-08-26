@@ -118,14 +118,13 @@ public class ReactiveSocketPerf {
 
 		};
 		
-		final static ReactiveSocket serverSocket = ReactiveSocket.createResponderAndRequestor(setupFrame -> handler);
+		final static ReactiveSocket serverSocket = ReactiveSocket.fromServerConnection(serverConnection, setupFrame -> handler);
 
-		final static ReactiveSocket client = ReactiveSocket.createRequestor("UTF-8", "UTF-8");
+		final static ReactiveSocket client = ReactiveSocket.fromClientConnection(clientConnection, "UTF-8");
 
 		static {
-			// start both the server and client and monitor for errors
-			serverSocket.connect(serverConnection).subscribe(new ErrorSubscriber<Void>());
-			client.connect(clientConnection).subscribe(new ErrorSubscriber<Void>());
+			serverSocket.start();
+			client.start();
 		}
 
 		LatchedSubscriber<Payload> latchedSubscriber;

@@ -15,10 +15,13 @@
  */
 package io.reactivesocket.perfutil;
 
+import java.io.IOException;
+
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
+import io.reactivesocket.Completable;
 import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
 import io.reactivesocket.internal.UnicastSubject;
@@ -30,57 +33,30 @@ public class PerfTestConnection implements DuplexConnection {
 	public final Publisher<Frame> writes = writeSubject;
 
 	@Override
-	public Publisher<Void> addOutput(Publisher<Frame> o) {
-		return new Publisher<Void>() {
+	public void addOutput(Publisher<Frame> o, Completable callback) {
+		o.subscribe(new Subscriber<Frame>() {
 
 			@Override
-			public void subscribe(Subscriber<? super Void> child) {
-				child.onSubscribe(new Subscription() {
-
-					boolean started = false;
-
-					@Override
-					public void request(long n) {
-						if (!started) {
-							started = true;
-							o.subscribe(new Subscriber<Frame>() {
-
-								@Override
-								public void onSubscribe(Subscription s) {
-									s.request(Long.MAX_VALUE);
-								}
-
-								@Override
-								public void onNext(Frame f) {
-									writeSubject.onNext(f);
-								}
-
-								@Override
-								public void onError(Throwable t) {
-									child.onError(t);
-								}
-
-								@Override
-								public void onComplete() {
-									// do nothing
-								}
-
-							});
-						}
-
-					}
-
-					@Override
-					public void cancel() {
-						// TODO not doing anything with this
-					}
-
-				});
-
+			public void onSubscribe(Subscription s) {
+				s.request(Long.MAX_VALUE);
 			}
 
-		};
+			@Override
+			public void onNext(Frame f) {
+				writeSubject.onNext(f);
+			}
 
+			@Override
+			public void onError(Throwable t) {
+				callback.error(t);
+			}
+
+			@Override
+			public void onComplete() {
+				callback.success();
+			}
+
+		});
 	}
 
 	@Override
@@ -92,5 +68,10 @@ public class PerfTestConnection implements DuplexConnection {
 		writes.subscribe(serverConnection.toInput);
 		serverConnection.writes.subscribe(toInput);
 
+	}
+
+	@Override
+	public void close() throws IOException {
+		
 	}
 }

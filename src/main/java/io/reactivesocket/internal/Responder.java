@@ -26,7 +26,8 @@ import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
-import io.reactivesocket.ConnectionSetup;
+import io.reactivesocket.Completable;
+import io.reactivesocket.ConnectionSetupHandler;
 import io.reactivesocket.ConnectionSetupPayload;
 import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
@@ -44,10 +45,10 @@ import uk.co.real_logic.agrona.collections.Long2ObjectHashMap;
  * for each request over the connection.
  */
 public class Responder {
-	private final ConnectionSetup connectionHandler;
+	private final ConnectionSetupHandler connectionHandler;
 	private final Consumer<Throwable> errorStream;
 
-	private Responder(ConnectionSetup connectionHandler, Consumer<Throwable> errorStream) {
+	private Responder(ConnectionSetupHandler connectionHandler, Consumer<Throwable> errorStream) {
 		this.connectionHandler = connectionHandler;
 		this.errorStream = errorStream;
 	}
@@ -57,7 +58,7 @@ public class Responder {
 	 *            Handle incoming requests.
 	 * @return
 	 */
-	public static <T> Responder create(ConnectionSetup connectionHandler) {
+	public static <T> Responder create(ConnectionSetupHandler connectionHandler) {
 		return new Responder(connectionHandler, t -> {});
 	}
 
@@ -70,7 +71,7 @@ public class Responder {
 	 *            This include fireAndForget which ONLY emit errors server-side via this mechanism.
 	 * @return
 	 */
-	public static <T> Responder create(ConnectionSetup connectionHandler, Consumer<Throwable> errorStream) {
+	public static <T> Responder create(ConnectionSetupHandler connectionHandler, Consumer<Throwable> errorStream) {
 		return new Responder(connectionHandler, errorStream);
 	}
 
@@ -171,62 +172,42 @@ public class Responder {
 											// error message to user
 											responsePublisher = PublisherUtils.errorFrame(streamId, new RuntimeException("Unhandled error processing request"));
 										}
-										connection.addOutput(responsePublisher).subscribe(new Subscriber<Void>() {
-	
+										connection.addOutput(responsePublisher, new Completable() {
+
 											@Override
-											public void onSubscribe(Subscription s) {
-												s.request(Long.MAX_VALUE); // transport so we request MAX_VALUE
+											public void success() {
+												// TODO Auto-generated method stub
+												
 											}
-	
+
 											@Override
-											public void onNext(Void t) {
-												// nothing expected
-											}
-	
-											@Override
-											public void onError(Throwable t) {
+											public void error(Throwable e) {
 												// TODO validate with unit tests
-												errorStream.accept(new RuntimeException("Error writing", t)); // TODO should we have typed RuntimeExceptions?
+												errorStream.accept(new RuntimeException("Error writing", e)); // TODO should we have typed RuntimeExceptions?
 												if (childTerminated.compareAndSet(false, true)) {
-													child.onError(t);
+													child.onError(e);
 													cancel();
-												}
+												}												
 											}
-	
-											@Override
-											public void onComplete() {
-												// successful completion of write IO
-												// We don't need to do anything here onComplete. If an error occurs,
-												// or the outer connection shuts down it will terminate any IO still happening here and cleanup.
-											}
-	
+											
 										});
 									}
 								}
 
 								private void setupErrorAndTearDown(DuplexConnection connection, SetupException setupException) {
 									// pass the ErrorFrame output, subscribe to write it, await onComplete and then tear down
-									connection.addOutput(PublisherUtils.just(Frame.fromSetupError(setupException.getErrorCode().getCode(), "", setupException.getMessage())))
-									.subscribe(new Subscriber<Void>() {
+									connection.addOutput(PublisherUtils.just(Frame.fromSetupError(setupException.getErrorCode().getCode(), "", setupException.getMessage())),
+											new Completable() {
 
-										@Override
-										public void onSubscribe(Subscription s) {
-											s.request(Long.MAX_VALUE);
-										}
+												@Override
+												public void success() {
+													tearDownWithError(setupException);													
+												}
 
-										@Override
-										public void onNext(Void t) {
-										}
-
-										@Override
-										public void onError(Throwable t) {
-											tearDownWithError(new RuntimeException("Failure outputting SetupException", t));
-										}
-
-										@Override
-										public void onComplete() {
-											tearDownWithError(setupException);
-										}
+												@Override
+												public void error(Throwable e) {
+													tearDownWithError(new RuntimeException("Failure outputting SetupException", e));													
+												}
 										
 									});
 								}

@@ -17,6 +17,8 @@ package io.reactivesocket;
 
 import static rx.RxReactiveStreams.*;
 
+import java.io.IOException;
+
 import org.reactivestreams.Publisher;
 
 import io.reactivesocket.DuplexConnection;
@@ -32,12 +34,12 @@ public class TestConnection implements DuplexConnection {
 	public final Observable<Frame> writes = writeSubject;
 
 	@Override
-	public Publisher<Void> addOutput(Publisher<Frame> o) {
-		return toPublisher(toObservable(o).flatMap(m -> {
+	public void addOutput(Publisher<Frame> o, Completable callback) {
+		toObservable(o).flatMap(m -> {
 			// no backpressure on a Subject so just firehosing for this test
 			writeSubject.onNext(m);
 			return Observable.<Void> empty();
-		}));
+		}).subscribe(v -> {}, callback::error, callback::success);
 	}
 
 	@Override
@@ -53,11 +55,16 @@ public class TestConnection implements DuplexConnection {
 
 		// connect the connections (with a Scheduler to simulate async IO)
 		writes
-				 .subscribeOn(Schedulers.computation()) // pick an event loop at random for client writes to occur on
-				.subscribe(serverConnection.toInput);
+			.subscribeOn(Schedulers.computation()) // pick an event loop at random for client writes to occur on
+			.subscribe(serverConnection.toInput);
 		serverConnection.writes
-				 .subscribeOn(Schedulers.computation())  // pick an event loop at random for server writes to occur on
-				.subscribe(toInput);
+			.subscribeOn(Schedulers.computation())  // pick an event loop at random for server writes to occur on
+			.subscribe(toInput);
 
+	}
+
+	@Override
+	public void close() throws IOException {
+		
 	}
 }

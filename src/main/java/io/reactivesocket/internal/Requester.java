@@ -24,6 +24,7 @@ import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
+import io.reactivesocket.Completable;
 import io.reactivesocket.ConnectionSetupPayload;
 import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
@@ -105,7 +106,44 @@ public class Requester {
 			throw new IllegalStateException("Payload can not be null");
 		}
 		// TODO assert connection is ready (after start() and SETUP frame is sent)
-		return connection.addOutput(PublisherUtils.just(Frame.from(nextStreamId(), FrameType.FIRE_AND_FORGET, payload)));
+		
+		
+		return new Publisher<Void>() {
+
+			@Override
+			public void subscribe(Subscriber<? super Void> child) {
+				child.onSubscribe(new Subscription() {
+
+					boolean started = false;
+					@Override
+					public void request(long n) {
+						if(!started && n > 0) {
+							started = true;
+							connection.addOutput(PublisherUtils.just(Frame.from(nextStreamId(), FrameType.FIRE_AND_FORGET, payload)), new Completable() {
+
+								@Override
+								public void success() {
+									child.onComplete();
+								}
+
+								@Override
+								public void error(Throwable e) {
+									child.onError(e);									
+								}
+								
+							});
+						}
+					}
+
+					@Override
+					public void cancel() {
+						// nothing to cancel on a fire-and-forget
+					}
+					
+				});
+			}
+			
+		};
 	}
 
 	/**
@@ -234,28 +272,19 @@ public class Requester {
 							}
 
 						});
-						Publisher<Void> writeOutcome = connection.addOutput(writer); // TODO do something with this
-						writeOutcome.subscribe(new Subscriber<Void>() {
+						connection.addOutput(writer, new Completable() {
 
 							@Override
-							public void onSubscribe(Subscription s) {
-								s.request(Long.MAX_VALUE);
+							public void success() {
+								// nothing to do onSuccess
 							}
 
 							@Override
-							public void onNext(Void t) {
+							public void error(Throwable e) {
+								child.onError(e);
+								cancel();								
 							}
-
-							@Override
-							public void onError(Throwable t) {
-								child.onError(t);
-								cancel();
-							}
-
-							@Override
-							public void onComplete() {
-							}
-
+							
 						});
 					} else {
 						// propagate further requestN frames
@@ -365,31 +394,20 @@ public class Requester {
 									s.request(Long.MAX_VALUE);
 									
 									// now that we are connected, send SETUP frame (asynchronously, other messages can continue being written after this)
-									connection.addOutput(PublisherUtils.just(Frame.fromSetup(0, 0, 0, setupPayload.metadataMimeType(), setupPayload.dataMimeType(), setupPayload)))
-									.subscribe(new Subscriber<Void>() {
+									connection.addOutput(PublisherUtils.just(Frame.fromSetup(0, 0, 0, setupPayload.metadataMimeType(), setupPayload.dataMimeType(), setupPayload)),
+											new Completable() {
 
-										@Override
-										public void onSubscribe(Subscription s) {
-											s.request(Long.MAX_VALUE);
-										}
+												@Override
+												public void success() {
+													// nothing to do
+												}
 
-										@Override
-										public void onNext(Void t) {
-										}
-
-										@Override
-										public void onError(Throwable t) {
-											tearDown(t);
-										}
-
-										@Override
-										public void onComplete() {
-											
-										}
+												@Override
+												public void error(Throwable e) {
+													tearDown(e);													
+												}
 										
 									});
-									
-									
 								} else {
 									// means we already were cancelled
 									s.cancel();

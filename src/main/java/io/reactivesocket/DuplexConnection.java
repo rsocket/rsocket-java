@@ -15,16 +15,18 @@
  */
 package io.reactivesocket;
 
+import java.io.Closeable;
+
 import org.reactivestreams.Publisher;
 
 /**
  * Represents a connection with input/output that the protocol uses. 
  */
-public interface DuplexConnection {
+public interface DuplexConnection extends Closeable {
     // TODO should we call this 'Connection'? 'SocketConnection'? 'ReactiveSocketConnection'?
 
 	Publisher<Frame> getInput();
 
-	Publisher<Void> addOutput(Publisher<Frame> o);
+	void addOutput(Publisher<Frame> o, Completable callback);
 	
 }

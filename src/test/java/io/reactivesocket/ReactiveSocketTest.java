@@ -24,11 +24,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
+import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.reactivestreams.Publisher;
 
-import io.reactivesocket.internal.PublisherUtils;
 import rx.Subscription;
 import rx.observables.ConnectableObservable;
 import rx.observers.TestSubscriber;
@@ -49,7 +49,7 @@ public class ReactiveSocketTest {
 		clientConnection = new TestConnection();
 		clientConnection.connectToServerConnection(serverConnection);
 
-		socketServer = ReactiveSocket.createResponderAndRequestor(setup -> new RequestHandler() {
+		socketServer = ReactiveSocket.fromServerConnection(serverConnection, setup -> new RequestHandler() {
 
 			@Override
 			public Publisher<Payload> handleRequestResponse(Payload payload) {
@@ -120,11 +120,17 @@ public class ReactiveSocketTest {
 
 		}, t -> lastServerError.set(t));
 
-		socketClient = ReactiveSocket.createRequestor("UTF-8", "UTF-8");
+		socketClient = ReactiveSocket.fromClientConnection(clientConnection, "UTF-8");
 
 		// start both the server and client and monitor for errors
-		toObservable(socketServer.connect(serverConnection)).subscribe();
-		toObservable(socketClient.connect(clientConnection)).subscribe();
+		socketServer.start();
+		socketClient.start();
+	}
+	
+	@AfterClass
+	public static void shutdown() {
+		socketServer.shutdown();
+		socketClient.shutdown();
 	}
 
 	@Test
