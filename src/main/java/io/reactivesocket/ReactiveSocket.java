@@ -29,7 +29,7 @@ import io.reactivesocket.internal.Responder;
  *
  * Created by servers for connections Created on demand for clients
  */
-public class ReactiveSocket {
+public class ReactiveSocket implements AutoCloseable {
 	private static final Publisher<Payload> NOT_FOUND_ERROR_PAYLOAD = error(new Exception("Not Found!"));
 	private static final Publisher<Void> NOT_FOUND_ERROR_VOID = error(new Exception("Not Found!"));
 	private static final RequestHandler EMPTY_HANDLER = new RequestHandler() {
@@ -48,56 +48,165 @@ public class ReactiveSocket {
 		public Publisher<Void> handleFireAndForget(Payload payload) {
 			return NOT_FOUND_ERROR_VOID;
 		}
-		
+
 		public Publisher<Payload> handleChannel(Payload initialPayload, Publisher<Payload> payloads) {
 			return NOT_FOUND_ERROR_PAYLOAD;
 		}
 	};
+	
+	private static final Consumer<Throwable> DEFAULT_ERROR_STREAM = t -> {
+		System.err.println("ReactiveSocket ERROR => " + t.getMessage() + " [Provide errorStream handler to replace this default]"); // TODO should we use SLF4j, use System.err, or swallow by default?
+	};
 
-	private final boolean isServer; // TODO get rid of this?
-	private Requester requester; // can't initialized until connection is accepted
+	private final DuplexConnection connection;
+	private final boolean isServer;
+	private final Consumer<Throwable> errorStream;
+	private Requester requester;
 	private final Responder responder;
 	private final ConnectionSetupPayload requestorSetupPayload;
 
-	private ReactiveSocket(final boolean isServer, ConnectionSetupPayload requestorSetupPayload, final ConnectionSetup responderConnectionHandler, Consumer<Throwable> errorStream) {
+	private ReactiveSocket(DuplexConnection connection, final boolean isServer, ConnectionSetupPayload requestorSetupPayload, final ConnectionSetupHandler responderConnectionHandler, Consumer<Throwable> errorStream) {
+		this.connection = connection;
 		this.isServer = isServer;
 		this.requestorSetupPayload = requestorSetupPayload;
 		this.responder = Responder.create(responderConnectionHandler, errorStream);
+		this.errorStream = errorStream;
 	}
-	
-	public static ReactiveSocket createRequestor(ConnectionSetupPayload setup) {
-		return new ReactiveSocket(false, setup, s -> EMPTY_HANDLER, t -> {});
-	}
-	
-	public static ReactiveSocket createRequestor(String metadataMimeType, String dataMimeType) {
-		return createRequestor(ConnectionSetupPayload.create(metadataMimeType, dataMimeType));
-	}
-	
-	public static ReactiveSocket createRequestor(String metadataMimeType, String dataMimeType, Payload payload) {
-		return createRequestor(ConnectionSetupPayload.create(metadataMimeType, dataMimeType, payload));
-	}
-
-	// TODO what name makes sense for these 'create' methods?
-	// TODO what if someone wants to create just a Responder? This class has the 'request' methods on it.
 
 	/**
-	 * Create a ReactiveSocket and prepare for operation as a server
-	 *
+	 * Create a ReactiveSocket from a client-side {@link DuplexConnection}. 
+	 * <p>
+	 * A client-side connection is one that initiated the connection with a server and will 
+	 * define the ReactiveSocket behaviors via the {@link ConnectionSetupPayload} that define mime-types, 
+	 * leasing behavior and other connection-level details.
+	 * 
 	 * @param connection
-	 * @param requestHandler
-	 * @param responderErrorConsumer Callback for all errors seen while processing requests in the Responder.
-	 * @return
+	 *            DuplexConnection of client-side initiated connection for the ReactiveSocket protocol to use.
+	 * @param setup
+	 *            ConnectionSetupPayload that defines mime-types and other connection behavior details.
+	 * @param handler
+	 *            (Optional) RequestHandler for responding to requests from the server. If 'null' requests will be responded to with "Not Found" errors.
+	 * @param errorStream
+	 *            (Optional) Callback for errors while processing streams over connection. If 'null' then error messages will be output to System.err.
+	 * @return ReactiveSocket for start, shutdown and sending requests.
 	 */
-	public static ReactiveSocket createResponderAndRequestor(ConnectionSetup connectionHandler, Consumer<Throwable> errorConsumer) {
-		final ReactiveSocket socket = new ReactiveSocket(true, null, connectionHandler, errorConsumer); // TODO broken with null SetupPayload
-
-		// TODO: passively wait for a SETUP and accept or reject it
-
-		return socket;
+	public static ReactiveSocket fromClientConnection(DuplexConnection connection, ConnectionSetupPayload setup, RequestHandler handler, Consumer<Throwable> errorStream) {
+		if(connection == null) {
+			throw new IllegalArgumentException("DuplexConnection can not be null");
+		}
+		if(setup == null) {
+			throw new IllegalArgumentException("ConnectionSetupPayload can not be null");
+		}
+		final RequestHandler h = handler != null ? handler : EMPTY_HANDLER;
+		Consumer<Throwable> es = errorStream != null ? errorStream : DEFAULT_ERROR_STREAM;
+		return new ReactiveSocket(connection, false, setup, s -> h, es);
 	}
 	
-	public static ReactiveSocket createResponderAndRequestor(ConnectionSetup connectionHandler) {
-		return createResponderAndRequestor(connectionHandler, t -> {});
+	/**
+	 * Create a ReactiveSocket from a client-side {@link DuplexConnection}. 
+	 * <p>
+	 * A client-side connection is one that initiated the connection with a server and will 
+	 * define the ReactiveSocket behaviors via the {@link ConnectionSetupPayload} that define mime-types, 
+	 * leasing behavior and other connection-level details.
+	 * <p>
+	 * If this ReactiveSocket receives requests from the server it will respond with "Not Found" errors.
+	 * 
+	 * @param connection
+	 *            DuplexConnection of client-side initiated connection for the ReactiveSocket protocol to use.
+	 * @param setup
+	 *            ConnectionSetupPayload that defines mime-types and other connection behavior details.
+	 * @param errorStream
+	 *            (Optional) Callback for errors while processing streams over connection. If 'null' then error messages will be output to System.err.
+	 * @return ReactiveSocket for start, shutdown and sending requests.
+	 */
+	public static ReactiveSocket fromClientConnection(DuplexConnection connection, ConnectionSetupPayload setup, Consumer<Throwable> errorStream) {
+		return fromClientConnection(connection, setup, EMPTY_HANDLER, errorStream);
+	}
+
+	/**
+	 * Create a ReactiveSocket from a client-side {@link DuplexConnection}. 
+	 * <p>
+	 * A client-side connection is one that initiated the connection with a server and will 
+	 * define the ReactiveSocket behaviors via the {@link ConnectionSetupPayload} that define mime-types, 
+	 * leasing behavior and other connection-level details.
+	 * <p>
+	 * If this ReactiveSocket receives requests from the server it will respond with "Not Found" errors.
+	 * 
+	 * @param connection
+	 *            DuplexConnection of client-side initiated connection for the ReactiveSocket protocol to use.
+	 * @param metadataMimeType
+	 *            String mime-type for Metadata (this is sent via ConnectionSetupPayload on the initial Setup Frame).
+	 * @param dataMimeType
+	 *            String mime-type for Data (this is sent via ConnectionSetupPayload on the initial Setup Frame).
+	 * @param errorStream
+	 *            (Optional) Callback for errors while processing streams over connection. If 'null' then error messages will be output to System.err.
+	 * @return ReactiveSocket for start, shutdown and sending requests.
+	 */
+	public static ReactiveSocket fromClientConnection(DuplexConnection connection, String metadataMimeType, String dataMimeType, Consumer<Throwable> errorStream) {
+		return fromClientConnection(connection, ConnectionSetupPayload.create(metadataMimeType, dataMimeType), errorStream);
+	}
+	
+	/**
+	 * Create a ReactiveSocket from a client-side {@link DuplexConnection}. 
+	 * <p>
+	 * A client-side connection is one that initiated the connection with a server and will 
+	 * define the ReactiveSocket behaviors via the {@link ConnectionSetupPayload} that define mime-types, 
+	 * leasing behavior and other connection-level details.
+	 * <p>
+	 * If this ReactiveSocket receives requests from the server it will respond with "Not Found" errors.
+	 * 
+	 * @param connection
+	 *            DuplexConnection of client-side initiated connection for the ReactiveSocket protocol to use.
+	 * @param mimeType
+	 *            String mime-type for Data and Metadata (this is sent via ConnectionSetupPayload on the initial Setup Frame).
+	 * @param errorStream
+	 *            (Optional) Callback for errors while processing streams over connection. If 'null' then error messages will be output to System.err.
+	 * @return ReactiveSocket for start, shutdown and sending requests.
+	 */
+	public static ReactiveSocket fromClientConnection(DuplexConnection connection, String mimeType, Consumer<Throwable> errorStream) {
+		return fromClientConnection(connection, ConnectionSetupPayload.create(mimeType, mimeType), errorStream);
+	}
+	
+	/**
+	 * Create a ReactiveSocket from a client-side {@link DuplexConnection}. 
+	 * <p>
+	 * A client-side connection is one that initiated the connection with a server and will 
+	 * define the ReactiveSocket behaviors via the {@link ConnectionSetupPayload} that define mime-types, 
+	 * leasing behavior and other connection-level details.
+	 * <p>
+	 * If this ReactiveSocket receives requests from the server it will respond with "Not Found" errors.
+	 * <p>
+	 * Error messages will be output to System.err.
+	 * 
+	 * @param connection
+	 *            DuplexConnection of client-side initiated connection for the ReactiveSocket protocol to use.
+	 * @param mimeType
+	 *            String mime-type for Data and Metadata (this is sent via ConnectionSetupPayload on the initial Setup Frame).
+	 * @return ReactiveSocket for start, shutdown and sending requests.
+	 */
+	public static ReactiveSocket fromClientConnection(DuplexConnection connection, String mimeType) {
+		return fromClientConnection(connection, ConnectionSetupPayload.create(mimeType, mimeType), DEFAULT_ERROR_STREAM);
+	}
+
+
+	/**
+	 * Create a ReactiveSocket from a server-side {@link DuplexConnection}. 
+	 * <p>
+	 * A server-side connection is one that accepted the connection from a client and will 
+	 * define the ReactiveSocket behaviors via the {@link ConnectionSetupPayload} that define mime-types, 
+	 * leasing behavior and other connection-level details.
+	 * 
+	 * @param connection
+	 * @param connectionHandler
+	 * @param errorConsumer
+	 * @return
+	 */
+	public static ReactiveSocket fromServerConnection(DuplexConnection connection, ConnectionSetupHandler connectionHandler, Consumer<Throwable> errorConsumer) {
+		return new ReactiveSocket(connection, true, null, connectionHandler, errorConsumer);
+	}
+
+	public static ReactiveSocket fromServerConnection(DuplexConnection connection, ConnectionSetupHandler connectionHandler) {
+		return fromServerConnection(connection, connectionHandler, t -> {});
 	}
 
 	/**
@@ -126,7 +235,7 @@ public class ReactiveSocket {
 		assertRequester();
 		return requester.requestSubscription(payload);
 	}
-	
+
 	public Publisher<Payload> requestChannel(final Publisher<Payload> payloads) {
 		assertRequester();
 		return requester.requestChannel(payloads);
@@ -134,112 +243,97 @@ public class ReactiveSocket {
 
 	private void assertRequester() {
 		if (requester == null) {
-			throw new IllegalStateException("Connection not initialized. Please 'connection' before submitting requests");
+			throw new IllegalStateException("Connection not initialized. Please 'start()' before submitting requests");
 		}
 	}
 
 	/**
-	 * Connect this ReactiveSocket with the given DuplexConnection.
-	 * <p>
-	 * NOTE: You must subscribe to the returned Publisher for anything to start.
-	 * 
-	 * @param connection
+	 * Start protocol processing on the given DuplexConnection.
+
 	 * @return
 	 */
-	public Publisher<Void> connect(DuplexConnection connection) {
-		// TODO should we make this eager instead of lazy so people don't have to subscribe to the publisher if they want to ignore errors? how should errors then be handled?
+	public final void start() {
 
-		return new Publisher<Void>() {
+		// connect the Requestor
+		Publisher<Void> requesterConnectionHandler = null; // temporary until fix birectional
+		// connect the Responder
+		Publisher<Void> responderConnectionHandler = null; // temporary until fix birectional
 
-			@Override
-			public void subscribe(Subscriber<? super Void> child) {
-				child.onSubscribe(new Subscription() {
+		if (isServer) {
+			responderConnectionHandler = responder.acceptConnection(connection);
+			// requester = Requester.createServerRequester(connection);// TODO commented out until odd/even message routing is done
+		} else {
+			requester = Requester.createClientRequester(connection, requestorSetupPayload);
+			requesterConnectionHandler = requester.start();
+		}
 
-					boolean started = false;
+		if (requesterConnectionHandler != null) {
+			requesterConnectionHandler.subscribe(new Subscriber<Void>() {
 
-					@Override
-					public void request(long n) {
-						if (!started) {
-							started = true;
+				@Override
+				public void onSubscribe(Subscription s) {
+					s.request(Long.MAX_VALUE);
+				}
 
-							// connect the Requestor
-							Publisher<Void> requesterConnectionHandler = null; // temporary until fix birectional
-							// connect the Responder
-							Publisher<Void> responderConnectionHandler = null; // temporary until fix birectional
+				@Override
+				public void onNext(Void t) {
+				}
 
-							if (isServer) {
-								responderConnectionHandler = responder.acceptConnection(connection);
-								// requester = Requester.createServerRequester(connection);// TODO commented out until odd/even message routing is done
-							} else {
-								requester = Requester.createClientRequester(connection, requestorSetupPayload);
-								requesterConnectionHandler = requester.start();
-							}
+				@Override
+				public void onError(Throwable t) {
+					errorStream.accept(t);
+				}
 
-							if (requesterConnectionHandler != null) {
-								requesterConnectionHandler.subscribe(new Subscriber<Void>() {
+				@Override
+				public void onComplete() {
+					System.err.println("REQUESTER onCompleted. Should this shutdown ReactiveSocket?"); // TODO figure out what to do here
+				}
 
-									@Override
-									public void onSubscribe(Subscription s) {
-										s.request(Long.MAX_VALUE);
-									}
+			});
+		}
 
-									@Override
-									public void onNext(Void t) {
-									}
+		if (responderConnectionHandler != null) {
+			responderConnectionHandler.subscribe(new Subscriber<Void>() {
 
-									@Override
-									public void onError(Throwable t) {
-										child.onError(t);
-										t.printStackTrace();
-									}
+				@Override
+				public void onSubscribe(Subscription s) {
+					s.request(Long.MAX_VALUE);
+				}
 
-									@Override
-									public void onComplete() {
-										child.onComplete(); // TODO need merge to wait for both
-									}
+				@Override
+				public void onNext(Void t) {
+				}
 
-								});
-							}
+				@Override
+				public void onError(Throwable t) {
+					errorStream.accept(t);
+				}
 
-							if (responderConnectionHandler != null) {
-								responderConnectionHandler.subscribe(new Subscriber<Void>() {
+				@Override
+				public void onComplete() {
+					System.err.println("RESPONDER onCompleted. Should this shutdown ReactiveSocket?"); // TODO figure out what to do here
+				}
 
-									@Override
-									public void onSubscribe(Subscription s) {
-										s.request(Long.MAX_VALUE);
-									}
-
-									@Override
-									public void onNext(Void t) {
-									}
-
-									@Override
-									public void onError(Throwable t) {
-										t.printStackTrace();
-										child.onError(t);
-									}
-
-									@Override
-									public void onComplete() {
-										child.onComplete(); // TODO need merge to wait for both
-									}
-
-								});
-							}
-						}
-					}
-
-					@Override
-					public void cancel() {
-						// TODO need to allow cancelling
-					}
-
-				});
-			}
-
-		};
+			});
+		}
 	}
 
+
+	@Override
+	public void close() throws Exception {
+		connection.close();
+	}
+	
+	public void shutdown() {
+		try {
+			close();
+		} catch (Exception e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+	}
+	
+	
 	private static final <T> Publisher<T> error(Throwable e) {
 		return (Subscriber<? super T> s) -> {
 			s.onSubscribe(new Subscription() {

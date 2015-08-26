@@ -17,6 +17,6 @@ package io.reactivesocket;
 
 import io.reactivesocket.exceptions.SetupException;
 
-public interface ConnectionSetup {
+public interface ConnectionSetupHandler {
 	public RequestHandler apply(ConnectionSetupPayload setupPayload) throws SetupException; // yeah, a checked exception
 }
