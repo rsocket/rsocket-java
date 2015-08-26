@@ -36,7 +36,12 @@ public class AeronServerDuplexConnection implements DuplexConnection, AutoClosea
         return publisher;
     }
 
+    @Override
     public Publisher<Void> addOutput(Publisher<Frame> o) {
+        /*Publisher<Void> p = (Subscriber<? super Void> s) ->
+            s.onSubscribe(new PublishSubscription(s, o, publication));
+
+        return p;*/
         final Observable<Frame> frameObservable = RxReactiveStreams.toObservable(o);
         final Observable<Void> voidObservable = frameObservable
             .lift(new OperatorPublish(publication));

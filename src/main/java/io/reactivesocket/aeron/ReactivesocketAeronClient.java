@@ -126,7 +126,7 @@ public class ReactivesocketAeronClient implements AutoCloseable {
             latch.countDown();
 
         } else {
-            System.out.println("Unknow message type => " + messageTypeInt);
+            System.out.println("Unknown message type => " + messageTypeInt);
         }
     }
 
