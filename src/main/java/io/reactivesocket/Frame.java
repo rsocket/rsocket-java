@@ -15,14 +15,14 @@
  */
 package io.reactivesocket;
 
-import io.reactivesocket.internal.FrameHeaderFlyweight;
-import io.reactivesocket.internal.SetupErrorFrameFlyweight;
-import io.reactivesocket.internal.SetupFrameFlyweight;
+import io.reactivesocket.internal.*;
 import uk.co.real_logic.agrona.MutableDirectBuffer;
 import uk.co.real_logic.agrona.concurrent.UnsafeBuffer;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
+
+import static java.lang.System.getProperty;
 
 /**
  * Represents a Frame sent over a {@link DuplexConnection}.
@@ -33,14 +33,28 @@ public class Frame implements Payload
 {
     public static final ByteBuffer NULL_BYTEBUFFER = FrameHeaderFlyweight.NULL_BYTEBUFFER;
 
+    private static final String FRAME_POOLER_CLASS_NAME =
+        getProperty("io.reactivesocket.FramePool", "io.reactivesocket.internal.UnpooledFrame");
+    private static final FramePool POOL;
+
+    static
+    {
+        FramePool tmpPool;
+
+        try
+        {
+            tmpPool = (FramePool)Class.forName(FRAME_POOLER_CLASS_NAME).newInstance();
+        }
+        catch (final Exception ex)
+        {
+            tmpPool = new UnpooledFrame();
+        }
+
+        POOL = tmpPool;
+    }
+
     // not final so we can reuse this object
     private MutableDirectBuffer directBuffer;
-    private Setup setup = new Setup();
-
-    private Frame()
-    {
-        this(null);
-    }
 
     private Frame(final MutableDirectBuffer directBuffer)
     {
@@ -113,8 +127,9 @@ public class Frame implements Payload
      * 
      * @param byteBuffer to wrap
      */
-    public void wrap(final ByteBuffer byteBuffer) {
-        this.directBuffer = new UnsafeBuffer(byteBuffer);
+    public void wrap(final ByteBuffer byteBuffer)
+    {
+        wrap(POOL.acquireMutableDirectBuffer(byteBuffer));
     }
 
     /**
@@ -128,35 +143,63 @@ public class Frame implements Payload
     }
 
     /**
-     * Construct a new Frame from the given ByteBuffer
+     * Acquire a free Frame backed by given ByteBuffer
      * 
      * @param byteBuffer to wrap
      * @return new {@link Frame}
      */
     public static Frame from(final ByteBuffer byteBuffer) {
-        Frame f = new Frame();
-        f.directBuffer = new UnsafeBuffer(byteBuffer);
-        return f;
+        return POOL.acquireFrame(byteBuffer);
+    }
+
+    /**
+     * Construct a new Frame from the given {@link MutableDirectBuffer}
+     *
+     * NOTE: always allocates. Used for pooling.
+     *
+     * @param directBuffer to wrap
+     * @return new {@link Frame}
+     */
+    public static Frame allocate(final MutableDirectBuffer directBuffer)
+    {
+        return new Frame(directBuffer);
+    }
+
+    /**
+     * Release frame for re-use.
+     */
+    public void release()
+    {
+        POOL.release(this.directBuffer);
+        POOL.release(this);
     }
 
     /**
      * Mutates this Frame to contain the given parameters.
      *
-     * NOTE: allocates a new {@link ByteBuffer}
+     * NOTE: acquires a new backing buffer and releases current backing buffer
      *
      * @param streamId to include in frame
      * @param type     to include in frame
      * @param data     to include in frame
      */
-    public void wrap(final long streamId, final FrameType type, final ByteBuffer data) {
-        this.directBuffer = createByteBufferAndEncode(streamId, type, data, NULL_BYTEBUFFER);
+    public void wrap(final long streamId, final FrameType type, final ByteBuffer data)
+    {
+        POOL.release(this.directBuffer);
+
+        this.directBuffer =
+            POOL.acquireMutableDirectBuffer(FrameHeaderFlyweight.computeFrameHeaderLength(type, 0, data.capacity()));
+
+        FrameHeaderFlyweight.encode(this.directBuffer, 0, streamId, type, NULL_BYTEBUFFER, data);
     }
 
     public static Frame from(long streamId, FrameType type, ByteBuffer data, ByteBuffer metadata)
     {
-        Frame f = new Frame();
-        f.directBuffer = createByteBufferAndEncode(streamId, type, data, metadata);
-        return f;
+        final Frame frame =
+            POOL.acquireFrame(FrameHeaderFlyweight.computeFrameHeaderLength(type, metadata.capacity(), data.capacity()));
+
+        FrameHeaderFlyweight.encode(frame.directBuffer, 0, streamId, type, metadata, data);
+        return frame;
     }
 
     public static Frame from(long streamId, FrameType type, ByteBuffer data)
@@ -168,6 +211,7 @@ public class Frame implements Payload
     {
     	final ByteBuffer d = payload.getData() != null ? payload.getData() : NULL_BYTEBUFFER;
     	final ByteBuffer md = payload.getMetadata() != null ? payload.getMetadata() : NULL_BYTEBUFFER;
+
         return from(streamId, type, d, md);
     }
 
@@ -176,7 +220,7 @@ public class Frame implements Payload
         return from(streamId, type, NULL_BYTEBUFFER, NULL_BYTEBUFFER);
     }
 
-    public static Frame from(long streamId, final Throwable throwable)
+    public static Frame fromError(long streamId, final Throwable throwable)
     {
         final byte[] bytes = throwable.getMessage().getBytes();
         final ByteBuffer byteBuffer = ByteBuffer.wrap(bytes);
@@ -209,7 +253,7 @@ public class Frame implements Payload
         final ByteBuffer data = payload.getData();
 
         final Frame frame =
-            allocFrame(SetupFrameFlyweight.computeFrameLength(metadataMimeType, dataMimeType, metadata.capacity(), data.capacity()));
+            POOL.acquireFrame(SetupFrameFlyweight.computeFrameLength(metadataMimeType, dataMimeType, metadata.capacity(), data.capacity()));
 
         SetupFrameFlyweight.encode(
             frame.directBuffer, 0, flags, keepaliveInterval, maxLifetime, metadataMimeType, dataMimeType, metadata, data);
@@ -218,7 +262,7 @@ public class Frame implements Payload
 
     public static Frame fromSetupError(int code, String metadata, String data)
     {
-        final Frame frame = allocFrame(SetupErrorFrameFlyweight.computeFrameLength(data.length(), metadata.length()));
+        final Frame frame = POOL.acquireFrame(SetupErrorFrameFlyweight.computeFrameLength(data.length(), metadata.length()));
 
         byte[] bytes;
 
@@ -230,28 +274,6 @@ public class Frame implements Payload
 
         SetupErrorFrameFlyweight.encode(frame.directBuffer, 0, code, metadataBuffer, dataBuffer);
         return frame;
-    }
-
-    private static Frame allocFrame(final int size)
-    {
-        // TODO: pool these separately?
-        return new Frame(allocMutableDirectBuffer(size));
-    }
-
-    private static MutableDirectBuffer allocMutableDirectBuffer(final int size)
-    {
-        // TODO: pool these and underling ByteBuffers
-        // TODO: allocation side effect of how this works currently with the rest of the machinery.
-        return new UnsafeBuffer(ByteBuffer.allocate(size));
-    }
-
-    private static MutableDirectBuffer createByteBufferAndEncode(
-        long streamId, FrameType type, ByteBuffer data, ByteBuffer metadata)
-    {
-        final MutableDirectBuffer buffer = allocMutableDirectBuffer(FrameHeaderFlyweight.computeFrameHeaderLength(type, metadata.capacity(), data.capacity()));
-
-        FrameHeaderFlyweight.encode(buffer, 0, streamId, type, metadata, data);
-        return buffer;
     }
 
     // SETUP specific getters
@@ -311,7 +333,7 @@ public class Frame implements Payload
 
     @Override
     public String toString() {
-        FrameType type = FrameType.SETUP;
+        FrameType type = FrameType.UNDEFINED;
         StringBuilder payload = new StringBuilder();
         long streamId = -1;
 

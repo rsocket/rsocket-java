@@ -299,7 +299,7 @@ public class Responder {
 
 								@Override
 								public void onError(Throwable t) {
-									child.onNext(Frame.from(streamId, t));
+									child.onNext(Frame.fromError(streamId, t));
 									cleanup();
 								}
 
@@ -409,7 +409,7 @@ public class Responder {
 
 								@Override
 								public void onError(Throwable t) {
-									child.onNext(Frame.from(streamId, t));
+									child.onNext(Frame.fromError(streamId, t));
 									child.onComplete();
 									cleanup();
 								}
@@ -537,7 +537,7 @@ public class Responder {
 
 									@Override
 									public void onError(Throwable t) {
-										child.onNext(Frame.from(streamId, t));
+										child.onNext(Frame.fromError(streamId, t));
 										child.onComplete();
 										cleanup();
 									}

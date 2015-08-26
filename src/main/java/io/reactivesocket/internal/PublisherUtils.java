@@ -33,7 +33,7 @@ public class PublisherUtils {
 				@Override
 				public void request(long n) {
 					if (n > 0) {
-						s.onNext(Frame.from(streamId, e));
+						s.onNext(Frame.fromError(streamId, e));
 						s.onComplete();
 					}
 				}

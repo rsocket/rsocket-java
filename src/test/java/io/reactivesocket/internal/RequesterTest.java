@@ -85,7 +85,7 @@ public class RequesterTest
         assertEquals("hello", byteToString(one.getData()));
         assertEquals(FrameType.REQUEST_RESPONSE, one.getType());
 
-        conn.toInput.onNext(Frame.from(2, new RuntimeException("Failed")));
+        conn.toInput.onNext(Frame.fromError(2, new RuntimeException("Failed")));
         ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
         ts.assertError(Exception.class);
         assertEquals("Failed", ts.getOnErrorEvents().get(0).getMessage());
