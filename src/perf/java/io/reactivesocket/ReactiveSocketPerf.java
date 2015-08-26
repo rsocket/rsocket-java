@@ -15,7 +15,6 @@ import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
-import io.reactivesocket.perfutil.LatchedSubscriber;
 import io.reactivesocket.perfutil.PerfTestConnection;
 
 @BenchmarkMode(Mode.Throughput)
@@ -24,12 +23,14 @@ public class ReactiveSocketPerf {
 
 	@Benchmark
 	public void requestResponseHello(Input input) {
-		Input.client.requestResponse(Input.HELLO_PAYLOAD).subscribe(input.latchedSubscriber);
+		// this is synchronous so we don't need to use a CountdownLatch to wait
+		Input.client.requestResponse(Input.HELLO_PAYLOAD).subscribe(input.blackholeConsumer);
 	}
 
 	@Benchmark
 	public void requestStreamHello1000(Input input) {
-		Input.client.requestStream(Input.HELLO_PAYLOAD).subscribe(input.latchedSubscriber);
+		// this is synchronous so we don't need to use a CountdownLatch to wait
+		Input.client.requestStream(Input.HELLO_PAYLOAD).subscribe(input.blackholeConsumer);
 	}
 
 	@State(Scope.Thread)
@@ -117,7 +118,7 @@ public class ReactiveSocketPerf {
 			}
 
 		};
-		
+
 		final static ReactiveSocket serverSocket = ReactiveSocket.fromServerConnection(serverConnection, setupFrame -> handler);
 
 		final static ReactiveSocket client = ReactiveSocket.fromClientConnection(clientConnection, "UTF-8");
@@ -127,12 +128,34 @@ public class ReactiveSocketPerf {
 			client.start();
 		}
 
-		LatchedSubscriber<Payload> latchedSubscriber;
+		Subscriber<Payload> blackholeConsumer; // reuse this each time
 
 		@Setup
 		public void setup(Blackhole bh) {
 			this.bh = bh;
-			latchedSubscriber = new LatchedSubscriber<Payload>(bh);
+			blackholeConsumer = new Subscriber<Payload>() {
+
+				@Override
+				public void onSubscribe(Subscription s) {
+					s.request(Long.MAX_VALUE);
+				}
+
+				@Override
+				public void onNext(Payload t) {
+					bh.consume(t);
+				}
+
+				@Override
+				public void onError(Throwable t) {
+
+				}
+
+				@Override
+				public void onComplete() {
+
+				}
+
+			};
 		}
 	}
 

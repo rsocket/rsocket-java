@@ -31,7 +31,6 @@ import io.reactivesocket.Frame;
 import io.reactivesocket.FrameType;
 import io.reactivesocket.Payload;
 import io.reactivesocket.exceptions.SetupException;
-import io.reactivesocket.exceptions.SetupException.SetupErrorCode;
 import uk.co.real_logic.agrona.collections.Long2ObjectHashMap;
 
 /**
@@ -331,19 +330,20 @@ public class Requester {
 
 		@Override
 		public void onNext(Frame frame) {
+			FrameType type = frame.getType();
 			// convert ERROR messages into terminal events
-			if (frame.getType() == FrameType.NEXT) {
+			if (type == FrameType.NEXT) {
 				child.onNext(frame);
-			} else if (frame.getType() == FrameType.COMPLETE) {
+			} else if (type == FrameType.COMPLETE) {
 				terminated.set(true);
 				onComplete();
 				cancel();
-			} else if (frame.getType() == FrameType.NEXT_COMPLETE) {
+			} else if (type == FrameType.NEXT_COMPLETE) {
 				terminated.set(true);
 				child.onNext(frame);
 				onComplete();
 				cancel();
-			} else if (frame.getType() == FrameType.ERROR) {
+			} else if (type == FrameType.ERROR) {
 				terminated.set(true);
 				final ByteBuffer byteBuffer = frame.getData();
 				String errorMessage = getByteBufferAsString(byteBuffer);
