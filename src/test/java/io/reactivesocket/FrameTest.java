@@ -397,6 +397,7 @@ public class FrameTest
         final long numberOfRequests = 16;
         final Frame f = Frame.fromLease(ttl, numberOfRequests, Frame.NULL_BYTEBUFFER);
 
+        assertEquals(0, f.getStreamId());
         assertEquals(FrameType.LEASE, f.getType());
         assertEquals(ttl, Frame.Lease.ttl(f));
         assertEquals(numberOfRequests, Frame.Lease.numberOfRequests(f));
@@ -413,6 +414,7 @@ public class FrameTest
 
         final Frame f = Frame.fromLease(ttl, numberOfRequests, leaseMetadata);
 
+        assertEquals(0, f.getStreamId());
         assertEquals(FrameType.LEASE, f.getType());
         assertEquals(ttl, Frame.Lease.ttl(f));
         assertEquals(numberOfRequests, Frame.Lease.numberOfRequests(f));
