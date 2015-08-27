@@ -69,7 +69,7 @@ public class RequesterResponderInteractionTest
                 .subscribe(clientConnection.toInput);
 
 
-        responder = Responder.create(setup -> RequestHandler.create(
+        responder = Responder.create(serverConnection, setup -> RequestHandler.create(
             requestResponsePayload -> {
                 final String requestResponse = TestUtil.byteToString(requestResponsePayload.getData());
 
@@ -123,10 +123,9 @@ public class RequesterResponderInteractionTest
                 {
                     return toPublisher(error(new Exception("Not Found!")));
                 }
-            }));
+            }), err -> err.printStackTrace());
 
-        toObservable(responder.acceptConnection(serverConnection)).subscribe();// start handling the connection
-        requester = Requester.createClientRequester(clientConnection, ConnectionSetupPayload.create("UTF-8", "UTF-8"));
+        requester = Requester.createClientRequester(clientConnection, ConnectionSetupPayload.create("UTF-8", "UTF-8"), err -> err.printStackTrace());
     }
 
     @Ignore

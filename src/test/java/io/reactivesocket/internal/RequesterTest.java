@@ -16,35 +16,32 @@
 package io.reactivesocket.internal;
 
 import static io.reactivesocket.TestUtil.*;
+import static org.junit.Assert.*;
+import static rx.RxReactiveStreams.*;
+
+import java.util.Arrays;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 import org.junit.Test;
-import org.reactivestreams.Subscriber;
-import org.reactivestreams.Subscription;
 
 import io.reactivesocket.ConnectionSetupPayload;
 import io.reactivesocket.Frame;
 import io.reactivesocket.FrameType;
 import io.reactivesocket.Payload;
 import io.reactivesocket.TestConnection;
-import io.reactivesocket.internal.Requester;
 import rx.observers.TestSubscriber;
 import rx.subjects.ReplaySubject;
-import uk.co.real_logic.agrona.collections.Long2ObjectHashMap;
-
-import java.util.Arrays;
-import java.util.List;
-import java.util.concurrent.TimeUnit;
-
-import static org.junit.Assert.assertEquals;
-import static rx.RxReactiveStreams.toObservable;
 
 public class RequesterTest
 {
+	final static Consumer<Throwable> ERROR_HANDLER = err -> err.printStackTrace();
+	
     @Test
     public void testRequestResponseSuccess() {
         TestConnection conn = establishConnection();
-        Requester p = Requester.createClientRequester(conn, ConnectionSetupPayload.create("UTF-8", "UTF-8"));
-        toObservable(p.start()).subscribe();
+        Requester p = Requester.createClientRequester(conn, ConnectionSetupPayload.create("UTF-8", "UTF-8"), ERROR_HANDLER);
         ReplaySubject<Frame> requests = captureRequests(conn);
 
         TestSubscriber<Payload> ts = TestSubscriber.create();
@@ -70,8 +67,7 @@ public class RequesterTest
     @Test
     public void testRequestResponseError() {
         TestConnection conn = establishConnection();
-        Requester p = Requester.createClientRequester(conn, ConnectionSetupPayload.create("UTF-8", "UTF-8"));
-        toObservable(p.start()).subscribe();
+        Requester p = Requester.createClientRequester(conn, ConnectionSetupPayload.create("UTF-8", "UTF-8"), ERROR_HANDLER);
         ReplaySubject<Frame> requests = captureRequests(conn);
 
         TestSubscriber<Payload> ts = TestSubscriber.create();
@@ -94,8 +90,7 @@ public class RequesterTest
     @Test
     public void testRequestResponseCancel() {
         TestConnection conn = establishConnection();
-        Requester p = Requester.createClientRequester(conn, ConnectionSetupPayload.create("UTF-8", "UTF-8"));
-        toObservable(p.start()).subscribe();
+        Requester p = Requester.createClientRequester(conn, ConnectionSetupPayload.create("UTF-8", "UTF-8"), ERROR_HANDLER);
         ReplaySubject<Frame> requests = captureRequests(conn);
 
         TestSubscriber<Payload> ts = TestSubscriber.create();
@@ -124,8 +119,7 @@ public class RequesterTest
     @Test
     public void testRequestStreamSuccess() {
         TestConnection conn = establishConnection();
-        Requester p = Requester.createClientRequester(conn, ConnectionSetupPayload.create("UTF-8", "UTF-8"));
-        toObservable(p.start()).subscribe();
+        Requester p = Requester.createClientRequester(conn, ConnectionSetupPayload.create("UTF-8", "UTF-8"), ERROR_HANDLER);
         ReplaySubject<Frame> requests = captureRequests(conn);
 
         TestSubscriber<Payload> ts = TestSubscriber.create();
@@ -154,8 +148,7 @@ public class RequesterTest
     @Test
     public void testRequestStreamSuccessTake2AndCancel() {
         TestConnection conn = establishConnection();
-        Requester p = Requester.createClientRequester(conn, ConnectionSetupPayload.create("UTF-8", "UTF-8"));
-        toObservable(p.start()).subscribe();
+        Requester p = Requester.createClientRequester(conn, ConnectionSetupPayload.create("UTF-8", "UTF-8"), ERROR_HANDLER);
         ReplaySubject<Frame> requests = captureRequests(conn);
 
         TestSubscriber<Payload> ts = TestSubscriber.create();
@@ -191,8 +184,7 @@ public class RequesterTest
     @Test
     public void testRequestStreamError() {
         TestConnection conn = establishConnection();
-        Requester p = Requester.createClientRequester(conn, ConnectionSetupPayload.create("UTF-8", "UTF-8"));
-        toObservable(p.start()).subscribe();
+        Requester p = Requester.createClientRequester(conn, ConnectionSetupPayload.create("UTF-8", "UTF-8"), ERROR_HANDLER);
         ReplaySubject<Frame> requests = captureRequests(conn);
 
         TestSubscriber<Payload> ts = TestSubscriber.create();
