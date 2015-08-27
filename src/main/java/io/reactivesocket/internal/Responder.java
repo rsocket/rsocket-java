@@ -68,6 +68,29 @@ public class Responder {
 		return responder;
 	}
 
+	/**
+	 * Send a LEASE frame immediately
+	 *
+	 * @param ttl of lease
+	 * @param numberOfRequests of lease
+	 */
+	public void sendLease(final int ttl, final int numberOfRequests)
+	{
+		connection.addOutput(PublisherUtils.just(Frame.fromLease(ttl, numberOfRequests, Frame.NULL_BYTEBUFFER)), new Completable()
+		{
+			@Override
+			public void success()
+			{
+			}
+
+			@Override
+			public void error(Throwable e)
+			{
+				errorStream.accept(new RuntimeException("could not send lease ", e));
+			}
+		});
+	}
+
 	private void start() {
 		/* state of cancellation subjects during connection */
 		final Long2ObjectHashMap<Subscription> cancellationSubscriptions = new Long2ObjectHashMap<>();

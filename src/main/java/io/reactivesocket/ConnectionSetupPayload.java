@@ -24,6 +24,7 @@ import java.nio.ByteBuffer;
  */
 public abstract class ConnectionSetupPayload implements Payload
 {
+	public static final int NO_FLAGS = 0;
 	public static final int HONOR_LEASE = SetupFrameFlyweight.FLAGS_WILL_HONOR_LEASE;
 	public static final int STRICT_INTERPRETATION = SetupFrameFlyweight.FLAGS_STRICT_INTERPRETATION;
 
@@ -74,7 +75,38 @@ public abstract class ConnectionSetupPayload implements Payload
     	    }
     	};
 	}
-	
+
+	public static ConnectionSetupPayload create(String metadataMimeType, String dataMimeType, int flags)
+	{
+		return new ConnectionSetupPayload() {
+			public String metadataMimeType()
+			{
+				return metadataMimeType;
+			}
+
+			public String dataMimeType()
+			{
+				return dataMimeType;
+			}
+
+			public ByteBuffer getData()
+			{
+				return Frame.NULL_BYTEBUFFER;
+			}
+
+			public ByteBuffer getMetadata()
+			{
+				return Frame.NULL_BYTEBUFFER;
+			}
+
+			@Override
+			public int getFlags()
+			{
+				return flags;
+			}
+		};
+	}
+
     public static ConnectionSetupPayload create(final Frame setupFrame)
     {
     	Frame.ensureFrameType(FrameType.SETUP, setupFrame);

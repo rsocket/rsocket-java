@@ -121,7 +121,7 @@ public class ReactiveSocketPerf {
 
 		final static ReactiveSocket serverSocket = ReactiveSocket.fromServerConnection(serverConnection, setupFrame -> handler);
 
-		final static ReactiveSocket client = ReactiveSocket.fromClientConnection(clientConnection, "UTF-8");
+		final static ReactiveSocket client = ReactiveSocket.fromClientConnection(clientConnection, ConnectionSetupPayload.create("UTF-8", "UTF-8"), t -> {});
 
 		static {
 			serverSocket.start();

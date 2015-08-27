@@ -21,6 +21,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
+import io.reactivesocket.exceptions.LeaseException;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
@@ -46,9 +47,13 @@ public class Requester {
 	private final boolean isServer;
 	private final DuplexConnection connection;
 	private final Long2ObjectHashMap<UnicastSubject<Frame>> streamInputMap = new Long2ObjectHashMap<>();
-	private int streamCount = 0;// 0 is reserved for setup, all normal messages are >= 1
 	private final ConnectionSetupPayload setupPayload;
 	private final Consumer<Throwable> errorStream;
+	private final boolean honorLease;
+
+	private long ttlExpiration;
+	private int numberOfRemainingRequests = 0;
+	private int streamCount = 0; // 0 is reserved for setup, all normal messages are >= 1
 
 	private Requester(boolean isServer, DuplexConnection connection, ConnectionSetupPayload setupPayload, Consumer<Throwable> errorStream) {
 		this.isServer = isServer;
@@ -59,6 +64,15 @@ public class Requester {
 			streamCount = 1; // server is odds
 		} else {
 			streamCount = 0; // client is even
+		}
+
+		if (setupPayload.willClientHonorLease())
+		{
+			this.honorLease = true;
+		}
+		else
+		{
+			this.honorLease = false;
 		}
 	}
 
@@ -125,6 +139,17 @@ public class Requester {
 					public void request(long n) {
 						if (!started && n > 0) {
 							started = true;
+
+							// does lease allow for sending request
+							if (!canRequest())
+							{
+								child.onError(new LeaseException());
+							}
+							else
+							{
+								numberOfRemainingRequests--;
+							}
+
 							connection.addOutput(PublisherUtils.just(Frame.from(nextStreamId(), FrameType.FIRE_AND_FORGET, payload)), new Completable() {
 
 								@Override
@@ -173,6 +198,16 @@ public class Requester {
 	}
 
 	/**
+	 * Return availability of sending requests
+	 *
+	 * @return
+	 */
+	public double availability()
+	{
+		return (canRequest() ? 1.0 : 0.0);
+	}
+
+	/**
 	 * Start a stream with a single request Payload.
 	 * 
 	 * @param streamId
@@ -215,6 +250,7 @@ public class Requester {
 		if (payload == null && payloads == null) {
 			throw new IllegalStateException("Both payload and payloads can not be null");
 		}
+
 		return (Subscriber<? super Payload> child) -> {
 			child.onSubscribe(new Subscription() {
 
@@ -242,6 +278,16 @@ public class Requester {
 
 						// connect to transport
 						writer = UnicastSubject.create(w -> {
+							// does lease allow for sending request
+							if (!canRequest())
+							{
+								w.onError(new LeaseException());
+							}
+							else
+							{
+								numberOfRemainingRequests--;
+							}
+
 							// when transport connects we write the request frame for this stream
 							if (payload != null) {
 								w.onNext(Frame.from(streamId, type, payload));
@@ -278,10 +324,12 @@ public class Requester {
 							}
 
 						});
-						connection.addOutput(writer, new Completable() {
+						connection.addOutput(writer, new Completable()
+						{
 
 							@Override
-							public void success() {
+							public void success()
+							{
 								// nothing to do onSuccess
 							}
 
@@ -420,8 +468,9 @@ public class Requester {
 				if (frame.getStreamId() == 0) {
 					if (FrameType.SETUP_ERROR.equals(frame.getType())) {
 						onError(new SetupException(frame));
-					} else if (FrameType.LEASE.equals(frame.getType())) {
-						// TODO do magic
+					} else if (FrameType.LEASE.equals(frame.getType()) && honorLease) {
+						numberOfRemainingRequests = Frame.Lease.numberOfRequests(frame);
+						ttlExpiration = System.nanoTime() + Frame.Lease.ttl(frame);
 					} else {
 						onError(new RuntimeException("Received unexpected message type on stream 0: " + frame.getType().name()));
 					}
@@ -465,5 +514,21 @@ public class Requester {
 		final byte[] bytes = new byte[bb.capacity()];
 		bb.get(bytes);
 		return new String(bytes, Charset.forName("UTF-8"));
+	}
+
+	private boolean canRequest()
+	{
+		boolean result = false;
+
+		if (!honorLease)
+		{
+			result = true;
+		}
+		else if (numberOfRemainingRequests > 0 && (System.nanoTime() < ttlExpiration))
+		{
+			result = true;
+		}
+
+		return result;
 	}
 }

@@ -19,6 +19,7 @@ import static io.reactivesocket.TestUtil.*;
 import static org.junit.Assert.*;
 import static rx.Observable.*;
 import static rx.RxReactiveStreams.*;
+import static io.reactivesocket.ConnectionSetupPayload.NO_FLAGS;
 
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -120,7 +121,7 @@ public class ReactiveSocketTest {
 
 		}, t -> lastServerError.set(t));
 
-		socketClient = ReactiveSocket.fromClientConnection(clientConnection, "UTF-8");
+		socketClient = ReactiveSocket.fromClientConnection(clientConnection, ConnectionSetupPayload.create("UTF-8", "UTF-8", NO_FLAGS), t -> {});
 
 		// start both the server and client and monitor for errors
 		socketServer.start();

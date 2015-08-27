@@ -279,6 +279,14 @@ public class Frame implements Payload
         return frame;
     }
 
+    public static Frame fromLease(int ttl, int numberOfRequests, ByteBuffer metadata)
+    {
+        final Frame frame = POOL.acquireFrame(LeaseFrameFlyweight.computeFrameLength(metadata.capacity()));
+
+        LeaseFrameFlyweight.encode(frame.directBuffer, 0, ttl, numberOfRequests, metadata);
+        return frame;
+    }
+
     // SETUP specific getters
     public static class Setup
     {
@@ -321,6 +329,21 @@ public class Frame implements Payload
         {
             ensureFrameType(FrameType.SETUP_ERROR, frame);
             return SetupErrorFrameFlyweight.errorCode(frame.directBuffer, 0);
+        }
+    }
+
+    public static class Lease
+    {
+        public static int ttl(final Frame frame)
+        {
+            ensureFrameType(FrameType.LEASE, frame);
+            return LeaseFrameFlyweight.ttl(frame.directBuffer, 0);
+        }
+
+        public static int numberOfRequests(final Frame frame)
+        {
+            ensureFrameType(FrameType.LEASE, frame);
+            return LeaseFrameFlyweight.numRequests(frame.directBuffer, 0);
         }
     }
 

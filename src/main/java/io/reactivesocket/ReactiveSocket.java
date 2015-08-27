@@ -125,72 +125,6 @@ public class ReactiveSocket implements AutoCloseable {
 	}
 
 	/**
-	 * Create a ReactiveSocket from a client-side {@link DuplexConnection}. 
-	 * <p>
-	 * A client-side connection is one that initiated the connection with a server and will 
-	 * define the ReactiveSocket behaviors via the {@link ConnectionSetupPayload} that define mime-types, 
-	 * leasing behavior and other connection-level details.
-	 * <p>
-	 * If this ReactiveSocket receives requests from the server it will respond with "Not Found" errors.
-	 * 
-	 * @param connection
-	 *            DuplexConnection of client-side initiated connection for the ReactiveSocket protocol to use.
-	 * @param metadataMimeType
-	 *            String mime-type for Metadata (this is sent via ConnectionSetupPayload on the initial Setup Frame).
-	 * @param dataMimeType
-	 *            String mime-type for Data (this is sent via ConnectionSetupPayload on the initial Setup Frame).
-	 * @param errorStream
-	 *            (Optional) Callback for errors while processing streams over connection. If 'null' then error messages will be output to System.err.
-	 * @return ReactiveSocket for start, shutdown and sending requests.
-	 */
-	public static ReactiveSocket fromClientConnection(DuplexConnection connection, String metadataMimeType, String dataMimeType, Consumer<Throwable> errorStream) {
-		return fromClientConnection(connection, ConnectionSetupPayload.create(metadataMimeType, dataMimeType), errorStream);
-	}
-	
-	/**
-	 * Create a ReactiveSocket from a client-side {@link DuplexConnection}. 
-	 * <p>
-	 * A client-side connection is one that initiated the connection with a server and will 
-	 * define the ReactiveSocket behaviors via the {@link ConnectionSetupPayload} that define mime-types, 
-	 * leasing behavior and other connection-level details.
-	 * <p>
-	 * If this ReactiveSocket receives requests from the server it will respond with "Not Found" errors.
-	 * 
-	 * @param connection
-	 *            DuplexConnection of client-side initiated connection for the ReactiveSocket protocol to use.
-	 * @param mimeType
-	 *            String mime-type for Data and Metadata (this is sent via ConnectionSetupPayload on the initial Setup Frame).
-	 * @param errorStream
-	 *            (Optional) Callback for errors while processing streams over connection. If 'null' then error messages will be output to System.err.
-	 * @return ReactiveSocket for start, shutdown and sending requests.
-	 */
-	public static ReactiveSocket fromClientConnection(DuplexConnection connection, String mimeType, Consumer<Throwable> errorStream) {
-		return fromClientConnection(connection, ConnectionSetupPayload.create(mimeType, mimeType), errorStream);
-	}
-	
-	/**
-	 * Create a ReactiveSocket from a client-side {@link DuplexConnection}. 
-	 * <p>
-	 * A client-side connection is one that initiated the connection with a server and will 
-	 * define the ReactiveSocket behaviors via the {@link ConnectionSetupPayload} that define mime-types, 
-	 * leasing behavior and other connection-level details.
-	 * <p>
-	 * If this ReactiveSocket receives requests from the server it will respond with "Not Found" errors.
-	 * <p>
-	 * Error messages will be output to System.err.
-	 * 
-	 * @param connection
-	 *            DuplexConnection of client-side initiated connection for the ReactiveSocket protocol to use.
-	 * @param mimeType
-	 *            String mime-type for Data and Metadata (this is sent via ConnectionSetupPayload on the initial Setup Frame).
-	 * @return ReactiveSocket for start, shutdown and sending requests.
-	 */
-	public static ReactiveSocket fromClientConnection(DuplexConnection connection, String mimeType) {
-		return fromClientConnection(connection, ConnectionSetupPayload.create(mimeType, mimeType), DEFAULT_ERROR_STREAM);
-	}
-
-
-	/**
 	 * Create a ReactiveSocket from a server-side {@link DuplexConnection}. 
 	 * <p>
 	 * A server-side connection is one that accepted the connection from a client and will 
@@ -251,14 +185,13 @@ public class ReactiveSocket implements AutoCloseable {
 	/**
 	 * Client check for availability to send request based on lease
 	 *
-	 * @return
+	 * @return 0.0 to 1.0 indicating availability of sending requests
 	 */
 	public double availability()
 	{
-		// TODO: ensure client
-		// TODO:
-
-		return 0;
+		// TODO: can happen in either direction
+		assertRequester();
+		return requester.availability();
 	}
 
 	/**
@@ -269,10 +202,10 @@ public class ReactiveSocket implements AutoCloseable {
 	 * @param ttl
 	 * @param numberOfRequests
 	 */
-	public void renewLease(int ttl, int numberOfRequests)
+	public void sendLease(int ttl, int numberOfRequests)
 	{
-		// TODO:
-//		responder.sendLease(ttl, numberOfRequests);
+		// TODO: can happen in either direction
+		responder.sendLease(ttl, numberOfRequests);
 	}
 
 	/**
