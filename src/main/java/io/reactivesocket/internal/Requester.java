@@ -19,6 +19,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
@@ -47,30 +48,36 @@ public class Requester {
 	private final Long2ObjectHashMap<UnicastSubject<Frame>> streamInputMap = new Long2ObjectHashMap<>();
 	private int streamCount = 0;// 0 is reserved for setup, all normal messages are >= 1
 	private final ConnectionSetupPayload setupPayload;
+	private final Consumer<Throwable> errorStream;
 
-	private Requester(boolean isServer, DuplexConnection connection, ConnectionSetupPayload setupPayload) {
+	private Requester(boolean isServer, DuplexConnection connection, ConnectionSetupPayload setupPayload, Consumer<Throwable> errorStream) {
 		this.isServer = isServer;
 		this.connection = connection;
 		this.setupPayload = setupPayload;
-		if(isServer) {
+		this.errorStream = errorStream;
+		if (isServer) {
 			streamCount = 1; // server is odds
 		} else {
 			streamCount = 0; // client is even
 		}
 	}
 
-	public static Requester createClientRequester(DuplexConnection connection, ConnectionSetupPayload setupPayload) {
-		return new Requester(false, connection, setupPayload);
+	public static Requester createClientRequester(DuplexConnection connection, ConnectionSetupPayload setupPayload, Consumer<Throwable> errorStream) {
+		Requester requester = new Requester(false, connection, setupPayload, errorStream);
+		requester.start();
+		return requester;
 	}
 
-	public static Requester createServerRequester(DuplexConnection connection) {
-		return new Requester(true, connection, null);
+	public static Requester createServerRequester(DuplexConnection connection, Consumer<Throwable> errorStream) {
+		Requester requester = new Requester(true, connection, null, errorStream);
+		requester.start();
+		return requester;
 	}
 
 	public boolean isServer() {
 		return isServer;
 	}
-	
+
 	/**
 	 * Request/Response with a single message response.
 	 * 
@@ -105,8 +112,7 @@ public class Requester {
 			throw new IllegalStateException("Payload can not be null");
 		}
 		// TODO assert connection is ready (after start() and SETUP frame is sent)
-		
-		
+
 		return new Publisher<Void>() {
 
 			@Override
@@ -114,9 +120,10 @@ public class Requester {
 				child.onSubscribe(new Subscription() {
 
 					boolean started = false;
+
 					@Override
 					public void request(long n) {
-						if(!started && n > 0) {
+						if (!started && n > 0) {
 							started = true;
 							connection.addOutput(PublisherUtils.just(Frame.from(nextStreamId(), FrameType.FIRE_AND_FORGET, payload)), new Completable() {
 
@@ -127,9 +134,9 @@ public class Requester {
 
 								@Override
 								public void error(Throwable e) {
-									child.onError(e);									
+									child.onError(e);
 								}
-								
+
 							});
 						}
 					}
@@ -138,10 +145,10 @@ public class Requester {
 					public void cancel() {
 						// nothing to cancel on a fire-and-forget
 					}
-					
+
 				});
 			}
-			
+
 		};
 	}
 
@@ -221,10 +228,10 @@ public class Requester {
 					if (!started) {
 						started = true;
 
-						if(payloads != null) {
+						if (payloads != null) {
 							payloadsSubscription = new AtomicReference<Subscription>();
 						}
-						
+
 						// Response frames for this Stream
 						UnicastSubject<Frame> transportInputSubject = UnicastSubject.create();
 						streamInputMap.put(streamId, transportInputSubject);
@@ -281,9 +288,9 @@ public class Requester {
 							@Override
 							public void error(Throwable e) {
 								child.onError(e);
-								cancel();								
+								cancel();
 							}
-							
+
 						});
 					} else {
 						// propagate further requestN frames
@@ -373,101 +380,85 @@ public class Requester {
 	}
 
 	private int nextStreamId() {
-		return streamCount+=2; // go by two since server is odd, client is even
+		return streamCount += 2; // go by two since server is odd, client is even
 	}
 
-	public Publisher<Void> start() {
-		return (Subscriber<? super Void> terminalObserver) -> {
-			terminalObserver.onSubscribe(new Subscription() {
+	private void start() {
+		AtomicReference<Subscription> connectionSubscription = new AtomicReference<>();
+		// get input from responder->requestor for responses
+		connection.getInput().subscribe(new Subscriber<Frame>() {
+			public void onSubscribe(Subscription s) {
+				if (connectionSubscription.compareAndSet(null, s)) {
+					s.request(Long.MAX_VALUE);
 
-				boolean started = false;
-				AtomicReference<Subscription> connectionSubscription = new AtomicReference<>();
+					// now that we are connected, send SETUP frame (asynchronously, other messages can continue being written after this)
+					connection.addOutput(PublisherUtils.just(Frame.fromSetup(setupPayload.getFlags(), 0, 0, setupPayload.metadataMimeType(), setupPayload.dataMimeType(), setupPayload)),
+							new Completable() {
 
-				@Override
-				public void request(long n) {
-					if (!started) {
-						started = true;
-						// get input from responder->requestor for responses
-						connection.getInput().subscribe(new Subscriber<Frame>() {
-							public void onSubscribe(Subscription s) {
-								if (connectionSubscription.compareAndSet(null, s)) {
-									s.request(Long.MAX_VALUE);
-									
-									// now that we are connected, send SETUP frame (asynchronously, other messages can continue being written after this)
-									connection.addOutput(PublisherUtils.just(Frame.fromSetup(setupPayload.getFlags(), 0, 0, setupPayload.metadataMimeType(), setupPayload.dataMimeType(), setupPayload)),
-											new Completable() {
+						@Override
+						public void success() {
+							// nothing to do
+						}
 
-												@Override
-												public void success() {
-													// nothing to do
-												}
+						@Override
+						public void error(Throwable e) {
+							tearDown(e);
+						}
 
-												@Override
-												public void error(Throwable e) {
-													tearDown(e);													
-												}
-										
-									});
-								} else {
-									// means we already were cancelled
-									s.cancel();
-								}
-							}
+					});
+				} else {
+					// means we already were cancelled
+					s.cancel();
+				}
+			}
 
-							private void tearDown(Throwable e) {
-								onError(e);
-							}
-							
-							public void onNext(Frame frame) {
-								if (frame.getStreamId() == 0) {
-									if(FrameType.SETUP_ERROR.equals(frame.getType())) {
-										onError(new SetupException(frame));
-									} else if(FrameType.LEASE.equals(frame.getType())) {
-										// TODO do magic
-									} else {
-										onError(new RuntimeException("Received unexpected message type on stream 0: " + frame.getType().name()));
-									}
-								} else {
-									UnicastSubject<Frame> streamSubject = streamInputMap.get(frame.getStreamId());
-									if (streamSubject == null) {
-										// if we can't find one, we have a problem with the overall connection and must tear down
-										if (frame.getType() == FrameType.ERROR) {
-											String errorMessage = getByteBufferAsString(frame.getData());
-											onError(new RuntimeException("Received error for non-existent stream: " + frame.getStreamId() + " Message: " + errorMessage));
-										} else {
-											onError(new RuntimeException("Received message for non-existent stream: " + frame.getStreamId()));
-										}
-									} else {
-										streamSubject.onNext(frame);
-									}
-								}
-							}
+			private void tearDown(Throwable e) {
+				onError(e);
+			}
 
-							public void onError(Throwable t) {
-								streamInputMap.forEach((id, subject) -> subject.onError(t));
-								// TODO: iterate over responder side and destroy world
-								terminalObserver.onError(t);
-							}
-
-							public void onComplete() {
-								// TODO: might be a RuntimeException
-								streamInputMap.forEach((id, subject) -> subject.onComplete());
-								// TODO: iterate over responder side and destroy world
-								terminalObserver.onComplete();
-							}
-						});
+			public void onNext(Frame frame) {
+				if (frame.getStreamId() == 0) {
+					if (FrameType.SETUP_ERROR.equals(frame.getType())) {
+						onError(new SetupException(frame));
+					} else if (FrameType.LEASE.equals(frame.getType())) {
+						// TODO do magic
+					} else {
+						onError(new RuntimeException("Received unexpected message type on stream 0: " + frame.getType().name()));
+					}
+				} else {
+					UnicastSubject<Frame> streamSubject = streamInputMap.get(frame.getStreamId());
+					if (streamSubject == null) {
+						// if we can't find one, we have a problem with the overall connection and must tear down
+						if (frame.getType() == FrameType.ERROR) {
+							String errorMessage = getByteBufferAsString(frame.getData());
+							onError(new RuntimeException("Received error for non-existent stream: " + frame.getStreamId() + " Message: " + errorMessage));
+						} else {
+							onError(new RuntimeException("Received message for non-existent stream: " + frame.getStreamId()));
+						}
+					} else {
+						streamSubject.onNext(frame);
 					}
 				}
+			}
 
-				@Override
-				public void cancel() {
-					if (!connectionSubscription.compareAndSet(null, CANCELLED)) {
-						// cancel the one that was there if we failed to set the sentinel
-						connectionSubscription.get().cancel();
-					}
+			public void onError(Throwable t) {
+				streamInputMap.forEach((id, subject) -> subject.onError(t));
+				// TODO: iterate over responder side and destroy world
+				errorStream.accept(t);
+			}
+
+			public void onComplete() {
+				// TODO: might be a RuntimeException
+				streamInputMap.forEach((id, subject) -> subject.onComplete());
+			}
+
+			public void cancel() { // TODO this isn't used ... is it supposed to be?
+				if (!connectionSubscription.compareAndSet(null, CANCELLED)) {
+					// cancel the one that was there if we failed to set the sentinel
+					connectionSubscription.get().cancel();
 				}
-			});
-		};
+			}
+		});
 	}
 
 	private static String getByteBufferAsString(ByteBuffer bb) {

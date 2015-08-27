@@ -62,14 +62,15 @@ public class ReactiveSocket implements AutoCloseable {
 	private final boolean isServer;
 	private final Consumer<Throwable> errorStream;
 	private Requester requester;
-	private final Responder responder;
+	private Responder responder;
 	private final ConnectionSetupPayload requestorSetupPayload;
+	private final ConnectionSetupHandler responderConnectionHandler;
 
 	private ReactiveSocket(DuplexConnection connection, final boolean isServer, ConnectionSetupPayload requestorSetupPayload, final ConnectionSetupHandler responderConnectionHandler, Consumer<Throwable> errorStream) {
 		this.connection = connection;
 		this.isServer = isServer;
 		this.requestorSetupPayload = requestorSetupPayload;
-		this.responder = Responder.create(responderConnectionHandler, errorStream);
+		this.responderConnectionHandler = responderConnectionHandler;
 		this.errorStream = errorStream;
 	}
 
@@ -280,68 +281,11 @@ public class ReactiveSocket implements AutoCloseable {
 	 * @return
 	 */
 	public final void start() {
-
-		// connect the Requestor
-		Publisher<Void> requesterConnectionHandler = null; // temporary until fix birectional
-		// connect the Responder
-		Publisher<Void> responderConnectionHandler = null; // temporary until fix birectional
-
 		if (isServer) {
-			responderConnectionHandler = responder.acceptConnection(connection);
+			responder = Responder.create(connection, responderConnectionHandler, errorStream);
 			// requester = Requester.createServerRequester(connection);// TODO commented out until odd/even message routing is done
 		} else {
-			requester = Requester.createClientRequester(connection, requestorSetupPayload);
-			requesterConnectionHandler = requester.start();
-		}
-
-		if (requesterConnectionHandler != null) {
-			requesterConnectionHandler.subscribe(new Subscriber<Void>() {
-
-				@Override
-				public void onSubscribe(Subscription s) {
-					s.request(Long.MAX_VALUE);
-				}
-
-				@Override
-				public void onNext(Void t) {
-				}
-
-				@Override
-				public void onError(Throwable t) {
-					errorStream.accept(t);
-				}
-
-				@Override
-				public void onComplete() {
-					System.err.println("REQUESTER onCompleted. Should this shutdown ReactiveSocket?"); // TODO figure out what to do here
-				}
-
-			});
-		}
-
-		if (responderConnectionHandler != null) {
-			responderConnectionHandler.subscribe(new Subscriber<Void>() {
-
-				@Override
-				public void onSubscribe(Subscription s) {
-					s.request(Long.MAX_VALUE);
-				}
-
-				@Override
-				public void onNext(Void t) {
-				}
-
-				@Override
-				public void onError(Throwable t) {
-					errorStream.accept(t);
-				}
-
-				@Override
-				public void onComplete() {
-					System.err.println("RESPONDER onCompleted. Should this shutdown ReactiveSocket?"); // TODO figure out what to do here
-				}
-
-			});
+			requester = Requester.createClientRequester(connection, requestorSetupPayload, errorStream);
 		}
 	}
 

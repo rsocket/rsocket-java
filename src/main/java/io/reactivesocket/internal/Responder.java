@@ -15,12 +15,10 @@
  */
 package io.reactivesocket.internal;
 
-import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
-import java.util.function.Function;
 
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
@@ -45,21 +43,14 @@ import uk.co.real_logic.agrona.collections.Long2ObjectHashMap;
  * for each request over the connection.
  */
 public class Responder {
+	private final DuplexConnection connection;
 	private final ConnectionSetupHandler connectionHandler;
 	private final Consumer<Throwable> errorStream;
 
-	private Responder(ConnectionSetupHandler connectionHandler, Consumer<Throwable> errorStream) {
+	private Responder(DuplexConnection connection, ConnectionSetupHandler connectionHandler, Consumer<Throwable> errorStream) {
+		this.connection = connection;
 		this.connectionHandler = connectionHandler;
 		this.errorStream = errorStream;
-	}
-
-	/**
-	 * @param requestHandler
-	 *            Handle incoming requests.
-	 * @return
-	 */
-	public static <T> Responder create(ConnectionSetupHandler connectionHandler) {
-		return new Responder(connectionHandler, t -> {});
 	}
 
 	/**
@@ -71,17 +62,13 @@ public class Responder {
 	 *            This include fireAndForget which ONLY emit errors server-side via this mechanism.
 	 * @return
 	 */
-	public static <T> Responder create(ConnectionSetupHandler connectionHandler, Consumer<Throwable> errorStream) {
-		return new Responder(connectionHandler, errorStream);
+	public static <T> Responder create(DuplexConnection connection, ConnectionSetupHandler connectionHandler, Consumer<Throwable> errorStream) {
+		Responder responder = new Responder(connection, connectionHandler, errorStream);
+		responder.start();
+		return responder;
 	}
 
-	/**
-	 * Accept a new connection and apply ReactiveSocket behavior to it.
-	 * 
-	 * @param connection
-	 * @return Publisher<Void> that must be subscribed to. Receives onError or onComplete, no onNext. Can be unsubscribed to shutdown prematurely.
-	 */
-	public Publisher<Void> acceptConnection(DuplexConnection connection) {
+	private void start() {
 		/* state of cancellation subjects during connection */
 		final Long2ObjectHashMap<Subscription> cancellationSubscriptions = new Long2ObjectHashMap<>();
 		/* streams in flight that can receive REQUEST_N messages */
@@ -89,170 +76,147 @@ public class Responder {
 		/* bidirectional channels */
 		final Long2ObjectHashMap<UnicastSubject<Payload>> channels = new Long2ObjectHashMap<>(); // TODO should/can we make this optional so that it only gets allocated per connection if channels are
 																									// used?
+		final AtomicBoolean childTerminated = new AtomicBoolean(false);
+		final AtomicReference<Subscription> transportSubscription = new AtomicReference<>();
 
-		return new Publisher<Void>() {
+		// subscribe to transport to get Frames
+		connection.getInput().subscribe(new Subscriber<Frame>() {
 
 			@Override
-			public void subscribe(Subscriber<? super Void> child) {
-				final AtomicBoolean childTerminated = new AtomicBoolean(false);
-				child.onSubscribe(new Subscription() {
+			public void onSubscribe(Subscription s) {
+				if (transportSubscription.compareAndSet(null, s)) {
+					s.request(Long.MAX_VALUE); // we expect everything from transport (backpressure is via lease/requestN frames)
+				} else {
+					// means we already were cancelled
+					s.cancel();
+				}
+			}
 
-					boolean started = false;
-					final AtomicReference<Subscription> transportSubscription = new AtomicReference<>();
+			RequestHandler requestHandler = null; // null until after first Setup frame
+
+			@Override
+			public void onNext(Frame requestFrame) {
+				final long streamId = requestFrame.getStreamId();
+				if (requestHandler == null) {
+					if (childTerminated.get()) {
+						// already terminated, but still receiving latent messages ... ignore them while shutdown occurs
+						return;
+					}
+					if (requestFrame.getType().equals(FrameType.SETUP)) {
+						try {
+							requestHandler = connectionHandler.apply(ConnectionSetupPayload.create(requestFrame));
+						} catch (SetupException setupException) {
+							setupErrorAndTearDown(connection, setupException);
+						} catch (Throwable e) {
+							setupErrorAndTearDown(connection, new SetupException(SetupErrorCode.REJECTED, e));
+						}
+						// TODO add lease semantics, keepalive interval, etc
+					} else {
+						setupErrorAndTearDown(connection, new SetupException(SetupErrorCode.INVALID_SETUP, "Setup frame missing"));
+					}
+				} else {
+					Publisher<Frame> responsePublisher = null;
+					try {
+						if (requestFrame.getType() == FrameType.REQUEST_RESPONSE) {
+							responsePublisher = handleRequestResponse(requestFrame, requestHandler, cancellationSubscriptions);
+						} else if (requestFrame.getType() == FrameType.REQUEST_STREAM) {
+							responsePublisher = handleRequestStream(requestFrame, requestHandler, cancellationSubscriptions, inFlight);
+						} else if (requestFrame.getType() == FrameType.FIRE_AND_FORGET) {
+							responsePublisher = handleFireAndForget(requestFrame, requestHandler);
+						} else if (requestFrame.getType() == FrameType.REQUEST_SUBSCRIPTION) {
+							responsePublisher = handleRequestSubscription(requestFrame, requestHandler, cancellationSubscriptions, inFlight);
+						} else if (requestFrame.getType() == FrameType.REQUEST_CHANNEL) {
+							responsePublisher = handleRequestChannel(requestFrame, requestHandler, channels, cancellationSubscriptions, inFlight);
+						} else if (requestFrame.getType() == FrameType.CANCEL) {
+							Subscription s = cancellationSubscriptions.get(requestFrame.getStreamId());
+							if (s != null) {
+								s.cancel();
+							}
+							return;
+						} else if (requestFrame.getType() == FrameType.REQUEST_N) {
+							// TODO do something with this
+							return;
+						} else {
+							responsePublisher = PublisherUtils.errorFrame(streamId, new IllegalStateException("Unexpected prefix: " + requestFrame.getType()));
+						}
+					} catch (Throwable e) {
+						// synchronous try/catch since we execute user functions in the handlers and they could throw
+						errorStream.accept(new RuntimeException("Error in request handling.", e));
+						// error message to user
+						responsePublisher = PublisherUtils.errorFrame(streamId, new RuntimeException("Unhandled error processing request"));
+					}
+					connection.addOutput(responsePublisher, new Completable() {
+
+						@Override
+						public void success() {
+							// TODO Auto-generated method stub
+
+						}
+
+						@Override
+						public void error(Throwable e) {
+							// TODO validate with unit tests
+							if (childTerminated.compareAndSet(false, true)) {
+								errorStream.accept(new RuntimeException("Error writing", e)); // TODO should we have typed RuntimeExceptions?
+								cancel();
+							}
+						}
+
+					});
+				}
+			}
+
+			private void setupErrorAndTearDown(DuplexConnection connection, SetupException setupException) {
+				// pass the ErrorFrame output, subscribe to write it, await onComplete and then tear down
+				connection.addOutput(PublisherUtils.just(Frame.fromSetupError(setupException.getErrorCode().getCode(), "", setupException.getMessage())),
+						new Completable() {
 
 					@Override
-					public void request(long n) {
-						// REQUEST_N behavior not necessary or expected on this other than to start it
-						if (!started) {
-							started = true;
-							// subscribe to transport to get Frames
-							connection.getInput().subscribe(new Subscriber<Frame>() {
-
-								@Override
-								public void onSubscribe(Subscription s) {
-									if (transportSubscription.compareAndSet(null, s)) {
-										s.request(Long.MAX_VALUE); // we expect everything from transport (backpressure is via lease/requestN frames)
-									} else {
-										// means we already were cancelled
-										s.cancel();
-									}
-								}
-								
-								RequestHandler requestHandler = null; // null until after first Setup frame
-
-								
-								@Override
-								public void onNext(Frame requestFrame) {
-									final long streamId = requestFrame.getStreamId();
-									if(requestHandler == null) {
-										if(childTerminated.get()) {
-											// already terminated, but still receiving latent messages ... ignore them while shutdown occurs
-											return;
-										}
-										if(requestFrame.getType().equals(FrameType.SETUP)) {
-											try {
-												requestHandler = connectionHandler.apply(ConnectionSetupPayload.create(requestFrame));
-											} catch (SetupException setupException) {
-												setupErrorAndTearDown(connection, setupException);
-											} catch (Throwable e) {
-												setupErrorAndTearDown(connection, new SetupException(SetupErrorCode.REJECTED, e));
-											}
-											// TODO add lease semantics, keepalive interval, etc
-										} else {
-											setupErrorAndTearDown(connection, new SetupException(SetupErrorCode.INVALID_SETUP, "Setup frame missing"));
-										}
-									} else {
-										Publisher<Frame> responsePublisher = null;
-										try {
-											if (requestFrame.getType() == FrameType.REQUEST_RESPONSE) {
-												responsePublisher = handleRequestResponse(requestFrame, requestHandler, cancellationSubscriptions);
-											} else if (requestFrame.getType() == FrameType.REQUEST_STREAM) {
-												responsePublisher = handleRequestStream(requestFrame, requestHandler, cancellationSubscriptions, inFlight);
-											} else if (requestFrame.getType() == FrameType.FIRE_AND_FORGET) {
-												responsePublisher = handleFireAndForget(requestFrame, requestHandler);
-											} else if (requestFrame.getType() == FrameType.REQUEST_SUBSCRIPTION) {
-												responsePublisher = handleRequestSubscription(requestFrame, requestHandler, cancellationSubscriptions, inFlight);
-											} else if (requestFrame.getType() == FrameType.REQUEST_CHANNEL) {
-												responsePublisher = handleRequestChannel(requestFrame, requestHandler, channels, cancellationSubscriptions, inFlight);
-											} else if (requestFrame.getType() == FrameType.CANCEL) {
-												Subscription s = cancellationSubscriptions.get(requestFrame.getStreamId());
-												if (s != null) {
-													s.cancel();
-												}
-												return;
-											} else if (requestFrame.getType() == FrameType.REQUEST_N) {
-												// TODO do something with this
-												return;
-											} else {
-												responsePublisher = PublisherUtils.errorFrame(streamId, new IllegalStateException("Unexpected prefix: " + requestFrame.getType()));
-											}
-										} catch (Throwable e) {
-											// synchronous try/catch since we execute user functions in the handlers and they could throw
-											errorStream.accept(new RuntimeException("Error in request handling.", e));
-											// error message to user
-											responsePublisher = PublisherUtils.errorFrame(streamId, new RuntimeException("Unhandled error processing request"));
-										}
-										connection.addOutput(responsePublisher, new Completable() {
-
-											@Override
-											public void success() {
-												// TODO Auto-generated method stub
-												
-											}
-
-											@Override
-											public void error(Throwable e) {
-												// TODO validate with unit tests
-												errorStream.accept(new RuntimeException("Error writing", e)); // TODO should we have typed RuntimeExceptions?
-												if (childTerminated.compareAndSet(false, true)) {
-													child.onError(e);
-													cancel();
-												}												
-											}
-											
-										});
-									}
-								}
-
-								private void setupErrorAndTearDown(DuplexConnection connection, SetupException setupException) {
-									// pass the ErrorFrame output, subscribe to write it, await onComplete and then tear down
-									connection.addOutput(PublisherUtils.just(Frame.fromSetupError(setupException.getErrorCode().getCode(), "", setupException.getMessage())),
-											new Completable() {
-
-												@Override
-												public void success() {
-													tearDownWithError(setupException);													
-												}
-
-												@Override
-												public void error(Throwable e) {
-													tearDownWithError(new RuntimeException("Failure outputting SetupException", e));													
-												}
-										
-									});
-								}
-								
-								private void tearDownWithError(Throwable se) {
-									onError(new RuntimeException("Connection Setup Failure", se)); // TODO unit test that this actually shuts things down
-								}
-
-								@Override
-								public void onError(Throwable t) {
-									// TODO validate with unit tests
-									if (childTerminated.compareAndSet(false, true)) {
-										child.onError(t);
-										cancel();
-									}
-								}
-
-								@Override
-								public void onComplete() {
-									// this would mean the connection gracefully shut down, which is unexpected
-									if (childTerminated.compareAndSet(false, true)) {
-										child.onComplete();
-										cancel();
-									}
-								}
-
-							});
-						}
+					public void success() {
+						tearDownWithError(setupException);
 					}
 
 					@Override
-					public void cancel() {
-						// child has cancelled (shutdown the connection or server) // TODO validate with unit tests
-						if (!transportSubscription.compareAndSet(null, EmptySubscription.EMPTY)) {
-							// cancel the one that was there if we failed to set the sentinel
-							transportSubscription.get().cancel();
-						}
+					public void error(Throwable e) {
+						tearDownWithError(new RuntimeException("Failure outputting SetupException", e));
 					}
 
 				});
-
 			}
 
-		};
+			private void tearDownWithError(Throwable se) {
+				onError(new RuntimeException("Connection Setup Failure", se)); // TODO unit test that this actually shuts things down
+			}
+
+			@Override
+			public void onError(Throwable t) {
+				// TODO validate with unit tests
+				if (childTerminated.compareAndSet(false, true)) {
+					errorStream.accept(t);
+					cancel();
+				}
+			}
+
+			@Override
+			public void onComplete() {
+				//TODO validate what is happening here
+				// this would mean the connection gracefully shut down, which is unexpected
+				if (childTerminated.compareAndSet(false, true)) {
+					cancel();
+				}
+			}
+			
+			private void cancel() {
+				// child has cancelled (shutdown the connection or server) // TODO validate with unit tests
+				if (!transportSubscription.compareAndSet(null, EmptySubscription.EMPTY)) {
+					// cancel the one that was there if we failed to set the sentinel
+					transportSubscription.get().cancel();
+				}
+			}
+
+		});
 	}
+
 
 	private Publisher<Frame> handleRequestResponse(
 			Frame requestFrame,
@@ -464,30 +428,20 @@ public class Responder {
 	/**
 	 * Reusable for each fireAndForget since no state is shared across invocations. It just passes through errors.
 	 */
-	private final Subscriber<Void> fireAndForgetSubscriber = new Subscriber<Void>() {
+	private final Subscriber<Void> fireAndForgetSubscriber=new Subscriber<Void>(){
 
-		@Override
-		public void onSubscribe(Subscription s) {
-			s.request(Long.MAX_VALUE);
-		}
+	@Override public void onSubscribe(Subscription s){s.request(Long.MAX_VALUE);}
 
-		@Override
-		public void onNext(Void t) {
-		}
+	@Override public void onNext(Void t){}
 
-		@Override
-		public void onError(Throwable t) {
-			errorStream.accept(t);
-		}
+	@Override public void onError(Throwable t){errorStream.accept(t);}
 
-		@Override
-		public void onComplete() {
-		}
+	@Override public void onComplete(){}
 
 	};
 
 	private Publisher<Frame> handleRequestChannel(Frame requestFrame,
-			RequestHandler requestHandler, 
+			RequestHandler requestHandler,
 			Long2ObjectHashMap<UnicastSubject<Payload>> channels,
 			Long2ObjectHashMap<Subscription> cancellationSubscriptions,
 			Long2ObjectHashMap<?> inFlight) {

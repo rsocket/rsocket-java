@@ -34,6 +34,7 @@ import rx.subjects.ReplaySubject;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -47,13 +48,16 @@ import static rx.RxReactiveStreams.toPublisher;
 
 public class ResponderTest
 {
+	final static Consumer<Throwable> ERROR_HANDLER = err -> err.printStackTrace();	
+	
     @Test
     public void testRequestResponseSuccess() {
-        Responder p = Responder.create(setup -> RequestHandler.create(
+    	TestConnection conn = establishConnection();
+        Responder.create(conn, setup -> RequestHandler.create(
             request -> toPublisher(just(utf8EncodedPayload(byteToString(request.getData()) + " world", null))),
-            null, null, null));
+            null, null, null), ERROR_HANDLER);
 
-        TestConnection conn = establishConnection(p);
+        
         ReplaySubject<Frame> cachedResponses = captureResponses(conn);
         sendSetupFrame(conn);
         
@@ -72,11 +76,11 @@ public class ResponderTest
 
     @Test
     public void testRequestResponseError() {
-        Responder p = Responder.create(setup -> RequestHandler.create(
+    	TestConnection conn = establishConnection();
+        Responder.create(conn, setup -> RequestHandler.create(
             request -> toPublisher(Observable.<Payload>error(new Exception("Request Not Found"))),
-            null, null, null));
+            null, null, null), ERROR_HANDLER);
 
-        TestConnection conn = establishConnection(p);
         Observable<Frame> cachedResponses = captureResponses(conn);
         sendSetupFrame(conn);
 
@@ -97,11 +101,11 @@ public class ResponderTest
                 .cast(Payload.class)
                 .doOnUnsubscribe(() -> unsubscribed.set(true));
 
-        Responder p = Responder.create(setup -> RequestHandler.create(
+        TestConnection conn = establishConnection();
+        Responder.create(conn, setup -> RequestHandler.create(
             request -> toPublisher(delayed),
-            null, null, null));
+            null, null, null), ERROR_HANDLER);
 
-        TestConnection conn = establishConnection(p);
         ReplaySubject<Frame> cachedResponses = captureResponses(conn);
         sendSetupFrame(conn);
 
@@ -117,12 +121,12 @@ public class ResponderTest
 
     @Test
     public void testRequestStreamSuccess() {
-        Responder p = Responder.create(setup -> RequestHandler.create(
+    	TestConnection conn = establishConnection();
+        Responder.create(conn, setup -> RequestHandler.create(
             null,
             request -> toPublisher(range(Integer.parseInt(byteToString(request.getData())), 10).map(i -> utf8EncodedPayload(i + "!", null))),
-            null, null));
+            null, null), ERROR_HANDLER);
 
-        TestConnection conn = establishConnection(p);
         ReplaySubject<Frame> cachedResponses = captureResponses(conn);
         sendSetupFrame(conn);
 
@@ -148,14 +152,14 @@ public class ResponderTest
 
     @Test
     public void testRequestStreamError() {
-        Responder p = Responder.create(setup -> RequestHandler.create(
+    	TestConnection conn = establishConnection();
+        Responder.create(conn, setup -> RequestHandler.create(
             null,
             request -> toPublisher(range(Integer.parseInt(byteToString(request.getData())), 3)
                 .map(i -> utf8EncodedPayload(i + "!", null))
                 .concatWith(error(new Exception("Error Occurred!")))),
-            null, null));
+            null, null), ERROR_HANDLER);
 
-        TestConnection conn = establishConnection(p);
         ReplaySubject<Frame> cachedResponses = captureResponses(conn);
         sendSetupFrame(conn);
 
@@ -181,13 +185,13 @@ public class ResponderTest
 
     @Test
     public void testRequestStreamCancel() {
+    	TestConnection conn = establishConnection();
         TestScheduler ts = Schedulers.test();
-        Responder p = Responder.create(setup -> RequestHandler.create(
+        Responder.create(conn, setup -> RequestHandler.create(
             null,
             request -> toPublisher(interval(1000, TimeUnit.MILLISECONDS, ts).map(i -> utf8EncodedPayload(i + "!", null))),
-            null, null));
+            null, null), ERROR_HANDLER);
 
-        TestConnection conn = establishConnection(p);
         ReplaySubject<Frame> cachedResponses = captureResponses(conn);
         sendSetupFrame(conn);
 
@@ -222,12 +226,12 @@ public class ResponderTest
     @Test
     public void testMultiplexedStreams() {
         TestScheduler ts = Schedulers.test();
-        Responder p = Responder.create(setup -> RequestHandler.create(
+        TestConnection conn = establishConnection();
+        Responder.create(conn, setup -> RequestHandler.create(
             null,
             request -> toPublisher(interval(1000, TimeUnit.MILLISECONDS, ts).map(i -> utf8EncodedPayload(i + "_" + byteToString(request.getData()), null))),
-            null, null));
+            null, null), ERROR_HANDLER);
 
-        TestConnection conn = establishConnection(p);
         ReplaySubject<Frame> cachedResponses = captureResponses(conn);
         sendSetupFrame(conn);
 
@@ -283,10 +287,8 @@ public class ResponderTest
         return rs;
     }
 
-    private TestConnection establishConnection(Responder p) {
-        TestConnection conn = new TestConnection();
-        p.acceptConnection(conn).subscribe(PROTOCOL_SUBSCRIBER);
-        return conn;
+    private TestConnection establishConnection() {
+        return new TestConnection();
     }
 
     private org.reactivestreams.Subscriber<Void> PROTOCOL_SUBSCRIBER = new org.reactivestreams.Subscriber<Void>() {
