@@ -52,8 +52,8 @@ public class Requester {
 	private final boolean honorLease;
 
 	private long ttlExpiration;
-	private int numberOfRemainingRequests = 0;
-	private int streamCount = 0; // 0 is reserved for setup, all normal messages are >= 1
+	private long numberOfRemainingRequests = 0;
+	private long streamCount = 0; // 0 is reserved for setup, all normal messages are >= 1
 
 	private Requester(boolean isServer, DuplexConnection connection, ConnectionSetupPayload setupPayload, Consumer<Throwable> errorStream) {
 		this.isServer = isServer;
@@ -150,7 +150,7 @@ public class Requester {
 								numberOfRemainingRequests--;
 							}
 
-							connection.addOutput(PublisherUtils.just(Frame.from(nextStreamId(), FrameType.FIRE_AND_FORGET, payload)), new Completable() {
+							connection.addOutput(PublisherUtils.just(Frame.fromRequest(nextStreamId(), FrameType.FIRE_AND_FORGET, payload, 0)), new Completable() {
 
 								@Override
 								public void success() {
@@ -215,7 +215,7 @@ public class Requester {
 	 * @param payload
 	 * @return
 	 */
-	private Publisher<Payload> startStream(int streamId, FrameType type, Payload payload) {
+	private Publisher<Payload> startStream(long streamId, FrameType type, Payload payload) {
 		if (payload == null) {
 			throw new IllegalStateException("Payload can not be null");
 		}
@@ -233,7 +233,7 @@ public class Requester {
 	 * @param payloads
 	 * @return
 	 */
-	private Publisher<Payload> startStream(int streamId, FrameType type, Publisher<Payload> payloads) {
+	private Publisher<Payload> startStream(long streamId, FrameType type, Publisher<Payload> payloads) {
 		if (payloads == null) {
 			throw new IllegalStateException("Payloads can not be null");
 		}
@@ -246,7 +246,7 @@ public class Requester {
 	/*
 	 * Using payload/payloads with null check for efficiency so I don't have to allocate a Publisher for the most common case of single Payload
 	 */
-	private Publisher<Payload> startStream(int streamId, FrameType type, Payload payload, Publisher<Payload> payloads) {
+	private Publisher<Payload> startStream(long streamId, FrameType type, Payload payload, Publisher<Payload> payloads) {
 		if (payload == null && payloads == null) {
 			throw new IllegalStateException("Both payload and payloads can not be null");
 		}
@@ -290,8 +290,7 @@ public class Requester {
 
 							// when transport connects we write the request frame for this stream
 							if (payload != null) {
-								w.onNext(Frame.from(streamId, type, payload));
-								// w.onNext(Frame.from(requestFrame.getStreamId(), FrameType.REQUEST_N)); // TODO add N
+								w.onNext(Frame.fromRequest(streamId, type, payload, n));
 							} else {
 								payloads.subscribe(new Subscriber<Payload>() {
 
@@ -305,7 +304,7 @@ public class Requester {
 
 									@Override
 									public void onNext(Payload p) {
-										w.onNext(Frame.from(streamId, type, p));
+										w.onNext(Frame.fromRequest(streamId, type, p, n));
 									}
 
 									@Override
@@ -342,7 +341,7 @@ public class Requester {
 						});
 					} else {
 						// propagate further requestN frames
-						writer.onNext(Frame.from(streamId, FrameType.REQUEST_N)); // TODO add N
+						writer.onNext(Frame.fromRequestN(streamId, n)); // TODO add N
 					}
 
 				}
@@ -427,7 +426,7 @@ public class Requester {
 		}
 	}
 
-	private int nextStreamId() {
+	private long nextStreamId() {
 		return streamCount += 2; // go by two since server is odd, client is even
 	}
 

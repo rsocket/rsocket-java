@@ -28,11 +28,11 @@ public enum FrameType
     LEASE(0x03, Flags.CAN_HAVE_METADATA),
     KEEPALIVE(0x04, Flags.CAN_HAVE_DATA),
     // Requester to start request
-    REQUEST_RESPONSE(0x11, Flags.CAN_HAVE_METADATA_AND_DATA),
-    FIRE_AND_FORGET(0x12, Flags.CAN_HAVE_METADATA_AND_DATA),
-    REQUEST_STREAM(0x13, Flags.CAN_HAVE_METADATA_AND_DATA),
-    REQUEST_SUBSCRIPTION(0x14, Flags.CAN_HAVE_METADATA_AND_DATA),
-    REQUEST_CHANNEL(0x15, Flags.CAN_HAVE_METADATA_AND_DATA),
+    REQUEST_RESPONSE(0x11, Flags.CAN_HAVE_METADATA_AND_DATA | Flags.IS_REQUEST_TYPE),
+    FIRE_AND_FORGET(0x12, Flags.CAN_HAVE_METADATA_AND_DATA | Flags.IS_REQUEST_TYPE),
+    REQUEST_STREAM(0x13, Flags.CAN_HAVE_METADATA_AND_DATA | Flags.IS_REQUEST_TYPE | Flags.HAS_INITIAL_REQUEST_N),
+    REQUEST_SUBSCRIPTION(0x14, Flags.CAN_HAVE_METADATA_AND_DATA | Flags.IS_REQUEST_TYPE | Flags.HAS_INITIAL_REQUEST_N),
+    REQUEST_CHANNEL(0x15, Flags.CAN_HAVE_METADATA_AND_DATA | Flags.IS_REQUEST_TYPE | Flags.HAS_INITIAL_REQUEST_N),
     // Requester mid-stream
     REQUEST_N(0x20),
     CANCEL(0x21, Flags.CAN_HAVE_METADATA),
@@ -48,10 +48,11 @@ public enum FrameType
 
     private static class Flags
     {
-        private static final int CAN_HAVE_DATA = 0b001;
-        private static final int CAN_HAVE_METADATA = 0b010;
-        private static final int CAN_HAVE_METADATA_AND_DATA = 0b011;
-        private static final int IS_REQUEST_TYPE = 0b100;
+        private static final int CAN_HAVE_DATA = 0b0001;
+        private static final int CAN_HAVE_METADATA = 0b0010;
+        private static final int CAN_HAVE_METADATA_AND_DATA = 0b0011;
+        private static final int IS_REQUEST_TYPE = 0b0100;
+        private static final int HAS_INITIAL_REQUEST_N = 0b1000;
     }
 
     private static FrameType[] typesById;
@@ -93,6 +94,11 @@ public enum FrameType
     public boolean isRequestType()
     {
         return (Flags.IS_REQUEST_TYPE == (flags & Flags.IS_REQUEST_TYPE));
+    }
+
+    public boolean hasInitialRequestN()
+    {
+        return (Flags.HAS_INITIAL_REQUEST_N == (flags & Flags.HAS_INITIAL_REQUEST_N));
     }
 
     public boolean canHaveData()

@@ -24,6 +24,22 @@ import org.junit.Test;
 
 public class FrameTest
 {
+    private static Payload createPayload(final ByteBuffer metadata, final ByteBuffer data)
+    {
+        return new Payload()
+        {
+            public ByteBuffer getData()
+            {
+                return data;
+            }
+
+            public ByteBuffer getMetadata()
+            {
+                return metadata;
+            }
+        };
+    }
+
     @Test
     public void testWriteThenRead() {
     	final ByteBuffer helloBuffer = TestUtil.byteBufferFromUtf8String("hello");
@@ -75,8 +91,9 @@ public class FrameTest
     {
         final ByteBuffer requestData = TestUtil.byteBufferFromUtf8String("request data");
         final ByteBuffer requestMetadata = TestUtil.byteBufferFromUtf8String("request metadata");
+        final Payload payload = createPayload(requestMetadata, requestData);
 
-        Frame f = Frame.from(1, FrameType.REQUEST_RESPONSE, requestData, requestMetadata);
+        Frame f = Frame.fromRequest(1, FrameType.REQUEST_RESPONSE, payload, 1);
         assertEquals("request data", TestUtil.byteToString(f.getData()));
         assertEquals("request metadata", TestUtil.byteToString(f.getMetadata()));
         assertEquals(FrameType.REQUEST_RESPONSE, f.getType());
@@ -88,8 +105,9 @@ public class FrameTest
     {
         final ByteBuffer requestData = TestUtil.byteBufferFromUtf8String("request data");
         final ByteBuffer requestMetadata = TestUtil.byteBufferFromUtf8String("request metadata");
+        final Payload payload = createPayload(requestMetadata, requestData);
 
-        Frame f = Frame.from(1, FrameType.FIRE_AND_FORGET, requestData, requestMetadata);
+        Frame f = Frame.fromRequest(1, FrameType.FIRE_AND_FORGET, payload, 0);
         assertEquals("request data", TestUtil.byteToString(f.getData()));
         assertEquals("request metadata", TestUtil.byteToString(f.getMetadata()));
         assertEquals(FrameType.FIRE_AND_FORGET, f.getType());
@@ -101,12 +119,14 @@ public class FrameTest
     {
         final ByteBuffer requestData = TestUtil.byteBufferFromUtf8String("request data");
         final ByteBuffer requestMetadata = TestUtil.byteBufferFromUtf8String("request metadata");
+        final Payload payload = createPayload(requestMetadata, requestData);
 
-        Frame f = Frame.from(1, FrameType.REQUEST_STREAM, requestData, requestMetadata);
+        Frame f = Frame.fromRequest(1, FrameType.REQUEST_STREAM, payload, 128);
         assertEquals("request data", TestUtil.byteToString(f.getData()));
         assertEquals("request metadata", TestUtil.byteToString(f.getMetadata()));
         assertEquals(FrameType.REQUEST_STREAM, f.getType());
         assertEquals(1, f.getStreamId());
+        assertEquals(128, Frame.Request.initialRequestN(f));
     }
 
     @Test
@@ -114,12 +134,14 @@ public class FrameTest
     {
         final ByteBuffer requestData = TestUtil.byteBufferFromUtf8String("request data");
         final ByteBuffer requestMetadata = TestUtil.byteBufferFromUtf8String("request metadata");
+        final Payload payload = createPayload(requestMetadata, requestData);
 
-        Frame f = Frame.from(1, FrameType.REQUEST_SUBSCRIPTION, requestData, requestMetadata);
+        Frame f = Frame.fromRequest(1, FrameType.REQUEST_SUBSCRIPTION, payload, 128);
         assertEquals("request data", TestUtil.byteToString(f.getData()));
         assertEquals("request metadata", TestUtil.byteToString(f.getMetadata()));
         assertEquals(FrameType.REQUEST_SUBSCRIPTION, f.getType());
         assertEquals(1, f.getStreamId());
+        assertEquals(128, Frame.Request.initialRequestN(f));
     }
 
     @Test
@@ -139,8 +161,9 @@ public class FrameTest
     public void shouldReturnCorrectDataWithoutMetadataForRequestResponse()
     {
         final ByteBuffer requestData = TestUtil.byteBufferFromUtf8String("request data");
+        final Payload payload = createPayload(Frame.NULL_BYTEBUFFER, requestData);
 
-        Frame f = Frame.from(1, FrameType.REQUEST_RESPONSE, requestData);
+        Frame f = Frame.fromRequest(1, FrameType.REQUEST_RESPONSE, payload, 1);
         assertEquals("request data", TestUtil.byteToString(f.getData()));
 
         final ByteBuffer metadataBuffer = f.getMetadata();
@@ -153,8 +176,9 @@ public class FrameTest
     public void shouldReturnCorrectDataWithoutMetadataForFireAndForget()
     {
         final ByteBuffer requestData = TestUtil.byteBufferFromUtf8String("request data");
+        final Payload payload = createPayload(Frame.NULL_BYTEBUFFER, requestData);
 
-        Frame f = Frame.from(1, FrameType.FIRE_AND_FORGET, requestData);
+        Frame f = Frame.fromRequest(1, FrameType.FIRE_AND_FORGET, payload, 0);
         assertEquals("request data", TestUtil.byteToString(f.getData()));
 
         final ByteBuffer metadataBuffer = f.getMetadata();
@@ -167,28 +191,32 @@ public class FrameTest
     public void shouldReturnCorrectDataWithoutMetadataForRequestStream()
     {
         final ByteBuffer requestData = TestUtil.byteBufferFromUtf8String("request data");
+        final Payload payload = createPayload(Frame.NULL_BYTEBUFFER, requestData);
 
-        Frame f = Frame.from(1, FrameType.REQUEST_STREAM, requestData);
+        Frame f = Frame.fromRequest(1, FrameType.REQUEST_STREAM, payload, 128);
         assertEquals("request data", TestUtil.byteToString(f.getData()));
 
         final ByteBuffer metadataBuffer = f.getMetadata();
         assertEquals(0, metadataBuffer.capacity());
         assertEquals(FrameType.REQUEST_STREAM, f.getType());
         assertEquals(1, f.getStreamId());
+        assertEquals(128, Frame.Request.initialRequestN(f));
     }
 
     @Test
     public void shouldReturnCorrectDataWithoutMetadataForRequestSubscription()
     {
         final ByteBuffer requestData = TestUtil.byteBufferFromUtf8String("request data");
+        final Payload payload = createPayload(Frame.NULL_BYTEBUFFER, requestData);
 
-        Frame f = Frame.from(1, FrameType.REQUEST_SUBSCRIPTION, requestData);
+        Frame f = Frame.fromRequest(1, FrameType.REQUEST_SUBSCRIPTION, payload, 128);
         assertEquals("request data", TestUtil.byteToString(f.getData()));
 
         final ByteBuffer metadataBuffer = f.getMetadata();
         assertEquals(0, metadataBuffer.capacity());
         assertEquals(FrameType.REQUEST_SUBSCRIPTION, f.getType());
         assertEquals(1, f.getStreamId());
+        assertEquals(128, Frame.Request.initialRequestN(f));
     }
 
     @Test
@@ -348,5 +376,4 @@ public class FrameTest
         assertEquals(Frame.NULL_BYTEBUFFER, f.getData());
         assertEquals(Frame.NULL_BYTEBUFFER, f.getMetadata());
     }
-
 }

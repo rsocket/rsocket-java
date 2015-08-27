@@ -80,7 +80,7 @@ public class FrameHeaderFlyweight
 
     public static int computeFrameHeaderLength(final FrameType frameType, int metadataLength, final int dataLength)
     {
-        return computePayloadOffset(frameType) + computeMetadataLength(metadataLength) + dataLength;
+        return PAYLOAD_OFFSET + computeMetadataLength(metadataLength) + dataLength;
     }
 
     public static int encodeFrameHeader(
@@ -172,12 +172,6 @@ public class FrameHeaderFlyweight
 
         int length = FrameHeaderFlyweight.encodeFrameHeader(mutableDirectBuffer, offset, frameLength, flags, outFrameType, streamId);
 
-        // TODO: temp. Remove this.
-        if (FrameType.REQUEST_STREAM == frameType || FrameType.REQUEST_SUBSCRIPTION == frameType)
-        {
-            length += BitUtil.SIZE_OF_LONG;
-        }
-
         length += FrameHeaderFlyweight.encodeMetadata(mutableDirectBuffer, offset, offset + length, metadata);
         length += FrameHeaderFlyweight.encodeData(mutableDirectBuffer, offset + length, data);
 
@@ -197,11 +191,11 @@ public class FrameHeaderFlyweight
     public static FrameType frameType(final DirectBuffer directBuffer, final int offset)
     {
         FrameType result = FrameType.from(directBuffer.getShort(offset + TYPE_FIELD_OFFSET, ByteOrder.BIG_ENDIAN));
-        final int dataLength = dataLength(directBuffer, offset, 0);
 
         if (FrameType.RESPONSE == result)
         {
             final int flags = flags(directBuffer, offset);
+            final int dataLength = dataLength(directBuffer, offset, 0);
 
             if (FLAGS_RESPONSE_C == (flags & FLAGS_RESPONSE_C) && 0 < dataLength)
             {
@@ -290,18 +284,6 @@ public class FrameHeaderFlyweight
         return frameLength - metadataLength - payloadOffset(directBuffer, offset);
     }
 
-    private static int computePayloadOffset(final FrameType frameType)
-    {
-        int result = PAYLOAD_OFFSET;
-
-        if (FrameType.REQUEST_STREAM == frameType || FrameType.REQUEST_SUBSCRIPTION == frameType)
-        {
-            result += BitUtil.SIZE_OF_LONG;
-        }
-
-        return result;
-    }
-
     private static int payloadOffset(final DirectBuffer directBuffer, final int offset)
     {
         final FrameType frameType = FrameType.from(directBuffer.getShort(offset + TYPE_FIELD_OFFSET, ByteOrder.BIG_ENDIAN));
@@ -321,10 +303,12 @@ public class FrameHeaderFlyweight
             case KEEPALIVE:
                 result = KeepaliveFrameFlyweight.payloadOffset(directBuffer, offset);
                 break;
+            case REQUEST_RESPONSE:
+            case FIRE_AND_FORGET:
             case REQUEST_STREAM:
             case REQUEST_SUBSCRIPTION:
-                // TODO: move this out since it shouldn't be different
-                result = PAYLOAD_OFFSET + BitUtil.SIZE_OF_LONG;
+            case REQUEST_CHANNEL:
+                result = RequestFrameFlyweight.payloadOffset(frameType, directBuffer, offset);
                 break;
         }
 

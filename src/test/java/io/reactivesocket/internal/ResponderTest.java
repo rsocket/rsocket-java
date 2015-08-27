@@ -62,7 +62,7 @@ public class ResponderTest
         sendSetupFrame(conn);
         
         // perform a request/response
-        conn.toInput.onNext(utf8EncodedFrame(1, FrameType.REQUEST_RESPONSE, "hello"));
+        conn.toInput.onNext(utf8EncodedRequestFrame(1, FrameType.REQUEST_RESPONSE, "hello", 128));
 
         assertEquals(1, cachedResponses.getValues().length);// 1 onNext + 1 onCompleted
         List<Frame> frames = cachedResponses.take(1).toList().toBlocking().first();
@@ -85,7 +85,7 @@ public class ResponderTest
         sendSetupFrame(conn);
 
         // perform a request/response
-        conn.toInput.onNext(utf8EncodedFrame(1, FrameType.REQUEST_RESPONSE, "hello"));
+        conn.toInput.onNext(utf8EncodedRequestFrame(1, FrameType.REQUEST_RESPONSE, "hello", 128));
 
         // assert
         Frame first = cachedResponses.toBlocking().first();
@@ -110,7 +110,7 @@ public class ResponderTest
         sendSetupFrame(conn);
 
         // perform a request/response
-        conn.toInput.onNext(utf8EncodedFrame(1, FrameType.REQUEST_RESPONSE, "hello"));
+        conn.toInput.onNext(utf8EncodedRequestFrame(1, FrameType.REQUEST_RESPONSE, "hello", 128));
         // assert no response
         assertFalse(cachedResponses.hasAnyValue());
         // unsubscribe
@@ -131,7 +131,7 @@ public class ResponderTest
         sendSetupFrame(conn);
 
         // perform a request/response
-        conn.toInput.onNext(utf8EncodedFrame(1, FrameType.REQUEST_STREAM, "10"));
+        conn.toInput.onNext(utf8EncodedRequestFrame(1, FrameType.REQUEST_STREAM, "10", 128));
 
         // assert
         assertEquals(11, cachedResponses.getValues().length);// 10 onNext + 1 onCompleted
@@ -164,7 +164,7 @@ public class ResponderTest
         sendSetupFrame(conn);
 
         // perform a request/response
-        conn.toInput.onNext(utf8EncodedFrame(1, FrameType.REQUEST_STREAM, "0"));
+        conn.toInput.onNext(utf8EncodedRequestFrame(1, FrameType.REQUEST_STREAM, "0", 128));
 
         // assert
         assertEquals(4, cachedResponses.getValues().length);// 3 onNext + 1 onError
@@ -196,7 +196,7 @@ public class ResponderTest
         sendSetupFrame(conn);
 
         // perform a request/response
-        conn.toInput.onNext(utf8EncodedFrame(1, FrameType.REQUEST_STREAM, "/aRequest"));
+        conn.toInput.onNext(utf8EncodedRequestFrame(1, FrameType.REQUEST_STREAM, "/aRequest", 128));
 
         // no time has passed, so no values
         assertEquals(0, cachedResponses.getValues().length);
@@ -236,7 +236,7 @@ public class ResponderTest
         sendSetupFrame(conn);
 
         // perform a request/response
-        conn.toInput.onNext(utf8EncodedFrame(1, FrameType.REQUEST_STREAM, "requestA"));
+        conn.toInput.onNext(utf8EncodedRequestFrame(1, FrameType.REQUEST_STREAM, "requestA", 128));
 
         // no time has passed, so no values
         assertEquals(0, cachedResponses.getValues().length);
@@ -244,7 +244,7 @@ public class ResponderTest
         // we should have 1 message from A
         assertEquals(1, cachedResponses.getValues().length);
         // now request another stream
-        conn.toInput.onNext(utf8EncodedFrame(2, FrameType.REQUEST_STREAM, "requestB"));
+        conn.toInput.onNext(utf8EncodedRequestFrame(2, FrameType.REQUEST_STREAM, "requestB", 128));
         // advance some more
         ts.advanceTimeBy(2000, TimeUnit.MILLISECONDS);
         // should have 3 from A and 2 from B

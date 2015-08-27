@@ -57,14 +57,14 @@ public class LeaseFrameFlyweight
         return length;
     }
 
-    public static int ttl(final DirectBuffer directBuffer, final int offset)
+    public static long ttl(final DirectBuffer directBuffer, final int offset)
     {
-        return directBuffer.getInt(offset + TTL_FIELD_OFFSET, ByteOrder.BIG_ENDIAN);
+        return directBuffer.getLong(offset + TTL_FIELD_OFFSET, ByteOrder.BIG_ENDIAN);
     }
 
-    public static int numRequests(final DirectBuffer directBuffer, final int offset)
+    public static long numRequests(final DirectBuffer directBuffer, final int offset)
     {
-        return directBuffer.getInt(offset + NUM_REQUESTS_FIELD_OFFSET, ByteOrder.BIG_ENDIAN);
+        return directBuffer.getLong(offset + NUM_REQUESTS_FIELD_OFFSET, ByteOrder.BIG_ENDIAN);
     }
 
     public static int payloadOffset(final DirectBuffer directBuffer, final int offset)

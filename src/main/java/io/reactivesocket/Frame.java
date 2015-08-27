@@ -236,12 +236,11 @@ public class Frame implements Payload
      * fromRequest(type, id, payload)
      * fromResponse(id, payload, flags)  - does it automatically fragment? (only if auto reassemble)
      * fromError(id, metadata, data) - taken care of by from() overload?
-     * fromRequestN(id, n)
      * fromCancel(id, metadata)
      * fromMetadataPush(id, metadata)
      *
-     * fromLease(ttl, numberOfRequests, metadata)
      * fromKeepalive(ByteBuffer data)
+     *
      */
 
     public static Frame fromSetup(
@@ -284,6 +283,33 @@ public class Frame implements Payload
         final Frame frame = POOL.acquireFrame(LeaseFrameFlyweight.computeFrameLength(metadata.capacity()));
 
         LeaseFrameFlyweight.encode(frame.directBuffer, 0, ttl, numberOfRequests, metadata);
+        return frame;
+    }
+
+    public static Frame fromRequestN(long streamId, long requestN)
+    {
+        final Frame frame = POOL.acquireFrame(RequestNFrameFlyweight.computeFrameLength());
+
+        RequestNFrameFlyweight.encode(frame.directBuffer, 0, streamId, requestN);
+        return frame;
+    }
+
+    public static Frame fromRequest(long streamId, FrameType type, Payload payload, long initialRequestN)
+    {
+        final ByteBuffer d = payload.getData() != null ? payload.getData() : NULL_BYTEBUFFER;
+        final ByteBuffer md = payload.getMetadata() != null ? payload.getMetadata() : NULL_BYTEBUFFER;
+
+        final Frame frame = POOL.acquireFrame(RequestFrameFlyweight.computeFrameLength(type, md.capacity(), d.capacity()));
+
+        if (type.hasInitialRequestN())
+        {
+            RequestFrameFlyweight.encode(frame.directBuffer, 0, streamId, type, initialRequestN, md, d);
+        }
+        else
+        {
+            RequestFrameFlyweight.encode(frame.directBuffer, 0, streamId, type, md, d);
+        }
+
         return frame;
     }
 
@@ -334,16 +360,54 @@ public class Frame implements Payload
 
     public static class Lease
     {
-        public static int ttl(final Frame frame)
+        public static long ttl(final Frame frame)
         {
             ensureFrameType(FrameType.LEASE, frame);
             return LeaseFrameFlyweight.ttl(frame.directBuffer, 0);
         }
 
-        public static int numberOfRequests(final Frame frame)
+        public static long numberOfRequests(final Frame frame)
         {
             ensureFrameType(FrameType.LEASE, frame);
             return LeaseFrameFlyweight.numRequests(frame.directBuffer, 0);
+        }
+    }
+
+    public static class RequestN
+    {
+        public static long requestN(final Frame frame)
+        {
+            ensureFrameType(FrameType.REQUEST_N, frame);
+            return RequestNFrameFlyweight.requestN(frame.directBuffer, 0);
+        }
+    }
+
+    public static class Request
+    {
+        public static long initialRequestN(final Frame frame)
+        {
+            final FrameType type = frame.getType();
+            long result;
+
+            if (!type.isRequestType())
+            {
+                throw new AssertionError("expected request type, but saw " + type.name());
+            }
+
+            switch (frame.getType())
+            {
+                case REQUEST_RESPONSE:
+                    result = 1;
+                    break;
+                case FIRE_AND_FORGET:
+                    result = 0;
+                    break;
+                default:
+                    result = RequestFrameFlyweight.initialRequestN(frame.directBuffer, 0);
+                    break;
+            }
+
+            return result;
         }
     }
 
