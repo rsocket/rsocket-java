@@ -54,4 +54,9 @@ public class RequestNFrameFlyweight
     {
         return directBuffer.getLong(offset + REQUEST_N_FIELD_OFFSET, ByteOrder.BIG_ENDIAN);
     }
+
+    public static int payloadOffset(final DirectBuffer directBuffer, final int offset)
+    {
+        return offset + FrameHeaderFlyweight.FRAME_HEADER_LENGTH + BitUtil.SIZE_OF_LONG;
+    }
 }

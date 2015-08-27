@@ -310,6 +310,9 @@ public class FrameHeaderFlyweight
             case REQUEST_CHANNEL:
                 result = RequestFrameFlyweight.payloadOffset(frameType, directBuffer, offset);
                 break;
+            case REQUEST_N:
+                result = RequestNFrameFlyweight.payloadOffset(directBuffer, offset);
+                break;
         }
 
         return result;

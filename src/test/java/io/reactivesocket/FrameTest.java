@@ -376,4 +376,16 @@ public class FrameTest
         assertEquals(Frame.NULL_BYTEBUFFER, f.getData());
         assertEquals(Frame.NULL_BYTEBUFFER, f.getMetadata());
     }
+
+    @Test
+    public void shouldFormCorrectlyForRequestN()
+    {
+        final long n = 128;
+        final Frame f = Frame.fromRequestN(1, n);
+
+        assertEquals(FrameType.REQUEST_N, f.getType());
+        assertEquals(n, Frame.RequestN.requestN(f));
+        assertEquals(Frame.NULL_BYTEBUFFER, f.getData());
+        assertEquals(Frame.NULL_BYTEBUFFER, f.getMetadata());
+    }
 }
