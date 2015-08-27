@@ -278,7 +278,7 @@ public class Frame implements Payload
         return frame;
     }
 
-    public static Frame fromLease(int ttl, int numberOfRequests, ByteBuffer metadata)
+    public static Frame fromLease(long ttl, long numberOfRequests, ByteBuffer metadata)
     {
         final Frame frame = POOL.acquireFrame(LeaseFrameFlyweight.computeFrameLength(metadata.capacity()));
 

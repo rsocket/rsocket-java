@@ -18,6 +18,7 @@ package io.reactivesocket;
 import static org.junit.Assert.*;
 
 import java.nio.ByteBuffer;
+import java.util.concurrent.TimeUnit;
 
 import io.reactivesocket.internal.SetupFrameFlyweight;
 import org.junit.Test;
@@ -387,5 +388,35 @@ public class FrameTest
         assertEquals(n, Frame.RequestN.requestN(f));
         assertEquals(Frame.NULL_BYTEBUFFER, f.getData());
         assertEquals(Frame.NULL_BYTEBUFFER, f.getMetadata());
+    }
+
+    @Test
+    public void shouldFormCorrectlyWithoutMetadataForLease()
+    {
+        final long ttl = TimeUnit.SECONDS.toNanos(8);
+        final long numberOfRequests = 16;
+        final Frame f = Frame.fromLease(ttl, numberOfRequests, Frame.NULL_BYTEBUFFER);
+
+        assertEquals(FrameType.LEASE, f.getType());
+        assertEquals(ttl, Frame.Lease.ttl(f));
+        assertEquals(numberOfRequests, Frame.Lease.numberOfRequests(f));
+        assertEquals(Frame.NULL_BYTEBUFFER, f.getData());
+        assertEquals(Frame.NULL_BYTEBUFFER, f.getMetadata());
+    }
+
+    @Test
+    public void shouldFormCorrectlyWithMetadataForLease()
+    {
+        final long ttl = TimeUnit.SECONDS.toNanos(8);
+        final long numberOfRequests = 16;
+        final ByteBuffer leaseMetadata = TestUtil.byteBufferFromUtf8String("lease metadata");
+
+        final Frame f = Frame.fromLease(ttl, numberOfRequests, leaseMetadata);
+
+        assertEquals(FrameType.LEASE, f.getType());
+        assertEquals(ttl, Frame.Lease.ttl(f));
+        assertEquals(numberOfRequests, Frame.Lease.numberOfRequests(f));
+        assertEquals(Frame.NULL_BYTEBUFFER, f.getData());
+        assertEquals("lease metadata", TestUtil.byteToString(f.getMetadata()));
     }
 }
