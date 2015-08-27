@@ -17,18 +17,18 @@ package io.reactivesocket.internal;
 
 import io.reactivesocket.Frame;
 import uk.co.real_logic.agrona.MutableDirectBuffer;
+import uk.co.real_logic.agrona.concurrent.OneToOneConcurrentArrayQueue;
 import uk.co.real_logic.agrona.concurrent.UnsafeBuffer;
 
 import java.nio.ByteBuffer;
 
-/**
- * On demand creation for Frames, MutableDirectBuffer backed by ByteBuffers of required capacity
- */
-public class UnpooledFrame implements FramePool
+public class PooledFrame
 {
-    /*
-     * TODO: have all gneration of UnsafeBuffer and ByteBuffer hidden behind acquire() calls (private for ByteBuffer)
-     */
+    private static final ThreadLocal<OneToOneConcurrentArrayQueue<Frame>> PER_THREAD_FRAME_QUEUE =
+        ThreadLocal.withInitial(() -> new OneToOneConcurrentArrayQueue<>(16));
+
+    private static final ThreadLocal<OneToOneConcurrentArrayQueue<MutableDirectBuffer>> PER_THREAD_DIRECTBUFFER_QUEUE =
+        ThreadLocal.withInitial(() -> new OneToOneConcurrentArrayQueue<>(16));
 
     public Frame acquireFrame(int size)
     {

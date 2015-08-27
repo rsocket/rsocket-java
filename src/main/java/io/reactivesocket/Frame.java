@@ -17,7 +17,6 @@ package io.reactivesocket;
 
 import io.reactivesocket.internal.*;
 import uk.co.real_logic.agrona.MutableDirectBuffer;
-import uk.co.real_logic.agrona.concurrent.UnsafeBuffer;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
@@ -32,6 +31,10 @@ import static java.lang.System.getProperty;
 public class Frame implements Payload
 {
     public static final ByteBuffer NULL_BYTEBUFFER = FrameHeaderFlyweight.NULL_BYTEBUFFER;
+
+    /*
+     * ThreadLocal handling in the pool itself. We don't have a per thread pool at this level.
+     */
 
     private static final String FRAME_POOLER_CLASS_NAME =
         getProperty("io.reactivesocket.FramePool", "io.reactivesocket.internal.UnpooledFrame");

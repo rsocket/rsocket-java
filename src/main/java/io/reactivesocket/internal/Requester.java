@@ -394,7 +394,7 @@ public class Requester {
 									s.request(Long.MAX_VALUE);
 									
 									// now that we are connected, send SETUP frame (asynchronously, other messages can continue being written after this)
-									connection.addOutput(PublisherUtils.just(Frame.fromSetup(0, 0, 0, setupPayload.metadataMimeType(), setupPayload.dataMimeType(), setupPayload)),
+									connection.addOutput(PublisherUtils.just(Frame.fromSetup(setupPayload.getFlags(), 0, 0, setupPayload.metadataMimeType(), setupPayload.dataMimeType(), setupPayload)),
 											new Completable() {
 
 												@Override

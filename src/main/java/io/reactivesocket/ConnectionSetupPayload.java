@@ -15,6 +15,8 @@
  */
 package io.reactivesocket;
 
+import io.reactivesocket.internal.SetupFrameFlyweight;
+
 import java.nio.ByteBuffer;
 
 /**
@@ -22,6 +24,9 @@ import java.nio.ByteBuffer;
  */
 public abstract class ConnectionSetupPayload implements Payload
 {
+	public static final int HONOR_LEASE = SetupFrameFlyweight.FLAGS_WILL_HONOR_LEASE;
+	public static final int STRICT_INTERPRETATION = SetupFrameFlyweight.FLAGS_STRICT_INTERPRETATION;
+
 	public static ConnectionSetupPayload create(String metadataMimeType, String dataMimeType) {
     	return new ConnectionSetupPayload() {
     	    public String metadataMimeType()
@@ -93,6 +98,12 @@ public abstract class ConnectionSetupPayload implements Payload
     	    {
     	        return setupFrame.getMetadata();
     	    }
+
+			@Override
+			public int getFlags()
+			{
+				return Frame.Setup.getFlags(setupFrame);
+			}
     	};
     }
 
@@ -103,4 +114,19 @@ public abstract class ConnectionSetupPayload implements Payload
     public abstract ByteBuffer getData();
 
     public abstract ByteBuffer getMetadata();
+
+	public int getFlags()
+	{
+		return HONOR_LEASE;
+	}
+
+	public boolean willClientHonorLease()
+	{
+		return (HONOR_LEASE == (getFlags() & HONOR_LEASE));
+	}
+
+	public boolean doesClientRequestStrictInterpretation()
+	{
+		return (STRICT_INTERPRETATION == (getFlags() & STRICT_INTERPRETATION));
+	}
 }

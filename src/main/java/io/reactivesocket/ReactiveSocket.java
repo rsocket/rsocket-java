@@ -248,6 +248,33 @@ public class ReactiveSocket implements AutoCloseable {
 	}
 
 	/**
+	 * Client check for availability to send request based on lease
+	 *
+	 * @return
+	 */
+	public double availability()
+	{
+		// TODO: ensure client
+		// TODO:
+
+		return 0;
+	}
+
+	/**
+	 * Server granting new lease information to client
+	 *
+	 * Initial lease semantics are that server waits for periodic granting of leases by server side.
+	 *
+	 * @param ttl
+	 * @param numberOfRequests
+	 */
+	public void renewLease(int ttl, int numberOfRequests)
+	{
+		// TODO:
+//		responder.sendLease(ttl, numberOfRequests);
+	}
+
+	/**
 	 * Start protocol processing on the given DuplexConnection.
 
 	 * @return
