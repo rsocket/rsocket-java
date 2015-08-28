@@ -69,7 +69,7 @@ public class Responder {
 	}
 
 	/**
-	 * Send a LEASE frame immediately
+	 * Send a LEASE frame immediately. Only way a LEASE is sent. Handled entirely by application logic.
 	 *
 	 * @param ttl of lease
 	 * @param numberOfRequests of lease
@@ -133,7 +133,9 @@ public class Responder {
 						} catch (Throwable e) {
 							setupErrorAndTearDown(connection, new SetupException(SetupErrorCode.REJECTED, e));
 						}
-						// TODO add lease semantics, keepalive interval, etc
+						// the L bit set must wait until the application logic explicitly sends a LEASE. ConnectionSetupPlayload
+						// knows of bits being set.
+						// TODO: handle keepalive logic here
 					} else {
 						setupErrorAndTearDown(connection, new SetupException(SetupErrorCode.INVALID_SETUP, "Setup frame missing"));
 					}
@@ -246,94 +248,85 @@ public class Responder {
 			final RequestHandler requestHandler,
 			final Long2ObjectHashMap<Subscription> cancellationSubscriptions) {
 
-		return new Publisher<Frame>() {
+		return (Subscriber<? super Frame> child) -> {
+			Subscription s = new Subscription() {
 
-			@Override
-			public void subscribe(Subscriber<? super Frame> child) {
-				Subscription s = new Subscription() {
+				boolean started = false;
+				AtomicReference<Subscription> parent = new AtomicReference<>();
 
-					boolean started = false;
-					AtomicReference<Subscription> parent = new AtomicReference<>();
+				@Override
+				public void request(long n) {
+					if (!started) {
+						started = true;
+						long streamId = requestFrame.getStreamId();
 
-					@Override
-					public void request(long n) {
-						if (!started) {
-							started = true;
-							long streamId = requestFrame.getStreamId();
+						requestHandler.handleRequestResponse(requestFrame).subscribe(new Subscriber<Payload>() {
 
-							requestHandler.handleRequestResponse(requestFrame).subscribe(new Subscriber<Payload>() {
+							int count = 0;
 
-								int count = 0;
-
-								@Override
-								public void onSubscribe(Subscription s) {
-									if (parent.compareAndSet(null, s)) {
-										s.request(Long.MAX_VALUE); // only expect 1 value so we don't need REQUEST_N
-									} else {
-										s.cancel();
-										cleanup();
-									}
-								}
-
-								@Override
-								public void onNext(Payload v) {
-									if (++count > 1) {
-										onError(new IllegalStateException("RequestResponse expects a single onNext"));
-									} else {
-										child.onNext(Frame.from(streamId, FrameType.NEXT_COMPLETE, v));
-									}
-								}
-
-								@Override
-								public void onError(Throwable t) {
-									child.onNext(Frame.fromError(streamId, t));
+							@Override
+							public void onSubscribe(Subscription s) {
+								if (parent.compareAndSet(null, s)) {
+									s.request(Long.MAX_VALUE); // only expect 1 value so we don't need REQUEST_N
+								} else {
+									s.cancel();
 									cleanup();
 								}
+							}
 
-								@Override
-								public void onComplete() {
-									if (count != 1) {
-										onError(new IllegalStateException("RequestResponse expects a single onNext"));
-									} else {
-										child.onComplete();
-										cleanup();
-									}
+							@Override
+							public void onNext(Payload v) {
+								if (++count > 1) {
+									onError(new IllegalStateException("RequestResponse expects a single onNext"));
+								} else {
+									child.onNext(Frame.from(streamId, FrameType.NEXT_COMPLETE, v));
 								}
+							}
 
-							});
-						}
+							@Override
+							public void onError(Throwable t) {
+								child.onNext(Frame.fromError(streamId, t));
+								cleanup();
+							}
+
+							@Override
+							public void onComplete() {
+								if (count != 1) {
+									onError(new IllegalStateException("RequestResponse expects a single onNext"));
+								} else {
+									child.onComplete();
+									cleanup();
+								}
+							}
+
+						});
 					}
+				}
 
-					@Override
-					public void cancel() {
-						if (!parent.compareAndSet(null, EmptySubscription.EMPTY)) {
-							parent.get().cancel();
-							cleanup();
-						}
+				@Override
+				public void cancel() {
+					if (!parent.compareAndSet(null, EmptySubscription.EMPTY)) {
+						parent.get().cancel();
+						cleanup();
 					}
+				}
 
-					private void cleanup() {
-						cancellationSubscriptions.remove(requestFrame.getStreamId());
-					}
+				private void cleanup() {
+					cancellationSubscriptions.remove(requestFrame.getStreamId());
+				}
 
-				};
-				cancellationSubscriptions.put(requestFrame.getStreamId(), s);
-				child.onSubscribe(s);
-			}
-
+			};
+			cancellationSubscriptions.put(requestFrame.getStreamId(), s);
+			child.onSubscribe(s);
 		};
 	}
-
-	private static BiFunction<RequestHandler, Payload, Publisher<Payload>> requestSubscriptionHandler = (RequestHandler handler, Payload requestPayload) -> handler
-			.handleSubscription(requestPayload);
-	private static BiFunction<RequestHandler, Payload, Publisher<Payload>> requestStreamHandler = (RequestHandler handler, Payload requestPayload) -> handler.handleRequestStream(requestPayload);
 
 	private Publisher<Frame> handleRequestStream(
 			Frame requestFrame,
 			final RequestHandler requestHandler,
 			final Long2ObjectHashMap<Subscription> cancellationSubscriptions,
 			final Long2ObjectHashMap<?> inFlight) {
-		return requestStream(requestStreamHandler, requestFrame, requestHandler, cancellationSubscriptions, inFlight, true);
+		return requestStream(RequestHandler::handleRequestStream, requestFrame, requestHandler, cancellationSubscriptions, inFlight, true);
 	}
 
 	private Publisher<Frame> handleRequestSubscription(
@@ -341,7 +334,7 @@ public class Responder {
 			final RequestHandler requestHandler,
 			final Long2ObjectHashMap<Subscription> cancellationSubscriptions,
 			final Long2ObjectHashMap<?> inFlight) {
-		return requestStream(requestSubscriptionHandler, requestFrame, requestHandler, cancellationSubscriptions, inFlight, false);
+		return requestStream(RequestHandler::handleSubscription, requestFrame, requestHandler, cancellationSubscriptions, inFlight, false);
 	}
 
 	/**
@@ -362,80 +355,74 @@ public class Responder {
 			final Long2ObjectHashMap<?> inFlight,
 			final boolean allowCompletion) {
 
-		return new Publisher<Frame>() {
+		return (Subscriber<? super Frame> child) -> {
+			Subscription s = new Subscription() {
 
-			@Override
-			public void subscribe(Subscriber<? super Frame> child) {
-				Subscription s = new Subscription() {
+				boolean started = false;
+				AtomicReference<Subscription> parent = new AtomicReference<>();
 
-					boolean started = false;
-					AtomicReference<Subscription> parent = new AtomicReference<>();
+				@Override
+				public void request(long n) {
+					if (!started) {
+						started = true;
+						long streamId = requestFrame.getStreamId();
 
-					@Override
-					public void request(long n) {
-						if (!started) {
-							started = true;
-							long streamId = requestFrame.getStreamId();
+						handler.apply(requestHandler, requestFrame).subscribe(new Subscriber<Payload>() {
 
-							handler.apply(requestHandler, requestFrame).subscribe(new Subscriber<Payload>() {
-
-								@Override
-								public void onSubscribe(Subscription s) {
-									if (parent.compareAndSet(null, s)) {
-										s.request(Long.MAX_VALUE); // TODO need backpressure
-									} else {
-										s.cancel();
-										cleanup();
-									}
-								}
-
-								@Override
-								public void onNext(Payload v) {
-									child.onNext(Frame.from(streamId, FrameType.NEXT, v));
-								}
-
-								@Override
-								public void onError(Throwable t) {
-									child.onNext(Frame.fromError(streamId, t));
-									child.onComplete();
+							@Override
+							public void onSubscribe(Subscription s) {
+								if (parent.compareAndSet(null, s)) {
+									s.request(Long.MAX_VALUE); // TODO need backpressure
+								} else {
+									s.cancel();
 									cleanup();
 								}
+							}
 
-								@Override
-								public void onComplete() {
-									if (allowCompletion) {
-										child.onNext(Frame.from(streamId, FrameType.COMPLETE));
-										child.onComplete();
-										cleanup();
-									} else {
-										onError(new IllegalStateException("Unexpected onComplete occurred on 'requestSubscription'"));
-									}
+							@Override
+							public void onNext(Payload v) {
+								child.onNext(Frame.from(streamId, FrameType.NEXT, v));
+							}
 
+							@Override
+							public void onError(Throwable t) {
+								child.onNext(Frame.fromError(streamId, t));
+								child.onComplete();
+								cleanup();
+							}
+
+							@Override
+							public void onComplete() {
+								if (allowCompletion) {
+									child.onNext(Frame.from(streamId, FrameType.COMPLETE));
+									child.onComplete();
+									cleanup();
+								} else {
+									onError(new IllegalStateException("Unexpected onComplete occurred on 'requestSubscription'"));
 								}
 
-							});
-						}
+							}
+
+						});
 					}
+				}
 
-					@Override
-					public void cancel() {
-						if (!parent.compareAndSet(null, EmptySubscription.EMPTY)) {
-							parent.get().cancel();
-							cleanup();
-						}
+				@Override
+				public void cancel() {
+					if (!parent.compareAndSet(null, EmptySubscription.EMPTY)) {
+						parent.get().cancel();
+						cleanup();
 					}
+				}
 
-					private void cleanup() {
-						cancellationSubscriptions.remove(requestFrame.getStreamId());
-					}
+				private void cleanup() {
+					cancellationSubscriptions.remove(requestFrame.getStreamId());
+				}
 
-				};
-				cancellationSubscriptions.put(requestFrame.getStreamId(), s);
-				child.onSubscribe(s);
-			}
-
+			};
+			cancellationSubscriptions.put(requestFrame.getStreamId(), s);
+			child.onSubscribe(s);
 		};
-
 	}
 
 	private Publisher<Frame> handleFireAndForget(Frame requestFrame, final RequestHandler requestHandler) {

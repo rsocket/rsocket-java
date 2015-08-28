@@ -271,9 +271,7 @@ public class Requester {
 						// Response frames for this Stream
 						UnicastSubject<Frame> transportInputSubject = UnicastSubject.create();
 						streamInputMap.put(streamId, transportInputSubject);
-						streamInputSubscriber = new StreamInputSubscriber(child, () -> {
-							cancel();
-						});
+						streamInputSubscriber = new StreamInputSubscriber(child, this::cancel);
 						transportInputSubject.subscribe(streamInputSubscriber);
 
 						// connect to transport
