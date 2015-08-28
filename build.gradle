@@ -20,8 +20,7 @@ dependencies {
 	compile 'org.reactivestreams:reactive-streams:1.0.0.final'
 	compile 'uk.co.real-logic:Agrona:0.4.2'
 	
-	testCompile 'io.reactivex:rxjava:1.0.13'
-	testCompile 'io.reactivex:rxjava-reactive-streams:1.0.1'
+	testCompile 'io.reactivex:rxjava:2.0.0-DP0-SNAPSHOT'
 	testCompile 'junit:junit-dep:4.10'
 	testCompile 'org.mockito:mockito-core:1.8.5'
 }

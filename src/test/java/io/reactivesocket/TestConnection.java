@@ -15,17 +15,16 @@
  */
 package io.reactivesocket;
 
-import static rx.RxReactiveStreams.*;
-
 import java.io.IOException;
 
 import org.reactivestreams.Publisher;
+import static io.reactivex.Observable.*;
 
 import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
-import rx.Observable;
-import rx.schedulers.Schedulers;
-import rx.subjects.PublishSubject;
+import io.reactivex.Observable;
+import io.reactivex.schedulers.Schedulers;
+import io.reactivex.subjects.PublishSubject;
 
 public class TestConnection implements DuplexConnection {
 
@@ -35,7 +34,7 @@ public class TestConnection implements DuplexConnection {
 
 	@Override
 	public void addOutput(Publisher<Frame> o, Completable callback) {
-		toObservable(o).flatMap(m -> {
+		fromPublisher(o).flatMap(m -> {
 			// no backpressure on a Subject so just firehosing for this test
 			writeSubject.onNext(m);
 			return Observable.<Void> empty();
@@ -44,7 +43,7 @@ public class TestConnection implements DuplexConnection {
 
 	@Override
 	public Publisher<Frame> getInput() {
-		return toPublisher(toInput);
+		return toInput;
 	}
 
 	public void connectToServerConnection(TestConnection serverConnection) {

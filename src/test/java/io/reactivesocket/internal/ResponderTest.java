@@ -16,6 +16,16 @@
 package io.reactivesocket.internal;
 
 import static io.reactivesocket.TestUtil.*;
+import static io.reactivex.Observable.*;
+import static org.junit.Assert.*;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 
 import org.junit.Test;
 import org.reactivestreams.Subscription;
@@ -25,26 +35,9 @@ import io.reactivesocket.FrameType;
 import io.reactivesocket.Payload;
 import io.reactivesocket.RequestHandler;
 import io.reactivesocket.TestConnection;
-import io.reactivesocket.internal.Responder;
-import rx.Observable;
-import rx.schedulers.Schedulers;
-import rx.schedulers.TestScheduler;
-import rx.subjects.ReplaySubject;
-
-import java.util.List;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
-import static rx.Observable.error;
-import static rx.Observable.interval;
-import static rx.Observable.just;
-import static rx.Observable.never;
-import static rx.Observable.range;
-import static rx.RxReactiveStreams.toPublisher;
+import io.reactivex.Observable;
+import io.reactivex.schedulers.Schedulers;
+import io.reactivex.schedulers.TestScheduler;
 
 public class ResponderTest
 {
@@ -54,18 +47,18 @@ public class ResponderTest
     public void testRequestResponseSuccess() {
     	TestConnection conn = establishConnection();
         Responder.create(conn, setup -> RequestHandler.create(
-            request -> toPublisher(just(utf8EncodedPayload(byteToString(request.getData()) + " world", null))),
+            request -> just(utf8EncodedPayload(byteToString(request.getData()) + " world", null)),
             null, null, null), ERROR_HANDLER);
 
         
-        ReplaySubject<Frame> cachedResponses = captureResponses(conn);
+        Collection<Frame> cachedResponses = captureResponses(conn);
         sendSetupFrame(conn);
         
         // perform a request/response
         conn.toInput.onNext(utf8EncodedRequestFrame(1, FrameType.REQUEST_RESPONSE, "hello", 128));
 
-        assertEquals(1, cachedResponses.getValues().length);// 1 onNext + 1 onCompleted
-        List<Frame> frames = cachedResponses.take(1).toList().toBlocking().first();
+        assertEquals(1, cachedResponses.size());// 1 onNext + 1 onCompleted
+        List<Frame> frames = new ArrayList<>(cachedResponses);
 
         // assert
         Frame first = frames.get(0);
@@ -78,17 +71,17 @@ public class ResponderTest
     public void testRequestResponseError() {
     	TestConnection conn = establishConnection();
         Responder.create(conn, setup -> RequestHandler.create(
-            request -> toPublisher(Observable.<Payload>error(new Exception("Request Not Found"))),
+            request -> Observable.<Payload>error(new Exception("Request Not Found")),
             null, null, null), ERROR_HANDLER);
 
-        Observable<Frame> cachedResponses = captureResponses(conn);
+        Collection<Frame> cachedResponses = captureResponses(conn);
         sendSetupFrame(conn);
 
         // perform a request/response
         conn.toInput.onNext(utf8EncodedRequestFrame(1, FrameType.REQUEST_RESPONSE, "hello", 128));
 
         // assert
-        Frame first = cachedResponses.toBlocking().first();
+        Frame first = new ArrayList<>(cachedResponses).get(0);
         assertEquals(1, first.getStreamId());
         assertEquals(FrameType.ERROR, first.getType());
         assertEquals("Request Not Found", byteToString(first.getData()));
@@ -97,22 +90,20 @@ public class ResponderTest
     @Test
     public void testRequestResponseCancel() {
         AtomicBoolean unsubscribed = new AtomicBoolean();
-        Observable<Payload> delayed = never()
-                .cast(Payload.class)
-                .doOnUnsubscribe(() -> unsubscribed.set(true));
+        Observable<Payload> delayed = Observable.<Payload>never().doOnCancel(() -> unsubscribed.set(true));
 
         TestConnection conn = establishConnection();
         Responder.create(conn, setup -> RequestHandler.create(
-            request -> toPublisher(delayed),
+            request -> delayed,
             null, null, null), ERROR_HANDLER);
 
-        ReplaySubject<Frame> cachedResponses = captureResponses(conn);
+        Collection<Frame> cachedResponses = captureResponses(conn);
         sendSetupFrame(conn);
 
         // perform a request/response
         conn.toInput.onNext(utf8EncodedRequestFrame(1, FrameType.REQUEST_RESPONSE, "hello", 128));
         // assert no response
-        assertFalse(cachedResponses.hasAnyValue());
+        assertEquals(0, cachedResponses.size());
         // unsubscribe
         assertFalse(unsubscribed.get());
         conn.toInput.onNext(Frame.from(1, FrameType.CANCEL));
@@ -124,18 +115,18 @@ public class ResponderTest
     	TestConnection conn = establishConnection();
         Responder.create(conn, setup -> RequestHandler.create(
             null,
-            request -> toPublisher(range(Integer.parseInt(byteToString(request.getData())), 10).map(i -> utf8EncodedPayload(i + "!", null))),
+            request -> range(Integer.parseInt(byteToString(request.getData())), 10).map(i -> utf8EncodedPayload(i + "!", null)),
             null, null), ERROR_HANDLER);
 
-        ReplaySubject<Frame> cachedResponses = captureResponses(conn);
+        Collection<Frame> cachedResponses = captureResponses(conn);
         sendSetupFrame(conn);
 
         // perform a request/response
         conn.toInput.onNext(utf8EncodedRequestFrame(1, FrameType.REQUEST_STREAM, "10", 128));
 
         // assert
-        assertEquals(11, cachedResponses.getValues().length);// 10 onNext + 1 onCompleted
-        List<Frame> frames = cachedResponses.take(11).toList().toBlocking().first();
+        assertEquals(11, cachedResponses.size());// 10 onNext + 1 onCompleted
+        List<Frame> frames = new ArrayList<>(cachedResponses);
 
         // 10 onNext frames
         for (int i = 0; i < 10; i++) {
@@ -155,20 +146,20 @@ public class ResponderTest
     	TestConnection conn = establishConnection();
         Responder.create(conn, setup -> RequestHandler.create(
             null,
-            request -> toPublisher(range(Integer.parseInt(byteToString(request.getData())), 3)
+            request -> range(Integer.parseInt(byteToString(request.getData())), 3)
                 .map(i -> utf8EncodedPayload(i + "!", null))
-                .concatWith(error(new Exception("Error Occurred!")))),
+                .concatWith(error(new Exception("Error Occurred!"))),
             null, null), ERROR_HANDLER);
 
-        ReplaySubject<Frame> cachedResponses = captureResponses(conn);
+        Collection<Frame> cachedResponses = captureResponses(conn);
         sendSetupFrame(conn);
 
         // perform a request/response
         conn.toInput.onNext(utf8EncodedRequestFrame(1, FrameType.REQUEST_STREAM, "0", 128));
 
         // assert
-        assertEquals(4, cachedResponses.getValues().length);// 3 onNext + 1 onError
-        List<Frame> frames = cachedResponses.take(4).toList().toBlocking().first();
+        assertEquals(4, cachedResponses.size());// 3 onNext + 1 onError
+        List<Frame> frames = new ArrayList<>(cachedResponses);
 
         // 3 onNext frames
         for (int i = 0; i < 3; i++) {
@@ -189,31 +180,31 @@ public class ResponderTest
         TestScheduler ts = Schedulers.test();
         Responder.create(conn, setup -> RequestHandler.create(
             null,
-            request -> toPublisher(interval(1000, TimeUnit.MILLISECONDS, ts).map(i -> utf8EncodedPayload(i + "!", null))),
+            request -> interval(1000, TimeUnit.MILLISECONDS, ts).map(i -> utf8EncodedPayload(i + "!", null)),
             null, null), ERROR_HANDLER);
 
-        ReplaySubject<Frame> cachedResponses = captureResponses(conn);
+        Collection<Frame> cachedResponses = captureResponses(conn);
         sendSetupFrame(conn);
 
         // perform a request/response
         conn.toInput.onNext(utf8EncodedRequestFrame(1, FrameType.REQUEST_STREAM, "/aRequest", 128));
 
         // no time has passed, so no values
-        assertEquals(0, cachedResponses.getValues().length);
+        assertEquals(0, cachedResponses.size());
         ts.advanceTimeBy(1000, TimeUnit.MILLISECONDS);
-        assertEquals(1, cachedResponses.getValues().length);
+        assertEquals(1, cachedResponses.size());
         ts.advanceTimeBy(2000, TimeUnit.MILLISECONDS);
-        assertEquals(3, cachedResponses.getValues().length);
+        assertEquals(3, cachedResponses.size());
         // dispose
         conn.toInput.onNext(Frame.from(1, FrameType.CANCEL));
         // still only 1 message
-        assertEquals(3, cachedResponses.getValues().length);
+        assertEquals(3, cachedResponses.size());
         // advance again, nothing should happen
         ts.advanceTimeBy(1000, TimeUnit.MILLISECONDS);
         // should still only have 3 message, no ERROR or COMPLETED
-        assertEquals(3, cachedResponses.getValues().length);
+        assertEquals(3, cachedResponses.size());
 
-        List<Frame> frames = cachedResponses.take(3).toList().toBlocking().first();
+        List<Frame> frames = new ArrayList<>(cachedResponses);
 
         // 3 onNext frames
         for (int i = 0; i < 3; i++) {
@@ -229,35 +220,35 @@ public class ResponderTest
         TestConnection conn = establishConnection();
         Responder.create(conn, setup -> RequestHandler.create(
             null,
-            request -> toPublisher(interval(1000, TimeUnit.MILLISECONDS, ts).map(i -> utf8EncodedPayload(i + "_" + byteToString(request.getData()), null))),
+            request -> interval(1000, TimeUnit.MILLISECONDS, ts).map(i -> utf8EncodedPayload(i + "_" + byteToString(request.getData()), null)),
             null, null), ERROR_HANDLER);
 
-        ReplaySubject<Frame> cachedResponses = captureResponses(conn);
+        Collection<Frame> cachedResponses = captureResponses(conn);
         sendSetupFrame(conn);
 
         // perform a request/response
         conn.toInput.onNext(utf8EncodedRequestFrame(1, FrameType.REQUEST_STREAM, "requestA", 128));
 
         // no time has passed, so no values
-        assertEquals(0, cachedResponses.getValues().length);
+        assertEquals(0, cachedResponses.size());
         ts.advanceTimeBy(1000, TimeUnit.MILLISECONDS);
         // we should have 1 message from A
-        assertEquals(1, cachedResponses.getValues().length);
+        assertEquals(1, cachedResponses.size());
         // now request another stream
         conn.toInput.onNext(utf8EncodedRequestFrame(2, FrameType.REQUEST_STREAM, "requestB", 128));
         // advance some more
         ts.advanceTimeBy(2000, TimeUnit.MILLISECONDS);
         // should have 3 from A and 2 from B
-        assertEquals(5, cachedResponses.getValues().length);
+        assertEquals(5, cachedResponses.size());
         // dispose A, but leave B
         conn.toInput.onNext(Frame.from(1, FrameType.CANCEL));
         // still same 5 frames
-        assertEquals(5, cachedResponses.getValues().length);
+        assertEquals(5, cachedResponses.size());
         // advance again, should get 2 from B
         ts.advanceTimeBy(2000, TimeUnit.MILLISECONDS);
-        assertEquals(7, cachedResponses.getValues().length);
+        assertEquals(7, cachedResponses.size());
 
-        List<Frame> frames = cachedResponses.take(7).toList().toBlocking().first();
+        List<Frame> frames = new ArrayList<>(cachedResponses);
 
         // A frames (positions 0, 1, 3) incrementing 0, 1, 2
         assertEquals(1, frames.get(0).getStreamId());
@@ -280,11 +271,10 @@ public class ResponderTest
 
     /* **********************************************************************************************/
 
-    private ReplaySubject<Frame> captureResponses(TestConnection conn) {
-        // capture all responses to client
-        ReplaySubject<Frame> rs = ReplaySubject.create();
-        conn.writes.subscribe(rs);
-        return rs;
+    private List<Frame> captureResponses(TestConnection conn) {
+    	List<Frame> requests = Collections.synchronizedList(new ArrayList<>());
+        conn.writes.subscribe(requests::add);
+        return requests;
     }
 
     private TestConnection establishConnection() {

@@ -15,46 +15,46 @@
  */
 package io.reactivesocket.internal;
 
+import static org.junit.Assert.*;
+
 import org.junit.Test;
 
 import io.reactivesocket.Frame;
 import io.reactivesocket.FrameType;
 import io.reactivesocket.TestUtil;
 import io.reactivesocket.internal.UnicastSubject;
-import rx.observers.TestSubscriber;
-
-import static rx.RxReactiveStreams.toObservable;
-import static rx.RxReactiveStreams.toPublisher;
+import io.reactivex.Observable;
+import io.reactivex.subscribers.TestSubscriber;
 
 public class UnicastSubjectTest {
 
 	@Test
 	public void testSubscribeReceiveValue() {
 		Frame f = TestUtil.utf8EncodedFrame(1, FrameType.NEXT_COMPLETE, "response");
-		UnicastSubject us = UnicastSubject.create();
-		TestSubscriber<Frame> ts = TestSubscriber.create();
-		toObservable(us).subscribe(ts);
+		UnicastSubject<Frame> us = UnicastSubject.create();
+		TestSubscriber<Frame> ts = new TestSubscriber<>();
+		Observable.fromPublisher(us).subscribe(ts);
 		us.onNext(f);
-		ts.assertValue(f);
-		ts.assertNoTerminalEvent();
+		assertEquals(ts.values().get(0).toString(), f.toString());
+		ts.assertNotTerminated();
 	}
 
 	@Test(expected = NullPointerException.class)
 	public void testNullPointerSendingWithoutSubscriber() {
 		Frame f = TestUtil.utf8EncodedFrame(1, FrameType.NEXT_COMPLETE, "response");
-		UnicastSubject us = UnicastSubject.create();
+		UnicastSubject<Frame> us = UnicastSubject.create();
 		us.onNext(f);
 	}
 
 	@Test
 	public void testIllegalStateIfMultiSubscribe() {
-		UnicastSubject us = UnicastSubject.create();
-		TestSubscriber<Frame> f1 = TestSubscriber.create();
-		toObservable(us).subscribe(f1);
-		TestSubscriber<Frame> f2 = TestSubscriber.create();
-		toObservable(us).subscribe(f2);
+		UnicastSubject<Frame> us = UnicastSubject.create();
+		TestSubscriber<Frame> f1 = new TestSubscriber<>();
+		Observable.fromPublisher(us).subscribe(f1);
+		TestSubscriber<Frame> f2 = new TestSubscriber<>();
+		Observable.fromPublisher(us).subscribe(f2);
 
-		f1.assertNoTerminalEvent();
+		f1.assertNotTerminated();
 		f2.assertError(IllegalStateException.class);
 	}
 

@@ -15,13 +15,16 @@
  */
 package io.reactivesocket.internal;
 
+import static io.reactivesocket.ConnectionSetupPayload.*;
 import static io.reactivesocket.TestUtil.*;
+import static io.reactivex.Observable.*;
 import static org.junit.Assert.*;
-import static rx.RxReactiveStreams.*;
-import static io.reactivesocket.ConnectionSetupPayload.NO_FLAGS;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
@@ -32,26 +35,25 @@ import io.reactivesocket.Frame;
 import io.reactivesocket.FrameType;
 import io.reactivesocket.Payload;
 import io.reactivesocket.TestConnection;
-import rx.observers.TestSubscriber;
-import rx.subjects.ReplaySubject;
+import io.reactivex.subscribers.TestSubscriber;
 
 public class RequesterTest
 {
 	final static Consumer<Throwable> ERROR_HANDLER = err -> err.printStackTrace();
 	
     @Test
-    public void testRequestResponseSuccess() {
+    public void testRequestResponseSuccess() throws InterruptedException {
         TestConnection conn = establishConnection();
         Requester p = Requester.createClientRequester(conn, ConnectionSetupPayload.create("UTF-8", "UTF-8", NO_FLAGS), ERROR_HANDLER);
-        ReplaySubject<Frame> requests = captureRequests(conn);
+        Set<Frame> requests = captureRequests(conn);
 
-        TestSubscriber<Payload> ts = TestSubscriber.create();
-        toObservable(p.requestResponse(utf8EncodedPayload("hello", null))).subscribe(ts);
+        TestSubscriber<Payload> ts = new TestSubscriber<>();
+        fromPublisher(p.requestResponse(utf8EncodedPayload("hello", null))).subscribe(ts);
 
-        ts.assertNoErrors();
-        assertEquals(1, requests.getValues().length);
-        List<Frame> requested = requests.take(1).toList().toBlocking().single();
-
+        ts.assertNoError();
+        assertEquals(1, requests.size());
+        List<Frame> requested = new ArrayList<>(requests);
+        
         Frame one = requested.get(0);
         assertEquals(2, one.getStreamId());// need to start at 2, not 0
         assertEquals("hello", byteToString(one.getData()));
@@ -60,22 +62,22 @@ public class RequesterTest
         // now emit a response to ensure the Publisher receives and completes
         conn.toInput.onNext(utf8EncodedFrame(2, FrameType.NEXT_COMPLETE, "world"));
 
-        ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
+        ts.await(1000, TimeUnit.MILLISECONDS);
         ts.assertValue(utf8EncodedPayload("world", null));
-        ts.assertCompleted();
+        ts.assertComplete();
     }
 
     @Test
-    public void testRequestResponseError() {
+    public void testRequestResponseError() throws InterruptedException {
         TestConnection conn = establishConnection();
         Requester p = Requester.createClientRequester(conn, ConnectionSetupPayload.create("UTF-8", "UTF-8", NO_FLAGS), ERROR_HANDLER);
-        ReplaySubject<Frame> requests = captureRequests(conn);
+        Set<Frame> requests = captureRequests(conn);
 
-        TestSubscriber<Payload> ts = TestSubscriber.create();
-        toObservable(p.requestResponse(utf8EncodedPayload("hello", null))).subscribe(ts);
+        TestSubscriber<Payload> ts = new TestSubscriber<>();
+        fromPublisher(p.requestResponse(utf8EncodedPayload("hello", null))).subscribe(ts);
 
-        assertEquals(1, requests.getValues().length);
-        List<Frame> requested = requests.take(1).toList().toBlocking().single();
+        assertEquals(1, requests.size());
+        List<Frame> requested = new ArrayList<>(requests);
 
         Frame one = requested.get(0);
         assertEquals(2, one.getStreamId());// need to start at 2, not 0
@@ -83,23 +85,23 @@ public class RequesterTest
         assertEquals(FrameType.REQUEST_RESPONSE, one.getType());
 
         conn.toInput.onNext(Frame.fromError(2, new RuntimeException("Failed")));
-        ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
+        ts.await(1000, TimeUnit.MILLISECONDS);
         ts.assertError(Exception.class);
-        assertEquals("Failed", ts.getOnErrorEvents().get(0).getMessage());
+        assertEquals("Failed", ts.errors().get(0).getMessage());
     }
 
     @Test
     public void testRequestResponseCancel() {
         TestConnection conn = establishConnection();
         Requester p = Requester.createClientRequester(conn, ConnectionSetupPayload.create("UTF-8", "UTF-8", NO_FLAGS), ERROR_HANDLER);
-        ReplaySubject<Frame> requests = captureRequests(conn);
+        Set<Frame> requests = captureRequests(conn);
 
-        TestSubscriber<Payload> ts = TestSubscriber.create();
-        rx.Subscription s = toObservable(p.requestResponse(utf8EncodedPayload("hello", null))).subscribe(ts);
-        s.unsubscribe();
+        TestSubscriber<Payload> ts = new TestSubscriber<>();
+        fromPublisher(p.requestResponse(utf8EncodedPayload("hello", null))).subscribe(ts);
+        ts.cancel();
 
-        assertEquals(2, requests.getValues().length);
-        List<Frame> requested = requests.take(2).toList().toBlocking().single();
+        assertEquals(2, requests.size());
+        List<Frame> requested = new ArrayList<>(requests);
 
         Frame one = requested.get(0);
         assertEquals(2, one.getStreamId());// need to start at 2, not 0
@@ -111,23 +113,22 @@ public class RequesterTest
         assertEquals("", byteToString(two.getData()));
         assertEquals(FrameType.CANCEL, two.getType());
 
-        ts.assertNoTerminalEvent();
-        ts.assertUnsubscribed();
+        ts.assertNotTerminated();
         ts.assertNoValues();
     }
 
     // TODO REQUEST_N on initial frame not implemented yet
     @Test
-    public void testRequestStreamSuccess() {
+    public void testRequestStreamSuccess() throws InterruptedException {
         TestConnection conn = establishConnection();
         Requester p = Requester.createClientRequester(conn, ConnectionSetupPayload.create("UTF-8", "UTF-8", NO_FLAGS), ERROR_HANDLER);
-        ReplaySubject<Frame> requests = captureRequests(conn);
+        Set<Frame> requests = captureRequests(conn);
 
-        TestSubscriber<Payload> ts = TestSubscriber.create();
-        toObservable(p.requestStream(utf8EncodedPayload("hello", null))).subscribe(ts);
+        TestSubscriber<Payload> ts = new TestSubscriber<>();
+        fromPublisher(p.requestStream(utf8EncodedPayload("hello", null))).subscribe(ts);
 
-        assertEquals(1, requests.getValues().length);
-        List<Frame> requested = requests.take(1).toList().toBlocking().single();
+        assertEquals(1, requests.size());
+        List<Frame> requested = new ArrayList<>(requests);
 
         Frame one = requested.get(0);
         assertEquals(2, one.getStreamId());// need to start at 2, not 0
@@ -140,23 +141,23 @@ public class RequesterTest
         conn.toInput.onNext(utf8EncodedFrame(2, FrameType.NEXT, "world"));
         conn.toInput.onNext(utf8EncodedFrame(2, FrameType.COMPLETE, ""));
 
-        ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
-        ts.assertCompleted();
-        ts.assertReceivedOnNext(Arrays.asList(utf8EncodedPayload("hello", null), utf8EncodedPayload("world", null)));
+        ts.await(1000, TimeUnit.MILLISECONDS);
+        ts.assertComplete();
+        ts.assertValueSequence(Arrays.asList(utf8EncodedPayload("hello", null), utf8EncodedPayload("world", null)));
     }
 
  // TODO REQUEST_N on initial frame not implemented yet
     @Test
-    public void testRequestStreamSuccessTake2AndCancel() {
+    public void testRequestStreamSuccessTake2AndCancel() throws InterruptedException {
         TestConnection conn = establishConnection();
         Requester p = Requester.createClientRequester(conn, ConnectionSetupPayload.create("UTF-8", "UTF-8", NO_FLAGS), ERROR_HANDLER);
-        ReplaySubject<Frame> requests = captureRequests(conn);
+        Set<Frame> requests = captureRequests(conn);
 
-        TestSubscriber<Payload> ts = TestSubscriber.create();
-        toObservable(p.requestStream(utf8EncodedPayload("hello", null))).take(2).subscribe(ts);
+        TestSubscriber<Payload> ts = new TestSubscriber<>();
+        fromPublisher(p.requestStream(utf8EncodedPayload("hello", null))).take(2).subscribe(ts);
 
-        assertEquals(1, requests.getValues().length);
-        List<Frame> requested = requests.take(1).toList().toBlocking().single();
+        assertEquals(1, requests.size());
+        List<Frame> requested = new ArrayList<>(requests);
 
         Frame one = requested.get(0);
         assertEquals(2, one.getStreamId());// need to start at 2, not 0
@@ -168,12 +169,12 @@ public class RequesterTest
         conn.toInput.onNext(utf8EncodedFrame(2, FrameType.NEXT, "hello"));
         conn.toInput.onNext(utf8EncodedFrame(2, FrameType.NEXT, "world"));
 
-        ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
-        ts.assertCompleted();
-        ts.assertReceivedOnNext(Arrays.asList(utf8EncodedPayload("hello", null), utf8EncodedPayload("world", null)));
+        ts.await(1000, TimeUnit.MILLISECONDS);
+        ts.assertComplete();
+        ts.assertValueSequence(Arrays.asList(utf8EncodedPayload("hello", null), utf8EncodedPayload("world", null)));
 
-        assertEquals(2, requests.getValues().length);
-        List<Frame> requested2 = requests.take(2).toList().toBlocking().single();
+        assertEquals(2, requests.size());
+        List<Frame> requested2 = new ArrayList<>(requests);
 
         // we should have sent a CANCEL
         Frame two = requested2.get(1);
@@ -183,16 +184,16 @@ public class RequesterTest
     }
 
     @Test
-    public void testRequestStreamError() {
+    public void testRequestStreamError() throws InterruptedException {
         TestConnection conn = establishConnection();
         Requester p = Requester.createClientRequester(conn, ConnectionSetupPayload.create("UTF-8", "UTF-8", NO_FLAGS), ERROR_HANDLER);
-        ReplaySubject<Frame> requests = captureRequests(conn);
+        Set<Frame> requests = captureRequests(conn);
 
-        TestSubscriber<Payload> ts = TestSubscriber.create();
-        toObservable(p.requestStream(utf8EncodedPayload("hello", null))).subscribe(ts);
+        TestSubscriber<Payload> ts = new TestSubscriber<>();
+        fromPublisher(p.requestStream(utf8EncodedPayload("hello", null))).subscribe(ts);
 
-        assertEquals(1, requests.getValues().length);
-        List<Frame> requested = requests.take(1).toList().toBlocking().single();
+        assertEquals(1, requests.size());
+        List<Frame> requested = new ArrayList<>(requests);
 
         Frame one = requested.get(0);
         assertEquals(2, one.getStreamId());// need to start at 2, not 0
@@ -204,10 +205,10 @@ public class RequesterTest
         conn.toInput.onNext(utf8EncodedFrame(2, FrameType.NEXT, "hello"));
         conn.toInput.onNext(utf8EncodedFrame(2, FrameType.ERROR, "Failure"));
 
-        ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
+        ts.await(1000, TimeUnit.MILLISECONDS);
         ts.assertError(Exception.class);
-        ts.assertReceivedOnNext(Arrays.asList(utf8EncodedPayload("hello", null)));
-        assertEquals("Failure", ts.getOnErrorEvents().get(0).getMessage());
+        ts.assertValueSequence(Arrays.asList(utf8EncodedPayload("hello", null)));
+        assertEquals("Failure", ts.errors().get(0).getMessage());
     }
 
     // @Test // TODO need to implement test for REQUEST_N behavior as a long stream is consumed
@@ -221,11 +222,10 @@ public class RequesterTest
 		return new TestConnection();
 	}
 
-    private ReplaySubject<Frame> captureRequests(TestConnection conn) {
-        ReplaySubject<Frame> rs = ReplaySubject.create();
-        rs.forEach(i -> System.out.println("capturedRequest => " + i));
-        conn.writes.subscribe(rs);
-        return rs;
+    private C<Frame> captureRequests(TestConnection conn) {
+    	ConcurrentLinkedQueue<Frame> requests = new ConcurrentLinkedQueue<>(); 
+        conn.writes.subscribe(requests::add);
+        return requests;
     }
 
 }
