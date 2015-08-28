@@ -54,13 +54,13 @@ public class Responder {
 	}
 
 	/**
-	 * @param requestHandler
-	 *            Handle incoming requests.
+	 * @param connectionHandler
+	 *            Handle connection setup and set up request handling.
 	 * @param errorStream
 	 *            A {@link Consumer<Throwable>} which will receive all errors that occurs processing requests.
 	 *            <p>
 	 *            This include fireAndForget which ONLY emit errors server-side via this mechanism.
-	 * @return
+	 * @return responder instance
 	 */
 	public static <T> Responder create(DuplexConnection connection, ConnectionSetupHandler connectionHandler, Consumer<Throwable> errorStream) {
 		Responder responder = new Responder(connection, connectionHandler, errorStream);
@@ -340,12 +340,12 @@ public class Responder {
 	/**
 	 * Common logic for requestStream and requestSubscription
 	 * 
-	 * @param handler
-	 * @param requestFrame
-	 * @param cancellationSubscriptions
-	 * @param inFlight
-	 * @param allowCompletion
-	 * @return
+	 * @param handler for request
+	 * @param requestFrame for request
+	 * @param cancellationSubscriptions for CANCEL processing
+	 * @param inFlight for flow control processing
+	 * @param allowCompletion or not
+	 * @return publisher instance
 	 */
 	private Publisher<Frame> requestStream(
 			BiFunction<RequestHandler, Payload, Publisher<Payload>> handler,
@@ -438,7 +438,7 @@ public class Responder {
 	/**
 	 * Reusable for each fireAndForget since no state is shared across invocations. It just passes through errors.
 	 */
-	private final Subscriber<Void> fireAndForgetSubscriber=new Subscriber<Void>(){
+	private final Subscriber<Void> fireAndForgetSubscriber = new Subscriber<Void>(){
 
 	@Override public void onSubscribe(Subscription s){s.request(Long.MAX_VALUE);}
 
@@ -467,74 +467,70 @@ public class Responder {
 
 			final UnicastSubject<Payload> channelRequests = channelSubject;
 
-			return new Publisher<Frame>() {
+			return (Subscriber<? super Frame> child) ->
+			{
+				Subscription s = new Subscription() {
 
-				@Override
-				public void subscribe(Subscriber<? super Frame> child) {
-					Subscription s = new Subscription() {
+					boolean started = false;
+					AtomicReference<Subscription> parent = new AtomicReference<>();
 
-						boolean started = false;
-						AtomicReference<Subscription> parent = new AtomicReference<>();
+					@Override
+					public void request(long n) {
+						if (!started) {
+							started = true;
+							long streamId = requestFrame.getStreamId();
 
-						@Override
-						public void request(long n) {
-							if (!started) {
-								started = true;
-								long streamId = requestFrame.getStreamId();
+							requestHandler.handleChannel(requestFrame, channelRequests).subscribe(new Subscriber<Payload>() {
 
-								requestHandler.handleChannel(requestFrame, channelRequests).subscribe(new Subscriber<Payload>() {
-
-									@Override
-									public void onSubscribe(Subscription s) {
-										if (parent.compareAndSet(null, s)) {
-											s.request(Long.MAX_VALUE); // TODO need backpressure
-										} else {
-											s.cancel();
-											cleanup();
-										}
-									}
-
-									@Override
-									public void onNext(Payload v) {
-										child.onNext(Frame.from(streamId, FrameType.NEXT, v));
-									}
-
-									@Override
-									public void onError(Throwable t) {
-										child.onNext(Frame.fromError(streamId, t));
-										child.onComplete();
+								@Override
+								public void onSubscribe(Subscription s) {
+									if (parent.compareAndSet(null, s)) {
+										s.request(Long.MAX_VALUE); // TODO need backpressure
+									} else {
+										s.cancel();
 										cleanup();
 									}
+								}
 
-									@Override
-									public void onComplete() {
-										child.onNext(Frame.from(streamId, FrameType.COMPLETE));
-										child.onComplete();
-										cleanup();
+								@Override
+								public void onNext(Payload v) {
+									child.onNext(Frame.from(streamId, FrameType.NEXT, v));
+								}
 
-									}
+								@Override
+								public void onError(Throwable t) {
+									child.onNext(Frame.fromError(streamId, t));
+									child.onComplete();
+									cleanup();
+								}
 
-								});
-							}
+								@Override
+								public void onComplete() {
+									child.onNext(Frame.from(streamId, FrameType.COMPLETE));
+									child.onComplete();
+									cleanup();
+
+								}
+
+							});
 						}
+					}
 
-						@Override
-						public void cancel() {
-							if (!parent.compareAndSet(null, EmptySubscription.EMPTY)) {
-								parent.get().cancel();
-								cleanup();
-							}
+					@Override
+					public void cancel() {
+						if (!parent.compareAndSet(null, EmptySubscription.EMPTY)) {
+							parent.get().cancel();
+							cleanup();
 						}
+					}
 
-						private void cleanup() {
-							cancellationSubscriptions.remove(requestFrame.getStreamId());
-						}
+					private void cleanup() {
+						cancellationSubscriptions.remove(requestFrame.getStreamId());
+					}
 
-					};
-					cancellationSubscriptions.put(requestFrame.getStreamId(), s);
-					child.onSubscribe(s);
-				}
-
+				};
+				cancellationSubscriptions.put(requestFrame.getStreamId(), s);
+				child.onSubscribe(s);
 			};
 
 		} else {
