@@ -22,17 +22,27 @@ import uk.co.real_logic.agrona.concurrent.UnsafeBuffer;
 
 import java.nio.ByteBuffer;
 
-public class PooledFrame
+public class PooledFrame implements FramePool
 {
+    private static final int MAX_CAHED_FRAMES_PER_THREAD = 16;
+
     private static final ThreadLocal<OneToOneConcurrentArrayQueue<Frame>> PER_THREAD_FRAME_QUEUE =
-        ThreadLocal.withInitial(() -> new OneToOneConcurrentArrayQueue<>(16));
+        ThreadLocal.withInitial(() -> new OneToOneConcurrentArrayQueue<>(MAX_CAHED_FRAMES_PER_THREAD));
 
     private static final ThreadLocal<OneToOneConcurrentArrayQueue<MutableDirectBuffer>> PER_THREAD_DIRECTBUFFER_QUEUE =
-        ThreadLocal.withInitial(() -> new OneToOneConcurrentArrayQueue<>(16));
+        ThreadLocal.withInitial(() -> new OneToOneConcurrentArrayQueue<>(MAX_CAHED_FRAMES_PER_THREAD));
 
     public Frame acquireFrame(int size)
     {
-        return Frame.allocate(new UnsafeBuffer(ByteBuffer.allocate(size)));
+        final MutableDirectBuffer directBuffer = acquireMutableDirectBuffer(size);
+
+        Frame frame = pollFrame();
+        if (null == frame)
+        {
+            frame = Frame.allocate(directBuffer);
+        }
+
+        return frame;
     }
 
     public Frame acquireFrame(ByteBuffer byteBuffer)
@@ -42,24 +52,58 @@ public class PooledFrame
 
     public void release(Frame frame)
     {
+        PER_THREAD_FRAME_QUEUE.get().offer(frame);
     }
 
     public Frame acquireFrame(MutableDirectBuffer mutableDirectBuffer)
     {
-        return Frame.allocate(mutableDirectBuffer);
+        Frame frame = pollFrame();
+        if (null == frame)
+        {
+            frame = Frame.allocate(mutableDirectBuffer);
+        }
+
+        return frame;
     }
 
     public MutableDirectBuffer acquireMutableDirectBuffer(ByteBuffer byteBuffer)
     {
-        return new UnsafeBuffer(byteBuffer);
+        MutableDirectBuffer directBuffer = pollMutableDirectBuffer();
+        if (null == directBuffer)
+        {
+            directBuffer = new UnsafeBuffer(byteBuffer);
+        }
+
+        return directBuffer;
     }
 
     public MutableDirectBuffer acquireMutableDirectBuffer(int size)
     {
-        return new UnsafeBuffer(ByteBuffer.allocate(size));
+        UnsafeBuffer directBuffer = (UnsafeBuffer)pollMutableDirectBuffer();
+        if (null == directBuffer || directBuffer.byteBuffer().capacity() < size)
+        {
+            directBuffer = new UnsafeBuffer(ByteBuffer.allocate(size));
+        }
+        else
+        {
+            directBuffer.byteBuffer().limit(size).position(0);
+        }
+
+        return directBuffer;
     }
 
     public void release(MutableDirectBuffer mutableDirectBuffer)
     {
+        PER_THREAD_DIRECTBUFFER_QUEUE.get().offer(mutableDirectBuffer);
+    }
+
+    private Frame pollFrame()
+    {
+        return PER_THREAD_FRAME_QUEUE.get().poll();
+    }
+
+    private MutableDirectBuffer pollMutableDirectBuffer()
+    {
+        return PER_THREAD_DIRECTBUFFER_QUEUE.get().poll();
     }
 }
