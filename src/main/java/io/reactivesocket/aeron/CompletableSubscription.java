@@ -1,7 +1,7 @@
 package io.reactivesocket.aeron;
 
+import io.reactivesocket.Completable;
 import io.reactivesocket.Frame;
-import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 import uk.co.real_logic.aeron.Publication;
@@ -12,69 +12,57 @@ import uk.co.real_logic.agrona.concurrent.UnsafeBuffer;
 
 import java.nio.ByteBuffer;
 
-public class PublishSubscription implements Subscription {
-    private final Subscriber<? super Void> subscriber;
-
-    private final Publisher<Frame> source;
+/**
+ * Created by rroeser on 8/27/15.
+ */
+public class CompletableSubscription implements Subscriber<Frame> {
 
     private static final ThreadLocal<BufferClaim> bufferClaims = ThreadLocal.withInitial(BufferClaim::new);
 
     private static final ThreadLocal<UnsafeBuffer> unsafeBuffers = ThreadLocal.withInitial(() -> new UnsafeBuffer(Constants.EMTPY));
 
-    private Publication publication;
+    private final Publication publication;
+
+    private final Completable completable;
 
     private final int mtuLength;
 
-
-    public PublishSubscription(Subscriber<? super Void> subscriber, Publisher<Frame> source, Publication publication) {
-        this.source = source;
-        this.subscriber = subscriber;
+    public CompletableSubscription(Publication publication, Completable completable) {
         this.publication = publication;
+        this.completable = completable;
 
         String mtuLength = System.getProperty("aeron.mtu.length", "4096");
 
         this.mtuLength = Integer.parseInt(mtuLength);
-
     }
 
     @Override
-    public void cancel() {
-
+    public void onSubscribe(Subscription s) {
+        s.request(1);
     }
 
     @Override
-    public void request(long n) {
-        source.subscribe(new Subscriber<Frame>() {
-            @Override
-            public void onSubscribe(Subscription s) {
-                s.request(n);
-            }
+    public void onNext(Frame frame) {
+        final ByteBuffer byteBuffer = frame.getByteBuffer();
+        final int length = byteBuffer.capacity() + BitUtil.SIZE_OF_INT;
 
-            @Override
-            public void onNext(Frame frame) {
-                final ByteBuffer byteBuffer = frame.getByteBuffer();
-                final int length = byteBuffer.capacity() + BitUtil.SIZE_OF_INT;
+        // If the length is less the MTU size send the message using tryClaim which does not fragment the message
+        // If the message is larger the the MTU size send it using offer.
+        if (length < mtuLength) {
+            tryClaim(byteBuffer, length);
+        } else {
+            offer(byteBuffer, length);
+        }
+    }
 
-                // If the length is less the MTU size send the message using tryClaim which does not fragment the message
-                // If the message is larger the the MTU size send it using offer.
-                if (length < mtuLength) {
-                    tryClaim(byteBuffer, length);
-                } else {
-                    offer(byteBuffer, length);
-                }
+    @Override
+    public void onError(Throwable t) {
+        completable.error(t);
+    }
 
-            }
-
-            @Override
-            public void onError(Throwable t) {
-                subscriber.onError(t);
-            }
-
-            @Override
-            public void onComplete() {
-                subscriber.onComplete();
-            }
-        });
+    @Override
+    public void onComplete() {
+        completable.success();
     }
 
     void offer(ByteBuffer byteBuffer, int length) {
@@ -88,7 +76,7 @@ public class PublishSubscription implements Subscription {
             if (offer >= 0) {
                 break;
             } else if (Publication.NOT_CONNECTED == offer) {
-                subscriber.onError(new RuntimeException("not connected"));
+                completable.error(new RuntimeException("not connected"));
                 break;
             }
         }
@@ -111,7 +99,7 @@ public class PublishSubscription implements Subscription {
 
                 break;
             } else if (Publication.NOT_CONNECTED == offer) {
-                subscriber.onError(new RuntimeException("not connected"));
+                completable.error(new RuntimeException("not connected"));
                 break;
             }
         }

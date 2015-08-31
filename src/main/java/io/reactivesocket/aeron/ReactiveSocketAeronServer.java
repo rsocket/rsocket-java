@@ -1,12 +1,13 @@
 package io.reactivesocket.aeron;
 
+import io.reactivesocket.ConnectionSetupHandler;
+import io.reactivesocket.ConnectionSetupPayload;
 import io.reactivesocket.Frame;
 import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.RequestHandler;
-import org.reactivestreams.Publisher;
+import io.reactivesocket.exceptions.SetupException;
 import org.reactivestreams.Subscriber;
 import rx.Scheduler;
-import rx.schedulers.Schedulers;
 import uk.co.real_logic.aeron.Aeron;
 import uk.co.real_logic.aeron.FragmentAssembler;
 import uk.co.real_logic.aeron.Image;
@@ -16,6 +17,8 @@ import uk.co.real_logic.aeron.logbuffer.Header;
 import uk.co.real_logic.agrona.BitUtil;
 import uk.co.real_logic.agrona.DirectBuffer;
 import uk.co.real_logic.agrona.collections.Int2ObjectHashMap;
+import uk.co.real_logic.agrona.collections.Long2ObjectHashMap;
+import uk.co.real_logic.agrona.concurrent.NoOpIdleStrategy;
 
 import java.nio.ByteBuffer;
 import java.util.concurrent.TimeUnit;
@@ -39,6 +42,8 @@ public class ReactiveSocketAeronServer implements AutoCloseable {
 
     private final RequestHandler requestHandler;
 
+    private Long2ObjectHashMap<ReactiveSocket> sockets;
+
     private static final org.reactivestreams.Subscriber<Void> PROTOCOL_SUBSCRIBER = new org.reactivestreams.Subscriber<Void>() {
         @Override
         public void onSubscribe(org.reactivestreams.Subscription s) {
@@ -61,10 +66,13 @@ public class ReactiveSocketAeronServer implements AutoCloseable {
         }
     };
 
+    private static final MpscScheduler MPSC_SCHEDULER = new MpscScheduler(1, new NoOpIdleStrategy());
+
     private ReactiveSocketAeronServer(int port, RequestHandler requestHandler) {
         this.port = port;
         this.connections = new Int2ObjectHashMap<>();
         this.requestHandler = requestHandler;
+        this.sockets = new Long2ObjectHashMap<>();
 
         final Aeron.Context ctx = new Aeron.Context();
         ctx.newImageHandler(this::newImageHandler);
@@ -75,7 +83,7 @@ public class ReactiveSocketAeronServer implements AutoCloseable {
 
         final FragmentAssembler fragmentAssembler = new FragmentAssembler(this::fragmentHandler);
 
-        worker = Schedulers.computation().createWorker();
+        worker =  MPSC_SCHEDULER.createWorker();
 
         poll(fragmentAssembler);
 
@@ -89,13 +97,35 @@ public class ReactiveSocketAeronServer implements AutoCloseable {
         return new ReactiveSocketAeronServer(39790, requestHandler);
     }
 
+
+    volatile long start = System.currentTimeMillis();
+
     void poll(FragmentAssembler fragmentAssembler) {
-        if (running) {
+       /* if (running) {
             worker.schedule(() -> {
                 subscription.poll(fragmentAssembler, Integer.MAX_VALUE);
                 poll(fragmentAssembler);
             });
-        }
+        }*/
+
+
+        worker.schedule(() -> {
+            while (running) {
+                try {
+                    subscription.poll(fragmentAssembler, Integer.MAX_VALUE);
+
+                    /*if ((System.currentTimeMillis() - start) > TimeUnit.SECONDS.toMillis(1)) {
+
+                        sockets.values().forEach(socket -> {
+                            socket.sendLease(1_000, 1);
+                            System.out.println("Sending lease for socket: " + socket.toString());
+
+                        });
+                        start = System.currentTimeMillis();
+                    } */
+                } catch (Throwable t) {}
+            }
+        });
     }
 
     void fragmentHandler(DirectBuffer buffer, int offset, int length, Header header) {
@@ -142,29 +172,17 @@ public class ReactiveSocketAeronServer implements AutoCloseable {
                 return new AeronServerDuplexConnection(publication);
             });
             System.out.println("Accepting ReactiveSocket connection");
-            ReactiveSocket socket = ReactiveSocket.createResponderAndRequestor(requestHandler);
-            Publisher<Void> connect = socket.connect(connection);
-            connect.subscribe(new Subscriber<Void>() {
+            ReactiveSocket socket = ReactiveSocket.fromServerConnection(connection, new ConnectionSetupHandler() {
                 @Override
-                public void onSubscribe(org.reactivestreams.Subscription s) {
-                    s.request(Long.MAX_VALUE);
-                }
-
-                @Override
-                public void onNext(Void aVoid) {
-
-                }
-
-                @Override
-                public void onError(Throwable t) {
-                    t.printStackTrace();
-                }
-
-                @Override
-                public void onComplete() {
-
+                public RequestHandler apply(ConnectionSetupPayload setupPayload) throws SetupException {
+                    return requestHandler;
                 }
             });
+
+
+            sockets.put(sessionId, socket);
+
+            socket.start();
 
         } else {
             System.out.println("Unsupported stream id " + streamId);
@@ -180,6 +198,7 @@ public class ReactiveSocketAeronServer implements AutoCloseable {
         for (AeronServerDuplexConnection connection : connections.values()) {
             connection.close();
         }
+
     }
 
 }

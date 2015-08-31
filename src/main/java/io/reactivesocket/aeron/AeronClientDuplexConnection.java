@@ -1,11 +1,10 @@
 package io.reactivesocket.aeron;
 
+import io.reactivesocket.Completable;
 import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
-import rx.Observable;
-import rx.RxReactiveStreams;
 import uk.co.real_logic.aeron.Publication;
 
 public class AeronClientDuplexConnection implements DuplexConnection, AutoCloseable {
@@ -27,17 +26,12 @@ public class AeronClientDuplexConnection implements DuplexConnection, AutoClosea
     }
 
     @Override
-    public Publisher<Void> addOutput(Publisher<Frame> o) {
-
-        final Observable<Frame> frameObservable = RxReactiveStreams.toObservable(o);
-        final Observable<Void> voidObservable = frameObservable
-            .lift(new OperatorPublish(publication));
-
-        return RxReactiveStreams.toPublisher(voidObservable);
+    public void addOutput(Publisher<Frame> o, Completable callback) {
+        o.subscribe(new CompletableSubscription(publication, callback));
     }
 
     @Override
-    public void close() throws Exception {
+    public void close() {
         subscriber.onComplete();
         publication.close();
     }

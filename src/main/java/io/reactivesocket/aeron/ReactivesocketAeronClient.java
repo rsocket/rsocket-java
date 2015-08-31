@@ -1,12 +1,12 @@
 package io.reactivesocket.aeron;
 
+import io.reactivesocket.ConnectionSetupPayload;
 import io.reactivesocket.Frame;
 import io.reactivesocket.Payload;
 import io.reactivesocket.ReactiveSocket;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import rx.Scheduler;
-import rx.schedulers.Schedulers;
 import uk.co.real_logic.aeron.Aeron;
 import uk.co.real_logic.aeron.FragmentAssembler;
 import uk.co.real_logic.aeron.Publication;
@@ -15,6 +15,7 @@ import uk.co.real_logic.aeron.logbuffer.Header;
 import uk.co.real_logic.agrona.BitUtil;
 import uk.co.real_logic.agrona.DirectBuffer;
 import uk.co.real_logic.agrona.collections.Int2ObjectHashMap;
+import uk.co.real_logic.agrona.concurrent.NoOpIdleStrategy;
 import uk.co.real_logic.agrona.concurrent.UnsafeBuffer;
 
 import java.nio.ByteBuffer;
@@ -35,7 +36,7 @@ public class ReactivesocketAeronClient implements AutoCloseable {
 
     private static final Int2ObjectHashMap<CountDownLatch> establishConnectionLatches = new Int2ObjectHashMap<>();
 
-    private final ReactiveSocket rsClientProtocol;
+    private ReactiveSocket reactiveSocket;
 
     private final Aeron aeron;
 
@@ -45,10 +46,10 @@ public class ReactivesocketAeronClient implements AutoCloseable {
 
     private final int port;
 
+    private static final MpscScheduler MPSC_SCHEDULER = new MpscScheduler(1, new NoOpIdleStrategy());
+
     private ReactivesocketAeronClient(String host, int port) {
         this.port = port;
-        this.rsClientProtocol =
-            ReactiveSocket.createRequestor();
 
         final Aeron.Context ctx = new Aeron.Context();
         aeron = Aeron.connect(ctx);
@@ -63,7 +64,7 @@ public class ReactivesocketAeronClient implements AutoCloseable {
 
             final FragmentAssembler fragmentAssembler = new FragmentAssembler(this::fragmentHandler);
 
-            poll(fragmentAssembler, subscription, Schedulers.computation().createWorker());
+            poll(fragmentAssembler, subscription, MPSC_SCHEDULER.createWorker());
 
             return subscription;
         });
@@ -96,30 +97,12 @@ public class ReactivesocketAeronClient implements AutoCloseable {
 
             final AeronClientDuplexConnection connection = connections.computeIfAbsent(header.sessionId(), (_p) -> new AeronClientDuplexConnection(publication));
 
-            Publisher<Void> connect = this
-                .rsClientProtocol
-                .connect(connection);
+            reactiveSocket =  ReactiveSocket.fromClientConnection(
+                connection,
+                ConnectionSetupPayload.create("UTF-8", "UTF-8", ConnectionSetupPayload.NO_FLAGS),
+                err -> err.printStackTrace());
 
-            connect.subscribe(new Subscriber<Void>() {
-                @Override
-                public void onSubscribe(org.reactivestreams.Subscription s) {
-                    s.request(Long.MAX_VALUE);
-                }
-
-                @Override
-                public void onNext(Void aVoid) {
-
-                }
-
-                @Override
-                public void onError(Throwable t) {
-                    t.printStackTrace();
-                }
-
-                @Override
-                public void onComplete() {
-                }
-            });
+            reactiveSocket.start();
 
             System.out.println("ReactiveSocket connected to Aeron session => " + ackSessionId);
             CountDownLatch latch = establishConnectionLatches.get(ackSessionId);
@@ -131,12 +114,15 @@ public class ReactivesocketAeronClient implements AutoCloseable {
     }
 
     void poll(FragmentAssembler fragmentAssembler, Subscription subscription, Scheduler.Worker worker) {
-        if (running) {
-            worker.schedule(() -> {
-                subscription.poll(fragmentAssembler, Integer.MAX_VALUE);
-                poll(fragmentAssembler, subscription, worker);
-            });
-        }
+        worker.schedule(() -> {
+            while (running) {
+                try {
+                    subscription.poll(fragmentAssembler, Integer.MAX_VALUE);
+                } catch (Throwable t) {}
+            }
+        });
+
+
     }
 
     /**
@@ -178,19 +164,26 @@ public class ReactivesocketAeronClient implements AutoCloseable {
     }
 
     public Publisher<Payload> requestResponse(Payload payload) {
-        return rsClientProtocol.requestResponse(payload);
+        /*
+        or (int i = 0; i < 100; i++) {
+            double availability = reactiveSocket.availability();
+
+            System.out.println("AVAILABLE => " + availability);
+            LockSupport.parkNanos(100_000_000);
+        }*/
+        return reactiveSocket.requestResponse(payload);
     }
 
     public Publisher<Void> fireAndForget(Payload payload) {
-        return rsClientProtocol.fireAndForget(payload);
+        return reactiveSocket.fireAndForget(payload);
     }
 
     public Publisher<Payload> requestStream(Payload payload) {
-        return rsClientProtocol.requestStream(payload);
+        return reactiveSocket.requestStream(payload);
     }
 
     public Publisher<Payload> requestSubscription(Payload payload) {
-        return rsClientProtocol.requestSubscription(payload);
+        return reactiveSocket.requestSubscription(payload);
     }
 
     @Override
