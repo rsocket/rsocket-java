@@ -66,14 +66,7 @@ public class Requester {
 			streamCount = 0; // client is even
 		}
 
-		if (setupPayload.willClientHonorLease())
-		{
-			this.honorLease = true;
-		}
-		else
-		{
-			this.honorLease = false;
-		}
+		this.honorLease = setupPayload.willClientHonorLease();
 	}
 
 	public static Requester createClientRequester(DuplexConnection connection, ConnectionSetupPayload setupPayload, Consumer<Throwable> errorStream) {
@@ -95,7 +88,7 @@ public class Requester {
 	/**
 	 * Request/Response with a single message response.
 	 * 
-	 * @param data
+	 * @param payload
 	 * @return
 	 */
 	public Publisher<Payload> requestResponse(final Payload payload) {
@@ -105,7 +98,7 @@ public class Requester {
 	/**
 	 * Request/Stream with a finite multi-message response followed by a terminal state {@link Subscriber#onComplete()} or {@link Subscriber#onError(Throwable)}.
 	 * 
-	 * @param data
+	 * @param payload
 	 * @return
 	 */
 	public Publisher<Payload> requestStream(final Payload payload) {
@@ -118,7 +111,7 @@ public class Requester {
 	 * The returned {@link Publisher} will emit {@link Subscriber#onComplete()} or {@link Subscriber#onError(Throwable)} to represent success or failure in sending from the client side, but no
 	 * feedback from the server will be returned.
 	 * 
-	 * @param data
+	 * @param payload
 	 * @return
 	 */
 	public Publisher<Void> fireAndForget(final Payload payload) {
@@ -180,7 +173,7 @@ public class Requester {
 	/**
 	 * Event subscription with an infinite multi-message response potentially terminated with an {@link Subscriber#onError(Throwable)}.
 	 * 
-	 * @param data
+	 * @param payload
 	 * @return
 	 */
 	public Publisher<Payload> requestSubscription(final Payload payload) {
@@ -190,7 +183,7 @@ public class Requester {
 	/**
 	 * Request/Stream with a finite multi-message response followed by a terminal state {@link Subscriber#onComplete()} or {@link Subscriber#onError(Throwable)}.
 	 * 
-	 * @param data
+	 * @param payloadStream
 	 * @return
 	 */
 	public Publisher<Payload> requestChannel(final Publisher<Payload> payloadStream) {
@@ -467,7 +460,13 @@ public class Requester {
 						onError(new SetupException(frame));
 					} else if (FrameType.LEASE.equals(frame.getType()) && honorLease) {
 						numberOfRemainingRequests = Frame.Lease.numberOfRequests(frame);
-						ttlExpiration = System.nanoTime() + Frame.Lease.ttl(frame);
+						final long now = System.nanoTime();
+						final long ttl = Frame.Lease.ttl(frame);
+						if (Long.MAX_VALUE - ttl < now) {
+							ttlExpiration = Long.MAX_VALUE;
+						} else {
+							ttlExpiration = now + ttl;
+						}
 					} else {
 						onError(new RuntimeException("Received unexpected message type on stream 0: " + frame.getType().name()));
 					}
@@ -516,12 +515,13 @@ public class Requester {
 	private boolean canRequest()
 	{
 		boolean result = false;
+		final long now = System.nanoTime();
 
 		if (!honorLease)
 		{
 			result = true;
 		}
-		else if (numberOfRemainingRequests > 0 && (System.nanoTime() < ttlExpiration))
+		else if (numberOfRemainingRequests > 0 && (now < ttlExpiration))
 		{
 			result = true;
 		}

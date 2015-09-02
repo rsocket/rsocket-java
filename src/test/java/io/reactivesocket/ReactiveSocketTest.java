@@ -15,38 +15,43 @@
  */
 package io.reactivesocket;
 
+import static io.reactivesocket.ConnectionSetupPayload.HONOR_LEASE;
+import static io.reactivesocket.ConnectionSetupPayload.NO_FLAGS;
 import static io.reactivesocket.TestUtil.*;
 import static org.junit.Assert.*;
 import static rx.Observable.*;
 import static rx.RxReactiveStreams.*;
-import static io.reactivesocket.ConnectionSetupPayload.NO_FLAGS;
 
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
-import org.junit.Test;
+import org.junit.*;
+import org.junit.experimental.theories.DataPoints;
+import org.junit.experimental.theories.Theories;
+import org.junit.experimental.theories.Theory;
+import org.junit.runner.RunWith;
 import org.reactivestreams.Publisher;
 
 import rx.Subscription;
 import rx.observables.ConnectableObservable;
 import rx.observers.TestSubscriber;
 
+@RunWith(Theories.class)
 public class ReactiveSocketTest {
 
-	private static TestConnection serverConnection;
-	private static TestConnection clientConnection;
-	private static ReactiveSocket socketServer;
-	private static ReactiveSocket socketClient;
-	private static AtomicBoolean helloSubscriptionRunning = new AtomicBoolean(false);
-	private static AtomicReference<String> lastFireAndForget = new AtomicReference<String>();
-	private static AtomicReference<Throwable> lastServerError = new AtomicReference<Throwable>();
+	private TestConnection clientConnection;
+	private ReactiveSocket socketServer;
+	private ReactiveSocket socketClient;
+	private AtomicBoolean helloSubscriptionRunning = new AtomicBoolean(false);
+	private AtomicReference<String> lastFireAndForget = new AtomicReference<String>();
+	private AtomicReference<Throwable> lastServerError = new AtomicReference<Throwable>();
 
-	@BeforeClass
-	public static void setup() {
-		serverConnection = new TestConnection();
+	public static @DataPoints int[] setupFlags = {NO_FLAGS, HONOR_LEASE};
+
+	@Before
+	public void setup() {
+		TestConnection serverConnection = new TestConnection();
 		clientConnection = new TestConnection();
 		clientConnection.connectToServerConnection(serverConnection);
 
@@ -77,10 +82,10 @@ public class ReactiveSocketTest {
 				String request = byteToString(payload.getData());
 				if ("hello".equals(request)) {
 					return toPublisher(interval(1, TimeUnit.MICROSECONDS)
-							.doOnSubscribe(() -> helloSubscriptionRunning.set(true))
-							.doOnUnsubscribe(() -> helloSubscriptionRunning.set(false))
-							.map(i -> "subscription " + i)
-							.map(n -> utf8EncodedPayload(n, null)));
+						.doOnSubscribe(() -> helloSubscriptionRunning.set(true))
+						.doOnUnsubscribe(() -> helloSubscriptionRunning.set(false))
+						.map(i -> "subscription " + i)
+						.map(n -> utf8EncodedPayload(n, null)));
 				} else {
 					return toPublisher(error(new RuntimeException("Not Found")));
 				}
@@ -119,24 +124,61 @@ public class ReactiveSocketTest {
 				}));
 			}
 
-		}, t -> lastServerError.set(t));
-
-		socketClient = ReactiveSocket.fromClientConnection(clientConnection, ConnectionSetupPayload.create("UTF-8", "UTF-8", NO_FLAGS), t -> {});
-
-		// start both the server and client and monitor for errors
-		socketServer.start();
-		socketClient.start();
+		}, new FairLeaseGovernor(100, 5, TimeUnit.SECONDS), t -> lastServerError.set(t));
 	}
-	
-	@AfterClass
-	public static void shutdown() {
+
+	@After
+	public void shutdown() {
 		socketServer.shutdown();
 		socketClient.shutdown();
 	}
 
+	private void startSockets(int setupFlag) {
+		if (setupFlag == NO_FLAGS) {
+			System.out.println("Reactivesocket configured with: NO_FLAGS");
+		} else if (setupFlag == HONOR_LEASE) {
+			System.out.println("Reactivesocket configured with: HONOR_LEASE");
+		}
+		socketClient = ReactiveSocket.fromClientConnection(
+			clientConnection,
+			ConnectionSetupPayload.create("UTF-8", "UTF-8", setupFlag),
+			new FairLeaseGovernor(100, 5, TimeUnit.SECONDS)
+		);
+
+		// start both the server and client and monitor for errors
+		//socketServer.start(LeaseGovernor.UNLIMITED_LEASE_GOVERNOR);
+		socketServer.start();
+		socketClient.start();
+
+		awaitSocketAvailability(socketClient, 50, TimeUnit.SECONDS);
+	}
+
+	private void awaitSocketAvailability(ReactiveSocket socket, long timeout, TimeUnit unit) {
+		long waitTimeMs = 1L;
+		long startTime = System.nanoTime();
+		long timeoutNanos = TimeUnit.NANOSECONDS.convert(timeout, unit);
+
+		while (socket.availability() == 0.0) {
+			try {
+				Thread.sleep(waitTimeMs);
+				waitTimeMs = Math.min(waitTimeMs * 2, 1000L);
+				final long elapsedNanos = System.nanoTime() - startTime;
+				if (elapsedNanos > timeoutNanos) {
+					throw new IllegalStateException("Timeout while waiting for socket availability");
+				}
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			}
+		}
+		assertTrue("client socket has positive avaibility", socket.availability() > 0.0);
+	}
+
 	@Test
-	public void testRequestResponse() {
+	@Theory
+	public void testRequestResponse(int setupFlag) {
+		startSockets(setupFlag);
 		// perform request/response
+
 		Publisher<Payload> response = socketClient.requestResponse(TestUtil.utf8EncodedPayload("hello", null));
 		TestSubscriber<Payload> ts = TestSubscriber.create();
 		toObservable(response).subscribe(ts);
@@ -146,8 +188,11 @@ public class ReactiveSocketTest {
 	}
 
 	@Test
-	public void testRequestStream() {
+	@Theory
+	public void testRequestStream(int setupFlag) {
+		startSockets(setupFlag);
 		// perform request/stream
+
 		Publisher<Payload> response = socketClient.requestStream(TestUtil.utf8EncodedPayload("hello", null));
 		TestSubscriber<Payload> ts = TestSubscriber.create();
 		toObservable(response).subscribe(ts);
@@ -158,8 +203,11 @@ public class ReactiveSocketTest {
 	}
 
 	@Test
-	public void testRequestSubscription() {
+	@Theory
+	public void testRequestSubscription(int setupFlag) {
+		startSockets(setupFlag);
 		// perform request/subscription
+
 		Publisher<Payload> response = socketClient.requestSubscription(TestUtil.utf8EncodedPayload("hello", null));
 		TestSubscriber<Payload> ts = TestSubscriber.create();
 		TestSubscriber<Payload> ts2 = TestSubscriber.create();
@@ -201,8 +249,12 @@ public class ReactiveSocketTest {
 	}
 
 	@Test
-	public void testFireAndForgetSuccess() {
+	@Theory
+	public void testFireAndForgetSuccess(int setupFlag) {
+		startSockets(setupFlag);
+
 		// perform request/response
+
 		Publisher<Void> response = socketClient.fireAndForget(TestUtil.utf8EncodedPayload("log", null));
 		TestSubscriber<Void> ts = TestSubscriber.create();
 		toObservable(response).subscribe(ts);
@@ -213,8 +265,11 @@ public class ReactiveSocketTest {
 	}
 
 	@Test
-	public void testFireAndForgetServerSideErrorNotFound() {
+	@Theory
+	public void testFireAndForgetServerSideErrorNotFound(int setupFlag) {
+		startSockets(setupFlag);
 		// perform request/response
+
 		Publisher<Void> response = socketClient.fireAndForget(TestUtil.utf8EncodedPayload("unknown", null));
 		TestSubscriber<Void> ts = TestSubscriber.create();
 		toObservable(response).subscribe(ts);
@@ -225,8 +280,11 @@ public class ReactiveSocketTest {
 	}
 
 	@Test
-	public void testFireAndForgetServerSideErrorHandlerBlowup() {
+	@Theory
+	public void testFireAndForgetServerSideErrorHandlerBlowup(int setupFlag) {
+		startSockets(setupFlag);
 		// perform request/response
+
 		Publisher<Void> response = socketClient.fireAndForget(TestUtil.utf8EncodedPayload("blowup", null));
 		TestSubscriber<Void> ts = TestSubscriber.create();
 		toObservable(response).subscribe(ts);
@@ -238,7 +296,10 @@ public class ReactiveSocketTest {
 	}
 
 	@Test
-	public void testRequestChannelEcho() {
+	@Theory
+	public void testRequestChannelEcho(int setupFlag) {
+		startSockets(setupFlag);
+
 		Publisher<Payload> requestStream = toPublisher(just(TestUtil.utf8EncodedPayload("1", "echo")).concatWith(just(TestUtil.utf8EncodedPayload("2", null))));
 		Publisher<Payload> response = socketClient.requestChannel(requestStream);
 		TestSubscriber<Payload> ts = TestSubscriber.create();
@@ -251,7 +312,10 @@ public class ReactiveSocketTest {
 	}
 
 	@Test
-	public void testRequestChannelNotFound() {
+	@Theory
+	public void testRequestChannelNotFound(int setupFlag) {
+		startSockets(setupFlag);
+
 		Publisher<Payload> requestStream = toPublisher(just(TestUtil.utf8EncodedPayload(null, "someChannel")));
 		Publisher<Payload> response = socketClient.requestChannel(requestStream);
 		TestSubscriber<Payload> ts = TestSubscriber.create();
