@@ -54,10 +54,10 @@ public class TestConnection implements DuplexConnection {
 	
 	public void connectToServerConnection(TestConnection serverConnection, boolean log) {
 		if (log) {
-			serverConnection.writes.forEach(n -> System.out.println("SERVER ==> Writes from server->client: " + n + " " + Thread.currentThread()));
-			serverConnection.toInput.forEach(n -> System.out.println("SERVER <== Input from client->server: " + n + " " + Thread.currentThread()));
-			writes.forEach(n -> System.out.println("CLIENT ==> Writes from client->server: " + n + " " + Thread.currentThread()));
-			toInput.forEach(n -> System.out.println("CLIENT <== Input from server->client: " + n + " " + Thread.currentThread()));
+			serverConnection.writes.forEach(n -> System.out.println("SERVER ==> Writes from server->client: " + n + "   Writter from " + Thread.currentThread()));
+			serverConnection.toInput.forEach(n -> System.out.println("SERVER <== Input from client->server: " + n + "   Read on " + Thread.currentThread()));
+			writes.forEach(n -> System.out.println("CLIENT ==> Writes from client->server: " + n + "   Written from " + Thread.currentThread()));
+			toInput.forEach(n -> System.out.println("CLIENT <== Input from server->client: " + n + "   Read on " + Thread.currentThread()));
 		}
 
 		Scheduler clientThread = Schedulers.newThread();
@@ -67,14 +67,14 @@ public class TestConnection implements DuplexConnection {
 		
 		// connect the connections (with a Scheduler to simulate async IO)
 		writes
-//			.subscribeOn(clientThread)
-//			.onBackpressureBuffer() // simulate unbounded network buffer
-//			.observeOn(serverThread)
+			.subscribeOn(clientThread)
+			.onBackpressureBuffer() // simulate unbounded network buffer
+			.observeOn(serverThread)
 			.subscribe(serverConnection.toInput);
 		serverConnection.writes
-//			.subscribeOn(serverThread)
-//			.onBackpressureBuffer() // simulate unbounded network buffer
-//			.observeOn(clientThread)
+			.subscribeOn(serverThread)
+			.onBackpressureBuffer() // simulate unbounded network buffer
+			.observeOn(clientThread)
 			.subscribe(toInput);
 
 	}
