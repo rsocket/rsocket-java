@@ -15,9 +15,11 @@
  */
 package io.reactivesocket.internal;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
@@ -55,6 +57,9 @@ public class Requester {
 	private long numberOfRemainingRequests = 0;
 	private long streamCount = 0; // 0 is reserved for setup, all normal messages are >= 1
 
+	private static final long DEFAULT_BATCH = 1024;
+	private static final long REQUEST_THRESHOLD = 256;
+	
 	private Requester(boolean isServer, DuplexConnection connection, ConnectionSetupPayload setupPayload, Consumer<Throwable> errorStream) {
 		this.isServer = isServer;
 		this.connection = connection;
@@ -251,24 +256,28 @@ public class Requester {
 				StreamInputSubscriber streamInputSubscriber;
 				UnicastSubject<Frame> writer;
 				AtomicReference<Subscription> payloadsSubscription;
-
+				final AtomicLong requested = new AtomicLong(); // TODO does this need to be atomic? Can request(n) come from any thread?
+				final AtomicLong outstanding = new AtomicLong(); // TODO AtomicLong just so I can pass it around ... perf issue? or is there a thread-safety issue?
+				
 				@Override
 				public void request(long n) {
+					// TODO are there concurrency issues we need to deal with here?
+					BackpressureUtils.getAndAddRequest(requested, n);
 					if (!started) {
 						started = true;
 
+						// determine initial RequestN
+						long currentN = requested.get();
+						final long requestN = currentN < DEFAULT_BATCH ? currentN : DEFAULT_BATCH;
+						// threshold
+						final long threshold = requestN == DEFAULT_BATCH ? REQUEST_THRESHOLD : requestN/3;
+						
 						if (payloads != null) {
 							payloadsSubscription = new AtomicReference<Subscription>();
 						}
 
-						// Response frames for this Stream
-						UnicastSubject<Frame> transportInputSubject = UnicastSubject.create();
-						streamInputMap.put(streamId, transportInputSubject);
-						streamInputSubscriber = new StreamInputSubscriber(child, this::cancel);
-						transportInputSubject.subscribe(streamInputSubscriber);
-
-						// connect to transport
-						writer = UnicastSubject.create(w -> {
+						// declare output to transport
+						writer = UnicastSubject.create((w, rn) -> {
 							// does lease allow for sending request
 							if (!canRequest())
 							{
@@ -279,10 +288,32 @@ public class Requester {
 								numberOfRemainingRequests--;
 							}
 
+							// decrement as we request it
+							requested.addAndGet(-requestN);
+							// record how many we have requested
+							outstanding.addAndGet(requestN);
+							
 							// when transport connects we write the request frame for this stream
 							if (payload != null) {
-								w.onNext(Frame.fromRequest(streamId, type, payload, n));
+								w.onNext(Frame.fromRequest(streamId, type, payload, requestN));
 							} else {
+								// TODO hook this in via addOutput so requestN flows through correctly
+//								connection.addOutput(payloads.map(p -> ... convert things to Frame here ...), new Completable()
+//								{
+//
+//									@Override
+//									public void success()
+//									{
+//										// nothing to do onSuccess
+//									}
+//
+//									@Override
+//									public void error(Throwable e) {
+//										child.onError(e);
+//										cancel();
+//									}
+//
+//								});
 								payloads.subscribe(new Subscriber<Payload>() {
 
 									@Override
@@ -295,7 +326,7 @@ public class Requester {
 
 									@Override
 									public void onNext(Payload p) {
-										w.onNext(Frame.fromRequest(streamId, type, p, n));
+										w.onNext(Frame.fromRequest(streamId, type, p, requestN));
 									}
 
 									@Override
@@ -313,7 +344,17 @@ public class Requester {
 								});
 							}
 
+						}, r -> System.out.println("requested to unicast: " + r));
+						
+						// Response frames for this Stream
+						UnicastSubject<Frame> transportInputSubject = UnicastSubject.create();
+						streamInputMap.put(streamId, transportInputSubject);
+						streamInputSubscriber = new StreamInputSubscriber(streamId, threshold, outstanding, requested, writer, child, () -> {
+							cancel();
 						});
+						transportInputSubject.subscribe(streamInputSubscriber);
+						
+						// connect to transport
 						connection.addOutput(writer, new Completable()
 						{
 
@@ -332,7 +373,9 @@ public class Requester {
 						});
 					} else {
 						// propagate further requestN frames
-						writer.onNext(Frame.fromRequestN(streamId, n)); // TODO add N
+						long currentN = requested.get();
+						final long requestThreshold = REQUEST_THRESHOLD < currentN ? REQUEST_THRESHOLD : currentN/3;
+						requestIfNecessary(streamId, requestThreshold, currentN, outstanding.get(), writer, requested, outstanding);
 					}
 
 				}
@@ -354,15 +397,25 @@ public class Requester {
 			});
 		};
 	}
-
+	
 	private final static class StreamInputSubscriber implements Subscriber<Frame> {
 		final AtomicBoolean terminated = new AtomicBoolean(false);
 		Subscription parentSubscription;
 
+		private final long streamId;
+		private final long requestThreshold;
+		private final AtomicLong outstandingRequests;
+		private final AtomicLong requested;
+		private final UnicastSubject<Frame> writer;
 		private final Subscriber<? super Payload> child;
 		private final Runnable cancelAction;
 
-		public StreamInputSubscriber(Subscriber<? super Payload> child, Runnable cancelAction) {
+		public StreamInputSubscriber(long streamId, long threshold, AtomicLong outstanding, AtomicLong requested, UnicastSubject<Frame> writer, Subscriber<? super Payload> child, Runnable cancelAction) {
+			this.streamId = streamId;
+			this.requestThreshold = threshold;
+			this.requested = requested;
+			this.outstandingRequests = outstanding;
+			this.writer = writer;
 			this.child = child;
 			this.cancelAction = cancelAction;
 		}
@@ -379,6 +432,8 @@ public class Requester {
 			// convert ERROR messages into terminal events
 			if (type == FrameType.NEXT) {
 				child.onNext(frame);
+				long currentOutstanding = outstandingRequests.decrementAndGet();
+				requestIfNecessary(streamId, requestThreshold, requested.get(), currentOutstanding, writer, requested, outstandingRequests);
 			} else if (type == FrameType.COMPLETE) {
 				terminated.set(true);
 				onComplete();
@@ -414,6 +469,22 @@ public class Requester {
 
 		private void cancel() {
 			cancelAction.run();
+		}
+	}
+	
+	private static void requestIfNecessary(long streamId, long requestThreshold, long currentN, long currentOutstanding, UnicastSubject<Frame> writer, AtomicLong requested, AtomicLong outstanding) {
+		if(currentOutstanding <= requestThreshold) {
+			long batchSize = DEFAULT_BATCH - currentOutstanding;
+			final long requestN = currentN < batchSize ? currentN : batchSize;
+			
+			if (requestN > 0) {
+				// decrement as we request it
+				requested.addAndGet(-requestN);
+				// record how many we have requested
+				outstanding.addAndGet(requestN);
+
+				writer.onNext(Frame.fromRequestN(streamId, requestN));
+			}
 		}
 	}
 
@@ -455,7 +526,8 @@ public class Requester {
 			}
 
 			public void onNext(Frame frame) {
-				if (frame.getStreamId() == 0) {
+				long streamId = frame.getStreamId();
+				if (streamId == 0) {
 					if (FrameType.SETUP_ERROR.equals(frame.getType())) {
 						onError(new SetupException(frame));
 					} else if (FrameType.LEASE.equals(frame.getType()) && honorLease) {
@@ -471,14 +543,19 @@ public class Requester {
 						onError(new RuntimeException("Received unexpected message type on stream 0: " + frame.getType().name()));
 					}
 				} else {
-					UnicastSubject<Frame> streamSubject = streamInputMap.get(frame.getStreamId());
+					UnicastSubject<Frame> streamSubject = streamInputMap.get(streamId);
 					if (streamSubject == null) {
-						// if we can't find one, we have a problem with the overall connection and must tear down
-						if (frame.getType() == FrameType.ERROR) {
-							String errorMessage = getByteBufferAsString(frame.getData());
-							onError(new RuntimeException("Received error for non-existent stream: " + frame.getStreamId() + " Message: " + errorMessage));
+						if (streamId <= streamCount) {
+							// receiving a frame after a given stream has been cancelled/completed, so ignore (cancellation is async so there is a race condition)
+							return; 
 						} else {
-							onError(new RuntimeException("Received message for non-existent stream: " + frame.getStreamId()));
+							// message for stream that has never existed, we have a problem with the overall connection and must tear down
+							if (frame.getType() == FrameType.ERROR) {
+								String errorMessage = getByteBufferAsString(frame.getData());
+								onError(new RuntimeException("Received error for non-existent stream: " + streamId + " Message: " + errorMessage));
+							} else {
+								onError(new RuntimeException("Received message for non-existent stream: " + streamId));
+							}
 						}
 					} else {
 						streamSubject.onNext(frame);
@@ -490,17 +567,23 @@ public class Requester {
 				streamInputMap.forEach((id, subject) -> subject.onError(t));
 				// TODO: iterate over responder side and destroy world
 				errorStream.accept(t);
+				cancel();
 			}
 
 			public void onComplete() {
-				// TODO: might be a RuntimeException
 				streamInputMap.forEach((id, subject) -> subject.onComplete());
+				cancel();
 			}
 
 			public void cancel() { // TODO this isn't used ... is it supposed to be?
 				if (!connectionSubscription.compareAndSet(null, CANCELLED)) {
 					// cancel the one that was there if we failed to set the sentinel
 					connectionSubscription.get().cancel();
+					try {
+						connection.close();
+					} catch (IOException e) {
+						errorStream.accept(e);
+					}
 				}
 			}
 		});
