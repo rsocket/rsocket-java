@@ -22,6 +22,7 @@ import static org.junit.Assert.*;
 import static rx.Observable.*;
 import static rx.RxReactiveStreams.*;
 
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -46,6 +47,8 @@ public class ReactiveSocketTest {
 	private AtomicBoolean helloSubscriptionRunning = new AtomicBoolean(false);
 	private AtomicReference<String> lastFireAndForget = new AtomicReference<String>();
 	private AtomicReference<Throwable> lastServerError = new AtomicReference<Throwable>();
+	private CountDownLatch lastServerErrorCountDown;
+	private CountDownLatch fireAndForget;
 
 	public static @DataPoints int[] setupFlags = {NO_FLAGS, HONOR_LEASE};
 
@@ -54,6 +57,8 @@ public class ReactiveSocketTest {
 		TestConnection serverConnection = new TestConnection();
 		clientConnection = new TestConnection();
 		clientConnection.connectToServerConnection(serverConnection);
+		fireAndForget = new CountDownLatch(1);
+		lastServerErrorCountDown = new CountDownLatch(1);
 
 		socketServer = ReactiveSocket.fromServerConnection(serverConnection, setup -> new RequestHandler() {
 
@@ -93,15 +98,19 @@ public class ReactiveSocketTest {
 
 			@Override
 			public Publisher<Void> handleFireAndForget(Payload payload) {
-				String request = byteToString(payload.getData());
-				lastFireAndForget.set(request);
-				if ("log".equals(request)) {
-					return toPublisher(empty()); // success
-				} else if ("blowup".equals(request)) {
-					throw new RuntimeException("forced blowup to simulate handler error");
-				} else {
-					lastFireAndForget.set("notFound");
-					return toPublisher(error(new RuntimeException("Not Found")));
+				try {
+					String request = byteToString(payload.getData());
+					lastFireAndForget.set(request);
+					if ("log".equals(request)) {
+						return toPublisher(empty()); // success
+					} else if ("blowup".equals(request)) {
+						throw new RuntimeException("forced blowup to simulate handler error");
+					} else {
+						lastFireAndForget.set("notFound");
+						return toPublisher(error(new RuntimeException("Not Found")));
+					}
+				} finally {
+					fireAndForget.countDown();
 				}
 			}
 
@@ -124,7 +133,10 @@ public class ReactiveSocketTest {
 				}));
 			}
 
-		}, new FairLeaseGovernor(100, 5, TimeUnit.SECONDS), t -> lastServerError.set(t));
+		}, LeaseGovernor.UNLIMITED_LEASE_GOVERNOR, t -> {
+			lastServerError.set(t);
+			lastServerErrorCountDown.countDown();
+		});
 	}
 
 	@After
@@ -250,7 +262,7 @@ public class ReactiveSocketTest {
 
 	@Test
 	@Theory
-	public void testFireAndForgetSuccess(int setupFlag) {
+	public void testFireAndForgetSuccess(int setupFlag) throws InterruptedException {
 		startSockets(setupFlag);
 
 		// perform request/response
@@ -258,40 +270,50 @@ public class ReactiveSocketTest {
 		Publisher<Void> response = socketClient.fireAndForget(TestUtil.utf8EncodedPayload("log", null));
 		TestSubscriber<Void> ts = TestSubscriber.create();
 		toObservable(response).subscribe(ts);
+		// these only test client side since this is fireAndForget
 		ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
 		ts.assertNoErrors();
 		ts.assertCompleted();
+		// this waits for server-side
+		fireAndForget.await(500, TimeUnit.MILLISECONDS);
 		assertEquals("log", lastFireAndForget.get());
 	}
 
 	@Test
 	@Theory
-	public void testFireAndForgetServerSideErrorNotFound(int setupFlag) {
+	public void testFireAndForgetServerSideErrorNotFound(int setupFlag) throws InterruptedException {
 		startSockets(setupFlag);
 		// perform request/response
 
 		Publisher<Void> response = socketClient.fireAndForget(TestUtil.utf8EncodedPayload("unknown", null));
 		TestSubscriber<Void> ts = TestSubscriber.create();
 		toObservable(response).subscribe(ts);
+		// these only test client side since this is fireAndForget
 		ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
-		ts.assertNoErrors(); // client-side won't see an error
+		ts.assertNoErrors();// client-side won't see an error
 		ts.assertCompleted();
+		// this waits for server-side
+		fireAndForget.await(500, TimeUnit.MILLISECONDS);
 		assertEquals("notFound", lastFireAndForget.get());
 	}
 
 	@Test
 	@Theory
-	public void testFireAndForgetServerSideErrorHandlerBlowup(int setupFlag) {
+	public void testFireAndForgetServerSideErrorHandlerBlowup(int setupFlag) throws InterruptedException {
 		startSockets(setupFlag);
 		// perform request/response
 
 		Publisher<Void> response = socketClient.fireAndForget(TestUtil.utf8EncodedPayload("blowup", null));
 		TestSubscriber<Void> ts = TestSubscriber.create();
 		toObservable(response).subscribe(ts);
+		// these only test client side since this is fireAndForget
 		ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
-		ts.assertNoErrors(); // client-side won't see an error
+		ts.assertNoErrors();// client-side won't see an error
 		ts.assertCompleted();
+		// this waits for server-side
+		fireAndForget.await(500, TimeUnit.MILLISECONDS);
 		assertEquals("blowup", lastFireAndForget.get());
+		lastServerErrorCountDown.await(500, TimeUnit.MILLISECONDS);
 		assertEquals("forced blowup to simulate handler error", lastServerError.get().getCause().getMessage());
 	}
 
