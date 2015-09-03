@@ -23,8 +23,10 @@ import static rx.RxReactiveStreams.*;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.LockSupport;
 
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -37,25 +39,30 @@ import org.reactivestreams.Subscription;
 
 public class TestFlowControlRequestN {
 
-	@Test
-	public void testRequestStream_batches() {
+	@Test(timeout=2000)
+	public void testRequestStream_batches() throws InterruptedException {
 		ControlledSubscriber s = new ControlledSubscriber();
 		socketClient.requestStream(utf8EncodedPayload("100", null)).subscribe(s);
-		assertEquals(0, s.received);
+		assertEquals(0, s.received.get());
 		assertEquals(0, emitted.get());
 		s.subscription.request(10);
-		assertEquals(10, s.received);
+		waitForAsyncValue(s.received, 10);
+		assertEquals(10, s.received.get());
 		assertEquals(10, emitted.get());
 		s.subscription.request(50);
-		assertEquals(60, s.received);
+		waitForAsyncValue(s.received, 60);
+		assertEquals(60, s.received.get());
 		assertEquals(60, emitted.get());
 		s.subscription.request(100);
-		assertEquals(100, s.received);
+		waitForAsyncValue(s.received, 100);
+		assertEquals(100, s.received.get());
+		s.terminated.await();
 		assertEquals(100, emitted.get());
-		assertTrue(s.completed);
+		
+		assertTrue(s.completed.get());
 	}
 	
-	@Test
+	@Test(timeout=3000)
 	public void testRequestStream_fastProducer_slowConsumer_maxValueRequest() throws InterruptedException {
 		CountDownLatch latch = new CountDownLatch(1);
 		CountDownLatch cancelled = new CountDownLatch(1);
@@ -112,29 +119,34 @@ public class TestFlowControlRequestN {
 		}
 	}
 	
-	@Test
-	public void testRequestSubscription_batches() {
+	@Test(timeout=2000)
+	public void testRequestSubscription_batches() throws InterruptedException {
 		ControlledSubscriber s = new ControlledSubscriber();
 		socketClient.requestSubscription(utf8EncodedPayload("", null)).subscribe(s);
-		assertEquals(0, s.received);
+		assertEquals(0, s.received.get());
 		assertEquals(0, emitted.get());
 		s.subscription.request(10);
-		assertEquals(10, s.received);
+		waitForAsyncValue(s.received, 10);
+		assertEquals(10, s.received.get());
 		assertEquals(10, emitted.get());
 		s.subscription.request(50);
-		assertEquals(60, s.received);
+		waitForAsyncValue(s.received, 60);
+		assertEquals(60, s.received.get());
 		assertEquals(60, emitted.get());
 		s.subscription.request(100);
-		assertEquals(160, s.received);
+		waitForAsyncValue(s.received, 160);
+		assertEquals(160, s.received.get());
 		s.subscription.cancel();
+		Thread.sleep(100);
 		assertEquals(160, emitted.get());
 	}
 	
 	/**
 	 * Test that downstream is governed by request(n)
+	 * @throws InterruptedException 
 	 */
-	@Test
-	public void testRequestChannel_batches_downstream() {
+	@Test(timeout=2000)
+	public void testRequestChannel_batches_downstream() throws InterruptedException {
 		ControlledSubscriber s = new ControlledSubscriber();
 		socketClient.requestChannel(toPublisher(
 				range(1, 10)
@@ -144,16 +156,20 @@ public class TestFlowControlRequestN {
 		
 		// if flatMap is being used, then each of the 10 streams will emit at least 128 (default)
 		
-		assertEquals(0, s.received);
+		assertEquals(0, s.received.get());
 		assertEquals(0, emitted.get());
 		s.subscription.request(10);
-		assertEquals(10, s.received);
+		waitForAsyncValue(s.received, 10);
+		assertEquals(10, s.received.get());
 		s.subscription.request(300);
-		assertEquals(310, s.received);
+		waitForAsyncValue(s.received, 310);
+		assertEquals(310, s.received.get());
 		s.subscription.request(2000);
-		assertEquals(2310, s.received);
+		waitForAsyncValue(s.received, 2310);
+		assertEquals(2310, s.received.get());
 		s.subscription.cancel();
-		assertEquals(2310, s.received);
+		Thread.sleep(100);
+		assertEquals(2310, s.received.get());
 		// emitted with `flatMap` does internal buffering, so it won't be exactly 2310, but it should be far less than the potential 10,000
 		if(emitted.get() > 4096) {
 			fail("Emitted " + emitted.get());
@@ -176,15 +192,22 @@ public class TestFlowControlRequestN {
 		assertEquals(0, s.received);
 		assertEquals(0, emitted.get());
 		s.subscription.request(10);
-		assertFalse(s.error);
+		assertFalse(s.error.get());
 	}
 
+	private void waitForAsyncValue(AtomicInteger value, int n) throws InterruptedException {
+		while (value.get() != n && !Thread.interrupted()) {
+			Thread.sleep(1);
+		}
+	}
+	
 	private static class ControlledSubscriber implements Subscriber<Payload> {
 
-		int received;
+		AtomicInteger received = new AtomicInteger();
 		Subscription subscription;
-		boolean completed = false;
-		boolean error = false;
+		CountDownLatch terminated = new CountDownLatch(1);
+		AtomicBoolean completed = new AtomicBoolean(false);
+		AtomicBoolean error = new AtomicBoolean(false);
 		
 		@Override
 		public void onSubscribe(Subscription s) {
@@ -193,18 +216,20 @@ public class TestFlowControlRequestN {
 
 		@Override
 		public void onNext(Payload t) {
-			received++;
+			received.incrementAndGet();
 		}
 
 		@Override
 		public void onError(Throwable t) {
 			t.printStackTrace();
-			error = true;
+			error.set(true);
+			terminated.countDown();
 		}
 
 		@Override
 		public void onComplete() {
-			completed = true;
+			completed.set(true);
+			terminated.countDown();
 		}
 		
 	}
