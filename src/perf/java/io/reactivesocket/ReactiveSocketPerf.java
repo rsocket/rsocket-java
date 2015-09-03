@@ -121,7 +121,9 @@ public class ReactiveSocketPerf {
 
 		final static ReactiveSocket serverSocket = ReactiveSocket.fromServerConnection(serverConnection, setupFrame -> handler);
 
-		final static ReactiveSocket client = ReactiveSocket.fromClientConnection(clientConnection, ConnectionSetupPayload.create("UTF-8", "UTF-8"), t -> {});
+		final static ReactiveSocket client =
+			ReactiveSocket.fromClientConnection(
+				clientConnection, ConnectionSetupPayload.create("UTF-8", "UTF-8", ConnectionSetupPayload.NO_FLAGS), t -> {});
 
 		static {
 			serverSocket.start();
@@ -147,7 +149,7 @@ public class ReactiveSocketPerf {
 
 				@Override
 				public void onError(Throwable t) {
-
+					t.printStackTrace();
 				}
 
 				@Override
