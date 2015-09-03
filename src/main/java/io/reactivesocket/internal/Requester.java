@@ -99,7 +99,7 @@ public class Requester {
 	 * @return
 	 */
 	public Publisher<Payload> requestResponse(final Payload payload) {
-		return startStream(nextStreamId(), FrameType.REQUEST_RESPONSE, payload);
+		return startRequestResponse(nextStreamId(), FrameType.REQUEST_RESPONSE, payload);
 	}
 
 	/**
@@ -405,6 +405,86 @@ public class Requester {
 		};
 	}
 	
+	/*
+	 * Special-cased for performance reasons (achieved 20-30% throughput increase over using startStream for request/response)
+	 */
+	private Publisher<Payload> startRequestResponse(int streamId, FrameType type, Payload payload) {
+		if (payload == null) {
+			throw new IllegalStateException("Both payload and payloads can not be null");
+		}
+
+		return (Subscriber<? super Payload> child) -> {
+			child.onSubscribe(new Subscription() {
+
+				boolean started = false;
+				StreamInputSubscriber streamInputSubscriber;
+				UnicastSubject<Frame> writer;
+				
+				@Override
+				public void request(long n) {
+					if (!started) {
+						started = true;
+						// Response frames for this Stream
+						UnicastSubject<Frame> transportInputSubject = UnicastSubject.create();
+						synchronized(Requester.this) {
+							streamInputMap.put(streamId, transportInputSubject);
+						}
+						streamInputSubscriber = new StreamInputSubscriber(streamId, 0, null, null, writer, child, () -> {
+							cancel();
+						});
+						transportInputSubject.subscribe(streamInputSubscriber);
+						
+						Publisher<Frame> requestOutput = PublisherUtils.just(Frame.fromRequest(streamId, type, payload, 1));
+						// connect to transport
+						connection.addOutput(requestOutput, new Completable()
+						{
+
+							@Override
+							public void success()
+							{
+								// nothing to do onSuccess
+							}
+
+							@Override
+							public void error(Throwable e) {
+								child.onError(e);
+								cancel();
+							}
+
+						});
+					}
+
+				}
+
+				@Override
+				public void cancel() {
+					if (!streamInputSubscriber.terminated.get()) {
+						connection.addOutput(PublisherUtils.just(Frame.from(streamId, FrameType.CANCEL)), new Completable()
+						{
+
+							@Override
+							public void success()
+							{
+								// nothing to do onSuccess
+							}
+
+							@Override
+							public void error(Throwable e) {
+								child.onError(e);
+							}
+
+						});
+					}
+					synchronized(Requester.this) {
+						streamInputMap.remove(streamId);
+					}
+					streamInputSubscriber.parentSubscription.cancel();
+				}
+
+			});
+		};
+	}
+	
 	private final static class StreamInputSubscriber implements Subscriber<Frame> {
 		final AtomicBoolean terminated = new AtomicBoolean(false);
 		Subscription parentSubscription;
@@ -437,17 +517,17 @@ public class Requester {
 		public void onNext(Frame frame) {
 			FrameType type = frame.getType();
 			// convert ERROR messages into terminal events
-			if (type == FrameType.NEXT) {
+			if (type == FrameType.NEXT_COMPLETE) {
+				terminated.set(true);
+				child.onNext(frame);
+				onComplete();
+				cancel();
+			} else if (type == FrameType.NEXT) {
 				child.onNext(frame);
 				long currentOutstanding = outstandingRequests.decrementAndGet();
 				requestIfNecessary(streamId, requestThreshold, requested.get(), currentOutstanding, writer, requested, outstandingRequests);
 			} else if (type == FrameType.COMPLETE) {
 				terminated.set(true);
-				onComplete();
-				cancel();
-			} else if (type == FrameType.NEXT_COMPLETE) {
-				terminated.set(true);
-				child.onNext(frame);
 				onComplete();
 				cancel();
 			} else if (type == FrameType.ERROR) {
