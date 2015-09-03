@@ -15,6 +15,7 @@
  */
 package io.reactivesocket.internal;
 
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 import org.reactivestreams.Publisher;
@@ -31,28 +32,39 @@ import org.reactivestreams.Subscription;
 public final class UnicastSubject<T> implements Subscriber<T>, Publisher<T> {
 
 	private Subscriber<? super T> s;
-	private final Consumer<UnicastSubject<T>> onConnect;
+	private final BiConsumer<UnicastSubject<T>, Long> onConnect;
+	private final Consumer<Long> onRequest;
 	private boolean subscribedTo = false;
 
 	public static <T> UnicastSubject<T> create() {
-		return new UnicastSubject<T>(null);
+		return new UnicastSubject<T>(null, r -> {});
 	}
 
-	public static <T> UnicastSubject<T> create(Consumer<UnicastSubject<T>> onConnect) {
-		return new UnicastSubject<T>(onConnect);
+	/**
+	 * @param onConnect Called when first requestN > 0 occurs.
+	 * @param onRequest Called for each requestN after the first one (which invokes onConnect)
+	 * @return
+	 */
+	public static <T> UnicastSubject<T> create(BiConsumer<UnicastSubject<T>, Long> onConnect, Consumer<Long> onRequest) {
+		return new UnicastSubject<T>(onConnect, onRequest);
+	}
+	
+	/**
+	 * @param onConnect Called when first requestN > 0 occurs.
+	 * @return
+	 */
+	public static <T> UnicastSubject<T> create(BiConsumer<UnicastSubject<T>, Long> onConnect) {
+		return new UnicastSubject<T>(onConnect,  r -> {});
 	}
 
-	private UnicastSubject(Consumer<UnicastSubject<T>> onConnect) {
+	private UnicastSubject(BiConsumer<UnicastSubject<T>, Long> onConnect, Consumer<Long> onRequest) {
 		this.onConnect = onConnect;
-	}
-
-	private UnicastSubject() {
-		this.onConnect = null;
+		this.onRequest = onRequest;
 	}
 
 	@Override
 	public void onSubscribe(Subscription s) {
-		s.request(Long.MAX_VALUE); // TODO are there places we are using this that we should compose backpressure through?
+		throw new IllegalStateException("This UnicastSubject does not support being used as a Subscriber to a Publisher");
 	}
 
 	@Override
@@ -82,15 +94,18 @@ public final class UnicastSubject<T> implements Subscriber<T>, Publisher<T> {
 
 				@Override
 				public void request(long n) {
-					if (!started) {
-						started = true;
-						subscribedTo = true;
-						// now actually connected
-						if (onConnect != null) {
-							onConnect.accept(UnicastSubject.this);
+					if (n > 0) {
+						if (!started) {
+							started = true;
+							subscribedTo = true;
+							// now actually connected
+							if (onConnect != null) {
+								onConnect.accept(UnicastSubject.this, n);
+							}
+						} else {
+							onRequest.accept(n);
 						}
 					}
-					// we ignore 'n' as this is a subject that emits as it wishes
 				}
 
 				@Override
