@@ -15,7 +15,6 @@
  */
 package io.reactivesocket.internal;
 
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
@@ -154,13 +153,19 @@ public class Responder {
 						} else if (requestFrame.getType() == FrameType.REQUEST_CHANNEL) {
 							responsePublisher = handleRequestChannel(requestFrame, requestHandler, channels, cancellationSubscriptions, inFlight);
 						} else if (requestFrame.getType() == FrameType.CANCEL) {
-							Subscription s = cancellationSubscriptions.get(requestFrame.getStreamId());
+							Subscription s = null;
+							synchronized(Responder.this) {
+								s = cancellationSubscriptions.get(requestFrame.getStreamId());
+							}
 							if (s != null) {
 								s.cancel();
 							}
 							return;
 						} else if (requestFrame.getType() == FrameType.REQUEST_N) {
-							Subscription inFlightSubscription = inFlight.get(requestFrame.getStreamId());
+							Subscription inFlightSubscription = null;
+							synchronized(Responder.this) {
+								inFlightSubscription = inFlight.get(requestFrame.getStreamId());
+							}
 							if(inFlightSubscription != null) {
 								inFlightSubscription.request(Frame.RequestN.requestN(requestFrame));
 								return;
@@ -318,11 +323,15 @@ public class Responder {
 				}
 
 				private void cleanup() {
-					cancellationSubscriptions.remove(requestFrame.getStreamId());
+					synchronized(Responder.this) {
+						cancellationSubscriptions.remove(requestFrame.getStreamId());
+					}
 				}
 
 			};
-			cancellationSubscriptions.put(requestFrame.getStreamId(), s);
+			synchronized(Responder.this) {
+				cancellationSubscriptions.put(requestFrame.getStreamId(), s);
+			}
 			child.onSubscribe(s);
 		};
 	}
@@ -433,12 +442,16 @@ public class Responder {
 					}
 
 					private void cleanup() {
-						inFlight.remove(requestFrame.getStreamId());
-						cancellationSubscriptions.remove(requestFrame.getStreamId());
+						synchronized(Responder.this) {
+							inFlight.remove(requestFrame.getStreamId());
+							cancellationSubscriptions.remove(requestFrame.getStreamId());
+						}
 					}
 
 				};
-				cancellationSubscriptions.put(requestFrame.getStreamId(), s);
+				synchronized(Responder.this) {
+					cancellationSubscriptions.put(requestFrame.getStreamId(), s);
+				}
 				child.onSubscribe(s);
 			}
 
@@ -477,14 +490,19 @@ public class Responder {
 			Long2ObjectHashMap<Subscription> cancellationSubscriptions,
 			Long2ObjectHashMap<Subscription> inFlight) {
 
-		UnicastSubject<Payload> channelSubject = channels.get(requestFrame.getStreamId());
+		UnicastSubject<Payload> channelSubject = null;
+		synchronized(Responder.this) {
+			channelSubject = channels.get(requestFrame.getStreamId());
+		}
 		if (channelSubject == null) {
 			// first request on this channel
 			channelSubject = UnicastSubject.create((s, rn) -> {
 				// after we are first subscribed to then send the initial frame
 				s.onNext(requestFrame);
 			});
-			channels.put(requestFrame.getStreamId(), channelSubject);
+			synchronized(Responder.this) {
+				channels.put(requestFrame.getStreamId(), channelSubject);
+			}
 
 			final UnicastSubject<Payload> channelRequests = channelSubject;
 
@@ -549,12 +567,16 @@ public class Responder {
 						}
 
 						private void cleanup() {
-							inFlight.remove(requestFrame.getStreamId());
-							cancellationSubscriptions.remove(requestFrame.getStreamId());
+							synchronized(Responder.this) {
+								inFlight.remove(requestFrame.getStreamId());
+								cancellationSubscriptions.remove(requestFrame.getStreamId());
+							}
 						}
 
 					};
-					cancellationSubscriptions.put(requestFrame.getStreamId(), s);
+					synchronized(Responder.this) {
+						cancellationSubscriptions.put(requestFrame.getStreamId(), s);
+					}
 					child.onSubscribe(s);
 				}
 

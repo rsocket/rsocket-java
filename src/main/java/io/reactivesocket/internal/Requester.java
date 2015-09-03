@@ -18,6 +18,7 @@ package io.reactivesocket.internal;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
+import java.util.Collection;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -276,6 +277,7 @@ public class Requester {
 							payloadsSubscription = new AtomicReference<Subscription>();
 						}
 
+						
 						// declare output to transport
 						writer = UnicastSubject.create((w, rn) -> {
 							// does lease allow for sending request
@@ -344,11 +346,13 @@ public class Requester {
 								});
 							}
 
-						}, r -> System.out.println("requested to unicast: " + r));
+						});
 						
 						// Response frames for this Stream
 						UnicastSubject<Frame> transportInputSubject = UnicastSubject.create();
-						streamInputMap.put(streamId, transportInputSubject);
+						synchronized(Requester.this) {
+							streamInputMap.put(streamId, transportInputSubject);
+						}
 						streamInputSubscriber = new StreamInputSubscriber(streamId, threshold, outstanding, requested, writer, child, () -> {
 							cancel();
 						});
@@ -382,7 +386,9 @@ public class Requester {
 
 				@Override
 				public void cancel() {
-					streamInputMap.remove(streamId);
+					synchronized(Requester.this) {
+						streamInputMap.remove(streamId);
+					}
 					if (!streamInputSubscriber.terminated.get()) {
 						writer.onNext(Frame.from(streamId, FrameType.CANCEL));
 					}
@@ -543,7 +549,10 @@ public class Requester {
 						onError(new RuntimeException("Received unexpected message type on stream 0: " + frame.getType().name()));
 					}
 				} else {
-					UnicastSubject<Frame> streamSubject = streamInputMap.get(streamId);
+					UnicastSubject<Frame> streamSubject;
+					synchronized(Requester.this) {
+						streamSubject = streamInputMap.get(streamId);
+					}
 					if (streamSubject == null) {
 						if (streamId <= streamCount) {
 							// receiving a frame after a given stream has been cancelled/completed, so ignore (cancellation is async so there is a race condition)
@@ -564,14 +573,22 @@ public class Requester {
 			}
 
 			public void onError(Throwable t) {
-				streamInputMap.forEach((id, subject) -> subject.onError(t));
+				Collection<UnicastSubject<Frame>> subjects = null;
+				synchronized(Requester.this) {
+					subjects = streamInputMap.values();
+				}
+				subjects.forEach(subject -> subject.onError(t));
 				// TODO: iterate over responder side and destroy world
 				errorStream.accept(t);
 				cancel();
 			}
 
 			public void onComplete() {
-				streamInputMap.forEach((id, subject) -> subject.onComplete());
+				Collection<UnicastSubject<Frame>> subjects = null;
+				synchronized(Requester.this) {
+					subjects = streamInputMap.values();
+				}
+				subjects.forEach(subject -> subject.onComplete());
 				cancel();
 			}
 
