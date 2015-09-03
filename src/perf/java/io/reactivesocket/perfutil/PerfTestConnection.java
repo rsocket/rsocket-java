@@ -24,12 +24,11 @@ import org.reactivestreams.Subscription;
 import io.reactivesocket.Completable;
 import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
-import io.reactivesocket.internal.UnicastSubject;
 
 public class PerfTestConnection implements DuplexConnection {
 
-	public final UnicastSubject toInput = UnicastSubject.create();
-	private UnicastSubject writeSubject = UnicastSubject.create();
+	public final PerfUnicastSubjectNoBackpressure toInput = PerfUnicastSubjectNoBackpressure.create();
+	private PerfUnicastSubjectNoBackpressure writeSubject = PerfUnicastSubjectNoBackpressure.create();
 	public final Publisher<Frame> writes = writeSubject;
 
 	@Override
