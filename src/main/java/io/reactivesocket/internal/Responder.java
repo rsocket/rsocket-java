@@ -69,7 +69,7 @@ public class Responder {
 	 * @param ttl of lease
 	 * @param numberOfRequests of lease
 	 */
-	public void sendLease(final long ttl, final long numberOfRequests)
+	public void sendLease(final int ttl, final int numberOfRequests)
 	{
 		connection.addOutput(PublisherUtils.just(Frame.fromLease(ttl, numberOfRequests, Frame.NULL_BYTEBUFFER)), new Completable() {
 			@Override
@@ -111,7 +111,7 @@ public class Responder {
 
 			@Override
 			public void onNext(Frame requestFrame) {
-				final long streamId = requestFrame.getStreamId();
+				final int streamId = requestFrame.getStreamId();
 				if (requestHandler == null) {
 					if (childTerminated.get()) {
 						// already terminated, but still receiving latent messages ... ignore them while shutdown occurs
@@ -268,7 +268,7 @@ public class Responder {
 				public void request(long n) {
 					if (!started) {
 						started = true;
-						long streamId = requestFrame.getStreamId();
+						final int streamId = requestFrame.getStreamId();
 
 						requestHandler.handleRequestResponse(requestFrame).subscribe(new Subscriber<Payload>() {
 
@@ -386,7 +386,7 @@ public class Responder {
 					public void request(long n) {
 						if (!started) {
 							started = true;
-							long streamId = requestFrame.getStreamId();
+							final int streamId = requestFrame.getStreamId();
 
 							handler.apply(requestHandler, requestFrame).subscribe(new Subscriber<Payload>() {
 
@@ -519,7 +519,7 @@ public class Responder {
 						public void request(long n) {
 							if (!started) {
 								started = true;
-								long streamId = requestFrame.getStreamId();
+								final int streamId = requestFrame.getStreamId();
 
 								requestHandler.handleChannel(requestFrame, channelRequests).subscribe(new Subscriber<Payload>() {
 

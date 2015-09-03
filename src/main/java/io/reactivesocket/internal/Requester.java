@@ -20,6 +20,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.util.Collection;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -56,7 +57,7 @@ public class Requester {
 
 	private long ttlExpiration;
 	private long numberOfRemainingRequests = 0;
-	private long streamCount = 0; // 0 is reserved for setup, all normal messages are >= 1
+	private int streamCount = 0; // 0 is reserved for setup, all normal messages are >= 1
 
 	private static final long DEFAULT_BATCH = 1024;
 	private static final long REQUEST_THRESHOLD = 256;
@@ -214,7 +215,7 @@ public class Requester {
 	 * @param payload
 	 * @return
 	 */
-	private Publisher<Payload> startStream(long streamId, FrameType type, Payload payload) {
+	private Publisher<Payload> startStream(int streamId, FrameType type, Payload payload) {
 		if (payload == null) {
 			throw new IllegalStateException("Payload can not be null");
 		}
@@ -232,7 +233,7 @@ public class Requester {
 	 * @param payloads
 	 * @return
 	 */
-	private Publisher<Payload> startStream(long streamId, FrameType type, Publisher<Payload> payloads) {
+	private Publisher<Payload> startStream(int streamId, FrameType type, Publisher<Payload> payloads) {
 		if (payloads == null) {
 			throw new IllegalStateException("Payloads can not be null");
 		}
@@ -245,7 +246,7 @@ public class Requester {
 	/*
 	 * Using payload/payloads with null check for efficiency so I don't have to allocate a Publisher for the most common case of single Payload
 	 */
-	private Publisher<Payload> startStream(long streamId, FrameType type, Payload payload, Publisher<Payload> payloads) {
+	private Publisher<Payload> startStream(int streamId, FrameType type, Payload payload, Publisher<Payload> payloads) {
 		if (payload == null && payloads == null) {
 			throw new IllegalStateException("Both payload and payloads can not be null");
 		}
@@ -272,9 +273,9 @@ public class Requester {
 						final long requestN = currentN < DEFAULT_BATCH ? currentN : DEFAULT_BATCH;
 						// threshold
 						final long threshold = requestN == DEFAULT_BATCH ? REQUEST_THRESHOLD : requestN/3;
-						
+
 						if (payloads != null) {
-							payloadsSubscription = new AtomicReference<Subscription>();
+							payloadsSubscription = new AtomicReference<>();
 						}
 
 						
@@ -297,7 +298,7 @@ public class Requester {
 							
 							// when transport connects we write the request frame for this stream
 							if (payload != null) {
-								w.onNext(Frame.fromRequest(streamId, type, payload, requestN));
+								w.onNext(Frame.fromRequest(streamId, type, payload, (int)requestN));
 							} else {
 								// TODO hook this in via addOutput so requestN flows through correctly
 //								connection.addOutput(payloads.map(p -> ... convert things to Frame here ...), new Completable()
@@ -328,7 +329,7 @@ public class Requester {
 
 									@Override
 									public void onNext(Payload p) {
-										w.onNext(Frame.fromRequest(streamId, type, p, requestN));
+										w.onNext(Frame.fromRequest(streamId, type, p, (int)requestN));
 									}
 
 									@Override
@@ -408,7 +409,7 @@ public class Requester {
 		final AtomicBoolean terminated = new AtomicBoolean(false);
 		Subscription parentSubscription;
 
-		private final long streamId;
+		private final int streamId;
 		private final long requestThreshold;
 		private final AtomicLong outstandingRequests;
 		private final AtomicLong requested;
@@ -416,7 +417,7 @@ public class Requester {
 		private final Subscriber<? super Payload> child;
 		private final Runnable cancelAction;
 
-		public StreamInputSubscriber(long streamId, long threshold, AtomicLong outstanding, AtomicLong requested, UnicastSubject<Frame> writer, Subscriber<? super Payload> child, Runnable cancelAction) {
+		public StreamInputSubscriber(int streamId, long threshold, AtomicLong outstanding, AtomicLong requested, UnicastSubject<Frame> writer, Subscriber<? super Payload> child, Runnable cancelAction) {
 			this.streamId = streamId;
 			this.requestThreshold = threshold;
 			this.requested = requested;
@@ -478,7 +479,7 @@ public class Requester {
 		}
 	}
 	
-	private static void requestIfNecessary(long streamId, long requestThreshold, long currentN, long currentOutstanding, UnicastSubject<Frame> writer, AtomicLong requested, AtomicLong outstanding) {
+	private static void requestIfNecessary(int streamId, long requestThreshold, long currentN, long currentOutstanding, UnicastSubject<Frame> writer, AtomicLong requested, AtomicLong outstanding) {
 		if(currentOutstanding <= requestThreshold) {
 			long batchSize = DEFAULT_BATCH - currentOutstanding;
 			final long requestN = currentN < batchSize ? currentN : batchSize;
@@ -489,12 +490,12 @@ public class Requester {
 				// record how many we have requested
 				outstanding.addAndGet(requestN);
 
-				writer.onNext(Frame.fromRequestN(streamId, requestN));
+				writer.onNext(Frame.fromRequestN(streamId, (int)requestN));
 			}
 		}
 	}
 
-	private long nextStreamId() {
+	private int nextStreamId() {
 		return streamCount += 2; // go by two since server is odd, client is even
 	}
 

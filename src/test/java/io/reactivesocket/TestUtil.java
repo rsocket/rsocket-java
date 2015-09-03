@@ -20,7 +20,7 @@ import java.nio.charset.Charset;
 
 public class TestUtil
 {
-    public static Frame utf8EncodedRequestFrame(final long streamId, final FrameType type, final String data, final long initialRequestN)
+    public static Frame utf8EncodedRequestFrame(final int streamId, final FrameType type, final String data, final int initialRequestN)
     {
         return Frame.fromRequest(streamId, type, new Payload()
         {
@@ -36,7 +36,7 @@ public class TestUtil
         }, initialRequestN);
     }
 
-    public static Frame utf8EncodedFrame(final long streamId, final FrameType type, final String data)
+    public static Frame utf8EncodedFrame(final int streamId, final FrameType type, final String data)
     {
         return Frame.from(streamId, type, byteBufferFromUtf8String(data));
     }

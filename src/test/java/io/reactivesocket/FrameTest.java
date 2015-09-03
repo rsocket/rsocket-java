@@ -381,7 +381,7 @@ public class FrameTest
     @Test
     public void shouldFormCorrectlyForRequestN()
     {
-        final long n = 128;
+        final int n = 128;
         final Frame f = Frame.fromRequestN(1, n);
 
         assertEquals(FrameType.REQUEST_N, f.getType());
@@ -393,8 +393,8 @@ public class FrameTest
     @Test
     public void shouldFormCorrectlyWithoutMetadataForLease()
     {
-        final long ttl = TimeUnit.SECONDS.toNanos(8);
-        final long numberOfRequests = 16;
+        final int ttl = (int)TimeUnit.SECONDS.toNanos(8);
+        final int numberOfRequests = 16;
         final Frame f = Frame.fromLease(ttl, numberOfRequests, Frame.NULL_BYTEBUFFER);
 
         assertEquals(0, f.getStreamId());
@@ -408,8 +408,8 @@ public class FrameTest
     @Test
     public void shouldFormCorrectlyWithMetadataForLease()
     {
-        final long ttl = TimeUnit.SECONDS.toNanos(8);
-        final long numberOfRequests = 16;
+        final int ttl = (int)TimeUnit.SECONDS.toNanos(8);
+        final int numberOfRequests = 16;
         final ByteBuffer leaseMetadata = TestUtil.byteBufferFromUtf8String("lease metadata");
 
         final Frame f = Frame.fromLease(ttl, numberOfRequests, leaseMetadata);

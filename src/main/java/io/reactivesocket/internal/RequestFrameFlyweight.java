@@ -34,7 +34,7 @@ public class RequestFrameFlyweight
 
         if (type.hasInitialRequestN())
         {
-            length += BitUtil.SIZE_OF_LONG;
+            length += BitUtil.SIZE_OF_INT;
         }
 
         return length;
@@ -43,9 +43,9 @@ public class RequestFrameFlyweight
     public static int encode(
         final MutableDirectBuffer mutableDirectBuffer,
         final int offset,
-        final long streamId,
+        final int streamId,
         final FrameType type,
-        final long initialRequestN,
+        final int initialRequestN,
         final ByteBuffer metadata,
         final ByteBuffer data)
     {
@@ -53,8 +53,8 @@ public class RequestFrameFlyweight
 
         int length = FrameHeaderFlyweight.encodeFrameHeader(mutableDirectBuffer, offset, frameLength, 0, type, streamId);
 
-        mutableDirectBuffer.putLong(offset + INITIAL_REQUEST_N_FIELD_OFFSET, initialRequestN, ByteOrder.BIG_ENDIAN);
-        length += BitUtil.SIZE_OF_LONG;
+        mutableDirectBuffer.putInt(offset + INITIAL_REQUEST_N_FIELD_OFFSET, initialRequestN, ByteOrder.BIG_ENDIAN);
+        length += BitUtil.SIZE_OF_INT;
 
         length += FrameHeaderFlyweight.encodeMetadata(mutableDirectBuffer, offset, offset + length, metadata);
         length += FrameHeaderFlyweight.encodeData(mutableDirectBuffer, offset + length, data);
@@ -65,7 +65,7 @@ public class RequestFrameFlyweight
     public static int encode(
         final MutableDirectBuffer mutableDirectBuffer,
         final int offset,
-        final long streamId,
+        final int streamId,
         final FrameType type,
         final ByteBuffer metadata,
         final ByteBuffer data)
@@ -80,9 +80,9 @@ public class RequestFrameFlyweight
         return length;
     }
 
-    public static long initialRequestN(final DirectBuffer directBuffer, final int offset)
+    public static int initialRequestN(final DirectBuffer directBuffer, final int offset)
     {
-        return directBuffer.getLong(offset + INITIAL_REQUEST_N_FIELD_OFFSET, ByteOrder.BIG_ENDIAN);
+        return directBuffer.getInt(offset + INITIAL_REQUEST_N_FIELD_OFFSET, ByteOrder.BIG_ENDIAN);
     }
 
     public static int payloadOffset(final FrameType type, final DirectBuffer directBuffer, final int offset)
@@ -91,7 +91,7 @@ public class RequestFrameFlyweight
 
         if (type.hasInitialRequestN())
         {
-            result += BitUtil.SIZE_OF_LONG;
+            result += BitUtil.SIZE_OF_INT;
         }
 
         return result;

@@ -26,7 +26,7 @@ import io.reactivesocket.Payload;
 
 public class PublisherUtils {
 
-	public static final Publisher<Frame> errorFrame(long streamId, Throwable e) {
+	public static final Publisher<Frame> errorFrame(int streamId, Throwable e) {
 		return (Subscriber<? super Frame> s) -> {
 			s.onSubscribe(new Subscription() {
 

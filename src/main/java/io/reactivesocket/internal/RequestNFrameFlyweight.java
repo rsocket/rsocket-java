@@ -32,31 +32,31 @@ public class RequestNFrameFlyweight
     {
         int length = FrameHeaderFlyweight.computeFrameHeaderLength(FrameType.REQUEST_N, 0, 0);
 
-        return length + BitUtil.SIZE_OF_LONG;
+        return length + BitUtil.SIZE_OF_INT;
     }
 
     public static int encode(
         final MutableDirectBuffer mutableDirectBuffer,
         final int offset,
-        final long streamId,
-        final long requestN)
+        final int streamId,
+        final int requestN)
     {
         final int frameLength = computeFrameLength();
 
         int length = FrameHeaderFlyweight.encodeFrameHeader(mutableDirectBuffer, offset, frameLength, 0, FrameType.REQUEST_N, streamId);
 
-        mutableDirectBuffer.putLong(offset + REQUEST_N_FIELD_OFFSET, requestN, ByteOrder.BIG_ENDIAN);
+        mutableDirectBuffer.putInt(offset + REQUEST_N_FIELD_OFFSET, requestN, ByteOrder.BIG_ENDIAN);
 
         return length;
     }
 
-    public static long requestN(final DirectBuffer directBuffer, final int offset)
+    public static int requestN(final DirectBuffer directBuffer, final int offset)
     {
-        return directBuffer.getLong(offset + REQUEST_N_FIELD_OFFSET, ByteOrder.BIG_ENDIAN);
+        return directBuffer.getInt(offset + REQUEST_N_FIELD_OFFSET, ByteOrder.BIG_ENDIAN);
     }
 
     public static int payloadOffset(final DirectBuffer directBuffer, final int offset)
     {
-        return offset + FrameHeaderFlyweight.FRAME_HEADER_LENGTH + BitUtil.SIZE_OF_LONG;
+        return offset + FrameHeaderFlyweight.FRAME_HEADER_LENGTH + BitUtil.SIZE_OF_INT;
     }
 }

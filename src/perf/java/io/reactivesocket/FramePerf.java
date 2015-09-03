@@ -32,7 +32,7 @@ import org.openjdk.jmh.infra.Blackhole;
 @OutputTimeUnit(TimeUnit.SECONDS)
 public class FramePerf {
 
-	public static Frame utf8EncodedFrame(final long streamId, final FrameType type, final String data)
+	public static Frame utf8EncodedFrame(final int streamId, final FrameType type, final String data)
 	{
 		final byte[] bytes = data.getBytes();
 		final ByteBuffer byteBuffer = ByteBuffer.wrap(bytes);

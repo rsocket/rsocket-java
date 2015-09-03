@@ -21,7 +21,7 @@ public class FairLeaseGovernor implements LeaseGovernor {
     private final Set<Responder> responders;
     private ScheduledFuture<?> runningTask;
 
-    private synchronized void distribute(long ttlMs) {
+    private synchronized void distribute(int ttlMs) {
         if (!responders.isEmpty()) {
             int budget = tickets / responders.size();
 
@@ -49,7 +49,7 @@ public class FairLeaseGovernor implements LeaseGovernor {
     public synchronized void register(Responder responder) {
         responders.add(responder);
         if (runningTask == null) {
-            final long ttl = TimeUnit.NANOSECONDS.convert(period, unit);
+            final int ttl = (int)TimeUnit.NANOSECONDS.convert(period, unit);
             runningTask = EXECUTOR.scheduleAtFixedRate(() -> distribute(ttl), 0, period, unit);
         }
     }

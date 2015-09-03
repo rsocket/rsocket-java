@@ -102,7 +102,7 @@ public class Frame implements Payload
      *
      * @return frame stream identifier
      */
-    public long getStreamId() {
+    public int getStreamId() {
         return FrameHeaderFlyweight.streamId(directBuffer, 0);
     }
 
@@ -113,16 +113,6 @@ public class Frame implements Payload
      */
     public FrameType getType() {
         return FrameHeaderFlyweight.frameType(directBuffer, 0);
-    }
-
-    /**
-     * Return frame version
-     *
-     * @return frame version
-     */
-    public int getVersion()
-    {
-        return FrameHeaderFlyweight.version(directBuffer, 0);
     }
 
     /**
@@ -186,7 +176,7 @@ public class Frame implements Payload
      * @param type     to include in frame
      * @param data     to include in frame
      */
-    public void wrap(final long streamId, final FrameType type, final ByteBuffer data)
+    public void wrap(final int streamId, final FrameType type, final ByteBuffer data)
     {
         POOL.release(this.directBuffer);
 
@@ -196,7 +186,7 @@ public class Frame implements Payload
         FrameHeaderFlyweight.encode(this.directBuffer, 0, streamId, type, NULL_BYTEBUFFER, data);
     }
 
-    public static Frame from(long streamId, FrameType type, ByteBuffer data, ByteBuffer metadata)
+    public static Frame from(int streamId, FrameType type, ByteBuffer data, ByteBuffer metadata)
     {
         final Frame frame =
             POOL.acquireFrame(FrameHeaderFlyweight.computeFrameHeaderLength(type, metadata.capacity(), data.capacity()));
@@ -205,12 +195,12 @@ public class Frame implements Payload
         return frame;
     }
 
-    public static Frame from(long streamId, FrameType type, ByteBuffer data)
+    public static Frame from(int streamId, FrameType type, ByteBuffer data)
     {
         return from(streamId, type, data, NULL_BYTEBUFFER);
     }
 
-    public static Frame from(long streamId, FrameType type, Payload payload)
+    public static Frame from(int streamId, FrameType type, Payload payload)
     {
     	final ByteBuffer d = payload.getData() != null ? payload.getData() : NULL_BYTEBUFFER;
     	final ByteBuffer md = payload.getMetadata() != null ? payload.getMetadata() : NULL_BYTEBUFFER;
@@ -218,12 +208,12 @@ public class Frame implements Payload
         return from(streamId, type, d, md);
     }
 
-    public static Frame from(long streamId, FrameType type)
+    public static Frame from(int streamId, FrameType type)
     {
         return from(streamId, type, NULL_BYTEBUFFER, NULL_BYTEBUFFER);
     }
 
-    public static Frame fromError(long streamId, final Throwable throwable)
+    public static Frame fromError(int streamId, final Throwable throwable)
     {
         final byte[] bytes = throwable.getMessage().getBytes();
         final ByteBuffer byteBuffer = ByteBuffer.wrap(bytes);
@@ -278,7 +268,7 @@ public class Frame implements Payload
         return frame;
     }
 
-    public static Frame fromLease(long ttl, long numberOfRequests, ByteBuffer metadata)
+    public static Frame fromLease(int ttl, int numberOfRequests, ByteBuffer metadata)
     {
         final Frame frame = POOL.acquireFrame(LeaseFrameFlyweight.computeFrameLength(metadata.capacity()));
 
@@ -286,7 +276,7 @@ public class Frame implements Payload
         return frame;
     }
 
-    public static Frame fromRequestN(long streamId, long requestN)
+    public static Frame fromRequestN(int streamId, int requestN)
     {
         final Frame frame = POOL.acquireFrame(RequestNFrameFlyweight.computeFrameLength());
 
@@ -294,7 +284,7 @@ public class Frame implements Payload
         return frame;
     }
 
-    public static Frame fromRequest(long streamId, FrameType type, Payload payload, long initialRequestN)
+    public static Frame fromRequest(int streamId, FrameType type, Payload payload, int initialRequestN)
     {
         final ByteBuffer d = payload.getData() != null ? payload.getData() : NULL_BYTEBUFFER;
         final ByteBuffer md = payload.getMetadata() != null ? payload.getMetadata() : NULL_BYTEBUFFER;

@@ -44,19 +44,18 @@ public class FrameHeaderFlyweight
     private static final boolean INCLUDE_FRAME_LENGTH = true;
 
     private static final int FRAME_LENGTH_FIELD_OFFSET;
-    private static final int VERSION_FIELD_OFFSET;
-    private static final int FLAGS_FIELD_OFFSET;
     private static final int TYPE_FIELD_OFFSET;
+    private static final int FLAGS_FIELD_OFFSET;
     private static final int STREAM_ID_FIELD_OFFSET;
     private static final int PAYLOAD_OFFSET;
 
     private static final byte CURRENT_VERSION = 0;
 
-    public static final int FLAGS_I = 0b1000_0000;
-    public static final int FLAGS_M = 0b0100_0000;
+    public static final int FLAGS_I = 0b1000_0000_0000_0000;
+    public static final int FLAGS_M = 0b0100_0000_0000_0000;
 
-    private static final int FLAGS_RESPONSE_F = 0b0010_0000;
-    private static final int FLAGS_RESPONSE_C = 0b0001_0000;
+    private static final int FLAGS_RESPONSE_F = 0b0010_0000_0000_0000;
+    private static final int FLAGS_RESPONSE_C = 0b0001_0000_0000_0000;
 
     static
     {
@@ -69,11 +68,10 @@ public class FrameHeaderFlyweight
             FRAME_LENGTH_FIELD_OFFSET = -BitUtil.SIZE_OF_INT;
         }
 
-        VERSION_FIELD_OFFSET = FRAME_LENGTH_FIELD_OFFSET + BitUtil.SIZE_OF_INT;
-        FLAGS_FIELD_OFFSET = VERSION_FIELD_OFFSET + BitUtil.SIZE_OF_BYTE;
-        TYPE_FIELD_OFFSET = FLAGS_FIELD_OFFSET + BitUtil.SIZE_OF_BYTE;
-        STREAM_ID_FIELD_OFFSET = TYPE_FIELD_OFFSET + BitUtil.SIZE_OF_SHORT;
-        PAYLOAD_OFFSET = STREAM_ID_FIELD_OFFSET + BitUtil.SIZE_OF_LONG;
+        TYPE_FIELD_OFFSET = FRAME_LENGTH_FIELD_OFFSET + BitUtil.SIZE_OF_INT;
+        FLAGS_FIELD_OFFSET = TYPE_FIELD_OFFSET + BitUtil.SIZE_OF_SHORT;
+        STREAM_ID_FIELD_OFFSET = FLAGS_FIELD_OFFSET + BitUtil.SIZE_OF_SHORT;
+        PAYLOAD_OFFSET = STREAM_ID_FIELD_OFFSET + BitUtil.SIZE_OF_INT;
 
         FRAME_HEADER_LENGTH = PAYLOAD_OFFSET;
     }
@@ -89,17 +87,16 @@ public class FrameHeaderFlyweight
         final int frameLength,
         final int flags,
         final FrameType frameType,
-        final long streamId)
+        final int streamId)
     {
         if (INCLUDE_FRAME_LENGTH)
         {
             mutableDirectBuffer.putInt(offset + FRAME_LENGTH_FIELD_OFFSET, frameLength, ByteOrder.BIG_ENDIAN);
         }
 
-        mutableDirectBuffer.putByte(offset + VERSION_FIELD_OFFSET, CURRENT_VERSION);
-        mutableDirectBuffer.putByte(offset + FLAGS_FIELD_OFFSET, (byte) flags);
         mutableDirectBuffer.putShort(offset + TYPE_FIELD_OFFSET, (short) frameType.getEncodedType(), ByteOrder.BIG_ENDIAN);
-        mutableDirectBuffer.putLong(offset + STREAM_ID_FIELD_OFFSET, streamId, ByteOrder.BIG_ENDIAN);
+        mutableDirectBuffer.putShort(offset + FLAGS_FIELD_OFFSET, (short) flags, ByteOrder.BIG_ENDIAN);
+        mutableDirectBuffer.putInt(offset + STREAM_ID_FIELD_OFFSET, streamId, ByteOrder.BIG_ENDIAN);
 
         return FRAME_HEADER_LENGTH;
     }
@@ -114,9 +111,9 @@ public class FrameHeaderFlyweight
 
         if (0 < metadata.capacity())
         {
-            int flags = mutableDirectBuffer.getByte(frameHeaderStartOffset + FLAGS_FIELD_OFFSET);
+            int flags = mutableDirectBuffer.getShort(frameHeaderStartOffset + FLAGS_FIELD_OFFSET, ByteOrder.BIG_ENDIAN);
             flags |= FLAGS_M;
-            mutableDirectBuffer.putByte(frameHeaderStartOffset + FLAGS_FIELD_OFFSET, (byte)flags);
+            mutableDirectBuffer.putShort(frameHeaderStartOffset + FLAGS_FIELD_OFFSET, (short)flags, ByteOrder.BIG_ENDIAN);
             mutableDirectBuffer.putInt(metadataOffset, metadata.capacity() + BitUtil.SIZE_OF_INT, ByteOrder.BIG_ENDIAN);
             length += BitUtil.SIZE_OF_INT;
             mutableDirectBuffer.putBytes(metadataOffset + length, metadata, metadata.capacity());
@@ -146,7 +143,7 @@ public class FrameHeaderFlyweight
     public static int encode(
         final MutableDirectBuffer mutableDirectBuffer,
         final int offset,
-        final long streamId,
+        final int streamId,
         final FrameType frameType,
         final ByteBuffer metadata,
         final ByteBuffer data)
@@ -178,14 +175,9 @@ public class FrameHeaderFlyweight
         return length;
     }
 
-    public static int version(final DirectBuffer directBuffer, final int offset)
-    {
-        return directBuffer.getByte(offset + VERSION_FIELD_OFFSET);
-    }
-
     public static int flags(final DirectBuffer directBuffer, final int offset)
     {
-        return directBuffer.getByte(offset + FLAGS_FIELD_OFFSET);
+        return directBuffer.getShort(offset + FLAGS_FIELD_OFFSET, ByteOrder.BIG_ENDIAN);
     }
 
     public static FrameType frameType(final DirectBuffer directBuffer, final int offset)
@@ -214,9 +206,9 @@ public class FrameHeaderFlyweight
         return result;
     }
 
-    public static long streamId(final DirectBuffer directBuffer, final int offset)
+    public static int streamId(final DirectBuffer directBuffer, final int offset)
     {
-        return directBuffer.getLong(offset + STREAM_ID_FIELD_OFFSET, ByteOrder.BIG_ENDIAN);
+        return directBuffer.getInt(offset + STREAM_ID_FIELD_OFFSET, ByteOrder.BIG_ENDIAN);
     }
 
     public static ByteBuffer sliceFrameData(final DirectBuffer directBuffer, final int offset, final int length)
@@ -268,7 +260,7 @@ public class FrameHeaderFlyweight
     {
         int metadataLength = 0;
 
-        if (FLAGS_M == (FLAGS_M & directBuffer.getByte(offset + FLAGS_FIELD_OFFSET)))
+        if (FLAGS_M == (FLAGS_M & directBuffer.getShort(offset + FLAGS_FIELD_OFFSET, ByteOrder.BIG_ENDIAN)))
         {
             metadataLength = (directBuffer.getInt(metadataOffset(directBuffer, offset), ByteOrder.BIG_ENDIAN) & 0xFFFFFF);
         }
