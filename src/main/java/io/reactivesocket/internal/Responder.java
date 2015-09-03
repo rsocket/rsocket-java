@@ -15,23 +15,17 @@
  */
 package io.reactivesocket.internal;
 
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
+import io.reactivesocket.*;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
-import io.reactivesocket.Completable;
-import io.reactivesocket.ConnectionSetupHandler;
-import io.reactivesocket.ConnectionSetupPayload;
-import io.reactivesocket.DuplexConnection;
-import io.reactivesocket.Frame;
-import io.reactivesocket.FrameType;
-import io.reactivesocket.Payload;
-import io.reactivesocket.RequestHandler;
 import io.reactivesocket.exceptions.SetupException;
 import io.reactivesocket.exceptions.SetupException.SetupErrorCode;
 import uk.co.real_logic.agrona.collections.Long2ObjectHashMap;
@@ -45,11 +39,13 @@ import uk.co.real_logic.agrona.collections.Long2ObjectHashMap;
 public class Responder {
 	private final DuplexConnection connection;
 	private final ConnectionSetupHandler connectionHandler;
+	private final LeaseGovernor leaseGovernor;
 	private final Consumer<Throwable> errorStream;
 
-	private Responder(DuplexConnection connection, ConnectionSetupHandler connectionHandler, Consumer<Throwable> errorStream) {
+	private Responder(DuplexConnection connection, ConnectionSetupHandler connectionHandler, LeaseGovernor leaseGovernor, Consumer<Throwable> errorStream) {
 		this.connection = connection;
 		this.connectionHandler = connectionHandler;
+		this.leaseGovernor = leaseGovernor;
 		this.errorStream = errorStream;
 	}
 
@@ -62,8 +58,8 @@ public class Responder {
 	 *            This include fireAndForget which ONLY emit errors server-side via this mechanism.
 	 * @return responder instance
 	 */
-	public static <T> Responder create(DuplexConnection connection, ConnectionSetupHandler connectionHandler, Consumer<Throwable> errorStream) {
-		Responder responder = new Responder(connection, connectionHandler, errorStream);
+	public static <T> Responder create(DuplexConnection connection, ConnectionSetupHandler connectionHandler, LeaseGovernor leaseGovernor, Consumer<Throwable> errorStream) {
+		Responder responder = new Responder(connection, connectionHandler, leaseGovernor, errorStream);
 		responder.start();
 		return responder;
 	}
@@ -74,18 +70,15 @@ public class Responder {
 	 * @param ttl of lease
 	 * @param numberOfRequests of lease
 	 */
-	public void sendLease(final int ttl, final int numberOfRequests)
+	public void sendLease(final long ttl, final long numberOfRequests)
 	{
-		connection.addOutput(PublisherUtils.just(Frame.fromLease(ttl, numberOfRequests, Frame.NULL_BYTEBUFFER)), new Completable()
-		{
+		connection.addOutput(PublisherUtils.just(Frame.fromLease(ttl, numberOfRequests, Frame.NULL_BYTEBUFFER)), new Completable() {
 			@Override
-			public void success()
-			{
+			public void success() {
 			}
 
 			@Override
-			public void error(Throwable e)
-			{
+			public void error(Throwable e) {
 				errorStream.accept(new RuntimeException("could not send lease ", e));
 			}
 		});
@@ -126,20 +119,28 @@ public class Responder {
 						return;
 					}
 					if (requestFrame.getType().equals(FrameType.SETUP)) {
+						final ConnectionSetupPayload connectionSetupPayload = ConnectionSetupPayload.create(requestFrame);
 						try {
-							requestHandler = connectionHandler.apply(ConnectionSetupPayload.create(requestFrame));
+							requestHandler = connectionHandler.apply(connectionSetupPayload);
 						} catch (SetupException setupException) {
 							setupErrorAndTearDown(connection, setupException);
 						} catch (Throwable e) {
 							setupErrorAndTearDown(connection, new SetupException(SetupErrorCode.REJECTED, e));
 						}
+
 						// the L bit set must wait until the application logic explicitly sends a LEASE. ConnectionSetupPlayload
 						// knows of bits being set.
+						if (connectionSetupPayload.willClientHonorLease()) {
+							leaseGovernor.register(Responder.this);
+							leaseGovernor.notify(Responder.this, requestFrame);
+						}
+
 						// TODO: handle keepalive logic here
 					} else {
 						setupErrorAndTearDown(connection, new SetupException(SetupErrorCode.INVALID_SETUP, "Setup frame missing"));
 					}
 				} else {
+					leaseGovernor.notify(Responder.this, requestFrame);
 					Publisher<Frame> responsePublisher = null;
 					try {
 						if (requestFrame.getType() == FrameType.REQUEST_RESPONSE) {
@@ -279,6 +280,7 @@ public class Responder {
 								if (++count > 1) {
 									onError(new IllegalStateException("RequestResponse expects a single onNext"));
 								} else {
+
 									child.onNext(Frame.from(streamId, FrameType.NEXT_COMPLETE, v));
 								}
 							}

@@ -17,15 +17,11 @@ package io.reactivesocket.internal;
 
 import static io.reactivesocket.TestUtil.*;
 
+import io.reactivesocket.*;
 import org.junit.Test;
 import org.reactivestreams.Subscription;
 
-import io.reactivesocket.Frame;
-import io.reactivesocket.FrameType;
-import io.reactivesocket.Payload;
-import io.reactivesocket.RequestHandler;
-import io.reactivesocket.TestConnection;
-import io.reactivesocket.internal.Responder;
+import static io.reactivesocket.LeaseGovernor.NULL_LEASE_GOVERNOR;
 import rx.Observable;
 import rx.schedulers.Schedulers;
 import rx.schedulers.TestScheduler;
@@ -55,7 +51,7 @@ public class ResponderTest
     	TestConnection conn = establishConnection();
         Responder.create(conn, setup -> RequestHandler.create(
             request -> toPublisher(just(utf8EncodedPayload(byteToString(request.getData()) + " world", null))),
-            null, null, null), ERROR_HANDLER);
+            null, null, null), NULL_LEASE_GOVERNOR, ERROR_HANDLER);
 
         
         ReplaySubject<Frame> cachedResponses = captureResponses(conn);
@@ -79,7 +75,7 @@ public class ResponderTest
     	TestConnection conn = establishConnection();
         Responder.create(conn, setup -> RequestHandler.create(
             request -> toPublisher(Observable.<Payload>error(new Exception("Request Not Found"))),
-            null, null, null), ERROR_HANDLER);
+            null, null, null), NULL_LEASE_GOVERNOR, ERROR_HANDLER);
 
         Observable<Frame> cachedResponses = captureResponses(conn);
         sendSetupFrame(conn);
@@ -104,7 +100,7 @@ public class ResponderTest
         TestConnection conn = establishConnection();
         Responder.create(conn, setup -> RequestHandler.create(
             request -> toPublisher(delayed),
-            null, null, null), ERROR_HANDLER);
+            null, null, null), NULL_LEASE_GOVERNOR, ERROR_HANDLER);
 
         ReplaySubject<Frame> cachedResponses = captureResponses(conn);
         sendSetupFrame(conn);
@@ -125,7 +121,7 @@ public class ResponderTest
         Responder.create(conn, setup -> RequestHandler.create(
             null,
             request -> toPublisher(range(Integer.parseInt(byteToString(request.getData())), 10).map(i -> utf8EncodedPayload(i + "!", null))),
-            null, null), ERROR_HANDLER);
+            null, null), NULL_LEASE_GOVERNOR, ERROR_HANDLER);
 
         ReplaySubject<Frame> cachedResponses = captureResponses(conn);
         sendSetupFrame(conn);
@@ -158,7 +154,7 @@ public class ResponderTest
             request -> toPublisher(range(Integer.parseInt(byteToString(request.getData())), 3)
                 .map(i -> utf8EncodedPayload(i + "!", null))
                 .concatWith(error(new Exception("Error Occurred!")))),
-            null, null), ERROR_HANDLER);
+            null, null), NULL_LEASE_GOVERNOR, ERROR_HANDLER);
 
         ReplaySubject<Frame> cachedResponses = captureResponses(conn);
         sendSetupFrame(conn);
@@ -190,7 +186,7 @@ public class ResponderTest
         Responder.create(conn, setup -> RequestHandler.create(
             null,
             request -> toPublisher(interval(1000, TimeUnit.MILLISECONDS, ts).map(i -> utf8EncodedPayload(i + "!", null))),
-            null, null), ERROR_HANDLER);
+            null, null), NULL_LEASE_GOVERNOR, ERROR_HANDLER);
 
         ReplaySubject<Frame> cachedResponses = captureResponses(conn);
         sendSetupFrame(conn);
@@ -230,7 +226,7 @@ public class ResponderTest
         Responder.create(conn, setup -> RequestHandler.create(
             null,
             request -> toPublisher(interval(1000, TimeUnit.MILLISECONDS, ts).map(i -> utf8EncodedPayload(i + "_" + byteToString(request.getData()), null))),
-            null, null), ERROR_HANDLER);
+            null, null), NULL_LEASE_GOVERNOR, ERROR_HANDLER);
 
         ReplaySubject<Frame> cachedResponses = captureResponses(conn);
         sendSetupFrame(conn);

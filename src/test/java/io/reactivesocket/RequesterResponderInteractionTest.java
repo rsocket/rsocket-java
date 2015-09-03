@@ -15,6 +15,7 @@
  */
 package io.reactivesocket;
 
+import static io.reactivesocket.LeaseGovernor.NULL_LEASE_GOVERNOR;
 import static org.junit.Assert.assertEquals;
 import static rx.Observable.empty;
 import static rx.Observable.error;
@@ -123,7 +124,7 @@ public class RequesterResponderInteractionTest
                 {
                     return toPublisher(error(new Exception("Not Found!")));
                 }
-            }), err -> err.printStackTrace());
+            }), NULL_LEASE_GOVERNOR, err -> err.printStackTrace());
 
         requester = Requester.createClientRequester(clientConnection, ConnectionSetupPayload.create("UTF-8", "UTF-8"), err -> err.printStackTrace());
     }

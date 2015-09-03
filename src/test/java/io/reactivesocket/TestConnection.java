@@ -49,7 +49,8 @@ public class TestConnection implements DuplexConnection {
 
 	public void connectToServerConnection(TestConnection serverConnection) {
 		serverConnection.writes.forEach(n -> System.out.println("SERVER ==> Writes from server->client: " + n));
-		serverConnection.toInput.forEach(n -> System.out.println("SERVER <== Input from client->server: " + n));
+		serverConnection.toInput.forEach(n ->
+			System.out.println("SERVER <== Input from client->server: " + n));
 		writes.forEach(n -> System.out.println("CLIENT ==> Writes from client->server: " + n));
 		toInput.forEach(n -> System.out.println("CLIENT <== Input from server->client: " + n));
 

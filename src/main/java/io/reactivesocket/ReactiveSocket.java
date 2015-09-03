@@ -55,7 +55,9 @@ public class ReactiveSocket implements AutoCloseable {
 	};
 	
 	private static final Consumer<Throwable> DEFAULT_ERROR_STREAM = t -> {
-		System.err.println("ReactiveSocket ERROR => " + t.getMessage() + " [Provide errorStream handler to replace this default]"); // TODO should we use SLF4j, use System.err, or swallow by default?
+		// TODO should we use SLF4j, use System.err, or swallow by default?
+		System.err.println("ReactiveSocket ERROR => " + t.getMessage()
+			+ " [Provide errorStream handler to replace this default]");
 	};
 
 	private final DuplexConnection connection;
@@ -65,12 +67,14 @@ public class ReactiveSocket implements AutoCloseable {
 	private Responder responder;
 	private final ConnectionSetupPayload requestorSetupPayload;
 	private final ConnectionSetupHandler responderConnectionHandler;
+	private final LeaseGovernor leaseGovernor;
 
-	private ReactiveSocket(DuplexConnection connection, final boolean isServer, ConnectionSetupPayload requestorSetupPayload, final ConnectionSetupHandler responderConnectionHandler, Consumer<Throwable> errorStream) {
+	private ReactiveSocket(DuplexConnection connection, final boolean isServer, ConnectionSetupPayload requestorSetupPayload, final ConnectionSetupHandler responderConnectionHandler, LeaseGovernor leaseGovernor, Consumer<Throwable> errorStream) {
 		this.connection = connection;
 		this.isServer = isServer;
 		this.requestorSetupPayload = requestorSetupPayload;
 		this.responderConnectionHandler = responderConnectionHandler;
+		this.leaseGovernor = leaseGovernor;
 		this.errorStream = errorStream;
 	}
 
@@ -91,7 +95,7 @@ public class ReactiveSocket implements AutoCloseable {
 	 *            (Optional) Callback for errors while processing streams over connection. If 'null' then error messages will be output to System.err.
 	 * @return ReactiveSocket for start, shutdown and sending requests.
 	 */
-	public static ReactiveSocket fromClientConnection(DuplexConnection connection, ConnectionSetupPayload setup, RequestHandler handler, Consumer<Throwable> errorStream) {
+	public static ReactiveSocket fromClientConnection(DuplexConnection connection, ConnectionSetupPayload setup, RequestHandler handler, LeaseGovernor leaseGovernor, Consumer<Throwable> errorStream) {
 		if(connection == null) {
 			throw new IllegalArgumentException("DuplexConnection can not be null");
 		}
@@ -100,9 +104,9 @@ public class ReactiveSocket implements AutoCloseable {
 		}
 		final RequestHandler h = handler != null ? handler : EMPTY_HANDLER;
 		Consumer<Throwable> es = errorStream != null ? errorStream : DEFAULT_ERROR_STREAM;
-		return new ReactiveSocket(connection, false, setup, s -> h, es);
+		return new ReactiveSocket(connection, false, setup, s -> h, leaseGovernor, es);
 	}
-	
+
 	/**
 	 * Create a ReactiveSocket from a client-side {@link DuplexConnection}. 
 	 * <p>
@@ -121,7 +125,11 @@ public class ReactiveSocket implements AutoCloseable {
 	 * @return ReactiveSocket for start, shutdown and sending requests.
 	 */
 	public static ReactiveSocket fromClientConnection(DuplexConnection connection, ConnectionSetupPayload setup, Consumer<Throwable> errorStream) {
-		return fromClientConnection(connection, setup, EMPTY_HANDLER, errorStream);
+		return fromClientConnection(connection, setup, EMPTY_HANDLER, LeaseGovernor.NULL_LEASE_GOVERNOR, errorStream);
+	}
+
+	public static ReactiveSocket fromClientConnection(DuplexConnection connection, ConnectionSetupPayload setup, LeaseGovernor leaseGovernor) {
+		return fromClientConnection(connection, setup, EMPTY_HANDLER, leaseGovernor, DEFAULT_ERROR_STREAM);
 	}
 
 	/**
@@ -136,20 +144,16 @@ public class ReactiveSocket implements AutoCloseable {
 	 * @param errorConsumer
 	 * @return
 	 */
-	public static ReactiveSocket fromServerConnection(DuplexConnection connection, ConnectionSetupHandler connectionHandler, Consumer<Throwable> errorConsumer) {
-		return new ReactiveSocket(connection, true, null, connectionHandler, errorConsumer);
+	public static ReactiveSocket fromServerConnection(DuplexConnection connection, ConnectionSetupHandler connectionHandler, LeaseGovernor leaseGovernor, Consumer<Throwable> errorConsumer) {
+		return new ReactiveSocket(connection, true, null, connectionHandler, leaseGovernor, errorConsumer);
 	}
 
 	public static ReactiveSocket fromServerConnection(DuplexConnection connection, ConnectionSetupHandler connectionHandler) {
-		return fromServerConnection(connection, connectionHandler, t -> {});
+		return fromServerConnection(connection, connectionHandler, LeaseGovernor.NULL_LEASE_GOVERNOR ,t -> {});
 	}
 
 	/**
 	 * Initiate a request response exchange
-	 *
-	 * @param data
-	 * @param metadata
-	 * @return
 	 */
 	public Publisher<Payload> requestResponse(final Payload payload) {
 		assertRequester();
@@ -210,18 +214,15 @@ public class ReactiveSocket implements AutoCloseable {
 
 	/**
 	 * Start protocol processing on the given DuplexConnection.
-
-	 * @return
 	 */
 	public final void start() {
 		if (isServer) {
-			responder = Responder.create(connection, responderConnectionHandler, errorStream);
-			// requester = Requester.createServerRequester(connection);// TODO commented out until odd/even message routing is done
+			responder = Responder.create(connection, responderConnectionHandler, leaseGovernor, errorStream);
+			// requester = Requester.createServerRequester(connection);// TODO commented out until odd/even message routing is
 		} else {
 			requester = Requester.createClientRequester(connection, requestorSetupPayload, errorStream);
 		}
 	}
-
 
 	@Override
 	public void close() throws Exception {
@@ -231,6 +232,7 @@ public class ReactiveSocket implements AutoCloseable {
 	public void shutdown() {
 		try {
 			close();
+			leaseGovernor.unregister(responder);
 		} catch (Exception e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -238,7 +240,7 @@ public class ReactiveSocket implements AutoCloseable {
 	}
 	
 	
-	private static final <T> Publisher<T> error(Throwable e) {
+	private static <T> Publisher<T> error(Throwable e) {
 		return (Subscriber<? super T> s) -> {
 			s.onSubscribe(new Subscription() {
 
