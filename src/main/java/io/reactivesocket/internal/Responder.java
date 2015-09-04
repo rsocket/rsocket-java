@@ -38,8 +38,8 @@ import uk.co.real_logic.agrona.collections.Long2ObjectHashMap;
 public class Responder {
 	private final DuplexConnection connection;
 	private final ConnectionSetupHandler connectionHandler;
-	private final LeaseGovernor leaseGovernor;
 	private final Consumer<Throwable> errorStream;
+	private LeaseGovernor leaseGovernor;
 
 	private Responder(DuplexConnection connection, ConnectionSetupHandler connectionHandler, LeaseGovernor leaseGovernor, Consumer<Throwable> errorStream) {
 		this.connection = connection;
@@ -127,11 +127,12 @@ public class Responder {
 							setupErrorAndTearDown(connection, new SetupException(SetupErrorCode.REJECTED, e));
 						}
 
-						// the L bit set must wait until the application logic explicitly sends a LEASE. ConnectionSetupPlayload
-						// knows of bits being set.
+						// the L bit set must wait until the application logic explicitly sends
+						// a LEASE. ConnectionSetupPlayload knows of bits being set.
 						if (connectionSetupPayload.willClientHonorLease()) {
 							leaseGovernor.register(Responder.this);
-							leaseGovernor.notify(Responder.this, requestFrame);
+						} else {
+							leaseGovernor = LeaseGovernor.UNLIMITED_LEASE_GOVERNOR;
 						}
 
 						// TODO: handle keepalive logic here
@@ -139,46 +140,50 @@ public class Responder {
 						setupErrorAndTearDown(connection, new SetupException(SetupErrorCode.INVALID_SETUP, "Setup frame missing"));
 					}
 				} else {
-					leaseGovernor.notify(Responder.this, requestFrame);
 					Publisher<Frame> responsePublisher = null;
-					try {
-						if (requestFrame.getType() == FrameType.REQUEST_RESPONSE) {
-							responsePublisher = handleRequestResponse(requestFrame, requestHandler, cancellationSubscriptions);
-						} else if (requestFrame.getType() == FrameType.REQUEST_STREAM) {
-							responsePublisher = handleRequestStream(requestFrame, requestHandler, cancellationSubscriptions, inFlight);
-						} else if (requestFrame.getType() == FrameType.FIRE_AND_FORGET) {
-							responsePublisher = handleFireAndForget(requestFrame, requestHandler);
-						} else if (requestFrame.getType() == FrameType.REQUEST_SUBSCRIPTION) {
-							responsePublisher = handleRequestSubscription(requestFrame, requestHandler, cancellationSubscriptions, inFlight);
-						} else if (requestFrame.getType() == FrameType.REQUEST_CHANNEL) {
-							responsePublisher = handleRequestChannel(requestFrame, requestHandler, channels, cancellationSubscriptions, inFlight);
-						} else if (requestFrame.getType() == FrameType.CANCEL) {
-							Subscription s = null;
-							synchronized(Responder.this) {
-								s = cancellationSubscriptions.get(requestFrame.getStreamId());
-							}
-							if (s != null) {
-								s.cancel();
-							}
-							return;
-						} else if (requestFrame.getType() == FrameType.REQUEST_N) {
-							Subscription inFlightSubscription = null;
-							synchronized(Responder.this) {
-								inFlightSubscription = inFlight.get(requestFrame.getStreamId());
-							}
-							if(inFlightSubscription != null) {
-								inFlightSubscription.request(Frame.RequestN.requestN(requestFrame));
+					if (leaseGovernor.accept(Responder.this, requestFrame)) {
+						try {
+							if (requestFrame.getType() == FrameType.REQUEST_RESPONSE) {
+								responsePublisher = handleRequestResponse(requestFrame, requestHandler, cancellationSubscriptions);
+							} else if (requestFrame.getType() == FrameType.REQUEST_STREAM) {
+								responsePublisher = handleRequestStream(requestFrame, requestHandler, cancellationSubscriptions, inFlight);
+							} else if (requestFrame.getType() == FrameType.FIRE_AND_FORGET) {
+								responsePublisher = handleFireAndForget(requestFrame, requestHandler);
+							} else if (requestFrame.getType() == FrameType.REQUEST_SUBSCRIPTION) {
+								responsePublisher = handleRequestSubscription(requestFrame, requestHandler, cancellationSubscriptions, inFlight);
+							} else if (requestFrame.getType() == FrameType.REQUEST_CHANNEL) {
+								responsePublisher = handleRequestChannel(requestFrame, requestHandler, channels, cancellationSubscriptions, inFlight);
+							} else if (requestFrame.getType() == FrameType.CANCEL) {
+								Subscription s = null;
+								synchronized (Responder.this) {
+									s = cancellationSubscriptions.get(requestFrame.getStreamId());
+								}
+								if (s != null) {
+									s.cancel();
+								}
 								return;
+							} else if (requestFrame.getType() == FrameType.REQUEST_N) {
+								Subscription inFlightSubscription = null;
+								synchronized (Responder.this) {
+									inFlightSubscription = inFlight.get(requestFrame.getStreamId());
+								}
+								if (inFlightSubscription != null) {
+									inFlightSubscription.request(Frame.RequestN.requestN(requestFrame));
+									return;
+								}
+								// TODO should we do anything if we don't find the stream? emitting an error is risky as the responder could have terminated and cleaned up already
+							} else {
+								responsePublisher = PublisherUtils.errorFrame(streamId, new IllegalStateException("Unexpected prefix: " + requestFrame.getType()));
 							}
-							// TODO should we do anything if we don't find the stream? emitting an error is risky as the responder could have terminated and cleaned up already
-						} else {
-							responsePublisher = PublisherUtils.errorFrame(streamId, new IllegalStateException("Unexpected prefix: " + requestFrame.getType()));
+						} catch (Throwable e) {
+							// synchronous try/catch since we execute user functions in the handlers and they could throw
+							errorStream.accept(new RuntimeException("Error in request handling.", e));
+							// error message to user
+							responsePublisher = PublisherUtils.errorFrame(streamId, new RuntimeException("Unhandled error processing request"));
 						}
-					} catch (Throwable e) {
-						// synchronous try/catch since we execute user functions in the handlers and they could throw
-						errorStream.accept(new RuntimeException("Error in request handling.", e));
-						// error message to user
-						responsePublisher = PublisherUtils.errorFrame(streamId, new RuntimeException("Unhandled error processing request"));
+					} else {
+//						responsePublisher = PublisherUtils.errorFrame(streamId, new LeaseException());
+						responsePublisher = PublisherUtils.errorFrame(streamId, new RuntimeException("Lease Exception"));
 					}
 					connection.addOutput(responsePublisher, new Completable() {
 

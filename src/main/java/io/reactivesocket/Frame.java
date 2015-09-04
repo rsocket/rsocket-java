@@ -350,13 +350,13 @@ public class Frame implements Payload
 
     public static class Lease
     {
-        public static long ttl(final Frame frame)
+        public static int ttl(final Frame frame)
         {
             ensureFrameType(FrameType.LEASE, frame);
             return LeaseFrameFlyweight.ttl(frame.directBuffer, 0);
         }
 
-        public static long numberOfRequests(final Frame frame)
+        public static int numberOfRequests(final Frame frame)
         {
             ensureFrameType(FrameType.LEASE, frame);
             return LeaseFrameFlyweight.numRequests(frame.directBuffer, 0);

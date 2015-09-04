@@ -12,5 +12,7 @@ public class UnlimitedLeaseGovernor implements LeaseGovernor {
     public void unregister(Responder responder) {}
 
     @Override
-    public void notify(Responder responder, Frame requestFrame) {}
+    public boolean accept(Responder responder, Frame frame) {
+        return true;
+    }
 }

@@ -26,6 +26,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import io.reactivesocket.exceptions.LeaseException;
+import io.reactivesocket.exceptions.NotSentException;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
@@ -47,14 +48,15 @@ import uk.co.real_logic.agrona.collections.Long2ObjectHashMap;
 public class Requester {
 
 	private final static Subscription CANCELLED = new EmptySubscription();
+	private final static long epoch = System.nanoTime();
 
 	private final boolean isServer;
 	private final DuplexConnection connection;
 	private final Long2ObjectHashMap<UnicastSubject<Frame>> streamInputMap = new Long2ObjectHashMap<>();
 	private final ConnectionSetupPayload setupPayload;
 	private final Consumer<Throwable> errorStream;
-	private final boolean honorLease;
 
+	private final boolean honorLease;
 	private long ttlExpiration;
 	private long numberOfRemainingRequests = 0;
 	private int streamCount = 0; // 0 is reserved for setup, all normal messages are >= 1
@@ -139,16 +141,7 @@ public class Requester {
 					public void request(long n) {
 						if (!started && n > 0) {
 							started = true;
-
-							// does lease allow for sending request
-							if (!canRequest())
-							{
-								child.onError(new LeaseException());
-							}
-							else
-							{
-								numberOfRemainingRequests--;
-							}
+							numberOfRemainingRequests--;
 
 							connection.addOutput(PublisherUtils.just(Frame.fromRequest(nextStreamId(), FrameType.FIRE_AND_FORGET, payload, 0)), new Completable() {
 
@@ -202,9 +195,16 @@ public class Requester {
 	 *
 	 * @return
 	 */
-	public double availability()
-	{
-		return (canRequest() ? 1.0 : 0.0);
+	public double availability() {
+		if (!honorLease) {
+			return 1.0;
+		}
+		final long now = System.currentTimeMillis();
+		double available = 0.0;
+		if (numberOfRemainingRequests > 0 && (now < ttlExpiration)) {
+			available = 1.0;
+		}
+		return available;
 	}
 
 	/**
@@ -281,24 +281,16 @@ public class Requester {
 						
 						// declare output to transport
 						writer = UnicastSubject.create((w, rn) -> {
-							// does lease allow for sending request
-							if (!canRequest())
-							{
-								w.onError(new LeaseException());
-							}
-							else
-							{
-								numberOfRemainingRequests--;
-							}
+							numberOfRemainingRequests--;
 
 							// decrement as we request it
 							requested.addAndGet(-requestN);
 							// record how many we have requested
 							outstanding.addAndGet(requestN);
-							
+
 							// when transport connects we write the request frame for this stream
 							if (payload != null) {
-								w.onNext(Frame.fromRequest(streamId, type, payload, (int)requestN));
+								w.onNext(Frame.fromRequest(streamId, type, payload, (int) requestN));
 							} else {
 								// TODO hook this in via addOutput so requestN flows through correctly
 //								connection.addOutput(payloads.map(p -> ... convert things to Frame here ...), new Completable()
@@ -329,7 +321,7 @@ public class Requester {
 
 									@Override
 									public void onNext(Payload p) {
-										w.onNext(Frame.fromRequest(streamId, type, p, (int)requestN));
+										w.onNext(Frame.fromRequest(streamId, type, p, (int) requestN));
 									}
 
 									@Override
@@ -346,9 +338,8 @@ public class Requester {
 
 								});
 							}
-
 						});
-						
+
 						// Response frames for this Stream
 						UnicastSubject<Frame> transportInputSubject = UnicastSubject.create();
 						synchronized(Requester.this) {
@@ -372,7 +363,9 @@ public class Requester {
 							@Override
 							public void error(Throwable e) {
 								child.onError(e);
-								cancel();
+								if (!(e instanceof NotSentException)) {
+									cancel();
+								}
 							}
 
 						});
@@ -382,7 +375,6 @@ public class Requester {
 						final long requestThreshold = REQUEST_THRESHOLD < currentN ? REQUEST_THRESHOLD : currentN/3;
 						requestIfNecessary(streamId, requestThreshold, currentN, outstanding.get(), writer, requested, outstanding);
 					}
-
 				}
 
 				@Override
@@ -436,12 +428,10 @@ public class Requester {
 						
 						Publisher<Frame> requestOutput = PublisherUtils.just(Frame.fromRequest(streamId, type, payload, 1));
 						// connect to transport
-						connection.addOutput(requestOutput, new Completable()
-						{
+						connection.addOutput(requestOutput, new Completable() {
 
 							@Override
-							public void success()
-							{
+							public void success() {
 								// nothing to do onSuccess
 							}
 
@@ -453,18 +443,15 @@ public class Requester {
 
 						});
 					}
-
 				}
 
 				@Override
 				public void cancel() {
 					if (!streamInputSubscriber.terminated.get()) {
-						connection.addOutput(PublisherUtils.just(Frame.from(streamId, FrameType.CANCEL)), new Completable()
-						{
+						connection.addOutput(PublisherUtils.just(Frame.from(streamId, FrameType.CANCEL)), new Completable() {
 
 							@Override
-							public void success()
-							{
+							public void success() {
 								// nothing to do onSuccess
 							}
 
@@ -619,9 +606,10 @@ public class Requester {
 						onError(new SetupException(frame));
 					} else if (FrameType.LEASE.equals(frame.getType()) && honorLease) {
 						numberOfRemainingRequests = Frame.Lease.numberOfRequests(frame);
-						final long now = System.nanoTime();
-						final long ttl = Frame.Lease.ttl(frame);
-						if (Long.MAX_VALUE - ttl < now) {
+						final long now = System.currentTimeMillis();
+						final int ttl = Frame.Lease.ttl(frame);
+						if (ttl == Integer.MAX_VALUE) {
+							// Integer.MAX_VALUE represents infinity
 							ttlExpiration = Long.MAX_VALUE;
 						} else {
 							ttlExpiration = now + ttl;
@@ -691,22 +679,5 @@ public class Requester {
 		final byte[] bytes = new byte[bb.capacity()];
 		bb.get(bytes);
 		return new String(bytes, Charset.forName("UTF-8"));
-	}
-
-	private boolean canRequest()
-	{
-		boolean result = false;
-		final long now = System.nanoTime();
-
-		if (!honorLease)
-		{
-			result = true;
-		}
-		else if (numberOfRemainingRequests > 0 && (now < ttlExpiration))
-		{
-			result = true;
-		}
-
-		return result;
 	}
 }

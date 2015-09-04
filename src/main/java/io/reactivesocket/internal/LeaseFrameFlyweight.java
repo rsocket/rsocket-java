@@ -27,44 +27,44 @@ public class LeaseFrameFlyweight
 {
     // relative to start of passed offset
     private static final int TTL_FIELD_OFFSET = FrameHeaderFlyweight.FRAME_HEADER_LENGTH;
-    private static final int NUM_REQUESTS_FIELD_OFFSET = TTL_FIELD_OFFSET + BitUtil.SIZE_OF_LONG;
-    private static final int PAYLOAD_OFFSET = NUM_REQUESTS_FIELD_OFFSET + BitUtil.SIZE_OF_LONG;
+    private static final int NUM_REQUESTS_FIELD_OFFSET = TTL_FIELD_OFFSET + BitUtil.SIZE_OF_INT;
+    private static final int PAYLOAD_OFFSET = NUM_REQUESTS_FIELD_OFFSET + BitUtil.SIZE_OF_INT;
 
     public static int computeFrameLength(final int metadataLength)
     {
         int length = FrameHeaderFlyweight.computeFrameHeaderLength(FrameType.SETUP, metadataLength, 0);
 
-        return length + BitUtil.SIZE_OF_LONG * 2;
+        return length + BitUtil.SIZE_OF_INT * 2;
     }
 
     public static int encode(
         final MutableDirectBuffer mutableDirectBuffer,
         final int offset,
-        final long ttl,
-        final long numRequests,
+        final int ttl,
+        final int numRequests,
         final ByteBuffer metadata)
     {
         final int frameLength = computeFrameLength(metadata.capacity());
 
         int length = FrameHeaderFlyweight.encodeFrameHeader(mutableDirectBuffer, offset, frameLength, 0, FrameType.LEASE, 0);
 
-        mutableDirectBuffer.putLong(offset + TTL_FIELD_OFFSET, ttl, ByteOrder.BIG_ENDIAN);
-        mutableDirectBuffer.putLong(offset + NUM_REQUESTS_FIELD_OFFSET, numRequests, ByteOrder.BIG_ENDIAN);
+        mutableDirectBuffer.putInt(offset + TTL_FIELD_OFFSET, ttl, ByteOrder.BIG_ENDIAN);
+        mutableDirectBuffer.putInt(offset + NUM_REQUESTS_FIELD_OFFSET, numRequests, ByteOrder.BIG_ENDIAN);
 
-        length += BitUtil.SIZE_OF_LONG * 2;
+        length += BitUtil.SIZE_OF_INT * 2;
         length += FrameHeaderFlyweight.encodeMetadata(mutableDirectBuffer, offset, offset + length, metadata);
 
         return length;
     }
 
-    public static long ttl(final DirectBuffer directBuffer, final int offset)
+    public static int ttl(final DirectBuffer directBuffer, final int offset)
     {
-        return directBuffer.getLong(offset + TTL_FIELD_OFFSET, ByteOrder.BIG_ENDIAN);
+        return directBuffer.getInt(offset + TTL_FIELD_OFFSET, ByteOrder.BIG_ENDIAN);
     }
 
-    public static long numRequests(final DirectBuffer directBuffer, final int offset)
+    public static int numRequests(final DirectBuffer directBuffer, final int offset)
     {
-        return directBuffer.getLong(offset + NUM_REQUESTS_FIELD_OFFSET, ByteOrder.BIG_ENDIAN);
+        return directBuffer.getInt(offset + NUM_REQUESTS_FIELD_OFFSET, ByteOrder.BIG_ENDIAN);
     }
 
     public static int payloadOffset(final DirectBuffer directBuffer, final int offset)

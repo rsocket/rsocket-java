@@ -95,7 +95,7 @@ public class ReactiveSocket implements AutoCloseable {
 	 *            (Optional) Callback for errors while processing streams over connection. If 'null' then error messages will be output to System.err.
 	 * @return ReactiveSocket for start, shutdown and sending requests.
 	 */
-	public static ReactiveSocket fromClientConnection(DuplexConnection connection, ConnectionSetupPayload setup, RequestHandler handler, LeaseGovernor leaseGovernor, Consumer<Throwable> errorStream) {
+	public static ReactiveSocket fromClientConnection(DuplexConnection connection, ConnectionSetupPayload setup, RequestHandler handler, Consumer<Throwable> errorStream) {
 		if(connection == null) {
 			throw new IllegalArgumentException("DuplexConnection can not be null");
 		}
@@ -104,7 +104,7 @@ public class ReactiveSocket implements AutoCloseable {
 		}
 		final RequestHandler h = handler != null ? handler : EMPTY_HANDLER;
 		Consumer<Throwable> es = errorStream != null ? errorStream : DEFAULT_ERROR_STREAM;
-		return new ReactiveSocket(connection, false, setup, s -> h, leaseGovernor, es);
+		return new ReactiveSocket(connection, false, setup, s -> h, LeaseGovernor.NULL_LEASE_GOVERNOR, es);
 	}
 
 	/**
@@ -125,11 +125,11 @@ public class ReactiveSocket implements AutoCloseable {
 	 * @return ReactiveSocket for start, shutdown and sending requests.
 	 */
 	public static ReactiveSocket fromClientConnection(DuplexConnection connection, ConnectionSetupPayload setup, Consumer<Throwable> errorStream) {
-		return fromClientConnection(connection, setup, EMPTY_HANDLER, LeaseGovernor.NULL_LEASE_GOVERNOR, errorStream);
+		return fromClientConnection(connection, setup, EMPTY_HANDLER, errorStream);
 	}
 
-	public static ReactiveSocket fromClientConnection(DuplexConnection connection, ConnectionSetupPayload setup, LeaseGovernor leaseGovernor) {
-		return fromClientConnection(connection, setup, EMPTY_HANDLER, leaseGovernor, DEFAULT_ERROR_STREAM);
+	public static ReactiveSocket fromClientConnection(DuplexConnection connection, ConnectionSetupPayload setup) {
+		return fromClientConnection(connection, setup, EMPTY_HANDLER, DEFAULT_ERROR_STREAM);
 	}
 
 	/**

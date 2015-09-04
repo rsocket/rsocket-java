@@ -2,8 +2,8 @@ package io.reactivesocket;
 
 import io.reactivesocket.internal.Responder;
 
-import java.util.HashSet;
-import java.util.Set;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -18,7 +18,7 @@ public class FairLeaseGovernor implements LeaseGovernor {
     private final int tickets;
     private final long period;
     private final TimeUnit unit;
-    private final Set<Responder> responders;
+    private final Map<Responder, Integer> responders;
     private ScheduledFuture<?> runningTask;
 
     private synchronized void distribute(int ttlMs) {
@@ -27,13 +27,14 @@ public class FairLeaseGovernor implements LeaseGovernor {
 
             // it would be more fair to randomized the distribution of extra
             int extra = tickets - budget * responders.size();
-            for (Responder responder : responders) {
+            for (Responder responder: responders.keySet()) {
                 int n = budget;
                 if (extra > 0) {
                     n += 1;
                     extra -= 1;
                 }
                 responder.sendLease(ttlMs, n);
+                responders.put(responder, n);
             }
         }
     }
@@ -42,12 +43,12 @@ public class FairLeaseGovernor implements LeaseGovernor {
         this.tickets = tickets;
         this.period = period;
         this.unit = unit;
-        responders = new HashSet<>();
+        responders = new HashMap<>();
     }
 
     @Override
     public synchronized void register(Responder responder) {
-        responders.add(responder);
+        responders.put(responder, 0);
         if (runningTask == null) {
             final int ttl = (int)TimeUnit.NANOSECONDS.convert(period, unit);
             runningTask = EXECUTOR.scheduleAtFixedRate(() -> distribute(ttl), 0, period, unit);
@@ -64,7 +65,9 @@ public class FairLeaseGovernor implements LeaseGovernor {
     }
 
     @Override
-    public void notify(Responder responder, Frame requestFrame) {
-
+    public synchronized boolean accept(Responder responder, Frame frame) {
+        boolean valid = false;
+        final Integer remainingTickets = responders.get(responder);
+        return remainingTickets == null || remainingTickets > 0;
     }
 }

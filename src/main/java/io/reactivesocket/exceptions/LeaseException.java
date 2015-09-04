@@ -18,4 +18,8 @@ package io.reactivesocket.exceptions;
 // TODO: optimize capture of callstack
 public class LeaseException extends Throwable implements NotSentException
 {
+    @Override
+    public synchronized Throwable fillInStackTrace() {
+        return this;
+    }
 }
