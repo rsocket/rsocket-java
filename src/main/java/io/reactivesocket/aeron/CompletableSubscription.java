@@ -7,6 +7,7 @@ import org.reactivestreams.Subscription;
 import uk.co.real_logic.aeron.Publication;
 import uk.co.real_logic.aeron.logbuffer.BufferClaim;
 import uk.co.real_logic.agrona.BitUtil;
+import uk.co.real_logic.agrona.LangUtil;
 import uk.co.real_logic.agrona.MutableDirectBuffer;
 import uk.co.real_logic.agrona.concurrent.UnsafeBuffer;
 
@@ -25,11 +26,14 @@ public class CompletableSubscription implements Subscriber<Frame> {
 
     private final Completable completable;
 
+    private final AutoCloseable closeable;
+
     private final int mtuLength;
 
-    public CompletableSubscription(Publication publication, Completable completable) {
+    public CompletableSubscription(Publication publication, Completable completable, AutoCloseable closeable) {
         this.publication = publication;
         this.completable = completable;
+        this.closeable = closeable;
 
         String mtuLength = System.getProperty("aeron.mtu.length", "4096");
 
@@ -71,21 +75,22 @@ public class CompletableSubscription implements Subscriber<Frame> {
         unsafeBuffer.wrap(bytes);
         unsafeBuffer.putInt(0, MessageType.FRAME.getEncodedType());
         unsafeBuffer.putBytes(BitUtil.SIZE_OF_INT, byteBuffer, byteBuffer.capacity());
-        for (;;) {
+        do {
             final long offer = publication.offer(unsafeBuffer);
             if (offer >= 0) {
                 break;
             } else if (Publication.NOT_CONNECTED == offer) {
+                closeQuietly(closeable);
                 completable.error(new RuntimeException("not connected"));
                 break;
             }
-        }
+        } while(true);
 
     }
 
     void tryClaim(ByteBuffer byteBuffer, int length) {
         final BufferClaim bufferClaim = bufferClaims.get();
-        for (;;) {
+        do {
             final long offer = publication.tryClaim(length, bufferClaim);
             if (offer >= 0) {
                 try {
@@ -99,9 +104,18 @@ public class CompletableSubscription implements Subscriber<Frame> {
 
                 break;
             } else if (Publication.NOT_CONNECTED == offer) {
+                closeQuietly(closeable);
                 completable.error(new RuntimeException("not connected"));
                 break;
             }
+        } while(true);
+    }
+
+    void closeQuietly(AutoCloseable closeable) {
+        try {
+            closeable.close();
+        } catch (Exception e) {
+            LangUtil.rethrowUnchecked(e);
         }
     }
 }

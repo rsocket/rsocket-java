@@ -7,6 +7,7 @@ import io.reactivesocket.ReactiveSocket;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import rx.Scheduler;
+import rx.schedulers.Schedulers;
 import uk.co.real_logic.aeron.Aeron;
 import uk.co.real_logic.aeron.FragmentAssembler;
 import uk.co.real_logic.aeron.Publication;
@@ -15,7 +16,6 @@ import uk.co.real_logic.aeron.logbuffer.Header;
 import uk.co.real_logic.agrona.BitUtil;
 import uk.co.real_logic.agrona.DirectBuffer;
 import uk.co.real_logic.agrona.collections.Int2ObjectHashMap;
-import uk.co.real_logic.agrona.concurrent.NoOpIdleStrategy;
 import uk.co.real_logic.agrona.concurrent.UnsafeBuffer;
 
 import java.nio.ByteBuffer;
@@ -29,7 +29,7 @@ import static io.reactivesocket.aeron.Constants.SERVER_STREAM_ID;
 /**
  * Created by rroeser on 8/13/15.
  */
-public class ReactivesocketAeronClient implements AutoCloseable {
+public class ReactivesocketAeronClient implements Loggable {
     private static final Int2ObjectHashMap<Subscription> subscriptions = new Int2ObjectHashMap<>();
 
     private static final Int2ObjectHashMap<AeronClientDuplexConnection> connections = new Int2ObjectHashMap<>();
@@ -46,25 +46,47 @@ public class ReactivesocketAeronClient implements AutoCloseable {
 
     private final int port;
 
-    private static final MpscScheduler MPSC_SCHEDULER = new MpscScheduler(1, new NoOpIdleStrategy());
+    static {
+        Runtime
+            .getRuntime()
+            .addShutdownHook(new Thread(() -> {
+                for (Subscription subscription : subscriptions.values()) {
+                    subscription.close();
+                }
 
-    private ReactivesocketAeronClient(String host, int port) {
+                for (AeronClientDuplexConnection connection : connections.values()) {
+                    connection.close();
+                }
+            }));
+    }
+
+    private ReactivesocketAeronClient(String host, String server, int port) {
         this.port = port;
 
         final Aeron.Context ctx = new Aeron.Context();
+        ctx.errorHandler(t -> {
+            t.printStackTrace();
+        });
+
         aeron = Aeron.connect(ctx);
 
         final String channel = "udp://" + host + ":" + port;
-        System.out.println("Creating a publication to channel => " + channel);
+        final String subscriptionChannel = "udp://" + server + ":" + port;
 
+        System.out.println("Creating a publication to channel => " + channel);
         publication = aeron.addPublication(channel, SERVER_STREAM_ID);
         final int sessionId = publication.sessionId();
+
+        System.out.println("Created a publication for sessionId => " + sessionId);
+
         subscriptions.computeIfAbsent(port, (_p) -> {
-            Subscription subscription = aeron.addSubscription(channel, CLIENT_STREAM_ID);
+            System.out.println("Creating a subscription to channel => " + subscriptionChannel);
+            Subscription subscription = aeron.addSubscription(subscriptionChannel, CLIENT_STREAM_ID);
+            System.out.println("Subscription created to channel => " + subscriptionChannel);
 
             final FragmentAssembler fragmentAssembler = new FragmentAssembler(this::fragmentHandler);
 
-            poll(fragmentAssembler, subscription, MPSC_SCHEDULER.createWorker());
+            poll(fragmentAssembler, subscription, Schedulers.computation().createWorker());
 
             return subscription;
         });
@@ -73,12 +95,12 @@ public class ReactivesocketAeronClient implements AutoCloseable {
 
     }
 
-    public static ReactivesocketAeronClient create(String host, int port) {
-        return new ReactivesocketAeronClient(host, port);
+    public static ReactivesocketAeronClient create(String host, String server, int port) {
+        return new ReactivesocketAeronClient(host, server, port);
     }
 
-    public static ReactivesocketAeronClient create(String host) {
-        return new ReactivesocketAeronClient(host, 39790);
+    public static ReactivesocketAeronClient create(String host, String server) {
+        return new ReactivesocketAeronClient(host, server, 39790);
     }
 
     void fragmentHandler(DirectBuffer buffer, int offset, int length, Header header) {
@@ -94,8 +116,11 @@ public class ReactivesocketAeronClient implements AutoCloseable {
         } else if (messageType == MessageType.ESTABLISH_CONNECTION_RESPONSE) {
             int ackSessionId = buffer.getInt(offset + BitUtil.SIZE_OF_INT);
             System.out.println(String.format("Received establish connection ack for session id => %d", ackSessionId));
-
-            final AeronClientDuplexConnection connection = connections.computeIfAbsent(header.sessionId(), (_p) -> new AeronClientDuplexConnection(publication));
+            final int headerSessionId = header.sessionId();
+            final AeronClientDuplexConnection connection =
+                connections
+                    .computeIfAbsent(headerSessionId, (_p) ->
+                        new AeronClientDuplexConnection(publication, () -> connections.remove(headerSessionId)));
 
             reactiveSocket =  ReactiveSocket.fromClientConnection(
                 connection,
@@ -115,14 +140,15 @@ public class ReactivesocketAeronClient implements AutoCloseable {
 
     void poll(FragmentAssembler fragmentAssembler, Subscription subscription, Scheduler.Worker worker) {
         worker.schedule(() -> {
-            while (running) {
+            if (running) {
                 try {
                     subscription.poll(fragmentAssembler, Integer.MAX_VALUE);
-                } catch (Throwable t) {}
+                    poll(fragmentAssembler, subscription, worker);
+                } catch (Throwable t) {
+                    t.printStackTrace();
+                }
             }
         });
-
-
     }
 
     /**
@@ -141,7 +167,7 @@ public class ReactivesocketAeronClient implements AutoCloseable {
             final long start = System.nanoTime();
             for (;;) {
                 final long current = System.nanoTime();
-                if (current - start > TimeUnit.SECONDS.toNanos(30)) {
+                if ((current - start) > TimeUnit.SECONDS.toNanos(30)) {
                     throw new RuntimeException("Timed out waiting to establish connection for session id => " + sessionId);
                 }
 
@@ -154,9 +180,9 @@ public class ReactivesocketAeronClient implements AutoCloseable {
                 }
             }
 
-            System.out.println(String.format("Connection established for channel => %s, stream id => %d",
+           debug("Connection established for channel => {}, stream id => {}",
                 publication.channel(),
-                publication.sessionId()));
+                publication.sessionId());
         } finally {
             establishConnectionLatches.remove(sessionId);
         }
@@ -164,13 +190,6 @@ public class ReactivesocketAeronClient implements AutoCloseable {
     }
 
     public Publisher<Payload> requestResponse(Payload payload) {
-        /*
-        or (int i = 0; i < 100; i++) {
-            double availability = reactiveSocket.availability();
-
-            System.out.println("AVAILABLE => " + availability);
-            LockSupport.parkNanos(100_000_000);
-        }*/
         return reactiveSocket.requestResponse(payload);
     }
 
@@ -186,14 +205,4 @@ public class ReactivesocketAeronClient implements AutoCloseable {
         return reactiveSocket.requestSubscription(payload);
     }
 
-    @Override
-    public void close() throws Exception {
-        for (Subscription subscription : subscriptions.values()) {
-            subscription.close();
-        }
-
-        for (AeronClientDuplexConnection connection : connections.values()) {
-            connection.close();
-        }
-    }
 }

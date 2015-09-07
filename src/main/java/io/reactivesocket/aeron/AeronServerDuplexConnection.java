@@ -12,7 +12,7 @@ import uk.co.real_logic.agrona.MutableDirectBuffer;
 
 import java.util.concurrent.TimeUnit;
 
-public class AeronServerDuplexConnection implements DuplexConnection, AutoCloseable {
+public class AeronServerDuplexConnection implements DuplexConnection, AutoCloseable, Loggable {
 
     private static final ThreadLocal<BufferClaim> bufferClaims = ThreadLocal.withInitial(BufferClaim::new);
 
@@ -37,7 +37,7 @@ public class AeronServerDuplexConnection implements DuplexConnection, AutoClosea
 
     @Override
     public void addOutput(Publisher<Frame> o, Completable callback) {
-        o.subscribe(new CompletableSubscription(publication, callback));
+        o.subscribe(new CompletableSubscription(publication, callback, this));
     }
 
     void ackEstablishConnection(int ackSessionId) {
@@ -45,11 +45,11 @@ public class AeronServerDuplexConnection implements DuplexConnection, AutoClosea
         final int sessionId = publication.sessionId();
         final BufferClaim bufferClaim = bufferClaims.get();
 
-        System.out.println("Acking establish connection for session id => " + ackSessionId);
+        debug("Acking establish connection for session id => {}",  ackSessionId);
 
         for (;;) {
             final long current = System.nanoTime();
-            if (current - start > TimeUnit.SECONDS.toNanos(30)) {
+            if ((current - start) > TimeUnit.SECONDS.toNanos(30)) {
                 throw new RuntimeException("Timed out waiting to establish connection for session id => " + sessionId);
             }
 
