@@ -152,6 +152,8 @@ public class Responder {
 							responsePublisher = handleRequestSubscription(requestFrame, requestHandler, cancellationSubscriptions, inFlight);
 						} else if (requestFrame.getType() == FrameType.REQUEST_CHANNEL) {
 							responsePublisher = handleRequestChannel(requestFrame, requestHandler, channels, cancellationSubscriptions, inFlight);
+						} else if (requestFrame.getType() == FrameType.METADATA_PUSH) {
+							responsePublisher = handleMetadataPush(requestFrame, requestHandler);
 						} else if (requestFrame.getType() == FrameType.CANCEL) {
 							Subscription s = null;
 							synchronized(Responder.this) {
@@ -336,9 +338,10 @@ public class Responder {
 		};
 	}
 
-	private static BiFunction<RequestHandler, Payload, Publisher<Payload>> requestSubscriptionHandler = (RequestHandler handler, Payload requestPayload) -> handler
-			.handleSubscription(requestPayload);
-	private static BiFunction<RequestHandler, Payload, Publisher<Payload>> requestStreamHandler = (RequestHandler handler, Payload requestPayload) -> handler.handleRequestStream(requestPayload);
+	private static BiFunction<RequestHandler, Payload, Publisher<Payload>> requestSubscriptionHandler =
+		(RequestHandler handler, Payload requestPayload) -> handler.handleSubscription(requestPayload);
+	private static BiFunction<RequestHandler, Payload, Publisher<Payload>> requestStreamHandler =
+		(RequestHandler handler, Payload requestPayload) -> handler.handleRequestStream(requestPayload);
 
 	private Publisher<Frame> handleRequestStream(
 			Frame requestFrame,
@@ -461,7 +464,7 @@ public class Responder {
 
 	private Publisher<Frame> handleFireAndForget(Frame requestFrame, final RequestHandler requestHandler) {
 		try {
-			requestHandler.handleFireAndForget(requestFrame).subscribe(fireAndForgetSubscriber);
+			requestHandler.handleFireAndForget(requestFrame).subscribe(completionSubscriber);
 		} catch (Throwable e) {
 			// we catch these errors here as we don't want anything propagating back to the user on fireAndForget
 			errorStream.accept(new RuntimeException("Error processing 'fireAndForget'", e));
@@ -469,10 +472,20 @@ public class Responder {
 		return PublisherUtils.empty(); // we always treat this as if it immediately completes as we don't want errors passing back to the user
 	}
 
+	private Publisher<Frame> handleMetadataPush(Frame requestFrame, final RequestHandler requestHandler) {
+		try {
+			requestHandler.handleMetadataPush(requestFrame).subscribe(completionSubscriber);
+		} catch (Throwable e) {
+			// we catch these errors here as we don't want anything propagating back to the user on metadataPush
+			errorStream.accept(new RuntimeException("Error processing 'metadataPush'", e));
+		}
+		return PublisherUtils.empty(); // we always treat this as if it immediately completes as we don't want errors passing back to the user
+	}
+
 	/**
-	 * Reusable for each fireAndForget since no state is shared across invocations. It just passes through errors.
+	 * Reusable for each fireAndForget and metadataPush since no state is shared across invocations. It just passes through errors.
 	 */
-	private final Subscriber<Void> fireAndForgetSubscriber = new Subscriber<Void>(){
+	private final Subscriber<Void> completionSubscriber = new Subscriber<Void>(){
 
 	@Override public void onSubscribe(Subscription s){s.request(Long.MAX_VALUE);}
 

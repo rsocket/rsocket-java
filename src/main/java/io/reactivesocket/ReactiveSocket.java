@@ -158,6 +158,11 @@ public class ReactiveSocket implements AutoCloseable {
 		return requester.requestChannel(payloads);
 	}
 
+	public Publisher<Void> metadataPush(final Payload payload) {
+		assertRequester();
+		return requester.metadataPush(payload);
+	}
+
 	private void assertRequester() {
 		if (requester == null) {
 			throw new IllegalStateException("Connection not initialized. Please 'start()' before submitting requests");

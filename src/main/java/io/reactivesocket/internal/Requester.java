@@ -178,6 +178,66 @@ public class Requester {
 	}
 
 	/**
+	 * Send asynchonrous Metadata Push without a response from the server.
+	 * <p>
+	 * The returned {@link Publisher} will emit {@link Subscriber#onComplete()} or {@link Subscriber#onError(Throwable)} to
+	 * represent success or failure in sending from the client side, but no feedback from the server will be returned.
+	 *
+	 * @param payload
+	 * @return
+	 */
+	public Publisher<Void> metadataPush(final Payload payload) {
+		if (payload == null) {
+			throw new IllegalArgumentException("Payload can not be null");
+		}
+		// TODO assert connection is ready (after start() and SETUP frame is sent)
+
+		return (Subscriber<? super Void> child) ->
+			child.onSubscribe(new Subscription() {
+
+				boolean started = false;
+
+				@Override
+				public void request(long n) {
+					if (!started && n > 0) {
+						started = true;
+
+						// does lease allow for sending request
+						if (!canRequest())
+						{
+							child.onError(new LeaseException());
+						}
+						else
+						{
+							numberOfRemainingRequests--;
+						}
+
+						connection.addOutput(PublisherUtils.just(Frame.fromRequest(nextStreamId(), FrameType.METADATA_PUSH, payload, 0)), new Completable() {
+
+							@Override
+							public void success() {
+								child.onComplete();
+							}
+
+							@Override
+							public void error(Throwable e) {
+								child.onError(e);
+							}
+
+						});
+					}
+				}
+
+				@Override
+				public void cancel() {
+					// nothing to cancel on a metadataPush
+				}
+
+			});
+	}
+
+
+	/**
 	 * Event subscription with an infinite multi-message response potentially terminated with an {@link Subscriber#onError(Throwable)}.
 	 * 
 	 * @param payload
@@ -446,7 +506,8 @@ public class Requester {
 							}
 
 							@Override
-							public void error(Throwable e) {
+							public void error(Throwable e)
+							{
 								child.onError(e);
 								cancel();
 							}
@@ -469,7 +530,8 @@ public class Requester {
 							}
 
 							@Override
-							public void error(Throwable e) {
+							public void error(Throwable e)
+							{
 								child.onError(e);
 							}
 
