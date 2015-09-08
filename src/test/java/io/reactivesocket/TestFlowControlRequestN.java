@@ -67,27 +67,36 @@ public class TestFlowControlRequestN {
 		CountDownLatch latch = new CountDownLatch(1);
 		CountDownLatch cancelled = new CountDownLatch(1);
 		AtomicInteger received = new AtomicInteger();
-		socketClient.requestStream(utf8EncodedPayload("10000", null)).subscribe(new Subscriber<Payload>() {
+		socketClient.requestStream(utf8EncodedPayload("10000", null)).subscribe(new Subscriber<Payload>()
+		{
 
 			Subscription subscription;
+
 			@Override
-			public void onSubscribe(Subscription s) {
+			public void onSubscribe(Subscription s)
+			{
 				subscription = s;
 				s.request(Long.MAX_VALUE); // act like a synchronous consumer that doesn't need backpressure
 			}
 
 			@Override
-			public void onNext(Payload t) {
+			public void onNext(Payload t)
+			{
 				int r = received.incrementAndGet();
 				System.out.println("onNext " + r);
-				if(r == 10) {
+				if (r == 10)
+				{
 					// be a "slow" consumer
-					try {
+					try
+					{
 						Thread.sleep(1000);
-					} catch (InterruptedException e) {
+					} catch (InterruptedException e)
+					{
 					}
 					System.out.println("Emitted on server: " + emitted.get() + " Received on client: " + received);
-				} else if(r == 200) {
+				}
+				else if (r == 200)
+				{
 					System.out.println("Cancel");
 					// cancel
 					subscription.cancel();
@@ -97,17 +106,19 @@ public class TestFlowControlRequestN {
 			}
 
 			@Override
-			public void onError(Throwable t) {
+			public void onError(Throwable t)
+			{
 				t.printStackTrace();
-				latch.countDown();				
+				latch.countDown();
 			}
 
 			@Override
-			public void onComplete() {
+			public void onComplete()
+			{
 				System.out.println("complete");
-				latch.countDown();				
+				latch.countDown();
 			}
-			
+
 		});
 		
 		System.out.println("waiting");
@@ -149,9 +160,9 @@ public class TestFlowControlRequestN {
 	public void testRequestChannel_batches_downstream() throws InterruptedException {
 		ControlledSubscriber s = new ControlledSubscriber();
 		socketClient.requestChannel(toPublisher(
-				range(1, 10)
+			range(1, 10)
 				.map(i -> {
-					return utf8EncodedPayload(String.valueOf(i), "1000"); 
+					return utf8EncodedPayload(String.valueOf(i), "1000");
 				}))).subscribe(s);
 		
 		// if flatMap is being used, then each of the 10 streams will emit at least 128 (default)
@@ -321,9 +332,14 @@ public class TestFlowControlRequestN {
 				return toPublisher(error(new RuntimeException("Not Found")));
 			}
 
-		}, LeaseGovernor.UNLIMITED_LEASE_GOVERNOR, t -> t.printStackTrace());
+			@Override
+			public Publisher<Void> handleMetadataPush(Payload payload)
+			{
+				return toPublisher(error(new RuntimeException("Not Found")));
+			}
+		}, LeaseGovernor.UNLIMITED_LEASE_GOVERNOR, Throwable::printStackTrace);
 
-		socketClient = ReactiveSocket.fromClientConnection(clientConnection, ConnectionSetupPayload.create("UTF-8", "UTF-8", NO_FLAGS), t -> t.printStackTrace());
+		socketClient = ReactiveSocket.fromClientConnection(clientConnection, ConnectionSetupPayload.create("UTF-8", "UTF-8", NO_FLAGS), Throwable::printStackTrace);
 
 		// start both the server and client and monitor for errors
 		socketServer.start();

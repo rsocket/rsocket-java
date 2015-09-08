@@ -15,16 +15,31 @@
  */
 package io.reactivesocket;
 
+import io.reactivesocket.internal.PublisherUtils;
+import org.reactivestreams.Publisher;
+
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
-import org.reactivestreams.Publisher;
-
-import io.reactivesocket.internal.PublisherUtils;
-
 public abstract class RequestHandler {
 
-	// TODO replace String with whatever ByteBuffer/byte[]/ByteBuf/etc variant we choose
+	public static final Function<Payload, Publisher<Payload>> NO_REQUEST_RESPONSE_HANDLER =
+		(payload -> PublisherUtils.errorPayload(new RuntimeException("No 'requestResponse' handler")));
+
+	public static final Function<Payload, Publisher<Payload>> NO_REQUEST_STREAM_HANDLER =
+		(payload -> PublisherUtils.errorPayload(new RuntimeException("No 'requestStream' handler")));
+
+	public static final Function<Payload, Publisher<Payload>> NO_REQUEST_SUBSCRIPTION_HANDLER =
+		(payload -> PublisherUtils.errorPayload(new RuntimeException("No 'requestSubscription' handler")));
+
+	public static final Function<Payload, Publisher<Void>> NO_FIRE_AND_FORGET_HANDLER =
+		(payload -> PublisherUtils.errorVoid(new RuntimeException("No 'fireAndForget' handler")));
+
+	public static final BiFunction<Payload, Publisher<Payload>, Publisher<Payload>> NO_REQUEST_CHANNEL_HANDLER =
+		(initialPayload, payloads) -> PublisherUtils.errorPayload(new RuntimeException("No 'requestChannel' handler"));
+
+	public static final Function<Payload, Publisher<Void>> NO_METADATA_PUSH_HANDLER =
+		(payload -> PublisherUtils.errorVoid(new RuntimeException("No 'metadataPush' handler")));
 
 	public abstract Publisher<Payload> handleRequestResponse(final Payload payload);
 
@@ -45,173 +60,87 @@ public abstract class RequestHandler {
 	 */
 	public abstract Publisher<Payload> handleChannel(final Payload initialPayload, final Publisher<Payload> payloads);
 
-	public static RequestHandler create(
-			Function<Payload, Publisher<Payload>> requestResponseHandler,
-			Function<Payload, Publisher<Payload>> requestStreamHandler,
-			Function<Payload, Publisher<Payload>> requestSubscriptionHandler,
-			Function<Payload, Publisher<Void>> fireAndForgetHandler,
-			BiFunction<Payload, Publisher<Payload>, Publisher<Payload>> channelHandler) {
-		return new RequestHandler() {
+	public abstract Publisher<Void> handleMetadataPush(final Payload payload);
 
-			@Override
-			public Publisher<Payload> handleRequestResponse(final Payload payload) {
-				return requestResponseHandler.apply(payload);
-			}
+	public static class Builder
+	{
+		private Function<Payload, Publisher<Payload>> handleRequestResponse = NO_REQUEST_RESPONSE_HANDLER;
+		private Function<Payload, Publisher<Payload>> handleRequestStream = NO_REQUEST_STREAM_HANDLER;
+		private Function<Payload, Publisher<Payload>> handleRequestSubscription = NO_REQUEST_SUBSCRIPTION_HANDLER;
+		private Function<Payload, Publisher<Void>> handleFireAndForget = NO_FIRE_AND_FORGET_HANDLER;
+		private BiFunction<Payload, Publisher<Payload>, Publisher<Payload>> handleRequestChannel = NO_REQUEST_CHANNEL_HANDLER;
+		private Function<Payload, Publisher<Void>> handleMetadataPush = NO_METADATA_PUSH_HANDLER;
 
-			@Override
-			public Publisher<Payload> handleRequestStream(final Payload payload) {
-				return requestStreamHandler.apply(payload);
-			}
+		public Builder withRequestResponse(final Function<Payload, Publisher<Payload>> handleRequestResponse)
+		{
+			this.handleRequestResponse = handleRequestResponse;
+			return this;
+		}
 
-			@Override
-			public Publisher<Payload> handleSubscription(final Payload payload) {
-				return requestSubscriptionHandler.apply(payload);
-			}
+		public Builder withRequestStream(final Function<Payload, Publisher<Payload>> handleRequestStream)
+		{
+			this.handleRequestStream = handleRequestStream;
+			return this;
+		}
 
-			@Override
-			public Publisher<Void> handleFireAndForget(final Payload payload) {
-				return fireAndForgetHandler.apply(payload);
-			}
+		public Builder withRequestSubscription(final Function<Payload, Publisher<Payload>> handleRequestSubscription)
+		{
+			this.handleRequestSubscription = handleRequestSubscription;
+			return this;
+		}
 
-			@Override
-			public Publisher<Payload> handleChannel(final Payload initialPayload, final Publisher<Payload> payloads) {
-				return channelHandler.apply(initialPayload, payloads);
-			}
+		public Builder withFireAndForget(final Function<Payload, Publisher<Void>> handleFireAndForget)
+		{
+			this.handleFireAndForget = handleFireAndForget;
+			return this;
+		}
 
-		};
-	}
+		public Builder withRequestChannel(final BiFunction<Payload, Publisher<Payload> , Publisher<Payload>> handleRequestChannel)
+		{
+			this.handleRequestChannel = handleRequestChannel;
+			return this;
+		}
 
-	public static RequestHandler create(
-			Function<Payload, Publisher<Payload>> requestResponseHandler,
-			Function<Payload, Publisher<Payload>> requestStreamHandler,
-			Function<Payload, Publisher<Payload>> requestSubscriptionHandler,
-			Function<Payload, Publisher<Void>> fireAndForgetHandler) {
-		return new RequestHandler() {
+		public Builder withMetadataPush(final Function<Payload, Publisher<Void>> handleMetadataPush)
+		{
+			this.handleMetadataPush = handleMetadataPush;
+			return this;
+		}
 
-			@Override
-			public Publisher<Payload> handleRequestResponse(final Payload payload) {
-				return requestResponseHandler.apply(payload);
-			}
+		public RequestHandler build()
+		{
+			return new RequestHandler()
+			{
+				public Publisher<Payload> handleRequestResponse(Payload payload)
+				{
+					return handleRequestResponse.apply(payload);
+				}
 
-			@Override
-			public Publisher<Payload> handleRequestStream(final Payload payload) {
-				return requestStreamHandler.apply(payload);
-			}
+				public Publisher<Payload> handleRequestStream(Payload payload)
+				{
+					return handleRequestStream.apply(payload);
+				}
 
-			@Override
-			public Publisher<Payload> handleSubscription(final Payload payload) {
-				return requestSubscriptionHandler.apply(payload);
-			}
+				public Publisher<Payload> handleSubscription(Payload payload)
+				{
+					return handleRequestSubscription.apply(payload);
+				}
 
-			@Override
-			public Publisher<Void> handleFireAndForget(final Payload payload) {
-				return fireAndForgetHandler.apply(payload);
-			}
+				public Publisher<Void> handleFireAndForget(Payload payload)
+				{
+					return handleFireAndForget.apply(payload);
+				}
 
-			@Override
-			public Publisher<Payload> handleChannel(final Payload initialPayload, final Publisher<Payload> payloads) {
-				return PublisherUtils.errorPayload(new RuntimeException("No 'channel' handler"));
-			}
+				public Publisher<Payload> handleChannel(Payload initialPayload, Publisher<Payload> payloads)
+				{
+					return handleRequestChannel.apply(initialPayload, payloads);
+				}
 
-		};
-	}
-
-	public static RequestHandler create(
-			Function<Payload, Publisher<Payload>> requestResponseHandler,
-			Function<Payload, Publisher<Payload>> requestStreamHandler,
-			Function<Payload, Publisher<Payload>> requestSubscriptionHandler) {
-		return new RequestHandler() {
-
-			@Override
-			public Publisher<Payload> handleRequestResponse(final Payload payload) {
-				return requestResponseHandler.apply(payload);
-			}
-
-			@Override
-			public Publisher<Payload> handleRequestStream(final Payload payload) {
-				return requestStreamHandler.apply(payload);
-			}
-
-			@Override
-			public Publisher<Payload> handleSubscription(final Payload payload) {
-				return requestSubscriptionHandler.apply(payload);
-			}
-
-			@Override
-			public Publisher<Void> handleFireAndForget(final Payload payload) {
-				return PublisherUtils.errorVoid(new RuntimeException("No 'fireAndForget' handler"));
-			}
-
-			@Override
-			public Publisher<Payload> handleChannel(final Payload initialPayload, final Publisher<Payload> payloads) {
-				return PublisherUtils.errorPayload(new RuntimeException("No 'channel' handler"));
-			}
-
-		};
-	}
-
-	public static RequestHandler create(
-			Function<Payload, Publisher<Payload>> requestResponseHandler,
-			Function<Payload, Publisher<Payload>> requestStreamHandler) {
-		return new RequestHandler() {
-
-			@Override
-			public Publisher<Payload> handleRequestResponse(final Payload payload) {
-				return requestResponseHandler.apply(payload);
-			}
-
-			@Override
-			public Publisher<Payload> handleRequestStream(final Payload payload) {
-				return requestStreamHandler.apply(payload);
-			}
-
-			@Override
-			public Publisher<Payload> handleSubscription(final Payload payload) {
-				return PublisherUtils.errorPayload(new RuntimeException("No 'requestSubscription' handler"));
-			}
-
-			@Override
-			public Publisher<Void> handleFireAndForget(final Payload payload) {
-				return PublisherUtils.errorVoid(new RuntimeException("No 'fireAndForget' handler"));
-			}
-
-			@Override
-			public Publisher<Payload> handleChannel(final Payload initialPayload, final Publisher<Payload> payloads) {
-				return PublisherUtils.errorPayload(new RuntimeException("No 'channel' handler"));
-			}
-
-		};
-	}
-
-	public static RequestHandler create(
-			Function<Payload, Publisher<Payload>> requestResponseHandler) {
-		return new RequestHandler() {
-
-			@Override
-			public Publisher<Payload> handleRequestResponse(final Payload payload) {
-				return requestResponseHandler.apply(payload);
-			}
-
-			@Override
-			public Publisher<Payload> handleRequestStream(final Payload payload) {
-				return PublisherUtils.errorPayload(new RuntimeException("No 'requestStream' handler"));
-			}
-
-			@Override
-			public Publisher<Payload> handleSubscription(final Payload payload) {
-				return PublisherUtils.errorPayload(new RuntimeException("No 'requestSubscription' handler"));
-			}
-
-			@Override
-			public Publisher<Void> handleFireAndForget(final Payload payload) {
-				return PublisherUtils.errorVoid(new RuntimeException("No 'fireAndForget' handler"));
-			}
-
-			@Override
-			public Publisher<Payload> handleChannel(final Payload initialPayload, final Publisher<Payload> payloads) {
-				return PublisherUtils.errorPayload(new RuntimeException("No 'channel' handler"));
-			}
-
-		};
+				public Publisher<Void> handleMetadataPush(Payload payload)
+				{
+					return handleMetadataPush.apply(payload);
+				}
+			};
+		}
 	}
 }

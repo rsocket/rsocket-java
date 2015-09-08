@@ -124,6 +124,11 @@ public class ReactiveSocketPerf {
 				return null;
 			}
 
+			@Override
+			public Publisher<Void> handleMetadataPush(Payload payload)
+			{
+				return null;
+			}
 		};
 
 		final static ReactiveSocket serverSocket = ReactiveSocket.fromServerConnection(serverConnection, setupFrame -> handler);

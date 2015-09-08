@@ -127,6 +127,12 @@ public class ReactiveSocketTest {
 				}
 			}
 
+			@Override
+			public Publisher<Void> handleMetadataPush(Payload payload)
+			{
+				return toPublisher(error(new RuntimeException("Not Found")));
+			}
+
 			private Publisher<Payload> echoChannel(Publisher<Payload> echo) {
 				return toPublisher(toObservable(echo).map(p -> {
 					return utf8EncodedPayload(byteToString(p.getData()) + "_echo", null);
