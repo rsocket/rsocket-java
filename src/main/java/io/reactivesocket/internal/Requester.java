@@ -37,6 +37,7 @@ import io.reactivesocket.Frame;
 import io.reactivesocket.FrameType;
 import io.reactivesocket.Payload;
 import io.reactivesocket.exceptions.SetupException;
+import uk.co.real_logic.agrona.collections.Int2ObjectHashMap;
 import uk.co.real_logic.agrona.collections.Long2ObjectHashMap;
 
 /**
@@ -237,7 +238,7 @@ public class Requester {
 	 * @return
 	 */
 	public Publisher<Payload> requestChannel(final Publisher<Payload> payloadStream) {
-		return startStream(nextStreamId(), FrameType.REQUEST_CHANNEL, payloadStream);
+		return startChannel(nextStreamId(), FrameType.REQUEST_CHANNEL, payloadStream);
 	}
 
 	/**
@@ -257,57 +258,16 @@ public class Requester {
 		return available;
 	}
 
-	/**
-	 * Start a stream with a single request Payload.
-	 * 
-	 * @param streamId
-	 * @param type
-	 * @param payload
-	 * @return
-	 */
-	private Publisher<Payload> startStream(int streamId, FrameType type, Payload payload) {
-		if (payload == null) {
-			throw new IllegalStateException("Payload can not be null");
-		}
-		if (type == null) {
-			throw new IllegalStateException("FrameType can not be null");
-		}
-		return startStream(streamId, type, payload, null);
-	}
-
-	/**
-	 * Start a bi-directional stream supporting multiple request Payloads.
-	 * 
-	 * @param streamId
-	 * @param type
-	 * @param payloads
-	 * @return
-	 */
-	private Publisher<Payload> startStream(int streamId, FrameType type, Publisher<Payload> payloads) {
-		if (payloads == null) {
-			throw new IllegalStateException("Payloads can not be null");
-		}
-		if (type == null) {
-			throw new IllegalStateException("FrameType can not be null");
-		}
-		return startStream(streamId, type, null, payloads);
-	}
-
 	/*
 	 * Using payload/payloads with null check for efficiency so I don't have to allocate a Publisher for the most common case of single Payload
 	 */
-	private Publisher<Payload> startStream(int streamId, FrameType type, Payload payload, Publisher<Payload> payloads) {
-		if (payload == null && payloads == null) {
-			throw new IllegalStateException("Both payload and payloads can not be null");
-		}
-
+	private Publisher<Payload> startStream(int streamId, FrameType type, Payload payload) {
 		return (Subscriber<? super Payload> child) -> {
 			child.onSubscribe(new Subscription() {
 
 				boolean started = false;
 				StreamInputSubscriber streamInputSubscriber;
 				UnicastSubject<Frame> writer;
-				AtomicReference<Subscription> payloadsSubscription;
 				final AtomicLong requested = new AtomicLong(); // TODO does this need to be atomic? Can request(n) come from any thread?
 				final AtomicLong outstanding = new AtomicLong(); // TODO AtomicLong just so I can pass it around ... perf issue? or is there a thread-safety issue?
 				
@@ -324,10 +284,6 @@ public class Requester {
 						// threshold
 						final long threshold = requestN == DEFAULT_BATCH ? REQUEST_THRESHOLD : requestN/3;
 
-						if (payloads != null) {
-							payloadsSubscription = new AtomicReference<>();
-						}
-
 						
 						// declare output to transport
 						writer = UnicastSubject.create((w, rn) -> {
@@ -337,57 +293,182 @@ public class Requester {
 							requested.addAndGet(-requestN);
 							// record how many we have requested
 							outstanding.addAndGet(requestN);
-
+							
 							// when transport connects we write the request frame for this stream
-							if (payload != null) {
-								w.onNext(Frame.fromRequest(streamId, type, payload, (int) requestN));
-							} else {
-								// TODO hook this in via addOutput so requestN flows through correctly
-//								connection.addOutput(payloads.map(p -> ... convert things to Frame here ...), new Completable()
-//								{
-//
-//									@Override
-//									public void success()
-//									{
-//										// nothing to do onSuccess
-//									}
-//
-//									@Override
-//									public void error(Throwable e) {
-//										child.onError(e);
-//										cancel();
-//									}
-//
-//								});
-								payloads.subscribe(new Subscriber<Payload>() {
+							w.onNext(Frame.fromRequest(streamId, type, payload, (int)requestN));
+						});
+						
+						// Response frames for this Stream
+						UnicastSubject<Frame> transportInputSubject = UnicastSubject.create();
+						synchronized(Requester.this) {
+							streamInputMap.put(streamId, transportInputSubject);
+						}
+						streamInputSubscriber = new StreamInputSubscriber(streamId, threshold, outstanding, requested, writer, child, () -> {
+							cancel();
+						});
+						transportInputSubject.subscribe(streamInputSubscriber);
+						
+						// connect to transport
+						connection.addOutput(writer, new Completable()
+						{
 
-									@Override
-									public void onSubscribe(Subscription s) {
-										if (!payloadsSubscription.compareAndSet(null, s)) {
-											s.cancel(); // we are already unsubscribed
-										}
-										s.request(Long.MAX_VALUE); // TODO need REQUEST_N semantics from the other end
-									}
-
-									@Override
-									public void onNext(Payload p) {
-										w.onNext(Frame.fromRequest(streamId, type, p, (int) requestN));
-									}
-
-									@Override
-									public void onError(Throwable t) {
-										// TODO validate with unit tests
-										child.onError(new RuntimeException("Error received from request stream.", t));
-										cancel();
-									}
-
-									@Override
-									public void onComplete() {
-										// do nothing if input ends, completion is handled by response side
-									}
-
-								});
+							@Override
+							public void success()
+							{
+								// nothing to do onSuccess
 							}
+
+							@Override
+							public void error(Throwable e) {
+								child.onError(e);
+								cancel();
+							}
+
+						});
+					} else {
+						// propagate further requestN frames
+						long currentN = requested.get();
+						final long requestThreshold = REQUEST_THRESHOLD < currentN ? REQUEST_THRESHOLD : currentN/3;
+						requestIfNecessary(streamId, requestThreshold, currentN, outstanding.get(), writer, requested, outstanding);
+					}
+
+				}
+
+				@Override
+				public void cancel() {
+					synchronized(Requester.this) {
+						streamInputMap.remove(streamId);
+					}
+					if (!streamInputSubscriber.terminated.get()) {
+						writer.onNext(Frame.from(streamId, FrameType.CANCEL));
+					}
+					streamInputSubscriber.parentSubscription.cancel();
+				}
+
+			});
+		};
+	}
+	
+	/*
+	 * Using payload/payloads with null check for efficiency so I don't have to allocate a Publisher for the most common case of single Payload
+	 */
+	private Publisher<Payload> startChannel(int streamId, FrameType type, Publisher<Payload> payloads) {
+		if (payloads == null) {
+			throw new IllegalStateException("Both payload and payloads can not be null");
+		}
+
+		return (Subscriber<? super Payload> child) -> {
+			child.onSubscribe(new Subscription() {
+
+				boolean started = false;
+				StreamInputSubscriber streamInputSubscriber;
+				UnicastSubject<Frame> writer;
+				final AtomicReference<Subscription> payloadsSubscription = new AtomicReference<>();
+				final AtomicLong requested = new AtomicLong(); // TODO does this need to be atomic? Can request(n) come from any thread?
+				final AtomicLong outstanding = new AtomicLong(); // TODO AtomicLong just so I can pass it around ... perf issue? or is there a thread-safety issue?
+				
+				@Override
+				public void request(long n) {
+					// TODO are there concurrency issues we need to deal with here?
+					BackpressureUtils.getAndAddRequest(requested, n);
+					if (!started) {
+						started = true;
+
+						// determine initial RequestN
+						long currentN = requested.get();
+						final long requestN = currentN < DEFAULT_BATCH ? currentN : DEFAULT_BATCH;
+						// threshold
+						final long threshold = requestN == DEFAULT_BATCH ? REQUEST_THRESHOLD : requestN/3;
+
+						// declare output to transport
+						writer = UnicastSubject.create((w, rn) -> {
+							numberOfRemainingRequests--;
+
+							// decrement as we request it
+							requested.addAndGet(-requestN);
+							// record how many we have requested
+							outstanding.addAndGet(requestN);
+							
+							connection.addOutput(new Publisher<Frame>() {
+
+								@Override
+								public void subscribe(Subscriber<? super Frame> transport) {
+									transport.onSubscribe(new Subscription() {
+
+										boolean started = false;
+										@Override
+										public void request(long n) {
+											if(!started) {
+												started = true;
+												payloads.subscribe(new Subscriber<Payload>() {
+
+													@Override
+													public void onSubscribe(Subscription s) {
+														if (!payloadsSubscription.compareAndSet(null, s)) {
+															s.cancel(); // we are already unsubscribed
+														} else {
+															// we always start with 1 to initiate requestChannel, then wait for REQUEST_N from Responder to send more
+															s.request(1);
+														}
+													}
+
+													boolean isInitialRequest = true;
+													
+													@Override
+													public void onNext(Payload p) {
+														if(isInitialRequest) {
+															isInitialRequest = false;
+															Frame f = Frame.fromRequest(streamId, type, p, (int)requestN);
+															transport.onNext(f);
+														} else {
+															Frame f = Frame.fromRequest(streamId, type, p, 0);
+															transport.onNext(f);
+														}
+													}
+
+													@Override
+													public void onError(Throwable t) {
+														// TODO validate with unit tests
+														transport.onError(new RuntimeException("Error received from request stream.", t));
+														child.onError(new RuntimeException("Error received from request stream.", t));
+														cancel();
+													}
+
+													@Override
+													public void onComplete() {
+														transport.onComplete();
+													}
+
+												});
+											} else {
+												// TODO we need to compose this requestN from transport with the remote REQUEST_N
+											}
+											
+										}
+
+										@Override
+										public void cancel() {
+											
+										}});
+								}
+								
+							}, new Completable()
+							{
+
+								@Override
+								public void success()
+								{
+									// nothing to do onSuccess
+								}
+
+								@Override
+								public void error(Throwable e) {
+									child.onError(e);
+									cancel();
+								}
+
+							});
+
 						});
 
 						// Response frames for this Stream
@@ -395,7 +476,7 @@ public class Requester {
 						synchronized(Requester.this) {
 							streamInputMap.put(streamId, transportInputSubject);
 						}
-						streamInputSubscriber = new StreamInputSubscriber(streamId, threshold, outstanding, requested, writer, child, () -> {
+						streamInputSubscriber = new StreamInputSubscriber(streamId, threshold, outstanding, requested, writer, child, payloadsSubscription, () -> {
 							cancel();
 						});
 						transportInputSubject.subscribe(streamInputSubscriber);
@@ -535,6 +616,7 @@ public class Requester {
 		private final UnicastSubject<Frame> writer;
 		private final Subscriber<? super Payload> child;
 		private final Runnable cancelAction;
+		private final AtomicReference<Subscription> requestStreamSubscription;
 
 		public StreamInputSubscriber(int streamId, long threshold, AtomicLong outstanding, AtomicLong requested, UnicastSubject<Frame> writer, Subscriber<? super Payload> child, Runnable cancelAction) {
 			this.streamId = streamId;
@@ -544,6 +626,18 @@ public class Requester {
 			this.writer = writer;
 			this.child = child;
 			this.cancelAction = cancelAction;
+			this.requestStreamSubscription = null;
+		}
+		
+		public StreamInputSubscriber(int streamId, long threshold, AtomicLong outstanding, AtomicLong requested, UnicastSubject<Frame> writer, Subscriber<? super Payload> child, AtomicReference<Subscription> requestStreamSubscription, Runnable cancelAction) {
+			this.streamId = streamId;
+			this.requestThreshold = threshold;
+			this.requested = requested;
+			this.outstandingRequests = outstanding;
+			this.writer = writer;
+			this.child = child;
+			this.cancelAction = cancelAction;
+			this.requestStreamSubscription = requestStreamSubscription;
 		}
 
 		@Override
@@ -565,6 +659,16 @@ public class Requester {
 				child.onNext(frame);
 				long currentOutstanding = outstandingRequests.decrementAndGet();
 				requestIfNecessary(streamId, requestThreshold, requested.get(), currentOutstanding, writer, requested, outstandingRequests);
+			} else if (type == FrameType.REQUEST_N) {
+				if(requestStreamSubscription != null) {
+					Subscription s = requestStreamSubscription.get();
+					// TODO what do we do if null?
+					if(s != null) {
+						s.request(Frame.RequestN.requestN(frame));
+					}
+					return;
+				}
+				// TODO should we do anything if we don't find the stream? emitting an error is risky as the responder could have terminated and cleaned up already
 			} else if (type == FrameType.COMPLETE) {
 				terminated.set(true);
 				onComplete();
