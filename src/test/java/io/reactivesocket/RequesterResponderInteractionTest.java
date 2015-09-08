@@ -70,9 +70,10 @@ public class RequesterResponderInteractionTest
                 .subscribe(clientConnection.toInput);
 
 
-        responder = Responder.create(serverConnection, setup -> RequestHandler.create(
-            requestResponsePayload -> {
-                final String requestResponse = TestUtil.byteToString(requestResponsePayload.getData());
+        responder = Responder.create(serverConnection, setup -> new RequestHandler.Builder()
+            .withRequestResponse(payload ->
+            {
+                final String requestResponse = TestUtil.byteToString(payload.getData());
 
                 if (requestResponse.equals("hello"))
                 {
@@ -82,9 +83,10 @@ public class RequesterResponderInteractionTest
                 {
                     return toPublisher(error(new Exception("Not Found!")));
                 }
-            },
-            requestStreamPayload -> {
-                final String requestStream = TestUtil.byteToString(requestStreamPayload.getData());
+            })
+            .withRequestStream(payload ->
+            {
+                final String requestStream = TestUtil.byteToString(payload.getData());
 
                 if (requestStream.equals("range"))
                 {
@@ -94,9 +96,10 @@ public class RequesterResponderInteractionTest
                 {
                     return toPublisher(error(new Exception("Not Found!")));
                 }
-            },
-            requestSubscriptionPayload -> {
-                final String requestSubscription = TestUtil.byteToString(requestSubscriptionPayload.getData());
+            })
+            .withRequestSubscription(payload ->
+            {
+                final String requestSubscription = TestUtil.byteToString(payload.getData());
 
                 if (requestSubscription.equals("range"))
                 {
@@ -112,9 +115,10 @@ public class RequesterResponderInteractionTest
                 {
                     return toPublisher(error(new Exception("Not Found!")));
                 }
-            },
-            fireAndForgetPayload -> {
-                final String fireAndForget = TestUtil.byteToString(fireAndForgetPayload.getData());
+            })
+            .withFireAndForget(payload ->
+            {
+                final String fireAndForget = TestUtil.byteToString(payload.getData());
 
                 if (fireAndForget.equals("hello"))
                 {
@@ -124,9 +128,9 @@ public class RequesterResponderInteractionTest
                 {
                     return toPublisher(error(new Exception("Not Found!")));
                 }
-            }), NULL_LEASE_GOVERNOR, err -> err.printStackTrace());
+            }).build(), NULL_LEASE_GOVERNOR, Throwable::printStackTrace);
 
-        requester = Requester.createClientRequester(clientConnection, ConnectionSetupPayload.create("UTF-8", "UTF-8"), err -> err.printStackTrace());
+        requester = Requester.createClientRequester(clientConnection, ConnectionSetupPayload.create("UTF-8", "UTF-8"), Throwable::printStackTrace);
     }
 
     @Ignore

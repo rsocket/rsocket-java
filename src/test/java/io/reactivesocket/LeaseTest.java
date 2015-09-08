@@ -83,45 +83,51 @@ public class LeaseTest {
         socketServer = ReactiveSocket.fromServerConnection(
             serverConnection, setup -> new RequestHandler() {
 
-            @Override
-            public Publisher<Payload> handleRequestResponse(Payload payload) {
-                return toPublisher(just(utf8EncodedPayload("hello world", null)));
-            }
+                @Override
+                public Publisher<Payload> handleRequestResponse(Payload payload) {
+                    return toPublisher(just(utf8EncodedPayload("hello world", null)));
+                }
 
-            @Override
-            public Publisher<Payload> handleRequestStream(Payload payload) {
-                return toPublisher(
-                    range(0, 100)
-                        .map(i -> "hello world " + i)
-                        .map(n -> utf8EncodedPayload(n, null))
-                );
-            }
+                @Override
+                public Publisher<Payload> handleRequestStream(Payload payload) {
+                    return toPublisher(
+                        range(0, 100)
+                            .map(i -> "hello world " + i)
+                            .map(n -> utf8EncodedPayload(n, null))
+                    );
+                }
 
-            @Override
-            public Publisher<Payload> handleSubscription(Payload payload) {
-                return toPublisher(interval(1, TimeUnit.MICROSECONDS)
-                    .map(i -> "subscription " + i)
-                    .map(n -> utf8EncodedPayload(n, null)));
-            }
+                @Override
+                public Publisher<Payload> handleSubscription(Payload payload) {
+                    return toPublisher(interval(1, TimeUnit.MICROSECONDS)
+                        .map(i -> "subscription " + i)
+                        .map(n -> utf8EncodedPayload(n, null)));
+                }
 
-            @Override
-            public Publisher<Void> handleFireAndForget(Payload payload) {
-                return toPublisher(empty());
-            }
+                @Override
+                public Publisher<Void> handleFireAndForget(Payload payload) {
+                    return toPublisher(empty());
+                }
 
-            /**
-             * Use Payload.metadata for routing
-             */
-            @Override
-            public Publisher<Payload> handleChannel(
-                Payload initialPayload,
-                Publisher<Payload> payloads
-            ) {
-                return toPublisher(toObservable(payloads).map(p -> {
-                    return utf8EncodedPayload(byteToString(p.getData()) + "_echo", null);
-                }));
-            }
-        }, leaseGovernor, t -> {});
+                /**
+                 * Use Payload.metadata for routing
+                 */
+                @Override
+                public Publisher<Payload> handleChannel(
+                    Payload initialPayload,
+                    Publisher<Payload> payloads
+                ) {
+                    return toPublisher(toObservable(payloads).map(p -> {
+                        return utf8EncodedPayload(byteToString(p.getData()) + "_echo", null);
+                    }));
+                }
+
+                @Override
+                public Publisher<Void> handleMetadataPush(Payload payload) {
+                    throw new IllegalStateException(
+                        "TestingLeaseGovernor.handleMetadataPush is not implemented!");
+                }
+            }, leaseGovernor, t -> {});
 
         socketClient = ReactiveSocket.fromClientConnection(
             clientConnection,
