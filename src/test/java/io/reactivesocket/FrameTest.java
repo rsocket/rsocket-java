@@ -393,7 +393,7 @@ public class FrameTest
     @Test
     public void shouldFormCorrectlyWithoutMetadataForLease()
     {
-        final int ttl = (int)TimeUnit.SECONDS.toNanos(8);
+        final int ttl = (int)TimeUnit.SECONDS.toMillis(8);
         final int numberOfRequests = 16;
         final Frame f = Frame.fromLease(ttl, numberOfRequests, Frame.NULL_BYTEBUFFER);
 
@@ -408,7 +408,7 @@ public class FrameTest
     @Test
     public void shouldFormCorrectlyWithMetadataForLease()
     {
-        final int ttl = (int)TimeUnit.SECONDS.toNanos(8);
+        final int ttl = (int)TimeUnit.SECONDS.toMillis(8);
         final int numberOfRequests = 16;
         final ByteBuffer leaseMetadata = TestUtil.byteBufferFromUtf8String("lease metadata");
 

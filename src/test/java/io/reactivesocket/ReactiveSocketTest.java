@@ -153,7 +153,8 @@ public class ReactiveSocketTest {
 				}));
 			}
 
-		}, LeaseGovernor.UNLIMITED_LEASE_GOVERNOR, t -> {
+//		}, LeaseGovernor.UNLIMITED_LEASE_GOVERNOR, t -> {
+		}, new FairLeaseGovernor(100, 10L, TimeUnit.SECONDS), t -> {
 			lastServerError.set(t);
 			lastServerErrorCountDown.countDown();
 		});
@@ -173,12 +174,10 @@ public class ReactiveSocketTest {
 		}
 		socketClient = ReactiveSocket.fromClientConnection(
 			clientConnection,
-			ConnectionSetupPayload.create("UTF-8", "UTF-8", setupFlag),
-			new FairLeaseGovernor(100, 5, TimeUnit.SECONDS)
+			ConnectionSetupPayload.create("UTF-8", "UTF-8", setupFlag)
 		);
 
 		// start both the server and client and monitor for errors
-		//socketServer.start(LeaseGovernor.UNLIMITED_LEASE_GOVERNOR);
 		socketServer.start();
 		socketClient.start();
 
