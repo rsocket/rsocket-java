@@ -1,5 +1,6 @@
 package io.reactivesocket.aeron;
 
+import io.reactivesocket.ConnectionSetupPayload;
 import io.reactivesocket.Frame;
 import io.reactivesocket.Payload;
 import io.reactivesocket.ReactiveSocket;
@@ -28,14 +29,14 @@ import static io.reactivesocket.aeron.Constants.SERVER_STREAM_ID;
 /**
  * Created by rroeser on 8/13/15.
  */
-public class ReactivesocketAeronClient implements AutoCloseable {
+public class ReactivesocketAeronClient implements Loggable {
     private static final Int2ObjectHashMap<Subscription> subscriptions = new Int2ObjectHashMap<>();
 
     private static final Int2ObjectHashMap<AeronClientDuplexConnection> connections = new Int2ObjectHashMap<>();
 
     private static final Int2ObjectHashMap<CountDownLatch> establishConnectionLatches = new Int2ObjectHashMap<>();
 
-    private final ReactiveSocket rsClientProtocol;
+    private ReactiveSocket reactiveSocket;
 
     private final Aeron aeron;
 
@@ -45,21 +46,43 @@ public class ReactivesocketAeronClient implements AutoCloseable {
 
     private final int port;
 
-    private ReactivesocketAeronClient(String host, int port) {
+    static {
+        Runtime
+            .getRuntime()
+            .addShutdownHook(new Thread(() -> {
+                for (Subscription subscription : subscriptions.values()) {
+                    subscription.close();
+                }
+
+                for (AeronClientDuplexConnection connection : connections.values()) {
+                    connection.close();
+                }
+            }));
+    }
+
+    private ReactivesocketAeronClient(String host, String server, int port) {
         this.port = port;
-        this.rsClientProtocol =
-            ReactiveSocket.createRequestor();
 
         final Aeron.Context ctx = new Aeron.Context();
+        ctx.errorHandler(t -> {
+            t.printStackTrace();
+        });
+
         aeron = Aeron.connect(ctx);
 
         final String channel = "udp://" + host + ":" + port;
-        System.out.println("Creating a publication to channel => " + channel);
+        final String subscriptionChannel = "udp://" + server + ":" + port;
 
+        System.out.println("Creating a publication to channel => " + channel);
         publication = aeron.addPublication(channel, SERVER_STREAM_ID);
         final int sessionId = publication.sessionId();
+
+        System.out.println("Created a publication for sessionId => " + sessionId);
+
         subscriptions.computeIfAbsent(port, (_p) -> {
-            Subscription subscription = aeron.addSubscription(channel, CLIENT_STREAM_ID);
+            System.out.println("Creating a subscription to channel => " + subscriptionChannel);
+            Subscription subscription = aeron.addSubscription(subscriptionChannel, CLIENT_STREAM_ID);
+            System.out.println("Subscription created to channel => " + subscriptionChannel);
 
             final FragmentAssembler fragmentAssembler = new FragmentAssembler(this::fragmentHandler);
 
@@ -72,12 +95,12 @@ public class ReactivesocketAeronClient implements AutoCloseable {
 
     }
 
-    public static ReactivesocketAeronClient create(String host, int port) {
-        return new ReactivesocketAeronClient(host, port);
+    public static ReactivesocketAeronClient create(String host, String server, int port) {
+        return new ReactivesocketAeronClient(host, server, port);
     }
 
-    public static ReactivesocketAeronClient create(String host) {
-        return new ReactivesocketAeronClient(host, 39790);
+    public static ReactivesocketAeronClient create(String host, String server) {
+        return new ReactivesocketAeronClient(host, server, 39790);
     }
 
     void fragmentHandler(DirectBuffer buffer, int offset, int length, Header header) {
@@ -93,50 +116,39 @@ public class ReactivesocketAeronClient implements AutoCloseable {
         } else if (messageType == MessageType.ESTABLISH_CONNECTION_RESPONSE) {
             int ackSessionId = buffer.getInt(offset + BitUtil.SIZE_OF_INT);
             System.out.println(String.format("Received establish connection ack for session id => %d", ackSessionId));
+            final int headerSessionId = header.sessionId();
+            final AeronClientDuplexConnection connection =
+                connections
+                    .computeIfAbsent(headerSessionId, (_p) ->
+                        new AeronClientDuplexConnection(publication, () -> connections.remove(headerSessionId)));
 
-            final AeronClientDuplexConnection connection = connections.computeIfAbsent(header.sessionId(), (_p) -> new AeronClientDuplexConnection(publication));
+            reactiveSocket =  ReactiveSocket.fromClientConnection(
+                connection,
+                ConnectionSetupPayload.create("UTF-8", "UTF-8", ConnectionSetupPayload.NO_FLAGS),
+                err -> err.printStackTrace());
 
-            Publisher<Void> connect = this
-                .rsClientProtocol
-                .connect(connection);
-
-            connect.subscribe(new Subscriber<Void>() {
-                @Override
-                public void onSubscribe(org.reactivestreams.Subscription s) {
-                    s.request(Long.MAX_VALUE);
-                }
-
-                @Override
-                public void onNext(Void aVoid) {
-
-                }
-
-                @Override
-                public void onError(Throwable t) {
-                    t.printStackTrace();
-                }
-
-                @Override
-                public void onComplete() {
-                }
-            });
+            reactiveSocket.start();
 
             System.out.println("ReactiveSocket connected to Aeron session => " + ackSessionId);
             CountDownLatch latch = establishConnectionLatches.get(ackSessionId);
             latch.countDown();
 
         } else {
-            System.out.println("Unknow message type => " + messageTypeInt);
+            System.out.println("Unknown message type => " + messageTypeInt);
         }
     }
 
     void poll(FragmentAssembler fragmentAssembler, Subscription subscription, Scheduler.Worker worker) {
-        if (running) {
-            worker.schedule(() -> {
-                subscription.poll(fragmentAssembler, Integer.MAX_VALUE);
-                poll(fragmentAssembler, subscription, worker);
-            });
-        }
+        worker.schedule(() -> {
+            if (running) {
+                try {
+                    subscription.poll(fragmentAssembler, Integer.MAX_VALUE);
+                    poll(fragmentAssembler, subscription, worker);
+                } catch (Throwable t) {
+                    t.printStackTrace();
+                }
+            }
+        });
     }
 
     /**
@@ -155,7 +167,7 @@ public class ReactivesocketAeronClient implements AutoCloseable {
             final long start = System.nanoTime();
             for (;;) {
                 final long current = System.nanoTime();
-                if (current - start > TimeUnit.SECONDS.toNanos(30)) {
+                if ((current - start) > TimeUnit.SECONDS.toNanos(30)) {
                     throw new RuntimeException("Timed out waiting to establish connection for session id => " + sessionId);
                 }
 
@@ -168,9 +180,9 @@ public class ReactivesocketAeronClient implements AutoCloseable {
                 }
             }
 
-            System.out.println(String.format("Connection established for channel => %s, stream id => %d",
+           debug("Connection established for channel => {}, stream id => {}",
                 publication.channel(),
-                publication.sessionId()));
+                publication.sessionId());
         } finally {
             establishConnectionLatches.remove(sessionId);
         }
@@ -178,29 +190,19 @@ public class ReactivesocketAeronClient implements AutoCloseable {
     }
 
     public Publisher<Payload> requestResponse(Payload payload) {
-        return rsClientProtocol.requestResponse(payload);
+        return reactiveSocket.requestResponse(payload);
     }
 
     public Publisher<Void> fireAndForget(Payload payload) {
-        return rsClientProtocol.fireAndForget(payload);
+        return reactiveSocket.fireAndForget(payload);
     }
 
     public Publisher<Payload> requestStream(Payload payload) {
-        return rsClientProtocol.requestStream(payload);
+        return reactiveSocket.requestStream(payload);
     }
 
     public Publisher<Payload> requestSubscription(Payload payload) {
-        return rsClientProtocol.requestSubscription(payload);
+        return reactiveSocket.requestSubscription(payload);
     }
 
-    @Override
-    public void close() throws Exception {
-        for (Subscription subscription : subscriptions.values()) {
-            subscription.close();
-        }
-
-        for (AeronClientDuplexConnection connection : connections.values()) {
-            connection.close();
-        }
-    }
 }
