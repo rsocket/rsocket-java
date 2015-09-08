@@ -202,7 +202,7 @@ public class RequesterTest
 
         // emit data
         conn.toInput.onNext(utf8EncodedFrame(2, FrameType.NEXT, "hello"));
-        conn.toInput.onNext(utf8EncodedFrame(2, FrameType.ERROR, "Failure"));
+        conn.toInput.onNext(utf8EncodedErrorFrame(2, "Failure"));
 
         ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
         ts.assertError(Exception.class);

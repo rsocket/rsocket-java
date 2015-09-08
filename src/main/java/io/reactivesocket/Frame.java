@@ -213,12 +213,38 @@ public class Frame implements Payload
         return from(streamId, type, NULL_BYTEBUFFER, NULL_BYTEBUFFER);
     }
 
-    public static Frame fromError(int streamId, final Throwable throwable)
-    {
-        final byte[] bytes = throwable.getMessage().getBytes();
-        final ByteBuffer byteBuffer = ByteBuffer.wrap(bytes);
-        
-        return from(streamId, FrameType.ERROR, byteBuffer);
+    public static Frame fromError(
+        int streamId,
+        final Throwable throwable,
+        ByteBuffer metadata,
+        ByteBuffer data
+    ) {
+        final int code = ErrorFrameFlyweight.errorCodeFromException(throwable);
+        final Frame frame = POOL.acquireFrame(
+            ErrorFrameFlyweight.computeFrameLength(data.capacity(), metadata.capacity()));
+
+        ErrorFrameFlyweight.encode(
+            frame.directBuffer, 0, streamId, code, metadata, data);
+        return frame;
+    }
+
+    public static Frame fromError(
+        int streamId,
+        final Throwable throwable,
+        ByteBuffer metadata
+    ) {
+        String data = (throwable.getMessage() == null ? "" : throwable.getMessage());
+        byte[] bytes = data.getBytes(Charset.forName("UTF-8"));
+        final ByteBuffer dataBuffer = ByteBuffer.wrap(bytes);
+
+        return fromError(streamId, throwable, metadata, dataBuffer);
+    }
+
+    public static Frame fromError(
+        int streamId,
+        final Throwable throwable
+    ) {
+        return fromError(streamId, throwable, NULL_BYTEBUFFER);
     }
 
     /* TODO:
@@ -249,22 +275,6 @@ public class Frame implements Payload
 
         SetupFrameFlyweight.encode(
             frame.directBuffer, 0, flags, keepaliveInterval, maxLifetime, metadataMimeType, dataMimeType, metadata, data);
-        return frame;
-    }
-
-    public static Frame fromSetupError(int code, String metadata, String data)
-    {
-        final Frame frame = POOL.acquireFrame(SetupErrorFrameFlyweight.computeFrameLength(data.length(), metadata.length()));
-
-        byte[] bytes;
-
-        bytes = metadata.getBytes(Charset.forName("UTF-8"));
-        final ByteBuffer metadataBuffer = ByteBuffer.wrap(bytes);
-
-        bytes = data.getBytes(Charset.forName("UTF-8"));
-        final ByteBuffer dataBuffer = ByteBuffer.wrap(bytes);
-
-        SetupErrorFrameFlyweight.encode(frame.directBuffer, 0, code, metadataBuffer, dataBuffer);
         return frame;
     }
 
@@ -339,12 +349,12 @@ public class Frame implements Payload
         }
     }
 
-    public static class SetupError
+    public static class Error
     {
         public static int errorCode(final Frame frame)
         {
-            ensureFrameType(FrameType.SETUP_ERROR, frame);
-            return SetupErrorFrameFlyweight.errorCode(frame.directBuffer, 0);
+            ensureFrameType(FrameType.ERROR, frame);
+            return ErrorFrameFlyweight.errorCode(frame.directBuffer, 0);
         }
     }
 

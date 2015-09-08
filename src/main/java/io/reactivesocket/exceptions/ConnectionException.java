@@ -15,6 +15,13 @@
  */
 package io.reactivesocket.exceptions;
 
-public interface NotSentException
-{
+public class ConnectionException extends Throwable implements Retryable {
+    public ConnectionException(String message) {
+        super(message);
+    }
+
+    @Override
+    public synchronized Throwable fillInStackTrace() {
+        return this;
+    }
 }
