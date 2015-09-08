@@ -20,13 +20,12 @@ import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.util.Collection;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
-import io.reactivesocket.exceptions.LeaseException;
-import io.reactivesocket.exceptions.NotSentException;
+import io.reactivesocket.exceptions.Exceptions;
+import io.reactivesocket.exceptions.Retryable;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
@@ -414,7 +413,7 @@ public class Requester {
 							@Override
 							public void error(Throwable e) {
 								child.onError(e);
-								if (!(e instanceof NotSentException)) {
+								if (!(e instanceof Retryable)) {
 									cancel();
 								}
 							}
@@ -629,19 +628,19 @@ public class Requester {
 
 					// now that we are connected, send SETUP frame (asynchronously, other messages can continue being written after this)
 					connection.addOutput(PublisherUtils.just(Frame.fromSetup(setupPayload.getFlags(), 0, 0, setupPayload.metadataMimeType(), setupPayload.dataMimeType(), setupPayload)),
-							new Completable() {
+						new Completable() {
 
-						@Override
-						public void success() {
-							// nothing to do
-						}
+							@Override
+							public void success() {
+								// nothing to do
+							}
 
-						@Override
-						public void error(Throwable e) {
-							tearDown(e);
-						}
+							@Override
+							public void error(Throwable e) {
+								tearDown(e);
+							}
 
-					});
+						});
 				} else {
 					// means we already were cancelled
 					s.cancel();
@@ -655,8 +654,9 @@ public class Requester {
 			public void onNext(Frame frame) {
 				long streamId = frame.getStreamId();
 				if (streamId == 0) {
-					if (FrameType.SETUP_ERROR.equals(frame.getType())) {
-						onError(new SetupException(frame));
+					if (FrameType.ERROR.equals(frame.getType())) {
+						final Throwable throwable = Exceptions.from(frame);
+						onError(throwable);
 					} else if (FrameType.LEASE.equals(frame.getType()) && honorLease) {
 						numberOfRemainingRequests = Frame.Lease.numberOfRequests(frame);
 						final long now = System.currentTimeMillis();
@@ -672,13 +672,13 @@ public class Requester {
 					}
 				} else {
 					UnicastSubject<Frame> streamSubject;
-					synchronized(Requester.this) {
+					synchronized (Requester.this) {
 						streamSubject = streamInputMap.get(streamId);
 					}
 					if (streamSubject == null) {
 						if (streamId <= streamCount) {
 							// receiving a frame after a given stream has been cancelled/completed, so ignore (cancellation is async so there is a race condition)
-							return; 
+							return;
 						} else {
 							// message for stream that has never existed, we have a problem with the overall connection and must tear down
 							if (frame.getType() == FrameType.ERROR) {
@@ -696,7 +696,7 @@ public class Requester {
 
 			public void onError(Throwable t) {
 				Collection<UnicastSubject<Frame>> subjects = null;
-				synchronized(Requester.this) {
+				synchronized (Requester.this) {
 					subjects = streamInputMap.values();
 				}
 				subjects.forEach(subject -> subject.onError(t));
@@ -707,7 +707,7 @@ public class Requester {
 
 			public void onComplete() {
 				Collection<UnicastSubject<Frame>> subjects = null;
-				synchronized(Requester.this) {
+				synchronized (Requester.this) {
 					subjects = streamInputMap.values();
 				}
 				subjects.forEach(subject -> subject.onComplete());

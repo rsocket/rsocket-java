@@ -41,6 +41,11 @@ public class TestUtil
         return Frame.from(streamId, type, byteBufferFromUtf8String(data));
     }
 
+    public static Frame utf8EncodedErrorFrame(final int streamId, final String data)
+    {
+        return Frame.fromError(streamId, new Exception(data));
+    }
+
     public static Payload utf8EncodedPayload(final String data, final String metadata)
     {
         return new PayloadImpl(data, metadata);

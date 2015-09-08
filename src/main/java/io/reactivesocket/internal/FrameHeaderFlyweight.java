@@ -286,8 +286,8 @@ public class FrameHeaderFlyweight
             case SETUP:
                 result = SetupFrameFlyweight.payloadOffset(directBuffer, offset);
                 break;
-            case SETUP_ERROR:
-                result = SetupErrorFrameFlyweight.payloadOffset(directBuffer, offset);
+            case ERROR:
+                result = ErrorFrameFlyweight.payloadOffset(directBuffer, offset);
                 break;
             case LEASE:
                 result = LeaseFrameFlyweight.payloadOffset(directBuffer, offset);

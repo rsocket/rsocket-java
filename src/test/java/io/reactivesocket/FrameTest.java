@@ -20,8 +20,12 @@ import static org.junit.Assert.*;
 import java.nio.ByteBuffer;
 import java.util.concurrent.TimeUnit;
 
+import io.reactivesocket.exceptions.RejectedException;
 import io.reactivesocket.internal.SetupFrameFlyweight;
 import org.junit.Test;
+
+import static io.reactivesocket.internal.ErrorFrameFlyweight.*;
+import static java.nio.charset.StandardCharsets.UTF_8;
 
 public class FrameTest
 {
@@ -336,46 +340,56 @@ public class FrameTest
     @Test
     public void shouldReturnCorrectDataPlusMetadataForSetupError()
     {
-        final int errorCode = 42;
-        final String metadata = "error metadata";
+        final int streamId = 24;
+        final Throwable exception = new RejectedException("test");
         final String data = "error data";
+        final String metadata = "error metadata";
+        final ByteBuffer dataByteBuffer = ByteBuffer.wrap(data.getBytes(UTF_8));
+        final ByteBuffer metadataByteBuffer = ByteBuffer.wrap(metadata.getBytes(UTF_8));
 
-        Frame f = Frame.fromSetupError(errorCode, metadata, data);
+        Frame f = Frame.fromError(streamId, exception, metadataByteBuffer, dataByteBuffer);
 
-        assertEquals(FrameType.SETUP_ERROR, f.getType());
-        assertEquals(errorCode, Frame.SetupError.errorCode(f));
+        assertEquals(FrameType.ERROR, f.getType());
+        assertEquals(REJECTED, Frame.Error.errorCode(f));
         assertEquals(data, TestUtil.byteToString(f.getData()));
         assertEquals(metadata, TestUtil.byteToString(f.getMetadata()));
     }
 
     @Test
-    public void shouldReturnCorrectDataWithoutMetadataForSetupError()
+    public void shouldReturnCorrectDataWithThrowableForError()
     {
         final int errorCode = 42;
-        final String metadata = "";
-        final String data = "error data";
+        final String metadata = "my metadata";
+        final String exMessage = "exception message";
 
-        Frame f = Frame.fromSetupError(errorCode, metadata, data);
+        Frame f = Frame.fromError(
+            errorCode,
+            new Exception(exMessage),
+            TestUtil.byteBufferFromUtf8String(metadata)
+        );
 
-        assertEquals(FrameType.SETUP_ERROR, f.getType());
-        assertEquals(errorCode, Frame.SetupError.errorCode(f));
-        assertEquals(data, TestUtil.byteToString(f.getData()));
-        assertEquals(Frame.NULL_BYTEBUFFER, f.getMetadata());
+        assertEquals(FrameType.ERROR, f.getType());
+        assertEquals(exMessage, TestUtil.byteToString(f.getData()));
+        assertEquals(TestUtil.byteBufferFromUtf8String(metadata), f.getMetadata());
     }
 
     @Test
-    public void shouldFormCorrectlyWithoutDataNorMetadataForSetupError()
+    public void shouldReturnCorrectDataWithoutMetadataForError()
     {
         final int errorCode = 42;
-        final String metadata = "";
-        final String data = "";
+        final String metadata = "metadata";
+        final String data = "error data";
 
-        Frame f = Frame.fromSetupError(errorCode, metadata, data);
+        Frame f = Frame.fromError(
+            errorCode,
+            new Exception("my exception"),
+            TestUtil.byteBufferFromUtf8String(metadata),
+            TestUtil.byteBufferFromUtf8String(data)
+        );
 
-        assertEquals(FrameType.SETUP_ERROR, f.getType());
-        assertEquals(errorCode, Frame.SetupError.errorCode(f));
-        assertEquals(Frame.NULL_BYTEBUFFER, f.getData());
-        assertEquals(Frame.NULL_BYTEBUFFER, f.getMetadata());
+        assertEquals(FrameType.ERROR, f.getType());
+        assertEquals(data, TestUtil.byteToString(f.getData()));
+        assertEquals(metadata, TestUtil.byteToString(f.getMetadata()));
     }
 
     @Test

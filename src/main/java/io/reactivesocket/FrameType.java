@@ -24,7 +24,6 @@ public enum FrameType
     UNDEFINED(0x00),
     // Connection
     SETUP(0x01, Flags.CAN_HAVE_METADATA_AND_DATA),
-    SETUP_ERROR(0x02, Flags.CAN_HAVE_METADATA_AND_DATA),
     LEASE(0x03, Flags.CAN_HAVE_METADATA),
     KEEPALIVE(0x04, Flags.CAN_HAVE_DATA),
     // Requester to start request

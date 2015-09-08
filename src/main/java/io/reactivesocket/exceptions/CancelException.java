@@ -15,9 +15,11 @@
  */
 package io.reactivesocket.exceptions;
 
-// TODO: optimize capture of callstack
-public class LeaseException extends Throwable implements NotSentException
-{
+public class CancelException extends Throwable {
+    public CancelException(String message) {
+        super(message);
+    }
+
     @Override
     public synchronized Throwable fillInStackTrace() {
         return this;

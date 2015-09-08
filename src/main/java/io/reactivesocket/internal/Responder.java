@@ -21,12 +21,13 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
 import io.reactivesocket.*;
+import io.reactivesocket.exceptions.InvalidSetupException;
+import io.reactivesocket.exceptions.RejectedException;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
 import io.reactivesocket.exceptions.SetupException;
-import io.reactivesocket.exceptions.SetupException.SetupErrorCode;
 import uk.co.real_logic.agrona.collections.Long2ObjectHashMap;
 
 /**
@@ -118,13 +119,14 @@ public class Responder {
 						return;
 					}
 					if (requestFrame.getType().equals(FrameType.SETUP)) {
-						final ConnectionSetupPayload connectionSetupPayload = ConnectionSetupPayload.create(requestFrame);
+						final ConnectionSetupPayload connectionSetupPayload =
+							ConnectionSetupPayload.create(requestFrame);
 						try {
 							requestHandler = connectionHandler.apply(connectionSetupPayload);
 						} catch (SetupException setupException) {
 							setupErrorAndTearDown(connection, setupException);
 						} catch (Throwable e) {
-							setupErrorAndTearDown(connection, new SetupException(SetupErrorCode.REJECTED, e));
+							setupErrorAndTearDown(connection, new InvalidSetupException(e.getMessage()));
 						}
 
 						// the L bit set must wait until the application logic explicitly sends
@@ -137,7 +139,7 @@ public class Responder {
 
 						// TODO: handle keepalive logic here
 					} else {
-						setupErrorAndTearDown(connection, new SetupException(SetupErrorCode.INVALID_SETUP, "Setup frame missing"));
+						setupErrorAndTearDown(connection, new InvalidSetupException("Setup frame missing"));
 					}
 				} else {
 					Publisher<Frame> responsePublisher = null;
@@ -184,15 +186,14 @@ public class Responder {
 							responsePublisher = PublisherUtils.errorFrame(streamId, new RuntimeException("Unhandled error processing request"));
 						}
 					} else {
-//						responsePublisher = PublisherUtils.errorFrame(streamId, new LeaseException());
-						responsePublisher = PublisherUtils.errorFrame(streamId, new RuntimeException("Lease Exception"));
+						final RejectedException exception = new RejectedException("No associated lease");
+						responsePublisher = PublisherUtils.errorFrame(streamId, exception);
 					}
 					connection.addOutput(responsePublisher, new Completable() {
 
 						@Override
 						public void success() {
 							// TODO Auto-generated method stub
-
 						}
 
 						@Override
@@ -210,20 +211,18 @@ public class Responder {
 
 			private void setupErrorAndTearDown(DuplexConnection connection, SetupException setupException) {
 				// pass the ErrorFrame output, subscribe to write it, await onComplete and then tear down
-				connection.addOutput(PublisherUtils.just(Frame.fromSetupError(setupException.getErrorCode().getCode(), "", setupException.getMessage())),
-						new Completable() {
-
-					@Override
-					public void success() {
-						tearDownWithError(setupException);
-					}
-
-					@Override
-					public void error(Throwable e) {
-						tearDownWithError(new RuntimeException("Failure outputting SetupException", e));
-					}
-
-				});
+				final Frame frame = Frame.fromError(0, setupException);
+				connection.addOutput(PublisherUtils.just(frame),
+					new Completable() {
+						@Override
+						public void success() {
+							tearDownWithError(setupException);
+						}
+						@Override
+						public void error(Throwable e) {
+							tearDownWithError(new RuntimeException("Failure outputting SetupException", e));
+						}
+					});
 			}
 
 			private void tearDownWithError(Throwable se) {
