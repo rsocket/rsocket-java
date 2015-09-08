@@ -142,40 +142,42 @@ public class Responder {
 				} else {
 					Publisher<Frame> responsePublisher = null;
 					if (leaseGovernor.accept(Responder.this, requestFrame)) {
-						try {
-							if (requestFrame.getType() == FrameType.REQUEST_RESPONSE) {
-								responsePublisher = handleRequestResponse(requestFrame, requestHandler, cancellationSubscriptions);
-							} else if (requestFrame.getType() == FrameType.REQUEST_STREAM) {
-								responsePublisher = handleRequestStream(requestFrame, requestHandler, cancellationSubscriptions, inFlight);
-							} else if (requestFrame.getType() == FrameType.FIRE_AND_FORGET) {
-								responsePublisher = handleFireAndForget(requestFrame, requestHandler);
-							} else if (requestFrame.getType() == FrameType.REQUEST_SUBSCRIPTION) {
-								responsePublisher = handleRequestSubscription(requestFrame, requestHandler, cancellationSubscriptions, inFlight);
-							} else if (requestFrame.getType() == FrameType.REQUEST_CHANNEL) {
-								responsePublisher = handleRequestChannel(requestFrame, requestHandler, channels, cancellationSubscriptions, inFlight);
-							} else if (requestFrame.getType() == FrameType.CANCEL) {
-								Subscription s = null;
-								synchronized (Responder.this) {
-									s = cancellationSubscriptions.get(requestFrame.getStreamId());
-								}
-								if (s != null) {
-									s.cancel();
-								}
-								return;
-							} else if (requestFrame.getType() == FrameType.REQUEST_N) {
-								Subscription inFlightSubscription = null;
-								synchronized (Responder.this) {
-									inFlightSubscription = inFlight.get(requestFrame.getStreamId());
-								}
-								if (inFlightSubscription != null) {
-									inFlightSubscription.request(Frame.RequestN.requestN(requestFrame));
-									return;
-								}
-								// TODO should we do anything if we don't find the stream? emitting an error is risky as the responder could have terminated and cleaned up already
-							} else {
-								responsePublisher = PublisherUtils.errorFrame(streamId, new IllegalStateException("Unexpected prefix: " + requestFrame.getType()));
+					try {
+						if (requestFrame.getType() == FrameType.REQUEST_RESPONSE) {
+							responsePublisher = handleRequestResponse(requestFrame, requestHandler, cancellationSubscriptions);
+						} else if (requestFrame.getType() == FrameType.REQUEST_STREAM) {
+							responsePublisher = handleRequestStream(requestFrame, requestHandler, cancellationSubscriptions, inFlight);
+						} else if (requestFrame.getType() == FrameType.FIRE_AND_FORGET) {
+							responsePublisher = handleFireAndForget(requestFrame, requestHandler);
+						} else if (requestFrame.getType() == FrameType.REQUEST_SUBSCRIPTION) {
+							responsePublisher = handleRequestSubscription(requestFrame, requestHandler, cancellationSubscriptions, inFlight);
+						} else if (requestFrame.getType() == FrameType.REQUEST_CHANNEL) {
+							responsePublisher = handleRequestChannel(requestFrame, requestHandler, channels, cancellationSubscriptions, inFlight);
+						} else if (requestFrame.getType() == FrameType.METADATA_PUSH) {
+							responsePublisher = handleMetadataPush(requestFrame, requestHandler);
+						} else if (requestFrame.getType() == FrameType.CANCEL) {
+							Subscription s = null;
+							synchronized (Responder.this) {
+								s = cancellationSubscriptions.get(requestFrame.getStreamId());
 							}
-						} catch (Throwable e) {
+							if (s != null) {
+								s.cancel();
+							}
+							return;
+						} else if (requestFrame.getType() == FrameType.REQUEST_N) {
+							Subscription inFlightSubscription = null;
+							synchronized (Responder.this) {
+								inFlightSubscription = inFlight.get(requestFrame.getStreamId());
+							}
+							if (inFlightSubscription != null) {
+								inFlightSubscription.request(Frame.RequestN.requestN(requestFrame));
+								return;
+							}
+							// TODO should we do anything if we don't find the stream? emitting an error is risky as the responder could have terminated and cleaned up already
+						} else {
+							responsePublisher = PublisherUtils.errorFrame(streamId, new IllegalStateException("Unexpected prefix: " + requestFrame.getType()));
+						}
+					} catch (Throwable e) {
 							// synchronous try/catch since we execute user functions in the handlers and they could throw
 							errorStream.accept(new RuntimeException("Error in request handling.", e));
 							// error message to user
@@ -341,9 +343,10 @@ public class Responder {
 		};
 	}
 
-	private static BiFunction<RequestHandler, Payload, Publisher<Payload>> requestSubscriptionHandler = (RequestHandler handler, Payload requestPayload) -> handler
-			.handleSubscription(requestPayload);
-	private static BiFunction<RequestHandler, Payload, Publisher<Payload>> requestStreamHandler = (RequestHandler handler, Payload requestPayload) -> handler.handleRequestStream(requestPayload);
+	private static BiFunction<RequestHandler, Payload, Publisher<Payload>> requestSubscriptionHandler =
+		(RequestHandler handler, Payload requestPayload) -> handler.handleSubscription(requestPayload);
+	private static BiFunction<RequestHandler, Payload, Publisher<Payload>> requestStreamHandler =
+		(RequestHandler handler, Payload requestPayload) -> handler.handleRequestStream(requestPayload);
 
 	private Publisher<Frame> handleRequestStream(
 			Frame requestFrame,
@@ -466,7 +469,7 @@ public class Responder {
 
 	private Publisher<Frame> handleFireAndForget(Frame requestFrame, final RequestHandler requestHandler) {
 		try {
-			requestHandler.handleFireAndForget(requestFrame).subscribe(fireAndForgetSubscriber);
+			requestHandler.handleFireAndForget(requestFrame).subscribe(completionSubscriber);
 		} catch (Throwable e) {
 			// we catch these errors here as we don't want anything propagating back to the user on fireAndForget
 			errorStream.accept(new RuntimeException("Error processing 'fireAndForget'", e));
@@ -474,10 +477,20 @@ public class Responder {
 		return PublisherUtils.empty(); // we always treat this as if it immediately completes as we don't want errors passing back to the user
 	}
 
+	private Publisher<Frame> handleMetadataPush(Frame requestFrame, final RequestHandler requestHandler) {
+		try {
+			requestHandler.handleMetadataPush(requestFrame).subscribe(completionSubscriber);
+		} catch (Throwable e) {
+			// we catch these errors here as we don't want anything propagating back to the user on metadataPush
+			errorStream.accept(new RuntimeException("Error processing 'metadataPush'", e));
+		}
+		return PublisherUtils.empty(); // we always treat this as if it immediately completes as we don't want errors passing back to the user
+	}
+
 	/**
-	 * Reusable for each fireAndForget since no state is shared across invocations. It just passes through errors.
+	 * Reusable for each fireAndForget and metadataPush since no state is shared across invocations. It just passes through errors.
 	 */
-	private final Subscriber<Void> fireAndForgetSubscriber = new Subscriber<Void>(){
+	private final Subscriber<Void> completionSubscriber = new Subscriber<Void>(){
 
 	@Override public void onSubscribe(Subscription s){s.request(Long.MAX_VALUE);}
 

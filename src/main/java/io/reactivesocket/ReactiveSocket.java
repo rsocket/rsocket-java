@@ -30,30 +30,8 @@ import io.reactivesocket.internal.Responder;
  * Created by servers for connections Created on demand for clients
  */
 public class ReactiveSocket implements AutoCloseable {
-	private static final Publisher<Payload> NOT_FOUND_ERROR_PAYLOAD = error(new Exception("Not Found!"));
-	private static final Publisher<Void> NOT_FOUND_ERROR_VOID = error(new Exception("Not Found!"));
-	private static final RequestHandler EMPTY_HANDLER = new RequestHandler() {
-		public Publisher<Payload> handleRequestResponse(Payload payload) {
-			return NOT_FOUND_ERROR_PAYLOAD;
-		}
+	private static final RequestHandler EMPTY_HANDLER = new RequestHandler.Builder().build();
 
-		public Publisher<Payload> handleRequestStream(Payload payload) {
-			return NOT_FOUND_ERROR_PAYLOAD;
-		}
-
-		public Publisher<Payload> handleSubscription(Payload payload) {
-			return NOT_FOUND_ERROR_PAYLOAD;
-		}
-
-		public Publisher<Void> handleFireAndForget(Payload payload) {
-			return NOT_FOUND_ERROR_VOID;
-		}
-
-		public Publisher<Payload> handleChannel(Payload initialPayload, Publisher<Payload> payloads) {
-			return NOT_FOUND_ERROR_PAYLOAD;
-		}
-	};
-	
 	private static final Consumer<Throwable> DEFAULT_ERROR_STREAM = t -> {
 		// TODO should we use SLF4j, use System.err, or swallow by default?
 		System.err.println("ReactiveSocket ERROR => " + t.getMessage()
@@ -178,6 +156,11 @@ public class ReactiveSocket implements AutoCloseable {
 	public Publisher<Payload> requestChannel(final Publisher<Payload> payloads) {
 		assertRequester();
 		return requester.requestChannel(payloads);
+	}
+
+	public Publisher<Void> metadataPush(final Payload payload) {
+		assertRequester();
+		return requester.metadataPush(payload);
 	}
 
 	private void assertRequester() {
