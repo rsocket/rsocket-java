@@ -15,6 +15,8 @@
  */
 package io.reactivesocket;
 
+import uk.co.real_logic.agrona.MutableDirectBuffer;
+
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 
@@ -62,6 +64,11 @@ public class TestUtil
     {
         final byte[] bytes = data.getBytes(Charset.forName("UTF-8"));
         return ByteBuffer.wrap(bytes);
+    }
+
+    public static void copyFrame(final MutableDirectBuffer dst, final int offset, final Frame frame)
+    {
+        dst.putBytes(offset, frame.getByteBuffer(), frame.offset(), frame.length());
     }
 
     private static class PayloadImpl implements Payload // some JDK shoutout

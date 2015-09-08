@@ -23,10 +23,16 @@ import java.util.concurrent.TimeUnit;
 import io.reactivesocket.exceptions.RejectedException;
 import io.reactivesocket.internal.SetupFrameFlyweight;
 import org.junit.Test;
+import org.junit.experimental.theories.DataPoint;
+import org.junit.experimental.theories.Theories;
+import org.junit.experimental.theories.Theory;
+import org.junit.runner.RunWith;
+import uk.co.real_logic.agrona.concurrent.UnsafeBuffer;
 
 import static io.reactivesocket.internal.ErrorFrameFlyweight.*;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
+@RunWith(Theories.class)
 public class FrameTest
 {
     private static Payload createPayload(final ByteBuffer metadata, final ByteBuffer data)
@@ -45,11 +51,21 @@ public class FrameTest
         };
     }
 
+    @DataPoint
+    public static final int ZERO_OFFSET = 0;
+
+    @DataPoint
+    public static final int NON_ZERO_OFFSET = 127;
+
+    private static final UnsafeBuffer reusableMutableDirectBuffer = new UnsafeBuffer(ByteBuffer.allocate(1024));
+    private static final Frame reusableFrame = Frame.allocate(reusableMutableDirectBuffer);
+
     @Test
     public void testWriteThenRead() {
     	final ByteBuffer helloBuffer = TestUtil.byteBufferFromUtf8String("hello");
-        
+
         Frame f = Frame.from(1, FrameType.REQUEST_RESPONSE, helloBuffer);
+
         assertEquals("hello", TestUtil.byteToString(f.getData()));
         assertEquals(FrameType.REQUEST_RESPONSE, f.getType());
         assertEquals(1, f.getStreamId());
@@ -84,7 +100,7 @@ public class FrameTest
         Frame f2 = Frame.from(20, FrameType.COMPLETE, anotherBuffer);
 
         ByteBuffer b = f2.getByteBuffer();
-        f.wrap(b);
+        f.wrap(b, 0);
 
         assertEquals("another", TestUtil.byteToString(f.getData()));
         assertEquals(FrameType.NEXT_COMPLETE, f.getType());
@@ -92,156 +108,198 @@ public class FrameTest
     }
 
     @Test
-    public void shouldReturnCorrectDataPlusMetadataForRequestResponse()
+    @Theory
+    public void shouldReturnCorrectDataPlusMetadataForRequestResponse(final int offset)
     {
         final ByteBuffer requestData = TestUtil.byteBufferFromUtf8String("request data");
         final ByteBuffer requestMetadata = TestUtil.byteBufferFromUtf8String("request metadata");
         final Payload payload = createPayload(requestMetadata, requestData);
 
-        Frame f = Frame.fromRequest(1, FrameType.REQUEST_RESPONSE, payload, 1);
-        assertEquals("request data", TestUtil.byteToString(f.getData()));
-        assertEquals("request metadata", TestUtil.byteToString(f.getMetadata()));
-        assertEquals(FrameType.REQUEST_RESPONSE, f.getType());
-        assertEquals(1, f.getStreamId());
+        Frame encodedFrame = Frame.fromRequest(1, FrameType.REQUEST_RESPONSE, payload, 1);
+        TestUtil.copyFrame(reusableMutableDirectBuffer, offset, encodedFrame);
+        reusableFrame.wrap(reusableMutableDirectBuffer, offset);
+
+        assertEquals(FrameType.REQUEST_RESPONSE, reusableFrame.getType());
+        assertEquals(1, reusableFrame.getStreamId());
+        assertEquals("request data", TestUtil.byteToString(reusableFrame.getData()));
+        assertEquals("request metadata", TestUtil.byteToString(reusableFrame.getMetadata()));
     }
 
     @Test
-    public void shouldReturnCorrectDataPlusMetadataForFireAndForget()
+    @Theory
+    public void shouldReturnCorrectDataPlusMetadataForFireAndForget(final int offset)
     {
         final ByteBuffer requestData = TestUtil.byteBufferFromUtf8String("request data");
         final ByteBuffer requestMetadata = TestUtil.byteBufferFromUtf8String("request metadata");
         final Payload payload = createPayload(requestMetadata, requestData);
 
-        Frame f = Frame.fromRequest(1, FrameType.FIRE_AND_FORGET, payload, 0);
-        assertEquals("request data", TestUtil.byteToString(f.getData()));
-        assertEquals("request metadata", TestUtil.byteToString(f.getMetadata()));
-        assertEquals(FrameType.FIRE_AND_FORGET, f.getType());
-        assertEquals(1, f.getStreamId());
+        Frame encodedFrame = Frame.fromRequest(1, FrameType.FIRE_AND_FORGET, payload, 0);
+        TestUtil.copyFrame(reusableMutableDirectBuffer, offset, encodedFrame);
+        reusableFrame.wrap(reusableMutableDirectBuffer, offset);
+
+        assertEquals("request data", TestUtil.byteToString(reusableFrame.getData()));
+        assertEquals("request metadata", TestUtil.byteToString(reusableFrame.getMetadata()));
+        assertEquals(FrameType.FIRE_AND_FORGET, reusableFrame.getType());
+        assertEquals(1, reusableFrame.getStreamId());
     }
 
     @Test
-    public void shouldReturnCorrectDataPlusMetadataForRequestStream()
+    @Theory
+    public void shouldReturnCorrectDataPlusMetadataForRequestStream(final int offset)
     {
         final ByteBuffer requestData = TestUtil.byteBufferFromUtf8String("request data");
         final ByteBuffer requestMetadata = TestUtil.byteBufferFromUtf8String("request metadata");
         final Payload payload = createPayload(requestMetadata, requestData);
 
-        Frame f = Frame.fromRequest(1, FrameType.REQUEST_STREAM, payload, 128);
-        assertEquals("request data", TestUtil.byteToString(f.getData()));
-        assertEquals("request metadata", TestUtil.byteToString(f.getMetadata()));
-        assertEquals(FrameType.REQUEST_STREAM, f.getType());
-        assertEquals(1, f.getStreamId());
-        assertEquals(128, Frame.Request.initialRequestN(f));
+        Frame encodedFrame = Frame.fromRequest(1, FrameType.REQUEST_STREAM, payload, 128);
+        TestUtil.copyFrame(reusableMutableDirectBuffer, offset, encodedFrame);
+        reusableFrame.wrap(reusableMutableDirectBuffer, offset);
+
+        assertEquals("request data", TestUtil.byteToString(reusableFrame.getData()));
+        assertEquals("request metadata", TestUtil.byteToString(reusableFrame.getMetadata()));
+        assertEquals(FrameType.REQUEST_STREAM, reusableFrame.getType());
+        assertEquals(1, reusableFrame.getStreamId());
+        assertEquals(128, Frame.Request.initialRequestN(reusableFrame));
     }
 
     @Test
-    public void shouldReturnCorrectDataPlusMetadataForRequestSubscription()
+    @Theory
+    public void shouldReturnCorrectDataPlusMetadataForRequestSubscription(final int offset)
     {
         final ByteBuffer requestData = TestUtil.byteBufferFromUtf8String("request data");
         final ByteBuffer requestMetadata = TestUtil.byteBufferFromUtf8String("request metadata");
         final Payload payload = createPayload(requestMetadata, requestData);
 
-        Frame f = Frame.fromRequest(1, FrameType.REQUEST_SUBSCRIPTION, payload, 128);
-        assertEquals("request data", TestUtil.byteToString(f.getData()));
-        assertEquals("request metadata", TestUtil.byteToString(f.getMetadata()));
-        assertEquals(FrameType.REQUEST_SUBSCRIPTION, f.getType());
-        assertEquals(1, f.getStreamId());
-        assertEquals(128, Frame.Request.initialRequestN(f));
+        Frame encodedFrame = Frame.fromRequest(1, FrameType.REQUEST_SUBSCRIPTION, payload, 128);
+        TestUtil.copyFrame(reusableMutableDirectBuffer, offset, encodedFrame);
+        reusableFrame.wrap(reusableMutableDirectBuffer, offset);
+
+        assertEquals("request data", TestUtil.byteToString(reusableFrame.getData()));
+        assertEquals("request metadata", TestUtil.byteToString(reusableFrame.getMetadata()));
+        assertEquals(FrameType.REQUEST_SUBSCRIPTION, reusableFrame.getType());
+        assertEquals(1, reusableFrame.getStreamId());
+        assertEquals(128, Frame.Request.initialRequestN(reusableFrame));
     }
 
     @Test
-    public void shouldReturnCorrectDataPlusMetadataForResponse()
+    @Theory
+    public void shouldReturnCorrectDataPlusMetadataForResponse(final int offset)
     {
         final ByteBuffer requestData = TestUtil.byteBufferFromUtf8String("response data");
         final ByteBuffer requestMetadata = TestUtil.byteBufferFromUtf8String("response metadata");
 
-        Frame f = Frame.from(1, FrameType.RESPONSE, requestData, requestMetadata);
-        assertEquals("response data", TestUtil.byteToString(f.getData()));
-        assertEquals("response metadata", TestUtil.byteToString(f.getMetadata()));
-        assertEquals(FrameType.NEXT, f.getType());
-        assertEquals(1, f.getStreamId());
+        Frame encodedFrame = Frame.from(1, FrameType.RESPONSE, requestData, requestMetadata);
+        TestUtil.copyFrame(reusableMutableDirectBuffer, offset, encodedFrame);
+        reusableFrame.wrap(reusableMutableDirectBuffer, offset);
+
+        assertEquals("response data", TestUtil.byteToString(reusableFrame.getData()));
+        assertEquals("response metadata", TestUtil.byteToString(reusableFrame.getMetadata()));
+        assertEquals(FrameType.NEXT, reusableFrame.getType());
+        assertEquals(1, reusableFrame.getStreamId());
     }
 
     @Test
-    public void shouldReturnCorrectDataWithoutMetadataForRequestResponse()
+    @Theory
+    public void shouldReturnCorrectDataWithoutMetadataForRequestResponse(final int offset)
     {
         final ByteBuffer requestData = TestUtil.byteBufferFromUtf8String("request data");
         final Payload payload = createPayload(Frame.NULL_BYTEBUFFER, requestData);
 
-        Frame f = Frame.fromRequest(1, FrameType.REQUEST_RESPONSE, payload, 1);
-        assertEquals("request data", TestUtil.byteToString(f.getData()));
+        Frame encodedFrame = Frame.fromRequest(1, FrameType.REQUEST_RESPONSE, payload, 1);
+        TestUtil.copyFrame(reusableMutableDirectBuffer, offset, encodedFrame);
+        reusableFrame.wrap(reusableMutableDirectBuffer, offset);
 
-        final ByteBuffer metadataBuffer = f.getMetadata();
+        assertEquals("request data", TestUtil.byteToString(reusableFrame.getData()));
+
+        final ByteBuffer metadataBuffer = reusableFrame.getMetadata();
         assertEquals(0, metadataBuffer.capacity());
-        assertEquals(FrameType.REQUEST_RESPONSE, f.getType());
-        assertEquals(1, f.getStreamId());
+        assertEquals(FrameType.REQUEST_RESPONSE, reusableFrame.getType());
+        assertEquals(1, reusableFrame.getStreamId());
     }
 
     @Test
-    public void shouldReturnCorrectDataWithoutMetadataForFireAndForget()
+    @Theory
+    public void shouldReturnCorrectDataWithoutMetadataForFireAndForget(final int offset)
     {
         final ByteBuffer requestData = TestUtil.byteBufferFromUtf8String("request data");
         final Payload payload = createPayload(Frame.NULL_BYTEBUFFER, requestData);
 
-        Frame f = Frame.fromRequest(1, FrameType.FIRE_AND_FORGET, payload, 0);
-        assertEquals("request data", TestUtil.byteToString(f.getData()));
+        Frame encodedFrame = Frame.fromRequest(1, FrameType.FIRE_AND_FORGET, payload, 0);
+        TestUtil.copyFrame(reusableMutableDirectBuffer, offset, encodedFrame);
+        reusableFrame.wrap(reusableMutableDirectBuffer, offset);
 
-        final ByteBuffer metadataBuffer = f.getMetadata();
+        assertEquals("request data", TestUtil.byteToString(reusableFrame.getData()));
+
+        final ByteBuffer metadataBuffer = reusableFrame.getMetadata();
         assertEquals(0, metadataBuffer.capacity());
-        assertEquals(FrameType.FIRE_AND_FORGET, f.getType());
-        assertEquals(1, f.getStreamId());
+        assertEquals(FrameType.FIRE_AND_FORGET, reusableFrame.getType());
+        assertEquals(1, reusableFrame.getStreamId());
     }
 
     @Test
-    public void shouldReturnCorrectDataWithoutMetadataForRequestStream()
+    @Theory
+    public void shouldReturnCorrectDataWithoutMetadataForRequestStream(final int offset)
     {
         final ByteBuffer requestData = TestUtil.byteBufferFromUtf8String("request data");
         final Payload payload = createPayload(Frame.NULL_BYTEBUFFER, requestData);
 
-        Frame f = Frame.fromRequest(1, FrameType.REQUEST_STREAM, payload, 128);
-        assertEquals("request data", TestUtil.byteToString(f.getData()));
+        Frame encodedFrame = Frame.fromRequest(1, FrameType.REQUEST_STREAM, payload, 128);
+        TestUtil.copyFrame(reusableMutableDirectBuffer, offset, encodedFrame);
+        reusableFrame.wrap(reusableMutableDirectBuffer, offset);
 
-        final ByteBuffer metadataBuffer = f.getMetadata();
+        assertEquals("request data", TestUtil.byteToString(reusableFrame.getData()));
+
+        final ByteBuffer metadataBuffer = reusableFrame.getMetadata();
         assertEquals(0, metadataBuffer.capacity());
-        assertEquals(FrameType.REQUEST_STREAM, f.getType());
-        assertEquals(1, f.getStreamId());
-        assertEquals(128, Frame.Request.initialRequestN(f));
+        assertEquals(FrameType.REQUEST_STREAM, reusableFrame.getType());
+        assertEquals(1, reusableFrame.getStreamId());
+        assertEquals(128, Frame.Request.initialRequestN(reusableFrame));
     }
 
     @Test
-    public void shouldReturnCorrectDataWithoutMetadataForRequestSubscription()
+    @Theory
+    public void shouldReturnCorrectDataWithoutMetadataForRequestSubscription(final int offset)
     {
         final ByteBuffer requestData = TestUtil.byteBufferFromUtf8String("request data");
         final Payload payload = createPayload(Frame.NULL_BYTEBUFFER, requestData);
 
-        Frame f = Frame.fromRequest(1, FrameType.REQUEST_SUBSCRIPTION, payload, 128);
-        assertEquals("request data", TestUtil.byteToString(f.getData()));
+        Frame encodedFrame = Frame.fromRequest(1, FrameType.REQUEST_SUBSCRIPTION, payload, 128);
+        TestUtil.copyFrame(reusableMutableDirectBuffer, offset, encodedFrame);
+        reusableFrame.wrap(reusableMutableDirectBuffer, offset);
 
-        final ByteBuffer metadataBuffer = f.getMetadata();
+        assertEquals("request data", TestUtil.byteToString(reusableFrame.getData()));
+
+        final ByteBuffer metadataBuffer = reusableFrame.getMetadata();
         assertEquals(0, metadataBuffer.capacity());
-        assertEquals(FrameType.REQUEST_SUBSCRIPTION, f.getType());
-        assertEquals(1, f.getStreamId());
-        assertEquals(128, Frame.Request.initialRequestN(f));
+        assertEquals(FrameType.REQUEST_SUBSCRIPTION, reusableFrame.getType());
+        assertEquals(1, reusableFrame.getStreamId());
+        assertEquals(128, Frame.Request.initialRequestN(reusableFrame));
     }
 
     @Test
-    public void shouldReturnCorrectDataWithoutMetadataForResponse()
+    @Theory
+    public void shouldReturnCorrectDataWithoutMetadataForResponse(final int offset)
     {
         final ByteBuffer requestData = TestUtil.byteBufferFromUtf8String("response data");
 
-        Frame f = Frame.from(1, FrameType.RESPONSE, requestData);
-        assertEquals("response data", TestUtil.byteToString(f.getData()));
+        Frame encodedFrame = Frame.from(1, FrameType.RESPONSE, requestData);
+        TestUtil.copyFrame(reusableMutableDirectBuffer, offset, encodedFrame);
+        reusableFrame.wrap(reusableMutableDirectBuffer, offset);
 
-        final ByteBuffer metadataBuffer = f.getMetadata();
+        assertEquals("response data", TestUtil.byteToString(reusableFrame.getData()));
+
+        final ByteBuffer metadataBuffer = reusableFrame.getMetadata();
         assertEquals(0, metadataBuffer.capacity());
-        assertEquals(FrameType.NEXT, f.getType());
-        assertEquals(1, f.getStreamId());
+        assertEquals(FrameType.NEXT, reusableFrame.getType());
+        assertEquals(1, reusableFrame.getStreamId());
     }
 
     @Test
-    public void shouldReturnCorrectDataPlusMetadataForSetup()
+    @Theory
+    public void shouldReturnCorrectDataPlusMetadataForSetup(final int offset)
     {
         final int flags = SetupFrameFlyweight.FLAGS_WILL_HONOR_LEASE | SetupFrameFlyweight.FLAGS_STRICT_INTERPRETATION;
+        final int version = SetupFrameFlyweight.CURRENT_VERSION;
         final int keepaliveInterval = 1001;
         final int maxLifetime = keepaliveInterval * 5;
         final String metadataMimeType = "application/json";
@@ -249,7 +307,7 @@ public class FrameTest
         final ByteBuffer setupData = TestUtil.byteBufferFromUtf8String("setup data");
         final ByteBuffer setupMetadata = TestUtil.byteBufferFromUtf8String("setup metadata");
 
-        Frame f = Frame.fromSetup(flags, keepaliveInterval, maxLifetime, metadataMimeType, dataMimeType, new Payload()
+        Frame encodedFrame = Frame.fromSetup(flags, keepaliveInterval, maxLifetime, metadataMimeType, dataMimeType, new Payload()
         {
             public ByteBuffer getData()
             {
@@ -261,28 +319,33 @@ public class FrameTest
                 return setupMetadata;
             }
         });
+        TestUtil.copyFrame(reusableMutableDirectBuffer, offset, encodedFrame);
+        reusableFrame.wrap(reusableMutableDirectBuffer, offset);
 
-        assertEquals(FrameType.SETUP, f.getType());
-        assertEquals(flags, Frame.Setup.getFlags(f));
-        assertEquals(keepaliveInterval, Frame.Setup.keepaliveInterval(f));
-        assertEquals(maxLifetime, Frame.Setup.maxLifetime(f));
-        assertEquals(metadataMimeType, Frame.Setup.metadataMimeType(f));
-        assertEquals(dataMimeType, Frame.Setup.dataMimeType(f));
-        assertEquals("setup data", TestUtil.byteToString(f.getData()));
-        assertEquals("setup metadata", TestUtil.byteToString(f.getMetadata()));
+        assertEquals(FrameType.SETUP, reusableFrame.getType());
+        assertEquals(flags, Frame.Setup.getFlags(reusableFrame));
+        assertEquals(version, Frame.Setup.version(reusableFrame));
+        assertEquals(keepaliveInterval, Frame.Setup.keepaliveInterval(reusableFrame));
+        assertEquals(maxLifetime, Frame.Setup.maxLifetime(reusableFrame));
+        assertEquals(metadataMimeType, Frame.Setup.metadataMimeType(reusableFrame));
+        assertEquals(dataMimeType, Frame.Setup.dataMimeType(reusableFrame));
+        assertEquals("setup data", TestUtil.byteToString(reusableFrame.getData()));
+        assertEquals("setup metadata", TestUtil.byteToString(reusableFrame.getMetadata()));
     }
 
     @Test
-    public void shouldReturnCorrectDataWithoutMetadataForSetup()
+    @Theory
+    public void shouldReturnCorrectDataWithoutMetadataForSetup(final int offset)
     {
         final int flags = SetupFrameFlyweight.FLAGS_WILL_HONOR_LEASE | SetupFrameFlyweight.FLAGS_STRICT_INTERPRETATION;
+        final int version = SetupFrameFlyweight.CURRENT_VERSION;
         final int keepaliveInterval = 1001;
         final int maxLifetime = keepaliveInterval * 5;
         final String metadataMimeType = "application/json";
         final String dataMimeType = "application/cbor";
         final ByteBuffer setupData = TestUtil.byteBufferFromUtf8String("setup data");
 
-        Frame f = Frame.fromSetup(flags, keepaliveInterval, maxLifetime, metadataMimeType, dataMimeType, new Payload()
+        Frame encodedFrame = Frame.fromSetup(flags, keepaliveInterval, maxLifetime, metadataMimeType, dataMimeType, new Payload()
         {
             public ByteBuffer getData()
             {
@@ -294,27 +357,32 @@ public class FrameTest
                 return Frame.NULL_BYTEBUFFER;
             }
         });
+        TestUtil.copyFrame(reusableMutableDirectBuffer, offset, encodedFrame);
+        reusableFrame.wrap(reusableMutableDirectBuffer, offset);
 
-        assertEquals(FrameType.SETUP, f.getType());
-        assertEquals(flags, Frame.Setup.getFlags(f));
-        assertEquals(keepaliveInterval, Frame.Setup.keepaliveInterval(f));
-        assertEquals(maxLifetime, Frame.Setup.maxLifetime(f));
-        assertEquals(metadataMimeType, Frame.Setup.metadataMimeType(f));
-        assertEquals(dataMimeType, Frame.Setup.dataMimeType(f));
-        assertEquals("setup data", TestUtil.byteToString(f.getData()));
-        assertEquals(Frame.NULL_BYTEBUFFER, f.getMetadata());
+        assertEquals(FrameType.SETUP, reusableFrame.getType());
+        assertEquals(flags, Frame.Setup.getFlags(reusableFrame));
+        assertEquals(version, Frame.Setup.version(reusableFrame));
+        assertEquals(keepaliveInterval, Frame.Setup.keepaliveInterval(reusableFrame));
+        assertEquals(maxLifetime, Frame.Setup.maxLifetime(reusableFrame));
+        assertEquals(metadataMimeType, Frame.Setup.metadataMimeType(reusableFrame));
+        assertEquals(dataMimeType, Frame.Setup.dataMimeType(reusableFrame));
+        assertEquals("setup data", TestUtil.byteToString(reusableFrame.getData()));
+        assertEquals(Frame.NULL_BYTEBUFFER, reusableFrame.getMetadata());
     }
 
     @Test
-    public void shouldFormCorrectlyWithoutDataNorMetadataForSetup()
+    @Theory
+    public void shouldFormCorrectlyWithoutDataNorMetadataForSetup(final int offset)
     {
         final int flags = SetupFrameFlyweight.FLAGS_WILL_HONOR_LEASE | SetupFrameFlyweight.FLAGS_STRICT_INTERPRETATION;
+        final int version = SetupFrameFlyweight.CURRENT_VERSION;
         final int keepaliveInterval = 1001;
         final int maxLifetime = keepaliveInterval * 5;
         final String metadataMimeType = "application/json";
         final String dataMimeType = "application/cbor";
 
-        Frame f = Frame.fromSetup(flags, keepaliveInterval, maxLifetime, metadataMimeType, dataMimeType, new Payload()
+        Frame encodedFrame = Frame.fromSetup(flags, keepaliveInterval, maxLifetime, metadataMimeType, dataMimeType, new Payload()
         {
             public ByteBuffer getData()
             {
@@ -326,19 +394,23 @@ public class FrameTest
                 return Frame.NULL_BYTEBUFFER;
             }
         });
+        TestUtil.copyFrame(reusableMutableDirectBuffer, offset, encodedFrame);
+        reusableFrame.wrap(reusableMutableDirectBuffer, offset);
 
-        assertEquals(FrameType.SETUP, f.getType());
-        assertEquals(flags, Frame.Setup.getFlags(f));
-        assertEquals(keepaliveInterval, Frame.Setup.keepaliveInterval(f));
-        assertEquals(maxLifetime, Frame.Setup.maxLifetime(f));
-        assertEquals(metadataMimeType, Frame.Setup.metadataMimeType(f));
-        assertEquals(dataMimeType, Frame.Setup.dataMimeType(f));
-        assertEquals(Frame.NULL_BYTEBUFFER, f.getData());
-        assertEquals(Frame.NULL_BYTEBUFFER, f.getMetadata());
+        assertEquals(FrameType.SETUP, reusableFrame.getType());
+        assertEquals(flags, Frame.Setup.getFlags(reusableFrame));
+        assertEquals(version, Frame.Setup.version(reusableFrame));
+        assertEquals(keepaliveInterval, Frame.Setup.keepaliveInterval(reusableFrame));
+        assertEquals(maxLifetime, Frame.Setup.maxLifetime(reusableFrame));
+        assertEquals(metadataMimeType, Frame.Setup.metadataMimeType(reusableFrame));
+        assertEquals(dataMimeType, Frame.Setup.dataMimeType(reusableFrame));
+        assertEquals(Frame.NULL_BYTEBUFFER, reusableFrame.getData());
+        assertEquals(Frame.NULL_BYTEBUFFER, reusableFrame.getMetadata());
     }
 
     @Test
-    public void shouldReturnCorrectDataPlusMetadataForSetupError()
+    @Theory
+    public void shouldReturnCorrectDataPlusMetadataForError(final int offset)
     {
         final int streamId = 24;
         final Throwable exception = new RejectedException("test");
@@ -347,92 +419,110 @@ public class FrameTest
         final ByteBuffer dataByteBuffer = ByteBuffer.wrap(data.getBytes(UTF_8));
         final ByteBuffer metadataByteBuffer = ByteBuffer.wrap(metadata.getBytes(UTF_8));
 
-        Frame f = Frame.fromError(streamId, exception, metadataByteBuffer, dataByteBuffer);
+        Frame encodedFrame = Frame.fromError(streamId, exception, metadataByteBuffer, dataByteBuffer);
+        TestUtil.copyFrame(reusableMutableDirectBuffer, offset, encodedFrame);
+        reusableFrame.wrap(reusableMutableDirectBuffer, offset);
 
-        assertEquals(FrameType.ERROR, f.getType());
-        assertEquals(REJECTED, Frame.Error.errorCode(f));
-        assertEquals(data, TestUtil.byteToString(f.getData()));
-        assertEquals(metadata, TestUtil.byteToString(f.getMetadata()));
+        assertEquals(FrameType.ERROR, reusableFrame.getType());
+        assertEquals(REJECTED, Frame.Error.errorCode(reusableFrame));
+        assertEquals(data, TestUtil.byteToString(reusableFrame.getData()));
+        assertEquals(metadata, TestUtil.byteToString(reusableFrame.getMetadata()));
     }
 
     @Test
-    public void shouldReturnCorrectDataWithThrowableForError()
+    @Theory
+    public void shouldReturnCorrectDataWithThrowableForError(final int offset)
     {
         final int errorCode = 42;
         final String metadata = "my metadata";
         final String exMessage = "exception message";
 
-        Frame f = Frame.fromError(
+        Frame encodedFrame = Frame.fromError(
             errorCode,
             new Exception(exMessage),
             TestUtil.byteBufferFromUtf8String(metadata)
         );
+        TestUtil.copyFrame(reusableMutableDirectBuffer, offset, encodedFrame);
+        reusableFrame.wrap(reusableMutableDirectBuffer, offset);
 
-        assertEquals(FrameType.ERROR, f.getType());
-        assertEquals(exMessage, TestUtil.byteToString(f.getData()));
-        assertEquals(TestUtil.byteBufferFromUtf8String(metadata), f.getMetadata());
+
+        assertEquals(FrameType.ERROR, reusableFrame.getType());
+        assertEquals(exMessage, TestUtil.byteToString(reusableFrame.getData()));
+        assertEquals(TestUtil.byteBufferFromUtf8String(metadata), reusableFrame.getMetadata());
     }
 
     @Test
-    public void shouldReturnCorrectDataWithoutMetadataForError()
+    @Theory
+    public void shouldReturnCorrectDataWithoutMetadataForError(final int offset)
     {
         final int errorCode = 42;
         final String metadata = "metadata";
         final String data = "error data";
 
-        Frame f = Frame.fromError(
+        Frame encodedFrame = Frame.fromError(
             errorCode,
             new Exception("my exception"),
             TestUtil.byteBufferFromUtf8String(metadata),
             TestUtil.byteBufferFromUtf8String(data)
         );
+        TestUtil.copyFrame(reusableMutableDirectBuffer, offset, encodedFrame);
+        reusableFrame.wrap(reusableMutableDirectBuffer, offset);
 
-        assertEquals(FrameType.ERROR, f.getType());
-        assertEquals(data, TestUtil.byteToString(f.getData()));
-        assertEquals(metadata, TestUtil.byteToString(f.getMetadata()));
+        assertEquals(FrameType.ERROR, reusableFrame.getType());
+        assertEquals(data, TestUtil.byteToString(reusableFrame.getData()));
+        assertEquals(metadata, TestUtil.byteToString(reusableFrame.getMetadata()));
     }
 
     @Test
-    public void shouldFormCorrectlyForRequestN()
+    @Theory
+    public void shouldFormCorrectlyForRequestN(final int offset)
     {
         final int n = 128;
-        final Frame f = Frame.fromRequestN(1, n);
+        final Frame encodedFrame = Frame.fromRequestN(1, n);
+        TestUtil.copyFrame(reusableMutableDirectBuffer, offset, encodedFrame);
+        reusableFrame.wrap(reusableMutableDirectBuffer, offset);
 
-        assertEquals(FrameType.REQUEST_N, f.getType());
-        assertEquals(n, Frame.RequestN.requestN(f));
-        assertEquals(Frame.NULL_BYTEBUFFER, f.getData());
-        assertEquals(Frame.NULL_BYTEBUFFER, f.getMetadata());
+        assertEquals(FrameType.REQUEST_N, reusableFrame.getType());
+        assertEquals(n, Frame.RequestN.requestN(reusableFrame));
+        assertEquals(Frame.NULL_BYTEBUFFER, reusableFrame.getData());
+        assertEquals(Frame.NULL_BYTEBUFFER, reusableFrame.getMetadata());
     }
 
     @Test
-    public void shouldFormCorrectlyWithoutMetadataForLease()
+    @Theory
+    public void shouldFormCorrectlyWithoutMetadataForLease(final int offset)
     {
         final int ttl = (int)TimeUnit.SECONDS.toMillis(8);
         final int numberOfRequests = 16;
-        final Frame f = Frame.fromLease(ttl, numberOfRequests, Frame.NULL_BYTEBUFFER);
+        final Frame encodedFrame = Frame.fromLease(ttl, numberOfRequests, Frame.NULL_BYTEBUFFER);
+        TestUtil.copyFrame(reusableMutableDirectBuffer, offset, encodedFrame);
+        reusableFrame.wrap(reusableMutableDirectBuffer, offset);
 
-        assertEquals(0, f.getStreamId());
-        assertEquals(FrameType.LEASE, f.getType());
-        assertEquals(ttl, Frame.Lease.ttl(f));
-        assertEquals(numberOfRequests, Frame.Lease.numberOfRequests(f));
-        assertEquals(Frame.NULL_BYTEBUFFER, f.getData());
-        assertEquals(Frame.NULL_BYTEBUFFER, f.getMetadata());
+        assertEquals(0, reusableFrame.getStreamId());
+        assertEquals(FrameType.LEASE, reusableFrame.getType());
+        assertEquals(ttl, Frame.Lease.ttl(reusableFrame));
+        assertEquals(numberOfRequests, Frame.Lease.numberOfRequests(reusableFrame));
+        assertEquals(Frame.NULL_BYTEBUFFER, reusableFrame.getData());
+        assertEquals(Frame.NULL_BYTEBUFFER, reusableFrame.getMetadata());
     }
 
     @Test
-    public void shouldFormCorrectlyWithMetadataForLease()
+    @Theory
+    public void shouldFormCorrectlyWithMetadataForLease(final int offset)
     {
         final int ttl = (int)TimeUnit.SECONDS.toMillis(8);
         final int numberOfRequests = 16;
         final ByteBuffer leaseMetadata = TestUtil.byteBufferFromUtf8String("lease metadata");
 
-        final Frame f = Frame.fromLease(ttl, numberOfRequests, leaseMetadata);
+        final Frame encodedFrame = Frame.fromLease(ttl, numberOfRequests, leaseMetadata);
+        TestUtil.copyFrame(reusableMutableDirectBuffer, offset, encodedFrame);
+        reusableFrame.wrap(reusableMutableDirectBuffer, offset);
 
-        assertEquals(0, f.getStreamId());
-        assertEquals(FrameType.LEASE, f.getType());
-        assertEquals(ttl, Frame.Lease.ttl(f));
-        assertEquals(numberOfRequests, Frame.Lease.numberOfRequests(f));
-        assertEquals(Frame.NULL_BYTEBUFFER, f.getData());
-        assertEquals("lease metadata", TestUtil.byteToString(f.getMetadata()));
+        assertEquals(0, reusableFrame.getStreamId());
+        assertEquals(FrameType.LEASE, reusableFrame.getType());
+        assertEquals(ttl, Frame.Lease.ttl(reusableFrame));
+        assertEquals(numberOfRequests, Frame.Lease.numberOfRequests(reusableFrame));
+        assertEquals(Frame.NULL_BYTEBUFFER, reusableFrame.getData());
+        assertEquals("lease metadata", TestUtil.byteToString(reusableFrame.getMetadata()));
     }
 }

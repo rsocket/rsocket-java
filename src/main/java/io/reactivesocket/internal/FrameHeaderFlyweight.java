@@ -49,8 +49,6 @@ public class FrameHeaderFlyweight
     private static final int STREAM_ID_FIELD_OFFSET;
     private static final int PAYLOAD_OFFSET;
 
-    private static final byte CURRENT_VERSION = 0;
-
     public static final int FLAGS_I = 0b1000_0000_0000_0000;
     public static final int FLAGS_M = 0b0100_0000_0000_0000;
 
@@ -273,13 +271,13 @@ public class FrameHeaderFlyweight
         final int frameLength = frameLength(directBuffer, offset, externalLength);
         final int metadataLength = metadataFieldLength(directBuffer, offset);
 
-        return frameLength - metadataLength - payloadOffset(directBuffer, offset);
+        return offset + frameLength - metadataLength - payloadOffset(directBuffer, offset);
     }
 
     private static int payloadOffset(final DirectBuffer directBuffer, final int offset)
     {
         final FrameType frameType = FrameType.from(directBuffer.getShort(offset + TYPE_FIELD_OFFSET, ByteOrder.BIG_ENDIAN));
-        int result = PAYLOAD_OFFSET;
+        int result = offset + PAYLOAD_OFFSET;
 
         switch (frameType)
         {

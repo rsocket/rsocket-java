@@ -108,7 +108,7 @@ public class Responder {
 				}
 			}
 
-			RequestHandler requestHandler = null; // null until after first Setup frame
+			volatile RequestHandler requestHandler = null; // null until after first Setup frame
 
 			@Override
 			public void onNext(Frame requestFrame) {
@@ -122,6 +122,10 @@ public class Responder {
 						final ConnectionSetupPayload connectionSetupPayload =
 							ConnectionSetupPayload.create(requestFrame);
 						try {
+							if (Frame.Setup.version(requestFrame) != SetupFrameFlyweight.CURRENT_VERSION) {
+								throw new SetupException("unsupported protocol version: " + Frame.Setup.version(requestFrame));
+							}
+
 							requestHandler = connectionHandler.apply(connectionSetupPayload);
 						} catch (SetupException setupException) {
 							setupErrorAndTearDown(connection, setupException);

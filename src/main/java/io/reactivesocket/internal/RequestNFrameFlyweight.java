@@ -47,7 +47,7 @@ public class RequestNFrameFlyweight
 
         mutableDirectBuffer.putInt(offset + REQUEST_N_FIELD_OFFSET, requestN, ByteOrder.BIG_ENDIAN);
 
-        return length;
+        return length + BitUtil.SIZE_OF_INT;
     }
 
     public static int requestN(final DirectBuffer directBuffer, final int offset)

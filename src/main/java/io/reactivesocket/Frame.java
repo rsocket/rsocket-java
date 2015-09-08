@@ -58,6 +58,8 @@ public class Frame implements Payload
 
     // not final so we can reuse this object
     private MutableDirectBuffer directBuffer;
+    private int offset = 0;
+    private int length = 0;
 
     private Frame(final MutableDirectBuffer directBuffer)
     {
@@ -82,7 +84,7 @@ public class Frame implements Payload
      */
     public ByteBuffer getData()
     {
-        return FrameHeaderFlyweight.sliceFrameData(directBuffer, 0, 0);
+        return FrameHeaderFlyweight.sliceFrameData(directBuffer, offset, 0);
     }
 
     /**
@@ -94,7 +96,7 @@ public class Frame implements Payload
      */
     public ByteBuffer getMetadata()
     {
-        return FrameHeaderFlyweight.sliceFrameMetadata(directBuffer, 0, 0);
+        return FrameHeaderFlyweight.sliceFrameMetadata(directBuffer, offset, 0);
     }
 
     /**
@@ -103,7 +105,7 @@ public class Frame implements Payload
      * @return frame stream identifier
      */
     public int getStreamId() {
-        return FrameHeaderFlyweight.streamId(directBuffer, 0);
+        return FrameHeaderFlyweight.streamId(directBuffer, offset);
     }
 
     /**
@@ -112,7 +114,27 @@ public class Frame implements Payload
      * @return frame type
      */
     public FrameType getType() {
-        return FrameHeaderFlyweight.frameType(directBuffer, 0);
+        return FrameHeaderFlyweight.frameType(directBuffer, offset);
+    }
+
+    /**
+     * Return the offset in the buffer of the frame
+     *
+     * @return offset of frame within the buffer
+     */
+    public int offset()
+    {
+        return offset;
+    }
+
+    /**
+     * Return the encoded length of a frame or the frame length
+     *
+     * @return frame length
+     */
+    public int length()
+    {
+        return length;
     }
 
     /**
@@ -120,9 +142,9 @@ public class Frame implements Payload
      * 
      * @param byteBuffer to wrap
      */
-    public void wrap(final ByteBuffer byteBuffer)
+    public void wrap(final ByteBuffer byteBuffer, final int offset)
     {
-        wrap(POOL.acquireMutableDirectBuffer(byteBuffer));
+        wrap(POOL.acquireMutableDirectBuffer(byteBuffer), offset);
     }
 
     /**
@@ -130,9 +152,10 @@ public class Frame implements Payload
      *
      * @param directBuffer to wrap
      */
-    public void wrap(final MutableDirectBuffer directBuffer)
+    public void wrap(final MutableDirectBuffer directBuffer, final int offset)
     {
         this.directBuffer = directBuffer;
+        this.offset = offset;
     }
 
     /**
@@ -183,7 +206,7 @@ public class Frame implements Payload
         this.directBuffer =
             POOL.acquireMutableDirectBuffer(FrameHeaderFlyweight.computeFrameHeaderLength(type, 0, data.capacity()));
 
-        FrameHeaderFlyweight.encode(this.directBuffer, 0, streamId, type, NULL_BYTEBUFFER, data);
+        this.length = FrameHeaderFlyweight.encode(this.directBuffer, offset, streamId, type, NULL_BYTEBUFFER, data);
     }
 
     public static Frame from(int streamId, FrameType type, ByteBuffer data, ByteBuffer metadata)
@@ -191,7 +214,7 @@ public class Frame implements Payload
         final Frame frame =
             POOL.acquireFrame(FrameHeaderFlyweight.computeFrameHeaderLength(type, metadata.capacity(), data.capacity()));
 
-        FrameHeaderFlyweight.encode(frame.directBuffer, 0, streamId, type, metadata, data);
+        frame.length = FrameHeaderFlyweight.encode(frame.directBuffer, frame.offset, streamId, type, metadata, data);
         return frame;
     }
 
@@ -223,8 +246,8 @@ public class Frame implements Payload
         final Frame frame = POOL.acquireFrame(
             ErrorFrameFlyweight.computeFrameLength(data.capacity(), metadata.capacity()));
 
-        ErrorFrameFlyweight.encode(
-            frame.directBuffer, 0, streamId, code, metadata, data);
+        frame.length = ErrorFrameFlyweight.encode(
+            frame.directBuffer, frame.offset, streamId, code, metadata, data);
         return frame;
     }
 
@@ -251,7 +274,6 @@ public class Frame implements Payload
      *
      * fromRequest(type, id, payload)
      * fromResponse(id, payload, flags)  - does it automatically fragment? (only if auto reassemble)
-     * fromError(id, metadata, data) - taken care of by from() overload?
      * fromCancel(id, metadata)
      * fromMetadataPush(id, metadata)
      *
@@ -273,8 +295,8 @@ public class Frame implements Payload
         final Frame frame =
             POOL.acquireFrame(SetupFrameFlyweight.computeFrameLength(metadataMimeType, dataMimeType, metadata.capacity(), data.capacity()));
 
-        SetupFrameFlyweight.encode(
-            frame.directBuffer, 0, flags, keepaliveInterval, maxLifetime, metadataMimeType, dataMimeType, metadata, data);
+        frame.length = SetupFrameFlyweight.encode(
+            frame.directBuffer, frame.offset, flags, keepaliveInterval, maxLifetime, metadataMimeType, dataMimeType, metadata, data);
         return frame;
     }
 
@@ -282,7 +304,7 @@ public class Frame implements Payload
     {
         final Frame frame = POOL.acquireFrame(LeaseFrameFlyweight.computeFrameLength(metadata.capacity()));
 
-        LeaseFrameFlyweight.encode(frame.directBuffer, 0, ttl, numberOfRequests, metadata);
+        frame.length = LeaseFrameFlyweight.encode(frame.directBuffer, frame.offset, ttl, numberOfRequests, metadata);
         return frame;
     }
 
@@ -290,7 +312,7 @@ public class Frame implements Payload
     {
         final Frame frame = POOL.acquireFrame(RequestNFrameFlyweight.computeFrameLength());
 
-        RequestNFrameFlyweight.encode(frame.directBuffer, 0, streamId, requestN);
+        frame.length = RequestNFrameFlyweight.encode(frame.directBuffer, frame.offset, streamId, requestN);
         return frame;
     }
 
@@ -303,11 +325,11 @@ public class Frame implements Payload
 
         if (type.hasInitialRequestN())
         {
-            RequestFrameFlyweight.encode(frame.directBuffer, 0, streamId, type, initialRequestN, md, d);
+            frame.length = RequestFrameFlyweight.encode(frame.directBuffer, frame.offset, streamId, type, initialRequestN, md, d);
         }
         else
         {
-            RequestFrameFlyweight.encode(frame.directBuffer, 0, streamId, type, md, d);
+            frame.length = RequestFrameFlyweight.encode(frame.directBuffer, frame.offset, streamId, type, md, d);
         }
 
         return frame;
@@ -319,33 +341,39 @@ public class Frame implements Payload
         public static int getFlags(final Frame frame)
         {
             ensureFrameType(FrameType.SETUP, frame);
-            final int flags = FrameHeaderFlyweight.flags(frame.directBuffer, 0);
+            final int flags = FrameHeaderFlyweight.flags(frame.directBuffer, frame.offset);
 
             return flags & (SetupFrameFlyweight.FLAGS_WILL_HONOR_LEASE | SetupFrameFlyweight.FLAGS_STRICT_INTERPRETATION);
+        }
+
+        public static int version(final Frame frame)
+        {
+            ensureFrameType(FrameType.SETUP, frame);
+            return SetupFrameFlyweight.version(frame.directBuffer, frame.offset);
         }
 
         public static int keepaliveInterval(final Frame frame)
         {
             ensureFrameType(FrameType.SETUP, frame);
-            return SetupFrameFlyweight.keepaliveInterval(frame.directBuffer, 0);
+            return SetupFrameFlyweight.keepaliveInterval(frame.directBuffer, frame.offset);
         }
 
         public static int maxLifetime(final Frame frame)
         {
             ensureFrameType(FrameType.SETUP, frame);
-            return SetupFrameFlyweight.maxLifetime(frame.directBuffer, 0);
+            return SetupFrameFlyweight.maxLifetime(frame.directBuffer, frame.offset);
         }
 
         public static String metadataMimeType(final Frame frame)
         {
             ensureFrameType(FrameType.SETUP, frame);
-            return SetupFrameFlyweight.metadataMimeType(frame.directBuffer, 0);
+            return SetupFrameFlyweight.metadataMimeType(frame.directBuffer, frame.offset);
         }
 
         public static String dataMimeType(final Frame frame)
         {
             ensureFrameType(FrameType.SETUP, frame);
-            return SetupFrameFlyweight.dataMimeType(frame.directBuffer, 0);
+            return SetupFrameFlyweight.dataMimeType(frame.directBuffer, frame.offset);
         }
     }
 
@@ -354,7 +382,7 @@ public class Frame implements Payload
         public static int errorCode(final Frame frame)
         {
             ensureFrameType(FrameType.ERROR, frame);
-            return ErrorFrameFlyweight.errorCode(frame.directBuffer, 0);
+            return ErrorFrameFlyweight.errorCode(frame.directBuffer, frame.offset);
         }
     }
 
@@ -363,13 +391,13 @@ public class Frame implements Payload
         public static int ttl(final Frame frame)
         {
             ensureFrameType(FrameType.LEASE, frame);
-            return LeaseFrameFlyweight.ttl(frame.directBuffer, 0);
+            return LeaseFrameFlyweight.ttl(frame.directBuffer, frame.offset);
         }
 
         public static int numberOfRequests(final Frame frame)
         {
             ensureFrameType(FrameType.LEASE, frame);
-            return LeaseFrameFlyweight.numRequests(frame.directBuffer, 0);
+            return LeaseFrameFlyweight.numRequests(frame.directBuffer, frame.offset);
         }
     }
 
@@ -378,7 +406,7 @@ public class Frame implements Payload
         public static long requestN(final Frame frame)
         {
             ensureFrameType(FrameType.REQUEST_N, frame);
-            return RequestNFrameFlyweight.requestN(frame.directBuffer, 0);
+            return RequestNFrameFlyweight.requestN(frame.directBuffer, frame.offset);
         }
     }
 
@@ -403,7 +431,7 @@ public class Frame implements Payload
                     result = 0;
                     break;
                 default:
-                    result = RequestFrameFlyweight.initialRequestN(frame.directBuffer, 0);
+                    result = RequestFrameFlyweight.initialRequestN(frame.directBuffer, frame.offset);
                     break;
             }
 
@@ -453,6 +481,6 @@ public class Frame implements Payload
         } catch (Exception e) {
             e.printStackTrace();
         }
-        return "Frame => Stream ID: " + streamId + " Type: " + type + " Payload Data: " + payload;
+        return "Frame[" + offset + "] => Stream ID: " + streamId + " Type: " + type + " Payload Data: " + payload;
     }
 }
