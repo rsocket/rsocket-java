@@ -28,7 +28,7 @@ import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
 import io.reactivesocket.exceptions.SetupException;
-import uk.co.real_logic.agrona.collections.Long2ObjectHashMap;
+import uk.co.real_logic.agrona.collections.Int2ObjectHashMap;
 
 /**
  * Protocol implementation abstracted over a {@link DuplexConnection}.
@@ -86,11 +86,11 @@ public class Responder {
 
 	private void start() {
 		/* state of cancellation subjects during connection */
-		final Long2ObjectHashMap<Subscription> cancellationSubscriptions = new Long2ObjectHashMap<>();
+		final Int2ObjectHashMap<Subscription> cancellationSubscriptions = new Int2ObjectHashMap<>();
 		/* streams in flight that can receive REQUEST_N messages */
-		final Long2ObjectHashMap<Subscription> inFlight = new Long2ObjectHashMap<>(); // TODO not being used
+		final Int2ObjectHashMap<Subscription> inFlight = new Int2ObjectHashMap<>(); // TODO not being used
 		/* bidirectional channels */
-		final Long2ObjectHashMap<UnicastSubject<Payload>> channels = new Long2ObjectHashMap<>(); // TODO should/can we make this optional so that it only gets allocated per connection if channels are
+		final Int2ObjectHashMap<UnicastSubject<Payload>> channels = new Int2ObjectHashMap<>(); // TODO should/can we make this optional so that it only gets allocated per connection if channels are
 																									// used?
 		final AtomicBoolean childTerminated = new AtomicBoolean(false);
 		final AtomicReference<Subscription> transportSubscription = new AtomicReference<>();
@@ -262,7 +262,7 @@ public class Responder {
 	private Publisher<Frame> handleRequestResponse(
 			Frame requestFrame,
 			final RequestHandler requestHandler,
-			final Long2ObjectHashMap<Subscription> cancellationSubscriptions) {
+			final Int2ObjectHashMap<Subscription> cancellationSubscriptions) {
 
 		return (Subscriber<? super Frame> child) -> {
 			Subscription s = new Subscription() {
@@ -350,18 +350,19 @@ public class Responder {
 	private Publisher<Frame> handleRequestStream(
 			Frame requestFrame,
 			final RequestHandler requestHandler,
-			final Long2ObjectHashMap<Subscription> cancellationSubscriptions,
-			final Long2ObjectHashMap<Subscription> inFlight) {
-		return requestStream(requestStreamHandler, requestFrame, requestHandler, cancellationSubscriptions, inFlight, true);
+			final Int2ObjectHashMap<Subscription> cancellationSubscriptions,
+			final Int2ObjectHashMap<Subscription> inFlight) {
+		return _handleRequestStream(requestStreamHandler, requestFrame, requestHandler, cancellationSubscriptions, inFlight, true);
 	}
 
 	private Publisher<Frame> handleRequestSubscription(
 			Frame requestFrame,
 			final RequestHandler requestHandler,
-			final Long2ObjectHashMap<Subscription> cancellationSubscriptions,
-			final Long2ObjectHashMap<Subscription> inFlight) {
-		return requestStream(requestSubscriptionHandler, requestFrame, requestHandler, cancellationSubscriptions, inFlight, false);
+			final Int2ObjectHashMap<Subscription> cancellationSubscriptions,
+			final Int2ObjectHashMap<Subscription> inFlight) {
+		return _handleRequestStream(requestSubscriptionHandler, requestFrame, requestHandler, cancellationSubscriptions, inFlight, false);
 	}
+	
 	/**
 	 * Common logic for requestStream and requestSubscription
 	 * 
@@ -372,12 +373,12 @@ public class Responder {
 	 * @param allowCompletion
 	 * @return
 	 */
-	private Publisher<Frame> requestStream(
+	private Publisher<Frame> _handleRequestStream(
 			BiFunction<RequestHandler, Payload, Publisher<Payload>> handler,
 			Frame requestFrame,
 			final RequestHandler requestHandler,
-			final Long2ObjectHashMap<Subscription> cancellationSubscriptions,
-			final Long2ObjectHashMap<Subscription> inFlight,
+			final Int2ObjectHashMap<Subscription> cancellationSubscriptions,
+			final Int2ObjectHashMap<Subscription> inFlight,
 			final boolean allowCompletion) {
 
 		return new Publisher<Frame>() {
@@ -503,26 +504,15 @@ public class Responder {
 
 	private Publisher<Frame> handleRequestChannel(Frame requestFrame,
 			RequestHandler requestHandler,
-			Long2ObjectHashMap<UnicastSubject<Payload>> channels,
-			Long2ObjectHashMap<Subscription> cancellationSubscriptions,
-			Long2ObjectHashMap<Subscription> inFlight) {
+			Int2ObjectHashMap<UnicastSubject<Payload>> channels,
+			Int2ObjectHashMap<Subscription> cancellationSubscriptions,
+			Int2ObjectHashMap<Subscription> inFlight) {
 
 		UnicastSubject<Payload> channelSubject = null;
 		synchronized(Responder.this) {
 			channelSubject = channels.get(requestFrame.getStreamId());
 		}
 		if (channelSubject == null) {
-			// first request on this channel
-			channelSubject = UnicastSubject.create((s, rn) -> {
-				// after we are first subscribed to then send the initial frame
-				s.onNext(requestFrame);
-			});
-			synchronized(Responder.this) {
-				channels.put(requestFrame.getStreamId(), channelSubject);
-			}
-
-			final UnicastSubject<Payload> channelRequests = channelSubject;
-
 			return new Publisher<Frame>() {
 
 				@Override
@@ -537,6 +527,28 @@ public class Responder {
 							if (!started) {
 								started = true;
 								final int streamId = requestFrame.getStreamId();
+								
+								// first request on this channel
+								UnicastSubject<Payload> channelRequests = UnicastSubject.create((s, rn) -> {
+									// after we are first subscribed to then send the initial frame
+									s.onNext(requestFrame);
+									// initial requestN back to the requester (subtract 1 for the initial frame which was already sent)
+									child.onNext(Frame.fromRequestN(streamId, rn.intValue()-1));
+								}, r -> {
+									// requested
+									child.onNext(Frame.fromRequestN(streamId, r.intValue()));
+								});
+								synchronized(Responder.this) {
+									if(channels.get(streamId) != null) {
+										// TODO validate that this correctly defends against this issue
+										// this means we received a followup request that raced and that the requester didn't correct wait for REQUEST_N before sending more frames
+										child.onNext(Frame.fromError(streamId, new RuntimeException("Requester sent more than 1 requestChannel frame before permitted.")));
+										child.onComplete();
+										cleanup();
+										return;
+									}
+ 									channels.put(streamId, channelRequests);
+								}
 
 								requestHandler.handleChannel(requestFrame, channelRequests).subscribe(new Subscriber<Payload>() {
 
@@ -558,6 +570,7 @@ public class Responder {
 
 									@Override
 									public void onError(Throwable t) {
+										t.printStackTrace();
 										child.onNext(Frame.fromError(streamId, t));
 										child.onComplete();
 										cleanup();

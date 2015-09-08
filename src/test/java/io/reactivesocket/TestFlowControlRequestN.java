@@ -37,6 +37,9 @@ import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
+import rx.Observable;
+import rx.schedulers.Schedulers;
+
 public class TestFlowControlRequestN {
 
 	@Test(timeout=2000)
@@ -189,21 +192,68 @@ public class TestFlowControlRequestN {
 	
 	/**
 	 * Test that the upstream is governed by request(n)
+	 * @throws InterruptedException 
 	 */
-	@Ignore // TODO
 	@Test
-	public void testRequestChannel_batches_upstream() {
+	public void testRequestChannel_batches_upstream_echo() throws InterruptedException {
 		ControlledSubscriber s = new ControlledSubscriber();
+		AtomicInteger emittedClient = new AtomicInteger();
 		socketClient.requestChannel(toPublisher(
 				range(1, 10000)
+				.doOnNext(n -> emittedClient.incrementAndGet())
+				.doOnRequest(r -> System.out.println("CLIENT REQUESTS requestN: " + r))
 				.map(i -> {
 					return utf8EncodedPayload(String.valueOf(i), "echo"); // metadata to route us to the echo behavior (only actually need this in the first payload) 
 				}))).subscribe(s);
 		
-		assertEquals(0, s.received);
+		assertEquals(0, s.received.get());
 		assertEquals(0, emitted.get());
+		assertEquals(0, emittedClient.get());
 		s.subscription.request(10);
+		waitForAsyncValue(s.received, 10);
+		assertEquals(10, emittedClient.get());
+		assertEquals(10, s.received.get());
+		s.subscription.request(200);
+		waitForAsyncValue(s.received, 210);
+		assertEquals(210, emittedClient.get());
+		assertEquals(210, s.received.get());
+		Thread.sleep(100);
 		assertFalse(s.error.get());
+		
+		System.out.println(">>> Client sent " + emittedClient.get() + " requests and received " + s.received.get() + " responses");
+	}
+	
+	/**
+	 * Test that the upstream is governed by request(n)
+	 * @throws InterruptedException 
+	 */
+	@Test
+	public void testRequestChannel_batches_upstream_decoupled() throws InterruptedException {
+		ControlledSubscriber s = new ControlledSubscriber();
+		AtomicInteger emittedClient = new AtomicInteger();
+		socketClient.requestChannel(toPublisher(
+				range(1, 10000)
+				.doOnNext(n -> emittedClient.incrementAndGet())
+				.doOnRequest(r -> System.out.println("CLIENT REQUESTS requestN: " + r))
+				.map(i -> {
+					return utf8EncodedPayload(String.valueOf(i), "decoupled"); // metadata to route us to the echo behavior (only actually need this in the first payload) 
+				}))).subscribe(s);
+		
+		assertEquals(0, s.received.get());
+		assertEquals(0, emitted.get());
+		assertEquals(0, emittedClient.get());
+		s.subscription.request(10);
+		waitForAsyncValue(s.received, 10);
+		assertEquals(10, s.received.get());
+		s.subscription.request(200);
+		waitForAsyncValue(s.received, 210);
+		assertEquals(210, s.received.get());
+		Thread.sleep(100);
+		assertFalse(s.error.get());
+		// the responder side of 'decoupled' is limiting to 300 (batches of 50 and 250) so we should only emit 300 of the possible 10000
+		assertEquals(300, emittedClient.get());
+		
+		System.out.println(">>> Client sent " + emittedClient.get() + " requests and received " + s.received.get() + " responses");
 	}
 
 	private void waitForAsyncValue(AtomicInteger value, int n) throws InterruptedException {
@@ -303,11 +353,59 @@ public class TestFlowControlRequestN {
 					return toPublisher(toObservable(payloads).map(payload -> { // TODO I want this to be concatMap instead of flatMap but apparently concatMap has a bug
 						String payloadData = byteToString(payload.getData());
 						return utf8EncodedPayload(String.valueOf(payloadData) + "_echo", null);	
-					}).doOnRequest(n -> System.out.println("requested in echo responder: " + n))
+					}).doOnRequest(n -> System.out.println(">>> requested in echo responder: " + n))
 					  .doOnRequest(r -> requested.addAndGet(r))
 					  .doOnRequest(r -> numRequests.incrementAndGet())
 					  .doOnError(t -> System.out.println("Error in 'echo' handler: " + t.getMessage()))
 					  .doOnNext(i -> emitted.incrementAndGet()));
+				} else if (requestMetadata.equals("decoupled")) {
+					/*
+					 * Consume 300 from request and then stop requesting more (but no cancel from responder side)
+					 */
+					toObservable(payloads)
+							.doOnNext(payload -> { 
+						String payloadData = byteToString(payload.getData());
+						System.out.println("DECOUPLED side-effect of request: " + payloadData);
+					}).subscribe(new rx.Subscriber<Payload>() {
+
+						int count=0;
+						
+						public void onStart() {
+							// start with 50
+							request(50);
+						}
+						
+						@Override
+						public void onCompleted() {
+							
+						}
+
+						@Override
+						public void onError(Throwable e) {
+							
+						}
+
+						@Override
+						public void onNext(Payload t) {
+							count++;
+							if(count == 50) {
+								request(250);
+							}
+						}
+
+						
+					});
+					  
+					return toPublisher(range(1, 1000)
+							.doOnNext(n -> System.out.println("RESPONDER sending value: " + n))
+							.map(i -> { 
+						return utf8EncodedPayload(String.valueOf(i) + "_decoupled", null);
+					})
+					 .doOnRequest(n -> System.out.println(">>> requested in decoupled responder: " + n))
+					 .doOnRequest(r -> requested.addAndGet(r))
+					 .doOnRequest(r -> numRequests.incrementAndGet())
+					 .doOnError(t -> System.out.println("Error in 'decoupled' handler: " + t.getMessage()))
+					 .doOnNext(i -> emitted.incrementAndGet()));
 				} else {
 					return toPublisher(toObservable(payloads).flatMap(payload -> { // TODO I want this to be concatMap instead of flatMap but apparently concatMap has a bug
 						String payloadData = byteToString(payload.getData());
