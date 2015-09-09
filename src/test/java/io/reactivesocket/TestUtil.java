@@ -99,6 +99,7 @@ public class TestUtil
 
         public boolean equals(Object obj)
         {
+        	System.out.println("equals: " + obj);
             final Payload rhs = (Payload)obj;
 
             return (TestUtil.byteToString(data).equals(TestUtil.byteToString(rhs.getData()))) &&

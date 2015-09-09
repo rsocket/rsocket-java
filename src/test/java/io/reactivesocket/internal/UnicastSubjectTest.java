@@ -20,9 +20,8 @@ import org.junit.Test;
 import io.reactivesocket.Frame;
 import io.reactivesocket.FrameType;
 import io.reactivesocket.TestUtil;
-import rx.observers.TestSubscriber;
-
-import static rx.RxReactiveStreams.toObservable;
+import io.reactivesocket.internal.UnicastSubject;
+import io.reactivex.subscribers.TestSubscriber;
 
 public class UnicastSubjectTest {
 
@@ -30,11 +29,11 @@ public class UnicastSubjectTest {
 	public void testSubscribeReceiveValue() {
 		Frame f = TestUtil.utf8EncodedResponseFrame(1, FrameType.NEXT_COMPLETE, "response");
 		UnicastSubject us = UnicastSubject.create();
-		TestSubscriber<Frame> ts = TestSubscriber.create();
-		toObservable(us).subscribe(ts);
+		TestSubscriber<Frame> ts = new TestSubscriber<>();
+		us.subscribe(ts);
 		us.onNext(f);
 		ts.assertValue(f);
-		ts.assertNoTerminalEvent();
+		ts.assertNotTerminated();
 	}
 
 	@Test(expected = NullPointerException.class)
@@ -47,12 +46,12 @@ public class UnicastSubjectTest {
 	@Test
 	public void testIllegalStateIfMultiSubscribe() {
 		UnicastSubject us = UnicastSubject.create();
-		TestSubscriber<Frame> f1 = TestSubscriber.create();
-		toObservable(us).subscribe(f1);
-		TestSubscriber<Frame> f2 = TestSubscriber.create();
-		toObservable(us).subscribe(f2);
+		TestSubscriber<Frame> f1 = new TestSubscriber<>();
+		us.subscribe(f1);
+		TestSubscriber<Frame> f2 = new TestSubscriber<>();
+		us.subscribe(f2);
 
-		f1.assertNoTerminalEvent();
+		f1.assertNotTerminated();
 		f2.assertError(IllegalStateException.class);
 	}
 
