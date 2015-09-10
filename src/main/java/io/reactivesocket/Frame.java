@@ -16,6 +16,7 @@
 package io.reactivesocket;
 
 import io.reactivesocket.internal.*;
+import uk.co.real_logic.agrona.DirectBuffer;
 import uk.co.real_logic.agrona.MutableDirectBuffer;
 
 import java.nio.ByteBuffer;
@@ -37,7 +38,7 @@ public class Frame implements Payload
      */
 
     private static final String FRAME_POOLER_CLASS_NAME =
-        getProperty("io.reactivesocket.FramePool", "io.reactivesocket.internal.UnpooledFrame");
+        getProperty("io.reactivesocket.FramePool", "io.reactivesocket.internal.ThreadLocalFramePool");
     private static final FramePool POOL;
 
     static
@@ -166,6 +167,23 @@ public class Frame implements Payload
      */
     public static Frame from(final ByteBuffer byteBuffer) {
         return POOL.acquireFrame(byteBuffer);
+    }
+
+    /**
+     * Acquire a free Frame and back with the given {@link DirectBuffer} starting at offset for length bytes
+     *
+     * @param directBuffer to use as backing buffer
+     * @param offset of start of frame
+     * @param length of frame in bytes
+     * @return frame
+     */
+    public static Frame from(final DirectBuffer directBuffer, final int offset, final int length)
+    {
+        final Frame frame = POOL.acquireFrame((MutableDirectBuffer)directBuffer);
+        frame.offset = offset;
+        frame.length = length;
+
+        return frame;
     }
 
     /**
