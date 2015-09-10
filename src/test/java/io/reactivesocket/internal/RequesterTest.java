@@ -43,20 +43,25 @@ public class RequesterTest
     @Test
     public void testRequestResponseSuccess() {
         TestConnection conn = establishConnection();
-        Requester p = Requester.createClientRequester(conn, ConnectionSetupPayload.create("UTF-8", "UTF-8", NO_FLAGS), ERROR_HANDLER);
         ReplaySubject<Frame> requests = captureRequests(conn);
+        Requester p = Requester.createClientRequester(conn, ConnectionSetupPayload.create("UTF-8", "UTF-8", NO_FLAGS), ERROR_HANDLER);
 
         TestSubscriber<Payload> ts = new TestSubscriber<>();
         p.requestResponse(utf8EncodedPayload("hello", null)).subscribe(ts);
 
         ts.assertNoErrors();
-        assertEquals(1, requests.getValues().length);
-        List<Frame> requested = requests.take(1).toList().toBlocking().single();
+        assertEquals(2, requests.getValues().length);
+        List<Frame> requested = requests.take(2).toList().toBlocking().single();
 
         Frame one = requested.get(0);
-        assertEquals(2, one.getStreamId());// need to start at 2, not 0
-        assertEquals("hello", byteToString(one.getData()));
-        assertEquals(FrameType.REQUEST_RESPONSE, one.getType());
+        assertEquals(0, one.getStreamId());// SETUP always happens on 0
+        assertEquals("", byteToString(one.getData()));
+        assertEquals(FrameType.SETUP, one.getType());
+        
+        Frame two = requested.get(1);
+        assertEquals(2, two.getStreamId());// need to start at 2, not 0
+        assertEquals("hello", byteToString(two.getData()));
+        assertEquals(FrameType.REQUEST_RESPONSE, two.getType());
         
         // now emit a response to ensure the Publisher receives and completes
         conn.toInput.onNext(utf8EncodedResponseFrame(2, FrameType.NEXT_COMPLETE, "world"));
@@ -69,19 +74,24 @@ public class RequesterTest
     @Test
     public void testRequestResponseError() {
         TestConnection conn = establishConnection();
-        Requester p = Requester.createClientRequester(conn, ConnectionSetupPayload.create("UTF-8", "UTF-8", NO_FLAGS), ERROR_HANDLER);
         ReplaySubject<Frame> requests = captureRequests(conn);
+        Requester p = Requester.createClientRequester(conn, ConnectionSetupPayload.create("UTF-8", "UTF-8", NO_FLAGS), ERROR_HANDLER);
 
         TestSubscriber<Payload> ts = new TestSubscriber<>();
         p.requestResponse(utf8EncodedPayload("hello", null)).subscribe(ts);
 
-        assertEquals(1, requests.getValues().length);
-        List<Frame> requested = requests.take(1).toList().toBlocking().single();
+        assertEquals(2, requests.getValues().length);
+        List<Frame> requested = requests.take(2).toList().toBlocking().single();
 
         Frame one = requested.get(0);
-        assertEquals(2, one.getStreamId());// need to start at 2, not 0
-        assertEquals("hello", byteToString(one.getData()));
-        assertEquals(FrameType.REQUEST_RESPONSE, one.getType());
+        assertEquals(0, one.getStreamId());// SETUP always happens on 0
+        assertEquals("", byteToString(one.getData()));
+        assertEquals(FrameType.SETUP, one.getType());
+        
+        Frame two = requested.get(1);
+        assertEquals(2, two.getStreamId());// need to start at 2, not 0
+        assertEquals("hello", byteToString(two.getData()));
+        assertEquals(FrameType.REQUEST_RESPONSE, two.getType());
 
         conn.toInput.onNext(Frame.Error.from(2, new RuntimeException("Failed")));
         ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
@@ -92,25 +102,30 @@ public class RequesterTest
     @Test
     public void testRequestResponseCancel() {
         TestConnection conn = establishConnection();
-        Requester p = Requester.createClientRequester(conn, ConnectionSetupPayload.create("UTF-8", "UTF-8", NO_FLAGS), ERROR_HANDLER);
         ReplaySubject<Frame> requests = captureRequests(conn);
+        Requester p = Requester.createClientRequester(conn, ConnectionSetupPayload.create("UTF-8", "UTF-8", NO_FLAGS), ERROR_HANDLER);
 
         TestSubscriber<Payload> ts = new TestSubscriber<>();
         p.requestResponse(utf8EncodedPayload("hello", null)).subscribe(ts);
         ts.cancel();
 
-        assertEquals(2, requests.getValues().length);
-        List<Frame> requested = requests.take(2).toList().toBlocking().single();
+        assertEquals(3, requests.getValues().length);
+        List<Frame> requested = requests.take(3).toList().toBlocking().single();
 
         Frame one = requested.get(0);
-        assertEquals(2, one.getStreamId());// need to start at 2, not 0
-        assertEquals("hello", byteToString(one.getData()));
-        assertEquals(FrameType.REQUEST_RESPONSE, one.getType());
-
+        assertEquals(0, one.getStreamId());// SETUP always happens on 0
+        assertEquals("", byteToString(one.getData()));
+        assertEquals(FrameType.SETUP, one.getType());
+        
         Frame two = requested.get(1);
-        assertEquals(2, two.getStreamId());// still the same stream
-        assertEquals("", byteToString(two.getData()));
-        assertEquals(FrameType.CANCEL, two.getType());
+        assertEquals(2, two.getStreamId());// need to start at 2, not 0
+        assertEquals("hello", byteToString(two.getData()));
+        assertEquals(FrameType.REQUEST_RESPONSE, two.getType());
+
+        Frame three = requested.get(2);
+        assertEquals(2, three.getStreamId());// still the same stream
+        assertEquals("", byteToString(three.getData()));
+        assertEquals(FrameType.CANCEL, three.getType());
 
         ts.assertNotTerminated();
         ts.assertNoValues();
@@ -120,19 +135,24 @@ public class RequesterTest
     @Test
     public void testRequestStreamSuccess() {
         TestConnection conn = establishConnection();
-        Requester p = Requester.createClientRequester(conn, ConnectionSetupPayload.create("UTF-8", "UTF-8", NO_FLAGS), ERROR_HANDLER);
         ReplaySubject<Frame> requests = captureRequests(conn);
+        Requester p = Requester.createClientRequester(conn, ConnectionSetupPayload.create("UTF-8", "UTF-8", NO_FLAGS), ERROR_HANDLER);
 
         TestSubscriber<String> ts = new TestSubscriber<>();
         fromPublisher(p.requestStream(utf8EncodedPayload("hello", null))).map(pl -> byteToString(pl.getData())).subscribe(ts);
 
-        assertEquals(1, requests.getValues().length);
-        List<Frame> requested = requests.take(1).toList().toBlocking().single();
+        assertEquals(2, requests.getValues().length);
+        List<Frame> requested = requests.take(2).toList().toBlocking().single();
 
         Frame one = requested.get(0);
-        assertEquals(2, one.getStreamId());// need to start at 2, not 0
-        assertEquals("hello", byteToString(one.getData()));
-        assertEquals(FrameType.REQUEST_STREAM, one.getType());
+        assertEquals(0, one.getStreamId());// SETUP always happens on 0
+        assertEquals("", byteToString(one.getData()));
+        assertEquals(FrameType.SETUP, one.getType());
+        
+        Frame two = requested.get(1);
+        assertEquals(2, two.getStreamId());// need to start at 2, not 0
+        assertEquals("hello", byteToString(two.getData()));
+        assertEquals(FrameType.REQUEST_STREAM, two.getType());
         // TODO assert initial requestN
         
         // emit data
@@ -149,19 +169,24 @@ public class RequesterTest
     @Test
     public void testRequestStreamSuccessTake2AndCancel() {
         TestConnection conn = establishConnection();
-        Requester p = Requester.createClientRequester(conn, ConnectionSetupPayload.create("UTF-8", "UTF-8", NO_FLAGS), ERROR_HANDLER);
         ReplaySubject<Frame> requests = captureRequests(conn);
+        Requester p = Requester.createClientRequester(conn, ConnectionSetupPayload.create("UTF-8", "UTF-8", NO_FLAGS), ERROR_HANDLER);
 
         TestSubscriber<String> ts = new TestSubscriber<>();
         Observable.fromPublisher(p.requestStream(utf8EncodedPayload("hello", null))).take(2).map(pl -> byteToString(pl.getData())).subscribe(ts);
 
-        assertEquals(1, requests.getValues().length);
-        List<Frame> requested = requests.take(1).toList().toBlocking().single();
+        assertEquals(2, requests.getValues().length);
+        List<Frame> requested = requests.take(2).toList().toBlocking().single();
 
         Frame one = requested.get(0);
-        assertEquals(2, one.getStreamId());// need to start at 2, not 0
-        assertEquals("hello", byteToString(one.getData()));
-        assertEquals(FrameType.REQUEST_STREAM, one.getType());
+        assertEquals(0, one.getStreamId());// SETUP always happens on 0
+        assertEquals("", byteToString(one.getData()));
+        assertEquals(FrameType.SETUP, one.getType());
+        
+        Frame two = requested.get(1);
+        assertEquals(2, two.getStreamId());// need to start at 2, not 0
+        assertEquals("hello", byteToString(two.getData()));
+        assertEquals(FrameType.REQUEST_STREAM, two.getType());
         // TODO assert initial requestN
 
         // emit data
@@ -172,32 +197,37 @@ public class RequesterTest
         ts.assertComplete();
         ts.assertValueSequence(Arrays.asList("hello", "world"));
 
-        assertEquals(2, requests.getValues().length);
-        List<Frame> requested2 = requests.take(2).toList().toBlocking().single();
+        assertEquals(3, requests.getValues().length);
+        List<Frame> requested2 = requests.take(3).toList().toBlocking().single();
 
         // we should have sent a CANCEL
-        Frame two = requested2.get(1);
-        assertEquals(2, two.getStreamId());// still the same stream
-        assertEquals("", byteToString(two.getData()));
-        assertEquals(FrameType.CANCEL, two.getType());
+        Frame three = requested2.get(2);
+        assertEquals(2, three.getStreamId());// still the same stream
+        assertEquals("", byteToString(three.getData()));
+        assertEquals(FrameType.CANCEL, three.getType());
     }
 
     @Test
     public void testRequestStreamError() {
         TestConnection conn = establishConnection();
-        Requester p = Requester.createClientRequester(conn, ConnectionSetupPayload.create("UTF-8", "UTF-8", NO_FLAGS), ERROR_HANDLER);
         ReplaySubject<Frame> requests = captureRequests(conn);
+        Requester p = Requester.createClientRequester(conn, ConnectionSetupPayload.create("UTF-8", "UTF-8", NO_FLAGS), ERROR_HANDLER);
 
         TestSubscriber<Payload> ts = new TestSubscriber<>();
         p.requestStream(utf8EncodedPayload("hello", null)).subscribe(ts);
 
-        assertEquals(1, requests.getValues().length);
-        List<Frame> requested = requests.take(1).toList().toBlocking().single();
+        assertEquals(2, requests.getValues().length);
+        List<Frame> requested = requests.take(2).toList().toBlocking().single();
 
         Frame one = requested.get(0);
-        assertEquals(2, one.getStreamId());// need to start at 2, not 0
-        assertEquals("hello", byteToString(one.getData()));
-        assertEquals(FrameType.REQUEST_STREAM, one.getType());
+        assertEquals(0, one.getStreamId());// SETUP always happens on 0
+        assertEquals("", byteToString(one.getData()));
+        assertEquals(FrameType.SETUP, one.getType());
+        
+        Frame two = requested.get(1);
+        assertEquals(2, two.getStreamId());// need to start at 2, not 0
+        assertEquals("hello", byteToString(two.getData()));
+        assertEquals(FrameType.REQUEST_STREAM, two.getType());
         // TODO assert initial requestN
 
         // emit data
