@@ -143,7 +143,7 @@ public class Requester {
 							started = true;
 							numberOfRemainingRequests--;
 
-							connection.addOutput(PublisherUtils.just(Frame.fromRequest(nextStreamId(), FrameType.FIRE_AND_FORGET, payload, 0)), new Completable() {
+							connection.addOutput(PublisherUtils.just(Frame.Request.from(nextStreamId(), FrameType.FIRE_AND_FORGET, payload, 0)), new Completable() {
 
 								@Override
 								public void success() {
@@ -196,7 +196,7 @@ public class Requester {
 						started = true;
 						numberOfRemainingRequests--;
 
-						connection.addOutput(PublisherUtils.just(Frame.fromRequest(nextStreamId(), FrameType.METADATA_PUSH, payload, 0)), new Completable() {
+						connection.addOutput(PublisherUtils.just(Frame.Request.from(nextStreamId(), FrameType.METADATA_PUSH, payload, 0)), new Completable() {
 
 							@Override
 							public void success() {
@@ -295,7 +295,7 @@ public class Requester {
 							outstanding.addAndGet(requestN);
 							
 							// when transport connects we write the request frame for this stream
-							w.onNext(Frame.fromRequest(streamId, type, payload, (int)requestN));
+							w.onNext(Frame.Request.from(streamId, type, payload, (int)requestN));
 						});
 						
 						// Response frames for this Stream
@@ -340,7 +340,7 @@ public class Requester {
 						streamInputMap.remove(streamId);
 					}
 					if (!streamInputSubscriber.terminated.get()) {
-						writer.onNext(Frame.from(streamId, FrameType.CANCEL));
+						writer.onNext(Frame.Cancel.from(streamId));
 					}
 					streamInputSubscriber.parentSubscription.cancel();
 				}
@@ -418,10 +418,10 @@ public class Requester {
 													public void onNext(Payload p) {
 														if(isInitialRequest) {
 															isInitialRequest = false;
-															Frame f = Frame.fromRequest(streamId, type, p, (int)requestN);
+															Frame f = Frame.Request.from(streamId, type, p, (int)requestN);
 															transport.onNext(f);
 														} else {
-															Frame f = Frame.fromRequest(streamId, type, p, 0);
+															Frame f = Frame.Request.from(streamId, type, p, 0);
 															transport.onNext(f);
 														}
 													}
@@ -514,7 +514,7 @@ public class Requester {
 						streamInputMap.remove(streamId);
 					}
 					if (!streamInputSubscriber.terminated.get()) {
-						writer.onNext(Frame.from(streamId, FrameType.CANCEL));
+						writer.onNext(Frame.Cancel.from(streamId));
 					}
 					streamInputSubscriber.parentSubscription.cancel();
 					if (payloadsSubscription != null) {
@@ -557,7 +557,7 @@ public class Requester {
 						});
 						transportInputSubject.subscribe(streamInputSubscriber);
 						
-						Publisher<Frame> requestOutput = PublisherUtils.just(Frame.fromRequest(streamId, type, payload, 1));
+						Publisher<Frame> requestOutput = PublisherUtils.just(Frame.Request.from(streamId, type, payload, 1));
 						// connect to transport
 						connection.addOutput(requestOutput, new Completable() {
 
@@ -580,7 +580,7 @@ public class Requester {
 				@Override
 				public void cancel() {
 					if (!streamInputSubscriber.terminated.get()) {
-						connection.addOutput(PublisherUtils.just(Frame.from(streamId, FrameType.CANCEL)), new Completable() {
+						connection.addOutput(PublisherUtils.just(Frame.Cancel.from(streamId)), new Completable() {
 
 							@Override
 							public void success() {
@@ -713,7 +713,7 @@ public class Requester {
 				// record how many we have requested
 				outstanding.addAndGet(requestN);
 
-				writer.onNext(Frame.fromRequestN(streamId, (int)requestN));
+				writer.onNext(Frame.RequestN.from(streamId, (int)requestN));
 			}
 		}
 	}
@@ -731,7 +731,7 @@ public class Requester {
 					s.request(Long.MAX_VALUE);
 
 					// now that we are connected, send SETUP frame (asynchronously, other messages can continue being written after this)
-					connection.addOutput(PublisherUtils.just(Frame.fromSetup(setupPayload.getFlags(), 0, 0, setupPayload.metadataMimeType(), setupPayload.dataMimeType(), setupPayload)),
+					connection.addOutput(PublisherUtils.just(Frame.Setup.from(setupPayload.getFlags(), 0, 0, setupPayload.metadataMimeType(), setupPayload.dataMimeType(), setupPayload)),
 						new Completable() {
 
 							@Override

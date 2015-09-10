@@ -111,7 +111,7 @@ public class ResponderTest
         assertFalse(cachedResponses.hasAnyValue());
         // unsubscribe
         assertFalse(unsubscribed.get());
-        conn.toInput.onNext(Frame.from(1, FrameType.CANCEL));
+        conn.toInput.onNext(Frame.Cancel.from(1));
         assertTrue(unsubscribed.get());
     }
 
@@ -199,7 +199,7 @@ public class ResponderTest
         ts.advanceTimeBy(2000, TimeUnit.MILLISECONDS);
         assertEquals(3, cachedResponses.getValues().length);
         // dispose
-        conn.toInput.onNext(Frame.from(1, FrameType.CANCEL));
+        conn.toInput.onNext(Frame.Cancel.from(1));
         // still only 1 message
         assertEquals(3, cachedResponses.getValues().length);
         // advance again, nothing should happen
@@ -243,7 +243,7 @@ public class ResponderTest
         // should have 3 from A and 2 from B
         assertEquals(5, cachedResponses.getValues().length);
         // dispose A, but leave B
-        conn.toInput.onNext(Frame.from(1, FrameType.CANCEL));
+        conn.toInput.onNext(Frame.Cancel.from(1));
         // still same 5 frames
         assertEquals(5, cachedResponses.getValues().length);
         // advance again, should get 2 from B
@@ -311,6 +311,6 @@ public class ResponderTest
 
 	private void sendSetupFrame(TestConnection conn) {
 		// setup
-        conn.toInput.onNext(Frame.fromSetup(0, 0, 0, "UTF-8", "UTF-8", utf8EncodedPayload("", "")));
+        conn.toInput.onNext(Frame.Setup.from(0, 0, 0, "UTF-8", "UTF-8", utf8EncodedPayload("", "")));
 	}
 }

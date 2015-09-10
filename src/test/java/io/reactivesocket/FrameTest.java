@@ -63,8 +63,9 @@ public class FrameTest
     @Test
     public void testWriteThenRead() {
     	final ByteBuffer helloBuffer = TestUtil.byteBufferFromUtf8String("hello");
+        final Payload payload = createPayload(Frame.NULL_BYTEBUFFER, helloBuffer);
 
-        Frame f = Frame.from(1, FrameType.REQUEST_RESPONSE, helloBuffer);
+        Frame f = Frame.Request.from(1, FrameType.REQUEST_RESPONSE, payload, 1);
 
         assertEquals("hello", TestUtil.byteToString(f.getData()));
         assertEquals(FrameType.REQUEST_RESPONSE, f.getType());
@@ -82,8 +83,9 @@ public class FrameTest
     public void testWrapMessage() {
     	final ByteBuffer helloBuffer = TestUtil.byteBufferFromUtf8String("hello");
         final ByteBuffer doneBuffer = TestUtil.byteBufferFromUtf8String("done");
+        final Payload payload = createPayload(Frame.NULL_BYTEBUFFER, helloBuffer);
 
-        Frame f = Frame.from(1, FrameType.REQUEST_RESPONSE, helloBuffer);
+        Frame f = Frame.Request.from(1, FrameType.REQUEST_RESPONSE, payload, 1);
 
         f.wrap(2, FrameType.COMPLETE, doneBuffer);
         assertEquals("done", TestUtil.byteToString(f.getData()));
@@ -95,9 +97,11 @@ public class FrameTest
     public void testWrapBytes() {
     	final ByteBuffer helloBuffer = TestUtil.byteBufferFromUtf8String("hello");
         final ByteBuffer anotherBuffer = TestUtil.byteBufferFromUtf8String("another");
-        
-        Frame f = Frame.from(1, FrameType.REQUEST_RESPONSE, helloBuffer);
-        Frame f2 = Frame.from(20, FrameType.COMPLETE, anotherBuffer);
+        final Payload payload = createPayload(Frame.NULL_BYTEBUFFER, helloBuffer);
+        final Payload anotherPayload = createPayload(Frame.NULL_BYTEBUFFER, anotherBuffer);
+
+        Frame f = Frame.Request.from(1, FrameType.REQUEST_RESPONSE, payload, 1);
+        Frame f2 = Frame.Response.from(20, FrameType.COMPLETE, anotherPayload);
 
         ByteBuffer b = f2.getByteBuffer();
         f.wrap(b, 0);
@@ -115,7 +119,7 @@ public class FrameTest
         final ByteBuffer requestMetadata = TestUtil.byteBufferFromUtf8String("request metadata");
         final Payload payload = createPayload(requestMetadata, requestData);
 
-        Frame encodedFrame = Frame.fromRequest(1, FrameType.REQUEST_RESPONSE, payload, 1);
+        Frame encodedFrame = Frame.Request.from(1, FrameType.REQUEST_RESPONSE, payload, 1);
         TestUtil.copyFrame(reusableMutableDirectBuffer, offset, encodedFrame);
         reusableFrame.wrap(reusableMutableDirectBuffer, offset);
 
@@ -133,7 +137,7 @@ public class FrameTest
         final ByteBuffer requestMetadata = TestUtil.byteBufferFromUtf8String("request metadata");
         final Payload payload = createPayload(requestMetadata, requestData);
 
-        Frame encodedFrame = Frame.fromRequest(1, FrameType.FIRE_AND_FORGET, payload, 0);
+        Frame encodedFrame = Frame.Request.from(1, FrameType.FIRE_AND_FORGET, payload, 0);
         TestUtil.copyFrame(reusableMutableDirectBuffer, offset, encodedFrame);
         reusableFrame.wrap(reusableMutableDirectBuffer, offset);
 
@@ -151,7 +155,7 @@ public class FrameTest
         final ByteBuffer requestMetadata = TestUtil.byteBufferFromUtf8String("request metadata");
         final Payload payload = createPayload(requestMetadata, requestData);
 
-        Frame encodedFrame = Frame.fromRequest(1, FrameType.REQUEST_STREAM, payload, 128);
+        Frame encodedFrame = Frame.Request.from(1, FrameType.REQUEST_STREAM, payload, 128);
         TestUtil.copyFrame(reusableMutableDirectBuffer, offset, encodedFrame);
         reusableFrame.wrap(reusableMutableDirectBuffer, offset);
 
@@ -170,7 +174,7 @@ public class FrameTest
         final ByteBuffer requestMetadata = TestUtil.byteBufferFromUtf8String("request metadata");
         final Payload payload = createPayload(requestMetadata, requestData);
 
-        Frame encodedFrame = Frame.fromRequest(1, FrameType.REQUEST_SUBSCRIPTION, payload, 128);
+        Frame encodedFrame = Frame.Request.from(1, FrameType.REQUEST_SUBSCRIPTION, payload, 128);
         TestUtil.copyFrame(reusableMutableDirectBuffer, offset, encodedFrame);
         reusableFrame.wrap(reusableMutableDirectBuffer, offset);
 
@@ -187,8 +191,9 @@ public class FrameTest
     {
         final ByteBuffer requestData = TestUtil.byteBufferFromUtf8String("response data");
         final ByteBuffer requestMetadata = TestUtil.byteBufferFromUtf8String("response metadata");
+        final Payload payload = createPayload(requestMetadata, requestData);
 
-        Frame encodedFrame = Frame.from(1, FrameType.RESPONSE, requestData, requestMetadata);
+        Frame encodedFrame = Frame.Response.from(1, FrameType.RESPONSE, payload);
         TestUtil.copyFrame(reusableMutableDirectBuffer, offset, encodedFrame);
         reusableFrame.wrap(reusableMutableDirectBuffer, offset);
 
@@ -205,7 +210,7 @@ public class FrameTest
         final ByteBuffer requestData = TestUtil.byteBufferFromUtf8String("request data");
         final Payload payload = createPayload(Frame.NULL_BYTEBUFFER, requestData);
 
-        Frame encodedFrame = Frame.fromRequest(1, FrameType.REQUEST_RESPONSE, payload, 1);
+        Frame encodedFrame = Frame.Request.from(1, FrameType.REQUEST_RESPONSE, payload, 1);
         TestUtil.copyFrame(reusableMutableDirectBuffer, offset, encodedFrame);
         reusableFrame.wrap(reusableMutableDirectBuffer, offset);
 
@@ -224,7 +229,7 @@ public class FrameTest
         final ByteBuffer requestData = TestUtil.byteBufferFromUtf8String("request data");
         final Payload payload = createPayload(Frame.NULL_BYTEBUFFER, requestData);
 
-        Frame encodedFrame = Frame.fromRequest(1, FrameType.FIRE_AND_FORGET, payload, 0);
+        Frame encodedFrame = Frame.Request.from(1, FrameType.FIRE_AND_FORGET, payload, 0);
         TestUtil.copyFrame(reusableMutableDirectBuffer, offset, encodedFrame);
         reusableFrame.wrap(reusableMutableDirectBuffer, offset);
 
@@ -243,7 +248,7 @@ public class FrameTest
         final ByteBuffer requestData = TestUtil.byteBufferFromUtf8String("request data");
         final Payload payload = createPayload(Frame.NULL_BYTEBUFFER, requestData);
 
-        Frame encodedFrame = Frame.fromRequest(1, FrameType.REQUEST_STREAM, payload, 128);
+        Frame encodedFrame = Frame.Request.from(1, FrameType.REQUEST_STREAM, payload, 128);
         TestUtil.copyFrame(reusableMutableDirectBuffer, offset, encodedFrame);
         reusableFrame.wrap(reusableMutableDirectBuffer, offset);
 
@@ -263,7 +268,7 @@ public class FrameTest
         final ByteBuffer requestData = TestUtil.byteBufferFromUtf8String("request data");
         final Payload payload = createPayload(Frame.NULL_BYTEBUFFER, requestData);
 
-        Frame encodedFrame = Frame.fromRequest(1, FrameType.REQUEST_SUBSCRIPTION, payload, 128);
+        Frame encodedFrame = Frame.Request.from(1, FrameType.REQUEST_SUBSCRIPTION, payload, 128);
         TestUtil.copyFrame(reusableMutableDirectBuffer, offset, encodedFrame);
         reusableFrame.wrap(reusableMutableDirectBuffer, offset);
 
@@ -281,8 +286,9 @@ public class FrameTest
     public void shouldReturnCorrectDataWithoutMetadataForResponse(final int offset)
     {
         final ByteBuffer requestData = TestUtil.byteBufferFromUtf8String("response data");
+        final Payload payload = createPayload(Frame.NULL_BYTEBUFFER, requestData);
 
-        Frame encodedFrame = Frame.from(1, FrameType.RESPONSE, requestData);
+        Frame encodedFrame = Frame.Response.from(1, FrameType.RESPONSE, payload);
         TestUtil.copyFrame(reusableMutableDirectBuffer, offset, encodedFrame);
         reusableFrame.wrap(reusableMutableDirectBuffer, offset);
 
@@ -307,7 +313,7 @@ public class FrameTest
         final ByteBuffer setupData = TestUtil.byteBufferFromUtf8String("setup data");
         final ByteBuffer setupMetadata = TestUtil.byteBufferFromUtf8String("setup metadata");
 
-        Frame encodedFrame = Frame.fromSetup(flags, keepaliveInterval, maxLifetime, metadataMimeType, dataMimeType, new Payload()
+        Frame encodedFrame = Frame.Setup.from(flags, keepaliveInterval, maxLifetime, metadataMimeType, dataMimeType, new Payload()
         {
             public ByteBuffer getData()
             {
@@ -345,7 +351,7 @@ public class FrameTest
         final String dataMimeType = "application/cbor";
         final ByteBuffer setupData = TestUtil.byteBufferFromUtf8String("setup data");
 
-        Frame encodedFrame = Frame.fromSetup(flags, keepaliveInterval, maxLifetime, metadataMimeType, dataMimeType, new Payload()
+        Frame encodedFrame = Frame.Setup.from(flags, keepaliveInterval, maxLifetime, metadataMimeType, dataMimeType, new Payload()
         {
             public ByteBuffer getData()
             {
@@ -382,7 +388,7 @@ public class FrameTest
         final String metadataMimeType = "application/json";
         final String dataMimeType = "application/cbor";
 
-        Frame encodedFrame = Frame.fromSetup(flags, keepaliveInterval, maxLifetime, metadataMimeType, dataMimeType, new Payload()
+        Frame encodedFrame = Frame.Setup.from(flags, keepaliveInterval, maxLifetime, metadataMimeType, dataMimeType, new Payload()
         {
             public ByteBuffer getData()
             {
@@ -419,7 +425,7 @@ public class FrameTest
         final ByteBuffer dataByteBuffer = ByteBuffer.wrap(data.getBytes(UTF_8));
         final ByteBuffer metadataByteBuffer = ByteBuffer.wrap(metadata.getBytes(UTF_8));
 
-        Frame encodedFrame = Frame.fromError(streamId, exception, metadataByteBuffer, dataByteBuffer);
+        Frame encodedFrame = Frame.Error.from(streamId, exception, metadataByteBuffer, dataByteBuffer);
         TestUtil.copyFrame(reusableMutableDirectBuffer, offset, encodedFrame);
         reusableFrame.wrap(reusableMutableDirectBuffer, offset);
 
@@ -437,7 +443,7 @@ public class FrameTest
         final String metadata = "my metadata";
         final String exMessage = "exception message";
 
-        Frame encodedFrame = Frame.fromError(
+        Frame encodedFrame = Frame.Error.from(
             errorCode,
             new Exception(exMessage),
             TestUtil.byteBufferFromUtf8String(metadata)
@@ -459,7 +465,7 @@ public class FrameTest
         final String metadata = "metadata";
         final String data = "error data";
 
-        Frame encodedFrame = Frame.fromError(
+        Frame encodedFrame = Frame.Error.from(
             errorCode,
             new Exception("my exception"),
             TestUtil.byteBufferFromUtf8String(metadata),
@@ -478,7 +484,7 @@ public class FrameTest
     public void shouldFormCorrectlyForRequestN(final int offset)
     {
         final int n = 128;
-        final Frame encodedFrame = Frame.fromRequestN(1, n);
+        final Frame encodedFrame = Frame.RequestN.from(1, n);
         TestUtil.copyFrame(reusableMutableDirectBuffer, offset, encodedFrame);
         reusableFrame.wrap(reusableMutableDirectBuffer, offset);
 
@@ -494,7 +500,7 @@ public class FrameTest
     {
         final int ttl = (int)TimeUnit.SECONDS.toMillis(8);
         final int numberOfRequests = 16;
-        final Frame encodedFrame = Frame.fromLease(ttl, numberOfRequests, Frame.NULL_BYTEBUFFER);
+        final Frame encodedFrame = Frame.Lease.from(ttl, numberOfRequests, Frame.NULL_BYTEBUFFER);
         TestUtil.copyFrame(reusableMutableDirectBuffer, offset, encodedFrame);
         reusableFrame.wrap(reusableMutableDirectBuffer, offset);
 
@@ -514,7 +520,7 @@ public class FrameTest
         final int numberOfRequests = 16;
         final ByteBuffer leaseMetadata = TestUtil.byteBufferFromUtf8String("lease metadata");
 
-        final Frame encodedFrame = Frame.fromLease(ttl, numberOfRequests, leaseMetadata);
+        final Frame encodedFrame = Frame.Lease.from(ttl, numberOfRequests, leaseMetadata);
         TestUtil.copyFrame(reusableMutableDirectBuffer, offset, encodedFrame);
         reusableFrame.wrap(reusableMutableDirectBuffer, offset);
 

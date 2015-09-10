@@ -209,135 +209,35 @@ public class Frame implements Payload
         this.length = FrameHeaderFlyweight.encode(this.directBuffer, offset, streamId, type, NULL_BYTEBUFFER, data);
     }
 
-    public static Frame from(int streamId, FrameType type, ByteBuffer data, ByteBuffer metadata)
-    {
-        final Frame frame =
-            POOL.acquireFrame(FrameHeaderFlyweight.computeFrameHeaderLength(type, metadata.capacity(), data.capacity()));
-
-        frame.length = FrameHeaderFlyweight.encode(frame.directBuffer, frame.offset, streamId, type, metadata, data);
-        return frame;
-    }
-
-    public static Frame from(int streamId, FrameType type, ByteBuffer data)
-    {
-        return from(streamId, type, data, NULL_BYTEBUFFER);
-    }
-
-    public static Frame from(int streamId, FrameType type, Payload payload)
-    {
-    	final ByteBuffer d = payload.getData() != null ? payload.getData() : NULL_BYTEBUFFER;
-    	final ByteBuffer md = payload.getMetadata() != null ? payload.getMetadata() : NULL_BYTEBUFFER;
-
-        return from(streamId, type, d, md);
-    }
-
-    public static Frame from(int streamId, FrameType type)
-    {
-        return from(streamId, type, NULL_BYTEBUFFER, NULL_BYTEBUFFER);
-    }
-
-    public static Frame fromError(
-        int streamId,
-        final Throwable throwable,
-        ByteBuffer metadata,
-        ByteBuffer data
-    ) {
-        final int code = ErrorFrameFlyweight.errorCodeFromException(throwable);
-        final Frame frame = POOL.acquireFrame(
-            ErrorFrameFlyweight.computeFrameLength(data.capacity(), metadata.capacity()));
-
-        frame.length = ErrorFrameFlyweight.encode(
-            frame.directBuffer, frame.offset, streamId, code, metadata, data);
-        return frame;
-    }
-
-    public static Frame fromError(
-        int streamId,
-        final Throwable throwable,
-        ByteBuffer metadata
-    ) {
-        String data = (throwable.getMessage() == null ? "" : throwable.getMessage());
-        byte[] bytes = data.getBytes(Charset.forName("UTF-8"));
-        final ByteBuffer dataBuffer = ByteBuffer.wrap(bytes);
-
-        return fromError(streamId, throwable, metadata, dataBuffer);
-    }
-
-    public static Frame fromError(
-        int streamId,
-        final Throwable throwable
-    ) {
-        return fromError(streamId, throwable, NULL_BYTEBUFFER);
-    }
-
     /* TODO:
      *
      * fromRequest(type, id, payload)
-     * fromResponse(id, payload, flags)  - does it automatically fragment? (only if auto reassemble)
-     * fromCancel(id, metadata)
-     * fromMetadataPush(id, metadata)
-     *
      * fromKeepalive(ByteBuffer data)
      *
      */
 
-    public static Frame fromSetup(
-        int flags,
-        int keepaliveInterval,
-        int maxLifetime,
-        String metadataMimeType,
-        String dataMimeType,
-        Payload payload)
-    {
-        final ByteBuffer metadata = payload.getMetadata();
-        final ByteBuffer data = payload.getData();
-
-        final Frame frame =
-            POOL.acquireFrame(SetupFrameFlyweight.computeFrameLength(metadataMimeType, dataMimeType, metadata.capacity(), data.capacity()));
-
-        frame.length = SetupFrameFlyweight.encode(
-            frame.directBuffer, frame.offset, flags, keepaliveInterval, maxLifetime, metadataMimeType, dataMimeType, metadata, data);
-        return frame;
-    }
-
-    public static Frame fromLease(int ttl, int numberOfRequests, ByteBuffer metadata)
-    {
-        final Frame frame = POOL.acquireFrame(LeaseFrameFlyweight.computeFrameLength(metadata.capacity()));
-
-        frame.length = LeaseFrameFlyweight.encode(frame.directBuffer, frame.offset, ttl, numberOfRequests, metadata);
-        return frame;
-    }
-
-    public static Frame fromRequestN(int streamId, int requestN)
-    {
-        final Frame frame = POOL.acquireFrame(RequestNFrameFlyweight.computeFrameLength());
-
-        frame.length = RequestNFrameFlyweight.encode(frame.directBuffer, frame.offset, streamId, requestN);
-        return frame;
-    }
-
-    public static Frame fromRequest(int streamId, FrameType type, Payload payload, int initialRequestN)
-    {
-        final ByteBuffer d = payload.getData() != null ? payload.getData() : NULL_BYTEBUFFER;
-        final ByteBuffer md = payload.getMetadata() != null ? payload.getMetadata() : NULL_BYTEBUFFER;
-
-        final Frame frame = POOL.acquireFrame(RequestFrameFlyweight.computeFrameLength(type, md.capacity(), d.capacity()));
-
-        if (type.hasInitialRequestN())
-        {
-            frame.length = RequestFrameFlyweight.encode(frame.directBuffer, frame.offset, streamId, type, initialRequestN, md, d);
-        }
-        else
-        {
-            frame.length = RequestFrameFlyweight.encode(frame.directBuffer, frame.offset, streamId, type, md, d);
-        }
-
-        return frame;
-    }
-
     // SETUP specific getters
     public static class Setup
     {
+        public static Frame from(
+            int flags,
+            int keepaliveInterval,
+            int maxLifetime,
+            String metadataMimeType,
+            String dataMimeType,
+            Payload payload)
+        {
+            final ByteBuffer metadata = payload.getMetadata();
+            final ByteBuffer data = payload.getData();
+
+            final Frame frame =
+                POOL.acquireFrame(SetupFrameFlyweight.computeFrameLength(metadataMimeType, dataMimeType, metadata.capacity(), data.capacity()));
+
+            frame.length = SetupFrameFlyweight.encode(
+                frame.directBuffer, frame.offset, flags, keepaliveInterval, maxLifetime, metadataMimeType, dataMimeType, metadata, data);
+            return frame;
+        }
+
         public static int getFlags(final Frame frame)
         {
             ensureFrameType(FrameType.SETUP, frame);
@@ -379,6 +279,40 @@ public class Frame implements Payload
 
     public static class Error
     {
+        public static Frame from(
+            int streamId,
+            final Throwable throwable,
+            ByteBuffer metadata,
+            ByteBuffer data
+        ) {
+            final int code = ErrorFrameFlyweight.errorCodeFromException(throwable);
+            final Frame frame = POOL.acquireFrame(
+                ErrorFrameFlyweight.computeFrameLength(data.capacity(), metadata.capacity()));
+
+            frame.length = ErrorFrameFlyweight.encode(
+                frame.directBuffer, frame.offset, streamId, code, metadata, data);
+            return frame;
+        }
+
+        public static Frame from(
+            int streamId,
+            final Throwable throwable,
+            ByteBuffer metadata
+        ) {
+            String data = (throwable.getMessage() == null ? "" : throwable.getMessage());
+            byte[] bytes = data.getBytes(Charset.forName("UTF-8"));
+            final ByteBuffer dataBuffer = ByteBuffer.wrap(bytes);
+
+            return from(streamId, throwable, metadata, dataBuffer);
+        }
+
+        public static Frame from(
+            int streamId,
+            final Throwable throwable
+        ) {
+            return from(streamId, throwable, NULL_BYTEBUFFER);
+        }
+
         public static int errorCode(final Frame frame)
         {
             ensureFrameType(FrameType.ERROR, frame);
@@ -388,6 +322,14 @@ public class Frame implements Payload
 
     public static class Lease
     {
+        public static Frame from(int ttl, int numberOfRequests, ByteBuffer metadata)
+        {
+            final Frame frame = POOL.acquireFrame(LeaseFrameFlyweight.computeFrameLength(metadata.capacity()));
+
+            frame.length = LeaseFrameFlyweight.encode(frame.directBuffer, frame.offset, ttl, numberOfRequests, metadata);
+            return frame;
+        }
+
         public static int ttl(final Frame frame)
         {
             ensureFrameType(FrameType.LEASE, frame);
@@ -403,6 +345,14 @@ public class Frame implements Payload
 
     public static class RequestN
     {
+        public static Frame from(int streamId, int requestN)
+        {
+            final Frame frame = POOL.acquireFrame(RequestNFrameFlyweight.computeFrameLength());
+
+            frame.length = RequestNFrameFlyweight.encode(frame.directBuffer, frame.offset, streamId, requestN);
+            return frame;
+        }
+
         public static long requestN(final Frame frame)
         {
             ensureFrameType(FrameType.REQUEST_N, frame);
@@ -412,6 +362,25 @@ public class Frame implements Payload
 
     public static class Request
     {
+        public static Frame from(int streamId, FrameType type, Payload payload, int initialRequestN)
+        {
+            final ByteBuffer d = payload.getData() != null ? payload.getData() : NULL_BYTEBUFFER;
+            final ByteBuffer md = payload.getMetadata() != null ? payload.getMetadata() : NULL_BYTEBUFFER;
+
+            final Frame frame = POOL.acquireFrame(RequestFrameFlyweight.computeFrameLength(type, md.capacity(), d.capacity()));
+
+            if (type.hasInitialRequestN())
+            {
+                frame.length = RequestFrameFlyweight.encode(frame.directBuffer, frame.offset, streamId, type, initialRequestN, md, d);
+            }
+            else
+            {
+                frame.length = RequestFrameFlyweight.encode(frame.directBuffer, frame.offset, streamId, type, md, d);
+            }
+
+            return frame;
+        }
+
         public static long initialRequestN(final Frame frame)
         {
             final FrameType type = frame.getType();
@@ -436,6 +405,44 @@ public class Frame implements Payload
             }
 
             return result;
+        }
+    }
+
+    public static class Response
+    {
+        public static Frame from(int streamId, FrameType type, Payload payload)
+        {
+            final ByteBuffer data = payload.getData() != null ? payload.getData() : NULL_BYTEBUFFER;
+            final ByteBuffer metadata = payload.getMetadata() != null ? payload.getMetadata() : NULL_BYTEBUFFER;
+
+            final Frame frame =
+                POOL.acquireFrame(FrameHeaderFlyweight.computeFrameHeaderLength(type, metadata.capacity(), data.capacity()));
+
+            frame.length = FrameHeaderFlyweight.encode(frame.directBuffer, frame.offset, streamId, type, metadata, data);
+            return frame;
+        }
+
+        public static Frame from(int streamId, FrameType type)
+        {
+            final Frame frame =
+                POOL.acquireFrame(FrameHeaderFlyweight.computeFrameHeaderLength(type, 0, 0));
+
+            frame.length = FrameHeaderFlyweight.encode(
+                frame.directBuffer, frame.offset, streamId, type, Frame.NULL_BYTEBUFFER, Frame.NULL_BYTEBUFFER);
+            return frame;
+        }
+    }
+
+    public static class Cancel
+    {
+        public static Frame from(int streamId)
+        {
+            final Frame frame =
+                POOL.acquireFrame(FrameHeaderFlyweight.computeFrameHeaderLength(FrameType.CANCEL, 0, 0));
+
+            frame.length = FrameHeaderFlyweight.encode(
+                frame.directBuffer, frame.offset, streamId, FrameType.CANCEL, Frame.NULL_BYTEBUFFER, Frame.NULL_BYTEBUFFER);
+            return frame;
         }
     }
 

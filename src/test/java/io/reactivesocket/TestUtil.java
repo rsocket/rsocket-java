@@ -24,7 +24,7 @@ public class TestUtil
 {
     public static Frame utf8EncodedRequestFrame(final int streamId, final FrameType type, final String data, final int initialRequestN)
     {
-        return Frame.fromRequest(streamId, type, new Payload()
+        return Frame.Request.from(streamId, type, new Payload()
         {
             public ByteBuffer getData()
             {
@@ -38,14 +38,14 @@ public class TestUtil
         }, initialRequestN);
     }
 
-    public static Frame utf8EncodedFrame(final int streamId, final FrameType type, final String data)
+    public static Frame utf8EncodedResponseFrame(final int streamId, final FrameType type, final String data)
     {
-        return Frame.from(streamId, type, byteBufferFromUtf8String(data));
+        return Frame.Response.from(streamId, type, utf8EncodedPayload(data, null));
     }
 
     public static Frame utf8EncodedErrorFrame(final int streamId, final String data)
     {
-        return Frame.fromError(streamId, new Exception(data));
+        return Frame.Error.from(streamId, new Exception(data));
     }
 
     public static Payload utf8EncodedPayload(final String data, final String metadata)

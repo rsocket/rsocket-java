@@ -20,17 +20,15 @@ import org.junit.Test;
 import io.reactivesocket.Frame;
 import io.reactivesocket.FrameType;
 import io.reactivesocket.TestUtil;
-import io.reactivesocket.internal.UnicastSubject;
 import rx.observers.TestSubscriber;
 
 import static rx.RxReactiveStreams.toObservable;
-import static rx.RxReactiveStreams.toPublisher;
 
 public class UnicastSubjectTest {
 
 	@Test
 	public void testSubscribeReceiveValue() {
-		Frame f = TestUtil.utf8EncodedFrame(1, FrameType.NEXT_COMPLETE, "response");
+		Frame f = TestUtil.utf8EncodedResponseFrame(1, FrameType.NEXT_COMPLETE, "response");
 		UnicastSubject us = UnicastSubject.create();
 		TestSubscriber<Frame> ts = TestSubscriber.create();
 		toObservable(us).subscribe(ts);
@@ -41,7 +39,7 @@ public class UnicastSubjectTest {
 
 	@Test(expected = NullPointerException.class)
 	public void testNullPointerSendingWithoutSubscriber() {
-		Frame f = TestUtil.utf8EncodedFrame(1, FrameType.NEXT_COMPLETE, "response");
+		Frame f = TestUtil.utf8EncodedResponseFrame(1, FrameType.NEXT_COMPLETE, "response");
 		UnicastSubject us = UnicastSubject.create();
 		us.onNext(f);
 	}

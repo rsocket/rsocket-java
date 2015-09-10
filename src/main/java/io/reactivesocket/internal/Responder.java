@@ -72,7 +72,7 @@ public class Responder {
 	 */
 	public void sendLease(final int ttl, final int numberOfRequests)
 	{
-		connection.addOutput(PublisherUtils.just(Frame.fromLease(ttl, numberOfRequests, Frame.NULL_BYTEBUFFER)), new Completable() {
+		connection.addOutput(PublisherUtils.just(Frame.Lease.from(ttl, numberOfRequests, Frame.NULL_BYTEBUFFER)), new Completable() {
 			@Override
 			public void success() {
 			}
@@ -172,14 +172,18 @@ public class Responder {
 							return;
 						} else if (requestFrame.getType() == FrameType.REQUEST_N) {
 							Subscription inFlightSubscription = null;
-							synchronized (Responder.this) {
+							synchronized (Responder.this)
+							{
 								inFlightSubscription = inFlight.get(requestFrame.getStreamId());
 							}
-							if (inFlightSubscription != null) {
+							if (inFlightSubscription != null)
+							{
 								inFlightSubscription.request(Frame.RequestN.requestN(requestFrame));
 								return;
 							}
 							// TODO should we do anything if we don't find the stream? emitting an error is risky as the responder could have terminated and cleaned up already
+						} else if (requestFrame.getType() == FrameType.KEEPALIVE) {
+							// TODO: send KEEPALIVE when receiving one on server-side
 						} else {
 							responsePublisher = PublisherUtils.errorFrame(streamId, new IllegalStateException("Unexpected prefix: " + requestFrame.getType()));
 						}
@@ -215,7 +219,7 @@ public class Responder {
 
 			private void setupErrorAndTearDown(DuplexConnection connection, SetupException setupException) {
 				// pass the ErrorFrame output, subscribe to write it, await onComplete and then tear down
-				final Frame frame = Frame.fromError(0, setupException);
+				final Frame frame = Frame.Error.from(0, setupException);
 				connection.addOutput(PublisherUtils.just(frame),
 					new Completable() {
 						@Override
@@ -300,13 +304,13 @@ public class Responder {
 									onError(new IllegalStateException("RequestResponse expects a single onNext"));
 								} else {
 
-									child.onNext(Frame.from(streamId, FrameType.NEXT_COMPLETE, v));
+									child.onNext(Frame.Response.from(streamId, FrameType.NEXT_COMPLETE, v));
 								}
 							}
 
 							@Override
 							public void onError(Throwable t) {
-								child.onNext(Frame.fromError(streamId, t));
+								child.onNext(Frame.Error.from(streamId, t));
 								cleanup();
 							}
 
@@ -416,7 +420,7 @@ public class Responder {
 								@Override
 								public void onNext(Payload v) {
 									try {
-										child.onNext(Frame.from(streamId, FrameType.NEXT, v));
+										child.onNext(Frame.Response.from(streamId, FrameType.NEXT, v));
 									} catch (Throwable e) {
 										onError(e);
 									}
@@ -424,7 +428,7 @@ public class Responder {
 
 								@Override
 								public void onError(Throwable t) {
-									child.onNext(Frame.fromError(streamId, t));
+									child.onNext(Frame.Error.from(streamId, t));
 									child.onComplete();
 									cleanup();
 								}
@@ -432,7 +436,7 @@ public class Responder {
 								@Override
 								public void onComplete() {
 									if (allowCompletion) {
-										child.onNext(Frame.from(streamId, FrameType.COMPLETE));
+										child.onNext(Frame.Response.from(streamId, FrameType.COMPLETE));
 										child.onComplete();
 										cleanup();
 									} else {
@@ -537,16 +541,16 @@ public class Responder {
 									// after we are first subscribed to then send the initial frame
 									s.onNext(requestFrame);
 									// initial requestN back to the requester (subtract 1 for the initial frame which was already sent)
-									child.onNext(Frame.fromRequestN(streamId, rn.intValue()-1));
+									child.onNext(Frame.RequestN.from(streamId, rn.intValue()-1));
 								}, r -> {
 									// requested
-									child.onNext(Frame.fromRequestN(streamId, r.intValue()));
+									child.onNext(Frame.RequestN.from(streamId, r.intValue()));
 								});
 								synchronized(Responder.this) {
 									if(channels.get(streamId) != null) {
 										// TODO validate that this correctly defends against this issue
 										// this means we received a followup request that raced and that the requester didn't correct wait for REQUEST_N before sending more frames
-										child.onNext(Frame.fromError(streamId, new RuntimeException("Requester sent more than 1 requestChannel frame before permitted.")));
+										child.onNext(Frame.Error.from(streamId, new RuntimeException("Requester sent more than 1 requestChannel frame before permitted.")));
 										child.onComplete();
 										cleanup();
 										return;
@@ -569,20 +573,20 @@ public class Responder {
 
 									@Override
 									public void onNext(Payload v) {
-										child.onNext(Frame.from(streamId, FrameType.NEXT, v));
+										child.onNext(Frame.Response.from(streamId, FrameType.NEXT, v));
 									}
 
 									@Override
 									public void onError(Throwable t) {
 										t.printStackTrace();
-										child.onNext(Frame.fromError(streamId, t));
+										child.onNext(Frame.Error.from(streamId, t));
 										child.onComplete();
 										cleanup();
 									}
 
 									@Override
 									public void onComplete() {
-										child.onNext(Frame.from(streamId, FrameType.COMPLETE));
+										child.onNext(Frame.Response.from(streamId, FrameType.COMPLETE));
 										child.onComplete();
 										cleanup();
 
