@@ -137,7 +137,6 @@ public class LeaseTest {
         // start both the server and client and monitor for errors
         socketServer.start();
         socketClient.start();
-
     }
 
     @After
@@ -186,6 +185,7 @@ public class LeaseTest {
 
     @Test(timeout=2000)
     public void testLeaseOverwrite() throws InterruptedException {
+
         assertTrue(socketClient.availability() == 0.0);
         leaseGovernor.latch.await();
         assertTrue(socketClient.availability() == 0.0);

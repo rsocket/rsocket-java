@@ -16,6 +16,7 @@
 package io.reactivesocket;
 
 import java.io.IOException;
+import java.util.concurrent.CountDownLatch;
 
 import org.reactivestreams.Publisher;
 
@@ -51,12 +52,12 @@ public class TestConnection implements DuplexConnection {
 	}
 	
 	public void connectToServerConnection(TestConnection serverConnection, boolean log) {
-//		if (log) {
-//			serverConnection.writes.forEach(n -> System.out.println("SERVER ==> Writes from server->client: " + n + "   Written from " + Thread.currentThread()));
-//			serverConnection.toInput.forEach(n -> System.out.println("SERVER <== Input from client->server: " + n + "   Read on " + Thread.currentThread()));
-//			writes.forEach(n -> System.out.println("CLIENT ==> Writes from client->server: " + n + "   Written from " + Thread.currentThread()));
-//			toInput.forEach(n -> System.out.println("CLIENT <== Input from server->client: " + n + "   Read on " + Thread.currentThread()));
-//		}
+		if (log) {
+			serverConnection.writes.forEach(n -> System.out.println("SERVER ==> Writes from server->client: " + n + "   Written from " + Thread.currentThread()));
+			serverConnection.toInput.forEach(n -> System.out.println("SERVER <== Input from client->server: " + n + "   Read on " + Thread.currentThread()));
+			writes.forEach(n -> System.out.println("CLIENT ==> Writes from client->server: " + n + "   Written from " + Thread.currentThread()));
+			toInput.forEach(n -> System.out.println("CLIENT <== Input from server->client: " + n + "   Read on " + Thread.currentThread()));
+		}
 
 		Scheduler clientThread = Schedulers.newThread();
 		Scheduler serverThread = Schedulers.newThread();
@@ -64,17 +65,26 @@ public class TestConnection implements DuplexConnection {
 		// TODO commented out because we have concurrency issues ... need to restore the scheduling and get everything working
 		
 		// connect the connections (with a Scheduler to simulate async IO)
+		CountDownLatch c = new CountDownLatch(2);
+
 		writes
+			.doOnSubscribe(t -> c.countDown())
 			.subscribeOn(clientThread)
 			.onBackpressureBuffer() // simulate unbounded network buffer
 			.observeOn(serverThread)
 			.subscribe(serverConnection.toInput);
 		serverConnection.writes
+			.doOnSubscribe(t -> c.countDown())
 			.subscribeOn(serverThread)
 			.onBackpressureBuffer() // simulate unbounded network buffer
 			.observeOn(clientThread)
 			.subscribe(toInput);
 
+		try {
+			c.await();
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+		}
 	}
 
 	@Override
