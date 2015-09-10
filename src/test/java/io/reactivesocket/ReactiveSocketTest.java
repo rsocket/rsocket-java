@@ -218,7 +218,7 @@ public class ReactiveSocketTest {
 		Publisher<Payload> response = socketClient.requestResponse(TestUtil.utf8EncodedPayload("hello", null));
 		TestSubscriber<Payload> ts = new TestSubscriber<>();
 		response.subscribe(ts);
-		ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
+		ts.awaitTerminalEvent();
 		ts.assertNoErrors();
 		ts.assertValue(TestUtil.utf8EncodedPayload("hello world", null));
 	}
@@ -232,7 +232,7 @@ public class ReactiveSocketTest {
 		Publisher<Payload> response = socketClient.requestStream(TestUtil.utf8EncodedPayload("hello", null));
 		TestSubscriber<Payload> ts = new TestSubscriber<>();
 		response.subscribe(ts);
-		ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
+		ts.awaitTerminalEvent();
 		ts.assertNoErrors();
 		assertEquals(100, ts.values().size());
 		assertEquals("hello world 99", byteToString(ts.values().get(99).getData()));
@@ -253,7 +253,7 @@ public class ReactiveSocketTest {
 		Disposable subscription = published.connect();
 
 		// ts completed due to take
-		ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
+		ts.awaitTerminalEvent();
 		ts.assertNoErrors();
 		ts.assertComplete();
 
@@ -295,11 +295,11 @@ public class ReactiveSocketTest {
 		TestSubscriber<Void> ts = new TestSubscriber<>();
 		response.subscribe(ts);
 		// these only test client side since this is fireAndForgetOrMetadataPush
-		ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
+		ts.awaitTerminalEvent();
 		ts.assertNoErrors();
 		ts.assertComplete();
 		// this waits for server-side
-		fireAndForgetOrMetadataPush.await(500, TimeUnit.MILLISECONDS);
+		fireAndForgetOrMetadataPush.await();
 		assertEquals("log", lastFireAndForget.get());
 	}
 
@@ -313,11 +313,11 @@ public class ReactiveSocketTest {
 		TestSubscriber<Void> ts = new TestSubscriber<>();
 		response.subscribe(ts);
 		// these only test client side since this is fireAndForgetOrMetadataPush
-		ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
+		ts.awaitTerminalEvent();
 		ts.assertNoErrors();// client-side won't see an error
 		ts.assertComplete();
 		// this waits for server-side
-		fireAndForgetOrMetadataPush.await(500, TimeUnit.MILLISECONDS);
+		fireAndForgetOrMetadataPush.await();
 		assertEquals("notFound", lastFireAndForget.get());
 	}
 
@@ -331,13 +331,13 @@ public class ReactiveSocketTest {
 		TestSubscriber<Void> ts = new TestSubscriber<>();
 		response.subscribe(ts);
 		// these only test client side since this is fireAndForgetOrMetadataPush
-		ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
+		ts.awaitTerminalEvent();
 		ts.assertNoErrors();// client-side won't see an error
 		ts.assertComplete();
 		// this waits for server-side
-		fireAndForgetOrMetadataPush.await(500, TimeUnit.MILLISECONDS);
+		fireAndForgetOrMetadataPush.await();
 		assertEquals("blowup", lastFireAndForget.get());
-		lastServerErrorCountDown.await(500, TimeUnit.MILLISECONDS);
+		lastServerErrorCountDown.await();
 		assertEquals("forced blowup to simulate handler error", lastServerError.get().getCause().getMessage());
 	}
 
@@ -350,7 +350,7 @@ public class ReactiveSocketTest {
 		Publisher<Payload> response = socketClient.requestChannel(requestStream);
 		TestSubscriber<Payload> ts = new TestSubscriber<>();
 		response.subscribe(ts);
-		ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
+		ts.awaitTerminalEvent();
 		ts.assertNoErrors();
 		assertEquals(2, ts.values().size());
 		assertEquals("1_echo", byteToString(ts.values().get(0).getData()));
@@ -366,7 +366,7 @@ public class ReactiveSocketTest {
 		Publisher<Payload> response = socketClient.requestChannel(requestStream);
 		TestSubscriber<Payload> ts = new TestSubscriber<>();
 		response.subscribe(ts);
-		ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
+		ts.awaitTerminalEvent();
 		ts.assertTerminated();
 		ts.assertNotComplete();
 		ts.assertNoValues();
@@ -383,11 +383,11 @@ public class ReactiveSocketTest {
 		Publisher<Void> response = socketClient.metadataPush(TestUtil.utf8EncodedPayload(null, "log"));
 		TestSubscriber<Void> ts = new TestSubscriber<>();
 		response.subscribe(ts);
-		ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
+		ts.awaitTerminalEvent();
 		ts.assertNoErrors();
 		ts.assertComplete();
 		// this waits for server-side
-		fireAndForgetOrMetadataPush.await(500, TimeUnit.MILLISECONDS);
+		fireAndForgetOrMetadataPush.await();
 		assertEquals("log", lastMetadataPush.get());
 	}
 
@@ -400,11 +400,11 @@ public class ReactiveSocketTest {
 		Publisher<Void> response = socketClient.metadataPush(TestUtil.utf8EncodedPayload(null, "unknown"));
 		TestSubscriber<Void> ts = new TestSubscriber<>();
 		response.subscribe(ts);
-		ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
+		ts.awaitTerminalEvent();
 		ts.assertNoErrors();// client-side won't see an error
 		ts.assertComplete();
 		// this waits for server-side
-		fireAndForgetOrMetadataPush.await(500, TimeUnit.MILLISECONDS);
+		fireAndForgetOrMetadataPush.await();
 		assertEquals("notFound", lastMetadataPush.get());
 	}
 
@@ -417,13 +417,13 @@ public class ReactiveSocketTest {
 		Publisher<Void> response = socketClient.metadataPush(TestUtil.utf8EncodedPayload(null, "blowup"));
 		TestSubscriber<Void> ts = new TestSubscriber<>();
 		response.subscribe(ts);
-		ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
+		ts.awaitTerminalEvent();
 		ts.assertNoErrors();// client-side won't see an error
 		ts.assertComplete();
 		// this waits for server-side
-		fireAndForgetOrMetadataPush.await(500, TimeUnit.MILLISECONDS);
+		fireAndForgetOrMetadataPush.await();
 		assertEquals("blowup", lastMetadataPush.get());
-		lastServerErrorCountDown.await(500, TimeUnit.MILLISECONDS);
+		lastServerErrorCountDown.await();
 		assertEquals("forced blowup to simulate handler error", lastServerError.get().getCause().getMessage());
 	}
 
