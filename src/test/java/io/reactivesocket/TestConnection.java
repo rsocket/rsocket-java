@@ -61,25 +61,26 @@ public class TestConnection implements DuplexConnection {
 
 		Scheduler clientThread = Schedulers.newThread();
 		Scheduler serverThread = Schedulers.newThread();
-		
+
 		// connect the connections (with a Scheduler to simulate async IO)
 		CountDownLatch c = new CountDownLatch(2);
 
 		writes
 			.doOnSubscribe(t -> c.countDown())
-			.subscribeOn(clientThread)
-			.onBackpressureBuffer() // simulate unbounded network buffer
-			.observeOn(serverThread)
+//			.subscribeOn(clientThread)
+//			.onBackpressureBuffer() // simulate unbounded network buffer
+//			.observeOn(serverThread)
 			.subscribe(serverConnection.toInput);
 		serverConnection.writes
 			.doOnSubscribe(t -> c.countDown())
-			.subscribeOn(serverThread)
-			.onBackpressureBuffer() // simulate unbounded network buffer
-			.observeOn(clientThread)
+//			.subscribeOn(serverThread)
+//			.onBackpressureBuffer() // simulate unbounded network buffer
+//			.observeOn(clientThread)
 			.subscribe(toInput);
 
 		try {
 			c.await();
+			Thread.sleep(500);
 		} catch (InterruptedException e) {
 			e.printStackTrace();
 		}
