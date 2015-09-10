@@ -436,6 +436,8 @@ public class Requester {
 
 													@Override
 													public void onComplete() {
+														Frame f = Frame.Request.from(streamId, FrameType.REQUEST_CHANNEL, RequestFrameFlyweight.FLAGS_REQUEST_CHANNEL_C);
+														transport.onNext(f);
 														transport.onComplete();
 													}
 

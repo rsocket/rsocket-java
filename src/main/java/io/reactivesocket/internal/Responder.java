@@ -645,7 +645,11 @@ public class Responder {
 		} else {
 			// send data to channel
 			if (channelSubject.isSubscribedTo()) {
-				channelSubject.onNext(requestFrame); // TODO this is ignoring requestN flow control (need to validate that this is legit because REQUEST_N across the wire is controlling it on the Requester side)
+				if(Frame.Request.isRequestChannelComplete(requestFrame)) {
+					channelSubject.onComplete();
+				} else {
+					channelSubject.onNext(requestFrame); // TODO this is ignoring requestN flow control (need to validate that this is legit because REQUEST_N across the wire is controlling it on the Requester side)
+				}
 				// TODO should at least have an error message of some kind if the Requester disregarded it
 				return PublisherUtils.empty();
 			} else {
