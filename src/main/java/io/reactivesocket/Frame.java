@@ -399,6 +399,14 @@ public class Frame implements Payload
             return frame;
         }
 
+        public static Frame from(int streamId, FrameType type, int flags)
+        {
+            final Frame frame = POOL.acquireFrame(RequestFrameFlyweight.computeFrameLength(type, 0, 0));
+
+            frame.length = RequestFrameFlyweight.encode(frame.directBuffer, frame.offset, streamId, type, flags);
+            return frame;
+        }
+
         public static long initialRequestN(final Frame frame)
         {
             final FrameType type = frame.getType();
@@ -423,6 +431,14 @@ public class Frame implements Payload
             }
 
             return result;
+        }
+
+        public static boolean isRequestChannelComplete(final Frame frame)
+        {
+            ensureFrameType(FrameType.REQUEST_CHANNEL, frame);
+            final int flags = FrameHeaderFlyweight.flags(frame.directBuffer, frame.offset);
+
+            return (flags & RequestFrameFlyweight.FLAGS_REQUEST_CHANNEL_C) == RequestFrameFlyweight.FLAGS_REQUEST_CHANNEL_C;
         }
     }
 

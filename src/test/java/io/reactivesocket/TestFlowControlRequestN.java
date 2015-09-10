@@ -17,27 +17,22 @@ package io.reactivesocket;
 
 import static io.reactivesocket.ConnectionSetupPayload.*;
 import static io.reactivesocket.TestUtil.*;
-import static org.junit.Assert.*;
 import static io.reactivex.Observable.*;
+import static org.junit.Assert.*;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.locks.LockSupport;
 
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
-
-import io.reactivex.Observable;
-import io.reactivex.schedulers.Schedulers;
 
 public class TestFlowControlRequestN {
 

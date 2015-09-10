@@ -25,6 +25,9 @@ import java.nio.ByteOrder;
 
 public class RequestFrameFlyweight
 {
+    public static final int FLAGS_REQUEST_CHANNEL_C = 0b0001_0000_0000_0000;
+    public static final int FLAGS_REQUEST_CHANNEL_N = 0b0000_1000_0000_0000;
+
     // relative to start of passed offset
     private static final int INITIAL_REQUEST_N_FIELD_OFFSET = FrameHeaderFlyweight.FRAME_HEADER_LENGTH;
 
@@ -51,7 +54,8 @@ public class RequestFrameFlyweight
     {
         final int frameLength = computeFrameLength(type, metadata.capacity(), data.capacity());
 
-        int length = FrameHeaderFlyweight.encodeFrameHeader(mutableDirectBuffer, offset, frameLength, 0, type, streamId);
+        final int flags = FLAGS_REQUEST_CHANNEL_N;
+        int length = FrameHeaderFlyweight.encodeFrameHeader(mutableDirectBuffer, offset, frameLength, flags, type, streamId);
 
         mutableDirectBuffer.putInt(offset + INITIAL_REQUEST_N_FIELD_OFFSET, initialRequestN, ByteOrder.BIG_ENDIAN);
         length += BitUtil.SIZE_OF_INT;
@@ -78,6 +82,18 @@ public class RequestFrameFlyweight
         length += FrameHeaderFlyweight.encodeData(mutableDirectBuffer, offset + length, data);
 
         return length;
+    }
+
+    public static int encode(
+        final MutableDirectBuffer mutableDirectBuffer,
+        final int offset,
+        final int streamId,
+        final FrameType type,
+        final int flags)
+    {
+        final int frameLength = computeFrameLength(type, 0, 0);
+
+        return FrameHeaderFlyweight.encodeFrameHeader(mutableDirectBuffer, offset, frameLength, flags, type, streamId);
     }
 
     public static int initialRequestN(final DirectBuffer directBuffer, final int offset)
