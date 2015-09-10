@@ -146,7 +146,7 @@ public class LeaseTest {
         socketClient.shutdown();
     }
 
-    @Test
+    @Test(timeout=2000)
     public void testWriteWithoutLease() throws InterruptedException {
         // initially client doesn't have any availability
         assertTrue(socketClient.availability() == 0.0);
@@ -184,7 +184,7 @@ public class LeaseTest {
         ts2.assertError(RuntimeException.class);
     }
 
-    @Test
+    @Test(timeout=2000)
     public void testLeaseOverwrite() throws InterruptedException {
         assertTrue(socketClient.availability() == 0.0);
         leaseGovernor.latch.await();
