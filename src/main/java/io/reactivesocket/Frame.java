@@ -446,6 +446,30 @@ public class Frame implements Payload
         }
     }
 
+    public static class Keepalive
+    {
+        public static Frame from(ByteBuffer data, boolean respond)
+        {
+            final Frame frame =
+                POOL.acquireFrame(FrameHeaderFlyweight.computeFrameHeaderLength(FrameType.KEEPALIVE, 0, data.capacity()));
+
+            final int flags = (respond ? FrameHeaderFlyweight.FLAGS_KEEPALIVE_R : 0);
+
+            frame.length = FrameHeaderFlyweight.encode(
+                frame.directBuffer, frame.offset, flags, FrameType.KEEPALIVE, Frame.NULL_BYTEBUFFER, data);
+
+            return frame;
+        }
+
+        public static boolean hasRespondFlag(final Frame frame)
+        {
+            ensureFrameType(FrameType.KEEPALIVE, frame);
+            final int flags = FrameHeaderFlyweight.flags(frame.directBuffer, frame.offset);
+
+            return (flags & FrameHeaderFlyweight.FLAGS_KEEPALIVE_R) == FrameHeaderFlyweight.FLAGS_KEEPALIVE_R;
+        }
+    }
+
     public static void ensureFrameType(final FrameType frameType, final Frame frame)
     {
         final FrameType typeInFrame = frame.getType();

@@ -52,6 +52,8 @@ public class FrameHeaderFlyweight
     public static final int FLAGS_I = 0b1000_0000_0000_0000;
     public static final int FLAGS_M = 0b0100_0000_0000_0000;
 
+    public static final int FLAGS_KEEPALIVE_R = 0b0010_0000_0000_0000;
+
     private static final int FLAGS_RESPONSE_F = 0b0010_0000_0000_0000;
     private static final int FLAGS_RESPONSE_C = 0b0001_0000_0000_0000;
 

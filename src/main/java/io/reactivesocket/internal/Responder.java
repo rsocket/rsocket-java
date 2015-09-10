@@ -41,12 +41,14 @@ public class Responder {
 	private final ConnectionSetupHandler connectionHandler;
 	private final Consumer<Throwable> errorStream;
 	private LeaseGovernor leaseGovernor;
+	private long timeOfLastKeepalive;
 
 	private Responder(DuplexConnection connection, ConnectionSetupHandler connectionHandler, LeaseGovernor leaseGovernor, Consumer<Throwable> errorStream) {
 		this.connection = connection;
 		this.connectionHandler = connectionHandler;
 		this.leaseGovernor = leaseGovernor;
 		this.errorStream = errorStream;
+		this.timeOfLastKeepalive = System.nanoTime();
 	}
 
 	/**
@@ -82,6 +84,16 @@ public class Responder {
 				errorStream.accept(new RuntimeException("could not send lease ", e));
 			}
 		});
+	}
+
+	/**
+	 * Return time of last keepalive from client
+	 *
+	 * @return time from {@link System#nanoTime()} of last keepalive
+	 */
+	public long timeOfLastKeepalive()
+	{
+		return timeOfLastKeepalive;
 	}
 
 	private void start() {
@@ -183,7 +195,17 @@ public class Responder {
 							}
 							// TODO should we do anything if we don't find the stream? emitting an error is risky as the responder could have terminated and cleaned up already
 						} else if (requestFrame.getType() == FrameType.KEEPALIVE) {
-							// TODO: send KEEPALIVE when receiving one on server-side
+							// this client is alive.
+							timeOfLastKeepalive = System.nanoTime();
+							// echo back if flag set
+							if (Frame.Keepalive.hasRespondFlag(requestFrame))
+							{
+								responsePublisher = PublisherUtils.just(Frame.Keepalive.from(requestFrame.getData(), false));
+							}
+							else
+							{
+								return;
+							}
 						} else {
 							responsePublisher = PublisherUtils.errorFrame(streamId, new IllegalStateException("Unexpected prefix: " + requestFrame.getType()));
 						}
@@ -541,7 +563,7 @@ public class Responder {
 									// after we are first subscribed to then send the initial frame
 									s.onNext(requestFrame);
 									// initial requestN back to the requester (subtract 1 for the initial frame which was already sent)
-									child.onNext(Frame.RequestN.from(streamId, rn.intValue()-1));
+									child.onNext(Frame.RequestN.from(streamId, rn.intValue() - 1));
 								}, r -> {
 									// requested
 									child.onNext(Frame.RequestN.from(streamId, r.intValue()));
