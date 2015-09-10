@@ -24,11 +24,12 @@ import io.reactivex.Observable;
 import io.reactivex.Scheduler;
 import io.reactivex.schedulers.Schedulers;
 import io.reactivex.subjects.PublishSubject;
+import io.reactivex.subjects.Subject;
 
 public class TestConnection implements DuplexConnection {
 
 	public final PublishSubject<Frame> toInput = PublishSubject.create();
-	private PublishSubject<Frame> writeSubject = PublishSubject.create();
+	private Subject<Frame, Frame> writeSubject = PublishSubject.<Frame>create().toSerialized();
 	public final Observable<Frame> writes = writeSubject;
 
 	@Override
