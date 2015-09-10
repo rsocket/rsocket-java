@@ -758,6 +758,7 @@ public class Requester {
 			}
 
 			public void onNext(Frame frame) {
+				System.out.println("### Requester is receiving the frame: " + frame);
 				long streamId = frame.getStreamId();
 				if (streamId == 0) {
 					if (FrameType.ERROR.equals(frame.getType())) {
