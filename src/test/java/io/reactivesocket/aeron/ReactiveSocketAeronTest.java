@@ -60,6 +60,11 @@ public class ReactiveSocketAeronTest {
             public Publisher<Void> handleFireAndForget(Payload payload) {
                 return null;
             }
+
+            @Override
+            public Publisher<Void> handleMetadataPush(Payload payload) {
+                return null;
+            }
         });
 
         CountDownLatch latch = new CountDownLatch(10_000);
@@ -127,6 +132,11 @@ public class ReactiveSocketAeronTest {
 
             @Override
             public Publisher<Void> handleFireAndForget(Payload payload) {
+                return null;
+            }
+
+            @Override
+            public Publisher<Void> handleMetadataPush(Payload payload) {
                 return null;
             }
         });
