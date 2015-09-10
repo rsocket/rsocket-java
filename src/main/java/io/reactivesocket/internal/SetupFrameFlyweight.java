@@ -29,8 +29,11 @@ public class SetupFrameFlyweight
     public static final int FLAGS_WILL_HONOR_LEASE = 0b0010_0000;
     public static final int FLAGS_STRICT_INTERPRETATION = 0b0001_0000;
 
+    public static final byte CURRENT_VERSION = 0;
+
     // relative to start of passed offset
-    private static final int KEEPALIVE_INTERVAL_FIELD_OFFSET = FrameHeaderFlyweight.FRAME_HEADER_LENGTH;
+    private static final int VERSION_FIELD_OFFSET = FrameHeaderFlyweight.FRAME_HEADER_LENGTH;
+    private static final int KEEPALIVE_INTERVAL_FIELD_OFFSET = VERSION_FIELD_OFFSET + BitUtil.SIZE_OF_INT;
     private static final int MAX_LIFETIME_FIELD_OFFSET = KEEPALIVE_INTERVAL_FIELD_OFFSET + BitUtil.SIZE_OF_INT;
     private static final int METADATA_MIME_TYPE_LENGTH_OFFSET = MAX_LIFETIME_FIELD_OFFSET + BitUtil.SIZE_OF_INT;
 
@@ -42,7 +45,7 @@ public class SetupFrameFlyweight
     {
         int length = FrameHeaderFlyweight.computeFrameHeaderLength(FrameType.SETUP, metadataLength, dataLength);
 
-        length += BitUtil.SIZE_OF_INT * 2;
+        length += BitUtil.SIZE_OF_INT * 3;
         length += 1 + metadataMimeType.length();
         length += 1 + dataMimeType.length();
 
@@ -64,10 +67,11 @@ public class SetupFrameFlyweight
 
         int length = FrameHeaderFlyweight.encodeFrameHeader(mutableDirectBuffer, offset, frameLength, flags, FrameType.SETUP, 0);
 
+        mutableDirectBuffer.putInt(offset + VERSION_FIELD_OFFSET, CURRENT_VERSION, ByteOrder.BIG_ENDIAN);
         mutableDirectBuffer.putInt(offset + KEEPALIVE_INTERVAL_FIELD_OFFSET, keepaliveInterval, ByteOrder.BIG_ENDIAN);
         mutableDirectBuffer.putInt(offset + MAX_LIFETIME_FIELD_OFFSET, maxLifetime, ByteOrder.BIG_ENDIAN);
 
-        length += BitUtil.SIZE_OF_INT * 2;
+        length += BitUtil.SIZE_OF_INT * 3;
 
         length += putMimeType(mutableDirectBuffer, offset + length, metadataMimeType);
         length += putMimeType(mutableDirectBuffer, offset + length, dataMimeType);
@@ -76,6 +80,11 @@ public class SetupFrameFlyweight
         length += FrameHeaderFlyweight.encodeData(mutableDirectBuffer, offset + length, data);
 
         return length;
+    }
+
+    public static int version(final DirectBuffer directBuffer, final int offset)
+    {
+        return directBuffer.getInt(offset + VERSION_FIELD_OFFSET, ByteOrder.BIG_ENDIAN);
     }
 
     public static int keepaliveInterval(final DirectBuffer directBuffer, final int offset)

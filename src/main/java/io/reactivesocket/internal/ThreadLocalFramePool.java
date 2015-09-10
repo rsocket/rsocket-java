@@ -22,7 +22,7 @@ import uk.co.real_logic.agrona.concurrent.UnsafeBuffer;
 
 import java.nio.ByteBuffer;
 
-public class PooledFrame implements FramePool
+public class ThreadLocalFramePool implements FramePool
 {
     private static final int MAX_CAHED_FRAMES_PER_THREAD = 16;
 

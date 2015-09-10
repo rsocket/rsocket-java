@@ -20,7 +20,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.reactivestreams.Publisher;
-import rx.observers.TestSubscriber;
+import io.reactivex.subscribers.TestSubscriber;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -30,10 +30,7 @@ import static io.reactivesocket.TestUtil.utf8EncodedPayload;
 import static io.reactivesocket.ConnectionSetupPayload.HONOR_LEASE;
 
 import static org.junit.Assert.assertTrue;
-import static rx.Observable.*;
-import static rx.Observable.empty;
-import static rx.RxReactiveStreams.toObservable;
-import static rx.RxReactiveStreams.toPublisher;
+import static io.reactivex.Observable.*;
 
 public class LeaseTest {
     private TestConnection clientConnection;
@@ -88,28 +85,28 @@ public class LeaseTest {
 
                 @Override
                 public Publisher<Payload> handleRequestResponse(Payload payload) {
-                    return toPublisher(just(utf8EncodedPayload("hello world", null)));
+                    return just(utf8EncodedPayload("hello world", null));
                 }
 
                 @Override
                 public Publisher<Payload> handleRequestStream(Payload payload) {
-                    return toPublisher(
+                    return 
                         range(0, 100)
                             .map(i -> "hello world " + i)
-                            .map(n -> utf8EncodedPayload(n, null))
+                            .map(n -> utf8EncodedPayload(n, null)
                     );
                 }
 
                 @Override
                 public Publisher<Payload> handleSubscription(Payload payload) {
-                    return toPublisher(interval(1, TimeUnit.MICROSECONDS)
+                    return interval(1, TimeUnit.MICROSECONDS)
                         .map(i -> "subscription " + i)
-                        .map(n -> utf8EncodedPayload(n, null)));
+                        .map(n -> utf8EncodedPayload(n, null));
                 }
 
                 @Override
                 public Publisher<Void> handleFireAndForget(Payload payload) {
-                    return toPublisher(empty());
+                    return empty();
                 }
 
                 /**
@@ -120,9 +117,9 @@ public class LeaseTest {
                     Payload initialPayload,
                     Publisher<Payload> payloads
                 ) {
-                    return toPublisher(toObservable(payloads).map(p -> {
+                    return fromPublisher(payloads).map(p -> {
                         return utf8EncodedPayload(byteToString(p.getData()) + "_echo", null);
-                    }));
+                    });
                 }
 
                 @Override
@@ -159,8 +156,8 @@ public class LeaseTest {
         // the first call will fail without a valid lease
         Publisher<Payload> response0 = socketClient.requestResponse(
             TestUtil.utf8EncodedPayload("hello", null));
-        TestSubscriber<Payload> ts0 = TestSubscriber.create();
-        toObservable(response0).subscribe(ts0);
+        TestSubscriber<Payload> ts0 = new TestSubscriber<>();;
+        response0.subscribe(ts0);
         ts0.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
 //        ts0.assertError(RuntimeException.class);
 
@@ -171,8 +168,8 @@ public class LeaseTest {
         // the second call will succeed
         Publisher<Payload> response1 = socketClient.requestResponse(
             TestUtil.utf8EncodedPayload("hello", null));
-        TestSubscriber<Payload> ts1 = TestSubscriber.create();
-        toObservable(response1).subscribe(ts1);
+        TestSubscriber<Payload> ts1 = new TestSubscriber<>();;
+        response1.subscribe(ts1);
         ts1.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
         ts1.assertNoErrors();
         ts1.assertValue(TestUtil.utf8EncodedPayload("hello world", null));
@@ -181,8 +178,8 @@ public class LeaseTest {
         // (even though the window is still ok)
         Publisher<Payload> response2 = socketClient.requestResponse(
             TestUtil.utf8EncodedPayload("hello", null));
-        TestSubscriber<Payload> ts2 = TestSubscriber.create();
-        toObservable(response2).subscribe(ts2);
+        TestSubscriber<Payload> ts2 = new TestSubscriber<>();
+        response2.subscribe(ts2);
         ts2.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
         ts2.assertError(RuntimeException.class);
     }

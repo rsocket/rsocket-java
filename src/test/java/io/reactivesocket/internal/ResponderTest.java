@@ -22,10 +22,10 @@ import org.junit.Test;
 import org.reactivestreams.Subscription;
 
 import static io.reactivesocket.LeaseGovernor.NULL_LEASE_GOVERNOR;
-import rx.Observable;
-import rx.schedulers.Schedulers;
-import rx.schedulers.TestScheduler;
-import rx.subjects.ReplaySubject;
+import io.reactivex.Observable;
+import io.reactivex.schedulers.Schedulers;
+import io.reactivex.schedulers.TestScheduler;
+import io.reactivex.subjects.ReplaySubject;
 
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -35,12 +35,7 @@ import java.util.function.Consumer;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-import static rx.Observable.error;
-import static rx.Observable.interval;
-import static rx.Observable.just;
-import static rx.Observable.never;
-import static rx.Observable.range;
-import static rx.RxReactiveStreams.toPublisher;
+import static io.reactivex.Observable.*;
 
 public class ResponderTest
 {
@@ -51,7 +46,7 @@ public class ResponderTest
     	TestConnection conn = establishConnection();
         Responder.create(conn, setup -> new RequestHandler.Builder()
             .withRequestResponse(request ->
-                toPublisher(just(utf8EncodedPayload(byteToString(request.getData()) + " world", null)))).build(),
+                just(utf8EncodedPayload(byteToString(request.getData()) + " world", null))).build(),
             NULL_LEASE_GOVERNOR, ERROR_HANDLER);
         
         ReplaySubject<Frame> cachedResponses = captureResponses(conn);
@@ -74,7 +69,7 @@ public class ResponderTest
     public void testRequestResponseError() {
     	TestConnection conn = establishConnection();
         Responder.create(conn, setup -> new RequestHandler.Builder()
-            .withRequestResponse(request -> toPublisher(Observable.<Payload>error(new Exception("Request Not Found")))).build(),
+            .withRequestResponse(request -> Observable.<Payload>error(new Exception("Request Not Found"))).build(),
             NULL_LEASE_GOVERNOR, ERROR_HANDLER);
 
         Observable<Frame> cachedResponses = captureResponses(conn);
@@ -99,7 +94,7 @@ public class ResponderTest
 
         TestConnection conn = establishConnection();
         Responder.create(conn, setup -> new RequestHandler.Builder()
-            .withRequestResponse(request -> toPublisher(delayed)).build(),
+            .withRequestResponse(request -> delayed).build(),
             NULL_LEASE_GOVERNOR, ERROR_HANDLER);
 
         ReplaySubject<Frame> cachedResponses = captureResponses(conn);
@@ -108,10 +103,10 @@ public class ResponderTest
         // perform a request/response
         conn.toInput.onNext(utf8EncodedRequestFrame(1, FrameType.REQUEST_RESPONSE, "hello", 128));
         // assert no response
-        assertFalse(cachedResponses.hasAnyValue());
+        assertFalse(cachedResponses.hasValue());
         // unsubscribe
         assertFalse(unsubscribed.get());
-        conn.toInput.onNext(Frame.from(1, FrameType.CANCEL));
+        conn.toInput.onNext(Frame.Cancel.from(1));
         assertTrue(unsubscribed.get());
     }
 
@@ -120,7 +115,7 @@ public class ResponderTest
     	TestConnection conn = establishConnection();
         Responder.create(conn, setup -> new RequestHandler.Builder()
             .withRequestStream(
-                request -> toPublisher(range(Integer.parseInt(byteToString(request.getData())), 10).map(i -> utf8EncodedPayload(i + "!", null)))).build(),
+                request -> range(Integer.parseInt(byteToString(request.getData())), 10).map(i -> utf8EncodedPayload(i + "!", null))).build(),
             NULL_LEASE_GOVERNOR, ERROR_HANDLER);
 
         ReplaySubject<Frame> cachedResponses = captureResponses(conn);
@@ -150,9 +145,9 @@ public class ResponderTest
     public void testRequestStreamError() {
     	TestConnection conn = establishConnection();
         Responder.create(conn, setup -> new RequestHandler.Builder()
-            .withRequestStream(request -> toPublisher(range(Integer.parseInt(byteToString(request.getData())), 3)
+            .withRequestStream(request -> range(Integer.parseInt(byteToString(request.getData())), 3)
                 .map(i -> utf8EncodedPayload(i + "!", null))
-                .concatWith(error(new Exception("Error Occurred!"))))).build(),
+                .concatWith(error(new Exception("Error Occurred!")))).build(),
             NULL_LEASE_GOVERNOR, ERROR_HANDLER);
 
         ReplaySubject<Frame> cachedResponses = captureResponses(conn);
@@ -183,7 +178,7 @@ public class ResponderTest
     	TestConnection conn = establishConnection();
         TestScheduler ts = Schedulers.test();
         Responder.create(conn, setup -> new RequestHandler.Builder()
-            .withRequestStream(request -> toPublisher(interval(1000, TimeUnit.MILLISECONDS, ts).map(i -> utf8EncodedPayload(i + "!", null)))).build(),
+            .withRequestStream(request -> interval(1000, TimeUnit.MILLISECONDS, ts).map(i -> utf8EncodedPayload(i + "!", null))).build(),
             NULL_LEASE_GOVERNOR, ERROR_HANDLER);
 
         ReplaySubject<Frame> cachedResponses = captureResponses(conn);
@@ -199,7 +194,7 @@ public class ResponderTest
         ts.advanceTimeBy(2000, TimeUnit.MILLISECONDS);
         assertEquals(3, cachedResponses.getValues().length);
         // dispose
-        conn.toInput.onNext(Frame.from(1, FrameType.CANCEL));
+        conn.toInput.onNext(Frame.Cancel.from(1));
         // still only 1 message
         assertEquals(3, cachedResponses.getValues().length);
         // advance again, nothing should happen
@@ -222,7 +217,7 @@ public class ResponderTest
         TestScheduler ts = Schedulers.test();
         TestConnection conn = establishConnection();
         Responder.create(conn, setup -> new RequestHandler.Builder()
-            .withRequestStream(request -> toPublisher(interval(1000, TimeUnit.MILLISECONDS, ts).map(i -> utf8EncodedPayload(i + "_" + byteToString(request.getData()), null)))).build(),
+            .withRequestStream(request -> interval(1000, TimeUnit.MILLISECONDS, ts).map(i -> utf8EncodedPayload(i + "_" + byteToString(request.getData()), null))).build(),
             NULL_LEASE_GOVERNOR, ERROR_HANDLER);
 
         ReplaySubject<Frame> cachedResponses = captureResponses(conn);
@@ -243,7 +238,7 @@ public class ResponderTest
         // should have 3 from A and 2 from B
         assertEquals(5, cachedResponses.getValues().length);
         // dispose A, but leave B
-        conn.toInput.onNext(Frame.from(1, FrameType.CANCEL));
+        conn.toInput.onNext(Frame.Cancel.from(1));
         // still same 5 frames
         assertEquals(5, cachedResponses.getValues().length);
         // advance again, should get 2 from B
@@ -311,6 +306,6 @@ public class ResponderTest
 
 	private void sendSetupFrame(TestConnection conn) {
 		// setup
-        conn.toInput.onNext(Frame.fromSetup(0, 0, 0, "UTF-8", "UTF-8", utf8EncodedPayload("", "")));
+        conn.toInput.onNext(Frame.Setup.from(0, 0, 0, "UTF-8", "UTF-8", utf8EncodedPayload("", "")));
 	}
 }

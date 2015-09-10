@@ -15,6 +15,8 @@
  */
 package io.reactivesocket;
 
+import uk.co.real_logic.agrona.MutableDirectBuffer;
+
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 
@@ -22,7 +24,7 @@ public class TestUtil
 {
     public static Frame utf8EncodedRequestFrame(final int streamId, final FrameType type, final String data, final int initialRequestN)
     {
-        return Frame.fromRequest(streamId, type, new Payload()
+        return Frame.Request.from(streamId, type, new Payload()
         {
             public ByteBuffer getData()
             {
@@ -36,14 +38,14 @@ public class TestUtil
         }, initialRequestN);
     }
 
-    public static Frame utf8EncodedFrame(final int streamId, final FrameType type, final String data)
+    public static Frame utf8EncodedResponseFrame(final int streamId, final FrameType type, final String data)
     {
-        return Frame.from(streamId, type, byteBufferFromUtf8String(data));
+        return Frame.Response.from(streamId, type, utf8EncodedPayload(data, null));
     }
 
     public static Frame utf8EncodedErrorFrame(final int streamId, final String data)
     {
-        return Frame.fromError(streamId, new Exception(data));
+        return Frame.Error.from(streamId, new Exception(data));
     }
 
     public static Payload utf8EncodedPayload(final String data, final String metadata)
@@ -62,6 +64,11 @@ public class TestUtil
     {
         final byte[] bytes = data.getBytes(Charset.forName("UTF-8"));
         return ByteBuffer.wrap(bytes);
+    }
+
+    public static void copyFrame(final MutableDirectBuffer dst, final int offset, final Frame frame)
+    {
+        dst.putBytes(offset, frame.getByteBuffer(), frame.offset(), frame.length());
     }
 
     private static class PayloadImpl implements Payload // some JDK shoutout
@@ -92,6 +99,7 @@ public class TestUtil
 
         public boolean equals(Object obj)
         {
+        	System.out.println("equals: " + obj);
             final Payload rhs = (Payload)obj;
 
             return (TestUtil.byteToString(data).equals(TestUtil.byteToString(rhs.getData()))) &&

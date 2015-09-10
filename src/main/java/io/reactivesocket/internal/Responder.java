@@ -28,7 +28,7 @@ import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
 import io.reactivesocket.exceptions.SetupException;
-import uk.co.real_logic.agrona.collections.Long2ObjectHashMap;
+import uk.co.real_logic.agrona.collections.Int2ObjectHashMap;
 
 /**
  * Protocol implementation abstracted over a {@link DuplexConnection}.
@@ -41,12 +41,14 @@ public class Responder {
 	private final ConnectionSetupHandler connectionHandler;
 	private final Consumer<Throwable> errorStream;
 	private LeaseGovernor leaseGovernor;
+	private long timeOfLastKeepalive;
 
 	private Responder(DuplexConnection connection, ConnectionSetupHandler connectionHandler, LeaseGovernor leaseGovernor, Consumer<Throwable> errorStream) {
 		this.connection = connection;
 		this.connectionHandler = connectionHandler;
 		this.leaseGovernor = leaseGovernor;
 		this.errorStream = errorStream;
+		this.timeOfLastKeepalive = System.nanoTime();
 	}
 
 	/**
@@ -72,7 +74,7 @@ public class Responder {
 	 */
 	public void sendLease(final int ttl, final int numberOfRequests)
 	{
-		connection.addOutput(PublisherUtils.just(Frame.fromLease(ttl, numberOfRequests, Frame.NULL_BYTEBUFFER)), new Completable() {
+		connection.addOutput(PublisherUtils.just(Frame.Lease.from(ttl, numberOfRequests, Frame.NULL_BYTEBUFFER)), new Completable() {
 			@Override
 			public void success() {
 			}
@@ -84,13 +86,23 @@ public class Responder {
 		});
 	}
 
+	/**
+	 * Return time of last keepalive from client
+	 *
+	 * @return time from {@link System#nanoTime()} of last keepalive
+	 */
+	public long timeOfLastKeepalive()
+	{
+		return timeOfLastKeepalive;
+	}
+
 	private void start() {
 		/* state of cancellation subjects during connection */
-		final Long2ObjectHashMap<Subscription> cancellationSubscriptions = new Long2ObjectHashMap<>();
+		final Int2ObjectHashMap<Subscription> cancellationSubscriptions = new Int2ObjectHashMap<>();
 		/* streams in flight that can receive REQUEST_N messages */
-		final Long2ObjectHashMap<Subscription> inFlight = new Long2ObjectHashMap<>(); // TODO not being used
+		final Int2ObjectHashMap<Subscription> inFlight = new Int2ObjectHashMap<>(); // TODO not being used
 		/* bidirectional channels */
-		final Long2ObjectHashMap<UnicastSubject<Payload>> channels = new Long2ObjectHashMap<>(); // TODO should/can we make this optional so that it only gets allocated per connection if channels are
+		final Int2ObjectHashMap<UnicastSubject<Payload>> channels = new Int2ObjectHashMap<>(); // TODO should/can we make this optional so that it only gets allocated per connection if channels are
 																									// used?
 		final AtomicBoolean childTerminated = new AtomicBoolean(false);
 		final AtomicReference<Subscription> transportSubscription = new AtomicReference<>();
@@ -108,7 +120,7 @@ public class Responder {
 				}
 			}
 
-			RequestHandler requestHandler = null; // null until after first Setup frame
+			volatile RequestHandler requestHandler = null; // null until after first Setup frame
 
 			@Override
 			public void onNext(Frame requestFrame) {
@@ -122,6 +134,10 @@ public class Responder {
 						final ConnectionSetupPayload connectionSetupPayload =
 							ConnectionSetupPayload.create(requestFrame);
 						try {
+							if (Frame.Setup.version(requestFrame) != SetupFrameFlyweight.CURRENT_VERSION) {
+								throw new SetupException("unsupported protocol version: " + Frame.Setup.version(requestFrame));
+							}
+
 							requestHandler = connectionHandler.apply(connectionSetupPayload);
 						} catch (SetupException setupException) {
 							setupErrorAndTearDown(connection, setupException);
@@ -168,14 +184,28 @@ public class Responder {
 							return;
 						} else if (requestFrame.getType() == FrameType.REQUEST_N) {
 							Subscription inFlightSubscription = null;
-							synchronized (Responder.this) {
+							synchronized (Responder.this)
+							{
 								inFlightSubscription = inFlight.get(requestFrame.getStreamId());
 							}
-							if (inFlightSubscription != null) {
+							if (inFlightSubscription != null)
+							{
 								inFlightSubscription.request(Frame.RequestN.requestN(requestFrame));
 								return;
 							}
 							// TODO should we do anything if we don't find the stream? emitting an error is risky as the responder could have terminated and cleaned up already
+						} else if (requestFrame.getType() == FrameType.KEEPALIVE) {
+							// this client is alive.
+							timeOfLastKeepalive = System.nanoTime();
+							// echo back if flag set
+							if (Frame.Keepalive.hasRespondFlag(requestFrame))
+							{
+								responsePublisher = PublisherUtils.just(Frame.Keepalive.from(requestFrame.getData(), false));
+							}
+							else
+							{
+								return;
+							}
 						} else {
 							responsePublisher = PublisherUtils.errorFrame(streamId, new IllegalStateException("Unexpected prefix: " + requestFrame.getType()));
 						}
@@ -211,7 +241,7 @@ public class Responder {
 
 			private void setupErrorAndTearDown(DuplexConnection connection, SetupException setupException) {
 				// pass the ErrorFrame output, subscribe to write it, await onComplete and then tear down
-				final Frame frame = Frame.fromError(0, setupException);
+				final Frame frame = Frame.Error.from(0, setupException);
 				connection.addOutput(PublisherUtils.just(frame),
 					new Completable() {
 						@Override
@@ -262,7 +292,7 @@ public class Responder {
 	private Publisher<Frame> handleRequestResponse(
 			Frame requestFrame,
 			final RequestHandler requestHandler,
-			final Long2ObjectHashMap<Subscription> cancellationSubscriptions) {
+			final Int2ObjectHashMap<Subscription> cancellationSubscriptions) {
 
 		return (Subscriber<? super Frame> child) -> {
 			Subscription s = new Subscription() {
@@ -296,13 +326,13 @@ public class Responder {
 									onError(new IllegalStateException("RequestResponse expects a single onNext"));
 								} else {
 
-									child.onNext(Frame.from(streamId, FrameType.NEXT_COMPLETE, v));
+									child.onNext(Frame.Response.from(streamId, FrameType.NEXT_COMPLETE, v));
 								}
 							}
 
 							@Override
 							public void onError(Throwable t) {
-								child.onNext(Frame.fromError(streamId, t));
+								child.onNext(Frame.Error.from(streamId, t));
 								cleanup();
 							}
 
@@ -350,18 +380,19 @@ public class Responder {
 	private Publisher<Frame> handleRequestStream(
 			Frame requestFrame,
 			final RequestHandler requestHandler,
-			final Long2ObjectHashMap<Subscription> cancellationSubscriptions,
-			final Long2ObjectHashMap<Subscription> inFlight) {
-		return requestStream(requestStreamHandler, requestFrame, requestHandler, cancellationSubscriptions, inFlight, true);
+			final Int2ObjectHashMap<Subscription> cancellationSubscriptions,
+			final Int2ObjectHashMap<Subscription> inFlight) {
+		return _handleRequestStream(requestStreamHandler, requestFrame, requestHandler, cancellationSubscriptions, inFlight, true);
 	}
 
 	private Publisher<Frame> handleRequestSubscription(
 			Frame requestFrame,
 			final RequestHandler requestHandler,
-			final Long2ObjectHashMap<Subscription> cancellationSubscriptions,
-			final Long2ObjectHashMap<Subscription> inFlight) {
-		return requestStream(requestSubscriptionHandler, requestFrame, requestHandler, cancellationSubscriptions, inFlight, false);
+			final Int2ObjectHashMap<Subscription> cancellationSubscriptions,
+			final Int2ObjectHashMap<Subscription> inFlight) {
+		return _handleRequestStream(requestSubscriptionHandler, requestFrame, requestHandler, cancellationSubscriptions, inFlight, false);
 	}
+	
 	/**
 	 * Common logic for requestStream and requestSubscription
 	 * 
@@ -372,12 +403,12 @@ public class Responder {
 	 * @param allowCompletion
 	 * @return
 	 */
-	private Publisher<Frame> requestStream(
+	private Publisher<Frame> _handleRequestStream(
 			BiFunction<RequestHandler, Payload, Publisher<Payload>> handler,
 			Frame requestFrame,
 			final RequestHandler requestHandler,
-			final Long2ObjectHashMap<Subscription> cancellationSubscriptions,
-			final Long2ObjectHashMap<Subscription> inFlight,
+			final Int2ObjectHashMap<Subscription> cancellationSubscriptions,
+			final Int2ObjectHashMap<Subscription> inFlight,
 			final boolean allowCompletion) {
 
 		return new Publisher<Frame>() {
@@ -411,7 +442,7 @@ public class Responder {
 								@Override
 								public void onNext(Payload v) {
 									try {
-										child.onNext(Frame.from(streamId, FrameType.NEXT, v));
+										child.onNext(Frame.Response.from(streamId, FrameType.NEXT, v));
 									} catch (Throwable e) {
 										onError(e);
 									}
@@ -419,7 +450,7 @@ public class Responder {
 
 								@Override
 								public void onError(Throwable t) {
-									child.onNext(Frame.fromError(streamId, t));
+									child.onNext(Frame.Error.from(streamId, t));
 									child.onComplete();
 									cleanup();
 								}
@@ -427,7 +458,7 @@ public class Responder {
 								@Override
 								public void onComplete() {
 									if (allowCompletion) {
-										child.onNext(Frame.from(streamId, FrameType.COMPLETE));
+										child.onNext(Frame.Response.from(streamId, FrameType.COMPLETE));
 										child.onComplete();
 										cleanup();
 									} else {
@@ -503,26 +534,15 @@ public class Responder {
 
 	private Publisher<Frame> handleRequestChannel(Frame requestFrame,
 			RequestHandler requestHandler,
-			Long2ObjectHashMap<UnicastSubject<Payload>> channels,
-			Long2ObjectHashMap<Subscription> cancellationSubscriptions,
-			Long2ObjectHashMap<Subscription> inFlight) {
+			Int2ObjectHashMap<UnicastSubject<Payload>> channels,
+			Int2ObjectHashMap<Subscription> cancellationSubscriptions,
+			Int2ObjectHashMap<Subscription> inFlight) {
 
 		UnicastSubject<Payload> channelSubject = null;
 		synchronized(Responder.this) {
 			channelSubject = channels.get(requestFrame.getStreamId());
 		}
 		if (channelSubject == null) {
-			// first request on this channel
-			channelSubject = UnicastSubject.create((s, rn) -> {
-				// after we are first subscribed to then send the initial frame
-				s.onNext(requestFrame);
-			});
-			synchronized(Responder.this) {
-				channels.put(requestFrame.getStreamId(), channelSubject);
-			}
-
-			final UnicastSubject<Payload> channelRequests = channelSubject;
-
 			return new Publisher<Frame>() {
 
 				@Override
@@ -537,6 +557,28 @@ public class Responder {
 							if (!started) {
 								started = true;
 								final int streamId = requestFrame.getStreamId();
+								
+								// first request on this channel
+								UnicastSubject<Payload> channelRequests = UnicastSubject.create((s, rn) -> {
+									// after we are first subscribed to then send the initial frame
+									s.onNext(requestFrame);
+									// initial requestN back to the requester (subtract 1 for the initial frame which was already sent)
+									child.onNext(Frame.RequestN.from(streamId, rn.intValue() - 1));
+								}, r -> {
+									// requested
+									child.onNext(Frame.RequestN.from(streamId, r.intValue()));
+								});
+								synchronized(Responder.this) {
+									if(channels.get(streamId) != null) {
+										// TODO validate that this correctly defends against this issue
+										// this means we received a followup request that raced and that the requester didn't correct wait for REQUEST_N before sending more frames
+										child.onNext(Frame.Error.from(streamId, new RuntimeException("Requester sent more than 1 requestChannel frame before permitted.")));
+										child.onComplete();
+										cleanup();
+										return;
+									}
+ 									channels.put(streamId, channelRequests);
+								}
 
 								requestHandler.handleChannel(requestFrame, channelRequests).subscribe(new Subscriber<Payload>() {
 
@@ -553,19 +595,20 @@ public class Responder {
 
 									@Override
 									public void onNext(Payload v) {
-										child.onNext(Frame.from(streamId, FrameType.NEXT, v));
+										child.onNext(Frame.Response.from(streamId, FrameType.NEXT, v));
 									}
 
 									@Override
 									public void onError(Throwable t) {
-										child.onNext(Frame.fromError(streamId, t));
+										t.printStackTrace();
+										child.onNext(Frame.Error.from(streamId, t));
 										child.onComplete();
 										cleanup();
 									}
 
 									@Override
 									public void onComplete() {
-										child.onNext(Frame.from(streamId, FrameType.COMPLETE));
+										child.onNext(Frame.Response.from(streamId, FrameType.COMPLETE));
 										child.onComplete();
 										cleanup();
 

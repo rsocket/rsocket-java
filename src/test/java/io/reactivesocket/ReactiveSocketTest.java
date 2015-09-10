@@ -15,28 +15,28 @@
  */
 package io.reactivesocket;
 
-import static io.reactivesocket.ConnectionSetupPayload.HONOR_LEASE;
-import static io.reactivesocket.ConnectionSetupPayload.NO_FLAGS;
+import static io.reactivesocket.ConnectionSetupPayload.*;
 import static io.reactivesocket.TestUtil.*;
+import static io.reactivex.Observable.*;
 import static org.junit.Assert.*;
-import static rx.Observable.*;
-import static rx.RxReactiveStreams.*;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
-import org.junit.*;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
 import org.junit.experimental.theories.DataPoints;
 import org.junit.experimental.theories.Theories;
 import org.junit.experimental.theories.Theory;
 import org.junit.runner.RunWith;
 import org.reactivestreams.Publisher;
 
-import rx.Subscription;
-import rx.observables.ConnectableObservable;
-import rx.observers.TestSubscriber;
+import io.reactivex.disposables.Disposable;
+import io.reactivex.observables.ConnectableObservable;
+import io.reactivex.subscribers.TestSubscriber;
 
 @RunWith(Theories.class)
 public class ReactiveSocketTest {
@@ -66,10 +66,12 @@ public class ReactiveSocketTest {
 			@Override
 			public Publisher<Payload> handleRequestResponse(Payload payload) {
 				String request = byteToString(payload.getData());
+				System.out.println("********************************************************************************************** requestResponse: " + request);
 				if ("hello".equals(request)) {
-					return toPublisher(just(utf8EncodedPayload("hello world", null)));
+					System.out.println("********************************************************************************************** respond hello");
+					return just(utf8EncodedPayload("hello world", null));
 				} else {
-					return toPublisher(error(new RuntimeException("Not Found")));
+					return error(new RuntimeException("Not Found"));
 				}
 			}
 
@@ -77,9 +79,9 @@ public class ReactiveSocketTest {
 			public Publisher<Payload> handleRequestStream(Payload payload) {
 				String request = byteToString(payload.getData());
 				if ("hello".equals(request)) {
-					return toPublisher(range(0, 100).map(i -> "hello world " + i).map(n -> utf8EncodedPayload(n, null)));
+					return range(0, 100).map(i -> "hello world " + i).map(n -> utf8EncodedPayload(n, null));
 				} else {
-					return toPublisher(error(new RuntimeException("Not Found")));
+					return error(new RuntimeException("Not Found"));
 				}
 			}
 
@@ -87,13 +89,13 @@ public class ReactiveSocketTest {
 			public Publisher<Payload> handleSubscription(Payload payload) {
 				String request = byteToString(payload.getData());
 				if ("hello".equals(request)) {
-					return toPublisher(interval(1, TimeUnit.MICROSECONDS)
-						.doOnSubscribe(() -> helloSubscriptionRunning.set(true))
-						.doOnUnsubscribe(() -> helloSubscriptionRunning.set(false))
+					return interval(1, TimeUnit.MICROSECONDS)
+						.doOnSubscribe(s -> helloSubscriptionRunning.set(true))
+						.doOnCancel(() -> helloSubscriptionRunning.set(false))
 						.map(i -> "subscription " + i)
-						.map(n -> utf8EncodedPayload(n, null)));
+						.map(n -> utf8EncodedPayload(n, null));
 				} else {
-					return toPublisher(error(new RuntimeException("Not Found")));
+					return error(new RuntimeException("Not Found"));
 				}
 			}
 
@@ -103,12 +105,12 @@ public class ReactiveSocketTest {
 					String request = byteToString(payload.getData());
 					lastFireAndForget.set(request);
 					if ("log".equals(request)) {
-						return toPublisher(empty()); // success
+						return empty(); // success
 					} else if ("blowup".equals(request)) {
 						throw new RuntimeException("forced blowup to simulate handler error");
 					} else {
 						lastFireAndForget.set("notFound");
-						return toPublisher(error(new RuntimeException("Not Found")));
+						return error(new RuntimeException("Not Found"));
 					}
 				} finally {
 					fireAndForgetOrMetadataPush.countDown();
@@ -124,7 +126,7 @@ public class ReactiveSocketTest {
 				if ("echo".equals(request)) {
 					return echoChannel(payloads);
 				} else {
-					return toPublisher(error(new RuntimeException("Not Found")));
+					return error(new RuntimeException("Not Found"));
 				}
 			}
 
@@ -135,12 +137,12 @@ public class ReactiveSocketTest {
 					String request = byteToString(payload.getMetadata());
 					lastMetadataPush.set(request);
 					if ("log".equals(request)) {
-						return toPublisher(empty()); // success
+						return empty(); // success
 					} else if ("blowup".equals(request)) {
 						throw new RuntimeException("forced blowup to simulate handler error");
 					} else {
 						lastMetadataPush.set("notFound");
-						return toPublisher(error(new RuntimeException("Not Found")));
+						return error(new RuntimeException("Not Found"));
 					}
 				} finally {
 					fireAndForgetOrMetadataPush.countDown();
@@ -148,13 +150,14 @@ public class ReactiveSocketTest {
 			}
 
 			private Publisher<Payload> echoChannel(Publisher<Payload> echo) {
-				return toPublisher(toObservable(echo).map(p -> {
+				return fromPublisher(echo).map(p -> {
 					return utf8EncodedPayload(byteToString(p.getData()) + "_echo", null);
-				}));
+				});
 			}
 
 //		}, LeaseGovernor.UNLIMITED_LEASE_GOVERNOR, t -> {
 		}, new FairLeaseGovernor(100, 10L, TimeUnit.SECONDS), t -> {
+			t.printStackTrace();
 			lastServerError.set(t);
 			lastServerErrorCountDown.countDown();
 		});
@@ -174,7 +177,8 @@ public class ReactiveSocketTest {
 		}
 		socketClient = ReactiveSocket.fromClientConnection(
 			clientConnection,
-			ConnectionSetupPayload.create("UTF-8", "UTF-8", setupFlag)
+			ConnectionSetupPayload.create("UTF-8", "UTF-8", setupFlag),
+			err -> err.printStackTrace()
 		);
 
 		// start both the server and client and monitor for errors
@@ -191,6 +195,7 @@ public class ReactiveSocketTest {
 
 		while (socket.availability() == 0.0) {
 			try {
+				System.out.println("... waiting " + waitTimeMs + " ...");
 				Thread.sleep(waitTimeMs);
 				waitTimeMs = Math.min(waitTimeMs * 2, 1000L);
 				final long elapsedNanos = System.nanoTime() - startTime;
@@ -204,63 +209,63 @@ public class ReactiveSocketTest {
 		assertTrue("client socket has positive avaibility", socket.availability() > 0.0);
 	}
 
-	@Test
+	@Test(timeout=2000)
 	@Theory
 	public void testRequestResponse(int setupFlag) {
 		startSockets(setupFlag);
 		// perform request/response
 
 		Publisher<Payload> response = socketClient.requestResponse(TestUtil.utf8EncodedPayload("hello", null));
-		TestSubscriber<Payload> ts = TestSubscriber.create();
-		toObservable(response).subscribe(ts);
+		TestSubscriber<Payload> ts = new TestSubscriber<>();
+		response.subscribe(ts);
 		ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
 		ts.assertNoErrors();
 		ts.assertValue(TestUtil.utf8EncodedPayload("hello world", null));
 	}
 
-	@Test
+	@Test(timeout=2000)
 	@Theory
 	public void testRequestStream(int setupFlag) {
 		startSockets(setupFlag);
 		// perform request/stream
 
 		Publisher<Payload> response = socketClient.requestStream(TestUtil.utf8EncodedPayload("hello", null));
-		TestSubscriber<Payload> ts = TestSubscriber.create();
-		toObservable(response).subscribe(ts);
+		TestSubscriber<Payload> ts = new TestSubscriber<>();
+		response.subscribe(ts);
 		ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
 		ts.assertNoErrors();
-		assertEquals(100, ts.getOnNextEvents().size());
-		assertEquals("hello world 99", byteToString(ts.getOnNextEvents().get(99).getData()));
+		assertEquals(100, ts.values().size());
+		assertEquals("hello world 99", byteToString(ts.values().get(99).getData()));
 	}
 
-	@Test
+	@Test(timeout=2000)
 	@Theory
 	public void testRequestSubscription(int setupFlag) {
 		startSockets(setupFlag);
 		// perform request/subscription
 
 		Publisher<Payload> response = socketClient.requestSubscription(TestUtil.utf8EncodedPayload("hello", null));
-		TestSubscriber<Payload> ts = TestSubscriber.create();
-		TestSubscriber<Payload> ts2 = TestSubscriber.create();
-		ConnectableObservable<Payload> published = toObservable(response).publish();
+		TestSubscriber<Payload> ts = new TestSubscriber<>();
+		TestSubscriber<Payload> ts2 = new TestSubscriber<>();
+		ConnectableObservable<Payload> published = fromPublisher(response).publish();
 		published.take(10).subscribe(ts);
 		published.subscribe(ts2);
-		Subscription subscription = published.connect();
+		Disposable subscription = published.connect();
 
 		// ts completed due to take
 		ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
 		ts.assertNoErrors();
-		ts.assertCompleted();
+		ts.assertComplete();
 
 		// ts2 should never complete
 		ts2.assertNoErrors();
-		ts2.assertNoTerminalEvent();
+		ts2.assertNotTerminated();
 
 		// assert it is running still
 		assertTrue(helloSubscriptionRunning.get());
 
 		// shut down the work
-		subscription.unsubscribe();
+		subscription.dispose();
 
 		// wait for up to 2 seconds for the async CANCEL to occur (it sends a message up)
 		for (int i = 0; i < 20; i++) {
@@ -275,11 +280,11 @@ public class ReactiveSocketTest {
 		// and then stopped after unsubscribing
 		assertFalse(helloSubscriptionRunning.get());
 
-		assertEquals(10, ts.getOnNextEvents().size());
-		assertEquals("subscription 9", byteToString(ts.getOnNextEvents().get(9).getData()));
+		assertEquals(10, ts.values().size());
+		assertEquals("subscription 9", byteToString(ts.values().get(9).getData()));
 	}
 
-	@Test
+	@Test(timeout=2000)
 	@Theory
 	public void testFireAndForgetSuccess(int setupFlag) throws InterruptedException {
 		startSockets(setupFlag);
@@ -287,48 +292,48 @@ public class ReactiveSocketTest {
 		// perform request/response
 
 		Publisher<Void> response = socketClient.fireAndForget(TestUtil.utf8EncodedPayload("log", null));
-		TestSubscriber<Void> ts = TestSubscriber.create();
-		toObservable(response).subscribe(ts);
+		TestSubscriber<Void> ts = new TestSubscriber<>();
+		response.subscribe(ts);
 		// these only test client side since this is fireAndForgetOrMetadataPush
 		ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
 		ts.assertNoErrors();
-		ts.assertCompleted();
+		ts.assertComplete();
 		// this waits for server-side
 		fireAndForgetOrMetadataPush.await(500, TimeUnit.MILLISECONDS);
 		assertEquals("log", lastFireAndForget.get());
 	}
 
-	@Test
+	@Test(timeout=2000)
 	@Theory
 	public void testFireAndForgetServerSideErrorNotFound(int setupFlag) throws InterruptedException {
 		startSockets(setupFlag);
 		// perform request/response
 
 		Publisher<Void> response = socketClient.fireAndForget(TestUtil.utf8EncodedPayload("unknown", null));
-		TestSubscriber<Void> ts = TestSubscriber.create();
-		toObservable(response).subscribe(ts);
+		TestSubscriber<Void> ts = new TestSubscriber<>();
+		response.subscribe(ts);
 		// these only test client side since this is fireAndForgetOrMetadataPush
 		ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
 		ts.assertNoErrors();// client-side won't see an error
-		ts.assertCompleted();
+		ts.assertComplete();
 		// this waits for server-side
 		fireAndForgetOrMetadataPush.await(500, TimeUnit.MILLISECONDS);
 		assertEquals("notFound", lastFireAndForget.get());
 	}
 
-	@Test
+	@Test(timeout=2000)
 	@Theory
 	public void testFireAndForgetServerSideErrorHandlerBlowup(int setupFlag) throws InterruptedException {
 		startSockets(setupFlag);
 		// perform request/response
 
 		Publisher<Void> response = socketClient.fireAndForget(TestUtil.utf8EncodedPayload("blowup", null));
-		TestSubscriber<Void> ts = TestSubscriber.create();
-		toObservable(response).subscribe(ts);
+		TestSubscriber<Void> ts = new TestSubscriber<>();
+		response.subscribe(ts);
 		// these only test client side since this is fireAndForgetOrMetadataPush
 		ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
 		ts.assertNoErrors();// client-side won't see an error
-		ts.assertCompleted();
+		ts.assertComplete();
 		// this waits for server-side
 		fireAndForgetOrMetadataPush.await(500, TimeUnit.MILLISECONDS);
 		assertEquals("blowup", lastFireAndForget.get());
@@ -336,39 +341,39 @@ public class ReactiveSocketTest {
 		assertEquals("forced blowup to simulate handler error", lastServerError.get().getCause().getMessage());
 	}
 
-	@Test
+	@Test(timeout=2000)
 	@Theory
 	public void testRequestChannelEcho(int setupFlag) {
 		startSockets(setupFlag);
 
-		Publisher<Payload> requestStream = toPublisher(just(TestUtil.utf8EncodedPayload("1", "echo")).concatWith(just(TestUtil.utf8EncodedPayload("2", null))));
+		Publisher<Payload> requestStream = just(TestUtil.utf8EncodedPayload("1", "echo")).concatWith(just(TestUtil.utf8EncodedPayload("2", null)));
 		Publisher<Payload> response = socketClient.requestChannel(requestStream);
-		TestSubscriber<Payload> ts = TestSubscriber.create();
-		toObservable(response).subscribe(ts);
+		TestSubscriber<Payload> ts = new TestSubscriber<>();
+		response.subscribe(ts);
 		ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
 		ts.assertNoErrors();
-		assertEquals(2, ts.getOnNextEvents().size());
-		assertEquals("1_echo", byteToString(ts.getOnNextEvents().get(0).getData()));
-		assertEquals("2_echo", byteToString(ts.getOnNextEvents().get(1).getData()));
+		assertEquals(2, ts.values().size());
+		assertEquals("1_echo", byteToString(ts.values().get(0).getData()));
+		assertEquals("2_echo", byteToString(ts.values().get(1).getData()));
 	}
 
-	@Test
+	@Test(timeout=2000)
 	@Theory
 	public void testRequestChannelNotFound(int setupFlag) {
 		startSockets(setupFlag);
 
-		Publisher<Payload> requestStream = toPublisher(just(TestUtil.utf8EncodedPayload(null, "someChannel")));
+		Publisher<Payload> requestStream = just(TestUtil.utf8EncodedPayload(null, "someChannel"));
 		Publisher<Payload> response = socketClient.requestChannel(requestStream);
-		TestSubscriber<Payload> ts = TestSubscriber.create();
-		toObservable(response).subscribe(ts);
+		TestSubscriber<Payload> ts = new TestSubscriber<>();
+		response.subscribe(ts);
 		ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
-		ts.assertTerminalEvent();
-		ts.assertNotCompleted();
+		ts.assertTerminated();
+		ts.assertNotComplete();
 		ts.assertNoValues();
-		assertEquals("Not Found", ts.getOnErrorEvents().get(0).getMessage());
+		ts.assertErrorMessage("Not Found");
 	}
 
-	@Test
+	@Test(timeout=2000)
 	@Theory
 	public void testMetadataPushSuccess(int setupFlag) throws InterruptedException {
 		startSockets(setupFlag);
@@ -376,45 +381,45 @@ public class ReactiveSocketTest {
 		// perform request/response
 
 		Publisher<Void> response = socketClient.metadataPush(TestUtil.utf8EncodedPayload(null, "log"));
-		TestSubscriber<Void> ts = TestSubscriber.create();
-		toObservable(response).subscribe(ts);
+		TestSubscriber<Void> ts = new TestSubscriber<>();
+		response.subscribe(ts);
 		ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
 		ts.assertNoErrors();
-		ts.assertCompleted();
+		ts.assertComplete();
 		// this waits for server-side
 		fireAndForgetOrMetadataPush.await(500, TimeUnit.MILLISECONDS);
 		assertEquals("log", lastMetadataPush.get());
 	}
 
-	@Test
+	@Test(timeout=2000)
 	@Theory
 	public void testMetadataPushServerSideErrorNotFound(int setupFlag) throws InterruptedException {
 		startSockets(setupFlag);
 		// perform request/response
 
 		Publisher<Void> response = socketClient.metadataPush(TestUtil.utf8EncodedPayload(null, "unknown"));
-		TestSubscriber<Void> ts = TestSubscriber.create();
-		toObservable(response).subscribe(ts);
+		TestSubscriber<Void> ts = new TestSubscriber<>();
+		response.subscribe(ts);
 		ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
 		ts.assertNoErrors();// client-side won't see an error
-		ts.assertCompleted();
+		ts.assertComplete();
 		// this waits for server-side
 		fireAndForgetOrMetadataPush.await(500, TimeUnit.MILLISECONDS);
 		assertEquals("notFound", lastMetadataPush.get());
 	}
 
-	@Test
+	@Test(timeout=2000)
 	@Theory
 	public void testMetadataPushServerSideErrorHandlerBlowup(int setupFlag) throws InterruptedException {
 		startSockets(setupFlag);
 		// perform request/response
 
 		Publisher<Void> response = socketClient.metadataPush(TestUtil.utf8EncodedPayload(null, "blowup"));
-		TestSubscriber<Void> ts = TestSubscriber.create();
-		toObservable(response).subscribe(ts);
+		TestSubscriber<Void> ts = new TestSubscriber<>();
+		response.subscribe(ts);
 		ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
 		ts.assertNoErrors();// client-side won't see an error
-		ts.assertCompleted();
+		ts.assertComplete();
 		// this waits for server-side
 		fireAndForgetOrMetadataPush.await(500, TimeUnit.MILLISECONDS);
 		assertEquals("blowup", lastMetadataPush.get());

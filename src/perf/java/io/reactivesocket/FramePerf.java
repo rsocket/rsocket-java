@@ -36,8 +36,20 @@ public class FramePerf {
 	{
 		final byte[] bytes = data.getBytes();
 		final ByteBuffer byteBuffer = ByteBuffer.wrap(bytes);
+		final Payload payload = new Payload()
+		{
+			public ByteBuffer getData()
+			{
+				return byteBuffer;
+			}
 
-		return Frame.from(streamId, type, byteBuffer);
+			public ByteBuffer getMetadata()
+			{
+				return Frame.NULL_BYTEBUFFER;
+			}
+		};
+
+		return Frame.Response.from(streamId, type, payload);
 	}
 
 	/**
@@ -61,7 +73,7 @@ public class FramePerf {
 	@Benchmark
 	public Frame encodeStaticHelloIntoFrame(Input input) {
 		input.HELLO.position(0);
-		return Frame.from(0, FrameType.NEXT_COMPLETE, input.HELLO);
+		return Frame.Response.from(0, FrameType.NEXT_COMPLETE, input.HELLOpayload);
 	}
 	
 	@State(Scope.Thread)
@@ -72,7 +84,18 @@ public class FramePerf {
 		public Blackhole bh;
 		
 		public ByteBuffer HELLO = ByteBuffer.wrap("HELLO".getBytes());
-		
+		public Payload HELLOpayload = new Payload()
+		{
+			public ByteBuffer getData()
+			{
+				return HELLO;
+			}
+
+			public ByteBuffer getMetadata()
+			{
+				return Frame.NULL_BYTEBUFFER;
+			}
+		};
 
 		@Setup
 		public void setup(Blackhole bh) {

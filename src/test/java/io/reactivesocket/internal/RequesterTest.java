@@ -17,8 +17,8 @@ package io.reactivesocket.internal;
 
 import static io.reactivesocket.TestUtil.*;
 import static org.junit.Assert.*;
-import static rx.RxReactiveStreams.*;
 import static io.reactivesocket.ConnectionSetupPayload.NO_FLAGS;
+import static io.reactivex.Observable.*;
 
 import java.util.Arrays;
 import java.util.List;
@@ -32,12 +32,13 @@ import io.reactivesocket.Frame;
 import io.reactivesocket.FrameType;
 import io.reactivesocket.Payload;
 import io.reactivesocket.TestConnection;
-import rx.observers.TestSubscriber;
-import rx.subjects.ReplaySubject;
+import io.reactivex.subscribers.TestSubscriber;
+import io.reactivex.Observable;
+import io.reactivex.subjects.ReplaySubject;
 
 public class RequesterTest
 {
-	final static Consumer<Throwable> ERROR_HANDLER = err -> err.printStackTrace();
+	final static Consumer<Throwable> ERROR_HANDLER = Throwable::printStackTrace;
 	
     @Test
     public void testRequestResponseSuccess() {
@@ -45,8 +46,8 @@ public class RequesterTest
         Requester p = Requester.createClientRequester(conn, ConnectionSetupPayload.create("UTF-8", "UTF-8", NO_FLAGS), ERROR_HANDLER);
         ReplaySubject<Frame> requests = captureRequests(conn);
 
-        TestSubscriber<Payload> ts = TestSubscriber.create();
-        toObservable(p.requestResponse(utf8EncodedPayload("hello", null))).subscribe(ts);
+        TestSubscriber<Payload> ts = new TestSubscriber<>();
+        p.requestResponse(utf8EncodedPayload("hello", null)).subscribe(ts);
 
         ts.assertNoErrors();
         assertEquals(1, requests.getValues().length);
@@ -58,11 +59,11 @@ public class RequesterTest
         assertEquals(FrameType.REQUEST_RESPONSE, one.getType());
         
         // now emit a response to ensure the Publisher receives and completes
-        conn.toInput.onNext(utf8EncodedFrame(2, FrameType.NEXT_COMPLETE, "world"));
+        conn.toInput.onNext(utf8EncodedResponseFrame(2, FrameType.NEXT_COMPLETE, "world"));
 
         ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
         ts.assertValue(utf8EncodedPayload("world", null));
-        ts.assertCompleted();
+        ts.assertComplete();
     }
 
     @Test
@@ -71,8 +72,8 @@ public class RequesterTest
         Requester p = Requester.createClientRequester(conn, ConnectionSetupPayload.create("UTF-8", "UTF-8", NO_FLAGS), ERROR_HANDLER);
         ReplaySubject<Frame> requests = captureRequests(conn);
 
-        TestSubscriber<Payload> ts = TestSubscriber.create();
-        toObservable(p.requestResponse(utf8EncodedPayload("hello", null))).subscribe(ts);
+        TestSubscriber<Payload> ts = new TestSubscriber<>();
+        p.requestResponse(utf8EncodedPayload("hello", null)).subscribe(ts);
 
         assertEquals(1, requests.getValues().length);
         List<Frame> requested = requests.take(1).toList().toBlocking().single();
@@ -82,10 +83,10 @@ public class RequesterTest
         assertEquals("hello", byteToString(one.getData()));
         assertEquals(FrameType.REQUEST_RESPONSE, one.getType());
 
-        conn.toInput.onNext(Frame.fromError(2, new RuntimeException("Failed")));
+        conn.toInput.onNext(Frame.Error.from(2, new RuntimeException("Failed")));
         ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
         ts.assertError(Exception.class);
-        assertEquals("Failed", ts.getOnErrorEvents().get(0).getMessage());
+        assertEquals("Failed", ts.errors().get(0).getMessage());
     }
 
     @Test
@@ -94,9 +95,9 @@ public class RequesterTest
         Requester p = Requester.createClientRequester(conn, ConnectionSetupPayload.create("UTF-8", "UTF-8", NO_FLAGS), ERROR_HANDLER);
         ReplaySubject<Frame> requests = captureRequests(conn);
 
-        TestSubscriber<Payload> ts = TestSubscriber.create();
-        rx.Subscription s = toObservable(p.requestResponse(utf8EncodedPayload("hello", null))).subscribe(ts);
-        s.unsubscribe();
+        TestSubscriber<Payload> ts = new TestSubscriber<>();
+        p.requestResponse(utf8EncodedPayload("hello", null)).subscribe(ts);
+        ts.cancel();
 
         assertEquals(2, requests.getValues().length);
         List<Frame> requested = requests.take(2).toList().toBlocking().single();
@@ -111,8 +112,7 @@ public class RequesterTest
         assertEquals("", byteToString(two.getData()));
         assertEquals(FrameType.CANCEL, two.getType());
 
-        ts.assertNoTerminalEvent();
-        ts.assertUnsubscribed();
+        ts.assertNotTerminated();
         ts.assertNoValues();
     }
 
@@ -123,8 +123,8 @@ public class RequesterTest
         Requester p = Requester.createClientRequester(conn, ConnectionSetupPayload.create("UTF-8", "UTF-8", NO_FLAGS), ERROR_HANDLER);
         ReplaySubject<Frame> requests = captureRequests(conn);
 
-        TestSubscriber<Payload> ts = TestSubscriber.create();
-        toObservable(p.requestStream(utf8EncodedPayload("hello", null))).subscribe(ts);
+        TestSubscriber<String> ts = new TestSubscriber<>();
+        fromPublisher(p.requestStream(utf8EncodedPayload("hello", null))).map(pl -> byteToString(pl.getData())).subscribe(ts);
 
         assertEquals(1, requests.getValues().length);
         List<Frame> requested = requests.take(1).toList().toBlocking().single();
@@ -136,13 +136,13 @@ public class RequesterTest
         // TODO assert initial requestN
         
         // emit data
-        conn.toInput.onNext(utf8EncodedFrame(2, FrameType.NEXT, "hello"));
-        conn.toInput.onNext(utf8EncodedFrame(2, FrameType.NEXT, "world"));
-        conn.toInput.onNext(utf8EncodedFrame(2, FrameType.COMPLETE, ""));
+        conn.toInput.onNext(utf8EncodedResponseFrame(2, FrameType.NEXT, "hello"));
+        conn.toInput.onNext(utf8EncodedResponseFrame(2, FrameType.NEXT, "world"));
+        conn.toInput.onNext(utf8EncodedResponseFrame(2, FrameType.COMPLETE, ""));
 
         ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
-        ts.assertCompleted();
-        ts.assertReceivedOnNext(Arrays.asList(utf8EncodedPayload("hello", null), utf8EncodedPayload("world", null)));
+        ts.assertComplete();
+        ts.assertValueSequence(Arrays.asList("hello", "world"));
     }
 
  // TODO REQUEST_N on initial frame not implemented yet
@@ -152,8 +152,8 @@ public class RequesterTest
         Requester p = Requester.createClientRequester(conn, ConnectionSetupPayload.create("UTF-8", "UTF-8", NO_FLAGS), ERROR_HANDLER);
         ReplaySubject<Frame> requests = captureRequests(conn);
 
-        TestSubscriber<Payload> ts = TestSubscriber.create();
-        toObservable(p.requestStream(utf8EncodedPayload("hello", null))).take(2).subscribe(ts);
+        TestSubscriber<String> ts = new TestSubscriber<>();
+        Observable.fromPublisher(p.requestStream(utf8EncodedPayload("hello", null))).take(2).map(pl -> byteToString(pl.getData())).subscribe(ts);
 
         assertEquals(1, requests.getValues().length);
         List<Frame> requested = requests.take(1).toList().toBlocking().single();
@@ -165,12 +165,12 @@ public class RequesterTest
         // TODO assert initial requestN
 
         // emit data
-        conn.toInput.onNext(utf8EncodedFrame(2, FrameType.NEXT, "hello"));
-        conn.toInput.onNext(utf8EncodedFrame(2, FrameType.NEXT, "world"));
+        conn.toInput.onNext(utf8EncodedResponseFrame(2, FrameType.NEXT, "hello"));
+        conn.toInput.onNext(utf8EncodedResponseFrame(2, FrameType.NEXT, "world"));
 
         ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
-        ts.assertCompleted();
-        ts.assertReceivedOnNext(Arrays.asList(utf8EncodedPayload("hello", null), utf8EncodedPayload("world", null)));
+        ts.assertComplete();
+        ts.assertValueSequence(Arrays.asList("hello", "world"));
 
         assertEquals(2, requests.getValues().length);
         List<Frame> requested2 = requests.take(2).toList().toBlocking().single();
@@ -188,8 +188,8 @@ public class RequesterTest
         Requester p = Requester.createClientRequester(conn, ConnectionSetupPayload.create("UTF-8", "UTF-8", NO_FLAGS), ERROR_HANDLER);
         ReplaySubject<Frame> requests = captureRequests(conn);
 
-        TestSubscriber<Payload> ts = TestSubscriber.create();
-        toObservable(p.requestStream(utf8EncodedPayload("hello", null))).subscribe(ts);
+        TestSubscriber<Payload> ts = new TestSubscriber<>();
+        p.requestStream(utf8EncodedPayload("hello", null)).subscribe(ts);
 
         assertEquals(1, requests.getValues().length);
         List<Frame> requested = requests.take(1).toList().toBlocking().single();
@@ -201,13 +201,13 @@ public class RequesterTest
         // TODO assert initial requestN
 
         // emit data
-        conn.toInput.onNext(utf8EncodedFrame(2, FrameType.NEXT, "hello"));
+        conn.toInput.onNext(utf8EncodedResponseFrame(2, FrameType.NEXT, "hello"));
         conn.toInput.onNext(utf8EncodedErrorFrame(2, "Failure"));
 
         ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
         ts.assertError(Exception.class);
-        ts.assertReceivedOnNext(Arrays.asList(utf8EncodedPayload("hello", null)));
-        assertEquals("Failure", ts.getOnErrorEvents().get(0).getMessage());
+        ts.assertValue(utf8EncodedPayload("hello", null));
+        assertEquals("Failure", ts.errors().get(0).getMessage());
     }
 
     // @Test // TODO need to implement test for REQUEST_N behavior as a long stream is consumed

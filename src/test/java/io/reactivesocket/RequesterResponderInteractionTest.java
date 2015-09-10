@@ -17,13 +17,7 @@ package io.reactivesocket;
 
 import static io.reactivesocket.LeaseGovernor.NULL_LEASE_GOVERNOR;
 import static org.junit.Assert.assertEquals;
-import static rx.Observable.empty;
-import static rx.Observable.error;
-import static rx.Observable.just;
-import static rx.Observable.never;
-import static rx.Observable.range;
-import static rx.RxReactiveStreams.toObservable;
-import static rx.RxReactiveStreams.toPublisher;
+import static io.reactivex.Observable.*;
 
 import java.util.Arrays;
 import java.util.concurrent.CountDownLatch;
@@ -35,10 +29,10 @@ import org.junit.Test;
 
 import io.reactivesocket.internal.Requester;
 import io.reactivesocket.internal.Responder;
-import rx.Observable;
-import rx.Observer;
-import rx.observers.TestSubscriber;
-import rx.schedulers.Schedulers;
+import io.reactivex.Observable;
+import io.reactivex.Observer;
+import io.reactivex.subscribers.TestSubscriber;
+import io.reactivex.schedulers.Schedulers;
 import uk.co.real_logic.agrona.collections.Long2ObjectHashMap;
 
 public class RequesterResponderInteractionTest
@@ -77,11 +71,11 @@ public class RequesterResponderInteractionTest
 
                 if (requestResponse.equals("hello"))
                 {
-                    return toPublisher(just(TestUtil.utf8EncodedPayload(requestResponse + " world", null)));
+                    return just(TestUtil.utf8EncodedPayload(requestResponse + " world", null));
                 }
                 else
                 {
-                    return toPublisher(error(new Exception("Not Found!")));
+                    return error(new Exception("Not Found!"));
                 }
             })
             .withRequestStream(payload ->
@@ -90,11 +84,11 @@ public class RequesterResponderInteractionTest
 
                 if (requestStream.equals("range"))
                 {
-                    return toPublisher(range(0, 3).map(String::valueOf).map(i -> TestUtil.utf8EncodedPayload(i, null)));
+                    return range(0, 3).map(String::valueOf).map(i -> TestUtil.utf8EncodedPayload(i, null));
                 }
                 else
                 {
-                    return toPublisher(error(new Exception("Not Found!")));
+                    return error(new Exception("Not Found!"));
                 }
             })
             .withRequestSubscription(payload ->
@@ -103,17 +97,17 @@ public class RequesterResponderInteractionTest
 
                 if (requestSubscription.equals("range"))
                 {
-                    return toPublisher(range(0, 3).map(String::valueOf).map(i -> TestUtil.utf8EncodedPayload(i, null))
-                        .mergeWith(never()));// never() so it doesn't complete
+                    return range(0, 3).map(String::valueOf).map(i -> TestUtil.utf8EncodedPayload(i, null))
+                        .mergeWith(never());// never() so it doesn't complete
                 }
                 else if (requestSubscription.equals("rangeThatCompletes"))
                 {
                     // complete and show it turns into an error
-                    return toPublisher(range(0, 2).map(String::valueOf).map(i -> TestUtil.utf8EncodedPayload(i, null)));
+                    return range(0, 2).map(String::valueOf).map(i -> TestUtil.utf8EncodedPayload(i, null));
                 }
                 else
                 {
-                    return toPublisher(error(new Exception("Not Found!")));
+                    return error(new Exception("Not Found!"));
                 }
             })
             .withFireAndForget(payload ->
@@ -122,11 +116,11 @@ public class RequesterResponderInteractionTest
 
                 if (fireAndForget.equals("hello"))
                 {
-                    return toPublisher(empty());// nothing responds
+                    return empty();// nothing responds
                 }
                 else
                 {
-                    return toPublisher(error(new Exception("Not Found!")));
+                    return error(new Exception("Not Found!"));
                 }
             }).build(), NULL_LEASE_GOVERNOR, Throwable::printStackTrace);
 
@@ -136,8 +130,8 @@ public class RequesterResponderInteractionTest
     @Ignore
     @Test
     public void testRequestResponseSuccess() {
-        TestSubscriber<Payload> ts = TestSubscriber.create();
-        toObservable(requester.requestResponse(TestUtil.utf8EncodedPayload("hello", null))).subscribe(ts);
+        TestSubscriber<Payload> ts = new TestSubscriber<>();
+        requester.requestResponse(TestUtil.utf8EncodedPayload("hello", null)).subscribe(ts);
         ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
         ts.assertValue(TestUtil.utf8EncodedPayload("hello world", null));
     }
@@ -145,40 +139,40 @@ public class RequesterResponderInteractionTest
     @Ignore
     @Test
     public void testRequestResponseError() {
-        TestSubscriber<Payload> ts = TestSubscriber.create();
-        toObservable(requester.requestResponse(TestUtil.utf8EncodedPayload("doesntExist", null))).subscribe(ts);
+        TestSubscriber<Payload> ts = new TestSubscriber<>();
+        requester.requestResponse(TestUtil.utf8EncodedPayload("doesntExist", null)).subscribe(ts);
         ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS); // TODO this fails non-deterministically
         ts.assertError(Exception.class);
-        assertEquals("Not Found!", ts.getOnErrorEvents().get(0).getMessage());
+        assertEquals("Not Found!", ts.errors().get(0).getMessage());
     }
 
     @Ignore
     @Test
     public void testRequestStreamSuccess() {
-        TestSubscriber<Payload> ts = TestSubscriber.create();
-        toObservable(requester.requestStream(TestUtil.utf8EncodedPayload("range", null))).subscribe(ts);
+        TestSubscriber<Payload> ts = new TestSubscriber<>();
+        requester.requestStream(TestUtil.utf8EncodedPayload("range", null)).subscribe(ts);
         ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
-        ts.assertReceivedOnNext(Observable.just("0", "1", "2").map(s -> TestUtil.utf8EncodedPayload(s, null)).toList().toBlocking().single());
+        ts.assertValueSequence(Observable.just("0", "1", "2").map(s -> TestUtil.utf8EncodedPayload(s, null)).toList().toBlocking().single());
     }
 
     @Ignore
     @Test
     public void testRequestStreamError() {
-        TestSubscriber<Payload> ts = TestSubscriber.create();
-        toObservable(requester.requestStream(TestUtil.utf8EncodedPayload("doesntExist", null))).subscribe(ts);
+        TestSubscriber<Payload> ts = new TestSubscriber<>();
+        requester.requestStream(TestUtil.utf8EncodedPayload("doesntExist", null)).subscribe(ts);
         ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
         ts.assertError(Exception.class);
-        assertEquals("Not Found!", ts.getOnErrorEvents().get(0).getMessage());
+        assertEquals("Not Found!", ts.errors().get(0).getMessage());
     }
 
     @Ignore
     @Test
     public void testRequestSubscriptionSuccess() throws InterruptedException {
         CountDownLatch latch = new CountDownLatch(3);
-        TestSubscriber<Payload> ts = TestSubscriber.create(new Observer<Payload>() {
+        TestSubscriber<Payload> ts = new TestSubscriber<>(new Observer<Payload>() {
 
             @Override
-            public void onCompleted() {
+            public void onComplete() {
                 
             }
 
@@ -193,40 +187,40 @@ public class RequesterResponderInteractionTest
             }
             
         });
-        toObservable(requester.requestSubscription(TestUtil.utf8EncodedPayload("range", null))).subscribe(ts);
+        requester.requestSubscription(TestUtil.utf8EncodedPayload("range", null)).subscribe(ts);
         // wait for 3 events (but no terminal event)
         latch.await(500, TimeUnit.MILLISECONDS);
-        ts.assertReceivedOnNext(Observable.just("0", "1", "2").map(s -> TestUtil.utf8EncodedPayload(s, null)).toList().toBlocking().single());
-        ts.assertNoTerminalEvent();
-        ts.unsubscribe();
+        ts.assertValueSequence(Observable.just("0", "1", "2").map(s -> TestUtil.utf8EncodedPayload(s, null)).toList().toBlocking().single());
+        ts.assertNotTerminated();
+        ts.cancel();
     }
 
     @Ignore
     @Test
     public void testRequestSubscriptionErrorOnCompletion() {
-        TestSubscriber<Payload> ts = TestSubscriber.create();
-        toObservable(requester.requestSubscription(TestUtil.utf8EncodedPayload("rangeThatCompletes", null))).subscribe(ts);
+        TestSubscriber<Payload> ts = new TestSubscriber<>();
+        requester.requestSubscription(TestUtil.utf8EncodedPayload("rangeThatCompletes", null)).subscribe(ts);
         ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS); // TODO this fails non-deterministically
-        ts.assertReceivedOnNext(Observable.just("0", "1").map(s -> TestUtil.utf8EncodedPayload(s, null)).toList().toBlocking().single());
+        ts.assertValueSequence(Observable.just("0", "1").map(s -> TestUtil.utf8EncodedPayload(s, null)).toList().toBlocking().single());
         ts.assertError(Exception.class);
-        assertEquals("Subscription terminated unexpectedly", ts.getOnErrorEvents().get(0).getMessage());
+        assertEquals("Subscription terminated unexpectedly", ts.errors().get(0).getMessage());
     }
 
     @Ignore
     @Test
     public void testRequestSubscriptionError() {
-        TestSubscriber<Payload> ts = TestSubscriber.create();
-        toObservable(requester.requestStream(TestUtil.utf8EncodedPayload("doesntExist", null))).subscribe(ts);
+        TestSubscriber<Payload> ts = new TestSubscriber<>();
+        requester.requestStream(TestUtil.utf8EncodedPayload("doesntExist", null)).subscribe(ts);
         ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS); // TODO this fails non-deterministically
         ts.assertError(Exception.class);
-        assertEquals("Not Found!", ts.getOnErrorEvents().get(0).getMessage());
+        assertEquals("Not Found!", ts.errors().get(0).getMessage());
     }
 
     @Ignore
     @Test
     public void testFireAndForgetSuccess() {
-        TestSubscriber<Void> ts = TestSubscriber.create();
-        toObservable(requester.fireAndForget(TestUtil.utf8EncodedPayload("hello", null))).subscribe(ts);
+        TestSubscriber<Void> ts = new TestSubscriber<>();
+        requester.fireAndForget(TestUtil.utf8EncodedPayload("hello", null)).subscribe(ts);
         ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
         ts.assertValueCount(0);
         ts.assertNoErrors();
@@ -236,8 +230,8 @@ public class RequesterResponderInteractionTest
     @Ignore
     @Test
     public void testFireAndForgetError() {
-        TestSubscriber<Void> ts = TestSubscriber.create();
-        toObservable(requester.fireAndForget(TestUtil.utf8EncodedPayload("doesntExist", null))).subscribe(ts);
+        TestSubscriber<Void> ts = new TestSubscriber<>();
+        requester.fireAndForget(TestUtil.utf8EncodedPayload("doesntExist", null)).subscribe(ts);
         ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
         ts.assertNoErrors();// because we "forget"
     }
