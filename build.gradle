@@ -35,3 +35,7 @@ nebulaRelease {
 if (project.hasProperty('release.useLastTag')) {
     tasks.prepare.enabled = false
 }
+
+test {
+    testLogging.showStandardStreams = true
+}
