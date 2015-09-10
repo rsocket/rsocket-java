@@ -22,6 +22,7 @@ import org.junit.Test;
 import org.reactivestreams.Publisher;
 import io.reactivex.subscribers.TestSubscriber;
 
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static io.reactivesocket.TestUtil.byteToString;
@@ -41,15 +42,17 @@ public class LeaseTest {
         private volatile Responder responder;
         private volatile long ttlExpiration;
         private volatile int grantedTickets;
+        private CountDownLatch latch = new CountDownLatch(1);
 
         @Override
         public synchronized void register(Responder responder) {
             this.responder = responder;
+            latch.countDown();
         }
 
         @Override
         public synchronized void unregister(Responder responder) {
-            responder = null;
+            this.responder = null;
         }
 
         @Override
@@ -147,7 +150,7 @@ public class LeaseTest {
     public void testWriteWithoutLease() throws InterruptedException {
         // initially client doesn't have any availability
         assertTrue(socketClient.availability() == 0.0);
-        Thread.sleep(100);
+        leaseGovernor.latch.await();
         assertTrue(socketClient.availability() == 0.0);
 
         // the first call will fail without a valid lease
@@ -184,7 +187,7 @@ public class LeaseTest {
     @Test
     public void testLeaseOverwrite() throws InterruptedException {
         assertTrue(socketClient.availability() == 0.0);
-        Thread.sleep(100);
+        leaseGovernor.latch.await();
         assertTrue(socketClient.availability() == 0.0);
 
         leaseGovernor.distribute(10_000, 100);
