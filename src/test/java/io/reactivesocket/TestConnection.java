@@ -62,8 +62,6 @@ public class TestConnection implements DuplexConnection {
 		Scheduler clientThread = Schedulers.newThread();
 		Scheduler serverThread = Schedulers.newThread();
 		
-		// TODO commented out because we have concurrency issues ... need to restore the scheduling and get everything working
-		
 		// connect the connections (with a Scheduler to simulate async IO)
 		CountDownLatch c = new CountDownLatch(2);
 
