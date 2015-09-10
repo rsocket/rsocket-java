@@ -110,9 +110,12 @@ public class PublisherUtils {
 		return (Subscriber<? super Frame> s) -> {
 			s.onSubscribe(new Subscription() {
 
+				boolean completed = false;
+				
 				@Override
 				public void request(long n) {
-					if (n > 0) {
+					if (!completed && n > 0) {
+						completed = true;
 						s.onNext(frame);
 						s.onComplete();
 					}
