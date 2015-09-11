@@ -24,8 +24,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
-import io.reactivesocket.exceptions.Exceptions;
-import io.reactivesocket.exceptions.Retryable;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
@@ -36,9 +34,9 @@ import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
 import io.reactivesocket.FrameType;
 import io.reactivesocket.Payload;
-import io.reactivesocket.exceptions.SetupException;
+import io.reactivesocket.exceptions.Exceptions;
+import io.reactivesocket.exceptions.Retryable;
 import uk.co.real_logic.agrona.collections.Int2ObjectHashMap;
-import uk.co.real_logic.agrona.collections.Long2ObjectHashMap;
 
 /**
  * Protocol implementation abstracted over a {@link DuplexConnection}.
@@ -52,7 +50,7 @@ public class Requester {
 
 	private final boolean isServer;
 	private final DuplexConnection connection;
-	private final Long2ObjectHashMap<UnicastSubject<Frame>> streamInputMap = new Long2ObjectHashMap<>();
+	private final Int2ObjectHashMap<UnicastSubject<Frame>> streamInputMap = new Int2ObjectHashMap<>();
 	private final ConnectionSetupPayload setupPayload;
 	private final Consumer<Throwable> errorStream;
 
@@ -758,7 +756,7 @@ public class Requester {
 			}
 
 			public void onNext(Frame frame) {
-				long streamId = frame.getStreamId();
+				int streamId = frame.getStreamId();
 				if (streamId == 0) {
 					if (FrameType.ERROR.equals(frame.getType())) {
 						final Throwable throwable = Exceptions.from(frame);
