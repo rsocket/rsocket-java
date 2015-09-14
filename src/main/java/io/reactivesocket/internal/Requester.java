@@ -133,12 +133,11 @@ public class Requester {
 			public void subscribe(Subscriber<? super Void> child) {
 				child.onSubscribe(new Subscription() {
 
-					boolean started = false;
+					final AtomicBoolean started = new AtomicBoolean(false);
 
 					@Override
 					public void request(long n) {
-						if (!started && n > 0) {
-							started = true;
+						if (n > 0 && started.compareAndSet(false, true)) {
 							numberOfRemainingRequests--;
 
 							connection.addOutput(PublisherUtils.just(Frame.Request.from(nextStreamId(), FrameType.FIRE_AND_FORGET, payload, 0)), new Completable() {
@@ -186,12 +185,11 @@ public class Requester {
 		return (Subscriber<? super Void> child) ->
 			child.onSubscribe(new Subscription() {
 
-				boolean started = false;
+				final AtomicBoolean started = new AtomicBoolean(false);
 
 				@Override
 				public void request(long n) {
-					if (!started && n > 0) {
-						started = true;
+					if (n > 0 && started.compareAndSet(false, true)) {
 						numberOfRemainingRequests--;
 
 						connection.addOutput(PublisherUtils.just(Frame.Request.from(nextStreamId(), FrameType.METADATA_PUSH, payload, 0)), new Completable() {
@@ -263,19 +261,19 @@ public class Requester {
 		return (Subscriber<? super Payload> child) -> {
 			child.onSubscribe(new Subscription() {
 
-				boolean started = false;
-				StreamInputSubscriber streamInputSubscriber;
-				UnicastSubject<Frame> writer;
+				final AtomicBoolean started = new AtomicBoolean(false);
+				volatile StreamInputSubscriber streamInputSubscriber;
+				volatile UnicastSubject<Frame> writer;
 				final AtomicLong requested = new AtomicLong(); // TODO does this need to be atomic? Can request(n) come from any thread?
 				final AtomicLong outstanding = new AtomicLong(); // TODO AtomicLong just so I can pass it around ... perf issue? or is there a thread-safety issue?
 				
 				@Override
 				public void request(long n) {
-					// TODO are there concurrency issues we need to deal with here?
+					if(n <= 0) {
+						return;
+					}
 					BackpressureUtils.getAndAddRequest(requested, n);
-					if (!started) {
-						started = true;
-
+					if (started.compareAndSet(false, true)) {
 						// determine initial RequestN
 						long currentN = requested.get();
 						final long requestN = currentN < DEFAULT_BATCH ? currentN : DEFAULT_BATCH;
@@ -358,20 +356,20 @@ public class Requester {
 		return (Subscriber<? super Payload> child) -> {
 			child.onSubscribe(new Subscription() {
 
-				boolean started = false;
-				StreamInputSubscriber streamInputSubscriber;
-				UnicastSubject<Frame> writer;
+				AtomicBoolean started = new AtomicBoolean(false);
+				volatile StreamInputSubscriber streamInputSubscriber;
+				volatile UnicastSubject<Frame> writer;
 				final AtomicReference<Subscription> payloadsSubscription = new AtomicReference<>();
 				final AtomicLong requested = new AtomicLong(); // TODO does this need to be atomic? Can request(n) come from any thread?
 				final AtomicLong outstanding = new AtomicLong(); // TODO AtomicLong just so I can pass it around ... perf issue? or is there a thread-safety issue?
 				
 				@Override
 				public void request(long n) {
-					// TODO are there concurrency issues we need to deal with here?
+					if(n <= 0) {
+						return;
+					}
 					BackpressureUtils.getAndAddRequest(requested, n);
-					if (!started) {
-						started = true;
-
+					if (started.compareAndSet(false, true)) {
 						// determine initial RequestN
 						long currentN = requested.get();
 						final long requestN = currentN < DEFAULT_BATCH ? currentN : DEFAULT_BATCH;
@@ -393,11 +391,13 @@ public class Requester {
 								public void subscribe(Subscriber<? super Frame> transport) {
 									transport.onSubscribe(new Subscription() {
 
-										boolean started = false;
+										AtomicBoolean started = new AtomicBoolean(false);
 										@Override
 										public void request(long n) {
-											if(!started) {
-												started = true;
+											if(n <= 0) {
+												return;
+											}
+											if(started.compareAndSet(false, true)) {
 												payloads.subscribe(new Subscriber<Payload>() {
 
 													@Override
@@ -410,6 +410,7 @@ public class Requester {
 														}
 													}
 
+													// onNext is serialized by contract so this is okay as non-volatile primitive
 													boolean isInitialRequest = true;
 													
 													@Override
@@ -539,14 +540,13 @@ public class Requester {
 		return (Subscriber<? super Payload> child) -> {
 			child.onSubscribe(new Subscription() {
 
-				boolean started = false;
-				StreamInputSubscriber streamInputSubscriber;
-				UnicastSubject<Frame> writer;
+				AtomicBoolean started = new AtomicBoolean(false);
+				volatile StreamInputSubscriber streamInputSubscriber;
+				volatile UnicastSubject<Frame> writer;	
 				
 				@Override
 				public void request(long n) {
-					if (!started) {
-						started = true;
+					if (n > 0 && started.compareAndSet(false, true)) {
 						// Response frames for this Stream
 						UnicastSubject<Frame> transportInputSubject = UnicastSubject.create();
 						synchronized(Requester.this) {
@@ -607,7 +607,7 @@ public class Requester {
 	
 	private final static class StreamInputSubscriber implements Subscriber<Frame> {
 		final AtomicBoolean terminated = new AtomicBoolean(false);
-		Subscription parentSubscription;
+		volatile Subscription parentSubscription;
 
 		private final int streamId;
 		private final long requestThreshold;
@@ -662,9 +662,11 @@ public class Requester {
 			} else if (type == FrameType.REQUEST_N) {
 				if(requestStreamSubscription != null) {
 					Subscription s = requestStreamSubscription.get();
-					// TODO what do we do if null?
 					if(s != null) {
 						s.request(Frame.RequestN.requestN(frame));
+					} else {
+						// TODO can this ever be null?
+						System.err.println("ReactiveSocket Requester DEBUG: requestStreamSubscription is null");
 					}
 					return;
 				}
