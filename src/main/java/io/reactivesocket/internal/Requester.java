@@ -391,7 +391,7 @@ public class Requester {
 								public void subscribe(Subscriber<? super Frame> transport) {
 									transport.onSubscribe(new Subscription() {
 
-										AtomicBoolean started = new AtomicBoolean(false);
+										final AtomicBoolean started = new AtomicBoolean(false);
 										@Override
 										public void request(long n) {
 											if(n <= 0) {

@@ -40,7 +40,7 @@ public class Responder {
 	private final DuplexConnection connection;
 	private final ConnectionSetupHandler connectionHandler;
 	private final Consumer<Throwable> errorStream;
-	private LeaseGovernor leaseGovernor;
+	private volatile LeaseGovernor leaseGovernor;
 	private long timeOfLastKeepalive;
 
 	private Responder(DuplexConnection connection, ConnectionSetupHandler connectionHandler, LeaseGovernor leaseGovernor, Consumer<Throwable> errorStream) {
@@ -297,17 +297,17 @@ public class Responder {
 		return (Subscriber<? super Frame> child) -> {
 			Subscription s = new Subscription() {
 
-				boolean started = false;
-				AtomicReference<Subscription> parent = new AtomicReference<>();
+				final AtomicBoolean started = new AtomicBoolean(false);
+				final AtomicReference<Subscription> parent = new AtomicReference<>();
 
 				@Override
 				public void request(long n) {
-					if (!started) {
-						started = true;
+					if (n > 0 && started.compareAndSet(false, true)) {
 						final int streamId = requestFrame.getStreamId();
 
 						requestHandler.handleRequestResponse(requestFrame).subscribe(new Subscriber<Payload>() {
 
+							// event emission is serialized so this doesn't need to be atomic
 							int count = 0;
 
 							@Override
@@ -417,13 +417,12 @@ public class Responder {
 			public void subscribe(Subscriber<? super Frame> child) {
 				Subscription s = new Subscription() {
 
-					boolean started = false;
-					AtomicReference<Subscription> parent = new AtomicReference<>();
+					final AtomicBoolean started = new AtomicBoolean(false);
+					final AtomicReference<Subscription> parent = new AtomicReference<>();
 
 					@Override
 					public void request(long n) {
-						if (!started) {
-							started = true;
+						if (n > 0 && started.compareAndSet(false,  true)) {
 							final int streamId = requestFrame.getStreamId();
 
 							handler.apply(requestHandler, requestFrame).subscribe(new Subscriber<Payload>() {
@@ -549,13 +548,12 @@ public class Responder {
 				public void subscribe(Subscriber<? super Frame> child) {
 					Subscription s = new Subscription() {
 
-						boolean started = false;
-						AtomicReference<Subscription> parent = new AtomicReference<>();
+						final AtomicBoolean started = new AtomicBoolean(false);
+						final AtomicReference<Subscription> parent = new AtomicReference<>();
 
 						@Override
 						public void request(long n) {
-							if (!started) {
-								started = true;
+							if (n > 0 && started.compareAndSet(false, true)) {
 								final int streamId = requestFrame.getStreamId();
 								
 								// first request on this channel
@@ -600,7 +598,6 @@ public class Responder {
 
 									@Override
 									public void onError(Throwable t) {
-										t.printStackTrace();
 										child.onNext(Frame.Error.from(streamId, t));
 										child.onComplete();
 										cleanup();
