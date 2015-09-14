@@ -28,7 +28,7 @@ public class UnicastSubjectTest {
 	@Test
 	public void testSubscribeReceiveValue() {
 		Frame f = TestUtil.utf8EncodedResponseFrame(1, FrameType.NEXT_COMPLETE, "response");
-		UnicastSubject us = UnicastSubject.create();
+		UnicastSubject<Frame> us = UnicastSubject.create();
 		TestSubscriber<Frame> ts = new TestSubscriber<>();
 		us.subscribe(ts);
 		us.onNext(f);
@@ -39,13 +39,13 @@ public class UnicastSubjectTest {
 	@Test(expected = NullPointerException.class)
 	public void testNullPointerSendingWithoutSubscriber() {
 		Frame f = TestUtil.utf8EncodedResponseFrame(1, FrameType.NEXT_COMPLETE, "response");
-		UnicastSubject us = UnicastSubject.create();
+		UnicastSubject<Frame> us = UnicastSubject.create();
 		us.onNext(f);
 	}
 
 	@Test
 	public void testIllegalStateIfMultiSubscribe() {
-		UnicastSubject us = UnicastSubject.create();
+		UnicastSubject<Frame> us = UnicastSubject.create();
 		TestSubscriber<Frame> f1 = new TestSubscriber<>();
 		us.subscribe(f1);
 		TestSubscriber<Frame> f2 = new TestSubscriber<>();

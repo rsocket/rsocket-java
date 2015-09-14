@@ -40,7 +40,7 @@ public class RequesterTest
 {
 	final static Consumer<Throwable> ERROR_HANDLER = Throwable::printStackTrace;
 	
-    @Test
+	@Test(timeout=2000)
     public void testRequestResponseSuccess() {
         TestConnection conn = establishConnection();
         ReplaySubject<Frame> requests = captureRequests(conn);
@@ -71,7 +71,7 @@ public class RequesterTest
         ts.assertComplete();
     }
 
-    @Test
+	@Test(timeout=2000)
     public void testRequestResponseError() {
         TestConnection conn = establishConnection();
         ReplaySubject<Frame> requests = captureRequests(conn);
@@ -99,7 +99,7 @@ public class RequesterTest
         assertEquals("Failed", ts.errors().get(0).getMessage());
     }
 
-    @Test
+	@Test(timeout=2000)
     public void testRequestResponseCancel() {
         TestConnection conn = establishConnection();
         ReplaySubject<Frame> requests = captureRequests(conn);
@@ -132,7 +132,7 @@ public class RequesterTest
     }
 
     // TODO REQUEST_N on initial frame not implemented yet
-    @Test
+	@Test(timeout=2000)
     public void testRequestStreamSuccess() {
         TestConnection conn = establishConnection();
         ReplaySubject<Frame> requests = captureRequests(conn);
@@ -166,7 +166,7 @@ public class RequesterTest
     }
 
  // TODO REQUEST_N on initial frame not implemented yet
-    @Test
+	@Test(timeout=2000)
     public void testRequestStreamSuccessTake2AndCancel() {
         TestConnection conn = establishConnection();
         ReplaySubject<Frame> requests = captureRequests(conn);
@@ -207,7 +207,7 @@ public class RequesterTest
         assertEquals(FrameType.CANCEL, three.getType());
     }
 
-    @Test
+	@Test(timeout=2000)
     public void testRequestStreamError() {
         TestConnection conn = establishConnection();
         ReplaySubject<Frame> requests = captureRequests(conn);
