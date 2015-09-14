@@ -34,6 +34,7 @@ import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
 import io.reactivesocket.FrameType;
 import io.reactivesocket.Payload;
+import io.reactivesocket.exceptions.CancelException;
 import io.reactivesocket.exceptions.Exceptions;
 import io.reactivesocket.exceptions.Retryable;
 import uk.co.real_logic.agrona.collections.Int2ObjectHashMap;
@@ -76,15 +77,9 @@ public class Requester {
 		this.honorLease = setupPayload.willClientHonorLease();
 	}
 
-	public static Requester createClientRequester(DuplexConnection connection, ConnectionSetupPayload setupPayload, Consumer<Throwable> errorStream) {
+	public static Requester createClientRequester(DuplexConnection connection, ConnectionSetupPayload setupPayload, Consumer<Throwable> errorStream, Completable requesterCompletable) {
 		Requester requester = new Requester(false, connection, setupPayload, errorStream);
-		requester.start();
-		return requester;
-	}
-
-	public static Requester createServerRequester(DuplexConnection connection, Consumer<Throwable> errorStream) {
-		Requester requester = new Requester(true, connection, null, errorStream);
-		requester.start();
+		requester.start(requesterCompletable);
 		return requester;
 	}
 
@@ -724,32 +719,37 @@ public class Requester {
 		return streamCount += 2; // go by two since server is odd, client is even
 	}
 
-	private void start() {
+	private void start(Completable onComplete) {
 		AtomicReference<Subscription> connectionSubscription = new AtomicReference<>();
 		// get input from responder->requestor for responses
+		System.out.println(">>>>>>>>> Requester.start subscribing to getInput()");
 		connection.getInput().subscribe(new Subscriber<Frame>() {
 			public void onSubscribe(Subscription s) {
 				if (connectionSubscription.compareAndSet(null, s)) {
 					s.request(Long.MAX_VALUE);
 
+					System.out.println("^^^^ send SETUP frame");
 					// now that we are connected, send SETUP frame (asynchronously, other messages can continue being written after this)
 					connection.addOutput(PublisherUtils.just(Frame.Setup.from(setupPayload.getFlags(), 0, 0, setupPayload.metadataMimeType(), setupPayload.dataMimeType(), setupPayload)),
 						new Completable() {
-
+	
 							@Override
 							public void success() {
-								// nothing to do
+								onComplete.success();
 							}
-
+	
 							@Override
 							public void error(Throwable e) {
+								onComplete.error(e);
 								tearDown(e);
 							}
-
+	
 						});
+
 				} else {
 					// means we already were cancelled
 					s.cancel();
+					onComplete.error(new CancelException("Connection Is Already Cancelled"));
 				}
 			}
 

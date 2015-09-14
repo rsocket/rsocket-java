@@ -40,9 +40,10 @@ public class RequesterResponderInteractionTest
 
     /**
      * Connect a client/server with protocols on either end.
+     * @throws InterruptedException 
      */
     @Before
-    public void setup() {
+    public void setup() throws InterruptedException {
         System.out.println("-----------------------------------------------------------------------");
         TestConnection serverConnection = new TestConnection();
         serverConnection.writes.forEach(n -> System.out.println("Writes from server->client: " + n));
@@ -61,7 +62,8 @@ public class RequesterResponderInteractionTest
                 .observeOn(Schedulers.computation())
                 .subscribe(clientConnection.toInput);
 
-
+        LatchedCompletable lc = new LatchedCompletable(2);
+        
         responder = Responder.create(serverConnection, setup -> new RequestHandler.Builder()
             .withRequestResponse(payload ->
             {
@@ -120,9 +122,11 @@ public class RequesterResponderInteractionTest
                 {
                     return error(new Exception("Not Found!"));
                 }
-            }).build(), NULL_LEASE_GOVERNOR, Throwable::printStackTrace);
+            }).build(), NULL_LEASE_GOVERNOR, Throwable::printStackTrace, lc);
 
-        requester = Requester.createClientRequester(clientConnection, ConnectionSetupPayload.create("UTF-8", "UTF-8"), Throwable::printStackTrace);
+        requester = Requester.createClientRequester(clientConnection, ConnectionSetupPayload.create("UTF-8", "UTF-8"), Throwable::printStackTrace, lc);
+        
+        lc.await();
     }
 
     @Ignore

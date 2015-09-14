@@ -74,7 +74,7 @@ public class LeaseTest {
     }
 
     @Before
-    public void setup() {
+    public void setup() throws InterruptedException {
         TestConnection serverConnection = new TestConnection();
         clientConnection = new TestConnection();
         clientConnection.connectToServerConnection(serverConnection);
@@ -135,8 +135,12 @@ public class LeaseTest {
         );
 
         // start both the server and client and monitor for errors
-        socketServer.start();
-        socketClient.start();
+        LatchedCompletable lc = new LatchedCompletable(2);
+        socketServer.start(lc);
+        socketClient.start(lc);
+        if(!lc.await(3000, TimeUnit.MILLISECONDS)) {
+        	throw new RuntimeException("Timed out waiting for startup");
+        }
     }
 
     @After
@@ -216,4 +220,5 @@ public class LeaseTest {
             }
         }
     }
+    
 }

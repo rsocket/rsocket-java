@@ -198,12 +198,12 @@ public class ReactiveSocket implements AutoCloseable {
 	/**
 	 * Start protocol processing on the given DuplexConnection.
 	 */
-	public final void start() {
+	public final void start(Completable c) {
 		if (isServer) {
-			responder = Responder.create(connection, responderConnectionHandler, leaseGovernor, errorStream);
+			responder = Responder.create(connection, responderConnectionHandler, leaseGovernor, errorStream, c);
 			// requester = Requester.createServerRequester(connection);// TODO commented out until odd/even message routing is
 		} else {
-			requester = Requester.createClientRequester(connection, requestorSetupPayload, errorStream);
+			requester = Requester.createClientRequester(connection, requestorSetupPayload, errorStream, c);
 		}
 	}
 

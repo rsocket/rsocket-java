@@ -305,7 +305,7 @@ public class TestFlowControlRequestN {
 	}
 
 	@BeforeClass
-	public static void setup() {
+	public static void setup() throws InterruptedException {
 		serverConnection = new TestConnection();
 		clientConnection = new TestConnection();
 		clientConnection.connectToServerConnection(serverConnection, false);
@@ -437,9 +437,13 @@ public class TestFlowControlRequestN {
 
 		socketClient = ReactiveSocket.fromClientConnection(clientConnection, ConnectionSetupPayload.create("UTF-8", "UTF-8", NO_FLAGS), Throwable::printStackTrace);
 
-		// start both the server and client and monitor for errors
-		socketServer.start();
-		socketClient.start();
+        // start both the server and client and monitor for errors
+        LatchedCompletable lc = new LatchedCompletable(2);
+        socketServer.start(lc);
+        socketClient.start(lc);
+        if(!lc.await(3000, TimeUnit.MILLISECONDS)) {
+        	throw new RuntimeException("Timed out waiting for startup");
+        }
 	}
 
 	@AfterClass
@@ -447,5 +451,4 @@ public class TestFlowControlRequestN {
 		socketServer.shutdown();
 		socketClient.shutdown();
 	}
-
 }
