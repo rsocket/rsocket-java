@@ -722,13 +722,11 @@ public class Requester {
 	private void start(Completable onComplete) {
 		AtomicReference<Subscription> connectionSubscription = new AtomicReference<>();
 		// get input from responder->requestor for responses
-		System.out.println(">>>>>>>>> Requester.start subscribing to getInput()");
 		connection.getInput().subscribe(new Subscriber<Frame>() {
 			public void onSubscribe(Subscription s) {
 				if (connectionSubscription.compareAndSet(null, s)) {
 					s.request(Long.MAX_VALUE);
 
-					System.out.println("^^^^ send SETUP frame");
 					// now that we are connected, send SETUP frame (asynchronously, other messages can continue being written after this)
 					connection.addOutput(PublisherUtils.just(Frame.Setup.from(setupPayload.getFlags(), 0, 0, setupPayload.metadataMimeType(), setupPayload.dataMimeType(), setupPayload)),
 						new Completable() {
