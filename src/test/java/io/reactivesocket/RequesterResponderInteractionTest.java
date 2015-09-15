@@ -15,11 +15,10 @@
  */
 package io.reactivesocket;
 
-import static io.reactivesocket.LeaseGovernor.NULL_LEASE_GOVERNOR;
-import static org.junit.Assert.assertEquals;
+import static io.reactivesocket.LeaseGovernor.*;
 import static io.reactivex.Observable.*;
+import static org.junit.Assert.*;
 
-import java.util.Arrays;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -31,9 +30,8 @@ import io.reactivesocket.internal.Requester;
 import io.reactivesocket.internal.Responder;
 import io.reactivex.Observable;
 import io.reactivex.Observer;
-import io.reactivex.subscribers.TestSubscriber;
 import io.reactivex.schedulers.Schedulers;
-import uk.co.real_logic.agrona.collections.Long2ObjectHashMap;
+import io.reactivex.subscribers.TestSubscriber;
 
 public class RequesterResponderInteractionTest
 {
@@ -128,7 +126,7 @@ public class RequesterResponderInteractionTest
     }
 
     @Ignore
-    @Test
+    @Test(timeout=2000)
     public void testRequestResponseSuccess() {
         TestSubscriber<Payload> ts = new TestSubscriber<>();
         requester.requestResponse(TestUtil.utf8EncodedPayload("hello", null)).subscribe(ts);
@@ -137,7 +135,7 @@ public class RequesterResponderInteractionTest
     }
 
     @Ignore
-    @Test
+    @Test(timeout=2000)
     public void testRequestResponseError() {
         TestSubscriber<Payload> ts = new TestSubscriber<>();
         requester.requestResponse(TestUtil.utf8EncodedPayload("doesntExist", null)).subscribe(ts);
@@ -147,7 +145,7 @@ public class RequesterResponderInteractionTest
     }
 
     @Ignore
-    @Test
+    @Test(timeout=2000)
     public void testRequestStreamSuccess() {
         TestSubscriber<Payload> ts = new TestSubscriber<>();
         requester.requestStream(TestUtil.utf8EncodedPayload("range", null)).subscribe(ts);
@@ -156,7 +154,7 @@ public class RequesterResponderInteractionTest
     }
 
     @Ignore
-    @Test
+    @Test(timeout=2000)
     public void testRequestStreamError() {
         TestSubscriber<Payload> ts = new TestSubscriber<>();
         requester.requestStream(TestUtil.utf8EncodedPayload("doesntExist", null)).subscribe(ts);
@@ -166,7 +164,7 @@ public class RequesterResponderInteractionTest
     }
 
     @Ignore
-    @Test
+    @Test(timeout=2000)
     public void testRequestSubscriptionSuccess() throws InterruptedException {
         CountDownLatch latch = new CountDownLatch(3);
         TestSubscriber<Payload> ts = new TestSubscriber<>(new Observer<Payload>() {
@@ -196,7 +194,7 @@ public class RequesterResponderInteractionTest
     }
 
     @Ignore
-    @Test
+    @Test(timeout=2000)
     public void testRequestSubscriptionErrorOnCompletion() {
         TestSubscriber<Payload> ts = new TestSubscriber<>();
         requester.requestSubscription(TestUtil.utf8EncodedPayload("rangeThatCompletes", null)).subscribe(ts);
@@ -207,7 +205,7 @@ public class RequesterResponderInteractionTest
     }
 
     @Ignore
-    @Test
+    @Test(timeout=2000)
     public void testRequestSubscriptionError() {
         TestSubscriber<Payload> ts = new TestSubscriber<>();
         requester.requestStream(TestUtil.utf8EncodedPayload("doesntExist", null)).subscribe(ts);
@@ -217,7 +215,7 @@ public class RequesterResponderInteractionTest
     }
 
     @Ignore
-    @Test
+    @Test(timeout=2000)
     public void testFireAndForgetSuccess() {
         TestSubscriber<Void> ts = new TestSubscriber<>();
         requester.fireAndForget(TestUtil.utf8EncodedPayload("hello", null)).subscribe(ts);
@@ -228,7 +226,7 @@ public class RequesterResponderInteractionTest
 
     // this is testing that the client is completely unaware of server-side errors
     @Ignore
-    @Test
+    @Test(timeout=2000)
     public void testFireAndForgetError() {
         TestSubscriber<Void> ts = new TestSubscriber<>();
         requester.fireAndForget(TestUtil.utf8EncodedPayload("doesntExist", null)).subscribe(ts);

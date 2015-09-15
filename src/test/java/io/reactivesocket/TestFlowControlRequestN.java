@@ -188,7 +188,7 @@ public class TestFlowControlRequestN {
 	 * Test that the upstream is governed by request(n)
 	 * @throws InterruptedException 
 	 */
-	@Test
+	@Test(timeout=2000)
 	public void testRequestChannel_batches_upstream_echo() throws InterruptedException {
 		ControlledSubscriber s = new ControlledSubscriber();
 		AtomicInteger emittedClient = new AtomicInteger();
@@ -221,7 +221,7 @@ public class TestFlowControlRequestN {
 	 * Test that the upstream is governed by request(n)
 	 * @throws InterruptedException 
 	 */
-	@Test
+	@Test(timeout=2000)
 	public void testRequestChannel_batches_upstream_decoupled() throws InterruptedException {
 		ControlledSubscriber s = new ControlledSubscriber();
 		AtomicInteger emittedClient = new AtomicInteger();

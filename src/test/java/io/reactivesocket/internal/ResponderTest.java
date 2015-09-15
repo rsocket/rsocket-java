@@ -41,7 +41,7 @@ public class ResponderTest
 {
 	final static Consumer<Throwable> ERROR_HANDLER = Throwable::printStackTrace;
 	
-    @Test
+	@Test(timeout=2000)
     public void testRequestResponseSuccess() {
     	TestConnection conn = establishConnection();
         Responder.create(conn, setup -> new RequestHandler.Builder()
@@ -65,7 +65,7 @@ public class ResponderTest
         assertEquals("hello world", byteToString(first.getData()));
     }
 
-    @Test
+	@Test(timeout=2000)
     public void testRequestResponseError() {
     	TestConnection conn = establishConnection();
         Responder.create(conn, setup -> new RequestHandler.Builder()
@@ -85,12 +85,12 @@ public class ResponderTest
         assertEquals("Request Not Found", byteToString(first.getData()));
     }
 
-    @Test
+	@Test(timeout=2000)
     public void testRequestResponseCancel() {
         AtomicBoolean unsubscribed = new AtomicBoolean();
         Observable<Payload> delayed = never()
                 .cast(Payload.class)
-                .doOnUnsubscribe(() -> unsubscribed.set(true));
+                .doOnCancel(() -> unsubscribed.set(true));
 
         TestConnection conn = establishConnection();
         Responder.create(conn, setup -> new RequestHandler.Builder()
@@ -110,7 +110,7 @@ public class ResponderTest
         assertTrue(unsubscribed.get());
     }
 
-    @Test
+	@Test(timeout=2000)
     public void testRequestStreamSuccess() {
     	TestConnection conn = establishConnection();
         Responder.create(conn, setup -> new RequestHandler.Builder()
@@ -141,7 +141,7 @@ public class ResponderTest
         assertEquals("", byteToString(frames.get(10).getData()));
     }
 
-    @Test
+	@Test(timeout=2000)
     public void testRequestStreamError() {
     	TestConnection conn = establishConnection();
         Responder.create(conn, setup -> new RequestHandler.Builder()
@@ -173,7 +173,7 @@ public class ResponderTest
         assertEquals("Error Occurred!", byteToString(frames.get(3).getData()));
     }
 
-    @Test
+	@Test(timeout=2000)
     public void testRequestStreamCancel() {
     	TestConnection conn = establishConnection();
         TestScheduler ts = Schedulers.test();
@@ -212,7 +212,7 @@ public class ResponderTest
         }
     }
 
-    @Test
+	@Test(timeout=2000)
     public void testMultiplexedStreams() {
         TestScheduler ts = Schedulers.test();
         TestConnection conn = establishConnection();
