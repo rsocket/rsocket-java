@@ -28,6 +28,8 @@ import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
 import io.reactivesocket.exceptions.SetupException;
+import io.reactivesocket.observable.Disposable;
+import io.reactivesocket.observable.Observer;
 import uk.co.real_logic.agrona.collections.Int2ObjectHashMap;
 
 /**
@@ -105,20 +107,19 @@ public class Responder {
 		final Int2ObjectHashMap<UnicastSubject<Payload>> channels = new Int2ObjectHashMap<>(); // TODO should/can we make this optional so that it only gets allocated per connection if channels are
 																									// used?
 		final AtomicBoolean childTerminated = new AtomicBoolean(false);
-		final AtomicReference<Subscription> transportSubscription = new AtomicReference<>();
+		final AtomicReference<Disposable> transportSubscription = new AtomicReference<>();
 
 		// subscribe to transport to get Frames
-		connection.getInput().subscribe(new Subscriber<Frame>() {
+		connection.getInput().subscribe(new Observer<Frame>() {
 
 			@Override
-			public void onSubscribe(Subscription s) {
-				if (transportSubscription.compareAndSet(null, s)) {
-					s.request(Long.MAX_VALUE); // we expect everything from transport (backpressure is via lease/requestN frames)
+			public void onSubscribe(Disposable d) {
+				if (transportSubscription.compareAndSet(null, d)) {
 					// mark that we have completed setup
 					responderCompletable.success();
 				} else {
 					// means we already were cancelled
-					s.cancel();
+					d.dispose();
 				}
 			}
 
@@ -281,9 +282,9 @@ public class Responder {
 			
 			private void cancel() {
 				// child has cancelled (shutdown the connection or server) // TODO validate with unit tests
-				if (!transportSubscription.compareAndSet(null, EmptySubscription.EMPTY)) {
+				if (!transportSubscription.compareAndSet(null, EmptyDisposable.EMPTY)) {
 					// cancel the one that was there if we failed to set the sentinel
-					transportSubscription.get().cancel();
+					transportSubscription.get().dispose();
 				}
 			}
 

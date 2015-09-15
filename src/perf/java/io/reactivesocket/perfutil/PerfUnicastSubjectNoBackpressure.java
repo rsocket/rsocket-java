@@ -15,20 +15,19 @@
  */
 package io.reactivesocket.perfutil;
 
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
-import org.reactivestreams.Publisher;
-import org.reactivestreams.Subscriber;
-import org.reactivestreams.Subscription;
+import io.reactivesocket.observable.Disposable;
+import io.reactivesocket.observable.Observable;
+import io.reactivesocket.observable.Observer;
 
 /**
  * The difference between this and the real UnicastSubject is in the `onSubscribe` method where it calls requestN. Not sure that behavior should exist in the producton code. 
  */
-public final class PerfUnicastSubjectNoBackpressure<T> implements Subscriber<T>, Publisher<T> {
+public final class PerfUnicastSubjectNoBackpressure<T> implements Observable<T>, Observer<T> {
 
-	private Subscriber<? super T> s;
-	private final BiConsumer<PerfUnicastSubjectNoBackpressure<T>, Long> onConnect;
+	private Observer<? super T> s;
+	private final Consumer<PerfUnicastSubjectNoBackpressure<T>> onConnect;
 	private boolean subscribedTo = false;
 
 	public static <T> PerfUnicastSubjectNoBackpressure<T> create() {
@@ -39,17 +38,16 @@ public final class PerfUnicastSubjectNoBackpressure<T> implements Subscriber<T>,
 	 * @param onConnect Called when first requestN > 0 occurs.
 	 * @return
 	 */
-	public static <T> PerfUnicastSubjectNoBackpressure<T> create(BiConsumer<PerfUnicastSubjectNoBackpressure<T>, Long> onConnect) {
+	public static <T> PerfUnicastSubjectNoBackpressure<T> create(Consumer<PerfUnicastSubjectNoBackpressure<T>> onConnect) {
 		return new PerfUnicastSubjectNoBackpressure<T>(onConnect);
 	}
 
-	private PerfUnicastSubjectNoBackpressure(BiConsumer<PerfUnicastSubjectNoBackpressure<T>, Long> onConnect) {
+	private PerfUnicastSubjectNoBackpressure(Consumer<PerfUnicastSubjectNoBackpressure<T>> onConnect) {
 		this.onConnect = onConnect;
 	}
 
 	@Override
-	public void onSubscribe(Subscription s) {
-		s.request(Long.MAX_VALUE); // This does not feed ReqeustN through
+	public void onSubscribe(Disposable s) {
 	}
 
 	@Override
@@ -68,35 +66,22 @@ public final class PerfUnicastSubjectNoBackpressure<T> implements Subscriber<T>,
 	}
 
 	@Override
-	public void subscribe(Subscriber<? super T> s) {
+	public void subscribe(Observer<T> s) {
 		if (this.s != null) {
 			s.onError(new IllegalStateException("Only single Subscriber supported"));
 		} else {
 			this.s = s;
-			this.s.onSubscribe(new Subscription() {
-
-				boolean started = false;
+			this.s.onSubscribe(new Disposable() {
 
 				@Override
-				public void request(long n) {
-					if (n > 0) {
-						if (!started) {
-							started = true;
-							subscribedTo = true;
-							// now actually connected
-							if (onConnect != null) {
-								onConnect.accept(PerfUnicastSubjectNoBackpressure.this, n);
-							}
-						}
-					}
-				}
-
-				@Override
-				public void cancel() {
+				public void dispose() {
 					// transport has shut us down
 				}
 
 			});
+			if(onConnect != null) {
+				onConnect.accept(PerfUnicastSubjectNoBackpressure.this);
+			}
 		}
 	}
 	

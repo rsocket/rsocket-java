@@ -21,8 +21,11 @@ import java.util.concurrent.CountDownLatch;
 import org.reactivestreams.Publisher;
 
 import static io.reactivex.Observable.*;
+
+import io.reactivesocket.observable.Observer;
 import io.reactivex.Observable;
 import io.reactivex.Scheduler;
+import io.reactivex.disposables.Disposable;
 import io.reactivex.schedulers.Schedulers;
 import io.reactivex.subjects.PublishSubject;
 import io.reactivex.subjects.Subject;
@@ -43,8 +46,24 @@ public class TestConnection implements DuplexConnection {
 	}
 
 	@Override
-	public Publisher<Frame> getInput() {
-		return toInput;
+	public io.reactivesocket.observable.Observable<Frame> getInput() {
+		return new io.reactivesocket.observable.Observable<Frame>() {
+
+			@Override
+			public void subscribe(Observer<Frame> o) {
+				final Disposable d = toInput.subscribe(f -> o.onNext(f));
+				// we are okay with the race of sending data and cancelling ... since this is "hot" by definition and unsubscribing is a race.
+				o.onSubscribe(new io.reactivesocket.observable.Disposable() {
+
+					@Override
+					public void dispose() {
+						d.dispose();
+					}
+
+				});
+			}
+			
+		};
 	}
 
 	public void connectToServerConnection(TestConnection serverConnection) {
