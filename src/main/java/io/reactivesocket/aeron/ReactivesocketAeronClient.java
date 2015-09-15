@@ -15,10 +15,10 @@ import uk.co.real_logic.aeron.Subscription;
 import uk.co.real_logic.aeron.logbuffer.Header;
 import uk.co.real_logic.agrona.BitUtil;
 import uk.co.real_logic.agrona.DirectBuffer;
-import uk.co.real_logic.agrona.collections.Int2ObjectHashMap;
 import uk.co.real_logic.agrona.concurrent.UnsafeBuffer;
 
 import java.nio.ByteBuffer;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -30,11 +30,11 @@ import static io.reactivesocket.aeron.Constants.SERVER_STREAM_ID;
  * Created by rroeser on 8/13/15.
  */
 public class ReactivesocketAeronClient implements Loggable {
-    private static final Int2ObjectHashMap<Subscription> subscriptions = new Int2ObjectHashMap<>();
+    private static final ConcurrentHashMap<Integer, Subscription> subscriptions = new ConcurrentHashMap<>();
 
-    private static final Int2ObjectHashMap<AeronClientDuplexConnection> connections = new Int2ObjectHashMap<>();
+    private static final ConcurrentHashMap<Integer, AeronClientDuplexConnection> connections = new ConcurrentHashMap<>();
 
-    private static final Int2ObjectHashMap<CountDownLatch> establishConnectionLatches = new Int2ObjectHashMap<>();
+    private static final ConcurrentHashMap<Integer, CountDownLatch> establishConnectionLatches = new ConcurrentHashMap<>();
 
     private ReactiveSocket reactiveSocket;
 
@@ -42,7 +42,9 @@ public class ReactivesocketAeronClient implements Loggable {
 
     private final Publication publication;
 
-    private volatile boolean running = true;
+    private volatile static boolean running = true;
+
+    private static final CountDownLatch shutdownLatch = new CountDownLatch(1);
 
     private final int port;
 
@@ -50,6 +52,14 @@ public class ReactivesocketAeronClient implements Loggable {
         Runtime
             .getRuntime()
             .addShutdownHook(new Thread(() -> {
+                running = false;
+
+                try {
+                    shutdownLatch.await(5, TimeUnit.SECONDS);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+
                 for (Subscription subscription : subscriptions.values()) {
                     subscription.close();
                 }
@@ -145,8 +155,10 @@ public class ReactivesocketAeronClient implements Loggable {
                     subscription.poll(fragmentAssembler, Integer.MAX_VALUE);
                     poll(fragmentAssembler, subscription, worker);
                 } catch (Throwable t) {
-                    t.printStackTrace();
+                    error(t.getMessage(), t);
                 }
+            } else {
+                shutdownLatch.countDown();
             }
         });
     }

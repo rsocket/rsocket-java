@@ -52,9 +52,8 @@ public class AeronClientDuplexConnection implements DuplexConnection, AutoClosea
 
     @Override
     public void close() {
-        subscriber.onComplete();
-        publication.close();
         handleClose.call();
+        this.publication.close();
     }
 }
 

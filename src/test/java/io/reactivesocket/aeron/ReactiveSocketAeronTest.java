@@ -1,8 +1,11 @@
 package io.reactivesocket.aeron;
 
+import io.reactivesocket.ConnectionSetupHandler;
+import io.reactivesocket.ConnectionSetupPayload;
 import io.reactivesocket.Frame;
 import io.reactivesocket.Payload;
 import io.reactivesocket.RequestHandler;
+import io.reactivesocket.exceptions.SetupException;
 import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -23,47 +26,52 @@ public class ReactiveSocketAeronTest {
     @BeforeClass
     public static void init() {
         final MediaDriver.Context context = new MediaDriver.Context();
-        context.dirsDeleteOnStart();
+        context.dirsDeleteOnStart(true);
 
         final MediaDriver mediaDriver = MediaDriver.launch(context);
     }
 
-    @Test(timeout = 70000)
+    @Test(timeout = 60000)
     public void testRequestReponse() throws Exception {
-        ReactiveSocketAeronServer.create(new RequestHandler() {
-            Frame frame = Frame.from(ByteBuffer.allocate(1));
-
+        ReactiveSocketAeronServer.create(new ConnectionSetupHandler() {
             @Override
-            public Publisher<Payload> handleRequestResponse(Payload payload) {
-                String request = TestUtil.byteToString(payload.getData());
-                //System.out.println("Server got => " + request);
-                Observable<Payload> pong = Observable.just(TestUtil.utf8EncodedPayload("pong", null));
-                return RxReactiveStreams.toPublisher(pong);
-            }
+            public RequestHandler apply(ConnectionSetupPayload setupPayload) throws SetupException {
+                return new RequestHandler() {
+                    Frame frame = Frame.from(ByteBuffer.allocate(1));
 
-            @Override
-            public Publisher<Payload> handleChannel(Payload initialPayload, Publisher<Payload> payloads) {
-                return null;
-            }
+                    @Override
+                    public Publisher<Payload> handleRequestResponse(Payload payload) {
+                        String request = TestUtil.byteToString(payload.getData());
+                        //System.out.println("Server got => " + request);
+                        Observable<Payload> pong = Observable.just(TestUtil.utf8EncodedPayload("pong", null));
+                        return RxReactiveStreams.toPublisher(pong);
+                    }
 
-            @Override
-            public Publisher<Payload> handleRequestStream(Payload payload) {
-                return null;
-            }
+                    @Override
+                    public Publisher<Payload> handleChannel(Payload initialPayload, Publisher<Payload> payloads) {
+                        return null;
+                    }
 
-            @Override
-            public Publisher<Payload> handleSubscription(Payload payload) {
-                return null;
-            }
+                    @Override
+                    public Publisher<Payload> handleRequestStream(Payload payload) {
+                        return null;
+                    }
 
-            @Override
-            public Publisher<Void> handleFireAndForget(Payload payload) {
-                return null;
-            }
+                    @Override
+                    public Publisher<Payload> handleSubscription(Payload payload) {
+                        return null;
+                    }
 
-            @Override
-            public Publisher<Void> handleMetadataPush(Payload payload) {
-                return null;
+                    @Override
+                    public Publisher<Void> handleFireAndForget(Payload payload) {
+                        return null;
+                    }
+
+                    @Override
+                    public Publisher<Void> handleMetadataPush(Payload payload) {
+                        return null;
+                    }
+                };
             }
         });
 
@@ -107,37 +115,42 @@ public class ReactiveSocketAeronTest {
         byte[] b = new byte[1_000_000];
         random.nextBytes(b);
 
-        ReactiveSocketAeronServer.create(new RequestHandler() {
+        ReactiveSocketAeronServer.create(new ConnectionSetupHandler() {
             @Override
-            public Publisher<Payload> handleRequestResponse(Payload payload) {
-                System.out.println("Server got => " + b.length);
-                Observable<Payload> pong = Observable.just(TestUtil.utf8EncodedPayload("pong", null));
-                return RxReactiveStreams.toPublisher(pong);
-            }
+            public RequestHandler apply(ConnectionSetupPayload setupPayload) throws SetupException {
+                return new RequestHandler() {
+                    @Override
+                    public Publisher<Payload> handleRequestResponse(Payload payload) {
+                        System.out.println("Server got => " + b.length);
+                        Observable<Payload> pong = Observable.just(TestUtil.utf8EncodedPayload("pong", null));
+                        return RxReactiveStreams.toPublisher(pong);
+                    }
 
-            @Override
-            public Publisher<Payload> handleChannel(Payload initialPayload, Publisher<Payload> payloads) {
-                return null;
-            }
+                    @Override
+                    public Publisher<Payload> handleChannel(Payload initialPayload, Publisher<Payload> payloads) {
+                        return null;
+                    }
 
-            @Override
-            public Publisher<Payload> handleRequestStream(Payload payload) {
-                return null;
-            }
+                    @Override
+                    public Publisher<Payload> handleRequestStream(Payload payload) {
+                        return null;
+                    }
 
-            @Override
-            public Publisher<Payload> handleSubscription(Payload payload) {
-                return null;
-            }
+                    @Override
+                    public Publisher<Payload> handleSubscription(Payload payload) {
+                        return null;
+                    }
 
-            @Override
-            public Publisher<Void> handleFireAndForget(Payload payload) {
-                return null;
-            }
+                    @Override
+                    public Publisher<Void> handleFireAndForget(Payload payload) {
+                        return null;
+                    }
 
-            @Override
-            public Publisher<Void> handleMetadataPush(Payload payload) {
-                return null;
+                    @Override
+                    public Publisher<Void> handleMetadataPush(Payload payload) {
+                        return null;
+                    }
+                };
             }
         });
 

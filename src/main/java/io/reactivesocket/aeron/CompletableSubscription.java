@@ -7,7 +7,6 @@ import org.reactivestreams.Subscription;
 import uk.co.real_logic.aeron.Publication;
 import uk.co.real_logic.aeron.logbuffer.BufferClaim;
 import uk.co.real_logic.agrona.BitUtil;
-import uk.co.real_logic.agrona.LangUtil;
 import uk.co.real_logic.agrona.MutableDirectBuffer;
 import uk.co.real_logic.agrona.concurrent.UnsafeBuffer;
 
@@ -115,7 +114,7 @@ public class CompletableSubscription implements Subscriber<Frame> {
         try {
             closeable.close();
         } catch (Exception e) {
-            LangUtil.rethrowUnchecked(e);
+            // ignore
         }
     }
 }
