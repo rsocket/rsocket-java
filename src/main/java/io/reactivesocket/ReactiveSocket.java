@@ -201,7 +201,7 @@ public class ReactiveSocket implements AutoCloseable {
 	public final void start(Completable c) {
 		if (isServer) {
 			responder = Responder.create(connection, responderConnectionHandler, leaseGovernor, errorStream, c);
-			// requester = Requester.createServerRequester(connection);// TODO commented out until odd/even message routing is
+			// requester = Requester.createServerRequester(connection, requestorSetupPayload, errorStream, c);
 		} else {
 			requester = Requester.createClientRequester(connection, requestorSetupPayload, errorStream, c);
 		}
