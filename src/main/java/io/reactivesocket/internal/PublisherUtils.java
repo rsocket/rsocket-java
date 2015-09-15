@@ -16,6 +16,9 @@
 package io.reactivesocket.internal;
 
 import java.nio.ByteBuffer;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
@@ -25,6 +28,16 @@ import io.reactivesocket.Frame;
 import io.reactivesocket.Payload;
 
 public class PublisherUtils {
+
+	// TODO: be better about using scheduler for this
+	public static final ScheduledExecutorService SCHEDULER_THREAD = Executors.newScheduledThreadPool(1,
+		(r) -> {
+			final Thread thread = new Thread(r);
+
+			thread.setDaemon(true);
+
+			return thread;
+		});
 
 	public static final Publisher<Frame> errorFrame(int streamId, Throwable e) {
 		return (Subscriber<? super Frame> s) -> {
@@ -111,7 +124,7 @@ public class PublisherUtils {
 			s.onSubscribe(new Subscription() {
 
 				boolean completed = false;
-				
+
 				@Override
 				public void request(long n) {
 					if (!completed && n > 0) {
@@ -148,6 +161,46 @@ public class PublisherUtils {
 			s.onComplete(); // TODO confirm this is okay with ReactiveStream spec to send immediately after onSubscribe (I think so since no data is being sent so requestN doesn't matter)
 		};
 
+	}
+
+	public static final Publisher<Frame> keepaliveTicker(final long interval, final TimeUnit timeUnit) {
+		return (Subscriber<? super Frame> s) -> {
+			s.onSubscribe(new Subscription()
+			{
+				final AtomicLong requested = new AtomicLong(0);
+				final AtomicBoolean started = new AtomicBoolean(false);
+				volatile ScheduledFuture ticker;
+
+				public void request(long n)
+				{
+					BackpressureUtils.getAndAddRequest(requested, n);
+					if (started.compareAndSet(false, true))
+					{
+						ticker = SCHEDULER_THREAD.scheduleWithFixedDelay(() -> {
+							final long value = requested.getAndDecrement();
+
+							if (0 < value)
+							{
+								s.onNext(Frame.Keepalive.from(Frame.NULL_BYTEBUFFER, true));
+							}
+							else
+							{
+								requested.getAndIncrement();
+							}
+						}, interval, interval, timeUnit);
+					}
+				}
+
+				public void cancel()
+				{
+					// only used internally and so should not be called before request is done. Race condition exists!
+					if (null != ticker)
+					{
+						ticker.cancel(true);
+					}
+				}
+			});
+		};
 	}
 
 }

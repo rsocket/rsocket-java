@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.util.Collection;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -60,6 +61,7 @@ public class Requester {
 	private final boolean honorLease;
 	private long ttlExpiration;
 	private long numberOfRemainingRequests = 0;
+	private long timeOfLastKeepalive = 0;
 	private int streamCount = 0; // 0 is reserved for setup, all normal messages are >= 1
 
 	private static final long DEFAULT_BATCH = 1024;
@@ -87,6 +89,11 @@ public class Requester {
 
 	public boolean isServer() {
 		return isServer;
+	}
+
+	public long timeOfLastKeepalive()
+	{
+		return timeOfLastKeepalive;
 	}
 
 	/**
@@ -537,7 +544,7 @@ public class Requester {
 		return (Subscriber<? super Payload> child) -> {
 			child.onSubscribe(new Subscription() {
 
-				AtomicBoolean started = new AtomicBoolean(false);
+				final AtomicBoolean started = new AtomicBoolean(false);
 				volatile StreamInputSubscriber streamInputSubscriber;
 				volatile UnicastSubject<Frame> writer;	
 				
@@ -730,18 +737,32 @@ public class Requester {
 					// now that we are connected, send SETUP frame (asynchronously, other messages can continue being written after this)
 					connection.addOutput(PublisherUtils.just(Frame.Setup.from(setupPayload.getFlags(), 0, 0, setupPayload.metadataMimeType(), setupPayload.dataMimeType(), setupPayload)),
 						new Completable() {
-	
+
 							@Override
 							public void success() {
 								onComplete.success();
 							}
-	
+
 							@Override
 							public void error(Throwable e) {
 								onComplete.error(e);
 								tearDown(e);
 							}
-	
+
+						});
+
+					connection.addOutput(PublisherUtils.keepaliveTicker(1000, TimeUnit.MILLISECONDS),
+						new Completable()
+						{
+							public void success()
+							{
+							}
+
+							public void error(Throwable e)
+							{
+								onComplete.error(e);
+								tearDown(e);
+							}
 						});
 
 				} else {
@@ -771,6 +792,8 @@ public class Requester {
 						} else {
 							ttlExpiration = now + ttl;
 						}
+					} else if (FrameType.KEEPALIVE.equals(frame.getType())) {
+						timeOfLastKeepalive = System.currentTimeMillis();
 					} else {
 						onError(new RuntimeException("Received unexpected message type on stream 0: " + frame.getType().name()));
 					}
