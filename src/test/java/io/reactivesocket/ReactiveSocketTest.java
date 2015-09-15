@@ -90,6 +90,7 @@ public class ReactiveSocketTest {
 				String request = byteToString(payload.getData());
 				if ("hello".equals(request)) {
 					return interval(1, TimeUnit.MICROSECONDS)
+						.onBackpressureDrop()
 						.doOnSubscribe(s -> helloSubscriptionRunning.set(true))
 						.doOnCancel(() -> helloSubscriptionRunning.set(false))
 						.map(i -> "subscription " + i)
@@ -242,7 +243,7 @@ public class ReactiveSocketTest {
 		assertEquals("hello world 99", byteToString(ts.values().get(99).getData()));
 	}
 
-	@Test(timeout=2000)
+	@Test(timeout=4000)
 	@Theory
 	public void testRequestSubscription(int setupFlag) throws InterruptedException {
 		startSockets(setupFlag);
@@ -267,7 +268,7 @@ public class ReactiveSocketTest {
 
 		// assert it is running still
 		assertTrue(helloSubscriptionRunning.get());
-
+		
 		// shut down the work
 		subscription.dispose();
 
