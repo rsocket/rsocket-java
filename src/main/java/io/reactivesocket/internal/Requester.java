@@ -87,6 +87,12 @@ public class Requester {
 		return requester;
 	}
 
+	public static Requester createServerRequester(DuplexConnection connection, ConnectionSetupPayload setupPayload, Consumer<Throwable> errorStream, Completable requesterCompletable) {
+		Requester requester = new Requester(true, connection, setupPayload, errorStream);
+		requester.start(requesterCompletable);
+		return requester;
+	}
+	
 	public void shutdown() {
 		// TODO do something here
 		System.err.println("**** Requester.shutdown => this should actually do something");
