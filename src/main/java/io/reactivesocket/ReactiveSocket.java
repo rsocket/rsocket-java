@@ -15,6 +15,8 @@
  */
 package io.reactivesocket;
 
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import org.reactivestreams.Publisher;
@@ -201,9 +203,39 @@ public class ReactiveSocket implements AutoCloseable {
 	public final void start(Completable c) {
 		if (isServer) {
 			responder = Responder.create(connection, responderConnectionHandler, leaseGovernor, errorStream, c);
-			// requester = Requester.createServerRequester(connection, requestorSetupPayload, errorStream, c);
+//				requester = Requester.createServerRequester(connection, requestorSetupPayload, errorStream, c);
 		} else {
 			requester = Requester.createClientRequester(connection, requestorSetupPayload, errorStream, c);
+		}
+	}
+	
+	/**
+	 * Start and block the current thread until startup is finished.
+	 * @throws RuntimeException of InterruptedException 
+	 */
+	public final void startAndWait() {
+		CountDownLatch latch = new CountDownLatch(1);
+		AtomicReference<Throwable> err = new AtomicReference<Throwable>();
+		start(new Completable() {
+
+			@Override
+			public void success() {
+				latch.countDown();
+			}
+
+			@Override
+			public void error(Throwable e) {
+				latch.countDown();				
+			}
+			
+		});
+		try {
+			latch.await();
+		} catch (InterruptedException e) {
+			throw new RuntimeException(e);
+		}
+		if(err.get() != null) {
+			throw new RuntimeException(err.get());
 		}
 	}
 
