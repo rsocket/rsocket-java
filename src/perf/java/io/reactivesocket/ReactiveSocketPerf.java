@@ -1,6 +1,7 @@
 package io.reactivesocket;
 
 import java.nio.ByteBuffer;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import org.openjdk.jmh.annotations.Benchmark;
@@ -138,8 +139,14 @@ public class ReactiveSocketPerf {
 				clientConnection, ConnectionSetupPayload.create("UTF-8", "UTF-8", ConnectionSetupPayload.NO_FLAGS), t -> {});
 
 		static {
-			serverSocket.start();
-			client.start();
+			LatchedCompletable lc = new LatchedCompletable(2);
+			serverSocket.start(lc);
+			client.start(lc);
+			try {
+				lc.latch.await();
+			} catch (InterruptedException e) {
+				throw new RuntimeException("Failed waiting on startup", e);
+			}
 		}
 
 		Subscriber<Payload> blackholeConsumer; // reuse this each time
@@ -253,4 +260,25 @@ public class ReactiveSocketPerf {
 
 	}
 
+    private static class LatchedCompletable implements Completable {
+
+    	final CountDownLatch latch;
+    	
+    	LatchedCompletable(int count) {
+    		this.latch = new CountDownLatch(count);
+    	}
+    	
+		@Override
+		public void success() {
+			latch.countDown();
+		}
+
+		@Override
+		public void error(Throwable e) {
+			System.err.println("Error waiting for Requester");
+			e.printStackTrace();
+			latch.countDown();				
+		}
+    	
+    };
 }

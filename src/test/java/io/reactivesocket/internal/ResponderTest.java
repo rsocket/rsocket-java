@@ -42,12 +42,14 @@ public class ResponderTest
 	final static Consumer<Throwable> ERROR_HANDLER = Throwable::printStackTrace;
 	
 	@Test(timeout=2000)
-    public void testRequestResponseSuccess() {
+    public void testRequestResponseSuccess() throws InterruptedException {
     	TestConnection conn = establishConnection();
+    	LatchedCompletable lc = new LatchedCompletable(1);
         Responder.create(conn, setup -> new RequestHandler.Builder()
             .withRequestResponse(request ->
                 just(utf8EncodedPayload(byteToString(request.getData()) + " world", null))).build(),
-            NULL_LEASE_GOVERNOR, ERROR_HANDLER);
+            NULL_LEASE_GOVERNOR, ERROR_HANDLER, lc);
+        lc.await();
         
         ReplaySubject<Frame> cachedResponses = captureResponses(conn);
         sendSetupFrame(conn);
@@ -66,11 +68,13 @@ public class ResponderTest
     }
 
 	@Test(timeout=2000)
-    public void testRequestResponseError() {
+    public void testRequestResponseError() throws InterruptedException {
     	TestConnection conn = establishConnection();
+    	LatchedCompletable lc = new LatchedCompletable(1);
         Responder.create(conn, setup -> new RequestHandler.Builder()
             .withRequestResponse(request -> Observable.<Payload>error(new Exception("Request Not Found"))).build(),
-            NULL_LEASE_GOVERNOR, ERROR_HANDLER);
+            NULL_LEASE_GOVERNOR, ERROR_HANDLER, lc);
+        lc.await();
 
         Observable<Frame> cachedResponses = captureResponses(conn);
         sendSetupFrame(conn);
@@ -86,16 +90,18 @@ public class ResponderTest
     }
 
 	@Test(timeout=2000)
-    public void testRequestResponseCancel() {
+    public void testRequestResponseCancel() throws InterruptedException {
         AtomicBoolean unsubscribed = new AtomicBoolean();
         Observable<Payload> delayed = never()
                 .cast(Payload.class)
                 .doOnCancel(() -> unsubscribed.set(true));
 
         TestConnection conn = establishConnection();
+        LatchedCompletable lc = new LatchedCompletable(1);
         Responder.create(conn, setup -> new RequestHandler.Builder()
             .withRequestResponse(request -> delayed).build(),
-            NULL_LEASE_GOVERNOR, ERROR_HANDLER);
+            NULL_LEASE_GOVERNOR, ERROR_HANDLER, lc);
+        lc.await();
 
         ReplaySubject<Frame> cachedResponses = captureResponses(conn);
         sendSetupFrame(conn);
@@ -111,12 +117,14 @@ public class ResponderTest
     }
 
 	@Test(timeout=2000)
-    public void testRequestStreamSuccess() {
+    public void testRequestStreamSuccess() throws InterruptedException {
     	TestConnection conn = establishConnection();
+    	LatchedCompletable lc = new LatchedCompletable(1);
         Responder.create(conn, setup -> new RequestHandler.Builder()
             .withRequestStream(
                 request -> range(Integer.parseInt(byteToString(request.getData())), 10).map(i -> utf8EncodedPayload(i + "!", null))).build(),
-            NULL_LEASE_GOVERNOR, ERROR_HANDLER);
+            NULL_LEASE_GOVERNOR, ERROR_HANDLER, lc);
+        lc.await();
 
         ReplaySubject<Frame> cachedResponses = captureResponses(conn);
         sendSetupFrame(conn);
@@ -142,13 +150,15 @@ public class ResponderTest
     }
 
 	@Test(timeout=2000)
-    public void testRequestStreamError() {
+    public void testRequestStreamError() throws InterruptedException {
     	TestConnection conn = establishConnection();
+    	LatchedCompletable lc = new LatchedCompletable(1);
         Responder.create(conn, setup -> new RequestHandler.Builder()
             .withRequestStream(request -> range(Integer.parseInt(byteToString(request.getData())), 3)
                 .map(i -> utf8EncodedPayload(i + "!", null))
                 .concatWith(error(new Exception("Error Occurred!")))).build(),
-            NULL_LEASE_GOVERNOR, ERROR_HANDLER);
+            NULL_LEASE_GOVERNOR, ERROR_HANDLER, lc);
+        lc.await();
 
         ReplaySubject<Frame> cachedResponses = captureResponses(conn);
         sendSetupFrame(conn);
@@ -174,12 +184,14 @@ public class ResponderTest
     }
 
 	@Test(timeout=2000)
-    public void testRequestStreamCancel() {
+    public void testRequestStreamCancel() throws InterruptedException {
     	TestConnection conn = establishConnection();
         TestScheduler ts = Schedulers.test();
+        LatchedCompletable lc = new LatchedCompletable(1);
         Responder.create(conn, setup -> new RequestHandler.Builder()
             .withRequestStream(request -> interval(1000, TimeUnit.MILLISECONDS, ts).map(i -> utf8EncodedPayload(i + "!", null))).build(),
-            NULL_LEASE_GOVERNOR, ERROR_HANDLER);
+            NULL_LEASE_GOVERNOR, ERROR_HANDLER, lc);
+        lc.await();
 
         ReplaySubject<Frame> cachedResponses = captureResponses(conn);
         sendSetupFrame(conn);
@@ -213,12 +225,14 @@ public class ResponderTest
     }
 
 	@Test(timeout=2000)
-    public void testMultiplexedStreams() {
+    public void testMultiplexedStreams() throws InterruptedException {
         TestScheduler ts = Schedulers.test();
         TestConnection conn = establishConnection();
+        LatchedCompletable lc = new LatchedCompletable(1);
         Responder.create(conn, setup -> new RequestHandler.Builder()
             .withRequestStream(request -> interval(1000, TimeUnit.MILLISECONDS, ts).map(i -> utf8EncodedPayload(i + "_" + byteToString(request.getData()), null))).build(),
-            NULL_LEASE_GOVERNOR, ERROR_HANDLER);
+            NULL_LEASE_GOVERNOR, ERROR_HANDLER, lc);
+        lc.await();
 
         ReplaySubject<Frame> cachedResponses = captureResponses(conn);
         sendSetupFrame(conn);

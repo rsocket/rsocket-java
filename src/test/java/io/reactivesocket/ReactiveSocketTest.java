@@ -169,7 +169,7 @@ public class ReactiveSocketTest {
 		socketClient.shutdown();
 	}
 
-	private void startSockets(int setupFlag) {
+	private void startSockets(int setupFlag) throws InterruptedException {
 		if (setupFlag == NO_FLAGS) {
 			System.out.println("Reactivesocket configured with: NO_FLAGS");
 		} else if (setupFlag == HONOR_LEASE) {
@@ -182,8 +182,12 @@ public class ReactiveSocketTest {
 		);
 
 		// start both the server and client and monitor for errors
-		socketServer.start();
-		socketClient.start();
+        LatchedCompletable lc = new LatchedCompletable(2);
+        socketServer.start(lc);
+        socketClient.start(lc);
+        if(!lc.await(3000, TimeUnit.MILLISECONDS)) {
+        	throw new RuntimeException("Timed out waiting for startup");
+        }
 
 		awaitSocketAvailability(socketClient, 50, TimeUnit.SECONDS);
 	}
@@ -211,7 +215,7 @@ public class ReactiveSocketTest {
 
 	@Test(timeout=2000)
 	@Theory
-	public void testRequestResponse(int setupFlag) {
+	public void testRequestResponse(int setupFlag) throws InterruptedException {
 		startSockets(setupFlag);
 		// perform request/response
 
@@ -225,7 +229,7 @@ public class ReactiveSocketTest {
 
 	@Test(timeout=2000)
 	@Theory
-	public void testRequestStream(int setupFlag) {
+	public void testRequestStream(int setupFlag) throws InterruptedException {
 		startSockets(setupFlag);
 		// perform request/stream
 
@@ -240,7 +244,7 @@ public class ReactiveSocketTest {
 
 	@Test(timeout=2000)
 	@Theory
-	public void testRequestSubscription(int setupFlag) {
+	public void testRequestSubscription(int setupFlag) throws InterruptedException {
 		startSockets(setupFlag);
 		// perform request/subscription
 
@@ -343,7 +347,7 @@ public class ReactiveSocketTest {
 
 	@Test(timeout=2000)
 	@Theory
-	public void testRequestChannelEcho(int setupFlag) {
+	public void testRequestChannelEcho(int setupFlag) throws InterruptedException {
 		startSockets(setupFlag);
 
 		Publisher<Payload> requestStream = just(TestUtil.utf8EncodedPayload("1", "echo")).concatWith(just(TestUtil.utf8EncodedPayload("2", null)));
@@ -359,7 +363,7 @@ public class ReactiveSocketTest {
 
 	@Test(timeout=2000)
 	@Theory
-	public void testRequestChannelNotFound(int setupFlag) {
+	public void testRequestChannelNotFound(int setupFlag) throws InterruptedException {
 		startSockets(setupFlag);
 
 		Publisher<Payload> requestStream = just(TestUtil.utf8EncodedPayload(null, "someChannel"));
@@ -426,5 +430,4 @@ public class ReactiveSocketTest {
 		lastServerErrorCountDown.await();
 		assertEquals("forced blowup to simulate handler error", lastServerError.get().getCause().getMessage());
 	}
-
 }

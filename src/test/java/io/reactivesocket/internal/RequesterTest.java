@@ -22,14 +22,17 @@ import static io.reactivex.Observable.*;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import org.junit.Test;
 
+import io.reactivesocket.Completable;
 import io.reactivesocket.ConnectionSetupPayload;
 import io.reactivesocket.Frame;
 import io.reactivesocket.FrameType;
+import io.reactivesocket.LatchedCompletable;
 import io.reactivesocket.Payload;
 import io.reactivesocket.TestConnection;
 import io.reactivex.subscribers.TestSubscriber;
@@ -39,12 +42,14 @@ import io.reactivex.subjects.ReplaySubject;
 public class RequesterTest
 {
 	final static Consumer<Throwable> ERROR_HANDLER = Throwable::printStackTrace;
-	
+
 	@Test(timeout=2000)
-    public void testRequestResponseSuccess() {
+    public void testRequestResponseSuccess() throws InterruptedException {
         TestConnection conn = establishConnection();
         ReplaySubject<Frame> requests = captureRequests(conn);
-        Requester p = Requester.createClientRequester(conn, ConnectionSetupPayload.create("UTF-8", "UTF-8", NO_FLAGS), ERROR_HANDLER);
+        LatchedCompletable rc = new LatchedCompletable(1);
+        Requester p = Requester.createClientRequester(conn, ConnectionSetupPayload.create("UTF-8", "UTF-8", NO_FLAGS), ERROR_HANDLER, rc);
+        rc.await();
 
         TestSubscriber<Payload> ts = new TestSubscriber<>();
         p.requestResponse(utf8EncodedPayload("hello", null)).subscribe(ts);
@@ -72,10 +77,12 @@ public class RequesterTest
     }
 
 	@Test(timeout=2000)
-    public void testRequestResponseError() {
+    public void testRequestResponseError() throws InterruptedException {
         TestConnection conn = establishConnection();
         ReplaySubject<Frame> requests = captureRequests(conn);
-        Requester p = Requester.createClientRequester(conn, ConnectionSetupPayload.create("UTF-8", "UTF-8", NO_FLAGS), ERROR_HANDLER);
+        LatchedCompletable rc = new LatchedCompletable(1);
+        Requester p = Requester.createClientRequester(conn, ConnectionSetupPayload.create("UTF-8", "UTF-8", NO_FLAGS), ERROR_HANDLER, rc);
+        rc.await();
 
         TestSubscriber<Payload> ts = new TestSubscriber<>();
         p.requestResponse(utf8EncodedPayload("hello", null)).subscribe(ts);
@@ -100,10 +107,12 @@ public class RequesterTest
     }
 
 	@Test(timeout=2000)
-    public void testRequestResponseCancel() {
+    public void testRequestResponseCancel() throws InterruptedException {
         TestConnection conn = establishConnection();
         ReplaySubject<Frame> requests = captureRequests(conn);
-        Requester p = Requester.createClientRequester(conn, ConnectionSetupPayload.create("UTF-8", "UTF-8", NO_FLAGS), ERROR_HANDLER);
+        LatchedCompletable rc = new LatchedCompletable(1);
+        Requester p = Requester.createClientRequester(conn, ConnectionSetupPayload.create("UTF-8", "UTF-8", NO_FLAGS), ERROR_HANDLER, rc);
+        rc.await();
 
         TestSubscriber<Payload> ts = new TestSubscriber<>();
         p.requestResponse(utf8EncodedPayload("hello", null)).subscribe(ts);
@@ -133,10 +142,12 @@ public class RequesterTest
 
     // TODO REQUEST_N on initial frame not implemented yet
 	@Test(timeout=2000)
-    public void testRequestStreamSuccess() {
+    public void testRequestStreamSuccess() throws InterruptedException {
         TestConnection conn = establishConnection();
         ReplaySubject<Frame> requests = captureRequests(conn);
-        Requester p = Requester.createClientRequester(conn, ConnectionSetupPayload.create("UTF-8", "UTF-8", NO_FLAGS), ERROR_HANDLER);
+        LatchedCompletable rc = new LatchedCompletable(1);
+        Requester p = Requester.createClientRequester(conn, ConnectionSetupPayload.create("UTF-8", "UTF-8", NO_FLAGS), ERROR_HANDLER, rc);
+        rc.await();
 
         TestSubscriber<String> ts = new TestSubscriber<>();
         fromPublisher(p.requestStream(utf8EncodedPayload("hello", null))).map(pl -> byteToString(pl.getData())).subscribe(ts);
@@ -167,10 +178,12 @@ public class RequesterTest
 
  // TODO REQUEST_N on initial frame not implemented yet
 	@Test(timeout=2000)
-    public void testRequestStreamSuccessTake2AndCancel() {
+    public void testRequestStreamSuccessTake2AndCancel() throws InterruptedException {
         TestConnection conn = establishConnection();
         ReplaySubject<Frame> requests = captureRequests(conn);
-        Requester p = Requester.createClientRequester(conn, ConnectionSetupPayload.create("UTF-8", "UTF-8", NO_FLAGS), ERROR_HANDLER);
+        LatchedCompletable rc = new LatchedCompletable(1);
+        Requester p = Requester.createClientRequester(conn, ConnectionSetupPayload.create("UTF-8", "UTF-8", NO_FLAGS), ERROR_HANDLER, rc);
+        rc.await();
 
         TestSubscriber<String> ts = new TestSubscriber<>();
         Observable.fromPublisher(p.requestStream(utf8EncodedPayload("hello", null))).take(2).map(pl -> byteToString(pl.getData())).subscribe(ts);
@@ -208,10 +221,12 @@ public class RequesterTest
     }
 
 	@Test(timeout=2000)
-    public void testRequestStreamError() {
+    public void testRequestStreamError() throws InterruptedException {
         TestConnection conn = establishConnection();
         ReplaySubject<Frame> requests = captureRequests(conn);
-        Requester p = Requester.createClientRequester(conn, ConnectionSetupPayload.create("UTF-8", "UTF-8", NO_FLAGS), ERROR_HANDLER);
+        LatchedCompletable rc = new LatchedCompletable(1);
+        Requester p = Requester.createClientRequester(conn, ConnectionSetupPayload.create("UTF-8", "UTF-8", NO_FLAGS), ERROR_HANDLER, rc);
+        rc.await();
 
         TestSubscriber<Payload> ts = new TestSubscriber<>();
         p.requestStream(utf8EncodedPayload("hello", null)).subscribe(ts);
@@ -257,5 +272,4 @@ public class RequesterTest
         conn.writes.subscribe(rs);
         return rs;
     }
-
 }

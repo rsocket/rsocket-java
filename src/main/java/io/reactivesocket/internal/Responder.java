@@ -60,9 +60,9 @@ public class Responder {
 	 *            This include fireAndForget which ONLY emit errors server-side via this mechanism.
 	 * @return responder instance
 	 */
-	public static <T> Responder create(DuplexConnection connection, ConnectionSetupHandler connectionHandler, LeaseGovernor leaseGovernor, Consumer<Throwable> errorStream) {
+	public static <T> Responder create(DuplexConnection connection, ConnectionSetupHandler connectionHandler, LeaseGovernor leaseGovernor, Consumer<Throwable> errorStream, Completable responderCompletable) {
 		Responder responder = new Responder(connection, connectionHandler, leaseGovernor, errorStream);
-		responder.start();
+		responder.start(responderCompletable);
 		return responder;
 	}
 
@@ -96,7 +96,7 @@ public class Responder {
 		return timeOfLastKeepalive;
 	}
 
-	private void start() {
+	private void start(final Completable responderCompletable) {
 		/* state of cancellation subjects during connection */
 		final Int2ObjectHashMap<Subscription> cancellationSubscriptions = new Int2ObjectHashMap<>();
 		/* streams in flight that can receive REQUEST_N messages */
@@ -114,6 +114,8 @@ public class Responder {
 			public void onSubscribe(Subscription s) {
 				if (transportSubscription.compareAndSet(null, s)) {
 					s.request(Long.MAX_VALUE); // we expect everything from transport (backpressure is via lease/requestN frames)
+					// mark that we have completed setup
+					responderCompletable.success();
 				} else {
 					// means we already were cancelled
 					s.cancel();
