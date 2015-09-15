@@ -28,8 +28,6 @@ public class LatchedCompletable implements Completable {
     	
 		@Override
 		public void success() {
-			System.out.println("COMPLETABLE ONSUCCESS");
-			new RuntimeException().printStackTrace();
 			latch.countDown();
 		}
 
