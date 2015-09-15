@@ -291,6 +291,10 @@ public class Responder {
 		});
 	}
 
+	public void shutdown() {
+		// TODO do something here
+		System.err.println("**** Responder.shutdown => this should actually do something");
+	}
 
 	private Publisher<Frame> handleRequestResponse(
 			Frame requestFrame,

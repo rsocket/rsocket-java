@@ -87,6 +87,11 @@ public class Requester {
 		return requester;
 	}
 
+	public void shutdown() {
+		// TODO do something here
+		System.err.println("**** Requester.shutdown => this should actually do something");
+	}
+
 	public boolean isServer() {
 		return isServer;
 	}
