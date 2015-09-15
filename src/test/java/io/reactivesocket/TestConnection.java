@@ -15,32 +15,30 @@
  */
 package io.reactivesocket;
 
+import static io.reactivex.Observable.*;
+
 import java.io.IOException;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.function.Consumer;
 
 import org.reactivestreams.Publisher;
-
-import static io.reactivex.Observable.*;
 
 import io.reactivesocket.observable.Observer;
 import io.reactivex.Observable;
 import io.reactivex.Scheduler;
-import io.reactivex.disposables.Disposable;
 import io.reactivex.schedulers.Schedulers;
-import io.reactivex.subjects.PublishSubject;
-import io.reactivex.subjects.Subject;
 
 public class TestConnection implements DuplexConnection {
 
-	public final PublishSubject<Frame> toInput = PublishSubject.create();
-	private Subject<Frame, Frame> writeSubject = PublishSubject.<Frame>create().toSerialized();
-	public final Observable<Frame> writes = writeSubject;
+	public final Channel toInput = new Channel();
+	public final Channel write = new Channel();
 
 	@Override
 	public void addOutput(Publisher<Frame> o, Completable callback) {
 		fromPublisher(o).flatMap(m -> {
 			// no backpressure on a Subject so just firehosing for this test
-			writeSubject.onNext(m);
+			write.send(m);
 			return Observable.<Void> empty();
 		}).subscribe(v -> {}, callback::error, callback::success);
 	}
@@ -51,61 +49,90 @@ public class TestConnection implements DuplexConnection {
 
 			@Override
 			public void subscribe(Observer<Frame> o) {
-				final Disposable d = toInput.subscribe(f -> o.onNext(f));
+				toInput.add(o);
 				// we are okay with the race of sending data and cancelling ... since this is "hot" by definition and unsubscribing is a race.
 				o.onSubscribe(new io.reactivesocket.observable.Disposable() {
 
 					@Override
 					public void dispose() {
-						d.dispose();
+						toInput.remove(o);
 					}
 
 				});
 			}
-			
+
 		};
 	}
 
 	public void connectToServerConnection(TestConnection serverConnection) {
 		connectToServerConnection(serverConnection, true);
 	}
-	
+
 	public void connectToServerConnection(TestConnection serverConnection, boolean log) {
 		if (log) {
-			serverConnection.writes.forEach(n -> System.out.println("SERVER ==> Writes from server->client: " + n + "   Written from " + Thread.currentThread()));
-			serverConnection.toInput.forEach(n -> System.out.println("SERVER <== Input from client->server: " + n + "   Read on " + Thread.currentThread()));
-			writes.forEach(n -> System.out.println("CLIENT ==> Writes from client->server: " + n + "   Written from " + Thread.currentThread()));
-			toInput.forEach(n -> System.out.println("CLIENT <== Input from server->client: " + n + "   Read on " + Thread.currentThread()));
+			serverConnection.write.add(n -> System.out.println("SERVER ==> Writes from server->client: " + n + "   Written from " + Thread.currentThread()));
+			serverConnection.toInput.add(n -> System.out.println("SERVER <== Input from client->server: " + n + "   Read on " + Thread.currentThread()));
+			write.add(n -> System.out.println("CLIENT ==> Writes from client->server: " + n + "   Written from " + Thread.currentThread()));
+			toInput.add(n -> System.out.println("CLIENT <== Input from server->client: " + n + "   Read on " + Thread.currentThread()));
 		}
-
-		Scheduler clientThread = Schedulers.newThread();
-		Scheduler serverThread = Schedulers.newThread();
 		
-		// connect the connections (with a Scheduler to simulate async IO)
-		CountDownLatch c = new CountDownLatch(2);
-
-		writes
-			.doOnSubscribe(t -> c.countDown())
-			.subscribeOn(clientThread)
-			.onBackpressureBuffer() // simulate unbounded network buffer
-			.observeOn(serverThread)
-			.subscribe(serverConnection.toInput);
-		serverConnection.writes
-			.doOnSubscribe(t -> c.countDown())
-			.subscribeOn(serverThread)
-			.onBackpressureBuffer() // simulate unbounded network buffer
-			.observeOn(clientThread)
-			.subscribe(toInput);
-
-		try {
-			c.await();
-		} catch (InterruptedException e) {
-			e.printStackTrace();
-		}
+		// client to server
+		write.add(f -> serverConnection.toInput.send(f));	
+		// server to client
+		serverConnection.write.add(f -> toInput.send(f));	
 	}
 
 	@Override
 	public void close() throws IOException {
-		
+
 	}
+
+	
+	public static class Channel {
+
+		private final CopyOnWriteArrayList<Observer<Frame>> os = new CopyOnWriteArrayList<>();
+
+		public void send(Frame f) {
+			for (Observer<Frame> o : os) {
+				o.onNext(f);
+			}
+		}
+
+		public void add(Observer<Frame> o) {
+			os.add(o);
+		}
+
+		public void add(Consumer<Frame> f) {
+			add(new Observer<Frame>() {
+
+				@Override
+				public void onNext(Frame t) {
+					f.accept(t);
+				}
+
+				@Override
+				public void onError(Throwable e) {
+
+				}
+
+				@Override
+				public void onComplete() {
+
+				}
+
+				@Override
+				public void onSubscribe(io.reactivesocket.observable.Disposable d) {
+					// TODO Auto-generated method stub
+
+				}
+
+			});
+		}
+
+		public void remove(Observer<Frame> o) {
+			os.remove(o);
+		}
+	}
+
+	
 }

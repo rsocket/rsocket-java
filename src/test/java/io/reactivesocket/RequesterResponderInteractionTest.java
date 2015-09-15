@@ -46,22 +46,9 @@ public class RequesterResponderInteractionTest
     public void setup() throws InterruptedException {
         System.out.println("-----------------------------------------------------------------------");
         TestConnection serverConnection = new TestConnection();
-        serverConnection.writes.forEach(n -> System.out.println("Writes from server->client: " + n));
-        serverConnection.toInput.forEach(n -> System.out.println("Input from client->server: " + n));
         TestConnection clientConnection = new TestConnection();
-        clientConnection.writes.forEach(n -> System.out.println("Writes from client->server: " + n));
-        clientConnection.toInput.forEach(n -> System.out.println("Input from server->client: " + n));
-
-        // connect the connections (with a Scheduler to simulate async IO)
-        clientConnection.writes
-                .subscribeOn(Schedulers.computation())
-                .observeOn(Schedulers.computation())
-                .subscribe(serverConnection.toInput);
-        serverConnection.writes.observeOn(Schedulers.computation())
-                .subscribeOn(Schedulers.computation())
-                .observeOn(Schedulers.computation())
-                .subscribe(clientConnection.toInput);
-
+        clientConnection.connectToServerConnection(serverConnection);
+        
         LatchedCompletable lc = new LatchedCompletable(2);
         
         responder = Responder.create(serverConnection, setup -> new RequestHandler.Builder()
