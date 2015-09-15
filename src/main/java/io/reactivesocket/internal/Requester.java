@@ -37,6 +37,8 @@ import io.reactivesocket.Payload;
 import io.reactivesocket.exceptions.CancelException;
 import io.reactivesocket.exceptions.Exceptions;
 import io.reactivesocket.exceptions.Retryable;
+import io.reactivesocket.observable.Disposable;
+import io.reactivesocket.observable.Observer;
 import uk.co.real_logic.agrona.collections.Int2ObjectHashMap;
 
 /**
@@ -46,7 +48,7 @@ import uk.co.real_logic.agrona.collections.Int2ObjectHashMap;
  */
 public class Requester {
 
-	private final static Subscription CANCELLED = new EmptySubscription();
+	private final static Disposable CANCELLED = new EmptyDisposable();
 	private final static long epoch = System.nanoTime();
 
 	private final boolean isServer;
@@ -720,13 +722,11 @@ public class Requester {
 	}
 
 	private void start(Completable onComplete) {
-		AtomicReference<Subscription> connectionSubscription = new AtomicReference<>();
+		AtomicReference<Disposable> connectionSubscription = new AtomicReference<>();
 		// get input from responder->requestor for responses
-		connection.getInput().subscribe(new Subscriber<Frame>() {
-			public void onSubscribe(Subscription s) {
-				if (connectionSubscription.compareAndSet(null, s)) {
-					s.request(Long.MAX_VALUE);
-
+		connection.getInput().subscribe(new Observer<Frame>() {
+			public void onSubscribe(Disposable d) {
+				if (connectionSubscription.compareAndSet(null, d)) {
 					// now that we are connected, send SETUP frame (asynchronously, other messages can continue being written after this)
 					connection.addOutput(PublisherUtils.just(Frame.Setup.from(setupPayload.getFlags(), 0, 0, setupPayload.metadataMimeType(), setupPayload.dataMimeType(), setupPayload)),
 						new Completable() {
@@ -746,7 +746,7 @@ public class Requester {
 
 				} else {
 					// means we already were cancelled
-					s.cancel();
+					d.dispose();
 					onComplete.error(new CancelException("Connection Is Already Cancelled"));
 				}
 			}
@@ -821,7 +821,7 @@ public class Requester {
 			public void cancel() { // TODO this isn't used ... is it supposed to be?
 				if (!connectionSubscription.compareAndSet(null, CANCELLED)) {
 					// cancel the one that was there if we failed to set the sentinel
-					connectionSubscription.get().cancel();
+					connectionSubscription.get().dispose();
 					try {
 						connection.close();
 					} catch (IOException e) {

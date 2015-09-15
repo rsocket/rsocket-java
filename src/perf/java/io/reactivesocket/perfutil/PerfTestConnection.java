@@ -24,12 +24,12 @@ import org.reactivestreams.Subscription;
 import io.reactivesocket.Completable;
 import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
+import io.reactivesocket.observable.Observable;
 
 public class PerfTestConnection implements DuplexConnection {
 
-	public final PerfUnicastSubjectNoBackpressure toInput = PerfUnicastSubjectNoBackpressure.create();
-	private PerfUnicastSubjectNoBackpressure writeSubject = PerfUnicastSubjectNoBackpressure.create();
-	public final Publisher<Frame> writes = writeSubject;
+	public final PerfUnicastSubjectNoBackpressure<Frame> toInput = PerfUnicastSubjectNoBackpressure.create();
+	private PerfUnicastSubjectNoBackpressure<Frame> writeSubject = PerfUnicastSubjectNoBackpressure.create();
 
 	@Override
 	public void addOutput(Publisher<Frame> o, Completable callback) {
@@ -59,13 +59,13 @@ public class PerfTestConnection implements DuplexConnection {
 	}
 
 	@Override
-	public Publisher<Frame> getInput() {
+	public Observable<Frame> getInput() {
 		return toInput;
 	}
 
 	public void connectToServerConnection(PerfTestConnection serverConnection) {
-		writes.subscribe(serverConnection.toInput);
-		serverConnection.writes.subscribe(toInput);
+		writeSubject.subscribe(serverConnection.toInput);
+		serverConnection.writeSubject.subscribe(toInput);
 
 	}
 
