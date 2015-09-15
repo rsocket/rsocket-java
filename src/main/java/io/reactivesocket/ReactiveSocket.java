@@ -210,15 +210,20 @@ public class ReactiveSocket implements AutoCloseable {
 	@Override
 	public void close() throws Exception {
 		connection.close();
+		leaseGovernor.unregister(responder);
+		if(requester != null) {
+			requester.shutdown();
+		}
+		if(responder != null) {
+			responder.shutdown();
+		}
 	}
 	
 	public void shutdown() {
 		try {
 			close();
-			leaseGovernor.unregister(responder);
 		} catch (Exception e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
+			throw new RuntimeException("Failed Shutdown", e);
 		}
 	}
 	
