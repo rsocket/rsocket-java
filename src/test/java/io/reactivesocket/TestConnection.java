@@ -19,15 +19,16 @@ import static io.reactivex.Observable.*;
 
 import java.io.IOException;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.CountDownLatch;
 import java.util.function.Consumer;
 
 import org.reactivestreams.Publisher;
 
 import io.reactivesocket.observable.Observer;
 import io.reactivex.Observable;
-import io.reactivex.Scheduler;
+import io.reactivex.Scheduler.Worker;
 import io.reactivex.schedulers.Schedulers;
+import io.reactivex.subjects.PublishSubject;
+import io.reactivex.subjects.Subject;
 
 public class TestConnection implements DuplexConnection {
 
@@ -40,7 +41,8 @@ public class TestConnection implements DuplexConnection {
 			// no backpressure on a Subject so just firehosing for this test
 			write.send(m);
 			return Observable.<Void> empty();
-		}).subscribe(v -> {}, callback::error, callback::success);
+		}).subscribe(v -> {
+		} , callback::error, callback::success);
 	}
 
 	@Override
@@ -76,10 +78,21 @@ public class TestConnection implements DuplexConnection {
 			toInput.add(n -> System.out.println("CLIENT <== Input from server->client: " + n + "   Read on " + Thread.currentThread()));
 		}
 		
+		Worker clientThread = Schedulers.newThread().createWorker();
+		Worker serverThread = Schedulers.newThread().createWorker();
+
 		// client to server
-		write.add(f -> serverConnection.toInput.send(f));	
+		write.add(f -> {
+			serverThread.schedule(() -> {
+				serverConnection.toInput.send(f);	
+			});
+		});
 		// server to client
-		serverConnection.write.add(f -> toInput.send(f));	
+		serverConnection.write.add(f -> {
+			clientThread.schedule(() -> {
+				toInput.send(f);	
+			});
+		});
 	}
 
 	@Override
@@ -87,15 +100,22 @@ public class TestConnection implements DuplexConnection {
 
 	}
 
-	
 	public static class Channel {
 
 		private final CopyOnWriteArrayList<Observer<Frame>> os = new CopyOnWriteArrayList<>();
-
+		private Subject<Frame, Frame> s;
+		
+		public Channel() {
+			s = PublishSubject.<Frame>create().toSerialized();
+			s.subscribe(f-> {
+				for (Observer<Frame> o : os) {
+					o.onNext(f);
+				}	
+			});
+		}
+		
 		public void send(Frame f) {
-			for (Observer<Frame> o : os) {
-				o.onNext(f);
-			}
+			s.onNext(f);
 		}
 
 		public void add(Observer<Frame> o) {
@@ -134,5 +154,4 @@ public class TestConnection implements DuplexConnection {
 		}
 	}
 
-	
 }
