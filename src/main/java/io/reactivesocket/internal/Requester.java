@@ -50,7 +50,7 @@ import uk.co.real_logic.agrona.collections.Int2ObjectHashMap;
 public class Requester {
 
 	private final static Disposable CANCELLED = new EmptyDisposable();
-	private final static long epoch = System.nanoTime();
+	private final static int KEEPALIVE_INTERVAL_MS = 1000;
 
 	private final boolean isServer;
 	private final DuplexConnection connection;
@@ -746,7 +746,7 @@ public class Requester {
 			public void onSubscribe(Disposable d) {
 				if (connectionSubscription.compareAndSet(null, d)) {
 					// now that we are connected, send SETUP frame (asynchronously, other messages can continue being written after this)
-					connection.addOutput(PublisherUtils.just(Frame.Setup.from(setupPayload.getFlags(), 0, 0, setupPayload.metadataMimeType(), setupPayload.dataMimeType(), setupPayload)),
+					connection.addOutput(PublisherUtils.just(Frame.Setup.from(setupPayload.getFlags(), KEEPALIVE_INTERVAL_MS, 0, setupPayload.metadataMimeType(), setupPayload.dataMimeType(), setupPayload)),
 						new Completable() {
 
 							@Override
@@ -762,7 +762,7 @@ public class Requester {
 
 						});
 
-					connection.addOutput(PublisherUtils.keepaliveTicker(1000, TimeUnit.MILLISECONDS),
+					connection.addOutput(PublisherUtils.keepaliveTicker(KEEPALIVE_INTERVAL_MS, TimeUnit.MILLISECONDS),
 						new Completable()
 						{
 							public void success()

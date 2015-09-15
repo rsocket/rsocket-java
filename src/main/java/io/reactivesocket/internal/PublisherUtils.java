@@ -163,7 +163,7 @@ public class PublisherUtils {
 
 	}
 
-	public static final Publisher<Frame> keepaliveTicker(final long interval, final TimeUnit timeUnit) {
+	public static final Publisher<Frame> keepaliveTicker(final int interval, final TimeUnit timeUnit) {
 		return (Subscriber<? super Frame> s) -> {
 			s.onSubscribe(new Subscription()
 			{
