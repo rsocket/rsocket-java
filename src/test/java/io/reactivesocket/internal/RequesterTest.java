@@ -69,7 +69,7 @@ public class RequesterTest
         assertEquals(FrameType.REQUEST_RESPONSE, two.getType());
         
         // now emit a response to ensure the Publisher receives and completes
-        conn.toInput.onNext(utf8EncodedResponseFrame(2, FrameType.NEXT_COMPLETE, "world"));
+        conn.toInput.send(utf8EncodedResponseFrame(2, FrameType.NEXT_COMPLETE, "world"));
 
         ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
         ts.assertValue(utf8EncodedPayload("world", null));
@@ -100,7 +100,7 @@ public class RequesterTest
         assertEquals("hello", byteToString(two.getData()));
         assertEquals(FrameType.REQUEST_RESPONSE, two.getType());
 
-        conn.toInput.onNext(Frame.Error.from(2, new RuntimeException("Failed")));
+        conn.toInput.send(Frame.Error.from(2, new RuntimeException("Failed")));
         ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
         ts.assertError(Exception.class);
         assertEquals("Failed", ts.errors().get(0).getMessage());
@@ -167,9 +167,9 @@ public class RequesterTest
         // TODO assert initial requestN
         
         // emit data
-        conn.toInput.onNext(utf8EncodedResponseFrame(2, FrameType.NEXT, "hello"));
-        conn.toInput.onNext(utf8EncodedResponseFrame(2, FrameType.NEXT, "world"));
-        conn.toInput.onNext(utf8EncodedResponseFrame(2, FrameType.COMPLETE, ""));
+        conn.toInput.send(utf8EncodedResponseFrame(2, FrameType.NEXT, "hello"));
+        conn.toInput.send(utf8EncodedResponseFrame(2, FrameType.NEXT, "world"));
+        conn.toInput.send(utf8EncodedResponseFrame(2, FrameType.COMPLETE, ""));
 
         ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
         ts.assertComplete();
@@ -203,8 +203,8 @@ public class RequesterTest
         // TODO assert initial requestN
 
         // emit data
-        conn.toInput.onNext(utf8EncodedResponseFrame(2, FrameType.NEXT, "hello"));
-        conn.toInput.onNext(utf8EncodedResponseFrame(2, FrameType.NEXT, "world"));
+        conn.toInput.send(utf8EncodedResponseFrame(2, FrameType.NEXT, "hello"));
+        conn.toInput.send(utf8EncodedResponseFrame(2, FrameType.NEXT, "world"));
 
         ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
         ts.assertComplete();
@@ -246,8 +246,8 @@ public class RequesterTest
         // TODO assert initial requestN
 
         // emit data
-        conn.toInput.onNext(utf8EncodedResponseFrame(2, FrameType.NEXT, "hello"));
-        conn.toInput.onNext(utf8EncodedErrorFrame(2, "Failure"));
+        conn.toInput.send(utf8EncodedResponseFrame(2, FrameType.NEXT, "hello"));
+        conn.toInput.send(utf8EncodedErrorFrame(2, "Failure"));
 
         ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
         ts.assertError(Exception.class);
@@ -269,7 +269,7 @@ public class RequesterTest
     private ReplaySubject<Frame> captureRequests(TestConnection conn) {
         ReplaySubject<Frame> rs = ReplaySubject.create();
         rs.forEach(i -> System.out.println("capturedRequest => " + i));
-        conn.writes.subscribe(rs);
+        conn.write.add(rs::onNext);
         return rs;
     }
 }
