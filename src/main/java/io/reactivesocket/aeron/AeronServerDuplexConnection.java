@@ -3,8 +3,9 @@ package io.reactivesocket.aeron;
 import io.reactivesocket.Completable;
 import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
+import io.reactivesocket.observable.Observable;
+import io.reactivesocket.observable.Observer;
 import org.reactivestreams.Publisher;
-import org.reactivestreams.Subscriber;
 import uk.co.real_logic.aeron.Publication;
 import uk.co.real_logic.aeron.logbuffer.BufferClaim;
 import uk.co.real_logic.agrona.BitUtil;
@@ -17,22 +18,26 @@ public class AeronServerDuplexConnection implements DuplexConnection, AutoClosea
     private static final ThreadLocal<BufferClaim> bufferClaims = ThreadLocal.withInitial(BufferClaim::new);
 
     private Publication publication;
-    private Subscriber<? super Frame> subscriber;
-    private Publisher<Frame> publisher;
+    private Observer<Frame> observer;
+    private Observable<Frame> observable;
 
     public AeronServerDuplexConnection(
         Publication publication) {
         this.publication = publication;
-        this.publisher = (Subscriber<? super Frame> s) -> subscriber = s;
+        this.observable = new Observable<Frame>() {
+            @Override
+            public void subscribe(Observer<Frame> o) {
+                observer = o;
+            }
+        };
     }
 
-    public Subscriber<? super Frame> getSubscriber() {
-        return subscriber;
+    public Observer<Frame> getSubscriber() {
+        return observer;
     }
 
-    @Override
-    public Publisher<Frame> getInput() {
-        return publisher;
+    public Observable<Frame> getInput() {
+        return observable;
     }
 
     @Override
@@ -72,7 +77,7 @@ public class AeronServerDuplexConnection implements DuplexConnection, AutoClosea
 
     @Override
     public void close() {
-        subscriber.onComplete();
+        observer.onComplete();
         publication.close();
     }
 }

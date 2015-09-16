@@ -1,10 +1,11 @@
 package io.reactivesocket.aeron;
 
+import io.reactivesocket.Completable;
 import io.reactivesocket.ConnectionSetupHandler;
 import io.reactivesocket.Frame;
 import io.reactivesocket.LeaseGovernor;
 import io.reactivesocket.ReactiveSocket;
-import org.reactivestreams.Subscriber;
+import io.reactivesocket.observable.Observer;
 import rx.Scheduler;
 import rx.schedulers.Schedulers;
 import uk.co.real_logic.aeron.Aeron;
@@ -118,7 +119,7 @@ public class ReactiveSocketAeronServer implements AutoCloseable, Loggable {
         if (MessageType.FRAME == type) {
             AeronServerDuplexConnection connection = connections.get(sessionId);
             if (connection != null) {
-                final Subscriber<? super Frame> subscriber = connection.getSubscriber();
+                Observer<Frame> subscriber = connection.getSubscriber();
                 ByteBuffer bytes = ByteBuffer.allocate(length);
                 buffer.getBytes(BitUtil.SIZE_OF_INT + offset, bytes, length);
                 final Frame frame = Frame.from(bytes);
@@ -161,9 +162,36 @@ public class ReactiveSocketAeronServer implements AutoCloseable, Loggable {
 
             sockets.put(sessionId, socket);
 
-            socket.start();
+            CountDownLatch latch = new CountDownLatch(1);
 
 
+            socket.start(new Completable() {
+                @Override
+                public void success() {
+                    latch.countDown();
+                    System.out.println("SERVER --- SUCCESS !!!!!!!");
+                }
+
+                @Override
+                public void error(Throwable e) {
+                    latch.countDown();
+                    System.out.println("SERVER --- NO !!!!!!!");
+                }
+            });
+
+            try {
+                latch.await();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+            System.out.println("SERVER --- SUCCESS !!!!!!!");
+/*
+
+            try {
+                waitForStart.await(30, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }*/
         } else {
             debug("Unsupported stream id {}", streamId);
         }

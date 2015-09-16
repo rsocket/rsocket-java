@@ -46,6 +46,7 @@ public class CompletableSubscription implements Subscriber<Frame> {
 
     @Override
     public void onNext(Frame frame) {
+        System.out.println("SERVER => " + frame.toString());
         final ByteBuffer byteBuffer = frame.getByteBuffer();
         final int length = byteBuffer.capacity() + BitUtil.SIZE_OF_INT;
 
