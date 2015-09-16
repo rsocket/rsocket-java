@@ -67,6 +67,8 @@ public class Requester {
 	private static final long DEFAULT_BATCH = 1024;
 	private static final long REQUEST_THRESHOLD = 256;
 	
+	private volatile boolean requesterStarted = false;
+	
 	private Requester(boolean isServer, DuplexConnection connection, ConnectionSetupPayload setupPayload, Consumer<Throwable> errorStream) {
 		this.isServer = isServer;
 		this.connection = connection;
@@ -140,8 +142,7 @@ public class Requester {
 		if (payload == null) {
 			throw new IllegalStateException("Payload can not be null");
 		}
-		// TODO assert connection is ready (after start() and SETUP frame is sent)
-
+		assertStarted();
 		return new Publisher<Void>() {
 
 			@Override
@@ -195,8 +196,7 @@ public class Requester {
 		if (payload == null) {
 			throw new IllegalArgumentException("Payload can not be null");
 		}
-		// TODO assert connection is ready (after start() and SETUP frame is sent)
-
+		assertStarted();
 		return (Subscriber<? super Void> child) ->
 			child.onSubscribe(new Subscription() {
 
@@ -252,6 +252,13 @@ public class Requester {
 		return startChannel(nextStreamId(), FrameType.REQUEST_CHANNEL, payloadStream);
 	}
 
+	private void assertStarted() {
+		if (!requesterStarted) {
+			throw new IllegalStateException("Requester not initialized. Please await 'start()' completion before submitting requests.");
+		}
+	}
+
+	
 	/**
 	 * Return availability of sending requests
 	 *
@@ -273,6 +280,7 @@ public class Requester {
 	 * Using payload/payloads with null check for efficiency so I don't have to allocate a Publisher for the most common case of single Payload
 	 */
 	private Publisher<Payload> startStream(int streamId, FrameType type, Payload payload) {
+		assertStarted();
 		return (Subscriber<? super Payload> child) -> {
 			child.onSubscribe(new Subscription() {
 
@@ -367,7 +375,7 @@ public class Requester {
 		if (payloads == null) {
 			throw new IllegalStateException("Both payload and payloads can not be null");
 		}
-
+		assertStarted();
 		return (Subscriber<? super Payload> child) -> {
 			child.onSubscribe(new Subscription() {
 
@@ -551,7 +559,7 @@ public class Requester {
 		if (payload == null) {
 			throw new IllegalStateException("Both payload and payloads can not be null");
 		}
-
+		assertStarted();
 		return (Subscriber<? super Payload> child) -> {
 			child.onSubscribe(new Subscription() {
 
@@ -752,6 +760,7 @@ public class Requester {
 							@Override
 							public void success() {
 								onComplete.success();
+								requesterStarted = true;
 							}
 
 							@Override
