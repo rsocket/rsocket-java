@@ -1,13 +1,14 @@
-package io.reactivesocket.aeron;
+package io.reactivesocket.aeron.server;
 
 import io.reactivesocket.Completable;
 import io.reactivesocket.Frame;
+import io.reactivesocket.aeron.internal.Constants;
+import io.reactivesocket.aeron.internal.MessageType;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 import uk.co.real_logic.aeron.Publication;
 import uk.co.real_logic.aeron.logbuffer.BufferClaim;
 import uk.co.real_logic.agrona.BitUtil;
-import uk.co.real_logic.agrona.LangUtil;
 import uk.co.real_logic.agrona.MutableDirectBuffer;
 import uk.co.real_logic.agrona.concurrent.UnsafeBuffer;
 
@@ -115,7 +116,7 @@ public class CompletableSubscription implements Subscriber<Frame> {
         try {
             closeable.close();
         } catch (Exception e) {
-            LangUtil.rethrowUnchecked(e);
+            // ignore
         }
     }
 }

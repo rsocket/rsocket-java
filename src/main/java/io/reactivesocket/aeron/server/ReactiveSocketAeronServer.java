@@ -1,12 +1,13 @@
-package io.reactivesocket.aeron;
+package io.reactivesocket.aeron.server;
 
+import io.reactivesocket.Completable;
 import io.reactivesocket.ConnectionSetupHandler;
-import io.reactivesocket.ConnectionSetupPayload;
 import io.reactivesocket.Frame;
+import io.reactivesocket.LeaseGovernor;
 import io.reactivesocket.ReactiveSocket;
-import io.reactivesocket.RequestHandler;
-import io.reactivesocket.exceptions.SetupException;
-import org.reactivestreams.Subscriber;
+import io.reactivesocket.aeron.internal.Loggable;
+import io.reactivesocket.aeron.internal.MessageType;
+import io.reactivesocket.observable.Observer;
 import rx.Scheduler;
 import rx.schedulers.Schedulers;
 import uk.co.real_logic.aeron.Aeron;
@@ -17,22 +18,21 @@ import uk.co.real_logic.aeron.Subscription;
 import uk.co.real_logic.aeron.logbuffer.Header;
 import uk.co.real_logic.agrona.BitUtil;
 import uk.co.real_logic.agrona.DirectBuffer;
-import uk.co.real_logic.agrona.collections.Int2ObjectHashMap;
-import uk.co.real_logic.agrona.collections.Long2ObjectHashMap;
 
 import java.nio.ByteBuffer;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static io.reactivesocket.aeron.Constants.CLIENT_STREAM_ID;
-import static io.reactivesocket.aeron.Constants.SERVER_STREAM_ID;
+import static io.reactivesocket.aeron.internal.Constants.CLIENT_STREAM_ID;
+import static io.reactivesocket.aeron.internal.Constants.SERVER_STREAM_ID;
 
 public class ReactiveSocketAeronServer implements AutoCloseable, Loggable {
-
     private final Aeron aeron;
 
     private final int port;
 
-    private volatile Int2ObjectHashMap<AeronServerDuplexConnection> connections;
+    private final ConcurrentHashMap<Integer, AeronServerDuplexConnection> connections;
 
     private final Scheduler.Worker worker;
 
@@ -40,25 +40,31 @@ public class ReactiveSocketAeronServer implements AutoCloseable, Loggable {
 
     private volatile boolean running = true;
 
-    private final RequestHandler requestHandler;
+    private final ConnectionSetupHandler connectionSetupHandler;
 
-    private Long2ObjectHashMap<ReactiveSocket> sockets;
+    private final LeaseGovernor leaseGovernor;
 
-    private ReactiveSocketAeronServer(String host, int port, RequestHandler requestHandler) {
+    private final ConcurrentHashMap<Integer, ReactiveSocket> sockets;
+
+    private final CountDownLatch shutdownLatch;
+
+    private ReactiveSocketAeronServer(String host, int port, ConnectionSetupHandler connectionSetupHandler, LeaseGovernor leaseGovernor) {
         this.port = port;
-        this.connections = new Int2ObjectHashMap<>();
-        this.requestHandler = requestHandler;
-        this.sockets = new Long2ObjectHashMap<>();
+        this.connections = new ConcurrentHashMap<>();
+        this.connectionSetupHandler = connectionSetupHandler;
+        this.leaseGovernor = leaseGovernor;
+        this.sockets = new ConcurrentHashMap<>();
+        this.shutdownLatch = new CountDownLatch(1);
 
         final Aeron.Context ctx = new Aeron.Context();
         ctx.newImageHandler(this::newImageHandler);
-        ctx.errorHandler(t -> {
-           t.printStackTrace();
-        });
+        ctx.errorHandler(t ->  error(t.getMessage(), t));
 
         aeron = Aeron.connect(ctx);
 
-        subscription = aeron.addSubscription("udp://" + host + ":" + port, SERVER_STREAM_ID);
+        final String serverChannel =  "udp://" + host + ":" + port;
+        info("Start new ReactiveSocketAeronServer on channel {}", serverChannel);
+        subscription = aeron.addSubscription(serverChannel, SERVER_STREAM_ID);
 
         final FragmentAssembler fragmentAssembler = new FragmentAssembler(this::fragmentHandler);
 
@@ -67,20 +73,29 @@ public class ReactiveSocketAeronServer implements AutoCloseable, Loggable {
 
     }
 
-    public static ReactiveSocketAeronServer create(String host, int port, RequestHandler requestHandler) {
-        return new ReactiveSocketAeronServer(host, port, requestHandler);
+    public static ReactiveSocketAeronServer create(String host, int port, ConnectionSetupHandler connectionSetupHandler, LeaseGovernor leaseGovernor) {
+        return new ReactiveSocketAeronServer(host, port, connectionSetupHandler, leaseGovernor);
     }
 
-    public static ReactiveSocketAeronServer create(int port, RequestHandler requestHandler) {
-        return create("127.0.0.1", port, requestHandler);
+    public static ReactiveSocketAeronServer create(int port, ConnectionSetupHandler connectionSetupHandler, LeaseGovernor leaseGovernor) {
+        return create("127.0.0.1", port, connectionSetupHandler, leaseGovernor);
     }
 
-    public static ReactiveSocketAeronServer create(RequestHandler requestHandler) {
-        return create(39790, requestHandler);
+    public static ReactiveSocketAeronServer create(ConnectionSetupHandler connectionSetupHandler, LeaseGovernor leaseGovernor) {
+        return create(39790, connectionSetupHandler, leaseGovernor);
     }
 
+    public static ReactiveSocketAeronServer create(String host, int port, ConnectionSetupHandler connectionSetupHandler) {
+        return new ReactiveSocketAeronServer(host, port, connectionSetupHandler, LeaseGovernor.NULL_LEASE_GOVERNOR);
+    }
 
-    volatile long start = System.currentTimeMillis();
+    public static ReactiveSocketAeronServer create(int port, ConnectionSetupHandler connectionSetupHandler) {
+        return create("127.0.0.1", port, connectionSetupHandler, LeaseGovernor.NULL_LEASE_GOVERNOR);
+    }
+
+    public static ReactiveSocketAeronServer create(ConnectionSetupHandler connectionSetupHandler) {
+        return create(39790, connectionSetupHandler, LeaseGovernor.NULL_LEASE_GOVERNOR);
+    }
 
     void poll(FragmentAssembler fragmentAssembler) {
        if (running) {
@@ -92,7 +107,9 @@ public class ReactiveSocketAeronServer implements AutoCloseable, Loggable {
                     t.printStackTrace();
                 }
             });
-        }
+        } else {
+           shutdownLatch.countDown();
+       }
     }
 
     void fragmentHandler(DirectBuffer buffer, int offset, int length, Header header) {
@@ -104,7 +121,7 @@ public class ReactiveSocketAeronServer implements AutoCloseable, Loggable {
         if (MessageType.FRAME == type) {
             AeronServerDuplexConnection connection = connections.get(sessionId);
             if (connection != null) {
-                final Subscriber<? super Frame> subscriber = connection.getSubscriber();
+                Observer<Frame> subscriber = connection.getSubscriber();
                 ByteBuffer bytes = ByteBuffer.allocate(length);
                 buffer.getBytes(BitUtil.SIZE_OF_INT + offset, bytes, length);
                 final Frame frame = Frame.from(bytes);
@@ -139,17 +156,25 @@ public class ReactiveSocketAeronServer implements AutoCloseable, Loggable {
                 return new AeronServerDuplexConnection(publication);
             });
             debug("Accepting ReactiveSocket connection");
-            ReactiveSocket socket = ReactiveSocket.fromServerConnection(connection, new ConnectionSetupHandler() {
-                @Override
-                public RequestHandler apply(ConnectionSetupPayload setupPayload) throws SetupException {
-                    return requestHandler;
-                }
-            });
+            ReactiveSocket socket = ReactiveSocket.fromServerConnection(
+                connection,
+                connectionSetupHandler,
+                leaseGovernor,
+                error -> error(error.getMessage(), error));
 
             sockets.put(sessionId, socket);
 
-            socket.start();
+            socket.start(new Completable() {
+                @Override
+                public void success() {
 
+                }
+
+                @Override
+                public void error(Throwable e) {
+
+                }
+            });
         } else {
             debug("Unsupported stream id {}", streamId);
         }
@@ -158,6 +183,9 @@ public class ReactiveSocketAeronServer implements AutoCloseable, Loggable {
     @Override
     public void close() throws Exception {
         running = false;
+
+        shutdownLatch.await(30, TimeUnit.SECONDS);
+
         worker.unsubscribe();
         aeron.close();
 
@@ -165,6 +193,9 @@ public class ReactiveSocketAeronServer implements AutoCloseable, Loggable {
             connection.close();
         }
 
+        for (ReactiveSocket reactiveSocket : sockets.values()) {
+            reactiveSocket.close();
+        }
     }
 
 }
