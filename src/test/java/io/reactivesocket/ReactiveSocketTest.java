@@ -227,6 +227,17 @@ public class ReactiveSocketTest {
 		ts.assertNoErrors();
 		ts.assertValue(TestUtil.utf8EncodedPayload("hello world", null));
 	}
+	
+	@Test(timeout=2000, expected=IllegalStateException.class)
+	public void testRequestResponsePremature() throws InterruptedException {
+		socketClient = ReactiveSocket.fromClientConnection(
+				clientConnection,
+				ConnectionSetupPayload.create("UTF-8", "UTF-8", NO_FLAGS),
+				err -> err.printStackTrace()
+			);
+		
+		Publisher<Payload> response = socketClient.requestResponse(TestUtil.utf8EncodedPayload("hello", null));
+	}
 
 	@Test(timeout=2000)
 	@Theory
