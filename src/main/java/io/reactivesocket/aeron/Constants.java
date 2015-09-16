@@ -9,4 +9,6 @@ final class Constants {
     public static final int CLIENT_STREAM_ID = 2;
 
     public static final byte[] EMTPY = new byte[0];
+
+    public static final int QUEUE_SIZE = Integer.getInteger("framesSendQueueSize", 128);
 }

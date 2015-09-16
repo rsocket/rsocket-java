@@ -3,7 +3,7 @@ package io.reactivesocket.aeron;
 import io.reactivesocket.Completable;
 import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
-import io.reactivesocket.FrameType;
+import io.reactivesocket.internal.EmptyDisposable;
 import io.reactivesocket.observable.Observable;
 import io.reactivesocket.observable.Observer;
 import org.reactivestreams.Publisher;
@@ -21,7 +21,7 @@ public class AeronClientDuplexConnection implements DuplexConnection, AutoClosea
     private ManyToOneConcurrentArrayQueue<FrameHolder> framesSendQueue;
     private AtomicBoolean initialized;
 
-    public AeronClientDuplexConnection(Publication publication, ManyToOneConcurrentArrayQueue<FrameHolder> framesSendQueue, AtomicBoolean initialized) {
+    public AeronClientDuplexConnection(Publication publication, ManyToOneConcurrentArrayQueue<FrameHolder> framesSendQueue) {
 
         System.out.println("publication => " + publication.toString());
         this.publication = publication;
@@ -30,10 +30,9 @@ public class AeronClientDuplexConnection implements DuplexConnection, AutoClosea
             @Override
             public void subscribe(Observer<Frame> o) {
                  observer = o;
+                observer.onSubscribe(new EmptyDisposable());
             }
         };
-
-        this.initialized = initialized;
 
     }
 
@@ -48,30 +47,29 @@ public class AeronClientDuplexConnection implements DuplexConnection, AutoClosea
     @Override
     public void addOutput(Publisher<Frame> o, Completable callback) {
         o.subscribe(new Subscriber<Frame>() {
+            volatile boolean running = true;
+
             @Override
             public void onSubscribe(Subscription s) {
-                s.request(1);
+                s.request(128);
             }
 
             @Override
             public void onNext(Frame frame) {
-                System.out.println("STARTED => " + initialized.get());
-                if (frame.getType() != FrameType.SETUP) {
-                    System.out.println("dropping frame that isn't setup => " + frame.toString());
-                } else {
-                    System.out.println("#### #### #### FOUND THE SETUP FRAME => " + frame.toString());
-                }
+                while (running && !framesSendQueue.offer(new FrameHolder(frame, publication))) {
 
-                //while (!framesSendQueue.offer(new FrameHolder(frame, publication))) {}
+                }
             }
 
             @Override
             public void onError(Throwable t) {
+                running = false;
                 callback.error(t);
             }
 
             @Override
             public void onComplete() {
+                running = false;
                 callback.success();
             }
         });
@@ -79,7 +77,6 @@ public class AeronClientDuplexConnection implements DuplexConnection, AutoClosea
 
     @Override
     public void close() {
-        observer.onComplete();
     }
 }
 

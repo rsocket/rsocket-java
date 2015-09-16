@@ -76,13 +76,13 @@ public class ReactiveSocketAeronTest {
             }
         });
 
-        CountDownLatch latch = new CountDownLatch(10_000);
+        CountDownLatch latch = new CountDownLatch(130);
 
 
         ReactivesocketAeronClient client = ReactivesocketAeronClient.create("localhost", "localhost");
 
         Observable
-            .range(1, 10_000)
+            .range(1, 130)
             .flatMap(i -> {
                     //System.out.println("pinging => " + i);
                     Payload payload = TestUtil.utf8EncodedPayload("ping =>" + i, null);
@@ -96,6 +96,7 @@ public class ReactiveSocketAeronTest {
 
                 @Override
                 public void onError(Throwable e) {
+                    System.out.println("counted to => " + latch.getCount());
                     e.printStackTrace();
                 }
 
@@ -172,7 +173,7 @@ public class ReactiveSocketAeronTest {
 
                         @Override
                         public ByteBuffer getMetadata() {
-                            return null;
+                            return ByteBuffer.allocate(0);
                         }
                     };
                     return  RxReactiveStreams.toObservable(client.requestResponse(payload));

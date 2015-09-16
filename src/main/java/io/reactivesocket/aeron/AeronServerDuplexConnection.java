@@ -3,6 +3,7 @@ package io.reactivesocket.aeron;
 import io.reactivesocket.Completable;
 import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
+import io.reactivesocket.internal.EmptyDisposable;
 import io.reactivesocket.observable.Observable;
 import io.reactivesocket.observable.Observer;
 import org.reactivestreams.Publisher;
@@ -28,6 +29,7 @@ public class AeronServerDuplexConnection implements DuplexConnection, AutoClosea
             @Override
             public void subscribe(Observer<Frame> o) {
                 observer = o;
+                o.onSubscribe(new EmptyDisposable());
             }
         };
     }

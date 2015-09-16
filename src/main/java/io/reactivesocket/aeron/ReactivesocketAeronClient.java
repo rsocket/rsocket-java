@@ -1,5 +1,6 @@
 package io.reactivesocket.aeron;
 
+import com.gs.collections.impl.map.mutable.ConcurrentHashMap;
 import io.reactivesocket.Completable;
 import io.reactivesocket.ConnectionSetupPayload;
 import io.reactivesocket.Frame;
@@ -22,22 +23,20 @@ import uk.co.real_logic.agrona.concurrent.ManyToOneConcurrentArrayQueue;
 import uk.co.real_logic.agrona.concurrent.UnsafeBuffer;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 
 import static io.reactivesocket.aeron.Constants.CLIENT_STREAM_ID;
 import static io.reactivesocket.aeron.Constants.EMTPY;
+import static io.reactivesocket.aeron.Constants.QUEUE_SIZE;
 import static io.reactivesocket.aeron.Constants.SERVER_STREAM_ID;
 
 /**
  * Created by rroeser on 8/13/15.
  */
 public class ReactivesocketAeronClient implements Loggable, AutoCloseable {
-    static final ConcurrentHashMap<Integer, Subscription> subscriptions = new ConcurrentHashMap<>();
+    static volatile Subscription[] subscriptions = new Subscription[0];
 
     static final ConcurrentHashMap<Integer, AeronClientDuplexConnection> connections = new ConcurrentHashMap<>();
 
@@ -75,7 +74,7 @@ public class ReactivesocketAeronClient implements Loggable, AutoCloseable {
                     e.printStackTrace();
                 }
 
-                for (Subscription subscription : subscriptions.values()) {
+                for (Subscription subscription : subscriptions) {
                     subscription.close();
                 }
 
@@ -84,8 +83,7 @@ public class ReactivesocketAeronClient implements Loggable, AutoCloseable {
                 }
             }));
 
-        int queueSize = Integer.getInteger("framesSendQueueSize", 16);
-        framesSendQueue = new ManyToOneConcurrentArrayQueue<>(queueSize);
+        framesSendQueue = new ManyToOneConcurrentArrayQueue<>(QUEUE_SIZE);
         mtuLength = Integer.getInteger("aeron.mtu.length", 4096);
     }
 
@@ -111,25 +109,39 @@ public class ReactivesocketAeronClient implements Loggable, AutoCloseable {
         sessionId = publication.sessionId();
 
         System.out.println("Created a publication for sessionId => " + sessionId);
-        Subscription subscription = subscriptions.get(port);
-
-        if (subscription == null) {
-            synchronized (subscriptions) {
-                System.out.println("Creating a subscription to channel => " + subscriptionChannel);
-                subscription = aeron.addSubscription(subscriptionChannel, CLIENT_STREAM_ID);
-                subscriptions.putIfAbsent(port, subscription);
-                System.out.println("Subscription created to channel => " + subscriptionChannel);
-
-                if (!pollingStarted) {
-                    System.out.println("Polling hasn't started yet - starting polling");
-
-                    final FragmentAssembler fragmentAssembler = new FragmentAssembler(this::fragmentHandler);
-
-                    poll(fragmentAssembler, Schedulers.newThread().createWorker());
-
-                    pollingStarted = true;
+        synchronized (subscriptions) {
+            final Subscription[] old = subscriptions;
+            boolean found = false;
+            int i = 0;
+            while (i < old.length) {
+                String c = old[i].channel();
+                if (c.equals(subscriptionChannel)) {
+                    found = true;
+                    break;
                 }
+                i++;
             }
+
+            if (!found) {
+                System.out.println("Creating a subscription to channel => " + subscriptionChannel);
+                Subscription subscription = aeron.addSubscription(subscriptionChannel, CLIENT_STREAM_ID);
+                final Subscription[] newList = new Subscription[old.length + 1];
+                System.arraycopy(old, 0, newList, 0, old.length);
+                newList[old.length] = subscription;
+                subscriptions = newList;
+                System.out.println("Subscription created to channel => " + subscriptionChannel);
+            }
+
+        }
+
+        if (!pollingStarted) {
+            System.out.println("Polling hasn't started yet - starting polling");
+
+            final FragmentAssembler fragmentAssembler = new FragmentAssembler(this::fragmentHandler);
+
+            poll(fragmentAssembler, Schedulers.newThread().createWorker());
+
+            pollingStarted = true;
         }
 
         establishConnection(publication, sessionId);
@@ -145,100 +157,94 @@ public class ReactivesocketAeronClient implements Loggable, AutoCloseable {
     }
 
     void fragmentHandler(DirectBuffer buffer, int offset, int length, Header header) {
-        int messageTypeInt = buffer.getInt(offset);
-        MessageType messageType = MessageType.from(messageTypeInt);
-        if (messageType == MessageType.FRAME) {
-            final AeronClientDuplexConnection connection = connections.get(header.sessionId());
-            Observer<Frame> subscriber = connection.getSubscriber();
-            final ByteBuffer bytes = ByteBuffer.allocate(length);
-            buffer.getBytes(BitUtil.SIZE_OF_INT + offset, bytes, length);
-            final Frame frame = Frame.from(bytes);
-            subscriber.onNext(frame);
-        } else if (messageType == MessageType.ESTABLISH_CONNECTION_RESPONSE) {
-            final int ackSessionId = buffer.getInt(offset + BitUtil.SIZE_OF_INT);
-            Publication publication = publications.get(ackSessionId);
-            System.out.println(String.format("Received establish connection ack for session id => %d", ackSessionId));
-            System.out.println("ESTABLISH_CONNECTION_RESPONSE publication => " + publication.toString());
-            serverSessionId = header.sessionId();
-            final AeronClientDuplexConnection connection =
-                connections
-                    .computeIfAbsent(serverSessionId, (_p) ->
-                        new AeronClientDuplexConnection(publication, framesSendQueue, initialized));
+        try {
+            int messageTypeInt = buffer.getInt(offset);
+            MessageType messageType = MessageType.from(messageTypeInt);
+            if (messageType == MessageType.FRAME) {
+                final AeronClientDuplexConnection connection = connections.get(header.sessionId());
+                Observer<Frame> subscriber = connection.getSubscriber();
+                final ByteBuffer bytes = ByteBuffer.allocate(length);
+                buffer.getBytes(BitUtil.SIZE_OF_INT + offset, bytes, length);
+                final Frame frame = Frame.from(bytes);
+                subscriber.onNext(frame);
+            } else if (messageType == MessageType.ESTABLISH_CONNECTION_RESPONSE) {
+                final int ackSessionId = buffer.getInt(offset + BitUtil.SIZE_OF_INT);
+                Publication publication = publications.get(ackSessionId);
+                System.out.println(String.format("Received establish connection ack for session id => %d", ackSessionId));
+                serverSessionId = header.sessionId();
+                final AeronClientDuplexConnection connection =
+                    connections
+                        .computeIfAbsent(serverSessionId, (_p) ->
+                            new AeronClientDuplexConnection(publication, framesSendQueue));
 
-            reactiveSocket =  ReactiveSocket.fromClientConnection(
-                connection,
-                ConnectionSetupPayload.create("UTF-8", "UTF-8", ConnectionSetupPayload.NO_FLAGS),
-                err -> err.printStackTrace());
+                reactiveSocket = ReactiveSocket.fromClientConnection(
+                    connection,
+                    ConnectionSetupPayload.create("UTF-8", "UTF-8", ConnectionSetupPayload.NO_FLAGS),
+                    err -> err.printStackTrace());
 
-            reactiveSocket.start(new Completable() {
-                @Override
-                public void success() {
-                    initialized.set(true);
-                    System.out.println("SUCCESSSSSS!!!!!!");
-                }
+                reactiveSocket.start(new Completable() {
+                    @Override
+                    public void success() {
 
-                @Override
-                public void error(Throwable e) {
-                    initialized.set(true);
-                    System.out.println("NOOOOOO!!!!!!");
-                }
-            });
+                    }
 
+                    @Override
+                    public void error(Throwable e) {
 
-            info("ReactiveSocket connected to Aeron session => " + ackSessionId);
-            CountDownLatch latch = establishConnectionLatches.remove(ackSessionId);
+                    }
+                });
 
-            latch.countDown();
-            System.out.println("HERE #*#*#*#*#**#*#*#*#*#*");
+                info("ReactiveSocket connected to Aeron session => " + ackSessionId);
+                CountDownLatch latch = establishConnectionLatches.remove(ackSessionId);
 
-        } else {
-            debug("Unknown message type => " + messageTypeInt);
+                latch.countDown();
+            } else {
+                debug("Unknown message type => " + messageTypeInt);
+            }
+        } catch (Throwable t) {
+            System.out.println("ERROR fragmentHandler");
+            t.printStackTrace();
+            error("error handling framement", t);
         }
     }
-
-    AtomicBoolean initialized = new AtomicBoolean(false);
 
     void poll(FragmentAssembler fragmentAssembler, Scheduler.Worker worker) {
         worker.schedule(() -> {
             while (running) {
                 try {
-
-                    // Pool subscriptions
-                    Collection<Subscription> subscriptions = ReactivesocketAeronClient.subscriptions.values();
-                    if (subscriptions != null) {
-                        subscriptions.forEach(subscription ->
-                                subscription.poll(fragmentAssembler, Integer.MAX_VALUE)
-                        );
-                    }
-
-                    ArrayList<FrameHolder> frames = new ArrayList<>(128);
-
-                    // Drain send queue
                     framesSendQueue
-                        .drainTo(frames, 128);
+                        .drain(new Consumer<FrameHolder>() {
+                            @Override
+                            public void accept(FrameHolder fh) {
+                                Frame frame = fh.getFrame();
+                                final ByteBuffer byteBuffer = frame.getByteBuffer();
+                                final int length = byteBuffer.capacity() + BitUtil.SIZE_OF_INT;
 
-                    frames.forEach(fh -> {
-                        Frame frame = fh.getFrame();
-                        System.out.println("QUEUE FRAME => " + frame.toString());
+                                // If the length is less the MTU size send the message using tryClaim which does not fragment the message
+                                // If the message is larger the the MTU size send it using offer.
+                                if (length < mtuLength) {
+                                    tryClaim(fh.getPublication(), byteBuffer, length);
+                                } else {
+                                    offer(fh.getPublication(), byteBuffer, length);
+                                }
 
-                        final ByteBuffer byteBuffer = frame.getByteBuffer();
-                        final int length = byteBuffer.capacity() + BitUtil.SIZE_OF_INT;
+                                frame.release();
+                            }
+                        });
 
-                        // If the length is less the MTU size send the message using tryClaim which does not fragment the message
-                        // If the message is larger the the MTU size send it using offer.
-                        if (length < mtuLength) {
-                            tryClaim(fh.getPublication(), byteBuffer, length);
-                        } else {
-                            offer(fh.getPublication(), byteBuffer, length);
-                        }
-
-                        frame.release();
-                    });
-
-                    poll(fragmentAssembler, worker);
                 } catch (Throwable t) {
-                    t.printStackTrace();
-                    error(t.getMessage(), t);
+                    error("error draining send frame queue", t);
+                }
+
+                try {
+                    final Subscription[] s = subscriptions;
+                    int i = 0;
+                    while (i < s.length) {
+                        s[i].poll(fragmentAssembler, Integer.MAX_VALUE);
+                        i++;
+                    }
+                } catch (Throwable t) {
+                    error("error polling aeron subscription", t);
                 }
             }
 

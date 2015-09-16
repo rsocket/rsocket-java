@@ -162,36 +162,17 @@ public class ReactiveSocketAeronServer implements AutoCloseable, Loggable {
 
             sockets.put(sessionId, socket);
 
-            CountDownLatch latch = new CountDownLatch(1);
-
-
             socket.start(new Completable() {
                 @Override
                 public void success() {
-                    latch.countDown();
-                    System.out.println("SERVER --- SUCCESS !!!!!!!");
+
                 }
 
                 @Override
                 public void error(Throwable e) {
-                    latch.countDown();
-                    System.out.println("SERVER --- NO !!!!!!!");
+
                 }
             });
-
-            try {
-                latch.await();
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-            System.out.println("SERVER --- SUCCESS !!!!!!!");
-/*
-
-            try {
-                waitForStart.await(30, TimeUnit.SECONDS);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }*/
         } else {
             debug("Unsupported stream id {}", streamId);
         }
