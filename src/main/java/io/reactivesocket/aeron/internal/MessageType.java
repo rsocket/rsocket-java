@@ -1,9 +1,9 @@
-package io.reactivesocket.aeron;
+package io.reactivesocket.aeron.internal;
 
 /**
  * Type of message being sent.
  */
-enum MessageType {
+public enum MessageType {
     ESTABLISH_CONNECTION_REQUEST(0x01),
     ESTABLISH_CONNECTION_RESPONSE(0x02),
     FRAME(0x03);

@@ -1,4 +1,4 @@
-package io.reactivesocket.aeron;
+package io.reactivesocket.aeron.internal;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -8,7 +8,7 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * No more needed to type Logger LOGGER = LoggerFactory.getLogger....
  */
-interface Loggable {
+public interface Loggable {
     default void info(String message, Object... args) {
         logger().debug(message, args);
     }

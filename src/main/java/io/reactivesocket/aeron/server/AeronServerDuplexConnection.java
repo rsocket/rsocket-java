@@ -1,8 +1,10 @@
-package io.reactivesocket.aeron;
+package io.reactivesocket.aeron.server;
 
 import io.reactivesocket.Completable;
 import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
+import io.reactivesocket.aeron.internal.Loggable;
+import io.reactivesocket.aeron.internal.MessageType;
 import io.reactivesocket.internal.EmptyDisposable;
 import io.reactivesocket.observable.Observable;
 import io.reactivesocket.observable.Observer;

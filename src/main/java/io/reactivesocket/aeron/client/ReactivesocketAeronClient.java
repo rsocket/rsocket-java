@@ -1,4 +1,4 @@
-package io.reactivesocket.aeron;
+package io.reactivesocket.aeron.client;
 
 import com.gs.collections.impl.map.mutable.ConcurrentHashMap;
 import io.reactivesocket.Completable;
@@ -6,6 +6,9 @@ import io.reactivesocket.ConnectionSetupPayload;
 import io.reactivesocket.Frame;
 import io.reactivesocket.Payload;
 import io.reactivesocket.ReactiveSocket;
+import io.reactivesocket.aeron.internal.Constants;
+import io.reactivesocket.aeron.internal.Loggable;
+import io.reactivesocket.aeron.internal.MessageType;
 import io.reactivesocket.observable.Observer;
 import org.reactivestreams.Publisher;
 import rx.Scheduler;
@@ -25,12 +28,11 @@ import uk.co.real_logic.agrona.concurrent.UnsafeBuffer;
 import java.nio.ByteBuffer;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
 
-import static io.reactivesocket.aeron.Constants.CLIENT_STREAM_ID;
-import static io.reactivesocket.aeron.Constants.EMTPY;
-import static io.reactivesocket.aeron.Constants.QUEUE_SIZE;
-import static io.reactivesocket.aeron.Constants.SERVER_STREAM_ID;
+import static io.reactivesocket.aeron.internal.Constants.CLIENT_STREAM_ID;
+import static io.reactivesocket.aeron.internal.Constants.EMTPY;
+import static io.reactivesocket.aeron.internal.Constants.QUEUE_SIZE;
+import static io.reactivesocket.aeron.internal.Constants.SERVER_STREAM_ID;
 
 /**
  * Created by rroeser on 8/13/15.
@@ -44,7 +46,7 @@ public class ReactivesocketAeronClient implements Loggable, AutoCloseable {
 
     static final ConcurrentHashMap<Integer, Publication> publications = new ConcurrentHashMap<>();
 
-    private ReactiveSocket reactiveSocket;
+    static final ConcurrentHashMap<Integer, ReactiveSocket> reactiveSockets = new ConcurrentHashMap<>();
 
     private final Aeron aeron;
 
@@ -170,14 +172,14 @@ public class ReactivesocketAeronClient implements Loggable, AutoCloseable {
             } else if (messageType == MessageType.ESTABLISH_CONNECTION_RESPONSE) {
                 final int ackSessionId = buffer.getInt(offset + BitUtil.SIZE_OF_INT);
                 Publication publication = publications.get(ackSessionId);
-                System.out.println(String.format("Received establish connection ack for session id => %d", ackSessionId));
                 serverSessionId = header.sessionId();
+                System.out.println(String.format("Received establish connection ack for session id => %d, and server session id => %d", ackSessionId, serverSessionId));
                 final AeronClientDuplexConnection connection =
                     connections
                         .computeIfAbsent(serverSessionId, (_p) ->
                             new AeronClientDuplexConnection(publication, framesSendQueue));
 
-                reactiveSocket = ReactiveSocket.fromClientConnection(
+                ReactiveSocket reactiveSocket = ReactiveSocket.fromClientConnection(
                     connection,
                     ConnectionSetupPayload.create("UTF-8", "UTF-8", ConnectionSetupPayload.NO_FLAGS),
                     err -> err.printStackTrace());
@@ -193,6 +195,8 @@ public class ReactivesocketAeronClient implements Loggable, AutoCloseable {
 
                     }
                 });
+
+                reactiveSockets.putIfAbsent(ackSessionId, reactiveSocket);
 
                 info("ReactiveSocket connected to Aeron session => " + ackSessionId);
                 CountDownLatch latch = establishConnectionLatches.remove(ackSessionId);
@@ -211,30 +215,26 @@ public class ReactivesocketAeronClient implements Loggable, AutoCloseable {
     void poll(FragmentAssembler fragmentAssembler, Scheduler.Worker worker) {
         worker.schedule(() -> {
             while (running) {
-                try {
-                    framesSendQueue
-                        .drain(new Consumer<FrameHolder>() {
-                            @Override
-                            public void accept(FrameHolder fh) {
-                                Frame frame = fh.getFrame();
-                                final ByteBuffer byteBuffer = frame.getByteBuffer();
-                                final int length = byteBuffer.capacity() + BitUtil.SIZE_OF_INT;
+                framesSendQueue
+                    .drain((FrameHolder fh) -> {
+                        try {
+                            Frame frame = fh.getFrame();
+                            final ByteBuffer byteBuffer = frame.getByteBuffer();
+                            final int length = byteBuffer.capacity() + BitUtil.SIZE_OF_INT;
 
-                                // If the length is less the MTU size send the message using tryClaim which does not fragment the message
-                                // If the message is larger the the MTU size send it using offer.
-                                if (length < mtuLength) {
-                                    tryClaim(fh.getPublication(), byteBuffer, length);
-                                } else {
-                                    offer(fh.getPublication(), byteBuffer, length);
-                                }
-
-                                frame.release();
+                            // If the length is less the MTU size send the message using tryClaim which does not fragment the message
+                            // If the message is larger the the MTU size send it using offer.
+                            if (length < mtuLength) {
+                                tryClaim(fh.getPublication(), byteBuffer, length);
+                            } else {
+                                offer(fh.getPublication(), byteBuffer, length);
                             }
-                        });
-
-                } catch (Throwable t) {
-                    error("error draining send frame queue", t);
-                }
+                        } catch (Throwable t) {
+                            error("error draining send frame queue", t);
+                        } finally {
+                            fh.release();
+                        }
+                    });
 
                 try {
                     final Subscription[] s = subscriptions;
@@ -335,19 +335,59 @@ public class ReactivesocketAeronClient implements Loggable, AutoCloseable {
     }
 
     public Publisher<Payload> requestResponse(Payload payload) {
+        ReactiveSocket reactiveSocket = reactiveSockets.get(sessionId);
         return reactiveSocket.requestResponse(payload);
     }
 
     public Publisher<Void> fireAndForget(Payload payload) {
+        ReactiveSocket reactiveSocket = reactiveSockets.get(sessionId);
         return reactiveSocket.fireAndForget(payload);
     }
 
     public Publisher<Payload> requestStream(Payload payload) {
+        ReactiveSocket reactiveSocket = reactiveSockets.get(sessionId);
         return reactiveSocket.requestStream(payload);
     }
 
     public Publisher<Payload> requestSubscription(Payload payload) {
+        ReactiveSocket reactiveSocket = reactiveSockets.get(sessionId);
         return reactiveSocket.requestSubscription(payload);
+    }
+
+    public static boolean isRunning() {
+        return running;
+    }
+
+    public static void setRunning(boolean running) {
+        ReactivesocketAeronClient.running = running;
+    }
+
+    public int getSessionId() {
+        return sessionId;
+    }
+
+    public void setSessionId(int sessionId) {
+        this.sessionId = sessionId;
+    }
+
+    public int getPort() {
+        return port;
+    }
+
+    public int getServerSessionId() {
+        return serverSessionId;
+    }
+
+    public void setServerSessionId(int serverSessionId) {
+        this.serverSessionId = serverSessionId;
+    }
+
+    public static boolean isPollingStarted() {
+        return pollingStarted;
+    }
+
+    public static void setPollingStarted(boolean pollingStarted) {
+        ReactivesocketAeronClient.pollingStarted = pollingStarted;
     }
 
     @Override
@@ -361,7 +401,7 @@ public class ReactivesocketAeronClient implements Loggable, AutoCloseable {
 
         // Close the different connections
         closeQuietly(connection);
-        closeQuietly(reactiveSocket);
+        closeQuietly(reactiveSockets.get(sessionId));
         System.out.println("closing publication => " + publications.get(sessionId).toString());
         Publication publication = publications.remove(sessionId);
         closeQuietly(publication);

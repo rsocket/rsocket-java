@@ -1,10 +1,12 @@
-package io.reactivesocket.aeron;
+package io.reactivesocket.aeron.server;
 
 import io.reactivesocket.Completable;
 import io.reactivesocket.ConnectionSetupHandler;
 import io.reactivesocket.Frame;
 import io.reactivesocket.LeaseGovernor;
 import io.reactivesocket.ReactiveSocket;
+import io.reactivesocket.aeron.internal.Loggable;
+import io.reactivesocket.aeron.internal.MessageType;
 import io.reactivesocket.observable.Observer;
 import rx.Scheduler;
 import rx.schedulers.Schedulers;
@@ -22,8 +24,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static io.reactivesocket.aeron.Constants.CLIENT_STREAM_ID;
-import static io.reactivesocket.aeron.Constants.SERVER_STREAM_ID;
+import static io.reactivesocket.aeron.internal.Constants.CLIENT_STREAM_ID;
+import static io.reactivesocket.aeron.internal.Constants.SERVER_STREAM_ID;
 
 public class ReactiveSocketAeronServer implements AutoCloseable, Loggable {
     private final Aeron aeron;

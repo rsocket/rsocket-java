@@ -1,6 +1,6 @@
-package io.reactivesocket.aeron;
+package io.reactivesocket.aeron.internal;
 
-final class Constants {
+public final class Constants {
 
     private Constants() {}
 
