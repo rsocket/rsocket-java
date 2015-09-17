@@ -85,7 +85,7 @@ public class ReactiveSocketAeronTest {
         Observable
             .range(1, 130)
             .flatMap(i -> {
-                    //System.out.println("pinging => " + i);
+                    System.out.println("pinging => " + i);
                     Payload payload = TestUtil.utf8EncodedPayload("ping =>" + i, null);
                     return RxReactiveStreams.toObservable(client.requestResponse(payload));
                 }

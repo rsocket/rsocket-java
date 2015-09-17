@@ -183,18 +183,25 @@ public class ReactivesocketAeronClient  implements Loggable, AutoCloseable {
 
     void fragmentHandler(int magicNumber, DirectBuffer buffer, int offset, int length, Header header) {
 
-        //LockSupport.parkNanos(TimeUnit.SECONDS.toNanos(1));
-        final int currentMagic = Math.abs((int) header.position() % NUM_PROCESSORS);
-        if (currentMagic != magicNumber) {
-           // System.out.println("NO LUV Thread => " + Thread.currentThread() + ", currentMagic => " + currentMagic + ", magicNumber => " + magicNumber + ", postion => " + header.position());
-            return;
-        }
-
-        //System.out.println("WOOOOHOOOOOO Thread => " + Thread.currentThread() + ", currentMagic => " + currentMagic + ", magicNumber => " + magicNumber + ", postion => " + header.position());
-
         try {
-            int messageTypeInt = buffer.getInt(offset);
+            short messageCount = buffer.getShort(offset);
+            short messageTypeInt  = buffer.getShort(offset + BitUtil.SIZE_OF_SHORT);
+            final int currentMagic = Math.abs(messageCount % NUM_PROCESSORS);
             MessageType messageType = MessageType.from(messageTypeInt);
+
+            StringBuilder sb = new StringBuilder();
+
+            sb.append(Thread.currentThread() + " messageTypeInt => " + messageTypeInt).append('\n');
+            sb.append(Thread.currentThread() + " messageCount => " + messageCount).append('\n');
+            sb.append(Thread.currentThread() + " message type => " + messageType).append('\n');
+
+            System.out.println(sb.toString());
+
+            LockSupport.parkNanos(TimeUnit.SECONDS.toNanos(1));
+            if (currentMagic != magicNumber) {
+                return;
+            }
+
             if (messageType == MessageType.FRAME) {
                 final AeronClientDuplexConnection connection = connections.get(header.sessionId());
                 Observer<Frame> subscriber = connection.getSubscriber();
@@ -301,12 +308,12 @@ public class ReactivesocketAeronClient  implements Loggable, AutoCloseable {
                                 fragmentHandler(magicNumber, buffer, offset, length, header));
 
 
-                        //System.out.println("processing subscriptions => " + magicNumber);
-                        //LockSupport.parkNanos(TimeUnit.SECONDS.toNanos(1));
+                        System.out.println("processing subscriptions => " + magicNumber);
+                        LockSupport.parkNanos(TimeUnit.SECONDS.toNanos(1));
                         SUBSCRIPTION_GROUPS
                             .forEach(subscriptionGroup -> {
-                                //System.out.println("processing subscriptions in foreach => " + magicNumber);
-                                //LockSupport.parkNanos(TimeUnit.SECONDS.toNanos(1));
+                                System.out.println("processing subscriptions in foreach => " + magicNumber);
+                                LockSupport.parkNanos(TimeUnit.SECONDS.toNanos(1));
                                 Subscription subscription = subscriptionGroup.subscriptions[magicNumber];
                                 subscription.poll(fragmentAssembler, Integer.MAX_VALUE);
                             });
@@ -336,7 +343,9 @@ public class ReactivesocketAeronClient  implements Loggable, AutoCloseable {
         final byte[] bytes = new byte[length];
         final UnsafeBuffer unsafeBuffer = unsafeBuffers.get();
         unsafeBuffer.wrap(bytes);
-        unsafeBuffer.putInt(0, MessageType.FRAME.getEncodedType());
+
+        unsafeBuffer.putShort(0, (short) 0);
+        unsafeBuffer.putShort(BitUtil.SIZE_OF_SHORT, (short) MessageType.FRAME.getEncodedType());
         unsafeBuffer.putBytes(BitUtil.SIZE_OF_INT, byteBuffer, byteBuffer.capacity());
         do {
             final long offer = publication.offer(unsafeBuffer);
@@ -357,7 +366,8 @@ public class ReactivesocketAeronClient  implements Loggable, AutoCloseable {
                 try {
                     final MutableDirectBuffer buffer = bufferClaim.buffer();
                     final int offset = bufferClaim.offset();
-                    buffer.putInt(offset, MessageType.FRAME.getEncodedType());
+                    buffer.putShort(offset, (short) 0);
+                    buffer.putShort(offset + BitUtil.SIZE_OF_SHORT, (short) MessageType.FRAME.getEncodedType());
                     buffer.putBytes(offset + BitUtil.SIZE_OF_INT, byteBuffer, 0, byteBuffer.capacity());
                 } finally {
                     bufferClaim.commit();
@@ -379,7 +389,8 @@ public class ReactivesocketAeronClient  implements Loggable, AutoCloseable {
         try {
             final UnsafeBuffer buffer = new UnsafeBuffer(EMTPY);
             buffer.wrap(new byte[BitUtil.SIZE_OF_INT]);
-            buffer.putInt(0, MessageType.ESTABLISH_CONNECTION_REQUEST.getEncodedType());
+            buffer.putShort(0, (short) 0);
+            buffer.putShort(BitUtil.SIZE_OF_SHORT, (short) MessageType.ESTABLISH_CONNECTION_REQUEST.getEncodedType());
 
             CountDownLatch latch = new CountDownLatch(1);
             establishConnectionLatches.put(sessionId, latch);

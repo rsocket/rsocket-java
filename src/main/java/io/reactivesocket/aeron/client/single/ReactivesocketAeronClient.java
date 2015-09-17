@@ -160,7 +160,7 @@ public class ReactivesocketAeronClient implements Loggable, AutoCloseable {
 
     void fragmentHandler(DirectBuffer buffer, int offset, int length, Header header) {
         try {
-            int messageTypeInt = buffer.getInt(offset);
+            short messageTypeInt = buffer.getShort(offset + BitUtil.SIZE_OF_SHORT);
             MessageType messageType = MessageType.from(messageTypeInt);
             if (messageType == MessageType.FRAME) {
                 final AeronClientDuplexConnection connection = connections.get(header.sessionId());

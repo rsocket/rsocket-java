@@ -67,7 +67,9 @@ public class AeronServerDuplexConnection implements DuplexConnection, AutoClosea
                 try {
                     final MutableDirectBuffer buffer = bufferClaim.buffer();
                     final int offset = bufferClaim.offset();
-                    buffer.putInt(offset, MessageType.ESTABLISH_CONNECTION_RESPONSE.getEncodedType());
+
+                    buffer.putShort(offset, (short) 0);
+                    buffer.putShort(offset + BitUtil.SIZE_OF_SHORT, (short) MessageType.ESTABLISH_CONNECTION_RESPONSE.getEncodedType());
                     buffer.putInt(offset + BitUtil.SIZE_OF_INT, ackSessionId);
                 } finally {
                     bufferClaim.commit();

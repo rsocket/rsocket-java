@@ -31,6 +31,12 @@ public class CompletableSubscription implements Subscriber<Frame> {
 
     private final int mtuLength;
 
+    private volatile static short count = 1;
+
+    public short getAndIncrement() {
+        return count++;
+    }
+
     public CompletableSubscription(Publication publication, Completable completable, AutoCloseable closeable) {
         this.publication = publication;
         this.completable = completable;
@@ -74,7 +80,8 @@ public class CompletableSubscription implements Subscriber<Frame> {
         final byte[] bytes = new byte[length];
         final UnsafeBuffer unsafeBuffer = unsafeBuffers.get();
         unsafeBuffer.wrap(bytes);
-        unsafeBuffer.putInt(0, MessageType.FRAME.getEncodedType());
+        unsafeBuffer.putShort(0, getAndIncrement());
+        unsafeBuffer.putShort(BitUtil.SIZE_OF_SHORT, (short)  MessageType.FRAME.getEncodedType());
         unsafeBuffer.putBytes(BitUtil.SIZE_OF_INT, byteBuffer, byteBuffer.capacity());
         do {
             final long offer = publication.offer(unsafeBuffer);
@@ -97,7 +104,9 @@ public class CompletableSubscription implements Subscriber<Frame> {
                 try {
                     final MutableDirectBuffer buffer = bufferClaim.buffer();
                     final int offset = bufferClaim.offset();
-                    buffer.putInt(offset, MessageType.FRAME.getEncodedType());
+                    System.out.println("server count => " + count);
+                    buffer.putShort(offset, getAndIncrement());
+                    buffer.putShort(offset + BitUtil.SIZE_OF_SHORT, (short) MessageType.FRAME.getEncodedType());
                     buffer.putBytes(offset + BitUtil.SIZE_OF_INT, byteBuffer, 0, byteBuffer.capacity());
                 } finally {
                     bufferClaim.commit();

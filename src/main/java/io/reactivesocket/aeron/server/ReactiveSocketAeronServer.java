@@ -115,7 +115,7 @@ public class ReactiveSocketAeronServer implements AutoCloseable, Loggable {
     void fragmentHandler(DirectBuffer buffer, int offset, int length, Header header) {
         final int sessionId = header.sessionId();
 
-        int messageTypeInt = buffer.getInt(offset);
+        short messageTypeInt = buffer.getShort(offset + BitUtil.SIZE_OF_SHORT);
         MessageType type = MessageType.from(messageTypeInt);
 
         if (MessageType.FRAME == type) {
