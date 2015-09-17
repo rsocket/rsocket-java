@@ -1,4 +1,4 @@
-package io.reactivesocket.aeron.client;
+package io.reactivesocket.aeron.client.single;
 
 import io.reactivesocket.ConnectionSetupHandler;
 import io.reactivesocket.ConnectionSetupPayload;

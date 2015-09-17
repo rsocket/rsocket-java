@@ -11,4 +11,7 @@ public final class Constants {
     public static final byte[] EMTPY = new byte[0];
 
     public static final int QUEUE_SIZE = Integer.getInteger("framesSendQueueSize", 128);
+
+    public static final int MULTI_THREADED_SPIN_LIMIT = Integer.getInteger("multiSpinLimit", 100);
+
 }

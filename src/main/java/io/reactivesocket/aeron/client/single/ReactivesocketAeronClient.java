@@ -1,4 +1,4 @@
-package io.reactivesocket.aeron.client;
+package io.reactivesocket.aeron.client.single;
 
 import com.gs.collections.impl.map.mutable.ConcurrentHashMap;
 import io.reactivesocket.Completable;

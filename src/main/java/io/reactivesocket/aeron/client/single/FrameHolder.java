@@ -1,4 +1,4 @@
-package io.reactivesocket.aeron.client;
+package io.reactivesocket.aeron.client.single;
 
 import io.reactivesocket.Frame;
 import io.reactivesocket.aeron.internal.Constants;
