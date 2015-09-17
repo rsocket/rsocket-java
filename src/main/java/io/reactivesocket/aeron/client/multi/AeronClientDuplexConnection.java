@@ -16,6 +16,8 @@ import rx.Scheduler;
 import rx.schedulers.Schedulers;
 import uk.co.real_logic.aeron.Publication;
 
+import java.util.concurrent.atomic.AtomicLong;
+
 public class AeronClientDuplexConnection implements DuplexConnection, AutoCloseable {
     private Publication publication;
     private Observer<Frame> observer;
@@ -23,9 +25,9 @@ public class AeronClientDuplexConnection implements DuplexConnection, AutoClosea
     private ManyToManyConcurrentArrayQueue<FrameHolder> framesSendQueue;
     private Scheduler.Worker worker;
 
-    public AeronClientDuplexConnection(Publication publication, ManyToManyConcurrentArrayQueue<FrameHolder> framesSendQueue) {
+    public AeronClientDuplexConnection(Publication publication) {
         this.publication = publication;
-        this.framesSendQueue = framesSendQueue;
+        this.framesSendQueue = new ManyToManyConcurrentArrayQueue<>(128);
         this.observable = (Observer<Frame> o) -> {
             observer = o;
             observer.onSubscribe(new EmptyDisposable());
@@ -38,9 +40,12 @@ public class AeronClientDuplexConnection implements DuplexConnection, AutoClosea
         return observer;
     }
 
+    @Override
     public Observable<Frame> getInput() {
         return observable;
     }
+
+    static final AtomicLong count = new AtomicLong();
 
     @Override
     public void addOutput(Publisher<Frame> o, Completable callback) {
@@ -57,12 +62,15 @@ public class AeronClientDuplexConnection implements DuplexConnection, AutoClosea
             public void onNext(final Frame frame) {
                 final FrameHolder frameHolder =  FrameHolder.get(frame, publication);
                 int limit = Constants.MULTI_THREADED_SPIN_LIMIT;
-                while (running && !framesSendQueue.offer(frameHolder)) {
+                if (running && !framesSendQueue.offer(frameHolder)) {
                     if (--limit < 0) {
                         worker.schedule(() ->  onNext(frame));
                     }
                 }
-                s.request(framesSendQueue.remainingCapacity() + 1);
+
+                final int r = framesSendQueue.remainingCapacity() + 1;
+                s.request(r);
+
             }
 
             @Override
@@ -77,6 +85,10 @@ public class AeronClientDuplexConnection implements DuplexConnection, AutoClosea
                 callback.success();
             }
         });
+    }
+
+    public ManyToManyConcurrentArrayQueue<FrameHolder> getFramesSendQueue() {
+        return framesSendQueue;
     }
 
     @Override
