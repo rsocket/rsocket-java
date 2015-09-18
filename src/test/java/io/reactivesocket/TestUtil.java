@@ -55,7 +55,7 @@ public class TestUtil
 
     public static String byteToString(final ByteBuffer byteBuffer)
     {
-        final byte[] bytes = new byte[byteBuffer.capacity()];
+        final byte[] bytes = new byte[byteBuffer.remaining()];
         byteBuffer.get(bytes);
         return new String(bytes, Charset.forName("UTF-8"));
     }

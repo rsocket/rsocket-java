@@ -31,7 +31,7 @@ public class PayloadReassembler implements Subscriber<Frame>
         this.child = child;
     }
 
-    public PayloadReassembler with(final Subscriber<? super Payload> child)
+    public static PayloadReassembler with(final Subscriber<? super Payload> child)
     {
         return new PayloadReassembler(child);
     }
@@ -71,9 +71,10 @@ public class PayloadReassembler implements Subscriber<Frame>
             if (null == payloadBuilder)
             {
                 payloadBuilder = new PayloadBuilder();
-                payloadBuilder.append(frame);
                 payloadByStreamId.put(streamId, payloadBuilder);
             }
+
+            payloadBuilder.append(frame);
         }
     }
 
