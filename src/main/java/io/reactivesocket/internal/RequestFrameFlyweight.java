@@ -55,7 +55,7 @@ public class RequestFrameFlyweight
     {
         final int frameLength = computeFrameLength(type, metadata.capacity(), data.capacity());
 
-        flags = FLAGS_REQUEST_CHANNEL_N;
+        flags |= FLAGS_REQUEST_CHANNEL_N;
         int length = FrameHeaderFlyweight.encodeFrameHeader(mutableDirectBuffer, offset, frameLength, flags, type, streamId);
 
         mutableDirectBuffer.putInt(offset + INITIAL_REQUEST_N_FIELD_OFFSET, initialRequestN, ByteOrder.BIG_ENDIAN);
