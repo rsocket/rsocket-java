@@ -32,6 +32,8 @@ import static java.lang.System.getProperty;
 public class Frame implements Payload
 {
     public static final ByteBuffer NULL_BYTEBUFFER = FrameHeaderFlyweight.NULL_BYTEBUFFER;
+    public static final int DATA_MTU = 32 * 1024;
+    public static final int METADATA_MTU = 32 * 1024;
 
     /*
      * ThreadLocal handling in the pool itself. We don't have a per thread pool at this level.
@@ -139,6 +141,16 @@ public class Frame implements Payload
     }
 
     /**
+     * Return the flags field for the frame
+     *
+     * @return frame flags field value
+     */
+    public int flags()
+    {
+        return FrameHeaderFlyweight.flags(directBuffer, offset);
+    }
+
+    /**
      * Mutates this Frame to contain the given ByteBuffer
      * 
      * @param byteBuffer to wrap
@@ -224,7 +236,7 @@ public class Frame implements Payload
         this.directBuffer =
             POOL.acquireMutableDirectBuffer(FrameHeaderFlyweight.computeFrameHeaderLength(type, 0, data.capacity()));
 
-        this.length = FrameHeaderFlyweight.encode(this.directBuffer, offset, streamId, type, NULL_BYTEBUFFER, data);
+        this.length = FrameHeaderFlyweight.encode(this.directBuffer, offset, streamId, 0, type, NULL_BYTEBUFFER, data);
     }
 
     /* TODO:
@@ -389,11 +401,11 @@ public class Frame implements Payload
 
             if (type.hasInitialRequestN())
             {
-                frame.length = RequestFrameFlyweight.encode(frame.directBuffer, frame.offset, streamId, type, initialRequestN, md, d);
+                frame.length = RequestFrameFlyweight.encode(frame.directBuffer, frame.offset, streamId, 0, type, initialRequestN, md, d);
             }
             else
             {
-                frame.length = RequestFrameFlyweight.encode(frame.directBuffer, frame.offset, streamId, type, md, d);
+                frame.length = RequestFrameFlyweight.encode(frame.directBuffer, frame.offset, streamId, 0, type, md, d);
             }
 
             return frame;
@@ -403,8 +415,17 @@ public class Frame implements Payload
         {
             final Frame frame = POOL.acquireFrame(RequestFrameFlyweight.computeFrameLength(type, 0, 0));
 
-            frame.length = RequestFrameFlyweight.encode(frame.directBuffer, frame.offset, streamId, type, flags);
+            frame.length = RequestFrameFlyweight.encode(frame.directBuffer, frame.offset, streamId, flags, type, NULL_BYTEBUFFER, NULL_BYTEBUFFER);
             return frame;
+        }
+
+        public static Frame from(int streamId, FrameType type, ByteBuffer metadata, ByteBuffer data, int initialRequestN, int flags)
+        {
+            final Frame frame = POOL.acquireFrame(RequestFrameFlyweight.computeFrameLength(type, metadata.capacity(), data.capacity()));
+
+            frame.length = RequestFrameFlyweight.encode(frame.directBuffer, frame.offset, streamId, flags, type, initialRequestN, NULL_BYTEBUFFER, NULL_BYTEBUFFER);
+            return frame;
+
         }
 
         public static long initialRequestN(final Frame frame)
@@ -452,7 +473,16 @@ public class Frame implements Payload
             final Frame frame =
                 POOL.acquireFrame(FrameHeaderFlyweight.computeFrameHeaderLength(type, metadata.capacity(), data.capacity()));
 
-            frame.length = FrameHeaderFlyweight.encode(frame.directBuffer, frame.offset, streamId, type, metadata, data);
+            frame.length = FrameHeaderFlyweight.encode(frame.directBuffer, frame.offset, streamId, 0, type, metadata, data);
+            return frame;
+        }
+
+        public static Frame from(int streamId, FrameType type, ByteBuffer metadata, ByteBuffer data, int flags)
+        {
+            final Frame frame =
+                POOL.acquireFrame(FrameHeaderFlyweight.computeFrameHeaderLength(type, metadata.capacity(), data.capacity()));
+
+            frame.length = FrameHeaderFlyweight.encode(frame.directBuffer, frame.offset, streamId, flags, type, metadata, data);
             return frame;
         }
 
@@ -462,7 +492,7 @@ public class Frame implements Payload
                 POOL.acquireFrame(FrameHeaderFlyweight.computeFrameHeaderLength(type, 0, 0));
 
             frame.length = FrameHeaderFlyweight.encode(
-                frame.directBuffer, frame.offset, streamId, type, Frame.NULL_BYTEBUFFER, Frame.NULL_BYTEBUFFER);
+                frame.directBuffer, frame.offset, streamId, 0, type, Frame.NULL_BYTEBUFFER, Frame.NULL_BYTEBUFFER);
             return frame;
         }
     }
@@ -475,7 +505,7 @@ public class Frame implements Payload
                 POOL.acquireFrame(FrameHeaderFlyweight.computeFrameHeaderLength(FrameType.CANCEL, 0, 0));
 
             frame.length = FrameHeaderFlyweight.encode(
-                frame.directBuffer, frame.offset, streamId, FrameType.CANCEL, Frame.NULL_BYTEBUFFER, Frame.NULL_BYTEBUFFER);
+                frame.directBuffer, frame.offset, streamId, 0, FrameType.CANCEL, Frame.NULL_BYTEBUFFER, Frame.NULL_BYTEBUFFER);
             return frame;
         }
     }
@@ -490,7 +520,7 @@ public class Frame implements Payload
             final int flags = (respond ? FrameHeaderFlyweight.FLAGS_KEEPALIVE_R : 0);
 
             frame.length = FrameHeaderFlyweight.encode(
-                frame.directBuffer, frame.offset, flags, FrameType.KEEPALIVE, Frame.NULL_BYTEBUFFER, data);
+                frame.directBuffer, frame.offset, 0, flags, FrameType.KEEPALIVE, Frame.NULL_BYTEBUFFER, data);
 
             return frame;
         }

@@ -54,8 +54,10 @@ public class FrameHeaderFlyweight
 
     public static final int FLAGS_KEEPALIVE_R = 0b0010_0000_0000_0000;
 
-    private static final int FLAGS_RESPONSE_F = 0b0010_0000_0000_0000;
-    private static final int FLAGS_RESPONSE_C = 0b0001_0000_0000_0000;
+    public static final int FLAGS_RESPONSE_F = 0b0010_0000_0000_0000;
+    public static final int FLAGS_RESPONSE_C = 0b0001_0000_0000_0000;
+
+    public static final int FLAGS_REQUEST_CHANNEL_F = 0b0010_0000_0000_0000;
 
     static
     {
@@ -144,6 +146,7 @@ public class FrameHeaderFlyweight
         final MutableDirectBuffer mutableDirectBuffer,
         final int offset,
         final int streamId,
+        int flags,
         final FrameType frameType,
         final ByteBuffer metadata,
         final ByteBuffer data)
@@ -151,7 +154,6 @@ public class FrameHeaderFlyweight
         final int frameLength = computeFrameHeaderLength(frameType, metadata.capacity(), data.capacity());
 
         final FrameType outFrameType;
-        int flags = 0;
 
         switch (frameType)
         {
