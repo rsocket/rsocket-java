@@ -763,8 +763,8 @@ public class Requester {
 	
 								@Override
 								public void success() {
-									onComplete.success();
 									requesterStarted = true;
+									onComplete.success();
 								}
 	
 								@Override
