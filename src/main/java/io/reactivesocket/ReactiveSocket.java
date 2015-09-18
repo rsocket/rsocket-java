@@ -242,9 +242,7 @@ public class ReactiveSocket implements AutoCloseable {
 			Completable both = new Completable() {
 
 				// wait for 2 success, or 1 error to pass on
-
 				AtomicInteger count = new AtomicInteger();
-				volatile Throwable error = null;
 
 				@Override
 				public void success() {
@@ -255,7 +253,6 @@ public class ReactiveSocket implements AutoCloseable {
 
 				@Override
 				public void error(Throwable e) {
-					error = e;
 					c.error(e);
 				}
 
