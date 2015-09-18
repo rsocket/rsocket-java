@@ -224,11 +224,16 @@ public class ReactiveSocket implements AutoCloseable {
 					errorStream,
 					c,
 					setupPayload -> {
-						requester = Requester.createServerRequester(new ConnectionFilter(connection, ConnectionFilter.STREAMS.FROM_SERVER_ODD), setupPayload, errorStream, new Completable() {
+						Completable two = new Completable() {
+
+							// wait for 2 success, or 1 error to pass on
+							AtomicInteger count = new AtomicInteger();
 
 							@Override
 							public void success() {
-								requesterReady.success();
+								if (count.incrementAndGet() == 2) {
+									requesterReady.success();
+								}
 							}
 
 							@Override
@@ -236,7 +241,9 @@ public class ReactiveSocket implements AutoCloseable {
 								requesterReady.error(e);
 							}
 
-						});
+						};
+						requester = Requester.createServerRequester(new ConnectionFilter(connection, ConnectionFilter.STREAMS.FROM_SERVER_ODD), setupPayload, errorStream, two);
+						two.success(); // now that the reference is assigned in case of synchronous setup
 					});
 		} else {
 			Completable both = new Completable() {
