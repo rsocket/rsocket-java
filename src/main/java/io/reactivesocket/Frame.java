@@ -423,7 +423,7 @@ public class Frame implements Payload
         {
             final Frame frame = POOL.acquireFrame(RequestFrameFlyweight.computeFrameLength(type, metadata.capacity(), data.capacity()));
 
-            frame.length = RequestFrameFlyweight.encode(frame.directBuffer, frame.offset, streamId, flags, type, initialRequestN, NULL_BYTEBUFFER, NULL_BYTEBUFFER);
+            frame.length = RequestFrameFlyweight.encode(frame.directBuffer, frame.offset, streamId, flags, type, initialRequestN, metadata, data);
             return frame;
 
         }

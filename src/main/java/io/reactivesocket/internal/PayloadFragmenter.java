@@ -76,10 +76,10 @@ public class PayloadFragmenter implements Iterator<Frame>
         Frame result = null;
 
         final ByteBuffer metadataBuffer = metadataLength > 0 ?
-            ByteBufferUtil.preservingSlice(metadata, metadataOffset, metadataOffset + metadataLength) : null;
+            ByteBufferUtil.preservingSlice(metadata, metadataOffset, metadataOffset + metadataLength) : Frame.NULL_BYTEBUFFER;
 
         final ByteBuffer dataBuffer = dataLength > 0 ?
-            ByteBufferUtil.preservingSlice(data, dataOffset, dataOffset + dataLength) : null;
+            ByteBufferUtil.preservingSlice(data, dataOffset, dataOffset + dataLength) : Frame.NULL_BYTEBUFFER;
 
         metadataOffset += metadataLength;
         dataOffset += dataLength;
