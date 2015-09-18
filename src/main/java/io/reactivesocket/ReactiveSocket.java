@@ -15,16 +15,25 @@
  */
 package io.reactivesocket;
 
+import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
+import io.reactivesocket.internal.CompositeCompletable;
+import io.reactivesocket.internal.CompositeDisposable;
 import io.reactivesocket.internal.Requester;
 import io.reactivesocket.internal.Responder;
+import io.reactivesocket.observable.Disposable;
+import io.reactivesocket.observable.Observable;
+import io.reactivesocket.observable.Observer;
+import uk.co.real_logic.agrona.BitUtil;
 
 /**
  * Interface for a connection that supports sending requests and receiving responses
@@ -37,7 +46,7 @@ public class ReactiveSocket implements AutoCloseable {
 	private static final Consumer<Throwable> DEFAULT_ERROR_STREAM = t -> {
 		// TODO should we use SLF4j, use System.err, or swallow by default?
 		System.err.println("ReactiveSocket ERROR => " + t.getMessage()
-			+ " [Provide errorStream handler to replace this default]");
+				+ " [Provide errorStream handler to replace this default]");
 	};
 
 	private final DuplexConnection connection;
@@ -46,24 +55,26 @@ public class ReactiveSocket implements AutoCloseable {
 	private Requester requester;
 	private Responder responder;
 	private final ConnectionSetupPayload requestorSetupPayload;
+	private final RequestHandler clientRequestHandler;
 	private final ConnectionSetupHandler responderConnectionHandler;
 	private final LeaseGovernor leaseGovernor;
 
-	private ReactiveSocket(DuplexConnection connection, final boolean isServer, ConnectionSetupPayload requestorSetupPayload, final ConnectionSetupHandler responderConnectionHandler, LeaseGovernor leaseGovernor, Consumer<Throwable> errorStream) {
+	private ReactiveSocket(DuplexConnection connection, final boolean isServer, ConnectionSetupPayload serverRequestorSetupPayload, RequestHandler clientRequestHandler,
+			final ConnectionSetupHandler responderConnectionHandler, LeaseGovernor leaseGovernor, Consumer<Throwable> errorStream) {
 		this.connection = connection;
 		this.isServer = isServer;
-		this.requestorSetupPayload = requestorSetupPayload;
+		this.requestorSetupPayload = serverRequestorSetupPayload;
+		this.clientRequestHandler = clientRequestHandler;
 		this.responderConnectionHandler = responderConnectionHandler;
 		this.leaseGovernor = leaseGovernor;
 		this.errorStream = errorStream;
 	}
 
 	/**
-	 * Create a ReactiveSocket from a client-side {@link DuplexConnection}. 
+	 * Create a ReactiveSocket from a client-side {@link DuplexConnection}.
 	 * <p>
-	 * A client-side connection is one that initiated the connection with a server and will 
-	 * define the ReactiveSocket behaviors via the {@link ConnectionSetupPayload} that define mime-types, 
-	 * leasing behavior and other connection-level details.
+	 * A client-side connection is one that initiated the connection with a server and will define the ReactiveSocket behaviors via the {@link ConnectionSetupPayload} that define mime-types, leasing
+	 * behavior and other connection-level details.
 	 * 
 	 * @param connection
 	 *            DuplexConnection of client-side initiated connection for the ReactiveSocket protocol to use.
@@ -76,23 +87,22 @@ public class ReactiveSocket implements AutoCloseable {
 	 * @return ReactiveSocket for start, shutdown and sending requests.
 	 */
 	public static ReactiveSocket fromClientConnection(DuplexConnection connection, ConnectionSetupPayload setup, RequestHandler handler, Consumer<Throwable> errorStream) {
-		if(connection == null) {
+		if (connection == null) {
 			throw new IllegalArgumentException("DuplexConnection can not be null");
 		}
-		if(setup == null) {
+		if (setup == null) {
 			throw new IllegalArgumentException("ConnectionSetupPayload can not be null");
 		}
 		final RequestHandler h = handler != null ? handler : EMPTY_HANDLER;
 		Consumer<Throwable> es = errorStream != null ? errorStream : DEFAULT_ERROR_STREAM;
-		return new ReactiveSocket(connection, false, setup, s -> h, LeaseGovernor.NULL_LEASE_GOVERNOR, es);
+		return new ReactiveSocket(connection, false, setup, h, null, LeaseGovernor.NULL_LEASE_GOVERNOR, es);
 	}
 
 	/**
-	 * Create a ReactiveSocket from a client-side {@link DuplexConnection}. 
+	 * Create a ReactiveSocket from a client-side {@link DuplexConnection}.
 	 * <p>
-	 * A client-side connection is one that initiated the connection with a server and will 
-	 * define the ReactiveSocket behaviors via the {@link ConnectionSetupPayload} that define mime-types, 
-	 * leasing behavior and other connection-level details.
+	 * A client-side connection is one that initiated the connection with a server and will define the ReactiveSocket behaviors via the {@link ConnectionSetupPayload} that define mime-types, leasing
+	 * behavior and other connection-level details.
 	 * <p>
 	 * If this ReactiveSocket receives requests from the server it will respond with "Not Found" errors.
 	 * 
@@ -113,11 +123,10 @@ public class ReactiveSocket implements AutoCloseable {
 	}
 
 	/**
-	 * Create a ReactiveSocket from a server-side {@link DuplexConnection}. 
+	 * Create a ReactiveSocket from a server-side {@link DuplexConnection}.
 	 * <p>
-	 * A server-side connection is one that accepted the connection from a client and will 
-	 * define the ReactiveSocket behaviors via the {@link ConnectionSetupPayload} that define mime-types, 
-	 * leasing behavior and other connection-level details.
+	 * A server-side connection is one that accepted the connection from a client and will define the ReactiveSocket behaviors via the {@link ConnectionSetupPayload} that define mime-types, leasing
+	 * behavior and other connection-level details.
 	 * 
 	 * @param connection
 	 * @param connectionHandler
@@ -125,11 +134,12 @@ public class ReactiveSocket implements AutoCloseable {
 	 * @return
 	 */
 	public static ReactiveSocket fromServerConnection(DuplexConnection connection, ConnectionSetupHandler connectionHandler, LeaseGovernor leaseGovernor, Consumer<Throwable> errorConsumer) {
-		return new ReactiveSocket(connection, true, null, connectionHandler, leaseGovernor, errorConsumer);
+		return new ReactiveSocket(connection, true, null, null, connectionHandler, leaseGovernor, errorConsumer);
 	}
 
 	public static ReactiveSocket fromServerConnection(DuplexConnection connection, ConnectionSetupHandler connectionHandler) {
-		return fromServerConnection(connection, connectionHandler, LeaseGovernor.NULL_LEASE_GOVERNOR ,t -> {});
+		return fromServerConnection(connection, connectionHandler, LeaseGovernor.NULL_LEASE_GOVERNOR, t -> {
+		});
 	}
 
 	/**
@@ -167,7 +177,15 @@ public class ReactiveSocket implements AutoCloseable {
 
 	private void assertRequester() {
 		if (requester == null) {
-			throw new IllegalStateException("Connection not initialized. Please 'start()' before submitting requests");
+			if (isServer) {
+				if (responder == null) {
+					throw new IllegalStateException("Connection not initialized. Please 'start()' before submitting requests");
+				} else {
+					throw new IllegalStateException("Setup not yet received from client. Please wait until Setup is completed, then retry.");
+				}
+			} else {
+				throw new IllegalStateException("Connection not initialized. Please 'start()' before submitting requests");
+			}
 		}
 	}
 
@@ -176,8 +194,7 @@ public class ReactiveSocket implements AutoCloseable {
 	 *
 	 * @return 0.0 to 1.0 indicating availability of sending requests
 	 */
-	public double availability()
-	{
+	public double availability() {
 		// TODO: can happen in either direction
 		assertRequester();
 		return requester.availability();
@@ -191,8 +208,7 @@ public class ReactiveSocket implements AutoCloseable {
 	 * @param ttl
 	 * @param numberOfRequests
 	 */
-	public void sendLease(int ttl, int numberOfRequests)
-	{
+	public void sendLease(int ttl, int numberOfRequests) {
 		// TODO: can happen in either direction
 		responder.sendLease(ttl, numberOfRequests);
 	}
@@ -202,16 +218,188 @@ public class ReactiveSocket implements AutoCloseable {
 	 */
 	public final void start(Completable c) {
 		if (isServer) {
-			responder = Responder.create(connection, responderConnectionHandler, leaseGovernor, errorStream, c);
-//				requester = Requester.createServerRequester(connection, requestorSetupPayload, errorStream, c);
+			responder = Responder.createServerResponder(new ConnectionFilter(connection, ConnectionFilter.STREAMS.FROM_CLIENT_EVEN),
+					responderConnectionHandler,
+					leaseGovernor,
+					errorStream,
+					c,
+					setupPayload -> {
+						requester = Requester.createServerRequester(new ConnectionFilter(connection, ConnectionFilter.STREAMS.FROM_SERVER_ODD), setupPayload, errorStream, new Completable() {
+
+							@Override
+							public void success() {
+								requesterReady.success();
+							}
+
+							@Override
+							public void error(Throwable e) {
+								requesterReady.error(e);
+							}
+
+						});
+					});
 		} else {
-			requester = Requester.createClientRequester(connection, requestorSetupPayload, errorStream, c);
+			Completable both = new Completable() {
+
+				// wait for 2 success, or 1 error to pass on
+
+				AtomicInteger count = new AtomicInteger();
+				volatile Throwable error = null;
+
+				@Override
+				public void success() {
+					if (count.incrementAndGet() == 2) {
+						c.success();
+					}
+				}
+
+				@Override
+				public void error(Throwable e) {
+					error = e;
+					c.error(e);
+				}
+
+			};
+			requester = Requester.createClientRequester(new ConnectionFilter(connection, ConnectionFilter.STREAMS.FROM_CLIENT_EVEN), requestorSetupPayload, errorStream, new Completable() {
+
+				@Override
+				public void success() {
+					requesterReady.success();
+					both.success();
+				}
+
+				@Override
+				public void error(Throwable e) {
+					requesterReady.error(e);
+					both.error(e);
+				}
+
+			});
+			responder = Responder.createClientResponder(new ConnectionFilter(connection, ConnectionFilter.STREAMS.FROM_SERVER_ODD), clientRequestHandler, leaseGovernor, errorStream, both);
 		}
+	}
+
+	private final CompositeCompletable requesterReady = new CompositeCompletable();
+
+	/**
+	 * Invoked when Requester is ready with success or fail.
+	 * 
+	 * @param c
+	 */
+	public final void onRequestReady(Completable c) {
+		requesterReady.add(c);
 	}
 	
 	/**
+	 * Invoked when Requester is ready. Non-null exception if error. Null if success.
+	 * 
+	 * @param c
+	 */
+	public final void onRequestReady(Consumer<Throwable> c) {
+		requesterReady.add(new Completable() {
+
+			@Override
+			public void success() {
+				c.accept(null);
+			}
+
+			@Override
+			public void error(Throwable e) {
+				c.accept(e);				
+			}
+			
+		});
+	}
+
+	private static class ConnectionFilter implements DuplexConnection {
+
+		private enum STREAMS {
+			FROM_CLIENT_EVEN, FROM_SERVER_ODD;
+		}
+
+		private final DuplexConnection connection;
+		private final STREAMS s;
+
+		private ConnectionFilter(DuplexConnection connection, STREAMS s) {
+			this.connection = connection;
+			this.s = s;
+		}
+
+		@Override
+		public void close() throws IOException {
+			connection.close(); // forward
+		}
+
+		@Override
+		public Observable<Frame> getInput() {
+			return new Observable<Frame>() {
+
+				@Override
+				public void subscribe(Observer<Frame> o) {
+					CompositeDisposable cd = new CompositeDisposable();
+					o.onSubscribe(cd);
+					connection.getInput().subscribe(new Observer<Frame>() {
+
+						@Override
+						public void onNext(Frame t) {
+							int streamId = t.getStreamId();
+							FrameType type = t.getType();
+							if (streamId == 0) {
+								if (FrameType.SETUP.equals(type) && s == STREAMS.FROM_CLIENT_EVEN) {
+									o.onNext(t);
+								} else if (FrameType.LEASE.equals(type)) {
+									o.onNext(t);
+								} else if (FrameType.ERROR.equals(type)) {
+									// o.onNext(t); // TODO this doesn't work
+								} else if (FrameType.KEEPALIVE.equals(type)) {
+									o.onNext(t); // TODO need tests
+								} else if (FrameType.METADATA_PUSH.equals(type)) {
+									o.onNext(t);
+								}
+							} else if (BitUtil.isEven(streamId)) {
+								if (s == STREAMS.FROM_CLIENT_EVEN) {
+									o.onNext(t);
+								}
+							} else {
+								if (s == STREAMS.FROM_SERVER_ODD) {
+									o.onNext(t);
+								}
+							}
+						}
+
+						@Override
+						public void onError(Throwable e) {
+							o.onError(e);
+						}
+
+						@Override
+						public void onComplete() {
+							o.onComplete();
+						}
+
+						@Override
+						public void onSubscribe(Disposable d) {
+							cd.add(d);
+						}
+
+					});
+				}
+
+			};
+		}
+
+		@Override
+		public void addOutput(Publisher<Frame> o, Completable callback) {
+			connection.addOutput(o, callback);
+		}
+
+	};
+
+	/**
 	 * Start and block the current thread until startup is finished.
-	 * @throws RuntimeException of InterruptedException 
+	 * 
+	 * @throws RuntimeException
+	 *             of InterruptedException
 	 */
 	public final void startAndWait() {
 		CountDownLatch latch = new CountDownLatch(1);
@@ -225,16 +413,16 @@ public class ReactiveSocket implements AutoCloseable {
 
 			@Override
 			public void error(Throwable e) {
-				latch.countDown();				
+				latch.countDown();
 			}
-			
+
 		});
 		try {
 			latch.await();
 		} catch (InterruptedException e) {
 			throw new RuntimeException(e);
 		}
-		if(err.get() != null) {
+		if (err.get() != null) {
 			throw new RuntimeException(err.get());
 		}
 	}
@@ -243,14 +431,14 @@ public class ReactiveSocket implements AutoCloseable {
 	public void close() throws Exception {
 		connection.close();
 		leaseGovernor.unregister(responder);
-		if(requester != null) {
+		if (requester != null) {
 			requester.shutdown();
 		}
-		if(responder != null) {
+		if (responder != null) {
 			responder.shutdown();
 		}
 	}
-	
+
 	public void shutdown() {
 		try {
 			close();
@@ -258,8 +446,7 @@ public class ReactiveSocket implements AutoCloseable {
 			throw new RuntimeException("Failed Shutdown", e);
 		}
 	}
-	
-	
+
 	private static <T> Publisher<T> error(Throwable e) {
 		return (Subscriber<? super T> s) -> {
 			s.onSubscribe(new Subscription() {

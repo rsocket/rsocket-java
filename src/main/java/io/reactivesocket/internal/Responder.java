@@ -40,17 +40,23 @@ import uk.co.real_logic.agrona.collections.Int2ObjectHashMap;
  */
 public class Responder {
 	private final DuplexConnection connection;
-	private final ConnectionSetupHandler connectionHandler;
+	private final ConnectionSetupHandler connectionHandler; // for server
+	private final RequestHandler clientRequestHandler; // for client
 	private final Consumer<Throwable> errorStream;
 	private volatile LeaseGovernor leaseGovernor;
 	private long timeOfLastKeepalive;
+	private final Consumer<ConnectionSetupPayload> setupCallback;
+	private final boolean isServer;
 
-	private Responder(DuplexConnection connection, ConnectionSetupHandler connectionHandler, LeaseGovernor leaseGovernor, Consumer<Throwable> errorStream) {
+	private Responder(boolean isServer, DuplexConnection connection, ConnectionSetupHandler connectionHandler, RequestHandler requestHandler, LeaseGovernor leaseGovernor, Consumer<Throwable> errorStream, Consumer<ConnectionSetupPayload> setupCallback) {
+		this.isServer = isServer;
 		this.connection = connection;
 		this.connectionHandler = connectionHandler;
+		this.clientRequestHandler = requestHandler;
 		this.leaseGovernor = leaseGovernor;
 		this.errorStream = errorStream;
 		this.timeOfLastKeepalive = System.nanoTime();
+		this.setupCallback = setupCallback;
 	}
 
 	/**
@@ -62,8 +68,18 @@ public class Responder {
 	 *            This include fireAndForget which ONLY emit errors server-side via this mechanism.
 	 * @return responder instance
 	 */
-	public static <T> Responder create(DuplexConnection connection, ConnectionSetupHandler connectionHandler, LeaseGovernor leaseGovernor, Consumer<Throwable> errorStream, Completable responderCompletable) {
-		Responder responder = new Responder(connection, connectionHandler, leaseGovernor, errorStream);
+	public static <T> Responder createServerResponder(DuplexConnection connection, ConnectionSetupHandler connectionHandler, LeaseGovernor leaseGovernor, Consumer<Throwable> errorStream, Completable responderCompletable, Consumer<ConnectionSetupPayload> setupCallback) {
+		Responder responder = new Responder(true, connection, connectionHandler, null, leaseGovernor, errorStream, setupCallback);
+		responder.start(responderCompletable);
+		return responder;
+	}
+	
+	public static <T> Responder createServerResponder(DuplexConnection connection, ConnectionSetupHandler connectionHandler, LeaseGovernor leaseGovernor, Consumer<Throwable> errorStream, Completable responderCompletable) {
+		return createServerResponder(connection, connectionHandler, leaseGovernor, errorStream, responderCompletable, s -> {});
+	}
+	
+	public static <T> Responder createClientResponder(DuplexConnection connection, RequestHandler requestHandler, LeaseGovernor leaseGovernor, Consumer<Throwable> errorStream, Completable responderCompletable) {
+		Responder responder = new Responder(false, connection, null, requestHandler, leaseGovernor, errorStream, s -> {});
 		responder.start(responderCompletable);
 		return responder;
 	}
@@ -123,12 +139,12 @@ public class Responder {
 				}
 			}
 
-			volatile RequestHandler requestHandler = null; // null until after first Setup frame
-
+			volatile RequestHandler requestHandler = !isServer ? clientRequestHandler : null; // null until after first Setup frame
+			
 			@Override
 			public void onNext(Frame requestFrame) {
 				final int streamId = requestFrame.getStreamId();
-				if (requestHandler == null) {
+				if (requestHandler == null) { // this will only happen when isServer==true
 					if (childTerminated.get()) {
 						// already terminated, but still receiving latent messages ... ignore them while shutdown occurs
 						return;
@@ -141,6 +157,9 @@ public class Responder {
 								throw new SetupException("unsupported protocol version: " + Frame.Setup.version(requestFrame));
 							}
 
+							// accept setup for ReactiveSocket/Requester usage
+							setupCallback.accept(connectionSetupPayload);
+							// handle setup
 							requestHandler = connectionHandler.apply(connectionSetupPayload);
 						} catch (SetupException setupException) {
 							setupErrorAndTearDown(connection, setupException);

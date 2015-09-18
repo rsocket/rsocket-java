@@ -753,38 +753,42 @@ public class Requester {
 		connection.getInput().subscribe(new Observer<Frame>() {
 			public void onSubscribe(Disposable d) {
 				if (connectionSubscription.compareAndSet(null, d)) {
-					// now that we are connected, send SETUP frame (asynchronously, other messages can continue being written after this)
-					connection.addOutput(PublisherUtils.just(Frame.Setup.from(setupPayload.getFlags(), KEEPALIVE_INTERVAL_MS, 0, setupPayload.metadataMimeType(), setupPayload.dataMimeType(), setupPayload)),
-						new Completable() {
-
-							@Override
-							public void success() {
-								onComplete.success();
-								requesterStarted = true;
-							}
-
-							@Override
-							public void error(Throwable e) {
-								onComplete.error(e);
-								tearDown(e);
-							}
-
-						});
-
-					connection.addOutput(PublisherUtils.keepaliveTicker(KEEPALIVE_INTERVAL_MS, TimeUnit.MILLISECONDS),
-						new Completable()
-						{
-							public void success()
+					if(isServer) {
+						onComplete.success();
+						requesterStarted = true;
+					} else {
+						// now that we are connected, send SETUP frame (asynchronously, other messages can continue being written after this)
+						connection.addOutput(PublisherUtils.just(Frame.Setup.from(setupPayload.getFlags(), KEEPALIVE_INTERVAL_MS, 0, setupPayload.metadataMimeType(), setupPayload.dataMimeType(), setupPayload)),
+							new Completable() {
+	
+								@Override
+								public void success() {
+									onComplete.success();
+									requesterStarted = true;
+								}
+	
+								@Override
+								public void error(Throwable e) {
+									onComplete.error(e);
+									tearDown(e);
+								}
+	
+							});
+	
+						connection.addOutput(PublisherUtils.keepaliveTicker(KEEPALIVE_INTERVAL_MS, TimeUnit.MILLISECONDS),
+							new Completable()
 							{
-							}
-
-							public void error(Throwable e)
-							{
-								onComplete.error(e);
-								tearDown(e);
-							}
-						});
-
+								public void success()
+								{
+								}
+	
+								public void error(Throwable e)
+								{
+									onComplete.error(e);
+									tearDown(e);
+								}
+							});
+					}
 				} else {
 					// means we already were cancelled
 					d.dispose();

@@ -45,7 +45,7 @@ public class ResponderTest
     public void testRequestResponseSuccess() throws InterruptedException {
     	TestConnection conn = establishConnection();
     	LatchedCompletable lc = new LatchedCompletable(1);
-        Responder.create(conn, setup -> new RequestHandler.Builder()
+        Responder.createServerResponder(conn, setup -> new RequestHandler.Builder()
             .withRequestResponse(request ->
                 just(utf8EncodedPayload(byteToString(request.getData()) + " world", null))).build(),
             NULL_LEASE_GOVERNOR, ERROR_HANDLER, lc);
@@ -71,7 +71,7 @@ public class ResponderTest
     public void testRequestResponseError() throws InterruptedException {
     	TestConnection conn = establishConnection();
     	LatchedCompletable lc = new LatchedCompletable(1);
-        Responder.create(conn, setup -> new RequestHandler.Builder()
+        Responder.createServerResponder(conn, setup -> new RequestHandler.Builder()
             .withRequestResponse(request -> Observable.<Payload>error(new Exception("Request Not Found"))).build(),
             NULL_LEASE_GOVERNOR, ERROR_HANDLER, lc);
         lc.await();
@@ -98,7 +98,7 @@ public class ResponderTest
 
         TestConnection conn = establishConnection();
         LatchedCompletable lc = new LatchedCompletable(1);
-        Responder.create(conn, setup -> new RequestHandler.Builder()
+        Responder.createServerResponder(conn, setup -> new RequestHandler.Builder()
             .withRequestResponse(request -> delayed).build(),
             NULL_LEASE_GOVERNOR, ERROR_HANDLER, lc);
         lc.await();
@@ -120,7 +120,7 @@ public class ResponderTest
     public void testRequestStreamSuccess() throws InterruptedException {
     	TestConnection conn = establishConnection();
     	LatchedCompletable lc = new LatchedCompletable(1);
-        Responder.create(conn, setup -> new RequestHandler.Builder()
+        Responder.createServerResponder(conn, setup -> new RequestHandler.Builder()
             .withRequestStream(
                 request -> range(Integer.parseInt(byteToString(request.getData())), 10).map(i -> utf8EncodedPayload(i + "!", null))).build(),
             NULL_LEASE_GOVERNOR, ERROR_HANDLER, lc);
@@ -153,7 +153,7 @@ public class ResponderTest
     public void testRequestStreamError() throws InterruptedException {
     	TestConnection conn = establishConnection();
     	LatchedCompletable lc = new LatchedCompletable(1);
-        Responder.create(conn, setup -> new RequestHandler.Builder()
+        Responder.createServerResponder(conn, setup -> new RequestHandler.Builder()
             .withRequestStream(request -> range(Integer.parseInt(byteToString(request.getData())), 3)
                 .map(i -> utf8EncodedPayload(i + "!", null))
                 .concatWith(error(new Exception("Error Occurred!")))).build(),
@@ -188,7 +188,7 @@ public class ResponderTest
     	TestConnection conn = establishConnection();
         TestScheduler ts = Schedulers.test();
         LatchedCompletable lc = new LatchedCompletable(1);
-        Responder.create(conn, setup -> new RequestHandler.Builder()
+        Responder.createServerResponder(conn, setup -> new RequestHandler.Builder()
             .withRequestStream(request -> interval(1000, TimeUnit.MILLISECONDS, ts).map(i -> utf8EncodedPayload(i + "!", null))).build(),
             NULL_LEASE_GOVERNOR, ERROR_HANDLER, lc);
         lc.await();
@@ -229,7 +229,7 @@ public class ResponderTest
         TestScheduler ts = Schedulers.test();
         TestConnection conn = establishConnection();
         LatchedCompletable lc = new LatchedCompletable(1);
-        Responder.create(conn, setup -> new RequestHandler.Builder()
+        Responder.createServerResponder(conn, setup -> new RequestHandler.Builder()
             .withRequestStream(request -> interval(1000, TimeUnit.MILLISECONDS, ts).map(i -> utf8EncodedPayload(i + "_" + byteToString(request.getData()), null))).build(),
             NULL_LEASE_GOVERNOR, ERROR_HANDLER, lc);
         lc.await();

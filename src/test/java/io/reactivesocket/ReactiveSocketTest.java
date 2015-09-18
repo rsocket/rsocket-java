@@ -34,6 +34,7 @@ import org.junit.experimental.theories.Theory;
 import org.junit.runner.RunWith;
 import org.reactivestreams.Publisher;
 
+import io.reactivesocket.internal.PublisherUtils;
 import io.reactivex.disposables.Disposable;
 import io.reactivex.observables.ConnectableObservable;
 import io.reactivex.subscribers.TestSubscriber;
@@ -170,7 +171,7 @@ public class ReactiveSocketTest {
 		socketClient.shutdown();
 	}
 
-	private void startSockets(int setupFlag) throws InterruptedException {
+	private void startSockets(int setupFlag, RequestHandler handler) throws InterruptedException {
 		if (setupFlag == NO_FLAGS) {
 			System.out.println("Reactivesocket configured with: NO_FLAGS");
 		} else if (setupFlag == HONOR_LEASE) {
@@ -179,6 +180,7 @@ public class ReactiveSocketTest {
 		socketClient = ReactiveSocket.fromClientConnection(
 			clientConnection,
 			ConnectionSetupPayload.create("UTF-8", "UTF-8", setupFlag),
+			handler, 
 			err -> err.printStackTrace()
 		);
 
@@ -191,6 +193,10 @@ public class ReactiveSocketTest {
         }
 
 		awaitSocketAvailability(socketClient, 50, TimeUnit.SECONDS);
+	}
+	
+	private void startSockets(int setupFlag) throws InterruptedException {
+		startSockets(setupFlag, null);
 	}
 
 	private void awaitSocketAvailability(ReactiveSocket socket, long timeout, TimeUnit unit) {
@@ -442,4 +448,28 @@ public class ReactiveSocketTest {
 		lastServerErrorCountDown.await();
 		assertEquals("forced blowup to simulate handler error", lastServerError.get().getCause().getMessage());
 	}
+	
+	@Test(timeout=2000)
+	@Theory
+	public void testServerRequestResponse(int setupFlag) throws InterruptedException {
+		startSockets(setupFlag, new RequestHandler.Builder()
+				.withRequestResponse(payload -> {
+					return just(utf8EncodedPayload("hello world from client", null));
+				}).build());
+
+		CountDownLatch latch = new CountDownLatch(1);
+		socketServer.onRequestReady(err -> {
+			latch.countDown();
+		});
+		latch.await();
+		
+		Publisher<Payload> response = socketServer.requestResponse(TestUtil.utf8EncodedPayload("hello", null));
+		TestSubscriber<Payload> ts = new TestSubscriber<>();
+		response.subscribe(ts);
+		ts.awaitTerminalEvent();
+		ts.assertNoErrors();
+		ts.assertValue(TestUtil.utf8EncodedPayload("hello world from client", null));
+	}
+	
+	
 }
