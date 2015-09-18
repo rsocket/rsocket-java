@@ -16,6 +16,7 @@
 package io.reactivesocket.internal;
 
 import java.nio.ByteBuffer;
+import java.util.Iterator;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -202,5 +203,122 @@ public class PublisherUtils {
 			});
 		};
 	}
+	
+	public static final Publisher<Frame> fromIterable(Iterable<Frame> is) {
+		return new PublisherIterableSource<Frame>(is);
+	}
+	
+	public static final class PublisherIterableSource<T> extends AtomicBoolean implements Publisher<T> {
+	    /** */
+	    private static final long serialVersionUID = 9051303031779816842L;
+	    
+	    final Iterable<? extends T> source;
+	    public PublisherIterableSource(Iterable<? extends T> source) {
+	        this.source = source;
+	    }
+	    
+	    @Override
+	    public void subscribe(Subscriber<? super T> s) {
+	        Iterator<? extends T> it;
+	        try {
+	            it = source.iterator();
+	        } catch (Throwable e) {
+	            EmptySubscription.error(e, s);
+	            return;
+	        }
+	        boolean hasNext;
+	        try {
+	            hasNext = it.hasNext();
+	        } catch (Throwable e) {
+	            EmptySubscription.error(e, s);
+	            return;
+	        }
+	        if (!hasNext) {
+	            EmptySubscription.complete(s);
+	            return;
+	        }
+	        s.onSubscribe(new IteratorSourceSubscription<>(it, s));
+	    }
+	    
+	    static final class IteratorSourceSubscription<T> extends AtomicLong implements Subscription {
+	        /** */
+	        private static final long serialVersionUID = 8931425802102883003L;
+	        final Iterator<? extends T> it;
+	        final Subscriber<? super T> subscriber;
+	        
+	        volatile boolean cancelled;
+	        
+	        public IteratorSourceSubscription(Iterator<? extends T> it, Subscriber<? super T> subscriber) {
+	            this.it = it;
+	            this.subscriber = subscriber;
+	        }
+	        @Override
+	        public void request(long n) {
+	            if (SubscriptionHelper.validateRequest(n)) {
+	                return;
+	            }
+	            if (BackpressureHelper.add(this, n) != 0L) {
+	                return;
+	            }
+	            long r = n;
+	            long r0 = n;
+	            final Subscriber<? super T> subscriber = this.subscriber;
+	            final Iterator<? extends T> it = this.it;
+	            for (;;) {
+	                if (cancelled) {
+	                    return;
+	                }
+
+	                long e = 0L;
+	                while (r != 0L) {
+	                    T v;
+	                    try {
+	                        v = it.next();
+	                    } catch (Throwable ex) {
+	                        subscriber.onError(ex);
+	                        return;
+	                    }
+	                    
+	                    if (v == null) {
+	                        subscriber.onError(new NullPointerException("Iterator returned a null element"));
+	                        return;
+	                    }
+	                    
+	                    subscriber.onNext(v);
+	                    
+	                    if (cancelled) {
+	                        return;
+	                    }
+	                    
+	                    boolean hasNext;
+	                    try {
+	                        hasNext = it.hasNext();
+	                    } catch (Throwable ex) {
+	                        subscriber.onError(ex);
+	                        return;
+	                    }
+	                    if (!hasNext) {
+	                        subscriber.onComplete();
+	                        return;
+	                    }
+	                    
+	                    r--;
+	                    e--;
+	                }
+	                if (e != 0L && r0 != Long.MAX_VALUE) {
+	                    r = addAndGet(e);
+	                }
+	                if (r == 0L) {
+	                    break;
+	                }
+	            }
+	        }
+	        @Override
+	        public void cancel() {
+	            cancelled = true;
+	        }
+	    }
+	}
+
 
 }

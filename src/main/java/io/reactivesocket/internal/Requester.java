@@ -542,7 +542,7 @@ public class Requester {
 					}
 					streamInputSubscriber.parentSubscription.cancel();
 					if (payloadsSubscription != null) {
-						if (!payloadsSubscription.compareAndSet(null, EmptySubscription.EMPTY)) {
+						if (!payloadsSubscription.compareAndSet(null, EmptySubscription.INSTANCE)) {
 							payloadsSubscription.get().cancel(); // unsubscribe it if it already exists
 						}
 					}
