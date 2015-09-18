@@ -378,7 +378,7 @@ public class Responder {
 
 				@Override
 				public void cancel() {
-					if (!parent.compareAndSet(null, EmptySubscription.EMPTY)) {
+					if (!parent.compareAndSet(null, EmptySubscription.INSTANCE)) {
 						parent.get().cancel();
 						cleanup();
 					}
@@ -498,7 +498,7 @@ public class Responder {
 
 					@Override
 					public void cancel() {
-						if (!parent.compareAndSet(null, EmptySubscription.EMPTY)) {
+						if (!parent.compareAndSet(null, EmptySubscription.INSTANCE)) {
 							parent.get().cancel();
 							cleanup();
 						}
@@ -643,7 +643,7 @@ public class Responder {
 
 						@Override
 						public void cancel() {
-							if (!parent.compareAndSet(null, EmptySubscription.EMPTY)) {
+							if (!parent.compareAndSet(null, EmptySubscription.INSTANCE)) {
 								parent.get().cancel();
 								cleanup();
 							}
