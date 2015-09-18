@@ -13,6 +13,7 @@ import uk.co.real_logic.agrona.MutableDirectBuffer;
 import uk.co.real_logic.agrona.concurrent.UnsafeBuffer;
 
 import java.nio.ByteBuffer;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Created by rroeser on 8/27/15.
@@ -31,11 +32,7 @@ public class CompletableSubscription implements Subscriber<Frame> {
 
     private final int mtuLength;
 
-    private volatile static short count = 1;
-
-    public short getAndIncrement() {
-        return count++;
-    }
+    private volatile static AtomicLong count = new AtomicLong();
 
     public CompletableSubscription(Publication publication, Completable completable, AutoCloseable closeable) {
         this.publication = publication;
@@ -76,11 +73,15 @@ public class CompletableSubscription implements Subscriber<Frame> {
         completable.success();
     }
 
+    private short getCount() {
+        return (short) count.incrementAndGet();
+    }
+
     void offer(ByteBuffer byteBuffer, int length) {
         final byte[] bytes = new byte[length];
         final UnsafeBuffer unsafeBuffer = unsafeBuffers.get();
         unsafeBuffer.wrap(bytes);
-        unsafeBuffer.putShort(0, getAndIncrement());
+        unsafeBuffer.putShort(0, getCount());
         unsafeBuffer.putShort(BitUtil.SIZE_OF_SHORT, (short)  MessageType.FRAME.getEncodedType());
         unsafeBuffer.putBytes(BitUtil.SIZE_OF_INT, byteBuffer, byteBuffer.capacity());
         do {
@@ -104,8 +105,8 @@ public class CompletableSubscription implements Subscriber<Frame> {
                 try {
                     final MutableDirectBuffer buffer = bufferClaim.buffer();
                     final int offset = bufferClaim.offset();
-                    System.out.println("server count => " + count);
-                    buffer.putShort(offset, getAndIncrement());
+                    //System.out.println("server count => " + count);
+                    buffer.putShort(offset, getCount());
                     buffer.putShort(offset + BitUtil.SIZE_OF_SHORT, (short) MessageType.FRAME.getEncodedType());
                     buffer.putBytes(offset + BitUtil.SIZE_OF_INT, byteBuffer, 0, byteBuffer.capacity());
                 } finally {

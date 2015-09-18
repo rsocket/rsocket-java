@@ -25,6 +25,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static io.reactivesocket.aeron.internal.Constants.CLIENT_STREAM_ID;
+import static io.reactivesocket.aeron.internal.Constants.SERVER_IDLE_STRATEGY;
 import static io.reactivesocket.aeron.internal.Constants.SERVER_STREAM_ID;
 
 public class ReactiveSocketAeronServer implements AutoCloseable, Loggable {
@@ -68,7 +69,7 @@ public class ReactiveSocketAeronServer implements AutoCloseable, Loggable {
 
         final FragmentAssembler fragmentAssembler = new FragmentAssembler(this::fragmentHandler);
 
-        worker = Schedulers.computation().createWorker();
+        worker = Schedulers.newThread().createWorker();
         poll(fragmentAssembler);
 
     }
@@ -98,18 +99,17 @@ public class ReactiveSocketAeronServer implements AutoCloseable, Loggable {
     }
 
     void poll(FragmentAssembler fragmentAssembler) {
-       if (running) {
-            worker.schedule(() -> {
+        worker.schedule(() -> {
+            while (running) {
                 try {
-                    subscription.poll(fragmentAssembler, Integer.MAX_VALUE);
-                    poll(fragmentAssembler);
+                    int poll = subscription.poll(fragmentAssembler, Integer.MAX_VALUE);
+                    SERVER_IDLE_STRATEGY.idle(poll);
                 } catch (Throwable t) {
                     t.printStackTrace();
                 }
-            });
-        } else {
-           shutdownLatch.countDown();
-       }
+            }
+            shutdownLatch.countDown();
+        });
     }
 
     void fragmentHandler(DirectBuffer buffer, int offset, int length, Header header) {
@@ -125,7 +125,7 @@ public class ReactiveSocketAeronServer implements AutoCloseable, Loggable {
                 ByteBuffer bytes = ByteBuffer.allocate(length);
                 buffer.getBytes(BitUtil.SIZE_OF_INT + offset, bytes, length);
                 final Frame frame = Frame.from(bytes);
-                System.out.println("### Server Sending => " + frame);
+                //System.out.println("### Server Sending => " + frame);
                 subscriber.onNext(frame);
             }
         } else if (MessageType.ESTABLISH_CONNECTION_REQUEST == type) {

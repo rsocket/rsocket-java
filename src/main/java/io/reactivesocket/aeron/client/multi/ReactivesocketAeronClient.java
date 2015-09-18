@@ -73,7 +73,7 @@ public class ReactivesocketAeronClient  implements Loggable, AutoCloseable {
 
     private static int mtuLength;
 
-    private static final int NUM_PROCESSORS = Runtime.getRuntime().availableProcessors();
+    private static final int NUM_PROCESSORS = Runtime.getRuntime().availableProcessors() / 2;
 
     private static Scheduler.Worker[] workers;
 
@@ -187,28 +187,28 @@ public class ReactivesocketAeronClient  implements Loggable, AutoCloseable {
             short messageCount = buffer.getShort(offset);
             short messageTypeInt  = buffer.getShort(offset + BitUtil.SIZE_OF_SHORT);
             final int currentMagic = Math.abs(messageCount % NUM_PROCESSORS);
-            MessageType messageType = MessageType.from(messageTypeInt);
-
+/*
             StringBuilder sb = new StringBuilder();
 
             sb.append(Thread.currentThread() + " messageTypeInt => " + messageTypeInt).append('\n');
             sb.append(Thread.currentThread() + " messageCount => " + messageCount).append('\n');
             sb.append(Thread.currentThread() + " message type => " + messageType).append('\n');
 
-            System.out.println(sb.toString());
+            System.out.println(sb.toString());*/
 
-            LockSupport.parkNanos(TimeUnit.SECONDS.toNanos(1));
+            //LockSupport.parkNanos(TimeUnit.SECONDS.toNanos(1));
             if (currentMagic != magicNumber) {
                 return;
             }
 
+            final MessageType messageType = MessageType.from(messageTypeInt);
             if (messageType == MessageType.FRAME) {
                 final AeronClientDuplexConnection connection = connections.get(header.sessionId());
                 Observer<Frame> subscriber = connection.getSubscriber();
                 final ByteBuffer bytes = ByteBuffer.allocate(length);
                 buffer.getBytes(BitUtil.SIZE_OF_INT + offset, bytes, length);
                 final Frame frame = Frame.from(bytes);
-                System.out.println("$$$$ CLIENT GOT => " + frame.toString() + " - " + atomicLong.getAndIncrement());
+                //System.out.println("$$$$ CLIENT GOT => " + frame.toString() + " - " + atomicLong.getAndIncrement());
                 subscriber.onNext(frame);
             } else if (messageType == MessageType.ESTABLISH_CONNECTION_RESPONSE) {
                 final int ackSessionId = buffer.getInt(offset + BitUtil.SIZE_OF_INT);
@@ -261,7 +261,7 @@ public class ReactivesocketAeronClient  implements Loggable, AutoCloseable {
     }
 
     void poll(final int magicNumber, final Scheduler.Worker worker, CyclicBarrier startBarrier) {
-        worker.schedule(() -> {
+        worker.schedulePeriodically(() -> {
             if (startBarrier != null && !pollingStarted) {
                 try {
                     System.out.println("Waiting... " + magicNumber);
@@ -302,21 +302,21 @@ public class ReactivesocketAeronClient  implements Loggable, AutoCloseable {
                         });
                     }
 
+
                     try {
                         final FragmentAssembler fragmentAssembler = new FragmentAssembler(
                             (DirectBuffer buffer, int offset, int length, Header header) ->
                                 fragmentHandler(magicNumber, buffer, offset, length, header));
 
-
-                        System.out.println("processing subscriptions => " + magicNumber);
-                        LockSupport.parkNanos(TimeUnit.SECONDS.toNanos(1));
-                        SUBSCRIPTION_GROUPS
-                            .forEach(subscriptionGroup -> {
-                                System.out.println("processing subscriptions in foreach => " + magicNumber);
-                                LockSupport.parkNanos(TimeUnit.SECONDS.toNanos(1));
-                                Subscription subscription = subscriptionGroup.subscriptions[magicNumber];
-                                subscription.poll(fragmentAssembler, Integer.MAX_VALUE);
-                            });
+                            //System.out.println("processing subscriptions => " + magicNumber);
+                            //LockSupport.parkNanos(TimeUnit.SECONDS.toNanos(1));
+                            SUBSCRIPTION_GROUPS
+                                .forEach(subscriptionGroup -> {
+                                    //System.out.println("processing subscriptions in foreach => " + magicNumber);
+                                    //LockSupport.parkNanos(TimeUnit.SECONDS.toNanos(1));
+                                    Subscription subscription = subscriptionGroup.subscriptions[magicNumber];
+                                    subscription.poll(fragmentAssembler, Integer.MAX_VALUE);
+                                });
                     } catch (Throwable t) {
                         t.printStackTrace();
                         error("error polling aeron subscription", t);
@@ -324,15 +324,12 @@ public class ReactivesocketAeronClient  implements Loggable, AutoCloseable {
                 } catch (Throwable t) {
                     t.printStackTrace();
                 }
-                finally {
-                    poll(magicNumber, worker, null);
-                }
 
             } else {
                 shutdownLatch.countDown();
             }
 
-        });
+        }, 0, 1, TimeUnit.NANOSECONDS);
     }
 
     private static final ThreadLocal<BufferClaim> bufferClaims = ThreadLocal.withInitial(BufferClaim::new);

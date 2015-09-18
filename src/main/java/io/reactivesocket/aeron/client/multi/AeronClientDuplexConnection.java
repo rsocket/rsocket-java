@@ -55,8 +55,7 @@ public class AeronClientDuplexConnection implements DuplexConnection, AutoClosea
             @Override
             public void onSubscribe(Subscription s) {
                 this.s = s;
-                s.request(Long.MAX_VALUE);
-                //s.request(framesSendQueue.remainingCapacity() + 1);
+                s.request(framesSendQueue.remainingCapacity());
             }
 
             @Override
