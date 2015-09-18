@@ -40,7 +40,7 @@ public class Frame implements Payload
      */
 
     private static final String FRAME_POOLER_CLASS_NAME =
-        getProperty("io.reactivesocket.FramePool", "io.reactivesocket.internal.ThreadLocalFramePool");
+        getProperty("io.reactivesocket.FramePool", "io.reactivesocket.internal.UnpooledFrame");
     private static final FramePool POOL;
 
     static
