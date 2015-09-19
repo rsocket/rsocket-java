@@ -2,6 +2,7 @@ package io.reactivesocket.aeron.server;
 
 import io.reactivesocket.Completable;
 import io.reactivesocket.Frame;
+import io.reactivesocket.aeron.internal.AeronUtil;
 import io.reactivesocket.aeron.internal.Constants;
 import io.reactivesocket.aeron.internal.MessageType;
 import org.reactivestreams.Subscriber;
@@ -9,7 +10,6 @@ import org.reactivestreams.Subscription;
 import uk.co.real_logic.aeron.Publication;
 import uk.co.real_logic.aeron.logbuffer.BufferClaim;
 import uk.co.real_logic.agrona.BitUtil;
-import uk.co.real_logic.agrona.MutableDirectBuffer;
 import uk.co.real_logic.agrona.concurrent.UnsafeBuffer;
 
 import java.nio.ByteBuffer;
@@ -54,13 +54,14 @@ public class CompletableSubscription implements Subscriber<Frame> {
         final ByteBuffer byteBuffer = frame.getByteBuffer();
         final int length = byteBuffer.capacity() + BitUtil.SIZE_OF_INT;
 
-        // If the length is less the MTU size send the message using tryClaim which does not fragment the message
-        // If the message is larger the the MTU size send it using offer.
-        if (length < mtuLength) {
-            tryClaim(byteBuffer, length);
-        } else {
-            offer(byteBuffer, length);
-        }
+        AeronUtil.tryClaimOrOffer(publication, (offset, buffer) -> {
+            final byte[] bytes = new byte[length];
+            buffer.wrap(bytes);
+            buffer.putShort(offset, getCount());
+            buffer.putShort(offset + BitUtil.SIZE_OF_SHORT, (short) MessageType.FRAME.getEncodedType());
+            buffer.putBytes(offset + BitUtil.SIZE_OF_INT, byteBuffer, byteBuffer.capacity());
+        },  length);
+        
     }
 
     @Override
@@ -75,51 +76,6 @@ public class CompletableSubscription implements Subscriber<Frame> {
 
     private short getCount() {
         return (short) count.incrementAndGet();
-    }
-
-    void offer(ByteBuffer byteBuffer, int length) {
-        final byte[] bytes = new byte[length];
-        final UnsafeBuffer unsafeBuffer = unsafeBuffers.get();
-        unsafeBuffer.wrap(bytes);
-        unsafeBuffer.putShort(0, getCount());
-        unsafeBuffer.putShort(BitUtil.SIZE_OF_SHORT, (short)  MessageType.FRAME.getEncodedType());
-        unsafeBuffer.putBytes(BitUtil.SIZE_OF_INT, byteBuffer, byteBuffer.capacity());
-        do {
-            final long offer = publication.offer(unsafeBuffer);
-            if (offer >= 0) {
-                break;
-            } else if (Publication.NOT_CONNECTED == offer) {
-                closeQuietly(closeable);
-                completable.error(new RuntimeException("not connected"));
-                break;
-            }
-        } while(true);
-
-    }
-
-    void tryClaim(ByteBuffer byteBuffer, int length) {
-        final BufferClaim bufferClaim = bufferClaims.get();
-        do {
-            final long offer = publication.tryClaim(length, bufferClaim);
-            if (offer >= 0) {
-                try {
-                    final MutableDirectBuffer buffer = bufferClaim.buffer();
-                    final int offset = bufferClaim.offset();
-                    //System.out.println("server count => " + count);
-                    buffer.putShort(offset, getCount());
-                    buffer.putShort(offset + BitUtil.SIZE_OF_SHORT, (short) MessageType.FRAME.getEncodedType());
-                    buffer.putBytes(offset + BitUtil.SIZE_OF_INT, byteBuffer, 0, byteBuffer.capacity());
-                } finally {
-                    bufferClaim.commit();
-                }
-
-                break;
-            } else if (Publication.NOT_CONNECTED == offer) {
-                closeQuietly(closeable);
-                completable.error(new RuntimeException("not connected"));
-                break;
-            }
-        } while(true);
     }
 
     void closeQuietly(AutoCloseable closeable) {

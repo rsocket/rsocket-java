@@ -3,6 +3,7 @@ package io.reactivesocket.aeron.client.multi;
 import io.reactivesocket.Frame;
 import io.reactivesocket.aeron.internal.Constants;
 import io.reactivesocket.aeron.internal.concurrent.ManyToManyConcurrentArrayQueue;
+import rx.Subscriber;
 import uk.co.real_logic.aeron.Publication;
 
 /**
@@ -21,10 +22,11 @@ class FrameHolder {
 
     private Publication publication;
     private Frame frame;
+    private Subscriber s;
 
     private FrameHolder() {}
 
-    public static FrameHolder get(Frame frame, Publication publication) {
+    public static FrameHolder get(Frame frame, Publication publication, Subscriber s) {
         FrameHolder frameHolder = FRAME_HOLDER_QUEUE.poll();
 
         if (frameHolder == null) {
@@ -33,6 +35,7 @@ class FrameHolder {
 
         frameHolder.frame = frame;
         frameHolder.publication = publication;
+        frameHolder.s = s;
 
         return frameHolder;
     }
@@ -46,6 +49,10 @@ class FrameHolder {
     }
 
     public void release() {
+        if (s != null) {
+            s.onCompleted();
+        }
+
         frame.release();
         FRAME_HOLDER_QUEUE.offer(this);
     }

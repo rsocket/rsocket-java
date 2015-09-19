@@ -38,7 +38,7 @@ public class Frame implements Payload
      */
 
     private static final String FRAME_POOLER_CLASS_NAME =
-        getProperty("io.reactivesocket.FramePool", "io.reactivesocket.internal.UnpooledFrame");
+        getProperty("io.reactivesocket.FramePool", "io.reactivesocket.internal.ThreadLocalFramePool");
     private static final FramePool POOL;
 
     static
@@ -382,19 +382,22 @@ public class Frame implements Payload
     {
         public static Frame from(int streamId, FrameType type, Payload payload, int initialRequestN)
         {
+
             final ByteBuffer d = payload.getData() != null ? payload.getData() : NULL_BYTEBUFFER;
             final ByteBuffer md = payload.getMetadata() != null ? payload.getMetadata() : NULL_BYTEBUFFER;
 
             final Frame frame = POOL.acquireFrame(RequestFrameFlyweight.computeFrameLength(type, md.capacity(), d.capacity()));
+try {
 
-            if (type.hasInitialRequestN())
-            {
-                frame.length = RequestFrameFlyweight.encode(frame.directBuffer, frame.offset, streamId, type, initialRequestN, md, d);
-            }
-            else
-            {
-                frame.length = RequestFrameFlyweight.encode(frame.directBuffer, frame.offset, streamId, type, md, d);
-            }
+    if (type.hasInitialRequestN()) {
+        frame.length = RequestFrameFlyweight.encode(frame.directBuffer, frame.offset, streamId, type, initialRequestN, md, d);
+    } else {
+        frame.length = RequestFrameFlyweight.encode(frame.directBuffer, frame.offset, streamId, type, md, d);
+    }
+} catch (Throwable t) {
+    System.out.println("!@#!@#!@#!@#!@#!@#!@#!@# stream id => " + streamId + "frame.offset =>" + frame.offset + " type => " + type);
+    throw new RuntimeException(t);
+}
 
             return frame;
         }

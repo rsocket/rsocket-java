@@ -10,13 +10,11 @@ import io.reactivesocket.internal.EmptyDisposable;
 import io.reactivesocket.observable.Observable;
 import io.reactivesocket.observable.Observer;
 import org.reactivestreams.Publisher;
-import org.reactivestreams.Subscriber;
-import org.reactivestreams.Subscription;
+import rx.RxReactiveStreams;
 import rx.Scheduler;
+import rx.exceptions.MissingBackpressureException;
 import rx.schedulers.Schedulers;
 import uk.co.real_logic.aeron.Publication;
-
-import java.util.concurrent.atomic.AtomicLong;
 
 public class AeronClientDuplexConnection implements DuplexConnection, AutoCloseable {
     private Publication publication;
@@ -27,7 +25,7 @@ public class AeronClientDuplexConnection implements DuplexConnection, AutoClosea
 
     public AeronClientDuplexConnection(Publication publication) {
         this.publication = publication;
-        this.framesSendQueue = new ManyToManyConcurrentArrayQueue<>(128);
+        this.framesSendQueue = new ManyToManyConcurrentArrayQueue<>(Constants.CONCURRENCY);
         this.observable = (Observer<Frame> o) -> {
             observer = o;
             observer.onSubscribe(new EmptyDisposable());
@@ -45,46 +43,28 @@ public class AeronClientDuplexConnection implements DuplexConnection, AutoClosea
         return observable;
     }
 
-    static final AtomicLong count = new AtomicLong();
-
     @Override
     public void addOutput(Publisher<Frame> o, Completable callback) {
-        o.subscribe(new Subscriber<Frame>() {
-            volatile boolean running = true;
-            Subscription s;
-            @Override
-            public void onSubscribe(Subscription s) {
-                this.s = s;
-                s.request(framesSendQueue.remainingCapacity());
-            }
-
-            @Override
-            public void onNext(final Frame frame) {
-                final FrameHolder frameHolder =  FrameHolder.get(frame, publication);
-                int limit = Constants.MULTI_THREADED_SPIN_LIMIT;
-                if (running && !framesSendQueue.offer(frameHolder)) {
-                    if (--limit < 0) {
-                        worker.schedule(() ->  onNext(frame));
-                    }
-                }
-
-                final int r = framesSendQueue.remainingCapacity() + 1;
-                s.request(r);
-
-            }
-
-            @Override
-            public void onError(Throwable t) {
-                running = false;
-                callback.error(t);
-            }
-
-            @Override
-            public void onComplete() {
-                running = false;
-                callback.success();
-            }
-        });
+        rx.Observable<Frame> frameObservable = RxReactiveStreams.toObservable(o);
+        frameObservable
+            .flatMap(frame -> {
+                return rx.Observable.<FrameHolder>create(subscriber -> {
+                    final FrameHolder frameHolder = FrameHolder.get(frame, publication, subscriber);
+                    subscriber.onNext(frameHolder);
+                })
+                .doOnNext(fh -> {
+                    boolean offer = false;
+                    int i = 0;
+                    do {
+                        offer = framesSendQueue.offer(fh);
+                        if (!offer && ++i > 100) {
+                            rx.Observable.error(new MissingBackpressureException());
+                        }
+                    } while (!offer);
+                });
+            }, Constants.CONCURRENCY)
+            .subscribe(ignore -> {
+            }, callback::error, callback::success);
     }
 
     public ManyToManyConcurrentArrayQueue<FrameHolder> getFramesSendQueue() {

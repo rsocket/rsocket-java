@@ -36,6 +36,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.LockSupport;
 
 import static io.reactivesocket.aeron.internal.Constants.CLIENT_STREAM_ID;
+import static io.reactivesocket.aeron.internal.Constants.CONCURRENCY;
 import static io.reactivesocket.aeron.internal.Constants.EMTPY;
 import static io.reactivesocket.aeron.internal.Constants.SERVER_STREAM_ID;
 
@@ -73,7 +74,7 @@ public class ReactivesocketAeronClient  implements Loggable, AutoCloseable {
 
     private static int mtuLength;
 
-    private static final int NUM_PROCESSORS = Runtime.getRuntime().availableProcessors() / 2;
+    private static final int NUM_PROCESSORS = CONCURRENCY;
 
     private static Scheduler.Worker[] workers;
 
@@ -293,10 +294,11 @@ public class ReactivesocketAeronClient  implements Loggable, AutoCloseable {
                                         } else {
                                             offer(fh.getPublication(), byteBuffer, length);
                                         }
-                                    } catch (Throwable t) {
-                                        error("error draining send frame queue", t);
-                                    } finally {
+
                                         fh.release();
+                                    } catch (Throwable t) {
+                                        fh.release();
+                                        error("error draining send frame queue", t);
                                     }
                                 });
                         });
