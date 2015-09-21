@@ -53,7 +53,7 @@ public class RequestFrameFlyweight
         final ByteBuffer metadata,
         final ByteBuffer data)
     {
-        final int frameLength = computeFrameLength(type, metadata.capacity(), data.capacity());
+        final int frameLength = computeFrameLength(type, metadata.remaining(), data.remaining());
 
         flags |= FLAGS_REQUEST_CHANNEL_N;
         int length = FrameHeaderFlyweight.encodeFrameHeader(mutableDirectBuffer, offset, frameLength, flags, type, streamId);
@@ -76,7 +76,7 @@ public class RequestFrameFlyweight
         final ByteBuffer metadata,
         final ByteBuffer data)
     {
-        final int frameLength = computeFrameLength(type, metadata.capacity(), data.capacity());
+        final int frameLength = computeFrameLength(type, metadata.remaining(), data.remaining());
 
         int length = FrameHeaderFlyweight.encodeFrameHeader(mutableDirectBuffer, offset, frameLength, flags, type, streamId);
 

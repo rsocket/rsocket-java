@@ -234,7 +234,7 @@ public class Frame implements Payload
         POOL.release(this.directBuffer);
 
         this.directBuffer =
-            POOL.acquireMutableDirectBuffer(FrameHeaderFlyweight.computeFrameHeaderLength(type, 0, data.capacity()));
+            POOL.acquireMutableDirectBuffer(FrameHeaderFlyweight.computeFrameHeaderLength(type, 0, data.remaining()));
 
         this.length = FrameHeaderFlyweight.encode(this.directBuffer, offset, streamId, 0, type, NULL_BYTEBUFFER, data);
     }
@@ -261,7 +261,7 @@ public class Frame implements Payload
             final ByteBuffer data = payload.getData();
 
             final Frame frame =
-                POOL.acquireFrame(SetupFrameFlyweight.computeFrameLength(metadataMimeType, dataMimeType, metadata.capacity(), data.capacity()));
+                POOL.acquireFrame(SetupFrameFlyweight.computeFrameLength(metadataMimeType, dataMimeType, metadata.remaining(), data.remaining()));
 
             frame.length = SetupFrameFlyweight.encode(
                 frame.directBuffer, frame.offset, flags, keepaliveInterval, maxLifetime, metadataMimeType, dataMimeType, metadata, data);
@@ -317,7 +317,7 @@ public class Frame implements Payload
         ) {
             final int code = ErrorFrameFlyweight.errorCodeFromException(throwable);
             final Frame frame = POOL.acquireFrame(
-                ErrorFrameFlyweight.computeFrameLength(metadata.capacity(), data.capacity()));
+                ErrorFrameFlyweight.computeFrameLength(metadata.remaining(), data.remaining()));
 
             frame.length = ErrorFrameFlyweight.encode(
                 frame.directBuffer, frame.offset, streamId, code, metadata, data);
@@ -354,7 +354,7 @@ public class Frame implements Payload
     {
         public static Frame from(int ttl, int numberOfRequests, ByteBuffer metadata)
         {
-            final Frame frame = POOL.acquireFrame(LeaseFrameFlyweight.computeFrameLength(metadata.capacity()));
+            final Frame frame = POOL.acquireFrame(LeaseFrameFlyweight.computeFrameLength(metadata.remaining()));
 
             frame.length = LeaseFrameFlyweight.encode(frame.directBuffer, frame.offset, ttl, numberOfRequests, metadata);
             return frame;
@@ -397,7 +397,7 @@ public class Frame implements Payload
             final ByteBuffer d = payload.getData() != null ? payload.getData() : NULL_BYTEBUFFER;
             final ByteBuffer md = payload.getMetadata() != null ? payload.getMetadata() : NULL_BYTEBUFFER;
 
-            final Frame frame = POOL.acquireFrame(RequestFrameFlyweight.computeFrameLength(type, md.capacity(), d.capacity()));
+            final Frame frame = POOL.acquireFrame(RequestFrameFlyweight.computeFrameLength(type, md.remaining(), d.remaining()));
 
             if (type.hasInitialRequestN())
             {
@@ -421,7 +421,7 @@ public class Frame implements Payload
 
         public static Frame from(int streamId, FrameType type, ByteBuffer metadata, ByteBuffer data, int initialRequestN, int flags)
         {
-            final Frame frame = POOL.acquireFrame(RequestFrameFlyweight.computeFrameLength(type, metadata.capacity(), data.capacity()));
+            final Frame frame = POOL.acquireFrame(RequestFrameFlyweight.computeFrameLength(type, metadata.remaining(), data.remaining()));
 
             frame.length = RequestFrameFlyweight.encode(frame.directBuffer, frame.offset, streamId, flags, type, initialRequestN, metadata, data);
             return frame;
@@ -471,7 +471,7 @@ public class Frame implements Payload
             final ByteBuffer metadata = payload.getMetadata() != null ? payload.getMetadata() : NULL_BYTEBUFFER;
 
             final Frame frame =
-                POOL.acquireFrame(FrameHeaderFlyweight.computeFrameHeaderLength(type, metadata.capacity(), data.capacity()));
+                POOL.acquireFrame(FrameHeaderFlyweight.computeFrameHeaderLength(type, metadata.remaining(), data.remaining()));
 
             frame.length = FrameHeaderFlyweight.encode(frame.directBuffer, frame.offset, streamId, 0, type, metadata, data);
             return frame;
@@ -480,7 +480,7 @@ public class Frame implements Payload
         public static Frame from(int streamId, FrameType type, ByteBuffer metadata, ByteBuffer data, int flags)
         {
             final Frame frame =
-                POOL.acquireFrame(FrameHeaderFlyweight.computeFrameHeaderLength(type, metadata.capacity(), data.capacity()));
+                POOL.acquireFrame(FrameHeaderFlyweight.computeFrameHeaderLength(type, metadata.remaining(), data.remaining()));
 
             frame.length = FrameHeaderFlyweight.encode(frame.directBuffer, frame.offset, streamId, flags, type, metadata, data);
             return frame;
@@ -515,7 +515,7 @@ public class Frame implements Payload
         public static Frame from(ByteBuffer data, boolean respond)
         {
             final Frame frame =
-                POOL.acquireFrame(FrameHeaderFlyweight.computeFrameHeaderLength(FrameType.KEEPALIVE, 0, data.capacity()));
+                POOL.acquireFrame(FrameHeaderFlyweight.computeFrameHeaderLength(FrameType.KEEPALIVE, 0, data.remaining()));
 
             final int flags = (respond ? FrameHeaderFlyweight.FLAGS_KEEPALIVE_R : 0);
 

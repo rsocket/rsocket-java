@@ -26,11 +26,19 @@ public class ThreadSafeFramePool implements FramePool
 {
     private static final int MAX_CACHED_FRAMES = 16;
 
-    private static final OneToOneConcurrentArrayQueue<Frame> FRAME_QUEUE =
-        new OneToOneConcurrentArrayQueue<>(MAX_CACHED_FRAMES);
+    private final OneToOneConcurrentArrayQueue<Frame> frameQueue;
+    private final OneToOneConcurrentArrayQueue<MutableDirectBuffer> directBufferQueue;
 
-    private static final OneToOneConcurrentArrayQueue<MutableDirectBuffer> DIRECTBUFFER_QUEUE =
-        new OneToOneConcurrentArrayQueue<>(MAX_CACHED_FRAMES);
+    public ThreadSafeFramePool()
+    {
+        this(MAX_CACHED_FRAMES, MAX_CACHED_FRAMES);
+    }
+
+    public ThreadSafeFramePool(final int frameQueueLength, final int directBufferQueueLength)
+    {
+        frameQueue = new OneToOneConcurrentArrayQueue<>(frameQueueLength);
+        directBufferQueue = new OneToOneConcurrentArrayQueue<>(directBufferQueueLength);
+    }
 
     public Frame acquireFrame(int size)
     {
@@ -89,33 +97,33 @@ public class ThreadSafeFramePool implements FramePool
 
     public void release(Frame frame)
     {
-        synchronized (FRAME_QUEUE)
+        synchronized (frameQueue)
         {
-            FRAME_QUEUE.offer(frame);
+            frameQueue.offer(frame);
         }
     }
 
     public void release(MutableDirectBuffer mutableDirectBuffer)
     {
-        synchronized (DIRECTBUFFER_QUEUE)
+        synchronized (directBufferQueue)
         {
-            DIRECTBUFFER_QUEUE.offer(mutableDirectBuffer);
+            directBufferQueue.offer(mutableDirectBuffer);
         }
     }
 
     private Frame pollFrame()
     {
-        synchronized (FRAME_QUEUE)
+        synchronized (frameQueue)
         {
-            return FRAME_QUEUE.poll();
+            return frameQueue.poll();
         }
     }
 
     private MutableDirectBuffer pollMutableDirectBuffer()
     {
-        synchronized (DIRECTBUFFER_QUEUE)
+        synchronized (directBufferQueue)
         {
-            return DIRECTBUFFER_QUEUE.poll();
+            return directBufferQueue.poll();
         }
     }
 }

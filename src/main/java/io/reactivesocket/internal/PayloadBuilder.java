@@ -71,14 +71,16 @@ public class PayloadBuilder
     {
         final ByteBuffer payloadData = payload.getData();
         final ByteBuffer payloadMetadata = payload.getMetadata();
+        final int dataLength = payloadData.remaining();
+        final int metadataLength = payloadMetadata.remaining();
 
-        ensureDataCapacity(payloadData.capacity());
-        ensureMetadataCapacity(payloadMetadata.capacity());
+        ensureDataCapacity(dataLength);
+        ensureMetadataCapacity(metadataLength);
 
         dataMutableDirectBuffer.putBytes(dataLimit, payloadData, payloadData.capacity());
-        dataLimit += payloadData.capacity();
+        dataLimit += dataLength;
         metadataMutableDirectBuffer.putBytes(metadataLimit, payloadMetadata, payloadMetadata.capacity());
-        metadataLimit += payloadMetadata.capacity();
+        metadataLimit += metadataLength;
     }
 
     private void ensureDataCapacity(final int additionalCapacity)
