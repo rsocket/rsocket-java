@@ -84,13 +84,13 @@ public class TestConnection implements DuplexConnection {
 		// client to server
 		write.add(f -> {
 			serverThread.schedule(() -> {
-				serverConnection.toInput.send(f);	
+				serverConnection.toInput.send(f);
 			});
 		});
 		// server to client
 		serverConnection.write.add(f -> {
 			clientThread.schedule(() -> {
-				toInput.send(f);	
+				toInput.send(f);
 			});
 		});
 	}

@@ -317,7 +317,7 @@ public class Frame implements Payload
         ) {
             final int code = ErrorFrameFlyweight.errorCodeFromException(throwable);
             final Frame frame = POOL.acquireFrame(
-                ErrorFrameFlyweight.computeFrameLength(data.capacity(), metadata.capacity()));
+                ErrorFrameFlyweight.computeFrameLength(metadata.capacity(), data.capacity()));
 
             frame.length = ErrorFrameFlyweight.encode(
                 frame.directBuffer, frame.offset, streamId, code, metadata, data);
@@ -576,6 +576,6 @@ public class Frame implements Payload
         } catch (Exception e) {
             e.printStackTrace();
         }
-        return "Frame[" + offset + "] => Stream ID: " + streamId + " Type: " + type + " Payload Data: " + payload;
+        return "Frame[" + offset + "] => Stream ID: " + streamId + " Type: " + type + " Payload: " + payload;
     }
 }

@@ -75,7 +75,7 @@ public class ThreadSafeFramePool implements FramePool
     public MutableDirectBuffer acquireMutableDirectBuffer(int size)
     {
         UnsafeBuffer directBuffer = (UnsafeBuffer)pollMutableDirectBuffer();
-        if (null == directBuffer || directBuffer.byteBuffer().capacity() < size)
+        if (null == directBuffer || directBuffer.capacity() < size)
         {
             directBuffer = new UnsafeBuffer(ByteBuffer.allocate(size));
         }
@@ -87,23 +87,35 @@ public class ThreadSafeFramePool implements FramePool
         return directBuffer;
     }
 
-    public synchronized void release(Frame frame)
+    public void release(Frame frame)
     {
-        FRAME_QUEUE.offer(frame);
+        synchronized (FRAME_QUEUE)
+        {
+            FRAME_QUEUE.offer(frame);
+        }
     }
 
-    public synchronized void release(MutableDirectBuffer mutableDirectBuffer)
+    public void release(MutableDirectBuffer mutableDirectBuffer)
     {
-        DIRECTBUFFER_QUEUE.offer(mutableDirectBuffer);
+        synchronized (DIRECTBUFFER_QUEUE)
+        {
+            DIRECTBUFFER_QUEUE.offer(mutableDirectBuffer);
+        }
     }
 
-    private synchronized Frame pollFrame()
+    private Frame pollFrame()
     {
-        return FRAME_QUEUE.poll();
+        synchronized (FRAME_QUEUE)
+        {
+            return FRAME_QUEUE.poll();
+        }
     }
 
-    private synchronized MutableDirectBuffer pollMutableDirectBuffer()
+    private MutableDirectBuffer pollMutableDirectBuffer()
     {
-        return DIRECTBUFFER_QUEUE.poll();
+        synchronized (DIRECTBUFFER_QUEUE)
+        {
+            return DIRECTBUFFER_QUEUE.poll();
+        }
     }
 }
