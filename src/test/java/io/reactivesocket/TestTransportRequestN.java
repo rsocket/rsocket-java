@@ -26,6 +26,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.After;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.reactivestreams.Publisher;
 
@@ -38,9 +39,10 @@ import io.reactivex.subscribers.TestSubscriber;
 public class TestTransportRequestN {
 
 	@Test(timeout = 3000)
-	public void testRequestNFromTransport() throws InterruptedException {
+	public void testRequestStreamWithNFromTransport() throws InterruptedException {
+		clientConnection = new TestConnectionWithControlledRequestN();
 		serverConnection = new TestConnectionWithControlledRequestN();
-		setup(serverConnection);
+		setup(clientConnection, serverConnection);
 
 		TestSubscriber<Payload> ts = new TestSubscriber<>();
 		fromPublisher(socketClient.requestStream(utf8EncodedPayload("", null)))
@@ -72,16 +74,97 @@ public class TestTransportRequestN {
 			fail("Emitted more (" + serverConnection.emitted.get() + ") than transport requested (" + serverConnection.requested.get() + ")");
 		}
 	}
+	
+	@Test(timeout = 3000)
+	public void testRequestChannelDownstreamWithNFromTransport() throws InterruptedException {
+		clientConnection = new TestConnectionWithControlledRequestN();
+		serverConnection = new TestConnectionWithControlledRequestN();
+		setup(clientConnection, serverConnection);
+
+		TestSubscriber<Payload> ts = new TestSubscriber<>();
+		fromPublisher(socketClient.requestChannel(just(utf8EncodedPayload("", null))))
+				.take(150)
+				.subscribe(ts);
+
+		// wait for server to add output
+		if (!serverConnection.awaitSubscription(1000)) {
+			fail("Did not receive subscription");
+		}
+		// now request some data, but less than it is expected to output
+		serverConnection.requestMore(10);
+
+		// since we are async, give time for emission to occur
+		Thread.sleep(500);
+
+		// we should not have received more than 11 (10 + default 1 that is requested)
+
+		if (ts.valueCount() > 11) {
+			fail("Received more (" + ts.valueCount() + ") than transport requested (11)");
+		}
+
+		ts.cancel();
+
+		// since we are async, give time for emission to occur
+		Thread.sleep(500);
+
+		if (serverConnection.emitted.get() > serverConnection.requested.get()) {
+			fail("Emitted more (" + serverConnection.emitted.get() + ") than transport requested (" + serverConnection.requested.get() + ")");
+		}
+	}
+	
+	// TODO come back after some other work (Ben)
+	@Ignore
+	@Test(timeout = 3000)
+	public void testRequestChannelUpstreamWithNFromTransport() throws InterruptedException {
+		clientConnection = new TestConnectionWithControlledRequestN();
+		serverConnection = new TestConnectionWithControlledRequestN();
+		setup(clientConnection, serverConnection);
+
+		TestSubscriber<Payload> ts = new TestSubscriber<>();
+		fromPublisher(socketClient.requestChannel(range(0, 1000).map(i -> utf8EncodedPayload("" + i, null))))
+				.take(10)
+				.subscribe(ts);
+
+		// wait for server to add output
+		if (!serverConnection.awaitSubscription(1000)) {
+			fail("Did not receive subscription");
+		}
+		// now request some data, but less than it is expected to output
+		serverConnection.requestMore(10);
+//		clientConnection.requestMore(2);
+
+		// since we are async, give time for emission to occur
+		Thread.sleep(500);
+
+		// we should not have received more than 11 (10 + default 1 that is requested)
+
+		if (ts.valueCount() > 11) {
+			fail("Received more (" + ts.valueCount() + ") than transport requested (11)");
+		}
+
+		ts.cancel();
+
+		// since we are async, give time for emission to occur
+		Thread.sleep(500);
+
+		if (serverConnection.emitted.get() > serverConnection.requested.get()) {
+			fail("Server Emitted more (" + serverConnection.emitted.get() + ") than transport requested (" + serverConnection.requested.get() + ")");
+		}
+		
+		if (clientConnection.emitted.get() > clientConnection.requested.get()) {
+			fail("Client Emitted more (" + clientConnection.emitted.get() + ") than transport requested (" + clientConnection.requested.get() + ")");
+		}
+	}
 
 	private TestConnectionWithControlledRequestN serverConnection;
+	private TestConnectionWithControlledRequestN clientConnection;
 	private ReactiveSocket socketServer;
 	private ReactiveSocket socketClient;
 	private AtomicBoolean helloSubscriptionRunning = new AtomicBoolean(false);
 	private AtomicReference<Throwable> lastServerError = new AtomicReference<Throwable>();
 	private CountDownLatch lastServerErrorCountDown;
 
-	public void setup(TestConnectionWithControlledRequestN serverConnection) throws InterruptedException {
-		TestConnection clientConnection = new TestConnection();
+	public void setup(TestConnectionWithControlledRequestN clientConnection, TestConnectionWithControlledRequestN serverConnection) throws InterruptedException {
 		clientConnection.connectToServerConnection(serverConnection, false);
 		lastServerErrorCountDown = new CountDownLatch(1);
 
@@ -146,6 +229,7 @@ public class TestTransportRequestN {
 		socketServer.shutdown();
 		socketClient.shutdown();
 		try {
+			clientConnection.close();
 			serverConnection.close();
 		} catch (IOException e) {
 			e.printStackTrace();
