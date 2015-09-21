@@ -65,13 +65,13 @@ public class PayloadFragmenter implements Iterator<Frame>
 
     public boolean hasNext()
     {
-        return (dataOffset < data.capacity() || metadataOffset < metadata.capacity());
+        return (dataOffset < data.capacity() || metadataOffset < metadata.remaining());
     }
 
     public Frame next()
     {
-        final int metadataLength = Math.min(metadataMtu, metadata.capacity() - metadataOffset);
-        final int dataLength = Math.min(dataMtu, data.capacity() - dataOffset);
+        final int metadataLength = Math.min(metadataMtu, metadata.remaining() - metadataOffset);
+        final int dataLength = Math.min(dataMtu, data.remaining() - dataOffset);
 
         Frame result = null;
 
@@ -84,7 +84,7 @@ public class PayloadFragmenter implements Iterator<Frame>
         metadataOffset += metadataLength;
         dataOffset += dataLength;
 
-        final boolean isMoreFollowing = (metadataOffset < metadata.capacity() || dataOffset < data.capacity());
+        final boolean isMoreFollowing = (metadataOffset < metadata.remaining() || dataOffset < data.remaining());
         int flags = 0;
 
         if (Type.RESPONSE == type)

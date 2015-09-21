@@ -63,7 +63,7 @@ public class SetupFrameFlyweight
         final ByteBuffer metadata,
         final ByteBuffer data)
     {
-        final int frameLength = computeFrameLength(metadataMimeType, dataMimeType, metadata.capacity(), data.capacity());
+        final int frameLength = computeFrameLength(metadataMimeType, dataMimeType, metadata.remaining(), data.remaining());
 
         int length = FrameHeaderFlyweight.encodeFrameHeader(mutableDirectBuffer, offset, frameLength, flags, FrameType.SETUP, 0);
 

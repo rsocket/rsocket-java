@@ -35,7 +35,7 @@ public class KeepaliveFrameFlyweight
         final int offset,
         final ByteBuffer data)
     {
-        final int frameLength = computeFrameLength(data.capacity());
+        final int frameLength = computeFrameLength(data.remaining());
 
         int length = FrameHeaderFlyweight.encodeFrameHeader(mutableDirectBuffer, offset, frameLength, 0, FrameType.KEEPALIVE, 0);
 
