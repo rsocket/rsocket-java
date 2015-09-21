@@ -118,7 +118,7 @@ public class Responder {
 		/* state of cancellation subjects during connection */
 		final Int2ObjectHashMap<Subscription> cancellationSubscriptions = new Int2ObjectHashMap<>();
 		/* streams in flight that can receive REQUEST_N messages */
-		final Int2ObjectHashMap<Subscription> inFlight = new Int2ObjectHashMap<>(); // TODO not being used
+		final Int2ObjectHashMap<SubscriptionArbiter> inFlight = new Int2ObjectHashMap<>(); 
 		/* bidirectional channels */
 		final Int2ObjectHashMap<UnicastSubject<Payload>> channels = new Int2ObjectHashMap<>(); // TODO should/can we make this optional so that it only gets allocated per connection if channels are
 																									// used?
@@ -205,14 +205,14 @@ public class Responder {
 							}
 							return;
 						} else if (requestFrame.getType() == FrameType.REQUEST_N) {
-							Subscription inFlightSubscription = null;
+							SubscriptionArbiter inFlightSubscription = null;
 							synchronized (Responder.this)
 							{
 								inFlightSubscription = inFlight.get(requestFrame.getStreamId());
 							}
 							if (inFlightSubscription != null)
 							{
-								inFlightSubscription.request(Frame.RequestN.requestN(requestFrame));
+								inFlightSubscription.addApplicationRequest(Frame.RequestN.requestN(requestFrame));
 								return;
 							}
 							// TODO should we do anything if we don't find the stream? emitting an error is risky as the responder could have terminated and cleaned up already
@@ -407,7 +407,7 @@ public class Responder {
 			Frame requestFrame,
 			final RequestHandler requestHandler,
 			final Int2ObjectHashMap<Subscription> cancellationSubscriptions,
-			final Int2ObjectHashMap<Subscription> inFlight) {
+			final Int2ObjectHashMap<SubscriptionArbiter> inFlight) {
 		return _handleRequestStream(requestStreamHandler, requestFrame, requestHandler, cancellationSubscriptions, inFlight, true);
 	}
 
@@ -415,7 +415,7 @@ public class Responder {
 			Frame requestFrame,
 			final RequestHandler requestHandler,
 			final Int2ObjectHashMap<Subscription> cancellationSubscriptions,
-			final Int2ObjectHashMap<Subscription> inFlight) {
+			final Int2ObjectHashMap<SubscriptionArbiter> inFlight) {
 		return _handleRequestStream(requestSubscriptionHandler, requestFrame, requestHandler, cancellationSubscriptions, inFlight, false);
 	}
 	
@@ -434,7 +434,7 @@ public class Responder {
 			Frame requestFrame,
 			final RequestHandler requestHandler,
 			final Int2ObjectHashMap<Subscription> cancellationSubscriptions,
-			final Int2ObjectHashMap<Subscription> inFlight,
+			final Int2ObjectHashMap<SubscriptionArbiter> inFlight,
 			final boolean allowCompletion) {
 
 		return new Publisher<Frame>() {
@@ -445,10 +445,15 @@ public class Responder {
 
 					final AtomicBoolean started = new AtomicBoolean(false);
 					final AtomicReference<Subscription> parent = new AtomicReference<>();
+					final SubscriptionArbiter arbiter = new SubscriptionArbiter();
 
 					@Override
 					public void request(long n) {
-						if (n > 0 && started.compareAndSet(false,  true)) {
+						if(n <= 0) {
+							return;
+						}
+						if (started.compareAndSet(false,  true)) {
+							arbiter.addTransportRequest(n);
 							final int streamId = requestFrame.getStreamId();
 
 							handler.apply(requestHandler, requestFrame).subscribe(new Subscriber<Payload>() {
@@ -456,8 +461,9 @@ public class Responder {
 								@Override
 								public void onSubscribe(Subscription s) {
 									if (parent.compareAndSet(null, s)) {
-										inFlight.put(streamId, s);
-										s.request(Frame.Request.initialRequestN(requestFrame));
+										inFlight.put(streamId, arbiter);
+										arbiter.addApplicationRequest(Frame.Request.initialRequestN(requestFrame));
+										arbiter.addApplicationProducer(s);
 									} else {
 										s.cancel();
 										cleanup();
@@ -493,6 +499,8 @@ public class Responder {
 								}
 
 							});
+						} else {
+							arbiter.addTransportRequest(n);
 						}
 					}
 
@@ -561,7 +569,7 @@ public class Responder {
 			RequestHandler requestHandler,
 			Int2ObjectHashMap<UnicastSubject<Payload>> channels,
 			Int2ObjectHashMap<Subscription> cancellationSubscriptions,
-			Int2ObjectHashMap<Subscription> inFlight) {
+			Int2ObjectHashMap<SubscriptionArbiter> inFlight) {
 
 		UnicastSubject<Payload> channelSubject = null;
 		synchronized(Responder.this) {
@@ -576,10 +584,15 @@ public class Responder {
 
 						final AtomicBoolean started = new AtomicBoolean(false);
 						final AtomicReference<Subscription> parent = new AtomicReference<>();
+						final SubscriptionArbiter arbiter = new SubscriptionArbiter();
 
 						@Override
 						public void request(long n) {
-							if (n > 0 && started.compareAndSet(false, true)) {
+							if(n <= 0) {
+								return;
+							}
+							if (started.compareAndSet(false, true)) {
+								arbiter.addTransportRequest(n);
 								final int streamId = requestFrame.getStreamId();
 								
 								// first request on this channel
@@ -609,8 +622,9 @@ public class Responder {
 									@Override
 									public void onSubscribe(Subscription s) {
 										if (parent.compareAndSet(null, s)) {
-											inFlight.put(streamId, s);
-											s.request(Frame.Request.initialRequestN(requestFrame));
+											inFlight.put(streamId, arbiter);
+											arbiter.addApplicationRequest(Frame.Request.initialRequestN(requestFrame));
+											arbiter.addApplicationProducer(s);
 										} else {
 											s.cancel();
 											cleanup();
@@ -638,6 +652,8 @@ public class Responder {
 									}
 
 								});
+							} else {
+								arbiter.addTransportRequest(n);
 							}
 						}
 
@@ -680,6 +696,52 @@ public class Responder {
 				return PublisherUtils.errorFrame(requestFrame.getStreamId(), new RuntimeException("Channel unavailable")); // TODO validate with unit tests.
 			}
 		}
+	}
+	
+	private static class SubscriptionArbiter {
+		private Subscription applicationProducer;
+		private long appRequested = 0;
+		private long transportRequested = 0;
+		private long requestedToProducer = 0;
+
+		public void addApplicationRequest(long n) {
+			synchronized(this) {
+				appRequested += n;
+			}
+			tryRequest();
+		}
+
+		public void addApplicationProducer(Subscription s) {
+			synchronized(this) {
+				applicationProducer = s;
+			}
+			tryRequest();
+		}
+
+		public void addTransportRequest(long n) {
+			synchronized(this) {
+				transportRequested += n;
+			}
+			tryRequest();
+		}
+		
+		private void tryRequest() {
+			long toRequest = 0;
+			Subscription s = null;
+			synchronized(this) {
+				if(applicationProducer == null) {
+					return;
+				}
+				s = applicationProducer;
+				long minToRequest = Math.min(appRequested, transportRequested);
+				toRequest = minToRequest - requestedToProducer;
+				requestedToProducer += toRequest;
+			}
+			if(toRequest > 0) {
+				s.request(toRequest);
+			}
+		}
+		
 	}
 
 }

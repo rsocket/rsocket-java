@@ -18,8 +18,6 @@ package io.reactivesocket;
 import static io.reactivex.Observable.*;
 
 import java.io.IOException;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.function.Consumer;
 
 import org.reactivestreams.Publisher;
 
@@ -27,13 +25,11 @@ import io.reactivesocket.observable.Observer;
 import io.reactivex.Observable;
 import io.reactivex.Scheduler.Worker;
 import io.reactivex.schedulers.Schedulers;
-import io.reactivex.subjects.PublishSubject;
-import io.reactivex.subjects.Subject;
 
 public class TestConnection implements DuplexConnection {
 
-	public final Channel toInput = new Channel();
-	public final Channel write = new Channel();
+	public final SerializedEventBus toInput = new SerializedEventBus();
+	public final SerializedEventBus write = new SerializedEventBus();
 
 	@Override
 	public void addOutput(Publisher<Frame> o, Completable callback) {
@@ -70,6 +66,9 @@ public class TestConnection implements DuplexConnection {
 		connectToServerConnection(serverConnection, true);
 	}
 
+	Worker clientThread = Schedulers.newThread().createWorker();
+	Worker serverThread = Schedulers.newThread().createWorker();
+	
 	public void connectToServerConnection(TestConnection serverConnection, boolean log) {
 		if (log) {
 			serverConnection.write.add(n -> System.out.println("SERVER ==> Writes from server->client: " + n + "   Written from " + Thread.currentThread()));
@@ -78,9 +77,6 @@ public class TestConnection implements DuplexConnection {
 			toInput.add(n -> System.out.println("CLIENT <== Input from server->client: " + n + "   Read on " + Thread.currentThread()));
 		}
 		
-		Worker clientThread = Schedulers.newThread().createWorker();
-		Worker serverThread = Schedulers.newThread().createWorker();
-
 		// client to server
 		write.add(f -> {
 			serverThread.schedule(() -> {
@@ -97,61 +93,8 @@ public class TestConnection implements DuplexConnection {
 
 	@Override
 	public void close() throws IOException {
-
-	}
-
-	public static class Channel {
-
-		private final CopyOnWriteArrayList<Observer<Frame>> os = new CopyOnWriteArrayList<>();
-		private Subject<Frame, Frame> s;
-		
-		public Channel() {
-			s = PublishSubject.<Frame>create().toSerialized();
-			s.subscribe(f-> {
-				for (Observer<Frame> o : os) {
-					o.onNext(f);
-				}	
-			});
-		}
-		
-		public void send(Frame f) {
-			s.onNext(f);
-		}
-
-		public void add(Observer<Frame> o) {
-			os.add(o);
-		}
-
-		public void add(Consumer<Frame> f) {
-			add(new Observer<Frame>() {
-
-				@Override
-				public void onNext(Frame t) {
-					f.accept(t);
-				}
-
-				@Override
-				public void onError(Throwable e) {
-
-				}
-
-				@Override
-				public void onComplete() {
-
-				}
-
-				@Override
-				public void onSubscribe(io.reactivesocket.observable.Disposable d) {
-					// TODO Auto-generated method stub
-
-				}
-
-			});
-		}
-
-		public void remove(Observer<Frame> o) {
-			os.remove(o);
-		}
+		clientThread.dispose();
+		serverThread.dispose();
 	}
 
 }
