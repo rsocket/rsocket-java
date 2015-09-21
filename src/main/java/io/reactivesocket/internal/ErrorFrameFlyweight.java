@@ -40,8 +40,8 @@ public class ErrorFrameFlyweight {
     private static final int PAYLOAD_OFFSET = ERROR_CODE_FIELD_OFFSET + BitUtil.SIZE_OF_INT;
 
     public static int computeFrameLength(
-        final int dataLength,
-        final int metadataLength
+        final int metadataLength,
+        final int dataLength
     ) {
         int length = FrameHeaderFlyweight.computeFrameHeaderLength(
             FrameType.ERROR, metadataLength, dataLength);
@@ -56,7 +56,7 @@ public class ErrorFrameFlyweight {
         final ByteBuffer metadata,
         final ByteBuffer data
     ) {
-        final int frameLength = computeFrameLength(data.capacity(), metadata.capacity());
+        final int frameLength = computeFrameLength(metadata.capacity(), data.capacity());
 
         int length = FrameHeaderFlyweight.encodeFrameHeader(
             mutableDirectBuffer, offset, frameLength, 0, FrameType.ERROR, streamId);
@@ -98,6 +98,6 @@ public class ErrorFrameFlyweight {
     }
 
     public static int payloadOffset(final DirectBuffer directBuffer, final int offset) {
-        return offset + PAYLOAD_OFFSET;
+        return offset + FrameHeaderFlyweight.FRAME_HEADER_LENGTH + BitUtil.SIZE_OF_INT;
     }
 }
