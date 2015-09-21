@@ -56,7 +56,7 @@ public class ErrorFrameFlyweight {
         final ByteBuffer metadata,
         final ByteBuffer data
     ) {
-        final int frameLength = computeFrameLength(metadata.capacity(), data.capacity());
+        final int frameLength = computeFrameLength(metadata.remaining(), data.remaining());
 
         int length = FrameHeaderFlyweight.encodeFrameHeader(
             mutableDirectBuffer, offset, frameLength, 0, FrameType.ERROR, streamId);

@@ -110,16 +110,17 @@ public class FrameHeaderFlyweight
         final ByteBuffer metadata)
     {
         int length = 0;
+        final int metadataLength = metadata.remaining();
 
-        if (0 < metadata.capacity())
+        if (0 < metadataLength)
         {
             int flags = mutableDirectBuffer.getShort(frameHeaderStartOffset + FLAGS_FIELD_OFFSET, ByteOrder.BIG_ENDIAN);
             flags |= FLAGS_M;
             mutableDirectBuffer.putShort(frameHeaderStartOffset + FLAGS_FIELD_OFFSET, (short)flags, ByteOrder.BIG_ENDIAN);
             mutableDirectBuffer.putInt(metadataOffset, metadata.capacity() + BitUtil.SIZE_OF_INT, ByteOrder.BIG_ENDIAN);
             length += BitUtil.SIZE_OF_INT;
-            mutableDirectBuffer.putBytes(metadataOffset + length, metadata, metadata.capacity());
-            length += metadata.capacity();
+            mutableDirectBuffer.putBytes(metadataOffset + length, metadata, metadataLength);
+            length += metadataLength;
         }
 
         return length;
@@ -131,11 +132,12 @@ public class FrameHeaderFlyweight
         final ByteBuffer data)
     {
         int length = 0;
+        final int dataLength = data.remaining();
 
         if (0 < data.capacity())
         {
-            mutableDirectBuffer.putBytes(dataOffset, data, data.capacity());
-            length += data.capacity();
+            mutableDirectBuffer.putBytes(dataOffset, data, dataLength);
+            length += dataLength;
         }
 
         return length;
@@ -151,7 +153,7 @@ public class FrameHeaderFlyweight
         final ByteBuffer metadata,
         final ByteBuffer data)
     {
-        final int frameLength = computeFrameHeaderLength(frameType, metadata.capacity(), data.capacity());
+        final int frameLength = computeFrameHeaderLength(frameType, metadata.remaining(), data.remaining());
 
         final FrameType outFrameType;
 

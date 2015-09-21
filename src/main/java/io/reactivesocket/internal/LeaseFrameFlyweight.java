@@ -44,7 +44,7 @@ public class LeaseFrameFlyweight
         final int numRequests,
         final ByteBuffer metadata)
     {
-        final int frameLength = computeFrameLength(metadata.capacity());
+        final int frameLength = computeFrameLength(metadata.remaining());
 
         int length = FrameHeaderFlyweight.encodeFrameHeader(mutableDirectBuffer, offset, frameLength, 0, FrameType.LEASE, 0);
 
