@@ -27,11 +27,11 @@ import java.util.Iterator;
  *
  * Not thread-safe
  */
-public class PayloadFragmenter implements Iterator<Frame>
+public class PayloadFragmenter implements Iterable<Frame>, Iterator<Frame>
 {
     private enum Type
     {
-        RESPONSE, REQUEST_CHANNEL
+        RESPONSE, RESPONSE_COMPLETE, REQUEST_CHANNEL
     }
 
     private final int metadataMtu;
@@ -56,11 +56,30 @@ public class PayloadFragmenter implements Iterator<Frame>
         type = Type.RESPONSE;
     }
 
+    public void resetForResponseComplete(final int streamId, final Payload payload)
+    {
+        reset(streamId, payload);
+        type = Type.RESPONSE_COMPLETE;
+    }
+
     public void resetForRequestChannel(final int streamId, final Payload payload, final int initialRequestN)
     {
         reset(streamId, payload);
         type = Type.REQUEST_CHANNEL;
         this.initialRequestN = initialRequestN;
+    }
+
+    public static boolean requiresFragmenting(final int metadataMtu, final int dataMtu, final Payload payload)
+    {
+        final ByteBuffer metadata = payload.getMetadata();
+        final ByteBuffer data = payload.getData();
+
+        return (metadata.remaining() > metadataMtu || data.remaining() > dataMtu);
+    }
+
+    public Iterator<Frame> iterator()
+    {
+        return this;
     }
 
     public boolean hasNext()
@@ -95,6 +114,15 @@ public class PayloadFragmenter implements Iterator<Frame>
             }
 
             result = Frame.Response.from(streamId, FrameType.NEXT, metadataBuffer, dataBuffer, flags);
+        }
+        if (Type.RESPONSE_COMPLETE == type)
+        {
+            if (isMoreFollowing)
+            {
+                flags |= FrameHeaderFlyweight.FLAGS_RESPONSE_F;
+            }
+
+            result = Frame.Response.from(streamId, FrameType.NEXT_COMPLETE, metadataBuffer, dataBuffer, flags);
         }
         else if (Type.REQUEST_CHANNEL == type)
         {
