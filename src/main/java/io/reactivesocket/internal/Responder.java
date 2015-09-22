@@ -28,7 +28,9 @@ import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
 import io.reactivesocket.exceptions.SetupException;
+import io.reactivesocket.internal.frame.FrameHeaderFlyweight;
 import io.reactivesocket.internal.frame.SetupFrameFlyweight;
+import io.reactivesocket.internal.rx.BooleanDisposable;
 import io.reactivesocket.internal.rx.EmptyDisposable;
 import io.reactivesocket.internal.rx.EmptySubscription;
 import io.reactivesocket.rx.Completable;
@@ -122,13 +124,41 @@ public class Responder {
 		/* state of cancellation subjects during connection */
 		final Int2ObjectHashMap<Subscription> cancellationSubscriptions = new Int2ObjectHashMap<>();
 		/* streams in flight that can receive REQUEST_N messages */
-		final Int2ObjectHashMap<SubscriptionArbiter> inFlight = new Int2ObjectHashMap<>(); 
+		final Int2ObjectHashMap<TransportApplicationSubscriptionArbiter> inFlight = new Int2ObjectHashMap<>(); 
 		/* bidirectional channels */
 		final Int2ObjectHashMap<UnicastSubject<Payload>> channels = new Int2ObjectHashMap<>(); // TODO should/can we make this optional so that it only gets allocated per connection if channels are
 																									// used?
 		final AtomicBoolean childTerminated = new AtomicBoolean(false);
 		final AtomicReference<Disposable> transportSubscription = new AtomicReference<>();
+		
+		Runnable cancel = () -> {
+			// child has cancelled (shutdown the connection or server) // TODO validate with unit tests
+			if (!transportSubscription.compareAndSet(null, EmptyDisposable.EMPTY)) {
+				// cancel the one that was there if we failed to set the sentinel
+				transportSubscription.get().dispose();
+			}
+		};
+		
+		final FragmentedPublisher output = new FragmentedPublisher();
+		
+		connection.addOutput(output, new Completable() {
 
+			@Override
+			public void success() {
+				// TODO Auto-generated method stub
+			}
+
+			@Override
+			public void error(Throwable e) {
+				// TODO validate with unit tests
+				if (childTerminated.compareAndSet(false, true)) {
+					errorStream.accept(new RuntimeException("Error writing", e)); // TODO should we have typed RuntimeExceptions?
+					cancel.run();
+				}
+			}
+
+		});
+		
 		// subscribe to transport to get Frames
 		connection.getInput().subscribe(new Observer<Frame>() {
 
@@ -209,7 +239,7 @@ public class Responder {
 							}
 							return;
 						} else if (requestFrame.getType() == FrameType.REQUEST_N) {
-							SubscriptionArbiter inFlightSubscription = null;
+							TransportApplicationSubscriptionArbiter inFlightSubscription = null;
 							synchronized (Responder.this)
 							{
 								inFlightSubscription = inFlight.get(requestFrame.getStreamId());
@@ -246,23 +276,7 @@ public class Responder {
 						responsePublisher = PublisherUtils.errorFrame(streamId, exception);
 					}
 					
-					connection.addOutput(responsePublisher, new Completable() {
-
-						@Override
-						public void success() {
-							// TODO Auto-generated method stub
-						}
-
-						@Override
-						public void error(Throwable e) {
-							// TODO validate with unit tests
-							if (childTerminated.compareAndSet(false, true)) {
-								errorStream.accept(new RuntimeException("Error writing", e)); // TODO should we have typed RuntimeExceptions?
-								cancel();
-							}
-						}
-
-					});
+					output.submit(responsePublisher);
 				}
 			}
 
@@ -291,7 +305,7 @@ public class Responder {
 				// TODO validate with unit tests
 				if (childTerminated.compareAndSet(false, true)) {
 					errorStream.accept(t);
-					cancel();
+					cancel.run();
 				}
 			}
 
@@ -300,18 +314,10 @@ public class Responder {
 				//TODO validate what is happening here
 				// this would mean the connection gracefully shut down, which is unexpected
 				if (childTerminated.compareAndSet(false, true)) {
-					cancel();
+					cancel.run();
 				}
 			}
 			
-			private void cancel() {
-				// child has cancelled (shutdown the connection or server) // TODO validate with unit tests
-				if (!transportSubscription.compareAndSet(null, EmptyDisposable.EMPTY)) {
-					// cancel the one that was there if we failed to set the sentinel
-					transportSubscription.get().dispose();
-				}
-			}
-
 		});
 	}
 
@@ -356,7 +362,6 @@ public class Responder {
 								if (++count > 1) {
 									onError(new IllegalStateException("RequestResponse expects a single onNext"));
 								} else {
-
 									child.onNext(Frame.Response.from(streamId, FrameType.NEXT_COMPLETE, v));
 								}
 							}
@@ -412,7 +417,7 @@ public class Responder {
 			Frame requestFrame,
 			final RequestHandler requestHandler,
 			final Int2ObjectHashMap<Subscription> cancellationSubscriptions,
-			final Int2ObjectHashMap<SubscriptionArbiter> inFlight) {
+			final Int2ObjectHashMap<TransportApplicationSubscriptionArbiter> inFlight) {
 		return _handleRequestStream(requestStreamHandler, requestFrame, requestHandler, cancellationSubscriptions, inFlight, true);
 	}
 
@@ -420,7 +425,7 @@ public class Responder {
 			Frame requestFrame,
 			final RequestHandler requestHandler,
 			final Int2ObjectHashMap<Subscription> cancellationSubscriptions,
-			final Int2ObjectHashMap<SubscriptionArbiter> inFlight) {
+			final Int2ObjectHashMap<TransportApplicationSubscriptionArbiter> inFlight) {
 		return _handleRequestStream(requestSubscriptionHandler, requestFrame, requestHandler, cancellationSubscriptions, inFlight, false);
 	}
 	
@@ -439,7 +444,7 @@ public class Responder {
 			Frame requestFrame,
 			final RequestHandler requestHandler,
 			final Int2ObjectHashMap<Subscription> cancellationSubscriptions,
-			final Int2ObjectHashMap<SubscriptionArbiter> inFlight,
+			final Int2ObjectHashMap<TransportApplicationSubscriptionArbiter> inFlight,
 			final boolean allowCompletion) {
 
 		return new Publisher<Frame>() {
@@ -450,7 +455,7 @@ public class Responder {
 
 					final AtomicBoolean started = new AtomicBoolean(false);
 					final AtomicReference<Subscription> parent = new AtomicReference<>();
-					final SubscriptionArbiter arbiter = new SubscriptionArbiter();
+					final TransportApplicationSubscriptionArbiter arbiter = new TransportApplicationSubscriptionArbiter();
 
 					@Override
 					public void request(long n) {
@@ -574,7 +579,7 @@ public class Responder {
 			RequestHandler requestHandler,
 			Int2ObjectHashMap<UnicastSubject<Payload>> channels,
 			Int2ObjectHashMap<Subscription> cancellationSubscriptions,
-			Int2ObjectHashMap<SubscriptionArbiter> inFlight) {
+			Int2ObjectHashMap<TransportApplicationSubscriptionArbiter> inFlight) {
 
 		UnicastSubject<Payload> channelSubject = null;
 		synchronized(Responder.this) {
@@ -589,7 +594,7 @@ public class Responder {
 
 						final AtomicBoolean started = new AtomicBoolean(false);
 						final AtomicReference<Subscription> parent = new AtomicReference<>();
-						final SubscriptionArbiter arbiter = new SubscriptionArbiter();
+						final TransportApplicationSubscriptionArbiter arbiter = new TransportApplicationSubscriptionArbiter();
 
 						@Override
 						public void request(long n) {
@@ -703,7 +708,7 @@ public class Responder {
 		}
 	}
 	
-	private static class SubscriptionArbiter {
+	private static class TransportApplicationSubscriptionArbiter {
 		private Subscription applicationProducer;
 		private long appRequested = 0;
 		private long transportRequested = 0;
