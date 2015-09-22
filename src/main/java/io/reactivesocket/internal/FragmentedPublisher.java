@@ -40,6 +40,7 @@ public class FragmentedPublisher implements Publisher<Frame> {
 	public void subscribe(Subscriber<? super Frame> child) {
 		OperatorConcatMap<Payload, Frame> concat = new OperatorConcatMap<Payload, Frame>(payload -> {
 			if (PayloadFragmenter.requiresFragmenting(Frame.METADATA_MTU, Frame.DATA_MTU, payload)) {
+				System.out.println("needs fragments");
 				// not reusing each time since I need the Iterator state stored through request(n) and can have several in a queue
 				PayloadFragmenter fragmenter = new PayloadFragmenter(Frame.METADATA_MTU, Frame.DATA_MTU);
 				if (FrameType.NEXT_COMPLETE.equals(type)) {
@@ -51,7 +52,7 @@ public class FragmentedPublisher implements Publisher<Frame> {
 			} else {
 				return PublisherUtils.just(Frame.Response.from(streamId, type, payload));
 			}
-		} , 128);
+		} , 2);
 		Subscriber<? super Payload> applied = concat.apply(child);
 		responsePublisher.subscribe(applied);
 	}
