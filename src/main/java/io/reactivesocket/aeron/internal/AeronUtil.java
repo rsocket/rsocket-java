@@ -76,10 +76,14 @@ public class AeronUtil {
      * @param length the length of data
      */
     public static void tryClaimOrOffer(Publication publication, BufferFiller fillBuffer, int length) {
-        if (length < Constants.AERON_MTU_SIZE) {
-            tryClaim(publication, fillBuffer, length);
-        } else {
-            offer(publication, fillBuffer);
+        try {
+            if (length < Constants.AERON_MTU_SIZE) {
+                tryClaim(publication, fillBuffer, length);
+            } else {
+                offer(publication, fillBuffer);
+            }
+        } catch (Throwable t) {
+            t.printStackTrace();
         }
     }
 

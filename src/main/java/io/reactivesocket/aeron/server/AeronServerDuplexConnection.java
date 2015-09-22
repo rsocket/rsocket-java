@@ -3,9 +3,9 @@ package io.reactivesocket.aeron.server;
 import io.reactivesocket.Completable;
 import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
+import io.reactivesocket.aeron.AeronDuplexConnectionSubject;
 import io.reactivesocket.aeron.internal.Loggable;
 import io.reactivesocket.aeron.internal.MessageType;
-import io.reactivesocket.internal.EmptyDisposable;
 import io.reactivesocket.observable.Observable;
 import io.reactivesocket.observable.Observer;
 import org.reactivestreams.Publisher;
@@ -14,34 +14,31 @@ import uk.co.real_logic.aeron.logbuffer.BufferClaim;
 import uk.co.real_logic.agrona.BitUtil;
 import uk.co.real_logic.agrona.MutableDirectBuffer;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 public class AeronServerDuplexConnection implements DuplexConnection, AutoCloseable, Loggable {
 
     private static final ThreadLocal<BufferClaim> bufferClaims = ThreadLocal.withInitial(BufferClaim::new);
-
-    private Publication publication;
-    private Observer<Frame> observer;
-    private Observable<Frame> observable;
+    private final Publication publication;
+    private final ArrayList<AeronDuplexConnectionSubject> subjects;
 
     public AeronServerDuplexConnection(
         Publication publication) {
         this.publication = publication;
-        this.observable = new Observable<Frame>() {
-            @Override
-            public void subscribe(Observer<Frame> o) {
-                observer = o;
-                o.onSubscribe(new EmptyDisposable());
-            }
-        };
+        this.subjects = new ArrayList<>();
     }
 
-    public Observer<Frame> getSubscriber() {
-        return observer;
+    public List<? extends Observer<Frame>> getSubscriber() {
+        return subjects;
     }
 
+    @Override
     public Observable<Frame> getInput() {
-        return observable;
+        AeronDuplexConnectionSubject subject = new AeronDuplexConnectionSubject(subjects);
+        subjects.add(subject);
+        return subject;
     }
 
     @Override
@@ -83,7 +80,6 @@ public class AeronServerDuplexConnection implements DuplexConnection, AutoClosea
 
     @Override
     public void close() {
-        observer.onComplete();
         publication.close();
     }
 }

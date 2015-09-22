@@ -1,6 +1,5 @@
 package io.reactivesocket.aeron.server;
 
-import io.reactivesocket.Completable;
 import io.reactivesocket.ConnectionSetupHandler;
 import io.reactivesocket.Frame;
 import io.reactivesocket.LeaseGovernor;
@@ -20,6 +19,7 @@ import uk.co.real_logic.agrona.BitUtil;
 import uk.co.real_logic.agrona.DirectBuffer;
 
 import java.nio.ByteBuffer;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -121,12 +121,12 @@ public class ReactiveSocketAeronServer implements AutoCloseable, Loggable {
         if (MessageType.FRAME == type) {
             AeronServerDuplexConnection connection = connections.get(sessionId);
             if (connection != null) {
-                Observer<Frame> subscriber = connection.getSubscriber();
+                List<? extends Observer<Frame>> subscribers = connection.getSubscriber();
                 ByteBuffer bytes = ByteBuffer.allocate(length);
                 buffer.getBytes(BitUtil.SIZE_OF_INT + offset, bytes, length);
                 final Frame frame = Frame.from(bytes);
                 //System.out.println("### Server Sending => " + frame);
-                subscriber.onNext(frame);
+                subscribers.forEach(s -> s.onNext(frame));
             }
         } else if (MessageType.ESTABLISH_CONNECTION_REQUEST == type) {
             final long start = System.nanoTime();
@@ -165,17 +165,7 @@ public class ReactiveSocketAeronServer implements AutoCloseable, Loggable {
 
             sockets.put(sessionId, socket);
 
-            socket.start(new Completable() {
-                @Override
-                public void success() {
-
-                }
-
-                @Override
-                public void error(Throwable e) {
-
-                }
-            });
+            socket.startAndWait();
         } else {
             debug("Unsupported stream id {}", streamId);
         }

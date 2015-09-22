@@ -1,6 +1,5 @@
 package io.reactivesocket.aeron.client.multi;
 
-import io.reactivesocket.Completable;
 import io.reactivesocket.ConnectionSetupPayload;
 import io.reactivesocket.Frame;
 import io.reactivesocket.Payload;
@@ -28,6 +27,7 @@ import uk.co.real_logic.agrona.concurrent.UnsafeBuffer;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
@@ -205,12 +205,12 @@ public class ReactivesocketAeronClient  implements Loggable, AutoCloseable {
             final MessageType messageType = MessageType.from(messageTypeInt);
             if (messageType == MessageType.FRAME) {
                 final AeronClientDuplexConnection connection = connections.get(header.sessionId());
-                Observer<Frame> subscriber = connection.getSubscriber();
+                List<? extends Observer<Frame>> subscribers = connection.getSubscriber();
                 final ByteBuffer bytes = ByteBuffer.allocate(length);
                 buffer.getBytes(BitUtil.SIZE_OF_INT + offset, bytes, length);
                 final Frame frame = Frame.from(bytes);
                 //System.out.println("$$$$ CLIENT GOT => " + frame.toString() + " - " + atomicLong.getAndIncrement());
-                subscriber.onNext(frame);
+                subscribers.forEach(s -> s.onNext(frame));
             } else if (messageType == MessageType.ESTABLISH_CONNECTION_RESPONSE) {
                 final int ackSessionId = buffer.getInt(offset + BitUtil.SIZE_OF_INT);
 
@@ -234,17 +234,7 @@ public class ReactivesocketAeronClient  implements Loggable, AutoCloseable {
                     ConnectionSetupPayload.create("UTF-8", "UTF-8", ConnectionSetupPayload.NO_FLAGS),
                     err -> err.printStackTrace());
 
-                reactiveSocket.start(new Completable() {
-                    @Override
-                    public void success() {
-
-                    }
-
-                    @Override
-                    public void error(Throwable e) {
-
-                    }
-                });
+                reactiveSocket.startAndWait();
 
                 reactiveSockets.putIfAbsent(ackSessionId, reactiveSocket);
 
