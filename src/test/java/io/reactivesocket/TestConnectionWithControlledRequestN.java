@@ -24,6 +24,8 @@ import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
+import io.reactivesocket.rx.Completable;
+
 /**
  * Connection that by defaults only calls request(1) on a Publisher to addOutput. Any further must be done via requestMore(n)
  * <p>

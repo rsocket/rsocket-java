@@ -16,6 +16,14 @@
 package io.reactivesocket;
 
 import io.reactivesocket.internal.*;
+import io.reactivesocket.internal.frame.ErrorFrameFlyweight;
+import io.reactivesocket.internal.frame.FrameHeaderFlyweight;
+import io.reactivesocket.internal.frame.FramePool;
+import io.reactivesocket.internal.frame.LeaseFrameFlyweight;
+import io.reactivesocket.internal.frame.RequestFrameFlyweight;
+import io.reactivesocket.internal.frame.RequestNFrameFlyweight;
+import io.reactivesocket.internal.frame.SetupFrameFlyweight;
+import io.reactivesocket.internal.frame.UnpooledFrame;
 import uk.co.real_logic.agrona.DirectBuffer;
 import uk.co.real_logic.agrona.MutableDirectBuffer;
 

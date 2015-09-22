@@ -18,6 +18,7 @@ import org.reactivestreams.Subscription;
 
 import io.reactivesocket.internal.PublisherUtils;
 import io.reactivesocket.perfutil.PerfTestConnection;
+import io.reactivesocket.rx.Completable;
 
 @BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(TimeUnit.SECONDS)

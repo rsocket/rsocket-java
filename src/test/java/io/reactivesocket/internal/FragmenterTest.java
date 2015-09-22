@@ -18,6 +18,9 @@ package io.reactivesocket.internal;
 import io.reactivesocket.Frame;
 import io.reactivesocket.Payload;
 import io.reactivesocket.TestUtil;
+import io.reactivesocket.internal.frame.FrameHeaderFlyweight;
+import io.reactivesocket.internal.frame.PayloadFragmenter;
+
 import org.junit.Test;
 
 import static org.junit.Assert.*;

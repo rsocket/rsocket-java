@@ -21,10 +21,10 @@ import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
-import io.reactivesocket.Completable;
 import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
-import io.reactivesocket.observable.Observable;
+import io.reactivesocket.rx.Completable;
+import io.reactivesocket.rx.Observable;
 
 public class PerfTestConnection implements DuplexConnection {
 

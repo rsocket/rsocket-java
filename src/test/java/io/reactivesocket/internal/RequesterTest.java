@@ -28,13 +28,13 @@ import java.util.function.Consumer;
 
 import org.junit.Test;
 
-import io.reactivesocket.Completable;
 import io.reactivesocket.ConnectionSetupPayload;
 import io.reactivesocket.Frame;
 import io.reactivesocket.FrameType;
 import io.reactivesocket.LatchedCompletable;
 import io.reactivesocket.Payload;
 import io.reactivesocket.TestConnection;
+import io.reactivesocket.rx.Completable;
 import io.reactivex.subscribers.TestSubscriber;
 import io.reactivex.Observable;
 import io.reactivex.subjects.ReplaySubject;

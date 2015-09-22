@@ -28,8 +28,12 @@ import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
 import io.reactivesocket.exceptions.SetupException;
-import io.reactivesocket.observable.Disposable;
-import io.reactivesocket.observable.Observer;
+import io.reactivesocket.internal.frame.SetupFrameFlyweight;
+import io.reactivesocket.internal.rx.EmptyDisposable;
+import io.reactivesocket.internal.rx.EmptySubscription;
+import io.reactivesocket.rx.Completable;
+import io.reactivesocket.rx.Disposable;
+import io.reactivesocket.rx.Observer;
 import uk.co.real_logic.agrona.collections.Int2ObjectHashMap;
 
 /**
@@ -241,6 +245,7 @@ public class Responder {
 						final RejectedException exception = new RejectedException("No associated lease");
 						responsePublisher = PublisherUtils.errorFrame(streamId, exception);
 					}
+					
 					connection.addOutput(responsePublisher, new Completable() {
 
 						@Override

@@ -21,7 +21,8 @@ import java.io.IOException;
 
 import org.reactivestreams.Publisher;
 
-import io.reactivesocket.observable.Observer;
+import io.reactivesocket.rx.Completable;
+import io.reactivesocket.rx.Observer;
 import io.reactivex.Observable;
 import io.reactivex.Scheduler.Worker;
 import io.reactivex.schedulers.Schedulers;
@@ -42,14 +43,14 @@ public class TestConnection implements DuplexConnection {
 	}
 
 	@Override
-	public io.reactivesocket.observable.Observable<Frame> getInput() {
-		return new io.reactivesocket.observable.Observable<Frame>() {
+	public io.reactivesocket.rx.Observable<Frame> getInput() {
+		return new io.reactivesocket.rx.Observable<Frame>() {
 
 			@Override
 			public void subscribe(Observer<Frame> o) {
 				toInput.add(o);
 				// we are okay with the race of sending data and cancelling ... since this is "hot" by definition and unsubscribing is a race.
-				o.onSubscribe(new io.reactivesocket.observable.Disposable() {
+				o.onSubscribe(new io.reactivesocket.rx.Disposable() {
 
 					@Override
 					public void dispose() {
