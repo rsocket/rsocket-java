@@ -36,6 +36,7 @@ public class AeronServerDuplexConnection implements DuplexConnection, AutoClosea
 
     @Override
     public Observable<Frame> getInput() {
+        System.out.println("---- FOR THE SERVER GETTING THE INPUT--");
         AeronDuplexConnectionSubject subject = new AeronDuplexConnectionSubject(subjects);
         subjects.add(subject);
         return subject;

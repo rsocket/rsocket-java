@@ -17,15 +17,17 @@ public class AeronUtil {
     /**
      * Sends a message using offer. This method will spin-lock if Aeron signals back pressure.
      *
-     * This method of sending data does not need to know how long the message is.
+     * This method of sending data does need to know how long the message is.
      *
      * @param publication publication to send the message on
      *
      * @param fillBuffer closure passed in to fill a {@link uk.co.real_logic.agrona.MutableDirectBuffer}
      *                   that is send over Aeron
      */
-    public static void offer(Publication publication, BufferFiller fillBuffer) {
+    public static void offer(Publication publication, BufferFiller fillBuffer, int length) {
         final UnsafeBuffer buffer = unsafeBuffers.get();
+        byte[] bytes = new byte[length];
+        buffer.wrap(bytes);
         fillBuffer.fill(0, buffer);
         do {
             final long offer = publication.offer(buffer);
@@ -57,6 +59,7 @@ public class AeronUtil {
                     final MutableDirectBuffer buffer = bufferClaim.buffer();
                     final int offset = bufferClaim.offset();
                     fillBuffer.fill(offset, buffer);
+                    break;
                 } finally {
                     bufferClaim.commit();
                 }
@@ -80,7 +83,7 @@ public class AeronUtil {
             if (length < Constants.AERON_MTU_SIZE) {
                 tryClaim(publication, fillBuffer, length);
             } else {
-                offer(publication, fillBuffer);
+                offer(publication, fillBuffer, length);
             }
         } catch (Throwable t) {
             t.printStackTrace();

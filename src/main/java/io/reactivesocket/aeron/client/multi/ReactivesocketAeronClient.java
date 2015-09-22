@@ -209,7 +209,7 @@ public class ReactivesocketAeronClient  implements Loggable, AutoCloseable {
                 final ByteBuffer bytes = ByteBuffer.allocate(length);
                 buffer.getBytes(BitUtil.SIZE_OF_INT + offset, bytes, length);
                 final Frame frame = Frame.from(bytes);
-                //System.out.println("$$$$ CLIENT GOT => " + frame.toString() + " - " + atomicLong.getAndIncrement());
+                System.out.println("$$$$ CLIENT GOT => " + frame.toString() + " - " + atomicLong.getAndIncrement());
                 subscribers.forEach(s -> s.onNext(frame));
             } else if (messageType == MessageType.ESTABLISH_CONNECTION_RESPONSE) {
                 final int ackSessionId = buffer.getInt(offset + BitUtil.SIZE_OF_INT);
@@ -277,6 +277,7 @@ public class ReactivesocketAeronClient  implements Loggable, AutoCloseable {
                                         final ByteBuffer byteBuffer = frame.getByteBuffer();
                                         final int length = byteBuffer.capacity() + BitUtil.SIZE_OF_INT;
 
+                                        System.out.println("--------- Client sending => " + frame.toString());
                                         // If the length is less the MTU size send the message using tryClaim which does not fragment the message
                                         // If the message is larger the the MTU size send it using offer.
                                         if (length < mtuLength) {

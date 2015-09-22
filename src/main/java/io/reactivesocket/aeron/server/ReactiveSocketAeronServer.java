@@ -125,7 +125,7 @@ public class ReactiveSocketAeronServer implements AutoCloseable, Loggable {
                 ByteBuffer bytes = ByteBuffer.allocate(length);
                 buffer.getBytes(BitUtil.SIZE_OF_INT + offset, bytes, length);
                 final Frame frame = Frame.from(bytes);
-                //System.out.println("### Server Sending => " + frame);
+                System.out.println("&&&&&&& fragmentHandler -> " + frame.toString());
                 subscribers.forEach(s -> s.onNext(frame));
             }
         } else if (MessageType.ESTABLISH_CONNECTION_REQUEST == type) {

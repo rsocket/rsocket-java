@@ -24,15 +24,41 @@ public class AeronDuplexConnectionSubject implements Observable<Frame>, Observer
     public AeronDuplexConnectionSubject(ArrayList<AeronDuplexConnectionSubject> subjects) {
         this.id = count.incrementAndGet();
         this.subjects = subjects;
+
+        /*
+
+    public AeronServerDuplexConnection(
+        Publication publication) {
+        this.publication = publication;
+        this.observable = new Observable<Frame>() {
+            @Override
+            public void subscribe(Observer<Frame> o) {
+                observer = o;
+                o.onSubscribe(new EmptyDisposable());
+            }
+        };
+    }
+
+         */
     }
 
     @Override
     public void subscribe(Observer<Frame> o) {
         internal = o;
+        internal.onSubscribe(() ->
+                subjects
+                    .removeIf(new Predicate<AeronDuplexConnectionSubject>() {
+                        @Override
+                        public boolean test(AeronDuplexConnectionSubject subject) {
+                            return id == subject.id;
+                        }
+                    })
+        );
     }
 
     @Override
     public void onNext(Frame frame) {
+        System.out.println("^^^^^^^^^^^^^^^^^^^^ on next" + frame);
         internal.onNext(frame);
     }
 
@@ -43,20 +69,13 @@ public class AeronDuplexConnectionSubject implements Observable<Frame>, Observer
 
     @Override
     public void onComplete() {
+        System.out.println("^^@#$@#^^^^^^^^^#$#$^^^^^^#@^^^ on completed");
         internal.onComplete();
     }
 
     @Override
     public void onSubscribe(Disposable d) {
-        internal.onSubscribe(()->
-            subjects
-                .removeIf(new Predicate<AeronDuplexConnectionSubject>() {
-                    @Override
-                    public boolean test(AeronDuplexConnectionSubject subject) {
-                        return id == subject.id;
-                    }
-                })
-            );
+
     }
 
     @Override

@@ -19,6 +19,7 @@ import uk.co.real_logic.aeron.driver.MediaDriver;
 import java.nio.ByteBuffer;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Created by rroeser on 8/14/15.
@@ -35,6 +36,7 @@ public class ReactiveSocketAeronTest {
 
     @Test(timeout = 6000000)
     public void testRequestReponse() throws Exception {
+        AtomicLong server = new AtomicLong();
         ReactiveSocketAeronServer.create(new ConnectionSetupHandler() {
             @Override
             public RequestHandler apply(ConnectionSetupPayload setupPayload) throws SetupException {
@@ -45,7 +47,7 @@ public class ReactiveSocketAeronTest {
                     public Publisher<Payload> handleRequestResponse(Payload payload) {
                         String request = TestUtil.byteToString(payload.getData());
                         System.out.println(Thread.currentThread() +  " Server got => " + request);
-                        Observable<Payload> pong = Observable.just(TestUtil.utf8EncodedPayload("pong", null));
+                        Observable<Payload> pong = Observable.just(TestUtil.utf8EncodedPayload("pong => " + server.incrementAndGet(), null));
                         return RxReactiveStreams.toPublisher(pong);
                     }
 
