@@ -18,7 +18,7 @@ package io.reactivesocket;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 
-import io.reactivesocket.observable.Observer;
+import io.reactivesocket.rx.Observer;
 import io.reactivex.subjects.PublishSubject;
 import io.reactivex.subjects.Subject;
 
@@ -66,7 +66,7 @@ public class SerializedEventBus {
 			}
 
 			@Override
-			public void onSubscribe(io.reactivesocket.observable.Disposable d) {
+			public void onSubscribe(io.reactivesocket.rx.Disposable d) {
 				// TODO Auto-generated method stub
 
 			}

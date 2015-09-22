@@ -19,6 +19,8 @@ import io.reactivesocket.Frame;
 import io.reactivesocket.FrameType;
 import io.reactivesocket.Payload;
 import io.reactivesocket.TestUtil;
+import io.reactivesocket.internal.frame.FrameHeaderFlyweight;
+import io.reactivesocket.internal.frame.PayloadReassembler;
 import io.reactivex.subjects.ReplaySubject;
 import org.junit.Test;
 

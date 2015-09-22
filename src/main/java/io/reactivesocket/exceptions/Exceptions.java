@@ -19,7 +19,7 @@ import io.reactivesocket.Frame;
 
 import java.nio.ByteBuffer;
 
-import static io.reactivesocket.internal.ErrorFrameFlyweight.*;
+import static io.reactivesocket.internal.frame.ErrorFrameFlyweight.*;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 public class Exceptions {

@@ -35,6 +35,7 @@ import org.junit.runner.RunWith;
 import org.reactivestreams.Publisher;
 
 import io.reactivesocket.internal.PublisherUtils;
+import io.reactivesocket.lease.FairLeaseGovernor;
 import io.reactivex.disposables.Disposable;
 import io.reactivex.observables.ConnectableObservable;
 import io.reactivex.subscribers.TestSubscriber;

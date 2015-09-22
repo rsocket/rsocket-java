@@ -29,7 +29,6 @@ import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
-import io.reactivesocket.Completable;
 import io.reactivesocket.ConnectionSetupPayload;
 import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
@@ -38,8 +37,15 @@ import io.reactivesocket.Payload;
 import io.reactivesocket.exceptions.CancelException;
 import io.reactivesocket.exceptions.Exceptions;
 import io.reactivesocket.exceptions.Retryable;
-import io.reactivesocket.observable.Disposable;
-import io.reactivesocket.observable.Observer;
+import io.reactivesocket.internal.frame.FrameHeaderFlyweight;
+import io.reactivesocket.internal.frame.PayloadBuilder;
+import io.reactivesocket.internal.frame.RequestFrameFlyweight;
+import io.reactivesocket.internal.rx.BackpressureUtils;
+import io.reactivesocket.internal.rx.EmptyDisposable;
+import io.reactivesocket.internal.rx.EmptySubscription;
+import io.reactivesocket.rx.Completable;
+import io.reactivesocket.rx.Disposable;
+import io.reactivesocket.rx.Observer;
 import uk.co.real_logic.agrona.collections.Int2ObjectHashMap;
 
 /**
@@ -640,6 +646,7 @@ public class Requester {
 		private final Subscriber<? super Payload> child;
 		private final Runnable cancelAction;
 		private final AtomicReference<Subscription> requestStreamSubscription;
+		private PayloadBuilder payloadBuilder; // created if fragmented
 
 		public StreamInputSubscriber(int streamId, long threshold, AtomicLong outstanding, AtomicLong requested, UnicastSubject<Frame> writer, Subscriber<? super Payload> child, Runnable cancelAction) {
 			this.streamId = streamId;
@@ -671,6 +678,26 @@ public class Requester {
 
 		@Override
 		public void onNext(Frame frame) {
+			if (FrameHeaderFlyweight.FLAGS_RESPONSE_F == (frame.flags() & FrameHeaderFlyweight.FLAGS_RESPONSE_F)) {
+				// fragment
+				if(payloadBuilder == null) {
+					payloadBuilder = new PayloadBuilder();
+				}
+			}
+			if(payloadBuilder != null) {
+				payloadBuilder.append(frame);
+				if (FrameHeaderFlyweight.FLAGS_RESPONSE_F != (frame.flags() & FrameHeaderFlyweight.FLAGS_RESPONSE_F)) {
+					// no more fragments, but we have a PayloadBuilder, so this is the final Frame to be reassembled
+					Payload payload = payloadBuilder.payload();
+					Frame assembled = Frame.Response.from(streamId, frame.getType(), payload);
+					// replace 'frame' with the assembled one
+					frame = assembled;
+				} else {
+					// it was a fragment, so return without further processing
+					return;
+				}
+			}
+				
 			FrameType type = frame.getType();
 			// convert ERROR messages into terminal events
 			if (type == FrameType.NEXT_COMPLETE) {

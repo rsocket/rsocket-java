@@ -18,6 +18,8 @@ package io.reactivesocket;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import io.reactivesocket.rx.Completable;
+
 public class LatchedCompletable implements Completable {
 
     	final CountDownLatch latch;
