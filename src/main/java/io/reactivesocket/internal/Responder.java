@@ -28,6 +28,7 @@ import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
 import io.reactivesocket.exceptions.SetupException;
+import io.reactivesocket.internal.frame.FrameHeaderFlyweight;
 import io.reactivesocket.internal.frame.SetupFrameFlyweight;
 import io.reactivesocket.internal.rx.EmptyDisposable;
 import io.reactivesocket.internal.rx.EmptySubscription;
@@ -336,7 +337,7 @@ public class Responder {
 					if (n > 0 && started.compareAndSet(false, true)) {
 						final int streamId = requestFrame.getStreamId();
 
-						requestHandler.handleRequestResponse(requestFrame).subscribe(new Subscriber<Payload>() {
+						new FragmentedPublisher(FrameType.NEXT_COMPLETE, streamId, requestHandler.handleRequestResponse(requestFrame)).subscribe(new Subscriber<Frame>() {
 
 							// event emission is serialized so this doesn't need to be atomic
 							int count = 0;
@@ -352,13 +353,14 @@ public class Responder {
 							}
 
 							@Override
-							public void onNext(Payload v) {
-								if (++count > 1) {
-									onError(new IllegalStateException("RequestResponse expects a single onNext"));
-								} else {
-
-									child.onNext(Frame.Response.from(streamId, FrameType.NEXT_COMPLETE, v));
+							public void onNext(Frame v) {
+								if(FrameHeaderFlyweight.FLAGS_RESPONSE_F != (v.flags() & FrameHeaderFlyweight.FLAGS_RESPONSE_F)) {
+									// not a fragment
+									if (++count > 1) {
+										onError(new IllegalStateException("RequestResponse expects a single onNext"));
+									}
 								}
+								child.onNext(v);
 							}
 
 							@Override

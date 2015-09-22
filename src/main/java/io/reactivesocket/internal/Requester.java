@@ -37,6 +37,8 @@ import io.reactivesocket.Payload;
 import io.reactivesocket.exceptions.CancelException;
 import io.reactivesocket.exceptions.Exceptions;
 import io.reactivesocket.exceptions.Retryable;
+import io.reactivesocket.internal.frame.FrameHeaderFlyweight;
+import io.reactivesocket.internal.frame.PayloadBuilder;
 import io.reactivesocket.internal.frame.RequestFrameFlyweight;
 import io.reactivesocket.internal.rx.BackpressureUtils;
 import io.reactivesocket.internal.rx.EmptyDisposable;
@@ -644,6 +646,7 @@ public class Requester {
 		private final Subscriber<? super Payload> child;
 		private final Runnable cancelAction;
 		private final AtomicReference<Subscription> requestStreamSubscription;
+		private PayloadBuilder payloadBuilder; // created if fragmented
 
 		public StreamInputSubscriber(int streamId, long threshold, AtomicLong outstanding, AtomicLong requested, UnicastSubject<Frame> writer, Subscriber<? super Payload> child, Runnable cancelAction) {
 			this.streamId = streamId;
@@ -675,6 +678,26 @@ public class Requester {
 
 		@Override
 		public void onNext(Frame frame) {
+			if (FrameHeaderFlyweight.FLAGS_RESPONSE_F == (frame.flags() & FrameHeaderFlyweight.FLAGS_RESPONSE_F)) {
+				// fragment
+				if(payloadBuilder == null) {
+					payloadBuilder = new PayloadBuilder();
+				}
+			}
+			if(payloadBuilder != null) {
+				payloadBuilder.append(frame);
+				if (FrameHeaderFlyweight.FLAGS_RESPONSE_F != (frame.flags() & FrameHeaderFlyweight.FLAGS_RESPONSE_F)) {
+					// no more fragments, but we have a PayloadBuilder, so this is the final Frame to be reassembled
+					Payload payload = payloadBuilder.payload();
+					Frame assembled = Frame.Response.from(streamId, frame.getType(), payload);
+					// replace 'frame' with the assembled one
+					frame = assembled;
+				} else {
+					// it was a fragment, so return without further processing
+					return;
+				}
+			}
+				
 			FrameType type = frame.getType();
 			// convert ERROR messages into terminal events
 			if (type == FrameType.NEXT_COMPLETE) {

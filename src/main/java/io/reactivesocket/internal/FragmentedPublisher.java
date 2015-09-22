@@ -17,16 +17,15 @@ package io.reactivesocket.internal;
 
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
-import org.reactivestreams.Subscription;
 
 import io.reactivesocket.Frame;
 import io.reactivesocket.FrameType;
 import io.reactivesocket.Payload;
 import io.reactivesocket.internal.frame.PayloadFragmenter;
+import io.reactivesocket.internal.rx.OperatorConcatMap;
 
 public class FragmentedPublisher implements Publisher<Frame> {
 
-	private final PayloadFragmenter fragmenter = new PayloadFragmenter(Frame.METADATA_MTU, Frame.DATA_MTU);
 	private final Publisher<Payload> responsePublisher;
 	private final int streamId;
 	private final FrameType type;
@@ -36,22 +35,26 @@ public class FragmentedPublisher implements Publisher<Frame> {
 		this.streamId = streamId;
 		this.responsePublisher = responsePublisher;
 	}
-	
+
 	@Override
 	public void subscribe(Subscriber<? super Frame> child) {
-		child.onSubscribe(new Subscription() {
-
-			@Override
-			public void request(long n) {
-				// TODO Auto-generated method stub
-				
+		OperatorConcatMap<Payload, Frame> concat = new OperatorConcatMap<Payload, Frame>(payload -> {
+			if (PayloadFragmenter.requiresFragmenting(Frame.METADATA_MTU, Frame.DATA_MTU, payload)) {
+				System.out.println("needs fragments");
+				// not reusing each time since I need the Iterator state stored through request(n) and can have several in a queue
+				PayloadFragmenter fragmenter = new PayloadFragmenter(Frame.METADATA_MTU, Frame.DATA_MTU);
+				if (FrameType.NEXT_COMPLETE.equals(type)) {
+					fragmenter.resetForResponseComplete(streamId, payload);
+				} else {
+					fragmenter.resetForResponse(streamId, payload);
+				}
+				return PublisherUtils.fromIterable(fragmenter);
+			} else {
+				return PublisherUtils.just(Frame.Response.from(streamId, type, payload));
 			}
-
-			@Override
-			public void cancel() {
-				// TODO Auto-generated method stub
-				
-			}});
+		} , 2);
+		Subscriber<? super Payload> applied = concat.apply(child);
+		responsePublisher.subscribe(applied);
 	}
 
 }
