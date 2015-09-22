@@ -1,4 +1,4 @@
-package io.reactivesocket.internal;
+package io.reactivesocket.internal.rx;
 
 /**
  * Copyright 2015 Netflix, Inc.

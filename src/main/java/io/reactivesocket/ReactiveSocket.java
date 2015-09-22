@@ -26,10 +26,10 @@ import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
-import io.reactivesocket.internal.CompositeCompletable;
-import io.reactivesocket.internal.CompositeDisposable;
 import io.reactivesocket.internal.Requester;
 import io.reactivesocket.internal.Responder;
+import io.reactivesocket.internal.rx.CompositeCompletable;
+import io.reactivesocket.internal.rx.CompositeDisposable;
 import io.reactivesocket.observable.Disposable;
 import io.reactivesocket.observable.Observable;
 import io.reactivesocket.observable.Observer;

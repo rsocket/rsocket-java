@@ -1,4 +1,4 @@
-package io.reactivesocket.internal;
+package io.reactivesocket.internal.rx;
 
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 

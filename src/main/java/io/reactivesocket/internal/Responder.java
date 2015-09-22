@@ -28,6 +28,8 @@ import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
 import io.reactivesocket.exceptions.SetupException;
+import io.reactivesocket.internal.rx.EmptyDisposable;
+import io.reactivesocket.internal.rx.EmptySubscription;
 import io.reactivesocket.observable.Disposable;
 import io.reactivesocket.observable.Observer;
 import uk.co.real_logic.agrona.collections.Int2ObjectHashMap;
