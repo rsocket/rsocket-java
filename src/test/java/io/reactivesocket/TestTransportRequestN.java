@@ -30,6 +30,7 @@ import org.junit.Ignore;
 import org.junit.Test;
 import org.reactivestreams.Publisher;
 
+import io.reactivesocket.lease.FairLeaseGovernor;
 import io.reactivex.subscribers.TestSubscriber;
 
 /**

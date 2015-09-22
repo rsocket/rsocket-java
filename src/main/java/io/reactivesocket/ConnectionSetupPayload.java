@@ -15,9 +15,9 @@
  */
 package io.reactivesocket;
 
-import io.reactivesocket.internal.SetupFrameFlyweight;
-
 import java.nio.ByteBuffer;
+
+import io.reactivesocket.internal.frame.SetupFrameFlyweight;
 
 /**
  * Exposed to server for determination of RequestHandler based on mime types and SETUP metadata/data

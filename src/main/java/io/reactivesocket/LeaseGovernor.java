@@ -1,6 +1,8 @@
 package io.reactivesocket;
 
 import io.reactivesocket.internal.Responder;
+import io.reactivesocket.lease.NullLeaseGovernor;
+import io.reactivesocket.lease.UnlimitedLeaseGovernor;
 
 public interface LeaseGovernor {
     public static final LeaseGovernor NULL_LEASE_GOVERNOR = new NullLeaseGovernor();

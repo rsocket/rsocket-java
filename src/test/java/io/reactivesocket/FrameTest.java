@@ -21,7 +21,8 @@ import java.nio.ByteBuffer;
 import java.util.concurrent.TimeUnit;
 
 import io.reactivesocket.exceptions.RejectedException;
-import io.reactivesocket.internal.SetupFrameFlyweight;
+import io.reactivesocket.internal.frame.SetupFrameFlyweight;
+
 import org.junit.Test;
 import org.junit.experimental.theories.DataPoint;
 import org.junit.experimental.theories.Theories;
@@ -29,7 +30,7 @@ import org.junit.experimental.theories.Theory;
 import org.junit.runner.RunWith;
 import uk.co.real_logic.agrona.concurrent.UnsafeBuffer;
 
-import static io.reactivesocket.internal.ErrorFrameFlyweight.*;
+import static io.reactivesocket.internal.frame.ErrorFrameFlyweight.*;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 @RunWith(Theories.class)
