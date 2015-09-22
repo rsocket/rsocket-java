@@ -3,7 +3,7 @@ package io.reactivesocket.internal.rx;
 import java.util.HashSet;
 import java.util.Set;
 
-import io.reactivesocket.Completable;
+import io.reactivesocket.rx.Completable;
 
 /**
  * A Completable container that can hold onto multiple other Completables.

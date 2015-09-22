@@ -3,8 +3,8 @@ package io.reactivesocket.internal.rx;
 import java.util.HashSet;
 import java.util.Set;
 
-import io.reactivesocket.Completable;
-import io.reactivesocket.observable.Disposable;
+import io.reactivesocket.rx.Completable;
+import io.reactivesocket.rx.Disposable;
 
 /**
  * A Disposable container that can hold onto multiple other Disposables.

@@ -17,9 +17,9 @@ package io.reactivesocket.perfutil;
 
 import java.util.function.Consumer;
 
-import io.reactivesocket.observable.Disposable;
-import io.reactivesocket.observable.Observable;
-import io.reactivesocket.observable.Observer;
+import io.reactivesocket.rx.Disposable;
+import io.reactivesocket.rx.Observable;
+import io.reactivesocket.rx.Observer;
 
 /**
  * The difference between this and the real UnicastSubject is in the `onSubscribe` method where it calls requestN. Not sure that behavior should exist in the producton code. 

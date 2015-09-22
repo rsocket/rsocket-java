@@ -29,7 +29,6 @@ import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
-import io.reactivesocket.Completable;
 import io.reactivesocket.ConnectionSetupPayload;
 import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
@@ -42,8 +41,9 @@ import io.reactivesocket.internal.frame.RequestFrameFlyweight;
 import io.reactivesocket.internal.rx.BackpressureUtils;
 import io.reactivesocket.internal.rx.EmptyDisposable;
 import io.reactivesocket.internal.rx.EmptySubscription;
-import io.reactivesocket.observable.Disposable;
-import io.reactivesocket.observable.Observer;
+import io.reactivesocket.rx.Completable;
+import io.reactivesocket.rx.Disposable;
+import io.reactivesocket.rx.Observer;
 import uk.co.real_logic.agrona.collections.Int2ObjectHashMap;
 
 /**

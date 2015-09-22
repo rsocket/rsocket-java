@@ -1,5 +1,7 @@
-package io.reactivesocket;
+package io.reactivesocket.lease;
 
+import io.reactivesocket.Frame;
+import io.reactivesocket.LeaseGovernor;
 import io.reactivesocket.internal.Responder;
 
 public class NullLeaseGovernor implements LeaseGovernor {

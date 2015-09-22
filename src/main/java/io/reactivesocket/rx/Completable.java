@@ -1,4 +1,4 @@
-package io.reactivesocket;
+package io.reactivesocket.rx;
 
 public interface Completable {
 

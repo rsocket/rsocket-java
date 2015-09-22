@@ -19,7 +19,8 @@ import java.io.Closeable;
 
 import org.reactivestreams.Publisher;
 
-import io.reactivesocket.observable.Observable;
+import io.reactivesocket.rx.Completable;
+import io.reactivesocket.rx.Observable;
 
 /**
  * Represents a connection with input/output that the protocol uses. 

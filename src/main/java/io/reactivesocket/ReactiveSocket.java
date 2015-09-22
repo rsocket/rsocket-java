@@ -30,9 +30,10 @@ import io.reactivesocket.internal.Requester;
 import io.reactivesocket.internal.Responder;
 import io.reactivesocket.internal.rx.CompositeCompletable;
 import io.reactivesocket.internal.rx.CompositeDisposable;
-import io.reactivesocket.observable.Disposable;
-import io.reactivesocket.observable.Observable;
-import io.reactivesocket.observable.Observer;
+import io.reactivesocket.rx.Completable;
+import io.reactivesocket.rx.Disposable;
+import io.reactivesocket.rx.Observable;
+import io.reactivesocket.rx.Observer;
 import uk.co.real_logic.agrona.BitUtil;
 
 /**

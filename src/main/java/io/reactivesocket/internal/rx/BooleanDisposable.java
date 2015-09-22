@@ -2,7 +2,7 @@ package io.reactivesocket.internal.rx;
 
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 
-import io.reactivesocket.observable.Disposable;
+import io.reactivesocket.rx.Disposable;
 
 public final class BooleanDisposable implements Disposable {
     volatile Runnable run;

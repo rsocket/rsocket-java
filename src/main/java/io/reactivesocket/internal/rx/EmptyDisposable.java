@@ -15,7 +15,7 @@
  */
 package io.reactivesocket.internal.rx;
 
-import io.reactivesocket.observable.Disposable;
+import io.reactivesocket.rx.Disposable;
 
 public class EmptyDisposable implements Disposable
 {

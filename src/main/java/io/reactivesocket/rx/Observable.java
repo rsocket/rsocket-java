@@ -1,4 +1,4 @@
-package io.reactivesocket.observable;
+package io.reactivesocket.rx;
 
 public interface Observable<T> {
 
