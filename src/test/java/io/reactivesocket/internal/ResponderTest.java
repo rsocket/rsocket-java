@@ -94,6 +94,7 @@ public class ResponderTest
         AtomicBoolean unsubscribed = new AtomicBoolean();
         Observable<Payload> delayed = never()
                 .cast(Payload.class)
+                .doOnSubscribe(s -> System.out.println("subscribed to"))
                 .doOnCancel(() -> unsubscribed.set(true));
 
         TestConnection conn = establishConnection();
