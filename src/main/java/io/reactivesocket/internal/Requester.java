@@ -38,6 +38,7 @@ import io.reactivesocket.Payload;
 import io.reactivesocket.exceptions.CancelException;
 import io.reactivesocket.exceptions.Exceptions;
 import io.reactivesocket.exceptions.Retryable;
+import io.reactivesocket.internal.frame.RequestFrameFlyweight;
 import io.reactivesocket.internal.rx.BackpressureUtils;
 import io.reactivesocket.internal.rx.EmptyDisposable;
 import io.reactivesocket.internal.rx.EmptySubscription;

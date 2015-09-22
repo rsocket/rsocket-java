@@ -13,10 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.reactivesocket.internal;
+package io.reactivesocket.internal.frame;
 
 import io.reactivesocket.Frame;
 import io.reactivesocket.Payload;
+
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 import uk.co.real_logic.agrona.collections.Int2ObjectHashMap;
