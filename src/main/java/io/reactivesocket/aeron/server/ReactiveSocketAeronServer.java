@@ -16,7 +16,6 @@ import uk.co.real_logic.aeron.logbuffer.Header;
 import uk.co.real_logic.agrona.BitUtil;
 import uk.co.real_logic.agrona.DirectBuffer;
 
-import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
@@ -126,9 +125,7 @@ public class ReactiveSocketAeronServer implements AutoCloseable, Loggable {
             AeronServerDuplexConnection connection = connections.get(sessionId);
             if (connection != null) {
                 List<? extends Observer<Frame>> subscribers = connection.getSubscriber();
-                ByteBuffer bytes = ByteBuffer.allocate(length);
-                buffer.getBytes(BitUtil.SIZE_OF_INT + offset, bytes, length);
-                final Frame frame = Frame.from(bytes);
+                final Frame frame = Frame.from(buffer, BitUtil.SIZE_OF_INT + offset, length);
                 subscribers.forEach(s -> s.onNext(frame));
             }
         } else if (MessageType.ESTABLISH_CONNECTION_REQUEST == type) {
