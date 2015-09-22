@@ -336,7 +336,7 @@ public class Responder {
 					if (n > 0 && started.compareAndSet(false, true)) {
 						final int streamId = requestFrame.getStreamId();
 
-						new FragmentedPublisher(FrameType.NEXT_COMPLETE, streamId, requestHandler.handleRequestResponse(requestFrame)).subscribe(new Subscriber<Frame>() {
+						requestHandler.handleRequestResponse(requestFrame).subscribe(new Subscriber<Payload>() {
 
 							// event emission is serialized so this doesn't need to be atomic
 							int count = 0;
@@ -352,11 +352,12 @@ public class Responder {
 							}
 
 							@Override
-							public void onNext(Frame v) {
+							public void onNext(Payload v) {
 								if (++count > 1) {
 									onError(new IllegalStateException("RequestResponse expects a single onNext"));
 								} else {
-									child.onNext(v);
+
+									child.onNext(Frame.Response.from(streamId, FrameType.NEXT_COMPLETE, v));
 								}
 							}
 
