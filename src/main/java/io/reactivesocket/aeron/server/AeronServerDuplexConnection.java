@@ -11,7 +11,6 @@ import io.reactivesocket.observable.Observable;
 import io.reactivesocket.observable.Observer;
 import org.reactivestreams.Publisher;
 import uk.co.real_logic.aeron.Publication;
-import uk.co.real_logic.aeron.logbuffer.BufferClaim;
 import uk.co.real_logic.agrona.BitUtil;
 
 import java.util.ArrayList;
@@ -19,8 +18,6 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 public class AeronServerDuplexConnection implements DuplexConnection, Loggable {
-
-    private static final ThreadLocal<BufferClaim> bufferClaims = ThreadLocal.withInitial(BufferClaim::new);
     private final Publication publication;
     private final ArrayList<AeronDuplexConnectionSubject> subjects;
 
@@ -36,7 +33,6 @@ public class AeronServerDuplexConnection implements DuplexConnection, Loggable {
 
     @Override
     public Observable<Frame> getInput() {
-        System.out.println("---- FOR THE SERVER GETTING THE INPUT--");
         AeronDuplexConnectionSubject subject = new AeronDuplexConnectionSubject(subjects);
         subjects.add(subject);
         return subject;

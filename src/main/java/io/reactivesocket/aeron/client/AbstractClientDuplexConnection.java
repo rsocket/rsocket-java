@@ -8,11 +8,11 @@ import io.reactivesocket.observable.Observable;
 import io.reactivesocket.observable.Observer;
 import uk.co.real_logic.aeron.Publication;
 
-import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 public abstract class AbstractClientDuplexConnection<T extends AbstractConcurrentArrayQueue<F>, F> implements DuplexConnection {
-    protected final ArrayList<AeronDuplexConnectionSubject> subjects;
+    protected final CopyOnWriteArrayList<AeronDuplexConnectionSubject> subjects;
 
     protected final Publication publication;
 
@@ -20,7 +20,7 @@ public abstract class AbstractClientDuplexConnection<T extends AbstractConcurren
 
     public AbstractClientDuplexConnection(Publication publication) {
         this.publication = publication;
-        this.subjects = new ArrayList<>();
+        this.subjects = new CopyOnWriteArrayList<>();
         this.framesSendQueue = createQueue();
     }
 

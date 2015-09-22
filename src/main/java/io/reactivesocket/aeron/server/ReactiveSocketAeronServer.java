@@ -7,8 +7,6 @@ import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.aeron.internal.Loggable;
 import io.reactivesocket.aeron.internal.MessageType;
 import io.reactivesocket.observable.Observer;
-import rx.Scheduler;
-import rx.schedulers.Schedulers;
 import uk.co.real_logic.aeron.Aeron;
 import uk.co.real_logic.aeron.FragmentAssembler;
 import uk.co.real_logic.aeron.Image;
@@ -29,23 +27,21 @@ import static io.reactivesocket.aeron.internal.Constants.SERVER_IDLE_STRATEGY;
 import static io.reactivesocket.aeron.internal.Constants.SERVER_STREAM_ID;
 
 public class ReactiveSocketAeronServer implements AutoCloseable, Loggable {
-    private final Aeron aeron;
+    private static volatile Aeron aeron;
+
+    private volatile boolean running = true;
 
     private final int port;
 
     private final ConcurrentHashMap<Integer, AeronServerDuplexConnection> connections;
 
-    private final Scheduler.Worker worker;
+    private final ConcurrentHashMap<Integer, ReactiveSocket> sockets;
 
     private final Subscription subscription;
-
-    private volatile boolean running = true;
 
     private final ConnectionSetupHandler connectionSetupHandler;
 
     private final LeaseGovernor leaseGovernor;
-
-    private final ConcurrentHashMap<Integer, ReactiveSocket> sockets;
 
     private final CountDownLatch shutdownLatch;
 
@@ -57,11 +53,17 @@ public class ReactiveSocketAeronServer implements AutoCloseable, Loggable {
         this.sockets = new ConcurrentHashMap<>();
         this.shutdownLatch = new CountDownLatch(1);
 
-        final Aeron.Context ctx = new Aeron.Context();
-        ctx.newImageHandler(this::newImageHandler);
-        ctx.errorHandler(t ->  error(t.getMessage(), t));
+        if (aeron == null) {
+            synchronized (shutdownLatch) {
+                if (aeron == null) {
+                    final Aeron.Context ctx = new Aeron.Context();
+                    ctx.newImageHandler(this::newImageHandler);
+                    ctx.errorHandler(t -> error(t.getMessage(), t));
 
-        aeron = Aeron.connect(ctx);
+                    aeron = Aeron.connect(ctx);
+                }
+            }
+        }
 
         final String serverChannel =  "udp://" + host + ":" + port;
         info("Start new ReactiveSocketAeronServer on channel {}", serverChannel);
@@ -69,7 +71,6 @@ public class ReactiveSocketAeronServer implements AutoCloseable, Loggable {
 
         final FragmentAssembler fragmentAssembler = new FragmentAssembler(this::fragmentHandler);
 
-        worker = Schedulers.newThread().createWorker();
         poll(fragmentAssembler);
 
     }
@@ -99,7 +100,7 @@ public class ReactiveSocketAeronServer implements AutoCloseable, Loggable {
     }
 
     void poll(FragmentAssembler fragmentAssembler) {
-        worker.schedule(() -> {
+        Thread dutyThread = new Thread(() -> {
             while (running) {
                 try {
                     int poll = subscription.poll(fragmentAssembler, Integer.MAX_VALUE);
@@ -110,6 +111,9 @@ public class ReactiveSocketAeronServer implements AutoCloseable, Loggable {
             }
             shutdownLatch.countDown();
         });
+        dutyThread.setName("reactive-socket-aeron-server");
+        dutyThread.setDaemon(true);
+        dutyThread.start();
     }
 
     void fragmentHandler(DirectBuffer buffer, int offset, int length, Header header) {
@@ -125,7 +129,6 @@ public class ReactiveSocketAeronServer implements AutoCloseable, Loggable {
                 ByteBuffer bytes = ByteBuffer.allocate(length);
                 buffer.getBytes(BitUtil.SIZE_OF_INT + offset, bytes, length);
                 final Frame frame = Frame.from(bytes);
-                System.out.println("&&&&&&& fragmentHandler -> " + frame.toString());
                 subscribers.forEach(s -> s.onNext(frame));
             }
         } else if (MessageType.ESTABLISH_CONNECTION_REQUEST == type) {
@@ -177,7 +180,6 @@ public class ReactiveSocketAeronServer implements AutoCloseable, Loggable {
 
         shutdownLatch.await(30, TimeUnit.SECONDS);
 
-        worker.unsubscribe();
         aeron.close();
 
         for (AeronServerDuplexConnection connection : connections.values()) {

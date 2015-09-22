@@ -5,9 +5,8 @@ import io.reactivesocket.observable.Disposable;
 import io.reactivesocket.observable.Observable;
 import io.reactivesocket.observable.Observer;
 
-import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Predicate;
 
 /**
 * Class used to manage connections input to a duplex connection in Aeron.
@@ -17,11 +16,11 @@ public class AeronDuplexConnectionSubject implements Observable<Frame>, Observer
 
     private final long id;
 
-    private final ArrayList<AeronDuplexConnectionSubject> subjects;
+    private final List<AeronDuplexConnectionSubject> subjects;
 
     private Observer<Frame> internal;
 
-    public AeronDuplexConnectionSubject(ArrayList<AeronDuplexConnectionSubject> subjects) {
+    public AeronDuplexConnectionSubject(List<AeronDuplexConnectionSubject> subjects) {
         this.id = count.incrementAndGet();
         this.subjects = subjects;
     }
@@ -31,18 +30,11 @@ public class AeronDuplexConnectionSubject implements Observable<Frame>, Observer
         internal = o;
         internal.onSubscribe(() ->
                 subjects
-                    .removeIf(new Predicate<AeronDuplexConnectionSubject>() {
-                        @Override
-                        public boolean test(AeronDuplexConnectionSubject subject) {
-                            return id == subject.id;
-                        }
-                    })
-        );
+                    .removeIf(s -> s.id == id));
     }
 
     @Override
     public void onNext(Frame frame) {
-        System.out.println("^^^^^^^^^^^^^^^^^^^^ on next" + frame);
         internal.onNext(frame);
     }
 
@@ -53,7 +45,6 @@ public class AeronDuplexConnectionSubject implements Observable<Frame>, Observer
 
     @Override
     public void onComplete() {
-        System.out.println("^^@#$@#^^^^^^^^^#$#$^^^^^^#@^^^ on completed");
         internal.onComplete();
     }
 
