@@ -2,41 +2,23 @@ package io.reactivesocket.aeron.client.multi;
 
 
 import io.reactivesocket.Completable;
-import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
-import io.reactivesocket.aeron.AeronDuplexConnectionSubject;
+import io.reactivesocket.aeron.client.AbstractClientDuplexConnection;
 import io.reactivesocket.aeron.internal.Constants;
 import io.reactivesocket.aeron.internal.concurrent.ManyToManyConcurrentArrayQueue;
-import io.reactivesocket.observable.Observable;
-import io.reactivesocket.observable.Observer;
 import org.reactivestreams.Publisher;
 import rx.RxReactiveStreams;
 import rx.exceptions.MissingBackpressureException;
 import uk.co.real_logic.aeron.Publication;
 
-import java.util.ArrayList;
-import java.util.List;
-
-public class AeronClientDuplexConnection implements DuplexConnection, AutoCloseable {
-    private final Publication publication;
-    private final ManyToManyConcurrentArrayQueue<FrameHolder> framesSendQueue;
-    private final ArrayList<AeronDuplexConnectionSubject> subjects;
-
+public class AeronClientDuplexConnection extends AbstractClientDuplexConnection<ManyToManyConcurrentArrayQueue<FrameHolder>, FrameHolder> {
     public AeronClientDuplexConnection(Publication publication) {
-        this.publication = publication;
-        this.framesSendQueue = new ManyToManyConcurrentArrayQueue<>(Constants.CONCURRENCY);
-        this.subjects = new ArrayList<>();
-    }
-
-    public List<? extends Observer<Frame>> getSubscriber() {
-        return subjects;
+        super(publication);
     }
 
     @Override
-    public Observable<Frame> getInput() {
-        AeronDuplexConnectionSubject subject = new AeronDuplexConnectionSubject(subjects);
-        subjects.add(subject);
-        return subject;
+    protected ManyToManyConcurrentArrayQueue<FrameHolder> createQueue() {
+        return new ManyToManyConcurrentArrayQueue<>(Constants.CONCURRENCY);
     }
 
     @Override
@@ -53,7 +35,7 @@ public class AeronClientDuplexConnection implements DuplexConnection, AutoClosea
                     int i = 0;
                     do {
                         offer = framesSendQueue.offer(fh);
-                        if (!offer && ++i > 100) {
+                        if (!offer && ++i > Constants.MULTI_THREADED_SPIN_LIMIT) {
                             rx.Observable.error(new MissingBackpressureException());
                         }
                     } while (!offer);
@@ -63,11 +45,8 @@ public class AeronClientDuplexConnection implements DuplexConnection, AutoClosea
             }, callback::error, callback::success);
     }
 
-    public ManyToManyConcurrentArrayQueue<FrameHolder> getFramesSendQueue() {
-        return framesSendQueue;
-    }
-
     @Override
     public void close() {
     }
+
 }

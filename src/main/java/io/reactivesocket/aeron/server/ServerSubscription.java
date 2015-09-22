@@ -10,28 +10,32 @@ import uk.co.real_logic.aeron.Publication;
 import uk.co.real_logic.agrona.BitUtil;
 
 import java.nio.ByteBuffer;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * Created by rroeser on 8/27/15.
+ * Subscription used by the AeronServerDuplexConnection to handle incoming frames and send them
+ * on a publication.
+ *
+ * @see io.reactivesocket.aeron.server.AeronServerDuplexConnection
  */
-public class CompletableSubscription implements Subscriber<Frame> {
+class ServerSubscription implements Subscriber<Frame> {
+
+    /**
+     * Count is used to by the client to round-robin request between threads.
+     */
+    private short count;
 
     private final Publication publication;
 
     private final Completable completable;
-    private volatile static AtomicLong count = new AtomicLong();
-    private Subscription subscription;
 
-    public CompletableSubscription(Publication publication, Completable completable, AutoCloseable closeable) {
+    public ServerSubscription(Publication publication, Completable completable) {
         this.publication = publication;
         this.completable = completable;
     }
 
     @Override
     public void onSubscribe(Subscription s) {
-        s.request(1);
-        this.subscription = s;
+        s.request(Long.MAX_VALUE);
     }
 
     @Override
@@ -46,10 +50,9 @@ public class CompletableSubscription implements Subscriber<Frame> {
                 buffer.putBytes(offset + BitUtil.SIZE_OF_INT, byteBuffer, frame.offset(), frame.length());
             }, length);
         } catch (Throwable t) {
-            t.printStackTrace();
+            onError(t);
         }
 
-        System.out.println("### Server Sending => " + frame);
     }
 
     @Override
@@ -59,12 +62,11 @@ public class CompletableSubscription implements Subscriber<Frame> {
 
     @Override
     public void onComplete() {
-        System.out.println("&&&&&&&&&&&&&&&&& CompletableSubscription.onComplete");
         completable.success();
     }
 
     private short getCount() {
-        return (short) count.incrementAndGet();
+        return count++;
     }
 
 }

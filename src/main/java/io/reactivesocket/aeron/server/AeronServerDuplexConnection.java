@@ -18,7 +18,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-public class AeronServerDuplexConnection implements DuplexConnection, AutoCloseable, Loggable {
+public class AeronServerDuplexConnection implements DuplexConnection, Loggable {
 
     private static final ThreadLocal<BufferClaim> bufferClaims = ThreadLocal.withInitial(BufferClaim::new);
     private final Publication publication;
@@ -44,7 +44,7 @@ public class AeronServerDuplexConnection implements DuplexConnection, AutoClosea
 
     @Override
     public void addOutput(Publisher<Frame> o, Completable callback) {
-        o.subscribe(new CompletableSubscription(publication, callback, this));
+        o.subscribe(new ServerSubscription(publication, callback));
     }
 
     void ackEstablishConnection(int ackSessionId) {

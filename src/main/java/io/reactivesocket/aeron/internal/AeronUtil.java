@@ -3,6 +3,7 @@ package io.reactivesocket.aeron.internal;
 import uk.co.real_logic.aeron.Publication;
 import uk.co.real_logic.aeron.logbuffer.BufferClaim;
 import uk.co.real_logic.agrona.MutableDirectBuffer;
+import uk.co.real_logic.agrona.concurrent.OneToOneConcurrentArrayQueue;
 import uk.co.real_logic.agrona.concurrent.UnsafeBuffer;
 
 /**
@@ -12,7 +13,8 @@ public class AeronUtil {
 
     private static final ThreadLocal<BufferClaim> bufferClaims = ThreadLocal.withInitial(BufferClaim::new);
 
-    private static final ThreadLocal<UnsafeBuffer> unsafeBuffers = ThreadLocal.withInitial(() -> new UnsafeBuffer(Constants.EMTPY));
+    private static final ThreadLocal<OneToOneConcurrentArrayQueue<MutableDirectBuffer>> unsafeBuffers
+        = ThreadLocal.withInitial(() -> new OneToOneConcurrentArrayQueue<>(16));
 
     /**
      * Sends a message using offer. This method will spin-lock if Aeron signals back pressure.
@@ -25,9 +27,7 @@ public class AeronUtil {
      *                   that is send over Aeron
      */
     public static void offer(Publication publication, BufferFiller fillBuffer, int length) {
-        final UnsafeBuffer buffer = unsafeBuffers.get();
-        byte[] bytes = new byte[length];
-        buffer.wrap(bytes);
+        final MutableDirectBuffer buffer = getDirectBuffer(length);
         fillBuffer.fill(0, buffer);
         do {
             final long offer = publication.offer(buffer);
@@ -37,6 +37,38 @@ public class AeronUtil {
                 throw new RuntimeException("not connected");
             }
         } while(true);
+
+        recycleDirectBuffer(buffer);
+    }
+
+    /**
+     * Try to get a MutableDirectBuffer from a thread-safe pool for a given length. If the buffer found
+     * is bigger then the buffer in the pool creates a new buffer. If no buffer is found creates a new buffer
+     *
+     * @param length the requested length
+     * @return either a new MutableDirectBuffer or a recycled one that has the capacity to hold the data from the old one
+     */
+    public static MutableDirectBuffer getDirectBuffer(int length) {
+        OneToOneConcurrentArrayQueue<MutableDirectBuffer> queue = unsafeBuffers.get();
+        MutableDirectBuffer buffer = queue.poll();
+
+        if (buffer != null && buffer.capacity() < length) {
+            return buffer;
+        } else {
+            byte[] bytes = new byte[length];
+            buffer = new UnsafeBuffer(bytes);
+            return buffer;
+        }
+    }
+
+    /**
+     * Sends a DirectBuffer back to the thread pools to be recycled.
+     *
+     * @param directBuffer the DirectBuffer to recycle
+     */
+    public static void recycleDirectBuffer(MutableDirectBuffer directBuffer) {
+        OneToOneConcurrentArrayQueue<MutableDirectBuffer> queue = unsafeBuffers.get();
+        queue.offer(directBuffer);
     }
 
     /**

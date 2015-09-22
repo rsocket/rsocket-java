@@ -14,7 +14,7 @@ import uk.co.real_logic.agrona.concurrent.IdleStrategy;
 import uk.co.real_logic.agrona.concurrent.ManyToOneConcurrentArrayQueue;
 import uk.co.real_logic.agrona.concurrent.NoOpIdleStrategy;
 
-public class AeronClientDuplexConnection implements DuplexConnection, AutoCloseable {
+public class AeronClientDuplexConnection implements DuplexConnection {
     private Publication publication;
     private Observer<Frame> observer;
     private Observable<Frame> observable;

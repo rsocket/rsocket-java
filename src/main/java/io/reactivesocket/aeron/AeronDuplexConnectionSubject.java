@@ -24,22 +24,6 @@ public class AeronDuplexConnectionSubject implements Observable<Frame>, Observer
     public AeronDuplexConnectionSubject(ArrayList<AeronDuplexConnectionSubject> subjects) {
         this.id = count.incrementAndGet();
         this.subjects = subjects;
-
-        /*
-
-    public AeronServerDuplexConnection(
-        Publication publication) {
-        this.publication = publication;
-        this.observable = new Observable<Frame>() {
-            @Override
-            public void subscribe(Observer<Frame> o) {
-                observer = o;
-                o.onSubscribe(new EmptyDisposable());
-            }
-        };
-    }
-
-         */
     }
 
     @Override
