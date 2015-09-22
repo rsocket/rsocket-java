@@ -4,6 +4,7 @@ import io.reactivesocket.Completable;
 import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
 import io.reactivesocket.aeron.AeronDuplexConnectionSubject;
+import io.reactivesocket.aeron.internal.AeronUtil;
 import io.reactivesocket.aeron.internal.Loggable;
 import io.reactivesocket.aeron.internal.MessageType;
 import io.reactivesocket.observable.Observable;
@@ -12,7 +13,6 @@ import org.reactivestreams.Publisher;
 import uk.co.real_logic.aeron.Publication;
 import uk.co.real_logic.aeron.logbuffer.BufferClaim;
 import uk.co.real_logic.agrona.BitUtil;
-import uk.co.real_logic.agrona.MutableDirectBuffer;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -48,35 +48,12 @@ public class AeronServerDuplexConnection implements DuplexConnection, Loggable {
     }
 
     void ackEstablishConnection(int ackSessionId) {
-        final long start = System.nanoTime();
-        final int sessionId = publication.sessionId();
-        final BufferClaim bufferClaim = bufferClaims.get();
-
-        debug("Acking establish connection for session id => {}",  ackSessionId);
-
-        for (;;) {
-            final long current = System.nanoTime();
-            if ((current - start) > TimeUnit.SECONDS.toNanos(30)) {
-                throw new RuntimeException("Timed out waiting to establish connection for session id => " + sessionId);
-            }
-
-            final long offer = publication.tryClaim(2 * BitUtil.SIZE_OF_INT, bufferClaim);
-            if (offer >= 0) {
-                try {
-                    final MutableDirectBuffer buffer = bufferClaim.buffer();
-                    final int offset = bufferClaim.offset();
-
-                    buffer.putShort(offset, (short) 0);
-                    buffer.putShort(offset + BitUtil.SIZE_OF_SHORT, (short) MessageType.ESTABLISH_CONNECTION_RESPONSE.getEncodedType());
-                    buffer.putInt(offset + BitUtil.SIZE_OF_INT, ackSessionId);
-                } finally {
-                    bufferClaim.commit();
-                }
-
-                break;
-            }
-
-        }
+        debug("Acking establish connection for session id => {}", ackSessionId);
+        AeronUtil.tryClaimOrOffer(publication, (offset, buffer) -> {
+            buffer.putShort(offset, (short) 0);
+            buffer.putShort(offset + BitUtil.SIZE_OF_SHORT, (short) MessageType.ESTABLISH_CONNECTION_RESPONSE.getEncodedType());
+            buffer.putInt(offset + BitUtil.SIZE_OF_INT, ackSessionId);
+        }, 2 * BitUtil.SIZE_OF_INT, 30, TimeUnit.SECONDS);
     }
 
     @Override

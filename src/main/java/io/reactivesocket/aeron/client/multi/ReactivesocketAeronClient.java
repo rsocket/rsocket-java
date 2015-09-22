@@ -4,7 +4,7 @@ import io.reactivesocket.ConnectionSetupPayload;
 import io.reactivesocket.Frame;
 import io.reactivesocket.Payload;
 import io.reactivesocket.ReactiveSocket;
-import io.reactivesocket.aeron.internal.Constants;
+import io.reactivesocket.aeron.internal.AeronUtil;
 import io.reactivesocket.aeron.internal.Loggable;
 import io.reactivesocket.aeron.internal.MessageType;
 import io.reactivesocket.aeron.internal.concurrent.ManyToManyConcurrentArrayQueue;
@@ -16,12 +16,10 @@ import uk.co.real_logic.aeron.Aeron;
 import uk.co.real_logic.aeron.FragmentAssembler;
 import uk.co.real_logic.aeron.Publication;
 import uk.co.real_logic.aeron.Subscription;
-import uk.co.real_logic.aeron.logbuffer.BufferClaim;
 import uk.co.real_logic.aeron.logbuffer.Header;
 import uk.co.real_logic.agrona.BitUtil;
 import uk.co.real_logic.agrona.DirectBuffer;
 import uk.co.real_logic.agrona.LangUtil;
-import uk.co.real_logic.agrona.MutableDirectBuffer;
 import uk.co.real_logic.agrona.concurrent.UnsafeBuffer;
 
 import java.nio.ByteBuffer;
@@ -276,16 +274,11 @@ public class ReactivesocketAeronClient  implements Loggable, AutoCloseable {
                                         Frame frame = fh.getFrame();
                                         final ByteBuffer byteBuffer = frame.getByteBuffer();
                                         final int length = byteBuffer.capacity() + BitUtil.SIZE_OF_INT;
-
-                                        System.out.println("--------- Client sending => " + frame.toString());
-                                        // If the length is less the MTU size send the message using tryClaim which does not fragment the message
-                                        // If the message is larger the the MTU size send it using offer.
-                                        if (length < mtuLength) {
-                                            tryClaim(fh.getPublication(), byteBuffer, length);
-                                        } else {
-                                            offer(fh.getPublication(), byteBuffer, length);
-                                        }
-
+                                        AeronUtil.tryClaimOrOffer(fh.getPublication(), (offset, buffer) -> {
+                                            buffer.putShort(offset, (short) 0);
+                                            buffer.putShort(offset + BitUtil.SIZE_OF_SHORT, (short) MessageType.FRAME.getEncodedType());
+                                            buffer.putBytes(offset + BitUtil.SIZE_OF_INT, byteBuffer, 0, byteBuffer.capacity());
+                                        }, length);
                                         fh.release();
                                     } catch (Throwable t) {
                                         fh.release();
@@ -294,7 +287,6 @@ public class ReactivesocketAeronClient  implements Loggable, AutoCloseable {
                                 });
                         });
                     }
-
 
                     try {
                         final FragmentAssembler fragmentAssembler = new FragmentAssembler(
@@ -325,52 +317,6 @@ public class ReactivesocketAeronClient  implements Loggable, AutoCloseable {
         }, 0, 1, TimeUnit.NANOSECONDS);
     }
 
-    private static final ThreadLocal<BufferClaim> bufferClaims = ThreadLocal.withInitial(BufferClaim::new);
-
-    private static final ThreadLocal<UnsafeBuffer> unsafeBuffers = ThreadLocal.withInitial(() -> new UnsafeBuffer(Constants.EMTPY));
-
-    void offer(Publication publication, ByteBuffer byteBuffer, int length) {
-        final byte[] bytes = new byte[length];
-        final UnsafeBuffer unsafeBuffer = unsafeBuffers.get();
-        unsafeBuffer.wrap(bytes);
-
-        unsafeBuffer.putShort(0, (short) 0);
-        unsafeBuffer.putShort(BitUtil.SIZE_OF_SHORT, (short) MessageType.FRAME.getEncodedType());
-        unsafeBuffer.putBytes(BitUtil.SIZE_OF_INT, byteBuffer, byteBuffer.capacity());
-        do {
-            final long offer = publication.offer(unsafeBuffer);
-            if (offer >= 0) {
-                break;
-            } else if (Publication.NOT_CONNECTED == offer) {
-                throw new RuntimeException("not connected");
-            }
-        } while(true);
-
-    }
-
-    void tryClaim(Publication publication, ByteBuffer byteBuffer, int length) {
-        final BufferClaim bufferClaim = bufferClaims.get();
-        do {
-            final long offer = publication.tryClaim(length, bufferClaim);
-            if (offer >= 0) {
-                try {
-                    final MutableDirectBuffer buffer = bufferClaim.buffer();
-                    final int offset = bufferClaim.offset();
-                    buffer.putShort(offset, (short) 0);
-                    buffer.putShort(offset + BitUtil.SIZE_OF_SHORT, (short) MessageType.FRAME.getEncodedType());
-                    buffer.putBytes(offset + BitUtil.SIZE_OF_INT, byteBuffer, 0, byteBuffer.capacity());
-                } finally {
-                    bufferClaim.commit();
-                }
-
-                break;
-            } else if (Publication.NOT_CONNECTED == offer) {
-                throw new RuntimeException("not connected");
-            }
-        } while(true);
-    }
-
-
     /**
      * Establishes a connection between the client and server. Waits for 30 seconds before throwing a exception.
      */
@@ -394,7 +340,9 @@ public class ReactivesocketAeronClient  implements Loggable, AutoCloseable {
                 }
 
                 System.out.println(Thread.currentThread() + " - Sending establishConnection message");
-                publication.offer(buffer);
+                if (offer < 0) {
+                    offer = publication.offer(buffer);
+                }
                 LockSupport.parkNanos(TimeUnit.SECONDS.toNanos(1));
 
                 if (latch.getCount() == 0) {

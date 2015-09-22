@@ -6,6 +6,8 @@ import uk.co.real_logic.agrona.MutableDirectBuffer;
 import uk.co.real_logic.agrona.concurrent.OneToOneConcurrentArrayQueue;
 import uk.co.real_logic.agrona.concurrent.UnsafeBuffer;
 
+import java.util.concurrent.TimeUnit;
+
 /**
  * Utils for dealing with Aeron
  */
@@ -26,10 +28,17 @@ public class AeronUtil {
      * @param fillBuffer closure passed in to fill a {@link uk.co.real_logic.agrona.MutableDirectBuffer}
      *                   that is send over Aeron
      */
-    public static void offer(Publication publication, BufferFiller fillBuffer, int length) {
+    public static void offer(Publication publication, BufferFiller fillBuffer, int length, int timeout, TimeUnit timeUnit) {
         final MutableDirectBuffer buffer = getDirectBuffer(length);
         fillBuffer.fill(0, buffer);
+        final long start = System.nanoTime();
         do {
+            if (timeout > 0) {
+                final long current = System.nanoTime();
+                if ((current - start) > timeUnit.toNanos(timeout)) {
+                    throw new RuntimeException("Timed out publishing data");
+                }
+            }
             final long offer = publication.offer(buffer);
             if (offer >= 0) {
                 break;
@@ -40,6 +49,70 @@ public class AeronUtil {
 
         recycleDirectBuffer(buffer);
     }
+
+    /**
+     * Sends a message using tryClaim. This method will spin-lock if Aeron signals back pressure. The message
+     * being sent needs to be equal or smaller than Aeron's MTU size or an exception will be thrown.
+     *
+     * In order to use this method of sending data you need to know the length of data.
+     *
+     * @param publication publication to send the message on
+     * @param fillBuffer closure passed in to fill a {@link uk.co.real_logic.agrona.MutableDirectBuffer}
+     *                   that is send over Aeron
+     * @param length the length of data
+     */
+    public static void tryClaim(Publication publication, BufferFiller fillBuffer, int length, int timeout, TimeUnit timeUnit) {
+        final BufferClaim bufferClaim = bufferClaims.get();
+        final long start = System.nanoTime();
+        do {
+            if (timeout > 0) {
+                final long current = System.nanoTime();
+                if ((current - start) > timeUnit.toNanos(timeout)) {
+                    throw new RuntimeException("Timed out publishing data");
+                }
+            }
+
+            final long offer = publication.tryClaim(length, bufferClaim);
+            if (offer >= 0) {
+                try {
+                    final MutableDirectBuffer buffer = bufferClaim.buffer();
+                    final int offset = bufferClaim.offset();
+                    fillBuffer.fill(offset, buffer);
+                    break;
+                } finally {
+                    bufferClaim.commit();
+                }
+            } else if (Publication.NOT_CONNECTED == offer) {
+                throw new RuntimeException("not connected");
+            }
+        } while (true);
+    }
+
+    /**
+     * Attempts to send the data using tryClaim. If the message data length is large then the Aeron MTU
+     * size it will use offer instead.
+     *
+     * @param publication publication to send the message on
+     * @param fillBuffer closure passed in to fill a {@link uk.co.real_logic.agrona.MutableDirectBuffer}
+     *                   that is send over Aeron
+     * @param length the length of data
+     */
+    public static void tryClaimOrOffer(Publication publication, BufferFiller fillBuffer, int length) {
+        tryClaimOrOffer(publication, fillBuffer, length, -1, null);
+    }
+
+    public static void tryClaimOrOffer(Publication publication, BufferFiller fillBuffer, int length, int timeout, TimeUnit timeUnit) {
+        try {
+            if (length < Constants.AERON_MTU_SIZE) {
+                tryClaim(publication, fillBuffer, length, timeout, timeUnit);
+            } else {
+                offer(publication, fillBuffer, length, timeout, timeUnit);
+            }
+        } catch (Throwable t) {
+            t.printStackTrace();
+        }
+    }
+
 
     /**
      * Try to get a MutableDirectBuffer from a thread-safe pool for a given length. If the buffer found
@@ -69,57 +142,6 @@ public class AeronUtil {
     public static void recycleDirectBuffer(MutableDirectBuffer directBuffer) {
         OneToOneConcurrentArrayQueue<MutableDirectBuffer> queue = unsafeBuffers.get();
         queue.offer(directBuffer);
-    }
-
-    /**
-     * Sends a message using tryClaim. This method will spin-lock if Aeron signals back pressure. The message
-     * being sent needs to be equal or smaller than Aeron's MTU size or an exception will be thrown.
-     *
-     * In order to use this method of sending data you need to know the length of data.
-     *
-     * @param publication publication to send the message on
-     * @param fillBuffer closure passed in to fill a {@link uk.co.real_logic.agrona.MutableDirectBuffer}
-     *                   that is send over Aeron
-     * @param length the length of data
-     */
-    public static void tryClaim(Publication publication, BufferFiller fillBuffer, int length) {
-        final BufferClaim bufferClaim = bufferClaims.get();
-        do {
-            final long offer = publication.tryClaim(length, bufferClaim);
-            if (offer >= 0) {
-                try {
-                    final MutableDirectBuffer buffer = bufferClaim.buffer();
-                    final int offset = bufferClaim.offset();
-                    fillBuffer.fill(offset, buffer);
-                    break;
-                } finally {
-                    bufferClaim.commit();
-                }
-            } else if (Publication.NOT_CONNECTED == offer) {
-                throw new RuntimeException("not connected");
-            }
-        } while (true);
-    }
-
-    /**
-     * Attempts to send the data using tryClaim. If the message data length is large then the Aeron MTU
-     * size it will use offer instead.
-     *
-     * @param publication publication to send the message on
-     * @param fillBuffer closure passed in to fill a {@link uk.co.real_logic.agrona.MutableDirectBuffer}
-     *                   that is send over Aeron
-     * @param length the length of data
-     */
-    public static void tryClaimOrOffer(Publication publication, BufferFiller fillBuffer, int length) {
-        try {
-            if (length < Constants.AERON_MTU_SIZE) {
-                tryClaim(publication, fillBuffer, length);
-            } else {
-                offer(publication, fillBuffer, length);
-            }
-        } catch (Throwable t) {
-            t.printStackTrace();
-        }
     }
 
     /**
