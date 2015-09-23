@@ -217,7 +217,12 @@ public class ReactiveSocketPerf {
 					@Override
 					public void request(long n) {
 						// NOTE: This is not a safe implementation as it assumes synchronous request(n)
-						for (int i = 0; i < n; i++) {
+						if (emitted == ps.length) {
+							s.onComplete();
+							return;
+						}
+						long _n = Math.min(n, ps.length);
+						for (int i = 0; i < _n; i++) {
 							s.onNext(ps[emitted++]);
 							if (emitted == ps.length) {
 								s.onComplete();
