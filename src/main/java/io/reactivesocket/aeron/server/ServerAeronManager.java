@@ -22,13 +22,13 @@ public class ServerAeronManager implements Loggable {
 
     private CopyOnWriteArrayList<NewImageHandler> imageHandlers = new CopyOnWriteArrayList<>();
 
-    private CopyOnWriteArrayList<SubscriptionHolder> subscriptions = new CopyOnWriteArrayList<>();
+    private CopyOnWriteArrayList<FragmentAssemblerHolder> subscriptions = new CopyOnWriteArrayList<>();
 
-    private class SubscriptionHolder {
+    private class FragmentAssemblerHolder {
         private Subscription subscription;
         private FragmentAssembler fragmentAssembler;
 
-        public SubscriptionHolder(Subscription subscription, FragmentAssembler fragmentAssembler) {
+        public FragmentAssemblerHolder(Subscription subscription, FragmentAssembler fragmentAssembler) {
             this.subscription = subscription;
             this.fragmentAssembler = fragmentAssembler;
         }
@@ -53,7 +53,7 @@ public class ServerAeronManager implements Loggable {
     }
 
     public void addSubscription(Subscription subscription, FragmentAssembler fragmentAssembler) {
-        subscriptions.add(new SubscriptionHolder(subscription, fragmentAssembler));
+        subscriptions.add(new FragmentAssemblerHolder(subscription, fragmentAssembler));
     }
 
     public void removeSubscription(Subscription subscription) {
@@ -73,7 +73,7 @@ public class ServerAeronManager implements Loggable {
         Thread dutyThread = new Thread(() -> {
             for (;;) {
                 int poll = 0;
-                for (SubscriptionHolder sh : subscriptions) {
+                for (FragmentAssemblerHolder sh : subscriptions) {
                     try {
                         poll += sh.subscription.poll(sh.fragmentAssembler, Integer.MAX_VALUE);
                     } catch (Throwable t) {
