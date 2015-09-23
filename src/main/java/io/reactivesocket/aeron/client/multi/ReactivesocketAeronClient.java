@@ -11,6 +11,7 @@ import io.reactivesocket.aeron.internal.concurrent.ManyToManyConcurrentArrayQueu
 import io.reactivesocket.rx.Observer;
 import org.reactivestreams.Publisher;
 import rx.Scheduler;
+import rx.functions.Action0;
 import rx.schedulers.Schedulers;
 import uk.co.real_logic.aeron.Aeron;
 import uk.co.real_logic.aeron.FragmentAssembler;
@@ -142,19 +143,14 @@ public class ReactivesocketAeronClient  implements Loggable, AutoCloseable {
                 }
                 SUBSCRIPTION_GROUPS.add(subscriptionGroup);
             }
-        }
 
-        synchronized (SUBSCRIPTION_GROUPS) {
             if (!pollingStarted) {
-                debug("Polling hasn't started yet - starting "
-                    + CONCURRENCY
-                    + " pollers");
                 CyclicBarrier startBarrier = new CyclicBarrier(CONCURRENCY + 1);
                 for (int i = 0; i < CONCURRENCY; i++) {
-                    debug("Starting "
-                        + i
-                        + " poller");
-                    poll(i, Schedulers.computation().createWorker(), startBarrier);
+                    Schedulers
+                        .computation()
+                        .createWorker()
+                        .schedulePeriodically(new Poller(i, startBarrier), 0, 1, TimeUnit.NANOSECONDS);
                 }
 
                 try {
@@ -239,9 +235,22 @@ public class ReactivesocketAeronClient  implements Loggable, AutoCloseable {
         }
     }
 
-    void poll(final int threadId, final Scheduler.Worker worker, CyclicBarrier startBarrier) {
-        worker.schedulePeriodically(() -> {
-            if (startBarrier != null && !pollingStarted) {
+    class Poller implements Action0 {
+        final int threadId;
+        CyclicBarrier startBarrier;
+        final FragmentAssembler fragmentAssembler;
+
+        public Poller(int threadId, CyclicBarrier startBarrier) {
+            this.threadId = threadId;
+            this.startBarrier = startBarrier;
+            fragmentAssembler = new FragmentAssembler(
+                (DirectBuffer buffer, int offset, int length, Header header) ->
+                    fragmentHandler(threadId, buffer, offset, length, header));
+            debug("Starting new Poller for thread id  => " + threadId);
+        }
+
+        public void call() {
+            if (!pollingStarted) {
                 try {
                     startBarrier.await(30, TimeUnit.SECONDS);
                 } catch (Exception e) {
@@ -253,7 +262,7 @@ public class ReactivesocketAeronClient  implements Loggable, AutoCloseable {
                 try {
                     final Collection<AeronClientDuplexConnection> values = connections.values();
 
-                    if (values != null) {
+                    if (!values.isEmpty()) {
                         values.forEach(connection -> {
                             ManyToManyConcurrentArrayQueue<FrameHolder> framesSendQueue = connection.getFramesSendQueue();
                             framesSendQueue
@@ -277,19 +286,11 @@ public class ReactivesocketAeronClient  implements Loggable, AutoCloseable {
                     }
 
                     try {
-                        final FragmentAssembler fragmentAssembler = new FragmentAssembler(
-                            (DirectBuffer buffer, int offset, int length, Header header) ->
-                                fragmentHandler(threadId, buffer, offset, length, header));
-
-                            //System.out.println("processing subscriptions => " + magicNumber);
-                            //LockSupport.parkNanos(TimeUnit.SECONDS.toNanos(1));
-                            SUBSCRIPTION_GROUPS
-                                .forEach(subscriptionGroup -> {
-                                    //System.out.println("processing subscriptions in foreach => " + magicNumber);
-                                    //LockSupport.parkNanos(TimeUnit.SECONDS.toNanos(1));
-                                    Subscription subscription = subscriptionGroup.subscriptions[threadId];
-                                    subscription.poll(fragmentAssembler, Integer.MAX_VALUE);
-                                });
+                        SUBSCRIPTION_GROUPS
+                            .forEach(subscriptionGroup -> {
+                                Subscription subscription = subscriptionGroup.subscriptions[threadId];
+                                subscription.poll(fragmentAssembler, Integer.MAX_VALUE);
+                            });
                     } catch (Throwable t) {
                         t.printStackTrace();
                         error("error polling aeron subscription", t);
@@ -301,8 +302,7 @@ public class ReactivesocketAeronClient  implements Loggable, AutoCloseable {
             } else {
                 shutdownLatch.countDown();
             }
-
-        }, 0, 1, TimeUnit.NANOSECONDS);
+        }
     }
 
     /**
