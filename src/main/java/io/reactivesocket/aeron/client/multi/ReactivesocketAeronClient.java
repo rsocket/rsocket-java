@@ -198,7 +198,7 @@ public class ReactivesocketAeronClient  implements Loggable, AutoCloseable {
                 final ByteBuffer bytes = ByteBuffer.allocate(length);
                 buffer.getBytes(BitUtil.SIZE_OF_INT + offset, bytes, length);
                 final Frame frame = Frame.from(bytes);
-                debug("client processing frame {}", frame);
+                //debug("client processing frame {}", frame);
                 subscribers.forEach(s -> s.onNext(frame));
             } else if (messageType == MessageType.ESTABLISH_CONNECTION_RESPONSE) {
                 final int ackSessionId = buffer.getInt(offset + BitUtil.SIZE_OF_INT);

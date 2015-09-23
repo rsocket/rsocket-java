@@ -287,14 +287,16 @@ public class ReactiveSocketAeronTest {
             }
         });
 
-        CountDownLatch latch = new CountDownLatch(2 * 130);
+        int count = 64;
+
+        CountDownLatch latch = new CountDownLatch(2 * count);
 
         ReactivesocketAeronClient client = ReactivesocketAeronClient.create("localhost", "localhost");
 
         ReactivesocketAeronClient client2 = ReactivesocketAeronClient.create("localhost", "localhost", 12345);
 
         Observable
-            .range(1, 130)
+            .range(1, count)
             .flatMap(i -> {
                     System.out.println("pinging server 1 => " + i);
                     Payload payload = new Payload() {
@@ -330,7 +332,7 @@ public class ReactiveSocketAeronTest {
             });
 
         Observable
-            .range(1, 130)
+            .range(1, count)
             .flatMap(i -> {
                     System.out.println("pinging server 2 => " + i);
                     Payload payload = new Payload() {
