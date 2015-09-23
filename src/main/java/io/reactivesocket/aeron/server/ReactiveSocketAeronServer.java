@@ -6,7 +6,7 @@ import io.reactivesocket.LeaseGovernor;
 import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.aeron.internal.Loggable;
 import io.reactivesocket.aeron.internal.MessageType;
-import io.reactivesocket.observable.Observer;
+import io.reactivesocket.rx.Observer;
 import uk.co.real_logic.aeron.Aeron;
 import uk.co.real_logic.aeron.FragmentAssembler;
 import uk.co.real_logic.aeron.Image;
@@ -18,6 +18,7 @@ import uk.co.real_logic.agrona.DirectBuffer;
 
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -28,7 +29,11 @@ import static io.reactivesocket.aeron.internal.Constants.SERVER_STREAM_ID;
 public class ReactiveSocketAeronServer implements AutoCloseable, Loggable {
     private static volatile Aeron aeron;
 
-    private volatile boolean running = true;
+    private static volatile boolean running = true;
+
+    private static volatile boolean pollingStarted = false;
+
+    private static final CopyOnWriteArrayList<ReactiveSocketAeronServer> servers = new CopyOnWriteArrayList<>();
 
     private final int port;
 
@@ -43,6 +48,8 @@ public class ReactiveSocketAeronServer implements AutoCloseable, Loggable {
     private final LeaseGovernor leaseGovernor;
 
     private final CountDownLatch shutdownLatch;
+
+    private final FragmentAssembler fragmentAssembler;
 
     private ReactiveSocketAeronServer(String host, int port, ConnectionSetupHandler connectionSetupHandler, LeaseGovernor leaseGovernor) {
         this.port = port;
@@ -68,10 +75,11 @@ public class ReactiveSocketAeronServer implements AutoCloseable, Loggable {
         info("Start new ReactiveSocketAeronServer on channel {}", serverChannel);
         subscription = aeron.addSubscription(serverChannel, SERVER_STREAM_ID);
 
-        final FragmentAssembler fragmentAssembler = new FragmentAssembler(this::fragmentHandler);
+        fragmentAssembler = new FragmentAssembler(this::fragmentHandler);
 
-        poll(fragmentAssembler);
+        servers.add(this);
 
+        poll();
     }
 
     public static ReactiveSocketAeronServer create(String host, int port, ConnectionSetupHandler connectionSetupHandler, LeaseGovernor leaseGovernor) {
@@ -98,21 +106,30 @@ public class ReactiveSocketAeronServer implements AutoCloseable, Loggable {
         return create(39790, connectionSetupHandler, LeaseGovernor.NULL_LEASE_GOVERNOR);
     }
 
-    void poll(FragmentAssembler fragmentAssembler) {
+    synchronized void poll() {
+        if (pollingStarted) {
+            return;
+        }
+
         Thread dutyThread = new Thread(() -> {
             while (running) {
-                try {
-                    int poll = subscription.poll(fragmentAssembler, Integer.MAX_VALUE);
-                    SERVER_IDLE_STRATEGY.idle(poll);
-                } catch (Throwable t) {
-                    t.printStackTrace();
-                }
+                servers
+                    .forEach(server -> {
+                        try {
+                            int poll = server.subscription.poll(server.fragmentAssembler, Integer.MAX_VALUE);
+                            SERVER_IDLE_STRATEGY.idle(poll);
+                        } catch (Throwable t) {
+                            t.printStackTrace();
+                        }
+                    });
+
             }
             shutdownLatch.countDown();
         });
         dutyThread.setName("reactive-socket-aeron-server");
         dutyThread.setDaemon(true);
         dutyThread.start();
+        pollingStarted = true;
     }
 
     void fragmentHandler(DirectBuffer buffer, int offset, int length, Header header) {

@@ -1,9 +1,9 @@
 package io.reactivesocket.aeron;
 
 import io.reactivesocket.Frame;
-import io.reactivesocket.observable.Disposable;
-import io.reactivesocket.observable.Observable;
-import io.reactivesocket.observable.Observer;
+import io.reactivesocket.rx.Disposable;
+import io.reactivesocket.rx.Observable;
+import io.reactivesocket.rx.Observer;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;

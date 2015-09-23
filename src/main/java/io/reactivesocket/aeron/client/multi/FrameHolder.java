@@ -8,17 +8,11 @@ import uk.co.real_logic.aeron.Publication;
 
 /**
  * Holds a frame and the publication that it's supposed to be sent on.
- * Pools instances on an {@link uk.co.real_logic.agrona.concurrent.ManyToOneConcurrentArrayQueue}
+ * Pools instances on an {@link ManyToManyConcurrentArrayQueue}
  */
 class FrameHolder {
     private static ManyToManyConcurrentArrayQueue<FrameHolder> FRAME_HOLDER_QUEUE
         = new ManyToManyConcurrentArrayQueue<>(Constants.QUEUE_SIZE);
-
-    static {
-        for (int i = 0; i < Constants.QUEUE_SIZE; i++) {
-            FRAME_HOLDER_QUEUE.offer(new FrameHolder());
-        }
-    }
 
     private Publication publication;
     private Frame frame;

@@ -1,11 +1,11 @@
 package io.reactivesocket.aeron.client.single;
 
-import io.reactivesocket.Completable;
 import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
-import io.reactivesocket.internal.EmptyDisposable;
-import io.reactivesocket.observable.Observable;
-import io.reactivesocket.observable.Observer;
+import io.reactivesocket.internal.rx.EmptyDisposable;
+import io.reactivesocket.rx.Completable;
+import io.reactivesocket.rx.Observable;
+import io.reactivesocket.rx.Observer;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;

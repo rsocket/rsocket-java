@@ -1,7 +1,7 @@
 package io.reactivesocket.aeron.client.single;
 
 import com.gs.collections.impl.map.mutable.ConcurrentHashMap;
-import io.reactivesocket.Completable;
+import io.reactivesocket.rx.Completable;
 import io.reactivesocket.ConnectionSetupPayload;
 import io.reactivesocket.Frame;
 import io.reactivesocket.Payload;
@@ -9,7 +9,7 @@ import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.aeron.internal.Constants;
 import io.reactivesocket.aeron.internal.Loggable;
 import io.reactivesocket.aeron.internal.MessageType;
-import io.reactivesocket.observable.Observer;
+import io.reactivesocket.rx.Observer;
 import org.reactivestreams.Publisher;
 import rx.Scheduler;
 import rx.schedulers.Schedulers;

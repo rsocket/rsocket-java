@@ -1,6 +1,6 @@
 package io.reactivesocket.aeron.server;
 
-import io.reactivesocket.Completable;
+import io.reactivesocket.rx.Completable;
 import io.reactivesocket.Frame;
 import io.reactivesocket.aeron.internal.AeronUtil;
 import io.reactivesocket.aeron.internal.MessageType;

@@ -13,12 +13,6 @@ class FrameHolder {
     private static ManyToOneConcurrentArrayQueue<FrameHolder> FRAME_HOLDER_QUEUE
         = new ManyToOneConcurrentArrayQueue<>(Constants.QUEUE_SIZE);
 
-    static {
-        for (int i = 0; i < Constants.QUEUE_SIZE; i++) {
-            FRAME_HOLDER_QUEUE.offer(new FrameHolder());
-        }
-    }
-
     private Publication publication;
     private Frame frame;
 

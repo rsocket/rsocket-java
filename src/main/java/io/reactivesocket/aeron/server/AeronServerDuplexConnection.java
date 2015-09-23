@@ -1,14 +1,14 @@
 package io.reactivesocket.aeron.server;
 
-import io.reactivesocket.Completable;
 import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
 import io.reactivesocket.aeron.AeronDuplexConnectionSubject;
 import io.reactivesocket.aeron.internal.AeronUtil;
 import io.reactivesocket.aeron.internal.Loggable;
 import io.reactivesocket.aeron.internal.MessageType;
-import io.reactivesocket.observable.Observable;
-import io.reactivesocket.observable.Observer;
+import io.reactivesocket.rx.Observable;
+import io.reactivesocket.rx.Completable;
+import io.reactivesocket.rx.Observer;
 import org.reactivestreams.Publisher;
 import uk.co.real_logic.aeron.Publication;
 import uk.co.real_logic.agrona.BitUtil;

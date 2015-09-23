@@ -1,11 +1,11 @@
 package io.reactivesocket.aeron.client.multi;
 
 
-import io.reactivesocket.Completable;
 import io.reactivesocket.Frame;
 import io.reactivesocket.aeron.client.AbstractClientDuplexConnection;
 import io.reactivesocket.aeron.internal.Constants;
 import io.reactivesocket.aeron.internal.concurrent.ManyToManyConcurrentArrayQueue;
+import io.reactivesocket.rx.Completable;
 import org.reactivestreams.Publisher;
 import rx.RxReactiveStreams;
 import rx.exceptions.MissingBackpressureException;

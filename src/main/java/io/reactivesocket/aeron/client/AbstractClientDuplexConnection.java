@@ -4,8 +4,8 @@ import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
 import io.reactivesocket.aeron.AeronDuplexConnectionSubject;
 import io.reactivesocket.aeron.internal.concurrent.AbstractConcurrentArrayQueue;
-import io.reactivesocket.observable.Observable;
-import io.reactivesocket.observable.Observer;
+import io.reactivesocket.rx.Observable;
+import io.reactivesocket.rx.Observer;
 import uk.co.real_logic.aeron.Publication;
 
 import java.util.List;
