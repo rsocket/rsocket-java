@@ -123,7 +123,7 @@ public class Responder {
 		/* state of cancellation subjects during connection */
 		final Int2ObjectHashMap<Subscription> cancellationSubscriptions = new Int2ObjectHashMap<>();
 		/* streams in flight that can receive REQUEST_N messages */
-		final Int2ObjectHashMap<SubscriptionArbiter> inFlight = new Int2ObjectHashMap<>(); 
+		final Int2ObjectHashMap<TransportApplicationSubscriptionArbiter> inFlight = new Int2ObjectHashMap<>(); 
 		/* bidirectional channels */
 		final Int2ObjectHashMap<UnicastSubject<Payload>> channels = new Int2ObjectHashMap<>(); // TODO should/can we make this optional so that it only gets allocated per connection if channels are
 																									// used?
@@ -210,7 +210,7 @@ public class Responder {
 							}
 							return;
 						} else if (requestFrame.getType() == FrameType.REQUEST_N) {
-							SubscriptionArbiter inFlightSubscription = null;
+							TransportApplicationSubscriptionArbiter inFlightSubscription = null;
 							synchronized (Responder.this)
 							{
 								inFlightSubscription = inFlight.get(requestFrame.getStreamId());
@@ -414,7 +414,7 @@ public class Responder {
 			Frame requestFrame,
 			final RequestHandler requestHandler,
 			final Int2ObjectHashMap<Subscription> cancellationSubscriptions,
-			final Int2ObjectHashMap<SubscriptionArbiter> inFlight) {
+			final Int2ObjectHashMap<TransportApplicationSubscriptionArbiter> inFlight) {
 		return _handleRequestStream(requestStreamHandler, requestFrame, requestHandler, cancellationSubscriptions, inFlight, true);
 	}
 
@@ -422,7 +422,7 @@ public class Responder {
 			Frame requestFrame,
 			final RequestHandler requestHandler,
 			final Int2ObjectHashMap<Subscription> cancellationSubscriptions,
-			final Int2ObjectHashMap<SubscriptionArbiter> inFlight) {
+			final Int2ObjectHashMap<TransportApplicationSubscriptionArbiter> inFlight) {
 		return _handleRequestStream(requestSubscriptionHandler, requestFrame, requestHandler, cancellationSubscriptions, inFlight, false);
 	}
 	
@@ -441,7 +441,7 @@ public class Responder {
 			Frame requestFrame,
 			final RequestHandler requestHandler,
 			final Int2ObjectHashMap<Subscription> cancellationSubscriptions,
-			final Int2ObjectHashMap<SubscriptionArbiter> inFlight,
+			final Int2ObjectHashMap<TransportApplicationSubscriptionArbiter> inFlight,
 			final boolean allowCompletion) {
 
 		return new Publisher<Frame>() {
@@ -452,7 +452,7 @@ public class Responder {
 
 					final AtomicBoolean started = new AtomicBoolean(false);
 					final AtomicReference<Subscription> parent = new AtomicReference<>();
-					final SubscriptionArbiter arbiter = new SubscriptionArbiter();
+					final TransportApplicationSubscriptionArbiter arbiter = new TransportApplicationSubscriptionArbiter();
 
 					@Override
 					public void request(long n) {
@@ -576,7 +576,7 @@ public class Responder {
 			RequestHandler requestHandler,
 			Int2ObjectHashMap<UnicastSubject<Payload>> channels,
 			Int2ObjectHashMap<Subscription> cancellationSubscriptions,
-			Int2ObjectHashMap<SubscriptionArbiter> inFlight) {
+			Int2ObjectHashMap<TransportApplicationSubscriptionArbiter> inFlight) {
 
 		UnicastSubject<Payload> channelSubject = null;
 		synchronized(Responder.this) {
@@ -591,7 +591,7 @@ public class Responder {
 
 						final AtomicBoolean started = new AtomicBoolean(false);
 						final AtomicReference<Subscription> parent = new AtomicReference<>();
-						final SubscriptionArbiter arbiter = new SubscriptionArbiter();
+						final TransportApplicationSubscriptionArbiter arbiter = new TransportApplicationSubscriptionArbiter();
 
 						@Override
 						public void request(long n) {
@@ -705,7 +705,7 @@ public class Responder {
 		}
 	}
 	
-	private static class SubscriptionArbiter {
+	private static class TransportApplicationSubscriptionArbiter {
 		private Subscription applicationProducer;
 		private long appRequested = 0;
 		private long transportRequested = 0;
