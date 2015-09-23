@@ -2,29 +2,32 @@ package io.reactivesocket.aeron.server;
 
 import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
-import io.reactivesocket.aeron.AeronDuplexConnectionSubject;
 import io.reactivesocket.aeron.internal.AeronUtil;
 import io.reactivesocket.aeron.internal.Loggable;
 import io.reactivesocket.aeron.internal.MessageType;
-import io.reactivesocket.rx.Observable;
 import io.reactivesocket.rx.Completable;
+import io.reactivesocket.rx.Disposable;
+import io.reactivesocket.rx.Observable;
 import io.reactivesocket.rx.Observer;
 import org.reactivestreams.Publisher;
 import uk.co.real_logic.aeron.Publication;
 import uk.co.real_logic.agrona.BitUtil;
 
-import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class AeronServerDuplexConnection implements DuplexConnection, Loggable {
+    protected final static AtomicLong count = new AtomicLong();
+
     private final Publication publication;
-    private final ArrayList<AeronDuplexConnectionSubject> subjects;
+    private final CopyOnWriteArrayList<Observer<Frame>> subjects;
 
     public AeronServerDuplexConnection(
         Publication publication) {
         this.publication = publication;
-        this.subjects = new ArrayList<>();
+        this.subjects = new CopyOnWriteArrayList<>();
     }
 
     public List<? extends Observer<Frame>> getSubscriber() {
@@ -32,10 +35,18 @@ public class AeronServerDuplexConnection implements DuplexConnection, Loggable {
     }
 
     @Override
-    public Observable<Frame> getInput() {
-        AeronDuplexConnectionSubject subject = new AeronDuplexConnectionSubject(subjects);
-        subjects.add(subject);
-        return subject;
+    public final Observable<Frame> getInput() {
+        return new Observable<Frame>() {
+            public void subscribe(Observer<Frame> o) {
+                o.onSubscribe(new Disposable() {
+                    @Override
+                    public void dispose() {
+                        subjects.removeIf(s -> s == o);
+                    }
+                });
+                subjects.add(o);
+            }
+        };
     }
 
     @Override

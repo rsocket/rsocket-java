@@ -37,9 +37,9 @@ public class ReactiveSocketAeronServer implements AutoCloseable, Loggable {
 
     private final int port;
 
-    private final ConcurrentHashMap<Integer, AeronServerDuplexConnection> connections;
+    private static final ConcurrentHashMap<Integer, AeronServerDuplexConnection> connections = new ConcurrentHashMap<>();
 
-    private final ConcurrentHashMap<Integer, ReactiveSocket> sockets;
+    private static final ConcurrentHashMap<Integer, ReactiveSocket> sockets = new ConcurrentHashMap<>();
 
     private final Subscription subscription;
 
@@ -52,11 +52,10 @@ public class ReactiveSocketAeronServer implements AutoCloseable, Loggable {
     private final FragmentAssembler fragmentAssembler;
 
     private ReactiveSocketAeronServer(String host, int port, ConnectionSetupHandler connectionSetupHandler, LeaseGovernor leaseGovernor) {
+
         this.port = port;
-        this.connections = new ConcurrentHashMap<>();
         this.connectionSetupHandler = connectionSetupHandler;
         this.leaseGovernor = leaseGovernor;
-        this.sockets = new ConcurrentHashMap<>();
         this.shutdownLatch = new CountDownLatch(1);
 
         if (aeron == null) {
@@ -113,15 +112,15 @@ public class ReactiveSocketAeronServer implements AutoCloseable, Loggable {
 
         Thread dutyThread = new Thread(() -> {
             while (running) {
-                servers
-                    .forEach(server -> {
-                        try {
-                            int poll = server.subscription.poll(server.fragmentAssembler, Integer.MAX_VALUE);
-                            SERVER_IDLE_STRATEGY.idle(poll);
-                        } catch (Throwable t) {
-                            t.printStackTrace();
-                        }
-                    });
+                int poll = 0;
+                for (ReactiveSocketAeronServer server : servers) {
+                    try {
+                        poll += server.subscription.poll(server.fragmentAssembler, Integer.MAX_VALUE);
+                    } catch (Throwable t) {
+                        t.printStackTrace();
+                    }
+                }
+                SERVER_IDLE_STRATEGY.idle(poll);
 
             }
             shutdownLatch.countDown();
@@ -133,34 +132,40 @@ public class ReactiveSocketAeronServer implements AutoCloseable, Loggable {
     }
 
     void fragmentHandler(DirectBuffer buffer, int offset, int length, Header header) {
-        final int sessionId = header.sessionId();
+            final int sessionId = header.sessionId();
 
-        short messageTypeInt = buffer.getShort(offset + BitUtil.SIZE_OF_SHORT);
-        MessageType type = MessageType.from(messageTypeInt);
+            short messageTypeInt = buffer.getShort(offset + BitUtil.SIZE_OF_SHORT);
+            MessageType type = MessageType.from(messageTypeInt);
 
-        if (MessageType.FRAME == type) {
-            AeronServerDuplexConnection connection = connections.get(sessionId);
-            if (connection != null) {
-                List<? extends Observer<Frame>> subscribers = connection.getSubscriber();
-                final Frame frame = Frame.from(buffer, BitUtil.SIZE_OF_INT + offset, length);
-                subscribers.forEach(s -> s.onNext(frame));
-            }
-        } else if (MessageType.ESTABLISH_CONNECTION_REQUEST == type) {
-            final long start = System.nanoTime();
-            AeronServerDuplexConnection connection = null;
-            debug("Looking a connection to ack establish connection for session id => {}", sessionId);
-            while (connection == null) {
-                final long current = System.nanoTime();
-
-                if (current - start > TimeUnit.SECONDS.toNanos(30)) {
-                    throw new RuntimeException("unable to find connection to ack establish connection for session id => " + sessionId);
+            if (MessageType.FRAME == type) {
+                AeronServerDuplexConnection connection = connections.get(sessionId);
+                if (connection != null) {
+                    List<? extends Observer<Frame>> subscribers = connection.getSubscriber();
+                    final Frame frame = Frame.from(buffer, BitUtil.SIZE_OF_INT + offset, length);
+                    subscribers.forEach(s -> {
+                        try {
+                            s.onNext(frame);
+                        } catch (Throwable t) {
+                            s.onError(t);
+                        }
+                    });
                 }
+            } else if (MessageType.ESTABLISH_CONNECTION_REQUEST == type) {
+                final long start = System.nanoTime();
+                AeronServerDuplexConnection connection = null;
+                debug("Looking a connection to ack establish connection for session id => {}", sessionId);
+                while (connection == null) {
+                    final long current = System.nanoTime();
 
-                connection = connections.get(sessionId);
+                    if (current - start > TimeUnit.SECONDS.toNanos(30)) {
+                        throw new RuntimeException("unable to find connection to ack establish connection for session id => " + sessionId);
+                    }
+
+                    connection = connections.get(sessionId);
+                }
+                debug("Found a connection to ack establish connection for session id => {}", sessionId);
+                connection.ackEstablishConnection(sessionId);
             }
-            debug("Found a connection to ack establish connection for session id => {}", sessionId);
-            connection.ackEstablishConnection(sessionId);
-        }
 
     }
 
@@ -190,6 +195,7 @@ public class ReactiveSocketAeronServer implements AutoCloseable, Loggable {
 
     @Override
     public void close() throws Exception {
+        /*
         running = false;
 
         shutdownLatch.await(30, TimeUnit.SECONDS);
@@ -202,7 +208,7 @@ public class ReactiveSocketAeronServer implements AutoCloseable, Loggable {
 
         for (ReactiveSocket reactiveSocket : sockets.values()) {
             reactiveSocket.close();
-        }
+        } */
     }
 
 }

@@ -35,7 +35,7 @@ class ServerSubscription implements Subscriber<Frame> {
 
     @Override
     public void onSubscribe(Subscription s) {
-        s.request(Long.MAX_VALUE);
+        s.request(1);
     }
 
     @Override

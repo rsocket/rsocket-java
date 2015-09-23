@@ -61,7 +61,7 @@ public class ReactivesocketAeronClient  implements Loggable, AutoCloseable {
 
     private volatile static boolean running = true;
 
-    volatile int sessionId;
+    final int sessionId;
 
     volatile int serverSessionId;
 
@@ -198,6 +198,7 @@ public class ReactivesocketAeronClient  implements Loggable, AutoCloseable {
                 final ByteBuffer bytes = ByteBuffer.allocate(length);
                 buffer.getBytes(BitUtil.SIZE_OF_INT + offset, bytes, length);
                 final Frame frame = Frame.from(bytes);
+                debug("client processing frame {}", frame);
                 subscribers.forEach(s -> s.onNext(frame));
             } else if (messageType == MessageType.ESTABLISH_CONNECTION_RESPONSE) {
                 final int ackSessionId = buffer.getInt(offset + BitUtil.SIZE_OF_INT);
@@ -227,7 +228,7 @@ public class ReactivesocketAeronClient  implements Loggable, AutoCloseable {
 
                 latch.countDown();
 
-                System.out.println("ReactiveSocket connected to Aeron session => " + ackSessionId);
+                debug("ReactiveSocket connected to Aeron session => " + ackSessionId);
             } else {
                 debug("Unknown message type => " + messageTypeInt);
             }
@@ -365,42 +366,6 @@ public class ReactivesocketAeronClient  implements Loggable, AutoCloseable {
         return reactiveSocket.requestSubscription(payload);
     }
 
-    public static boolean isRunning() {
-        return running;
-    }
-
-    public static void setRunning(boolean running) {
-        ReactivesocketAeronClient.running = running;
-    }
-
-    public int getSessionId() {
-        return sessionId;
-    }
-
-    public void setSessionId(int sessionId) {
-        this.sessionId = sessionId;
-    }
-
-    public int getPort() {
-        return port;
-    }
-
-    public int getServerSessionId() {
-        return serverSessionId;
-    }
-
-    public void setServerSessionId(int serverSessionId) {
-        this.serverSessionId = serverSessionId;
-    }
-
-    public static boolean isPollingStarted() {
-        return pollingStarted;
-    }
-
-    public static void setPollingStarted(boolean pollingStarted) {
-        ReactivesocketAeronClient.pollingStarted = pollingStarted;
-    }
-
     @Override
     public void close() throws Exception {
         // First clean up the different maps
@@ -423,7 +388,7 @@ public class ReactivesocketAeronClient  implements Loggable, AutoCloseable {
         try {
             closeable.close();
         } catch (Throwable t) {
-            debug(t.getMessage(), t);
+            error(t.getMessage(), t);
         }
     }
 }

@@ -206,7 +206,7 @@ public class ReactiveSocketAeronTest {
     @Test
     public void createTwoServersAndTwoClients()throws Exception {
         Random random = new Random();
-        byte[] b = new byte[1_000_000];
+        byte[] b = new byte[1];
         random.nextBytes(b);
 
         ReactiveSocketAeronServer.create(new ConnectionSetupHandler() {
@@ -215,7 +215,7 @@ public class ReactiveSocketAeronTest {
                 return new RequestHandler() {
                     @Override
                     public Publisher<Payload> handleRequestResponse(Payload payload) {
-                        System.out.println("Server got => " + b.length);
+                        System.out.println("pong 1 => " + payload.getData());
                         Observable<Payload> pong = Observable.just(TestUtil.utf8EncodedPayload("pong server 1", null));
                         return RxReactiveStreams.toPublisher(pong);
                     }
@@ -254,7 +254,7 @@ public class ReactiveSocketAeronTest {
                 return new RequestHandler() {
                     @Override
                     public Publisher<Payload> handleRequestResponse(Payload payload) {
-                        System.out.println("Server got => " + b.length);
+                        System.out.println("pong 2 => " + payload.getData());
                         Observable<Payload> pong = Observable.just(TestUtil.utf8EncodedPayload("pong server 2", null));
                         return RxReactiveStreams.toPublisher(pong);
                     }
@@ -309,7 +309,6 @@ public class ReactiveSocketAeronTest {
                         }
                     };
 
-                    latch.countDown();
                     return  RxReactiveStreams.toObservable(client.requestResponse(payload));
                 }
             )
@@ -325,6 +324,7 @@ public class ReactiveSocketAeronTest {
 
                 @Override
                 public void onNext(Payload s) {
+                    latch.countDown();
                     System.out.println(s + " countdown server 1 => " + latch.getCount());
                 }
             });
@@ -344,7 +344,7 @@ public class ReactiveSocketAeronTest {
                             return ByteBuffer.allocate(0);
                         }
                     };
-                    latch.countDown();
+
                     return RxReactiveStreams.toObservable(client2.requestResponse(payload));
                 }
             )
@@ -360,6 +360,7 @@ public class ReactiveSocketAeronTest {
 
                 @Override
                 public void onNext(Payload s) {
+                    latch.countDown();
                     System.out.println(s + " countdown server 2 => " + latch.getCount());
                 }
             });
