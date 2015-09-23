@@ -147,7 +147,7 @@ public class ReactivesocketAeronClient  implements Loggable, AutoCloseable {
         synchronized (SUBSCRIPTION_GROUPS) {
             if (!pollingStarted) {
                 debug("Polling hasn't started yet - starting "
-                    + Runtime.getRuntime().availableProcessors()
+                    + CONCURRENCY
                     + " pollers");
                 CyclicBarrier startBarrier = new CyclicBarrier(CONCURRENCY + 1);
                 for (int i = 0; i < CONCURRENCY; i++) {
