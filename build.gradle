@@ -21,10 +21,10 @@ dependencies {
     compile 'io.reactivesocket:reactivesocket:0.0.1-SNAPSHOT'
     compile 'uk.co.real-logic:Agrona:0.4.2'
     compile 'uk.co.real-logic:aeron-all:0.1.2'
-    compile 'com.goldmansachs:gs-collections:6.2.0'
     compile 'org.slf4j:slf4j-api:1.7.12'
     testCompile 'junit:junit-dep:4.10'
     testCompile 'org.mockito:mockito-core:1.8.5'
+    testCompile 'org.slf4j:slf4j-simple:1.7.12'
 }
 
 
