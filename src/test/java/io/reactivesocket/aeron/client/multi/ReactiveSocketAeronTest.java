@@ -35,7 +35,7 @@ public class ReactiveSocketAeronTest {
         final MediaDriver mediaDriver = MediaDriver.launch(context);
     }
 
-    @Test(timeout = 6000000)
+    @Test(timeout = 60000)
     public void testRequestReponse() throws Exception {
         AtomicLong server = new AtomicLong();
         ReactiveSocketAeronServer.create(new ConnectionSetupHandler() {
@@ -507,4 +507,5 @@ public class ReactiveSocketAeronTest {
 
         latch.await();
     }
+
 }

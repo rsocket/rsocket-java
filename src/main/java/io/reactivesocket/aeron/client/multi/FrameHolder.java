@@ -3,25 +3,26 @@ package io.reactivesocket.aeron.client.multi;
 import io.reactivesocket.Frame;
 import io.reactivesocket.aeron.internal.Constants;
 import io.reactivesocket.aeron.internal.concurrent.ManyToManyConcurrentArrayQueue;
-import rx.Subscriber;
+import org.reactivestreams.Subscription;
 import uk.co.real_logic.aeron.Publication;
+import uk.co.real_logic.agrona.concurrent.OneToOneConcurrentArrayQueue;
 
 /**
  * Holds a frame and the publication that it's supposed to be sent on.
  * Pools instances on an {@link ManyToManyConcurrentArrayQueue}
  */
 class FrameHolder {
-    private static ManyToManyConcurrentArrayQueue<FrameHolder> FRAME_HOLDER_QUEUE
-        = new ManyToManyConcurrentArrayQueue<>(Constants.QUEUE_SIZE);
+    private static final ThreadLocal<OneToOneConcurrentArrayQueue<FrameHolder>> FRAME_HOLDER_QUEUE
+        = ThreadLocal.withInitial(() -> new OneToOneConcurrentArrayQueue<>(Constants.QUEUE_SIZE));
 
     private Publication publication;
     private Frame frame;
-    private Subscriber s;
+    private Subscription s;
 
     private FrameHolder() {}
 
-    public static FrameHolder get(Frame frame, Publication publication, Subscriber s) {
-        FrameHolder frameHolder = FRAME_HOLDER_QUEUE.poll();
+    public static FrameHolder get(Frame frame, Publication publication, Subscription s) {
+        FrameHolder frameHolder = FRAME_HOLDER_QUEUE.get().poll();
 
         if (frameHolder == null) {
             frameHolder = new FrameHolder();
@@ -44,10 +45,10 @@ class FrameHolder {
 
     public void release() {
         if (s != null) {
-            s.onCompleted();
+            s.request(1);
         }
 
         frame.release();
-        FRAME_HOLDER_QUEUE.offer(this);
+        FRAME_HOLDER_QUEUE.get().offer(this);
     }
 }

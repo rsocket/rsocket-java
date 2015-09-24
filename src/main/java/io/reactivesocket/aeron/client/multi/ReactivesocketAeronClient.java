@@ -7,7 +7,6 @@ import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.aeron.internal.AeronUtil;
 import io.reactivesocket.aeron.internal.Loggable;
 import io.reactivesocket.aeron.internal.MessageType;
-import io.reactivesocket.aeron.internal.concurrent.ManyToManyConcurrentArrayQueue;
 import io.reactivesocket.rx.Observer;
 import org.reactivestreams.Publisher;
 import rx.Scheduler;
@@ -21,15 +20,16 @@ import uk.co.real_logic.aeron.logbuffer.Header;
 import uk.co.real_logic.agrona.BitUtil;
 import uk.co.real_logic.agrona.DirectBuffer;
 import uk.co.real_logic.agrona.LangUtil;
+import uk.co.real_logic.agrona.concurrent.ManyToOneConcurrentArrayQueue;
 import uk.co.real_logic.agrona.concurrent.UnsafeBuffer;
 
 import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.LockSupport;
 
@@ -50,7 +50,7 @@ public class ReactivesocketAeronClient  implements Loggable, AutoCloseable {
         Subscription[] subscriptions;
     }
 
-    static final ConcurrentHashMap<Integer, AeronClientDuplexConnection> connections = new ConcurrentHashMap<>();
+    static final ConcurrentSkipListMap<Integer, AeronClientDuplexConnection> connections = new ConcurrentSkipListMap<>();
 
     static final ConcurrentHashMap<Integer, CountDownLatch> establishConnectionLatches = new ConcurrentHashMap<>();
 
@@ -145,7 +145,7 @@ public class ReactivesocketAeronClient  implements Loggable, AutoCloseable {
             }
 
             if (!pollingStarted) {
-                CyclicBarrier startBarrier = new CyclicBarrier(CONCURRENCY + 1);
+                CountDownLatch startBarrier = new CountDownLatch(CONCURRENCY);
                 for (int i = 0; i < CONCURRENCY; i++) {
                     Schedulers
                         .computation()
@@ -189,13 +189,19 @@ public class ReactivesocketAeronClient  implements Loggable, AutoCloseable {
             final MessageType messageType = MessageType.from(messageTypeInt);
             if (messageType == MessageType.FRAME) {
                 final AeronClientDuplexConnection connection = connections.get(header.sessionId());
-                List<? extends Observer<Frame>> subscribers = connection.getSubscriber();
-                //TODO think about how to recycle these, hard because could be handed to another thread I think?
-                final ByteBuffer bytes = ByteBuffer.allocate(length);
-                buffer.getBytes(BitUtil.SIZE_OF_INT + offset, bytes, length);
-                final Frame frame = Frame.from(bytes);
-                //debug("client processing frame {}", frame);
-                subscribers.forEach(s -> s.onNext(frame));
+                final List<? extends Observer<Frame>> subscribers = connection.getSubscriber();
+                if (!subscribers.isEmpty()) {
+                    //TODO think about how to recycle these, hard because could be handed to another thread I think?
+                    final ByteBuffer bytes = ByteBuffer.allocate(length);
+                    buffer.getBytes(BitUtil.SIZE_OF_INT + offset, bytes, length);
+                    final Frame frame = Frame.from(bytes);
+                    int i = 0;
+                    final int size = subscribers.size();
+                    do {
+                        subscribers.get(i).onNext(frame);
+                        i++;
+                    } while (i < size);
+                }
             } else if (messageType == MessageType.ESTABLISH_CONNECTION_RESPONSE) {
                 final int ackSessionId = buffer.getInt(offset + BitUtil.SIZE_OF_INT);
 
@@ -237,12 +243,12 @@ public class ReactivesocketAeronClient  implements Loggable, AutoCloseable {
 
     class Poller implements Action0 {
         final int threadId;
-        CyclicBarrier startBarrier;
+        CountDownLatch startupLatch;
         final FragmentAssembler fragmentAssembler;
 
-        public Poller(int threadId, CyclicBarrier startBarrier) {
+        public Poller(int threadId, CountDownLatch startupLatch) {
             this.threadId = threadId;
-            this.startBarrier = startBarrier;
+            this.startupLatch = startupLatch;
             fragmentAssembler = new FragmentAssembler(
                 (DirectBuffer buffer, int offset, int length, Header header) ->
                     fragmentHandler(threadId, buffer, offset, length, header));
@@ -251,10 +257,10 @@ public class ReactivesocketAeronClient  implements Loggable, AutoCloseable {
 
         public void call() {
             if (!pollingStarted) {
-                try {
-                    startBarrier.await(30, TimeUnit.SECONDS);
-                } catch (Exception e) {
-                    LangUtil.rethrowUnchecked(e);
+                startupLatch.countDown();
+
+                if (startupLatch.getCount() != workers.length) {
+                    return;
                 }
             }
 
@@ -264,24 +270,27 @@ public class ReactivesocketAeronClient  implements Loggable, AutoCloseable {
 
                     if (!values.isEmpty()) {
                         values.forEach(connection -> {
-                            ManyToManyConcurrentArrayQueue<FrameHolder> framesSendQueue = connection.getFramesSendQueue();
-                            framesSendQueue
-                                .drain((FrameHolder fh) -> {
-                                    try {
-                                        Frame frame = fh.getFrame();
-                                        final ByteBuffer byteBuffer = frame.getByteBuffer();
-                                        final int length = byteBuffer.capacity() + BitUtil.SIZE_OF_INT;
-                                        AeronUtil.tryClaimOrOffer(fh.getPublication(), (offset, buffer) -> {
-                                            buffer.putShort(offset, (short) 0);
-                                            buffer.putShort(offset + BitUtil.SIZE_OF_SHORT, (short) MessageType.FRAME.getEncodedType());
-                                            buffer.putBytes(offset + BitUtil.SIZE_OF_INT, byteBuffer, 0, byteBuffer.capacity());
-                                        }, length);
-                                        fh.release();
-                                    } catch (Throwable t) {
-                                        fh.release();
-                                        error("error draining send frame queue", t);
-                                    }
-                                });
+                            final int calculatedThreadId = Math.abs(connection.getConnectionId() % CONCURRENCY);
+                            if (calculatedThreadId == threadId) {
+                                ManyToOneConcurrentArrayQueue<FrameHolder> framesSendQueue = connection.getFramesSendQueue();
+                                framesSendQueue
+                                    .drain((FrameHolder fh) -> {
+                                        try {
+                                            Frame frame = fh.getFrame();
+                                            final ByteBuffer byteBuffer = frame.getByteBuffer();
+                                            final int length = byteBuffer.capacity() + BitUtil.SIZE_OF_INT;
+                                            AeronUtil.tryClaimOrOffer(fh.getPublication(), (offset, buffer) -> {
+                                                buffer.putShort(offset, (short) 0);
+                                                buffer.putShort(offset + BitUtil.SIZE_OF_SHORT, (short) MessageType.FRAME.getEncodedType());
+                                                buffer.putBytes(offset + BitUtil.SIZE_OF_INT, byteBuffer, frame.offset(), frame.length());
+                                            }, length);
+                                            fh.release();
+                                        } catch (Throwable t) {
+                                            fh.release();
+                                            error("error draining send frame queue", t);
+                                        }
+                                    });
+                            }
                         });
                     }
 
