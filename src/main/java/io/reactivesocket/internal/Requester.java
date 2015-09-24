@@ -692,6 +692,7 @@ public class Requester {
 					Frame assembled = Frame.Response.from(streamId, frame.getType(), payload);
 					// replace 'frame' with the assembled one
 					frame = assembled;
+					payloadBuilder = null;
 				} else {
 					// it was a fragment, so return without further processing
 					return;

@@ -58,7 +58,31 @@ public class TestFragmentationRequests {
 			fail("Expected multiple fragments");
 		}
 		
+		ts.assertValueCount(1);
 		assertEquals(LARGE_STRING, TestUtil.byteToString(ts.values().get(0).getData()));
+	}
+	
+	@Test(timeout=10000)
+	public void testRequestStreamFragmentationResponse() throws InterruptedException {
+		AtomicInteger framesWritten = new AtomicInteger();
+		serverConnection.write.add(frame -> framesWritten.incrementAndGet());
+		
+		AtomicInteger framesReceived = new AtomicInteger();
+		clientConnection.toInput.add(frame -> framesReceived.incrementAndGet());
+		
+		TestSubscriber<Payload> ts = new TestSubscriber<>();
+		socketClient.requestStream(utf8EncodedPayload("", null))
+			.subscribe(ts);
+		ts.await();
+		
+		Thread.sleep(500);
+		if(framesWritten.get() <= 2) {
+			fail("Expected more than 2 Frames");
+		}
+		
+		ts.assertValueCount(2);
+		assertEquals(LARGE_STRING, TestUtil.byteToString(ts.values().get(0).getData()));
+		assertEquals(LARGE_STRING, TestUtil.byteToString(ts.values().get(1).getData()));
 	}
 	
 	private static TestConnection serverConnection;
@@ -87,7 +111,7 @@ public class TestFragmentationRequests {
 
 			@Override
 			public Publisher<Payload> handleRequestStream(Payload payload) {
-				return error(new RuntimeException("Not Found"));
+				return just(utf8EncodedPayload(LARGE_STRING, null), utf8EncodedPayload(LARGE_STRING, null));
 			}
 
 			@Override
