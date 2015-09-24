@@ -43,7 +43,7 @@ public class ReactiveSocketAeronServer implements AutoCloseable, Loggable {
         this.connectionSetupHandler = connectionSetupHandler;
         this.leaseGovernor = leaseGovernor;
 
-        manager.addNewImageHandler(this::newImageHandler);
+        manager.addAvailableImageHander(this::availableImageHandler);
 
         Aeron aeron = manager.getAeron();
 
@@ -95,7 +95,9 @@ public class ReactiveSocketAeronServer implements AutoCloseable, Loggable {
 
     }
 
-    void newImageHandler(Image image, String channel, int streamId, int sessionId, long joiningPosition, String sourceIdentity) {
+    void availableImageHandler(Image image, Subscription subscription, long joiningPosition, String sourceIdentity) {
+        final int streamId = subscription.streamId();
+        final int sessionId = image.sessionId();
         if (SERVER_STREAM_ID == streamId) {
             debug("Handling new image for session id => {} and stream id => {}", streamId, sessionId);
             final AeronServerDuplexConnection connection = connections.computeIfAbsent(sessionId, (_s) -> {
@@ -141,7 +143,6 @@ public class ReactiveSocketAeronServer implements AutoCloseable, Loggable {
     /*
      * Factory Methods
      */
-
     public static ReactiveSocketAeronServer create(String host, int port, ConnectionSetupHandler connectionSetupHandler, LeaseGovernor leaseGovernor) {
         return new ReactiveSocketAeronServer(host, port, connectionSetupHandler, leaseGovernor);
     }
