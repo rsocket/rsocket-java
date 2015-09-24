@@ -2,14 +2,13 @@ package io.reactivesocket.aeron.client.multi;
 
 import io.reactivesocket.Frame;
 import io.reactivesocket.aeron.internal.Constants;
-import io.reactivesocket.aeron.internal.concurrent.ManyToManyConcurrentArrayQueue;
 import org.reactivestreams.Subscription;
 import uk.co.real_logic.aeron.Publication;
 import uk.co.real_logic.agrona.concurrent.OneToOneConcurrentArrayQueue;
 
 /**
  * Holds a frame and the publication that it's supposed to be sent on.
- * Pools instances on an {@link ManyToManyConcurrentArrayQueue}
+ * Pools instances on an {@link uk.co.real_logic.agrona.concurrent.OneToOneConcurrentArrayQueue}
  */
 class FrameHolder {
     private static final ThreadLocal<OneToOneConcurrentArrayQueue<FrameHolder>> FRAME_HOLDER_QUEUE

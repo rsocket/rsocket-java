@@ -2,9 +2,9 @@ package io.reactivesocket.aeron.server;
 
 import io.reactivesocket.aeron.internal.Loggable;
 import uk.co.real_logic.aeron.Aeron;
+import uk.co.real_logic.aeron.AvailableImageHandler;
 import uk.co.real_logic.aeron.FragmentAssembler;
 import uk.co.real_logic.aeron.Image;
-import uk.co.real_logic.aeron.NewImageHandler;
 import uk.co.real_logic.aeron.Subscription;
 
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -20,7 +20,7 @@ public class ServerAeronManager implements Loggable {
 
     private final Aeron aeron;
 
-    private CopyOnWriteArrayList<NewImageHandler> imageHandlers = new CopyOnWriteArrayList<>();
+    private CopyOnWriteArrayList<AvailableImageHandler> imageHandlers = new CopyOnWriteArrayList<>();
 
     private CopyOnWriteArrayList<FragmentAssemblerHolder> subscriptions = new CopyOnWriteArrayList<>();
 
@@ -36,8 +36,8 @@ public class ServerAeronManager implements Loggable {
 
     public ServerAeronManager() {
         final Aeron.Context ctx = new Aeron.Context();
-        ctx.newImageHandler(this::newImageHandler);
-        ctx.errorHandler(t -> error("an exception occured", t));
+        ctx.availableImageHandler(this::availableImageHandler);
+        ctx.errorHandler(t -> error("an exception occurred", t));
 
         aeron = Aeron.connect(ctx);
 
@@ -48,7 +48,7 @@ public class ServerAeronManager implements Loggable {
         return INSTANCE;
     }
 
-    public void addNewImageHandler(NewImageHandler handler) {
+    public void addAvailableImageHander(AvailableImageHandler handler) {
         imageHandlers.add(handler);
     }
 
@@ -60,9 +60,9 @@ public class ServerAeronManager implements Loggable {
         subscriptions.removeIf(s -> s.subscription == subscription);
     }
 
-    private void newImageHandler(Image image, String channel, int streamId, int sessionId, long joiningPosition, String sourceIdentity) {
+    private void availableImageHandler(Image image, Subscription subscription, long joiningPosition, String sourceIdentity) {
         imageHandlers
-            .forEach(handler -> handler.onNewImage(image, channel, streamId, sessionId, joiningPosition, sourceIdentity));
+            .forEach(handler -> handler.onAvailableImage(image, subscription, joiningPosition, sourceIdentity));
     }
 
     public Aeron getAeron() {
