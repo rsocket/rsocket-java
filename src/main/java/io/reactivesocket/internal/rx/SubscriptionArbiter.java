@@ -59,6 +59,10 @@ public final class SubscriptionArbiter extends AtomicInteger implements Subscrip
         return r;
     }
     
+    public long getRequested() {
+    	return requested;
+    }
+    
     @Override
     public void request(long n) {
         if (SubscriptionHelper.validateRequest(n)) {
