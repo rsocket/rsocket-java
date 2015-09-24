@@ -59,7 +59,7 @@ public class TestFlowControlRequestN {
 		assertTrue(s.completed.get());
 	}
 	
-	@Test(timeout=3000)
+	@Test(timeout=30000)
 	public void testRequestStream_fastProducer_slowConsumer_maxValueRequest() throws InterruptedException {
 		CountDownLatch latch = new CountDownLatch(1);
 		CountDownLatch cancelled = new CountDownLatch(1);

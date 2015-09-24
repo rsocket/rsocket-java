@@ -30,6 +30,7 @@ import org.reactivestreams.Subscription;
 import io.reactivesocket.exceptions.SetupException;
 import io.reactivesocket.internal.frame.FrameHeaderFlyweight;
 import io.reactivesocket.internal.frame.SetupFrameFlyweight;
+import io.reactivesocket.internal.rx.BooleanDisposable;
 import io.reactivesocket.internal.rx.EmptyDisposable;
 import io.reactivesocket.internal.rx.EmptySubscription;
 import io.reactivesocket.rx.Completable;
@@ -129,7 +130,35 @@ public class Responder {
 																									// used?
 		final AtomicBoolean childTerminated = new AtomicBoolean(false);
 		final AtomicReference<Disposable> transportSubscription = new AtomicReference<>();
+		
+		Runnable cancel = () -> {
+			// child has cancelled (shutdown the connection or server) // TODO validate with unit tests
+			if (!transportSubscription.compareAndSet(null, EmptyDisposable.EMPTY)) {
+				// cancel the one that was there if we failed to set the sentinel
+				transportSubscription.get().dispose();
+			}
+		};
+		
+		final FragmentedPublisher output = new FragmentedPublisher();
+		
+		connection.addOutput(output, new Completable() {
 
+			@Override
+			public void success() {
+				// TODO Auto-generated method stub
+			}
+
+			@Override
+			public void error(Throwable e) {
+				// TODO validate with unit tests
+				if (childTerminated.compareAndSet(false, true)) {
+					errorStream.accept(new RuntimeException("Error writing", e)); // TODO should we have typed RuntimeExceptions?
+					cancel.run();
+				}
+			}
+
+		});
+		
 		// subscribe to transport to get Frames
 		connection.getInput().subscribe(new Observer<Frame>() {
 
@@ -247,23 +276,7 @@ public class Responder {
 						responsePublisher = PublisherUtils.errorFrame(streamId, exception);
 					}
 					
-					connection.addOutput(responsePublisher, new Completable() {
-
-						@Override
-						public void success() {
-							// TODO Auto-generated method stub
-						}
-
-						@Override
-						public void error(Throwable e) {
-							// TODO validate with unit tests
-							if (childTerminated.compareAndSet(false, true)) {
-								errorStream.accept(new RuntimeException("Error writing", e)); // TODO should we have typed RuntimeExceptions?
-								cancel();
-							}
-						}
-
-					});
+					output.submit(responsePublisher);
 				}
 			}
 
@@ -292,7 +305,7 @@ public class Responder {
 				// TODO validate with unit tests
 				if (childTerminated.compareAndSet(false, true)) {
 					errorStream.accept(t);
-					cancel();
+					cancel.run();
 				}
 			}
 
@@ -301,18 +314,10 @@ public class Responder {
 				//TODO validate what is happening here
 				// this would mean the connection gracefully shut down, which is unexpected
 				if (childTerminated.compareAndSet(false, true)) {
-					cancel();
+					cancel.run();
 				}
 			}
 			
-			private void cancel() {
-				// child has cancelled (shutdown the connection or server) // TODO validate with unit tests
-				if (!transportSubscription.compareAndSet(null, EmptyDisposable.EMPTY)) {
-					// cancel the one that was there if we failed to set the sentinel
-					transportSubscription.get().dispose();
-				}
-			}
-
 		});
 	}
 
@@ -337,7 +342,7 @@ public class Responder {
 					if (n > 0 && started.compareAndSet(false, true)) {
 						final int streamId = requestFrame.getStreamId();
 
-						new FragmentedPublisher(FrameType.NEXT_COMPLETE, streamId, requestHandler.handleRequestResponse(requestFrame)).subscribe(new Subscriber<Frame>() {
+						requestHandler.handleRequestResponse(requestFrame).subscribe(new Subscriber<Payload>() {
 
 							// event emission is serialized so this doesn't need to be atomic
 							int count = 0;
@@ -353,14 +358,12 @@ public class Responder {
 							}
 
 							@Override
-							public void onNext(Frame v) {
-								if(FrameHeaderFlyweight.FLAGS_RESPONSE_F != (v.flags() & FrameHeaderFlyweight.FLAGS_RESPONSE_F)) {
-									// not a fragment
-									if (++count > 1) {
-										onError(new IllegalStateException("RequestResponse expects a single onNext"));
-									}
+							public void onNext(Payload v) {
+								if (++count > 1) {
+									onError(new IllegalStateException("RequestResponse expects a single onNext"));
+								} else {
+									child.onNext(Frame.Response.from(streamId, FrameType.NEXT_COMPLETE, v));
 								}
-								child.onNext(v);
 							}
 
 							@Override
