@@ -192,9 +192,8 @@ public class FragmentedPublisher implements Publisher<Frame> {
 						q.add(frame);
 					} ,
 					/* if another thread enqueued while emitting above, then this will have a chance to drain after */
-					() -> {
-						drainRequestedAndRequestMoreIfNeeded();
-					});
+					parent::drainInnerSubscribers
+					);
 		}
 
 		private void nextFragmented(Frame frame, FrameType type, int streamId) {
@@ -225,10 +224,11 @@ public class FragmentedPublisher implements Publisher<Frame> {
 								} else {
 									break;
 								}
-								parent.sa.produced(emitted);
-								outstanding.addAndGet(-emitted);
-								InnerSubscriber.this.requestMoreIfNeeded();
 							}
+							parent.sa.produced(emitted);
+							outstanding.addAndGet(-emitted);
+							InnerSubscriber.this.requestMoreIfNeeded();
+							
 							if (fragmenter.hasNext()) {
 								// not finished so enqueue
 								createQueueIfNecessary();
@@ -246,9 +246,7 @@ public class FragmentedPublisher implements Publisher<Frame> {
 						q.add(fragmenter);
 					} ,
 					/* if another thread enqueued while emitting above, then this will have a chance to drain after */
-					() -> {
-						drainRequestedAndRequestMoreIfNeeded();
-					});
+					parent::drainInnerSubscribers);
 		}
 		
 		private void createQueueIfNecessary() {
