@@ -13,11 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.reactivesocket.aeron.client.multi;
+package io.reactivesocket.aeron.client;
 
 
 import io.reactivesocket.Frame;
-import io.reactivesocket.aeron.client.AbstractClientDuplexConnection;
 import io.reactivesocket.aeron.internal.Constants;
 import io.reactivesocket.rx.Completable;
 import org.reactivestreams.Publisher;

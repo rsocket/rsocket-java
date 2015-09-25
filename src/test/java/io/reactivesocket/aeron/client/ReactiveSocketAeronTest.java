@@ -1,4 +1,4 @@
-package io.reactivesocket.aeron.client.multi;
+package io.reactivesocket.aeron.client;
 
 import io.reactivesocket.ConnectionSetupHandler;
 import io.reactivesocket.ConnectionSetupPayload;
@@ -6,6 +6,7 @@ import io.reactivesocket.Frame;
 import io.reactivesocket.Payload;
 import io.reactivesocket.RequestHandler;
 import io.reactivesocket.aeron.TestUtil;
+import io.reactivesocket.aeron.client.ReactiveSocketAeronClient;
 import io.reactivesocket.aeron.server.ReactiveSocketAeronServer;
 import io.reactivesocket.exceptions.SetupException;
 import org.junit.BeforeClass;
