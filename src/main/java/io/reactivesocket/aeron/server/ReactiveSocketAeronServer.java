@@ -1,3 +1,18 @@
+/**
+ * Copyright 2015 Netflix, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package io.reactivesocket.aeron.server;
 
 import io.reactivesocket.ConnectionSetupHandler;
@@ -19,6 +34,7 @@ import uk.co.real_logic.agrona.DirectBuffer;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 import static io.reactivesocket.aeron.internal.Constants.CLIENT_STREAM_ID;
 import static io.reactivesocket.aeron.internal.Constants.SERVER_STREAM_ID;
@@ -44,6 +60,7 @@ public class ReactiveSocketAeronServer implements AutoCloseable, Loggable {
         this.leaseGovernor = leaseGovernor;
 
         manager.addAvailableImageHander(this::availableImageHandler);
+        manager.addUnavailableImageHandler(this::unavailableImage);
 
         Aeron aeron = manager.getAeron();
 
@@ -91,6 +108,8 @@ public class ReactiveSocketAeronServer implements AutoCloseable, Loggable {
                 }
                 debug("Found a connection to ack establish connection for session id => {}", sessionId);
                 connection.ackEstablishConnection(sessionId);
+            } else if (MessageType.CONNECTION_DISCONNECT == type) {
+                closeReactiveSocket(sessionId);
             }
 
     }
@@ -111,7 +130,12 @@ public class ReactiveSocketAeronServer implements AutoCloseable, Loggable {
                 connection,
                 connectionSetupHandler,
                 leaseGovernor,
-                error -> error(error.getMessage(), error));
+                new Consumer<Throwable>() {
+                    @Override
+                    public void accept(Throwable throwable) {
+                        error(String.format("Error creating ReactiveSocket for Aeron session id => %d and stream id => %d", streamId, sessionId), throwable);
+                    }
+                });
 
             sockets.put(sessionId, socket);
 
@@ -121,23 +145,29 @@ public class ReactiveSocketAeronServer implements AutoCloseable, Loggable {
         }
     }
 
+    void unavailableImage(Image image, Subscription subscription, long position) {
+        closeReactiveSocket(image.sessionId());
+    }
+
+    private void closeReactiveSocket(int sessionId) {
+        debug("closing connection for session id => " + sessionId);
+        ReactiveSocket socket = sockets.remove(sessionId);
+        connections.remove(sessionId);
+
+        try {
+            socket.close();
+        } catch (Throwable t) {
+            error("error closing socket for session id => " + sessionId, t);
+        }
+    }
+
+    public boolean hasConnections() {
+        return !connections.isEmpty();
+    }
+
     @Override
     public void close() throws Exception {
         manager.removeSubscription(subscription);
-        /*
-        running = false;
-
-        shutdownLatch.await(30, TimeUnit.SECONDS);
-
-        aeron.close();
-
-        for (AeronServerDuplexConnection connection : connections.values()) {
-            connection.close();
-        }
-
-        for (ReactiveSocket reactiveSocket : sockets.values()) {
-            reactiveSocket.close();
-        } */
     }
 
     /*

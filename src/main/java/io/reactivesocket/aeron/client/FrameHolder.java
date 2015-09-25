@@ -1,9 +1,23 @@
-package io.reactivesocket.aeron.client.multi;
+/**
+ * Copyright 2015 Netflix, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package io.reactivesocket.aeron.client;
 
 import io.reactivesocket.Frame;
 import io.reactivesocket.aeron.internal.Constants;
 import org.reactivestreams.Subscription;
-import uk.co.real_logic.aeron.Publication;
 import uk.co.real_logic.agrona.concurrent.OneToOneConcurrentArrayQueue;
 
 /**
@@ -14,13 +28,12 @@ class FrameHolder {
     private static final ThreadLocal<OneToOneConcurrentArrayQueue<FrameHolder>> FRAME_HOLDER_QUEUE
         = ThreadLocal.withInitial(() -> new OneToOneConcurrentArrayQueue<>(Constants.QUEUE_SIZE));
 
-    private Publication publication;
     private Frame frame;
     private Subscription s;
 
     private FrameHolder() {}
 
-    public static FrameHolder get(Frame frame, Publication publication, Subscription s) {
+    public static FrameHolder get(Frame frame, Subscription s) {
         FrameHolder frameHolder = FRAME_HOLDER_QUEUE.get().poll();
 
         if (frameHolder == null) {
@@ -28,14 +41,9 @@ class FrameHolder {
         }
 
         frameHolder.frame = frame;
-        frameHolder.publication = publication;
         frameHolder.s = s;
 
         return frameHolder;
-    }
-
-    public Publication getPublication() {
-        return publication;
     }
 
     public Frame getFrame() {
