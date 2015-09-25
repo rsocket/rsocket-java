@@ -36,7 +36,7 @@ public class AeronClientDuplexConnection extends AbstractClientDuplexConnection<
 
                 @Override
                 public void onNext(Frame frame) {
-                    final FrameHolder fh = FrameHolder.get(frame, publication, s);
+                    final FrameHolder fh = FrameHolder.get(frame, s);
                     boolean offer;
                     int i = 0;
                     do {

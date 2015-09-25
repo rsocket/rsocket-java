@@ -13,8 +13,8 @@ public interface Loggable {
         logger().debug(message, args);
     }
 
-    default void error(String message, Throwable t, Object... args) {
-        logger().debug(message, t, args);
+    default void error(String message, Throwable t) {
+        logger().error(message, t);
     }
 
     default void debug(String message, Object... args) {

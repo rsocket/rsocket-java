@@ -19,12 +19,9 @@ public abstract class AbstractClientDuplexConnection<T extends AbstractConcurren
 
     protected final CopyOnWriteArrayList<Observer<Frame>> subjects;
 
-    protected final Publication publication;
-
     protected final T framesSendQueue;
 
     public AbstractClientDuplexConnection(Publication publication) {
-        this.publication = publication;
         this.subjects = new CopyOnWriteArrayList<>();
         this.framesSendQueue = createQueue();
         this.connectionId = count.incrementAndGet();

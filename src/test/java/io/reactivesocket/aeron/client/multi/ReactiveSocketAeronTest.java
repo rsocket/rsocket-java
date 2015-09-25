@@ -20,7 +20,9 @@ import uk.co.real_logic.aeron.driver.MediaDriver;
 import java.nio.ByteBuffer;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.LockSupport;
 
 /**
  * Created by rroeser on 8/14/15.
@@ -35,7 +37,7 @@ public class ReactiveSocketAeronTest {
         final MediaDriver mediaDriver = MediaDriver.launch(context);
     }
 
-    @Test(timeout = 60000)
+    @Test(timeout = 10000)
     public void testRequestReponse() throws Exception {
         AtomicLong server = new AtomicLong();
         ReactiveSocketAeronServer.create(new ConnectionSetupHandler() {
@@ -83,7 +85,7 @@ public class ReactiveSocketAeronTest {
         CountDownLatch latch = new CountDownLatch(130);
 
 
-        ReactivesocketAeronClient client = ReactivesocketAeronClient.create("localhost", "localhost");
+        ReactiveSocketAeronClient client = ReactiveSocketAeronClient.create("localhost", "localhost");
 
         Observable
             .range(1, 130)
@@ -115,7 +117,7 @@ public class ReactiveSocketAeronTest {
         latch.await();
     }
 
-    @Test(timeout = 60000)
+    @Test(timeout = 10000)
     public void sendLargeMessage() throws Exception {
 
         Random random = new Random();
@@ -163,7 +165,7 @@ public class ReactiveSocketAeronTest {
 
         CountDownLatch latch = new CountDownLatch(2);
 
-        ReactivesocketAeronClient client = ReactivesocketAeronClient.create("localhost", "localhost");
+        ReactiveSocketAeronClient client = ReactiveSocketAeronClient.create("localhost", "localhost");
 
         Observable
             .range(1, 2)
@@ -204,7 +206,7 @@ public class ReactiveSocketAeronTest {
     }
 
 
-    @Test
+    @Test(timeout = 10000)
     public void createTwoServersAndTwoClients()throws Exception {
         Random random = new Random();
         byte[] b = new byte[1];
@@ -292,9 +294,9 @@ public class ReactiveSocketAeronTest {
 
         CountDownLatch latch = new CountDownLatch(2 * count);
 
-        ReactivesocketAeronClient client = ReactivesocketAeronClient.create("localhost", "localhost");
+        ReactiveSocketAeronClient client = ReactiveSocketAeronClient.create("localhost", "localhost");
 
-        ReactivesocketAeronClient client2 = ReactivesocketAeronClient.create("localhost", "localhost", 12345);
+        ReactiveSocketAeronClient client2 = ReactiveSocketAeronClient.create("localhost", "localhost", 12345);
 
         Observable
             .range(1, count)
@@ -371,7 +373,7 @@ public class ReactiveSocketAeronTest {
         latch.await();
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void testFireAndForget() throws Exception {
         CountDownLatch latch = new CountDownLatch(130);
         ReactiveSocketAeronServer.create(new ConnectionSetupHandler() {
@@ -418,7 +420,7 @@ public class ReactiveSocketAeronTest {
             }
         });
 
-        ReactivesocketAeronClient client = ReactivesocketAeronClient.create("localhost", "localhost");
+        ReactiveSocketAeronClient client = ReactiveSocketAeronClient.create("localhost", "localhost");
 
         Observable
             .range(1, 130)
@@ -433,7 +435,7 @@ public class ReactiveSocketAeronTest {
         latch.await();
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void testRequestStream() throws Exception {
         CountDownLatch latch = new CountDownLatch(130);
         ReactiveSocketAeronServer.create(new ConnectionSetupHandler() {
@@ -492,7 +494,7 @@ public class ReactiveSocketAeronTest {
             }
         });
 
-        ReactivesocketAeronClient client = ReactivesocketAeronClient.create("localhost", "localhost");
+        ReactiveSocketAeronClient client = ReactiveSocketAeronClient.create("localhost", "localhost");
 
         Observable
             .range(1, 1)
@@ -506,6 +508,98 @@ public class ReactiveSocketAeronTest {
             .subscribe();
 
         latch.await();
+    }
+
+    @Test(timeout = 75000)
+    public void testReconnection() throws Exception {
+        System.out.println("--------------------------------------------------------------------------------");
+
+        ReactiveSocketAeronServer server = ReactiveSocketAeronServer.create(new ConnectionSetupHandler() {
+            @Override
+            public RequestHandler apply(ConnectionSetupPayload setupPayload) throws SetupException {
+                return new RequestHandler() {
+                    Frame frame = Frame.from(ByteBuffer.allocate(1));
+
+                    @Override
+                    public Publisher<Payload> handleRequestResponse(Payload payload) {
+                        String request = TestUtil.byteToString(payload.getData());
+                        System.out.println(Thread.currentThread() + " Server got => " + request);
+                        Observable<Payload> pong = Observable.just(TestUtil.utf8EncodedPayload("pong", null));
+                        return RxReactiveStreams.toPublisher(pong);
+                    }
+
+                    @Override
+                    public Publisher<Payload> handleChannel(Payload initialPayload, Publisher<Payload> payloads) {
+                        return null;
+                    }
+
+                    @Override
+                    public Publisher<Payload> handleRequestStream(Payload payload) {
+                        return null;
+                    }
+
+                    @Override
+                    public Publisher<Payload> handleSubscription(Payload payload) {
+                        return null;
+                    }
+
+                    @Override
+                    public Publisher<Void> handleFireAndForget(Payload payload) {
+                        return null;
+                    }
+
+                    @Override
+                    public Publisher<Void> handleMetadataPush(Payload payload) {
+                        return null;
+                    }
+                };
+            }
+        });
+
+        System.out.println("--------------------------------------------------------------------------------");
+
+        for (int j = 0; j < 3; j++) {
+            CountDownLatch latch = new CountDownLatch(1);
+
+            ReactiveSocketAeronClient client = ReactiveSocketAeronClient.create("localhost", "localhost");
+
+            Observable
+                .range(1, 1)
+                .flatMap(i -> {
+                        Payload payload = TestUtil.utf8EncodedPayload("ping =>" + System.nanoTime(), null);
+                        return RxReactiveStreams.toObservable(client.requestResponse(payload));
+                    }
+                )
+                .subscribe(new rx.Subscriber<Payload>() {
+                    @Override
+                    public void onCompleted() {
+                        System.out.println("I HAVE COMPLETED $$$$$$$$$$$$$$$$$$$$$$$$$$$$");
+                    }
+
+                    @Override
+                    public void onError(Throwable e) {
+                        System.out.println(Thread.currentThread() + " counted to => " + latch.getCount());
+                        e.printStackTrace();
+                    }
+
+                    @Override
+                    public void onNext(Payload s) {
+                        System.out.println(Thread.currentThread() + " countdown => " + latch.getCount());
+                        latch.countDown();
+                    }
+                });
+
+            latch.await();
+
+            client.close();
+
+            while (server.hasConnections()) {
+                LockSupport.parkNanos(TimeUnit.SECONDS.toNanos(1));
+            }
+
+            System.out.println("--------------------------------------------------------------------------------");
+        }
+
     }
 
 }

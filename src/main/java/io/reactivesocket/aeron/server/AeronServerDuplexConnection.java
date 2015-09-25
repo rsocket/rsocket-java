@@ -5,6 +5,7 @@ import io.reactivesocket.Frame;
 import io.reactivesocket.aeron.internal.AeronUtil;
 import io.reactivesocket.aeron.internal.Loggable;
 import io.reactivesocket.aeron.internal.MessageType;
+import io.reactivesocket.aeron.internal.NotConnectedException;
 import io.reactivesocket.rx.Completable;
 import io.reactivesocket.rx.Disposable;
 import io.reactivesocket.rx.Observable;
@@ -56,11 +57,20 @@ public class AeronServerDuplexConnection implements DuplexConnection, Loggable {
 
     void ackEstablishConnection(int ackSessionId) {
         debug("Acking establish connection for session id => {}", ackSessionId);
-        AeronUtil.tryClaimOrOffer(publication, (offset, buffer) -> {
-            buffer.putShort(offset, (short) 0);
-            buffer.putShort(offset + BitUtil.SIZE_OF_SHORT, (short) MessageType.ESTABLISH_CONNECTION_RESPONSE.getEncodedType());
-            buffer.putInt(offset + BitUtil.SIZE_OF_INT, ackSessionId);
-        }, 2 * BitUtil.SIZE_OF_INT, 30, TimeUnit.SECONDS);
+        for (int i = 0; i < 5; i++) {
+            try {
+                AeronUtil.tryClaimOrOffer(publication, (offset, buffer) -> {
+                    buffer.putShort(offset, (short) 0);
+                    buffer.putShort(offset + BitUtil.SIZE_OF_SHORT, (short) MessageType.ESTABLISH_CONNECTION_RESPONSE.getEncodedType());
+                    buffer.putInt(offset + BitUtil.SIZE_OF_INT, ackSessionId);
+                }, 2 * BitUtil.SIZE_OF_INT, 30, TimeUnit.SECONDS);
+                break;
+            } catch (NotConnectedException ne) {
+                if (i >= 4) {
+                    throw ne;
+                }
+            }
+        }
     }
 
     @Override

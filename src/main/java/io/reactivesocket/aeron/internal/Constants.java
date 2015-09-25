@@ -22,4 +22,5 @@ public final class Constants {
     public static final int CONCURRENCY = Integer.getInteger("clientConcurrency", Runtime.getRuntime().availableProcessors() / 2);
 
     public static final int AERON_MTU_SIZE = Integer.getInteger("aeron.mtu.length", 4096);
+
 }

@@ -6,6 +6,7 @@ import uk.co.real_logic.aeron.AvailableImageHandler;
 import uk.co.real_logic.aeron.FragmentAssembler;
 import uk.co.real_logic.aeron.Image;
 import uk.co.real_logic.aeron.Subscription;
+import uk.co.real_logic.aeron.UnavailableImageHandler;
 
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -20,7 +21,9 @@ public class ServerAeronManager implements Loggable {
 
     private final Aeron aeron;
 
-    private CopyOnWriteArrayList<AvailableImageHandler> imageHandlers = new CopyOnWriteArrayList<>();
+    private CopyOnWriteArrayList<AvailableImageHandler> availableImageHandlers = new CopyOnWriteArrayList<>();
+
+    private CopyOnWriteArrayList<UnavailableImageHandler> unavailableImageHandlers = new CopyOnWriteArrayList<>();
 
     private CopyOnWriteArrayList<FragmentAssemblerHolder> subscriptions = new CopyOnWriteArrayList<>();
 
@@ -37,6 +40,7 @@ public class ServerAeronManager implements Loggable {
     public ServerAeronManager() {
         final Aeron.Context ctx = new Aeron.Context();
         ctx.availableImageHandler(this::availableImageHandler);
+        ctx.unavailableImageHandler(this::unavailableImage);
         ctx.errorHandler(t -> error("an exception occurred", t));
 
         aeron = Aeron.connect(ctx);
@@ -49,7 +53,11 @@ public class ServerAeronManager implements Loggable {
     }
 
     public void addAvailableImageHander(AvailableImageHandler handler) {
-        imageHandlers.add(handler);
+        availableImageHandlers.add(handler);
+    }
+
+    public void addUnavailableImageHandler(UnavailableImageHandler handler) {
+        unavailableImageHandlers.add(handler);
     }
 
     public void addSubscription(Subscription subscription, FragmentAssembler fragmentAssembler) {
@@ -61,8 +69,13 @@ public class ServerAeronManager implements Loggable {
     }
 
     private void availableImageHandler(Image image, Subscription subscription, long joiningPosition, String sourceIdentity) {
-        imageHandlers
+        availableImageHandlers
             .forEach(handler -> handler.onAvailableImage(image, subscription, joiningPosition, sourceIdentity));
+    }
+
+    private void unavailableImage(Image image, Subscription subscription, long position) {
+        unavailableImageHandlers
+            .forEach(handler -> handler.onUnavailableImage(image, subscription, position));
     }
 
     public Aeron getAeron() {

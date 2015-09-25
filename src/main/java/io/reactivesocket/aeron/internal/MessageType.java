@@ -6,7 +6,8 @@ package io.reactivesocket.aeron.internal;
 public enum MessageType {
     ESTABLISH_CONNECTION_REQUEST(0x01),
     ESTABLISH_CONNECTION_RESPONSE(0x02),
-    FRAME(0x03);
+    CONNECTION_DISCONNECT(0x3),
+    FRAME(0x04);
 
     private static MessageType[] typesById;
 
