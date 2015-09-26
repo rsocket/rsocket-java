@@ -17,11 +17,11 @@ package io.reactivesocket.aeron.client;
 
 import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
+import io.reactivesocket.aeron.internal.concurrent.AbstractConcurrentArrayQueue;
 import io.reactivesocket.rx.Disposable;
 import io.reactivesocket.rx.Observable;
 import io.reactivesocket.rx.Observer;
 import uk.co.real_logic.aeron.Publication;
-import uk.co.real_logic.agrona.concurrent.AbstractConcurrentArrayQueue;
 
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -34,11 +34,9 @@ public abstract class AbstractClientDuplexConnection<T extends AbstractConcurren
 
     protected final CopyOnWriteArrayList<Observer<Frame>> subjects;
 
-    protected final T framesSendQueue;
 
     public AbstractClientDuplexConnection(Publication publication) {
         this.subjects = new CopyOnWriteArrayList<>();
-        this.framesSendQueue = createQueue();
         this.connectionId = count.incrementAndGet();
     }
 
@@ -61,11 +59,7 @@ public abstract class AbstractClientDuplexConnection<T extends AbstractConcurren
         return subjects;
     }
 
-    public final T getFramesSendQueue() {
-        return framesSendQueue;
-    }
-
-    protected abstract T createQueue();
+    public abstract T getFramesSendQueue();
 
     public int getConnectionId() {
         return connectionId;

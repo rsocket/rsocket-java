@@ -22,13 +22,13 @@ import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.aeron.internal.AeronUtil;
 import io.reactivesocket.aeron.internal.Loggable;
 import io.reactivesocket.aeron.internal.MessageType;
+import io.reactivesocket.aeron.internal.concurrent.ManyToManyConcurrentArrayQueue;
 import io.reactivesocket.rx.Observer;
 import org.reactivestreams.Publisher;
 import uk.co.real_logic.aeron.Publication;
 import uk.co.real_logic.aeron.logbuffer.Header;
 import uk.co.real_logic.agrona.BitUtil;
 import uk.co.real_logic.agrona.DirectBuffer;
-import uk.co.real_logic.agrona.concurrent.ManyToOneConcurrentArrayQueue;
 import uk.co.real_logic.agrona.concurrent.UnsafeBuffer;
 
 import java.nio.ByteBuffer;
@@ -58,9 +58,14 @@ public class ReactiveSocketAeronClient implements Loggable, AutoCloseable {
 
     static final ConcurrentHashMap<Integer, ReactiveSocket> reactiveSockets = new ConcurrentHashMap<>();
 
-    private static final ClientAeronManager manager = ClientAeronManager.getInstance();
+    static ClientAeronManager manager = ClientAeronManager.getInstance();
 
     final int sessionId;
+
+    //For Test
+    ReactiveSocketAeronClient() {
+        sessionId = -1;
+    }
 
     /**
      * Creates a new ReactivesocketAeronClient
@@ -181,28 +186,54 @@ public class ReactiveSocketAeronClient implements Loggable, AutoCloseable {
 
         @Override
         void call(int threadId) {
-            final int calculatedThreadId = Math.abs(connection.getConnectionId() % CONCURRENCY);
-            if (threadId == calculatedThreadId) {
-                ManyToOneConcurrentArrayQueue<FrameHolder> framesSendQueue = connection.getFramesSendQueue();
+            final boolean traceEnabled = isTraceEnabled();
+
+            //final int calculatedThreadId = Math.abs(connection.getConnectionId() % CONCURRENCY);
+
+            //if (traceEnabled) {
+             //   trace("processing request for thread id => {}, caculcatedThreadId => {}", threadId, calculatedThreadId);
+                //LockSupport.parkNanos(TimeUnit.SECONDS.toNanos(1));
+            //}
+
+            //if (threadId == calculatedThreadId) {
+                ManyToManyConcurrentArrayQueue<FrameHolder> framesSendQueue = connection.getFramesSendQueue();
+
+                /*
+                if (traceEnabled && !framesSendQueue.isEmpty()) {
+                    if (!framesSendQueue.isEmpty()) {
+                        trace("Thread Id {} and connection Id {} draining queue", connection.getConnectionId());
+                    } else {
+                        trace("Thread Id {} and connection Id {} found empty queue", connection.getConnectionId());
+                    }
+                } */
+
                 framesSendQueue
                     .drain((FrameHolder fh) -> {
                         try {
                             Frame frame = fh.getFrame();
+
                             final ByteBuffer byteBuffer = frame.getByteBuffer();
                             final int length = byteBuffer.capacity() + BitUtil.SIZE_OF_INT;
                             Publication publication = publications.get(id);
                             AeronUtil.tryClaimOrOffer(publication, (offset, buffer) -> {
+
+                                if (traceEnabled) {
+                                    trace("Thread Id {} and connection Id {} sending Frame => {} on Aeron", threadId, connection.getConnectionId(), frame.toString());
+                                }
+
                                 buffer.putShort(offset, (short) 0);
                                 buffer.putShort(offset + BitUtil.SIZE_OF_SHORT, (short) MessageType.FRAME.getEncodedType());
                                 buffer.putBytes(offset + BitUtil.SIZE_OF_INT, byteBuffer, frame.offset(), frame.length());
                             }, length);
-                        } catch (Throwable t) {
-                            error("error draining send frame queue", t);
-                        } finally {
+
                             fh.release();
+
+                        } catch (Throwable t) {
+                            fh.release();
+                            error("error draining send frame queue", t);
                         }
                     });
-            }
+            //}
         }
 
         @Override

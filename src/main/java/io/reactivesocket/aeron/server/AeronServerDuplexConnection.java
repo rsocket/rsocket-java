@@ -26,17 +26,16 @@ import io.reactivesocket.rx.Disposable;
 import io.reactivesocket.rx.Observable;
 import io.reactivesocket.rx.Observer;
 import org.reactivestreams.Publisher;
+import rx.RxReactiveStreams;
 import uk.co.real_logic.aeron.Publication;
 import uk.co.real_logic.agrona.BitUtil;
 
+import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
 
 public class AeronServerDuplexConnection implements DuplexConnection, Loggable {
-    protected final static AtomicLong count = new AtomicLong();
-
     private final Publication publication;
     private final CopyOnWriteArrayList<Observer<Frame>> subjects;
 
@@ -52,27 +51,77 @@ public class AeronServerDuplexConnection implements DuplexConnection, Loggable {
 
     @Override
     public final Observable<Frame> getInput() {
+        if (isTraceEnabled()) {
+            trace("-------getting input for publication session id {} ", publication.sessionId());
+        }
+
         return new Observable<Frame>() {
             public void subscribe(Observer<Frame> o) {
                 o.onSubscribe(new Disposable() {
                     @Override
                     public void dispose() {
+                        if (isTraceEnabled()) {
+                            trace("removing Observer for publication with session id {} ", publication.sessionId());
+                        }
+
                         subjects.removeIf(s -> s == o);
                     }
                 });
+
                 subjects.add(o);
             }
         };
     }
 
+    private static volatile short count;
+
+
+    private short getCount() {
+        return count++;
+    }
+
     @Override
     public void addOutput(Publisher<Frame> o, Completable callback) {
-        o.subscribe(new ServerSubscription(publication, callback));
+        RxReactiveStreams.toObservable(o).flatMap(frame ->
+        {
+
+            if (isTraceEnabled()) {
+                trace("Server with publication session id {} sending frame => {}", publication.sessionId(), frame.toString());
+            }
+
+            final ByteBuffer byteBuffer = frame.getByteBuffer();
+            final int length = frame.length() + BitUtil.SIZE_OF_INT;
+
+            try {
+                AeronUtil.tryClaimOrOffer(publication, (offset, buffer) -> {
+                    buffer.putShort(offset, getCount());
+                    buffer.putShort(offset + BitUtil.SIZE_OF_SHORT, (short) MessageType.FRAME.getEncodedType());
+                    buffer.putBytes(offset + BitUtil.SIZE_OF_INT, byteBuffer, frame.offset(), frame.length());
+                }, length);
+            } catch (Throwable t) {
+                return rx.Observable.error(t);
+            }
+
+            if (isTraceEnabled()) {
+                trace("Server with publication session id {} sent frame  with ReactiveSocket stream id => {}", publication.sessionId(), frame.getStreamId());
+            }
+
+
+            return rx.Observable.empty();
+        }
+        )
+            .doOnCompleted(()-> System.out.println("-----ehere-----")).
+            subscribe(v -> {
+            }, callback::error, callback::success);
+
+
+
+        //o.subscribe(new ServerSubscription(publication, callback));
     }
 
     void ackEstablishConnection(int ackSessionId) {
         debug("Acking establish connection for session id => {}", ackSessionId);
-        for (int i = 0; i < 5; i++) {
+        for (int i = 0; i < 10; i++) {
             try {
                 AeronUtil.tryClaimOrOffer(publication, (offset, buffer) -> {
                     buffer.putShort(offset, (short) 0);
@@ -81,7 +130,7 @@ public class AeronServerDuplexConnection implements DuplexConnection, Loggable {
                 }, 2 * BitUtil.SIZE_OF_INT, 30, TimeUnit.SECONDS);
                 break;
             } catch (NotConnectedException ne) {
-                if (i >= 4) {
+                if (i >= 10) {
                     throw ne;
                 }
             }

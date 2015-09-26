@@ -6,7 +6,6 @@ import io.reactivesocket.Frame;
 import io.reactivesocket.Payload;
 import io.reactivesocket.RequestHandler;
 import io.reactivesocket.aeron.TestUtil;
-import io.reactivesocket.aeron.client.ReactiveSocketAeronClient;
 import io.reactivesocket.aeron.server.ReactiveSocketAeronServer;
 import io.reactivesocket.exceptions.SetupException;
 import org.junit.BeforeClass;
@@ -38,7 +37,7 @@ public class ReactiveSocketAeronTest {
         final MediaDriver mediaDriver = MediaDriver.launch(context);
     }
 
-    @Test(timeout = 10000)
+    @Test(timeout = 100000)
     public void testRequestReponse() throws Exception {
         AtomicLong server = new AtomicLong();
         ReactiveSocketAeronServer.create(new ConnectionSetupHandler() {
@@ -50,7 +49,7 @@ public class ReactiveSocketAeronTest {
                     @Override
                     public Publisher<Payload> handleRequestResponse(Payload payload) {
                         String request = TestUtil.byteToString(payload.getData());
-                        System.out.println(Thread.currentThread() +  " Server got => " + request);
+                        //System.out.println(Thread.currentThread() +  " Server got => " + request);
                         Observable<Payload> pong = Observable.just(TestUtil.utf8EncodedPayload("pong => " + server.incrementAndGet(), null));
                         return RxReactiveStreams.toPublisher(pong);
                     }
@@ -83,17 +82,24 @@ public class ReactiveSocketAeronTest {
             }
         });
 
-        CountDownLatch latch = new CountDownLatch(130);
+        CountDownLatch latch = new CountDownLatch(1300000);
 
 
         ReactiveSocketAeronClient client = ReactiveSocketAeronClient.create("localhost", "localhost");
 
         Observable
-            .range(1, 130)
+            .range(1, 1300000)
             .flatMap(i -> {
-                    System.out.println("pinging => " + i);
+                    //System.out.println("pinging => " + i);
                     Payload payload = TestUtil.utf8EncodedPayload("ping =>" + i, null);
-                    return RxReactiveStreams.toObservable(client.requestResponse(payload));
+                    return RxReactiveStreams
+                        .toObservable(client.requestResponse(payload))
+                        .doOnNext(f -> {
+                            if (i % 1000 == 0) {
+                                System.out.println("Got => " + i);
+                            }
+                        })
+                        .doOnNext(f -> latch.countDown());
                 }
             )
             .subscribe(new rx.Subscriber<Payload>() {
@@ -110,8 +116,8 @@ public class ReactiveSocketAeronTest {
 
                 @Override
                 public void onNext(Payload s) {
-                    System.out.println(Thread.currentThread() +  " countdown => " + latch.getCount());
-                    latch.countDown();
+                    //System.out.println(Thread.currentThread() +  " countdown => " + latch.getCount());
+                    //latch.countDown();
                 }
             });
 

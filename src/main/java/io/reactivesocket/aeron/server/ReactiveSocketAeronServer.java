@@ -85,6 +85,11 @@ public class ReactiveSocketAeronServer implements AutoCloseable, Loggable {
                 if (connection != null) {
                     List<? extends Observer<Frame>> subscribers = connection.getSubscriber();
                     final Frame frame = Frame.from(buffer, BitUtil.SIZE_OF_INT + offset, length);
+
+                    if (isTraceEnabled()) {
+                        trace("---server received frame payload {} on session id {}", frame.getData(), sessionId);
+                    }
+
                     subscribers.forEach(s -> {
                         try {
                             s.onNext(frame);
@@ -96,7 +101,7 @@ public class ReactiveSocketAeronServer implements AutoCloseable, Loggable {
             } else if (MessageType.ESTABLISH_CONNECTION_REQUEST == type) {
                 final long start = System.nanoTime();
                 AeronServerDuplexConnection connection = null;
-                debug("Looking a connection to ack establish connection for session id => {}", sessionId);
+                debug("Looking for an AeronServerDuplexConnection connection to ack establish connection for session id => {}", sessionId);
                 while (connection == null) {
                     final long current = System.nanoTime();
 
