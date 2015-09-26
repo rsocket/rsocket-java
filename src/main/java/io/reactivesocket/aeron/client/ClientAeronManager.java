@@ -160,7 +160,9 @@ public class ClientAeronManager implements Loggable {
 
                                 sg
                                     .getClientActions()
-                                    .forEach(a -> a.call(threadId));
+                                    .forEach(a -> {
+                                        a.call(threadId);
+                                    });
                             } catch (Throwable t) {
                                 error("error polling aeron subscription on thread with id " + threadId, t);
                             }
@@ -169,7 +171,7 @@ public class ClientAeronManager implements Loggable {
                 } catch (Throwable t) {
                     error("error in client polling loop on thread with id " + threadId, t);
                 }
-            }, 0, 1, TimeUnit.MICROSECONDS);
+            }, 0, 1, TimeUnit.NANOSECONDS);
         }
     }
 

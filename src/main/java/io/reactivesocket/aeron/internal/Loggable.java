@@ -18,12 +18,11 @@ package io.reactivesocket.aeron.internal;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.concurrent.ConcurrentHashMap;
-
 /**
  * No more needed to type Logger LOGGER = LoggerFactory.getLogger....
  */
 public interface Loggable {
+
     default void info(String message, Object... args) {
         logger().debug(message, args);
     }
@@ -36,9 +35,15 @@ public interface Loggable {
         logger().debug(message, args);
     }
 
-    static final ConcurrentHashMap<Class, Logger> loggers = new ConcurrentHashMap<>();
+    default void trace(String message, Object... args) {
+        logger().trace(message, args);
+    }
+
+    default boolean isTraceEnabled() {
+        return logger().isTraceEnabled();
+    }
 
     default Logger logger() {
-        return loggers.computeIfAbsent(getClass(), LoggerFactory::getLogger);
+        return LoggerFactory.getLogger(getClass());
     }
 }

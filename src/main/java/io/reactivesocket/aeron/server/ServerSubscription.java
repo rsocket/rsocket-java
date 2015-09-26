@@ -15,6 +15,7 @@
  */
 package io.reactivesocket.aeron.server;
 
+import io.reactivesocket.aeron.internal.Loggable;
 import io.reactivesocket.rx.Completable;
 import io.reactivesocket.Frame;
 import io.reactivesocket.aeron.internal.AeronUtil;
@@ -32,7 +33,7 @@ import java.nio.ByteBuffer;
  *
  * @see io.reactivesocket.aeron.server.AeronServerDuplexConnection
  */
-class ServerSubscription implements Subscriber<Frame> {
+class ServerSubscription implements Subscriber<Frame>, Loggable {
 
     /**
      * Count is used to by the client to round-robin request between threads.
@@ -55,6 +56,11 @@ class ServerSubscription implements Subscriber<Frame> {
 
     @Override
     public void onNext(Frame frame) {
+
+        if (isTraceEnabled()) {
+            trace("Server with publication session id {} sending frame => {}", publication.sessionId(), frame.toString());
+        }
+
         final ByteBuffer byteBuffer = frame.getByteBuffer();
         final int length = frame.length() + BitUtil.SIZE_OF_INT;
 
@@ -63,10 +69,16 @@ class ServerSubscription implements Subscriber<Frame> {
                 buffer.putShort(offset, getCount());
                 buffer.putShort(offset + BitUtil.SIZE_OF_SHORT, (short) MessageType.FRAME.getEncodedType());
                 buffer.putBytes(offset + BitUtil.SIZE_OF_INT, byteBuffer, frame.offset(), frame.length());
+                System.out.println("WOOOHOOOO +> " + System.currentTimeMillis());
             }, length);
         } catch (Throwable t) {
             onError(t);
         }
+
+        if (isTraceEnabled()) {
+            trace("Server with publication session id {} sent frame  with ReactiveSocket stream id => {}", publication.sessionId(), frame.getStreamId());
+        }
+
 
     }
 
@@ -77,6 +89,9 @@ class ServerSubscription implements Subscriber<Frame> {
 
     @Override
     public void onComplete() {
+        if (isTraceEnabled()) {
+            trace("Server with publication session id {} completing", publication.sessionId());
+        }
         completable.success();
     }
 
