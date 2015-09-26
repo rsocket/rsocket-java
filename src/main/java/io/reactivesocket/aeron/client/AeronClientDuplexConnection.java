@@ -24,10 +24,8 @@ import io.reactivesocket.rx.Completable;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
+import rx.exceptions.MissingBackpressureException;
 import uk.co.real_logic.aeron.Publication;
-
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.LockSupport;
 
 public class AeronClientDuplexConnection extends AbstractClientDuplexConnection<ManyToManyConcurrentArrayQueue<FrameHolder>, FrameHolder> implements Loggable {
     public AeronClientDuplexConnection(Publication publication) {
@@ -64,9 +62,7 @@ public class AeronClientDuplexConnection extends AbstractClientDuplexConnection<
                     do {
                         offer = framesSendQueue.offer(fh);
                         if (!offer) {
-                            System.out.println(Thread.currentThread() + " = BACKPRESSURE FOO = " + framesSendQueue.size());
-                            LockSupport.parkNanos(TimeUnit.SECONDS.toNanos(1));
-                            // onError(new MissingBackpressureException());
+                            onError(new MissingBackpressureException());
                         }
                     } while (!offer);
                 }
