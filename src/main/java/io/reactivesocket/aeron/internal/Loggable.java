@@ -40,7 +40,11 @@ public interface Loggable {
     }
 
     default boolean isTraceEnabled() {
-        return logger().isTraceEnabled();
+        if (Constants.TRACING_ENABLED) {
+            return logger().isTraceEnabled();
+        } else {
+            return false;
+        }
     }
 
     default Logger logger() {

@@ -1,3 +1,18 @@
+/**
+ * Copyright 2015 Netflix, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package io.reactivesocket.aeron.client;
 
 import io.reactivesocket.ConnectionSetupHandler;
@@ -15,6 +30,7 @@ import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import rx.Observable;
 import rx.RxReactiveStreams;
+import rx.schedulers.Schedulers;
 import uk.co.real_logic.aeron.driver.MediaDriver;
 
 import java.nio.ByteBuffer;
@@ -25,7 +41,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.LockSupport;
 
 /**
- * Created by rroeser on 8/14/15.
+ * Aeron integration tests
  */
 @Ignore
 public class ReactiveSocketAeronTest {
@@ -102,6 +118,94 @@ public class ReactiveSocketAeronTest {
                         .doOnNext(f -> latch.countDown());
                 }
             )
+            .subscribe(new rx.Subscriber<Payload>() {
+                @Override
+                public void onCompleted() {
+                    System.out.println("I HAVE COMPLETED $$$$$$$$$$$$$$$$$$$$$$$$$$$$");
+                }
+
+                @Override
+                public void onError(Throwable e) {
+                    System.out.println(Thread.currentThread() +  " counted to => " + latch.getCount());
+                    e.printStackTrace();
+                }
+
+                @Override
+                public void onNext(Payload s) {
+                    //System.out.println(Thread.currentThread() +  " countdown => " + latch.getCount());
+                    //latch.countDown();
+                }
+            });
+
+        latch.await();
+    }
+
+    @Test(timeout = 100000)
+    public void testRequestReponseMultiThreaded() throws Exception {
+        AtomicLong server = new AtomicLong();
+        ReactiveSocketAeronServer.create(new ConnectionSetupHandler() {
+            @Override
+            public RequestHandler apply(ConnectionSetupPayload setupPayload) throws SetupException {
+                return new RequestHandler() {
+                    Frame frame = Frame.from(ByteBuffer.allocate(1));
+
+                    @Override
+                    public Publisher<Payload> handleRequestResponse(Payload payload) {
+                        String request = TestUtil.byteToString(payload.getData());
+                        //System.out.println(Thread.currentThread() +  " Server got => " + request);
+                        Observable<Payload> pong = Observable.just(TestUtil.utf8EncodedPayload("pong => " + server.incrementAndGet(), null));
+                        return RxReactiveStreams.toPublisher(pong);
+                    }
+
+                    @Override
+                    public Publisher<Payload> handleChannel(Payload initialPayload, Publisher<Payload> payloads) {
+                        return null;
+                    }
+
+                    @Override
+                    public Publisher<Payload> handleRequestStream(Payload payload) {
+                        return null;
+                    }
+
+                    @Override
+                    public Publisher<Payload> handleSubscription(Payload payload) {
+                        return null;
+                    }
+
+                    @Override
+                    public Publisher<Void> handleFireAndForget(Payload payload) {
+                        return null;
+                    }
+
+                    @Override
+                    public Publisher<Void> handleMetadataPush(Payload payload) {
+                        return null;
+                    }
+                };
+            }
+        });
+
+        CountDownLatch latch = new CountDownLatch(10_000);
+
+
+        ReactiveSocketAeronClient client = ReactiveSocketAeronClient.create("localhost", "localhost");
+
+        Observable
+            .range(1, 10_000)
+            .flatMap(i -> {
+                    //System.out.println("pinging => " + i);
+                    Payload payload = TestUtil.utf8EncodedPayload("ping =>" + i, null);
+                    return RxReactiveStreams
+                        .toObservable(client.requestResponse(payload))
+                        .doOnNext(f -> {
+                            if (i % 1000 == 0) {
+                                System.out.println("Got => " + i);
+                            }
+                        })
+                        .doOnNext(f -> latch.countDown())
+                        .subscribeOn(Schedulers.newThread());
+                }
+            , 8)
             .subscribe(new rx.Subscriber<Payload>() {
                 @Override
                 public void onCompleted() {

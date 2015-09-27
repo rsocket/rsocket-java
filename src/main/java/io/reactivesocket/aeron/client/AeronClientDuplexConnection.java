@@ -19,20 +19,20 @@ package io.reactivesocket.aeron.client;
 import io.reactivesocket.Frame;
 import io.reactivesocket.aeron.internal.Constants;
 import io.reactivesocket.aeron.internal.Loggable;
-import io.reactivesocket.aeron.internal.concurrent.ManyToManyConcurrentArrayQueue;
 import io.reactivesocket.rx.Completable;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 import rx.exceptions.MissingBackpressureException;
 import uk.co.real_logic.aeron.Publication;
+import uk.co.real_logic.agrona.concurrent.ManyToOneConcurrentArrayQueue;
 
-public class AeronClientDuplexConnection extends AbstractClientDuplexConnection<ManyToManyConcurrentArrayQueue<FrameHolder>, FrameHolder> implements Loggable {
+public class AeronClientDuplexConnection extends AbstractClientDuplexConnection<ManyToOneConcurrentArrayQueue<FrameHolder>, FrameHolder> implements Loggable {
     public AeronClientDuplexConnection(Publication publication) {
         super(publication);
     }
 
-    protected static final ManyToManyConcurrentArrayQueue<FrameHolder> framesSendQueue = new ManyToManyConcurrentArrayQueue<>(65536);
+    protected static final ManyToOneConcurrentArrayQueue<FrameHolder> framesSendQueue = new ManyToOneConcurrentArrayQueue<>(65536);
 
     @Override
     public void addOutput(Publisher<Frame> o, Completable callback) {
@@ -96,7 +96,7 @@ public class AeronClientDuplexConnection extends AbstractClientDuplexConnection<
     }
 
     @Override
-    public ManyToManyConcurrentArrayQueue<FrameHolder> getFramesSendQueue() {
+    public ManyToOneConcurrentArrayQueue<FrameHolder> getFramesSendQueue() {
         return framesSendQueue;
     }
 }

@@ -22,13 +22,13 @@ import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.aeron.internal.AeronUtil;
 import io.reactivesocket.aeron.internal.Loggable;
 import io.reactivesocket.aeron.internal.MessageType;
-import io.reactivesocket.aeron.internal.concurrent.ManyToManyConcurrentArrayQueue;
 import io.reactivesocket.rx.Observer;
 import org.reactivestreams.Publisher;
 import uk.co.real_logic.aeron.Publication;
 import uk.co.real_logic.aeron.logbuffer.Header;
 import uk.co.real_logic.agrona.BitUtil;
 import uk.co.real_logic.agrona.DirectBuffer;
+import uk.co.real_logic.agrona.concurrent.ManyToOneConcurrentArrayQueue;
 import uk.co.real_logic.agrona.concurrent.UnsafeBuffer;
 
 import java.nio.ByteBuffer;
@@ -110,19 +110,21 @@ public class ReactiveSocketAeronClient implements Loggable, AutoCloseable {
             if (messageType == MessageType.FRAME) {
                 final AeronClientDuplexConnection connection = connections.get(header.sessionId());
                 if (connection != null) {
-                    final List<? extends Observer<Frame>> subscribers = connection.getSubscriber();
-                    if (!subscribers.isEmpty()) {
-                        //TODO think about how to recycle these, hard because could be handed to another thread I think?
-                        final ByteBuffer bytes = ByteBuffer.allocate(length);
-                        buffer.getBytes(BitUtil.SIZE_OF_INT + offset, bytes, length);
-                        final Frame frame = Frame.from(bytes);
-                        int i = 0;
-                        final int size = subscribers.size();
-                        do {
-                            subscribers.get(i).onNext(frame);
-                            i++;
-                        } while (i < size);
-                    }
+                        final List<? extends Observer<Frame>> subscribers = connection.getSubscriber();
+                        if (!subscribers.isEmpty()) {
+                            //TODO think about how to recycle these, hard because could be handed to another thread I think?
+                            final ByteBuffer bytes = ByteBuffer.allocate(length);
+                            buffer.getBytes(BitUtil.SIZE_OF_INT + offset, bytes, length);
+                            final Frame frame = Frame.from(bytes);
+                            int i = 0;
+                            final int size = subscribers.size();
+                            do {
+                                Observer<Frame> frameObserver = subscribers.get(i);
+                                frameObserver.onNext(frame);
+
+                                i++;
+                            } while (i < size);
+                        }
                 } else {
                     debug("no connection found for Aeron Session Id {}", sessionId);
                 }
@@ -187,25 +189,7 @@ public class ReactiveSocketAeronClient implements Loggable, AutoCloseable {
         @Override
         void call(int threadId) {
             final boolean traceEnabled = isTraceEnabled();
-
-            //final int calculatedThreadId = Math.abs(connection.getConnectionId() % CONCURRENCY);
-
-            //if (traceEnabled) {
-             //   trace("processing request for thread id => {}, caculcatedThreadId => {}", threadId, calculatedThreadId);
-                //LockSupport.parkNanos(TimeUnit.SECONDS.toNanos(1));
-            //}
-
-            //if (threadId == calculatedThreadId) {
-                ManyToManyConcurrentArrayQueue<FrameHolder> framesSendQueue = connection.getFramesSendQueue();
-
-                /*
-                if (traceEnabled && !framesSendQueue.isEmpty()) {
-                    if (!framesSendQueue.isEmpty()) {
-                        trace("Thread Id {} and connection Id {} draining queue", connection.getConnectionId());
-                    } else {
-                        trace("Thread Id {} and connection Id {} found empty queue", connection.getConnectionId());
-                    }
-                } */
+            ManyToOneConcurrentArrayQueue<FrameHolder> framesSendQueue = connection.getFramesSendQueue();
 
                 framesSendQueue
                     .drain((FrameHolder fh) -> {

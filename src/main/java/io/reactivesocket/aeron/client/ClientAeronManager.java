@@ -26,10 +26,11 @@ import uk.co.real_logic.aeron.Image;
 import uk.co.real_logic.aeron.Subscription;
 import uk.co.real_logic.aeron.logbuffer.FragmentHandler;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * Class for managing the Aeron on the client side.
@@ -147,31 +148,44 @@ public class ClientAeronManager implements Loggable {
      */
     private void poll() {
         info("ReactiveSocket Aeron Client concurreny is {}", Constants.CONCURRENCY);
+        final ReentrantLock pollLock = new ReentrantLock();
+        final ReentrantLock clientActionLock = new ReentrantLock();
         for (int i = 0; i < Constants.CONCURRENCY; i++) {
             final int threadId = i;
             workers[threadId] = Schedulers.computation().createWorker();
             workers[threadId].schedulePeriodically(() -> {
                 try {
-                    subscriptionGroups
-                        .forEach(sg -> {
-                            try {
+                    for (SubscriptionGroup sg : subscriptionGroups) {
+                        try {
+                            if (pollLock.tryLock()) {
                                 Subscription subscription = sg.getSubscriptions()[threadId];
                                 subscription.poll(sg.getFragmentAssembler(threadId), Integer.MAX_VALUE);
-
-                                sg
-                                    .getClientActions()
-                                    .forEach(a -> {
-                                        a.call(threadId);
-                                    });
-                            } catch (Throwable t) {
-                                error("error polling aeron subscription on thread with id " + threadId, t);
                             }
-                        });
+
+                            if (clientActionLock.tryLock()) {
+                                final List<ClientAction> clientActions = sg.getClientActions();
+
+                                for (ClientAction a : clientActions) {
+                                    a.call(threadId);
+                                }
+                            }
+                        } catch (Throwable t) {
+                            error("error polling aeron subscription on thread with id " + threadId, t);
+                        } finally {
+                            if (pollLock.isHeldByCurrentThread()) {
+                                pollLock.unlock();
+                            }
+
+                            if (clientActionLock.isHeldByCurrentThread()) {
+                                clientActionLock.unlock();
+                            }
+                        }
+                    }
 
                 } catch (Throwable t) {
                     error("error in client polling loop on thread with id " + threadId, t);
                 }
-            }, 0, 1, TimeUnit.NANOSECONDS);
+            }, 0, 20, TimeUnit.MICROSECONDS);
         }
     }
 
@@ -189,13 +203,13 @@ public class ClientAeronManager implements Loggable {
         private final Subscription[] subscriptions;
         private final Func1<Integer, ThreadIdAwareFragmentHandler> fragmentHandlerFactory;
 
-        private final CopyOnWriteArraySet<ClientAction> clientActions;
+        private final CopyOnWriteArrayList<ClientAction> clientActions;
 
         public SubscriptionGroup(String channel, Subscription[] subscriptions, Func1<Integer, ThreadIdAwareFragmentHandler> fragmentHandlerFactory) {
             this.channel = channel;
             this.subscriptions = subscriptions;
             this.fragmentHandlerFactory = fragmentHandlerFactory;
-            this.clientActions = new CopyOnWriteArraySet<>();
+            this.clientActions = new CopyOnWriteArrayList<>();
         }
 
         public String getChannel() {
@@ -217,7 +231,7 @@ public class ClientAeronManager implements Loggable {
             return assembler;
         }
 
-        public CopyOnWriteArraySet<ClientAction> getClientActions() {
+        public List<ClientAction> getClientActions() {
             return clientActions;
         }
     }

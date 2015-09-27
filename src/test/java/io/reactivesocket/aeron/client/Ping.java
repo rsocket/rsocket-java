@@ -1,3 +1,18 @@
+/**
+ * Copyright 2015 Netflix, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package io.reactivesocket.aeron.client;
 
 import com.codahale.metrics.ConsoleReporter;
@@ -17,26 +32,15 @@ import java.util.concurrent.TimeUnit;
  * Created by rroeser on 8/16/15.
  */
 public class Ping {
-/*
-    static {
-        RxJavaPlugins.getInstance().registerSchedulersHook(new RxJavaSchedulersHook() {
-            public Scheduler getComputationScheduler() {
-                return FastScheduler.getInstance();
-            }
-        });
-    } */
-
 
     public static void main(String... args) throws Exception {
         String host = System.getProperty("host", "localhost");
         String server = System.getProperty("server", "localhost");
-        Integer concurrency = Integer.getInteger("concurrency", 32);
 
         System.out.println("Setting host to => " + host);
 
         System.out.println("Setting ping is listening to => " + server);
 
-        System.out.println("Setting concurrency to => " + concurrency);
 
         byte[] key = new byte[4];
         //byte[] key = new byte[BitUtil.SIZE_OF_INT];

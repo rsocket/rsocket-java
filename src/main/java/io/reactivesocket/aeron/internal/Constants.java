@@ -28,14 +28,14 @@ public final class Constants {
 
     public static final byte[] EMTPY = new byte[0];
 
-    public static final int QUEUE_SIZE = Integer.getInteger("framesSendQueueSize", 128);
-
-    public static final int MULTI_THREADED_SPIN_LIMIT = Integer.getInteger("multiSpinLimit", 100);
+    public static final int QUEUE_SIZE = Integer.getInteger("reactivesocket.aeron.framesSendQueueSize", 128);
 
     public static final IdleStrategy SERVER_IDLE_STRATEGY = new NoOpIdleStrategy();
 
-    public static final int CONCURRENCY = Integer.getInteger("clientConcurrency", Runtime.getRuntime().availableProcessors() / 2);
+    public static final int CONCURRENCY = Integer.getInteger("reactivesocket.aeron.clientConcurrency", 2);
 
     public static final int AERON_MTU_SIZE = Integer.getInteger("aeron.mtu.length", 4096);
+
+    public static final boolean TRACING_ENABLED = Boolean.getBoolean("reactivesocket.aeron.tracingEnabled");
 
 }

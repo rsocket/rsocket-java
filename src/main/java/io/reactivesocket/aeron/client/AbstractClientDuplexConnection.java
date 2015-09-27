@@ -17,14 +17,14 @@ package io.reactivesocket.aeron.client;
 
 import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
-import io.reactivesocket.aeron.internal.concurrent.AbstractConcurrentArrayQueue;
 import io.reactivesocket.rx.Disposable;
 import io.reactivesocket.rx.Observable;
 import io.reactivesocket.rx.Observer;
 import uk.co.real_logic.aeron.Publication;
+import uk.co.real_logic.agrona.concurrent.AbstractConcurrentArrayQueue;
 
+import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public abstract class AbstractClientDuplexConnection<T extends AbstractConcurrentArrayQueue<F>, F> implements DuplexConnection {
@@ -32,11 +32,11 @@ public abstract class AbstractClientDuplexConnection<T extends AbstractConcurren
 
     protected final int connectionId;
 
-    protected final CopyOnWriteArrayList<Observer<Frame>> subjects;
+    protected final ArrayList<Observer<Frame>> subjects;
 
 
     public AbstractClientDuplexConnection(Publication publication) {
-        this.subjects = new CopyOnWriteArrayList<>();
+        this.subjects = new ArrayList<>();
         this.connectionId = count.incrementAndGet();
     }
 
@@ -47,10 +47,14 @@ public abstract class AbstractClientDuplexConnection<T extends AbstractConcurren
                 o.onSubscribe(new Disposable() {
                     @Override
                     public void dispose() {
-                        subjects.removeIf(s -> s == o);
+                        synchronized (count) {
+                            subjects.removeIf(s -> s == o);
+                        }
                     }
                 });
-                subjects.add(o);
+                synchronized (count) {
+                    subjects.add(o);
+                }
             }
         };
     }
