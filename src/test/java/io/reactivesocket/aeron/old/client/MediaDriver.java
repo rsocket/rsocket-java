@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.reactivesocket.aeron.client;
+package io.reactivesocket.aeron.old.client;
 
 import uk.co.real_logic.aeron.driver.ThreadingMode;
 import uk.co.real_logic.agrona.concurrent.BackoffIdleStrategy;

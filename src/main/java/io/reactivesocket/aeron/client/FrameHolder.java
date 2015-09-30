@@ -17,7 +17,9 @@ package io.reactivesocket.aeron.client;
 
 import io.reactivesocket.Frame;
 import io.reactivesocket.aeron.internal.Constants;
+import org.HdrHistogram.Recorder;
 import org.reactivestreams.Subscription;
+import uk.co.real_logic.aeron.Publication;
 import uk.co.real_logic.agrona.concurrent.OneToOneConcurrentArrayQueue;
 
 /**
@@ -28,12 +30,16 @@ class FrameHolder {
     private static final ThreadLocal<OneToOneConcurrentArrayQueue<FrameHolder>> FRAME_HOLDER_QUEUE
         = ThreadLocal.withInitial(() -> new OneToOneConcurrentArrayQueue<>(Constants.QUEUE_SIZE));
 
+    static final Recorder histogram = new Recorder(3600000000000L, 3);
+
     private Frame frame;
+    private Publication publication;
     private Subscription s;
+    private long getTime;
 
     private FrameHolder() {}
 
-    public static FrameHolder get(Frame frame, Subscription s) {
+    public static FrameHolder get(Frame frame, Publication publication, Subscription s) {
         FrameHolder frameHolder = FRAME_HOLDER_QUEUE.get().poll();
 
         if (frameHolder == null) {
@@ -43,11 +49,17 @@ class FrameHolder {
         frameHolder.frame = frame;
         frameHolder.s = s;
 
+        frameHolder.getTime = System.nanoTime();
+
         return frameHolder;
     }
 
     public Frame getFrame() {
         return frame;
+    }
+
+    public Publication getPublication() {
+        return publication;
     }
 
     public void release() {
@@ -57,5 +69,7 @@ class FrameHolder {
 
         frame.release();
         FRAME_HOLDER_QUEUE.get().offer(this);
+
+        histogram.recordValue(System.nanoTime() - getTime);
     }
 }

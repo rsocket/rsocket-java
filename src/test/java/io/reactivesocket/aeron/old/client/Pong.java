@@ -13,16 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.reactivesocket.aeron.client;
+package io.reactivesocket.aeron.old.client;
 
-import com.codahale.metrics.ConsoleReporter;
-import com.codahale.metrics.MetricRegistry;
-import com.codahale.metrics.Timer;
 import io.reactivesocket.ConnectionSetupHandler;
 import io.reactivesocket.ConnectionSetupPayload;
 import io.reactivesocket.Payload;
 import io.reactivesocket.RequestHandler;
-import io.reactivesocket.aeron.server.ReactiveSocketAeronServer;
+import io.reactivesocket.aeron.old.server.ReactiveSocketAeronServer;
 import io.reactivesocket.exceptions.SetupException;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
@@ -31,7 +28,6 @@ import uk.co.real_logic.agrona.concurrent.NoOpIdleStrategy;
 
 import java.nio.ByteBuffer;
 import java.util.Random;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Created by rroeser on 8/16/15.
@@ -72,14 +68,14 @@ public class Pong {
 
         System.out.println("Sending data of size => " + response.length);
 
-        final MetricRegistry metrics = new MetricRegistry();
+        /*final MetricRegistry metrics = new MetricRegistry();
         final Timer timer = metrics.timer("pongTimer");
 
         final ConsoleReporter reporter = ConsoleReporter.forRegistry(metrics)
             .convertRatesTo(TimeUnit.SECONDS)
             .convertDurationsTo(TimeUnit.MILLISECONDS)
             .build();
-        reporter.start(15, TimeUnit.SECONDS);
+        reporter.start(15, TimeUnit.SECONDS);*/
 
         ReactiveSocketAeronServer server = ReactiveSocketAeronServer.create(host, 39790, new ConnectionSetupHandler() {
             @Override
@@ -87,7 +83,7 @@ public class Pong {
                 return new RequestHandler() {
                     @Override
                     public Publisher<Payload> handleRequestResponse(Payload payload) {
-                        long time = System.nanoTime();
+                        long time = System.currentTimeMillis();
 
                         Publisher<Payload> publisher = new Publisher<Payload>() {
                             @Override
@@ -108,8 +104,8 @@ public class Pong {
 
                                 s.onNext(responsePayload);
 
-                                long diff = System.nanoTime() - time;
-                                timer.update(diff, TimeUnit.NANOSECONDS);
+                                long diff = System.currentTimeMillis() - time;
+                                //timer.update(diff, TimeUnit.NANOSECONDS);
                                 s.onComplete();
                             }
                         };

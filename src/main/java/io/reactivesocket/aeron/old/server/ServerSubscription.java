@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.reactivesocket.aeron.server;
+package io.reactivesocket.aeron.old.server;
 
 import io.reactivesocket.aeron.internal.Loggable;
 import io.reactivesocket.rx.Completable;
@@ -31,7 +31,7 @@ import java.nio.ByteBuffer;
  * Subscription used by the AeronServerDuplexConnection to handle incoming frames and send them
  * on a publication.
  *
- * @see io.reactivesocket.aeron.server.AeronServerDuplexConnection
+ * @see io.reactivesocket.aeron.old.server.AeronServerDuplexConnection
  */
 class ServerSubscription implements Subscriber<Frame>, Loggable {
 

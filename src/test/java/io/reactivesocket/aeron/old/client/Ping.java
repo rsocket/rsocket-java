@@ -13,15 +13,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.reactivesocket.aeron.client;
+package io.reactivesocket.aeron.old.client;
 
-import com.codahale.metrics.ConsoleReporter;
-import com.codahale.metrics.MetricRegistry;
-import com.codahale.metrics.Timer;
 import io.reactivesocket.Payload;
+import io.reactivesocket.aeron.client.FrameHolder;
+import org.HdrHistogram.Recorder;
 import rx.Observable;
 import rx.RxReactiveStreams;
 import rx.Subscriber;
+import rx.schedulers.Schedulers;
 
 import java.nio.ByteBuffer;
 import java.util.Random;
@@ -49,6 +49,7 @@ public class Ping {
 
         System.out.println("Sending data of size => " + key.length);
 
+        /*
         final MetricRegistry metrics = new MetricRegistry();
         final Timer timer = metrics.timer("pingTimer");
 
@@ -56,12 +57,28 @@ public class Ping {
             .convertRatesTo(TimeUnit.SECONDS)
             .convertDurationsTo(TimeUnit.MICROSECONDS)
             .build();
-        reporter.start(15, TimeUnit.SECONDS);
+        reporter.start(15, TimeUnit.SECONDS);*/
 
         ReactiveSocketAeronClient client = ReactiveSocketAeronClient.create(host, server);
 
         CountDownLatch latch = new CountDownLatch(Integer.MAX_VALUE);
 
+        final Recorder histogram = new Recorder(3600000000000L, 3);
+
+        Schedulers
+            .computation()
+            .createWorker()
+            .schedulePeriodically(() -> {
+                System.out.println("---- FRAME HOLDER HISTO ----");
+                FrameHolder.histogram.getIntervalHistogram().outputPercentileDistribution(System.out, 5, 1000.0, false);
+                System.out.println("---- FRAME HOLDER HISTO ----");
+
+                System.out.println("---- PING/ PONG HISTO ----");
+                histogram.getIntervalHistogram().outputPercentileDistribution(System.out, 5, 1000.0, false);
+                System.out.println("---- PING/ PONG HISTO ----");
+
+
+            }, 10, 10, TimeUnit.SECONDS);
 
         Observable
             .range(1, Integer.MAX_VALUE)
@@ -88,7 +105,7 @@ public class Ping {
                             .requestResponse(keyPayload))
                     .doOnNext(s -> {
                         long diff = System.nanoTime() - start;
-                        timer.update(diff, TimeUnit.NANOSECONDS);
+                        histogram.recordValue(diff);
                     });
             })
             .subscribe(new Subscriber<Payload>() {

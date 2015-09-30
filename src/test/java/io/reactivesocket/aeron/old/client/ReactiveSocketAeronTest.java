@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.reactivesocket.aeron.client;
+package io.reactivesocket.aeron.old.client;
 
 import io.reactivesocket.ConnectionSetupHandler;
 import io.reactivesocket.ConnectionSetupPayload;
@@ -21,7 +21,7 @@ import io.reactivesocket.Frame;
 import io.reactivesocket.Payload;
 import io.reactivesocket.RequestHandler;
 import io.reactivesocket.aeron.TestUtil;
-import io.reactivesocket.aeron.server.ReactiveSocketAeronServer;
+import io.reactivesocket.aeron.old.server.ReactiveSocketAeronServer;
 import io.reactivesocket.exceptions.SetupException;
 import org.junit.BeforeClass;
 import org.junit.Ignore;

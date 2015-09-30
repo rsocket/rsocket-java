@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.reactivesocket.aeron.server;
+package io.reactivesocket.aeron.old.server;
 
 import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;

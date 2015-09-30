@@ -26,7 +26,6 @@ import uk.co.real_logic.aeron.Image;
 import uk.co.real_logic.aeron.Subscription;
 import uk.co.real_logic.aeron.logbuffer.FragmentHandler;
 
-import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
@@ -38,6 +37,8 @@ import java.util.concurrent.locks.ReentrantLock;
 public class ClientAeronManager implements Loggable {
     private static final ClientAeronManager INSTANCE = new ClientAeronManager();
 
+    private final CopyOnWriteArrayList<ClientAction> clientActions;
+
     private final CopyOnWriteArrayList<SubscriptionGroup> subscriptionGroups;
 
     private final Aeron aeron;
@@ -45,6 +46,7 @@ public class ClientAeronManager implements Loggable {
     private final Scheduler.Worker[] workers = new Scheduler.Worker[Constants.CONCURRENCY];
 
     private ClientAeronManager() {
+        this.clientActions = new CopyOnWriteArrayList<>();
         this.subscriptionGroups = new CopyOnWriteArrayList<>();
 
         final Aeron.Context ctx = new Aeron.Context();
@@ -84,25 +86,13 @@ public class ClientAeronManager implements Loggable {
             .findFirst();
     }
 
-    public void removeClientAction(int id) {
-        subscriptionGroups
-            .forEach(sg ->
-                sg
-                    .getClientActions()
-                    .removeIf(c -> {
-                        if (c.id == id) {
-                            debug("removing client action for id => {}", id);
-                            try {
-                                c.close();
-                            } catch (Throwable e) {
-                                debug("an exception occurred trying to close connection {}", e, id);
-                            }
-                            return true;
-                        } else {
-                            return false;
-                        }
-                    })
-            );
+    /**
+     * Adds a ClientAction on the a list that is run by the polling loop.
+     *
+     * @param clientAction the {@link io.reactivesocket.aeron.client.ClientAeronManager.ClientAction} to add
+     */
+    public void addClientAction(ClientAction clientAction) {
+        clientActions.add(clientAction);
     }
 
 
@@ -143,49 +133,19 @@ public class ClientAeronManager implements Loggable {
     }
 
     /*
-     * Starts polling for the Aeron client. Will run register client actions and will automatically start polling
+     * Starts polling for the Aeron client. Will run registered client actions and will automatically start polling
      * subscriptions
      */
-    private void poll() {
+    void poll() {
         info("ReactiveSocket Aeron Client concurreny is {}", Constants.CONCURRENCY);
         final ReentrantLock pollLock = new ReentrantLock();
         final ReentrantLock clientActionLock = new ReentrantLock();
         for (int i = 0; i < Constants.CONCURRENCY; i++) {
             final int threadId = i;
             workers[threadId] = Schedulers.computation().createWorker();
-            workers[threadId].schedulePeriodically(() -> {
-                try {
-                    for (SubscriptionGroup sg : subscriptionGroups) {
-                        try {
-                            if (pollLock.tryLock()) {
-                                Subscription subscription = sg.getSubscriptions()[threadId];
-                                subscription.poll(sg.getFragmentAssembler(threadId), Integer.MAX_VALUE);
-                            }
-
-                            if (clientActionLock.tryLock()) {
-                                final List<ClientAction> clientActions = sg.getClientActions();
-
-                                for (ClientAction a : clientActions) {
-                                    a.call(threadId);
-                                }
-                            }
-                        } catch (Throwable t) {
-                            error("error polling aeron subscription on thread with id " + threadId, t);
-                        } finally {
-                            if (pollLock.isHeldByCurrentThread()) {
-                                pollLock.unlock();
-                            }
-
-                            if (clientActionLock.isHeldByCurrentThread()) {
-                                clientActionLock.unlock();
-                            }
-                        }
-                    }
-
-                } catch (Throwable t) {
-                    error("error in client polling loop on thread with id " + threadId, t);
-                }
-            }, 0, 20, TimeUnit.MICROSECONDS);
+            workers[threadId].schedulePeriodically(new
+                    PollingAction(pollLock, clientActionLock, threadId, subscriptionGroups, clientActions),
+                0, 1, TimeUnit.MICROSECONDS);
         }
     }
 
@@ -203,13 +163,10 @@ public class ClientAeronManager implements Loggable {
         private final Subscription[] subscriptions;
         private final Func1<Integer, ThreadIdAwareFragmentHandler> fragmentHandlerFactory;
 
-        private final CopyOnWriteArrayList<ClientAction> clientActions;
-
         public SubscriptionGroup(String channel, Subscription[] subscriptions, Func1<Integer, ThreadIdAwareFragmentHandler> fragmentHandlerFactory) {
             this.channel = channel;
             this.subscriptions = subscriptions;
             this.fragmentHandlerFactory = fragmentHandlerFactory;
-            this.clientActions = new CopyOnWriteArrayList<>();
         }
 
         public String getChannel() {
@@ -230,38 +187,14 @@ public class ClientAeronManager implements Loggable {
 
             return assembler;
         }
-
-        public List<ClientAction> getClientActions() {
-            return clientActions;
-        }
     }
 
-    public static abstract class ClientAction implements AutoCloseable {
-        protected int id;
-
-        public ClientAction(int id) {
-            this.id = id;
-        }
-
-        abstract void call(int threadId);
-
-        @Override
-        public final boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-
-            ClientAction that = (ClientAction) o;
-
-            if (id != that.id) return false;
-
-            return true;
-        }
-
-        @Override
-        public final int hashCode() {
-            return id;
-        }
+    @FunctionalInterface
+    public interface ClientAction {
+        void call(int threadId);
     }
+
+
 
     /**
      * FragmentHandler that is aware of the thread that it is running on. This is useful if you only want a one thread

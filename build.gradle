@@ -21,6 +21,7 @@ dependencies {
     compile 'io.reactivesocket:reactivesocket:0.0.1-SNAPSHOT'
     compile 'uk.co.real-logic:Agrona:0.4.3'
     compile 'uk.co.real-logic:aeron-all:0.1.3'
+    compile 'org.hdrhistogram:HdrHistogram:2.1.7'
     compile 'org.slf4j:slf4j-api:1.7.12'
     testCompile 'junit:junit-dep:4.10'
     testCompile 'org.mockito:mockito-core:1.8.5'

@@ -1,102 +1,111 @@
-/**
- * Copyright 2015 Netflix, Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
 package io.reactivesocket.aeron.client;
 
-
+import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
 import io.reactivesocket.aeron.internal.Constants;
 import io.reactivesocket.aeron.internal.Loggable;
 import io.reactivesocket.rx.Completable;
+import io.reactivesocket.rx.Disposable;
+import io.reactivesocket.rx.Observable;
+import io.reactivesocket.rx.Observer;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
-import rx.exceptions.MissingBackpressureException;
 import uk.co.real_logic.aeron.Publication;
 import uk.co.real_logic.agrona.concurrent.ManyToOneConcurrentArrayQueue;
 
-public class AeronClientDuplexConnection extends AbstractClientDuplexConnection<ManyToOneConcurrentArrayQueue<FrameHolder>, FrameHolder> implements Loggable {
-    public AeronClientDuplexConnection(Publication publication) {
-        super(publication);
+import java.io.IOException;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Consumer;
+
+public class AeronClientDuplexConnection implements DuplexConnection, Loggable {
+
+    private final Publication publication;
+    private final CopyOnWriteArrayList<Observer<Frame>> subjects;
+    private final ManyToOneConcurrentArrayQueue<FrameHolder> frameSendQueue;
+    private final Consumer<Publication> onClose;
+
+    public AeronClientDuplexConnection(
+        Publication publication,
+        ManyToOneConcurrentArrayQueue<FrameHolder> frameSendQueue,
+        Consumer<Publication> onClose) {
+        this.publication = publication;
+        this.subjects = new CopyOnWriteArrayList<>();
+        this.frameSendQueue = frameSendQueue;
+        this.onClose = onClose;
     }
 
-    protected static final ManyToOneConcurrentArrayQueue<FrameHolder> framesSendQueue = new ManyToOneConcurrentArrayQueue<>(65536);
+    @Override
+    public final Observable<Frame> getInput() {
+        if (isTraceEnabled()) {
+            trace("getting input for publication session id {} ", publication.sessionId());
+        }
+
+        return new Observable<Frame>() {
+            public void subscribe(Observer<Frame> o) {
+                o.onSubscribe(new Disposable() {
+                    @Override
+                    public void dispose() {
+                        if (isTraceEnabled()) {
+                            trace("removing Observer for publication with session id {} ", publication.sessionId());
+                        }
+
+                        subjects.removeIf(s -> s == o);
+                    }
+                });
+
+                subjects.add(o);
+            }
+        };
+    }
 
     @Override
     public void addOutput(Publisher<Frame> o, Completable callback) {
         o
             .subscribe(new Subscriber<Frame>() {
                 private Subscription s;
-
                 @Override
                 public void onSubscribe(Subscription s) {
-                    if (isTraceEnabled()) {
-                        trace("onSubscribe subscription => {} on connection id {} ", s.toString(), connectionId);
-                    }
-
                     this.s = s;
-                    s.request(Constants.CONCURRENCY);
+                    s.request(Constants.QUEUE_SIZE);
 
                 }
 
                 @Override
                 public void onNext(Frame frame) {
                     if (isTraceEnabled()) {
-                        trace("onNext subscription => {} on connection id {} frame => {}", s.toString(), connectionId, frame.toString());
+                        trace("onNext subscription => {} and frame => {}", s.toString(), frame.toString());
                     }
 
-                    final FrameHolder fh = FrameHolder.get(frame, s);
+                    final FrameHolder fh = FrameHolder.get(frame, publication, s);
                     boolean offer;
                     do {
-                        offer = framesSendQueue.offer(fh);
-                        if (!offer) {
-                            onError(new MissingBackpressureException());
-                        }
+                        offer = frameSendQueue.offer(fh);
                     } while (!offer);
                 }
 
                 @Override
                 public void onError(Throwable t) {
-                    if (isTraceEnabled()) {
-                        trace("onError subscription => {} on connection id {} ", s.toString(), connectionId);
-                    }
-
                     callback.error(t);
                 }
 
                 @Override
                 public void onComplete() {
-                    if (isTraceEnabled()) {
-                        trace("onComplete subscription => {} on connection id {} ", s.toString(), connectionId);
-                    }
                     callback.success();
                 }
             });
     }
 
     @Override
-    public void close() {
+    public void close() throws IOException {
+        onClose.accept(publication);
     }
 
-    @Override
-    public String toString() {
-        return "AeronClientDuplexConnection => " + connectionId;
+    public ManyToOneConcurrentArrayQueue<FrameHolder> getFrameSendQueue() {
+        return frameSendQueue;
     }
 
-    @Override
-    public ManyToOneConcurrentArrayQueue<FrameHolder> getFramesSendQueue() {
-        return framesSendQueue;
+    public CopyOnWriteArrayList<Observer<Frame>> getSubjects() {
+        return subjects;
     }
 }
