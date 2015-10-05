@@ -50,14 +50,14 @@ public class AeronUtil implements Loggable {
             if (timeout > 0) {
                 final long current = System.nanoTime();
                 if ((current - start) > timeUnit.toNanos(timeout)) {
-                    throw new RuntimeException("Timed out publishing data");
+                    throw new TimedOutException();
                 }
             }
             final long offer = publication.offer(buffer);
             if (offer >= 0) {
                 break;
             } else if (Publication.NOT_CONNECTED == offer) {
-                throw new RuntimeException("not connected");
+                throw new NotConnectedException();
             }
         } while (true);
 
@@ -82,7 +82,7 @@ public class AeronUtil implements Loggable {
             if (timeout > 0) {
                 final long current = System.nanoTime();
                 if ((current - start) > timeUnit.toNanos(timeout)) {
-                    throw new NotConnectedException();
+                    throw new TimedOutException();
                 }
             }
 

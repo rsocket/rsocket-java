@@ -67,7 +67,7 @@ public class AeronClientDuplexConnection implements DuplexConnection, Loggable {
                 @Override
                 public void onSubscribe(Subscription s) {
                     this.s = s;
-                    s.request(Long.MAX_VALUE);
+                    s.request(128);
 
                 }
 

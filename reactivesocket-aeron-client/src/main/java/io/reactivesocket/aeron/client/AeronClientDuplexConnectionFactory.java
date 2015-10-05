@@ -90,9 +90,7 @@ public final class AeronClientDuplexConnectionFactory implements Loggable {
     }
 
     void addUDPSocketAddressToHandleResponses(InetSocketAddress socketAddress) {
-        //String serverChannel = "udp://" + socketAddress.getHostName() + ":" + socketAddress.getPort();
-        String serverChannel = "udp://localhost:39790";
-
+        String serverChannel = "udp://" + socketAddress.getHostName() + ":" + socketAddress.getPort();
 
         manager.addSubscription(
             serverChannel,

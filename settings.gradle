@@ -1,6 +1,6 @@
 rootProject.name='reactivesocket-aeron-rxjava'
-include 'reactivesocket-aeron-rxjava', \
-    'reactivesocket-aeron-client', \
+include 'reactivesocket-aeron-client', \
     'reactivesocket-aeron-core', \
-    'reactivesocket-aeron-examples',
+    'reactivesocket-aeron-tests', \
+    'reactivesocket-aeron-examples', \
     'reactivesocket-aeron-server'

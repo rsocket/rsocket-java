@@ -21,16 +21,13 @@ import rx.Scheduler;
 import rx.functions.Func1;
 import rx.schedulers.Schedulers;
 import uk.co.real_logic.aeron.Aeron;
-import uk.co.real_logic.aeron.AvailableImageHandler;
 import uk.co.real_logic.aeron.FragmentAssembler;
 import uk.co.real_logic.aeron.Image;
 import uk.co.real_logic.aeron.Subscription;
 import uk.co.real_logic.aeron.logbuffer.FragmentHandler;
 
-import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * Class for managing the Aeron on the client side.
@@ -52,12 +49,9 @@ public class ClientAeronManager implements Loggable {
 
         final Aeron.Context ctx = new Aeron.Context();
         ctx.errorHandler(t -> error("an exception occurred", t));
-        ctx.availableImageHandler(new AvailableImageHandler() {
-            @Override
-            public void onAvailableImage(Image image, Subscription subscription, long joiningPosition, String sourceIdentity) {
-                debug("New image available with session id => {} and sourceIdentity  => {} and subscription => {}", image.sessionId(), sourceIdentity, subscription.toString());
-            }
-        });
+        ctx.availableImageHandler((Image image, Subscription subscription, long joiningPosition, String sourceIdentity) ->
+            debug("New image available with session id => {} and sourceIdentity  => {} and subscription => {}", image.sessionId(), sourceIdentity, subscription.toString())
+        );
 
         aeron = Aeron.connect(ctx);
 
@@ -66,31 +60,6 @@ public class ClientAeronManager implements Loggable {
 
     public static ClientAeronManager getInstance() {
         return INSTANCE;
-    }
-
-    /**
-     * Finds a SubscriptionGroup from the sessionId of one the servers in the group
-     *
-     * @param sessionId the session id whose SubscriptionGroup you want to find
-     * @return an Optional of SubscriptionGroup
-     */
-    public Optional<SubscriptionGroup> find(final int sessionId) {
-        return subscriptionGroups
-            .stream()
-            .filter(sg -> {
-                boolean found = false;
-
-                for (Subscription subscription : sg.subscriptions) {
-                    Image image = subscription.getImage(sessionId);
-                    if (image != null) {
-                        found = true;
-                        break;
-                    }
-                }
-
-                return found;
-            })
-            .findFirst();
     }
 
     /**
@@ -144,13 +113,11 @@ public class ClientAeronManager implements Loggable {
      */
     void poll() {
         info("ReactiveSocket Aeron Client concurreny is {}", Constants.CONCURRENCY);
-        final ReentrantLock pollLock = new ReentrantLock();
-        final ReentrantLock clientActionLock = new ReentrantLock();
         for (int i = 0; i < Constants.CONCURRENCY; i++) {
             final int threadId = i;
             workers[threadId] = Schedulers.computation().createWorker();
             workers[threadId].schedulePeriodically(new
-                    PollingAction(pollLock, clientActionLock, threadId, subscriptionGroups, clientActions),
+                    PollingAction(threadId, subscriptionGroups, clientActions),
                 0, 20, TimeUnit.MICROSECONDS);
         }
     }
@@ -199,8 +166,6 @@ public class ClientAeronManager implements Loggable {
     public interface ClientAction {
         void call(int threadId);
     }
-
-
 
     /**
      * FragmentHandler that is aware of the thread that it is running on. This is useful if you only want a one thread
