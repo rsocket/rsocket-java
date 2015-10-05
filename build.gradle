@@ -6,8 +6,10 @@ buildscript {
     dependencies { classpath 'io.reactivesocket:gradle-nebula-plugin-reactivesocket:1.0.1' }
 }
 
+apply plugin: 'reactivesocket-project'
 
 subprojects {
+    apply plugin: 'reactivesocket-project'
     apply plugin: 'java'
 
     repositories {
@@ -25,6 +27,16 @@ subprojects {
         testCompile 'junit:junit-dep:4.10'
         testCompile 'org.mockito:mockito-core:1.8.5'
         testCompile 'org.slf4j:slf4j-simple:1.7.12'
+    }
+
+    // support for snapshot/final releases via versioned branch names like 1.x
+    nebulaRelease {
+        addReleaseBranchPattern(/\d+\.\d+\.\d+/)
+        addReleaseBranchPattern('HEAD')
+    }
+
+    if (project.hasProperty('release.useLastTag')) {
+        tasks.prepare.enabled = false
     }
 }
 
