@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.reactivesocket.aeron.example;
+package io.reactivesocket.aeron.example.requestreply;
 
 import io.reactivesocket.ConnectionSetupHandler;
 import io.reactivesocket.ConnectionSetupPayload;
@@ -23,8 +23,6 @@ import io.reactivesocket.aeron.server.ReactiveSocketAeronServer;
 import io.reactivesocket.exceptions.SetupException;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
-import uk.co.real_logic.aeron.driver.ThreadingMode;
-import uk.co.real_logic.agrona.concurrent.NoOpIdleStrategy;
 
 import java.nio.ByteBuffer;
 import java.util.Random;
@@ -34,28 +32,7 @@ import java.util.Random;
  */
 public class Pong {
 
-    public static void startDriver() {
-        ThreadingMode threadingMode = ThreadingMode.SHARED;
-
-        boolean dedicated = Boolean.getBoolean("dedicated");
-
-        if (true) {
-            threadingMode = ThreadingMode.DEDICATED;
-        }
-
-        System.out.println("ThreadingMode => " + threadingMode);
-
-        final uk.co.real_logic.aeron.driver.MediaDriver.Context ctx = new uk.co.real_logic.aeron.driver.MediaDriver.Context()
-            .threadingMode(threadingMode)
-            .conductorIdleStrategy(new NoOpIdleStrategy())
-            .receiverIdleStrategy(new NoOpIdleStrategy())
-            .senderIdleStrategy(new NoOpIdleStrategy());
-
-        final uk.co.real_logic.aeron.driver.MediaDriver ignored = uk.co.real_logic.aeron.driver.MediaDriver.launchEmbedded(ctx);
-    }
-
-    public static void main(String... args) {
-      //  startDriver();
+   public static void main(String... args) {
 
         String host = System.getProperty("host", "localhost");
 
