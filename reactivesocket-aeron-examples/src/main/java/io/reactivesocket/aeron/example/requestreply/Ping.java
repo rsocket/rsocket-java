@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.reactivesocket.aeron.example;
+package io.reactivesocket.aeron.example.requestreply;
 
 import io.reactivesocket.ConnectionSetupPayload;
 import io.reactivesocket.Payload;
