@@ -39,7 +39,9 @@ import uk.co.real_logic.agrona.collections.Int2ObjectHashMap;
 /**
  * Protocol implementation abstracted over a {@link DuplexConnection}.
  * <p>
- * Concrete implementations of {@link DuplexConnection} over TCP, WebSockets, Aeron, etc can be passed to this class for protocol handling. The request handlers passed in at creation will be invoked
+ * Concrete implementations of {@link DuplexConnection} over TCP, WebSockets,
+ * Aeron, etc can be passed to this class for protocol handling. The request
+ * handlers passed in at creation will be invoked
  * for each request over the connection.
  */
 public class Responder {
@@ -52,7 +54,15 @@ public class Responder {
 	private final Consumer<ConnectionSetupPayload> setupCallback;
 	private final boolean isServer;
 
-	private Responder(boolean isServer, DuplexConnection connection, ConnectionSetupHandler connectionHandler, RequestHandler requestHandler, LeaseGovernor leaseGovernor, Consumer<Throwable> errorStream, Consumer<ConnectionSetupPayload> setupCallback) {
+	private Responder(
+			boolean isServer,
+			DuplexConnection connection,
+			ConnectionSetupHandler connectionHandler,
+			RequestHandler requestHandler,
+			LeaseGovernor leaseGovernor,
+			Consumer<Throwable> errorStream,
+			Consumer<ConnectionSetupPayload> setupCallback
+	) {
 		this.isServer = isServer;
 		this.connection = connection;
 		this.connectionHandler = connectionHandler;
@@ -64,42 +74,64 @@ public class Responder {
 	}
 
 	/**
-	 * @param connectionHandler
-	 *            Handle connection setup and set up request handling.
-	 * @param errorStream
-	 *            A {@link Consumer<Throwable>} which will receive all errors that occurs processing requests.
-	 *            <p>
-	 *            This include fireAndForget which ONLY emit errors server-side via this mechanism.
+	 * @param connectionHandler Handle connection setup and set up request
+	 *                          handling.
+	 * @param errorStream A {@link Consumer<Throwable>} which will receive
+	 *                    all errors that occurs processing requests.
+	 *                    This include fireAndForget which ONLY emit errors
+	 *                    server-side via this mechanism.
 	 * @return responder instance
 	 */
-	public static <T> Responder createServerResponder(DuplexConnection connection, ConnectionSetupHandler connectionHandler, LeaseGovernor leaseGovernor, Consumer<Throwable> errorStream, Completable responderCompletable, Consumer<ConnectionSetupPayload> setupCallback) {
-		Responder responder = new Responder(true, connection, connectionHandler, null, leaseGovernor, errorStream, setupCallback);
+	public static <T> Responder createServerResponder(
+			DuplexConnection connection,
+			ConnectionSetupHandler connectionHandler,
+			LeaseGovernor leaseGovernor,
+			Consumer<Throwable> errorStream,
+			Completable responderCompletable,
+			Consumer<ConnectionSetupPayload> setupCallback
+	) {
+		Responder responder = new Responder(true, connection, connectionHandler, null,
+				leaseGovernor, errorStream, setupCallback);
 		responder.start(responderCompletable);
 		return responder;
 	}
 	
-	public static <T> Responder createServerResponder(DuplexConnection connection, ConnectionSetupHandler connectionHandler, LeaseGovernor leaseGovernor, Consumer<Throwable> errorStream, Completable responderCompletable) {
-		return createServerResponder(connection, connectionHandler, leaseGovernor, errorStream, responderCompletable, s -> {});
+	public static <T> Responder createServerResponder(
+			DuplexConnection connection,
+			ConnectionSetupHandler connectionHandler,
+			LeaseGovernor leaseGovernor,
+			Consumer<Throwable> errorStream,
+			Completable responderCompletable
+	) {
+		return createServerResponder(connection, connectionHandler, leaseGovernor,
+				errorStream, responderCompletable, s -> {});
 	}
 	
-	public static <T> Responder createClientResponder(DuplexConnection connection, RequestHandler requestHandler, LeaseGovernor leaseGovernor, Consumer<Throwable> errorStream, Completable responderCompletable) {
-		Responder responder = new Responder(false, connection, null, requestHandler, leaseGovernor, errorStream, s -> {});
+	public static <T> Responder createClientResponder(
+			DuplexConnection connection,
+			RequestHandler requestHandler,
+			LeaseGovernor leaseGovernor,
+			Consumer<Throwable> errorStream,
+			Completable responderCompletable
+	) {
+		Responder responder = new Responder(false, connection, null, requestHandler,
+				leaseGovernor, errorStream, s -> {});
 		responder.start(responderCompletable);
 		return responder;
 	}
 
 	/**
-	 * Send a LEASE frame immediately. Only way a LEASE is sent. Handled entirely by application logic.
+	 * Send a LEASE frame immediately. Only way a LEASE is sent. Handled
+	 * entirely by application logic.
 	 *
 	 * @param ttl of lease
 	 * @param numberOfRequests of lease
 	 */
-	public void sendLease(final int ttl, final int numberOfRequests)
-	{
-		connection.addOutput(PublisherUtils.just(Frame.Lease.from(ttl, numberOfRequests, Frame.NULL_BYTEBUFFER)), new Completable() {
+	public void sendLease(final int ttl, final int numberOfRequests) {
+		Frame leaseFrame = Frame.Lease.from(ttl, numberOfRequests, Frame.NULL_BYTEBUFFER);
+		connection.addOutput(PublisherUtils.just(leaseFrame), new Completable() {
 			@Override
-			public void success() {
-			}
+			public void success() {}
 
 			@Override
 			public void error(Throwable e) {
@@ -113,8 +145,7 @@ public class Responder {
 	 *
 	 * @return time from {@link System#nanoTime()} of last keepalive
 	 */
-	public long timeOfLastKeepalive()
-	{
+	public long timeOfLastKeepalive() {
 		return timeOfLastKeepalive;
 	}
 
@@ -124,8 +155,10 @@ public class Responder {
 		/* streams in flight that can receive REQUEST_N messages */
 		final Int2ObjectHashMap<SubscriptionArbiter> inFlight = new Int2ObjectHashMap<>(); 
 		/* bidirectional channels */
-		final Int2ObjectHashMap<UnicastSubject<Payload>> channels = new Int2ObjectHashMap<>(); // TODO should/can we make this optional so that it only gets allocated per connection if channels are
-																									// used?
+		// TODO: should/can we make this optional so that it only gets allocated per connection if
+		//       channels are used?
+		final Int2ObjectHashMap<UnicastSubject<Payload>> channels = new Int2ObjectHashMap<>();
+
 		final AtomicBoolean childTerminated = new AtomicBoolean(false);
 		final AtomicReference<Disposable> transportSubscription = new AtomicReference<>();
 
@@ -143,14 +176,16 @@ public class Responder {
 				}
 			}
 
-			volatile RequestHandler requestHandler = !isServer ? clientRequestHandler : null; // null until after first Setup frame
+			// null until after first Setup frame
+			volatile RequestHandler requestHandler = !isServer ? clientRequestHandler : null;
 			
 			@Override
 			public void onNext(Frame requestFrame) {
 				final int streamId = requestFrame.getStreamId();
 				if (requestHandler == null) { // this will only happen when isServer==true
 					if (childTerminated.get()) {
-						// already terminated, but still receiving latent messages ... ignore them while shutdown occurs
+						// already terminated, but still receiving latent messages...
+						// ignore them while shutdown occurs
 						return;
 					}
 					if (requestFrame.getType().equals(FrameType.SETUP)) {
@@ -210,44 +245,42 @@ public class Responder {
 							return;
 						} else if (requestFrame.getType() == FrameType.REQUEST_N) {
 							SubscriptionArbiter inFlightSubscription = null;
-							synchronized (Responder.this)
-							{
+							synchronized (Responder.this) {
 								inFlightSubscription = inFlight.get(requestFrame.getStreamId());
 							}
-							if (inFlightSubscription != null)
-							{
-								inFlightSubscription.addApplicationRequest(Frame.RequestN.requestN(requestFrame));
+							if (inFlightSubscription != null) {
+								long requestN = Frame.RequestN.requestN(requestFrame);
+								inFlightSubscription.addApplicationRequest(requestN);
 								return;
 							}
-							// TODO should we do anything if we don't find the stream? emitting an error is risky as the responder could have terminated and cleaned up already
+							// TODO should we do anything if we don't find the stream? emitting an
+							// error is risky as the responder could have terminated and cleaned up already
 						} else if (requestFrame.getType() == FrameType.KEEPALIVE) {
 							// this client is alive.
 							timeOfLastKeepalive = System.nanoTime();
 							// echo back if flag set
-							if (Frame.Keepalive.hasRespondFlag(requestFrame))
-							{
+							if (Frame.Keepalive.hasRespondFlag(requestFrame)) {
 								responsePublisher = PublisherUtils.just(Frame.Keepalive.from(requestFrame.getData(), false));
-							}
-							else
-							{
+							} else {
 								return;
 							}
+						} else if (requestFrame.getType() == FrameType.LEASE) {
+							// LEASE only concerns the Requester
 						} else {
 							responsePublisher = PublisherUtils.errorFrame(streamId, new IllegalStateException("Unexpected prefix: " + requestFrame.getType()));
 						}
 					} catch (Throwable e) {
-							// synchronous try/catch since we execute user functions in the handlers and they could throw
-							errorStream.accept(new RuntimeException("Error in request handling.", e));
-							// error message to user
-							responsePublisher = PublisherUtils.errorFrame(streamId, new RuntimeException("Unhandled error processing request"));
-						}
+						// synchronous try/catch since we execute user functions in the handlers and they could throw
+						errorStream.accept(new RuntimeException("Error in request handling.", e));
+						// error message to user
+						responsePublisher = PublisherUtils.errorFrame(streamId, new RuntimeException("Unhandled error processing request"));
+					}
 					} else {
 						final RejectedException exception = new RejectedException("No associated lease");
 						responsePublisher = PublisherUtils.errorFrame(streamId, exception);
 					}
 					
 					connection.addOutput(responsePublisher, new Completable() {
-
 						@Override
 						public void success() {
 							// TODO Auto-generated method stub
