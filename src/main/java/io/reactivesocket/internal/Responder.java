@@ -279,23 +279,25 @@ public class Responder {
 						final RejectedException exception = new RejectedException("No associated lease");
 						responsePublisher = PublisherUtils.errorFrame(streamId, exception);
 					}
-					
-					connection.addOutput(responsePublisher, new Completable() {
-						@Override
-						public void success() {
-							// TODO Auto-generated method stub
-						}
 
-						@Override
-						public void error(Throwable e) {
-							// TODO validate with unit tests
-							if (childTerminated.compareAndSet(false, true)) {
-								errorStream.accept(new RuntimeException("Error writing", e)); // TODO should we have typed RuntimeExceptions?
-								cancel();
+					if (responsePublisher != null) {
+						connection.addOutput(responsePublisher, new Completable() {
+							@Override
+							public void success() {
+								// TODO Auto-generated method stub
 							}
-						}
 
-					});
+							@Override
+							public void error(Throwable e) {
+								// TODO validate with unit tests
+								if (childTerminated.compareAndSet(false, true)) {
+									errorStream.accept(new RuntimeException("Error writing", e)); // TODO should we have typed RuntimeExceptions?
+									cancel();
+								}
+							}
+
+						});
+					}
 				}
 			}
 
