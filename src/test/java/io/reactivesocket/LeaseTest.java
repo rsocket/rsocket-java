@@ -114,12 +114,10 @@ public class LeaseTest {
                  */
                 @Override
                 public Publisher<Payload> handleChannel(
-                    Payload initialPayload,
-                    Publisher<Payload> payloads
+                    Publisher<Payload> inputs
                 ) {
-                    return fromPublisher(payloads).map(p -> {
-                        return utf8EncodedPayload(byteToString(p.getData()) + "_echo", null);
-                    });
+                    return fromPublisher(inputs).map(p ->
+                        utf8EncodedPayload(byteToString(p.getData()) + "_echo", null));
                 }
 
                 @Override
@@ -162,7 +160,6 @@ public class LeaseTest {
         TestSubscriber<Payload> ts0 = new TestSubscriber<>();;
         response0.subscribe(ts0);
         ts0.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
-//        ts0.assertError(RuntimeException.class);
 
         // send a Lease(10 sec, 1 message), and wait for the availability on the client side
         leaseGovernor.distribute(10_000, 1);

@@ -43,6 +43,12 @@ public class TestConnection implements DuplexConnection {
 	}
 
 	@Override
+	public void addOutput(Frame f, Completable callback) {
+        write.send(f);
+        callback.success();
+	}
+
+	@Override
 	public io.reactivesocket.rx.Observable<Frame> getInput() {
 		return new io.reactivesocket.rx.Observable<Frame>() {
 
@@ -80,12 +86,14 @@ public class TestConnection implements DuplexConnection {
 		
 		// client to server
 		write.add(f -> {
+//			serverConnection.toInput.send(f);
 			serverThread.schedule(() -> {
 				serverConnection.toInput.send(f);
 			});
 		});
 		// server to client
 		serverConnection.write.add(f -> {
+//			toInput.send(f);
 			clientThread.schedule(() -> {
 				toInput.send(f);
 			});

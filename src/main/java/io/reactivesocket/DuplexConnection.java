@@ -31,5 +31,11 @@ public interface DuplexConnection extends Closeable {
 	Observable<Frame> getInput();
 
 	void addOutput(Publisher<Frame> o, Completable callback);
-	
+
+	default void addOutput(Frame frame, Completable callback) {
+        addOutput(s -> {
+            s.onNext(frame);
+            s.onComplete();
+        }, callback);
+	}
 }

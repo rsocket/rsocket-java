@@ -59,6 +59,12 @@ public class PerfTestConnection implements DuplexConnection {
 	}
 
 	@Override
+	public void addOutput(Frame f, Completable callback) {
+		writeSubject.onNext(f);
+		callback.success();
+	}
+
+	@Override
 	public Observable<Frame> getInput() {
 		return toInput;
 	}

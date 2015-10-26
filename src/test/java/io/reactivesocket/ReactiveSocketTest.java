@@ -34,11 +34,12 @@ import org.junit.experimental.theories.Theory;
 import org.junit.runner.RunWith;
 import org.reactivestreams.Publisher;
 
-import io.reactivesocket.internal.PublisherUtils;
 import io.reactivesocket.lease.FairLeaseGovernor;
 import io.reactivex.disposables.Disposable;
 import io.reactivex.observables.ConnectableObservable;
 import io.reactivex.subscribers.TestSubscriber;
+import org.reactivestreams.Subscriber;
+import org.reactivestreams.Subscription;
 
 @RunWith(Theories.class)
 public class ReactiveSocketTest {
@@ -124,13 +125,39 @@ public class ReactiveSocketTest {
 			 * Use Payload.metadata for routing
 			 */
 			@Override
-			public Publisher<Payload> handleChannel(Payload initialPayload, Publisher<Payload> payloads) {
-				String request = byteToString(initialPayload.getMetadata());
-				if ("echo".equals(request)) {
-					return echoChannel(payloads);
-				} else {
-					return error(new RuntimeException("Not Found"));
-				}
+			public Publisher<Payload> handleChannel(Publisher<Payload> inputs) {
+				return new Publisher<Payload>() {
+					@Override
+					public void subscribe(Subscriber<? super Payload> subscriber) {
+						inputs.subscribe(new Subscriber<Payload>() {
+							@Override
+							public void onSubscribe(Subscription s) {
+								subscriber.onSubscribe(s);
+							}
+
+							@Override
+							public void onNext(Payload input) {
+								String metadata = byteToString(input.getMetadata());
+								String data = byteToString(input.getData());
+								if ("echo".equals(metadata)) {
+									subscriber.onNext(utf8EncodedPayload(data + "_echo", null));
+								} else {
+									onError(new RuntimeException("Not Found"));
+								}
+							}
+
+							@Override
+							public void onError(Throwable t) {
+								subscriber.onError(t);
+							}
+
+							@Override
+							public void onComplete() {
+								subscriber.onComplete();
+							}
+						});
+					}
+				};
 			}
 
 			@Override
@@ -369,10 +396,13 @@ public class ReactiveSocketTest {
 	public void testRequestChannelEcho(int setupFlag) throws InterruptedException {
 		startSockets(setupFlag);
 
-		Publisher<Payload> requestStream = just(TestUtil.utf8EncodedPayload("1", "echo")).concatWith(just(TestUtil.utf8EncodedPayload("2", null)));
-		Publisher<Payload> response = socketClient.requestChannel(requestStream);
+		Publisher<Payload> inputs = just(
+				TestUtil.utf8EncodedPayload("1", "echo"),
+				TestUtil.utf8EncodedPayload("2", "echo")
+		);
+		Publisher<Payload> outputs = socketClient.requestChannel(inputs);
 		TestSubscriber<Payload> ts = new TestSubscriber<>();
-		response.subscribe(ts);
+		outputs.subscribe(ts);
 		ts.awaitTerminalEvent();
 		ts.assertNoErrors();
 		assertEquals(2, ts.values().size());

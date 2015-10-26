@@ -35,8 +35,8 @@ public abstract class RequestHandler {
 	public static final Function<Payload, Publisher<Void>> NO_FIRE_AND_FORGET_HANDLER =
 		(payload -> PublisherUtils.errorVoid(new RuntimeException("No 'fireAndForget' handler")));
 
-	public static final BiFunction<Payload, Publisher<Payload>, Publisher<Payload>> NO_REQUEST_CHANNEL_HANDLER =
-		(initialPayload, payloads) -> PublisherUtils.errorPayload(new RuntimeException("No 'requestChannel' handler"));
+	public static final Function<Publisher<Payload>, Publisher<Payload>> NO_REQUEST_CHANNEL_HANDLER =
+		(payloads) -> PublisherUtils.errorPayload(new RuntimeException("No 'requestChannel' handler"));
 
 	public static final Function<Payload, Publisher<Void>> NO_METADATA_PUSH_HANDLER =
 		(payload -> PublisherUtils.errorVoid(new RuntimeException("No 'metadataPush' handler")));
@@ -50,15 +50,9 @@ public abstract class RequestHandler {
 	public abstract Publisher<Void> handleFireAndForget(final Payload payload);
 
 	/**
-	 * @param initialPayload
-	 *            The first Payload contained in Publisher<Payload> 'payloads'.
-	 *            <p>
-	 *            This is delivered each time to allow simple use of the first payload for routing decisions.
-	 * @param payloads
-	 *            stream of Payloads.
 	 * @return
 	 */
-	public abstract Publisher<Payload> handleChannel(final Payload initialPayload, final Publisher<Payload> payloads);
+	public abstract Publisher<Payload> handleChannel(final Publisher<Payload> inputs);
 
 	public abstract Publisher<Void> handleMetadataPush(final Payload payload);
 
@@ -68,7 +62,7 @@ public abstract class RequestHandler {
 		private Function<Payload, Publisher<Payload>> handleRequestStream = NO_REQUEST_STREAM_HANDLER;
 		private Function<Payload, Publisher<Payload>> handleRequestSubscription = NO_REQUEST_SUBSCRIPTION_HANDLER;
 		private Function<Payload, Publisher<Void>> handleFireAndForget = NO_FIRE_AND_FORGET_HANDLER;
-		private BiFunction<Payload, Publisher<Payload>, Publisher<Payload>> handleRequestChannel = NO_REQUEST_CHANNEL_HANDLER;
+		private Function<Publisher<Payload>, Publisher<Payload>> handleRequestChannel = NO_REQUEST_CHANNEL_HANDLER;
 		private Function<Payload, Publisher<Void>> handleMetadataPush = NO_METADATA_PUSH_HANDLER;
 
 		public Builder withRequestResponse(final Function<Payload, Publisher<Payload>> handleRequestResponse)
@@ -95,7 +89,7 @@ public abstract class RequestHandler {
 			return this;
 		}
 
-		public Builder withRequestChannel(final BiFunction<Payload, Publisher<Payload> , Publisher<Payload>> handleRequestChannel)
+		public Builder withRequestChannel(final Function<Publisher<Payload> , Publisher<Payload>> handleRequestChannel)
 		{
 			this.handleRequestChannel = handleRequestChannel;
 			return this;
@@ -131,9 +125,9 @@ public abstract class RequestHandler {
 					return handleFireAndForget.apply(payload);
 				}
 
-				public Publisher<Payload> handleChannel(Payload initialPayload, Publisher<Payload> payloads)
+				public Publisher<Payload> handleChannel(Publisher<Payload> inputs)
 				{
-					return handleRequestChannel.apply(initialPayload, payloads);
+					return handleRequestChannel.apply(inputs);
 				}
 
 				public Publisher<Void> handleMetadataPush(Payload payload)

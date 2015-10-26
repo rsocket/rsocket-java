@@ -192,8 +192,10 @@ public class Responder {
 						final ConnectionSetupPayload connectionSetupPayload =
 							ConnectionSetupPayload.create(requestFrame);
 						try {
-							if (Frame.Setup.version(requestFrame) != SetupFrameFlyweight.CURRENT_VERSION) {
-								throw new SetupException("unsupported protocol version: " + Frame.Setup.version(requestFrame));
+                            int version = Frame.Setup.version(requestFrame);
+                            if (version != SetupFrameFlyweight.CURRENT_VERSION) {
+								throw new SetupException("unsupported protocol version: "
+                                    + version);
 							}
 
 							// accept setup for ReactiveSocket/Requester usage
@@ -203,7 +205,8 @@ public class Responder {
 						} catch (SetupException setupException) {
 							setupErrorAndTearDown(connection, setupException);
 						} catch (Throwable e) {
-							setupErrorAndTearDown(connection, new InvalidSetupException(e.getMessage()));
+                            InvalidSetupException exc = new InvalidSetupException(e.getMessage());
+                            setupErrorAndTearDown(connection, exc);
 						}
 
 						// the L bit set must wait until the application logic explicitly sends
@@ -216,24 +219,32 @@ public class Responder {
 
 						// TODO: handle keepalive logic here
 					} else {
-						setupErrorAndTearDown(connection, new InvalidSetupException("Setup frame missing"));
+						setupErrorAndTearDown(connection,
+                            new InvalidSetupException("Setup frame missing"));
 					}
 				} else {
 					Publisher<Frame> responsePublisher = null;
 					if (leaseGovernor.accept(Responder.this, requestFrame)) {
 					try {
 						if (requestFrame.getType() == FrameType.REQUEST_RESPONSE) {
-							responsePublisher = handleRequestResponse(requestFrame, requestHandler, cancellationSubscriptions);
+							responsePublisher = handleRequestResponse(
+                                requestFrame, requestHandler, cancellationSubscriptions);
 						} else if (requestFrame.getType() == FrameType.REQUEST_STREAM) {
-							responsePublisher = handleRequestStream(requestFrame, requestHandler, cancellationSubscriptions, inFlight);
+							responsePublisher = handleRequestStream(
+                                requestFrame, requestHandler, cancellationSubscriptions, inFlight);
 						} else if (requestFrame.getType() == FrameType.FIRE_AND_FORGET) {
-							responsePublisher = handleFireAndForget(requestFrame, requestHandler);
+							responsePublisher = handleFireAndForget(
+                                requestFrame, requestHandler);
 						} else if (requestFrame.getType() == FrameType.REQUEST_SUBSCRIPTION) {
-							responsePublisher = handleRequestSubscription(requestFrame, requestHandler, cancellationSubscriptions, inFlight);
+							responsePublisher = handleRequestSubscription(
+                                requestFrame, requestHandler, cancellationSubscriptions, inFlight);
 						} else if (requestFrame.getType() == FrameType.REQUEST_CHANNEL) {
-							responsePublisher = handleRequestChannel(requestFrame, requestHandler, channels, cancellationSubscriptions, inFlight);
+							responsePublisher = handleRequestChannel(
+                                requestFrame, requestHandler, channels,
+                                cancellationSubscriptions, inFlight);
 						} else if (requestFrame.getType() == FrameType.METADATA_PUSH) {
-							responsePublisher = handleMetadataPush(requestFrame, requestHandler);
+							responsePublisher = handleMetadataPush(
+                                requestFrame, requestHandler);
 						} else if (requestFrame.getType() == FrameType.CANCEL) {
 							Subscription s = null;
 							synchronized (Responder.this) {
@@ -253,30 +264,39 @@ public class Responder {
 								inFlightSubscription.addApplicationRequest(requestN);
 								return;
 							}
-							// TODO should we do anything if we don't find the stream? emitting an
-							// error is risky as the responder could have terminated and cleaned up already
+							// TODO should we do anything if we don't find the stream?
+                            // emitting an error is risky as the responder could have
+                            // terminated and cleaned up already
 						} else if (requestFrame.getType() == FrameType.KEEPALIVE) {
 							// this client is alive.
 							timeOfLastKeepalive = System.nanoTime();
 							// echo back if flag set
 							if (Frame.Keepalive.hasRespondFlag(requestFrame)) {
-								responsePublisher = PublisherUtils.just(Frame.Keepalive.from(requestFrame.getData(), false));
+								Frame keepAliveFrame = Frame.Keepalive.from(
+                                    requestFrame.getData(), false);
+								responsePublisher = PublisherUtils.just(keepAliveFrame);
 							} else {
 								return;
 							}
 						} else if (requestFrame.getType() == FrameType.LEASE) {
 							// LEASE only concerns the Requester
 						} else {
-							responsePublisher = PublisherUtils.errorFrame(streamId, new IllegalStateException("Unexpected prefix: " + requestFrame.getType()));
+							IllegalStateException exc = new IllegalStateException(
+									"Unexpected prefix: " + requestFrame.getType());
+							responsePublisher = PublisherUtils.errorFrame(streamId, exc);
 						}
 					} catch (Throwable e) {
-						// synchronous try/catch since we execute user functions in the handlers and they could throw
-						errorStream.accept(new RuntimeException("Error in request handling.", e));
+						// synchronous try/catch since we execute user functions
+						// in the handlers and they could throw
+						errorStream.accept(
+                            new RuntimeException("Error in request handling.", e));
 						// error message to user
-						responsePublisher = PublisherUtils.errorFrame(streamId, new RuntimeException("Unhandled error processing request"));
-					}
-					} else {
-						final RejectedException exception = new RejectedException("No associated lease");
+						responsePublisher = PublisherUtils.errorFrame(
+								streamId, new RuntimeException(
+                                "Unhandled error processing request"));
+                    }
+                    } else {
+						RejectedException exception = new RejectedException("No associated lease");
 						responsePublisher = PublisherUtils.errorFrame(streamId, exception);
 					}
 
@@ -291,18 +311,22 @@ public class Responder {
 							public void error(Throwable e) {
 								// TODO validate with unit tests
 								if (childTerminated.compareAndSet(false, true)) {
-									errorStream.accept(new RuntimeException("Error writing", e)); // TODO should we have typed RuntimeExceptions?
+									// TODO should we have typed RuntimeExceptions?
+									errorStream.accept(new RuntimeException("Error writing", e));
 									cancel();
 								}
 							}
-
 						});
 					}
 				}
 			}
 
-			private void setupErrorAndTearDown(DuplexConnection connection, SetupException setupException) {
-				// pass the ErrorFrame output, subscribe to write it, await onComplete and then tear down
+			private void setupErrorAndTearDown(
+					DuplexConnection connection,
+					SetupException setupException
+			) {
+				// pass the ErrorFrame output, subscribe to write it, await
+				// onComplete and then tear down
 				final Frame frame = Frame.Error.from(0, setupException);
 				connection.addOutput(PublisherUtils.just(frame),
 					new Completable() {
@@ -312,13 +336,16 @@ public class Responder {
 						}
 						@Override
 						public void error(Throwable e) {
-							tearDownWithError(new RuntimeException("Failure outputting SetupException", e));
+							RuntimeException exc = new RuntimeException(
+									"Failure outputting SetupException", e);
+							tearDownWithError(exc);
 						}
 					});
 			}
 
 			private void tearDownWithError(Throwable se) {
-				onError(new RuntimeException("Connection Setup Failure", se)); // TODO unit test that this actually shuts things down
+				// TODO unit test that this actually shuts things down
+				onError(new RuntimeException("Connection Setup Failure", se));
 			}
 
 			@Override
@@ -340,7 +367,8 @@ public class Responder {
 			}
 			
 			private void cancel() {
-				// child has cancelled (shutdown the connection or server) // TODO validate with unit tests
+				// child has cancelled (shutdown the connection or server)
+				// TODO validate with unit tests
 				if (!transportSubscription.compareAndSet(null, EmptyDisposable.EMPTY)) {
 					// cancel the one that was there if we failed to set the sentinel
 					transportSubscription.get().dispose();
@@ -371,7 +399,9 @@ public class Responder {
 					if (n > 0 && started.compareAndSet(false, true)) {
 						final int streamId = requestFrame.getStreamId();
 
-						requestHandler.handleRequestResponse(requestFrame).subscribe(new Subscriber<Payload>() {
+						Publisher<Payload> responsePublisher =
+								requestHandler.handleRequestResponse(requestFrame);
+						responsePublisher.subscribe(new Subscriber<Payload>() {
 
 							// event emission is serialized so this doesn't need to be atomic
 							int count = 0;
@@ -379,7 +409,8 @@ public class Responder {
 							@Override
 							public void onSubscribe(Subscription s) {
 								if (parent.compareAndSet(null, s)) {
-									s.request(Long.MAX_VALUE); // only expect 1 value so we don't need REQUEST_N
+									// only expect 1 value so we don't need REQUEST_N
+									s.request(Long.MAX_VALUE);
 								} else {
 									s.cancel();
 									cleanup();
@@ -389,10 +420,13 @@ public class Responder {
 							@Override
 							public void onNext(Payload v) {
 								if (++count > 1) {
-									onError(new IllegalStateException("RequestResponse expects a single onNext"));
+									IllegalStateException exc = new IllegalStateException(
+											"RequestResponse expects a single onNext");
+									onError(exc);
 								} else {
-
-									child.onNext(Frame.Response.from(streamId, FrameType.NEXT_COMPLETE, v));
+									Frame nextCompleteFrame = Frame.Response.from(
+											streamId, FrameType.NEXT_COMPLETE, v);
+									child.onNext(nextCompleteFrame);
 								}
 							}
 
@@ -405,7 +439,9 @@ public class Responder {
 							@Override
 							public void onComplete() {
 								if (count != 1) {
-									onError(new IllegalStateException("RequestResponse expects a single onNext"));
+									IllegalStateException exc = new IllegalStateException(
+											"RequestResponse expects a single onNext");
+									onError(exc);
 								} else {
 									child.onComplete();
 									cleanup();
@@ -438,17 +474,24 @@ public class Responder {
 		};
 	}
 
-	private static BiFunction<RequestHandler, Payload, Publisher<Payload>> requestSubscriptionHandler =
-		(RequestHandler handler, Payload requestPayload) -> handler.handleSubscription(requestPayload);
-	private static BiFunction<RequestHandler, Payload, Publisher<Payload>> requestStreamHandler =
-		(RequestHandler handler, Payload requestPayload) -> handler.handleRequestStream(requestPayload);
+	private static BiFunction<RequestHandler, Payload, Publisher<Payload>>
+			requestSubscriptionHandler = RequestHandler::handleSubscription;
+	private static BiFunction<RequestHandler, Payload, Publisher<Payload>>
+			requestStreamHandler = RequestHandler::handleRequestStream;
 
 	private Publisher<Frame> handleRequestStream(
 			Frame requestFrame,
 			final RequestHandler requestHandler,
 			final Int2ObjectHashMap<Subscription> cancellationSubscriptions,
 			final Int2ObjectHashMap<SubscriptionArbiter> inFlight) {
-		return _handleRequestStream(requestStreamHandler, requestFrame, requestHandler, cancellationSubscriptions, inFlight, true);
+		return _handleRequestStream(
+				requestStreamHandler,
+				requestFrame,
+				requestHandler,
+				cancellationSubscriptions,
+				inFlight,
+				true
+		);
 	}
 
 	private Publisher<Frame> handleRequestSubscription(
@@ -456,7 +499,14 @@ public class Responder {
 			final RequestHandler requestHandler,
 			final Int2ObjectHashMap<Subscription> cancellationSubscriptions,
 			final Int2ObjectHashMap<SubscriptionArbiter> inFlight) {
-		return _handleRequestStream(requestSubscriptionHandler, requestFrame, requestHandler, cancellationSubscriptions, inFlight, false);
+		return _handleRequestStream(
+				requestSubscriptionHandler,
+				requestFrame,
+				requestHandler,
+				cancellationSubscriptions,
+				inFlight,
+				false
+		);
 	}
 	
 	/**
@@ -496,13 +546,16 @@ public class Responder {
 							arbiter.addTransportRequest(n);
 							final int streamId = requestFrame.getStreamId();
 
-							handler.apply(requestHandler, requestFrame).subscribe(new Subscriber<Payload>() {
+                            Publisher<Payload> responses =
+                                handler.apply(requestHandler, requestFrame);
+                            responses.subscribe(new Subscriber<Payload>() {
 
 								@Override
 								public void onSubscribe(Subscription s) {
 									if (parent.compareAndSet(null, s)) {
 										inFlight.put(streamId, arbiter);
-										arbiter.addApplicationRequest(Frame.Request.initialRequestN(requestFrame));
+                                        long n = Frame.Request.initialRequestN(requestFrame);
+                                        arbiter.addApplicationRequest(n);
 										arbiter.addApplicationProducer(s);
 									} else {
 										s.cancel();
@@ -513,7 +566,9 @@ public class Responder {
 								@Override
 								public void onNext(Payload v) {
 									try {
-										child.onNext(Frame.Response.from(streamId, FrameType.NEXT, v));
+                                        Frame nextFrame = Frame.Response.from(
+                                            streamId, FrameType.NEXT, v);
+                                        child.onNext(nextFrame);
 									} catch (Throwable e) {
 										onError(e);
 									}
@@ -529,15 +584,18 @@ public class Responder {
 								@Override
 								public void onComplete() {
 									if (allowCompletion) {
-										child.onNext(Frame.Response.from(streamId, FrameType.COMPLETE));
+                                        Frame completeFrame = Frame.Response.from(
+                                            streamId, FrameType.COMPLETE);
+                                        child.onNext(completeFrame);
 										child.onComplete();
 										cleanup();
 									} else {
-										onError(new IllegalStateException("Unexpected onComplete occurred on 'requestSubscription'"));
+                                        IllegalStateException exc = new IllegalStateException(
+                                            "Unexpected onComplete occurred on " +
+                                                "'requestSubscription'");
+                                        onError(exc);
 									}
-
 								}
-
 							});
 						} else {
 							arbiter.addTransportRequest(n);
@@ -570,39 +628,56 @@ public class Responder {
 
 	}
 
-	private Publisher<Frame> handleFireAndForget(Frame requestFrame, final RequestHandler requestHandler) {
+	private Publisher<Frame> handleFireAndForget(
+        Frame requestFrame,
+        final RequestHandler requestHandler
+    ) {
 		try {
 			requestHandler.handleFireAndForget(requestFrame).subscribe(completionSubscriber);
 		} catch (Throwable e) {
-			// we catch these errors here as we don't want anything propagating back to the user on fireAndForget
+			// we catch these errors here as we don't want anything propagating
+            // back to the user on fireAndForget
 			errorStream.accept(new RuntimeException("Error processing 'fireAndForget'", e));
 		}
-		return PublisherUtils.empty(); // we always treat this as if it immediately completes as we don't want errors passing back to the user
+        // we always treat this as if it immediately completes as we don't want
+        // errors passing back to the user
+		return PublisherUtils.empty();
 	}
 
-	private Publisher<Frame> handleMetadataPush(Frame requestFrame, final RequestHandler requestHandler) {
+	private Publisher<Frame> handleMetadataPush(
+        Frame requestFrame,
+        final RequestHandler requestHandler
+    ) {
 		try {
 			requestHandler.handleMetadataPush(requestFrame).subscribe(completionSubscriber);
 		} catch (Throwable e) {
-			// we catch these errors here as we don't want anything propagating back to the user on metadataPush
+			// we catch these errors here as we don't want anything propagating
+            // back to the user on metadataPush
 			errorStream.accept(new RuntimeException("Error processing 'metadataPush'", e));
 		}
-		return PublisherUtils.empty(); // we always treat this as if it immediately completes as we don't want errors passing back to the user
+        // we always treat this as if it immediately completes as we don't want
+        // errors passing back to the user
+		return PublisherUtils.empty();
 	}
 
 	/**
-	 * Reusable for each fireAndForget and metadataPush since no state is shared across invocations. It just passes through errors.
+	 * Reusable for each fireAndForget and metadataPush since no state is shared
+     * across invocations. It just passes through errors.
 	 */
-	private final Subscriber<Void> completionSubscriber = new Subscriber<Void>(){
+    private final Subscriber<Void> completionSubscriber = new Subscriber<Void>(){
+        @Override
+        public void onSubscribe(Subscription s) {
+            s.request(Long.MAX_VALUE);
+        }
 
-	@Override public void onSubscribe(Subscription s){s.request(Long.MAX_VALUE);}
+        @Override
+        public void onNext(Void t) {}
 
-	@Override public void onNext(Void t){}
+        @Override public void onError(Throwable t) {
+            errorStream.accept(t);
+        }
 
-	@Override public void onError(Throwable t){errorStream.accept(t);}
-
-	@Override public void onComplete(){}
-
+        @Override public void onComplete() {}
 	};
 
 	private Publisher<Frame> handleRequestChannel(Frame requestFrame,
@@ -636,20 +711,30 @@ public class Responder {
 								final int streamId = requestFrame.getStreamId();
 								
 								// first request on this channel
-								UnicastSubject<Payload> channelRequests = UnicastSubject.create((s, rn) -> {
-									// after we are first subscribed to then send the initial frame
-									s.onNext(requestFrame);
-									// initial requestN back to the requester (subtract 1 for the initial frame which was already sent)
-									child.onNext(Frame.RequestN.from(streamId, rn.intValue() - 1));
-								}, r -> {
-									// requested
-									child.onNext(Frame.RequestN.from(streamId, r.intValue()));
-								});
-								synchronized(Responder.this) {
+								UnicastSubject<Payload> channelRequests =
+                                    UnicastSubject.create((s, rn) -> {
+                                        // after we are first subscribed to then send
+                                        // the initial frame
+                                        s.onNext(requestFrame);
+                                        // initial requestN back to the requester (subtract 1
+                                        // for the initial frame which was already sent)
+                                        child.onNext(
+                                            Frame.RequestN.from(streamId, rn.intValue() - 1));
+                                    }, r -> {
+                                        // requested
+                                        child.onNext(Frame.RequestN.from(streamId, r.intValue()));
+                                    });
+                                synchronized(Responder.this) {
 									if(channels.get(streamId) != null) {
-										// TODO validate that this correctly defends against this issue
-										// this means we received a followup request that raced and that the requester didn't correct wait for REQUEST_N before sending more frames
-										child.onNext(Frame.Error.from(streamId, new RuntimeException("Requester sent more than 1 requestChannel frame before permitted.")));
+										// TODO validate that this correctly defends
+                                        // against this issue, this means we received a
+                                        // followup request that raced and that the requester
+                                        // didn't correct wait for REQUEST_N before sending
+                                        // more frames
+                                        RuntimeException exc = new RuntimeException(
+                                            "Requester sent more than 1 requestChannel " +
+                                                "frame before permitted.");
+                                        child.onNext(Frame.Error.from(streamId, exc));
 										child.onComplete();
 										cleanup();
 										return;
@@ -657,13 +742,14 @@ public class Responder {
  									channels.put(streamId, channelRequests);
 								}
 
-								requestHandler.handleChannel(requestFrame, channelRequests).subscribe(new Subscriber<Payload>() {
-
+                                Publisher<Payload> responses = requestHandler.handleChannel(channelRequests);
+                                responses.subscribe(new Subscriber<Payload>() {
 									@Override
 									public void onSubscribe(Subscription s) {
 										if (parent.compareAndSet(null, s)) {
 											inFlight.put(streamId, arbiter);
-											arbiter.addApplicationRequest(Frame.Request.initialRequestN(requestFrame));
+                                            long n = Frame.Request.initialRequestN(requestFrame);
+                                            arbiter.addApplicationRequest(n);
 											arbiter.addApplicationProducer(s);
 										} else {
 											s.cancel();
@@ -673,7 +759,9 @@ public class Responder {
 
 									@Override
 									public void onNext(Payload v) {
-										child.onNext(Frame.Response.from(streamId, FrameType.NEXT, v));
+                                        Frame nextFrame = Frame.Response.from(
+                                            streamId, FrameType.NEXT, v);
+                                        child.onNext(nextFrame);
 									}
 
 									@Override
@@ -685,12 +773,12 @@ public class Responder {
 
 									@Override
 									public void onComplete() {
-										child.onNext(Frame.Response.from(streamId, FrameType.COMPLETE));
+                                        Frame completeFrame = Frame.Response.from(
+                                            streamId, FrameType.COMPLETE);
+                                        child.onNext(completeFrame);
 										child.onComplete();
 										cleanup();
-
 									}
-
 								});
 							} else {
 								arbiter.addTransportRequest(n);
@@ -727,13 +815,20 @@ public class Responder {
 				if(Frame.Request.isRequestChannelComplete(requestFrame)) {
 					channelSubject.onComplete();
 				} else {
-					channelSubject.onNext(requestFrame); // TODO this is ignoring requestN flow control (need to validate that this is legit because REQUEST_N across the wire is controlling it on the Requester side)
+                    // TODO this is ignoring requestN flow control (need to validate
+                    // that this is legit because REQUEST_N across the wire is
+                    // controlling it on the Requester side)
+					channelSubject.onNext(requestFrame);
 				}
-				// TODO should at least have an error message of some kind if the Requester disregarded it
+				// TODO should at least have an error message of some kind if the
+                // Requester disregarded it
 				return PublisherUtils.empty();
 			} else {
-				// TODO should we use a BufferUntilSubscriber solution instead to handle time-gap issues like this?
-				return PublisherUtils.errorFrame(requestFrame.getStreamId(), new RuntimeException("Channel unavailable")); // TODO validate with unit tests.
+				// TODO should we use a BufferUntilSubscriber solution instead to
+                // handle time-gap issues like this?
+                // TODO validate with unit tests.
+				return PublisherUtils.errorFrame(
+                    requestFrame.getStreamId(), new RuntimeException("Channel unavailable"));
 			}
 		}
 	}
@@ -767,18 +862,16 @@ public class Responder {
 		
 		private void tryRequest() {
 			long toRequest = 0;
-			Subscription s = null;
 			synchronized(this) {
 				if(applicationProducer == null) {
 					return;
 				}
-				s = applicationProducer;
 				long minToRequest = Math.min(appRequested, transportRequested);
 				toRequest = minToRequest - requestedToProducer;
 				requestedToProducer += toRequest;
 			}
 			if(toRequest > 0) {
-				s.request(toRequest);
+				applicationProducer.request(toRequest);
 			}
 		}
 		

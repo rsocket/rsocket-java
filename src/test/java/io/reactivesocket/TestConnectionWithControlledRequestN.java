@@ -87,7 +87,13 @@ public class TestConnectionWithControlledRequestN extends TestConnection {
 			}
 
 		});
+	}
 
+	@Override
+	public void addOutput(Frame f, Completable callback) {
+		emitted.incrementAndGet();
+		write.send(f);
+		callback.success();
 	}
 
 	public boolean awaitSubscription(int timeInMillis) {
