@@ -84,7 +84,7 @@ public class ReactiveSocketAeronServer implements AutoCloseable, Loggable {
                 AeronServerDuplexConnection connection = connections.get(sessionId);
                 if (connection != null) {
                     List<? extends Observer<Frame>> subscribers = connection.getSubscriber();
-                    final Frame frame = Frame.from(buffer, BitUtil.SIZE_OF_INT + offset, length);
+                    final Frame frame = Frame.from(buffer, BitUtil.SIZE_OF_INT + offset, length - BitUtil.SIZE_OF_INT);
 
                     if (isTraceEnabled()) {
                         trace("server received frame payload {} on session id {}", frame.getData(), sessionId);

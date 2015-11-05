@@ -24,7 +24,7 @@ import org.slf4j.LoggerFactory;
 public interface Loggable {
 
     default void info(String message, Object... args) {
-        logger().debug(message, args);
+        logger().info(message, args);
     }
 
     default void error(String message, Throwable t) {

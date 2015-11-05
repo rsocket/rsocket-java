@@ -24,9 +24,8 @@ import io.reactivesocket.aeron.client.AeronClientDuplexConnectionFactory;
 import io.reactivesocket.aeron.client.FrameHolder;
 import org.HdrHistogram.Recorder;
 import org.reactivestreams.Publisher;
-import rx.Observable;
+import org.reactivestreams.Subscription;
 import rx.RxReactiveStreams;
-import rx.Subscriber;
 import rx.schedulers.Schedulers;
 
 import java.net.InetSocketAddress;
@@ -84,51 +83,54 @@ public class Fire {
 
             }, 10, 10, TimeUnit.SECONDS);
 
-        Observable
-            .range(1, Integer.MAX_VALUE)
-            .flatMap(i -> {
-                long start = System.nanoTime();
 
-                Payload keyPayload = new Payload() {
-                    ByteBuffer data = ByteBuffer.wrap(payload);
-                    ByteBuffer metadata = ByteBuffer.allocate(0);
+        for (int i = 0; i < Integer.MAX_VALUE; i++) {
+            long start = System.nanoTime();
 
-                    public ByteBuffer getData() {
-                        return data;
+            Payload keyPayload = new Payload() {
+                ByteBuffer data = ByteBuffer.wrap(payload);
+                ByteBuffer metadata = ByteBuffer.allocate(0);
+
+                public ByteBuffer getData() {
+                    return data;
+                }
+
+                @Override
+                public ByteBuffer getMetadata() {
+                    return metadata;
+                }
+            };
+
+            reactiveSocket
+                .fireAndForget(keyPayload)
+                .subscribe(new org.reactivestreams.Subscriber<Void>() {
+                    @Override
+                    public void onSubscribe(Subscription s) {
+                        s.request(Long.MAX_VALUE);
                     }
 
                     @Override
-                    public ByteBuffer getMetadata() {
-                        return metadata;
-                    }
-                };
+                    public void onNext(Void aVoid) {
 
-                return RxReactiveStreams
-                    .toObservable(
-                        reactiveSocket
-                            .fireAndForget(keyPayload))
-                    .finallyDo(() -> {
+                    }
+
+                    @Override
+                    public void onError(Throwable t) {
+
                         long diff = System.nanoTime() - start;
                         histogram.recordValue(diff);
-                    });
-            })
-            .subscribe(new Subscriber<Void>() {
-                @Override
-                public void onCompleted() {
+                        latch.countDown();
+                    }
 
-                }
+                    @Override
+                    public void onComplete() {
 
-                @Override
-                public void onError(Throwable e) {
-                    e.printStackTrace();
-                }
-
-                @Override
-                public void onNext(Void v) {
-                    latch.countDown();
-                }
-            });
-
+                        long diff = System.nanoTime() - start;
+                        histogram.recordValue(diff);
+                        latch.countDown();
+                    }
+                });
+        }
         latch.await();
         System.out.println("Sent => " + Integer.MAX_VALUE);
         System.exit(0);
