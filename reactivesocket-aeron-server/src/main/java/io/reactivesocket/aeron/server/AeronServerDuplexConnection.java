@@ -96,6 +96,8 @@ public class AeronServerDuplexConnection implements DuplexConnection, Loggable {
 
     @Override
     public void close() {
-        publication.close();
+        try {
+            publication.close();
+        } catch (Throwable t) {}
     }
 }

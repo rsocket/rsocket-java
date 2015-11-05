@@ -102,16 +102,23 @@ public class ServerAeronManager implements Loggable {
     void poll() {
         Thread dutyThread = new Thread(() -> {
             for (;;) {
-                int poll = 0;
-                for (FragmentAssemblerHolder sh : fragmentAssemblerHolders) {
-                    try {
-                        poll += sh.subscription.poll(sh.fragmentAssembler, Integer.MAX_VALUE);
-                    } catch (Throwable t) {
-                        t.printStackTrace();
+                try {
+                    int poll = 0;
+                    for (FragmentAssemblerHolder sh : fragmentAssemblerHolders) {
+                        try {
+                            poll += sh.subscription.poll(sh.fragmentAssembler, Integer.MAX_VALUE);
+                        } catch (Throwable t) {
+                            t.printStackTrace();
+                        }
                     }
+                    SERVER_IDLE_STRATEGY.idle(poll);
+
+                } catch (Throwable t) {
+                    t.printStackTrace();
                 }
-                SERVER_IDLE_STRATEGY.idle(poll);
             }
+
+
         });
         dutyThread.setName("reactive-socket-aeron-server");
         dutyThread.setDaemon(true);
