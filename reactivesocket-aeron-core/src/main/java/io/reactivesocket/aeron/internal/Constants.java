@@ -15,8 +15,12 @@
  */
 package io.reactivesocket.aeron.internal;
 
+import uk.co.real_logic.agrona.concurrent.BackoffIdleStrategy;
 import uk.co.real_logic.agrona.concurrent.IdleStrategy;
 import uk.co.real_logic.agrona.concurrent.NoOpIdleStrategy;
+import uk.co.real_logic.agrona.concurrent.SleepingIdleStrategy;
+
+import java.util.concurrent.TimeUnit;
 
 public final class Constants {
 
@@ -30,7 +34,7 @@ public final class Constants {
 
     public static final int QUEUE_SIZE = Integer.getInteger("reactivesocket.aeron.framesSendQueueSize", 262144);
 
-    public static final IdleStrategy SERVER_IDLE_STRATEGY = new NoOpIdleStrategy();
+    public static final IdleStrategy SERVER_IDLE_STRATEGY;
 
     public static final int CONCURRENCY = Integer.getInteger("reactivesocket.aeron.clientConcurrency", 2);
 
@@ -38,4 +42,15 @@ public final class Constants {
 
     public static final boolean TRACING_ENABLED = Boolean.getBoolean("reactivesocket.aeron.tracingEnabled");
 
+    static {
+        String idlStrategy = System.getProperty("idleStrategy");
+
+        if (NoOpIdleStrategy.class.getName().equalsIgnoreCase(idlStrategy)) {
+            SERVER_IDLE_STRATEGY = new NoOpIdleStrategy();
+        } else if (SleepingIdleStrategy.class.getName().equalsIgnoreCase(idlStrategy)) {
+            SERVER_IDLE_STRATEGY = new SleepingIdleStrategy(TimeUnit.MILLISECONDS.toNanos(250));
+        } else {
+            SERVER_IDLE_STRATEGY = new BackoffIdleStrategy(1, 10, 100, 1000);
+        }
+    }
 }
