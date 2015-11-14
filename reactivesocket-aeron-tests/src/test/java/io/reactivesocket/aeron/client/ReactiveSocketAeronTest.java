@@ -23,7 +23,9 @@ import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.RequestHandler;
 import io.reactivesocket.aeron.TestUtil;
 import io.reactivesocket.aeron.server.ReactiveSocketAeronServer;
+import io.reactivesocket.exceptions.Exceptions;
 import io.reactivesocket.exceptions.SetupException;
+import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -31,6 +33,7 @@ import org.reactivestreams.Publisher;
 import rx.Observable;
 import rx.RxReactiveStreams;
 import rx.Subscriber;
+import rx.schedulers.Schedulers;
 import uk.co.real_logic.aeron.driver.MediaDriver;
 
 import java.net.InetSocketAddress;
@@ -71,6 +74,16 @@ public class ReactiveSocketAeronTest {
         requestResponseN(10_000);
     }
 
+    @Test(timeout = 120_000)
+    public void testRequestReponse100_000() throws Exception {
+        requestResponseN(100_000);
+    }
+
+    @Test(timeout = 120_000)
+    public void testRequestReponse1_000_000() throws Exception {
+        requestResponseN(1_000_000);
+    }
+
     public void requestResponseN(int count) throws Exception {
         AtomicLong server = new AtomicLong();
         ReactiveSocketAeronServer.create(new ConnectionSetupHandler() {
@@ -81,9 +94,13 @@ public class ReactiveSocketAeronTest {
 
                     @Override
                     public Publisher<Payload> handleRequestResponse(Payload payload) {
-                        String request = TestUtil.byteToString(payload.getData());
-                        //System.out.println(Thread.currentThread() +  " Server got => " + request);
-                        Observable<Payload> pong = Observable.just(TestUtil.utf8EncodedPayload("pong => " + server.incrementAndGet(), null));
+
+                        ByteBuffer data = payload.getData();
+                        String s = TestUtil.byteToString(data);
+                        String m = TestUtil.byteToString(payload.getMetadata());
+                        Assert.assertEquals(s, "client_request");
+                        Assert.assertEquals(m, "client_metadata");
+                        Observable<Payload> pong = Observable.just(TestUtil.utf8EncodedPayload("server_response", "server_metadata"));
                         return RxReactiveStreams.toPublisher(pong);
                     }
 
@@ -134,16 +151,20 @@ public class ReactiveSocketAeronTest {
         Observable
             .range(1, count)
             .flatMap(i -> {
-                System.out.println("pinging => " + i);
-                Payload payload = TestUtil.utf8EncodedPayload("ping => " + i, null);
+                Payload payload = TestUtil.utf8EncodedPayload("client_request", "client_metadata");
                 Publisher<Payload> publisher = reactiveSocket.requestResponse(payload);
                 return RxReactiveStreams
                     .toObservable(publisher)
-                    .doOnNext(f -> {
-                        System.out.println("Got => " + i);
+                    .doOnNext(resPayload -> {
+                        ByteBuffer data = resPayload.getData();
+                        String s = TestUtil.byteToString(data);
+                        String m = TestUtil.byteToString(resPayload.getMetadata());
+                        Assert.assertEquals(s, "server_response");
+                        Assert.assertEquals(m, "server_metadata");
                     })
                     .doOnNext(f -> latch.countDown());
             })
+            .subscribeOn(Schedulers.computation())
             .subscribe(new Subscriber<Payload>() {
                 @Override
                 public void onCompleted() {
@@ -158,7 +179,6 @@ public class ReactiveSocketAeronTest {
 
                 @Override
                 public void onNext(Payload payload) {
-
                 }
             });
 
