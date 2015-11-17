@@ -30,7 +30,9 @@ import uk.co.real_logic.aeron.Subscription;
 import uk.co.real_logic.aeron.logbuffer.Header;
 import uk.co.real_logic.agrona.BitUtil;
 import uk.co.real_logic.agrona.DirectBuffer;
+import uk.co.real_logic.agrona.concurrent.UnsafeBuffer;
 
+import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
@@ -51,6 +53,8 @@ public class ReactiveSocketAeronServer implements AutoCloseable, Loggable {
     private final ConnectionSetupHandler connectionSetupHandler;
 
     private final LeaseGovernor leaseGovernor;
+
+    private static final UnsafeBuffer BUFFER = new UnsafeBuffer(ByteBuffer.allocate(0));
 
     private static final ServerAeronManager manager = ServerAeronManager.getInstance();
 
@@ -84,7 +88,12 @@ public class ReactiveSocketAeronServer implements AutoCloseable, Loggable {
                 AeronServerDuplexConnection connection = connections.get(sessionId);
                 if (connection != null) {
                     List<? extends Observer<Frame>> subscribers = connection.getSubscriber();
-                    final Frame frame = Frame.from(buffer, BitUtil.SIZE_OF_INT + offset, length - BitUtil.SIZE_OF_INT);
+
+                    ByteBuffer bb = ByteBuffer.allocate(length);
+                    BUFFER.wrap(bb);
+                    buffer.getBytes(offset, BUFFER, 0, length);
+
+                    final Frame frame = Frame.from(BUFFER, BitUtil.SIZE_OF_INT, length - BitUtil.SIZE_OF_INT);
 
                     if (isTraceEnabled()) {
                         trace("server received frame payload {} on session id {}", frame.getData(), sessionId);
