@@ -35,6 +35,7 @@ import rx.RxReactiveStreams;
 import rx.Subscriber;
 import rx.schedulers.Schedulers;
 import uk.co.real_logic.aeron.driver.MediaDriver;
+import uk.co.real_logic.agrona.LangUtil;
 
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
@@ -85,7 +86,7 @@ public class ReactiveSocketAeronTest {
     }
 
     public void requestResponseN(int count) throws Exception {
-        AtomicLong server = new AtomicLong();
+        AtomicLong counter = new AtomicLong();
         ReactiveSocketAeronServer.create(new ConnectionSetupHandler() {
             @Override
             public RequestHandler apply(ConnectionSetupPayload setupPayload) throws SetupException {
@@ -94,12 +95,21 @@ public class ReactiveSocketAeronTest {
 
                     @Override
                     public Publisher<Payload> handleRequestResponse(Payload payload) {
-
+                        counter.incrementAndGet();
                         ByteBuffer data = payload.getData();
                         String s = TestUtil.byteToString(data);
                         String m = TestUtil.byteToString(payload.getMetadata());
-                        Assert.assertEquals(s, "client_request");
-                        Assert.assertEquals(m, "client_metadata");
+
+                        try {
+                            Assert.assertEquals(s, "client_request");
+                            Assert.assertEquals(m, "client_metadata");
+                        } catch (Throwable t) {
+                            long l = counter.get();
+                            System.out.println("Count => " + l);
+                            System.out.println("contains $ => " + s.contains("$"));
+                            throw new RuntimeException(t);
+                        }
+
                         Observable<Payload> pong = Observable.just(TestUtil.utf8EncodedPayload("server_response", "server_metadata"));
                         return RxReactiveStreams.toPublisher(pong);
                     }
