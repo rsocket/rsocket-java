@@ -22,11 +22,7 @@ import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.aeron.internal.Loggable;
 import io.reactivesocket.aeron.internal.MessageType;
 import io.reactivesocket.rx.Observer;
-import uk.co.real_logic.aeron.Aeron;
-import uk.co.real_logic.aeron.FragmentAssembler;
-import uk.co.real_logic.aeron.Image;
-import uk.co.real_logic.aeron.Publication;
-import uk.co.real_logic.aeron.Subscription;
+import uk.co.real_logic.aeron.*;
 import uk.co.real_logic.aeron.logbuffer.Header;
 import uk.co.real_logic.agrona.BitUtil;
 import uk.co.real_logic.agrona.DirectBuffer;
@@ -38,25 +34,17 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
-import static io.reactivesocket.aeron.internal.Constants.CLIENT_STREAM_ID;
-import static io.reactivesocket.aeron.internal.Constants.SERVER_STREAM_ID;
+import static io.reactivesocket.aeron.internal.Constants.*;
 
 public class ReactiveSocketAeronServer implements AutoCloseable, Loggable {
-    private final int port;
-
-    private final ConcurrentHashMap<Integer, AeronServerDuplexConnection> connections = new ConcurrentHashMap<>();
-
-    private final ConcurrentHashMap<Integer, ReactiveSocket> sockets = new ConcurrentHashMap<>();
-
-    private final Subscription subscription;
-
-    private final ConnectionSetupHandler connectionSetupHandler;
-
-    private final LeaseGovernor leaseGovernor;
-
     private static final UnsafeBuffer BUFFER = new UnsafeBuffer(ByteBuffer.allocate(0));
-
     private static final ServerAeronManager manager = ServerAeronManager.getInstance();
+    private final int port;
+    private final ConcurrentHashMap<Integer, AeronServerDuplexConnection> connections = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Integer, ReactiveSocket> sockets = new ConcurrentHashMap<>();
+    private final Subscription subscription;
+    private final ConnectionSetupHandler connectionSetupHandler;
+    private final LeaseGovernor leaseGovernor;
 
     private ReactiveSocketAeronServer(String host, int port, ConnectionSetupHandler connectionSetupHandler, LeaseGovernor leaseGovernor) {
         this.port = port;
@@ -74,8 +62,33 @@ public class ReactiveSocketAeronServer implements AutoCloseable, Loggable {
 
         FragmentAssembler fragmentAssembler = new FragmentAssembler(this::fragmentHandler);
         manager.addSubscription(subscription, fragmentAssembler);
+    }
 
+    /*
+     * Factory Methods
+     */
+    public static ReactiveSocketAeronServer create(String host, int port, ConnectionSetupHandler connectionSetupHandler, LeaseGovernor leaseGovernor) {
+        return new ReactiveSocketAeronServer(host, port, connectionSetupHandler, leaseGovernor);
+    }
 
+    public static ReactiveSocketAeronServer create(int port, ConnectionSetupHandler connectionSetupHandler, LeaseGovernor leaseGovernor) {
+        return create("127.0.0.1", port, connectionSetupHandler, leaseGovernor);
+    }
+
+    public static ReactiveSocketAeronServer create(ConnectionSetupHandler connectionSetupHandler, LeaseGovernor leaseGovernor) {
+        return create(39790, connectionSetupHandler, leaseGovernor);
+    }
+
+    public static ReactiveSocketAeronServer create(String host, int port, ConnectionSetupHandler connectionSetupHandler) {
+        return new ReactiveSocketAeronServer(host, port, connectionSetupHandler, LeaseGovernor.NULL_LEASE_GOVERNOR);
+    }
+
+    public static ReactiveSocketAeronServer create(int port, ConnectionSetupHandler connectionSetupHandler) {
+        return create("localhost", port, connectionSetupHandler, LeaseGovernor.NULL_LEASE_GOVERNOR);
+    }
+
+    public static ReactiveSocketAeronServer create(ConnectionSetupHandler connectionSetupHandler) {
+        return create(39790, connectionSetupHandler, LeaseGovernor.NULL_LEASE_GOVERNOR);
     }
 
     void fragmentHandler(DirectBuffer buffer, int offset, int length, Header header) {
@@ -86,7 +99,7 @@ public class ReactiveSocketAeronServer implements AutoCloseable, Loggable {
 
             if (MessageType.FRAME == type) {
                 AeronServerDuplexConnection connection = connections.get(sessionId);
-                if (connection != null) {
+                if (connection != null && !connection.isClosed()) {
                     List<? extends Observer<Frame>> subscribers = connection.getSubscriber();
 
                     ByteBuffer bb = ByteBuffer.allocate(length);
@@ -114,7 +127,7 @@ public class ReactiveSocketAeronServer implements AutoCloseable, Loggable {
                 while (connection == null) {
                     final long current = System.nanoTime();
 
-                    if (current - start > TimeUnit.SECONDS.toNanos(30)) {
+                    if ((current - start) > TimeUnit.MILLISECONDS.toNanos(SERVER_ESTABLISH_CONNECTION_REQUEST_TIMEOUT_MS)) {
                         throw new RuntimeException("unable to find connection to ack establish connection for session id => " + sessionId);
                     }
 
@@ -169,10 +182,12 @@ public class ReactiveSocketAeronServer implements AutoCloseable, Loggable {
         ReactiveSocket socket = sockets.remove(sessionId);
         connections.remove(sessionId);
 
-        try {
-            socket.close();
-        } catch (Throwable t) {
-            error("error closing socket for session id => " + sessionId, t);
+        if (socket != null) {
+            try {
+                socket.close();
+            } catch (Throwable t) {
+                error("error closing socket for session id => " + sessionId, t);
+            }
         }
     }
 
@@ -183,33 +198,6 @@ public class ReactiveSocketAeronServer implements AutoCloseable, Loggable {
     @Override
     public void close() throws Exception {
         manager.removeSubscription(subscription);
-    }
-
-    /*
-     * Factory Methods
-     */
-    public static ReactiveSocketAeronServer create(String host, int port, ConnectionSetupHandler connectionSetupHandler, LeaseGovernor leaseGovernor) {
-        return new ReactiveSocketAeronServer(host, port, connectionSetupHandler, leaseGovernor);
-    }
-
-    public static ReactiveSocketAeronServer create(int port, ConnectionSetupHandler connectionSetupHandler, LeaseGovernor leaseGovernor) {
-        return create("127.0.0.1", port, connectionSetupHandler, leaseGovernor);
-    }
-
-    public static ReactiveSocketAeronServer create(ConnectionSetupHandler connectionSetupHandler, LeaseGovernor leaseGovernor) {
-        return create(39790, connectionSetupHandler, leaseGovernor);
-    }
-
-    public static ReactiveSocketAeronServer create(String host, int port, ConnectionSetupHandler connectionSetupHandler) {
-        return new ReactiveSocketAeronServer(host, port, connectionSetupHandler, LeaseGovernor.NULL_LEASE_GOVERNOR);
-    }
-
-    public static ReactiveSocketAeronServer create(int port, ConnectionSetupHandler connectionSetupHandler) {
-        return create("localhost", port, connectionSetupHandler, LeaseGovernor.NULL_LEASE_GOVERNOR);
-    }
-
-    public static ReactiveSocketAeronServer create(ConnectionSetupHandler connectionSetupHandler) {
-        return create(39790, connectionSetupHandler, LeaseGovernor.NULL_LEASE_GOVERNOR);
     }
 
 }

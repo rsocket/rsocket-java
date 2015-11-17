@@ -17,10 +17,7 @@ package io.reactivesocket.aeron.server;
 
 import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
-import io.reactivesocket.aeron.internal.AeronUtil;
-import io.reactivesocket.aeron.internal.Loggable;
-import io.reactivesocket.aeron.internal.MessageType;
-import io.reactivesocket.aeron.internal.NotConnectedException;
+import io.reactivesocket.aeron.internal.*;
 import io.reactivesocket.rx.Completable;
 import io.reactivesocket.rx.Disposable;
 import io.reactivesocket.rx.Observable;
@@ -36,6 +33,7 @@ import java.util.concurrent.TimeUnit;
 public class AeronServerDuplexConnection implements DuplexConnection, Loggable {
     private final Publication publication;
     private final CopyOnWriteArrayList<Observer<Frame>> subjects;
+    private volatile boolean isClosed;
 
     public AeronServerDuplexConnection(
         Publication publication) {
@@ -85,7 +83,7 @@ public class AeronServerDuplexConnection implements DuplexConnection, Loggable {
                     buffer.putShort(offset, (short) 0);
                     buffer.putShort(offset + BitUtil.SIZE_OF_SHORT, (short) MessageType.ESTABLISH_CONNECTION_RESPONSE.getEncodedType());
                     buffer.putInt(offset + BitUtil.SIZE_OF_INT, ackSessionId);
-                }, 2 * BitUtil.SIZE_OF_INT, 30, TimeUnit.SECONDS);
+                }, 2 * BitUtil.SIZE_OF_INT, Constants.SERVER_ACK_ESTABLISH_CONNECTION_TIMEOUT_MS, TimeUnit.MILLISECONDS);
                 debug("Ack sent for session i => {}", ackSessionId);
             } catch (NotConnectedException ne) {
                 continue;
@@ -94,8 +92,13 @@ public class AeronServerDuplexConnection implements DuplexConnection, Loggable {
         }
     }
 
+    public boolean isClosed() {
+        return isClosed;
+    }
+
     @Override
     public void close() {
+        isClosed = true;
         try {
             publication.close();
         } catch (Throwable t) {}

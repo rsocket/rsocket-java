@@ -43,6 +43,10 @@ public class AeronUtil implements Loggable {
      *                    that is send over Aeron
      */
     public static void offer(Publication publication, BufferFiller fillBuffer, int length, int timeout, TimeUnit timeUnit) {
+        if (publication.isClosed()) {
+            throw new NotConnectedException();
+        }
+
         final MutableDirectBuffer buffer = getDirectBuffer(length);
         fillBuffer.fill(0, buffer);
         final long start = System.nanoTime();
@@ -76,6 +80,10 @@ public class AeronUtil implements Loggable {
      * @param length      the length of data
      */
     public static void tryClaim(Publication publication, BufferFiller fillBuffer, int length, int timeout, TimeUnit timeUnit) {
+        if (publication.isClosed()) {
+            throw new NotConnectedException();
+        }
+
         final BufferClaim bufferClaim = bufferClaims.get();
         final long start = System.nanoTime();
         do {

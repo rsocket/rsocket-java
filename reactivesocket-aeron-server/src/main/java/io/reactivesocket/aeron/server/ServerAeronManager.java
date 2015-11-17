@@ -16,14 +16,11 @@
 package io.reactivesocket.aeron.server;
 
 import io.reactivesocket.aeron.internal.Loggable;
-import uk.co.real_logic.aeron.Aeron;
-import uk.co.real_logic.aeron.AvailableImageHandler;
-import uk.co.real_logic.aeron.FragmentAssembler;
-import uk.co.real_logic.aeron.Image;
-import uk.co.real_logic.aeron.Subscription;
-import uk.co.real_logic.aeron.UnavailableImageHandler;
+import uk.co.real_logic.aeron.*;
+import uk.co.real_logic.agrona.TimerWheel;
 
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeUnit;
 
 import static io.reactivesocket.aeron.internal.Constants.SERVER_IDLE_STRATEGY;
 
@@ -42,15 +39,7 @@ public class ServerAeronManager implements Loggable {
 
     private CopyOnWriteArrayList<FragmentAssemblerHolder> fragmentAssemblerHolders = new CopyOnWriteArrayList<>();
 
-    private class FragmentAssemblerHolder {
-        private Subscription subscription;
-        private FragmentAssembler fragmentAssembler;
-
-        public FragmentAssemblerHolder(Subscription subscription, FragmentAssembler fragmentAssembler) {
-            this.subscription = subscription;
-            this.fragmentAssembler = fragmentAssembler;
-        }
-    }
+    private TimerWheel timerWheel;
 
     public ServerAeronManager() {
         final Aeron.Context ctx = new Aeron.Context();
@@ -59,6 +48,8 @@ public class ServerAeronManager implements Loggable {
         ctx.errorHandler(t -> error("an exception occurred", t));
 
         aeron = Aeron.connect(ctx);
+
+        this.timerWheel = new TimerWheel(1, TimeUnit.MILLISECONDS, 1024);
 
         poll();
     }
@@ -99,6 +90,10 @@ public class ServerAeronManager implements Loggable {
         return aeron;
     }
 
+    public TimerWheel getTimerWheel() {
+        return timerWheel;
+    }
+
     void poll() {
         Thread dutyThread = new Thread(() -> {
             for (;;) {
@@ -106,6 +101,10 @@ public class ServerAeronManager implements Loggable {
                     int poll = 0;
                     for (FragmentAssemblerHolder sh : fragmentAssemblerHolders) {
                         try {
+                            if (sh.subscription.isClosed()) {
+                                continue;
+                            }
+
                             poll += sh.subscription.poll(sh.fragmentAssembler, Integer.MAX_VALUE);
                         } catch (Throwable t) {
                             t.printStackTrace();
@@ -116,6 +115,8 @@ public class ServerAeronManager implements Loggable {
                 } catch (Throwable t) {
                     t.printStackTrace();
                 }
+
+                timerWheel.expireTimers();
             }
 
 
@@ -123,5 +124,15 @@ public class ServerAeronManager implements Loggable {
         dutyThread.setName("reactive-socket-aeron-server");
         dutyThread.setDaemon(true);
         dutyThread.start();
+    }
+
+    private class FragmentAssemblerHolder {
+        private Subscription subscription;
+        private FragmentAssembler fragmentAssembler;
+
+        public FragmentAssemblerHolder(Subscription subscription, FragmentAssembler fragmentAssembler) {
+            this.subscription = subscription;
+            this.fragmentAssembler = fragmentAssembler;
+        }
     }
 }
