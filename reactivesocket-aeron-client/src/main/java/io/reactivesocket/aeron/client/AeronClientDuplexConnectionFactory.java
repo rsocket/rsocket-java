@@ -34,8 +34,7 @@ public final class AeronClientDuplexConnectionFactory implements Loggable {
 
     private final ConcurrentSkipListMap<Integer, AeronClientDuplexConnection> connections;
 
-    // TODO - this should be configurable...enough space for 2048 DuplexConnections assuming request(128)
-    private final ManyToManyConcurrentArrayQueue<FrameHolder> frameSendQueue = new ManyToManyConcurrentArrayQueue<>(262144);
+    private final ManyToManyConcurrentArrayQueue<FrameHolder> frameSendQueue = new ManyToManyConcurrentArrayQueue<>(Constants.QUEUE_SIZE);
 
     private final ConcurrentHashMap<Integer, EstablishConnectionHolder> establishConnectionHolders;
 
@@ -58,16 +57,18 @@ public final class AeronClientDuplexConnectionFactory implements Loggable {
                     // Can release the FrameHolder at this point as we got everything we need
                     fh.release();
 
-                    AeronUtil
-                        .tryClaimOrOffer(publication, (offset, buffer) -> {
-                            if (traceEnabled) {
-                                trace("Thread Id {} sending Frame => {} on Aeron", threadId, frame.toString());
-                            }
+                    if (!publication.isClosed()) {
+                        AeronUtil
+                                .tryClaimOrOffer(publication, (offset, buffer) -> {
+                                    if (traceEnabled) {
+                                        trace("Thread Id {} sending Frame => {} on Aeron", threadId, frame.toString());
+                                    }
 
-                            buffer.putShort(offset, (short) 0);
-                            buffer.putShort(offset + BitUtil.SIZE_OF_SHORT, (short) MessageType.FRAME.getEncodedType());
-                            buffer.putBytes(offset + BitUtil.SIZE_OF_INT, byteBuffer, frame.offset(), frame.length());
-                        }, length);
+                                    buffer.putShort(offset, (short) 0);
+                                    buffer.putShort(offset + BitUtil.SIZE_OF_SHORT, (short) MessageType.FRAME.getEncodedType());
+                                    buffer.putBytes(offset + BitUtil.SIZE_OF_INT, byteBuffer, frame.offset(), frame.length());
+                                }, length);
+                    }
                 });
         });
     }
@@ -145,11 +146,15 @@ public final class AeronClientDuplexConnectionFactory implements Loggable {
         final long start = System.nanoTime();
         for (;;) {
             final long current = System.nanoTime();
-            if ((current - start) > TimeUnit.SECONDS.toNanos(30)) {
+            if ((current - start) > TimeUnit.MILLISECONDS.toNanos(Constants.CLIENT_ESTABLISH_CONNECT_TIMEOUT_MS)) {
                 throw new RuntimeException("Timed out waiting to establish connection for session id => " + sessionId);
             }
 
             if (offer < 0) {
+                if (publication.isClosed()) {
+                    throw new RuntimeException("A closed publication was found when trying to establish for session id => " + sessionId);
+                }
+
                 offer = publication.offer(buffer);
             } else {
                 break;
@@ -203,12 +208,12 @@ public final class AeronClientDuplexConnectionFactory implements Loggable {
                                 connections.remove(publication.sessionId());
 
                                 // Send a message to the server that the connection is closed and that it needs to clean-up resources on it's side
-                                if (publication != null) {
+                                if (publication != null && !publication.isClosed()) {
                                     try {
                                         AeronUtil.tryClaimOrOffer(publication, (offset, buffer) -> {
                                             buffer.putShort(offset, (short) 0);
                                             buffer.putShort(offset + BitUtil.SIZE_OF_SHORT, (short) MessageType.CONNECTION_DISCONNECT.getEncodedType());
-                                        }, BitUtil.SIZE_OF_INT);
+                                        }, BitUtil.SIZE_OF_INT, Constants.CLIENT_SEND_ESTABLISH_CONNECTION_MSG_TIMEOUT_MS, TimeUnit.MILLISECONDS);
                                     } catch (Throwable t) {
                                         debug("error closing  publication with session id => {}", publication.sessionId());
                                     }

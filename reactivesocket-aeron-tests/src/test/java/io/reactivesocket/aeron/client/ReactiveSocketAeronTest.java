@@ -15,15 +15,9 @@
  */
 package io.reactivesocket.aeron.client;
 
-import io.reactivesocket.ConnectionSetupHandler;
-import io.reactivesocket.ConnectionSetupPayload;
-import io.reactivesocket.Frame;
-import io.reactivesocket.Payload;
-import io.reactivesocket.ReactiveSocket;
-import io.reactivesocket.RequestHandler;
+import io.reactivesocket.*;
 import io.reactivesocket.aeron.TestUtil;
 import io.reactivesocket.aeron.server.ReactiveSocketAeronServer;
-import io.reactivesocket.exceptions.Exceptions;
 import io.reactivesocket.exceptions.SetupException;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -35,12 +29,13 @@ import rx.RxReactiveStreams;
 import rx.Subscriber;
 import rx.schedulers.Schedulers;
 import uk.co.real_logic.aeron.driver.MediaDriver;
-import uk.co.real_logic.agrona.LangUtil;
 
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.LockSupport;
 
 /**
  * Aeron integration tests
@@ -54,10 +49,11 @@ public class ReactiveSocketAeronTest {
 
     @BeforeClass
     public static void init() {
+
         final MediaDriver.Context context = new MediaDriver.Context();
         context.dirsDeleteOnStart(true);
-
         final MediaDriver mediaDriver = MediaDriver.launch(context);
+
     }
 
     @Test(timeout = 3000)
@@ -193,6 +189,121 @@ public class ReactiveSocketAeronTest {
             });
 
         latch.await();
+    }
+
+    @Test(timeout = 75000)
+    public void testReconnection() throws Exception {
+        System.out.println("--------------------------------------------------------------------------------");
+
+        ReactiveSocketAeronServer server = ReactiveSocketAeronServer.create(new ConnectionSetupHandler() {
+            @Override
+            public RequestHandler apply(ConnectionSetupPayload setupPayload) throws SetupException {
+                return new RequestHandler() {
+                    Frame frame = Frame.from(ByteBuffer.allocate(1));
+
+                    @Override
+                    public Publisher<Payload> handleRequestResponse(Payload payload) {
+                        String request = TestUtil.byteToString(payload.getData());
+                        System.out.println(Thread.currentThread() + " Server got => " + request);
+                        Observable<Payload> pong = Observable.just(TestUtil.utf8EncodedPayload("pong", null));
+                        return RxReactiveStreams.toPublisher(pong);
+                    }
+
+                    @Override
+                    public Publisher<Payload> handleChannel(Publisher<Payload> payloads) {
+                        return null;
+                    }
+
+                    @Override
+                    public Publisher<Payload> handleRequestStream(Payload payload) {
+                        return null;
+                    }
+
+                    @Override
+                    public Publisher<Payload> handleSubscription(Payload payload) {
+                        return null;
+                    }
+
+                    @Override
+                    public Publisher<Void> handleFireAndForget(Payload payload) {
+                        return null;
+                    }
+
+                    @Override
+                    public Publisher<Void> handleMetadataPush(Payload payload) {
+                        return null;
+                    }
+                };
+            }
+        });
+
+        System.out.println("--------------------------------------------------------------------------------");
+
+
+        InetSocketAddress listenAddress = new InetSocketAddress("localhost", 39790);
+        InetSocketAddress clientAddress = new InetSocketAddress("localhost", 39790);
+
+        AeronClientDuplexConnectionFactory cf = AeronClientDuplexConnectionFactory.getInstance();
+        cf.addSocketAddressToHandleResponses(listenAddress);
+
+        int j;
+        for (j = 0; j < 30; j++) {
+            CountDownLatch latch = new CountDownLatch(10);
+
+            Publisher<AeronClientDuplexConnection> udpConnection = cf.createUDPConnection(clientAddress);
+
+            System.out.println("Creating new duplex connection => " + j);
+            AeronClientDuplexConnection connection = RxReactiveStreams.toObservable(udpConnection).toBlocking().single();
+            System.out.println("Created duplex connection => " + j);
+
+            ReactiveSocket client = ReactiveSocket.fromClientConnection(connection, ConnectionSetupPayload.create("UTF-8", "UTF-8", ConnectionSetupPayload.NO_FLAGS));
+            client.startAndWait();
+
+            Observable
+                    .range(1, 10)
+                    .flatMap(i -> {
+                                Payload payload = TestUtil.utf8EncodedPayload("ping =>" + i, null);
+                                return RxReactiveStreams.toObservable(client.requestResponse(payload));
+                            }
+                    )
+                    .doOnNext(p -> {
+                        Assert.assertEquals("pong", TestUtil.byteToString(p.getData()));
+                    })
+                    .subscribe(new rx.Subscriber<Payload>() {
+                        @Override
+                        public void onCompleted() {
+                            System.out.println("I HAVE COMPLETED $$$$$$$$$$$$$$$$$$$$$$$$$$$$");
+                        }
+
+                        @Override
+                        public void onError(Throwable e) {
+                            System.out.println(Thread.currentThread() + " counted to => " + latch.getCount());
+                            e.printStackTrace();
+                        }
+
+                        @Override
+                        public void onNext(Payload s) {
+                            System.out.println(Thread.currentThread() + " countdown => " + latch.getCount());
+                            latch.countDown();
+                        }
+                    });
+
+            latch.await();
+
+
+            client.close();
+
+            while (server.hasConnections()) {
+                LockSupport.parkNanos(TimeUnit.SECONDS.toNanos(1));
+            }
+
+            System.out.println("--------------------------------------------------------------------------------");
+
+        }
+
+        Assert.assertEquals(j, 30);
+
+        System.out.println("+++ GOT HERE");
     }
 
 /*
@@ -766,95 +877,7 @@ public class ReactiveSocketAeronTest {
         latch.await();
     }
 
-    @Test(timeout = 75000)
-    public void testReconnection() throws Exception {
-        System.out.println("--------------------------------------------------------------------------------");
 
-        ReactiveSocketAeronServer server = ReactiveSocketAeronServer.create(new ConnectionSetupHandler() {
-            @Override
-            public RequestHandler apply(ConnectionSetupPayload setupPayload) throws SetupException {
-                return new RequestHandler() {
-                    Frame frame = Frame.from(ByteBuffer.allocate(1));
-
-                    @Override
-                    public Publisher<Payload> handleRequestResponse(Payload payload) {
-                        String request = TestUtil.byteToString(payload.getData());
-                        System.out.println(Thread.currentThread() + " Server got => " + request);
-                        Observable<Payload> pong = Observable.just(TestUtil.utf8EncodedPayload("pong", null));
-                        return RxReactiveStreams.toPublisher(pong);
-                    }
-
-                    @Override
-                    public Publisher<Payload> handleChannel(Payload initialPayload, Publisher<Payload> payloads) {
-                        return null;
-                    }
-
-                    @Override
-                    public Publisher<Payload> handleRequestStream(Payload payload) {
-                        return null;
-                    }
-
-                    @Override
-                    public Publisher<Payload> handleSubscription(Payload payload) {
-                        return null;
-                    }
-
-                    @Override
-                    public Publisher<Void> handleFireAndForget(Payload payload) {
-                        return null;
-                    }
-
-                    @Override
-                    public Publisher<Void> handleMetadataPush(Payload payload) {
-                        return null;
-                    }
-                };
-            }
-        });
-
-        System.out.println("--------------------------------------------------------------------------------");
-
-        for (int j = 0; j < 3; j++) {
-            CountDownLatch latch = new CountDownLatch(1);
-
-            ReactiveSocketAeronClient client = ReactiveSocketAeronClient.create("localhost", "localhost");
-
-            Observable
-                .range(1, 1)
-                .flatMap(i -> {
-                        Payload payload = TestUtil.utf8EncodedPayload("ping =>" + System.nanoTime(), null);
-                        return RxReactiveStreams.toObservable(client.requestResponse(payload));
-                    }
-                )
-                .subscribe(new rx.Subscriber<Payload>() {
-                    @Override
-                    public void onCompleted() {
-                        System.out.println("I HAVE COMPLETED $$$$$$$$$$$$$$$$$$$$$$$$$$$$");
-                    }
-
-                    @Override
-                    public void onError(Throwable e) {
-                        System.out.println(Thread.currentThread() + " counted to => " + latch.getCount());
-                        e.printStackTrace();
-                    }
-
-                    @Override
-                    public void onNext(Payload s) {
-                        System.out.println(Thread.currentThread() + " countdown => " + latch.getCount());
-                        latch.countDown();
-                    }
-                });
-
-            latch.await();
-
-            client.close();
-
-            while (server.hasConnections()) {
-                LockSupport.parkNanos(TimeUnit.SECONDS.toNanos(1));
-            }
-
-            System.out.println("--------------------------------------------------------------------------------");
-        }
 
     }*/
 

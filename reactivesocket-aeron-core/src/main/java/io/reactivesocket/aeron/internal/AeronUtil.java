@@ -23,6 +23,8 @@ import uk.co.real_logic.agrona.concurrent.UnsafeBuffer;
 
 import java.util.concurrent.TimeUnit;
 
+import static io.reactivesocket.aeron.internal.Constants.DEFAULT_OFFER_TO_AERON_TIMEOUT_MS;
+
 /**
  * Utils for dealing with Aeron
  */
@@ -43,16 +45,19 @@ public class AeronUtil implements Loggable {
      *                    that is send over Aeron
      */
     public static void offer(Publication publication, BufferFiller fillBuffer, int length, int timeout, TimeUnit timeUnit) {
+        if (publication.isClosed()) {
+            throw new NotConnectedException();
+        }
+
         final MutableDirectBuffer buffer = getDirectBuffer(length);
         fillBuffer.fill(0, buffer);
         final long start = System.nanoTime();
         do {
-            if (timeout > 0) {
-                final long current = System.nanoTime();
-                if ((current - start) > timeUnit.toNanos(timeout)) {
-                    throw new TimedOutException();
-                }
+            final long current = System.nanoTime();
+            if ((current - start) > timeUnit.toNanos(timeout)) {
+                throw new TimedOutException();
             }
+
             final long offer = publication.offer(buffer);
             if (offer >= 0) {
                 break;
@@ -76,14 +81,16 @@ public class AeronUtil implements Loggable {
      * @param length      the length of data
      */
     public static void tryClaim(Publication publication, BufferFiller fillBuffer, int length, int timeout, TimeUnit timeUnit) {
+        if (publication.isClosed()) {
+            throw new NotConnectedException();
+        }
+
         final BufferClaim bufferClaim = bufferClaims.get();
         final long start = System.nanoTime();
         do {
-            if (timeout > 0) {
-                final long current = System.nanoTime();
-                if ((current - start) > timeUnit.toNanos(timeout)) {
-                    throw new TimedOutException();
-                }
+            final long current = System.nanoTime();
+            if ((current - start) > timeUnit.toNanos(timeout)) {
+                throw new TimedOutException();
             }
 
             final long offer = publication.tryClaim(length, bufferClaim);
@@ -112,7 +119,7 @@ public class AeronUtil implements Loggable {
      * @param length      the length of data
      */
     public static void tryClaimOrOffer(Publication publication, BufferFiller fillBuffer, int length) {
-        tryClaimOrOffer(publication, fillBuffer, length, -1, null);
+        tryClaimOrOffer(publication, fillBuffer, length, DEFAULT_OFFER_TO_AERON_TIMEOUT_MS, TimeUnit.MILLISECONDS);
     }
 
     public static void tryClaimOrOffer(Publication publication, BufferFiller fillBuffer, int length, int timeout, TimeUnit timeUnit) {

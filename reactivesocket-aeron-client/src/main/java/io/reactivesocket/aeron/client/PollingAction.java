@@ -25,10 +25,12 @@ class PollingAction implements Action0, Loggable {
         try {
             for (ClientAeronManager.SubscriptionGroup sg : subscriptionGroups) {
                 try {
-                    int poll;
+                    int poll = 0;
                     do {
                         Subscription subscription = sg.getSubscriptions()[threadId];
-                        poll = subscription.poll(sg.getFragmentAssembler(threadId), Integer.MAX_VALUE);
+                        if (!subscription.isClosed()) {
+                            poll = subscription.poll(sg.getFragmentAssembler(threadId), Integer.MAX_VALUE);
+                        }
                     } while (poll > 0);
 
                     for (ClientAeronManager.ClientAction action : clientActions) {

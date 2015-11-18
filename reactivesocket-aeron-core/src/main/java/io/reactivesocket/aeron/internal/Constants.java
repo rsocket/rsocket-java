@@ -24,23 +24,21 @@ import java.util.concurrent.TimeUnit;
 
 public final class Constants {
 
-    private Constants() {}
-
     public static final int SERVER_STREAM_ID = 1;
-
     public static final int CLIENT_STREAM_ID = 2;
-
     public static final byte[] EMTPY = new byte[0];
-
     public static final int QUEUE_SIZE = Integer.getInteger("reactivesocket.aeron.framesSendQueueSize", 262144);
-
     public static final IdleStrategy SERVER_IDLE_STRATEGY;
-
     public static final int CONCURRENCY = Integer.getInteger("reactivesocket.aeron.clientConcurrency", 2);
-
     public static final int AERON_MTU_SIZE = Integer.getInteger("aeron.mtu.length", 4096);
-
     public static final boolean TRACING_ENABLED = Boolean.getBoolean("reactivesocket.aeron.tracingEnabled");
+    public static final int CLIENT_ESTABLISH_CONNECT_TIMEOUT_MS = 6000;
+    public static final int CLIENT_SEND_ESTABLISH_CONNECTION_MSG_TIMEOUT_MS = 5000;
+    public static final int SERVER_ACK_ESTABLISH_CONNECTION_TIMEOUT_MS = 3000;
+    public static final int SERVER_ESTABLISH_CONNECTION_REQUEST_TIMEOUT_MS = 5000;
+    public static final int SERVER_TIMER_WHEEL_TICK_DURATION_MS = 10;
+    public static final int SERVER_TIMER_WHEEL_BUCKETS = 128;
+    public static final int DEFAULT_OFFER_TO_AERON_TIMEOUT_MS = 30_000;
 
     static {
         String idlStrategy = System.getProperty("idleStrategy");
@@ -52,5 +50,8 @@ public final class Constants {
         } else {
             SERVER_IDLE_STRATEGY = new BackoffIdleStrategy(1, 10, 100, 1000);
         }
+    }
+
+    private Constants() {
     }
 }
