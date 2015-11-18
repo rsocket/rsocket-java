@@ -34,8 +34,11 @@ public final class Constants {
     public static final boolean TRACING_ENABLED = Boolean.getBoolean("reactivesocket.aeron.tracingEnabled");
     public static final int CLIENT_ESTABLISH_CONNECT_TIMEOUT_MS = 6000;
     public static final int CLIENT_SEND_ESTABLISH_CONNECTION_MSG_TIMEOUT_MS = 5000;
-    public static final int SERVER_ACK_ESTABLISH_CONNECTION_TIMEOUT_MS = 5000;
+    public static final int SERVER_ACK_ESTABLISH_CONNECTION_TIMEOUT_MS = 3000;
     public static final int SERVER_ESTABLISH_CONNECTION_REQUEST_TIMEOUT_MS = 5000;
+    public static final int SERVER_TIMER_WHEEL_TICK_DURATION_MS = 10;
+    public static final int SERVER_TIMER_WHEEL_BUCKETS = 128;
+    public static final int DEFAULT_OFFER_TO_AERON_TIMEOUT_MS = 30_000;
 
     static {
         String idlStrategy = System.getProperty("idleStrategy");

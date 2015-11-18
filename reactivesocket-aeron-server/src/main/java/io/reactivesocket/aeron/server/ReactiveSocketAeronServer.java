@@ -178,17 +178,19 @@ public class ReactiveSocketAeronServer implements AutoCloseable, Loggable {
     }
 
     private void closeReactiveSocket(int sessionId) {
-        debug("closing connection for session id => " + sessionId);
-        ReactiveSocket socket = sockets.remove(sessionId);
-        connections.remove(sessionId);
+        ServerAeronManager.getInstance().getTimerWheel().newTimeout(200, TimeUnit.MILLISECONDS, () -> {
+            debug("closing connection for session id => " + sessionId);
+            ReactiveSocket socket = sockets.remove(sessionId);
+            connections.remove(sessionId);
 
-        if (socket != null) {
-            try {
-                socket.close();
-            } catch (Throwable t) {
-                error("error closing socket for session id => " + sessionId, t);
+            if (socket != null) {
+                try {
+                    socket.close();
+                } catch (Throwable t) {
+                    error("error closing socket for session id => " + sessionId, t);
+                }
             }
-        }
+        });
     }
 
     public boolean hasConnections() {
