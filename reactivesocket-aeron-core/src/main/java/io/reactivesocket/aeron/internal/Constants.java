@@ -29,7 +29,6 @@ public final class Constants {
     public static final byte[] EMTPY = new byte[0];
     public static final int QUEUE_SIZE = Integer.getInteger("reactivesocket.aeron.framesSendQueueSize", 262144);
     public static final IdleStrategy SERVER_IDLE_STRATEGY;
-    public static final int CONCURRENCY = Integer.getInteger("reactivesocket.aeron.clientConcurrency", 2);
     public static final int AERON_MTU_SIZE = Integer.getInteger("aeron.mtu.length", 4096);
     public static final boolean TRACING_ENABLED = Boolean.getBoolean("reactivesocket.aeron.tracingEnabled");
     public static final int CLIENT_ESTABLISH_CONNECT_TIMEOUT_MS = 6000;

@@ -7,15 +7,12 @@ import uk.co.real_logic.aeron.Subscription;
 import java.util.List;
 
 class PollingAction implements Action0, Loggable {
-    private final int threadId;
     private final List<ClientAeronManager.SubscriptionGroup> subscriptionGroups;
     private final List<ClientAeronManager.ClientAction> clientActions;
 
     public PollingAction(
-            int threadId,
             List<ClientAeronManager.SubscriptionGroup> subscriptionGroups,
             List<ClientAeronManager.ClientAction> clientActions) {
-        this.threadId = threadId;
         this.subscriptionGroups = subscriptionGroups;
         this.clientActions = clientActions;
     }
@@ -27,22 +24,22 @@ class PollingAction implements Action0, Loggable {
                 try {
                     int poll = 0;
                     do {
-                        Subscription subscription = sg.getSubscriptions()[threadId];
+                        Subscription subscription = sg.getSubscription();
                         if (!subscription.isClosed()) {
-                            poll = subscription.poll(sg.getFragmentAssembler(threadId), Integer.MAX_VALUE);
+                            poll = subscription.poll(sg.getFragmentAssembler(), Integer.MAX_VALUE);
                         }
                     } while (poll > 0);
 
                     for (ClientAeronManager.ClientAction action : clientActions) {
-                        action.call(threadId);
+                        action.call();
                     }
                 } catch (Throwable t) {
-                    error("error polling aeron subscription on thread with id " + threadId, t);
+                    error("error polling aeron subscription", t);
                 }
             }
 
         } catch (Throwable t) {
-            error("error in client polling loop on thread with id " + threadId, t);
+            error("error in client polling loop", t);
         }
     }
 }

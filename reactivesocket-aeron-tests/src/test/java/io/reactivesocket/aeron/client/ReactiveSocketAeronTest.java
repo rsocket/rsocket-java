@@ -36,6 +36,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.LockSupport;
+import java.util.function.Function;
 
 /**
  * Aeron integration tests
@@ -66,7 +67,7 @@ public class ReactiveSocketAeronTest {
         requestResponseN(10);
     }
 
-    @Test(timeout = 30000)
+    @Test(timeout = 30_000)
     public void testRequestReponse10_000() throws Exception {
         requestResponseN(10_000);
     }
@@ -81,60 +82,55 @@ public class ReactiveSocketAeronTest {
         requestResponseN(1_000_000);
     }
 
+    @Test(timeout = 10_000)
+    public void testRequestStream1() throws Exception {
+      requestStreamN(1);
+    }
+
+    @Test(timeout = 10_000)
+    public void testRequestStream10() throws Exception {
+      requestStreamN(10);
+    }
+
+    @Test(timeout = 30_000)
+    public void testRequestStream10_000() throws Exception {
+      requestStreamN(10_000);
+    }
+
+    @Test(timeout = 120_000)
+    public void testRequestStream100_000() throws Exception {
+      requestStreamN(100_000);
+    }
+
     public void requestResponseN(int count) throws Exception {
         AtomicLong counter = new AtomicLong();
         ReactiveSocketAeronServer.create(new ConnectionSetupHandler() {
             @Override
             public RequestHandler apply(ConnectionSetupPayload setupPayload) throws SetupException {
-                return new RequestHandler() {
-                    Frame frame = Frame.from(ByteBuffer.allocate(1));
+                return new RequestHandler.Builder()
+                  .withRequestResponse(new Function<Payload, Publisher<Payload>>() {
+                      Frame frame = Frame.from(ByteBuffer.allocate(1));
+                      @Override
+                      public Publisher<Payload> apply(Payload payload) {
+                          counter.incrementAndGet();
+                          ByteBuffer data = payload.getData();
+                          String s = TestUtil.byteToString(data);
+                          String m = TestUtil.byteToString(payload.getMetadata());
 
-                    @Override
-                    public Publisher<Payload> handleRequestResponse(Payload payload) {
-                        counter.incrementAndGet();
-                        ByteBuffer data = payload.getData();
-                        String s = TestUtil.byteToString(data);
-                        String m = TestUtil.byteToString(payload.getMetadata());
-
-                        try {
+                          try {
                             Assert.assertEquals(s, "client_request");
                             Assert.assertEquals(m, "client_metadata");
-                        } catch (Throwable t) {
+                          } catch (Throwable t) {
                             long l = counter.get();
                             System.out.println("Count => " + l);
                             System.out.println("contains $ => " + s.contains("$"));
                             throw new RuntimeException(t);
-                        }
+                          }
 
-                        Observable<Payload> pong = Observable.just(TestUtil.utf8EncodedPayload("server_response", "server_metadata"));
-                        return RxReactiveStreams.toPublisher(pong);
-                    }
-
-                    @Override
-                    public Publisher<Payload> handleChannel(Publisher<Payload> payloads) {
-                        return null;
-                    }
-
-                    @Override
-                    public Publisher<Payload> handleRequestStream(Payload payload) {
-                        return null;
-                    }
-
-                    @Override
-                    public Publisher<Payload> handleSubscription(Payload payload) {
-                        return null;
-                    }
-
-                    @Override
-                    public Publisher<Void> handleFireAndForget(Payload payload) {
-                        return null;
-                    }
-
-                    @Override
-                    public Publisher<Void> handleMetadataPush(Payload payload) {
-                        return null;
-                    }
-                };
+                          Observable<Payload> pong = Observable.just(TestUtil.utf8EncodedPayload("server_response", "server_metadata"));
+                          return RxReactiveStreams.toPublisher(pong);
+                      }
+                }).build();
             }
         });
 
@@ -190,6 +186,71 @@ public class ReactiveSocketAeronTest {
 
         latch.await();
     }
+
+    public void requestStreamN(int count) throws Exception {
+        ReactiveSocketAeronServer.create(setupPayload ->
+          new RequestHandler.Builder()
+            .withRequestStream(payload -> {
+                ByteBuffer data = payload.getData();
+                String s = TestUtil.byteToString(data);
+                String m = TestUtil.byteToString(payload.getMetadata());
+
+                try {
+                  Assert.assertEquals(s, "client_request");
+                  Assert.assertEquals(m, "client_metadata");
+                } catch (Throwable t) {
+                  System.out.println("contains $ => " + s.contains("$"));
+                  throw new RuntimeException(t);
+                }
+
+              Observable<Payload> payloadObservable = Observable.range(1, count)
+                .map(i -> TestUtil.utf8EncodedPayload("server_response", "server_metadata"));
+              return RxReactiveStreams.toPublisher(payloadObservable);
+          }).build());
+
+        InetSocketAddress listenAddress = new InetSocketAddress("localhost", 39790);
+        InetSocketAddress clientAddress = new InetSocketAddress("localhost", 39790);
+
+        AeronClientDuplexConnectionFactory cf = AeronClientDuplexConnectionFactory.getInstance();
+        cf.addSocketAddressToHandleResponses(listenAddress);
+        Publisher<AeronClientDuplexConnection> udpConnection = cf.createUDPConnection(clientAddress);
+
+        System.out.println("Creating new duplex connection");
+        AeronClientDuplexConnection connection = RxReactiveStreams.toObservable(udpConnection).toBlocking().single();
+        System.out.println("Created duplex connection");
+
+        ReactiveSocket reactiveSocket = ReactiveSocket.fromClientConnection(connection, ConnectionSetupPayload.create("UTF-8", "UTF-8", ConnectionSetupPayload.NO_FLAGS));
+        reactiveSocket.startAndWait();
+
+        CountDownLatch latch = new CountDownLatch(count);
+        Payload payload = TestUtil.utf8EncodedPayload("client_request", "client_metadata");
+        RxReactiveStreams.toObservable(reactiveSocket.requestStream(payload))
+            .subscribeOn(Schedulers.computation())
+              .subscribe(new Subscriber<Payload>() {
+                @Override
+                public void onCompleted() {
+                  System.out.println("I HAVE COMPLETED $$$$$$$$$$$$$$$$$$$$$$$$$$$$");
+                }
+
+                @Override
+                public void onError(Throwable e) {
+                  System.out.println(Thread.currentThread() +  " counted to => " + latch.getCount());
+                  e.printStackTrace();
+                }
+
+                @Override
+                public void onNext(Payload payload) {
+                  ByteBuffer data = payload.getData();
+                  String s = TestUtil.byteToString(data);
+                  String m = TestUtil.byteToString(payload.getMetadata());
+                  Assert.assertEquals(s, "server_response");
+                  Assert.assertEquals(m, "server_metadata");
+                  latch.countDown();
+                }
+            });
+        latch.await();
+    }
+
 
     @Test(timeout = 75000)
     public void testReconnection() throws Exception {
