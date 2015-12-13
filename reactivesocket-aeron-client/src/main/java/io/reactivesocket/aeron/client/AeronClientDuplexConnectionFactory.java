@@ -9,6 +9,7 @@ import io.reactivesocket.rx.Observer;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import uk.co.real_logic.aeron.Publication;
+import uk.co.real_logic.aeron.logbuffer.FragmentHandler;
 import uk.co.real_logic.aeron.logbuffer.Header;
 import uk.co.real_logic.agrona.BitUtil;
 import uk.co.real_logic.agrona.DirectBuffer;
@@ -24,7 +25,6 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
-import static io.reactivesocket.aeron.internal.Constants.CONCURRENCY;
 import static io.reactivesocket.aeron.internal.Constants.SERVER_STREAM_ID;
 
 public final class AeronClientDuplexConnectionFactory implements Loggable {
@@ -45,7 +45,7 @@ public final class AeronClientDuplexConnectionFactory implements Loggable {
         establishConnectionHolders = new ConcurrentHashMap<>();
         manager = ClientAeronManager.getInstance();
 
-        manager.addClientAction(threadId -> {
+        manager.addClientAction(() -> {
             final boolean traceEnabled = isTraceEnabled();
             frameSendQueue
                 .drain(fh -> {
@@ -61,7 +61,7 @@ public final class AeronClientDuplexConnectionFactory implements Loggable {
                         AeronUtil
                                 .tryClaimOrOffer(publication, (offset, buffer) -> {
                                     if (traceEnabled) {
-                                        trace("Thread Id {} sending Frame => {} on Aeron", threadId, frame.toString());
+                                        trace("Sending Frame => {} on Aeron", frame.toString());
                                     }
 
                                     buffer.putShort(offset, (short) 0);
@@ -96,13 +96,12 @@ public final class AeronClientDuplexConnectionFactory implements Loggable {
         manager.addSubscription(
             serverChannel,
             Constants.CLIENT_STREAM_ID,
-            threadId ->
-                new ClientAeronManager.ThreadIdAwareFragmentHandler(threadId) {
-                    @Override
-                    public void onFragment(DirectBuffer buffer, int offset, int length, Header header) {
-                        fragmentHandler(getThreadId(), buffer, offset, length, header);
-                    }
-                });
+            new FragmentHandler() {
+                @Override
+                public void onFragment(DirectBuffer buffer, int offset, int length, Header header) {
+                    fragmentHandler(buffer, offset, length, header);
+                }
+            });
     }
 
     public Publisher<AeronClientDuplexConnection> createAeronClientDuplexConnection(SocketAddress socketAddress) {
@@ -164,15 +163,10 @@ public final class AeronClientDuplexConnectionFactory implements Loggable {
 
     }
 
-    void fragmentHandler(int threadId, DirectBuffer buffer, int offset, int length, Header header) {
+    void fragmentHandler(DirectBuffer buffer, int offset, int length, Header header) {
         try {
             short messageCount = buffer.getShort(offset);
             short messageTypeInt = buffer.getShort(offset + BitUtil.SIZE_OF_SHORT);
-            final int currentThreadId = Math.abs(messageCount % CONCURRENCY);
-
-            if (currentThreadId != threadId) {
-                return;
-            }
 
             final MessageType messageType = MessageType.from(messageTypeInt);
             if (messageType == MessageType.FRAME) {
