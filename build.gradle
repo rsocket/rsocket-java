@@ -25,7 +25,6 @@ dependencies {
 	testCompile 'org.mockito:mockito-core:1.8.5'
 }
 
-
 // support for snapshot/final releases via versioned branch names like 1.x
 nebulaRelease {
     addReleaseBranchPattern(/\d+\.\d+\.\d+/)

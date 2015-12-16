@@ -200,7 +200,7 @@ public class TestTransportRequestN {
 			 * Use Payload.metadata for routing
 			 */
 			@Override
-			public Publisher<Payload> handleChannel(Publisher<Payload> inputs) {
+			public Publisher<Payload> handleChannel(Payload initialPayload, Publisher<Payload> inputs) {
 				return range(0, 10000).map(i -> "channel_response_" + i).map(n -> utf8EncodedPayload(n, null));
 			}
 

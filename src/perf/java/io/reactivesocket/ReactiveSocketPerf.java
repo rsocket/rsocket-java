@@ -122,7 +122,7 @@ public class ReactiveSocketPerf {
 			}
 
 			@Override
-			public Publisher<Payload> handleChannel(Publisher<Payload> inputs) {
+			public Publisher<Payload> handleChannel(Payload initialPayload, Publisher<Payload> inputs) {
 				return null;
 			}
 

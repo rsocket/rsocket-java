@@ -742,7 +742,7 @@ public class Responder {
  									channels.put(streamId, channelRequests);
 								}
 
-                                Publisher<Payload> responses = requestHandler.handleChannel(channelRequests);
+                                Publisher<Payload> responses = requestHandler.handleChannel(requestFrame, channelRequests);
                                 responses.subscribe(new Subscriber<Payload>() {
 									@Override
 									public void onSubscribe(Subscription s) {

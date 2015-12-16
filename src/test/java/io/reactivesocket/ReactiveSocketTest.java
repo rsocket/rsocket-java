@@ -125,7 +125,7 @@ public class ReactiveSocketTest {
 			 * Use Payload.metadata for routing
 			 */
 			@Override
-			public Publisher<Payload> handleChannel(Publisher<Payload> inputs) {
+			public Publisher<Payload> handleChannel(Payload initialPayload, Publisher<Payload> inputs) {
 				return new Publisher<Payload>() {
 					@Override
 					public void subscribe(Subscriber<? super Payload> subscriber) {

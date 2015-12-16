@@ -18,7 +18,6 @@ package io.reactivesocket;
 import static io.reactivesocket.ConnectionSetupPayload.*;
 import static io.reactivesocket.TestUtil.*;
 import static io.reactivex.Observable.*;
-import static io.reactivex.Observable.fromPublisher;
 import static org.junit.Assert.*;
 
 import java.util.concurrent.CountDownLatch;
@@ -26,10 +25,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Function;
 
-import io.reactivex.Observable;
-import org.junit.*;
+import org.junit.AfterClass;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Test;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
@@ -64,36 +64,30 @@ public class TestFlowControlRequestN {
 		CountDownLatch latch = new CountDownLatch(1);
 		CountDownLatch cancelled = new CountDownLatch(1);
 		AtomicInteger received = new AtomicInteger();
-		socketClient.requestStream(utf8EncodedPayload("10000", null)).subscribe(new Subscriber<Payload>()
-		{
+		socketClient.requestStream(utf8EncodedPayload("10000", null)).subscribe(new Subscriber<Payload>() {
 
 			Subscription subscription;
 
 			@Override
-			public void onSubscribe(Subscription s)
-			{
+			public void onSubscribe(Subscription s) {
 				subscription = s;
 				s.request(Long.MAX_VALUE); // act like a synchronous consumer that doesn't need backpressure
 			}
 
 			@Override
-			public void onNext(Payload t)
-			{
+			public void onNext(Payload t) {
 				int r = received.incrementAndGet();
 				System.out.println("onNext " + r);
 				if (r == 10)
 				{
 					// be a "slow" consumer
-					try
-					{
+					try {
 						Thread.sleep(1000);
-					} catch (InterruptedException e)
-					{
-					}
-					System.out.println("Emitted on server: " + emitted.get() + " Received on client: " + received);
+					} catch (InterruptedException e) { }
+					System.out.println("Emitted on server: " + emitted.get()
+							+ " Received on client: " + received);
 				}
-				else if (r == 200)
-				{
+				else if (r == 200) {
 					System.out.println("Cancel");
 					// cancel
 					subscription.cancel();
@@ -103,15 +97,13 @@ public class TestFlowControlRequestN {
 			}
 
 			@Override
-			public void onError(Throwable t)
-			{
+			public void onError(Throwable t) {
 				t.printStackTrace();
 				latch.countDown();
 			}
 
 			@Override
-			public void onComplete()
-			{
+			public void onComplete() {
 				System.out.println("complete");
 				latch.countDown();
 			}
@@ -153,12 +145,12 @@ public class TestFlowControlRequestN {
 	 * Test that downstream is governed by request(n)
 	 * @throws InterruptedException 
 	 */
-	@Test(timeout=200000)
+	@Test(timeout=2000)
 	public void testRequestChannel_batches_downstream() throws InterruptedException {
 		ControlledSubscriber s = new ControlledSubscriber();
 		socketClient.requestChannel(
-				range(1, 10).map(i -> utf8EncodedPayload(String.valueOf(i), "1000"))
-		).subscribe(s);
+			range(1, 10).map(i -> utf8EncodedPayload(String.valueOf(i), "1000"))
+        ).subscribe(s);
 		
 		// if flatMap is being used, then each of the 10 streams will emit at least 128 (default)
 		
@@ -176,7 +168,8 @@ public class TestFlowControlRequestN {
 		s.subscription.cancel();
 		Thread.sleep(100);
 		assertEquals(2310, s.received.get());
-		// emitted with `flatMap` does internal buffering, so it won't be exactly 2310, but it should be far less than the potential 10,000
+		// emitted with `flatMap` does internal buffering, so it won't be exactly 2310,
+        // but it should be far less than the potential 10,000
 		if(emitted.get() > 4096) {
 			fail("Emitted " + emitted.get());
 		}
@@ -186,33 +179,19 @@ public class TestFlowControlRequestN {
 	 * Test that the upstream is governed by request(n)
 	 * @throws InterruptedException 
 	 */
-	@Test(timeout=200000)
+	@Test(timeout=2000)
 	public void testRequestChannel_batches_upstream_echo() throws InterruptedException {
-		setup(requestStreamHandler, requestSubscriptionHandler, inputs -> {
-			return outputSubscriber ->
-					fromPublisher(inputs)
-							.doOnRequest(n -> System.out.println("requested in echo responder: " + n))
-							.doOnRequest(r -> requested.addAndGet(r))
-							.doOnRequest(r -> numRequests.incrementAndGet())
-							.doOnError(t -> System.out.println("Error in 'echo' handler: " + t.getMessage()))
-							.doOnNext(i -> emitted.incrementAndGet())
-							.map(input -> {
-								String metadata = byteToString(input.getMetadata());
-								String data = byteToString(input.getData());
-								System.out.println("responder echo handleChannel received payload: "
-										+ data + ":" + metadata);
-								return utf8EncodedPayload(String.valueOf(data) + "_echo", null);
-							}).subscribe(outputSubscriber);
-		});
-
 		ControlledSubscriber s = new ControlledSubscriber();
 		AtomicInteger emittedClient = new AtomicInteger();
 		socketClient.requestChannel(
 				range(1, 10000)
 				.doOnNext(n -> emittedClient.incrementAndGet())
 				.doOnRequest(r -> System.out.println("CLIENT REQUESTS requestN: " + r))
-				.map(i -> utf8EncodedPayload(String.valueOf(i), "echo"))
-		).subscribe(s);
+				.map(i -> {
+                    // metadata to route us to the echo behavior (only actually need
+                    // this in the first payload)
+					return utf8EncodedPayload(String.valueOf(i), "echo");
+				})).subscribe(s);
 		
 		assertEquals(0, s.received.get());
 		assertEquals(0, emitted.get());
@@ -227,104 +206,17 @@ public class TestFlowControlRequestN {
 		assertEquals(210, s.received.get());
 		Thread.sleep(100);
 		assertFalse(s.error.get());
-
-		System.out.println(">>> Client sent " + emittedClient.get() + " requests and received " + s.received.get() + " responses");
+		
+		System.out.println(">>> Client sent " + emittedClient.get()
+            + " requests and received " + s.received.get() + " responses");
 	}
 	
 	/**
 	 * Test that the upstream is governed by request(n)
 	 * @throws InterruptedException 
 	 */
-	@Test(timeout=2_000_000)
+	@Test(timeout=2000)
 	public void testRequestChannel_batches_upstream_decoupled() throws InterruptedException {
-		setup(requestStreamHandler, requestSubscriptionHandler, new Function<Publisher<Payload>, Publisher<Payload>>() {
-					@Override
-					public Publisher<Payload> apply(Publisher<Payload> inputs) {
-						/*
-						 * Consume 300 from request and then stop requesting more (but no cancel from responder side)
-						 */
-						inputs.subscribe(new Subscriber<Payload>() {
-							int count = 0;
-							Subscription s;
-
-							@Override
-							public void onSubscribe(Subscription s) {
-								this.s = s;
-								s.request(50L);
-							}
-
-							@Override
-							public void onNext(Payload input) {
-								String data = byteToString(input.getData());
-								System.out.println("DECOUPLED side-effect of request: " + data);
-								count++;
-								if (count == 50) {
-									s.request(250L);
-								}
-							}
-
-							@Override
-							public void onError(Throwable t) {
-							}
-
-							@Override
-							public void onComplete() {
-							}
-						});
-
-						return range(1, 1000)
-								.doOnNext(n -> System.out.println("RESPONDER sending value: " + n))
-								.doOnRequest(n -> System.out.println(">>> requested in decoupled responder: " + n))
-								.doOnRequest(r -> requested.addAndGet(r))
-								.doOnRequest(r -> numRequests.incrementAndGet())
-								.doOnError(t -> System.out.println("Error in 'decoupled' handler: " + t.getMessage()))
-								.doOnNext(i -> emitted.incrementAndGet())
-								.map(i -> utf8EncodedPayload(String.valueOf(i) + "_decoupled", null));
-					}
-				});
-
-//						.subscribe(new Subscriber<Payload>() {
-//					int count = 0;
-//					Subscription s;
-//
-//					@Override
-//					public void onError(Throwable e) {
-//					}
-//
-//					@Override
-//					public void onNext(Payload t) {
-//						count++;
-//						if (count == 50) {
-//							s.request(250);
-//						}
-//					}
-//
-//					@Override
-//					public void onSubscribe(Subscription s) {
-//						this.s = s;
-//						// start with 50
-//						s.request(50);
-//					}
-//
-//					@Override
-//					public void onComplete() {
-//					}
-//				});
-
-
-//				.flatMap(input -> {
-//					return range(1, 1000)
-//							.doOnNext(n -> System.out.println("RESPONDER sending value: " + n))
-//							.doOnRequest(n -> System.out.println(">>> requested in decoupled responder: " + n))
-//							.doOnRequest(r -> requested.addAndGet(r))
-//							.doOnRequest(r -> numRequests.incrementAndGet())
-//							.doOnError(t -> System.out.println("Error in 'decoupled' handler: " + t.getMessage()))
-//							.doOnNext(i -> emitted.incrementAndGet())
-//							.map(i -> utf8EncodedPayload(String.valueOf(i) + "_decoupled", null));
-//				});
-//			}
-//		});
-
 		ControlledSubscriber s = new ControlledSubscriber();
 		AtomicInteger emittedClient = new AtomicInteger();
 		socketClient.requestChannel(
@@ -332,7 +224,9 @@ public class TestFlowControlRequestN {
 				.doOnNext(n -> emittedClient.incrementAndGet())
 				.doOnRequest(r -> System.out.println("CLIENT REQUESTS requestN: " + r))
 				.map(i -> {
-					return utf8EncodedPayload(String.valueOf(i), "decoupled"); // metadata to route us to the echo behavior (only actually need this in the first payload) 
+                    // metadata to route us to the echo behavior (only actually need this
+                    // in the first payload)
+					return utf8EncodedPayload(String.valueOf(i), "decoupled");
 				})).subscribe(s);
 		
 		assertEquals(0, s.received.get());
@@ -346,10 +240,12 @@ public class TestFlowControlRequestN {
 		assertEquals(210, s.received.get());
 		Thread.sleep(100);
 		assertFalse(s.error.get());
-		// the responder side of 'decoupled' is limiting to 300 (batches of 50 and 250) so we should only emit 300 of the possible 10000
+		// the responder side of 'decoupled' is limiting to 300 (batches of 50 and 250)
+        // so we should only emit 300 of the possible 10000
 		assertEquals(300, emittedClient.get());
 		
-		System.out.println(">>> Client sent " + emittedClient.get() + " requests and received " + s.received.get() + " responses");
+		System.out.println(">>> Client sent " + emittedClient.get()
+            + " requests and received " + s.received.get() + " responses");
 	}
 
 	private void waitForAsyncValue(AtomicInteger value, int n) throws InterruptedException {
@@ -359,6 +255,7 @@ public class TestFlowControlRequestN {
 	}
 	
 	private static class ControlledSubscriber implements Subscriber<Payload> {
+
 		AtomicInteger received = new AtomicInteger();
 		Subscription subscription;
 		CountDownLatch terminated = new CountDownLatch(1);
@@ -387,86 +284,137 @@ public class TestFlowControlRequestN {
 			completed.set(true);
 			terminated.countDown();
 		}
+		
 	}
 	
-	private TestConnection serverConnection;
-	private TestConnection clientConnection;
-	private ReactiveSocket socketServer;
-	private ReactiveSocket socketClient;
-	private AtomicInteger emitted = new AtomicInteger();
-	private AtomicInteger numRequests = new AtomicInteger();
-	private AtomicLong requested = new AtomicLong();
-	private Function<Payload, Publisher<Payload>> requestStreamHandler = payload -> {
-		String request = byteToString(payload.getData());
-		System.out.println("responder received requestStream: " + request);
-		return range(0, Integer.parseInt(request))
-				.doOnRequest(n -> System.out.println("requested in responder: " + n))
-				.doOnRequest(r -> requested.addAndGet(r))
-				.doOnRequest(r -> numRequests.incrementAndGet())
-				.doOnNext(i -> emitted.incrementAndGet())
-				.map(i -> utf8EncodedPayload(String.valueOf(i), null));
-	};
-	private Function<Payload, Publisher<Payload>> requestSubscriptionHandler = payload -> {
-		return range(0, Integer.MAX_VALUE)
-				.doOnRequest(n -> System.out.println("requested in responder: " + n))
-				.doOnRequest(r -> requested.addAndGet(r))
-				.doOnRequest(r -> numRequests.incrementAndGet())
-				.doOnNext(i -> emitted.incrementAndGet())
-				.map(i -> utf8EncodedPayload(String.valueOf(i), null));
-	};
-	private Function<Publisher<Payload>, Publisher<Payload>> requestChannelHandler = inputs -> {
-		return outputSubscriber ->
-				fromPublisher(inputs).flatMap(input -> {
-					String requestMetadata = byteToString(input.getMetadata());
-					String payloadData = byteToString(input.getData());
-					System.out.println("responder handleChannel received payload: "
-							+ payloadData + ":" + requestMetadata);
-
-					return range(0, Integer.parseInt(requestMetadata))
-							.doOnRequest(n -> System.out.println("requested in responder: " + n))
-							.doOnRequest(r -> requested.addAndGet(r))
-							.doOnRequest(r -> numRequests.incrementAndGet())
-							.doOnNext(i -> emitted.incrementAndGet())
-							.map(i -> utf8EncodedPayload(String.valueOf(i), null));
-				}).subscribe(outputSubscriber);
-	};
+	private static TestConnection serverConnection;
+	private static TestConnection clientConnection;
+	private static ReactiveSocket socketServer;
+	private static ReactiveSocket socketClient;
+	private static AtomicInteger emitted = new AtomicInteger();
+	private static AtomicInteger numRequests = new AtomicInteger();
+	private static AtomicLong requested = new AtomicLong();
 	
 	@Before
-	public void init() throws InterruptedException {
+	public void init() {
 		emitted.set(0);
 		requested.set(0);
 		numRequests.set(0);
-		setup();
 	}
 
-	private void setup() throws InterruptedException {
-		setup(requestStreamHandler, requestSubscriptionHandler, requestChannelHandler);
-	}
-
-	private void setup(
-	    Function<Payload, Publisher<Payload>> requestStreamHandler,
-		Function<Payload, Publisher<Payload>> requestSubscriptionHandler,
-		Function<Publisher<Payload>, Publisher<Payload>> requestChannelHandler
-	) throws InterruptedException {
+	@BeforeClass
+	public static void setup() throws InterruptedException {
 		serverConnection = new TestConnection();
 		clientConnection = new TestConnection();
 		clientConnection.connectToServerConnection(serverConnection, false);
+		
 
 		socketServer = ReactiveSocket.fromServerConnection(serverConnection, setup -> new RequestHandler() {
 
 			@Override
 			public Publisher<Payload> handleRequestStream(Payload payload) {
-				return requestStreamHandler.apply(payload);
+				String request = byteToString(payload.getData());
+				System.out.println("responder received requestStream: " + request);
+				return range(0, Integer.parseInt(request))
+						.doOnRequest(n -> System.out.println("requested in responder: " + n))
+						.doOnRequest(r -> requested.addAndGet(r))
+						.doOnRequest(r -> numRequests.incrementAndGet())
+						.doOnNext(i -> emitted.incrementAndGet())
+						.map(i -> utf8EncodedPayload(String.valueOf(i), null));
 			}
 
 			@Override
 			public Publisher<Payload> handleSubscription(Payload payload) {
-				return requestSubscriptionHandler.apply(payload);
+				return range(0, Integer.MAX_VALUE)
+						.doOnRequest(n -> System.out.println("requested in responder: " + n))
+						.doOnRequest(r -> requested.addAndGet(r))
+						.doOnRequest(r -> numRequests.incrementAndGet())
+						.doOnNext(i -> emitted.incrementAndGet())
+						.map(i -> utf8EncodedPayload(String.valueOf(i), null));
 			}
 
+			/**
+			 * Use Payload.metadata for routing
+			 */
 			@Override
-			public Publisher<Payload> handleChannel(Publisher<Payload> inputs) {
-				return requestChannelHandler.apply(inputs);
+			public Publisher<Payload> handleChannel(Payload initialPayload, Publisher<Payload> payloads) {
+				String requestMetadata = byteToString(initialPayload.getMetadata());
+				System.out.println("responder received requestChannel: " + requestMetadata);
+				
+				if(requestMetadata.equals("echo")) {
+                    // TODO I want this to be concatMap instead of flatMap but apparently concatMap has a bug
+					return fromPublisher(payloads).map(payload -> {
+						String payloadData = byteToString(payload.getData());
+						return utf8EncodedPayload(String.valueOf(payloadData) + "_echo", null);	
+					}).doOnRequest(n -> System.out.println(">>> requested in echo responder: " + n))
+					  .doOnRequest(r -> requested.addAndGet(r))
+					  .doOnRequest(r -> numRequests.incrementAndGet())
+					  .doOnError(t -> System.out.println("Error in 'echo' handler: " + t.getMessage()))
+					  .doOnNext(i -> emitted.incrementAndGet());
+				} else if (requestMetadata.equals("decoupled")) {
+					/*
+					 * Consume 300 from request and then stop requesting more (but no cancel from responder side)
+					 */
+                    fromPublisher(payloads).doOnNext(payload -> {
+                        String payloadData = byteToString(payload.getData());
+                        System.out.println("DECOUPLED side-effect of request: " + payloadData);
+                    }).subscribe(new Subscriber<Payload>() {
+
+						int count=0;
+						Subscription s;
+						
+						@Override
+						public void onError(Throwable e) {
+							
+						}
+
+						@Override
+						public void onNext(Payload t) {
+							count++;
+							if(count == 50) {
+								s.request(250);
+							}
+						}
+
+						@Override
+						public void onSubscribe(Subscription s) {
+							this.s = s;
+							// start with 50
+							s.request(50);							
+						}
+
+						@Override
+						public void onComplete() {
+							// TODO Auto-generated method stub
+							
+						}
+
+						
+					});
+					  
+					return range(1, 1000)
+							.doOnNext(n -> System.out.println("RESPONDER sending value: " + n))
+							.map(i -> { 
+						return utf8EncodedPayload(String.valueOf(i) + "_decoupled", null);
+					})
+					 .doOnRequest(n -> System.out.println(">>> requested in decoupled responder: " + n))
+					 .doOnRequest(r -> requested.addAndGet(r))
+					 .doOnRequest(r -> numRequests.incrementAndGet())
+					 .doOnError(t -> System.out.println("Error in 'decoupled' handler: " + t.getMessage()))
+					 .doOnNext(i -> emitted.incrementAndGet());
+				} else {
+                    // TODO I want this to be concatMap instead of flatMap but apparently concatMap has a bug
+					return fromPublisher(payloads).flatMap(payload -> {
+						String payloadData = byteToString(payload.getData());
+						System.out.println("responder handleChannel received payload: " + payloadData);
+						return range(0, Integer.parseInt(requestMetadata))
+								.doOnRequest(n -> System.out.println("requested in responder [" + payloadData + "]: " + n))
+								.doOnRequest(r -> requested.addAndGet(r))
+								.doOnRequest(r -> numRequests.incrementAndGet())
+								.doOnNext(i -> emitted.incrementAndGet())
+								.map(i -> utf8EncodedPayload(String.valueOf(i), null));	
+					}).doOnRequest(n -> System.out.println(">>> response stream request(n) in responder: " + n));
+				}
 			}
 
 			@Override
@@ -486,7 +434,11 @@ public class TestFlowControlRequestN {
 			}
 		}, LeaseGovernor.UNLIMITED_LEASE_GOVERNOR, Throwable::printStackTrace);
 
-		socketClient = ReactiveSocket.fromClientConnection(clientConnection, ConnectionSetupPayload.create("UTF-8", "UTF-8", NO_FLAGS), Throwable::printStackTrace);
+		socketClient = ReactiveSocket.fromClientConnection(
+            clientConnection,
+            ConnectionSetupPayload.create("UTF-8", "UTF-8", NO_FLAGS),
+            Throwable::printStackTrace
+        );
 
         // start both the server and client and monitor for errors
         LatchedCompletable lc = new LatchedCompletable(2);
@@ -497,8 +449,8 @@ public class TestFlowControlRequestN {
         }
 	}
 
-	@After
-	public void shutdown() {
+	@AfterClass
+	public static void shutdown() {
 		socketServer.shutdown();
 		socketClient.shutdown();
 	}

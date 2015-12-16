@@ -114,7 +114,7 @@ public class LeaseTest {
                  */
                 @Override
                 public Publisher<Payload> handleChannel(
-                    Publisher<Payload> inputs
+                    Payload initialPayload, Publisher<Payload> inputs
                 ) {
                     return fromPublisher(inputs).map(p ->
                         utf8EncodedPayload(byteToString(p.getData()) + "_echo", null));

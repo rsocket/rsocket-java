@@ -18,7 +18,6 @@ package io.reactivesocket;
 import io.reactivesocket.internal.PublisherUtils;
 import org.reactivestreams.Publisher;
 
-import java.util.function.BiFunction;
 import java.util.function.Function;
 
 public abstract class RequestHandler {
@@ -50,9 +49,10 @@ public abstract class RequestHandler {
 	public abstract Publisher<Void> handleFireAndForget(final Payload payload);
 
 	/**
-	 * @return
+	 * @note The initialPayload will also be part of the inputs publisher.
+	 * It is there to simplify routing logic.
 	 */
-	public abstract Publisher<Payload> handleChannel(final Publisher<Payload> inputs);
+	public abstract Publisher<Payload> handleChannel(Payload initialPayload, final Publisher<Payload> inputs);
 
 	public abstract Publisher<Void> handleMetadataPush(final Payload payload);
 
@@ -125,7 +125,7 @@ public abstract class RequestHandler {
 					return handleFireAndForget.apply(payload);
 				}
 
-				public Publisher<Payload> handleChannel(Publisher<Payload> inputs)
+				public Publisher<Payload> handleChannel(Payload initialPayload, Publisher<Payload> inputs)
 				{
 					return handleRequestChannel.apply(inputs);
 				}
