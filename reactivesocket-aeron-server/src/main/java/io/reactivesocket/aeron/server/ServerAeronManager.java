@@ -42,7 +42,7 @@ public class ServerAeronManager implements Loggable {
 
     private TimerWheel timerWheel;
 
-    public ServerAeronManager() {
+    private ServerAeronManager() {
         final Aeron.Context ctx = new Aeron.Context();
         ctx.availableImageHandler(this::availableImageHandler);
         ctx.unavailableImageHandler(this::unavailableImage);
@@ -112,22 +112,17 @@ public class ServerAeronManager implements Loggable {
                         }
                     }
 
-                    SERVER_IDLE_STRATEGY.idle(poll);
-
-                    try {
-                        if (timerWheel.computeDelayInMs() < 0) {
-                            timerWheel.expireTimers();
-                        }
-                    } catch (Throwable t) {
-                        t.printStackTrace();
+                    if (timerWheel.computeDelayInMs() < 0) {
+                        poll += timerWheel.expireTimers();
                     }
+
+                    SERVER_IDLE_STRATEGY.idle(poll);
 
                 } catch (Throwable t) {
                     t.printStackTrace();
                 }
 
             }
-
 
         });
         dutyThread.setName("reactive-socket-aeron-server");
