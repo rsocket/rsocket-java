@@ -1,6 +1,6 @@
 # ReactiveSocket
 
-ReactiveSocket is network protocol with client and server that uses [Reactive Streams](http://reactive-stream.org) (and optimistically [Reactive Stream IO](http://reactive-stream.io) as it gets defined).
+ReactiveSocket is network protocol with client and server that uses [Reactive Streams](http://reactive-streams.org) (and optimistically [Reactive Streams IO](http://reactive-streams.io) as it gets defined).
 
 It enables the following interaction models via async message passing over a single network connection:
 
