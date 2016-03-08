@@ -97,7 +97,7 @@ public class Pong {
                     }
 
                     @Override
-                    public Publisher<Payload> handleChannel(Publisher<Payload> payloads) {
+                    public Publisher<Payload> handleChannel(Payload initial, Publisher<Payload> payloads) {
                         return null;
                     }
 
