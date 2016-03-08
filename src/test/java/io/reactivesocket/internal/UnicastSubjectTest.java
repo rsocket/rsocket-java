@@ -23,6 +23,8 @@ import io.reactivesocket.TestUtil;
 import io.reactivesocket.internal.UnicastSubject;
 import io.reactivex.subscribers.TestSubscriber;
 
+import static org.junit.Assert.assertTrue;
+
 public class UnicastSubjectTest {
 
 	@Test
@@ -52,7 +54,10 @@ public class UnicastSubjectTest {
 		us.subscribe(f2);
 
 		f1.assertNotTerminated();
-		f2.assertError(IllegalStateException.class);
+		for (Throwable e : f2.errors()) {
+			assertTrue( IllegalStateException.class.isInstance(e)
+				|| NullPointerException.class.isInstance(e));
+		}
 	}
 
 }

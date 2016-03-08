@@ -716,10 +716,11 @@ public class Responder {
                                         // after we are first subscribed to then send
                                         // the initial frame
                                         s.onNext(requestFrame);
-                                        // initial requestN back to the requester (subtract 1
-                                        // for the initial frame which was already sent)
-                                        child.onNext(
-                                            Frame.RequestN.from(streamId, rn.intValue() - 1));
+                                        if (rn.intValue() > 0) {
+                                            // initial requestN back to the requester (subtract 1
+                                            // for the initial frame which was already sent)
+                                            child.onNext(Frame.RequestN.from(streamId, rn.intValue() - 1));
+                                        }
                                     }, r -> {
                                         // requested
                                         child.onNext(Frame.RequestN.from(streamId, r.intValue()));
