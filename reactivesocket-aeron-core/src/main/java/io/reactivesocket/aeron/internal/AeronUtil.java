@@ -142,7 +142,7 @@ public class AeronUtil implements Loggable {
         OneToOneConcurrentArrayQueue<MutableDirectBuffer> queue = unsafeBuffers.get();
         MutableDirectBuffer buffer = queue.poll();
 
-        if (buffer != null && buffer.capacity() < length) {
+        if (buffer != null && buffer.capacity() >= length) {
             return buffer;
         } else {
             byte[] bytes = new byte[length];
