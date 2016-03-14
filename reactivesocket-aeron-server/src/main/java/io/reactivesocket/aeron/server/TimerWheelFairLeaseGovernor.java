@@ -23,14 +23,11 @@ public class TimerWheelFairLeaseGovernor implements LeaseGovernor, Runnable {
     private final List<Responder> responders;
     private final Int2IntHashMap leaseCount;
 
-    private volatile boolean running = false;
-    private long p0, p1, p2, p3, p4, p5, p6;
+    private boolean running = false;
 
-    private volatile int ticketsPerResponder = 0;
-    private long p10, p11, p12, p13, p14, p15, p16;
+    private int ticketsPerResponder = 0;
 
-    private volatile int extra = 0;
-    private long p20, p21, p22, p23, p24, p25, p26;
+    private int extra = 0;
 
     public TimerWheelFairLeaseGovernor(int tickets, long period, TimeUnit unit) {
         this.responders = new ArrayList<>();
@@ -40,57 +37,57 @@ public class TimerWheelFairLeaseGovernor implements LeaseGovernor, Runnable {
         this.unit = unit;
         this.ttlMs = (int) unit.toMillis(period);
         this.timer = ServerAeronManager
-                .getInstance()
-                .getTimerWheel()
-                .newBlankTimer();
+            .getInstance()
+            .getTimerWheel()
+            .newBlankTimer();
     }
 
     @Override
     public void run() {
-        if (!running) {
+        if (running) {
             try {
-                synchronized (responders) {
-                    final int numResponders = responders.size();
-                    if (numResponders > 0) {
-                        final int extraWinner = ((int) System.nanoTime()) % numResponders;
+                final int numResponders = responders.size();
+                if (numResponders > 0) {
+                    int extraTicketsLeft = extra;
 
-                        for (int i = 0; i < numResponders; i++) {
-                            int amountToSend = ticketsPerResponder;
-                            if (i == extraWinner) {
-                                amountToSend += extra;
-                            }
-                            Responder responder = responders.get(i);
-                            leaseCount.put(responder.hashCode(), amountToSend);
-                            responder.sendLease(ttlMs, amountToSend);
+                    for (int i = 0; i < numResponders; i++) {
+                        int amountToSend = ticketsPerResponder;
+                        if (extraTicketsLeft > 0) {
+                            amountToSend++;
+                            extraTicketsLeft--;
                         }
+                        Responder responder = responders.get(i);
+                        leaseCount.put(responder.hashCode(), amountToSend);
+                        responder.sendLease(ttlMs, amountToSend);
                     }
+
                 }
             } finally {
                 ServerAeronManager
-                        .getInstance()
-                        .getTimerWheel()
-                        .rescheduleTimeout(period, unit, timer, this::run);
+                    .getInstance()
+                    .getTimerWheel()
+                    .rescheduleTimeout(period, unit, timer, this::run);
             }
         }
     }
 
     @Override
     public void register(Responder responder) {
-        synchronized (responders) {
+        ServerAeronManager.getInstance().submitAction(() -> {
             responders.add(responder);
 
             calculateTicketsToSendPerResponder();
 
             if (!running) {
-                running = false;
+                running = true;
                 run();
             }
-        }
+        });
     }
 
     @Override
     public void unregister(Responder responder) {
-        synchronized (responders) {
+        ServerAeronManager.getInstance().submitAction(() -> {
             responders.remove(responder);
 
             calculateTicketsToSendPerResponder();
@@ -98,7 +95,7 @@ public class TimerWheelFairLeaseGovernor implements LeaseGovernor, Runnable {
             if (running && responders.isEmpty()) {
                 running = false;
             }
-        }
+        });
     }
 
     void calculateTicketsToSendPerResponder() {
@@ -111,13 +108,10 @@ public class TimerWheelFairLeaseGovernor implements LeaseGovernor, Runnable {
 
     @Override
     public boolean accept(Responder responder, Frame frame) {
-        int count;
-        synchronized (responders) {
-            count = leaseCount.get(responder.hashCode()) - 1;
+        int count = leaseCount.get(responder.hashCode()) - 1;
 
-            if (count >= 0) {
-                leaseCount.put(responder.hashCode(), count);
-            }
+        if (count >= 0) {
+            leaseCount.put(responder.hashCode(), count);
         }
 
         return count > 0;

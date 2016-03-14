@@ -47,14 +47,21 @@ public class ReactiveSocketAeronScheduler extends Scheduler {
 
         @Override
         public Subscription schedule(Action0 action) {
-            return schedule(action, 0, TimeUnit.MILLISECONDS);
+            boolean submitted;
+            do {
+                submitted = ServerAeronManager.getInstance().submitAction(action);
+            } while (!submitted);
+
+            return this;
         }
 
         @Override
         public Subscription schedule(Action0 action, long delayTime, TimeUnit unit) {
-            TimerWheel timerWheel =
-                    ServerAeronManager.getInstance().getTimerWheel();
-            timerWheel.newTimeout(delayTime, unit, action::call);
+            boolean scheduled;
+            do {
+                scheduled = ServerAeronManager.getInstance().threadSafeTimeout(delayTime, unit, action);
+            } while (!scheduled);
+
             return this;
         }
 

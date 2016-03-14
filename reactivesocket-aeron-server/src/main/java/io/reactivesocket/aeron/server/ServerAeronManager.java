@@ -17,8 +17,15 @@ package io.reactivesocket.aeron.server;
 
 import io.reactivesocket.aeron.internal.Constants;
 import io.reactivesocket.aeron.internal.Loggable;
-import uk.co.real_logic.aeron.*;
+import rx.functions.Action0;
+import uk.co.real_logic.aeron.Aeron;
+import uk.co.real_logic.aeron.AvailableImageHandler;
+import uk.co.real_logic.aeron.FragmentAssembler;
+import uk.co.real_logic.aeron.Image;
+import uk.co.real_logic.aeron.Subscription;
+import uk.co.real_logic.aeron.UnavailableImageHandler;
 import uk.co.real_logic.agrona.TimerWheel;
+import uk.co.real_logic.agrona.concurrent.ManyToOneConcurrentArrayQueue;
 
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
@@ -34,13 +41,17 @@ public class ServerAeronManager implements Loggable {
 
     private final Aeron aeron;
 
-    private CopyOnWriteArrayList<AvailableImageHandler> availableImageHandlers = new CopyOnWriteArrayList<>();
+    private final CopyOnWriteArrayList<AvailableImageHandler> availableImageHandlers = new CopyOnWriteArrayList<>();
 
-    private CopyOnWriteArrayList<UnavailableImageHandler> unavailableImageHandlers = new CopyOnWriteArrayList<>();
+    private final CopyOnWriteArrayList<UnavailableImageHandler> unavailableImageHandlers = new CopyOnWriteArrayList<>();
 
-    private CopyOnWriteArrayList<FragmentAssemblerHolder> fragmentAssemblerHolders = new CopyOnWriteArrayList<>();
+    private final CopyOnWriteArrayList<FragmentAssemblerHolder> fragmentAssemblerHolders = new CopyOnWriteArrayList<>();
 
-    private TimerWheel timerWheel;
+    private final ManyToOneConcurrentArrayQueue<Action0> actions = new ManyToOneConcurrentArrayQueue<>(1024);
+
+    private final TimerWheel timerWheel;
+
+    private final Thread dutyThread;
 
     private ServerAeronManager() {
         final Aeron.Context ctx = new Aeron.Context();
@@ -52,7 +63,40 @@ public class ServerAeronManager implements Loggable {
 
         this.timerWheel = new TimerWheel(Constants.SERVER_TIMER_WHEEL_TICK_DURATION_MS, TimeUnit.MILLISECONDS, Constants.SERVER_TIMER_WHEEL_BUCKETS);
 
-        poll();
+        dutyThread = new Thread(() -> {
+            for (; ; ) {
+                try {
+                    int poll = 0;
+                    for (FragmentAssemblerHolder sh : fragmentAssemblerHolders) {
+                        try {
+                            if (sh.subscription.isClosed()) {
+                                continue;
+                            }
+
+                            poll += sh.subscription.poll(sh.fragmentAssembler, Integer.MAX_VALUE);
+                        } catch (Throwable t) {
+                            t.printStackTrace();
+                        }
+                    }
+
+                    poll += actions.drain(Action0::call);
+
+                    if (timerWheel.computeDelayInMs() < 0) {
+                        poll += timerWheel.expireTimers();
+                    }
+
+                    SERVER_IDLE_STRATEGY.idle(poll);
+
+                } catch (Throwable t) {
+                    t.printStackTrace();
+                }
+
+            }
+
+        });
+        dutyThread.setName("reactive-socket-aeron-server");
+        dutyThread.setDaemon(true);
+        dutyThread.start();
     }
 
     public static ServerAeronManager getInstance() {
@@ -95,39 +139,40 @@ public class ServerAeronManager implements Loggable {
         return timerWheel;
     }
 
-    void poll() {
-        Thread dutyThread = new Thread(() -> {
-            for (; ; ) {
-                try {
-                    int poll = 0;
-                    for (FragmentAssemblerHolder sh : fragmentAssemblerHolders) {
-                        try {
-                            if (sh.subscription.isClosed()) {
-                                continue;
-                            }
+    /**
+     * Submits an Action0 to be run but the duty thread.
+     * @param action the action to be executed
+     * @return true if it was successfully submitted
+     */
+    public boolean submitAction(Action0 action) {
+        boolean submitted = true;
+        Thread currentThread = Thread.currentThread();
+        if (currentThread.equals(dutyThread)) {
+            action.call();
+        } else {
+            submitted = actions.offer(action);
+        }
 
-                            poll += sh.subscription.poll(sh.fragmentAssembler, Integer.MAX_VALUE);
-                        } catch (Throwable t) {
-                            t.printStackTrace();
-                        }
-                    }
+        return submitted;
+    }
 
-                    if (timerWheel.computeDelayInMs() < 0) {
-                        poll += timerWheel.expireTimers();
-                    }
+    /**
+     * Schedules timeout on the TimerWheel in a thread-safe many
+     * @param delayTime
+     * @param unit
+     * @param action
+     * @return true if it was successfully scheduled, otherwise false.
+     */
+    public boolean threadSafeTimeout(long delayTime, TimeUnit unit, Action0 action) {
+        boolean scheduled = true;
+        Thread currentThread = Thread.currentThread();
+        if (currentThread.equals(dutyThread)) {
+            timerWheel.newTimeout(delayTime, unit, action::call);
+        } else {
+            scheduled = actions.offer(() -> timerWheel.newTimeout(delayTime, unit, action::call));
+        }
 
-                    SERVER_IDLE_STRATEGY.idle(poll);
-
-                } catch (Throwable t) {
-                    t.printStackTrace();
-                }
-
-            }
-
-        });
-        dutyThread.setName("reactive-socket-aeron-server");
-        dutyThread.setDaemon(true);
-        dutyThread.start();
+        return scheduled;
     }
 
     private class FragmentAssemblerHolder {
