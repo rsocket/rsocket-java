@@ -80,15 +80,15 @@ public class ReactiveSocketAeronServer implements AutoCloseable, Loggable {
     }
 
     public static ReactiveSocketAeronServer create(String host, int port, ConnectionSetupHandler connectionSetupHandler) {
-        return new ReactiveSocketAeronServer(host, port, connectionSetupHandler, LeaseGovernor.NULL_LEASE_GOVERNOR);
+        return new ReactiveSocketAeronServer(host, port, connectionSetupHandler, LeaseGovernor.UNLIMITED_LEASE_GOVERNOR);
     }
 
     public static ReactiveSocketAeronServer create(int port, ConnectionSetupHandler connectionSetupHandler) {
-        return create("localhost", port, connectionSetupHandler, LeaseGovernor.NULL_LEASE_GOVERNOR);
+        return create("localhost", port, connectionSetupHandler, LeaseGovernor.UNLIMITED_LEASE_GOVERNOR);
     }
 
     public static ReactiveSocketAeronServer create(ConnectionSetupHandler connectionSetupHandler) {
-        return create(39790, connectionSetupHandler, LeaseGovernor.NULL_LEASE_GOVERNOR);
+        return create(39790, connectionSetupHandler, LeaseGovernor.UNLIMITED_LEASE_GOVERNOR);
     }
 
     void fragmentHandler(DirectBuffer buffer, int offset, int length, Header header) {
