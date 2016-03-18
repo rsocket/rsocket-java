@@ -1,9 +1,6 @@
 buildscript {
-    repositories {
-        jcenter()
-    }
-
-    dependencies { classpath 'io.reactivesocket:gradle-nebula-plugin-reactivesocket:1.0.1' }
+    repositories { jcenter() }
+    dependencies { classpath 'io.reactivesocket:gradle-nebula-plugin-reactivesocket:1.0.3' }
 }
 
 apply plugin: 'reactivesocket-project'
@@ -17,7 +14,7 @@ subprojects {
     }
 
     dependencies {
-        compile 'io.reactivex:rxjava:1.0.13'
+        compile 'io.reactivex:rxjava:1.1.1'
         compile 'io.reactivex:rxjava-reactive-streams:1.0.1'
         compile 'io.reactivesocket:reactivesocket:0.0.2'
         compile 'uk.co.real-logic:Agrona:0.4.8'
