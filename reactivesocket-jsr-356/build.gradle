@@ -1,0 +1,13 @@
+buildscript {
+    repositories { maven { url 'http://repo.spring.io/plugins-release' } }
+    dependencies { classpath 'org.springframework.build.gradle:propdeps-plugin:0.0.7' }
+}
+
+apply plugin: 'propdeps'
+
+dependencies {
+    provided 'javax.websocket:javax.websocket-api:1.1'
+    testCompile 'org.glassfish.tyrus:tyrus-client:1.12'
+    testCompile 'org.glassfish.tyrus:tyrus-server:1.12'
+    testCompile 'org.glassfish.tyrus:tyrus-container-grizzly-server:1.12'
+}

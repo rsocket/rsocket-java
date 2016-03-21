@@ -1,4 +1,0 @@
-dependencies {
-    compile project(':reactivesocket-aeron-client')
-    compile project(':reactivesocket-aeron-server')
-}
