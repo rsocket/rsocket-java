@@ -1,14 +1,14 @@
-# ReactiveSocket over Aeron
+# ReactiveSocket Java Implementation
 
-This is an implementation over Aeron.
+Java implementations.
 
 ## Master Build Status
 
-<a href='https://travis-ci.org/ReactiveSocket/reactivesocket-aeron-rxjava/builds'><img src='https://travis-ci.org/ReactiveSocket/reactivesocket-aeron-rxjava.svg?branch=master'></a>
+<a href='https://travis-ci.org/ReactiveSocket/reactivesocket-java-impl/builds'><img src='https://travis-ci.org/ReactiveSocket/reactivesocket-java-impl.svg?branch=master'></a>
 
 ## Bugs and Feedback
 
-For bugs, questions and discussions please use the [Github Issues](https://github.com/ReactiveSocket/reactivesocket-aeron-rxjava/issues).
+For bugs, questions and discussions please use the [Github Issues](https://github.com/ReactiveSocket/reactivesocket-java-impl/issues).
 
 
 ## LICENSE
