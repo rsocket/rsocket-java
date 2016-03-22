@@ -1,4 +1,4 @@
-# ReactiveSocket Java Implementation
+# ReactiveSocket Java Implementations
 
 Java implementations.
 
