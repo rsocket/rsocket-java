@@ -123,7 +123,7 @@ public class ClientServerTest {
         serverChannel = b.bind("localhost", 8025).sync().channel();
 
         ClientWebSocketDuplexConnection duplexConnection = RxReactiveStreams.toObservable(
-            ClientWebSocketDuplexConnection.create(InetSocketAddress.createUnresolved("localhost", 8025), new NioEventLoopGroup())
+            ClientWebSocketDuplexConnection.create(InetSocketAddress.createUnresolved("localhost", 8025), "/rs", new NioEventLoopGroup())
         ).toBlocking().single();
 
         client = ReactiveSocket

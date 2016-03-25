@@ -19,76 +19,64 @@ import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
 import io.reactivesocket.rx.Completable;
 import io.reactivesocket.rx.Observable;
-import io.reactivesocket.rx.Observer;
 import org.reactivestreams.Publisher;
 import rx.RxReactiveStreams;
-import rx.Subscriber;
+import rx.Subscription;
+import rx.subscriptions.BooleanSubscription;
 
-import javax.websocket.*;
+import javax.websocket.Session;
 import java.io.IOException;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 public class WebSocketDuplexConnection implements DuplexConnection {
-    private Session session;
+    private final Session session;
+    private final rx.Observable<Frame> input;
 
-    private CopyOnWriteArrayList<Observer<Frame>> observers;
-
-    private WebSocketDuplexConnection(Session session, rx.Observable<Frame> input) {
+    public WebSocketDuplexConnection(Session session, rx.Observable<Frame> input) {
         this.session = session;
-        this.observers = new CopyOnWriteArrayList<>();
-        input.subscribe(new Subscriber<Frame>() {
-            @Override
-            public void onNext(Frame frame) {
-                observers.forEach(o -> o.onNext(frame));
-            }
-
-            @Override
-            public void onError(Throwable e) {
-                observers.forEach(o -> o.onError(e));
-            }
-
-            @Override
-            public void onCompleted() {
-                observers.forEach(Observer::onComplete);
-            }
-        });
-    }
-
-    public static WebSocketDuplexConnection create(Session session, rx.Observable<Frame> input) {
-        return new WebSocketDuplexConnection(session, input);
+        this.input = input;
     }
 
     @Override
     public Observable<Frame> getInput() {
-        return new Observable<Frame>() {
-            @Override
-            public void subscribe(Observer<Frame> o) {
-                observers.add(o);
-
-                o.onSubscribe(() ->
-                    observers.removeIf(s -> s == o)
-                );
-            }
+        return o -> {
+            Subscription subscription = input.subscribe(o::onNext, o::onError, o::onComplete);
+            o.onSubscribe(subscription::unsubscribe);
         };
     }
 
     @Override
     public void addOutput(Publisher<Frame> o, Completable callback) {
-        rx.Observable<Void> sent = RxReactiveStreams.toObservable(o).concatMap(frame ->
-            rx.Observable.create(subscriber -> {
-                session.getAsyncRemote().sendBinary(frame.getByteBuffer(), result -> {
-                    if (result.isOK()) {
-                        subscriber.onCompleted();
-                    } else {
-                        subscriber.onError(result.getException());
-                    }
-                });
-            })
-        );
+        rx.Completable sent = rx.Completable.concat(RxReactiveStreams.toObservable(o).map(frame ->
+                rx.Completable.create(s -> {
+                    BooleanSubscription bs = new BooleanSubscription();
+                    s.onSubscribe(bs);
+                    session.getAsyncRemote().sendBinary(frame.getByteBuffer(), result -> {
+                        if (!bs.isUnsubscribed()) {
+                            if (result.isOK()) {
+                                s.onCompleted();
+                            } else {
+                                s.onError(result.getException());
+                            }
+                        }
+                    });
+                })
+        ));
 
-        sent.doOnCompleted(callback::success)
-            .doOnError(callback::error)
-            .subscribe();
+        sent.subscribe(new rx.Completable.CompletableSubscriber() {
+            @Override
+            public void onCompleted() {
+                callback.success();
+            }
+
+            @Override
+            public void onError(Throwable e) {
+                callback.error(e);
+            }
+
+            @Override
+            public void onSubscribe(Subscription s) {
+            }
+        });
     }
 
     @Override

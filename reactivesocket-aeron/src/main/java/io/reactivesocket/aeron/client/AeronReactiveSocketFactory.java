@@ -3,18 +3,18 @@ package io.reactivesocket.aeron.client;
 import io.reactivesocket.ConnectionSetupPayload;
 import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.ReactiveSocketFactory;
-import io.reactivesocket.internal.rx.EmptySubscription;
 import io.reactivesocket.rx.Completable;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import rx.Observable;
+import rx.RxReactiveStreams;
 import uk.co.real_logic.agrona.LangUtil;
 
 import java.net.*;
 import java.util.Enumeration;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
@@ -47,55 +47,45 @@ public class AeronReactiveSocketFactory implements ReactiveSocketFactory {
 
     @Override
     public Publisher<ReactiveSocket> call(SocketAddress address, long timeout, TimeUnit timeUnit) {
-        Publisher<AeronClientDuplexConnection> aeronClientDuplexConnection
+        Publisher<AeronClientDuplexConnection> connection
             = AeronClientDuplexConnectionFactory.getInstance().createAeronClientDuplexConnection(address);
 
-        return (Subscriber<? super ReactiveSocket> s) -> {
-            s.onSubscribe(EmptySubscription.INSTANCE);
-            aeronClientDuplexConnection
-                .subscribe(new Subscriber<AeronClientDuplexConnection>() {
+        Observable<ReactiveSocket> result = Observable.create(s ->
+            connection.subscribe(new Subscriber<AeronClientDuplexConnection>() {
+                @Override
+                public void onSubscribe(Subscription s) {
+                    s.request(1);
+                }
 
-                    @Override
-                    public void onSubscribe(Subscription s) {
-                        s.request(1);
-                    }
+                @Override
+                public void onNext(AeronClientDuplexConnection connection) {
+                    ReactiveSocket reactiveSocket = ReactiveSocket.fromClientConnection(connection, connectionSetupPayload, errorStream);
+                    reactiveSocket.start(new Completable() {
+                        @Override
+                        public void success() {
+                            s.onNext(reactiveSocket);
+                            s.onCompleted();
+                        }
 
-                    @Override
-                    public void onNext(AeronClientDuplexConnection connection) {
-                        ReactiveSocket reactiveSocket = ReactiveSocket.fromClientConnection(connection, connectionSetupPayload, errorStream);
-                        CountDownLatch latch = new CountDownLatch(1);
-                        reactiveSocket.start(new Completable() {
-                            @Override
-                            public void success() {
-                                latch.countDown();
-                                s.onNext(reactiveSocket);
-                                s.onComplete();
-                            }
-
-                            @Override
-                            public void error(Throwable e) {
-                                s.onError(e);
-                            }
-                        });
-
-                        try {
-                            latch.await(timeout, timeUnit);
-                        } catch (InterruptedException e) {
-                            logger.error(e.getMessage(), e);
+                        @Override
+                        public void error(Throwable e) {
                             s.onError(e);
                         }
-                    }
+                    });
+                }
 
-                    @Override
-                    public void onError(Throwable t) {
-                        s.onError(t);
-                    }
+                @Override
+                public void onError(Throwable t) {
+                    s.onError(t);
+                }
 
-                    @Override
-                    public void onComplete() {
-                    }
-                });
-        };
+                @Override
+                public void onComplete() {
+                }
+            })
+        );
+
+        return RxReactiveStreams.toPublisher(result.timeout(timeout, timeUnit));
     }
 
     private static InetAddress getIPv4InetAddress() {

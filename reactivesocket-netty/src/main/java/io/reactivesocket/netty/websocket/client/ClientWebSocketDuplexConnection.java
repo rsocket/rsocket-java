@@ -25,7 +25,6 @@ import io.netty.handler.codec.http.DefaultHttpHeaders;
 import io.netty.handler.codec.http.HttpClientCodec;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.websocketx.*;
-import io.netty.util.concurrent.Future;
 import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
 import io.reactivesocket.rx.Completable;
@@ -37,7 +36,9 @@ import org.reactivestreams.Subscription;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.net.SocketAddress;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 public class ClientWebSocketDuplexConnection implements DuplexConnection {
@@ -53,14 +54,23 @@ public class ClientWebSocketDuplexConnection implements DuplexConnection {
         this.bootstrap = bootstrap;
     }
 
-    public static Publisher<ClientWebSocketDuplexConnection> create(InetSocketAddress address, EventLoopGroup eventLoopGroup) {
+    public static Publisher<ClientWebSocketDuplexConnection> create(SocketAddress socketAddress, String path, EventLoopGroup eventLoopGroup) {
+        if (socketAddress instanceof InetSocketAddress) {
+            InetSocketAddress address = (InetSocketAddress)socketAddress;
+            try {
+                return create(new URI("ws", null, address.getHostName(), address.getPort(), path, null, null), eventLoopGroup);
+            } catch (URISyntaxException e) {
+                throw new IllegalArgumentException(e.getMessage(), e);
+            }
+        } else {
+            throw new IllegalArgumentException("unknown socket address type => " + socketAddress.getClass());
+        }
+    }
+
+    public static Publisher<ClientWebSocketDuplexConnection> create(URI uri, EventLoopGroup eventLoopGroup) {
         return s -> {
             WebSocketClientHandshaker handshaker = WebSocketClientHandshakerFactory.newHandshaker(
-                URI.create("ws://" + address.getHostName() + ":" + address.getPort() + "/rs"),
-                WebSocketVersion.V13,
-                null,
-                false,
-                new DefaultHttpHeaders());
+                    uri, WebSocketVersion.V13, null, false, new DefaultHttpHeaders());
 
             CopyOnWriteArrayList<Observer<Frame>> subjects = new CopyOnWriteArrayList<>();
             ReactiveSocketClientHandler clientHandler = new ReactiveSocketClientHandler(subjects);
@@ -79,7 +89,7 @@ public class ClientWebSocketDuplexConnection implements DuplexConnection {
                             clientHandler
                         );
                     }
-                }).connect(address);
+                }).connect(uri.getHost(), uri.getPort());
 
             connect.addListener(connectFuture -> {
                 if (connectFuture.isSuccess()) {
@@ -123,7 +133,7 @@ public class ClientWebSocketDuplexConnection implements DuplexConnection {
                     ByteBuf byteBuf = Unpooled.wrappedBuffer(frame.getByteBuffer());
                     BinaryWebSocketFrame binaryWebSocketFrame = new BinaryWebSocketFrame(byteBuf);
                     ChannelFuture channelFuture = channel.writeAndFlush(binaryWebSocketFrame);
-                    channelFuture.addListener((Future<? super Void> future) -> {
+                    channelFuture.addListener(future -> {
                         Throwable cause = future.cause();
                         if (cause != null) {
                             callback.error(cause);

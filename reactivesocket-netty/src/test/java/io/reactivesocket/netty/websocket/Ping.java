@@ -34,7 +34,7 @@ import java.util.concurrent.TimeUnit;
 
 public class Ping {
     public static void main(String... args) throws Exception {
-        Publisher<ClientWebSocketDuplexConnection> publisher = ClientWebSocketDuplexConnection.create(InetSocketAddress.createUnresolved("localhost", 8025), new NioEventLoopGroup(1));
+        Publisher<ClientWebSocketDuplexConnection> publisher = ClientWebSocketDuplexConnection.create(InetSocketAddress.createUnresolved("localhost", 8025), "/rs", new NioEventLoopGroup(1));
 
         ClientWebSocketDuplexConnection duplexConnection = RxReactiveStreams.toObservable(publisher).toBlocking().last();
         ReactiveSocket reactiveSocket = ReactiveSocket.fromClientConnection(duplexConnection, ConnectionSetupPayload.create("UTF-8", "UTF-8"), t -> t.printStackTrace());

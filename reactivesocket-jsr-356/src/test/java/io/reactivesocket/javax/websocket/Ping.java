@@ -21,29 +21,23 @@ import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.javax.websocket.client.ReactiveSocketWebSocketClient;
 import org.HdrHistogram.Recorder;
 import org.glassfish.tyrus.client.ClientManager;
+import org.reactivestreams.Publisher;
 import rx.Observable;
 import rx.RxReactiveStreams;
 import rx.Subscriber;
 import rx.schedulers.Schedulers;
 
-import javax.websocket.ClientEndpointConfig;
-import javax.websocket.Session;
-import java.net.URI;
+import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 public class Ping {
     public static void main(String... args) throws Exception {
+        Publisher<WebSocketDuplexConnection> publisher = ReactiveSocketWebSocketClient.create(InetSocketAddress.createUnresolved("localhost", 8025), "/rs", ClientManager.createClient());
 
-        ReactiveSocketWebSocketClient endpoint = new ReactiveSocketWebSocketClient();
-        ClientManager clientManager = ClientManager.createClient();
-        ClientEndpointConfig cec = ClientEndpointConfig.Builder.create().build();
-        Session session = clientManager.connectToServer(endpoint, cec, new URI("ws://localhost:8025/rs"));
-
-        ReactiveSocket reactiveSocket = ReactiveSocket.fromClientConnection(
-            WebSocketDuplexConnection.create(session, endpoint.getInput()), ConnectionSetupPayload.create("UTF-8", "UTF-8")
-        );
+        WebSocketDuplexConnection duplexConnection = RxReactiveStreams.toObservable(publisher).toBlocking().single();
+        ReactiveSocket reactiveSocket = ReactiveSocket.fromClientConnection(duplexConnection, ConnectionSetupPayload.create("UTF-8", "UTF-8"));
 
         reactiveSocket.startAndWait();
 

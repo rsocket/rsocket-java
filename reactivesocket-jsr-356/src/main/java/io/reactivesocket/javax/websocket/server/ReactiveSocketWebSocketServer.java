@@ -19,8 +19,8 @@ import io.reactivesocket.ConnectionSetupHandler;
 import io.reactivesocket.Frame;
 import io.reactivesocket.LeaseGovernor;
 import io.reactivesocket.ReactiveSocket;
-import io.reactivesocket.rx.Completable;
 import io.reactivesocket.javax.websocket.WebSocketDuplexConnection;
+import io.reactivesocket.rx.Completable;
 import rx.subjects.PublishSubject;
 import uk.co.real_logic.agrona.LangUtil;
 
@@ -29,14 +29,13 @@ import java.nio.ByteBuffer;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class ReactiveSocketWebSocketServer extends Endpoint {
-    private final PublishSubject<Frame> input;
-    private final ConcurrentHashMap<String, ReactiveSocket> reactiveSockets;
+    private final PublishSubject<Frame> input  = PublishSubject.create();
+    private final ConcurrentHashMap<String, ReactiveSocket> reactiveSockets = new ConcurrentHashMap<>();
+
     private final ConnectionSetupHandler setupHandler;
     private final LeaseGovernor leaseGovernor;
 
     protected ReactiveSocketWebSocketServer(ConnectionSetupHandler setupHandler, LeaseGovernor leaseGovernor) {
-        this.input = PublishSubject.create();
-        this.reactiveSockets = new ConcurrentHashMap<>();
         this.setupHandler = setupHandler;
         this.leaseGovernor = leaseGovernor;
     }
@@ -55,11 +54,11 @@ public class ReactiveSocketWebSocketServer extends Endpoint {
             }
         });
 
-        WebSocketDuplexConnection webSocketDuplexConnection = WebSocketDuplexConnection.create(session, input);
+        WebSocketDuplexConnection connection = new WebSocketDuplexConnection(session, input);
 
         final ReactiveSocket reactiveSocket = reactiveSockets.computeIfAbsent(session.getId(), id ->
             ReactiveSocket.fromServerConnection(
-                webSocketDuplexConnection,
+                connection,
                 setupHandler,
                 leaseGovernor,
                 t -> t.printStackTrace()

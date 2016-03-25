@@ -28,14 +28,12 @@ import rx.Observable;
 import rx.RxReactiveStreams;
 import rx.observers.TestSubscriber;
 
-import javax.websocket.ClientEndpointConfig;
 import javax.websocket.DeploymentException;
 import javax.websocket.Endpoint;
-import javax.websocket.Session;
 import javax.websocket.server.ServerApplicationConfig;
 import javax.websocket.server.ServerEndpointConfig;
 import java.io.IOException;
-import java.net.URI;
+import java.net.InetSocketAddress;
 import java.net.URISyntaxException;
 import java.util.Collections;
 import java.util.HashSet;
@@ -68,14 +66,11 @@ public class ClientServerTest {
         server = new Server("localhost", 8025, null, null, ApplicationConfig.class);
         server.start();
 
-        ReactiveSocketWebSocketClient endpoint = new ReactiveSocketWebSocketClient();
-        ClientManager clientManager = ClientManager.createClient();
-        ClientEndpointConfig cec = ClientEndpointConfig.Builder.create().build();
-        Session session = clientManager.connectToServer(endpoint, cec, new URI("ws://localhost:8025/rs"));
+        WebSocketDuplexConnection duplexConnection = RxReactiveStreams.toObservable(
+                ReactiveSocketWebSocketClient.create(InetSocketAddress.createUnresolved("localhost", 8025), "/rs", ClientManager.createClient())
+        ).toBlocking().single();
 
-        client = ReactiveSocket.fromClientConnection(
-            WebSocketDuplexConnection.create(session, endpoint.getInput()),
-            ConnectionSetupPayload.create("UTF-8", "UTF-8", ConnectionSetupPayload.NO_FLAGS));
+        client = ReactiveSocket.fromClientConnection(duplexConnection, ConnectionSetupPayload.create("UTF-8", "UTF-8"), t -> t.printStackTrace());
 
         client.startAndWait();
     }
