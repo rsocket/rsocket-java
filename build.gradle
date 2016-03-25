@@ -23,14 +23,14 @@ subprojects {
         testCompile 'org.mockito:mockito-core:1.8.5'
         testRuntime 'org.slf4j:slf4j-simple:1.7.12'
     }
+}
 
-    // support for snapshot/final releases via versioned branch names like 1.x
-    nebulaRelease {
-        addReleaseBranchPattern(/\d+\.\d+\.\d+/)
-        addReleaseBranchPattern('HEAD')
-    }
+// support for snapshot/final releases via versioned branch names like 1.x
+nebulaRelease {
+    addReleaseBranchPattern(/\d+\.\d+\.\d+/)
+    addReleaseBranchPattern('HEAD')
+}
 
-    if (project.hasProperty('release.useLastTag')) {
-        tasks.prepare.enabled = false
-    }
+if (project.hasProperty('release.useLastTag')) {
+    tasks.prepare.enabled = false
 }
