@@ -1,6 +1,6 @@
 buildscript {
     repositories { jcenter() }
-    dependencies { classpath 'io.reactivesocket:gradle-nebula-plugin-reactivesocket:1.0.3' }
+    dependencies { classpath 'io.reactivesocket:gradle-nebula-plugin-reactivesocket:1.0.4' }
 }
 
 apply plugin: 'reactivesocket-project'
@@ -10,7 +10,7 @@ subprojects {
     apply plugin: 'java'
 
     repositories {
-        maven { url 'https://oss.jfrog.org/libs-snapshot' }
+        maven { url 'https://dl.bintray.com/reactivesocket/ReactiveSocket' }
     }
 
     dependencies {
