@@ -15,18 +15,16 @@
  */
 package io.reactivesocket.internal;
 
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiFunction;
-import java.util.function.Consumer;
-
-import io.reactivesocket.*;
+import io.reactivesocket.ConnectionSetupHandler;
+import io.reactivesocket.ConnectionSetupPayload;
+import io.reactivesocket.DuplexConnection;
+import io.reactivesocket.Frame;
+import io.reactivesocket.FrameType;
+import io.reactivesocket.LeaseGovernor;
+import io.reactivesocket.Payload;
+import io.reactivesocket.RequestHandler;
 import io.reactivesocket.exceptions.InvalidSetupException;
 import io.reactivesocket.exceptions.RejectedException;
-import org.reactivestreams.Publisher;
-import org.reactivestreams.Subscriber;
-import org.reactivestreams.Subscription;
-
 import io.reactivesocket.exceptions.SetupException;
 import io.reactivesocket.internal.frame.SetupFrameFlyweight;
 import io.reactivesocket.internal.rx.EmptyDisposable;
@@ -34,7 +32,15 @@ import io.reactivesocket.internal.rx.EmptySubscription;
 import io.reactivesocket.rx.Completable;
 import io.reactivesocket.rx.Disposable;
 import io.reactivesocket.rx.Observer;
-import uk.co.real_logic.agrona.collections.Int2ObjectHashMap;
+import org.agrona.collections.Int2ObjectHashMap;
+import org.reactivestreams.Publisher;
+import org.reactivestreams.Subscriber;
+import org.reactivestreams.Subscription;
+
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
+import java.util.function.Consumer;
 
 /**
  * Protocol implementation abstracted over a {@link DuplexConnection}.

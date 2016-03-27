@@ -15,17 +15,6 @@
  */
 package io.reactivesocket;
 
-import java.io.IOException;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiConsumer;
-import java.util.function.Consumer;
-
-import org.reactivestreams.Publisher;
-import org.reactivestreams.Subscriber;
-import org.reactivestreams.Subscription;
-
 import io.reactivesocket.internal.Requester;
 import io.reactivesocket.internal.Responder;
 import io.reactivesocket.internal.rx.CompositeCompletable;
@@ -34,16 +23,21 @@ import io.reactivesocket.rx.Completable;
 import io.reactivesocket.rx.Disposable;
 import io.reactivesocket.rx.Observable;
 import io.reactivesocket.rx.Observer;
-import uk.co.real_logic.agrona.BitUtil;
+import org.agrona.BitUtil;
+import org.reactivestreams.Publisher;
+import org.reactivestreams.Subscriber;
+import org.reactivestreams.Subscription;
+
+import java.io.IOException;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 import static io.reactivesocket.LeaseGovernor.NULL_LEASE_GOVERNOR;
 
 /**
- * Interface for a connection that supports sending requests and receiving responses
- *
- * Created by servers for connections Created on demand for clients
+ * An implementation of {@link ReactiveSocket}
  */
-public class ReactiveSocket implements AutoCloseable {
+public class ReactiveSocketImpl implements ReactiveSocket {
     private static final RequestHandler EMPTY_HANDLER = new RequestHandler.Builder().build();
 
     private static final Consumer<Throwable> DEFAULT_ERROR_STREAM = t -> {
@@ -62,7 +56,7 @@ public class ReactiveSocket implements AutoCloseable {
     private final ConnectionSetupHandler responderConnectionHandler;
     private final LeaseGovernor leaseGovernor;
 
-    private ReactiveSocket(
+    private ReactiveSocketImpl(
         DuplexConnection connection,
         boolean isServer,
         ConnectionSetupPayload serverRequestorSetupPayload,
@@ -118,7 +112,7 @@ public class ReactiveSocket implements AutoCloseable {
         }
         final RequestHandler h = handler != null ? handler : EMPTY_HANDLER;
         Consumer<Throwable> es = errorStream != null ? errorStream : DEFAULT_ERROR_STREAM;
-        return new ReactiveSocket(connection, false, setup, h, null, NULL_LEASE_GOVERNOR, es);
+        return new ReactiveSocketImpl(connection, false, setup, h, null, NULL_LEASE_GOVERNOR, es);
     }
 
     /**
@@ -178,7 +172,7 @@ public class ReactiveSocket implements AutoCloseable {
         LeaseGovernor leaseGovernor,
         Consumer<Throwable> errorConsumer
     ) {
-        return new ReactiveSocket(connection, true, null, null, connectionHandler,
+        return new ReactiveSocketImpl(connection, true, null, null, connectionHandler,
             leaseGovernor, errorConsumer);
     }
 
@@ -192,31 +186,37 @@ public class ReactiveSocket implements AutoCloseable {
     /**
      * Initiate a request response exchange
      */
+    @Override
     public Publisher<Payload> requestResponse(final Payload payload) {
         assertRequester();
         return requester.requestResponse(payload);
     }
 
+    @Override
     public Publisher<Void> fireAndForget(final Payload payload) {
         assertRequester();
         return requester.fireAndForget(payload);
     }
 
+    @Override
     public Publisher<Payload> requestStream(final Payload payload) {
         assertRequester();
         return requester.requestStream(payload);
     }
 
+    @Override
     public Publisher<Payload> requestSubscription(final Payload payload) {
         assertRequester();
         return requester.requestSubscription(payload);
     }
 
+    @Override
     public Publisher<Payload> requestChannel(final Publisher<Payload> payloads) {
         assertRequester();
         return requester.requestChannel(payloads);
     }
 
+    @Override
     public Publisher<Void> metadataPush(final Payload payload) {
         assertRequester();
         return requester.metadataPush(payload);
@@ -239,33 +239,20 @@ public class ReactiveSocket implements AutoCloseable {
         }
     }
 
-    /**
-     * Client check for availability to send request based on lease
-     *
-     * @return 0.0 to 1.0 indicating availability of sending requests
-     */
+    @Override
     public double availability() {
         // TODO: can happen in either direction
         assertRequester();
         return requester.availability();
     }
 
-    /**
-     * Server granting new lease information to client
-     *
-     * Initial lease semantics are that server waits for periodic granting of leases by server side.
-     *
-     * @param ttl
-     * @param numberOfRequests
-     */
+    @Override
     public void sendLease(int ttl, int numberOfRequests) {
         // TODO: can happen in either direction
         responder.sendLease(ttl, numberOfRequests);
     }
 
-    /**
-     * Start protocol processing on the given DuplexConnection.
-     */
+    @Override
     public final void start(Completable c) {
         if (isServer) {
             responder = Responder.createServerResponder(
@@ -345,20 +332,12 @@ public class ReactiveSocket implements AutoCloseable {
 
     private final CompositeCompletable requesterReady = new CompositeCompletable();
 
-    /**
-     * Invoked when Requester is ready with success or fail.
-     *
-     * @param c
-     */
+    @Override
     public final void onRequestReady(Completable c) {
         requesterReady.add(c);
     }
 
-    /**
-     * Invoked when Requester is ready. Non-null exception if error. Null if success.
-     *
-     * @param c
-     */
+    @Override
     public final void onRequestReady(Consumer<Throwable> c) {
         requesterReady.add(new Completable() {
             @Override
@@ -458,36 +437,6 @@ public class ReactiveSocket implements AutoCloseable {
 
     };
 
-    /**
-     * Start and block the current thread until startup is finished.
-     *
-     * @throws RuntimeException
-     *             of InterruptedException
-     */
-    public final void startAndWait() {
-        CountDownLatch latch = new CountDownLatch(1);
-        AtomicReference<Throwable> err = new AtomicReference<>();
-        start(new Completable() {
-            @Override
-            public void success() {
-                latch.countDown();
-            }
-
-            @Override
-            public void error(Throwable e) {
-                latch.countDown();
-            }
-        });
-        try {
-            latch.await();
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-        if (err.get() != null) {
-            throw new RuntimeException(err.get());
-        }
-    }
-
     @Override
     public void close() throws Exception {
         connection.close();
@@ -500,6 +449,7 @@ public class ReactiveSocket implements AutoCloseable {
         }
     }
 
+    @Override
     public void shutdown() {
         try {
             close();

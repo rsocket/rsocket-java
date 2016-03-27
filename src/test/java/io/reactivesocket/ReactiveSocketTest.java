@@ -64,7 +64,7 @@ public class ReactiveSocketTest {
 		fireAndForgetOrMetadataPush = new CountDownLatch(1);
 		lastServerErrorCountDown = new CountDownLatch(1);
 
-		socketServer = ReactiveSocket.fromServerConnection(serverConnection, setup -> new RequestHandler() {
+		socketServer = ReactiveSocketImpl.fromServerConnection(serverConnection, setup -> new RequestHandler() {
 
 			@Override
 			public Publisher<Payload> handleRequestResponse(Payload payload) {
@@ -205,7 +205,7 @@ public class ReactiveSocketTest {
 		} else if (setupFlag == HONOR_LEASE) {
 			System.out.println("Reactivesocket configured with: HONOR_LEASE");
 		}
-		socketClient = ReactiveSocket.fromClientConnection(
+		socketClient = ReactiveSocketImpl.fromClientConnection(
 			clientConnection,
 			ConnectionSetupPayload.create("UTF-8", "UTF-8", setupFlag),
 			handler, 
@@ -264,7 +264,7 @@ public class ReactiveSocketTest {
 	
 	@Test(timeout=2000, expected=IllegalStateException.class)
 	public void testRequestResponsePremature() throws InterruptedException {
-		socketClient = ReactiveSocket.fromClientConnection(
+		socketClient = ReactiveSocketImpl.fromClientConnection(
 				clientConnection,
 				ConnectionSetupPayload.create("UTF-8", "UTF-8", NO_FLAGS),
 				err -> err.printStackTrace()

@@ -1,9 +1,8 @@
 package io.reactivesocket;
 
-import java.nio.ByteBuffer;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-
+import io.reactivesocket.internal.PublisherUtils;
+import io.reactivesocket.perfutil.PerfTestConnection;
+import io.reactivesocket.rx.Completable;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Mode;
@@ -16,9 +15,9 @@ import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
-import io.reactivesocket.internal.PublisherUtils;
-import io.reactivesocket.perfutil.PerfTestConnection;
-import io.reactivesocket.rx.Completable;
+import java.nio.ByteBuffer;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 @BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(TimeUnit.SECONDS)
@@ -133,10 +132,10 @@ public class ReactiveSocketPerf {
 			}
 		};
 
-		final static ReactiveSocket serverSocket = ReactiveSocket.fromServerConnection(serverConnection, setupFrame -> handler);
+		final static ReactiveSocket serverSocket = ReactiveSocketImpl.fromServerConnection(serverConnection, setupFrame -> handler);
 
 		final static ReactiveSocket client =
-			ReactiveSocket.fromClientConnection(
+			ReactiveSocketImpl.fromClientConnection(
 				clientConnection, ConnectionSetupPayload.create("UTF-8", "UTF-8", ConnectionSetupPayload.NO_FLAGS), t -> {});
 
 		static {

@@ -24,8 +24,8 @@ import io.reactivesocket.internal.frame.RequestFrameFlyweight;
 import io.reactivesocket.internal.frame.RequestNFrameFlyweight;
 import io.reactivesocket.internal.frame.SetupFrameFlyweight;
 import io.reactivesocket.internal.frame.UnpooledFrame;
-import uk.co.real_logic.agrona.DirectBuffer;
-import uk.co.real_logic.agrona.MutableDirectBuffer;
+import org.agrona.DirectBuffer;
+import org.agrona.MutableDirectBuffer;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;

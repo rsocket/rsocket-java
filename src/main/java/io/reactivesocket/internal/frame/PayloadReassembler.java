@@ -17,10 +17,10 @@ package io.reactivesocket.internal.frame;
 
 import io.reactivesocket.Frame;
 import io.reactivesocket.Payload;
-
+import org.agrona.collections.Int2ObjectHashMap;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
-import uk.co.real_logic.agrona.collections.Int2ObjectHashMap;
+
 
 public class PayloadReassembler implements Subscriber<Frame>
 {

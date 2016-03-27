@@ -80,7 +80,7 @@ public class LeaseTest {
         clientConnection.connectToServerConnection(serverConnection);
         leaseGovernor = new TestingLeaseGovernor();
 
-        socketServer = ReactiveSocket.fromServerConnection(
+        socketServer = ReactiveSocketImpl.fromServerConnection(
             serverConnection, setup -> new RequestHandler() {
 
                 @Override
@@ -127,7 +127,7 @@ public class LeaseTest {
                 }
             }, leaseGovernor, t -> {});
 
-        socketClient = ReactiveSocket.fromClientConnection(
+        socketClient = ReactiveSocketImpl.fromClientConnection(
             clientConnection,
             ConnectionSetupPayload.create("UTF-8", "UTF-8", HONOR_LEASE)
         );

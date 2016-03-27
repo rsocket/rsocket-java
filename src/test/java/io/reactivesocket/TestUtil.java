@@ -15,7 +15,7 @@
  */
 package io.reactivesocket;
 
-import uk.co.real_logic.agrona.MutableDirectBuffer;
+import org.agrona.MutableDirectBuffer;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
