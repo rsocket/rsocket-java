@@ -132,10 +132,10 @@ public class ReactiveSocketPerf {
 			}
 		};
 
-		final static ReactiveSocket serverSocket = ReactiveSocketImpl.fromServerConnection(serverConnection, setupFrame -> handler);
+		final static ReactiveSocket serverSocket = DefaultReactiveSocket.fromServerConnection(serverConnection, setupFrame -> handler);
 
 		final static ReactiveSocket client =
-			ReactiveSocketImpl.fromClientConnection(
+			DefaultReactiveSocket.fromClientConnection(
 				clientConnection, ConnectionSetupPayload.create("UTF-8", "UTF-8", ConnectionSetupPayload.NO_FLAGS), t -> {});
 
 		static {

@@ -172,7 +172,7 @@ public class TestTransportRequestN {
 		clientConnection.connectToServerConnection(serverConnection, false);
 		lastServerErrorCountDown = new CountDownLatch(1);
 
-		socketServer = ReactiveSocketImpl.fromServerConnection(serverConnection, setup -> new RequestHandler() {
+		socketServer = DefaultReactiveSocket.fromServerConnection(serverConnection, setup -> new RequestHandler() {
 
 			@Override
 			public Publisher<Payload> handleRequestResponse(Payload payload) {
@@ -218,7 +218,7 @@ public class TestTransportRequestN {
 			lastServerErrorCountDown.countDown();
 		});
 
-		socketClient = ReactiveSocketImpl.fromClientConnection(
+		socketClient = DefaultReactiveSocket.fromClientConnection(
 				clientConnection,
 				ConnectionSetupPayload.create("UTF-8", "UTF-8", ConnectionSetupPayload.NO_FLAGS),
 				err -> err.printStackTrace());

@@ -37,7 +37,7 @@ import static io.reactivesocket.LeaseGovernor.NULL_LEASE_GOVERNOR;
 /**
  * An implementation of {@link ReactiveSocket}
  */
-public class ReactiveSocketImpl implements ReactiveSocket {
+public class DefaultReactiveSocket implements ReactiveSocket {
     private static final RequestHandler EMPTY_HANDLER = new RequestHandler.Builder().build();
 
     private static final Consumer<Throwable> DEFAULT_ERROR_STREAM = t -> {
@@ -56,7 +56,7 @@ public class ReactiveSocketImpl implements ReactiveSocket {
     private final ConnectionSetupHandler responderConnectionHandler;
     private final LeaseGovernor leaseGovernor;
 
-    private ReactiveSocketImpl(
+    private DefaultReactiveSocket(
         DuplexConnection connection,
         boolean isServer,
         ConnectionSetupPayload serverRequestorSetupPayload,
@@ -112,7 +112,7 @@ public class ReactiveSocketImpl implements ReactiveSocket {
         }
         final RequestHandler h = handler != null ? handler : EMPTY_HANDLER;
         Consumer<Throwable> es = errorStream != null ? errorStream : DEFAULT_ERROR_STREAM;
-        return new ReactiveSocketImpl(connection, false, setup, h, null, NULL_LEASE_GOVERNOR, es);
+        return new DefaultReactiveSocket(connection, false, setup, h, null, NULL_LEASE_GOVERNOR, es);
     }
 
     /**
@@ -172,7 +172,7 @@ public class ReactiveSocketImpl implements ReactiveSocket {
         LeaseGovernor leaseGovernor,
         Consumer<Throwable> errorConsumer
     ) {
-        return new ReactiveSocketImpl(connection, true, null, null, connectionHandler,
+        return new DefaultReactiveSocket(connection, true, null, null, connectionHandler,
             leaseGovernor, errorConsumer);
     }
 

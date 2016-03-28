@@ -315,7 +315,7 @@ public class TestFlowControlRequestN {
 		clientConnection.connectToServerConnection(serverConnection, false);
 		
 
-		socketServer = ReactiveSocketImpl.fromServerConnection(serverConnection, setup -> new RequestHandler() {
+		socketServer = DefaultReactiveSocket.fromServerConnection(serverConnection, setup -> new RequestHandler() {
 
 			@Override
 			public Publisher<Payload> handleRequestStream(Payload payload) {
@@ -440,7 +440,7 @@ public class TestFlowControlRequestN {
 			}
 		}, LeaseGovernor.UNLIMITED_LEASE_GOVERNOR, Throwable::printStackTrace);
 
-		socketClient = ReactiveSocketImpl.fromClientConnection(
+		socketClient = DefaultReactiveSocket.fromClientConnection(
             clientConnection,
             ConnectionSetupPayload.create("UTF-8", "UTF-8", NO_FLAGS),
             Throwable::printStackTrace
