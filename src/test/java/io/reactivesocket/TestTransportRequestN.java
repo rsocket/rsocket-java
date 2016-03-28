@@ -15,9 +15,12 @@
  */
 package io.reactivesocket;
 
-import static io.reactivesocket.TestUtil.*;
-import static io.reactivex.Observable.*;
-import static org.junit.Assert.*;
+import io.reactivesocket.lease.FairLeaseGovernor;
+import io.reactivex.subscribers.TestSubscriber;
+import org.junit.After;
+import org.junit.Ignore;
+import org.junit.Test;
+import org.reactivestreams.Publisher;
 
 import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
@@ -25,13 +28,13 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
-import org.junit.After;
-import org.junit.Ignore;
-import org.junit.Test;
-import org.reactivestreams.Publisher;
-
-import io.reactivesocket.lease.FairLeaseGovernor;
-import io.reactivex.subscribers.TestSubscriber;
+import static io.reactivesocket.TestUtil.utf8EncodedPayload;
+import static io.reactivex.Observable.error;
+import static io.reactivex.Observable.fromPublisher;
+import static io.reactivex.Observable.interval;
+import static io.reactivex.Observable.just;
+import static io.reactivex.Observable.range;
+import static org.junit.Assert.fail;
 
 /**
  * Ensure that request(n) from DuplexConnection "transport" layer is respected.
@@ -169,7 +172,7 @@ public class TestTransportRequestN {
 		clientConnection.connectToServerConnection(serverConnection, false);
 		lastServerErrorCountDown = new CountDownLatch(1);
 
-		socketServer = ReactiveSocket.fromServerConnection(serverConnection, setup -> new RequestHandler() {
+		socketServer = DefaultReactiveSocket.fromServerConnection(serverConnection, setup -> new RequestHandler() {
 
 			@Override
 			public Publisher<Payload> handleRequestResponse(Payload payload) {
@@ -215,7 +218,7 @@ public class TestTransportRequestN {
 			lastServerErrorCountDown.countDown();
 		});
 
-		socketClient = ReactiveSocket.fromClientConnection(
+		socketClient = DefaultReactiveSocket.fromClientConnection(
 				clientConnection,
 				ConnectionSetupPayload.create("UTF-8", "UTF-8", ConnectionSetupPayload.NO_FLAGS),
 				err -> err.printStackTrace());

@@ -18,9 +18,9 @@ repositories {
 
 dependencies {
 	compile 'org.reactivestreams:reactive-streams:1.0.0.final'
-	compile 'uk.co.real-logic:Agrona:0.4.2'
+	compile 'org.agrona:Agrona:0.4.13'
 
-	testCompile 'io.reactivex:rxjava:2.0.0-DP0-SNAPSHOT'
+	testCompile 'io.reactivex:rxjava:2.0.0-DP0-20151003.214425-143'
 	testCompile 'junit:junit-dep:4.10'
 	testCompile 'org.mockito:mockito-core:1.8.5'
 }

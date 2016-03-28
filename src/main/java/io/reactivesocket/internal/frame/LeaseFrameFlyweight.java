@@ -16,9 +16,9 @@
 package io.reactivesocket.internal.frame;
 
 import io.reactivesocket.FrameType;
-import uk.co.real_logic.agrona.BitUtil;
-import uk.co.real_logic.agrona.DirectBuffer;
-import uk.co.real_logic.agrona.MutableDirectBuffer;
+import org.agrona.BitUtil;
+import org.agrona.DirectBuffer;
+import org.agrona.MutableDirectBuffer;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;

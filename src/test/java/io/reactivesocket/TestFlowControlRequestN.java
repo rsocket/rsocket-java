@@ -15,17 +15,6 @@
  */
 package io.reactivesocket;
 
-import static io.reactivesocket.ConnectionSetupPayload.*;
-import static io.reactivesocket.TestUtil.*;
-import static io.reactivex.Observable.*;
-import static org.junit.Assert.*;
-
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
-
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -33,6 +22,23 @@ import org.junit.Test;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
+
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+
+import static io.reactivesocket.ConnectionSetupPayload.NO_FLAGS;
+import static io.reactivesocket.TestUtil.byteToString;
+import static io.reactivesocket.TestUtil.utf8EncodedPayload;
+import static io.reactivex.Observable.error;
+import static io.reactivex.Observable.fromPublisher;
+import static io.reactivex.Observable.range;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class TestFlowControlRequestN {
 
@@ -309,7 +315,7 @@ public class TestFlowControlRequestN {
 		clientConnection.connectToServerConnection(serverConnection, false);
 		
 
-		socketServer = ReactiveSocket.fromServerConnection(serverConnection, setup -> new RequestHandler() {
+		socketServer = DefaultReactiveSocket.fromServerConnection(serverConnection, setup -> new RequestHandler() {
 
 			@Override
 			public Publisher<Payload> handleRequestStream(Payload payload) {
@@ -434,7 +440,7 @@ public class TestFlowControlRequestN {
 			}
 		}, LeaseGovernor.UNLIMITED_LEASE_GOVERNOR, Throwable::printStackTrace);
 
-		socketClient = ReactiveSocket.fromClientConnection(
+		socketClient = DefaultReactiveSocket.fromClientConnection(
             clientConnection,
             ConnectionSetupPayload.create("UTF-8", "UTF-8", NO_FLAGS),
             Throwable::printStackTrace
