@@ -104,16 +104,14 @@ public interface ReactiveSocketFactory<T, R extends ReactiveSocket> {
 
                     @Override
                     public void onComplete() {
-                        if (!complete.get()) {
-                            complete.set(true);
+                        if (complete.compareAndSet(false, true)) {
                             subscriber.onComplete();
                         }
                     }
                 });
 
             executorService.schedule(() -> {
-                if (!complete.get()) {
-                    complete.set(true);
+                if (complete.compareAndSet(false, true)) {
                     subscriber.onError(new TimeoutException());
                 }
             }, timeout, timeUnit);
