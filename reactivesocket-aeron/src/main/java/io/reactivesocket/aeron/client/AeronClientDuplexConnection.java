@@ -15,6 +15,7 @@
  */
 package io.reactivesocket.aeron.client;
 
+import io.aeron.Publication;
 import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
 import io.reactivesocket.aeron.internal.Loggable;
@@ -22,11 +23,10 @@ import io.reactivesocket.rx.Completable;
 import io.reactivesocket.rx.Disposable;
 import io.reactivesocket.rx.Observable;
 import io.reactivesocket.rx.Observer;
+import org.agrona.concurrent.AbstractConcurrentArrayQueue;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
-import uk.co.real_logic.aeron.Publication;
-import uk.co.real_logic.agrona.concurrent.AbstractConcurrentArrayQueue;
 
 import java.io.IOException;
 import java.util.concurrent.CopyOnWriteArrayList;

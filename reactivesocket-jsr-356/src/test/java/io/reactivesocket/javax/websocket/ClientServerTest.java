@@ -16,6 +16,7 @@
 package io.reactivesocket.javax.websocket;
 
 import io.reactivesocket.ConnectionSetupPayload;
+import io.reactivesocket.DefaultReactiveSocket;
 import io.reactivesocket.Payload;
 import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.javax.websocket.client.ReactiveSocketWebSocketClient;
@@ -70,7 +71,7 @@ public class ClientServerTest {
                 ReactiveSocketWebSocketClient.create(InetSocketAddress.createUnresolved("localhost", 8025), "/rs", ClientManager.createClient())
         ).toBlocking().single();
 
-        client = ReactiveSocket.fromClientConnection(duplexConnection, ConnectionSetupPayload.create("UTF-8", "UTF-8"), t -> t.printStackTrace());
+        client = DefaultReactiveSocket.fromClientConnection(duplexConnection, ConnectionSetupPayload.create("UTF-8", "UTF-8"), t -> t.printStackTrace());
 
         client.startAndWait();
     }

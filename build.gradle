@@ -16,7 +16,7 @@ subprojects {
     dependencies {
         compile 'io.reactivex:rxjava:1.1.2'
         compile 'io.reactivex:rxjava-reactive-streams:1.0.1'
-        compile 'io.reactivesocket:reactivesocket:0.0.4'
+        compile 'io.reactivesocket:reactivesocket:0.0.5'
         compile 'org.hdrhistogram:HdrHistogram:2.1.7'
         compile 'org.slf4j:slf4j-api:1.7.12'
         testCompile 'junit:junit:4.12'

@@ -13,12 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package uk.co.real_logic.aeron;
+package io.aeron;
 
 
-import uk.co.real_logic.aeron.logbuffer.BlockHandler;
-import uk.co.real_logic.aeron.logbuffer.FileBlockHandler;
-import uk.co.real_logic.aeron.logbuffer.FragmentHandler;
+import io.aeron.logbuffer.BlockHandler;
+import io.aeron.logbuffer.FileBlockHandler;
+import io.aeron.logbuffer.FragmentHandler;
 
 import java.util.List;
 

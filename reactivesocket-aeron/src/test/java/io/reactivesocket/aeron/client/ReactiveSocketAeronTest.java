@@ -15,7 +15,14 @@
  */
 package io.reactivesocket.aeron.client;
 
-import io.reactivesocket.*;
+import io.aeron.driver.MediaDriver;
+import io.reactivesocket.ConnectionSetupHandler;
+import io.reactivesocket.ConnectionSetupPayload;
+import io.reactivesocket.DefaultReactiveSocket;
+import io.reactivesocket.Frame;
+import io.reactivesocket.Payload;
+import io.reactivesocket.ReactiveSocket;
+import io.reactivesocket.RequestHandler;
 import io.reactivesocket.aeron.TestUtil;
 import io.reactivesocket.aeron.server.ReactiveSocketAeronServer;
 import io.reactivesocket.exceptions.SetupException;
@@ -28,7 +35,6 @@ import rx.Observable;
 import rx.RxReactiveStreams;
 import rx.Subscriber;
 import rx.schedulers.Schedulers;
-import uk.co.real_logic.aeron.driver.MediaDriver;
 
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
@@ -145,7 +151,7 @@ public class ReactiveSocketAeronTest {
         AeronClientDuplexConnection connection = RxReactiveStreams.toObservable(udpConnection).toBlocking().single();
         System.out.println("Created duplex connection");
 
-        ReactiveSocket reactiveSocket = ReactiveSocket.fromClientConnection(connection, ConnectionSetupPayload.create("UTF-8", "UTF-8", ConnectionSetupPayload.NO_FLAGS));
+        ReactiveSocket reactiveSocket = DefaultReactiveSocket.fromClientConnection(connection, ConnectionSetupPayload.create("UTF-8", "UTF-8", ConnectionSetupPayload.NO_FLAGS));
         reactiveSocket.startAndWait();
 
         CountDownLatch latch = new CountDownLatch(count);
@@ -165,7 +171,7 @@ public class ReactiveSocketAeronTest {
                         Assert.assertEquals(m, "server_metadata");
                     })
                     .doOnNext(f -> latch.countDown());
-            })
+            }, 8)
             .subscribeOn(Schedulers.computation())
             .subscribe(new Subscriber<Payload>() {
                 @Override
@@ -219,7 +225,7 @@ public class ReactiveSocketAeronTest {
         AeronClientDuplexConnection connection = RxReactiveStreams.toObservable(udpConnection).toBlocking().single();
         System.out.println("Created duplex connection");
 
-        ReactiveSocket reactiveSocket = ReactiveSocket.fromClientConnection(connection, ConnectionSetupPayload.create("UTF-8", "UTF-8", ConnectionSetupPayload.NO_FLAGS));
+        ReactiveSocket reactiveSocket = DefaultReactiveSocket.fromClientConnection(connection, ConnectionSetupPayload.create("UTF-8", "UTF-8", ConnectionSetupPayload.NO_FLAGS));
         reactiveSocket.startAndWait();
 
         CountDownLatch latch = new CountDownLatch(count);
@@ -317,7 +323,7 @@ public class ReactiveSocketAeronTest {
             AeronClientDuplexConnection connection = RxReactiveStreams.toObservable(udpConnection).toBlocking().single();
             System.out.println("Created duplex connection => " + j);
 
-            ReactiveSocket client = ReactiveSocket.fromClientConnection(connection, ConnectionSetupPayload.create("UTF-8", "UTF-8", ConnectionSetupPayload.NO_FLAGS));
+            ReactiveSocket client = DefaultReactiveSocket.fromClientConnection(connection, ConnectionSetupPayload.create("UTF-8", "UTF-8", ConnectionSetupPayload.NO_FLAGS));
             client.startAndWait();
 
             Observable

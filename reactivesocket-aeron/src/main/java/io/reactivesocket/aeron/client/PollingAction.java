@@ -15,9 +15,9 @@
  */
 package io.reactivesocket.aeron.client;
 
+import io.aeron.Subscription;
 import io.reactivesocket.aeron.internal.Loggable;
 import rx.functions.Action0;
-import uk.co.real_logic.aeron.Subscription;
 
 import java.util.List;
 

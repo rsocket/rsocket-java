@@ -19,13 +19,12 @@ import io.reactivesocket.aeron.server.ServerAeronManager;
 import rx.Scheduler;
 import rx.Subscription;
 import rx.functions.Action0;
-import uk.co.real_logic.agrona.TimerWheel;
 
 import java.util.concurrent.TimeUnit;
 
 /**
  * An implementation of {@link Scheduler} that lets you schedule work on the {@link ServerAeronManager} polling thread.
- * The work is scheduled on to the thread use a {@link TimerWheel}. This is useful if you have done work on another
+ * The work is scheduled on to the thread use a {@link org.agrona.TimerWheel}. This is useful if you have done work on another
  * thread, and than want the work to end up back on the polling thread.
  */
 public class ReactiveSocketAeronScheduler extends Scheduler {

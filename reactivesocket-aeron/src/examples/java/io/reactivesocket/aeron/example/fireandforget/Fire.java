@@ -17,6 +17,7 @@ package io.reactivesocket.aeron.example.fireandforget;
 
 
 import io.reactivesocket.ConnectionSetupPayload;
+import io.reactivesocket.DefaultReactiveSocket;
 import io.reactivesocket.Payload;
 import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.aeron.client.AeronClientDuplexConnection;
@@ -61,7 +62,7 @@ public class Fire {
         AeronClientDuplexConnection connection = RxReactiveStreams.toObservable(udpConnection).toBlocking().single();
         System.out.println("Created duplex connection");
 
-        ReactiveSocket reactiveSocket = ReactiveSocket.fromClientConnection(connection, ConnectionSetupPayload.create("UTF-8", "UTF-8", ConnectionSetupPayload.NO_FLAGS));
+        ReactiveSocket reactiveSocket = DefaultReactiveSocket.fromClientConnection(connection, ConnectionSetupPayload.create("UTF-8", "UTF-8", ConnectionSetupPayload.NO_FLAGS));
         reactiveSocket.startAndWait();
 
         CountDownLatch latch = new CountDownLatch(Integer.MAX_VALUE);

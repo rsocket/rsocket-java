@@ -16,9 +16,9 @@
 package io.reactivesocket.netty;
 
 import io.netty.buffer.ByteBuf;
-import uk.co.real_logic.agrona.BitUtil;
-import uk.co.real_logic.agrona.DirectBuffer;
-import uk.co.real_logic.agrona.MutableDirectBuffer;
+import org.agrona.BitUtil;
+import org.agrona.DirectBuffer;
+import org.agrona.MutableDirectBuffer;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -385,5 +385,40 @@ public class MutableDirectByteBuf implements MutableDirectBuffer
         {
             byteBuf.order(byteOrder);
         }
+    }
+
+    @Override
+    public void putChar(int index, char value, ByteOrder byteOrder) {
+        throw new UnsupportedOperationException("getBytes(MutableDirectBuffer) not supported");
+    }
+
+    @Override
+    public void putChar(int index, char value) {
+        throw new UnsupportedOperationException("getBytes(MutableDirectBuffer) not supported");
+    }
+
+    @Override
+    public int putStringUtf8(int offset, String value) {
+        throw new UnsupportedOperationException("getBytes(MutableDirectBuffer) not supported");
+    }
+
+    @Override
+    public int putStringUtf8(int index, String value, int maxEncodedSize) {
+        throw new UnsupportedOperationException("getBytes(MutableDirectBuffer) not supported");
+    }
+
+    @Override
+    public char getChar(int index, ByteOrder byteOrder) {
+        throw new UnsupportedOperationException("getBytes(MutableDirectBuffer) not supported");
+    }
+
+    @Override
+    public char getChar(int index) {
+        throw new UnsupportedOperationException("getBytes(MutableDirectBuffer) not supported");
+    }
+
+    @Override
+    public String getStringUtf8(int index) {
+        return null;
     }
 }

@@ -15,17 +15,22 @@
  */
 package io.reactivesocket.aeron.server;
 
+import io.aeron.Aeron;
+import io.aeron.AvailableImageHandler;
+import io.aeron.FragmentAssembler;
+import io.aeron.Image;
+import io.aeron.Subscription;
+import io.aeron.UnavailableImageHandler;
 import io.reactivesocket.aeron.internal.Constants;
 import io.reactivesocket.aeron.internal.Loggable;
+import org.agrona.TimerWheel;
+import org.agrona.concurrent.ManyToOneConcurrentArrayQueue;
+import rx.Observable;
+import rx.Scheduler;
+import rx.Single;
 import rx.functions.Action0;
-import uk.co.real_logic.aeron.Aeron;
-import uk.co.real_logic.aeron.AvailableImageHandler;
-import uk.co.real_logic.aeron.FragmentAssembler;
-import uk.co.real_logic.aeron.Image;
-import uk.co.real_logic.aeron.Subscription;
-import uk.co.real_logic.aeron.UnavailableImageHandler;
-import uk.co.real_logic.agrona.TimerWheel;
-import uk.co.real_logic.agrona.concurrent.ManyToOneConcurrentArrayQueue;
+import rx.functions.Func0;
+import rx.schedulers.Schedulers;
 
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
@@ -121,14 +126,14 @@ public class ServerAeronManager implements Loggable {
         fragmentAssemblerHolders.removeIf(s -> s.subscription == subscription);
     }
 
-    private void availableImageHandler(Image image, Subscription subscription, long joiningPosition, String sourceIdentity) {
+    private void availableImageHandler(Image image) {
         availableImageHandlers
-                .forEach(handler -> handler.onAvailableImage(image, subscription, joiningPosition, sourceIdentity));
+                .forEach(handler -> handler.onAvailableImage(image));
     }
 
-    private void unavailableImage(Image image, Subscription subscription, long position) {
+    private void unavailableImage(Image image) {
         unavailableImageHandlers
-                .forEach(handler -> handler.onUnavailableImage(image, subscription, position));
+                .forEach(handler -> handler.onUnavailableImage(image));
     }
 
     public Aeron getAeron() {
@@ -157,7 +162,49 @@ public class ServerAeronManager implements Loggable {
     }
 
     /**
-     * Schedules timeout on the TimerWheel in a thread-safe many
+     * Submits a task that is implemeted as a {@link Func0} that runs on the
+     * server polling thread and returns an {@link Single}
+     * @param task task to the run
+     * @param <R> expected return type
+     * @return an {@link Single} of type R
+     */
+    public <R> Single<R> submitTask(Func0<R> task) {
+        return Single.create(s ->
+            submitAction(() -> {
+                try {
+                    s.onSuccess(task.call());
+                } catch (Throwable t) {
+                    s.onError(t);
+                }
+            })
+        );
+    }
+
+    /**
+     *
+     * @param tasks
+     * @param <R>
+     * @return
+     */
+    public <R> Observable<R> submitTasks(Observable<Func0<R>> tasks) {
+        return submitTasks(tasks, Schedulers.computation());
+    }
+
+    /**
+     * Submits an observable of tasks to be run on a specific scheduler
+     * @param tasks
+     * @param scheduler
+     * @param <R>
+     * @return
+     */
+    public <R> Observable<R> submitTasks(Observable<Func0<R>> tasks, Scheduler scheduler) {
+        return tasks
+            .observeOn(scheduler, true)
+            .concatMap(task -> submitTask(task).toObservable());
+    }
+
+    /**
+     * Schedules timeout on the TimerWheel in a thread-safe manner
      * @param delayTime
      * @param unit
      * @param action

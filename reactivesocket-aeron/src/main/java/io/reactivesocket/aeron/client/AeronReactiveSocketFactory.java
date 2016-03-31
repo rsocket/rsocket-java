@@ -1,9 +1,12 @@
 package io.reactivesocket.aeron.client;
 
 import io.reactivesocket.ConnectionSetupPayload;
+import io.reactivesocket.DefaultReactiveSocket;
 import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.ReactiveSocketFactory;
+import io.reactivesocket.ReactiveSocketSocketAddressFactory;
 import io.reactivesocket.rx.Completable;
+import org.agrona.LangUtil;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
@@ -11,17 +14,19 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import rx.Observable;
 import rx.RxReactiveStreams;
-import uk.co.real_logic.agrona.LangUtil;
 
-import java.net.*;
+import java.net.Inet4Address;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.NetworkInterface;
+import java.net.SocketAddress;
 import java.util.Enumeration;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 /**
  * An implementation of {@link ReactiveSocketFactory} that creates Aeron ReactiveSockets.
  */
-public class AeronReactiveSocketFactory implements ReactiveSocketFactory {
+public class AeronReactiveSocketFactory implements ReactiveSocketSocketAddressFactory<ReactiveSocket> {
     private static final Logger logger = LoggerFactory.getLogger(AeronReactiveSocketFactory.class);
 
     private final ConnectionSetupPayload connectionSetupPayload;
@@ -46,7 +51,7 @@ public class AeronReactiveSocketFactory implements ReactiveSocketFactory {
     }
 
     @Override
-    public Publisher<ReactiveSocket> call(SocketAddress address, long timeout, TimeUnit timeUnit) {
+    public Publisher<ReactiveSocket> call(SocketAddress address) {
         Publisher<AeronClientDuplexConnection> connection
             = AeronClientDuplexConnectionFactory.getInstance().createAeronClientDuplexConnection(address);
 
@@ -59,7 +64,7 @@ public class AeronReactiveSocketFactory implements ReactiveSocketFactory {
 
                 @Override
                 public void onNext(AeronClientDuplexConnection connection) {
-                    ReactiveSocket reactiveSocket = ReactiveSocket.fromClientConnection(connection, connectionSetupPayload, errorStream);
+                    ReactiveSocket reactiveSocket = DefaultReactiveSocket.fromClientConnection(connection, connectionSetupPayload, errorStream);
                     reactiveSocket.start(new Completable() {
                         @Override
                         public void success() {
@@ -85,7 +90,7 @@ public class AeronReactiveSocketFactory implements ReactiveSocketFactory {
             })
         );
 
-        return RxReactiveStreams.toPublisher(result.timeout(timeout, timeUnit));
+        return RxReactiveStreams.toPublisher(result);
     }
 
     private static InetAddress getIPv4InetAddress() {

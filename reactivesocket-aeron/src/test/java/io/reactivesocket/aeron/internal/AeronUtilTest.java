@@ -15,10 +15,10 @@
  */
 package io.reactivesocket.aeron.internal;
 
+import io.aeron.Publication;
+import io.aeron.logbuffer.BufferClaim;
+import org.agrona.DirectBuffer;
 import org.junit.Test;
-import uk.co.real_logic.aeron.Publication;
-import uk.co.real_logic.aeron.logbuffer.BufferClaim;
-import uk.co.real_logic.agrona.DirectBuffer;
 
 import java.util.concurrent.TimeUnit;
 

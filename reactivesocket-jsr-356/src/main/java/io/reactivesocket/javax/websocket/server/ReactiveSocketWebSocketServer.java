@@ -16,15 +16,20 @@
 package io.reactivesocket.javax.websocket.server;
 
 import io.reactivesocket.ConnectionSetupHandler;
+import io.reactivesocket.DefaultReactiveSocket;
 import io.reactivesocket.Frame;
 import io.reactivesocket.LeaseGovernor;
 import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.javax.websocket.WebSocketDuplexConnection;
 import io.reactivesocket.rx.Completable;
+import org.agrona.LangUtil;
 import rx.subjects.PublishSubject;
-import uk.co.real_logic.agrona.LangUtil;
 
-import javax.websocket.*;
+import javax.websocket.CloseReason;
+import javax.websocket.Endpoint;
+import javax.websocket.EndpointConfig;
+import javax.websocket.MessageHandler;
+import javax.websocket.Session;
 import java.nio.ByteBuffer;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -57,7 +62,7 @@ public class ReactiveSocketWebSocketServer extends Endpoint {
         WebSocketDuplexConnection connection = new WebSocketDuplexConnection(session, input);
 
         final ReactiveSocket reactiveSocket = reactiveSockets.computeIfAbsent(session.getId(), id ->
-            ReactiveSocket.fromServerConnection(
+            DefaultReactiveSocket.fromServerConnection(
                 connection,
                 setupHandler,
                 leaseGovernor,

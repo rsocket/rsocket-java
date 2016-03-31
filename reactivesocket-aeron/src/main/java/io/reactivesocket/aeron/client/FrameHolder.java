@@ -15,15 +15,14 @@
  */
 package io.reactivesocket.aeron.client;
 
+import io.aeron.Publication;
 import io.reactivesocket.Frame;
 import org.HdrHistogram.Recorder;
+import org.agrona.concurrent.OneToOneConcurrentArrayQueue;
 import org.reactivestreams.Subscription;
-import uk.co.real_logic.aeron.Publication;
-import uk.co.real_logic.agrona.concurrent.OneToOneConcurrentArrayQueue;
-
 /**
  * Holds a frame and the publication that it's supposed to be sent on.
- * Pools instances on an {@link uk.co.real_logic.agrona.concurrent.OneToOneConcurrentArrayQueue}
+ * Pools instances on an {@link OneToOneConcurrentArrayQueue}
  */
 public class FrameHolder {
     private static final ThreadLocal<OneToOneConcurrentArrayQueue<FrameHolder>> FRAME_HOLDER_QUEUE

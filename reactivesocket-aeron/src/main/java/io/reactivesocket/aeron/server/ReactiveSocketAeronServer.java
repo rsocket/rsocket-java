@@ -15,18 +15,23 @@
  */
 package io.reactivesocket.aeron.server;
 
+import io.aeron.Aeron;
+import io.aeron.FragmentAssembler;
+import io.aeron.Image;
+import io.aeron.Publication;
+import io.aeron.Subscription;
+import io.aeron.logbuffer.Header;
 import io.reactivesocket.ConnectionSetupHandler;
+import io.reactivesocket.DefaultReactiveSocket;
 import io.reactivesocket.Frame;
 import io.reactivesocket.LeaseGovernor;
 import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.aeron.internal.Loggable;
 import io.reactivesocket.aeron.internal.MessageType;
 import io.reactivesocket.rx.Observer;
-import uk.co.real_logic.aeron.*;
-import uk.co.real_logic.aeron.logbuffer.Header;
-import uk.co.real_logic.agrona.BitUtil;
-import uk.co.real_logic.agrona.DirectBuffer;
-import uk.co.real_logic.agrona.concurrent.UnsafeBuffer;
+import org.agrona.BitUtil;
+import org.agrona.DirectBuffer;
+import org.agrona.concurrent.UnsafeBuffer;
 
 import java.nio.ByteBuffer;
 import java.util.List;
@@ -34,7 +39,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
-import static io.reactivesocket.aeron.internal.Constants.*;
+import static io.reactivesocket.aeron.internal.Constants.CLIENT_STREAM_ID;
+import static io.reactivesocket.aeron.internal.Constants.SERVER_ESTABLISH_CONNECTION_REQUEST_TIMEOUT_MS;
+import static io.reactivesocket.aeron.internal.Constants.SERVER_STREAM_ID;
 
 public class ReactiveSocketAeronServer implements AutoCloseable, Loggable {
     private static final UnsafeBuffer BUFFER = new UnsafeBuffer(ByteBuffer.allocate(0));
@@ -141,20 +148,20 @@ public class ReactiveSocketAeronServer implements AutoCloseable, Loggable {
 
     }
 
-    void availableImageHandler(Image image, Subscription subscription, long joiningPosition, String sourceIdentity) {
+    void availableImageHandler(Image image) {
         final int streamId = subscription.streamId();
         final int sessionId = image.sessionId();
         if (SERVER_STREAM_ID == streamId) {
             debug("Handling new image for session id => {} and stream id => {}", streamId, sessionId);
             final AeronServerDuplexConnection connection = connections.computeIfAbsent(sessionId, (_s) -> {
-                final String responseChannel = "udp://" + sourceIdentity.substring(0, sourceIdentity.indexOf(':')) + ":" + port;
+                final String responseChannel = "udp://" + image.sourceIdentity().substring(0, image.sourceIdentity().indexOf(':')) + ":" + port;
                 Publication publication = manager.getAeron().addPublication(responseChannel, CLIENT_STREAM_ID);
                 int responseSessionId = publication.sessionId();
                 debug("Creating new connection for responseChannel => {}, streamId => {}, and sessionId => {}", responseChannel, streamId, responseSessionId);
                 return new AeronServerDuplexConnection(publication);
             });
             debug("Accepting ReactiveSocket connection");
-            ReactiveSocket socket = ReactiveSocket.fromServerConnection(
+            ReactiveSocket socket = DefaultReactiveSocket.fromServerConnection(
                 connection,
                 connectionSetupHandler,
                 leaseGovernor,
@@ -173,7 +180,7 @@ public class ReactiveSocketAeronServer implements AutoCloseable, Loggable {
         }
     }
 
-    void unavailableImage(Image image, Subscription subscription, long position) {
+    void unavailableImage(Image image) {
         closeReactiveSocket(image.sessionId());
     }
 

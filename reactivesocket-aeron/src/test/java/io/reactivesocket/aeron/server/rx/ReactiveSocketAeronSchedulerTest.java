@@ -15,6 +15,7 @@
  */
 package io.reactivesocket.aeron.server.rx;
 
+import io.aeron.driver.MediaDriver;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Ignore;
@@ -22,7 +23,6 @@ import org.junit.Test;
 import rx.Observable;
 import rx.observers.TestSubscriber;
 import rx.schedulers.Schedulers;
-import uk.co.real_logic.aeron.driver.MediaDriver;
 
 import java.util.concurrent.TimeUnit;
 
