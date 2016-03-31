@@ -1,4 +1,3 @@
 dependencies {
-    compile 'uk.co.real-logic:Agrona:0.4.8'
-    compile 'uk.co.real-logic:aeron-all:0.2.2'
+    compile 'io.aeron:aeron-all:0.9.5'
 }

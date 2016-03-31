@@ -18,11 +18,11 @@ package io.reactivesocket.aeron.client;
 import io.reactivesocket.aeron.internal.Loggable;
 import rx.Scheduler;
 import rx.schedulers.Schedulers;
-import uk.co.real_logic.aeron.Aeron;
-import uk.co.real_logic.aeron.FragmentAssembler;
-import uk.co.real_logic.aeron.Image;
-import uk.co.real_logic.aeron.Subscription;
-import uk.co.real_logic.aeron.logbuffer.FragmentHandler;
+import io.aeron.Aeron;
+import io.aeron.FragmentAssembler;
+import io.aeron.Image;
+import io.aeron.Subscription;
+import io.aeron.logbuffer.FragmentHandler;
 
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
@@ -47,8 +47,8 @@ public class ClientAeronManager implements Loggable {
 
         final Aeron.Context ctx = new Aeron.Context();
         ctx.errorHandler(t -> error("an exception occurred", t));
-        ctx.availableImageHandler((Image image, Subscription subscription, long joiningPosition, String sourceIdentity) ->
-            debug("New image available with session id => {} and sourceIdentity  => {} and subscription => {}", image.sessionId(), sourceIdentity, subscription.toString())
+        ctx.availableImageHandler((Image image) ->
+            debug("New image available with session id => {} and sourceIdentity  => {} and subscription => {}", image.sessionId(), image.sourceIdentity(), image.subscription().toString())
         );
 
         aeron = Aeron.connect(ctx);
@@ -117,7 +117,7 @@ public class ClientAeronManager implements Loggable {
      */
 
     /**
-     * Creates a logic group of {@link uk.co.real_logic.aeron.Subscription}s to a particular channel.
+     * Creates a logic group of {@link io.aeron.Subscription}s to a particular channel.
      */
     public static class SubscriptionGroup {
 

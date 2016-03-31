@@ -15,15 +15,15 @@
  */
 package io.reactivesocket.aeron.server;
 
-import io.reactivesocket.aeron.internal.Loggable;
-import io.reactivesocket.rx.Completable;
+import io.aeron.Publication;
 import io.reactivesocket.Frame;
 import io.reactivesocket.aeron.internal.AeronUtil;
+import io.reactivesocket.aeron.internal.Loggable;
 import io.reactivesocket.aeron.internal.MessageType;
+import io.reactivesocket.rx.Completable;
+import org.agrona.BitUtil;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
-import uk.co.real_logic.aeron.Publication;
-import uk.co.real_logic.agrona.BitUtil;
 
 import java.nio.ByteBuffer;
 

@@ -18,8 +18,8 @@ package io.reactivesocket.aeron.server;
 import io.reactivesocket.Frame;
 import io.reactivesocket.LeaseGovernor;
 import io.reactivesocket.internal.Responder;
-import uk.co.real_logic.agrona.TimerWheel;
-import uk.co.real_logic.agrona.collections.Int2IntHashMap;
+import org.agrona.TimerWheel;
+import org.agrona.collections.Int2IntHashMap;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -27,7 +27,7 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Lease Governor that evenly distributes requests all connected clients. The work is done using the
- * {@link ServerAeronManager}'s {@link uk.co.real_logic.agrona.TimerWheel}
+ * {@link ServerAeronManager}'s {@link TimerWheel}
  */
 public class TimerWheelFairLeaseGovernor implements LeaseGovernor, Runnable {
     private final int tickets;

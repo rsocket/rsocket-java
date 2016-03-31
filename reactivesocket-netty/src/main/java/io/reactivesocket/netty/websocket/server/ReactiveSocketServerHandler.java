@@ -22,6 +22,7 @@ import io.netty.channel.ChannelId;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.codec.http.websocketx.BinaryWebSocketFrame;
 import io.reactivesocket.ConnectionSetupHandler;
+import io.reactivesocket.DefaultReactiveSocket;
 import io.reactivesocket.Frame;
 import io.reactivesocket.LeaseGovernor;
 import io.reactivesocket.ReactiveSocket;
@@ -63,7 +64,7 @@ public class ReactiveSocketServerHandler extends SimpleChannelInboundHandler<Bin
         ServerWebSocketDuplexConnection connection = duplexConnections.computeIfAbsent(ctx.channel().id(), i -> {
             System.out.println("No connection found for channel id: " + i);
             ServerWebSocketDuplexConnection c = new ServerWebSocketDuplexConnection(ctx);
-            ReactiveSocket reactiveSocket = ReactiveSocket.fromServerConnection(c, setupHandler, leaseGovernor, throwable -> throwable.printStackTrace());
+            ReactiveSocket reactiveSocket = DefaultReactiveSocket.fromServerConnection(c, setupHandler, leaseGovernor, throwable -> throwable.printStackTrace());
             reactiveSocket.startAndWait();
             return c;
         });

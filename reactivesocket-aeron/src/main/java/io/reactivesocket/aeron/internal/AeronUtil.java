@@ -15,11 +15,11 @@
  */
 package io.reactivesocket.aeron.internal;
 
-import uk.co.real_logic.aeron.Publication;
-import uk.co.real_logic.aeron.logbuffer.BufferClaim;
-import uk.co.real_logic.agrona.MutableDirectBuffer;
-import uk.co.real_logic.agrona.concurrent.OneToOneConcurrentArrayQueue;
-import uk.co.real_logic.agrona.concurrent.UnsafeBuffer;
+import io.aeron.Publication;
+import io.aeron.logbuffer.BufferClaim;
+import org.agrona.MutableDirectBuffer;
+import org.agrona.concurrent.OneToOneConcurrentArrayQueue;
+import org.agrona.concurrent.UnsafeBuffer;
 
 import java.util.concurrent.TimeUnit;
 
@@ -41,7 +41,7 @@ public class AeronUtil implements Loggable {
      * This method of sending data does need to know how long the message is.
      *
      * @param publication publication to send the message on
-     * @param fillBuffer  closure passed in to fill a {@link uk.co.real_logic.agrona.MutableDirectBuffer}
+     * @param fillBuffer  closure passed in to fill a {@link MutableDirectBuffer}
      *                    that is send over Aeron
      */
     public static void offer(Publication publication, BufferFiller fillBuffer, int length, int timeout, TimeUnit timeUnit) {
@@ -76,7 +76,7 @@ public class AeronUtil implements Loggable {
      * In order to use this method of sending data you need to know the length of data.
      *
      * @param publication publication to send the message on
-     * @param fillBuffer  closure passed in to fill a {@link uk.co.real_logic.agrona.MutableDirectBuffer}
+     * @param fillBuffer  closure passed in to fill a {@link MutableDirectBuffer}
      *                    that is send over Aeron
      * @param length      the length of data
      */
@@ -114,7 +114,7 @@ public class AeronUtil implements Loggable {
      * size it will use offer instead.
      *
      * @param publication publication to send the message on
-     * @param fillBuffer  closure passed in to fill a {@link uk.co.real_logic.agrona.MutableDirectBuffer}
+     * @param fillBuffer  closure passed in to fill a {@link MutableDirectBuffer}
      *                    that is send over Aeron
      * @param length      the length of data
      */

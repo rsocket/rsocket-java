@@ -16,8 +16,10 @@
 package io.reactivesocket.javax.websocket.client;
 
 import io.reactivesocket.ConnectionSetupPayload;
+import io.reactivesocket.DefaultReactiveSocket;
 import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.ReactiveSocketFactory;
+import io.reactivesocket.ReactiveSocketSocketAddressFactory;
 import io.reactivesocket.javax.websocket.WebSocketDuplexConnection;
 import io.reactivesocket.rx.Completable;
 import org.glassfish.tyrus.client.ClientManager;
@@ -30,13 +32,12 @@ import rx.Observable;
 import rx.RxReactiveStreams;
 
 import java.net.SocketAddress;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 /**
  * An implementation of {@link ReactiveSocketFactory} that creates JSR-356 WebSocket ReactiveSockets.
  */
-public class WebSocketReactiveSocketFactory implements ReactiveSocketFactory {
+public class WebSocketReactiveSocketFactory implements ReactiveSocketSocketAddressFactory<ReactiveSocket> {
     private static final Logger logger = LoggerFactory.getLogger(WebSocketReactiveSocketFactory.class);
 
     private final ConnectionSetupPayload connectionSetupPayload;
@@ -52,7 +53,7 @@ public class WebSocketReactiveSocketFactory implements ReactiveSocketFactory {
     }
 
     @Override
-    public Publisher<ReactiveSocket> call(SocketAddress address, long timeout, TimeUnit timeUnit) {
+    public Publisher<ReactiveSocket> call(SocketAddress address) {
         Publisher<WebSocketDuplexConnection> connection
             = ReactiveSocketWebSocketClient.create(address, path, clientManager);
 
@@ -65,7 +66,7 @@ public class WebSocketReactiveSocketFactory implements ReactiveSocketFactory {
 
                 @Override
                 public void onNext(WebSocketDuplexConnection connection) {
-                    ReactiveSocket reactiveSocket = ReactiveSocket.fromClientConnection(connection, connectionSetupPayload, errorStream);
+                    ReactiveSocket reactiveSocket = DefaultReactiveSocket.fromClientConnection(connection, connectionSetupPayload, errorStream);
                     reactiveSocket.start(new Completable() {
                         @Override
                         public void success() {
@@ -91,6 +92,6 @@ public class WebSocketReactiveSocketFactory implements ReactiveSocketFactory {
             })
         );
 
-        return RxReactiveStreams.toPublisher(result.timeout(timeout, timeUnit));
+        return RxReactiveStreams.toPublisher(result);
     }
 }

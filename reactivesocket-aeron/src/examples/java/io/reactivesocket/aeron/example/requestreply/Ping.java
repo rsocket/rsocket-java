@@ -16,6 +16,7 @@
 package io.reactivesocket.aeron.example.requestreply;
 
 import io.reactivesocket.ConnectionSetupPayload;
+import io.reactivesocket.DefaultReactiveSocket;
 import io.reactivesocket.Payload;
 import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.aeron.client.AeronClientDuplexConnection;
@@ -63,7 +64,7 @@ public class Ping {
         AeronClientDuplexConnection connection = RxReactiveStreams.toObservable(udpConnection).toBlocking().single();
         System.out.println("Created duplex connection");
 
-        ReactiveSocket reactiveSocket = ReactiveSocket.fromClientConnection(connection, ConnectionSetupPayload.create("UTF-8", "UTF-8", ConnectionSetupPayload.NO_FLAGS));
+        ReactiveSocket reactiveSocket = DefaultReactiveSocket.fromClientConnection(connection, ConnectionSetupPayload.create("UTF-8", "UTF-8", ConnectionSetupPayload.NO_FLAGS));
         reactiveSocket.startAndWait();
 
         CountDownLatch latch = new CountDownLatch(Integer.MAX_VALUE);
@@ -83,7 +84,7 @@ public class Ping {
                 System.out.println("---- PING/ PONG HISTO ----");
 
 
-            }, 10, 10, TimeUnit.SECONDS);
+            }, 1, 1, TimeUnit.SECONDS);
 
         Observable
             .range(1, Integer.MAX_VALUE)
@@ -112,7 +113,7 @@ public class Ping {
                         long diff = System.nanoTime() - start;
                         histogram.recordValue(diff);
                     });
-            })
+            }, 16)
             .subscribe(new Subscriber<Payload>() {
                 @Override
                 public void onCompleted() {

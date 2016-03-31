@@ -16,6 +16,7 @@
 package io.reactivesocket.javax.websocket;
 
 import io.reactivesocket.ConnectionSetupPayload;
+import io.reactivesocket.DefaultReactiveSocket;
 import io.reactivesocket.Payload;
 import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.javax.websocket.client.ReactiveSocketWebSocketClient;
@@ -37,7 +38,7 @@ public class Ping {
         Publisher<WebSocketDuplexConnection> publisher = ReactiveSocketWebSocketClient.create(InetSocketAddress.createUnresolved("localhost", 8025), "/rs", ClientManager.createClient());
 
         WebSocketDuplexConnection duplexConnection = RxReactiveStreams.toObservable(publisher).toBlocking().single();
-        ReactiveSocket reactiveSocket = ReactiveSocket.fromClientConnection(duplexConnection, ConnectionSetupPayload.create("UTF-8", "UTF-8"));
+        ReactiveSocket reactiveSocket = DefaultReactiveSocket.fromClientConnection(duplexConnection, ConnectionSetupPayload.create("UTF-8", "UTF-8"));
 
         reactiveSocket.startAndWait();
 

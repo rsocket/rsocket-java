@@ -15,9 +15,8 @@
  */
 package io.reactivesocket.aeron.example;
 
-import uk.co.real_logic.aeron.driver.ThreadingMode;
-import uk.co.real_logic.agrona.concurrent.BackoffIdleStrategy;
-import uk.co.real_logic.agrona.concurrent.NoOpIdleStrategy;
+import io.aeron.driver.ThreadingMode;
+import org.agrona.concurrent.BackoffIdleStrategy;
 
 public class MediaDriver {
     public static void main(String... args) {
@@ -31,14 +30,14 @@ public class MediaDriver {
 
         System.out.println("ThreadingMode => " + threadingMode);
 
-        final uk.co.real_logic.aeron.driver.MediaDriver.Context ctx = new uk.co.real_logic.aeron.driver.MediaDriver.Context()
+        final io.aeron.driver.MediaDriver.Context ctx = new io.aeron.driver.MediaDriver.Context()
                 .threadingMode(threadingMode)
                 .dirsDeleteOnStart(true)
                 .conductorIdleStrategy(new BackoffIdleStrategy(1, 1, 100, 1000))
-                .receiverIdleStrategy(new NoOpIdleStrategy())
-                .senderIdleStrategy(new NoOpIdleStrategy());
+                .receiverIdleStrategy(new BackoffIdleStrategy(1, 1, 100, 1000))
+                .senderIdleStrategy(new BackoffIdleStrategy(1, 1, 100, 1000));
 
-        final uk.co.real_logic.aeron.driver.MediaDriver ignored = uk.co.real_logic.aeron.driver.MediaDriver.launch(ctx);
+        final io.aeron.driver.MediaDriver ignored = io.aeron.driver.MediaDriver.launch(ctx);
 
     }
 }
