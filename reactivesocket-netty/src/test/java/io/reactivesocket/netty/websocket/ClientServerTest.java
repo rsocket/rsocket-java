@@ -27,10 +27,7 @@ import io.netty.handler.codec.http.HttpServerCodec;
 import io.netty.handler.codec.http.websocketx.WebSocketServerProtocolHandler;
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
-import io.reactivesocket.ConnectionSetupPayload;
-import io.reactivesocket.Payload;
-import io.reactivesocket.ReactiveSocket;
-import io.reactivesocket.RequestHandler;
+import io.reactivesocket.*;
 import io.reactivesocket.netty.websocket.client.ClientWebSocketDuplexConnection;
 import io.reactivesocket.netty.websocket.server.ReactiveSocketServerHandler;
 import org.junit.AfterClass;
@@ -126,7 +123,7 @@ public class ClientServerTest {
             ClientWebSocketDuplexConnection.create(InetSocketAddress.createUnresolved("localhost", 8025), "/rs", new NioEventLoopGroup())
         ).toBlocking().single();
 
-        client = ReactiveSocket
+        client = DefaultReactiveSocket
             .fromClientConnection(duplexConnection, ConnectionSetupPayload.create("UTF-8", "UTF-8"), t -> t.printStackTrace());
 
         client.startAndWait();
