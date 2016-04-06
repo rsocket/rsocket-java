@@ -26,6 +26,7 @@ import io.reactivesocket.RequestHandler;
 import io.reactivesocket.exceptions.InvalidSetupException;
 import io.reactivesocket.exceptions.RejectedException;
 import io.reactivesocket.exceptions.SetupException;
+import io.reactivesocket.internal.frame.FrameHeaderFlyweight;
 import io.reactivesocket.internal.frame.SetupFrameFlyweight;
 import io.reactivesocket.internal.rx.EmptyDisposable;
 import io.reactivesocket.internal.rx.EmptySubscription;
@@ -431,7 +432,7 @@ public class Responder {
 									onError(exc);
 								} else {
 									Frame nextCompleteFrame = Frame.Response.from(
-											streamId, FrameType.NEXT_COMPLETE, v);
+											streamId, FrameType.RESPONSE, v.getMetadata(), v.getData(), FrameHeaderFlyweight.FLAGS_RESPONSE_C);
 									child.onNext(nextCompleteFrame);
 								}
 							}
