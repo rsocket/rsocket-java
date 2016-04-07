@@ -20,12 +20,12 @@ import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
-import java.util.concurrent.CountDownLatch;
+import java.util.NoSuchElementException;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 
 @FunctionalInterface
 public interface ReactiveSocketFactory<T, R extends ReactiveSocket> {
@@ -38,9 +38,7 @@ public interface ReactiveSocketFactory<T, R extends ReactiveSocket> {
      * @return blocks on create the socket
      */
     default R callAndWait(T t) {
-        AtomicReference<R> reference = new AtomicReference<>();
-        AtomicReference<Throwable> error = new AtomicReference<>();
-        CountDownLatch latch = new CountDownLatch(1);
+        CompletableFuture<R> future = new CompletableFuture<>();
 
         call(t)
             .subscribe(new Subscriber<R>() {
@@ -51,26 +49,21 @@ public interface ReactiveSocketFactory<T, R extends ReactiveSocket> {
 
                 @Override
                 public void onNext(R reactiveSocket) {
-                    reference.set(reactiveSocket);
+                    future.complete(reactiveSocket);
                 }
 
                 @Override
                 public void onError(Throwable t) {
-                    error.set(t);
-                    latch.countDown();
+                    future.completeExceptionally(t);
                 }
 
                 @Override
                 public void onComplete() {
-                    latch.countDown();
+                    future.completeExceptionally(new NoSuchElementException("Sequence contains no elements"));
                 }
             });
 
-        if (error.get() != null) {
-            throw new RuntimeException(error.get());
-        } else {
-            return reference.get();
-        }
+        return future.join();
     }
 
     /**
