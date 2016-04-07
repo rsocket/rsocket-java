@@ -27,11 +27,15 @@ import io.reactivesocket.Frame;
 import io.reactivesocket.LeaseGovernor;
 import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.netty.MutableDirectByteBuf;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.concurrent.ConcurrentHashMap;
 
 @ChannelHandler.Sharable
 public class ReactiveSocketServerHandler extends SimpleChannelInboundHandler<BinaryWebSocketFrame> {
+    private Logger logger = LoggerFactory.getLogger(ReactiveSocketServerHandler.class);
+
     private ConcurrentHashMap<ChannelId, ServerWebSocketDuplexConnection> duplexConnections = new ConcurrentHashMap<>();
 
     private ConnectionSetupHandler setupHandler;
@@ -73,5 +77,12 @@ public class ReactiveSocketServerHandler extends SimpleChannelInboundHandler<Bin
                 .getSubscribers()
                 .forEach(o -> o.onNext(from));
         }
+    }
+
+    @Override
+    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+        super.exceptionCaught(ctx, cause);
+
+        logger.error("caught an unhandled exception", cause);
     }
 }
