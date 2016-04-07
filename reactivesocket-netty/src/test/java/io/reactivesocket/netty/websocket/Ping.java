@@ -17,6 +17,7 @@ package io.reactivesocket.netty.websocket;
 
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.reactivesocket.ConnectionSetupPayload;
+import io.reactivesocket.DefaultReactiveSocket;
 import io.reactivesocket.Payload;
 import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.netty.websocket.client.ClientWebSocketDuplexConnection;
@@ -37,7 +38,7 @@ public class Ping {
         Publisher<ClientWebSocketDuplexConnection> publisher = ClientWebSocketDuplexConnection.create(InetSocketAddress.createUnresolved("localhost", 8025), "/rs", new NioEventLoopGroup(1));
 
         ClientWebSocketDuplexConnection duplexConnection = RxReactiveStreams.toObservable(publisher).toBlocking().last();
-        ReactiveSocket reactiveSocket = ReactiveSocket.fromClientConnection(duplexConnection, ConnectionSetupPayload.create("UTF-8", "UTF-8"), t -> t.printStackTrace());
+        ReactiveSocket reactiveSocket = DefaultReactiveSocket.fromClientConnection(duplexConnection, ConnectionSetupPayload.create("UTF-8", "UTF-8"), t -> t.printStackTrace());
 
         reactiveSocket.startAndWait();
 
