@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.reactivesocket.netty.websocket;
+package io.reactivesocket.netty;
 
 import io.netty.buffer.ByteBuf;
 import io.reactivesocket.Frame;
