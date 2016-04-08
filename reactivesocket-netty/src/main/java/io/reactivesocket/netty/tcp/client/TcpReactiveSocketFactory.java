@@ -20,7 +20,6 @@ import io.reactivesocket.ConnectionSetupPayload;
 import io.reactivesocket.DefaultReactiveSocket;
 import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.ReactiveSocketFactory;
-import io.reactivesocket.ReactiveSocketSocketAddressFactory;
 import io.reactivesocket.rx.Completable;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
@@ -36,7 +35,7 @@ import java.util.function.Consumer;
 /**
  * An implementation of {@link ReactiveSocketFactory} that creates Netty WebSocket ReactiveSockets.
  */
-public class TcpReactiveSocketFactory implements ReactiveSocketSocketAddressFactory<ReactiveSocket> {
+public class TcpReactiveSocketFactory implements ReactiveSocketFactory<SocketAddress, ReactiveSocket> {
     private static final Logger logger = LoggerFactory.getLogger(TcpReactiveSocketFactory.class);
 
     private final ConnectionSetupPayload connectionSetupPayload;
