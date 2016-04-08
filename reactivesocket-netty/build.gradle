@@ -1,3 +1,4 @@
 dependencies {
-    compile 'io.netty:netty-all:4.1.0.CR5'
+    compile 'io.netty:netty-handler:4.1.0.CR6'
+    compile 'io.netty:netty-codec-http:4.1.0.CR6'
 }
