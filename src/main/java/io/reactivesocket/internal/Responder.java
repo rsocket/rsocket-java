@@ -22,6 +22,7 @@ import io.reactivesocket.Frame;
 import io.reactivesocket.FrameType;
 import io.reactivesocket.LeaseGovernor;
 import io.reactivesocket.Payload;
+import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.RequestHandler;
 import io.reactivesocket.exceptions.InvalidSetupException;
 import io.reactivesocket.exceptions.RejectedException;
@@ -95,11 +96,12 @@ public class Responder {
 			LeaseGovernor leaseGovernor,
 			Consumer<Throwable> errorStream,
 			Completable responderCompletable,
-			Consumer<ConnectionSetupPayload> setupCallback
+			Consumer<ConnectionSetupPayload> setupCallback,
+			ReactiveSocket reactiveSocket
 	) {
 		Responder responder = new Responder(true, connection, connectionHandler, null,
 				leaseGovernor, errorStream, setupCallback);
-		responder.start(responderCompletable);
+		responder.start(responderCompletable, reactiveSocket);
 		return responder;
 	}
 	
@@ -108,10 +110,11 @@ public class Responder {
 			ConnectionSetupHandler connectionHandler,
 			LeaseGovernor leaseGovernor,
 			Consumer<Throwable> errorStream,
-			Completable responderCompletable
+			Completable responderCompletable,
+			ReactiveSocket reactiveSocket
 	) {
 		return createServerResponder(connection, connectionHandler, leaseGovernor,
-				errorStream, responderCompletable, s -> {});
+				errorStream, responderCompletable, s -> {}, reactiveSocket);
 	}
 	
 	public static <T> Responder createClientResponder(
@@ -119,11 +122,12 @@ public class Responder {
 			RequestHandler requestHandler,
 			LeaseGovernor leaseGovernor,
 			Consumer<Throwable> errorStream,
-			Completable responderCompletable
+			Completable responderCompletable,
+			ReactiveSocket reactiveSocket
 	) {
 		Responder responder = new Responder(false, connection, null, requestHandler,
 				leaseGovernor, errorStream, s -> {});
-		responder.start(responderCompletable);
+		responder.start(responderCompletable, reactiveSocket);
 		return responder;
 	}
 
@@ -156,7 +160,7 @@ public class Responder {
 		return timeOfLastKeepalive;
 	}
 
-	private void start(final Completable responderCompletable) {
+	private void start(final Completable responderCompletable, ReactiveSocket reactiveSocket) {
 		/* state of cancellation subjects during connection */
 		final Int2ObjectHashMap<Subscription> cancellationSubscriptions = new Int2ObjectHashMap<>();
 		/* streams in flight that can receive REQUEST_N messages */
@@ -208,7 +212,7 @@ public class Responder {
 							// accept setup for ReactiveSocket/Requester usage
 							setupCallback.accept(connectionSetupPayload);
 							// handle setup
-							requestHandler = connectionHandler.apply(connectionSetupPayload);
+							requestHandler = connectionHandler.apply(connectionSetupPayload, reactiveSocket);
 						} catch (SetupException setupException) {
 							setupErrorAndTearDown(connection, setupException);
 						} catch (Throwable e) {

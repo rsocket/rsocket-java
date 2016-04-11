@@ -285,7 +285,8 @@ public class DefaultReactiveSocket implements ReactiveSocket {
                         two
                     );
                     two.success(); // now that the reference is assigned in case of synchronous setup
-                });
+                },
+                this);
         } else {
             Completable both = new Completable() {
                 // wait for 2 success, or 1 error to pass on
@@ -325,7 +326,8 @@ public class DefaultReactiveSocket implements ReactiveSocket {
                 clientRequestHandler,
                 leaseGovernor,
                 errorStream,
-                both
+                both,
+                this
             );
         }
     }

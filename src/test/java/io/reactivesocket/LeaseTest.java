@@ -81,7 +81,7 @@ public class LeaseTest {
         leaseGovernor = new TestingLeaseGovernor();
 
         socketServer = DefaultReactiveSocket.fromServerConnection(
-            serverConnection, setup -> new RequestHandler() {
+            serverConnection, (setup, rs) -> new RequestHandler() {
 
                 @Override
                 public Publisher<Payload> handleRequestResponse(Payload payload) {

@@ -172,7 +172,7 @@ public class TestTransportRequestN {
 		clientConnection.connectToServerConnection(serverConnection, false);
 		lastServerErrorCountDown = new CountDownLatch(1);
 
-		socketServer = DefaultReactiveSocket.fromServerConnection(serverConnection, setup -> new RequestHandler() {
+		socketServer = DefaultReactiveSocket.fromServerConnection(serverConnection, (setup,rs) -> new RequestHandler() {
 
 			@Override
 			public Publisher<Payload> handleRequestResponse(Payload payload) {

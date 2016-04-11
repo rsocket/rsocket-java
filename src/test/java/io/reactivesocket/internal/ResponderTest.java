@@ -15,27 +15,38 @@
  */
 package io.reactivesocket.internal;
 
-import static io.reactivesocket.TestUtil.*;
-
-import io.reactivesocket.*;
-import org.junit.Test;
-import org.reactivestreams.Subscription;
-
-import static io.reactivesocket.LeaseGovernor.NULL_LEASE_GOVERNOR;
+import io.reactivesocket.Frame;
+import io.reactivesocket.FrameType;
+import io.reactivesocket.LatchedCompletable;
+import io.reactivesocket.Payload;
+import io.reactivesocket.ReactiveSocket;
+import io.reactivesocket.RequestHandler;
+import io.reactivesocket.TestConnection;
 import io.reactivex.Observable;
 import io.reactivex.schedulers.Schedulers;
 import io.reactivex.schedulers.TestScheduler;
 import io.reactivex.subjects.ReplaySubject;
+import org.junit.Test;
+import org.mockito.Mockito;
+import org.reactivestreams.Subscription;
 
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
+import static io.reactivesocket.LeaseGovernor.NULL_LEASE_GOVERNOR;
+import static io.reactivesocket.TestUtil.byteToString;
+import static io.reactivesocket.TestUtil.utf8EncodedPayload;
+import static io.reactivesocket.TestUtil.utf8EncodedRequestFrame;
+import static io.reactivex.Observable.error;
+import static io.reactivex.Observable.interval;
+import static io.reactivex.Observable.just;
+import static io.reactivex.Observable.never;
+import static io.reactivex.Observable.range;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-import static io.reactivex.Observable.*;
 
 public class ResponderTest
 {
@@ -43,12 +54,18 @@ public class ResponderTest
 	
 	@Test(timeout=2000)
     public void testRequestResponseSuccess() throws InterruptedException {
-    	TestConnection conn = establishConnection();
+        ReactiveSocket reactiveSocket = Mockito.mock(ReactiveSocket.class);
+        TestConnection conn = establishConnection();
     	LatchedCompletable lc = new LatchedCompletable(1);
-        Responder.createServerResponder(conn, setup -> new RequestHandler.Builder()
-            .withRequestResponse(request ->
-                just(utf8EncodedPayload(byteToString(request.getData()) + " world", null))).build(),
-            NULL_LEASE_GOVERNOR, ERROR_HANDLER, lc);
+        Responder.createServerResponder(conn,
+            (setup, rs) ->
+                new RequestHandler.Builder().withRequestResponse(
+                    request ->
+                        just(utf8EncodedPayload(byteToString(request.getData()) + " world", null))).build(),
+            NULL_LEASE_GOVERNOR,
+            ERROR_HANDLER,
+            lc,
+            reactiveSocket);
         lc.await();
         
         ReplaySubject<Frame> cachedResponses = captureResponses(conn);
@@ -69,11 +86,12 @@ public class ResponderTest
 
 	@Test(timeout=2000)
     public void testRequestResponseError() throws InterruptedException {
+        ReactiveSocket reactiveSocket = Mockito.mock(ReactiveSocket.class);
     	TestConnection conn = establishConnection();
     	LatchedCompletable lc = new LatchedCompletable(1);
-        Responder.createServerResponder(conn, setup -> new RequestHandler.Builder()
+        Responder.createServerResponder(conn, (setup, rs) -> new RequestHandler.Builder()
             .withRequestResponse(request -> Observable.<Payload>error(new Exception("Request Not Found"))).build(),
-            NULL_LEASE_GOVERNOR, ERROR_HANDLER, lc);
+            NULL_LEASE_GOVERNOR, ERROR_HANDLER, lc, reactiveSocket);
         lc.await();
 
         Observable<Frame> cachedResponses = captureResponses(conn);
@@ -91,6 +109,7 @@ public class ResponderTest
 
 	@Test(timeout=2000)
     public void testRequestResponseCancel() throws InterruptedException {
+        ReactiveSocket reactiveSocket = Mockito.mock(ReactiveSocket.class);
         AtomicBoolean unsubscribed = new AtomicBoolean();
         Observable<Payload> delayed = never()
                 .cast(Payload.class)
@@ -98,9 +117,9 @@ public class ResponderTest
 
         TestConnection conn = establishConnection();
         LatchedCompletable lc = new LatchedCompletable(1);
-        Responder.createServerResponder(conn, setup -> new RequestHandler.Builder()
+        Responder.createServerResponder(conn, (setup, rs) -> new RequestHandler.Builder()
             .withRequestResponse(request -> delayed).build(),
-            NULL_LEASE_GOVERNOR, ERROR_HANDLER, lc);
+            NULL_LEASE_GOVERNOR, ERROR_HANDLER, lc, reactiveSocket);
         lc.await();
 
         ReplaySubject<Frame> cachedResponses = captureResponses(conn);
@@ -118,12 +137,13 @@ public class ResponderTest
 
 	@Test(timeout=2000)
     public void testRequestStreamSuccess() throws InterruptedException {
+        ReactiveSocket reactiveSocket = Mockito.mock(ReactiveSocket.class);
     	TestConnection conn = establishConnection();
     	LatchedCompletable lc = new LatchedCompletable(1);
-        Responder.createServerResponder(conn, setup -> new RequestHandler.Builder()
+        Responder.createServerResponder(conn, (setup, rs) -> new RequestHandler.Builder()
             .withRequestStream(
                 request -> range(Integer.parseInt(byteToString(request.getData())), 10).map(i -> utf8EncodedPayload(i + "!", null))).build(),
-            NULL_LEASE_GOVERNOR, ERROR_HANDLER, lc);
+            NULL_LEASE_GOVERNOR, ERROR_HANDLER, lc, reactiveSocket);
         lc.await();
 
         ReplaySubject<Frame> cachedResponses = captureResponses(conn);
@@ -151,13 +171,14 @@ public class ResponderTest
 
 	@Test(timeout=2000)
     public void testRequestStreamError() throws InterruptedException {
+        ReactiveSocket reactiveSocket = Mockito.mock(ReactiveSocket.class);
     	TestConnection conn = establishConnection();
     	LatchedCompletable lc = new LatchedCompletable(1);
-        Responder.createServerResponder(conn, setup -> new RequestHandler.Builder()
+        Responder.createServerResponder(conn, (setup,rs) -> new RequestHandler.Builder()
             .withRequestStream(request -> range(Integer.parseInt(byteToString(request.getData())), 3)
                 .map(i -> utf8EncodedPayload(i + "!", null))
                 .concatWith(error(new Exception("Error Occurred!")))).build(),
-            NULL_LEASE_GOVERNOR, ERROR_HANDLER, lc);
+            NULL_LEASE_GOVERNOR, ERROR_HANDLER, lc, reactiveSocket);
         lc.await();
 
         ReplaySubject<Frame> cachedResponses = captureResponses(conn);
@@ -185,12 +206,13 @@ public class ResponderTest
 
 	@Test(timeout=2000)
     public void testRequestStreamCancel() throws InterruptedException {
+        ReactiveSocket reactiveSocket = Mockito.mock(ReactiveSocket.class);
     	TestConnection conn = establishConnection();
         TestScheduler ts = Schedulers.test();
         LatchedCompletable lc = new LatchedCompletable(1);
-        Responder.createServerResponder(conn, setup -> new RequestHandler.Builder()
+        Responder.createServerResponder(conn, (setup,rs) -> new RequestHandler.Builder()
             .withRequestStream(request -> interval(1000, TimeUnit.MILLISECONDS, ts).map(i -> utf8EncodedPayload(i + "!", null))).build(),
-            NULL_LEASE_GOVERNOR, ERROR_HANDLER, lc);
+            NULL_LEASE_GOVERNOR, ERROR_HANDLER, lc, reactiveSocket);
         lc.await();
 
         ReplaySubject<Frame> cachedResponses = captureResponses(conn);
@@ -226,12 +248,13 @@ public class ResponderTest
 
 	@Test(timeout=2000)
     public void testMultiplexedStreams() throws InterruptedException {
+        ReactiveSocket reactiveSocket = Mockito.mock(ReactiveSocket.class);
         TestScheduler ts = Schedulers.test();
         TestConnection conn = establishConnection();
         LatchedCompletable lc = new LatchedCompletable(1);
-        Responder.createServerResponder(conn, setup -> new RequestHandler.Builder()
+        Responder.createServerResponder(conn, (setup,rs) -> new RequestHandler.Builder()
             .withRequestStream(request -> interval(1000, TimeUnit.MILLISECONDS, ts).map(i -> utf8EncodedPayload(i + "_" + byteToString(request.getData()), null))).build(),
-            NULL_LEASE_GOVERNOR, ERROR_HANDLER, lc);
+            NULL_LEASE_GOVERNOR, ERROR_HANDLER, lc, reactiveSocket);
         lc.await();
 
         ReplaySubject<Frame> cachedResponses = captureResponses(conn);
