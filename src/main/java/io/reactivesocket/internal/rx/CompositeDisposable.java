@@ -47,7 +47,7 @@ public final class CompositeDisposable implements Disposable {
 
 	@Override
 	public void dispose() {
-		Disposable[] cs = null;
+		Disposable[] cs;
 		synchronized (this) {
 			disposed = true;
 			cs = resources.toArray(new Disposable[] {});

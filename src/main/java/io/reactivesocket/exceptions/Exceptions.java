@@ -31,7 +31,7 @@ public class Exceptions {
             message = new String(byteBuffer.array(), UTF_8);
         }
 
-        Throwable ex = null;
+        Throwable ex;
         switch (errorCode) {
             case APPLICATION_ERROR:
                 ex = new ApplicationException(message);

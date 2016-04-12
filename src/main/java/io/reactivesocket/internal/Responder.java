@@ -253,7 +253,7 @@ public class Responder {
 							responsePublisher = handleMetadataPush(
                                 requestFrame, requestHandler);
 						} else if (requestFrame.getType() == FrameType.CANCEL) {
-							Subscription s = null;
+							Subscription s;
 							synchronized (Responder.this) {
 								s = cancellationSubscriptions.get(requestFrame.getStreamId());
 							}
@@ -262,7 +262,7 @@ public class Responder {
 							}
 							return;
 						} else if (requestFrame.getType() == FrameType.REQUEST_N) {
-							SubscriptionArbiter inFlightSubscription = null;
+							SubscriptionArbiter inFlightSubscription;
 							synchronized (Responder.this) {
 								inFlightSubscription = inFlight.get(requestFrame.getStreamId());
 							}
@@ -693,7 +693,7 @@ public class Responder {
 			Int2ObjectHashMap<Subscription> cancellationSubscriptions,
 			Int2ObjectHashMap<SubscriptionArbiter> inFlight) {
 
-		UnicastSubject<Payload> channelSubject = null;
+		UnicastSubject<Payload> channelSubject;
 		synchronized(Responder.this) {
 			channelSubject = channels.get(requestFrame.getStreamId());
 		}
@@ -869,7 +869,7 @@ public class Responder {
 		}
 		
 		private void tryRequest() {
-			long toRequest = 0;
+			long toRequest;
 			synchronized(this) {
 				if(applicationProducer == null) {
 					return;
