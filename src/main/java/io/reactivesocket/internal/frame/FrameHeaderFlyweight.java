@@ -37,6 +37,9 @@ import static io.reactivesocket.internal.frame.ByteBufferUtil.preservingSlice;
  */
 public class FrameHeaderFlyweight
 {
+
+    private FrameHeaderFlyweight() {}
+
     public static final ByteBuffer NULL_BYTEBUFFER = ByteBuffer.allocate(0);
 
     public static final int FRAME_HEADER_LENGTH;

@@ -19,6 +19,9 @@ import java.nio.ByteBuffer;
 
 public class ByteBufferUtil
 {
+
+    private ByteBufferUtil() {}
+
     /**
      * Slice a portion of the {@link ByteBuffer} while preserving the buffers position and limit.
      *

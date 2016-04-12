@@ -34,6 +34,8 @@ import io.reactivesocket.internal.rx.SubscriptionHelper;
 
 public class PublisherUtils {
 
+	private PublisherUtils() {}
+
 	// TODO: be better about using scheduler for this
 	public static final ScheduledExecutorService SCHEDULER_THREAD = Executors.newScheduledThreadPool(1,
 		(r) -> {

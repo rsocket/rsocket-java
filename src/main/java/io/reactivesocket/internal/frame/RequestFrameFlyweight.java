@@ -25,6 +25,9 @@ import java.nio.ByteOrder;
 
 public class RequestFrameFlyweight
 {
+
+    private RequestFrameFlyweight() {}
+
     public static final int FLAGS_REQUEST_CHANNEL_C = 0b0001_0000_0000_0000;
     public static final int FLAGS_REQUEST_CHANNEL_N = 0b0000_1000_0000_0000;
 
