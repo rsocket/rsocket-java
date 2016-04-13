@@ -165,7 +165,7 @@ public class TestTransportRequestN {
 	private ReactiveSocket socketServer;
 	private ReactiveSocket socketClient;
 	private AtomicBoolean helloSubscriptionRunning = new AtomicBoolean(false);
-	private AtomicReference<Throwable> lastServerError = new AtomicReference<Throwable>();
+	private AtomicReference<Throwable> lastServerError = new AtomicReference<>();
 	private CountDownLatch lastServerErrorCountDown;
 
 	public void setup(TestConnectionWithControlledRequestN clientConnection, TestConnectionWithControlledRequestN serverConnection) throws InterruptedException {

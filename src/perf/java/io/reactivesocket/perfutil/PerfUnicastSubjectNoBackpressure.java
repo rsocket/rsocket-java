@@ -31,7 +31,7 @@ public final class PerfUnicastSubjectNoBackpressure<T> implements Observable<T>,
 	private boolean subscribedTo = false;
 
 	public static <T> PerfUnicastSubjectNoBackpressure<T> create() {
-		return new PerfUnicastSubjectNoBackpressure<T>(null);
+		return new PerfUnicastSubjectNoBackpressure<>(null);
 	}
 
 	/**
@@ -39,7 +39,7 @@ public final class PerfUnicastSubjectNoBackpressure<T> implements Observable<T>,
 	 * @return
 	 */
 	public static <T> PerfUnicastSubjectNoBackpressure<T> create(Consumer<PerfUnicastSubjectNoBackpressure<T>> onConnect) {
-		return new PerfUnicastSubjectNoBackpressure<T>(onConnect);
+		return new PerfUnicastSubjectNoBackpressure<>(onConnect);
 	}
 
 	private PerfUnicastSubjectNoBackpressure(Consumer<PerfUnicastSubjectNoBackpressure<T>> onConnect) {

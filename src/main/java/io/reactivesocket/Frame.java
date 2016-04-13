@@ -337,7 +337,7 @@ public class Frame implements Payload
             final Throwable throwable,
             ByteBuffer metadata
         ) {
-            String data = (throwable.getMessage() == null ? "" : throwable.getMessage());
+            String data = throwable.getMessage() == null ? "" : throwable.getMessage();
             byte[] bytes = data.getBytes(Charset.forName("UTF-8"));
             final ByteBuffer dataBuffer = ByteBuffer.wrap(bytes);
 
@@ -525,7 +525,7 @@ public class Frame implements Payload
             final Frame frame =
                 POOL.acquireFrame(FrameHeaderFlyweight.computeFrameHeaderLength(FrameType.KEEPALIVE, 0, data.remaining()));
 
-            final int flags = (respond ? FrameHeaderFlyweight.FLAGS_KEEPALIVE_R : 0);
+            final int flags = respond ? FrameHeaderFlyweight.FLAGS_KEEPALIVE_R : 0;
 
             frame.length = FrameHeaderFlyweight.encode(
                 frame.directBuffer, frame.offset, 0, flags, FrameType.KEEPALIVE, Frame.NULL_BYTEBUFFER, data);

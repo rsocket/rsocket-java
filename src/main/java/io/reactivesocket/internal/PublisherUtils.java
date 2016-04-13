@@ -209,7 +209,7 @@ public class PublisherUtils {
 	}
 	
 	public static final Publisher<Frame> fromIterable(Iterable<Frame> is) {
-		return new PublisherIterableSource<Frame>(is);
+		return new PublisherIterableSource<>(is);
 	}
 	
 	public static final class PublisherIterableSource<T> extends AtomicBoolean implements Publisher<T> {
