@@ -132,7 +132,7 @@ public class ReactiveSocketPerf {
 			}
 		};
 
-		final static ReactiveSocket serverSocket = DefaultReactiveSocket.fromServerConnection(serverConnection, setupFrame -> handler);
+		final static ReactiveSocket serverSocket = DefaultReactiveSocket.fromServerConnection(serverConnection, (setup, rs) -> handler);
 
 		final static ReactiveSocket client =
 			DefaultReactiveSocket.fromClientConnection(

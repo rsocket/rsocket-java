@@ -15,16 +15,10 @@
  */
 package io.reactivesocket;
 
-import static io.reactivesocket.ConnectionSetupPayload.*;
-import static io.reactivesocket.TestUtil.*;
-import static io.reactivex.Observable.*;
-import static org.junit.Assert.*;
-
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
-
+import io.reactivesocket.lease.FairLeaseGovernor;
+import io.reactivex.disposables.Disposable;
+import io.reactivex.observables.ConnectableObservable;
+import io.reactivex.subscribers.TestSubscriber;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -33,13 +27,27 @@ import org.junit.experimental.theories.Theories;
 import org.junit.experimental.theories.Theory;
 import org.junit.runner.RunWith;
 import org.reactivestreams.Publisher;
-
-import io.reactivesocket.lease.FairLeaseGovernor;
-import io.reactivex.disposables.Disposable;
-import io.reactivex.observables.ConnectableObservable;
-import io.reactivex.subscribers.TestSubscriber;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
+
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+
+import static io.reactivesocket.ConnectionSetupPayload.HONOR_LEASE;
+import static io.reactivesocket.ConnectionSetupPayload.NO_FLAGS;
+import static io.reactivesocket.TestUtil.byteToString;
+import static io.reactivesocket.TestUtil.utf8EncodedPayload;
+import static io.reactivex.Observable.empty;
+import static io.reactivex.Observable.error;
+import static io.reactivex.Observable.fromPublisher;
+import static io.reactivex.Observable.interval;
+import static io.reactivex.Observable.just;
+import static io.reactivex.Observable.range;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 @RunWith(Theories.class)
 public class ReactiveSocketTest {
@@ -64,7 +72,7 @@ public class ReactiveSocketTest {
 		fireAndForgetOrMetadataPush = new CountDownLatch(1);
 		lastServerErrorCountDown = new CountDownLatch(1);
 
-		socketServer = DefaultReactiveSocket.fromServerConnection(serverConnection, setup -> new RequestHandler() {
+		socketServer = DefaultReactiveSocket.fromServerConnection(serverConnection, (setup,rs) -> new RequestHandler() {
 
 			@Override
 			public Publisher<Payload> handleRequestResponse(Payload payload) {

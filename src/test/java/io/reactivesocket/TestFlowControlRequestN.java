@@ -315,7 +315,7 @@ public class TestFlowControlRequestN {
 		clientConnection.connectToServerConnection(serverConnection, false);
 		
 
-		socketServer = DefaultReactiveSocket.fromServerConnection(serverConnection, setup -> new RequestHandler() {
+		socketServer = DefaultReactiveSocket.fromServerConnection(serverConnection, (setup,rs) -> new RequestHandler() {
 
 			@Override
 			public Publisher<Payload> handleRequestStream(Payload payload) {
