@@ -19,7 +19,7 @@ import io.reactivesocket.rx.Disposable;
 
 public class EmptyDisposable implements Disposable
 {
-	public static EmptyDisposable EMPTY = new EmptyDisposable(); 
+	public static final EmptyDisposable EMPTY = new EmptyDisposable();
 	
     public void dispose()
     {

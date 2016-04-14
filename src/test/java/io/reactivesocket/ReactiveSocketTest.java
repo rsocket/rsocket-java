@@ -62,7 +62,7 @@ public class ReactiveSocketTest {
 	private CountDownLatch lastServerErrorCountDown;
 	private CountDownLatch fireAndForgetOrMetadataPush;
 
-	public static @DataPoints int[] setupFlags = {NO_FLAGS, HONOR_LEASE};
+	public static final @DataPoints int[] setupFlags = {NO_FLAGS, HONOR_LEASE};
 
 	@Before
 	public void setup() {
