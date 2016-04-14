@@ -26,6 +26,8 @@ import java.nio.charset.Charset;
 
 public class SetupFrameFlyweight
 {
+    private SetupFrameFlyweight() {}
+
     public static final int FLAGS_WILL_HONOR_LEASE = 0b0010_0000;
     public static final int FLAGS_STRICT_INTERPRETATION = 0b0001_0000;
 

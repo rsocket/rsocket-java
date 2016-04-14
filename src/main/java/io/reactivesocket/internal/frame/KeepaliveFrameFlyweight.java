@@ -23,6 +23,8 @@ import java.nio.ByteBuffer;
 
 public class KeepaliveFrameFlyweight
 {
+    private KeepaliveFrameFlyweight() {}
+
     private static final int PAYLOAD_OFFSET = FrameHeaderFlyweight.FRAME_HEADER_LENGTH;
 
     public static int computeFrameLength(final int dataLength)

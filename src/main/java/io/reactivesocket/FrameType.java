@@ -47,6 +47,8 @@ public enum FrameType
 
     private static class Flags
     {
+        private Flags() {}
+
         private static final int CAN_HAVE_DATA = 0b0001;
         private static final int CAN_HAVE_METADATA = 0b0010;
         private static final int CAN_HAVE_METADATA_AND_DATA = 0b0011;

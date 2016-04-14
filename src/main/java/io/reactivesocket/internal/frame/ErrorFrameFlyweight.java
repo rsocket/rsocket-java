@@ -32,6 +32,9 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
 public class ErrorFrameFlyweight {
+
+    private ErrorFrameFlyweight() {}
+
     // defined error codes
     public static final int INVALID_SETUP = 0x0001;
     public static final int UNSUPPORTED_SETUP = 0x0002;

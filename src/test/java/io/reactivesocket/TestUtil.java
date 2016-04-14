@@ -22,6 +22,8 @@ import java.nio.charset.Charset;
 
 public class TestUtil
 {
+    private TestUtil() {}
+
     public static Frame utf8EncodedRequestFrame(final int streamId, final FrameType type, final String data, final int initialRequestN)
     {
         return Frame.Request.from(streamId, type, new Payload()

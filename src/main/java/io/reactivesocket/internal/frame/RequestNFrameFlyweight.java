@@ -24,6 +24,8 @@ import java.nio.ByteOrder;
 
 public class RequestNFrameFlyweight
 {
+    private RequestNFrameFlyweight() {}
+
     // relative to start of passed offset
     private static final int REQUEST_N_FIELD_OFFSET = FrameHeaderFlyweight.FRAME_HEADER_LENGTH;
 
