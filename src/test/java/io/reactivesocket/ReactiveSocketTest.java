@@ -56,9 +56,9 @@ public class ReactiveSocketTest {
 	private ReactiveSocket socketServer;
 	private ReactiveSocket socketClient;
 	private AtomicBoolean helloSubscriptionRunning = new AtomicBoolean(false);
-	private AtomicReference<String> lastFireAndForget = new AtomicReference<String>();
-	private AtomicReference<String> lastMetadataPush = new AtomicReference<String>();
-	private AtomicReference<Throwable> lastServerError = new AtomicReference<Throwable>();
+	private AtomicReference<String> lastFireAndForget = new AtomicReference<>();
+	private AtomicReference<String> lastMetadataPush = new AtomicReference<>();
+	private AtomicReference<Throwable> lastServerError = new AtomicReference<>();
 	private CountDownLatch lastServerErrorCountDown;
 	private CountDownLatch fireAndForgetOrMetadataPush;
 

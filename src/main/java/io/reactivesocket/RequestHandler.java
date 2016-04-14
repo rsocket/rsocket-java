@@ -23,22 +23,22 @@ import java.util.function.Function;
 public abstract class RequestHandler {
 
 	public static final Function<Payload, Publisher<Payload>> NO_REQUEST_RESPONSE_HANDLER =
-		(payload -> PublisherUtils.errorPayload(new RuntimeException("No 'requestResponse' handler")));
+		payload -> PublisherUtils.errorPayload(new RuntimeException("No 'requestResponse' handler"));
 
 	public static final Function<Payload, Publisher<Payload>> NO_REQUEST_STREAM_HANDLER =
-		(payload -> PublisherUtils.errorPayload(new RuntimeException("No 'requestStream' handler")));
+		payload -> PublisherUtils.errorPayload(new RuntimeException("No 'requestStream' handler"));
 
 	public static final Function<Payload, Publisher<Payload>> NO_REQUEST_SUBSCRIPTION_HANDLER =
-		(payload -> PublisherUtils.errorPayload(new RuntimeException("No 'requestSubscription' handler")));
+		payload -> PublisherUtils.errorPayload(new RuntimeException("No 'requestSubscription' handler"));
 
 	public static final Function<Payload, Publisher<Void>> NO_FIRE_AND_FORGET_HANDLER =
-		(payload -> PublisherUtils.errorVoid(new RuntimeException("No 'fireAndForget' handler")));
+		payload -> PublisherUtils.errorVoid(new RuntimeException("No 'fireAndForget' handler"));
 
 	public static final Function<Publisher<Payload>, Publisher<Payload>> NO_REQUEST_CHANNEL_HANDLER =
-		(payloads) -> PublisherUtils.errorPayload(new RuntimeException("No 'requestChannel' handler"));
+		payloads -> PublisherUtils.errorPayload(new RuntimeException("No 'requestChannel' handler"));
 
 	public static final Function<Payload, Publisher<Void>> NO_METADATA_PUSH_HANDLER =
-		(payload -> PublisherUtils.errorVoid(new RuntimeException("No 'metadataPush' handler")));
+		payload -> PublisherUtils.errorVoid(new RuntimeException("No 'metadataPush' handler"));
 
 	public abstract Publisher<Payload> handleRequestResponse(final Payload payload);
 
