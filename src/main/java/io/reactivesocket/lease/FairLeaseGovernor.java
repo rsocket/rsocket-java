@@ -68,7 +68,7 @@ public class FairLeaseGovernor implements LeaseGovernor {
 
     @Override
     public synchronized boolean accept(Responder responder, Frame frame) {
-        boolean valid = false;
+        boolean valid;
         final Integer remainingTickets = responders.get(responder);
         return remainingTickets == null || remainingTickets > 0;
     }

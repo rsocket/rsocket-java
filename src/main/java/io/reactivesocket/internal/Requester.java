@@ -947,7 +947,7 @@ public class Requester {
             }
 
             public void onError(Throwable t) {
-                Collection<UnicastSubject<Frame>> subjects = null;
+                Collection<UnicastSubject<Frame>> subjects;
                 synchronized (Requester.this) {
                     subjects = streamInputMap.values();
                 }
@@ -958,7 +958,7 @@ public class Requester {
             }
 
             public void onComplete() {
-                Collection<UnicastSubject<Frame>> subjects = null;
+                Collection<UnicastSubject<Frame>> subjects;
                 synchronized (Requester.this) {
                     subjects = streamInputMap.values();
                 }
