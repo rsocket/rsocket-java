@@ -13,10 +13,9 @@ This is the core project for Java that implements the protocol and exposes React
 
 For example:
 
-- ReactiveSocket over WebSockets using Netty [reactivesocket-websockets-netty](https://github.com/ReactiveSocket/reactivesocket-websockets-netty)
-- ReactiveSocket over TCP using Netty [reactivesocket-tcp-netty](https://github.com/ReactiveSocket/reactivesocket-tcp-netty)
-- ReactiveSocket over Aeron using Aeron Java [reactivesocket-aeron-java](https://github.com/ReactiveSocket/reactivesocket-aeron-java)
-- ReactiveSocket over HTTP/1 and HTTP/2 using Netty [reactivesocket-http-netty](https://github.com/ReactiveSocket/reactivesocket-http-netty)
+- ReactiveSocket over WebSockets using Netty [reactivesocket-websockets-netty](https://github.com/ReactiveSocket/reactivesocket-java-impl)
+- ReactiveSocket over TCP using Netty [reactivesocket-tcp-netty](https://github.com/ReactiveSocket/reactivesocket-java-impl)
+- ReactiveSocket over Aeron using Aeron Java [reactivesocket-aeron-java](https://github.com/ReactiveSocket/reactivesocket-java-impl)
 
 ReactiveSocket is for communicating across network boundaries thus it is intended to be polyglot. Common libraries include:
 
