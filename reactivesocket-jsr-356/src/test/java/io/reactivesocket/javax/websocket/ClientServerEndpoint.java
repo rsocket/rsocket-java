@@ -25,7 +25,7 @@ import rx.RxReactiveStreams;
 
 public class ClientServerEndpoint extends ReactiveSocketWebSocketServer {
     public ClientServerEndpoint() {
-        super(setupPayload -> new RequestHandler() {
+        super((setupPayload, rs) -> new RequestHandler() {
             @Override
             public Publisher<Payload> handleRequestResponse(Payload payload) {
                 return s -> {

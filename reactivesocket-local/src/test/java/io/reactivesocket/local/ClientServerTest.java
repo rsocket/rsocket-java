@@ -41,7 +41,7 @@ public class ClientServerTest {
     public static void setup() throws Exception {
         server = LocalServerReactiveSocketFactory.INSTANCE.callAndWait(new LocalServerReactiveSocketFactory.Config("test", new ConnectionSetupHandler() {
             @Override
-            public RequestHandler apply(ConnectionSetupPayload setupPayload) throws SetupException {
+            public RequestHandler apply(ConnectionSetupPayload setupPayload, ReactiveSocket rs) throws SetupException {
                 return new RequestHandler() {
                     @Override
                     public Publisher<Payload> handleRequestResponse(Payload payload) {
