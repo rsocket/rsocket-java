@@ -34,7 +34,7 @@ public class PongEndpoint extends ReactiveSocketWebSocketServer {
     }
 
     public PongEndpoint() {
-        super(setupPayload -> new RequestHandler() {
+        super((setupPayload, rs) -> new RequestHandler() {
             @Override
             public Publisher<Payload> handleRequestResponse(Payload payload) {
                 return new Publisher<Payload>() {

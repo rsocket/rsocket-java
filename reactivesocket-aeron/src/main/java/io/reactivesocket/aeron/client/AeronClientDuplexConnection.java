@@ -19,6 +19,8 @@ import io.aeron.Publication;
 import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
 import io.reactivesocket.aeron.internal.Loggable;
+import io.reactivesocket.aeron.internal.NotConnectedException;
+import io.reactivesocket.exceptions.TransportException;
 import io.reactivesocket.rx.Completable;
 import io.reactivesocket.rx.Disposable;
 import io.reactivesocket.rx.Observable;
@@ -101,7 +103,11 @@ public class AeronClientDuplexConnection implements DuplexConnection, Loggable {
 
                 @Override
                 public void onError(Throwable t) {
-                    callback.error(t);
+                    if (t instanceof NotConnectedException) {
+                        callback.error(new TransportException(t));
+                    } else {
+                        callback.error(t);
+                    }
                 }
 
                 @Override

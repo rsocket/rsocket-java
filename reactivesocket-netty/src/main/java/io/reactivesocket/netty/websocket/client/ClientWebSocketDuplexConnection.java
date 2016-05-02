@@ -27,6 +27,7 @@ import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.websocketx.*;
 import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
+import io.reactivesocket.exceptions.TransportException;
 import io.reactivesocket.rx.Completable;
 import io.reactivesocket.rx.Observable;
 import io.reactivesocket.rx.Observer;
@@ -39,6 +40,7 @@ import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.channels.ClosedChannelException;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 public class ClientWebSocketDuplexConnection implements DuplexConnection {
@@ -136,7 +138,11 @@ public class ClientWebSocketDuplexConnection implements DuplexConnection {
                     channelFuture.addListener(future -> {
                         Throwable cause = future.cause();
                         if (cause != null) {
-                            callback.error(cause);
+                            if (cause instanceof ClosedChannelException) {
+                                onError(new TransportException(cause));
+                            } else {
+                                onError(cause);
+                            }
                         }
                     });
                 } catch (Throwable t) {

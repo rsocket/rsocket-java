@@ -112,7 +112,7 @@ public class ReactiveSocketAeronTest {
         AtomicLong counter = new AtomicLong();
         ReactiveSocketAeronServer.create(new ConnectionSetupHandler() {
             @Override
-            public RequestHandler apply(ConnectionSetupPayload setupPayload) throws SetupException {
+            public RequestHandler apply(ConnectionSetupPayload setupPayload, ReactiveSocket rs) throws SetupException {
                 return new RequestHandler.Builder()
                   .withRequestResponse(new Function<Payload, Publisher<Payload>>() {
                       Frame frame = Frame.from(ByteBuffer.allocate(1));
@@ -194,7 +194,7 @@ public class ReactiveSocketAeronTest {
     }
 
     public void requestStreamN(int count) throws Exception {
-        ReactiveSocketAeronServer.create(setupPayload ->
+        ReactiveSocketAeronServer.create((setupPayload, rs) ->
           new RequestHandler.Builder()
             .withRequestStream(payload -> {
                 ByteBuffer data = payload.getData();
@@ -264,7 +264,7 @@ public class ReactiveSocketAeronTest {
 
         ReactiveSocketAeronServer server = ReactiveSocketAeronServer.create(new ConnectionSetupHandler() {
             @Override
-            public RequestHandler apply(ConnectionSetupPayload setupPayload) throws SetupException {
+            public RequestHandler apply(ConnectionSetupPayload setupPayload, ReactiveSocket rs) throws SetupException {
                 return new RequestHandler() {
                     Frame frame = Frame.from(ByteBuffer.allocate(1));
 

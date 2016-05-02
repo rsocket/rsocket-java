@@ -51,7 +51,7 @@ public class ClientServerTest {
     static EventLoopGroup bossGroup = new NioEventLoopGroup(1);
     static EventLoopGroup workerGroup = new NioEventLoopGroup(4);
 
-    static ReactiveSocketServerHandler serverHandler = ReactiveSocketServerHandler.create(setupPayload ->
+    static ReactiveSocketServerHandler serverHandler = ReactiveSocketServerHandler.create((setupPayload, rs) ->
         new RequestHandler() {
             @Override
             public Publisher<Payload> handleRequestResponse(Payload payload) {

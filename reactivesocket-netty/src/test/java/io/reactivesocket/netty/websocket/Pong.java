@@ -46,7 +46,7 @@ public class Pong {
         r.nextBytes(response);
 
         ReactiveSocketServerHandler serverHandler =
-            ReactiveSocketServerHandler.create(setupPayload -> new RequestHandler() {
+            ReactiveSocketServerHandler.create((setupPayload, rs) -> new RequestHandler() {
                 @Override
                 public Publisher<Payload> handleRequestResponse(Payload payload) {
                     return new Publisher<Payload>() {

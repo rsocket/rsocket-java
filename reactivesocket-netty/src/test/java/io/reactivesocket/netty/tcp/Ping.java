@@ -80,11 +80,13 @@ public class Ping {
                     .toObservable(
                         reactiveSocket
                             .requestResponse(keyPayload))
+                    .doOnError(t -> t.printStackTrace())
                     .doOnNext(s -> {
                         long diff = System.nanoTime() - start;
                         histogram.recordValue(diff);
                     });
             }, 16)
+            .doOnError(t -> t.printStackTrace())
             .subscribe(new Subscriber<Payload>() {
                 @Override
                 public void onCompleted() {
