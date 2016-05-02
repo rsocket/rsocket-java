@@ -38,3 +38,8 @@ if (project.hasProperty('release.useLastTag')) {
 test {
     testLogging.showStandardStreams = true
 }
+
+compileJava {
+    sourceCompatibility = 1.8
+    targetCompatibility = 1.8
+}
