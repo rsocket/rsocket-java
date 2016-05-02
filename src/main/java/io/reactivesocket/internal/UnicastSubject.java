@@ -37,7 +37,7 @@ public final class UnicastSubject<T> implements Subscriber<T>, Publisher<T> {
 	private boolean subscribedTo = false;
 
 	public static <T> UnicastSubject<T> create() {
-		return new UnicastSubject<T>(null, r -> {});
+		return new UnicastSubject<>(null, r -> {});
 	}
 
 	/**
@@ -46,7 +46,7 @@ public final class UnicastSubject<T> implements Subscriber<T>, Publisher<T> {
 	 * @return
 	 */
 	public static <T> UnicastSubject<T> create(BiConsumer<UnicastSubject<T>, Long> onConnect, Consumer<Long> onRequest) {
-		return new UnicastSubject<T>(onConnect, onRequest);
+		return new UnicastSubject<>(onConnect, onRequest);
 	}
 	
 	/**
@@ -54,7 +54,7 @@ public final class UnicastSubject<T> implements Subscriber<T>, Publisher<T> {
 	 * @return
 	 */
 	public static <T> UnicastSubject<T> create(BiConsumer<UnicastSubject<T>, Long> onConnect) {
-		return new UnicastSubject<T>(onConnect,  r -> {});
+		return new UnicastSubject<>(onConnect,  r -> {});
 	}
 
 	private UnicastSubject(BiConsumer<UnicastSubject<T>, Long> onConnect, Consumer<Long> onRequest) {

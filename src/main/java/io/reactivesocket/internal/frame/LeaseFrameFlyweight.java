@@ -25,6 +25,8 @@ import java.nio.ByteOrder;
 
 public class LeaseFrameFlyweight
 {
+    private LeaseFrameFlyweight() {}
+
     // relative to start of passed offset
     private static final int TTL_FIELD_OFFSET = FrameHeaderFlyweight.FRAME_HEADER_LENGTH;
     private static final int NUM_REQUESTS_FIELD_OFFSET = TTL_FIELD_OFFSET + BitUtil.SIZE_OF_INT;

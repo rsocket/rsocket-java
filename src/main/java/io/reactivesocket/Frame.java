@@ -257,6 +257,9 @@ public class Frame implements Payload
     // SETUP specific getters
     public static class Setup
     {
+
+        private Setup() {}
+
         public static Frame from(
             int flags,
             int keepaliveInterval,
@@ -317,6 +320,9 @@ public class Frame implements Payload
 
     public static class Error
     {
+
+        private Error() {}
+
         public static Frame from(
             int streamId,
             final Throwable throwable,
@@ -337,7 +343,7 @@ public class Frame implements Payload
             final Throwable throwable,
             ByteBuffer metadata
         ) {
-            String data = (throwable.getMessage() == null ? "" : throwable.getMessage());
+            String data = throwable.getMessage() == null ? "" : throwable.getMessage();
             byte[] bytes = data.getBytes(Charset.forName("UTF-8"));
             final ByteBuffer dataBuffer = ByteBuffer.wrap(bytes);
 
@@ -360,6 +366,8 @@ public class Frame implements Payload
 
     public static class Lease
     {
+        private Lease() {}
+
         public static Frame from(int ttl, int numberOfRequests, ByteBuffer metadata)
         {
             final Frame frame = POOL.acquireFrame(LeaseFrameFlyweight.computeFrameLength(metadata.remaining()));
@@ -383,6 +391,8 @@ public class Frame implements Payload
 
     public static class RequestN
     {
+        private RequestN() {}
+
         public static Frame from(int streamId, int requestN)
         {
             final Frame frame = POOL.acquireFrame(RequestNFrameFlyweight.computeFrameLength());
@@ -400,6 +410,8 @@ public class Frame implements Payload
 
     public static class Request
     {
+        private Request() {}
+
         public static Frame from(int streamId, FrameType type, Payload payload, int initialRequestN)
         {
             final ByteBuffer d = payload.getData() != null ? payload.getData() : NULL_BYTEBUFFER;
@@ -473,6 +485,9 @@ public class Frame implements Payload
 
     public static class Response
     {
+
+        private Response() {}
+
         public static Frame from(int streamId, FrameType type, Payload payload)
         {
             final ByteBuffer data = payload.getData() != null ? payload.getData() : NULL_BYTEBUFFER;
@@ -507,6 +522,9 @@ public class Frame implements Payload
 
     public static class Cancel
     {
+
+        private Cancel() {}
+
         public static Frame from(int streamId)
         {
             final Frame frame =
@@ -520,12 +538,15 @@ public class Frame implements Payload
 
     public static class Keepalive
     {
+
+        private Keepalive() {}
+
         public static Frame from(ByteBuffer data, boolean respond)
         {
             final Frame frame =
                 POOL.acquireFrame(FrameHeaderFlyweight.computeFrameHeaderLength(FrameType.KEEPALIVE, 0, data.remaining()));
 
-            final int flags = (respond ? FrameHeaderFlyweight.FLAGS_KEEPALIVE_R : 0);
+            final int flags = respond ? FrameHeaderFlyweight.FLAGS_KEEPALIVE_R : 0;
 
             frame.length = FrameHeaderFlyweight.encode(
                 frame.directBuffer, frame.offset, 0, flags, FrameType.KEEPALIVE, Frame.NULL_BYTEBUFFER, data);

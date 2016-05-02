@@ -74,7 +74,7 @@ public class PayloadFragmenter implements Iterable<Frame>, Iterator<Frame>
         final ByteBuffer metadata = payload.getMetadata();
         final ByteBuffer data = payload.getData();
 
-        return (metadata.remaining() > metadataMtu || data.remaining() > dataMtu);
+        return metadata.remaining() > metadataMtu || data.remaining() > dataMtu;
     }
 
     public Iterator<Frame> iterator()
@@ -84,7 +84,7 @@ public class PayloadFragmenter implements Iterable<Frame>, Iterator<Frame>
 
     public boolean hasNext()
     {
-        return (dataOffset < data.capacity() || metadataOffset < metadata.remaining());
+        return dataOffset < data.capacity() || metadataOffset < metadata.remaining();
     }
 
     public Frame next()
@@ -103,7 +103,7 @@ public class PayloadFragmenter implements Iterable<Frame>, Iterator<Frame>
         metadataOffset += metadataLength;
         dataOffset += dataLength;
 
-        final boolean isMoreFollowing = (metadataOffset < metadata.remaining() || dataOffset < data.remaining());
+        final boolean isMoreFollowing = metadataOffset < metadata.remaining() || dataOffset < data.remaining();
         int flags = 0;
 
         if (Type.RESPONSE == type)

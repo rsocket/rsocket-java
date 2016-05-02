@@ -23,6 +23,9 @@ import static io.reactivesocket.internal.frame.ErrorFrameFlyweight.*;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 public class Exceptions {
+
+    private Exceptions() {}
+
     public static Throwable from(Frame frame) {
         final int errorCode = Frame.Error.errorCode(frame);
         String message = "<empty message>";
@@ -31,7 +34,7 @@ public class Exceptions {
             message = new String(byteBuffer.array(), UTF_8);
         }
 
-        Throwable ex = null;
+        Throwable ex;
         switch (errorCode) {
             case APPLICATION_ERROR:
                 ex = new ApplicationException(message);

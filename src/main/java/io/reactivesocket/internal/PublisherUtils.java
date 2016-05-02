@@ -34,6 +34,8 @@ import io.reactivesocket.internal.rx.SubscriptionHelper;
 
 public class PublisherUtils {
 
+	private PublisherUtils() {}
+
 	// TODO: be better about using scheduler for this
 	public static final ScheduledExecutorService SCHEDULER_THREAD = Executors.newScheduledThreadPool(1,
 		(r) -> {
@@ -209,7 +211,7 @@ public class PublisherUtils {
 	}
 	
 	public static final Publisher<Frame> fromIterable(Iterable<Frame> is) {
-		return new PublisherIterableSource<Frame>(is);
+		return new PublisherIterableSource<>(is);
 	}
 	
 	public static final class PublisherIterableSource<T> extends AtomicBoolean implements Publisher<T> {

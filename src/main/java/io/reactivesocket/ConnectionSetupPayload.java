@@ -154,11 +154,11 @@ public abstract class ConnectionSetupPayload implements Payload
 
 	public boolean willClientHonorLease()
 	{
-		return (HONOR_LEASE == (getFlags() & HONOR_LEASE));
+		return HONOR_LEASE == (getFlags() & HONOR_LEASE);
 	}
 
 	public boolean doesClientRequestStrictInterpretation()
 	{
-		return (STRICT_INTERPRETATION == (getFlags() & STRICT_INTERPRETATION));
+		return STRICT_INTERPRETATION == (getFlags() & STRICT_INTERPRETATION);
 	}
 }

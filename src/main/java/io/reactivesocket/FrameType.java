@@ -47,6 +47,8 @@ public enum FrameType
 
     private static class Flags
     {
+        private Flags() {}
+
         private static final int CAN_HAVE_DATA = 0b0001;
         private static final int CAN_HAVE_METADATA = 0b0010;
         private static final int CAN_HAVE_METADATA_AND_DATA = 0b0011;
@@ -92,22 +94,22 @@ public enum FrameType
 
     public boolean isRequestType()
     {
-        return (Flags.IS_REQUEST_TYPE == (flags & Flags.IS_REQUEST_TYPE));
+        return Flags.IS_REQUEST_TYPE == (flags & Flags.IS_REQUEST_TYPE);
     }
 
     public boolean hasInitialRequestN()
     {
-        return (Flags.HAS_INITIAL_REQUEST_N == (flags & Flags.HAS_INITIAL_REQUEST_N));
+        return Flags.HAS_INITIAL_REQUEST_N == (flags & Flags.HAS_INITIAL_REQUEST_N);
     }
 
     public boolean canHaveData()
     {
-        return (Flags.CAN_HAVE_DATA == (flags & Flags.CAN_HAVE_DATA));
+        return Flags.CAN_HAVE_DATA == (flags & Flags.CAN_HAVE_DATA);
     }
 
     public boolean canHaveMetadata()
     {
-        return (Flags.CAN_HAVE_METADATA == (flags & Flags.CAN_HAVE_METADATA));
+        return Flags.CAN_HAVE_METADATA == (flags & Flags.CAN_HAVE_METADATA);
     }
 
     // TODO: offset of metadata and data (simplify parsing) naming: endOfFrameHeaderOffset()
