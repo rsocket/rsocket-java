@@ -1,6 +1,6 @@
 buildscript {
     repositories { jcenter() }
-    dependencies { classpath 'io.reactivesocket:gradle-nebula-plugin-reactivesocket:1.0.5' }
+    dependencies { classpath 'io.reactivesocket:gradle-nebula-plugin-reactivesocket:1.0.6' }
 }
 
 apply plugin: 'reactivesocket-project'
