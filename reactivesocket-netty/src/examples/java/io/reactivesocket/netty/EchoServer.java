@@ -28,7 +28,7 @@ public class EchoServer {
                         }
                     });
 
-            Channel localhost = b.bind("localhost", 8025).sync().channel();
+            Channel localhost = b.bind("0.0.0.0", 8025).sync().channel();
             localhost.closeFuture().sync();
         } finally {
             bossGroup.shutdownGracefully();

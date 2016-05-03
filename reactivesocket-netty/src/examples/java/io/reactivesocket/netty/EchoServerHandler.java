@@ -54,7 +54,7 @@ public class EchoServerHandler extends ByteToMessageDecoder {
     private void switchToHttp(ChannelHandlerContext ctx) {
         ChannelPipeline p = ctx.pipeline();
         p.addLast(new HttpServerCodec());
-        p.addLast(new HttpObjectAggregator(64 * 1024));
+        p.addLast(new HttpObjectAggregator(256 * 1024));
         p.addLast(httpHandler);
         p.remove(this);
     }
