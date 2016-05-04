@@ -29,6 +29,7 @@ import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
 import java.io.IOException;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
@@ -55,6 +56,7 @@ public class DefaultReactiveSocket implements ReactiveSocket {
     private final RequestHandler clientRequestHandler;
     private final ConnectionSetupHandler responderConnectionHandler;
     private final LeaseGovernor leaseGovernor;
+    private final CopyOnWriteArrayList<Completable> shutdownListeners;
 
     private DefaultReactiveSocket(
         DuplexConnection connection,
@@ -72,6 +74,7 @@ public class DefaultReactiveSocket implements ReactiveSocket {
         this.responderConnectionHandler = responderConnectionHandler;
         this.leaseGovernor = leaseGovernor;
         this.errorStream = errorStream;
+        this.shutdownListeners = new CopyOnWriteArrayList<>();
     }
 
     /**
@@ -440,14 +443,27 @@ public class DefaultReactiveSocket implements ReactiveSocket {
     };
 
     @Override
+    public void onShutdown(Completable c) {
+        shutdownListeners.add(c);
+    }
+
+    @Override
     public void close() throws Exception {
-        connection.close();
-        leaseGovernor.unregister(responder);
-        if (requester != null) {
-            requester.shutdown();
-        }
-        if (responder != null) {
-            responder.shutdown();
+        try {
+            connection.close();
+            leaseGovernor.unregister(responder);
+            if (requester != null) {
+                requester.shutdown();
+            }
+            if (responder != null) {
+                responder.shutdown();
+            }
+
+            shutdownListeners.forEach(Completable::success);
+
+        } catch (Throwable t) {
+            shutdownListeners.forEach(c -> c.error(t));
+            throw t;
         }
     }
 

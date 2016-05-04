@@ -95,6 +95,11 @@ public interface ReactiveSocket extends AutoCloseable {
     void onRequestReady(Completable c);
 
     /**
+     * Registers a completable to be run when an ReactiveSocket is closed
+     */
+    void onShutdown(Completable c);
+
+    /**
      * Server granting new lease information to client
      *
      * Initial lease semantics are that server waits for periodic granting of leases by server side.
