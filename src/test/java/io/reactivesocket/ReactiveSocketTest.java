@@ -16,6 +16,7 @@
 package io.reactivesocket;
 
 import io.reactivesocket.lease.FairLeaseGovernor;
+import io.reactivesocket.rx.Completable;
 import io.reactivex.disposables.Disposable;
 import io.reactivex.observables.ConnectableObservable;
 import io.reactivex.subscribers.TestSubscriber;
@@ -256,6 +257,74 @@ public class ReactiveSocketTest {
 		assertTrue("client socket has positive avaibility", socket.availability() > 0.0);
 	}
 
+	@Test(timeout = 2000)
+	public void testShutdownListener() throws Exception {
+		socketClient = DefaultReactiveSocket.fromClientConnection(
+			clientConnection,
+			ConnectionSetupPayload.create("UTF-8", "UTF-8", NO_FLAGS),
+			err -> err.printStackTrace()
+		);
+
+		CountDownLatch latch = new CountDownLatch(1);
+
+		socketClient.onShutdown(new Completable() {
+			@Override
+			public void success() {
+				latch.countDown();
+			}
+
+			@Override
+			public void error(Throwable e) {
+
+			}
+		});
+
+		socketClient.close();
+
+		latch.await();
+	}
+
+	@Test(timeout = 2000)
+	public void testMultipleShutdownListeners() throws Exception {
+		socketClient = DefaultReactiveSocket.fromClientConnection(
+			clientConnection,
+			ConnectionSetupPayload.create("UTF-8", "UTF-8", NO_FLAGS),
+			err -> err.printStackTrace()
+		);
+
+		CountDownLatch latch = new CountDownLatch(2);
+
+		socketClient
+			.onShutdown(new Completable() {
+				@Override
+				public void success() {
+					latch.countDown();
+				}
+
+				@Override
+				public void error(Throwable e) {
+
+				}
+			});
+
+		socketClient
+			.onShutdown(new Completable() {
+				@Override
+				public void success() {
+					latch.countDown();
+				}
+
+				@Override
+				public void error(Throwable e) {
+
+				}
+			});
+
+		socketClient.close();
+
+		latch.await();
+	}
+
 	@Test(timeout=2000)
 	@Theory
 	public void testRequestResponse(int setupFlag) throws InterruptedException {
@@ -269,7 +338,7 @@ public class ReactiveSocketTest {
 		ts.assertNoErrors();
 		ts.assertValue(TestUtil.utf8EncodedPayload("hello world", null));
 	}
-	
+
 	@Test(timeout=2000, expected=IllegalStateException.class)
 	public void testRequestResponsePremature() throws InterruptedException {
 		socketClient = DefaultReactiveSocket.fromClientConnection(
