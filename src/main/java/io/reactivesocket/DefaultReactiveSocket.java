@@ -492,4 +492,8 @@ public class DefaultReactiveSocket implements ReactiveSocket {
             });
         };
     }
+
+    public String toString() {
+        return "duplexConnection=[" + this.connection + "]";
+    }
 }
