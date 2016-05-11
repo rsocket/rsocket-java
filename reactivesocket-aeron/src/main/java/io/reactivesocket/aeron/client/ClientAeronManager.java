@@ -15,14 +15,19 @@
  */
 package io.reactivesocket.aeron.client;
 
-import io.reactivesocket.aeron.internal.Loggable;
-import rx.Scheduler;
-import rx.schedulers.Schedulers;
 import io.aeron.Aeron;
 import io.aeron.FragmentAssembler;
 import io.aeron.Image;
 import io.aeron.Subscription;
+import io.aeron.driver.MediaDriver;
+import io.aeron.driver.ThreadingMode;
 import io.aeron.logbuffer.FragmentHandler;
+import io.reactivesocket.aeron.internal.Constants;
+import io.reactivesocket.aeron.internal.Loggable;
+import org.agrona.concurrent.BackoffIdleStrategy;
+import org.agrona.concurrent.SleepingIdleStrategy;
+import rx.Scheduler;
+import rx.schedulers.Schedulers;
 
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
@@ -32,6 +37,24 @@ import java.util.concurrent.TimeUnit;
  */
 public class ClientAeronManager implements Loggable {
     private static final ClientAeronManager INSTANCE = new ClientAeronManager();
+
+    /**
+     * Enables running the client with an embedded Aeron {@link MediaDriver} so you don't have to run
+     * the driver in a separate process. To enable this option you need to set the reactivesocket.aeron.clientEmbeddedDriver
+     * to true
+     */
+    static {
+       if (Constants.CLIENT_EMBEDDED_AERON_DRIVER) {
+           System.out.println("+++ Launching embedded media driver");
+           final MediaDriver.Context context = new MediaDriver.Context();
+           context.dirsDeleteOnStart(true);
+           context.threadingMode(ThreadingMode.SHARED_NETWORK);
+           context.conductorIdleStrategy(new SleepingIdleStrategy(TimeUnit.MILLISECONDS.toNanos(10)));
+           context.senderIdleStrategy(new BackoffIdleStrategy(5, 10, 100, 1000));
+           context.receiverIdleStrategy(new BackoffIdleStrategy(5, 10, 100, 1000));
+           MediaDriver.launch(context);
+       }
+    }
 
     private final CopyOnWriteArrayList<ClientAction> clientActions;
 

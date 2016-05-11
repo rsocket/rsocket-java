@@ -17,6 +17,7 @@ package io.reactivesocket.netty.websocket.server;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
+import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.http.websocketx.BinaryWebSocketFrame;
@@ -97,6 +98,23 @@ public class ServerWebSocketDuplexConnection implements DuplexConnection {
 
     @Override
     public void close() throws IOException {
+
+    }
+
+    public String toString() {
+        if (ctx ==null || ctx.channel() == null) {
+            return  getClass().getName() + ":channel=null";
+        }
+
+        Channel channel = ctx.channel();
+        return getClass().getName() + ":channel=[" +
+            "remoteAddress=" + channel.remoteAddress() + "," +
+            "isActive=" + channel.isActive() + "," +
+            "isOpen=" + channel.isOpen() + "," +
+            "isRegistered=" + channel.isRegistered() + "," +
+            "isWritable=" + channel.isWritable() + "," +
+            "channelId=" + channel.id().asLongText() +
+            "]";
 
     }
 }

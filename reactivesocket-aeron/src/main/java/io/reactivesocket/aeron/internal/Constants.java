@@ -39,6 +39,7 @@ public final class Constants {
     public static final int SERVER_TIMER_WHEEL_TICK_DURATION_MS = 10;
     public static final int SERVER_TIMER_WHEEL_BUCKETS = 128;
     public static final int DEFAULT_OFFER_TO_AERON_TIMEOUT_MS = 30_000;
+    public static final boolean CLIENT_EMBEDDED_AERON_DRIVER = Boolean.getBoolean("reactivesocket.aeron.clientEmbeddedDriver");
 
     static {
         String idlStrategy = System.getProperty("idleStrategy");

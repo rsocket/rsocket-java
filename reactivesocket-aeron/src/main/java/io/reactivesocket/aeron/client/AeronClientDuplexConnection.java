@@ -126,5 +126,15 @@ public class AeronClientDuplexConnection implements DuplexConnection, Loggable {
         return subjects;
     }
 
+    public String toString() {
+        if (publication == null) {
+            return  getClass().getName() + ":publication=null";
+        }
 
+        return getClass().getName() + ":publication=[" +
+            "channel=" + publication.channel() + "," +
+            "streamId=" + publication.streamId() + "," +
+            "sessionId=" + publication.sessionId() + "]";
+
+    }
 }

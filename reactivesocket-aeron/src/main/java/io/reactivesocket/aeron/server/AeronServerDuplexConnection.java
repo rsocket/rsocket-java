@@ -107,4 +107,16 @@ public class AeronServerDuplexConnection implements DuplexConnection, Loggable {
             publication.close();
         } catch (Throwable t) {}
     }
+
+    public String toString() {
+        if (publication == null) {
+            return  getClass().getName() + ":publication=null";
+        }
+
+        return getClass().getName() + ":publication=[" +
+            "channel=" + publication.channel() + "," +
+            "streamId=" + publication.streamId() + "," +
+            "sessionId=" + publication.sessionId() + "]";
+
+    }
 }

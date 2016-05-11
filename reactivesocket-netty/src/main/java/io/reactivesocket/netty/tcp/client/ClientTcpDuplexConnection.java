@@ -151,4 +151,20 @@ public class ClientTcpDuplexConnection implements DuplexConnection {
     public void close() throws IOException {
         channel.close();
     }
+
+    public String toString() {
+        if (channel == null) {
+            return  getClass().getName() + ":channel=null";
+        }
+
+        return getClass().getName() + ":channel=[" +
+            "remoteAddress=" + channel.remoteAddress() + "," +
+            "isActive=" + channel.isActive() + "," +
+            "isOpen=" + channel.isOpen() + "," +
+            "isRegistered=" + channel.isRegistered() + "," +
+            "isWritable=" + channel.isWritable() + "," +
+            "channelId=" + channel.id().asLongText() +
+            "]";
+
+    }
 }

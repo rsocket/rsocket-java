@@ -83,4 +83,13 @@ public class WebSocketDuplexConnection implements DuplexConnection {
     public void close() throws IOException {
         session.close();
     }
+
+    public String toString() {
+        if (session == null) {
+            return  getClass().getName() + ":session=null";
+        }
+
+        return getClass().getName() + ":session=[" + session.toString() + "]";
+
+    }
 }
