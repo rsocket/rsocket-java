@@ -23,7 +23,7 @@ import io.reactivesocket.Frame;
 import io.reactivesocket.Payload;
 import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.RequestHandler;
-import io.reactivesocket.aeron.TestUtil;
+import io.reactivesocket.test.TestUtil;
 import io.reactivesocket.aeron.server.ReactiveSocketAeronServer;
 import io.reactivesocket.exceptions.SetupException;
 import org.junit.Assert;

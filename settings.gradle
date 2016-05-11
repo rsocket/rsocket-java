@@ -1,4 +1,5 @@
 rootProject.name='reactivesocket-java-impl'
 include 'reactivesocket-aeron', 'reactivesocket-jsr-356', 'reactivesocket-netty'
 include 'reactivesocket-local'
+include 'reactivesocket-test'
 
