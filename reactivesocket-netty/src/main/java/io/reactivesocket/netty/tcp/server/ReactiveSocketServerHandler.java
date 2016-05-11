@@ -44,7 +44,7 @@ public class ReactiveSocketServerHandler extends ChannelInboundHandlerAdapter {
 
     private LeaseGovernor leaseGovernor;
 
-    private ReactiveSocketServerHandler(ConnectionSetupHandler setupHandler, LeaseGovernor leaseGovernor) {
+    protected ReactiveSocketServerHandler(ConnectionSetupHandler setupHandler, LeaseGovernor leaseGovernor) {
         this.setupHandler = setupHandler;
         this.leaseGovernor = leaseGovernor;
     }
