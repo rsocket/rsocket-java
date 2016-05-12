@@ -22,7 +22,7 @@ import org.agrona.MutableDirectBuffer;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 
 public class MutableDirectByteBuf implements MutableDirectBuffer
 {
@@ -358,19 +358,19 @@ public class MutableDirectByteBuf implements MutableDirectBuffer
     public String getStringUtf8(int offset, ByteOrder byteOrder)
     {
         final int length = getInt(offset, byteOrder);
-        return byteBuf.toString(offset + BitUtil.SIZE_OF_INT, length, Charset.forName("UTF-8"));
+        return byteBuf.toString(offset + BitUtil.SIZE_OF_INT, length, StandardCharsets.UTF_8);
     }
 
     @Override
     public String getStringUtf8(int offset, int length)
     {
-        return byteBuf.toString(offset, length, Charset.forName("UTF-8"));
+        return byteBuf.toString(offset, length, StandardCharsets.UTF_8);
     }
 
     @Override
     public String getStringWithoutLengthUtf8(int offset, int length)
     {
-        return byteBuf.toString(offset, length, Charset.forName("UTF-8"));
+        return byteBuf.toString(offset, length, StandardCharsets.UTF_8);
     }
 
     @Override
