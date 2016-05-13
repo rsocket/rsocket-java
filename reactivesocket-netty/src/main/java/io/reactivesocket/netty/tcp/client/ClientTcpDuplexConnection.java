@@ -56,18 +56,6 @@ public class ClientTcpDuplexConnection implements DuplexConnection {
         this.bootstrap = bootstrap;
     }
 
-    public static Publisher<ClientTcpDuplexConnection> create(SocketAddress socketAddress, EventLoopGroup eventLoopGroup) {
-        if (socketAddress instanceof InetSocketAddress) {
-            try {
-                return create(socketAddress, eventLoopGroup);
-            } catch (Exception e) {
-                throw new IllegalArgumentException(e.getMessage(), e);
-            }
-        } else {
-            throw new IllegalArgumentException("unknown socket address type => " + socketAddress.getClass());
-        }
-    }
-
     public static Publisher<ClientTcpDuplexConnection> create(InetSocketAddress address, EventLoopGroup eventLoopGroup) {
         return s -> {
             CopyOnWriteArrayList<Observer<Frame>> subjects = new CopyOnWriteArrayList<>();

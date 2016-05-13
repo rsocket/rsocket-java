@@ -56,16 +56,11 @@ public class ClientWebSocketDuplexConnection implements DuplexConnection {
         this.bootstrap = bootstrap;
     }
 
-    public static Publisher<ClientWebSocketDuplexConnection> create(SocketAddress socketAddress, String path, EventLoopGroup eventLoopGroup) {
-        if (socketAddress instanceof InetSocketAddress) {
-            InetSocketAddress address = (InetSocketAddress)socketAddress;
-            try {
-                return create(new URI("ws", null, address.getHostName(), address.getPort(), path, null, null), eventLoopGroup);
-            } catch (URISyntaxException e) {
-                throw new IllegalArgumentException(e.getMessage(), e);
-            }
-        } else {
-            throw new IllegalArgumentException("unknown socket address type => " + socketAddress.getClass());
+    public static Publisher<ClientWebSocketDuplexConnection> create(InetSocketAddress address, String path, EventLoopGroup eventLoopGroup) {
+        try {
+            return create(new URI("ws", null, address.getHostName(), address.getPort(), path, null, null), eventLoopGroup);
+        } catch (URISyntaxException e) {
+            throw new IllegalArgumentException(e.getMessage(), e);
         }
     }
 

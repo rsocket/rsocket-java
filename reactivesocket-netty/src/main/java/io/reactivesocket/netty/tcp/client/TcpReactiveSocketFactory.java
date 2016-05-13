@@ -29,6 +29,7 @@ import org.slf4j.LoggerFactory;
 import rx.Observable;
 import rx.RxReactiveStreams;
 
+import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.util.function.Consumer;
 
@@ -50,44 +51,48 @@ public class TcpReactiveSocketFactory implements ReactiveSocketFactory<SocketAdd
 
     @Override
     public Publisher<ReactiveSocket> call(SocketAddress address) {
-        Publisher<ClientTcpDuplexConnection> connection
-                = ClientTcpDuplexConnection.create(address, eventLoopGroup);
+        if (address instanceof InetSocketAddress) {
+            Publisher<ClientTcpDuplexConnection> connection
+                    = ClientTcpDuplexConnection.create((InetSocketAddress)address, eventLoopGroup);
 
-        Observable<ReactiveSocket> result = Observable.create(s ->
-            connection.subscribe(new Subscriber<ClientTcpDuplexConnection>() {
-                @Override
-                public void onSubscribe(Subscription s) {
-                    s.request(1);
-                }
+            Observable<ReactiveSocket> result = Observable.create(s ->
+                connection.subscribe(new Subscriber<ClientTcpDuplexConnection>() {
+                    @Override
+                    public void onSubscribe(Subscription s) {
+                        s.request(1);
+                    }
 
-                @Override
-                public void onNext(ClientTcpDuplexConnection connection) {
-                    ReactiveSocket reactiveSocket = DefaultReactiveSocket.fromClientConnection(connection, connectionSetupPayload, errorStream);
-                    reactiveSocket.start(new Completable() {
-                        @Override
-                        public void success() {
-                            s.onNext(reactiveSocket);
-                            s.onCompleted();
-                        }
+                    @Override
+                    public void onNext(ClientTcpDuplexConnection connection) {
+                        ReactiveSocket reactiveSocket = DefaultReactiveSocket.fromClientConnection(connection, connectionSetupPayload, errorStream);
+                        reactiveSocket.start(new Completable() {
+                            @Override
+                            public void success() {
+                                s.onNext(reactiveSocket);
+                                s.onCompleted();
+                            }
 
-                        @Override
-                        public void error(Throwable e) {
-                            s.onError(e);
-                        }
-                    });
-                }
+                            @Override
+                            public void error(Throwable e) {
+                                s.onError(e);
+                            }
+                        });
+                    }
 
-                @Override
-                public void onError(Throwable t) {
-                    s.onError(t);
-                }
+                    @Override
+                    public void onError(Throwable t) {
+                        s.onError(t);
+                    }
 
-                @Override
-                public void onComplete() {
-                }
-            })
-        );
+                    @Override
+                    public void onComplete() {
+                    }
+                })
+            );
 
-        return RxReactiveStreams.toPublisher(result);
+            return RxReactiveStreams.toPublisher(result);
+        } else {
+            throw new IllegalArgumentException("unknown socket address type => " + address.getClass());
+        }
     }
 }
