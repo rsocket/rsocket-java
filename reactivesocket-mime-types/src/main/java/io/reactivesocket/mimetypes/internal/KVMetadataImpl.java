@@ -1,6 +1,7 @@
 package io.reactivesocket.mimetypes.internal;
 
 import io.reactivesocket.mimetypes.KVMetadata;
+import org.agrona.MutableDirectBuffer;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
@@ -8,6 +9,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
 public class KVMetadataImpl implements KVMetadata {
 
@@ -37,12 +39,18 @@ public class KVMetadataImpl implements KVMetadata {
         ByteBuffer toReturn = get(key);
 
         if (null != toReturn) {
-            byte[] dst = new byte[toReturn.limit() - toReturn.position()];
+            byte[] dst = new byte[toReturn.remaining()];
             toReturn.get(dst);
             return new String(dst, valueEncoding);
         }
 
         return null;
+    }
+
+    @Override
+    public KVMetadata duplicate(Function<Integer, MutableDirectBuffer> newBufferFactory) {
+        Map<String, ByteBuffer> copy = new HashMap<>(store);
+        return new KVMetadataImpl(copy);
     }
 
     @Override

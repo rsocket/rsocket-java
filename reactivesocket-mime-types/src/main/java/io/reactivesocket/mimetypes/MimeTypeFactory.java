@@ -2,8 +2,8 @@ package io.reactivesocket.mimetypes;
 
 import io.reactivesocket.ConnectionSetupPayload;
 import io.reactivesocket.mimetypes.internal.Codec;
-import io.reactivesocket.mimetypes.internal.ReactiveSocketDefaultMetadataCodec;
 import io.reactivesocket.mimetypes.internal.cbor.CborCodec;
+import io.reactivesocket.mimetypes.internal.cbor.ReactiveSocketDefaultMetadataCodec;
 import io.reactivesocket.mimetypes.internal.json.JsonCodec;
 import org.agrona.DirectBuffer;
 import org.agrona.MutableDirectBuffer;
@@ -122,8 +122,8 @@ public final class MimeTypeFactory {
         }
 
         @Override
-        public <T> T decodeMetadata(DirectBuffer toDecode, Class<T> clazz) {
-            return metaCodec.decode(toDecode, clazz);
+        public <T> T decodeMetadata(DirectBuffer toDecode, Class<T> clazz, int offset) {
+            return metaCodec.decode(toDecode, offset, clazz);
         }
 
         @Override
@@ -137,8 +137,8 @@ public final class MimeTypeFactory {
         }
 
         @Override
-        public <T> void encodeMetadataTo(MutableDirectBuffer buffer, T toEncode) {
-            metaCodec.encodeTo(buffer, toEncode);
+        public <T> void encodeMetadataTo(MutableDirectBuffer buffer, T toEncode, int offset) {
+            metaCodec.encodeTo(buffer, toEncode, offset);
         }
 
         @Override
@@ -152,8 +152,8 @@ public final class MimeTypeFactory {
         }
 
         @Override
-        public <T> T decodeData(DirectBuffer toDecode, Class<T> clazz) {
-            return dataCodec.decode(toDecode, clazz);
+        public <T> T decodeData(DirectBuffer toDecode, Class<T> clazz, int offset) {
+            return dataCodec.decode(toDecode, offset, clazz);
         }
 
         @Override
@@ -167,8 +167,8 @@ public final class MimeTypeFactory {
         }
 
         @Override
-        public <T> void encodeDataTo(MutableDirectBuffer buffer, T toEncode) {
-            dataCodec.encodeTo(buffer, toEncode);
+        public <T> void encodeDataTo(MutableDirectBuffer buffer, T toEncode, int offset) {
+            dataCodec.encodeTo(buffer, toEncode, offset);
         }
 
         @Override

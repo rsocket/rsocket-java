@@ -48,7 +48,7 @@ public abstract class AbstractJacksonCodecTest<T extends Codec> {
         customObjectRule.populateDefaultData();
         DirectBuffer encode = getCodecRule().getCodec().encodeDirect(customObjectRule.getData());
 
-        CustomObject decode = getCodecRule().getCodec().decode(encode, CustomObject.class);
+        CustomObject decode = getCodecRule().getCodec().decode(encode, 0, CustomObject.class);
         MatcherAssert.assertThat("Unexpected decode.", decode, Matchers.equalTo(customObjectRule.getData()));
     }
 
@@ -70,9 +70,9 @@ public abstract class AbstractJacksonCodecTest<T extends Codec> {
         customObjectRule.populateDefaultData();
         byte[] destArr = new byte[1000];
         MutableDirectBuffer encodeDest = new UnsafeBuffer(destArr);
-        getCodecRule().getCodec().encodeTo(encodeDest, customObjectRule.getData());
+        getCodecRule().getCodec().encodeTo(encodeDest, customObjectRule.getData(), 0);
 
-        CustomObject decode = getCodecRule().getCodec().decode(encodeDest, CustomObject.class);
+        CustomObject decode = getCodecRule().getCodec().decode(encodeDest, 0, CustomObject.class);
 
         MatcherAssert.assertThat("Unexpected decode.", decode, Matchers.equalTo(customObjectRule.getData()));
     }

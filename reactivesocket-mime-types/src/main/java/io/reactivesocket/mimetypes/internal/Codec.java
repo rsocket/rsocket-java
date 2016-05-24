@@ -9,7 +9,7 @@ public interface Codec {
 
     <T> T decode(ByteBuffer buffer, Class<T> tClass);
 
-    <T> T decode(DirectBuffer buffer, Class<T> tClass);
+    <T> T decode(DirectBuffer buffer, int offset, Class<T> tClass);
 
     <T> ByteBuffer encode(T toEncode);
 
@@ -17,5 +17,5 @@ public interface Codec {
 
     <T> void encodeTo(ByteBuffer buffer, T toEncode);
 
-    <T> void encodeTo(MutableDirectBuffer buffer, T toEncode);
+    <T> void encodeTo(MutableDirectBuffer buffer, T toEncode, int offset);
 }

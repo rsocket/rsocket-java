@@ -64,9 +64,9 @@ public abstract class AbstractJacksonCodec implements Codec {
     }
 
     @Override
-    public <T> T decode(DirectBuffer buffer, Class<T> tClass) {
+    public <T> T decode(DirectBuffer buffer, int offset, Class<T> tClass) {
         DirectBufferInputStream stream = directInWrappers.get();
-        stream.wrap(buffer);
+        stream.wrap(buffer, offset, buffer.capacity());
         return _decode(stream, tClass);
     }
 
@@ -88,9 +88,9 @@ public abstract class AbstractJacksonCodec implements Codec {
     }
 
     @Override
-    public <T> void encodeTo(MutableDirectBuffer buffer, T toEncode) {
+    public <T> void encodeTo(MutableDirectBuffer buffer, T toEncode, int offset) {
         MutableDirectBufferOutputStream stream = directOutWrappers.get();
-        stream.wrap(buffer);
+        stream.wrap(buffer, offset, buffer.capacity());
         _encodeTo(stream, toEncode);
     }
 

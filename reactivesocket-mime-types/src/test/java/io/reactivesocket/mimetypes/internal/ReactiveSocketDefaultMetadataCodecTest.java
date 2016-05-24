@@ -18,6 +18,7 @@
 package io.reactivesocket.mimetypes.internal;
 
 import io.reactivesocket.mimetypes.KVMetadata;
+import io.reactivesocket.mimetypes.internal.cbor.ReactiveSocketDefaultMetadataCodec;
 import org.agrona.DirectBuffer;
 import org.hamcrest.MatcherAssert;
 import org.junit.Rule;
@@ -25,7 +26,7 @@ import org.junit.Test;
 
 import java.nio.ByteBuffer;
 
-import static org.hamcrest.Matchers.*;
+import static io.reactivesocket.mimetypes.internal.cbor.ByteBufferMapMatcher.*;
 
 public class ReactiveSocketDefaultMetadataCodecTest {
 
@@ -43,7 +44,7 @@ public class ReactiveSocketDefaultMetadataCodecTest {
         ByteBuffer encode = codecRule.getCodec().encode(metadataRule.getKvMetadata());
         KVMetadata kvMetadata = codecRule.getCodec().decodeDefault(encode);
 
-        MatcherAssert.assertThat("Unexpected decoded metadata.", kvMetadata, equalTo(metadataRule.getKvMetadata()));
+        MatcherAssert.assertThat("Unexpected decoded metadata.", kvMetadata, mapEqualTo(metadataRule.getKvMetadata()));
     }
 
     @Test(timeout = 60000)
@@ -52,9 +53,9 @@ public class ReactiveSocketDefaultMetadataCodecTest {
         metadataRule.populateDefaultMetadataData();
 
         DirectBuffer encode = codecRule.getCodec().encodeDirect(metadataRule.getKvMetadata());
-        KVMetadata kvMetadata = codecRule.getCodec().decodeDefault(encode);
+        KVMetadata kvMetadata = codecRule.getCodec().decodeDefault(encode, 0);
 
-        MatcherAssert.assertThat("Unexpected decoded metadata.", kvMetadata, equalTo(metadataRule.getKvMetadata()));
+        MatcherAssert.assertThat("Unexpected decoded metadata.", kvMetadata, mapEqualTo(metadataRule.getKvMetadata()));
     }
 
 }

@@ -42,14 +42,15 @@ public interface MimeType {
     /**
      * Decodes the passed buffer to the specified {@code clazz}.
      *
+     * @param <T> Type of the class to which the buffer will be decoded.
+     *
      * @param toDecode buffer to be decoded.
      * @param clazz Class to which the buffer will be decoded.
-     *
-     * @param <T> Type of the class to which the buffer will be decoded.
+     * @param offset Offset in the buffer.
      *
      * @return Instance of the class post decode.
      */
-    <T> T decodeMetadata(DirectBuffer toDecode, Class<T> clazz);
+    <T> T decodeMetadata(DirectBuffer toDecode, Class<T> clazz, int offset);
 
     /**
      * Encodes passed metadata to a buffer.
@@ -76,12 +77,12 @@ public interface MimeType {
     /**
      * Encodes passed metadata to the passed buffer.
      *
+     * @param <T> Type of the object to encode.
      * @param buffer Encodes the metadata to this buffer.
      * @param toEncode Metadata to encode.
-     *
-     * @param <T> Type of the object to encode.
+     * @param offset Offset in the buffer to start writing.
      */
-    <T> void encodeMetadataTo(MutableDirectBuffer buffer, T toEncode);
+    <T> void encodeMetadataTo(MutableDirectBuffer buffer, T toEncode, int offset);
 
     /**
      * Encodes passed metadata to the passed buffer.
@@ -122,14 +123,15 @@ public interface MimeType {
     /**
      * Decodes the passed buffer to the specified {@code clazz}.
      *
+     * @param <T> Type of the class to which the buffer will be decoded.
+     *
      * @param toDecode buffer to be decoded.
      * @param clazz Class to which the buffer will be decoded.
-     *
-     * @param <T> Type of the class to which the buffer will be decoded.
+     * @param offset Offset in the buffer.
      *
      * @return Instance of the class post decode.
      */
-    <T> T decodeData(DirectBuffer toDecode, Class<T> clazz);
+    <T> T decodeData(DirectBuffer toDecode, Class<T> clazz, int offset);
 
     /**
      * Encodes passed data to a buffer.
@@ -156,12 +158,12 @@ public interface MimeType {
     /**
      * Encodes passed data to the passed buffer.
      *
+     * @param <T> Type of the object to encode.
      * @param buffer Encodes the data to this buffer.
      * @param toEncode Data to encode.
-     *
-     * @param <T> Type of the object to encode.
+     * @param offset Offset in the buffer to start writing.
      */
-    <T> void encodeDataTo(MutableDirectBuffer buffer, T toEncode);
+    <T> void encodeDataTo(MutableDirectBuffer buffer, T toEncode, int offset);
 
     /**
      * Encodes passed data to the passed buffer.
