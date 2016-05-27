@@ -27,10 +27,14 @@ import io.netty.handler.codec.http.HttpServerCodec;
 import io.netty.handler.codec.http.websocketx.WebSocketServerProtocolHandler;
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
-import io.reactivesocket.*;
-import io.reactivesocket.netty.TestUtil;
+import io.reactivesocket.ConnectionSetupPayload;
+import io.reactivesocket.DefaultReactiveSocket;
+import io.reactivesocket.Payload;
+import io.reactivesocket.ReactiveSocket;
+import io.reactivesocket.RequestHandler;
 import io.reactivesocket.netty.websocket.client.ClientWebSocketDuplexConnection;
 import io.reactivesocket.netty.websocket.server.ReactiveSocketServerHandler;
+import io.reactivesocket.test.TestUtil;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -179,7 +183,8 @@ public class ClientServerTest {
         TestSubscriber<Payload> ts = TestSubscriber.create();
 
         RxReactiveStreams
-            .toObservable(client.requestSubscription(TestUtil.utf8EncodedPayload("hello sub", "metadata sub")))
+            .toObservable(client.requestSubscription(
+                TestUtil.utf8EncodedPayload("hello sub", "metadata sub")))
             .take(10)
             .subscribe(ts);
 
@@ -197,7 +202,8 @@ public class ClientServerTest {
             .range(1, count)
             .flatMap(i ->
                 RxReactiveStreams
-                    .toObservable(client.requestResponse(TestUtil.utf8EncodedPayload("hello", "metadata")))
+                    .toObservable(client.requestResponse(
+                        TestUtil.utf8EncodedPayload("hello", "metadata")))
                     .map(payload -> TestUtil.byteToString(payload.getData()))
             )
             .doOnError(Throwable::printStackTrace)

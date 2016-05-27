@@ -2,4 +2,5 @@ dependencies {
     compile 'org.glassfish.tyrus:tyrus-client:1.12'
     testCompile 'org.glassfish.tyrus:tyrus-server:1.12'
     testCompile 'org.glassfish.tyrus:tyrus-container-grizzly-server:1.12'
+    testCompile project(':reactivesocket-test')
 }

@@ -20,6 +20,7 @@ import io.reactivesocket.DefaultReactiveSocket;
 import io.reactivesocket.Payload;
 import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.javax.websocket.client.ReactiveSocketWebSocketClient;
+import io.reactivesocket.test.TestUtil;
 import org.glassfish.tyrus.client.ClientManager;
 import org.glassfish.tyrus.server.Server;
 import org.junit.AfterClass;

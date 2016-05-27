@@ -4,4 +4,5 @@ include 'reactivesocket-jsr-356'
 include 'reactivesocket-netty'
 include 'reactivesocket-local'
 include 'reactivesocket-mime-types'
+include 'reactivesocket-test'
 
