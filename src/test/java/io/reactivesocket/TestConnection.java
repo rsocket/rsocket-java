@@ -49,6 +49,11 @@ public class TestConnection implements DuplexConnection {
 	}
 
 	@Override
+	public double availability() {
+		return 1.0;
+	}
+
+	@Override
 	public io.reactivesocket.rx.Observable<Frame> getInput() {
 		return new io.reactivesocket.rx.Observable<Frame>() {
 

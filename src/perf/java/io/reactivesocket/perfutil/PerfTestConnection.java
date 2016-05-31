@@ -65,6 +65,11 @@ public class PerfTestConnection implements DuplexConnection {
 	}
 
 	@Override
+	public double availability() {
+		return 1.0;
+	}
+
+	@Override
 	public Observable<Frame> getInput() {
 		return toInput;
 	}
@@ -72,11 +77,9 @@ public class PerfTestConnection implements DuplexConnection {
 	public void connectToServerConnection(PerfTestConnection serverConnection) {
 		writeSubject.subscribe(serverConnection.toInput);
 		serverConnection.writeSubject.subscribe(toInput);
-
 	}
 
 	@Override
 	public void close() throws IOException {
-		
 	}
 }

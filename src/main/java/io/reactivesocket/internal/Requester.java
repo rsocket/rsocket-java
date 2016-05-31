@@ -286,14 +286,14 @@ public class Requester {
      */
     public double availability() {
         if (!honorLease) {
-            return 1.0;
+            return connection.availability();
         }
         final long now = System.currentTimeMillis();
         double available = 0.0;
         if (numberOfRemainingRequests > 0 && (now < ttlExpiration)) {
             available = 1.0;
         }
-        return available;
+        return available * connection.availability();
     }
 
     /*
@@ -873,6 +873,7 @@ public class Requester {
 
                         Publisher<Frame> keepaliveTicker =
                             PublisherUtils.keepaliveTicker(KEEPALIVE_INTERVAL_MS, TimeUnit.MILLISECONDS);
+
                         connection.addOutput(keepaliveTicker,
                             new Completable() {
                                 public void success() {}

@@ -38,4 +38,10 @@ public interface DuplexConnection extends Closeable {
             s.onComplete();
         }, callback);
 	}
+
+    /**
+     * @return the availability of the underlying connection, a number in [0.0, 1.0]
+     * (higher is better).
+     */
+    double availability();
 }

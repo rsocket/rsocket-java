@@ -440,6 +440,10 @@ public class DefaultReactiveSocket implements ReactiveSocket {
             connection.addOutput(f, callback);
         }
 
+        @Override
+        public double availability() {
+            return connection.availability();
+        }
     };
 
     @Override

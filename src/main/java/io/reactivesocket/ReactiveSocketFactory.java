@@ -15,102 +15,29 @@
  */
 package io.reactivesocket;
 
-import io.reactivesocket.internal.rx.EmptySubscription;
 import org.reactivestreams.Publisher;
-import org.reactivestreams.Subscriber;
-import org.reactivestreams.Subscription;
+import java.net.SocketAddress;
 
-import java.util.NoSuchElementException;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicBoolean;
-
-@FunctionalInterface
-public interface ReactiveSocketFactory<T, R extends ReactiveSocket> {
-
-    Publisher<R> call(T t);
-
+/**
+ * Factory of ReactiveSocket interface
+ * This abstraction is useful for abstracting the creation of a ReactiveSocket
+ * (e.g. inside the LoadBalancer which create ReactiveSocket as needed)
+ */
+public interface ReactiveSocketFactory<T> {
     /**
-     * Gets a socket in a blocking manner
-     * @param t configuration to create the reactive socket
-     * @return blocks on create the socket
-     */
-    default R callAndWait(T t) {
-        CompletableFuture<R> future = new CompletableFuture<>();
-
-        call(t)
-            .subscribe(new Subscriber<R>() {
-                @Override
-                public void onSubscribe(Subscription s) {
-                    s.request(1);
-                }
-
-                @Override
-                public void onNext(R reactiveSocket) {
-                    future.complete(reactiveSocket);
-                }
-
-                @Override
-                public void onError(Throwable t) {
-                    future.completeExceptionally(t);
-                }
-
-                @Override
-                public void onComplete() {
-                    future.completeExceptionally(new NoSuchElementException("Sequence contains no elements"));
-                }
-            });
-
-        return future.join();
-    }
-
-    /**
-     *
-     * @param t the configuration used to create the reactive socket
-     * @param timeout timeout
-     * @param timeUnit timeout units
-     * @param executorService ScheduledExecutorService to schedule the timeout on
+     * Construct the ReactiveSocket
      * @return
      */
-    default Publisher<R> call(T t, long timeout, TimeUnit timeUnit, ScheduledExecutorService executorService) {
-        Publisher<R> reactiveSocketPublisher = subscriber -> {
-            AtomicBoolean complete = new AtomicBoolean();
-            subscriber.onSubscribe(EmptySubscription.INSTANCE);
-            call(t)
-                .subscribe(new Subscriber<R>() {
-                    @Override
-                    public void onSubscribe(Subscription s) {
-                        s.request(1);
-                    }
+    Publisher<ReactiveSocket> apply();
 
-                    @Override
-                    public void onNext(R reactiveSocket) {
-                        subscriber.onNext(reactiveSocket);
-                    }
+    /**
+     * @return a positive numbers representing the availability of the factory.
+     * Higher is better, 0.0 means not available
+     */
+    double availability();
 
-                    @Override
-                    public void onError(Throwable t) {
-                        subscriber.onError(t);
-                    }
-
-                    @Override
-                    public void onComplete() {
-                        if (complete.compareAndSet(false, true)) {
-                            subscriber.onComplete();
-                        }
-                    }
-                });
-
-            executorService.schedule(() -> {
-                if (complete.compareAndSet(false, true)) {
-                    subscriber.onError(new TimeoutException());
-                }
-            }, timeout, timeUnit);
-        };
-
-        return reactiveSocketPublisher;
-    }
-
+    /**
+     * @return an identifier of the remote location
+     */
+    T remote();
 }

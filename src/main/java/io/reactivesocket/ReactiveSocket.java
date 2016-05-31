@@ -26,9 +26,9 @@ import java.util.function.Consumer;
  * Interface for a connection that supports sending requests and receiving responses
  */
 public interface ReactiveSocket extends AutoCloseable {
-    Publisher<Payload> requestResponse(final Payload payload);
-
     Publisher<Void> fireAndForget(final Payload payload);
+
+    Publisher<Payload> requestResponse(final Payload payload);
 
     Publisher<Payload> requestStream(final Payload payload);
 
