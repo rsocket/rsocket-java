@@ -325,6 +325,8 @@ public class Frame implements Payload
 
         private static final Function<Throwable, ByteBuffer> DEFAULT_ERROR_MESSAGE_TRANSFORMER;
 
+        // TODO Make this plugin, and also make it so that a error message transformer can be
+        // TODO passed in with an application
         static {
             if (Boolean.getBoolean("io.reactivesocket.debugError")) {
                 DEFAULT_ERROR_MESSAGE_TRANSFORMER = throwable -> {
