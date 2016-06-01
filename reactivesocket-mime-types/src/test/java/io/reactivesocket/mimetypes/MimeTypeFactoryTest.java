@@ -23,8 +23,8 @@ import io.reactivesocket.mimetypes.internal.CustomObject;
 import io.reactivesocket.mimetypes.internal.CustomObjectRule;
 import io.reactivesocket.mimetypes.internal.KVMetadataImpl;
 import io.reactivesocket.mimetypes.internal.MetadataRule;
-import io.reactivesocket.mimetypes.internal.ReactiveSocketDefaultMetadataCodec;
 import io.reactivesocket.mimetypes.internal.cbor.CborCodec;
+import io.reactivesocket.mimetypes.internal.cbor.ReactiveSocketDefaultMetadataCodec;
 import org.agrona.DirectBuffer;
 import org.agrona.MutableDirectBuffer;
 import org.agrona.concurrent.UnsafeBuffer;
@@ -32,13 +32,11 @@ import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.ExternalResource;
-import org.junit.runner.Description;
-import org.junit.runners.model.Statement;
 
 import java.nio.ByteBuffer;
 
 import static io.reactivesocket.mimetypes.SupportedMimeTypes.*;
+import static io.reactivesocket.mimetypes.internal.cbor.ByteBufferMapMatcher.*;
 
 public class MimeTypeFactoryTest {
 
@@ -82,8 +80,8 @@ public class MimeTypeFactoryTest {
 
         MimeType mimeType = MimeTypeFactory.from(ReactiveSocketDefaultMetadata, CBOR);
 
-        testMetadataCodec(mimeType, CborCodec.create());
-        testDataCodec(mimeType, CborCodec.create());
+        testMetadataCodec(mimeType, ReactiveSocketDefaultMetadataCodec.create());
+        testDataCodec(mimeType, ReactiveSocketDefaultMetadataCodec.create());
     }
 
     private void testMetadataCodec(MimeType mimeType, Codec expectedCodec) {
@@ -92,7 +90,7 @@ public class MimeTypeFactoryTest {
 
         MatcherAssert.assertThat("Unexpected encode from mime type.", encode, Matchers.equalTo(encode1));
         MatcherAssert.assertThat("Unexpected decode from encode.", metadataRule.getKvMetadata(),
-                                 Matchers.equalTo(mimeType.decodeMetadata(encode, KVMetadataImpl.class)));
+                                 mapEqualTo(mimeType.decodeMetadata(encode, KVMetadataImpl.class)));
 
 
         DirectBuffer dencode = mimeType.encodeMetadataDirect(metadataRule.getKvMetadata());
@@ -100,7 +98,7 @@ public class MimeTypeFactoryTest {
 
         MatcherAssert.assertThat("Unexpected direct buffer encode from mime type.", dencode, Matchers.equalTo(dencode1));
         MatcherAssert.assertThat("Unexpected decode from direct encode.", metadataRule.getKvMetadata(),
-                                 Matchers.equalTo(mimeType.decodeMetadata(dencode, KVMetadataImpl.class)));
+                                 mapEqualTo(mimeType.decodeMetadata(dencode, KVMetadataImpl.class, 0)));
 
         ByteBuffer dst = ByteBuffer.allocate(100);
         ByteBuffer dst1 = ByteBuffer.allocate(100);
@@ -112,17 +110,17 @@ public class MimeTypeFactoryTest {
 
         MatcherAssert.assertThat("Unexpected encodeTo buffer encode from mime type.", dst, Matchers.equalTo(dst1));
         MatcherAssert.assertThat("Unexpected decode from encodeTo encode.", metadataRule.getKvMetadata(),
-                                 Matchers.equalTo(mimeType.decodeMetadata(dst, KVMetadataImpl.class)));
+                                 mapEqualTo(mimeType.decodeMetadata(dst, KVMetadataImpl.class)));
 
         MutableDirectBuffer mdst = new UnsafeBuffer(new byte[100]);
         MutableDirectBuffer mdst1 = new UnsafeBuffer(new byte[100]);
 
-        mimeType.encodeMetadataTo(mdst, metadataRule.getKvMetadata());
-        expectedCodec.encodeTo(mdst1, metadataRule.getKvMetadata());
+        mimeType.encodeMetadataTo(mdst, metadataRule.getKvMetadata(), 0);
+        expectedCodec.encodeTo(mdst1, metadataRule.getKvMetadata(), 0);
 
         MatcherAssert.assertThat("Unexpected encodeTo buffer encode from mime type.", mdst, Matchers.equalTo(mdst1));
         MatcherAssert.assertThat("Unexpected decode from encodeTo encode.", metadataRule.getKvMetadata(),
-                                 Matchers.equalTo(mimeType.decodeMetadata(mdst, KVMetadataImpl.class)));
+                                 mapEqualTo(mimeType.decodeMetadata(mdst, KVMetadataImpl.class, 0)));
     }
 
     private void testDataCodec(MimeType mimeType, Codec expectedCodec) {
@@ -139,7 +137,7 @@ public class MimeTypeFactoryTest {
 
         MatcherAssert.assertThat("Unexpected direct buffer encode from mime type.", dencode, Matchers.equalTo(dencode1));
         MatcherAssert.assertThat("Unexpected decode from direct encode.", objectRule.getData(),
-                                 Matchers.equalTo(mimeType.decodeData(dencode, CustomObject.class)));
+                                 Matchers.equalTo(mimeType.decodeData(dencode, CustomObject.class, 0)));
 
         ByteBuffer dst = ByteBuffer.allocate(100);
         ByteBuffer dst1 = ByteBuffer.allocate(100);
@@ -156,17 +154,17 @@ public class MimeTypeFactoryTest {
         MutableDirectBuffer mdst = new UnsafeBuffer(new byte[100]);
         MutableDirectBuffer mdst1 = new UnsafeBuffer(new byte[100]);
 
-        mimeType.encodeDataTo(mdst, objectRule.getData());
-        expectedCodec.encodeTo(mdst1, objectRule.getData());
+        mimeType.encodeDataTo(mdst, objectRule.getData(), 0);
+        expectedCodec.encodeTo(mdst1, objectRule.getData(), 0);
 
         MatcherAssert.assertThat("Unexpected encodeTo buffer encode from mime type.", mdst, Matchers.equalTo(mdst1));
         MatcherAssert.assertThat("Unexpected decode from encodeTo encode.", objectRule.getData(),
-                                 Matchers.equalTo(mimeType.decodeData(mdst, CustomObject.class)));
+                                 Matchers.equalTo(mimeType.decodeData(mdst, CustomObject.class, 0)));
     }
 
     private static MimeType getMimeTypeFromSetup(SupportedMimeTypes metaMime, SupportedMimeTypes dataMime) {
-        ConnectionSetupPayload setup = new ConnectionSetupPayloadImpl(metaMime.getMimeTypes().get(0),
-                                                                      dataMime.getMimeTypes().get(0));
+        ConnectionSetupPayload setup = new ConnectionSetupPayloadImpl(dataMime.getMimeTypes().get(0),
+                                                                      metaMime.getMimeTypes().get(0));
 
         return MimeTypeFactory.from(setup);
     }
