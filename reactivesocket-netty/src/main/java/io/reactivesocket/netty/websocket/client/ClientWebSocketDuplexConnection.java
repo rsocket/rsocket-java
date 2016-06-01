@@ -119,8 +119,11 @@ public class ClientWebSocketDuplexConnection implements DuplexConnection {
     @Override
     public void addOutput(Publisher<Frame> o, Completable callback) {
         o.subscribe(new Subscriber<Frame>() {
+            private Subscription subscription;
+
             @Override
             public void onSubscribe(Subscription s) {
+                subscription = s;
                 s.request(Long.MAX_VALUE);
             }
 
@@ -148,6 +151,9 @@ public class ClientWebSocketDuplexConnection implements DuplexConnection {
             @Override
             public void onError(Throwable t) {
                 callback.error(t);
+                if (t instanceof TransportException) {
+                    subscription.cancel();
+                }
             }
 
             @Override
