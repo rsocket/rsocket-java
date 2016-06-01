@@ -79,11 +79,11 @@ public class AeronClientDuplexConnection implements DuplexConnection, Loggable {
     public void addOutput(Publisher<Frame> o, Completable callback) {
         o
             .subscribe(new Subscriber<Frame>() {
-                private Subscription s;
+                private Subscription subscription;
 
                 @Override
                 public void onSubscribe(Subscription s) {
-                    this.s = s;
+                    this.subscription = s;
                     s.request(128);
 
                 }
@@ -91,10 +91,10 @@ public class AeronClientDuplexConnection implements DuplexConnection, Loggable {
                 @Override
                 public void onNext(Frame frame) {
                     if (isTraceEnabled()) {
-                        trace("onNext subscription => {} and frame => {}", s.toString(), frame.toString());
+                        trace("onNext subscription => {} and frame => {}", subscription.toString(), frame.toString());
                     }
 
-                    final FrameHolder fh = FrameHolder.get(frame, publication, s);
+                    final FrameHolder fh = FrameHolder.get(frame, publication, subscription);
                     boolean offer;
                     do {
                         offer = frameSendQueue.offer(fh);
@@ -105,6 +105,7 @@ public class AeronClientDuplexConnection implements DuplexConnection, Loggable {
                 public void onError(Throwable t) {
                     if (t instanceof NotConnectedException) {
                         callback.error(new TransportException(t));
+                        subscription.cancel();
                     } else {
                         callback.error(t);
                     }
