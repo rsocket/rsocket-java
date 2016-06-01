@@ -29,9 +29,9 @@ import io.reactivesocket.DefaultReactiveSocket;
 import io.reactivesocket.Payload;
 import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.RequestHandler;
-import io.reactivesocket.netty.TestUtil;
 import io.reactivesocket.netty.tcp.client.ClientTcpDuplexConnection;
 import io.reactivesocket.netty.tcp.server.ReactiveSocketServerHandler;
+import io.reactivesocket.test.TestUtil;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -176,7 +176,8 @@ public class ClientServerTest {
         TestSubscriber<Payload> ts = TestSubscriber.create();
 
         RxReactiveStreams
-            .toObservable(client.requestSubscription(TestUtil.utf8EncodedPayload("hello sub", "metadata sub")))
+            .toObservable(client.requestSubscription(
+                TestUtil.utf8EncodedPayload("hello sub", "metadata sub")))
             .take(10)
             .subscribe(ts);
 
