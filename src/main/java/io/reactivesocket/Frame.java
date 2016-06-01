@@ -30,6 +30,7 @@ import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.function.Function;
 
 import static java.lang.System.getProperty;
@@ -331,17 +332,24 @@ public class Frame implements Payload
             if (Boolean.getBoolean("io.reactivesocket.debugError")) {
                 DEFAULT_ERROR_MESSAGE_TRANSFORMER = throwable -> {
                     StringWriter writer = new StringWriter();
+
+                    String message = throwable.getMessage() == null
+                        ? ""
+                        : throwable.getMessage() + "\n";
+
+                    writer.write(message);
+
                     PrintWriter printWriter = new PrintWriter(writer);
                     throwable.printStackTrace(printWriter);
                     String data = writer.toString();
-                    byte[] bytes = data.getBytes(Charset.forName("UTF-8"));
+                    byte[] bytes = data.getBytes(StandardCharsets.UTF_8);
                     final ByteBuffer dataBuffer = ByteBuffer.wrap(bytes);
                     return dataBuffer;
                 };
             } else {
                 DEFAULT_ERROR_MESSAGE_TRANSFORMER = throwable -> {
                     String data = throwable.getMessage() == null ? "" : throwable.getMessage();
-                    byte[] bytes = data.getBytes(Charset.forName("UTF-8"));
+                    byte[] bytes = data.getBytes(StandardCharsets.UTF_8);
                     final ByteBuffer dataBuffer = ByteBuffer.wrap(bytes);
                     return dataBuffer;
                 };
