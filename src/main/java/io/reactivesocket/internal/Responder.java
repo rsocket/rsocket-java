@@ -259,7 +259,7 @@ public class Responder {
 						} else if (requestFrame.getType() == FrameType.CANCEL) {
 							Subscription s;
 							synchronized (Responder.this) {
-								s = cancellationSubscriptions.get(requestFrame.getStreamId());
+								s = cancellationSubscriptions.get(streamId);
 							}
 							if (s != null) {
 								s.cancel();
@@ -268,7 +268,7 @@ public class Responder {
 						} else if (requestFrame.getType() == FrameType.REQUEST_N) {
 							SubscriptionArbiter inFlightSubscription;
 							synchronized (Responder.this) {
-								inFlightSubscription = inFlight.get(requestFrame.getStreamId());
+								inFlightSubscription = inFlight.get(streamId);
 							}
 							if (inFlightSubscription != null) {
 								long requestN = Frame.RequestN.requestN(requestFrame);
@@ -399,6 +399,7 @@ public class Responder {
 			final RequestHandler requestHandler,
 			final Int2ObjectHashMap<Subscription> cancellationSubscriptions) {
 
+		final int streamId = requestFrame.getStreamId();
 		return child -> {
 			Subscription s = new Subscription() {
 
@@ -408,8 +409,6 @@ public class Responder {
 				@Override
 				public void request(long n) {
 					if (n > 0 && started.compareAndSet(false, true)) {
-						final int streamId = requestFrame.getStreamId();
-
 						try {
 							Publisher<Payload> responsePublisher =
 									requestHandler.handleRequestResponse(requestFrame);
@@ -477,13 +476,13 @@ public class Responder {
 
 				private void cleanup() {
 					synchronized(Responder.this) {
-						cancellationSubscriptions.remove(requestFrame.getStreamId());
+						cancellationSubscriptions.remove(streamId);
 					}
 				}
 
 			};
 			synchronized(Responder.this) {
-				cancellationSubscriptions.put(requestFrame.getStreamId(), s);
+				cancellationSubscriptions.put(streamId, s);
 			}
 			child.onSubscribe(s);
 		};
@@ -541,7 +540,7 @@ public class Responder {
 			final Int2ObjectHashMap<Subscription> cancellationSubscriptions,
 			final Int2ObjectHashMap<SubscriptionArbiter> inFlight,
 			final boolean allowCompletion) {
-
+		final int streamId = requestFrame.getStreamId();
 		return child -> {
 			Subscription s = new Subscription() {
 
@@ -556,7 +555,6 @@ public class Responder {
 					}
 					if (started.compareAndSet(false,  true)) {
 						arbiter.addTransportRequest(n);
-						final int streamId = requestFrame.getStreamId();
 
 						try {
 							Publisher<Payload> responses =
@@ -630,14 +628,14 @@ public class Responder {
 
 				private void cleanup() {
 					synchronized(Responder.this) {
-						inFlight.remove(requestFrame.getStreamId());
-						cancellationSubscriptions.remove(requestFrame.getStreamId());
+						inFlight.remove(streamId);
+						cancellationSubscriptions.remove(streamId);
 					}
 				}
 
 			};
 			synchronized(Responder.this) {
-				cancellationSubscriptions.put(requestFrame.getStreamId(), s);
+				cancellationSubscriptions.put(streamId, s);
 			}
 			child.onSubscribe(s);
 
@@ -704,8 +702,9 @@ public class Responder {
 			Int2ObjectHashMap<SubscriptionArbiter> inFlight) {
 
 		UnicastSubject<Payload> channelSubject;
+		final int streamId = requestFrame.getStreamId();
 		synchronized(Responder.this) {
-			channelSubject = channels.get(requestFrame.getStreamId());
+			channelSubject = channels.get(streamId);
 		}
 		if (channelSubject == null) {
 			return child -> {
@@ -722,7 +721,6 @@ public class Responder {
 						}
 						if (started.compareAndSet(false, true)) {
 							arbiter.addTransportRequest(n);
-							final int streamId = requestFrame.getStreamId();
 
 							// first request on this channel
 							UnicastSubject<Payload> channelRequests =
@@ -816,14 +814,14 @@ public class Responder {
 
 					private void cleanup() {
 						synchronized(Responder.this) {
-							inFlight.remove(requestFrame.getStreamId());
-							cancellationSubscriptions.remove(requestFrame.getStreamId());
+							inFlight.remove(streamId);
+							cancellationSubscriptions.remove(streamId);
 						}
 					}
 
 				};
 				synchronized(Responder.this) {
-					cancellationSubscriptions.put(requestFrame.getStreamId(), s);
+					cancellationSubscriptions.put(streamId, s);
 				}
 				child.onSubscribe(s);
 
@@ -848,7 +846,7 @@ public class Responder {
                 // handle time-gap issues like this?
                 // TODO validate with unit tests.
 				return PublisherUtils.errorFrame(
-                    requestFrame.getStreamId(), new RuntimeException("Channel unavailable"));
+						streamId, new RuntimeException("Channel unavailable"));
 			}
 		}
 	}
