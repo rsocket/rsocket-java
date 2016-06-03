@@ -20,12 +20,14 @@ import static org.junit.Assert.*;
 import static io.reactivesocket.ConnectionSetupPayload.NO_FLAGS;
 import static io.reactivex.Observable.*;
 
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
+import io.reactivesocket.internal.frame.FrameHeaderFlyweight;
+import org.agrona.concurrent.UnsafeBuffer;
 import org.junit.Test;
 
 import io.reactivesocket.ConnectionSetupPayload;
@@ -218,6 +220,22 @@ public class RequesterTest
         assertEquals(2, three.getStreamId());// still the same stream
         assertEquals("", byteToString(three.getData()));
         assertEquals(FrameType.CANCEL, three.getType());
+    }
+
+	@Test(timeout=2000)
+    public void testInvalidStream() throws InterruptedException {
+        TestConnection conn = establishConnection();
+        LatchedCompletable rc = new LatchedCompletable(1);
+        Requester p = Requester.createClientRequester(conn, ConnectionSetupPayload.create("UTF-8", "UTF-8", NO_FLAGS),
+                                                      ERROR_HANDLER, rc);
+        rc.await();
+
+        UnsafeBuffer unsafeBuffer = new UnsafeBuffer(ByteBuffer.allocate(100));
+        FrameHeaderFlyweight.encodeFrameHeader(unsafeBuffer, 0, 10, 0, FrameType.NEXT, 10);
+        Frame allocate = Frame.allocate(unsafeBuffer);
+        conn.toInput.send(allocate);
+
+        assertFalse("Connection closed after invalid stream frame.", conn.isClosed());
     }
 
 	@Test(timeout=2000)

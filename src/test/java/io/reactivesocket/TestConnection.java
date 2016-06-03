@@ -32,6 +32,8 @@ public class TestConnection implements DuplexConnection {
 	public final SerializedEventBus toInput = new SerializedEventBus();
 	public final SerializedEventBus write = new SerializedEventBus();
 
+    private volatile boolean closed;
+
 	@Override
 	public void addOutput(Publisher<Frame> o, Completable callback) {
 		fromPublisher(o).flatMap(m -> {
@@ -102,8 +104,12 @@ public class TestConnection implements DuplexConnection {
 
 	@Override
 	public void close() throws IOException {
-		clientThread.dispose();
+        closed = true;
+        clientThread.dispose();
 		serverThread.dispose();
 	}
 
+    public boolean isClosed() {
+        return closed;
+    }
 }

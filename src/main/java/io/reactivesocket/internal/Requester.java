@@ -923,23 +923,8 @@ public class Requester {
                         streamSubject = streamInputMap.get(streamId);
                     }
                     if (streamSubject == null) {
-                        if (streamId <= streamCount) {
-                            // receiving a frame after a given stream has been cancelled/completed,
-                            // so ignore (cancellation is async so there is a race condition)
-                            return;
-                        } else {
-                            // message for stream that has never existed, we have a problem with
-                            // the overall connection and must tear down
-                            if (frame.getType() == FrameType.ERROR) {
-                                String errorMessage = getByteBufferAsString(frame.getData());
-                                onError(new RuntimeException(
-                                    "Received error for non-existent stream: "
-                                        + streamId + " Message: " + errorMessage));
-                            } else {
-                                onError(new RuntimeException(
-                                    "Received message for non-existent stream: " + streamId));
-                            }
-                        }
+                        errorStream.accept(new RuntimeException("Received message for completed/non-existent stream: "
+                                                                + streamId));
                     } else {
                         streamSubject.onNext(frame);
                     }
