@@ -69,7 +69,6 @@ public class ReactiveSocketProxy implements ReactiveSocket {
                 child.requestStream(payload).subscribe(subscriber);
             };
         }
-
     }
 
     @Override
@@ -82,7 +81,6 @@ public class ReactiveSocketProxy implements ReactiveSocket {
                 child.requestSubscription(payload).subscribe(subscriber);
             };
         }
-
     }
 
     @Override
@@ -95,7 +93,6 @@ public class ReactiveSocketProxy implements ReactiveSocket {
                 child.requestChannel(payloads).subscribe(subscriber);
             };
         }
-
     }
 
     @Override
