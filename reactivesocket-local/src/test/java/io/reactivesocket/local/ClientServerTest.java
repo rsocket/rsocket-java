@@ -32,6 +32,8 @@ import rx.observers.TestSubscriber;
 
 import java.util.concurrent.TimeUnit;
 
+import static io.reactivesocket.util.Unsafe.toSingleFuture;
+
 public class ClientServerTest {
 
     static ReactiveSocket client;
@@ -40,14 +42,13 @@ public class ClientServerTest {
 
     @BeforeClass
     public static void setup() throws Exception {
-        server = LocalServerReactiveSocketFactory.INSTANCE.callAndWait(new LocalServerReactiveSocketFactory.Config("test", new ConnectionSetupHandler() {
+        LocalServerReactiveSocketConnector.Config serverConfig = new LocalServerReactiveSocketConnector.Config("test", new ConnectionSetupHandler() {
             @Override
             public RequestHandler apply(ConnectionSetupPayload setupPayload, ReactiveSocket rs) throws SetupException {
                 return new RequestHandler() {
                     @Override
                     public Publisher<Payload> handleRequestResponse(Payload payload) {
                         return s -> {
-                            //System.out.println("Handling request/response payload => " + s.toString());
                             Payload response = TestUtil.utf8EncodedPayload("hello world", "metadata");
                             s.onNext(response);
                             s.onComplete();
@@ -91,10 +92,12 @@ public class ClientServerTest {
                     }
                 };
             }
-        }));
+        });
 
-        client = LocalClientReactiveSocketFactory.INSTANCE.callAndWait(new LocalClientReactiveSocketFactory.Config("test", "text", "text"));
+        server = toSingleFuture(LocalServerReactiveSocketConnector.INSTANCE.connect(serverConfig)).get(5, TimeUnit.SECONDS);
 
+        LocalClientReactiveSocketConnector.Config clientConfig = new LocalClientReactiveSocketConnector.Config("test", "text", "text");
+        client = toSingleFuture(LocalClientReactiveSocketConnector.INSTANCE.connect(clientConfig)).get(5, TimeUnit.SECONDS);;
     }
 
     @Test

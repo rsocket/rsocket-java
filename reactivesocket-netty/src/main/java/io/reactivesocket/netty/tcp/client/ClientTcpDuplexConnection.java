@@ -18,11 +18,7 @@ package io.reactivesocket.netty.tcp.client;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
-import io.netty.channel.Channel;
-import io.netty.channel.ChannelFuture;
-import io.netty.channel.ChannelInitializer;
-import io.netty.channel.ChannelPipeline;
-import io.netty.channel.EventLoopGroup;
+import io.netty.channel.*;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
@@ -38,25 +34,20 @@ import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
 import java.io.IOException;
-import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.nio.channels.ClosedChannelException;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 public class ClientTcpDuplexConnection implements DuplexConnection {
-    private Channel channel;
-
-    private Bootstrap bootstrap;
-
+    private final Channel channel;
     private final CopyOnWriteArrayList<Observer<Frame>> subjects;
 
-    private ClientTcpDuplexConnection(Channel channel, Bootstrap bootstrap, CopyOnWriteArrayList<Observer<Frame>> subjects) {
+    private ClientTcpDuplexConnection(Channel channel, CopyOnWriteArrayList<Observer<Frame>> subjects) {
         this.subjects  = subjects;
         this.channel = channel;
-        this.bootstrap = bootstrap;
     }
 
-    public static Publisher<ClientTcpDuplexConnection> create(InetSocketAddress address, EventLoopGroup eventLoopGroup) {
+    public static Publisher<ClientTcpDuplexConnection> create(SocketAddress address, EventLoopGroup eventLoopGroup) {
         return s -> {
             CopyOnWriteArrayList<Observer<Frame>> subjects = new CopyOnWriteArrayList<>();
             ReactiveSocketClientHandler clientHandler = new ReactiveSocketClientHandler(subjects);
@@ -64,6 +55,10 @@ public class ClientTcpDuplexConnection implements DuplexConnection {
             ChannelFuture connect = bootstrap
                 .group(eventLoopGroup)
                 .channel(NioSocketChannel.class)
+                .option(ChannelOption.TCP_NODELAY, true)
+                .option(ChannelOption.SO_REUSEADDR, true)
+                .option(ChannelOption.AUTO_READ, true)
+                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 10000)
                 .handler(new ChannelInitializer<SocketChannel>() {
                     @Override
                     protected void initChannel(SocketChannel ch) throws Exception {
@@ -73,12 +68,12 @@ public class ClientTcpDuplexConnection implements DuplexConnection {
                             clientHandler
                         );
                     }
-                }).connect(address.getHostName(), address.getPort());
+                }).connect(address);
 
             connect.addListener(connectFuture -> {
                 if (connectFuture.isSuccess()) {
-                    final Channel ch = connect.channel();
-                    s.onNext(new ClientTcpDuplexConnection(ch, bootstrap, subjects));
+                    Channel ch = connect.channel();
+                    s.onNext(new ClientTcpDuplexConnection(ch, subjects));
                     s.onComplete();
                 } else {
                     s.onError(connectFuture.cause());
@@ -103,6 +98,7 @@ public class ClientTcpDuplexConnection implements DuplexConnection {
             @Override
             public void onSubscribe(Subscription s) {
                 subscription = s;
+                // TODO: wire back pressure
                 s.request(Long.MAX_VALUE);
             }
 
@@ -129,16 +125,20 @@ public class ClientTcpDuplexConnection implements DuplexConnection {
             @Override
             public void onError(Throwable t) {
                 callback.error(t);
-                if (t instanceof TransportException) {
-                    subscription.cancel();
-                }
+                subscription.cancel();
             }
 
             @Override
             public void onComplete() {
                 callback.success();
+                subscription.cancel();
             }
         });
+    }
+
+    @Override
+    public double availability() {
+        return channel.isOpen() ? 1.0 : 0.0;
     }
 
     @Override
@@ -148,17 +148,17 @@ public class ClientTcpDuplexConnection implements DuplexConnection {
 
     public String toString() {
         if (channel == null) {
-            return  getClass().getName() + ":channel=null";
+            return "ClientTcpDuplexConnection(channel=null)";
         }
 
-        return getClass().getName() + ":channel=[" +
+        return "ClientTcpDuplexConnection(channel=[" +
             "remoteAddress=" + channel.remoteAddress() + "," +
             "isActive=" + channel.isActive() + "," +
             "isOpen=" + channel.isOpen() + "," +
             "isRegistered=" + channel.isRegistered() + "," +
             "isWritable=" + channel.isWritable() + "," +
             "channelId=" + channel.id().asLongText() +
-            "]";
+            "])";
 
     }
 }

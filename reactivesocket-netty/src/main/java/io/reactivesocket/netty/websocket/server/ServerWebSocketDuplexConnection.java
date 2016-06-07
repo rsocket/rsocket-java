@@ -97,6 +97,11 @@ public class ServerWebSocketDuplexConnection implements DuplexConnection {
     }
 
     @Override
+    public double availability() {
+        return ctx.channel().isOpen() ? 1.0 : 0.0;
+    }
+
+    @Override
     public void close() throws IOException {
 
     }

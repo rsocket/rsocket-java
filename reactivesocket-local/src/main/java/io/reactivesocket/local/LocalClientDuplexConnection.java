@@ -80,6 +80,11 @@ class LocalClientDuplexConnection implements DuplexConnection {
             });
     }
 
+    @Override
+    public double availability() {
+        return 1.0;
+    }
+
     void write(Frame frame) {
         subjects
             .forEach(o -> o.onNext(frame));

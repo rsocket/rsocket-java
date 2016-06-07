@@ -15,30 +15,28 @@
  */
 package io.reactivesocket.local;
 
-import io.reactivesocket.ConnectionSetupHandler;
-import io.reactivesocket.DefaultReactiveSocket;
-import io.reactivesocket.ReactiveSocket;
-import io.reactivesocket.ReactiveSocketFactory;
+import io.reactivesocket.*;
 import io.reactivesocket.internal.rx.EmptySubscription;
 import org.reactivestreams.Publisher;
 
-public class LocalServerReactiveSocketFactory implements ReactiveSocketFactory<LocalServerReactiveSocketFactory.Config, ReactiveSocket> {
-    public static final LocalServerReactiveSocketFactory INSTANCE = new LocalServerReactiveSocketFactory();
+public class LocalClientReactiveSocketConnector implements ReactiveSocketConnector<LocalClientReactiveSocketConnector.Config> {
+    public static final LocalClientReactiveSocketConnector INSTANCE = new LocalClientReactiveSocketConnector();
 
-    private LocalServerReactiveSocketFactory() {}
+    private LocalClientReactiveSocketConnector() {}
 
     @Override
-    public Publisher<ReactiveSocket> call(Config config) {
+    public Publisher<ReactiveSocket> connect(Config config) {
         return s -> {
             try {
                 s.onSubscribe(EmptySubscription.INSTANCE);
-                LocalServerDuplexConection clientConnection = LocalReactiveSocketManager
+                LocalClientDuplexConnection clientConnection = LocalReactiveSocketManager
                     .getInstance()
-                    .getServerConnection(config.getName());
+                    .getClientConnection(config.getName());
                 ReactiveSocket reactiveSocket = DefaultReactiveSocket
-                    .fromServerConnection(clientConnection, config.getConnectionSetupHandler());
+                    .fromClientConnection(clientConnection, ConnectionSetupPayload.create(config.getMetadataMimeType(), config.getDataMimeType()));
 
                 reactiveSocket.startAndWait();
+
                 s.onNext(reactiveSocket);
                 s.onComplete();
             } catch (Throwable t) {
@@ -49,19 +47,25 @@ public class LocalServerReactiveSocketFactory implements ReactiveSocketFactory<L
 
     public static class Config {
         final String name;
-        final ConnectionSetupHandler connectionSetupHandler;
+        final String metadataMimeType;
+        final String dataMimeType;
 
-        public Config(String name, ConnectionSetupHandler connectionSetupHandler) {
+        public Config(String name, String metadataMimeType, String dataMimeType) {
             this.name = name;
-            this.connectionSetupHandler = connectionSetupHandler;
-        }
-
-        public ConnectionSetupHandler getConnectionSetupHandler() {
-            return connectionSetupHandler;
+            this.metadataMimeType = metadataMimeType;
+            this.dataMimeType = dataMimeType;
         }
 
         public String getName() {
             return name;
+        }
+
+        public String getMetadataMimeType() {
+            return metadataMimeType;
+        }
+
+        public String getDataMimeType() {
+            return dataMimeType;
         }
     }
 }

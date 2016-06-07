@@ -119,6 +119,11 @@ public class AeronClientDuplexConnection implements DuplexConnection, Loggable {
     }
 
     @Override
+    public double availability() {
+        return publication.isClosed() ? 0.0 : 1.0;
+    }
+
+    @Override
     public void close() throws IOException {
         onClose.accept(publication);
     }
@@ -136,6 +141,5 @@ public class AeronClientDuplexConnection implements DuplexConnection, Loggable {
             "channel=" + publication.channel() + "," +
             "streamId=" + publication.streamId() + "," +
             "sessionId=" + publication.sessionId() + "]";
-
     }
 }

@@ -46,14 +46,11 @@ import java.util.concurrent.CopyOnWriteArrayList;
 public class ClientWebSocketDuplexConnection implements DuplexConnection {
     private Channel channel;
 
-    private Bootstrap bootstrap;
-
     private final CopyOnWriteArrayList<Observer<Frame>> subjects;
 
-    private ClientWebSocketDuplexConnection(Channel channel, Bootstrap bootstrap,  CopyOnWriteArrayList<Observer<Frame>> subjects) {
+    private ClientWebSocketDuplexConnection(Channel channel, CopyOnWriteArrayList<Observer<Frame>> subjects) {
         this.subjects  = subjects;
         this.channel = channel;
-        this.bootstrap = bootstrap;
     }
 
     public static Publisher<ClientWebSocketDuplexConnection> create(InetSocketAddress address, String path, EventLoopGroup eventLoopGroup) {
@@ -95,7 +92,7 @@ public class ClientWebSocketDuplexConnection implements DuplexConnection {
                         .getHandshakePromise()
                         .addListener(handshakeFuture -> {
                             if (handshakeFuture.isSuccess()) {
-                                s.onNext(new ClientWebSocketDuplexConnection(ch, bootstrap, subjects));
+                                s.onNext(new ClientWebSocketDuplexConnection(ch, subjects));
                                 s.onComplete();
                             } else {
                                 s.onError(handshakeFuture.cause());
@@ -164,23 +161,27 @@ public class ClientWebSocketDuplexConnection implements DuplexConnection {
     }
 
     @Override
+    public double availability() {
+        return channel.isOpen() ? 1.0 : 0.0;
+    }
+
+    @Override
     public void close() throws IOException {
         channel.close();
     }
 
     public String toString() {
         if (channel == null) {
-            return  getClass().getName() + ":channel=null";
+            return "ClientWebSocketDuplexConnection(channel=null)";
         }
 
-        return getClass().getName() + ":channel=[" +
-            "remoteAddress=" + channel.remoteAddress() + "," +
-            "isActive=" + channel.isActive() + "," +
-            "isOpen=" + channel.isOpen() + "," +
-            "isRegistered=" + channel.isRegistered() + "," +
-            "isWritable=" + channel.isWritable() + "," +
-            "channelId=" + channel.id().asLongText() +
-            "]";
+        return "ClientWebSocketDuplexConnection(channel=["
+            + "remoteAddress=" + channel.remoteAddress()
+            + ", isActive=" + channel.isActive()
+            + ", isOpen=" + channel.isOpen()
+            + ", isRegistered=" + channel.isRegistered()
+            + ", channelId=" + channel.id().asLongText()
+            + "])";
 
     }
 }

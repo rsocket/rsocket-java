@@ -15,10 +15,7 @@
  */
 package io.reactivesocket.javax.websocket.client;
 
-import io.reactivesocket.ConnectionSetupPayload;
-import io.reactivesocket.DefaultReactiveSocket;
-import io.reactivesocket.ReactiveSocket;
-import io.reactivesocket.ReactiveSocketFactory;
+import io.reactivesocket.*;
 import io.reactivesocket.javax.websocket.WebSocketDuplexConnection;
 import io.reactivesocket.rx.Completable;
 import org.glassfish.tyrus.client.ClientManager;
@@ -36,15 +33,15 @@ import java.util.function.Consumer;
 /**
  * An implementation of {@link ReactiveSocketFactory} that creates JSR-356 WebSocket ReactiveSockets.
  */
-public class WebSocketReactiveSocketFactory implements ReactiveSocketFactory<SocketAddress, ReactiveSocket> {
-    private static final Logger logger = LoggerFactory.getLogger(WebSocketReactiveSocketFactory.class);
+public class WebSocketReactiveSocketConnector implements ReactiveSocketConnector<SocketAddress> {
+    private static final Logger logger = LoggerFactory.getLogger(WebSocketReactiveSocketConnector.class);
 
     private final ConnectionSetupPayload connectionSetupPayload;
     private final Consumer<Throwable> errorStream;
     private final String path;
     private final ClientManager clientManager;
 
-    public WebSocketReactiveSocketFactory(String path, ClientManager clientManager, ConnectionSetupPayload connectionSetupPayload, Consumer<Throwable> errorStream) {
+    public WebSocketReactiveSocketConnector(String path, ClientManager clientManager, ConnectionSetupPayload connectionSetupPayload, Consumer<Throwable> errorStream) {
         this.connectionSetupPayload = connectionSetupPayload;
         this.errorStream = errorStream;
         this.path = path;
@@ -52,7 +49,7 @@ public class WebSocketReactiveSocketFactory implements ReactiveSocketFactory<Soc
     }
 
     @Override
-    public Publisher<ReactiveSocket> call(SocketAddress address) {
+    public Publisher<ReactiveSocket> connect(SocketAddress address) {
         Publisher<WebSocketDuplexConnection> connection
             = ReactiveSocketWebSocketClient.create(address, path, clientManager);
 

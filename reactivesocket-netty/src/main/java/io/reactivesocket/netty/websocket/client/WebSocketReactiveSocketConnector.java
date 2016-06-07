@@ -13,13 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.reactivesocket.netty.tcp.client;
+package io.reactivesocket.netty.websocket.client;
 
 import io.netty.channel.EventLoopGroup;
-import io.reactivesocket.ConnectionSetupPayload;
-import io.reactivesocket.DefaultReactiveSocket;
-import io.reactivesocket.ReactiveSocket;
-import io.reactivesocket.ReactiveSocketFactory;
+import io.reactivesocket.*;
 import io.reactivesocket.rx.Completable;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
@@ -36,34 +33,36 @@ import java.util.function.Consumer;
 /**
  * An implementation of {@link ReactiveSocketFactory} that creates Netty WebSocket ReactiveSockets.
  */
-public class TcpReactiveSocketFactory implements ReactiveSocketFactory<SocketAddress, ReactiveSocket> {
-    private static final Logger logger = LoggerFactory.getLogger(TcpReactiveSocketFactory.class);
+public class WebSocketReactiveSocketConnector implements ReactiveSocketConnector<SocketAddress> {
+    private static final Logger logger = LoggerFactory.getLogger(WebSocketReactiveSocketConnector.class);
 
     private final ConnectionSetupPayload connectionSetupPayload;
     private final Consumer<Throwable> errorStream;
+    private final String path;
     private final EventLoopGroup eventLoopGroup;
 
-    public TcpReactiveSocketFactory(EventLoopGroup eventLoopGroup, ConnectionSetupPayload connectionSetupPayload, Consumer<Throwable> errorStream) {
+    public WebSocketReactiveSocketConnector(String path, EventLoopGroup eventLoopGroup, ConnectionSetupPayload connectionSetupPayload, Consumer<Throwable> errorStream) {
         this.connectionSetupPayload = connectionSetupPayload;
         this.errorStream = errorStream;
+        this.path = path;
         this.eventLoopGroup = eventLoopGroup;
     }
 
     @Override
-    public Publisher<ReactiveSocket> call(SocketAddress address) {
+    public Publisher<ReactiveSocket> connect(SocketAddress address) {
         if (address instanceof InetSocketAddress) {
-            Publisher<ClientTcpDuplexConnection> connection
-                    = ClientTcpDuplexConnection.create((InetSocketAddress)address, eventLoopGroup);
+            Publisher<ClientWebSocketDuplexConnection> connection
+                    = ClientWebSocketDuplexConnection.create((InetSocketAddress)address, path, eventLoopGroup);
 
             Observable<ReactiveSocket> result = Observable.create(s ->
-                connection.subscribe(new Subscriber<ClientTcpDuplexConnection>() {
+                connection.subscribe(new Subscriber<ClientWebSocketDuplexConnection>() {
                     @Override
                     public void onSubscribe(Subscription s) {
                         s.request(1);
                     }
 
                     @Override
-                    public void onNext(ClientTcpDuplexConnection connection) {
+                    public void onNext(ClientWebSocketDuplexConnection connection) {
                         ReactiveSocket reactiveSocket = DefaultReactiveSocket.fromClientConnection(connection, connectionSetupPayload, errorStream);
                         reactiveSocket.start(new Completable() {
                             @Override

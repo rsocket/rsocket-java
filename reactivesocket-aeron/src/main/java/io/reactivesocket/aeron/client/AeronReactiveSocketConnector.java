@@ -15,10 +15,7 @@
  */
 package io.reactivesocket.aeron.client;
 
-import io.reactivesocket.ConnectionSetupPayload;
-import io.reactivesocket.DefaultReactiveSocket;
-import io.reactivesocket.ReactiveSocket;
-import io.reactivesocket.ReactiveSocketFactory;
+import io.reactivesocket.*;
 import io.reactivesocket.rx.Completable;
 import org.agrona.LangUtil;
 import org.reactivestreams.Publisher;
@@ -40,17 +37,17 @@ import java.util.function.Consumer;
 /**
  * An implementation of {@link ReactiveSocketFactory} that creates Aeron ReactiveSockets.
  */
-public class AeronReactiveSocketFactory implements ReactiveSocketFactory<SocketAddress, ReactiveSocket> {
-    private static final Logger logger = LoggerFactory.getLogger(AeronReactiveSocketFactory.class);
+public class AeronReactiveSocketConnector implements ReactiveSocketConnector<SocketAddress> {
+    private static final Logger logger = LoggerFactory.getLogger(AeronReactiveSocketConnector.class);
 
     private final ConnectionSetupPayload connectionSetupPayload;
     private final Consumer<Throwable> errorStream;
 
-    public AeronReactiveSocketFactory(ConnectionSetupPayload connectionSetupPayload, Consumer<Throwable> errorStream) {
+    public AeronReactiveSocketConnector(ConnectionSetupPayload connectionSetupPayload, Consumer<Throwable> errorStream) {
         this(getIPv4InetAddress().getHostAddress(), 39790, connectionSetupPayload, errorStream);
     }
 
-    public AeronReactiveSocketFactory(String host, int port, ConnectionSetupPayload connectionSetupPayload, Consumer<Throwable> errorStream) {
+    public AeronReactiveSocketConnector(String host, int port, ConnectionSetupPayload connectionSetupPayload, Consumer<Throwable> errorStream) {
         this.connectionSetupPayload = connectionSetupPayload;
         this.errorStream = errorStream;
 
@@ -65,7 +62,7 @@ public class AeronReactiveSocketFactory implements ReactiveSocketFactory<SocketA
     }
 
     @Override
-    public Publisher<ReactiveSocket> call(SocketAddress address) {
+    public Publisher<ReactiveSocket> connect(SocketAddress address) {
         Publisher<AeronClientDuplexConnection> connection
             = AeronClientDuplexConnectionFactory.getInstance().createAeronClientDuplexConnection(address);
 

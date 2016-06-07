@@ -80,6 +80,11 @@ public class WebSocketDuplexConnection implements DuplexConnection {
     }
 
     @Override
+    public double availability() {
+        return session.isOpen() ? 1.0 : 0.0;
+    }
+
+    @Override
     public void close() throws IOException {
         session.close();
     }

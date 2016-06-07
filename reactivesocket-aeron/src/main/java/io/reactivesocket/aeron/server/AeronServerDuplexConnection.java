@@ -78,6 +78,11 @@ public class AeronServerDuplexConnection implements DuplexConnection, Loggable {
         o.subscribe(new ServerSubscription(publication, callback));
     }
 
+    @Override
+    public double availability() {
+        return isClosed ? 0.0 : 1.0;
+    }
+
     // TODO - this is bad - I need to queue this up somewhere and process this on the polling thread so it doesn't just block everything
     void ackEstablishConnection(int ackSessionId) {
         debug("Acking establish connection for session id => {}", ackSessionId);
