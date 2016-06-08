@@ -1,6 +1,6 @@
 buildscript {
-  repositories { jcenter() }
-  dependencies { classpath 'io.reactivesocket:gradle-nebula-plugin-reactivesocket:1.0.6' }
+    repositories { jcenter() }
+    dependencies { classpath 'io.reactivesocket:gradle-nebula-plugin-reactivesocket:1.0.6' }
 }
 
 description = 'ReactiveSocket: stream oriented messaging passing with Reactive Stream semantics.'
@@ -8,31 +8,36 @@ description = 'ReactiveSocket: stream oriented messaging passing with Reactive S
 apply plugin: 'reactivesocket-project'
 
 subprojects {
-  apply plugin: 'reactivesocket-project'
-  apply plugin: 'java'
+    apply plugin: 'reactivesocket-project'
+    apply plugin: 'java'
 
-  compileJava {
-      sourceCompatibility = 1.8
-      targetCompatibility = 1.8
-  }
+    compileJava {
+        sourceCompatibility = 1.8
+        targetCompatibility = 1.8
+    }
 
-  repositories {
-      jcenter()
-      maven { url 'https://oss.jfrog.org/libs-snapshot' }
-  }
+    repositories {
+        jcenter()
+        maven { url 'https://oss.jfrog.org/libs-snapshot' }
+        maven { url 'https://dl.bintray.com/reactivesocket/ReactiveSocket' }
+    }
 
-  dependencies {
-    compile 'org.reactivestreams:reactive-streams:1.0.0.final'
-    compile 'org.agrona:Agrona:0.4.13'
+    dependencies {
+        compile 'org.reactivestreams:reactive-streams:1.0.0.final'
+        compile 'org.agrona:Agrona:0.4.13'
+        compile 'io.reactivex:rxjava:latest.release'
+        compile 'io.reactivex:rxjava-reactive-streams:latest.release'
+        compile 'org.hdrhistogram:HdrHistogram:latest.release'
+        compile 'org.slf4j:slf4j-api:latest.release'
 
-    testCompile 'io.reactivex:rxjava:2.0.0-DP0-20151003.214425-143'
-    testCompile 'junit:junit:4.12'
-    testCompile 'org.mockito:mockito-core:1.10.19'
-  }
+        testCompile 'junit:junit:4.12'
+        testCompile 'org.mockito:mockito-core:1.10.19'
+        testRuntime 'org.slf4j:slf4j-simple:1.7.12'
+    }
 
-  test {
-    testLogging.showStandardStreams = true
-  }
+    test {
+        testLogging.showStandardStreams = true
+    }
 }
 
 // support for snapshot/final releases via versioned branch names like 1.x

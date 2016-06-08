@@ -1,0 +1,4 @@
+dependencies {
+    compile project(':rs-core')
+    testCompile project(':rs-test')
+}
