@@ -31,7 +31,7 @@ import java.net.SocketAddress;
 import java.util.function.Consumer;
 
 /**
- * An implementation of {@link ReactiveSocketFactory} that creates Netty WebSocket ReactiveSockets.
+ * An implementation of {@link ReactiveSocketConnector} that creates Netty WebSocket ReactiveSockets.
  */
 public class WebSocketReactiveSocketConnector implements ReactiveSocketConnector<SocketAddress> {
     private static final Logger logger = LoggerFactory.getLogger(WebSocketReactiveSocketConnector.class);

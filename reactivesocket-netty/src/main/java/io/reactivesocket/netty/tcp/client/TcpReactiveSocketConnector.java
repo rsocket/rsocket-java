@@ -26,7 +26,7 @@ import java.net.SocketAddress;
 import java.util.function.Consumer;
 
 /**
- * An implementation of {@link ReactiveSocketFactory} that creates Netty WebSocket ReactiveSockets.
+ * An implementation of {@link ReactiveSocketConnecot} that creates Netty TCP ReactiveSockets.
  */
 public class TcpReactiveSocketConnector implements ReactiveSocketConnector<SocketAddress> {
     private final ConnectionSetupPayload connectionSetupPayload;
