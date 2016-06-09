@@ -9,7 +9,7 @@ It enables the following interaction models via async message passing over a sin
 - fire-and-forget (no response)
 - event subscription (infinite stream of many)
 
-This is the core project for Java that implements the protocol and exposes Reactive Stream APIs. Typically most use will come via another library that uses this one. 
+This is the core project for Java that implements the protocol and exposes Reactive Stream APIs. Typically most use will come via another library that uses this one.
 
 For example:
 
@@ -27,7 +27,7 @@ Others can be found in the [ReactiveSocket Github](https://github.com/ReactiveSo
 
 <a href='https://travis-ci.org/ReactiveSocket/reactivesocket-java/builds'><img src='https://travis-ci.org/ReactiveSocket/reactivesocket-java.svg?branch=master'></a>
 
-Snapshots are available via JFrog. 
+Snapshots are available via JFrog.
 
 Example:
 
@@ -48,7 +48,6 @@ No releases to Maven Central or JCenter have occurred yet.
 
 For bugs, questions and discussions please use the [Github Issues](https://github.com/ReactiveSocket/reactivesocket-java/issues).
 
- 
 ## LICENSE
 
 Copyright 2015 Netflix, Inc.

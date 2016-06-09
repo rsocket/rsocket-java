@@ -1,0 +1,5 @@
+dependencies {
+    compile project(':reactivesocket-core')
+    compile project(':reactivesocket-test')
+    compile 'io.aeron:aeron-all:0.9.5'
+}

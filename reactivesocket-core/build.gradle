@@ -1,0 +1,3 @@
+dependencies {
+    testCompile 'io.reactivex:rxjava:2.0.0-DP0-20151003.214425-143'
+}
