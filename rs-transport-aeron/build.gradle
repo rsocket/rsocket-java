@@ -1,5 +1,0 @@
-dependencies {
-    compile project(':rs-core')
-    compile project(':rs-test')
-    compile 'io.aeron:aeron-all:0.9.5'
-}

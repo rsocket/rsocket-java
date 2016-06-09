@@ -1,9 +1,9 @@
 dependencies {
-    compile project(':rs-core')
+    compile project(':reactivesocket-core')
     compile 'io.netty:netty-handler:4.1.0.CR7'
     compile 'io.netty:netty-codec-http:4.1.0.CR7'
 
-    testCompile project(':rs-test')
+    testCompile project(':reactivesocket-test')
 }
 
 task echoServer(type: JavaExec) {

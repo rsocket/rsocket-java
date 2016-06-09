@@ -16,7 +16,7 @@
  */
 
 dependencies {
-    compile project(':rs-core')
+    compile project(':reactivesocket-core')
     compile 'com.fasterxml.jackson.core:jackson-core:latest.release'
     compile 'com.fasterxml.jackson.core:jackson-databind:latest.release'
     compile 'com.fasterxml.jackson.module:jackson-module-afterburner:latest.release'
