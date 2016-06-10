@@ -1,0 +1,4 @@
+dependencies {
+    compile project(':reactivesocket-core')
+    testCompile project(':reactivesocket-test')
+}
