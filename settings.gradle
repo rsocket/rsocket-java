@@ -1,7 +1,6 @@
 rootProject.name='reactivesocket'
 include 'reactivesocket-core'
 include 'reactivesocket-transport-aeron'
-include 'reactivesocket-transport-jsr-356'
 include 'reactivesocket-transport-netty'
 include 'reactivesocket-transport-local'
 include 'reactivesocket-mime-types'
