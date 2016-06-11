@@ -21,7 +21,7 @@ import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 import io.reactivesocket.Frame;
-import io.reactivesocket.netty.NettyDuplexConnection;
+import io.reactivesocket.transport.tcp.NettyDuplexConnection;
 import io.reactivesocket.rx.Observer;
 import org.agrona.BitUtil;
 import org.reactivestreams.Publisher;

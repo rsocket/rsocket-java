@@ -24,7 +24,7 @@ import io.netty.handler.codec.http.HttpClientCodec;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.websocketx.*;
 import io.reactivesocket.Frame;
-import io.reactivesocket.netty.NettyDuplexConnection;
+import io.reactivesocket.transport.tcp.NettyDuplexConnection;
 import io.reactivesocket.rx.Observer;
 import org.reactivestreams.Publisher;
 

@@ -27,7 +27,7 @@ import io.reactivesocket.DefaultReactiveSocket;
 import io.reactivesocket.Frame;
 import io.reactivesocket.LeaseGovernor;
 import io.reactivesocket.ReactiveSocket;
-import io.reactivesocket.netty.MutableDirectByteBuf;
+import io.reactivesocket.transport.tcp.MutableDirectByteBuf;
 import org.agrona.BitUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

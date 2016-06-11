@@ -13,14 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.reactivesocket.netty.tcp;
+package io.reactivesocket.transport.websocket;
 
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.reactivesocket.ConnectionSetupPayload;
 import io.reactivesocket.DefaultReactiveSocket;
 import io.reactivesocket.Payload;
 import io.reactivesocket.ReactiveSocket;
-import io.reactivesocket.netty.tcp.client.ClientTcpDuplexConnection;
+import io.reactivesocket.transport.websocket.client.ClientWebSocketDuplexConnection;
 import org.HdrHistogram.Recorder;
 import org.reactivestreams.Publisher;
 import rx.Observable;
@@ -35,10 +35,9 @@ import java.util.concurrent.TimeUnit;
 
 public class Ping {
     public static void main(String... args) throws Exception {
-        Publisher<ClientTcpDuplexConnection> publisher = ClientTcpDuplexConnection
-            .create(InetSocketAddress.createUnresolved("localhost", 7878), new NioEventLoopGroup(1));
+        Publisher<ClientWebSocketDuplexConnection> publisher = ClientWebSocketDuplexConnection.create(InetSocketAddress.createUnresolved("localhost", 8025), "/rs", new NioEventLoopGroup(1));
 
-        ClientTcpDuplexConnection duplexConnection = RxReactiveStreams.toObservable(publisher).toBlocking().last();
+        ClientWebSocketDuplexConnection duplexConnection = RxReactiveStreams.toObservable(publisher).toBlocking().last();
         ReactiveSocket reactiveSocket = DefaultReactiveSocket.fromClientConnection(duplexConnection, ConnectionSetupPayload.create("UTF-8", "UTF-8"), t -> t.printStackTrace());
 
         reactiveSocket.startAndWait();
@@ -80,13 +79,11 @@ public class Ping {
                     .toObservable(
                         reactiveSocket
                             .requestResponse(keyPayload))
-                    .doOnError(t -> t.printStackTrace())
                     .doOnNext(s -> {
                         long diff = System.nanoTime() - start;
                         histogram.recordValue(diff);
                     });
             }, 16)
-            .doOnError(t -> t.printStackTrace())
             .subscribe(new Subscriber<Payload>() {
                 @Override
                 public void onCompleted() {

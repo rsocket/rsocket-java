@@ -1,4 +1,4 @@
-package io.reactivesocket.netty;
+package io.reactivesocket.transport.tcp;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
@@ -9,7 +9,7 @@ import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpServerCodec;
 import io.reactivesocket.RequestHandler;
-import io.reactivesocket.netty.tcp.server.ReactiveSocketServerHandler;
+import io.reactivesocket.transport.tcp.server.ReactiveSocketServerHandler;
 
 import java.util.List;
 

@@ -1,4 +1,4 @@
-package io.reactivesocket.netty;
+package io.reactivesocket.transport.tcp;
 
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.Channel;

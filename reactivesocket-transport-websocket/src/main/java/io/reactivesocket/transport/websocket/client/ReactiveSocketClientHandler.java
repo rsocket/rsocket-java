@@ -23,7 +23,7 @@ import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.codec.http.websocketx.BinaryWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.WebSocketClientProtocolHandler;
 import io.reactivesocket.Frame;
-import io.reactivesocket.netty.MutableDirectByteBuf;
+import io.reactivesocket.transport.tcp.MutableDirectByteBuf;
 import io.reactivesocket.rx.Observer;
 
 

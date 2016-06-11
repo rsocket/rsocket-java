@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.reactivesocket.netty.tcp;
+package io.reactivesocket.transport.websocket;
 
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.Channel;
@@ -22,6 +22,9 @@ import io.netty.channel.ChannelPipeline;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
+import io.netty.handler.codec.http.HttpObjectAggregator;
+import io.netty.handler.codec.http.HttpServerCodec;
+import io.netty.handler.codec.http.websocketx.WebSocketServerProtocolHandler;
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
 import io.reactivesocket.ConnectionSetupPayload;
@@ -29,8 +32,8 @@ import io.reactivesocket.DefaultReactiveSocket;
 import io.reactivesocket.Payload;
 import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.RequestHandler;
-import io.reactivesocket.netty.tcp.client.ClientTcpDuplexConnection;
-import io.reactivesocket.netty.tcp.server.ReactiveSocketServerHandler;
+import io.reactivesocket.transport.websocket.client.ClientWebSocketDuplexConnection;
+import io.reactivesocket.transport.websocket.server.ReactiveSocketServerHandler;
 import io.reactivesocket.test.TestUtil;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -112,20 +115,24 @@ public class ClientServerTest {
                 @Override
                 protected void initChannel(Channel ch) throws Exception {
                     ChannelPipeline pipeline = ch.pipeline();
+                    pipeline.addLast(new HttpServerCodec());
+                    pipeline.addLast(new HttpObjectAggregator(64 * 1024));
+                    pipeline.addLast(new WebSocketServerProtocolHandler("/rs"));
                     pipeline.addLast(serverHandler);
                 }
             });
 
-        serverChannel = b.bind("localhost", 7878).sync().channel();
+        serverChannel = b.bind("localhost", 8025).sync().channel();
 
-        ClientTcpDuplexConnection duplexConnection = RxReactiveStreams.toObservable(
-            ClientTcpDuplexConnection.create(InetSocketAddress.createUnresolved("localhost", 7878), new NioEventLoopGroup())
+        ClientWebSocketDuplexConnection duplexConnection = RxReactiveStreams.toObservable(
+            ClientWebSocketDuplexConnection.create(InetSocketAddress.createUnresolved("localhost", 8025), "/rs", new NioEventLoopGroup())
         ).toBlocking().single();
 
         client = DefaultReactiveSocket
             .fromClientConnection(duplexConnection, ConnectionSetupPayload.create("UTF-8", "UTF-8"), t -> t.printStackTrace());
 
         client.startAndWait();
+
     }
 
     @AfterClass
@@ -195,8 +202,8 @@ public class ClientServerTest {
             .range(1, count)
             .flatMap(i ->
                 RxReactiveStreams
-                    .toObservable(client
-                        .requestResponse(TestUtil.utf8EncodedPayload("hello", "metadata")))
+                    .toObservable(client.requestResponse(
+                        TestUtil.utf8EncodedPayload("hello", "metadata")))
                     .map(payload -> TestUtil.byteToString(payload.getData()))
             )
             .doOnError(Throwable::printStackTrace)

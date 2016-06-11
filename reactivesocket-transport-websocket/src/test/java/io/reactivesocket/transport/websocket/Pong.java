@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.reactivesocket.netty.tcp;
+package io.reactivesocket.transport.websocket;
 
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.Channel;
@@ -22,11 +22,14 @@ import io.netty.channel.ChannelPipeline;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
+import io.netty.handler.codec.http.HttpObjectAggregator;
+import io.netty.handler.codec.http.HttpServerCodec;
+import io.netty.handler.codec.http.websocketx.WebSocketServerProtocolHandler;
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
 import io.reactivesocket.Payload;
 import io.reactivesocket.RequestHandler;
-import io.reactivesocket.netty.tcp.server.ReactiveSocketServerHandler;
+import io.reactivesocket.transport.websocket.server.ReactiveSocketServerHandler;
 import io.reactivesocket.test.TestUtil;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
@@ -161,11 +164,14 @@ public class Pong {
                 @Override
                 protected void initChannel(Channel ch) throws Exception {
                     ChannelPipeline pipeline = ch.pipeline();
+                    pipeline.addLast(new HttpServerCodec());
+                    pipeline.addLast(new HttpObjectAggregator(64 * 1024));
+                    pipeline.addLast(new WebSocketServerProtocolHandler("/rs"));
                     pipeline.addLast(serverHandler);
                 }
             });
 
-        Channel localhost = b.bind("localhost", 7878).sync().channel();
+        Channel localhost = b.bind("localhost", 8025).sync().channel();
         localhost.closeFuture().sync();
 
     }

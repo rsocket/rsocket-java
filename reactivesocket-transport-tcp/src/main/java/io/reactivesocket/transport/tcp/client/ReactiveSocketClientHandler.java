@@ -20,7 +20,7 @@ import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.reactivesocket.Frame;
-import io.reactivesocket.netty.MutableDirectByteBuf;
+import io.reactivesocket.transport.tcp.MutableDirectByteBuf;
 import io.reactivesocket.rx.Observer;
 
 import java.util.concurrent.CopyOnWriteArrayList;
