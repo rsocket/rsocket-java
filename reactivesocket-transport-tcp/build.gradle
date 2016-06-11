@@ -1,0 +1,11 @@
+dependencies {
+    compile project(':reactivesocket-core')
+    compile project(':reactivesocket-netty')
+
+    testCompile project(':reactivesocket-test')
+}
+
+task echoServer(type: JavaExec) {
+    classpath = sourceSets.examples.runtimeClasspath
+    main = 'io.reactivesocket.netty.EchoServer'
+}

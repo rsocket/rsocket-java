@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.reactivesocket.netty.websocket.client;
+package io.reactivesocket.transport.websocket.client;
 
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBuf;
@@ -25,9 +25,9 @@ import io.netty.handler.codec.http.DefaultHttpHeaders;
 import io.netty.handler.codec.http.HttpClientCodec;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.websocketx.*;
-import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
 import io.reactivesocket.exceptions.TransportException;
+import io.reactivesocket.netty.NettyDuplexConnection;
 import io.reactivesocket.rx.Completable;
 import io.reactivesocket.rx.Observable;
 import io.reactivesocket.rx.Observer;
@@ -37,20 +37,15 @@ import org.reactivestreams.Subscription;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.net.SocketAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.channels.ClosedChannelException;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-public class ClientWebSocketDuplexConnection implements DuplexConnection {
-    private Channel channel;
+public class ClientWebSocketDuplexConnection extends NettyDuplexConnection {
 
-    private final CopyOnWriteArrayList<Observer<Frame>> subjects;
-
-    private ClientWebSocketDuplexConnection(Channel channel, CopyOnWriteArrayList<Observer<Frame>> subjects) {
-        this.subjects  = subjects;
-        this.channel = channel;
+    private ClientWebSocketDuplexConnection(Channel channel, CopyOnWriteArrayList<Observer<Frame>> readers) {
+        super(channel, readers);
     }
 
     public static Publisher<ClientWebSocketDuplexConnection> create(InetSocketAddress address, String path, EventLoopGroup eventLoopGroup) {
@@ -66,8 +61,8 @@ public class ClientWebSocketDuplexConnection implements DuplexConnection {
             WebSocketClientHandshaker handshaker = WebSocketClientHandshakerFactory.newHandshaker(
                     uri, WebSocketVersion.V13, null, false, new DefaultHttpHeaders());
 
-            CopyOnWriteArrayList<Observer<Frame>> subjects = new CopyOnWriteArrayList<>();
-            ReactiveSocketClientHandler clientHandler = new ReactiveSocketClientHandler(subjects);
+            CopyOnWriteArrayList<Observer<Frame>> readers = new CopyOnWriteArrayList<>();
+            ReactiveSocketClientHandler clientHandler = new ReactiveSocketClientHandler(readers);
             Bootstrap bootstrap = new Bootstrap();
             ChannelFuture connect = bootstrap
                 .group(eventLoopGroup)
@@ -92,7 +87,7 @@ public class ClientWebSocketDuplexConnection implements DuplexConnection {
                         .getHandshakePromise()
                         .addListener(handshakeFuture -> {
                             if (handshakeFuture.isSuccess()) {
-                                s.onNext(new ClientWebSocketDuplexConnection(ch, subjects));
+                                s.onNext(new ClientWebSocketDuplexConnection(ch, readers));
                                 s.onComplete();
                             } else {
                                 s.onError(handshakeFuture.cause());
@@ -103,71 +98,6 @@ public class ClientWebSocketDuplexConnection implements DuplexConnection {
                 }
             });
         };
-    }
-
-    @Override
-    public final Observable<Frame> getInput() {
-        return o -> {
-            o.onSubscribe(() -> subjects.removeIf(s -> s == o));
-            subjects.add(o);
-        };
-    }
-
-    @Override
-    public void addOutput(Publisher<Frame> o, Completable callback) {
-        o.subscribe(new Subscriber<Frame>() {
-            private Subscription subscription;
-
-            @Override
-            public void onSubscribe(Subscription s) {
-                subscription = s;
-                s.request(Long.MAX_VALUE);
-            }
-
-            @Override
-            public void onNext(Frame frame) {
-                try {
-                    ByteBuf byteBuf = Unpooled.wrappedBuffer(frame.getByteBuffer());
-                    BinaryWebSocketFrame binaryWebSocketFrame = new BinaryWebSocketFrame(byteBuf);
-                    ChannelFuture channelFuture = channel.writeAndFlush(binaryWebSocketFrame);
-                    channelFuture.addListener(future -> {
-                        Throwable cause = future.cause();
-                        if (cause != null) {
-                            if (cause instanceof ClosedChannelException) {
-                                onError(new TransportException(cause));
-                            } else {
-                                onError(cause);
-                            }
-                        }
-                    });
-                } catch (Throwable t) {
-                    onError(t);
-                }
-            }
-
-            @Override
-            public void onError(Throwable t) {
-                callback.error(t);
-                if (t instanceof TransportException) {
-                    subscription.cancel();
-                }
-            }
-
-            @Override
-            public void onComplete() {
-                callback.success();
-            }
-        });
-    }
-
-    @Override
-    public double availability() {
-        return channel.isOpen() ? 1.0 : 0.0;
-    }
-
-    @Override
-    public void close() throws IOException {
-        channel.close();
     }
 
     public String toString() {
@@ -182,6 +112,5 @@ public class ClientWebSocketDuplexConnection implements DuplexConnection {
             + ", isRegistered=" + channel.isRegistered()
             + ", channelId=" + channel.id().asLongText()
             + "])";
-
     }
 }

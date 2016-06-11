@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.reactivesocket.netty.tcp.server;
+package io.reactivesocket.transport.tcp.server;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;

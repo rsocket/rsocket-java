@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.reactivesocket.netty.tcp.client;
+package io.reactivesocket.transport.tcp.client;
 
 import io.netty.channel.EventLoopGroup;
 import io.reactivesocket.*;
@@ -26,7 +26,7 @@ import java.net.SocketAddress;
 import java.util.function.Consumer;
 
 /**
- * An implementation of {@link ReactiveSocketConnecot} that creates Netty TCP ReactiveSockets.
+ * An implementation of {@link ReactiveSocketConnector} that creates Netty TCP ReactiveSockets.
  */
 public class TcpReactiveSocketConnector implements ReactiveSocketConnector<SocketAddress> {
     private final ConnectionSetupPayload connectionSetupPayload;
