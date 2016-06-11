@@ -16,28 +16,41 @@
 package io.reactivesocket.transport.tcp.client;
 
 import io.netty.bootstrap.Bootstrap;
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import io.netty.channel.*;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
+import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
-import io.reactivesocket.transport.tcp.NettyDuplexConnection;
+import io.reactivesocket.exceptions.TransportException;
+import io.reactivesocket.rx.Completable;
+import io.reactivesocket.rx.Observable;
 import io.reactivesocket.rx.Observer;
 import org.agrona.BitUtil;
 import org.reactivestreams.Publisher;
+import org.reactivestreams.Subscriber;
+import org.reactivestreams.Subscription;
 
+import java.io.IOException;
 import java.net.SocketAddress;
+import java.nio.channels.ClosedChannelException;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-public class ClientTcpDuplexConnection extends NettyDuplexConnection {
-    private ClientTcpDuplexConnection(Channel channel, CopyOnWriteArrayList<Observer<Frame>> readers) {
-        super(channel, readers);
+public class ClientTcpDuplexConnection implements DuplexConnection {
+    private final Channel channel;
+    private final CopyOnWriteArrayList<Observer<Frame>> subjects;
+
+    private ClientTcpDuplexConnection(Channel channel, CopyOnWriteArrayList<Observer<Frame>> subjects) {
+        this.subjects  = subjects;
+        this.channel = channel;
     }
 
     public static Publisher<ClientTcpDuplexConnection> create(SocketAddress address, EventLoopGroup eventLoopGroup) {
         return s -> {
-            CopyOnWriteArrayList<Observer<Frame>> readers = new CopyOnWriteArrayList<>();
-            ReactiveSocketClientHandler clientHandler = new ReactiveSocketClientHandler(readers);
+            CopyOnWriteArrayList<Observer<Frame>> subjects = new CopyOnWriteArrayList<>();
+            ReactiveSocketClientHandler clientHandler = new ReactiveSocketClientHandler(subjects);
             Bootstrap bootstrap = new Bootstrap();
             ChannelFuture connect = bootstrap
                 .group(eventLoopGroup)
@@ -60,13 +73,77 @@ public class ClientTcpDuplexConnection extends NettyDuplexConnection {
             connect.addListener(connectFuture -> {
                 if (connectFuture.isSuccess()) {
                     Channel ch = connect.channel();
-                    s.onNext(new ClientTcpDuplexConnection(ch, readers));
+                    s.onNext(new ClientTcpDuplexConnection(ch, subjects));
                     s.onComplete();
                 } else {
                     s.onError(connectFuture.cause());
                 }
             });
         };
+    }
+
+    @Override
+    public final Observable<Frame> getInput() {
+        return o -> {
+            o.onSubscribe(() -> subjects.removeIf(s -> s == o));
+            subjects.add(o);
+        };
+    }
+
+    @Override
+    public void addOutput(Publisher<Frame> o, Completable callback) {
+        o.subscribe(new Subscriber<Frame>() {
+            private Subscription subscription;
+
+            @Override
+            public void onSubscribe(Subscription s) {
+                subscription = s;
+                // TODO: wire back pressure
+                s.request(Long.MAX_VALUE);
+            }
+
+            @Override
+            public void onNext(Frame frame) {
+                try {
+                    ByteBuf byteBuf = Unpooled.wrappedBuffer(frame.getByteBuffer());
+                    ChannelFuture channelFuture = channel.writeAndFlush(byteBuf);
+                    channelFuture.addListener(future -> {
+                        Throwable cause = future.cause();
+                        if (cause != null) {
+                            if (cause instanceof ClosedChannelException) {
+                                onError(new TransportException(cause));
+                            } else {
+                                onError(cause);
+                            }
+                        }
+                    });
+                } catch (Throwable t) {
+                    onError(t);
+                }
+            }
+
+            @Override
+            public void onError(Throwable t) {
+                callback.error(t);
+                subscription.cancel();
+            }
+
+            @Override
+            public void onComplete() {
+                callback.success();
+                subscription.cancel();
+            }
+        });
+    }
+
+    @Override
+    public double availability() {
+        return channel.isOpen() ? 1.0 : 0.0;
+    }
+
+    @Override
+    public void close() throws IOException {
+        channel.close();
     }
 
     public String toString() {
@@ -82,5 +159,6 @@ public class ClientTcpDuplexConnection extends NettyDuplexConnection {
             "isWritable=" + channel.isWritable() + "," +
             "channelId=" + channel.id().asLongText() +
             "])";
+
     }
 }
