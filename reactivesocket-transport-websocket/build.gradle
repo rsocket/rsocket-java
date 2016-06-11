@@ -1,6 +1,6 @@
 dependencies {
     compile project(':reactivesocket-core')
-    compile project(':reactivesocket-netty')
+    compile project(':reactivesocket-transport-tcp')
 
     testCompile project(':reactivesocket-test')
 }

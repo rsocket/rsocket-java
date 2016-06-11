@@ -16,8 +16,6 @@
 package io.reactivesocket.transport.websocket.client;
 
 import io.netty.bootstrap.Bootstrap;
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
 import io.netty.channel.*;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
@@ -26,20 +24,13 @@ import io.netty.handler.codec.http.HttpClientCodec;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.websocketx.*;
 import io.reactivesocket.Frame;
-import io.reactivesocket.exceptions.TransportException;
 import io.reactivesocket.netty.NettyDuplexConnection;
-import io.reactivesocket.rx.Completable;
-import io.reactivesocket.rx.Observable;
 import io.reactivesocket.rx.Observer;
 import org.reactivestreams.Publisher;
-import org.reactivestreams.Subscriber;
-import org.reactivestreams.Subscription;
 
-import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.nio.channels.ClosedChannelException;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 public class ClientWebSocketDuplexConnection extends NettyDuplexConnection {
