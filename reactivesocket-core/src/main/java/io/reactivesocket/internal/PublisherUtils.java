@@ -27,10 +27,8 @@ import org.reactivestreams.Subscription;
 
 import io.reactivesocket.Frame;
 import io.reactivesocket.Payload;
-import io.reactivesocket.internal.rx.BackpressureHelper;
-import io.reactivesocket.internal.rx.BackpressureUtils;
-import io.reactivesocket.internal.rx.EmptySubscription;
-import io.reactivesocket.internal.rx.SubscriptionHelper;
+import reactor.core.util.BackpressureUtils;
+import reactor.core.util.EmptySubscription;
 
 public class PublisherUtils {
 
@@ -180,7 +178,7 @@ public class PublisherUtils {
 
 				public void request(long n)
 				{
-					BackpressureUtils.getAndAddRequest(requested, n);
+					BackpressureUtils.addAndGet(requested, n);
 					if (started.compareAndSet(false, true))
 					{
 						ticker = SCHEDULER_THREAD.scheduleWithFixedDelay(() -> {
@@ -229,14 +227,14 @@ public class PublisherUtils {
 	        try {
 	            it = source.iterator();
 	        } catch (Throwable e) {
-	            EmptySubscription.error(e, s);
+	            EmptySubscription.error(s, e);
 	            return;
 	        }
 	        boolean hasNext;
 	        try {
 	            hasNext = it.hasNext();
 	        } catch (Throwable e) {
-	            EmptySubscription.error(e, s);
+	            EmptySubscription.error(s, e);
 	            return;
 	        }
 	        if (!hasNext) {
@@ -260,10 +258,10 @@ public class PublisherUtils {
 	        }
 	        @Override
 	        public void request(long n) {
-	            if (SubscriptionHelper.validateRequest(n)) {
+	            if (BackpressureUtils.validate(n)) {
 	                return;
 	            }
-	            if (BackpressureHelper.add(this, n) != 0L) {
+	            if (BackpressureUtils.addAndGet(this, n) != 0L) {
 	                return;
 	            }
 	            long r = n;

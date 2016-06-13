@@ -20,8 +20,7 @@ import org.junit.Test;
 import io.reactivesocket.Frame;
 import io.reactivesocket.FrameType;
 import io.reactivesocket.TestUtil;
-import io.reactivesocket.internal.UnicastSubject;
-import io.reactivex.subscribers.TestSubscriber;
+import reactor.core.test.TestSubscriber;
 
 import static org.junit.Assert.assertTrue;
 
@@ -31,10 +30,10 @@ public class UnicastSubjectTest {
 	public void testSubscribeReceiveValue() {
 		Frame f = TestUtil.utf8EncodedResponseFrame(1, FrameType.NEXT_COMPLETE, "response");
 		UnicastSubject<Frame> us = UnicastSubject.create();
-		TestSubscriber<Frame> ts = new TestSubscriber<>();
+		TestSubscriber<Frame> ts = TestSubscriber.create();
 		us.subscribe(ts);
 		us.onNext(f);
-		ts.assertValue(f);
+		ts.assertValues(f);
 		ts.assertNotTerminated();
 	}
 
@@ -48,16 +47,15 @@ public class UnicastSubjectTest {
 	@Test
 	public void testIllegalStateIfMultiSubscribe() {
 		UnicastSubject<Frame> us = UnicastSubject.create();
-		TestSubscriber<Frame> f1 = new TestSubscriber<>();
+		TestSubscriber<Frame> f1 = TestSubscriber.create();
 		us.subscribe(f1);
-		TestSubscriber<Frame> f2 = new TestSubscriber<>();
+		TestSubscriber<Frame> f2 = TestSubscriber.create();
 		us.subscribe(f2);
 
 		f1.assertNotTerminated();
-		for (Throwable e : f2.errors()) {
-			assertTrue( IllegalStateException.class.isInstance(e)
-				|| NullPointerException.class.isInstance(e));
-		}
+		f2.assertErrorWith(e ->
+			assertTrue(IllegalStateException.class.isInstance(e) || NullPointerException.class.isInstance(e))
+		);
 	}
 
 }

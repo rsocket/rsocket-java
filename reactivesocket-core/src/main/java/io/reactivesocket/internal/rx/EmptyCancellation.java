@@ -15,17 +15,13 @@
  */
 package io.reactivesocket.internal.rx;
 
-import io.reactivesocket.rx.Disposable;
+import reactor.core.flow.Cancellation;
 
-public class EmptyDisposable implements Disposable
+public class EmptyCancellation implements Cancellation
 {
-	public static final EmptyDisposable EMPTY = new EmptyDisposable();
+	public static final EmptyCancellation INSTANCE = new EmptyCancellation();
 	
     public void dispose()
     {
-    }
-    
-    public boolean isDisposed() {
-    	return false;
     }
 }

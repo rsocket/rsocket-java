@@ -22,6 +22,7 @@ import org.junit.Test;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
+import reactor.core.publisher.Flux;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -32,9 +33,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import static io.reactivesocket.ConnectionSetupPayload.NO_FLAGS;
 import static io.reactivesocket.TestUtil.byteToString;
 import static io.reactivesocket.TestUtil.utf8EncodedPayload;
-import static io.reactivex.Observable.error;
-import static io.reactivex.Observable.fromPublisher;
-import static io.reactivex.Observable.range;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -155,7 +153,7 @@ public class TestFlowControlRequestN {
 	public void testRequestChannel_batches_downstream() throws InterruptedException {
 		ControlledSubscriber s = new ControlledSubscriber();
 		socketClient.requestChannel(
-			range(1, 10).map(i -> utf8EncodedPayload(String.valueOf(i), "1000"))
+				Flux.range(1, 10).map(i -> utf8EncodedPayload(String.valueOf(i), "1000"))
         ).subscribe(s);
 		
 		// if flatMap is being used, then each of the 10 streams will emit at least 128 (default)
@@ -190,7 +188,7 @@ public class TestFlowControlRequestN {
 		ControlledSubscriber s = new ControlledSubscriber();
 		AtomicInteger emittedClient = new AtomicInteger();
 		socketClient.requestChannel(
-				range(1, 10000)
+				Flux.range(1, 10000)
 				.doOnNext(n -> emittedClient.incrementAndGet())
 				.doOnRequest(r -> System.out.println("CLIENT REQUESTS requestN: " + r))
 				.map(i -> {
@@ -226,7 +224,7 @@ public class TestFlowControlRequestN {
 		ControlledSubscriber s = new ControlledSubscriber();
 		AtomicInteger emittedClient = new AtomicInteger();
 		socketClient.requestChannel(
-				range(1, 10000)
+				Flux.range(1, 10000)
 				.doOnNext(n -> emittedClient.incrementAndGet())
 				.doOnRequest(r -> System.out.println("CLIENT REQUESTS requestN: " + r))
 				.map(i -> {
@@ -321,7 +319,7 @@ public class TestFlowControlRequestN {
 			public Publisher<Payload> handleRequestStream(Payload payload) {
 				String request = byteToString(payload.getData());
 				System.out.println("responder received requestStream: " + request);
-				return range(0, Integer.parseInt(request))
+				return Flux.range(0, Integer.parseInt(request))
 						.doOnRequest(n -> System.out.println("requested in responder: " + n))
 						.doOnRequest(r -> requested.addAndGet(r))
 						.doOnRequest(r -> numRequests.incrementAndGet())
@@ -331,7 +329,7 @@ public class TestFlowControlRequestN {
 
 			@Override
 			public Publisher<Payload> handleSubscription(Payload payload) {
-				return range(0, Integer.MAX_VALUE)
+				return Flux.range(0, Integer.MAX_VALUE)
 						.doOnRequest(n -> System.out.println("requested in responder: " + n))
 						.doOnRequest(r -> requested.addAndGet(r))
 						.doOnRequest(r -> numRequests.incrementAndGet())
@@ -349,7 +347,7 @@ public class TestFlowControlRequestN {
 				
 				if(requestMetadata.equals("echo")) {
                     // TODO I want this to be concatMap instead of flatMap but apparently concatMap has a bug
-					return fromPublisher(payloads).map(payload -> {
+					return Flux.from(payloads).map(payload -> {
 						String payloadData = byteToString(payload.getData());
 						return utf8EncodedPayload(String.valueOf(payloadData) + "_echo", null);	
 					}).doOnRequest(n -> System.out.println(">>> requested in echo responder: " + n))
@@ -361,7 +359,7 @@ public class TestFlowControlRequestN {
 					/*
 					 * Consume 300 from request and then stop requesting more (but no cancel from responder side)
 					 */
-                    fromPublisher(payloads).doOnNext(payload -> {
+					Flux.from(payloads).doOnNext(payload -> {
                         String payloadData = byteToString(payload.getData());
                         System.out.println("DECOUPLED side-effect of request: " + payloadData);
                     }).subscribe(new Subscriber<Payload>() {
@@ -398,7 +396,7 @@ public class TestFlowControlRequestN {
 						
 					});
 					  
-					return range(1, 1000)
+					return Flux.range(1, 1000)
 							.doOnNext(n -> System.out.println("RESPONDER sending value: " + n))
 							.map(i -> { 
 						return utf8EncodedPayload(String.valueOf(i) + "_decoupled", null);
@@ -410,10 +408,10 @@ public class TestFlowControlRequestN {
 					 .doOnNext(i -> emitted.incrementAndGet());
 				} else {
                     // TODO I want this to be concatMap instead of flatMap but apparently concatMap has a bug
-					return fromPublisher(payloads).flatMap(payload -> {
+					return Flux.from(payloads).flatMap(payload -> {
 						String payloadData = byteToString(payload.getData());
 						System.out.println("responder handleChannel received payload: " + payloadData);
-						return range(0, Integer.parseInt(requestMetadata))
+						return Flux.range(0, Integer.parseInt(requestMetadata))
 								.doOnRequest(n -> System.out.println("requested in responder [" + payloadData + "]: " + n))
 								.doOnRequest(r -> requested.addAndGet(r))
 								.doOnRequest(r -> numRequests.incrementAndGet())
@@ -425,18 +423,18 @@ public class TestFlowControlRequestN {
 
 			@Override
 			public Publisher<Void> handleFireAndForget(Payload payload) {
-				return error(new RuntimeException("Not Found"));
+				return Flux.error(new RuntimeException("Not Found"));
 			}
 
 			@Override
 			public Publisher<Payload> handleRequestResponse(Payload payload) {
-				return error(new RuntimeException("Not Found"));
+				return Flux.error(new RuntimeException("Not Found"));
 			}
 
 			@Override
 			public Publisher<Void> handleMetadataPush(Payload payload)
 			{
-				return error(new RuntimeException("Not Found"));
+				return Flux.error(new RuntimeException("Not Found"));
 			}
 		}, LeaseGovernor.UNLIMITED_LEASE_GOVERNOR, Throwable::printStackTrace);
 

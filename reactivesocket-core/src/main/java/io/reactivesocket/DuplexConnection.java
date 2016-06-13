@@ -15,10 +15,10 @@
  */
 package io.reactivesocket;
 
-import io.reactivesocket.internal.rx.EmptySubscription;
 import io.reactivesocket.rx.Completable;
 import io.reactivesocket.rx.Observable;
 import org.reactivestreams.Publisher;
+import reactor.core.util.EmptySubscription;
 
 import java.io.Closeable;
 

@@ -25,6 +25,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
+import io.reactivesocket.internal.rx.EmptyCancellation;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
@@ -38,13 +39,12 @@ import io.reactivesocket.exceptions.CancelException;
 import io.reactivesocket.exceptions.Exceptions;
 import io.reactivesocket.exceptions.Retryable;
 import io.reactivesocket.internal.frame.RequestFrameFlyweight;
-import io.reactivesocket.internal.rx.BackpressureUtils;
-import io.reactivesocket.internal.rx.EmptyDisposable;
-import io.reactivesocket.internal.rx.EmptySubscription;
 import io.reactivesocket.rx.Completable;
-import io.reactivesocket.rx.Disposable;
 import io.reactivesocket.rx.Observer;
 import org.agrona.collections.Int2ObjectHashMap;
+import reactor.core.flow.Cancellation;
+import reactor.core.util.BackpressureUtils;
+import reactor.core.util.EmptySubscription;
 
 /**
  * Protocol implementation abstracted over a {@link DuplexConnection}.
@@ -53,7 +53,6 @@ import org.agrona.collections.Int2ObjectHashMap;
  */
 public class Requester {
 
-    private final static Disposable CANCELLED = new EmptyDisposable();
     private final static int KEEPALIVE_INTERVAL_MS = 1000;
 
     private final boolean isServer;
@@ -318,7 +317,7 @@ public class Requester {
                     if(n <= 0) {
                         return;
                     }
-                    BackpressureUtils.getAndAddRequest(requested, n);
+                    BackpressureUtils.addAndGet(requested, n);
                     if (started.compareAndSet(false, true)) {
                         // determine initial RequestN
                         long currentN = requested.get();
@@ -431,7 +430,7 @@ public class Requester {
                     if(n <= 0) {
                         return;
                     }
-                    BackpressureUtils.getAndAddRequest(requested, n);
+                    BackpressureUtils.addAndGet(requested, n);
                     if (started.compareAndSet(false, true)) {
                         // determine initial RequestN
                         long currentN = requested.get();
@@ -837,10 +836,10 @@ public class Requester {
     }
 
     private void start(Completable onComplete) {
-        AtomicReference<Disposable> connectionSubscription = new AtomicReference<>();
+        AtomicReference<Cancellation> connectionSubscription = new AtomicReference<>();
         // get input from responder->requestor for responses
         connection.getInput().subscribe(new Observer<Frame>() {
-            public void onSubscribe(Disposable d) {
+            public void onSubscribe(Cancellation d) {
                 if (connectionSubscription.compareAndSet(null, d)) {
                     if(isServer) {
                         requesterStarted = true;
@@ -968,7 +967,7 @@ public class Requester {
             }
 
             public void cancel() { // TODO this isn't used ... is it supposed to be?
-                if (!connectionSubscription.compareAndSet(null, CANCELLED)) {
+                if (!connectionSubscription.compareAndSet(null, EmptyCancellation.INSTANCE)) {
                     // cancel the one that was there if we failed to set the sentinel
                     connectionSubscription.get().dispose();
                     try {

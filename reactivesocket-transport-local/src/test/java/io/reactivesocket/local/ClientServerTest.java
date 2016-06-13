@@ -26,10 +26,10 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
-import rx.Observable;
-import rx.RxReactiveStreams;
-import rx.observers.TestSubscriber;
+import reactor.core.publisher.Flux;
+import reactor.core.test.TestSubscriber;
 
+import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 
 import static io.reactivesocket.util.Unsafe.toSingleFuture;
@@ -59,21 +59,19 @@ public class ClientServerTest {
                     public Publisher<Payload> handleRequestStream(Payload payload) {
                         Payload response = TestUtil.utf8EncodedPayload("hello world", "metadata");
 
-                        return RxReactiveStreams
-                            .toPublisher(Observable
-                                .range(1, 10)
-                                .map(i -> response));
+                        return Flux
+                            .range(1, 10)
+                            .map(i -> response);
                     }
 
                     @Override
                     public Publisher<Payload> handleSubscription(Payload payload) {
                         Payload response = TestUtil.utf8EncodedPayload("hello world", "metadata");
 
-                        return RxReactiveStreams
-                            .toPublisher(Observable
-                                .range(1, 10)
-                                .map(i -> response)
-                                .repeat());
+                        return Flux
+                            .range(1, 10)
+                            .map(i -> response)
+                            .repeat();
                     }
 
                     @Override
@@ -135,29 +133,26 @@ public class ClientServerTest {
     public void testRequestStream() {
         TestSubscriber<Payload> ts = TestSubscriber.create();
 
-        RxReactiveStreams
-            .toObservable(client.requestStream(TestUtil.utf8EncodedPayload("hello", "metadata")))
+        client.requestStream(TestUtil.utf8EncodedPayload("hello", "metadata"))
             .subscribe(ts);
 
-
-        ts.awaitTerminalEvent(3_000, TimeUnit.MILLISECONDS);
+        ts.await(Duration.ofMillis(3_000));
         ts.assertValueCount(10);
-        ts.assertNoErrors();
-        ts.assertCompleted();
+        ts.assertNoError();
+        ts.assertComplete();
     }
 
     @Test
     public void testRequestSubscription() throws InterruptedException {
         TestSubscriber<Payload> ts = TestSubscriber.create();
 
-        RxReactiveStreams
-            .toObservable(client.requestSubscription(TestUtil.utf8EncodedPayload("hello sub", "metadata sub")))
+        Flux.from(client.requestSubscription(TestUtil.utf8EncodedPayload("hello sub", "metadata sub")))
             .take(10)
             .subscribe(ts);
 
-        ts.awaitTerminalEvent(3_000, TimeUnit.MILLISECONDS);
+        ts.await(Duration.ofMillis(3_000));
         ts.assertValueCount(10);
-        ts.assertNoErrors();
+        ts.assertNoError();
     }
 
 
@@ -165,20 +160,19 @@ public class ClientServerTest {
 
         TestSubscriber<String> ts = TestSubscriber.create();
 
-        Observable
+        Flux
             .range(1, count)
             .flatMap(i ->
-                RxReactiveStreams
-                    .toObservable(client.requestResponse(TestUtil.utf8EncodedPayload("hello", "metadata")))
+                Flux.from(client.requestResponse(TestUtil.utf8EncodedPayload("hello", "metadata")))
                     .map(payload -> TestUtil.byteToString(payload.getData()))
             )
             .doOnError(Throwable::printStackTrace)
             .subscribe(ts);
 
-        ts.awaitTerminalEvent(timeout, TimeUnit.MILLISECONDS);
+        ts.await(Duration.ofMillis(timeout));
         ts.assertValueCount(count);
-        ts.assertNoErrors();
-        ts.assertCompleted();
+        ts.assertNoError();
+        ts.assertComplete();
     }
 
 

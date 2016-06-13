@@ -18,11 +18,10 @@
 package io.reactivesocket.mimetypes.internal.cbor;
 
 import org.agrona.BitUtil;
-import rx.functions.Action2;
-import rx.functions.Actions;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 /**
@@ -58,14 +57,15 @@ import java.util.function.Function;
  */
 public enum CborHeader {
 
-    INDEFINITE(1, 31, Actions.empty(),
-               aLong -> aLong < 0,
-               buffer -> 31L,
-               aLong -> (byte) 31),
+    INDEFINITE(1, 31,
+        (buffer, type) -> {},
+        aLong -> aLong < 0,
+        buffer -> 31L,
+        aLong -> (byte) 31),
     SMALL(1, -1,
-          Actions.empty(),
-          aLong -> aLong < 24, buffer -> -1L,
-          aLong -> aLong.byteValue()),
+        (buffer, type) -> {},
+        aLong -> aLong < 24, buffer -> -1L,
+        aLong -> aLong.byteValue()),
     BYTE(1 + BitUtil.SIZE_OF_BYTE, 24,
          (buffer, aLong) -> buffer.writeByte((byte) aLong.shortValue()),
          aLong -> aLong <= Byte.MAX_VALUE,
@@ -98,12 +98,12 @@ public enum CborHeader {
 
     private final short sizeInBytes;
     private final int code;
-    private final Action2<IndexedUnsafeBuffer, Long> encodeFunction;
+    private final BiConsumer<IndexedUnsafeBuffer, Long> encodeFunction;
     private final Function<Long, Boolean> matchFunction;
     private final Function<IndexedUnsafeBuffer, Long> decodeFunction;
     private final Function<Long, Byte> codeFunction;
 
-    CborHeader(int sizeInBytes, int code, Action2<IndexedUnsafeBuffer, Long> encodeFunction,
+    CborHeader(int sizeInBytes, int code, BiConsumer<IndexedUnsafeBuffer, Long> encodeFunction,
                Function<Long, Boolean> matchFunction, Function<IndexedUnsafeBuffer, Long> decodeFunction,
                Function<Long, Byte> codeFunction) {
         this.sizeInBytes = (short) sizeInBytes;
@@ -185,7 +185,7 @@ public enum CborHeader {
         int firstByte = type.getTypeCode() << 5 | code;
 
         buffer.writeByte((byte) firstByte);
-        encodeFunction.call(buffer, length);
+        encodeFunction.accept(buffer, length);
     }
 
     /**

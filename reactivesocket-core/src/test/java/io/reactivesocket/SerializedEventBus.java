@@ -19,8 +19,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 
 import io.reactivesocket.rx.Observer;
-import io.reactivex.subjects.PublishSubject;
-import io.reactivex.subjects.Subject;
+import reactor.core.flow.Cancellation;
+import reactor.core.publisher.DirectProcessor;
 
 /**
  * Multicast eventbus that serializes incoming events.
@@ -28,10 +28,10 @@ import io.reactivex.subjects.Subject;
 public class SerializedEventBus {
 
 	private final CopyOnWriteArrayList<Observer<Frame>> os = new CopyOnWriteArrayList<>();
-	private Subject<Frame, Frame> s;
+	private DirectProcessor<Frame> s;
 	
 	public SerializedEventBus() {
-		s = PublishSubject.<Frame>create().toSerialized();
+		s = DirectProcessor.create();
 		s.subscribe(f-> {
 			for (Observer<Frame> o : os) {
 				o.onNext(f);
@@ -66,7 +66,7 @@ public class SerializedEventBus {
 			}
 
 			@Override
-			public void onSubscribe(io.reactivesocket.rx.Disposable d) {
+			public void onSubscribe(Cancellation d) {
 				// TODO Auto-generated method stub
 
 			}

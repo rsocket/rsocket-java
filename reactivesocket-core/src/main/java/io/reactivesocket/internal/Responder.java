@@ -29,15 +29,15 @@ import io.reactivesocket.exceptions.RejectedException;
 import io.reactivesocket.exceptions.SetupException;
 import io.reactivesocket.internal.frame.FrameHeaderFlyweight;
 import io.reactivesocket.internal.frame.SetupFrameFlyweight;
-import io.reactivesocket.internal.rx.EmptyDisposable;
-import io.reactivesocket.internal.rx.EmptySubscription;
+import io.reactivesocket.internal.rx.EmptyCancellation;
 import io.reactivesocket.rx.Completable;
-import io.reactivesocket.rx.Disposable;
 import io.reactivesocket.rx.Observer;
 import org.agrona.collections.Int2ObjectHashMap;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
+import reactor.core.flow.Cancellation;
+import reactor.core.util.EmptySubscription;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -171,13 +171,13 @@ public class Responder {
 		final Int2ObjectHashMap<UnicastSubject<Payload>> channels = new Int2ObjectHashMap<>();
 
 		final AtomicBoolean childTerminated = new AtomicBoolean(false);
-		final AtomicReference<Disposable> transportSubscription = new AtomicReference<>();
+		final AtomicReference<Cancellation> transportSubscription = new AtomicReference<>();
 
 		// subscribe to transport to get Frames
 		connection.getInput().subscribe(new Observer<Frame>() {
 
 			@Override
-			public void onSubscribe(Disposable d) {
+			public void onSubscribe(Cancellation d) {
 				if (transportSubscription.compareAndSet(null, d)) {
 					// mark that we have completed setup
 					responderCompletable.success();
@@ -380,7 +380,7 @@ public class Responder {
 			private void cancel() {
 				// child has cancelled (shutdown the connection or server)
 				// TODO validate with unit tests
-				if (!transportSubscription.compareAndSet(null, EmptyDisposable.EMPTY)) {
+				if (!transportSubscription.compareAndSet(null, EmptyCancellation.INSTANCE)) {
 					// cancel the one that was there if we failed to set the sentinel
 					transportSubscription.get().dispose();
 				}

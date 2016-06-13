@@ -22,13 +22,13 @@ import io.reactivesocket.aeron.internal.Loggable;
 import io.reactivesocket.aeron.internal.NotConnectedException;
 import io.reactivesocket.exceptions.TransportException;
 import io.reactivesocket.rx.Completable;
-import io.reactivesocket.rx.Disposable;
 import io.reactivesocket.rx.Observable;
 import io.reactivesocket.rx.Observer;
 import org.agrona.concurrent.AbstractConcurrentArrayQueue;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
+import reactor.core.flow.Cancellation;
 
 import java.io.IOException;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -59,7 +59,7 @@ public class AeronClientDuplexConnection implements DuplexConnection, Loggable {
 
         return new Observable<Frame>() {
             public void subscribe(Observer<Frame> o) {
-                o.onSubscribe(new Disposable() {
+                o.onSubscribe(new Cancellation() {
                     @Override
                     public void dispose() {
                         if (isTraceEnabled()) {

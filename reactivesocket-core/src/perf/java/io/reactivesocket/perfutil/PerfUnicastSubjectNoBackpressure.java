@@ -17,9 +17,9 @@ package io.reactivesocket.perfutil;
 
 import java.util.function.Consumer;
 
-import io.reactivesocket.rx.Disposable;
 import io.reactivesocket.rx.Observable;
 import io.reactivesocket.rx.Observer;
+import reactor.core.flow.Cancellation;
 
 /**
  * The difference between this and the real UnicastSubject is in the `onSubscribe` method where it calls requestN. Not sure that behavior should exist in the producton code. 
@@ -47,7 +47,7 @@ public final class PerfUnicastSubjectNoBackpressure<T> implements Observable<T>,
 	}
 
 	@Override
-	public void onSubscribe(Disposable s) {
+	public void onSubscribe(Cancellation s) {
 	}
 
 	@Override
@@ -71,7 +71,7 @@ public final class PerfUnicastSubjectNoBackpressure<T> implements Observable<T>,
 			s.onError(new IllegalStateException("Only single Subscriber supported"));
 		} else {
 			this.s = s;
-			this.s.onSubscribe(new Disposable() {
+			this.s.onSubscribe(new Cancellation() {
 
 				@Override
 				public void dispose() {

@@ -15,17 +15,17 @@
  */
 package io.reactivesocket;
 
-import static io.reactivex.Observable.*;
-
 import java.io.IOException;
 
 import org.reactivestreams.Publisher;
 
 import io.reactivesocket.rx.Completable;
 import io.reactivesocket.rx.Observer;
-import io.reactivex.Observable;
-import io.reactivex.Scheduler.Worker;
-import io.reactivex.schedulers.Schedulers;
+import reactor.core.flow.Cancellation;
+import reactor.core.publisher.Flux;
+import reactor.core.scheduler.Scheduler;
+import reactor.core.scheduler.Scheduler.Worker;
+import reactor.core.scheduler.Schedulers;
 
 public class TestConnection implements DuplexConnection {
 
@@ -34,10 +34,10 @@ public class TestConnection implements DuplexConnection {
 
 	@Override
 	public void addOutput(Publisher<Frame> o, Completable callback) {
-		fromPublisher(o).flatMap(m -> {
+		Flux.from(o).flatMap(m -> {
 			// no backpressure on a Subject so just firehosing for this test
 			write.send(m);
-			return Observable.<Void> empty();
+			return Flux.empty();
 		}).subscribe(v -> {
 		} , callback::error, callback::success);
 	}
@@ -61,7 +61,7 @@ public class TestConnection implements DuplexConnection {
 			public void subscribe(Observer<Frame> o) {
 				toInput.add(o);
 				// we are okay with the race of sending data and cancelling ... since this is "hot" by definition and unsubscribing is a race.
-				o.onSubscribe(new io.reactivesocket.rx.Disposable() {
+				o.onSubscribe(new Cancellation() {
 
 					@Override
 					public void dispose() {
@@ -78,8 +78,8 @@ public class TestConnection implements DuplexConnection {
 		connectToServerConnection(serverConnection, true);
 	}
 
-	Worker clientThread = Schedulers.newThread().createWorker();
-	Worker serverThread = Schedulers.newThread().createWorker();
+	Worker clientThread = Schedulers.single().createWorker();
+	Worker serverThread = Schedulers.single().createWorker();
 	
 	public void connectToServerConnection(TestConnection serverConnection, boolean log) {
 		if (log) {
@@ -107,8 +107,8 @@ public class TestConnection implements DuplexConnection {
 
 	@Override
 	public void close() throws IOException {
-		clientThread.dispose();
-		serverThread.dispose();
+		clientThread.shutdown();
+		serverThread.shutdown();
 	}
 
 }

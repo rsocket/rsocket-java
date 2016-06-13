@@ -18,15 +18,15 @@ package io.reactivesocket;
 import io.reactivesocket.internal.Requester;
 import io.reactivesocket.internal.Responder;
 import io.reactivesocket.internal.rx.CompositeCompletable;
-import io.reactivesocket.internal.rx.CompositeDisposable;
+import io.reactivesocket.internal.rx.CompositeCancellation;
 import io.reactivesocket.rx.Completable;
-import io.reactivesocket.rx.Disposable;
 import io.reactivesocket.rx.Observable;
 import io.reactivesocket.rx.Observer;
 import org.agrona.BitUtil;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
+import reactor.core.flow.Cancellation;
 
 import java.io.IOException;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -380,7 +380,7 @@ public class DefaultReactiveSocket implements ReactiveSocket {
             return new Observable<Frame>() {
                 @Override
                 public void subscribe(Observer<Frame> o) {
-                    CompositeDisposable cd = new CompositeDisposable();
+                    CompositeCancellation cd = new CompositeCancellation();
                     o.onSubscribe(cd);
                     connection.getInput().subscribe(new Observer<Frame>() {
 
@@ -422,7 +422,7 @@ public class DefaultReactiveSocket implements ReactiveSocket {
                         }
 
                         @Override
-                        public void onSubscribe(Disposable d) {
+                        public void onSubscribe(Cancellation d) {
                             cd.add(d);
                         }
                     });

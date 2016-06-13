@@ -20,8 +20,11 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.reactivestreams.Publisher;
-import io.reactivex.subscribers.TestSubscriber;
+import reactor.core.publisher.Flux;
+import reactor.core.scheduler.Schedulers;
+import reactor.core.test.TestSubscriber;
 
+import java.time.Duration;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -29,8 +32,8 @@ import static io.reactivesocket.TestUtil.byteToString;
 import static io.reactivesocket.TestUtil.utf8EncodedPayload;
 import static io.reactivesocket.ConnectionSetupPayload.HONOR_LEASE;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-import static io.reactivex.Observable.*;
 
 public class LeaseTest {
     private TestConnection clientConnection;
@@ -85,13 +88,13 @@ public class LeaseTest {
 
                 @Override
                 public Publisher<Payload> handleRequestResponse(Payload payload) {
-                    return just(utf8EncodedPayload("hello world", null));
+                    return Flux.just(utf8EncodedPayload("hello world", null));
                 }
 
                 @Override
                 public Publisher<Payload> handleRequestStream(Payload payload) {
-                    return 
-                        range(0, 100)
+                    return
+                        Flux.range(0, 100)
                             .map(i -> "hello world " + i)
                             .map(n -> utf8EncodedPayload(n, null)
                     );
@@ -99,14 +102,14 @@ public class LeaseTest {
 
                 @Override
                 public Publisher<Payload> handleSubscription(Payload payload) {
-                    return interval(1, TimeUnit.MICROSECONDS)
+                    return Flux.interval(1, Schedulers.newTimer("timer", 1))
                         .map(i -> "subscription " + i)
                         .map(n -> utf8EncodedPayload(n, null));
                 }
 
                 @Override
                 public Publisher<Void> handleFireAndForget(Payload payload) {
-                    return empty();
+                    return Flux.empty();
                 }
 
                 /**
@@ -116,7 +119,7 @@ public class LeaseTest {
                 public Publisher<Payload> handleChannel(
                     Payload initialPayload, Publisher<Payload> inputs
                 ) {
-                    return fromPublisher(inputs).map(p ->
+                    return Flux.from(inputs).map(p ->
                         utf8EncodedPayload(byteToString(p.getData()) + "_echo", null));
                 }
 
@@ -157,9 +160,9 @@ public class LeaseTest {
         // the first call will fail without a valid lease
         Publisher<Payload> response0 = socketClient.requestResponse(
             TestUtil.utf8EncodedPayload("hello", null));
-        TestSubscriber<Payload> ts0 = new TestSubscriber<>();;
+        TestSubscriber<Payload> ts0 = TestSubscriber.create();
         response0.subscribe(ts0);
-        ts0.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
+        ts0.await(Duration.ofMillis(500));
 
         // send a Lease(10 sec, 1 message), and wait for the availability on the client side
         leaseGovernor.distribute(10_000, 1);
@@ -168,19 +171,21 @@ public class LeaseTest {
         // the second call will succeed
         Publisher<Payload> response1 = socketClient.requestResponse(
             TestUtil.utf8EncodedPayload("hello", null));
-        TestSubscriber<Payload> ts1 = new TestSubscriber<>();;
+        TestSubscriber<Payload> ts1 = TestSubscriber.create();
         response1.subscribe(ts1);
-        ts1.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
-        ts1.assertNoErrors();
-        ts1.assertValue(TestUtil.utf8EncodedPayload("hello world", null));
+        ts1.await(Duration.ofMillis(500));
+        ts1.assertNoError();
+        ts1.assertValuesWith(value ->
+            assertEquals(TestUtil.utf8EncodedPayload("hello world", null), value)
+        );
 
         // the client consumed all its ticket, next call will fail
         // (even though the window is still ok)
         Publisher<Payload> response2 = socketClient.requestResponse(
             TestUtil.utf8EncodedPayload("hello", null));
-        TestSubscriber<Payload> ts2 = new TestSubscriber<>();
+        TestSubscriber<Payload> ts2 = TestSubscriber.create();
         response2.subscribe(ts2);
-        ts2.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
+        ts2.await(Duration.ofMillis(500));
         ts2.assertError(RuntimeException.class);
     }
 

@@ -1,5 +1,7 @@
 package io.reactivesocket.rx;
 
+import reactor.core.flow.Cancellation;
+
 public interface Observer<T> {
 
 	public void onNext(T t);
@@ -8,5 +10,5 @@ public interface Observer<T> {
 	
 	public void onComplete();
 	
-	public void onSubscribe(Disposable d);
+	public void onSubscribe(Cancellation d);
 }

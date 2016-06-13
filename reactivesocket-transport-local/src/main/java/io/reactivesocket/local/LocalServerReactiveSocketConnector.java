@@ -16,8 +16,8 @@
 package io.reactivesocket.local;
 
 import io.reactivesocket.*;
-import io.reactivesocket.internal.rx.EmptySubscription;
 import org.reactivestreams.Publisher;
+import reactor.core.util.EmptySubscription;
 
 public class LocalServerReactiveSocketConnector implements ReactiveSocketConnector<LocalServerReactiveSocketConnector.Config> {
     public static final LocalServerReactiveSocketConnector INSTANCE = new LocalServerReactiveSocketConnector();

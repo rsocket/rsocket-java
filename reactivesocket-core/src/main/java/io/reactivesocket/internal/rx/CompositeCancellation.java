@@ -4,22 +4,22 @@ import java.util.HashSet;
 import java.util.Set;
 
 import io.reactivesocket.rx.Completable;
-import io.reactivesocket.rx.Disposable;
+import reactor.core.flow.Cancellation;
 
 /**
- * A Disposable container that can hold onto multiple other Disposables.
+ * A Cancellation container that can hold onto multiple other Cancellations.
  */
-public final class CompositeDisposable implements Disposable {
+public final class CompositeCancellation implements Cancellation {
 
 	// protected by synchronized
 	private boolean disposed = false;
-	final Set<Disposable> resources = new HashSet<>();
+	final Set<Cancellation> resources = new HashSet<>();
 
-	public CompositeDisposable() {
+	public CompositeCancellation() {
 
 	}
 
-	public void add(Disposable d) {
+	public void add(Cancellation d) {
 		boolean isDisposed = false;
 		synchronized (this) {
 			if (disposed) {
@@ -47,13 +47,13 @@ public final class CompositeDisposable implements Disposable {
 
 	@Override
 	public void dispose() {
-		Disposable[] cs;
+		Cancellation[] cs;
 		synchronized (this) {
 			disposed = true;
-			cs = resources.toArray(new Disposable[] {});
+			cs = resources.toArray(new Cancellation[] {});
 			resources.clear();
 		}
-		for (Disposable d : cs) {
+		for (Cancellation d : cs) {
 			d.dispose();
 		}
 	}

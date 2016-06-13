@@ -2,4 +2,6 @@ dependencies {
     compile project(':reactivesocket-core')
     compile project(':reactivesocket-test')
     compile 'io.aeron:aeron-all:0.9.5'
+    compile 'io.reactivex:rxjava:latest.release'
+    compile 'io.reactivex:rxjava-reactive-streams:latest.release'
 }

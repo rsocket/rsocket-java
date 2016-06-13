@@ -18,15 +18,12 @@ subprojects {
 
     repositories {
         jcenter()
-        maven { url 'https://oss.jfrog.org/libs-snapshot' }
         maven { url 'https://dl.bintray.com/reactivesocket/ReactiveSocket' }
     }
 
     dependencies {
-        compile 'org.reactivestreams:reactive-streams:1.0.0.final'
+        compile "io.projectreactor:reactor-core:2.5.0.M4"
         compile 'org.agrona:Agrona:0.4.13'
-        compile 'io.reactivex:rxjava:latest.release'
-        compile 'io.reactivex:rxjava-reactive-streams:latest.release'
         compile 'org.hdrhistogram:HdrHistogram:latest.release'
         compile 'org.slf4j:slf4j-api:latest.release'
 
