@@ -47,7 +47,6 @@ class LocalClientDuplexConnection implements DuplexConnection {
 
     @Override
     public void addOutput(Publisher<Frame> o, Completable callback) {
-
         o
             .subscribe(new Subscriber<Frame>() {
 
