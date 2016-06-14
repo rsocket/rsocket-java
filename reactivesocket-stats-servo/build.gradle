@@ -1,0 +1,7 @@
+dependencies {
+    compile project(':reactivesocket-core')
+    compile 'com.netflix.servo:servo-core:latest.release'
+    compile 'org.hdrhistogram:HdrHistogram:latest.release'
+
+    testCompile project(':reactivesocket-test')
+}

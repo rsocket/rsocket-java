@@ -1,0 +1,4 @@
+dependencies {
+    compile project (':reactivesocket-core')
+    compile 'com.netflix.eureka:eureka-client:latest.release'
+}
