@@ -15,28 +15,27 @@
  */
 package io.reactivesocket.aeron.client;
 
+import io.aeron.Publication;
+import io.aeron.logbuffer.FragmentHandler;
+import io.aeron.logbuffer.Header;
 import io.reactivesocket.Frame;
 import io.reactivesocket.aeron.internal.AeronUtil;
 import io.reactivesocket.aeron.internal.Constants;
 import io.reactivesocket.aeron.internal.Loggable;
 import io.reactivesocket.aeron.internal.MessageType;
-import io.reactivesocket.rx.Observer;
-import org.reactivestreams.Publisher;
-import org.reactivestreams.Subscriber;
-import io.aeron.Publication;
-import io.aeron.logbuffer.FragmentHandler;
-import io.aeron.logbuffer.Header;
 import org.agrona.BitUtil;
 import org.agrona.DirectBuffer;
 import org.agrona.concurrent.ManyToManyConcurrentArrayQueue;
 import org.agrona.concurrent.UnsafeBuffer;
+import org.reactivestreams.Publisher;
+import org.reactivestreams.Subscriber;
+import reactor.core.publisher.DirectProcessor;
 
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.nio.ByteBuffer;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListMap;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
@@ -187,20 +186,13 @@ public final class AeronClientDuplexConnectionFactory implements Loggable {
             if (messageType == MessageType.FRAME) {
                 AeronClientDuplexConnection aeronClientDuplexConnection = connections.get(header.sessionId());
                 if (aeronClientDuplexConnection != null) {
-                    CopyOnWriteArrayList<Observer<Frame>> subjects = aeronClientDuplexConnection.getSubjects();
-                    if (!subjects.isEmpty()) {
+                    DirectProcessor<Frame> processor = aeronClientDuplexConnection.getProcessor();
+                    if (processor.hasDownstreams()) {
                         //TODO think about how to recycle these, hard because could be handed to another thread I think?
                         final ByteBuffer bytes = ByteBuffer.allocate(length);
                         buffer.getBytes(BitUtil.SIZE_OF_INT + offset, bytes, length);
                         final Frame frame = Frame.from(bytes);
-                        int i = 0;
-                        final int size = subjects.size();
-                        do {
-                            Observer<Frame> frameObserver = subjects.get(i);
-                            frameObserver.onNext(frame);
-
-                            i++;
-                        } while (i < size);
+                        processor.onNext(frame);
                     }
                 } else {
                     debug("no connection found for Aeron Session Id {}", header.sessionId());

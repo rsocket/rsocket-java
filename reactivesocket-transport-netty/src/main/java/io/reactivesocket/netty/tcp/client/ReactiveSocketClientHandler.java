@@ -21,17 +21,15 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.reactivesocket.Frame;
 import io.reactivesocket.netty.MutableDirectByteBuf;
-import io.reactivesocket.rx.Observer;
-
-import java.util.concurrent.CopyOnWriteArrayList;
+import reactor.core.publisher.DirectProcessor;
 
 @ChannelHandler.Sharable
 public class ReactiveSocketClientHandler extends ChannelInboundHandlerAdapter {
 
-    private final CopyOnWriteArrayList<Observer<Frame>> subjects;
+    private final DirectProcessor<Frame> directProcessor;
 
-    public ReactiveSocketClientHandler(CopyOnWriteArrayList<Observer<Frame>> subjects) {
-        this.subjects = subjects;
+    public ReactiveSocketClientHandler(DirectProcessor<Frame> directProcessor) {
+        this.directProcessor = directProcessor;
     }
 
     @Override
@@ -40,7 +38,7 @@ public class ReactiveSocketClientHandler extends ChannelInboundHandlerAdapter {
         try {
             MutableDirectByteBuf mutableDirectByteBuf = new MutableDirectByteBuf(byteBuf);
             final Frame from = Frame.from(mutableDirectByteBuf, 0, mutableDirectByteBuf.capacity());
-            subjects.forEach(o -> o.onNext(from));
+            directProcessor.onNext(from);
         } finally {
             byteBuf.release();
         }
@@ -54,6 +52,7 @@ public class ReactiveSocketClientHandler extends ChannelInboundHandlerAdapter {
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
         // Close the connection when an exception is raised.
+        directProcessor.onError(cause);
         cause.printStackTrace();
         ctx.close();
     }

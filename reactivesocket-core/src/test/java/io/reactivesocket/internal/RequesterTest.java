@@ -15,26 +15,28 @@
  */
 package io.reactivesocket.internal;
 
-import static io.reactivesocket.TestUtil.*;
-import static org.junit.Assert.*;
-import static io.reactivesocket.ConnectionSetupPayload.NO_FLAGS;
-
-import java.time.Duration;
-import java.util.Arrays;
-import java.util.List;
-import java.util.function.Consumer;
-
-import org.junit.Test;
-
 import io.reactivesocket.ConnectionSetupPayload;
 import io.reactivesocket.Frame;
 import io.reactivesocket.FrameType;
 import io.reactivesocket.LatchedCompletable;
 import io.reactivesocket.Payload;
 import io.reactivesocket.TestConnection;
+import org.junit.Test;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.ReplayProcessor;
 import reactor.core.test.TestSubscriber;
+
+import java.time.Duration;
+import java.util.Arrays;
+import java.util.List;
+import java.util.function.Consumer;
+
+import static io.reactivesocket.ConnectionSetupPayload.NO_FLAGS;
+import static io.reactivesocket.TestUtil.byteToString;
+import static io.reactivesocket.TestUtil.utf8EncodedErrorFrame;
+import static io.reactivesocket.TestUtil.utf8EncodedPayload;
+import static io.reactivesocket.TestUtil.utf8EncodedResponseFrame;
+import static org.junit.Assert.assertEquals;
 
 public class RequesterTest
 {
@@ -66,7 +68,7 @@ public class RequesterTest
         assertEquals(FrameType.REQUEST_RESPONSE, two.getType());
         
         // now emit a response to ensure the Publisher receives and completes
-        conn.toInput.send(utf8EncodedResponseFrame(2, FrameType.NEXT_COMPLETE, "world"));
+        conn.toInput.onNext(utf8EncodedResponseFrame(2, FrameType.NEXT_COMPLETE, "world"));
 
         ts.await(Duration.ofMillis(500));
         ts.assertValuesWith(value ->
@@ -99,7 +101,7 @@ public class RequesterTest
         assertEquals("hello", byteToString(two.getData()));
         assertEquals(FrameType.REQUEST_RESPONSE, two.getType());
 
-        conn.toInput.send(Frame.Error.from(2, new RuntimeException("Failed")));
+        conn.toInput.onNext(Frame.Error.from(2, new RuntimeException("Failed")));
         ts.await(Duration.ofMillis(500));
         ts.assertError(Exception.class);
         ts.assertErrorMessage("Failed");
@@ -166,9 +168,9 @@ public class RequesterTest
         // TODO assert initial requestN
         
         // emit data
-        conn.toInput.send(utf8EncodedResponseFrame(2, FrameType.NEXT, "hello"));
-        conn.toInput.send(utf8EncodedResponseFrame(2, FrameType.NEXT, "world"));
-        conn.toInput.send(utf8EncodedResponseFrame(2, FrameType.COMPLETE, ""));
+        conn.toInput.onNext(utf8EncodedResponseFrame(2, FrameType.NEXT, "hello"));
+        conn.toInput.onNext(utf8EncodedResponseFrame(2, FrameType.NEXT, "world"));
+        conn.toInput.onNext(utf8EncodedResponseFrame(2, FrameType.COMPLETE, ""));
 
         ts.await(Duration.ofMillis(500));
         ts.assertComplete();
@@ -202,8 +204,8 @@ public class RequesterTest
         // TODO assert initial requestN
 
         // emit data
-        conn.toInput.send(utf8EncodedResponseFrame(2, FrameType.NEXT, "hello"));
-        conn.toInput.send(utf8EncodedResponseFrame(2, FrameType.NEXT, "world"));
+        conn.toInput.onNext(utf8EncodedResponseFrame(2, FrameType.NEXT, "hello"));
+        conn.toInput.onNext(utf8EncodedResponseFrame(2, FrameType.NEXT, "world"));
 
         ts.await(Duration.ofMillis(500));
         ts.assertComplete();
@@ -245,8 +247,8 @@ public class RequesterTest
         // TODO assert initial requestN
 
         // emit data
-        conn.toInput.send(utf8EncodedResponseFrame(2, FrameType.NEXT, "hello"));
-        conn.toInput.send(utf8EncodedErrorFrame(2, "Failure"));
+        conn.toInput.onNext(utf8EncodedResponseFrame(2, FrameType.NEXT, "hello"));
+        conn.toInput.onNext(utf8EncodedErrorFrame(2, "Failure"));
 
         ts.await(Duration.ofMillis(500));
         ts.assertError(Exception.class);
@@ -268,7 +270,7 @@ public class RequesterTest
     private ReplayProcessor<Frame> captureRequests(TestConnection conn) {
         ReplayProcessor<Frame> rs = ReplayProcessor.create();
         //rs.forEach(i -> System.out.println("capturedRequest => " + i));
-        conn.write.add(rs::onNext);
+        conn.write.subscribe(rs::onNext);
         return rs;
     }
 }

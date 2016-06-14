@@ -23,75 +23,51 @@ import io.netty.channel.ChannelHandlerContext;
 import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
 import io.reactivesocket.rx.Completable;
-import io.reactivesocket.rx.Observable;
-import io.reactivesocket.rx.Observer;
 import org.reactivestreams.Publisher;
-import org.reactivestreams.Subscriber;
-import org.reactivestreams.Subscription;
+import reactor.core.publisher.DirectProcessor;
+import reactor.core.publisher.Flux;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 public class ServerTcpDuplexConnection implements DuplexConnection {
-    private final CopyOnWriteArrayList<Observer<Frame>> subjects;
+    private final DirectProcessor<Frame> directProcessor;
 
     private final ChannelHandlerContext ctx;
 
     public ServerTcpDuplexConnection(ChannelHandlerContext ctx) {
-        this.subjects = new CopyOnWriteArrayList<>();
+        this.directProcessor = DirectProcessor.create();
         this.ctx = ctx;
     }
 
-    public List<? extends Observer<Frame>> getSubscribers() {
-        return subjects;
+    public DirectProcessor<Frame> getSubscribers() {
+        return directProcessor;
     }
 
     @Override
-    public final Observable<Frame> getInput() {
-        return o -> {
-            o.onSubscribe(() -> subjects.removeIf(s -> s == o));
-            subjects.add(o);
-        };
+    public final Publisher<Frame> getInput() {
+        return directProcessor;
     }
 
     @Override
     public void addOutput(Publisher<Frame> o, Completable callback) {
-        o.subscribe(new Subscriber<Frame>() {
-            @Override
-            public void onSubscribe(Subscription s) {
-                s.request(Long.MAX_VALUE);
-            }
-
-            @Override
-            public void onNext(Frame frame) {
-                try {
-                    ByteBuffer data = frame.getByteBuffer();
-                    ByteBuf byteBuf = Unpooled.wrappedBuffer(data);
-                    ChannelFuture channelFuture = ctx.writeAndFlush(byteBuf);
-                    channelFuture.addListener(future -> {
-                        Throwable cause = future.cause();
-                        if (cause != null) {
-                            cause.printStackTrace();
-                            callback.error(cause);
-                        }
-                    });
-                } catch (Throwable t) {
-                    onError(t);
-                }
-            }
-
-            @Override
-            public void onError(Throwable t) {
-                callback.error(t);
-            }
-
-            @Override
-            public void onComplete() {
-                callback.success();
-            }
-        });
+        Flux
+            .from(o)
+            .doOnNext(frame -> {
+                ByteBuffer data = frame.getByteBuffer();
+                ByteBuf byteBuf = Unpooled.wrappedBuffer(data);
+                ChannelFuture channelFuture = ctx.writeAndFlush(byteBuf);
+                channelFuture.addListener(future -> {
+                    Throwable cause = future.cause();
+                    if (cause != null) {
+                        cause.printStackTrace();
+                        callback.error(cause);
+                    }
+                });
+            })
+            .doOnError(callback::error)
+            .doOnComplete(callback::success)
+            .subscribe();
     }
 
     @Override
@@ -101,7 +77,7 @@ public class ServerTcpDuplexConnection implements DuplexConnection {
 
     @Override
     public void close() throws IOException {
-
+        directProcessor.onComplete();
     }
 
     public String toString() {

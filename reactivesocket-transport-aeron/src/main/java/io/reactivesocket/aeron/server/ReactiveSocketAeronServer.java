@@ -28,13 +28,12 @@ import io.reactivesocket.LeaseGovernor;
 import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.aeron.internal.Loggable;
 import io.reactivesocket.aeron.internal.MessageType;
-import io.reactivesocket.rx.Observer;
 import org.agrona.BitUtil;
 import org.agrona.DirectBuffer;
 import org.agrona.concurrent.UnsafeBuffer;
+import reactor.core.publisher.DirectProcessor;
 
 import java.nio.ByteBuffer;
-import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -107,7 +106,7 @@ public class ReactiveSocketAeronServer implements AutoCloseable, Loggable {
             if (MessageType.FRAME == type) {
                 AeronServerDuplexConnection connection = connections.get(sessionId);
                 if (connection != null && !connection.isClosed()) {
-                    List<? extends Observer<Frame>> subscribers = connection.getSubscriber();
+                    DirectProcessor<Frame> processor = connection.getProcessor();
 
                     ByteBuffer bb = ByteBuffer.allocate(length);
                     BUFFER.wrap(bb);
@@ -119,13 +118,13 @@ public class ReactiveSocketAeronServer implements AutoCloseable, Loggable {
                         trace("server received frame payload {} on session id {}", frame.getData(), sessionId);
                     }
 
-                    subscribers.forEach(s -> {
+                    if (processor.hasDownstreams()) {
                         try {
-                            s.onNext(frame);
+                            processor.onNext(frame);
                         } catch (Throwable t) {
-                            s.onError(t);
+                            processor.onError(t);
                         }
-                    });
+                    }
                 }
             } else if (MessageType.ESTABLISH_CONNECTION_REQUEST == type) {
                 final long start = System.nanoTime();

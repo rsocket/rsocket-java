@@ -15,21 +15,6 @@
  */
 package io.reactivesocket.internal;
 
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.charset.Charset;
-import java.util.Collection;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
-
-import io.reactivesocket.internal.rx.EmptyCancellation;
-import org.reactivestreams.Publisher;
-import org.reactivestreams.Subscriber;
-import org.reactivestreams.Subscription;
-
 import io.reactivesocket.ConnectionSetupPayload;
 import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
@@ -40,11 +25,22 @@ import io.reactivesocket.exceptions.Exceptions;
 import io.reactivesocket.exceptions.Retryable;
 import io.reactivesocket.internal.frame.RequestFrameFlyweight;
 import io.reactivesocket.rx.Completable;
-import io.reactivesocket.rx.Observer;
 import org.agrona.collections.Int2ObjectHashMap;
-import reactor.core.flow.Cancellation;
+import org.reactivestreams.Publisher;
+import org.reactivestreams.Subscriber;
+import org.reactivestreams.Subscription;
 import reactor.core.util.BackpressureUtils;
 import reactor.core.util.EmptySubscription;
+
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.charset.Charset;
+import java.util.Collection;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 /**
  * Protocol implementation abstracted over a {@link DuplexConnection}.
@@ -836,10 +832,10 @@ public class Requester {
     }
 
     private void start(Completable onComplete) {
-        AtomicReference<Cancellation> connectionSubscription = new AtomicReference<>();
+        AtomicReference<Subscription> connectionSubscription = new AtomicReference<>();
         // get input from responder->requestor for responses
-        connection.getInput().subscribe(new Observer<Frame>() {
-            public void onSubscribe(Cancellation d) {
+        connection.getInput().subscribe(new Subscriber<Frame>() {
+            public void onSubscribe(Subscription d) {
                 if (connectionSubscription.compareAndSet(null, d)) {
                     if(isServer) {
                         requesterStarted = true;
@@ -886,7 +882,7 @@ public class Requester {
                     }
                 } else {
                     // means we already were cancelled
-                    d.dispose();
+                    d.cancel();
                     onComplete.error(new CancelException("Connection Is Already Cancelled"));
                 }
             }
@@ -967,9 +963,9 @@ public class Requester {
             }
 
             public void cancel() { // TODO this isn't used ... is it supposed to be?
-                if (!connectionSubscription.compareAndSet(null, EmptyCancellation.INSTANCE)) {
+                if (!connectionSubscription.compareAndSet(null, EmptySubscription.INSTANCE)) {
                     // cancel the one that was there if we failed to set the sentinel
-                    connectionSubscription.get().dispose();
+                    connectionSubscription.get().cancel();
                     try {
                         connection.close();
                     } catch (IOException e) {

@@ -18,31 +18,26 @@ package io.reactivesocket.local;
 import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
 import io.reactivesocket.rx.Completable;
-import io.reactivesocket.rx.Observable;
-import io.reactivesocket.rx.Observer;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
+import reactor.core.publisher.DirectProcessor;
 
 import java.io.IOException;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 class LocalClientDuplexConnection implements DuplexConnection {
     private final String name;
 
-    private final CopyOnWriteArrayList<Observer<Frame>> subjects;
+    private final DirectProcessor<Frame> directProcessor;
 
     public LocalClientDuplexConnection(String name) {
         this.name = name;
-        this.subjects = new CopyOnWriteArrayList<>();
+        this.directProcessor = DirectProcessor.create();
     }
 
     @Override
-    public Observable<Frame> getInput() {
-        return o -> {
-            o.onSubscribe(() -> subjects.removeIf(s -> s == o));
-            subjects.add(o);
-        };
+    public Publisher<Frame> getInput() {
+        return directProcessor;
     }
 
     @Override
@@ -86,8 +81,10 @@ class LocalClientDuplexConnection implements DuplexConnection {
     }
 
     void write(Frame frame) {
-        subjects
-            .forEach(o -> o.onNext(frame));
+        if (directProcessor.hasDownstreams()) {
+            directProcessor
+                .onNext(frame);
+        }
     }
 
     @Override
@@ -96,5 +93,6 @@ class LocalClientDuplexConnection implements DuplexConnection {
             .getInstance()
             .removeClientConnection(name);
 
+        directProcessor.onComplete();
     }
 }
