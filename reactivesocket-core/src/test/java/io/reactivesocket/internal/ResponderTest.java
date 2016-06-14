@@ -28,8 +28,6 @@ import org.reactivestreams.Subscription;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.ReplayProcessor;
 
-import java.util.List;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
@@ -65,7 +63,7 @@ public class ResponderTest
         sendSetupFrame(conn);
         
         // perform a request/response
-        conn.toInput.send(utf8EncodedRequestFrame(1, FrameType.REQUEST_RESPONSE, "hello", 128));
+        conn.toInput.onNext(utf8EncodedRequestFrame(1, FrameType.REQUEST_RESPONSE, "hello", 128));
 
         /*assertEquals(1, cachedResponses.getValues().length);// 1 onNext + 1 onCompleted
         List<Frame> frames = cachedResponses.take(1).toList().toBlocking().first();
@@ -91,7 +89,7 @@ public class ResponderTest
         sendSetupFrame(conn);
 
         // perform a request/response
-        conn.toInput.send(utf8EncodedRequestFrame(1, FrameType.REQUEST_RESPONSE, "hello", 128));
+        conn.toInput.onNext(utf8EncodedRequestFrame(1, FrameType.REQUEST_RESPONSE, "hello", 128));
 
         // assert
         Frame first = cachedResponses.toIterable().iterator().next();
@@ -119,12 +117,12 @@ public class ResponderTest
         sendSetupFrame(conn);
 
         // perform a request/response
-        conn.toInput.send(utf8EncodedRequestFrame(1, FrameType.REQUEST_RESPONSE, "hello", 128));
+        conn.toInput.onNext(utf8EncodedRequestFrame(1, FrameType.REQUEST_RESPONSE, "hello", 128));
         // assert no response
         //assertFalse(cachedResponses.hasValue());
         // unsubscribe
         assertFalse(unsubscribed.get());
-        conn.toInput.send(Frame.Cancel.from(1));
+        conn.toInput.onNext(Frame.Cancel.from(1));
         assertTrue(unsubscribed.get());
     }
 
@@ -143,7 +141,7 @@ public class ResponderTest
         sendSetupFrame(conn);
 
         // perform a request/response
-        conn.toInput.send(utf8EncodedRequestFrame(1, FrameType.REQUEST_STREAM, "10", 128));
+        conn.toInput.onNext(utf8EncodedRequestFrame(1, FrameType.REQUEST_STREAM, "10", 128));
 
         // assert
         /*assertEquals(11, cachedResponses.getValues().length);// 10 onNext + 1 onCompleted
@@ -178,7 +176,7 @@ public class ResponderTest
         sendSetupFrame(conn);
 
         // perform a request/response
-        conn.toInput.send(utf8EncodedRequestFrame(1, FrameType.REQUEST_STREAM, "0", 128));
+        conn.toInput.onNext(utf8EncodedRequestFrame(1, FrameType.REQUEST_STREAM, "0", 128));
 
         // assert
         /*assertEquals(4, cachedResponses.getValues().length);// 3 onNext + 1 onError
@@ -301,7 +299,7 @@ public class ResponderTest
     private ReplayProcessor<Frame> captureResponses(TestConnection conn) {
         // capture all responses to client
         ReplayProcessor<Frame> rs = ReplayProcessor.create();
-        conn.write.add(rs::onNext);
+        conn.write.subscribe(rs::onNext);
         return rs;
     }
 
@@ -336,6 +334,6 @@ public class ResponderTest
 
 	private void sendSetupFrame(TestConnection conn) {
 		// setup
-        conn.toInput.send(Frame.Setup.from(0, 0, 0, "UTF-8", "UTF-8", utf8EncodedPayload("", "")));
+        conn.toInput.onNext(Frame.Setup.from(0, 0, 0, "UTF-8", "UTF-8", utf8EncodedPayload("", "")));
 	}
 }

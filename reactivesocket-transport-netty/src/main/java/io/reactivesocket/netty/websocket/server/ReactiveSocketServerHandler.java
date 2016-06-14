@@ -29,6 +29,7 @@ import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.netty.MutableDirectByteBuf;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import reactor.core.publisher.DirectProcessor;
 
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -72,10 +73,11 @@ public class ReactiveSocketServerHandler extends SimpleChannelInboundHandler<Bin
             reactiveSocket.startAndWait();
             return c;
         });
-        if (connection != null) {
-            connection
-                .getSubscribers()
-                .forEach(o -> o.onNext(from));
+        DirectProcessor<Frame> subscribers =
+            connection.getSubscribers();
+
+        if (subscribers.hasDownstreams()) {
+            subscribers.onNext(from);
         }
     }
 

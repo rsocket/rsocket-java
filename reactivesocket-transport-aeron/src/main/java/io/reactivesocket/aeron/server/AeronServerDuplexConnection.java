@@ -24,53 +24,33 @@ import io.reactivesocket.aeron.internal.Loggable;
 import io.reactivesocket.aeron.internal.MessageType;
 import io.reactivesocket.aeron.internal.NotConnectedException;
 import io.reactivesocket.rx.Completable;
-import io.reactivesocket.rx.Observable;
-import io.reactivesocket.rx.Observer;
 import org.agrona.BitUtil;
 import org.reactivestreams.Publisher;
-import reactor.core.flow.Cancellation;
+import reactor.core.publisher.DirectProcessor;
 
-import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 
 public class AeronServerDuplexConnection implements DuplexConnection, Loggable {
     private final Publication publication;
-    private final CopyOnWriteArrayList<Observer<Frame>> subjects;
+    private DirectProcessor<Frame> directProcessor;
     private volatile boolean isClosed;
 
     public AeronServerDuplexConnection(
         Publication publication) {
         this.publication = publication;
-        this.subjects = new CopyOnWriteArrayList<>();
     }
 
-    public List<? extends Observer<Frame>> getSubscriber() {
-        return subjects;
+    public DirectProcessor<Frame> getProcessor() {
+        return directProcessor;
     }
 
     @Override
-    public final Observable<Frame> getInput() {
+    public final Publisher<Frame> getInput() {
         if (isTraceEnabled()) {
             trace("-------getting input for publication session id {} ", publication.sessionId());
         }
 
-        return new Observable<Frame>() {
-            public void subscribe(Observer<Frame> o) {
-                o.onSubscribe(new Cancellation() {
-                    @Override
-                    public void dispose() {
-                        if (isTraceEnabled()) {
-                            trace("removing Observer for publication with session id {} ", publication.sessionId());
-                        }
-
-                        subjects.removeIf(s -> s == o);
-                    }
-                });
-
-                subjects.add(o);
-            }
-        };
+        return directProcessor;
     }
 
     @Override
@@ -111,6 +91,9 @@ public class AeronServerDuplexConnection implements DuplexConnection, Loggable {
         try {
             publication.close();
         } catch (Throwable t) {}
+        finally {
+            directProcessor.onComplete();
+        }
     }
 
     public String toString() {

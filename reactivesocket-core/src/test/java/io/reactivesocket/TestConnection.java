@@ -15,28 +15,26 @@
  */
 package io.reactivesocket;
 
-import java.io.IOException;
-
-import org.reactivestreams.Publisher;
-
 import io.reactivesocket.rx.Completable;
-import io.reactivesocket.rx.Observer;
-import reactor.core.flow.Cancellation;
+import org.reactivestreams.Publisher;
+import reactor.core.publisher.DirectProcessor;
 import reactor.core.publisher.Flux;
-import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Scheduler.Worker;
 import reactor.core.scheduler.Schedulers;
 
+import java.io.IOException;
+import java.util.logging.Level;
+
 public class TestConnection implements DuplexConnection {
 
-	public final SerializedEventBus toInput = new SerializedEventBus();
-	public final SerializedEventBus write = new SerializedEventBus();
+	public final DirectProcessor<Frame> toInput = DirectProcessor.create();
+	public final DirectProcessor<Frame> write = DirectProcessor.create();
 
 	@Override
 	public void addOutput(Publisher<Frame> o, Completable callback) {
 		Flux.from(o).flatMap(m -> {
 			// no backpressure on a Subject so just firehosing for this test
-			write.send(m);
+			write.onNext(m);
 			return Flux.empty();
 		}).subscribe(v -> {
 		} , callback::error, callback::success);
@@ -44,7 +42,7 @@ public class TestConnection implements DuplexConnection {
 
 	@Override
 	public void addOutput(Frame f, Completable callback) {
-        write.send(f);
+        write.onNext(f);
         callback.success();
 	}
 
@@ -54,24 +52,8 @@ public class TestConnection implements DuplexConnection {
 	}
 
 	@Override
-	public io.reactivesocket.rx.Observable<Frame> getInput() {
-		return new io.reactivesocket.rx.Observable<Frame>() {
-
-			@Override
-			public void subscribe(Observer<Frame> o) {
-				toInput.add(o);
-				// we are okay with the race of sending data and cancelling ... since this is "hot" by definition and unsubscribing is a race.
-				o.onSubscribe(new Cancellation() {
-
-					@Override
-					public void dispose() {
-						toInput.remove(o);
-					}
-
-				});
-			}
-
-		};
+	public Publisher<Frame> getInput() {
+		return toInput;
 	}
 
 	public void connectToServerConnection(TestConnection serverConnection) {
@@ -82,27 +64,22 @@ public class TestConnection implements DuplexConnection {
 	Worker serverThread = Schedulers.single().createWorker();
 	
 	public void connectToServerConnection(TestConnection serverConnection, boolean log) {
-		if (log) {
+		/*if (log) {
 			serverConnection.write.add(n -> System.out.println("SERVER ==> Writes from server->client: " + n + "   Written from " + Thread.currentThread()));
 			serverConnection.toInput.add(n -> System.out.println("SERVER <== Input from client->server: " + n + "   Read on " + Thread.currentThread()));
 			write.add(n -> System.out.println("CLIENT ==> Writes from client->server: " + n + "   Written from " + Thread.currentThread()));
 			toInput.add(n -> System.out.println("CLIENT <== Input from server->client: " + n + "   Read on " + Thread.currentThread()));
-		}
-		
-		// client to server
-		write.add(f -> {
-//			serverConnection.toInput.send(f);
-			serverThread.schedule(() -> {
-				serverConnection.toInput.send(f);
-			});
-		});
-		// server to client
-		serverConnection.write.add(f -> {
-//			toInput.send(f);
-			clientThread.schedule(() -> {
-				toInput.send(f);
-			});
-		});
+		} */
+
+
+		write
+			.log(TestConnection.class.getName(), Level.ALL)
+			.subscribe(serverConnection.toInput);
+
+		serverConnection
+			.write
+			.log(TestConnection.class.getName(), Level.ALL)
+			.subscribe(toInput);
 	}
 
 	@Override

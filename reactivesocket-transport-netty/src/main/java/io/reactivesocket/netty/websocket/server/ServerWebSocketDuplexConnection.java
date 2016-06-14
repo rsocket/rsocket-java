@@ -24,37 +24,31 @@ import io.netty.handler.codec.http.websocketx.BinaryWebSocketFrame;
 import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
 import io.reactivesocket.rx.Completable;
-import io.reactivesocket.rx.Observable;
-import io.reactivesocket.rx.Observer;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
+import reactor.core.publisher.DirectProcessor;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 public class ServerWebSocketDuplexConnection implements DuplexConnection {
-    private final CopyOnWriteArrayList<Observer<Frame>> subjects;
+    private final DirectProcessor<Frame> directProcessor;
 
     private final ChannelHandlerContext ctx;
 
     public ServerWebSocketDuplexConnection(ChannelHandlerContext ctx) {
-        this.subjects = new CopyOnWriteArrayList<>();
+        this.directProcessor = DirectProcessor.create();
         this.ctx = ctx;
     }
 
-    public List<? extends Observer<Frame>> getSubscribers() {
-        return subjects;
+    public DirectProcessor<Frame> getSubscribers() {
+        return directProcessor;
     }
 
     @Override
-    public final Observable<Frame> getInput() {
-        return o -> {
-            o.onSubscribe(() -> subjects.removeIf(s -> s == o));
-            subjects.add(o);
-        };
+    public final Publisher<Frame> getInput() {
+        return directProcessor;
     }
 
     @Override
@@ -103,7 +97,7 @@ public class ServerWebSocketDuplexConnection implements DuplexConnection {
 
     @Override
     public void close() throws IOException {
-
+        directProcessor.onComplete();
     }
 
     public String toString() {

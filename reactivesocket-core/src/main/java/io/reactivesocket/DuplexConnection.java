@@ -16,7 +16,6 @@
 package io.reactivesocket;
 
 import io.reactivesocket.rx.Completable;
-import io.reactivesocket.rx.Observable;
 import org.reactivestreams.Publisher;
 import reactor.core.util.EmptySubscription;
 
@@ -27,7 +26,7 @@ import java.io.Closeable;
  */
 public interface DuplexConnection extends Closeable {
 
-	Observable<Frame> getInput();
+	Publisher<Frame> getInput();
 
 	void addOutput(Publisher<Frame> o, Completable callback);
 

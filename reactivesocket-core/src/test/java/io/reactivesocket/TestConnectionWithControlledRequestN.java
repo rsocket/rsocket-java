@@ -15,16 +15,15 @@
  */
 package io.reactivesocket;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.concurrent.atomic.AtomicLong;
-
+import io.reactivesocket.rx.Completable;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
-import io.reactivesocket.rx.Completable;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Connection that by defaults only calls request(1) on a Publisher to addOutput. Any further must be done via requestMore(n)
@@ -70,7 +69,7 @@ public class TestConnectionWithControlledRequestN extends TestConnection {
 			public void onNext(Frame t) {
 				emitted.incrementAndGet();
 				sEmitted.incrementAndGet();
-				write.send(t);
+				write.onNext(t);
 			}
 
 			@Override
@@ -92,7 +91,7 @@ public class TestConnectionWithControlledRequestN extends TestConnection {
 	@Override
 	public void addOutput(Frame f, Completable callback) {
 		emitted.incrementAndGet();
-		write.send(f);
+		write.onNext(f);
 		callback.success();
 	}
 

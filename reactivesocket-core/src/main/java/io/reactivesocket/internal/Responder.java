@@ -29,14 +29,11 @@ import io.reactivesocket.exceptions.RejectedException;
 import io.reactivesocket.exceptions.SetupException;
 import io.reactivesocket.internal.frame.FrameHeaderFlyweight;
 import io.reactivesocket.internal.frame.SetupFrameFlyweight;
-import io.reactivesocket.internal.rx.EmptyCancellation;
 import io.reactivesocket.rx.Completable;
-import io.reactivesocket.rx.Observer;
 import org.agrona.collections.Int2ObjectHashMap;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
-import reactor.core.flow.Cancellation;
 import reactor.core.util.EmptySubscription;
 
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -171,19 +168,19 @@ public class Responder {
 		final Int2ObjectHashMap<UnicastSubject<Payload>> channels = new Int2ObjectHashMap<>();
 
 		final AtomicBoolean childTerminated = new AtomicBoolean(false);
-		final AtomicReference<Cancellation> transportSubscription = new AtomicReference<>();
+		final AtomicReference<Subscription> transportSubscription = new AtomicReference<>();
 
 		// subscribe to transport to get Frames
-		connection.getInput().subscribe(new Observer<Frame>() {
+		connection.getInput().subscribe(new Subscriber<Frame>() {
 
 			@Override
-			public void onSubscribe(Cancellation d) {
+			public void onSubscribe(Subscription d) {
 				if (transportSubscription.compareAndSet(null, d)) {
 					// mark that we have completed setup
 					responderCompletable.success();
 				} else {
 					// means we already were cancelled
-					d.dispose();
+					d.cancel();
 				}
 			}
 
@@ -380,9 +377,9 @@ public class Responder {
 			private void cancel() {
 				// child has cancelled (shutdown the connection or server)
 				// TODO validate with unit tests
-				if (!transportSubscription.compareAndSet(null, EmptyCancellation.INSTANCE)) {
+				if (!transportSubscription.compareAndSet(null, EmptySubscription.INSTANCE)) {
 					// cancel the one that was there if we failed to set the sentinel
-					transportSubscription.get().dispose();
+					transportSubscription.get().cancel();
 				}
 			}
 

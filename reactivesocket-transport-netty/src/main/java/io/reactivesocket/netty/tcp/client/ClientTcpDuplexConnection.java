@@ -18,7 +18,12 @@ package io.reactivesocket.netty.tcp.client;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
-import io.netty.channel.*;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelInitializer;
+import io.netty.channel.ChannelOption;
+import io.netty.channel.ChannelPipeline;
+import io.netty.channel.EventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
@@ -26,31 +31,29 @@ import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
 import io.reactivesocket.exceptions.TransportException;
 import io.reactivesocket.rx.Completable;
-import io.reactivesocket.rx.Observable;
-import io.reactivesocket.rx.Observer;
 import org.agrona.BitUtil;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
+import reactor.core.publisher.DirectProcessor;
 
 import java.io.IOException;
 import java.net.SocketAddress;
 import java.nio.channels.ClosedChannelException;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 public class ClientTcpDuplexConnection implements DuplexConnection {
     private final Channel channel;
-    private final CopyOnWriteArrayList<Observer<Frame>> subjects;
+    private final DirectProcessor<Frame> directProcessor;
 
-    private ClientTcpDuplexConnection(Channel channel, CopyOnWriteArrayList<Observer<Frame>> subjects) {
-        this.subjects  = subjects;
+    private ClientTcpDuplexConnection(Channel channel, DirectProcessor<Frame> directProcessor) {
+        this.directProcessor = directProcessor;
         this.channel = channel;
     }
 
     public static Publisher<ClientTcpDuplexConnection> create(SocketAddress address, EventLoopGroup eventLoopGroup) {
         return s -> {
-            CopyOnWriteArrayList<Observer<Frame>> subjects = new CopyOnWriteArrayList<>();
-            ReactiveSocketClientHandler clientHandler = new ReactiveSocketClientHandler(subjects);
+            DirectProcessor<Frame> directProcessor = DirectProcessor.create();
+            ReactiveSocketClientHandler clientHandler = new ReactiveSocketClientHandler(directProcessor);
             Bootstrap bootstrap = new Bootstrap();
             ChannelFuture connect = bootstrap
                 .group(eventLoopGroup)
@@ -73,7 +76,7 @@ public class ClientTcpDuplexConnection implements DuplexConnection {
             connect.addListener(connectFuture -> {
                 if (connectFuture.isSuccess()) {
                     Channel ch = connect.channel();
-                    s.onNext(new ClientTcpDuplexConnection(ch, subjects));
+                    s.onNext(new ClientTcpDuplexConnection(ch, directProcessor));
                     s.onComplete();
                 } else {
                     s.onError(connectFuture.cause());
@@ -83,11 +86,8 @@ public class ClientTcpDuplexConnection implements DuplexConnection {
     }
 
     @Override
-    public final Observable<Frame> getInput() {
-        return o -> {
-            o.onSubscribe(() -> subjects.removeIf(s -> s == o));
-            subjects.add(o);
-        };
+    public final Publisher<Frame> getInput() {
+        return directProcessor;
     }
 
     @Override
@@ -144,6 +144,7 @@ public class ClientTcpDuplexConnection implements DuplexConnection {
     @Override
     public void close() throws IOException {
         channel.close();
+        directProcessor.onComplete();
     }
 
     public String toString() {

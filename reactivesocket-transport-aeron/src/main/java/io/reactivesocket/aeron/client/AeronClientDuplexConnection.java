@@ -22,22 +22,19 @@ import io.reactivesocket.aeron.internal.Loggable;
 import io.reactivesocket.aeron.internal.NotConnectedException;
 import io.reactivesocket.exceptions.TransportException;
 import io.reactivesocket.rx.Completable;
-import io.reactivesocket.rx.Observable;
-import io.reactivesocket.rx.Observer;
 import org.agrona.concurrent.AbstractConcurrentArrayQueue;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
-import reactor.core.flow.Cancellation;
+import reactor.core.publisher.DirectProcessor;
 
 import java.io.IOException;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 
 public class AeronClientDuplexConnection implements DuplexConnection, Loggable {
 
     private final Publication publication;
-    private final CopyOnWriteArrayList<Observer<Frame>> subjects;
+    private DirectProcessor<Frame> directProcessor;
     private final AbstractConcurrentArrayQueue<FrameHolder> frameSendQueue;
     private final Consumer<Publication> onClose;
 
@@ -46,33 +43,18 @@ public class AeronClientDuplexConnection implements DuplexConnection, Loggable {
         AbstractConcurrentArrayQueue<FrameHolder> frameSendQueue,
         Consumer<Publication> onClose) {
         this.publication = publication;
-        this.subjects = new CopyOnWriteArrayList<>();
+        this.directProcessor = DirectProcessor.create();
         this.frameSendQueue = frameSendQueue;
         this.onClose = onClose;
     }
 
     @Override
-    public final Observable<Frame> getInput() {
+    public final Publisher<Frame> getInput() {
         if (isTraceEnabled()) {
             trace("getting input for publication session id {} ", publication.sessionId());
         }
 
-        return new Observable<Frame>() {
-            public void subscribe(Observer<Frame> o) {
-                o.onSubscribe(new Cancellation() {
-                    @Override
-                    public void dispose() {
-                        if (isTraceEnabled()) {
-                            trace("removing Observer for publication with session id {} ", publication.sessionId());
-                        }
-
-                        subjects.removeIf(s -> s == o);
-                    }
-                });
-
-                subjects.add(o);
-            }
-        };
+        return directProcessor;
     }
 
     @Override
@@ -126,10 +108,11 @@ public class AeronClientDuplexConnection implements DuplexConnection, Loggable {
     @Override
     public void close() throws IOException {
         onClose.accept(publication);
+        directProcessor.onComplete();
     }
 
-    public CopyOnWriteArrayList<Observer<Frame>> getSubjects() {
-        return subjects;
+    public DirectProcessor<Frame> getProcessor() {
+        return directProcessor;
     }
 
     public String toString() {

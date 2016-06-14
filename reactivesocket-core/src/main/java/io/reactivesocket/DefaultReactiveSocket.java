@@ -18,15 +18,12 @@ package io.reactivesocket;
 import io.reactivesocket.internal.Requester;
 import io.reactivesocket.internal.Responder;
 import io.reactivesocket.internal.rx.CompositeCompletable;
-import io.reactivesocket.internal.rx.CompositeCancellation;
 import io.reactivesocket.rx.Completable;
-import io.reactivesocket.rx.Observable;
-import io.reactivesocket.rx.Observer;
 import org.agrona.BitUtil;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
-import reactor.core.flow.Cancellation;
+import reactor.core.publisher.Flux;
 
 import java.io.IOException;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -376,58 +373,36 @@ public class DefaultReactiveSocket implements ReactiveSocket {
         }
 
         @Override
-        public Observable<Frame> getInput() {
-            return new Observable<Frame>() {
-                @Override
-                public void subscribe(Observer<Frame> o) {
-                    CompositeCancellation cd = new CompositeCancellation();
-                    o.onSubscribe(cd);
-                    connection.getInput().subscribe(new Observer<Frame>() {
-
-                        @Override
-                        public void onNext(Frame t) {
-                            int streamId = t.getStreamId();
-                            FrameType type = t.getType();
-                            if (streamId == 0) {
-                                if (FrameType.SETUP.equals(type) && s == STREAMS.FROM_CLIENT_EVEN) {
-                                    o.onNext(t);
-                                } else if (FrameType.LEASE.equals(type)) {
-                                    o.onNext(t);
-                                } else if (FrameType.ERROR.equals(type)) {
-                                    // o.onNext(t); // TODO this doesn't work
-                                } else if (FrameType.KEEPALIVE.equals(type)) {
-                                    o.onNext(t); // TODO need tests
-                                } else if (FrameType.METADATA_PUSH.equals(type)) {
-                                    o.onNext(t);
-                                }
-                            } else if (BitUtil.isEven(streamId)) {
-                                if (s == STREAMS.FROM_CLIENT_EVEN) {
-                                    o.onNext(t);
-                                }
-                            } else {
-                                if (s == STREAMS.FROM_SERVER_ODD) {
-                                    o.onNext(t);
-                                }
-                            }
+        public Publisher<Frame> getInput() {
+            return Flux
+                .from(connection.getInput())
+                .filter(t -> {
+                    int streamId = t.getStreamId();
+                    FrameType type = t.getType();
+                    if (streamId == 0) {
+                        if (FrameType.SETUP.equals(type) && s == STREAMS.FROM_CLIENT_EVEN) {
+                            return true;
+                        } else if (FrameType.LEASE.equals(type)) {
+                            return true;
+                        } else if (FrameType.ERROR.equals(type)) {
+                            // o.onNext(t); // TODO this doesn't work
+                        } else if (FrameType.KEEPALIVE.equals(type)) {
+                            return true; // TODO need tests
+                        } else if (FrameType.METADATA_PUSH.equals(type)) {
+                            return true;
                         }
-
-                        @Override
-                        public void onError(Throwable e) {
-                            o.onError(e);
+                    } else if (BitUtil.isEven(streamId)) {
+                        if (s == STREAMS.FROM_CLIENT_EVEN) {
+                            return true;
                         }
-
-                        @Override
-                        public void onComplete() {
-                            o.onComplete();
+                    } else {
+                        if (s == STREAMS.FROM_SERVER_ODD) {
+                            return true;
                         }
+                    }
 
-                        @Override
-                        public void onSubscribe(Cancellation d) {
-                            cd.add(d);
-                        }
-                    });
-                }
-            };
+                    return false;
+                });
         }
 
         @Override
@@ -444,7 +419,7 @@ public class DefaultReactiveSocket implements ReactiveSocket {
         public double availability() {
             return connection.availability();
         }
-    };
+    }
 
     @Override
     public void onShutdown(Completable c) {

@@ -24,20 +24,17 @@ import io.netty.handler.codec.http.websocketx.BinaryWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.WebSocketClientProtocolHandler;
 import io.reactivesocket.Frame;
 import io.reactivesocket.netty.MutableDirectByteBuf;
-import io.reactivesocket.rx.Observer;
-
-
-import java.util.concurrent.CopyOnWriteArrayList;
+import reactor.core.publisher.DirectProcessor;
 
 @ChannelHandler.Sharable
 public class ReactiveSocketClientHandler extends SimpleChannelInboundHandler<BinaryWebSocketFrame> {
 
-    private final CopyOnWriteArrayList<Observer<Frame>> subjects;
+    private final DirectProcessor<Frame> directProcessor;
 
     private ChannelPromise handshakePromise;
 
-    public ReactiveSocketClientHandler(CopyOnWriteArrayList<Observer<Frame>> subjects) {
-        this.subjects = subjects;
+    public ReactiveSocketClientHandler(DirectProcessor<Frame> directProcessor) {
+        this.directProcessor = directProcessor;
     }
 
     @Override
@@ -50,7 +47,8 @@ public class ReactiveSocketClientHandler extends SimpleChannelInboundHandler<Bin
         ByteBuf content = bFrame.content();
         MutableDirectByteBuf mutableDirectByteBuf = new MutableDirectByteBuf(content);
         final Frame from = Frame.from(mutableDirectByteBuf, 0, mutableDirectByteBuf.capacity());
-        subjects.forEach(o -> o.onNext(from));
+        directProcessor
+            .onNext(from);
     }
 
     public ChannelPromise getHandshakePromise() {
