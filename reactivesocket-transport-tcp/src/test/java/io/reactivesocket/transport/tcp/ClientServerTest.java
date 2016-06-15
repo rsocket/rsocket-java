@@ -52,55 +52,52 @@ public class ClientServerTest {
     static EventLoopGroup bossGroup = new NioEventLoopGroup(1);
     static EventLoopGroup workerGroup = new NioEventLoopGroup(4);
 
-    static ReactiveSocketServerHandler serverHandler = ReactiveSocketServerHandler.create((setupPayload, rs) ->
-        new RequestHandler() {
-            @Override
-            public Publisher<Payload> handleRequestResponse(Payload payload) {
-                return s -> {
-                    //System.out.println("Handling request/response payload => " + s.toString());
-                    Payload response = TestUtil.utf8EncodedPayload("hello world", "metadata");
-                    s.onNext(response);
-                    s.onComplete();
-                };
-            }
-
-            @Override
-            public Publisher<Payload> handleRequestStream(Payload payload) {
+    static RequestHandler requestHandler = new RequestHandler() {
+        @Override
+        public Publisher<Payload> handleRequestResponse(Payload payload) {
+            return s -> {
                 Payload response = TestUtil.utf8EncodedPayload("hello world", "metadata");
-
-                return RxReactiveStreams
-                        .toPublisher(Observable
-                                .range(1, 10)
-                                .map(i -> response));
-            }
-
-            @Override
-            public Publisher<Payload> handleSubscription(Payload payload) {
-                Payload response = TestUtil.utf8EncodedPayload("hello world", "metadata");
-
-                return RxReactiveStreams
-                        .toPublisher(Observable
-                                .range(1, 10)
-                                .map(i -> response)
-                                .repeat());
-            }
-
-            @Override
-            public Publisher<Void> handleFireAndForget(Payload payload) {
-                return Subscriber::onComplete;
-            }
-
-            @Override
-            public Publisher<Payload> handleChannel(Payload initialPayload, Publisher<Payload> inputs) {
-                return null;
-            }
-
-            @Override
-            public Publisher<Void> handleMetadataPush(Payload payload) {
-                return null;
-            }
+                s.onNext(response);
+                s.onComplete();
+            };
         }
-    );
+
+        @Override
+        public Publisher<Payload> handleRequestStream(Payload payload) {
+            Payload response = TestUtil.utf8EncodedPayload("hello world", "metadata");
+
+            return RxReactiveStreams
+                .toPublisher(Observable
+                    .range(1, 10)
+                    .map(i -> response));
+        }
+
+        @Override
+        public Publisher<Payload> handleSubscription(Payload payload) {
+            Payload response = TestUtil.utf8EncodedPayload("hello world", "metadata");
+
+            return RxReactiveStreams
+                .toPublisher(Observable
+                    .range(1, 10)
+                    .map(i -> response)
+                    .repeat());
+        }
+
+        @Override
+        public Publisher<Void> handleFireAndForget(Payload payload) {
+            return Subscriber::onComplete;
+        }
+
+        @Override
+        public Publisher<Payload> handleChannel(Payload initialPayload, Publisher<Payload> inputs) {
+            return null;
+        }
+
+        @Override
+        public Publisher<Void> handleMetadataPush(Payload payload) {
+            return null;
+        }
+    };
 
     @BeforeClass
     public static void setup() throws Exception {
@@ -112,6 +109,8 @@ public class ClientServerTest {
                 @Override
                 protected void initChannel(Channel ch) throws Exception {
                     ChannelPipeline pipeline = ch.pipeline();
+                    ReactiveSocketServerHandler serverHandler =
+                        ReactiveSocketServerHandler.create((setupPayload, rs) -> requestHandler);
                     pipeline.addLast(serverHandler);
                 }
             });
@@ -123,7 +122,7 @@ public class ClientServerTest {
         ).toBlocking().single();
 
         client = DefaultReactiveSocket
-            .fromClientConnection(duplexConnection, ConnectionSetupPayload.create("UTF-8", "UTF-8"), t -> t.printStackTrace());
+            .fromClientConnection(duplexConnection, ConnectionSetupPayload.create("UTF-8", "UTF-8"), Throwable::printStackTrace);
 
         client.startAndWait();
     }
