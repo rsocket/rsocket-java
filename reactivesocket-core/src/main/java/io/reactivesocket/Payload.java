@@ -17,8 +17,7 @@ package io.reactivesocket;
 
 import java.nio.ByteBuffer;
 
-public interface Payload
-{
+public interface Payload {
     ByteBuffer getData();
     ByteBuffer getMetadata();
 }

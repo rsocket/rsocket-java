@@ -22,31 +22,26 @@ import io.reactivesocket.internal.frame.SetupFrameFlyweight;
 /**
  * Exposed to server for determination of RequestHandler based on mime types and SETUP metadata/data
  */
-public abstract class ConnectionSetupPayload implements Payload
-{
+public abstract class ConnectionSetupPayload implements Payload {
 	public static final int NO_FLAGS = 0;
 	public static final int HONOR_LEASE = SetupFrameFlyweight.FLAGS_WILL_HONOR_LEASE;
 	public static final int STRICT_INTERPRETATION = SetupFrameFlyweight.FLAGS_STRICT_INTERPRETATION;
 
 	public static ConnectionSetupPayload create(String metadataMimeType, String dataMimeType) {
     	return new ConnectionSetupPayload() {
-    	    public String metadataMimeType()
-    	    {
+    	    public String metadataMimeType() {
     	        return metadataMimeType;
     	    }
 
-    	    public String dataMimeType()
-    	    {
+    	    public String dataMimeType() {
     	        return dataMimeType;
     	    }
 
-    	    public ByteBuffer getData()
-    	    {
+    	    public ByteBuffer getData() {
     	        return Frame.NULL_BYTEBUFFER;
     	    }
 
-    	    public ByteBuffer getMetadata()
-    	    {
+    	    public ByteBuffer getMetadata() {
     	    	return Frame.NULL_BYTEBUFFER;
     	    }
     	};
@@ -54,86 +49,70 @@ public abstract class ConnectionSetupPayload implements Payload
 	
 	public static ConnectionSetupPayload create(String metadataMimeType, String dataMimeType, Payload payload) {
     	return new ConnectionSetupPayload() {
-    	    public String metadataMimeType()
-    	    {
+    	    public String metadataMimeType() {
     	        return metadataMimeType;
     	    }
 
-    	    public String dataMimeType()
-    	    {
+    	    public String dataMimeType() {
     	        return dataMimeType;
     	    }
 
-    	    public ByteBuffer getData()
-    	    {
+    	    public ByteBuffer getData() {
     	        return payload.getData();
     	    }
 
-    	    public ByteBuffer getMetadata()
-    	    {
+    	    public ByteBuffer getMetadata() {
     	    	return payload.getMetadata();
     	    }
     	};
 	}
 
-	public static ConnectionSetupPayload create(String metadataMimeType, String dataMimeType, int flags)
-	{
+	public static ConnectionSetupPayload create(String metadataMimeType, String dataMimeType, int flags) {
 		return new ConnectionSetupPayload() {
-			public String metadataMimeType()
-			{
+			public String metadataMimeType() {
 				return metadataMimeType;
 			}
 
-			public String dataMimeType()
-			{
+			public String dataMimeType() {
 				return dataMimeType;
 			}
 
-			public ByteBuffer getData()
-			{
+			public ByteBuffer getData() {
 				return Frame.NULL_BYTEBUFFER;
 			}
 
-			public ByteBuffer getMetadata()
-			{
+			public ByteBuffer getMetadata() {
 				return Frame.NULL_BYTEBUFFER;
 			}
 
 			@Override
-			public int getFlags()
-			{
+			public int getFlags() {
 				return flags;
 			}
 		};
 	}
 
-    public static ConnectionSetupPayload create(final Frame setupFrame)
-    {
+    public static ConnectionSetupPayload create(final Frame setupFrame) {
     	Frame.ensureFrameType(FrameType.SETUP, setupFrame);
     	return new ConnectionSetupPayload() {
-    	    public String metadataMimeType()
-    	    {
+    	    public String metadataMimeType() {
     	        return Frame.Setup.metadataMimeType(setupFrame);
     	    }
 
-    	    public String dataMimeType()
-    	    {
+    	    public String dataMimeType() {
     	        return Frame.Setup.dataMimeType(setupFrame);
     	    }
 
-    	    public ByteBuffer getData()
-    	    {
+    	    public ByteBuffer getData() {
     	        return setupFrame.getData();
     	    }
 
-    	    public ByteBuffer getMetadata()
-    	    {
+    	    public ByteBuffer getMetadata() {
     	        return setupFrame.getMetadata();
     	    }
 
 			@Override
-			public int getFlags()
-			{
+			public int getFlags() {
 				return Frame.Setup.getFlags(setupFrame);
 			}
     	};
@@ -147,18 +126,15 @@ public abstract class ConnectionSetupPayload implements Payload
 
     public abstract ByteBuffer getMetadata();
 
-	public int getFlags()
-	{
+	public int getFlags() {
 		return HONOR_LEASE;
 	}
 
-	public boolean willClientHonorLease()
-	{
+	public boolean willClientHonorLease() {
 		return HONOR_LEASE == (getFlags() & HONOR_LEASE);
 	}
 
-	public boolean doesClientRequestStrictInterpretation()
-	{
+	public boolean doesClientRequestStrictInterpretation() {
 		return STRICT_INTERPRETATION == (getFlags() & STRICT_INTERPRETATION);
 	}
 }

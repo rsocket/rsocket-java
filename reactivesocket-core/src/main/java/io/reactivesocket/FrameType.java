@@ -18,8 +18,7 @@ package io.reactivesocket;
 /**
  * Types of {@link Frame} that can be sent.
  */
-public enum FrameType
-{
+public enum FrameType {
     // blank type that is not defined
     UNDEFINED(0x00),
     // Connection
@@ -45,8 +44,7 @@ public enum FrameType
     COMPLETE(0x0F),
     NEXT_COMPLETE(0x10, Flags.CAN_HAVE_METADATA_AND_DATA);
 
-    private static class Flags
-    {
+    private static class Flags {
         private Flags() {}
 
         private static final int CAN_HAVE_DATA = 0b0001;
@@ -78,8 +76,7 @@ public enum FrameType
         }
     }
 
-    FrameType(final int id)
-    {
+    FrameType(final int id) {
         this(id, 0);
     }
 
@@ -92,29 +89,24 @@ public enum FrameType
         return id;
     }
 
-    public boolean isRequestType()
-    {
+    public boolean isRequestType() {
         return Flags.IS_REQUEST_TYPE == (flags & Flags.IS_REQUEST_TYPE);
     }
 
-    public boolean hasInitialRequestN()
-    {
+    public boolean hasInitialRequestN() {
         return Flags.HAS_INITIAL_REQUEST_N == (flags & Flags.HAS_INITIAL_REQUEST_N);
     }
 
-    public boolean canHaveData()
-    {
+    public boolean canHaveData() {
         return Flags.CAN_HAVE_DATA == (flags & Flags.CAN_HAVE_DATA);
     }
 
-    public boolean canHaveMetadata()
-    {
+    public boolean canHaveMetadata() {
         return Flags.CAN_HAVE_METADATA == (flags & Flags.CAN_HAVE_METADATA);
     }
 
     // TODO: offset of metadata and data (simplify parsing) naming: endOfFrameHeaderOffset()
-    public int payloadOffset()
-    {
+    public int payloadOffset() {
         return 0;
     }
 

@@ -21,23 +21,22 @@ import org.reactivestreams.Publisher;
 import java.util.function.Function;
 
 public abstract class RequestHandler {
-
-	public static final Function<Payload, Publisher<Payload>> NO_REQUEST_RESPONSE_HANDLER =
+	private static final Function<Payload, Publisher<Payload>> NO_REQUEST_RESPONSE_HANDLER =
 		payload -> PublisherUtils.errorPayload(new RuntimeException("No 'requestResponse' handler"));
 
-	public static final Function<Payload, Publisher<Payload>> NO_REQUEST_STREAM_HANDLER =
+	private static final Function<Payload, Publisher<Payload>> NO_REQUEST_STREAM_HANDLER =
 		payload -> PublisherUtils.errorPayload(new RuntimeException("No 'requestStream' handler"));
 
-	public static final Function<Payload, Publisher<Payload>> NO_REQUEST_SUBSCRIPTION_HANDLER =
+	private static final Function<Payload, Publisher<Payload>> NO_REQUEST_SUBSCRIPTION_HANDLER =
 		payload -> PublisherUtils.errorPayload(new RuntimeException("No 'requestSubscription' handler"));
 
-	public static final Function<Payload, Publisher<Void>> NO_FIRE_AND_FORGET_HANDLER =
+	private static final Function<Payload, Publisher<Void>> NO_FIRE_AND_FORGET_HANDLER =
 		payload -> PublisherUtils.errorVoid(new RuntimeException("No 'fireAndForget' handler"));
 
-	public static final Function<Publisher<Payload>, Publisher<Payload>> NO_REQUEST_CHANNEL_HANDLER =
+	private static final Function<Publisher<Payload>, Publisher<Payload>> NO_REQUEST_CHANNEL_HANDLER =
 		payloads -> PublisherUtils.errorPayload(new RuntimeException("No 'requestChannel' handler"));
 
-	public static final Function<Payload, Publisher<Void>> NO_METADATA_PUSH_HANDLER =
+	private static final Function<Payload, Publisher<Void>> NO_METADATA_PUSH_HANDLER =
 		payload -> PublisherUtils.errorVoid(new RuntimeException("No 'metadataPush' handler"));
 
 	public abstract Publisher<Payload> handleRequestResponse(final Payload payload);
@@ -56,8 +55,7 @@ public abstract class RequestHandler {
 
 	public abstract Publisher<Void> handleMetadataPush(final Payload payload);
 
-	public static class Builder
-	{
+	public static class Builder {
 		private Function<Payload, Publisher<Payload>> handleRequestResponse = NO_REQUEST_RESPONSE_HANDLER;
 		private Function<Payload, Publisher<Payload>> handleRequestStream = NO_REQUEST_STREAM_HANDLER;
 		private Function<Payload, Publisher<Payload>> handleRequestSubscription = NO_REQUEST_SUBSCRIPTION_HANDLER;
@@ -65,73 +63,59 @@ public abstract class RequestHandler {
 		private Function<Publisher<Payload>, Publisher<Payload>> handleRequestChannel = NO_REQUEST_CHANNEL_HANDLER;
 		private Function<Payload, Publisher<Void>> handleMetadataPush = NO_METADATA_PUSH_HANDLER;
 
-		public Builder withRequestResponse(final Function<Payload, Publisher<Payload>> handleRequestResponse)
-		{
+		public Builder withRequestResponse(final Function<Payload, Publisher<Payload>> handleRequestResponse) {
 			this.handleRequestResponse = handleRequestResponse;
 			return this;
 		}
 
-		public Builder withRequestStream(final Function<Payload, Publisher<Payload>> handleRequestStream)
-		{
+		public Builder withRequestStream(final Function<Payload, Publisher<Payload>> handleRequestStream) {
 			this.handleRequestStream = handleRequestStream;
 			return this;
 		}
 
-		public Builder withRequestSubscription(final Function<Payload, Publisher<Payload>> handleRequestSubscription)
-		{
+		public Builder withRequestSubscription(final Function<Payload, Publisher<Payload>> handleRequestSubscription) {
 			this.handleRequestSubscription = handleRequestSubscription;
 			return this;
 		}
 
-		public Builder withFireAndForget(final Function<Payload, Publisher<Void>> handleFireAndForget)
-		{
+		public Builder withFireAndForget(final Function<Payload, Publisher<Void>> handleFireAndForget) {
 			this.handleFireAndForget = handleFireAndForget;
 			return this;
 		}
 
-		public Builder withRequestChannel(final Function<Publisher<Payload> , Publisher<Payload>> handleRequestChannel)
-		{
+		public Builder withRequestChannel(final Function<Publisher<Payload> , Publisher<Payload>> handleRequestChannel) {
 			this.handleRequestChannel = handleRequestChannel;
 			return this;
 		}
 
-		public Builder withMetadataPush(final Function<Payload, Publisher<Void>> handleMetadataPush)
-		{
+		public Builder withMetadataPush(final Function<Payload, Publisher<Void>> handleMetadataPush) {
 			this.handleMetadataPush = handleMetadataPush;
 			return this;
 		}
 
-		public RequestHandler build()
-		{
-			return new RequestHandler()
-			{
-				public Publisher<Payload> handleRequestResponse(Payload payload)
-				{
+		public RequestHandler build() {
+			return new RequestHandler() {
+				public Publisher<Payload> handleRequestResponse(Payload payload) {
 					return handleRequestResponse.apply(payload);
 				}
 
-				public Publisher<Payload> handleRequestStream(Payload payload)
-				{
+				public Publisher<Payload> handleRequestStream(Payload payload) {
 					return handleRequestStream.apply(payload);
 				}
 
-				public Publisher<Payload> handleSubscription(Payload payload)
-				{
+				public Publisher<Payload> handleSubscription(Payload payload) {
 					return handleRequestSubscription.apply(payload);
 				}
 
-				public Publisher<Void> handleFireAndForget(Payload payload)
-				{
+				public Publisher<Void> handleFireAndForget(Payload payload) {
 					return handleFireAndForget.apply(payload);
 				}
 
-				public Publisher<Payload> handleChannel(Payload initialPayload, Publisher<Payload> inputs)
-				{
+				public Publisher<Payload> handleChannel(Payload initialPayload, Publisher<Payload> inputs) {
 					return handleRequestChannel.apply(inputs);
 				}
 
-				public Publisher<Void> handleMetadataPush(Payload payload)
-				{
+				public Publisher<Void> handleMetadataPush(Payload payload) {
 					return handleMetadataPush.apply(payload);
 				}
 			};
