@@ -27,24 +27,23 @@ import io.reactivesocket.Frame;
 import io.reactivesocket.LeaseGovernor;
 import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.transport.tcp.MutableDirectByteBuf;
+import io.reactivesocket.transport.tcp.server.ServerTcpDuplexConnection;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.concurrent.ConcurrentHashMap;
 
-@ChannelHandler.Sharable
 public class ReactiveSocketServerHandler extends SimpleChannelInboundHandler<BinaryWebSocketFrame> {
-    private Logger logger = LoggerFactory.getLogger(ReactiveSocketServerHandler.class);
-
-    private ConcurrentHashMap<ChannelId, ServerWebSocketDuplexConnection> duplexConnections = new ConcurrentHashMap<>();
+    private static final Logger logger = LoggerFactory.getLogger(ReactiveSocketServerHandler.class);
 
     private ConnectionSetupHandler setupHandler;
-
     private LeaseGovernor leaseGovernor;
+    private ServerWebSocketDuplexConnection connection;
 
     protected ReactiveSocketServerHandler(ConnectionSetupHandler setupHandler, LeaseGovernor leaseGovernor) {
         this.setupHandler = setupHandler;
         this.leaseGovernor = leaseGovernor;
+        this.connection = null;
     }
 
     public static ReactiveSocketServerHandler create(ConnectionSetupHandler setupHandler) {
@@ -52,11 +51,16 @@ public class ReactiveSocketServerHandler extends SimpleChannelInboundHandler<Bin
     }
 
     public static ReactiveSocketServerHandler create(ConnectionSetupHandler setupHandler, LeaseGovernor leaseGovernor) {
-        return new
-            ReactiveSocketServerHandler(
-            setupHandler,
-            leaseGovernor);
+        return new ReactiveSocketServerHandler(setupHandler, leaseGovernor);
+    }
 
+    @Override
+    public void channelActive(ChannelHandlerContext ctx) throws Exception {
+        connection = new ServerWebSocketDuplexConnection(ctx);
+        ReactiveSocket reactiveSocket =
+            DefaultReactiveSocket.fromServerConnection(connection, setupHandler, leaseGovernor, Throwable::printStackTrace);
+        // Note: No blocking code here (still it should be refactored)
+        reactiveSocket.startAndWait();
     }
 
     @Override
@@ -64,18 +68,9 @@ public class ReactiveSocketServerHandler extends SimpleChannelInboundHandler<Bin
         ByteBuf content = msg.content();
         MutableDirectByteBuf mutableDirectByteBuf = new MutableDirectByteBuf(content);
         Frame from = Frame.from(mutableDirectByteBuf, 0, mutableDirectByteBuf.capacity());
-        channelRegistered(ctx);
-        ServerWebSocketDuplexConnection connection = duplexConnections.computeIfAbsent(ctx.channel().id(), i -> {
-            System.out.println("No connection found for channel id: " + i);
-            ServerWebSocketDuplexConnection c = new ServerWebSocketDuplexConnection(ctx);
-            ReactiveSocket reactiveSocket = DefaultReactiveSocket.fromServerConnection(c, setupHandler, leaseGovernor, throwable -> throwable.printStackTrace());
-            reactiveSocket.startAndWait();
-            return c;
-        });
+
         if (connection != null) {
-            connection
-                .getSubscribers()
-                .forEach(o -> o.onNext(from));
+            connection.getSubscribers().forEach(o -> o.onNext(from));
         }
     }
 

@@ -16,11 +16,10 @@ import java.util.List;
 public class EchoServerHandler extends ByteToMessageDecoder {
     private static SimpleChannelInboundHandler<FullHttpRequest> httpHandler = new HttpServerHandler();
 
-    private static ReactiveSocketServerHandler reactiveSocketHandler = ReactiveSocketServerHandler.create((setupPayload, rs) ->
-        new RequestHandler.Builder().withRequestResponse(payload -> s -> {
-            s.onNext(payload);
-            s.onComplete();
-        }).build());
+    private static RequestHandler requestHandler = new RequestHandler.Builder().withRequestResponse(payload -> s -> {
+        s.onNext(payload);
+        s.onComplete();
+    }).build();
 
     @Override
     protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws Exception {
@@ -61,6 +60,8 @@ public class EchoServerHandler extends ByteToMessageDecoder {
 
     private void switchToReactiveSocket(ChannelHandlerContext ctx) {
         ChannelPipeline p = ctx.pipeline();
+        ReactiveSocketServerHandler reactiveSocketHandler =
+            ReactiveSocketServerHandler.create((setupPayload, rs) -> requestHandler);
         p.addLast(reactiveSocketHandler);
         p.remove(this);
     }

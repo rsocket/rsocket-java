@@ -16,9 +16,7 @@
 package io.reactivesocket.transport.tcp.server;
 
 import io.netty.buffer.ByteBuf;
-import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.ChannelId;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.ChannelPipeline;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
@@ -28,25 +26,23 @@ import io.reactivesocket.Frame;
 import io.reactivesocket.LeaseGovernor;
 import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.transport.tcp.MutableDirectByteBuf;
-import org.agrona.BitUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.concurrent.ConcurrentHashMap;
+import static org.agrona.BitUtil.SIZE_OF_INT;
 
-@ChannelHandler.Sharable
 public class ReactiveSocketServerHandler extends ChannelInboundHandlerAdapter {
-    private Logger logger = LoggerFactory.getLogger(ReactiveSocketServerHandler.class);
-
-    private ConcurrentHashMap<ChannelId, ServerTcpDuplexConnection> duplexConnections = new ConcurrentHashMap<>();
+    private static final Logger logger = LoggerFactory.getLogger(ReactiveSocketServerHandler.class);
+    private static final int MAX_FRAME_LENGTH = Integer.MAX_VALUE >> 1;
 
     private ConnectionSetupHandler setupHandler;
-
     private LeaseGovernor leaseGovernor;
+    private ServerTcpDuplexConnection connection;
 
     protected ReactiveSocketServerHandler(ConnectionSetupHandler setupHandler, LeaseGovernor leaseGovernor) {
         this.setupHandler = setupHandler;
         this.leaseGovernor = leaseGovernor;
+        this.connection = null;
     }
 
     public static ReactiveSocketServerHandler create(ConnectionSetupHandler setupHandler) {
@@ -54,25 +50,27 @@ public class ReactiveSocketServerHandler extends ChannelInboundHandlerAdapter {
     }
 
     public static ReactiveSocketServerHandler create(ConnectionSetupHandler setupHandler, LeaseGovernor leaseGovernor) {
-        return new
-            ReactiveSocketServerHandler(
-            setupHandler,
-            leaseGovernor);
-
+        return new ReactiveSocketServerHandler(setupHandler, leaseGovernor);
     }
 
     @Override
     public void handlerAdded(ChannelHandlerContext ctx) throws Exception {
         ChannelPipeline cp = ctx.pipeline();
         if (cp.get(LengthFieldBasedFrameDecoder.class) == null) {
-            ctx
-                .pipeline()
-                .addBefore(
-                    ctx.name(),
-                    LengthFieldBasedFrameDecoder.class.getName(),
-                    new LengthFieldBasedFrameDecoder(Integer.MAX_VALUE >> 1, 0, BitUtil.SIZE_OF_INT, -1 * BitUtil.SIZE_OF_INT, 0));
+            LengthFieldBasedFrameDecoder frameDecoder =
+                new LengthFieldBasedFrameDecoder(MAX_FRAME_LENGTH, 0, SIZE_OF_INT, -1 * SIZE_OF_INT, 0);
+            ctx.pipeline()
+                .addBefore(ctx.name(), LengthFieldBasedFrameDecoder.class.getName(), frameDecoder);
         }
+    }
 
+    @Override
+    public void channelActive(ChannelHandlerContext ctx) throws Exception {
+        connection = new ServerTcpDuplexConnection(ctx);
+        ReactiveSocket reactiveSocket =
+            DefaultReactiveSocket.fromServerConnection(connection, setupHandler, leaseGovernor, Throwable::printStackTrace);
+        // Note: No blocking code here (still it should be refactored)
+        reactiveSocket.startAndWait();
     }
 
     @Override
@@ -81,27 +79,13 @@ public class ReactiveSocketServerHandler extends ChannelInboundHandlerAdapter {
         try {
             MutableDirectByteBuf mutableDirectByteBuf = new MutableDirectByteBuf(content);
             Frame from = Frame.from(mutableDirectByteBuf, 0, mutableDirectByteBuf.capacity());
-            channelRegistered(ctx);
-            ServerTcpDuplexConnection connection = duplexConnections.computeIfAbsent(ctx.channel().id(), i -> {
-                logger.info("No connection found for channel id: " + i + " from host " + ctx.channel().remoteAddress().toString());
-                ServerTcpDuplexConnection c = new ServerTcpDuplexConnection(ctx);
-                ReactiveSocket reactiveSocket = DefaultReactiveSocket.fromServerConnection(c, setupHandler, leaseGovernor, throwable -> throwable.printStackTrace());
-                reactiveSocket.startAndWait();
-                return c;
-            });
+
             if (connection != null) {
-                connection
-                    .getSubscribers()
-                    .forEach(o -> o.onNext(from));
+                connection.getSubscribers().forEach(o -> o.onNext(from));
             }
         } finally {
             content.release();
         }
-    }
-
-    @Override
-    public void channelReadComplete(ChannelHandlerContext ctx) {
-        ctx.flush();
     }
 
     @Override

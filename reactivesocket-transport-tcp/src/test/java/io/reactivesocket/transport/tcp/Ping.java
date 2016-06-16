@@ -35,11 +35,15 @@ import java.util.concurrent.TimeUnit;
 
 public class Ping {
     public static void main(String... args) throws Exception {
+        NioEventLoopGroup eventLoopGroup = new NioEventLoopGroup(1);
+
         Publisher<ClientTcpDuplexConnection> publisher = ClientTcpDuplexConnection
-            .create(InetSocketAddress.createUnresolved("localhost", 7878), new NioEventLoopGroup(1));
+            .create(InetSocketAddress.createUnresolved("localhost", 7878), eventLoopGroup);
 
         ClientTcpDuplexConnection duplexConnection = RxReactiveStreams.toObservable(publisher).toBlocking().last();
-        ReactiveSocket reactiveSocket = DefaultReactiveSocket.fromClientConnection(duplexConnection, ConnectionSetupPayload.create("UTF-8", "UTF-8"), t -> t.printStackTrace());
+        ConnectionSetupPayload setupPayload = ConnectionSetupPayload.create("UTF-8", "UTF-8");
+        ReactiveSocket reactiveSocket =
+            DefaultReactiveSocket.fromClientConnection(duplexConnection, setupPayload, Throwable::printStackTrace);
 
         reactiveSocket.startAndWait();
 
@@ -80,13 +84,13 @@ public class Ping {
                     .toObservable(
                         reactiveSocket
                             .requestResponse(keyPayload))
-                    .doOnError(t -> t.printStackTrace())
+                    .doOnError(Throwable::printStackTrace)
                     .doOnNext(s -> {
                         long diff = System.nanoTime() - start;
                         histogram.recordValue(diff);
                     });
             }, 16)
-            .doOnError(t -> t.printStackTrace())
+            .doOnError(Throwable::printStackTrace)
             .subscribe(new Subscriber<Payload>() {
                 @Override
                 public void onCompleted() {
