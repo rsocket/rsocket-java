@@ -15,46 +15,59 @@
  */
 package io.reactivesocket.examples;
 
-import io.netty.channel.nio.NioEventLoopGroup;
+import io.reactivesocket.ConnectionSetupHandler;
 import io.reactivesocket.ConnectionSetupPayload;
 import io.reactivesocket.Payload;
 import io.reactivesocket.ReactiveSocket;
+import io.reactivesocket.RequestHandler;
 import io.reactivesocket.client.Builder;
-import io.reactivesocket.transport.tcp.client.TcpReactiveSocketConnector;
-import io.reactivesocket.util.Unsafe;
 import io.reactivesocket.test.TestUtil;
-import org.reactivestreams.Publisher;
+import io.reactivesocket.transport.tcp.client.TcpReactiveSocketConnector;
+import io.reactivesocket.transport.tcp.server.TcpReactiveSocketServer;
+import io.reactivesocket.util.Unsafe;
+import rx.Observable;
+import rx.RxReactiveStreams;
 
-import java.net.InetSocketAddress;
 import java.net.SocketAddress;
-import java.util.Arrays;
-import java.util.List;
-import java.util.concurrent.TimeUnit;
+import java.nio.ByteBuffer;
+import java.util.Collections;
 
-public class EchoClient {
-
-    private static Publisher<List<SocketAddress>> source(SocketAddress sa) {
-        return sub -> sub.onNext(Arrays.asList(sa));
-    }
+public final class EchoClient {
 
     public static void main(String... args) throws Exception {
-        InetSocketAddress address = InetSocketAddress.createUnresolved("localhost", 8888);
-        ConnectionSetupPayload setupPayload = 
+
+        ConnectionSetupHandler setupHandler = (setupPayload, reactiveSocket) -> {
+            return new RequestHandler.Builder()
+                    .withRequestResponse(
+                            payload -> RxReactiveStreams.toPublisher(Observable.just(payload)))
+                    .build();
+        };
+
+        SocketAddress serverAddress = TcpReactiveSocketServer.create()
+                                                             .start(setupHandler)
+                                                             .getServerAddress();
+
+        ConnectionSetupPayload setupPayload =
             ConnectionSetupPayload.create("UTF-8", "UTF-8", ConnectionSetupPayload.NO_FLAGS);
 
-        TcpReactiveSocketConnector tcp =
-            new TcpReactiveSocketConnector(new NioEventLoopGroup(8), setupPayload, System.err::println);
+        TcpReactiveSocketConnector tcp = TcpReactiveSocketConnector.create(setupPayload, Throwable::printStackTrace);
 
         ReactiveSocket client = Builder.instance()
-            .withSource(source(address))
+            .withSource(RxReactiveStreams.toPublisher(Observable.just(Collections.singletonList(serverAddress))))
             .withConnector(tcp)
             .build();
 
         Unsafe.awaitAvailability(client);
 
         Payload request = TestUtil.utf8EncodedPayload("Hello", "META");
-        Payload response = Unsafe.blockingSingleWait(client.requestResponse(request), 1, TimeUnit.SECONDS);
-
-        System.out.println(response);
+        RxReactiveStreams.toObservable(client.requestResponse(request))
+                         .map(payload -> {
+                             ByteBuffer data = payload.getData();
+                             byte[] dst = new byte[data.remaining()];
+                             data.get(dst);
+                             return new String(dst);
+                         })
+                         .toBlocking()
+                         .forEach(System.out::println);
     }
 }

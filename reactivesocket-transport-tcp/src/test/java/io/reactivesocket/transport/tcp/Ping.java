@@ -15,14 +15,11 @@
  */
 package io.reactivesocket.transport.tcp;
 
-import io.netty.channel.nio.NioEventLoopGroup;
 import io.reactivesocket.ConnectionSetupPayload;
-import io.reactivesocket.DefaultReactiveSocket;
 import io.reactivesocket.Payload;
 import io.reactivesocket.ReactiveSocket;
-import io.reactivesocket.transport.tcp.client.ClientTcpDuplexConnection;
+import io.reactivesocket.transport.tcp.client.TcpReactiveSocketFactory;
 import org.HdrHistogram.Recorder;
-import org.reactivestreams.Publisher;
 import rx.Observable;
 import rx.RxReactiveStreams;
 import rx.Subscriber;
@@ -33,19 +30,17 @@ import java.nio.ByteBuffer;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-public class Ping {
+public final class Ping {
+
     public static void main(String... args) throws Exception {
-        NioEventLoopGroup eventLoopGroup = new NioEventLoopGroup(1);
 
-        Publisher<ClientTcpDuplexConnection> publisher = ClientTcpDuplexConnection
-            .create(InetSocketAddress.createUnresolved("localhost", 7878), eventLoopGroup);
-
-        ClientTcpDuplexConnection duplexConnection = RxReactiveStreams.toObservable(publisher).toBlocking().last();
-        ConnectionSetupPayload setupPayload = ConnectionSetupPayload.create("UTF-8", "UTF-8");
         ReactiveSocket reactiveSocket =
-            DefaultReactiveSocket.fromClientConnection(duplexConnection, setupPayload, Throwable::printStackTrace);
-
-        reactiveSocket.startAndWait();
+                RxReactiveStreams.toObservable(TcpReactiveSocketFactory.create(new InetSocketAddress("localhost", 7878),
+                                                                               ConnectionSetupPayload.create("", ""))
+                                                                       .apply())
+                                 .toSingle()
+                                 .toBlocking()
+                                 .value();
 
         byte[] data = "hello".getBytes();
 
@@ -80,15 +75,12 @@ public class Ping {
             .flatMap(i -> {
                 long start = System.nanoTime();
 
-                return RxReactiveStreams
-                    .toObservable(
-                        reactiveSocket
-                            .requestResponse(keyPayload))
-                    .doOnError(Throwable::printStackTrace)
-                    .doOnNext(s -> {
-                        long diff = System.nanoTime() - start;
-                        histogram.recordValue(diff);
-                    });
+                return RxReactiveStreams.toObservable(reactiveSocket.requestResponse(keyPayload))
+                                        .doOnError(Throwable::printStackTrace)
+                                        .doOnNext(s -> {
+                                            long diff = System.nanoTime() - start;
+                                            histogram.recordValue(diff);
+                                        });
             }, 16)
             .doOnError(Throwable::printStackTrace)
             .subscribe(new Subscriber<Payload>() {

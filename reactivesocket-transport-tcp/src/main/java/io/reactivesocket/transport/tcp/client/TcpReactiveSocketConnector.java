@@ -1,80 +1,50 @@
-/**
- * Copyright 2016 Netflix, Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
 package io.reactivesocket.transport.tcp.client;
 
-import io.netty.channel.EventLoopGroup;
-import io.reactivesocket.*;
-import io.reactivesocket.rx.Completable;
+import io.netty.buffer.ByteBuf;
+import io.reactivesocket.ConnectionSetupPayload;
+import io.reactivesocket.ReactiveSocket;
+import io.reactivesocket.ReactiveSocketConnector;
+import io.reactivex.netty.protocol.tcp.client.TcpClient;
 import org.reactivestreams.Publisher;
-import org.reactivestreams.Subscriber;
-import org.reactivestreams.Subscription;
 
 import java.net.SocketAddress;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
-/**
- * An implementation of {@link ReactiveSocketConnector} that creates Netty TCP ReactiveSockets.
- */
 public class TcpReactiveSocketConnector implements ReactiveSocketConnector<SocketAddress> {
-    private final ConnectionSetupPayload connectionSetupPayload;
-    private final Consumer<Throwable> errorStream;
-    private final EventLoopGroup eventLoopGroup;
 
-    public TcpReactiveSocketConnector(EventLoopGroup eventLoopGroup, ConnectionSetupPayload connectionSetupPayload, Consumer<Throwable> errorStream) {
-        this.connectionSetupPayload = connectionSetupPayload;
+    private final ConcurrentMap<SocketAddress, TcpReactiveSocketFactory> socketFactories;
+    private final ConnectionSetupPayload setupPayload;
+    private final Consumer<Throwable> errorStream;
+    private final Function<SocketAddress, TcpClient<ByteBuf, ByteBuf>> clientFactory;
+
+    private TcpReactiveSocketConnector(ConnectionSetupPayload setupPayload, Consumer<Throwable> errorStream,
+                                       Function<SocketAddress, TcpClient<ByteBuf, ByteBuf>> clientFactory) {
+        this.setupPayload = setupPayload;
         this.errorStream = errorStream;
-        this.eventLoopGroup = eventLoopGroup;
+        this.clientFactory = clientFactory;
+        socketFactories = new ConcurrentHashMap<>();
     }
 
     @Override
     public Publisher<ReactiveSocket> connect(SocketAddress address) {
-        Publisher<ClientTcpDuplexConnection> connection
-            = ClientTcpDuplexConnection.create(address, eventLoopGroup);
+        return socketFactories.computeIfAbsent(address, socketAddress -> {
+            TcpClient<ByteBuf, ByteBuf> client = clientFactory.apply(socketAddress);
+            return TcpReactiveSocketFactory.create(socketAddress, client, setupPayload, errorStream);
+        }).apply();
+    }
 
-        return s -> connection.subscribe(new Subscriber<ClientTcpDuplexConnection>() {
-            @Override
-            public void onSubscribe(Subscription s) {
-                s.request(1);
-            }
+    public static TcpReactiveSocketConnector create(ConnectionSetupPayload setupPayload,
+                                                    Consumer<Throwable> errorStream) {
+        return new TcpReactiveSocketConnector(setupPayload, errorStream,
+                                              socketAddress -> TcpClient.newClient(socketAddress));
+    }
 
-            @Override
-            public void onNext(ClientTcpDuplexConnection connection) {
-                ReactiveSocket reactiveSocket = DefaultReactiveSocket.fromClientConnection(
-                    connection, connectionSetupPayload, errorStream);
-                reactiveSocket.start(new Completable() {
-                    @Override
-                    public void success() {
-                        s.onNext(reactiveSocket);
-                        s.onComplete();
-                    }
-
-                    @Override
-                    public void error(Throwable e) {
-                        s.onError(e);
-                    }
-                });
-            }
-
-            @Override
-            public void onError(Throwable t) {
-                s.onError(t);
-            }
-
-            @Override
-            public void onComplete() {}
-        });
+    public static TcpReactiveSocketConnector create(ConnectionSetupPayload setupPayload,
+                                                    Consumer<Throwable> errorStream,
+                                                    Function<SocketAddress, TcpClient<ByteBuf, ByteBuf>> clientFactory) {
+        return new TcpReactiveSocketConnector(setupPayload, errorStream, clientFactory);
     }
 }

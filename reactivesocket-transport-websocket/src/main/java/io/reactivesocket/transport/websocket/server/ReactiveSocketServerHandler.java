@@ -16,9 +16,7 @@
 package io.reactivesocket.transport.websocket.server;
 
 import io.netty.buffer.ByteBuf;
-import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.ChannelId;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.codec.http.websocketx.BinaryWebSocketFrame;
 import io.reactivesocket.ConnectionSetupHandler;
@@ -27,11 +25,8 @@ import io.reactivesocket.Frame;
 import io.reactivesocket.LeaseGovernor;
 import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.transport.tcp.MutableDirectByteBuf;
-import io.reactivesocket.transport.tcp.server.ServerTcpDuplexConnection;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.util.concurrent.ConcurrentHashMap;
 
 public class ReactiveSocketServerHandler extends SimpleChannelInboundHandler<BinaryWebSocketFrame> {
     private static final Logger logger = LoggerFactory.getLogger(ReactiveSocketServerHandler.class);
@@ -43,7 +38,6 @@ public class ReactiveSocketServerHandler extends SimpleChannelInboundHandler<Bin
     protected ReactiveSocketServerHandler(ConnectionSetupHandler setupHandler, LeaseGovernor leaseGovernor) {
         this.setupHandler = setupHandler;
         this.leaseGovernor = leaseGovernor;
-        this.connection = null;
     }
 
     public static ReactiveSocketServerHandler create(ConnectionSetupHandler setupHandler) {
