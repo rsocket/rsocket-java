@@ -17,14 +17,11 @@ package io.reactivesocket.client.filter;
 
 import io.reactivesocket.Payload;
 import io.reactivesocket.ReactiveSocket;
+import io.reactivesocket.internal.PublisherFunctions;
 import io.reactivesocket.util.ReactiveSocketProxy;
 import org.reactivestreams.Publisher;
-import org.reactivestreams.Subscriber;
-import org.reactivestreams.Subscription;
 
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 public class RetrySocket extends ReactiveSocketProxy {
     private final int retry;
@@ -38,79 +35,31 @@ public class RetrySocket extends ReactiveSocketProxy {
 
     @Override
     public Publisher<Void> fireAndForget(Payload payload) {
-        return subscriber -> child.fireAndForget(payload).subscribe(
-            new RetrySubscriber<>(subscriber, () -> child.fireAndForget(payload))
-        );
+        return PublisherFunctions.retry(child.fireAndForget(payload), retry, retryThisException);
     }
 
     @Override
     public Publisher<Payload> requestResponse(Payload payload) {
-        return subscriber -> child.requestResponse(payload).subscribe(
-            new RetrySubscriber<>(subscriber, () -> child.requestResponse(payload))
-        );
+        return PublisherFunctions.retry(child.requestResponse(payload), retry, retryThisException);
     }
 
     @Override
     public Publisher<Payload> requestStream(Payload payload) {
-        return subscriber -> child.requestStream(payload).subscribe(
-            new RetrySubscriber<>(subscriber, () -> child.requestStream(payload))
-        );
+        return PublisherFunctions.retry(child.requestStream(payload), retry, retryThisException);
     }
 
     @Override
     public Publisher<Payload> requestSubscription(Payload payload) {
-        return subscriber -> child.requestSubscription(payload).subscribe(
-            new RetrySubscriber<>(subscriber, () -> child.requestSubscription(payload))
-        );
+        return PublisherFunctions.retry(child.requestSubscription(payload), retry, retryThisException);
     }
 
     @Override
-    public Publisher<Payload> requestChannel(Publisher<Payload> payloads) {
-        return subscriber -> child.requestChannel(payloads).subscribe(
-            new RetrySubscriber<>(subscriber, () -> child.requestChannel(payloads))
-        );
+    public Publisher<Payload> requestChannel(Publisher<Payload> payload) {
+        return PublisherFunctions.retry(child.requestChannel(payload), retry, retryThisException);
     }
 
     @Override
     public Publisher<Void> metadataPush(Payload payload) {
-        return subscriber -> child.metadataPush(payload).subscribe(
-            new RetrySubscriber<>(subscriber, () -> child.metadataPush(payload))
-        );
-    }
-
-    private class RetrySubscriber<T> implements Subscriber<T> {
-        private final Subscriber<? super T> child;
-        private Supplier<Publisher<T>> action;
-        private AtomicInteger budget;
-
-        private RetrySubscriber(Subscriber<? super T> child, Supplier<Publisher<T>> action) {
-            this.child = child;
-            this.action = action;
-            this.budget = new AtomicInteger(retry);
-        }
-
-        @Override
-        public void onSubscribe(Subscription s) {
-            child.onSubscribe(s);
-        }
-
-        @Override
-        public void onNext(T t) {
-            child.onNext(t);
-        }
-
-        @Override
-        public void onError(Throwable t) {
-            if (budget.decrementAndGet() > 0 && retryThisException.apply(t)) {
-                action.get().subscribe(this);
-            } else {
-                child.onError(t);
-            }
-        }
-
-        @Override
-        public void onComplete() {
-            child.onComplete();
-        }
+        return PublisherFunctions.retry(child.metadataPush(payload), retry, retryThisException);
     }
 }

@@ -17,52 +17,35 @@ package io.reactivesocket.client.filter;
 
 import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.ReactiveSocketFactory;
+import io.reactivesocket.internal.PublisherFunctions;
+import io.reactivesocket.util.ReactiveSocketFactoryProxy;
 import org.reactivestreams.Publisher;
 
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
-public class TimeoutFactory<T> implements ReactiveSocketFactory<T> {
-    private final ReactiveSocketFactory<T> child;
-    private final ScheduledExecutorService executor;
-    private final long timeout;
-    private final TimeUnit unit;
+public class TimeoutFactory<T> extends ReactiveSocketFactoryProxy<T> {
 
-    public TimeoutFactory(ReactiveSocketFactory<T> child, long timeout, TimeUnit unit, ScheduledExecutorService executor) {
-        this.child = child;
-        this.timeout = timeout;
-        this.unit = unit;
-        this.executor = executor;
-    }
+    private final Publisher<Void> timer;
 
-    public TimeoutFactory(ReactiveSocketFactory<T> child, long timeout, TimeUnit unit) {
-        this(child, timeout, unit, Executors.newScheduledThreadPool(2));
+    public TimeoutFactory(ReactiveSocketFactory<T> child, long timeout, TimeUnit unit,
+                          ScheduledExecutorService executor) {
+        super(child);
+        timer = PublisherFunctions.timer(executor, timeout, unit);
     }
 
     @Override
     public Publisher<ReactiveSocket> apply() {
-        return subscriber ->
-            child.apply().subscribe(new TimeoutSubscriber<>(subscriber, executor, timeout, unit));
+        return PublisherFunctions.timeout(super.apply(), timer);
     }
 
-    @Override
-    public double availability() {
-        return child.availability();
-    }
-
-    @Override
-    public T remote() {
-        return child.remote();
-    }
-
-    @Override
-    public String toString() {
-        return "TimeoutFactory(" + timeout + " " + unit.toString() + ")->" + child.toString();
-    }
-
-    public static <T> Function<ReactiveSocketFactory<T>, ReactiveSocketFactory<T>> filter(long timeout, TimeUnit unit) {
-        return f -> new TimeoutFactory<>(f, timeout, unit);
+    public static Function<Publisher<ReactiveSocket>, Publisher<ReactiveSocket>> asChainFunction(long timeout,
+                                                                                                 TimeUnit unit,
+                                                                                                 ScheduledExecutorService executor) {
+        Publisher<Void> timer = PublisherFunctions.timer(executor, timeout, unit);
+        return reactiveSocketPublisher -> {
+            return PublisherFunctions.timeout(reactiveSocketPublisher, timer);
+        };
     }
 }

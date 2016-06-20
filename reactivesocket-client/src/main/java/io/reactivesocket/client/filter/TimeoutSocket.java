@@ -17,26 +17,20 @@ package io.reactivesocket.client.filter;
 
 import io.reactivesocket.Payload;
 import io.reactivesocket.ReactiveSocket;
+import io.reactivesocket.internal.PublisherFunctions;
 import io.reactivesocket.util.ReactiveSocketProxy;
 import org.reactivestreams.Publisher;
-import org.reactivestreams.Subscriber;
 
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 public class TimeoutSocket extends ReactiveSocketProxy {
-    private final ScheduledExecutorService executor;
-    private final ReactiveSocket child;
-    private final long timeout;
-    private final TimeUnit unit;
+    private final Publisher<Void> timer;
 
     public TimeoutSocket(ReactiveSocket child, long timeout, TimeUnit unit, ScheduledExecutorService executor) {
         super(child);
-        this.child = child;
-        this.timeout = timeout;
-        this.unit = unit;
-        this.executor = executor;
+        timer = PublisherFunctions.timer(executor, timeout, unit);
     }
 
     public TimeoutSocket(ReactiveSocket child, long timeout, TimeUnit unit) {
@@ -44,35 +38,22 @@ public class TimeoutSocket extends ReactiveSocketProxy {
     }
 
     @Override
-    public Publisher<Void> fireAndForget(Payload payload) {
-        return child.fireAndForget(payload);
-    }
-
-    @Override
     public Publisher<Payload> requestResponse(Payload payload) {
-        return subscriber ->
-            child.requestResponse(payload).subscribe(wrap(subscriber));
+        return PublisherFunctions.timeout(super.requestResponse(payload), timer);
     }
 
     @Override
     public Publisher<Payload> requestStream(Payload payload) {
-        return subscriber ->
-            child.requestStream(payload).subscribe(wrap(subscriber));
+        return PublisherFunctions.timeout(super.requestStream(payload), timer);
     }
 
     @Override
     public Publisher<Payload> requestSubscription(Payload payload) {
-        return subscriber ->
-            child.requestSubscription(payload).subscribe(wrap(subscriber));
+        return PublisherFunctions.timeout(super.requestSubscription(payload), timer);
     }
 
     @Override
-    public Publisher<Payload> requestChannel(Publisher<Payload> payloads) {
-        return subscriber ->
-            child.requestChannel(payloads).subscribe(wrap(subscriber));
-    }
-
-    private <T> Subscriber<T> wrap(Subscriber<T> subscriber) {
-        return new TimeoutSubscriber<>(subscriber, executor, timeout, unit);
+    public Publisher<Payload> requestChannel(Publisher<Payload> payload) {
+        return PublisherFunctions.timeout(super.requestChannel(payload), timer);
     }
 }

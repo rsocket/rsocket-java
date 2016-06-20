@@ -15,8 +15,9 @@
  */
 package io.reactivesocket;
 
+import io.reactivesocket.util.ReactiveSocketFactoryProxy;
 import org.reactivestreams.Publisher;
-import java.net.SocketAddress;
+import java.util.function.Function;
 
 /**
  * Factory of ReactiveSocket interface
@@ -24,9 +25,11 @@ import java.net.SocketAddress;
  * (e.g. inside the LoadBalancer which create ReactiveSocket as needed)
  */
 public interface ReactiveSocketFactory<T> {
+
     /**
-     * Construct the ReactiveSocket
-     * @return
+     * Construct the ReactiveSocket.
+     *
+     * @return A source that emits a single {@code ReactiveSocket}.
      */
     Publisher<ReactiveSocket> apply();
 
@@ -40,4 +43,13 @@ public interface ReactiveSocketFactory<T> {
      * @return an identifier of the remote location
      */
     T remote();
+
+    default ReactiveSocketFactory<T> chain(Function<Publisher<ReactiveSocket>, Publisher<ReactiveSocket>> conversion) {
+        return new ReactiveSocketFactoryProxy<T>(ReactiveSocketFactory.this) {
+            @Override
+            public Publisher<ReactiveSocket> apply() {
+                return conversion.apply(super.apply());
+            }
+        };
+    }
 }
