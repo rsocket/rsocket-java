@@ -15,17 +15,16 @@
  */
 package io.reactivesocket;
 
-import static io.reactivex.Observable.*;
+import io.reactivesocket.rx.Completable;
+import io.reactivesocket.rx.Disposable;
+import io.reactivesocket.rx.Observer;
+import org.reactivestreams.Publisher;
+import rx.Observable;
+import rx.RxReactiveStreams;
+import rx.Scheduler.Worker;
+import rx.schedulers.Schedulers;
 
 import java.io.IOException;
-
-import org.reactivestreams.Publisher;
-
-import io.reactivesocket.rx.Completable;
-import io.reactivesocket.rx.Observer;
-import io.reactivex.Observable;
-import io.reactivex.Scheduler.Worker;
-import io.reactivex.schedulers.Schedulers;
 
 public class TestConnection implements DuplexConnection {
 
@@ -34,7 +33,7 @@ public class TestConnection implements DuplexConnection {
 
 	@Override
 	public void addOutput(Publisher<Frame> o, Completable callback) {
-		fromPublisher(o).flatMap(m -> {
+		RxReactiveStreams.toObservable(o).flatMap(m -> {
 			// no backpressure on a Subject so just firehosing for this test
 			write.send(m);
 			return Observable.<Void> empty();
@@ -61,7 +60,7 @@ public class TestConnection implements DuplexConnection {
 			public void subscribe(Observer<Frame> o) {
 				toInput.add(o);
 				// we are okay with the race of sending data and cancelling ... since this is "hot" by definition and unsubscribing is a race.
-				o.onSubscribe(new io.reactivesocket.rx.Disposable() {
+				o.onSubscribe(new Disposable() {
 
 					@Override
 					public void dispose() {
@@ -107,8 +106,8 @@ public class TestConnection implements DuplexConnection {
 
 	@Override
 	public void close() throws IOException {
-		clientThread.dispose();
-		serverThread.dispose();
+		clientThread.unsubscribe();
+		serverThread.unsubscribe();
 	}
 
 }

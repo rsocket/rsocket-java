@@ -21,7 +21,10 @@ import io.reactivesocket.Payload;
 import io.reactivesocket.TestUtil;
 import io.reactivesocket.internal.frame.FrameHeaderFlyweight;
 import io.reactivesocket.internal.frame.PayloadReassembler;
-import io.reactivex.subjects.ReplaySubject;
+import org.reactivestreams.Subscriber;
+import rx.RxReactiveStreams;
+import rx.observers.TestSubscriber;
+import rx.subjects.ReplaySubject;
 import org.junit.Test;
 
 import java.nio.ByteBuffer;
@@ -35,8 +38,9 @@ public class ReassemblerTest
     @Test
     public void shouldPassThroughUnfragmentedFrame()
     {
-        final ReplaySubject<Payload> replaySubject = ReplaySubject.create();
-        final PayloadReassembler reassembler = PayloadReassembler.with(replaySubject);
+        TestSubscriber<Payload> ts = new TestSubscriber<>();
+        Subscriber<Payload> rsSub = RxReactiveStreams.toSubscriber(ts);
+        final PayloadReassembler reassembler = PayloadReassembler.with(rsSub);
         final String metadata = "metadata";
         final String data = "data";
         final ByteBuffer metadataBuffer = TestUtil.byteBufferFromUtf8String(metadata);
@@ -44,16 +48,17 @@ public class ReassemblerTest
 
         reassembler.onNext(Frame.Response.from(STREAM_ID, FrameType.NEXT, metadataBuffer, dataBuffer, 0));
 
-        assertEquals(1, replaySubject.getValues().length);
-        assertEquals(data, TestUtil.byteToString(replaySubject.getValue().getData()));
-        assertEquals(metadata, TestUtil.byteToString(replaySubject.getValue().getMetadata()));
+        assertEquals(1, ts.getOnNextEvents().size());
+        assertEquals(data, TestUtil.byteToString(ts.getOnNextEvents().get(0).getData()));
+        assertEquals(metadata, TestUtil.byteToString(ts.getOnNextEvents().get(0).getMetadata()));
     }
 
     @Test
     public void shouldNotPassThroughFragmentedFrameIfStillMoreFollowing()
     {
-        final ReplaySubject<Payload> replaySubject = ReplaySubject.create();
-        final PayloadReassembler reassembler = PayloadReassembler.with(replaySubject);
+        TestSubscriber<Payload> ts = new TestSubscriber<>();
+        Subscriber<Payload> rsSub = RxReactiveStreams.toSubscriber(ts);
+        final PayloadReassembler reassembler = PayloadReassembler.with(rsSub);
         final String metadata = "metadata";
         final String data = "data";
         final ByteBuffer metadataBuffer = TestUtil.byteBufferFromUtf8String(metadata);
@@ -61,14 +66,15 @@ public class ReassemblerTest
 
         reassembler.onNext(Frame.Response.from(STREAM_ID, FrameType.NEXT, metadataBuffer, dataBuffer, FrameHeaderFlyweight.FLAGS_RESPONSE_F));
 
-        assertEquals(0, replaySubject.getValues().length);
+        assertEquals(0, ts.getOnNextEvents().size());
     }
 
     @Test
     public void shouldReassembleTwoFramesWithFragmentedDataAndMetadata()
     {
-        final ReplaySubject<Payload> replaySubject = ReplaySubject.create();
-        final PayloadReassembler reassembler = PayloadReassembler.with(replaySubject);
+        TestSubscriber<Payload> ts = new TestSubscriber<>();
+        Subscriber<Payload> rsSub = RxReactiveStreams.toSubscriber(ts);
+        final PayloadReassembler reassembler = PayloadReassembler.with(rsSub);
         final String metadata0 = "metadata0";
         final String metadata1 = "md1";
         final String metadata = metadata0 + metadata1;
@@ -83,16 +89,17 @@ public class ReassemblerTest
         reassembler.onNext(Frame.Response.from(STREAM_ID, FrameType.NEXT, metadata0Buffer, data0Buffer, FrameHeaderFlyweight.FLAGS_RESPONSE_F));
         reassembler.onNext(Frame.Response.from(STREAM_ID, FrameType.NEXT, metadata1Buffer, data1Buffer, 0));
 
-        assertEquals(1, replaySubject.getValues().length);
-        assertEquals(data, TestUtil.byteToString(replaySubject.getValue().getData()));
-        assertEquals(metadata, TestUtil.byteToString(replaySubject.getValue().getMetadata()));
+        assertEquals(1, ts.getOnNextEvents().size());
+        assertEquals(data, TestUtil.byteToString(ts.getOnNextEvents().get(0).getData()));
+        assertEquals(metadata, TestUtil.byteToString(ts.getOnNextEvents().get(0).getMetadata()));
     }
 
     @Test
     public void shouldReassembleTwoFramesWithFragmentedData()
     {
-        final ReplaySubject<Payload> replaySubject = ReplaySubject.create();
-        final PayloadReassembler reassembler = PayloadReassembler.with(replaySubject);
+        TestSubscriber<Payload> ts = new TestSubscriber<>();
+        Subscriber<Payload> rsSub = RxReactiveStreams.toSubscriber(ts);
+        final PayloadReassembler reassembler = PayloadReassembler.with(rsSub);
         final String metadata = "metadata";
         final String data0 = "data0";
         final String data1 = "d1";
@@ -104,16 +111,17 @@ public class ReassemblerTest
         reassembler.onNext(Frame.Response.from(STREAM_ID, FrameType.NEXT, metadataBuffer, data0Buffer, FrameHeaderFlyweight.FLAGS_RESPONSE_F));
         reassembler.onNext(Frame.Response.from(STREAM_ID, FrameType.NEXT, Frame.NULL_BYTEBUFFER, data1Buffer, 0));
 
-        assertEquals(1, replaySubject.getValues().length);
-        assertEquals(data, TestUtil.byteToString(replaySubject.getValue().getData()));
-        assertEquals(metadata, TestUtil.byteToString(replaySubject.getValue().getMetadata()));
+        assertEquals(1, ts.getOnNextEvents().size());
+        assertEquals(data, TestUtil.byteToString(ts.getOnNextEvents().get(0).getData()));
+        assertEquals(metadata, TestUtil.byteToString(ts.getOnNextEvents().get(0).getMetadata()));
     }
 
     @Test
     public void shouldReassembleTwoFramesWithFragmentedMetadata()
     {
-        final ReplaySubject<Payload> replaySubject = ReplaySubject.create();
-        final PayloadReassembler reassembler = PayloadReassembler.with(replaySubject);
+        TestSubscriber<Payload> ts = new TestSubscriber<>();
+        Subscriber<Payload> rsSub = RxReactiveStreams.toSubscriber(ts);
+        final PayloadReassembler reassembler = PayloadReassembler.with(rsSub);
         final String metadata0 = "metadata0";
         final String metadata1 = "md1";
         final String metadata = metadata0 + metadata1;
@@ -125,16 +133,17 @@ public class ReassemblerTest
         reassembler.onNext(Frame.Response.from(STREAM_ID, FrameType.NEXT, metadata0Buffer, dataBuffer, FrameHeaderFlyweight.FLAGS_RESPONSE_F));
         reassembler.onNext(Frame.Response.from(STREAM_ID, FrameType.NEXT, metadata1Buffer, Frame.NULL_BYTEBUFFER, 0));
 
-        assertEquals(1, replaySubject.getValues().length);
-        assertEquals(data, TestUtil.byteToString(replaySubject.getValue().getData()));
-        assertEquals(metadata, TestUtil.byteToString(replaySubject.getValue().getMetadata()));
+        assertEquals(1, ts.getOnNextEvents().size());
+        assertEquals(data, TestUtil.byteToString(ts.getOnNextEvents().get(0).getData()));
+        assertEquals(metadata, TestUtil.byteToString(ts.getOnNextEvents().get(0).getMetadata()));
     }
 
     @Test
     public void shouldReassembleTwoFramesWithFragmentedDataAndMetadataWithMoreThanTwoFragments()
     {
-        final ReplaySubject<Payload> replaySubject = ReplaySubject.create();
-        final PayloadReassembler reassembler = PayloadReassembler.with(replaySubject);
+        TestSubscriber<Payload> ts = new TestSubscriber<>();
+        Subscriber<Payload> rsSub = RxReactiveStreams.toSubscriber(ts);
+        final PayloadReassembler reassembler = PayloadReassembler.with(rsSub);
         final String metadata0 = "metadata0";
         final String metadata1 = "md1";
         final String metadata = metadata0 + metadata1;
@@ -152,9 +161,8 @@ public class ReassemblerTest
         reassembler.onNext(Frame.Response.from(STREAM_ID, FrameType.NEXT, metadata1Buffer, data1Buffer, FrameHeaderFlyweight.FLAGS_RESPONSE_F));
         reassembler.onNext(Frame.Response.from(STREAM_ID, FrameType.NEXT, Frame.NULL_BYTEBUFFER, data2Buffer, 0));
 
-        assertEquals(1, replaySubject.getValues().length);
-        assertEquals(data, TestUtil.byteToString(replaySubject.getValue().getData()));
-        assertEquals(metadata, TestUtil.byteToString(replaySubject.getValue().getMetadata()));
+        assertEquals(1, ts.getOnNextEvents().size());
+        assertEquals(data, TestUtil.byteToString(ts.getOnNextEvents().get(0).getData()));
+        assertEquals(metadata, TestUtil.byteToString(ts.getOnNextEvents().get(0).getMetadata()));
     }
-
 }

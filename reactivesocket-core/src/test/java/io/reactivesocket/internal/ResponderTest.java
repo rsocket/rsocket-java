@@ -22,13 +22,12 @@ import io.reactivesocket.Payload;
 import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.RequestHandler;
 import io.reactivesocket.TestConnection;
-import io.reactivex.Observable;
-import io.reactivex.schedulers.Schedulers;
-import io.reactivex.schedulers.TestScheduler;
-import io.reactivex.subjects.ReplaySubject;
 import org.junit.Test;
 import org.mockito.Mockito;
-import org.reactivestreams.Subscription;
+import rx.Observable;
+import rx.schedulers.Schedulers;
+import rx.schedulers.TestScheduler;
+import rx.subjects.ReplaySubject;
 
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -39,14 +38,11 @@ import static io.reactivesocket.LeaseGovernor.NULL_LEASE_GOVERNOR;
 import static io.reactivesocket.TestUtil.byteToString;
 import static io.reactivesocket.TestUtil.utf8EncodedPayload;
 import static io.reactivesocket.TestUtil.utf8EncodedRequestFrame;
-import static io.reactivex.Observable.error;
-import static io.reactivex.Observable.interval;
-import static io.reactivex.Observable.just;
-import static io.reactivex.Observable.never;
-import static io.reactivex.Observable.range;
+import static rx.Observable.*;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static rx.RxReactiveStreams.*;
 
 public class ResponderTest
 {
@@ -61,7 +57,8 @@ public class ResponderTest
             (setup, rs) ->
                 new RequestHandler.Builder().withRequestResponse(
                     request ->
-                        just(utf8EncodedPayload(byteToString(request.getData()) + " world", null))).build(),
+                            toPublisher(just(utf8EncodedPayload(byteToString(request.getData()) + " world", null))))
+                                            .build(),
             NULL_LEASE_GOVERNOR,
             ERROR_HANDLER,
             lc,
@@ -90,7 +87,8 @@ public class ResponderTest
     	TestConnection conn = establishConnection();
     	LatchedCompletable lc = new LatchedCompletable(1);
         Responder.createServerResponder(conn, (setup, rs) -> new RequestHandler.Builder()
-            .withRequestResponse(request -> Observable.<Payload>error(new Exception("Request Not Found"))).build(),
+                                                .withRequestResponse(request -> toPublisher(error(new Exception("Request Not Found"))))
+                                                .build(),
             NULL_LEASE_GOVERNOR, ERROR_HANDLER, lc, reactiveSocket);
         lc.await();
 
@@ -113,12 +111,12 @@ public class ResponderTest
         AtomicBoolean unsubscribed = new AtomicBoolean();
         Observable<Payload> delayed = never()
                 .cast(Payload.class)
-                .doOnCancel(() -> unsubscribed.set(true));
+                .doOnUnsubscribe(() -> unsubscribed.set(true));
 
         TestConnection conn = establishConnection();
         LatchedCompletable lc = new LatchedCompletable(1);
         Responder.createServerResponder(conn, (setup, rs) -> new RequestHandler.Builder()
-            .withRequestResponse(request -> delayed).build(),
+            .withRequestResponse(request -> toPublisher(delayed)).build(),
             NULL_LEASE_GOVERNOR, ERROR_HANDLER, lc, reactiveSocket);
         lc.await();
 
@@ -142,7 +140,8 @@ public class ResponderTest
     	LatchedCompletable lc = new LatchedCompletable(1);
         Responder.createServerResponder(conn, (setup, rs) -> new RequestHandler.Builder()
             .withRequestStream(
-                request -> range(Integer.parseInt(byteToString(request.getData())), 10).map(i -> utf8EncodedPayload(i + "!", null))).build(),
+                request -> toPublisher(range(Integer.parseInt(byteToString(request.getData())), 10)
+                            .map(i -> utf8EncodedPayload(i + "!", null)))).build(),
             NULL_LEASE_GOVERNOR, ERROR_HANDLER, lc, reactiveSocket);
         lc.await();
 
@@ -175,9 +174,9 @@ public class ResponderTest
     	TestConnection conn = establishConnection();
     	LatchedCompletable lc = new LatchedCompletable(1);
         Responder.createServerResponder(conn, (setup,rs) -> new RequestHandler.Builder()
-            .withRequestStream(request -> range(Integer.parseInt(byteToString(request.getData())), 3)
+            .withRequestStream(request -> toPublisher(range(Integer.parseInt(byteToString(request.getData())), 3)
                 .map(i -> utf8EncodedPayload(i + "!", null))
-                .concatWith(error(new Exception("Error Occurred!")))).build(),
+                .concatWith(error(new Exception("Error Occurred!"))))).build(),
             NULL_LEASE_GOVERNOR, ERROR_HANDLER, lc, reactiveSocket);
         lc.await();
 
@@ -211,7 +210,8 @@ public class ResponderTest
         TestScheduler ts = Schedulers.test();
         LatchedCompletable lc = new LatchedCompletable(1);
         Responder.createServerResponder(conn, (setup,rs) -> new RequestHandler.Builder()
-            .withRequestStream(request -> interval(1000, TimeUnit.MILLISECONDS, ts).map(i -> utf8EncodedPayload(i + "!", null))).build(),
+            .withRequestStream(request -> toPublisher(interval(1000, TimeUnit.MILLISECONDS, ts).map(i -> utf8EncodedPayload(i + "!", null))))
+            .build(),
             NULL_LEASE_GOVERNOR, ERROR_HANDLER, lc, reactiveSocket);
         lc.await();
 
@@ -253,7 +253,8 @@ public class ResponderTest
         TestConnection conn = establishConnection();
         LatchedCompletable lc = new LatchedCompletable(1);
         Responder.createServerResponder(conn, (setup,rs) -> new RequestHandler.Builder()
-            .withRequestStream(request -> interval(1000, TimeUnit.MILLISECONDS, ts).map(i -> utf8EncodedPayload(i + "_" + byteToString(request.getData()), null))).build(),
+            .withRequestStream(request -> toPublisher(interval(1000, TimeUnit.MILLISECONDS, ts).map(i -> utf8EncodedPayload(i + "_" + byteToString(request.getData()), null))))
+            .build(),
             NULL_LEASE_GOVERNOR, ERROR_HANDLER, lc, reactiveSocket);
         lc.await();
 
@@ -305,43 +306,18 @@ public class ResponderTest
 
     /* **********************************************************************************************/
 
-    private ReplaySubject<Frame> captureResponses(TestConnection conn) {
+    private static ReplaySubject<Frame> captureResponses(TestConnection conn) {
         // capture all responses to client
         ReplaySubject<Frame> rs = ReplaySubject.create();
         conn.write.add(rs::onNext);
         return rs;
     }
 
-    private TestConnection establishConnection() {
+    private static TestConnection establishConnection() {
         return new TestConnection();
     }
 
-    private org.reactivestreams.Subscriber<Void> PROTOCOL_SUBSCRIBER = new org.reactivestreams.Subscriber<Void>() {
-
-        @Override
-        public void onSubscribe(Subscription s) {
-            s.request(Long.MAX_VALUE);
-        }
-
-        @Override
-        public void onNext(Void t) {
-
-        }
-
-        @Override
-        public void onError(Throwable t) {
-            t.printStackTrace();
-        }
-
-        @Override
-        public void onComplete() {
-
-        }
-
-    };
-
-
-	private void sendSetupFrame(TestConnection conn) {
+	private static void sendSetupFrame(TestConnection conn) {
 		// setup
         conn.toInput.send(Frame.Setup.from(0, 0, 0, "UTF-8", "UTF-8", utf8EncodedPayload("", "")));
 	}

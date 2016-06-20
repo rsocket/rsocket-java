@@ -20,17 +20,17 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.reactivestreams.Publisher;
-import io.reactivex.subscribers.TestSubscriber;
+import rx.observers.TestSubscriber;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static io.reactivesocket.TestUtil.byteToString;
-import static io.reactivesocket.TestUtil.utf8EncodedPayload;
 import static io.reactivesocket.ConnectionSetupPayload.HONOR_LEASE;
 
-import static org.junit.Assert.assertTrue;
-import static io.reactivex.Observable.*;
+import static io.reactivesocket.TestUtil.*;
+import static org.junit.Assert.*;
+import static rx.Observable.*;
+import static rx.RxReactiveStreams.*;
 
 public class LeaseTest {
     private TestConnection clientConnection;
@@ -38,11 +38,11 @@ public class LeaseTest {
     private ReactiveSocket socketClient;
     private TestingLeaseGovernor leaseGovernor;
 
-    private class TestingLeaseGovernor implements LeaseGovernor {
+    private static class TestingLeaseGovernor implements LeaseGovernor {
         private volatile Responder responder;
         private volatile long ttlExpiration;
         private volatile int grantedTickets;
-        private CountDownLatch latch = new CountDownLatch(1);
+        private final CountDownLatch latch = new CountDownLatch(1);
 
         @Override
         public synchronized void register(Responder responder) {
@@ -85,45 +85,39 @@ public class LeaseTest {
 
                 @Override
                 public Publisher<Payload> handleRequestResponse(Payload payload) {
-                    return just(utf8EncodedPayload("hello world", null));
+                    return toPublisher(just(utf8EncodedPayload("hello world", null)));
                 }
 
                 @Override
                 public Publisher<Payload> handleRequestStream(Payload payload) {
-                    return 
-                        range(0, 100)
-                            .map(i -> "hello world " + i)
-                            .map(n -> utf8EncodedPayload(n, null)
-                    );
+                    return toPublisher(range(0, 100).map(i -> "hello world " + i)
+                                                    .map(n -> utf8EncodedPayload(n, null)));
                 }
 
                 @Override
                 public Publisher<Payload> handleSubscription(Payload payload) {
-                    return interval(1, TimeUnit.MICROSECONDS)
-                        .map(i -> "subscription " + i)
-                        .map(n -> utf8EncodedPayload(n, null));
+                    return toPublisher(interval(1, TimeUnit.MICROSECONDS)
+                                               .map(i -> "subscription " + i)
+                                               .map(n -> utf8EncodedPayload(n, null)));
                 }
 
                 @Override
                 public Publisher<Void> handleFireAndForget(Payload payload) {
-                    return empty();
+                    return toPublisher(empty());
                 }
 
                 /**
                  * Use Payload.metadata for routing
                  */
                 @Override
-                public Publisher<Payload> handleChannel(
-                    Payload initialPayload, Publisher<Payload> inputs
-                ) {
-                    return fromPublisher(inputs).map(p ->
-                        utf8EncodedPayload(byteToString(p.getData()) + "_echo", null));
+                public Publisher<Payload> handleChannel(Payload initialPayload, Publisher<Payload> inputs) {
+                    return toPublisher(toObservable(inputs).map(p -> utf8EncodedPayload(byteToString(p.getData())
+                                                                                        + "_echo", null)));
                 }
 
                 @Override
                 public Publisher<Void> handleMetadataPush(Payload payload) {
-                    throw new IllegalStateException(
-                        "TestingLeaseGovernor.handleMetadataPush is not implemented!");
+                    throw new IllegalStateException("TestingLeaseGovernor.handleMetadataPush is not implemented!");
                 }
             }, leaseGovernor, t -> {});
 
@@ -150,15 +144,13 @@ public class LeaseTest {
     @Test(timeout=2000)
     public void testWriteWithoutLease() throws InterruptedException {
         // initially client doesn't have any availability
-        assertTrue(socketClient.availability() == 0.0);
+        assertEquals("Unexpected client availability.", 0.0, socketClient.availability(), 0.0);
         leaseGovernor.latch.await();
-        assertTrue(socketClient.availability() == 0.0);
+        assertEquals("Unexpected client availability.", 0.0, socketClient.availability(), 0.0);
 
         // the first call will fail without a valid lease
-        Publisher<Payload> response0 = socketClient.requestResponse(
-            TestUtil.utf8EncodedPayload("hello", null));
-        TestSubscriber<Payload> ts0 = new TestSubscriber<>();;
-        response0.subscribe(ts0);
+        Publisher<Payload> response0 = socketClient.requestResponse(utf8EncodedPayload("hello", null));
+        TestSubscriber<Payload> ts0 = testSubscribe(response0);
         ts0.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
 
         // send a Lease(10 sec, 1 message), and wait for the availability on the client side
@@ -166,20 +158,16 @@ public class LeaseTest {
         awaitSocketAvailabilityChange(socketClient, 1.0, 10, TimeUnit.SECONDS);
 
         // the second call will succeed
-        Publisher<Payload> response1 = socketClient.requestResponse(
-            TestUtil.utf8EncodedPayload("hello", null));
-        TestSubscriber<Payload> ts1 = new TestSubscriber<>();;
-        response1.subscribe(ts1);
+        Publisher<Payload> response1 = socketClient.requestResponse(utf8EncodedPayload("hello", null));
+        TestSubscriber<Payload> ts1 = testSubscribe(response1);
         ts1.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
         ts1.assertNoErrors();
-        ts1.assertValue(TestUtil.utf8EncodedPayload("hello world", null));
+        ts1.assertValue(utf8EncodedPayload("hello world", null));
 
         // the client consumed all its ticket, next call will fail
         // (even though the window is still ok)
-        Publisher<Payload> response2 = socketClient.requestResponse(
-            TestUtil.utf8EncodedPayload("hello", null));
-        TestSubscriber<Payload> ts2 = new TestSubscriber<>();
-        response2.subscribe(ts2);
+        Publisher<Payload> response2 = socketClient.requestResponse(utf8EncodedPayload("hello", null));
+        TestSubscriber<Payload> ts2 = testSubscribe(response2);
         ts2.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
         ts2.assertError(RuntimeException.class);
     }
@@ -187,9 +175,9 @@ public class LeaseTest {
     @Test(timeout=2000)
     public void testLeaseOverwrite() throws InterruptedException {
 
-        assertTrue(socketClient.availability() == 0.0);
+        assertEquals("Unexpected client availability.", 0.0, socketClient.availability(), 0.0);
         leaseGovernor.latch.await();
-        assertTrue(socketClient.availability() == 0.0);
+        assertEquals("Unexpected client availability.", 0.0, socketClient.availability(), 0.0);
 
         leaseGovernor.distribute(10_000, 100);
         awaitSocketAvailabilityChange(socketClient, 1.0, 10, TimeUnit.SECONDS);
@@ -198,12 +186,8 @@ public class LeaseTest {
         awaitSocketAvailabilityChange(socketClient, 0.0, 10, TimeUnit.SECONDS);
     }
 
-    private void awaitSocketAvailabilityChange(
-        ReactiveSocket socket,
-        double expected,
-        long timeout,
-        TimeUnit unit
-    ) throws InterruptedException {
+    private static void awaitSocketAvailabilityChange(ReactiveSocket socket, double expected, long timeout,
+                                                      TimeUnit unit) throws InterruptedException {
         long waitTimeMs = 1L;
         long startTime = System.nanoTime();
         long timeoutNanos = TimeUnit.NANOSECONDS.convert(timeout, unit);
