@@ -17,6 +17,7 @@ package io.reactivesocket.transport.tcp.client;
 
 import io.netty.channel.EventLoopGroup;
 import io.reactivesocket.*;
+import io.reactivesocket.internal.rx.EmptySubscription;
 import io.reactivesocket.rx.Completable;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
@@ -57,6 +58,7 @@ public class TcpReactiveSocketConnector implements ReactiveSocketConnector<Socke
                 reactiveSocket.start(new Completable() {
                     @Override
                     public void success() {
+                        s.onSubscribe(EmptySubscription.INSTANCE);
                         s.onNext(reactiveSocket);
                         s.onComplete();
                     }

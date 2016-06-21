@@ -17,14 +17,13 @@ package io.reactivesocket.transport.websocket.client;
 
 import io.netty.channel.EventLoopGroup;
 import io.reactivesocket.*;
+import io.reactivesocket.internal.rx.EmptySubscription;
 import io.reactivesocket.rx.Completable;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import rx.Observable;
-import rx.RxReactiveStreams;
 
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
@@ -54,42 +53,40 @@ public class WebSocketReactiveSocketConnector implements ReactiveSocketConnector
             Publisher<ClientWebSocketDuplexConnection> connection
                     = ClientWebSocketDuplexConnection.create((InetSocketAddress)address, path, eventLoopGroup);
 
-            Observable<ReactiveSocket> result = Observable.create(s ->
-                connection.subscribe(new Subscriber<ClientWebSocketDuplexConnection>() {
-                    @Override
-                    public void onSubscribe(Subscription s) {
-                        s.request(1);
-                    }
+            return s -> connection.subscribe(new Subscriber<ClientWebSocketDuplexConnection>() {
+                @Override
+                public void onSubscribe(Subscription s) {
+                    s.request(1);
+                }
 
-                    @Override
-                    public void onNext(ClientWebSocketDuplexConnection connection) {
-                        ReactiveSocket reactiveSocket = DefaultReactiveSocket.fromClientConnection(connection, connectionSetupPayload, errorStream);
-                        reactiveSocket.start(new Completable() {
-                            @Override
-                            public void success() {
-                                s.onNext(reactiveSocket);
-                                s.onCompleted();
-                            }
+                @Override
+                public void onNext(ClientWebSocketDuplexConnection connection) {
+                    ReactiveSocket reactiveSocket = DefaultReactiveSocket.fromClientConnection(connection, connectionSetupPayload, errorStream);
+                    reactiveSocket.start(new Completable() {
+                        @Override
+                        public void success() {
+                            s.onSubscribe(EmptySubscription.INSTANCE);
+                            s.onNext(reactiveSocket);
+                            s.onComplete();
+                        }
 
-                            @Override
-                            public void error(Throwable e) {
-                                s.onError(e);
-                            }
-                        });
-                    }
+                        @Override
+                        public void error(Throwable e) {
+                            s.onError(e);
+                        }
+                    });
+                }
 
-                    @Override
-                    public void onError(Throwable t) {
-                        s.onError(t);
-                    }
+                @Override
+                public void onError(Throwable t) {
+                    s.onError(t);
+                }
 
-                    @Override
-                    public void onComplete() {
-                    }
-                })
-            );
-
-            return RxReactiveStreams.toPublisher(result);
+                @Override
+                public void onComplete() {
+                    s.onComplete();
+                }
+            });
         } else {
             throw new IllegalArgumentException("unknown socket address type => " + address.getClass());
         }

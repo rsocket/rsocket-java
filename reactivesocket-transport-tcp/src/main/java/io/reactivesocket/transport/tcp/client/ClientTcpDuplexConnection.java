@@ -25,6 +25,7 @@ import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
 import io.reactivesocket.exceptions.TransportException;
+import io.reactivesocket.internal.rx.EmptySubscription;
 import io.reactivesocket.rx.Completable;
 import io.reactivesocket.rx.Observable;
 import io.reactivesocket.rx.Observer;
@@ -73,6 +74,7 @@ public class ClientTcpDuplexConnection implements DuplexConnection {
             connect.addListener(connectFuture -> {
                 if (connectFuture.isSuccess()) {
                     Channel ch = connect.channel();
+                    s.onSubscribe(EmptySubscription.INSTANCE);
                     s.onNext(new ClientTcpDuplexConnection(ch, subjects));
                     s.onComplete();
                 } else {
