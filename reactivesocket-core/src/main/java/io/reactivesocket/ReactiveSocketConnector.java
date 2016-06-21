@@ -1,6 +1,6 @@
 package io.reactivesocket;
 
-import io.reactivesocket.internal.PublisherFunctions;
+import io.reactivesocket.internal.Publishers;
 import org.reactivestreams.Publisher;
 
 import java.util.function.Function;
@@ -22,7 +22,7 @@ public interface ReactiveSocketConnector<T> {
         return new ReactiveSocketConnector<T>() {
             @Override
             public Publisher<ReactiveSocket> connect(T address) {
-                return PublisherFunctions.map(ReactiveSocketConnector.this.connect(address), func);
+                return Publishers.map(ReactiveSocketConnector.this.connect(address), func);
             }
         };
     }

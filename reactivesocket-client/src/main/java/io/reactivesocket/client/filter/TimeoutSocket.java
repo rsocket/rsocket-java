@@ -17,7 +17,7 @@ package io.reactivesocket.client.filter;
 
 import io.reactivesocket.Payload;
 import io.reactivesocket.ReactiveSocket;
-import io.reactivesocket.internal.PublisherFunctions;
+import io.reactivesocket.internal.Publishers;
 import io.reactivesocket.util.ReactiveSocketProxy;
 import org.reactivestreams.Publisher;
 
@@ -30,7 +30,7 @@ public class TimeoutSocket extends ReactiveSocketProxy {
 
     public TimeoutSocket(ReactiveSocket child, long timeout, TimeUnit unit, ScheduledExecutorService executor) {
         super(child);
-        timer = PublisherFunctions.timer(executor, timeout, unit);
+        timer = Publishers.timer(executor, timeout, unit);
     }
 
     public TimeoutSocket(ReactiveSocket child, long timeout, TimeUnit unit) {
@@ -39,21 +39,21 @@ public class TimeoutSocket extends ReactiveSocketProxy {
 
     @Override
     public Publisher<Payload> requestResponse(Payload payload) {
-        return PublisherFunctions.timeout(super.requestResponse(payload), timer);
+        return Publishers.timeout(super.requestResponse(payload), timer);
     }
 
     @Override
     public Publisher<Payload> requestStream(Payload payload) {
-        return PublisherFunctions.timeout(super.requestStream(payload), timer);
+        return Publishers.timeout(super.requestStream(payload), timer);
     }
 
     @Override
     public Publisher<Payload> requestSubscription(Payload payload) {
-        return PublisherFunctions.timeout(super.requestSubscription(payload), timer);
+        return Publishers.timeout(super.requestSubscription(payload), timer);
     }
 
     @Override
     public Publisher<Payload> requestChannel(Publisher<Payload> payload) {
-        return PublisherFunctions.timeout(super.requestChannel(payload), timer);
+        return Publishers.timeout(super.requestChannel(payload), timer);
     }
 }

@@ -17,7 +17,7 @@ package io.reactivesocket.client.filter;
 
 import io.reactivesocket.Payload;
 import io.reactivesocket.ReactiveSocket;
-import io.reactivesocket.internal.PublisherFunctions;
+import io.reactivesocket.internal.Publishers;
 import io.reactivesocket.util.ReactiveSocketProxy;
 import org.reactivestreams.Publisher;
 
@@ -35,31 +35,31 @@ public class RetrySocket extends ReactiveSocketProxy {
 
     @Override
     public Publisher<Void> fireAndForget(Payload payload) {
-        return PublisherFunctions.retry(child.fireAndForget(payload), retry, retryThisException);
+        return Publishers.retry(child.fireAndForget(payload), retry, retryThisException);
     }
 
     @Override
     public Publisher<Payload> requestResponse(Payload payload) {
-        return PublisherFunctions.retry(child.requestResponse(payload), retry, retryThisException);
+        return Publishers.retry(child.requestResponse(payload), retry, retryThisException);
     }
 
     @Override
     public Publisher<Payload> requestStream(Payload payload) {
-        return PublisherFunctions.retry(child.requestStream(payload), retry, retryThisException);
+        return Publishers.retry(child.requestStream(payload), retry, retryThisException);
     }
 
     @Override
     public Publisher<Payload> requestSubscription(Payload payload) {
-        return PublisherFunctions.retry(child.requestSubscription(payload), retry, retryThisException);
+        return Publishers.retry(child.requestSubscription(payload), retry, retryThisException);
     }
 
     @Override
     public Publisher<Payload> requestChannel(Publisher<Payload> payload) {
-        return PublisherFunctions.retry(child.requestChannel(payload), retry, retryThisException);
+        return Publishers.retry(child.requestChannel(payload), retry, retryThisException);
     }
 
     @Override
     public Publisher<Void> metadataPush(Payload payload) {
-        return PublisherFunctions.retry(child.metadataPush(payload), retry, retryThisException);
+        return Publishers.retry(child.metadataPush(payload), retry, retryThisException);
     }
 }

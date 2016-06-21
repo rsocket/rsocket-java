@@ -14,9 +14,9 @@ import java.util.function.Function;
 /**
  * A set of utility functions for applying function composition over {@link Publisher}s.
  */
-public final class PublisherFunctions {
+public final class Publishers {
 
-    private PublisherFunctions() {
+    private Publishers() {
         // No instances.
     }
 
@@ -253,8 +253,9 @@ public final class PublisherFunctions {
 
         @Override
         public void cancel() {
-            done.set(true);
-            super.cancel();
+            if (done.compareAndSet(false, true)) {
+                super.cancel();
+            }
         }
 
         protected void doOnNext(T t) {

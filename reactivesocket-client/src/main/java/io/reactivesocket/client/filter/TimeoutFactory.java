@@ -17,7 +17,7 @@ package io.reactivesocket.client.filter;
 
 import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.ReactiveSocketFactory;
-import io.reactivesocket.internal.PublisherFunctions;
+import io.reactivesocket.internal.Publishers;
 import io.reactivesocket.util.ReactiveSocketFactoryProxy;
 import org.reactivestreams.Publisher;
 
@@ -32,20 +32,20 @@ public class TimeoutFactory<T> extends ReactiveSocketFactoryProxy<T> {
     public TimeoutFactory(ReactiveSocketFactory<T> child, long timeout, TimeUnit unit,
                           ScheduledExecutorService executor) {
         super(child);
-        timer = PublisherFunctions.timer(executor, timeout, unit);
+        timer = Publishers.timer(executor, timeout, unit);
     }
 
     @Override
     public Publisher<ReactiveSocket> apply() {
-        return PublisherFunctions.timeout(super.apply(), timer);
+        return Publishers.timeout(super.apply(), timer);
     }
 
     public static Function<Publisher<ReactiveSocket>, Publisher<ReactiveSocket>> asChainFunction(long timeout,
                                                                                                  TimeUnit unit,
                                                                                                  ScheduledExecutorService executor) {
-        Publisher<Void> timer = PublisherFunctions.timer(executor, timeout, unit);
+        Publisher<Void> timer = Publishers.timer(executor, timeout, unit);
         return reactiveSocketPublisher -> {
-            return PublisherFunctions.timeout(reactiveSocketPublisher, timer);
+            return Publishers.timeout(reactiveSocketPublisher, timer);
         };
     }
 }
