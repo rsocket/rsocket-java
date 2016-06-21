@@ -28,6 +28,7 @@ import io.netty.handler.codec.http.websocketx.*;
 import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
 import io.reactivesocket.exceptions.TransportException;
+import io.reactivesocket.internal.rx.EmptySubscription;
 import io.reactivesocket.rx.Completable;
 import io.reactivesocket.rx.Observable;
 import io.reactivesocket.rx.Observer;
@@ -91,6 +92,7 @@ public class ClientWebSocketDuplexConnection implements DuplexConnection {
                         .getHandshakePromise()
                         .addListener(handshakeFuture -> {
                             if (handshakeFuture.isSuccess()) {
+                                s.onSubscribe(EmptySubscription.INSTANCE);
                                 s.onNext(new ClientWebSocketDuplexConnection(ch, subjects));
                                 s.onComplete();
                             } else {
