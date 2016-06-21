@@ -1,8 +1,7 @@
 package io.reactivesocket;
 
+import io.reactivesocket.internal.Publishers;
 import org.reactivestreams.Publisher;
-import org.reactivestreams.Subscriber;
-import org.reactivestreams.Subscription;
 
 import java.util.function.Function;
 
@@ -23,29 +22,7 @@ public interface ReactiveSocketConnector<T> {
         return new ReactiveSocketConnector<T>() {
             @Override
             public Publisher<ReactiveSocket> connect(T address) {
-                return subscriber ->
-                    ReactiveSocketConnector.this.connect(address).subscribe(new Subscriber<ReactiveSocket>() {
-                        @Override
-                        public void onSubscribe(Subscription s) {
-                            subscriber.onSubscribe(s);
-                        }
-
-                        @Override
-                        public void onNext(ReactiveSocket reactiveSocket) {
-                            ReactiveSocket socket = func.apply(reactiveSocket);
-                            subscriber.onNext(socket);
-                        }
-
-                        @Override
-                        public void onError(Throwable t) {
-                            subscriber.onError(t);
-                        }
-
-                        @Override
-                        public void onComplete() {
-                            subscriber.onComplete();
-                        }
-                    });
+                return Publishers.map(ReactiveSocketConnector.this.connect(address), func);
             }
         };
     }
@@ -59,7 +36,7 @@ public interface ReactiveSocketConnector<T> {
         return new ReactiveSocketFactory<T>() {
             @Override
             public Publisher<ReactiveSocket> apply() {
-                return ReactiveSocketConnector.this.connect(address);
+                return connect(address);
             }
 
             @Override

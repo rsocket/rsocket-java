@@ -19,7 +19,7 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import io.reactivesocket.ConnectionSetupPayload;
 import io.reactivesocket.Payload;
 import io.reactivesocket.ReactiveSocket;
-import io.reactivesocket.client.Builder;
+import io.reactivesocket.client.ClientBuilder;
 import io.reactivesocket.transport.tcp.client.TcpReactiveSocketConnector;
 import io.reactivesocket.util.Unsafe;
 import io.reactivesocket.test.TestUtil;
@@ -27,25 +27,25 @@ import org.reactivestreams.Publisher;
 
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-public class EchoClient {
+public final class EchoClient {
 
     private static Publisher<List<SocketAddress>> source(SocketAddress sa) {
-        return sub -> sub.onNext(Arrays.asList(sa));
+        return sub -> sub.onNext(Collections.singletonList(sa));
     }
 
     public static void main(String... args) throws Exception {
         InetSocketAddress address = InetSocketAddress.createUnresolved("localhost", 8888);
-        ConnectionSetupPayload setupPayload = 
+        ConnectionSetupPayload setupPayload =
             ConnectionSetupPayload.create("UTF-8", "UTF-8", ConnectionSetupPayload.NO_FLAGS);
 
         TcpReactiveSocketConnector tcp =
             new TcpReactiveSocketConnector(new NioEventLoopGroup(8), setupPayload, System.err::println);
 
-        ReactiveSocket client = Builder.instance()
+        ReactiveSocket client = ClientBuilder.instance()
             .withSource(source(address))
             .withConnector(tcp)
             .build();
