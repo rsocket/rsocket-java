@@ -19,12 +19,10 @@ import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
-import io.netty.handler.logging.LoggingHandler;
 import io.reactivesocket.Frame;
 import io.reactivesocket.transport.tcp.MutableDirectByteBuf;
 import io.reactivesocket.rx.Observer;
 
-import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
 import org.slf4j.Logger;
 
