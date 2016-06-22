@@ -45,10 +45,10 @@ public class TcpReactiveSocketConnector implements ReactiveSocketConnector<Socke
         Publisher<ClientTcpDuplexConnection> connection
             = ClientTcpDuplexConnection.create(address, eventLoopGroup);
 
-        return s -> connection.subscribe(new Subscriber<ClientTcpDuplexConnection>() {
+        return subscriber -> connection.subscribe(new Subscriber<ClientTcpDuplexConnection>() {
             @Override
             public void onSubscribe(Subscription s) {
-                s.request(1);
+                subscriber.onSubscribe(s);
             }
 
             @Override
@@ -58,21 +58,20 @@ public class TcpReactiveSocketConnector implements ReactiveSocketConnector<Socke
                 reactiveSocket.start(new Completable() {
                     @Override
                     public void success() {
-                        s.onSubscribe(EmptySubscription.INSTANCE);
-                        s.onNext(reactiveSocket);
-                        s.onComplete();
+                        subscriber.onNext(reactiveSocket);
+                        subscriber.onComplete();
                     }
 
                     @Override
                     public void error(Throwable e) {
-                        s.onError(e);
+                        subscriber.onError(e);
                     }
                 });
             }
 
             @Override
             public void onError(Throwable t) {
-                s.onError(t);
+                subscriber.onError(t);
             }
 
             @Override
