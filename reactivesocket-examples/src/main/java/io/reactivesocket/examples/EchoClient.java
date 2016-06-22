@@ -20,7 +20,7 @@ import io.reactivesocket.ConnectionSetupPayload;
 import io.reactivesocket.Payload;
 import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.RequestHandler;
-import io.reactivesocket.client.Builder;
+import io.reactivesocket.client.ClientBuilder;
 import io.reactivesocket.test.TestUtil;
 import io.reactivesocket.transport.tcp.client.TcpReactiveSocketConnector;
 import io.reactivesocket.transport.tcp.server.TcpReactiveSocketServer;
@@ -52,7 +52,7 @@ public final class EchoClient {
 
         TcpReactiveSocketConnector tcp = TcpReactiveSocketConnector.create(setupPayload, Throwable::printStackTrace);
 
-        ReactiveSocket client = Builder.instance()
+        ReactiveSocket client = ClientBuilder.instance()
             .withSource(RxReactiveStreams.toPublisher(Observable.just(Collections.singletonList(serverAddress))))
             .withConnector(tcp)
             .build();
