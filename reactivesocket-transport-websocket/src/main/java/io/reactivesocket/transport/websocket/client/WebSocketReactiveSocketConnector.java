@@ -53,10 +53,10 @@ public class WebSocketReactiveSocketConnector implements ReactiveSocketConnector
             Publisher<ClientWebSocketDuplexConnection> connection
                     = ClientWebSocketDuplexConnection.create((InetSocketAddress)address, path, eventLoopGroup);
 
-            return s -> connection.subscribe(new Subscriber<ClientWebSocketDuplexConnection>() {
+            return subscriber -> connection.subscribe(new Subscriber<ClientWebSocketDuplexConnection>() {
                 @Override
                 public void onSubscribe(Subscription s) {
-                    s.request(1);
+                    subscriber.onSubscribe(s);
                 }
 
                 @Override
@@ -65,26 +65,25 @@ public class WebSocketReactiveSocketConnector implements ReactiveSocketConnector
                     reactiveSocket.start(new Completable() {
                         @Override
                         public void success() {
-                            s.onSubscribe(EmptySubscription.INSTANCE);
-                            s.onNext(reactiveSocket);
-                            s.onComplete();
+                            subscriber.onNext(reactiveSocket);
+                            subscriber.onComplete();
                         }
 
                         @Override
                         public void error(Throwable e) {
-                            s.onError(e);
+                            subscriber.onError(e);
                         }
                     });
                 }
 
                 @Override
                 public void onError(Throwable t) {
-                    s.onError(t);
+                    subscriber.onError(t);
                 }
 
                 @Override
                 public void onComplete() {
-                    s.onComplete();
+                    subscriber.onComplete();
                 }
             });
         } else {
