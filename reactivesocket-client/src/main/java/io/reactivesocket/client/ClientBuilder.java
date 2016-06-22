@@ -33,7 +33,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-public class Builder {
+public class ClientBuilder {
     private static AtomicInteger counter = new AtomicInteger(0);
     private final String name;
 
@@ -54,7 +54,7 @@ public class Builder {
 
     private final Publisher<List<SocketAddress>> source;
 
-    private Builder(
+    private ClientBuilder(
         String name,
         ScheduledExecutorService executor,
         long requestTimeout, TimeUnit requestTimeoutUnit,
@@ -77,8 +77,8 @@ public class Builder {
         this.source = source;
     }
 
-    public Builder withRequestTimeout(long timeout, TimeUnit unit) {
-        return new Builder(
+    public ClientBuilder withRequestTimeout(long timeout, TimeUnit unit) {
+        return new ClientBuilder(
             name,
             executor,
             timeout, unit,
@@ -90,8 +90,8 @@ public class Builder {
         );
     }
 
-    public Builder withConnectTimeout(long timeout, TimeUnit unit) {
-        return new Builder(
+    public ClientBuilder withConnectTimeout(long timeout, TimeUnit unit) {
+        return new ClientBuilder(
             name,
             executor,
             requestTimeout, requestTimeoutUnit,
@@ -103,8 +103,8 @@ public class Builder {
         );
     }
 
-    public  Builder withBackupRequest(double quantile) {
-        return new Builder(
+    public ClientBuilder withBackupRequest(double quantile) {
+        return new ClientBuilder(
             name,
             executor,
             requestTimeout, requestTimeoutUnit,
@@ -116,8 +116,8 @@ public class Builder {
         );
     }
 
-    public  Builder withExecutor(ScheduledExecutorService executor) {
-        return new Builder(
+    public ClientBuilder withExecutor(ScheduledExecutorService executor) {
+        return new ClientBuilder(
             name,
             executor,
             requestTimeout, requestTimeoutUnit,
@@ -129,8 +129,8 @@ public class Builder {
         );
     }
 
-    public  Builder withConnector(ReactiveSocketConnector<SocketAddress> connector) {
-        return new Builder(
+    public ClientBuilder withConnector(ReactiveSocketConnector<SocketAddress> connector) {
+        return new ClientBuilder(
             name,
             executor,
             requestTimeout, requestTimeoutUnit,
@@ -142,8 +142,8 @@ public class Builder {
         );
     }
 
-    public Builder withSource(Publisher<List<SocketAddress>> source) {
-        return new Builder(
+    public ClientBuilder withSource(Publisher<List<SocketAddress>> source) {
+        return new ClientBuilder(
             name,
             executor,
             requestTimeout, requestTimeoutUnit,
@@ -155,8 +155,8 @@ public class Builder {
         );
     }
 
-    public Builder withRetries(int nbOfRetries, Function<Throwable, Boolean> retryThisException) {
-        return new Builder(
+    public ClientBuilder withRetries(int nbOfRetries, Function<Throwable, Boolean> retryThisException) {
+        return new ClientBuilder(
             name,
             executor,
             requestTimeout, requestTimeoutUnit,
@@ -212,7 +212,8 @@ public class Builder {
                     socketAddresses.stream()
                         .filter(sa -> !current.containsKey(sa))
                         .map(connector::toFactory)
-                        .map(factory -> new TimeoutFactory<>(factory, connectTimeout, connectTimeoutUnit, executor))
+                        .map(factory -> factory.chain(TimeoutFactory.asChainFunction(connectTimeout, connectTimeoutUnit,
+                                                                                     executor)))
                         .map(FailureAwareFactory::new)
                         .forEach(factory -> current.put(factory.remote(), factory));
 
@@ -239,8 +240,8 @@ public class Builder {
             });
     }
 
-    public static Builder instance() {
-        return new Builder(
+    public static ClientBuilder instance() {
+        return new ClientBuilder(
             "rs-loadbalancer-" + counter.incrementAndGet(),
             Executors.newScheduledThreadPool(4, new ThreadFactory() {
                 @Override
