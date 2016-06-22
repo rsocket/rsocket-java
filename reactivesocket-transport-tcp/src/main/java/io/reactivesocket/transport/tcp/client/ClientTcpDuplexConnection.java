@@ -72,9 +72,9 @@ public class ClientTcpDuplexConnection implements DuplexConnection {
                 }).connect(address);
 
             connect.addListener(connectFuture -> {
+                s.onSubscribe(EmptySubscription.INSTANCE);
                 if (connectFuture.isSuccess()) {
                     Channel ch = connect.channel();
-                    s.onSubscribe(EmptySubscription.INSTANCE);
                     s.onNext(new ClientTcpDuplexConnection(ch, subjects));
                     s.onComplete();
                 } else {
