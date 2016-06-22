@@ -91,8 +91,8 @@ public class ClientWebSocketDuplexConnection implements DuplexConnection {
                     clientHandler
                         .getHandshakePromise()
                         .addListener(handshakeFuture -> {
+                            s.onSubscribe(EmptySubscription.INSTANCE);
                             if (handshakeFuture.isSuccess()) {
-                                s.onSubscribe(EmptySubscription.INSTANCE);
                                 s.onNext(new ClientWebSocketDuplexConnection(ch, subjects));
                                 s.onComplete();
                             } else {
