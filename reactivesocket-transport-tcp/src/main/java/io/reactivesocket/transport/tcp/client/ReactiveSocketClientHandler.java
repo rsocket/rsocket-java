@@ -24,22 +24,30 @@ import io.reactivesocket.transport.tcp.MutableDirectByteBuf;
 import io.reactivesocket.rx.Observer;
 
 import java.util.concurrent.CopyOnWriteArrayList;
+import org.slf4j.Logger;
 
 @ChannelHandler.Sharable
 public class ReactiveSocketClientHandler extends ChannelInboundHandlerAdapter {
 
     private final CopyOnWriteArrayList<Observer<Frame>> subjects;
+    private final Logger logger;
 
-    public ReactiveSocketClientHandler(CopyOnWriteArrayList<Observer<Frame>> subjects) {
+    public ReactiveSocketClientHandler(CopyOnWriteArrayList<Observer<Frame>> subjects,
+        Logger logger) {
         this.subjects = subjects;
+        this.logger = logger;
     }
 
     @Override
-    public void channelRead(ChannelHandlerContext ctx, Object content) {
+    public void channelRead(ChannelHandlerContext ctx, Object content) throws Exception {
         ByteBuf byteBuf = (ByteBuf) content;
         try {
             MutableDirectByteBuf mutableDirectByteBuf = new MutableDirectByteBuf(byteBuf);
             final Frame from = Frame.from(mutableDirectByteBuf, 0, mutableDirectByteBuf.capacity());
+
+            if (logger.isDebugEnabled()) {
+                logger.debug(ctx.channel().toString() + " RECEIVED: " + from);
+            }
             subjects.forEach(o -> o.onNext(from));
         } finally {
             byteBuf.release();

@@ -22,6 +22,8 @@ import io.netty.channel.*;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
+import io.netty.handler.logging.LogLevel;
+import io.netty.handler.logging.LoggingHandler;
 import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
 import io.reactivesocket.exceptions.TransportException;
@@ -38,8 +40,11 @@ import java.io.IOException;
 import java.net.SocketAddress;
 import java.nio.channels.ClosedChannelException;
 import java.util.concurrent.CopyOnWriteArrayList;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class ClientTcpDuplexConnection implements DuplexConnection {
+    private static Logger framesLogger = LoggerFactory.getLogger("frames");
     private final Channel channel;
     private final CopyOnWriteArrayList<Observer<Frame>> subjects;
 
@@ -51,7 +56,8 @@ public class ClientTcpDuplexConnection implements DuplexConnection {
     public static Publisher<ClientTcpDuplexConnection> create(SocketAddress address, EventLoopGroup eventLoopGroup) {
         return s -> {
             CopyOnWriteArrayList<Observer<Frame>> subjects = new CopyOnWriteArrayList<>();
-            ReactiveSocketClientHandler clientHandler = new ReactiveSocketClientHandler(subjects);
+            ReactiveSocketClientHandler clientHandler = new ReactiveSocketClientHandler(subjects,
+                framesLogger);
             Bootstrap bootstrap = new Bootstrap();
             ChannelFuture connect = bootstrap
                 .group(eventLoopGroup)
@@ -66,6 +72,7 @@ public class ClientTcpDuplexConnection implements DuplexConnection {
                         ChannelPipeline p = ch.pipeline();
                         p.addLast(
                             new LengthFieldBasedFrameDecoder(Integer.MAX_VALUE >> 1, 0, BitUtil.SIZE_OF_INT, -1 * BitUtil.SIZE_OF_INT, 0),
+                            new LoggingHandler("frameBytes", LogLevel.DEBUG),
                             clientHandler
                         );
                     }
@@ -107,6 +114,9 @@ public class ClientTcpDuplexConnection implements DuplexConnection {
             @Override
             public void onNext(Frame frame) {
                 try {
+                    if (framesLogger.isDebugEnabled()) {
+                        framesLogger.debug(channel.toString() + " WRITE: " + frame);
+                    }
                     ByteBuf byteBuf = Unpooled.wrappedBuffer(frame.getByteBuffer());
                     ChannelFuture channelFuture = channel.writeAndFlush(byteBuf);
                     channelFuture.addListener(future -> {
