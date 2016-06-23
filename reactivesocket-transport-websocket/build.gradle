@@ -1,6 +1,7 @@
 dependencies {
     compile project(':reactivesocket-core')
     compile project(':reactivesocket-transport-tcp')
+    compile 'io.netty:netty-codec-http:4.1.0.Final'
 
     testCompile project(':reactivesocket-test')
 }
