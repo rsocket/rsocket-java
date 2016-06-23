@@ -37,16 +37,16 @@ public class ReactiveSocketFrameCodec extends ChannelDuplexHandler {
 
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
-        try {
-            if (msg instanceof ByteBuf) {
+        if (msg instanceof ByteBuf) {
+            try {
                 buffer.wrap((ByteBuf) msg);
                 frame.wrap(buffer, 0);
                 ctx.fireChannelRead(frame);
-            } else {
-                super.channelRead(ctx, msg);
+            } finally {
+                ReferenceCountUtil.release(msg);
             }
-        } finally {
-            ReferenceCountUtil.release(msg);
+        } else {
+            super.channelRead(ctx, msg);
         }
     }
 

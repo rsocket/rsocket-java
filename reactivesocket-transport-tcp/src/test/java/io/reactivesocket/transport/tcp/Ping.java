@@ -18,7 +18,7 @@ package io.reactivesocket.transport.tcp;
 import io.reactivesocket.ConnectionSetupPayload;
 import io.reactivesocket.Payload;
 import io.reactivesocket.ReactiveSocket;
-import io.reactivesocket.transport.tcp.client.TcpReactiveSocketFactory;
+import io.reactivesocket.transport.tcp.client.TcpReactiveSocketConnector;
 import org.HdrHistogram.Recorder;
 import rx.Observable;
 import rx.RxReactiveStreams;
@@ -35,9 +35,9 @@ public final class Ping {
     public static void main(String... args) throws Exception {
 
         ReactiveSocket reactiveSocket =
-                RxReactiveStreams.toObservable(TcpReactiveSocketFactory.create(new InetSocketAddress("localhost", 7878),
-                                                                               ConnectionSetupPayload.create("", ""))
-                                                                       .apply())
+                RxReactiveStreams.toObservable(TcpReactiveSocketConnector.create(ConnectionSetupPayload.create("", ""),
+                                                                                 Throwable::printStackTrace)
+                                                                         .connect(new InetSocketAddress("localhost", 7878)))
                                  .toSingle()
                                  .toBlocking()
                                  .value();

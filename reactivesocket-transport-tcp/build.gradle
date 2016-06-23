@@ -1,6 +1,6 @@
 dependencies {
     compile project(':reactivesocket-core')
-    compile 'io.reactivex:rxnetty-tcp:0.5.2-rc.2'
+    compile 'io.reactivex:rxnetty-tcp:0.5.2-rc.3'
 
     testCompile project(':reactivesocket-test')
 }

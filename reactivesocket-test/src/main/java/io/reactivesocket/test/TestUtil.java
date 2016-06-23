@@ -63,6 +63,13 @@ public class TestUtil
         return new PayloadImpl(data, metadata);
     }
 
+    public static String dataAsString(Payload payload) {
+        ByteBuffer data = payload.getData();
+        byte[] dst = new byte[data.remaining()];
+        data.get(dst);
+        return new String(dst);
+    }
+
     public static String byteToString(ByteBuffer byteBuffer)
     {
         byteBuffer = byteBuffer.duplicate();

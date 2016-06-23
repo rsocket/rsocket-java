@@ -23,6 +23,6 @@ import org.agrona.BitUtil;
 public class ReactiveSocketLengthCodec extends LengthFieldBasedFrameDecoder {
 
     public ReactiveSocketLengthCodec() {
-        super(Integer.MAX_VALUE >> 1, 0, BitUtil.SIZE_OF_INT, -1 * BitUtil.SIZE_OF_INT, 0);
+        super(Integer.MAX_VALUE, 0, BitUtil.SIZE_OF_INT, -1 * BitUtil.SIZE_OF_INT, 0);
     }
 }

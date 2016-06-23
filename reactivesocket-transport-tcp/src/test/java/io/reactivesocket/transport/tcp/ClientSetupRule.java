@@ -21,7 +21,7 @@ import io.reactivesocket.ConnectionSetupHandler;
 import io.reactivesocket.ConnectionSetupPayload;
 import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.RequestHandler;
-import io.reactivesocket.transport.tcp.client.TcpReactiveSocketFactory;
+import io.reactivesocket.transport.tcp.client.TcpReactiveSocketConnector;
 import io.reactivesocket.transport.tcp.server.TcpReactiveSocketServer;
 import org.junit.rules.ExternalResource;
 import org.junit.runner.Description;
@@ -32,7 +32,7 @@ import java.net.SocketAddress;
 
 public class ClientSetupRule extends ExternalResource {
 
-    private TcpReactiveSocketFactory client;
+    private TcpReactiveSocketConnector client;
     private TcpReactiveSocketServer server;
     private SocketAddress serverAddress;
     private ReactiveSocket reactiveSocket;
@@ -50,8 +50,9 @@ public class ClientSetupRule extends ExternalResource {
                     }
                 }).getServerAddress();
 
-                client = TcpReactiveSocketFactory.create(serverAddress, ConnectionSetupPayload.create("", ""));
-                reactiveSocket = RxReactiveStreams.toObservable(client.apply())
+                client = TcpReactiveSocketConnector.create(ConnectionSetupPayload.create("", ""),
+                                                           Throwable::printStackTrace);
+                reactiveSocket = RxReactiveStreams.toObservable(client.connect(serverAddress))
                                                   .toSingle().toBlocking().value();
 
                 base.evaluate();
@@ -59,7 +60,7 @@ public class ClientSetupRule extends ExternalResource {
         };
     }
 
-    public TcpReactiveSocketFactory getClient() {
+    public TcpReactiveSocketConnector getClient() {
         return client;
     }
 

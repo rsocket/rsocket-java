@@ -29,7 +29,6 @@ import rx.Observable;
 import rx.RxReactiveStreams;
 
 import java.net.SocketAddress;
-import java.nio.ByteBuffer;
 import java.util.Collections;
 
 public final class EchoClient {
@@ -61,12 +60,7 @@ public final class EchoClient {
 
         Payload request = TestUtil.utf8EncodedPayload("Hello", "META");
         RxReactiveStreams.toObservable(client.requestResponse(request))
-                         .map(payload -> {
-                             ByteBuffer data = payload.getData();
-                             byte[] dst = new byte[data.remaining()];
-                             data.get(dst);
-                             return new String(dst);
-                         })
+                         .map(TestUtil::dataAsString)
                          .toBlocking()
                          .forEach(System.out::println);
     }
