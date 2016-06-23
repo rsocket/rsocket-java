@@ -103,19 +103,6 @@ public class ClientBuilder {
         );
     }
 
-    public ClientBuilder withBackupRequest(double quantile) {
-        return new ClientBuilder(
-            name,
-            executor,
-            requestTimeout, requestTimeoutUnit,
-            connectTimeout, connectTimeoutUnit,
-            quantile,
-            retries, retryThisException,
-            connector,
-            source
-        );
-    }
-
     public ClientBuilder withExecutor(ScheduledExecutorService executor) {
         return new ClientBuilder(
             name,
@@ -155,19 +142,6 @@ public class ClientBuilder {
         );
     }
 
-    public ClientBuilder withRetries(int nbOfRetries, Function<Throwable, Boolean> retryThisException) {
-        return new ClientBuilder(
-            name,
-            executor,
-            requestTimeout, requestTimeoutUnit,
-            connectTimeout, connectTimeoutUnit,
-            backupQuantile,
-            nbOfRetries, retryThisException,
-            connector,
-            source
-        );
-    }
-
     public ReactiveSocket build() {
         if (source == null) {
             throw new IllegalStateException("Please configure the source!");
@@ -183,14 +157,7 @@ public class ClientBuilder {
         Publisher<List<ReactiveSocketFactory<SocketAddress>>> factories =
             sourceToFactory(source, filterConnector);
 
-        ReactiveSocket socket = new LoadBalancer(factories);
-        if (0.0 < backupQuantile && backupQuantile < 1.0) {
-            socket = new BackupRequestSocket(socket, backupQuantile, executor);
-        }
-        if (retries > 0) {
-            socket = new RetrySocket(socket, retries, t -> true);
-        }
-        return socket;
+        return new LoadBalancer(factories);
     }
 
     private Publisher<List<ReactiveSocketFactory<SocketAddress>>> sourceToFactory(
