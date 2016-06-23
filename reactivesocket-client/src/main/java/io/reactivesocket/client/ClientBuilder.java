@@ -104,16 +104,17 @@ public class ClientBuilder {
     }
 
     public ClientBuilder withBackupRequest(double quantile) {
-        return new ClientBuilder(
-            name,
-            executor,
-            requestTimeout, requestTimeoutUnit,
-            connectTimeout, connectTimeoutUnit,
-            quantile,
-            retries, retryThisException,
-            connector,
-            source
-        );
+        throw new IllegalArgumentException("BackupRequest is experimental/disabled.");
+//        return new ClientBuilder(
+//            name,
+//            executor,
+//            requestTimeout, requestTimeoutUnit,
+//            connectTimeout, connectTimeoutUnit,
+//            quantile,
+//            retries, retryThisException,
+//            connector,
+//            source
+//        );
     }
 
     public ClientBuilder withExecutor(ScheduledExecutorService executor) {
@@ -156,16 +157,17 @@ public class ClientBuilder {
     }
 
     public ClientBuilder withRetries(int nbOfRetries, Function<Throwable, Boolean> retryThisException) {
-        return new ClientBuilder(
-            name,
-            executor,
-            requestTimeout, requestTimeoutUnit,
-            connectTimeout, connectTimeoutUnit,
-            backupQuantile,
-            nbOfRetries, retryThisException,
-            connector,
-            source
-        );
+        throw new IllegalArgumentException("Retries is experimental/disabled.");
+//        return new ClientBuilder(
+//            name,
+//            executor,
+//            requestTimeout, requestTimeoutUnit,
+//            connectTimeout, connectTimeoutUnit,
+//            backupQuantile,
+//            nbOfRetries, retryThisException,
+//            connector,
+//            source
+//        );
     }
 
     public ReactiveSocket build() {
@@ -184,12 +186,12 @@ public class ClientBuilder {
             sourceToFactory(source, filterConnector);
 
         ReactiveSocket socket = new LoadBalancer(factories);
-        if (0.0 < backupQuantile && backupQuantile < 1.0) {
-            socket = new BackupRequestSocket(socket, backupQuantile, executor);
-        }
-        if (retries > 0) {
-            socket = new RetrySocket(socket, retries, t -> true);
-        }
+//        if (0.0 < backupQuantile && backupQuantile < 1.0) {
+//            socket = new BackupRequestSocket(socket, backupQuantile, executor);
+//        }
+//        if (retries > 0) {
+//            socket = new RetrySocket(socket, retries, t -> true);
+//        }
         return socket;
     }
 
