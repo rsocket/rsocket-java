@@ -1,5 +1,7 @@
 # ReactiveSocket
 
+[![Join the chat at https://gitter.im/ReactiveSocket/reactivesocket-java](https://badges.gitter.im/ReactiveSocket/reactivesocket-java.svg)](https://gitter.im/ReactiveSocket/reactivesocket-java?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+
 ReactiveSocket is network protocol with client and server that uses [Reactive Streams](http://reactive-streams.org) (and optimistically [Reactive Streams IO](http://reactive-streams.io) as it gets defined).
 
 It enables the following interaction models via async message passing over a single network connection:
