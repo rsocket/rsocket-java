@@ -73,7 +73,7 @@ public class DefaultReactiveSocket implements ReactiveSocket {
         this.clientRequestHandler = clientRequestHandler;
         this.responderConnectionHandler = responderConnectionHandler;
         this.leaseGovernor = leaseGovernor;
-        this.errorStream = errorStream;
+        this.errorStream = new KnownErrorFilter(errorStream);
         this.shutdownListeners = new CopyOnWriteArrayList<>();
     }
 
