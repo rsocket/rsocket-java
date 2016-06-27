@@ -95,6 +95,10 @@ public class TcpReactiveSocketServer {
         return create(TcpServer.newServer(port));
     }
 
+    public static TcpReactiveSocketServer create(SocketAddress address) {
+        return create(TcpServer.newServer(address));
+    }
+
     public static TcpReactiveSocketServer create(TcpServer<ByteBuf, ByteBuf> rxNettyServer) {
         return new TcpReactiveSocketServer(configure(rxNettyServer));
     }
