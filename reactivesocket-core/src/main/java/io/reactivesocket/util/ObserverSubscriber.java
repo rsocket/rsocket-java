@@ -11,9 +11,32 @@
  *  specific language governing permissions and limitations under the License.
  */
 
-dependencies {
-    compile project(':reactivesocket-transport-tcp')
-    compile project(':reactivesocket-core')
+package io.reactivesocket.util;
 
-    testCompile project(':reactivesocket-test')
+import io.reactivesocket.Frame;
+import io.reactivesocket.rx.Observer;
+import rx.Subscriber;
+
+public class ObserverSubscriber extends Subscriber<Frame> {
+
+    private final Observer<Frame> o;
+
+    public ObserverSubscriber(Observer<Frame> o) {
+        this.o = o;
+    }
+
+    @Override
+    public void onCompleted() {
+        o.onComplete();
+    }
+
+    @Override
+    public void onError(Throwable e) {
+        o.onError(e);
+    }
+
+    @Override
+    public void onNext(Frame frame) {
+        o.onNext(frame);
+    }
 }
