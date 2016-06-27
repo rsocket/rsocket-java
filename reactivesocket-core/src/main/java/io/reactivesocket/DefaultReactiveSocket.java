@@ -454,7 +454,6 @@ public class DefaultReactiveSocket implements ReactiveSocket {
     @Override
     public void close() throws Exception {
         try {
-            connection.close();
             leaseGovernor.unregister(responder);
             if (requester != null) {
                 requester.shutdown();
@@ -462,9 +461,8 @@ public class DefaultReactiveSocket implements ReactiveSocket {
             if (responder != null) {
                 responder.shutdown();
             }
-
+            connection.close();
             shutdownListeners.forEach(Completable::success);
-
         } catch (Throwable t) {
             shutdownListeners.forEach(c -> c.error(t));
             throw t;

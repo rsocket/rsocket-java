@@ -39,6 +39,7 @@ import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
+import java.nio.channels.ClosedChannelException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
@@ -53,6 +54,8 @@ import java.util.function.Consumer;
  * for each request over the connection.
  */
 public class Responder {
+	private final static Disposable CANCELLED = new EmptyDisposable();
+
 	private final DuplexConnection connection;
 	private final ConnectionSetupHandler connectionHandler; // for server
 	private final RequestHandler clientRequestHandler; // for client
@@ -61,6 +64,7 @@ public class Responder {
 	private long timeOfLastKeepalive;
 	private final Consumer<ConnectionSetupPayload> setupCallback;
 	private final boolean isServer;
+	private final AtomicReference<Disposable> transportSubscription = new AtomicReference<>();
 
 	private Responder(
 			boolean isServer,
@@ -146,7 +150,7 @@ public class Responder {
 
 			@Override
 			public void error(Throwable e) {
-				errorStream.accept(new RuntimeException("could not send lease ", e));
+				errorStream.accept(new RuntimeException(name() + ": could not send lease ", e));
 			}
 		});
 	}
@@ -171,7 +175,6 @@ public class Responder {
 		final Int2ObjectHashMap<UnicastSubject<Payload>> channels = new Int2ObjectHashMap<>();
 
 		final AtomicBoolean childTerminated = new AtomicBoolean(false);
-		final AtomicReference<Disposable> transportSubscription = new AtomicReference<>();
 
 		// subscribe to transport to get Frames
 		connection.getInput().subscribe(new Observer<Frame>() {
@@ -205,8 +208,7 @@ public class Responder {
 						try {
                             int version = Frame.Setup.version(requestFrame);
                             if (version != SetupFrameFlyweight.CURRENT_VERSION) {
-								throw new SetupException("unsupported protocol version: "
-                                    + version);
+								throw new SetupException(name() + ": unsupported protocol version: " + version);
 							}
 
 							// accept setup for ReactiveSocket/Requester usage
@@ -231,7 +233,7 @@ public class Responder {
 						// TODO: handle keepalive logic here
 					} else {
 						setupErrorAndTearDown(connection,
-                            new InvalidSetupException("Setup frame missing"));
+                            new InvalidSetupException(name() + ": Setup frame missing"));
 					}
 				} else {
 					Publisher<Frame> responsePublisher = null;
@@ -293,21 +295,21 @@ public class Responder {
 							// LEASE only concerns the Requester
 						} else {
 							IllegalStateException exc = new IllegalStateException(
-									"Unexpected prefix: " + requestFrame.getType());
+								name() + ": Unexpected prefix: " + requestFrame.getType());
 							responsePublisher = PublisherUtils.errorFrame(streamId, exc);
 						}
 					} catch (Throwable e) {
 						// synchronous try/catch since we execute user functions
 						// in the handlers and they could throw
 						errorStream.accept(
-                            new RuntimeException("Error in request handling.", e));
+                            new RuntimeException(name() + ": Error in request handling.", e));
 						// error message to user
 						responsePublisher = PublisherUtils.errorFrame(
 								streamId, new RuntimeException(
-                                "Unhandled error processing request"));
+								name() + ": Unhandled error processing request"));
                     }
                     } else {
-						RejectedException exception = new RejectedException("No associated lease");
+						RejectedException exception = new RejectedException(name() + ": No associated lease");
 						responsePublisher = PublisherUtils.errorFrame(streamId, exception);
 					}
 
@@ -348,7 +350,7 @@ public class Responder {
 						@Override
 						public void error(Throwable e) {
 							RuntimeException exc = new RuntimeException(
-									"Failure outputting SetupException", e);
+								name() + ": Failure outputting SetupException", e);
 							tearDownWithError(exc);
 						}
 					});
@@ -356,14 +358,16 @@ public class Responder {
 
 			private void tearDownWithError(Throwable se) {
 				// TODO unit test that this actually shuts things down
-				onError(new RuntimeException("Connection Setup Failure", se));
+				onError(new RuntimeException(name() + ": Connection Setup Failure", se));
 			}
 
 			@Override
 			public void onError(Throwable t) {
 				// TODO validate with unit tests
 				if (childTerminated.compareAndSet(false, true)) {
-					errorStream.accept(t);
+					if (!(t instanceof ClosedChannelException)) {
+						errorStream.accept(t);
+					}
 					cancel();
 				}
 			}
@@ -380,7 +384,8 @@ public class Responder {
 			private void cancel() {
 				// child has cancelled (shutdown the connection or server)
 				// TODO validate with unit tests
-				if (!transportSubscription.compareAndSet(null, EmptyDisposable.EMPTY)) {
+				Disposable disposable = transportSubscription.getAndSet(CANCELLED);
+				if (disposable != null) {
 					// cancel the one that was there if we failed to set the sentinel
 					transportSubscription.get().dispose();
 				}
@@ -390,8 +395,10 @@ public class Responder {
 	}
 
 	public void shutdown() {
-		// TODO do something here
-		System.err.println("**** Responder.shutdown => this should actually do something");
+		Disposable disposable = transportSubscription.getAndSet(CANCELLED);
+		if (disposable != null && disposable != CANCELLED) {
+			disposable.dispose();
+		}
 	}
 
 	private Publisher<Frame> handleRequestResponse(
@@ -432,7 +439,7 @@ public class Responder {
 								public void onNext(Payload v) {
 									if (++count > 1) {
 										IllegalStateException exc = new IllegalStateException(
-												"RequestResponse expects a single onNext");
+											name() + ": RequestResponse expects a single onNext");
 										onError(exc);
 									} else {
 										Frame nextCompleteFrame = Frame.Response.from(
@@ -451,7 +458,7 @@ public class Responder {
 								public void onComplete() {
 									if (count != 1) {
 										IllegalStateException exc = new IllegalStateException(
-												"RequestResponse expects a single onNext");
+											name() + ": RequestResponse expects a single onNext");
 										onError(exc);
 									} else {
 										child.onComplete();
@@ -602,8 +609,8 @@ public class Responder {
 										cleanup();
 									} else {
 										IllegalStateException exc = new IllegalStateException(
-												"Unexpected onComplete occurred on " +
-														"'requestSubscription'");
+											name() + ": Unexpected onComplete occurred on " +
+												"'requestSubscription'");
 										onError(exc);
 									}
 								}
@@ -652,7 +659,7 @@ public class Responder {
 		} catch (Throwable e) {
 			// we catch these errors here as we don't want anything propagating
             // back to the user on fireAndForget
-			errorStream.accept(new RuntimeException("Error processing 'fireAndForget'", e));
+			errorStream.accept(new RuntimeException(name() + ": Error processing 'fireAndForget'", e));
 		}
         // we always treat this as if it immediately completes as we don't want
         // errors passing back to the user
@@ -668,7 +675,7 @@ public class Responder {
 		} catch (Throwable e) {
 			// we catch these errors here as we don't want anything propagating
             // back to the user on metadataPush
-			errorStream.accept(new RuntimeException("Error processing 'metadataPush'", e));
+			errorStream.accept(new RuntimeException(name() + ": Error processing 'metadataPush'", e));
 		}
         // we always treat this as if it immediately completes as we don't want
         // errors passing back to the user
@@ -745,7 +752,7 @@ public class Responder {
 									// didn't correct wait for REQUEST_N before sending
 									// more frames
 									RuntimeException exc = new RuntimeException(
-										"Requester sent more than 1 requestChannel " +
+										name() + " sent more than 1 requestChannel " +
 											"frame before permitted.");
 									child.onNext(Frame.Error.from(streamId, exc));
 									child.onComplete();
@@ -846,11 +853,19 @@ public class Responder {
                 // handle time-gap issues like this?
                 // TODO validate with unit tests.
 				return PublisherUtils.errorFrame(
-						streamId, new RuntimeException("Channel unavailable"));
+						streamId, new RuntimeException(name() + ": Channel unavailable"));
 			}
 		}
 	}
-	
+
+	private String name() {
+		if (isServer) {
+			return "ServerResponder";
+		} else {
+			return "ClientResponder";
+		}
+	}
+
 	private static class SubscriptionArbiter {
 		private Subscription applicationProducer;
 		private long appRequested = 0;
