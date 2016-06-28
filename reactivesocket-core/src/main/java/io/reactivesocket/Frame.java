@@ -26,8 +26,12 @@ import io.reactivesocket.internal.frame.UnpooledFrame;
 import org.agrona.DirectBuffer;
 import org.agrona.MutableDirectBuffer;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
+import java.util.function.Function;
 
 import static java.lang.System.getProperty;
 
@@ -295,6 +299,38 @@ public class Frame implements Payload {
 
     public static class Error {
 
+        private static final Function<Throwable, ByteBuffer> DEFAULT_ERROR_MESSAGE_TRANSFORMER;
+
+        // TODO Make this plugin, and also make it so that a error message transformer can be
+        // TODO passed in with an application
+        static {
+            if (Boolean.getBoolean("io.reactivesocket.debugError")) {
+                DEFAULT_ERROR_MESSAGE_TRANSFORMER = throwable -> {
+                    StringWriter writer = new StringWriter();
+
+                    String message = throwable.getMessage() == null
+                        ? ""
+                        : throwable.getMessage() + "\n";
+
+                    writer.write(message);
+
+                    PrintWriter printWriter = new PrintWriter(writer);
+                    throwable.printStackTrace(printWriter);
+                    String data = writer.toString();
+                    byte[] bytes = data.getBytes(StandardCharsets.UTF_8);
+                    final ByteBuffer dataBuffer = ByteBuffer.wrap(bytes);
+                    return dataBuffer;
+                };
+            } else {
+                DEFAULT_ERROR_MESSAGE_TRANSFORMER = throwable -> {
+                    String data = throwable.getMessage() == null ? "" : throwable.getMessage();
+                    byte[] bytes = data.getBytes(StandardCharsets.UTF_8);
+                    final ByteBuffer dataBuffer = ByteBuffer.wrap(bytes);
+                    return dataBuffer;
+                };
+            }
+        }
+
         private Error() {}
 
         public static Frame from(
@@ -317,11 +353,7 @@ public class Frame implements Payload {
             final Throwable throwable,
             ByteBuffer metadata
         ) {
-            String data = throwable.getMessage() == null ? "" : throwable.getMessage();
-            byte[] bytes = data.getBytes(Charset.forName("UTF-8"));
-            final ByteBuffer dataBuffer = ByteBuffer.wrap(bytes);
-
-            return from(streamId, throwable, metadata, dataBuffer);
+            return from(streamId, throwable, metadata, DEFAULT_ERROR_MESSAGE_TRANSFORMER.apply(throwable));
         }
 
         public static Frame from(
