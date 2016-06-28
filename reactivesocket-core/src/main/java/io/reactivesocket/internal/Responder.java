@@ -365,7 +365,9 @@ public class Responder {
 			public void onError(Throwable t) {
 				// TODO validate with unit tests
 				if (childTerminated.compareAndSet(false, true)) {
-					errorStream.accept(t);
+					if (!(t instanceof ClosedChannelException)) {
+						errorStream.accept(t);
+					}
 					cancel();
 				}
 			}

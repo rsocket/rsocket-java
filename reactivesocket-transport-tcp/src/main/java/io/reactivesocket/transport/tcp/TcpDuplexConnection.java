@@ -21,7 +21,6 @@ import io.reactivesocket.Frame;
 import io.reactivesocket.internal.rx.BooleanDisposable;
 import io.reactivesocket.rx.Completable;
 import io.reactivesocket.rx.Observable;
-import io.reactivesocket.rx.Observer;
 import io.reactivex.netty.channel.Connection;
 import org.reactivestreams.Publisher;
 import rx.RxReactiveStreams;
@@ -41,40 +40,32 @@ public class TcpDuplexConnection implements DuplexConnection {
 
     @Override
     public final Observable<Frame> getInput() {
-        return new Observable<Frame>() {
-            @Override
-            public void subscribe(Observer<Frame> o) {
-                Subscriber<Frame> subscriber = new ObserverSubscriber(o);
-                o.onSubscribe(new BooleanDisposable(new Runnable() {
-                    @Override
-                    public void run() {
-                        subscriber.unsubscribe();
-                    }
-                }));
-                input.unsafeSubscribe(subscriber);
-            }
+        return o -> {
+            Subscriber<Frame> subscriber = new ObserverSubscriber(o);
+            o.onSubscribe(new BooleanDisposable(subscriber::unsubscribe));
+            input.unsafeSubscribe(subscriber);
         };
     }
 
     @Override
     public void addOutput(Publisher<Frame> o, Completable callback) {
         connection.writeAndFlushOnEach(RxReactiveStreams.toObservable(o))
-                  .subscribe(new Subscriber<Void>() {
-                      @Override
-                      public void onCompleted() {
-                          callback.success();
-                      }
+            .subscribe(new Subscriber<Void>() {
+                @Override
+                public void onCompleted() {
+                    callback.success();
+                }
 
-                      @Override
-                      public void onError(Throwable e) {
-                          callback.error(e);
-                      }
+                @Override
+                public void onError(Throwable e) {
+                    callback.error(e);
+                }
 
-                      @Override
-                      public void onNext(Void aVoid) {
-                          // No Op.
-                      }
-                  });
+                @Override
+                public void onNext(Void aVoid) {
+                    // No Op.
+                }
+            });
     }
 
     @Override
