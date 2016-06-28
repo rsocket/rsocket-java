@@ -62,7 +62,7 @@ public class ClientWebSocketDuplexConnection implements DuplexConnection {
     }
 
     public static Publisher<ClientWebSocketDuplexConnection> create(URI uri, EventLoopGroup eventLoopGroup) {
-        return s -> {
+        return subscriber -> {
             WebSocketClientHandshaker handshaker = WebSocketClientHandshakerFactory.newHandshaker(
                 uri, WebSocketVersion.V13, null, false, new DefaultHttpHeaders());
 
@@ -86,21 +86,21 @@ public class ClientWebSocketDuplexConnection implements DuplexConnection {
                 }).connect(uri.getHost(), uri.getPort());
 
             connect.addListener(connectFuture -> {
+                subscriber.onSubscribe(EmptySubscription.INSTANCE);
                 if (connectFuture.isSuccess()) {
                     final Channel ch = connect.channel();
                     clientHandler
                         .getHandshakePromise()
                         .addListener(handshakeFuture -> {
-                            s.onSubscribe(EmptySubscription.INSTANCE);
                             if (handshakeFuture.isSuccess()) {
-                                s.onNext(new ClientWebSocketDuplexConnection(ch, subjects));
-                                s.onComplete();
+                                subscriber.onNext(new ClientWebSocketDuplexConnection(ch, subjects));
+                                subscriber.onComplete();
                             } else {
-                                s.onError(handshakeFuture.cause());
+                                subscriber.onError(handshakeFuture.cause());
                             }
                         });
                 } else {
-                    s.onError(connectFuture.cause());
+                    subscriber.onError(connectFuture.cause());
                 }
             });
         };
