@@ -18,7 +18,7 @@ package io.reactivesocket;
 import org.agrona.MutableDirectBuffer;
 
 import java.nio.ByteBuffer;
-import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 
 public class TestUtil
 {
@@ -59,12 +59,12 @@ public class TestUtil
     {
         final byte[] bytes = new byte[byteBuffer.remaining()];
         byteBuffer.get(bytes);
-        return new String(bytes, Charset.forName("UTF-8"));
+        return new String(bytes, StandardCharsets.UTF_8);
     }
 
     public static ByteBuffer byteBufferFromUtf8String(final String data)
     {
-        final byte[] bytes = data.getBytes(Charset.forName("UTF-8"));
+        final byte[] bytes = data.getBytes(StandardCharsets.UTF_8);
         return ByteBuffer.wrap(bytes);
     }
 

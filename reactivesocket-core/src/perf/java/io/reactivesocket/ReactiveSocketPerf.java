@@ -16,6 +16,7 @@ import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -48,8 +49,8 @@ public class ReactiveSocketPerf {
 		 */
 		public Blackhole bh;
 
-		static final ByteBuffer HELLO = ByteBuffer.wrap("HELLO".getBytes());
-		static final ByteBuffer HELLO_WORLD = ByteBuffer.wrap("HELLO_WORLD".getBytes());
+		static final ByteBuffer HELLO = ByteBuffer.wrap("HELLO".getBytes(StandardCharsets.UTF_8));
+		static final ByteBuffer HELLO_WORLD = ByteBuffer.wrap("HELLO_WORLD".getBytes(StandardCharsets.UTF_8));
 		static final ByteBuffer EMPTY = ByteBuffer.allocate(0);
 
 		static final Payload HELLO_PAYLOAD = new Payload() {

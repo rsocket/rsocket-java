@@ -16,6 +16,7 @@
 package io.reactivesocket.internal;
 
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -81,7 +82,7 @@ public class PublisherUtils {
 
 							@Override
 							public ByteBuffer getData() {
-								final byte[] bytes = e.getMessage().getBytes();
+								final byte[] bytes = e.getMessage().getBytes(StandardCharsets.UTF_8);
 								final ByteBuffer byteBuffer = ByteBuffer.wrap(bytes);
 								return byteBuffer;
 							}

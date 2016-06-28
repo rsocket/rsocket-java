@@ -28,6 +28,7 @@ import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
 
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -139,7 +140,7 @@ public class MetadataCodecTest {
         }
 
         public void addTestData(String key, String value) {
-            ByteBuffer vBuff = ByteBuffer.allocate(value.length()).put(value.getBytes());
+            ByteBuffer vBuff = ByteBuffer.allocate(value.length()).put(value.getBytes(StandardCharsets.UTF_8));
             vBuff.flip();
             testDataHolder.put(key, vBuff);
         }

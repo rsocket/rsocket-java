@@ -17,7 +17,7 @@ package io.reactivesocket.internal;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -992,6 +992,6 @@ public class Requester {
     private static String getByteBufferAsString(ByteBuffer bb) {
         final byte[] bytes = new byte[bb.capacity()];
         bb.get(bytes);
-        return new String(bytes, Charset.forName("UTF-8"));
+        return new String(bytes, StandardCharsets.UTF_8);
     }
 }
