@@ -154,13 +154,13 @@ public class ClientBuilder {
             .chain(socket -> new TimeoutSocket(socket, requestTimeout, requestTimeoutUnit, executor))
             .chain(DrainingSocket::new);
 
-        Publisher<List<ReactiveSocketFactory<SocketAddress>>> factories =
+        Publisher<List<ReactiveSocketFactory<?>>> factories =
             sourceToFactory(source, filterConnector);
 
         return new LoadBalancer(factories);
     }
 
-    private Publisher<List<ReactiveSocketFactory<SocketAddress>>> sourceToFactory(
+    private Publisher<List<ReactiveSocketFactory<?>>> sourceToFactory(
         Publisher<List<SocketAddress>> source,
         ReactiveSocketConnector<SocketAddress> connector
     ) {
@@ -194,7 +194,7 @@ public class ClientBuilder {
                         }
                     }
 
-                    List<ReactiveSocketFactory<SocketAddress>> factories =
+                    List<ReactiveSocketFactory<?>> factories =
                         current.values().stream().collect(Collectors.toList());
                     subscriber.onNext(factories);
                 }

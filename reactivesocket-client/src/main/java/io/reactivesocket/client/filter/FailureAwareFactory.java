@@ -140,11 +140,7 @@ public class FailureAwareFactory<T> implements ReactiveSocketFactory<T> {
 
             @Override
             public void onError(Throwable t) {
-                if (t instanceof TransportException) {
-                    errorPercentage.reset(0.0);
-                } else {
-                    errorPercentage.insert(0.0);
-                }
+                errorPercentage.insert(0.0);
                 child.onError(t);
             }
 

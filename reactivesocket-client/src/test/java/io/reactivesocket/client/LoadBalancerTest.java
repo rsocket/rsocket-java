@@ -39,7 +39,7 @@ public class LoadBalancerTest {
         TestingReactiveSocket socket = new TestingReactiveSocket(Function.identity());
         ReactiveSocketFactory<SocketAddress> failing = failingFactory(local0);
         ReactiveSocketFactory<SocketAddress> succeeding = succeedingFactory(local1, socket);
-        List<ReactiveSocketFactory<SocketAddress>> factories = Arrays.asList(failing, succeeding);
+        List<ReactiveSocketFactory<?>> factories = Arrays.asList(failing, succeeding);
 
         testBalancer(factories);
     }
@@ -64,13 +64,13 @@ public class LoadBalancerTest {
 
         ReactiveSocketFactory<SocketAddress> failing = succeedingFactory(local0, failingSocket);
         ReactiveSocketFactory<SocketAddress> succeeding = succeedingFactory(local1, socket);
-        List<ReactiveSocketFactory<SocketAddress>> factories = Arrays.asList(failing, succeeding);
+        List<ReactiveSocketFactory<?>> factories = Arrays.asList(failing, succeeding);
 
         testBalancer(factories);
     }
 
-    private void testBalancer(List<ReactiveSocketFactory<SocketAddress>> factories) throws InterruptedException {
-        Publisher<List<ReactiveSocketFactory<SocketAddress>>> src = s -> {
+    private void testBalancer(List<ReactiveSocketFactory<?>> factories) throws InterruptedException {
+        Publisher<List<ReactiveSocketFactory<?>>> src = s -> {
             s.onNext(factories);
             s.onComplete();
         };
