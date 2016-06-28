@@ -113,7 +113,7 @@ public class StressTest {
 
         TcpReactiveSocketConnector tcp = TcpReactiveSocketConnector.create(setupPayload, Throwable::printStackTrace);
 
-        ReactiveSocket client = ClientBuilder.instance()
+        ReactiveSocket client = ClientBuilder.<SocketAddress>instance()
             .withSource(getServersList())
             .withConnector(tcp)
             .withConnectTimeout(1, TimeUnit.SECONDS)
