@@ -115,7 +115,7 @@ public class Requester {
 
     public void shutdown() {
         Disposable disposable = connectionSubscription.getAndSet(CANCELLED);
-        if (disposable != null && disposable != CANCELLED) {
+        if (disposable != null) {
             disposable.dispose();
         }
     }
