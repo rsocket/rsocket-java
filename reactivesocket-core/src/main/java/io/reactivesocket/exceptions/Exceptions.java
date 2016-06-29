@@ -30,9 +30,15 @@ public class Exceptions {
         final int errorCode = Frame.Error.errorCode(frame);
         String message = "<empty message>";
         final ByteBuffer byteBuffer = frame.getMetadata();
-        if (byteBuffer.hasArray()) {
-            message = new String(byteBuffer.array(), UTF_8);
+
+        // TODO nasty, but it seems strange to assume ByteBuffer is array backed
+        byte[] bytes = new byte[byteBuffer.remaining()];
+        byteBuffer.get(bytes, 0, bytes.length);
+        int length = bytes.length;
+        if (length > 1 && bytes[length - 1] == 0) {
+            length--;
         }
+        message = new String(bytes, 0, length, UTF_8);
 
         Throwable ex;
         switch (errorCode) {

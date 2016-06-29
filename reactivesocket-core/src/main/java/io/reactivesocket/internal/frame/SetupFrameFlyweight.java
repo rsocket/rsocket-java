@@ -102,7 +102,10 @@ public class SetupFrameFlyweight
     public static String metadataMimeType(final DirectBuffer directBuffer, final int offset)
     {
         final byte[] bytes = getMimeType(directBuffer, offset + METADATA_MIME_TYPE_LENGTH_OFFSET);
-        return new String(bytes, StandardCharsets.UTF_8);
+        int length = bytes.length;
+        if (length > 0 && bytes[length - 1] == 0)
+            length --;
+        return new String(bytes, 0, length, StandardCharsets.US_ASCII);
     }
 
     public static String dataMimeType(final DirectBuffer directBuffer, final int offset)
@@ -112,7 +115,10 @@ public class SetupFrameFlyweight
         fieldOffset += 1 + directBuffer.getByte(fieldOffset);
 
         final byte[] bytes = getMimeType(directBuffer, fieldOffset);
-        return new String(bytes, StandardCharsets.UTF_8);
+        int length = bytes.length;
+        if (length > 0 && bytes[length - 1] == 0)
+            length --;
+        return new String(bytes, 0, length, StandardCharsets.US_ASCII);
     }
 
     public static int computePayloadOffset(
@@ -140,7 +146,7 @@ public class SetupFrameFlyweight
         final MutableDirectBuffer mutableDirectBuffer, final int fieldOffset, final String mimeType)
     {
         mutableDirectBuffer.putByte(fieldOffset, (byte) mimeType.length());
-        mutableDirectBuffer.putBytes(fieldOffset + 1, mimeType.getBytes(StandardCharsets.UTF_8));
+        mutableDirectBuffer.putBytes(fieldOffset + 1, mimeType.getBytes(StandardCharsets.US_ASCII));
 
         return 1 + mimeType.length();
     }

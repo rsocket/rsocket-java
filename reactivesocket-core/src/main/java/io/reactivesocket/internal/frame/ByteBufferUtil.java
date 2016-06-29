@@ -25,7 +25,7 @@ public class ByteBufferUtil
     /**
      * Slice a portion of the {@link ByteBuffer} while preserving the buffers position and limit.
      *
-     * NOTE: Missing functionaity from {@link ByteBuffer}
+     * NOTE: Missing functionality from {@link ByteBuffer}
      *
      * @param byteBuffer to slice off of
      * @param position   to start slice at
