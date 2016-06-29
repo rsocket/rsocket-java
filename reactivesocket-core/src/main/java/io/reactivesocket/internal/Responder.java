@@ -75,10 +75,10 @@ public class Responder {
         this.isServer = isServer;
         this.connection = connection;
         this.connectionHandler = connectionHandler;
-        clientRequestHandler = requestHandler;
+        this.clientRequestHandler = requestHandler;
         this.leaseGovernor = leaseGovernor;
         this.errorStream = errorStream;
-        timeOfLastKeepalive = System.nanoTime();
+        this.timeOfLastKeepalive = System.nanoTime();
         this.setupCallback = setupCallback;
     }
 
