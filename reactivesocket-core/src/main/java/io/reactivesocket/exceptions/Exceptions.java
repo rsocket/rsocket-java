@@ -29,7 +29,7 @@ public class Exceptions {
     public static Throwable from(Frame frame) {
         final int errorCode = Frame.Error.errorCode(frame);
         String message = "<empty message>";
-        final ByteBuffer byteBuffer = frame.getMetadata();
+        final ByteBuffer byteBuffer = frame.getData();
 
         // TODO nasty, but it seems strange to assume ByteBuffer is array backed
         byte[] bytes = new byte[byteBuffer.remaining()];

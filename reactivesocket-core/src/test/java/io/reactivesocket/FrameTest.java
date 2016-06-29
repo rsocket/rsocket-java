@@ -20,6 +20,7 @@ import static org.junit.Assert.*;
 import java.nio.ByteBuffer;
 import java.util.concurrent.TimeUnit;
 
+import io.reactivesocket.exceptions.Exceptions;
 import io.reactivesocket.exceptions.RejectedException;
 import io.reactivesocket.internal.frame.SetupFrameFlyweight;
 
@@ -452,10 +453,12 @@ public class FrameTest
         TestUtil.copyFrame(reusableMutableDirectBuffer, offset, encodedFrame);
         reusableFrame.wrap(reusableMutableDirectBuffer, offset);
 
-
         assertEquals(FrameType.ERROR, reusableFrame.getType());
         assertEquals(exMessage, TestUtil.byteToString(reusableFrame.getData()));
         assertEquals(TestUtil.byteBufferFromUtf8String(metadata), reusableFrame.getMetadata());
+
+        final Throwable throwable = Exceptions.from(encodedFrame);
+        assertEquals(exMessage, throwable.getMessage());
     }
 
     @Test
