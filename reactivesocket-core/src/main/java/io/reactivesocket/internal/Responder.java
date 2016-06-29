@@ -10,6 +10,7 @@
  *  an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
  *  specific language governing permissions and limitations under the License.
  */
+
 package io.reactivesocket.internal;
 
 import io.reactivesocket.ConnectionSetupHandler;
@@ -36,7 +37,6 @@ import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
-import java.nio.channels.ClosedChannelException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
@@ -75,10 +75,10 @@ public class Responder {
         this.isServer = isServer;
         this.connection = connection;
         this.connectionHandler = connectionHandler;
-        this.clientRequestHandler = requestHandler;
+        clientRequestHandler = requestHandler;
         this.leaseGovernor = leaseGovernor;
         this.errorStream = errorStream;
-        this.timeOfLastKeepalive = System.nanoTime();
+        timeOfLastKeepalive = System.nanoTime();
         this.setupCallback = setupCallback;
     }
 
@@ -91,7 +91,7 @@ public class Responder {
      *                    server-side via this mechanism.
      * @return responder instance
      */
-    public static <T> Responder createServerResponder(
+    public static Responder createServerResponder(
             DuplexConnection connection,
             ConnectionSetupHandler connectionHandler,
             LeaseGovernor leaseGovernor,
@@ -106,7 +106,7 @@ public class Responder {
         return responder;
     }
 
-    public static <T> Responder createServerResponder(
+    public static Responder createServerResponder(
             DuplexConnection connection,
             ConnectionSetupHandler connectionHandler,
             LeaseGovernor leaseGovernor,
@@ -118,7 +118,7 @@ public class Responder {
                 errorStream, responderCompletable, s -> {}, reactiveSocket);
     }
 
-    public static <T> Responder createClientResponder(
+    public static Responder createClientResponder(
             DuplexConnection connection,
             RequestHandler requestHandler,
             LeaseGovernor leaseGovernor,
@@ -199,7 +199,7 @@ public class Responder {
                         // ignore them while shutdown occurs
                         return;
                     }
-                    if (requestFrame.getType().equals(FrameType.SETUP)) {
+                    if (requestFrame.getType() == FrameType.SETUP) {
                         final ConnectionSetupPayload connectionSetupPayload =
                             ConnectionSetupPayload.create(requestFrame);
                         try {
@@ -417,7 +417,7 @@ public class Responder {
                             responsePublisher.subscribe(new Subscriber<Payload>() {
 
                                 // event emission is serialized so this doesn't need to be atomic
-                                int count = 0;
+                                int count;
 
                                 @Override
                                 public void onSubscribe(Subscription s) {
@@ -446,6 +446,7 @@ public class Responder {
                                 @Override
                                 public void onError(Throwable t) {
                                     child.onNext(Frame.Error.from(streamId, t));
+                                    child.onComplete();
                                     cleanup();
                                 }
 
@@ -463,6 +464,7 @@ public class Responder {
                             });
                         } catch (Throwable t) {
                             child.onNext(Frame.Error.from(streamId, t));
+                            child.onComplete();
                             cleanup();
                         }
                     }
@@ -483,16 +485,16 @@ public class Responder {
                 }
 
             };
-            synchronized(Responder.this) {
+            synchronized(this) {
                 cancellationSubscriptions.put(streamId, s);
             }
             child.onSubscribe(s);
         };
     }
 
-    private static BiFunction<RequestHandler, Payload, Publisher<Payload>>
+    private static final BiFunction<RequestHandler, Payload, Publisher<Payload>>
             requestSubscriptionHandler = RequestHandler::handleSubscription;
-    private static BiFunction<RequestHandler, Payload, Publisher<Payload>>
+    private static final BiFunction<RequestHandler, Payload, Publisher<Payload>>
             requestStreamHandler = RequestHandler::handleRequestStream;
 
     private Publisher<Frame> handleRequestStream(
@@ -636,7 +638,7 @@ public class Responder {
                 }
 
             };
-            synchronized(Responder.this) {
+            synchronized(this) {
                 cancellationSubscriptions.put(streamId, s);
             }
             child.onSubscribe(s);
@@ -705,7 +707,7 @@ public class Responder {
 
         UnicastSubject<Payload> channelSubject;
         final int streamId = requestFrame.getStreamId();
-        synchronized(Responder.this) {
+        synchronized(this) {
             channelSubject = channels.get(streamId);
         }
         if (channelSubject == null) {
@@ -822,7 +824,7 @@ public class Responder {
                     }
 
                 };
-                synchronized(Responder.this) {
+                synchronized(this) {
                     cancellationSubscriptions.put(streamId, s);
                 }
                 child.onSubscribe(s);
@@ -863,9 +865,9 @@ public class Responder {
 
     private static class SubscriptionArbiter {
         private Subscription applicationProducer;
-        private long appRequested = 0;
-        private long transportRequested = 0;
-        private long requestedToProducer = 0;
+        private long appRequested;
+        private long transportRequested;
+        private long requestedToProducer;
 
         public void addApplicationRequest(long n) {
             synchronized(this) {
