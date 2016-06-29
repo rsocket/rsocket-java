@@ -48,8 +48,8 @@ public class SetupFrameFlyweight
         int length = FrameHeaderFlyweight.computeFrameHeaderLength(FrameType.SETUP, metadataLength, dataLength);
 
         length += BitUtil.SIZE_OF_INT * 3;
-        length += 1 + metadataMimeType.length();
-        length += 1 + dataMimeType.length();
+        length += 1 + metadataMimeType.getBytes(StandardCharsets.UTF_8).length;
+        length += 1 + dataMimeType.getBytes(StandardCharsets.UTF_8).length;
 
         return length;
     }
@@ -102,10 +102,7 @@ public class SetupFrameFlyweight
     public static String metadataMimeType(final DirectBuffer directBuffer, final int offset)
     {
         final byte[] bytes = getMimeType(directBuffer, offset + METADATA_MIME_TYPE_LENGTH_OFFSET);
-        int length = bytes.length;
-        if (length > 0 && bytes[length - 1] == 0)
-            length --;
-        return new String(bytes, 0, length, StandardCharsets.US_ASCII);
+        return new String(bytes, StandardCharsets.UTF_8);
     }
 
     public static String dataMimeType(final DirectBuffer directBuffer, final int offset)
@@ -115,18 +112,7 @@ public class SetupFrameFlyweight
         fieldOffset += 1 + directBuffer.getByte(fieldOffset);
 
         final byte[] bytes = getMimeType(directBuffer, fieldOffset);
-        int length = bytes.length;
-        if (length > 0 && bytes[length - 1] == 0)
-            length --;
-        return new String(bytes, 0, length, StandardCharsets.US_ASCII);
-    }
-
-    public static int computePayloadOffset(
-        final int offset, final int metadataMimeTypeLength, final int dataMimeTypeLength)
-    {
-        return offset + METADATA_MIME_TYPE_LENGTH_OFFSET +
-            1 + metadataMimeTypeLength +
-            1 + dataMimeTypeLength;
+        return new String(bytes, StandardCharsets.UTF_8);
     }
 
     public static int payloadOffset(final DirectBuffer directBuffer, final int offset)
@@ -145,10 +131,12 @@ public class SetupFrameFlyweight
     private static int putMimeType(
         final MutableDirectBuffer mutableDirectBuffer, final int fieldOffset, final String mimeType)
     {
-        mutableDirectBuffer.putByte(fieldOffset, (byte) mimeType.length());
-        mutableDirectBuffer.putBytes(fieldOffset + 1, mimeType.getBytes(StandardCharsets.US_ASCII));
+        byte[] bytes = mimeType.getBytes(StandardCharsets.UTF_8);
 
-        return 1 + mimeType.length();
+        mutableDirectBuffer.putByte(fieldOffset, (byte) bytes.length);
+        mutableDirectBuffer.putBytes(fieldOffset + 1, bytes);
+
+        return 1 + bytes.length;
     }
 
     private static byte[] getMimeType(final DirectBuffer directBuffer, final int fieldOffset)
