@@ -28,6 +28,7 @@ import org.junit.runners.Parameterized.Parameters;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collection;
 
@@ -80,6 +81,6 @@ public class CborUtf8StringCodecTest {
     private static String newString(int stringLength) {
         byte[] b = new byte[stringLength];
         Arrays.fill(b, (byte) 'a');
-        return new String(b);
+        return new String(b, StandardCharsets.UTF_8);
     }
 }

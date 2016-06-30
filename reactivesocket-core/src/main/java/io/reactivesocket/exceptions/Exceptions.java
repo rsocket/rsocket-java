@@ -16,11 +16,11 @@
 package io.reactivesocket.exceptions;
 
 import io.reactivesocket.Frame;
+import io.reactivesocket.internal.frame.ByteBufferUtil;
 
 import java.nio.ByteBuffer;
 
 import static io.reactivesocket.internal.frame.ErrorFrameFlyweight.*;
-import static java.nio.charset.StandardCharsets.UTF_8;
 
 public class Exceptions {
 
@@ -28,11 +28,8 @@ public class Exceptions {
 
     public static Throwable from(Frame frame) {
         final int errorCode = Frame.Error.errorCode(frame);
-        String message = "<empty message>";
-        final ByteBuffer byteBuffer = frame.getMetadata();
-        if (byteBuffer.hasArray()) {
-            message = new String(byteBuffer.array(), UTF_8);
-        }
+        ByteBuffer dataBuffer = frame.getData();
+        String message = dataBuffer.remaining() == 0 ? "<empty message>" : ByteBufferUtil.toUtf8String(dataBuffer);
 
         Throwable ex;
         switch (errorCode) {

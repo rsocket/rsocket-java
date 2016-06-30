@@ -1,12 +1,12 @@
 /**
  * Copyright 2015 Netflix, Inc.
- *
+ * <p>
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
+ * <p>
  * http://www.apache.org/licenses/LICENSE-2.0
- *
+ * <p>
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -17,23 +17,24 @@ package io.reactivesocket.internal.frame;
 
 import java.nio.ByteBuffer;
 
-public class ByteBufferUtil
-{
+import static java.nio.charset.StandardCharsets.UTF_8;
 
-    private ByteBufferUtil() {}
+public class ByteBufferUtil {
+
+    private ByteBufferUtil() {
+    }
 
     /**
      * Slice a portion of the {@link ByteBuffer} while preserving the buffers position and limit.
      *
-     * NOTE: Missing functionaity from {@link ByteBuffer}
+     * NOTE: Missing functionality from {@link ByteBuffer}
      *
      * @param byteBuffer to slice off of
      * @param position   to start slice at
      * @param limit      to slice to
-     * @return           slice of byteBuffer with passed ByteBuffer preserved position and limit.
+     * @return slice of byteBuffer with passed ByteBuffer preserved position and limit.
      */
-    public static ByteBuffer preservingSlice(final ByteBuffer byteBuffer, final int position, final int limit)
-    {
+    public static ByteBuffer preservingSlice(final ByteBuffer byteBuffer, final int position, final int limit) {
         final int savedPosition = byteBuffer.position();
         final int savedLimit = byteBuffer.limit();
 
@@ -43,5 +44,11 @@ public class ByteBufferUtil
 
         byteBuffer.limit(savedLimit).position(savedPosition);
         return result;
+    }
+
+    public static String toUtf8String(ByteBuffer byteBuffer) {
+        byte[] bytes = new byte[byteBuffer.remaining()];
+        byteBuffer.get(bytes);
+        return new String(bytes, UTF_8);
     }
 }
