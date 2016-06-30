@@ -35,6 +35,7 @@ import java.net.SocketAddress;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import io.reactivesocket.transport.tcp.server.TcpReactiveSocketServer;
 import rx.Observable;
@@ -42,8 +43,11 @@ import rx.RxReactiveStreams;
 import rx.functions.Func1;
 
 public class StressTest {
+    private static AtomicInteger count = new AtomicInteger(0);
+
     private static SocketAddress startServer() throws InterruptedException {
-        boolean bad = ThreadLocalRandom.current().nextInt(4) == 0; // 25% of bad servers
+        // 25% of bad servers
+        boolean bad = count.incrementAndGet() % 4 == 3;
 
         ConnectionSetupHandler setupHandler = (setupPayload, reactiveSocket) ->
             new RequestHandler.Builder()
@@ -54,7 +58,7 @@ public class StressTest {
                                 @Override
                                 public void request(long n) {
                                     if (bad) {
-                                        if (ThreadLocalRandom.current().nextInt(3) == 0) {
+                                        if (ThreadLocalRandom.current().nextInt(2) == 0) {
                                             subscriber.onError(new Exception("SERVER EXCEPTION"));
                                         } else {
                                             // This will generate a timeout
@@ -77,13 +81,11 @@ public class StressTest {
         SocketAddress addr = new InetSocketAddress("127.0.0.1", 0);
         TcpReactiveSocketServer.StartedServer server = TcpReactiveSocketServer.create(addr).start(setupHandler);
         SocketAddress serverAddress = server.getServerAddress();
-
-        System.out.println("Server started at " + serverAddress);
         return serverAddress;
     }
 
     private static Publisher<List<SocketAddress>> getServersList() {
-        Observable<List<SocketAddress>> serverAddresses = Observable.interval(1, TimeUnit.SECONDS)
+        Observable<List<SocketAddress>> serverAddresses = Observable.interval(2, TimeUnit.SECONDS)
             .map(new Func1<Long, List<SocketAddress>>() {
                 List<SocketAddress> addresses = new ArrayList<>();
 
@@ -113,7 +115,7 @@ public class StressTest {
 
         TcpReactiveSocketConnector tcp = TcpReactiveSocketConnector.create(setupPayload, Throwable::printStackTrace);
 
-        ReactiveSocket client = ClientBuilder.instance()
+        ReactiveSocket client = ClientBuilder.<SocketAddress>instance()
             .withSource(getServersList())
             .withConnector(tcp)
             .withConnectTimeout(1, TimeUnit.SECONDS)
@@ -123,7 +125,7 @@ public class StressTest {
         Unsafe.awaitAvailability(client);
         System.out.println("Client ready, starting the load...");
 
-        long testDurationNs = TimeUnit.NANOSECONDS.convert(30, TimeUnit.SECONDS);
+        long testDurationNs = TimeUnit.NANOSECONDS.convert(60, TimeUnit.SECONDS);
         AtomicInteger successes = new AtomicInteger(0);
         AtomicInteger failures = new AtomicInteger(0);
 
