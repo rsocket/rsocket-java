@@ -29,7 +29,7 @@ public class Exceptions {
     public static Throwable from(Frame frame) {
         final int errorCode = Frame.Error.errorCode(frame);
         ByteBuffer dataBuffer = frame.getData();
-        String message = dataBuffer.remaining() == 0 ? "<empty message>" : ByteBufferUtil.toUtfString(dataBuffer);
+        String message = dataBuffer.remaining() == 0 ? "<empty message>" : ByteBufferUtil.toUtf8String(dataBuffer);
 
         Throwable ex;
         switch (errorCode) {

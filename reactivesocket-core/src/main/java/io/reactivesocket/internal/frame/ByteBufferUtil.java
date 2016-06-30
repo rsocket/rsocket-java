@@ -46,7 +46,7 @@ public class ByteBufferUtil {
         return result;
     }
 
-    public static String toUtfString(ByteBuffer byteBuffer) {
+    public static String toUtf8String(ByteBuffer byteBuffer) {
         byte[] bytes = new byte[byteBuffer.remaining()];
         byteBuffer.get(bytes);
         return new String(bytes, UTF_8);
