@@ -33,6 +33,7 @@ import org.reactivestreams.Subscription;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -84,9 +85,9 @@ public class StressTest {
         return serverAddress;
     }
 
-    private static Publisher<List<SocketAddress>> getServersList() {
-        Observable<List<SocketAddress>> serverAddresses = Observable.interval(2, TimeUnit.SECONDS)
-            .map(new Func1<Long, List<SocketAddress>>() {
+    private static Publisher<Collection<SocketAddress>> getServersList() {
+        Observable<Collection<SocketAddress>> serverAddresses = Observable.interval(2, TimeUnit.SECONDS)
+            .map(new Func1<Long, Collection<SocketAddress>>() {
                 List<SocketAddress> addresses = new ArrayList<>();
 
                 @Override
