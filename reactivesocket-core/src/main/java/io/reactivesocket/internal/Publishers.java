@@ -13,13 +13,13 @@
 
 package io.reactivesocket.internal;
 
+import io.reactivesocket.exceptions.TimeoutException;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
@@ -31,12 +31,6 @@ public final class Publishers {
 
     @SuppressWarnings("ThrowableInstanceNeverThrown")
     public static final TimeoutException TIMEOUT_EXCEPTION = new TimeoutException();
-
-    public static final StackTraceElement[] EMPTY_STACK = new StackTraceElement[0];
-
-    static {
-        TIMEOUT_EXCEPTION.setStackTrace(EMPTY_STACK);
-    }
 
     private Publishers() {
         // No instances.
