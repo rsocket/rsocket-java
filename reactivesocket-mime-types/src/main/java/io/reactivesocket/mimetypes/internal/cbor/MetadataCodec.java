@@ -25,6 +25,7 @@ import org.agrona.concurrent.UnsafeBuffer;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
 import java.util.Map.Entry;
 
 import static io.reactivesocket.mimetypes.internal.cbor.CBORUtils.*;
@@ -139,8 +140,9 @@ public class MetadataCodec implements Codec {
     private static int getSizeAsBytes(KVMetadata toEncode) {
         int toReturn = 1 + (int) getEncodeLength(toEncode.size()); // Map Starting + break
         for (Entry<String, ByteBuffer> entry : toEncode.entrySet()) {
-            toReturn += getEncodeLength(entry.getKey().length());
-            toReturn += entry.getKey().length();
+            int keyLength = entry.getKey().getBytes(StandardCharsets.UTF_8).length;
+            toReturn += getEncodeLength(keyLength);
+            toReturn += keyLength;
 
             int valueLength = entry.getValue().remaining();
             toReturn += getEncodeLength(valueLength);

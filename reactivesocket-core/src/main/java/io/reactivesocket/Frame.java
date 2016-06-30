@@ -27,7 +27,7 @@ import org.agrona.DirectBuffer;
 import org.agrona.MutableDirectBuffer;
 
 import java.nio.ByteBuffer;
-import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 
 import static java.lang.System.getProperty;
 
@@ -318,7 +318,7 @@ public class Frame implements Payload {
             ByteBuffer metadata
         ) {
             String data = throwable.getMessage() == null ? "" : throwable.getMessage();
-            byte[] bytes = data.getBytes(Charset.forName("UTF-8"));
+            byte[] bytes = data.getBytes(StandardCharsets.UTF_8);
             final ByteBuffer dataBuffer = ByteBuffer.wrap(bytes);
 
             return from(streamId, throwable, metadata, dataBuffer);
@@ -533,14 +533,14 @@ public class Frame implements Payload {
             if (0 < byteBuffer.capacity()) {
                 bytes = new byte[byteBuffer.capacity()];
                 byteBuffer.get(bytes);
-                payload.append(String.format("metadata: \"%s\" ", new String(bytes, Charset.forName("UTF-8"))));
+                payload.append(String.format("metadata: \"%s\" ", new String(bytes, StandardCharsets.UTF_8)));
             }
 
             byteBuffer = FrameHeaderFlyweight.sliceFrameData(directBuffer, 0, 0);
             if (0 < byteBuffer.capacity()) {
                 bytes = new byte[byteBuffer.capacity()];
                 byteBuffer.get(bytes);
-                payload.append(String.format("data: \"%s\"", new String(bytes, Charset.forName("UTF-8"))));
+                payload.append(String.format("data: \"%s\"", new String(bytes, StandardCharsets.UTF_8)));
             }
 
             streamId = FrameHeaderFlyweight.streamId(directBuffer, 0);

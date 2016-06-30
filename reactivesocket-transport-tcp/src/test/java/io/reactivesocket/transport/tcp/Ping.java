@@ -27,6 +27,7 @@ import rx.schedulers.Schedulers;
 
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -42,7 +43,7 @@ public final class Ping {
                                  .toBlocking()
                                  .value();
 
-        byte[] data = "hello".getBytes();
+        byte[] data = "hello".getBytes(StandardCharsets.UTF_8);
 
         Payload keyPayload = new Payload() {
             @Override

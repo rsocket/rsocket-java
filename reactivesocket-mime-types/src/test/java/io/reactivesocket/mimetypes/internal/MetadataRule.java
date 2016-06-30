@@ -46,8 +46,9 @@ public class MetadataRule extends ExternalResource {
     }
 
     public void addMetadata(String key, String value) {
-        ByteBuffer allocate = ByteBuffer.allocate(value.length());
-        allocate.put(value.getBytes(StandardCharsets.UTF_8)).flip();
+        byte[] valueBytes = value.getBytes(StandardCharsets.UTF_8);
+        ByteBuffer allocate = ByteBuffer.allocate(valueBytes.length);
+        allocate.put(valueBytes).flip();
         kvMetadata.put(key, allocate);
     }
 
