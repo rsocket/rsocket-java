@@ -60,6 +60,8 @@ public class LoadBalancer<T> implements ReactiveSocket {
     private static Logger logger = LoggerFactory.getLogger(LoadBalancer .class);
     private static final long APERTURE_REFRESH_PERIOD = Clock.unit().convert(15, TimeUnit.SECONDS);
     private static final int EFFORT = 5;
+    private static final long DEFAULT_INITIAL_INTER_ARRIVAL_TIME = Clock.unit().convert(1L, TimeUnit.SECONDS);
+    private static final int DEFAULT_INTER_ARRIVAL_FACTOR = 500;
 
     private final double minPendings;
     private final double maxPendings;
@@ -735,7 +737,7 @@ public class LoadBalancer<T> implements ReactiveSocket {
             this.duration = 0L;
             this.pending = 0;
             this.median = new Median();
-            this.interArrivalTime = new Ewma(1, TimeUnit.MINUTES, 1000);
+            this.interArrivalTime = new Ewma(1, TimeUnit.MINUTES, DEFAULT_INITIAL_INTER_ARRIVAL_TIME);
             this.pendingStreams = new AtomicLong();
         }
 
@@ -745,7 +747,7 @@ public class LoadBalancer<T> implements ReactiveSocket {
             Quantile lowerQuantile,
             Quantile higherQuantile
         ) {
-            this(child, factory, lowerQuantile, higherQuantile, 100);
+            this(child, factory, lowerQuantile, higherQuantile, DEFAULT_INTER_ARRIVAL_FACTOR);
         }
 
         @Override
