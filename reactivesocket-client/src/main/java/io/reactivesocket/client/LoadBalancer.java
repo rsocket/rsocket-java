@@ -292,12 +292,12 @@ public class LoadBalancer<T> implements ReactiveSocket {
         refreshAperture();
 
         int n = pendingSockets + activeSockets.size();
-        if (n < targetAperture) {
-            logger.info("aperture {} is below target {}, adding {} sockets",
+        if (n < targetAperture && !activeFactories.isEmpty()) {
+            logger.debug("aperture {} is below target {}, adding {} sockets",
                 n, targetAperture, targetAperture - n);
             addSockets(targetAperture - n);
-        } else if (targetAperture < n) {
-            logger.info("aperture {} is above target {}, quicking 1 socket",
+        } else if (targetAperture <  activeSockets.size()) {
+            logger.debug("aperture {} is above target {}, quicking 1 socket",
                 n, targetAperture);
             quickSlowestRS();
         }
