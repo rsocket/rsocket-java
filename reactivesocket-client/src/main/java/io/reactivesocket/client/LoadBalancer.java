@@ -428,6 +428,9 @@ public class LoadBalancer<T> implements ReactiveSocket {
             rsc2 = activeSockets.get(i2);
             if (rsc1.availability() > 0.0 && rsc2.availability() > 0.0)
                 break;
+            if (i+1 == EFFORT && !activeFactories.isEmpty()) {
+                addSockets(1);
+            }
         }
 
         double w1 = algorithmicWeight(rsc1);
