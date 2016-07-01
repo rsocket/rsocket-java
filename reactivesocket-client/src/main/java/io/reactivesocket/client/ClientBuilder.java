@@ -120,15 +120,13 @@ public class ClientBuilder<T> {
             throw new IllegalStateException("Please configure the connector!");
         }
 
-        ReactiveSocketConnector<T> filterConnector = connector
-            .chain(socket -> {
-                if (requestTimeout > 0) {
-                    return new TimeoutSocket(socket, requestTimeout, requestTimeoutUnit, executor);
-                } else {
-                    return socket;
-                }
-            })
-            .chain(DrainingSocket::new);
+
+        ReactiveSocketConnector<T> filterConnector = connector;
+        if (requestTimeout > 0) {
+            filterConnector = filterConnector
+                .chain(socket -> new TimeoutSocket(socket, requestTimeout, requestTimeoutUnit, executor));
+        }
+        filterConnector = filterConnector.chain(DrainingSocket::new);
 
         Publisher<? extends Collection<ReactiveSocketFactory<T>>> factories =
             sourceToFactory(source, filterConnector);
