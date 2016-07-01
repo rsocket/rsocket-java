@@ -990,7 +990,7 @@ public class Requester {
     }
 
     private static String getByteBufferAsString(ByteBuffer bb) {
-        final byte[] bytes = new byte[bb.capacity()];
+        final byte[] bytes = new byte[bb.remaining()];
         bb.get(bytes);
         return new String(bytes, StandardCharsets.UTF_8);
     }
