@@ -63,6 +63,6 @@ public class TimeoutSocket extends ReactiveSocketProxy {
 
     @Override
     public String toString() {
-        return "TimeoutSocket(" + timeout + " " + unit + ")->" + child.toString();
+        return "TimeoutSocket(" + timeout + " " + unit + ")->" + child;
     }
 }

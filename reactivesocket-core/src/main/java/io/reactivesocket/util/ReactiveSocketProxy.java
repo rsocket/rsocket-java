@@ -142,6 +142,6 @@ public class ReactiveSocketProxy implements ReactiveSocket {
 
     @Override
     public String toString() {
-        return "ReactiveSocketProxy(" + child.toString() + ")";
+        return "ReactiveSocketProxy(" + child + ")";
     }
 }

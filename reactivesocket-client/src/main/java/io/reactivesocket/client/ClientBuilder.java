@@ -223,11 +223,10 @@ public class ClientBuilder<T> {
     @Override
     public String toString() {
         return "ClientBuilder("
-            + "source=" + source.toString()
-            + ", connector=" + connector.toString()
+            + "source=" + source
+            + ", connector=" + connector
             + ", requestTimeout=" + requestTimeout + " " + requestTimeoutUnit
             + ", connectTimeout=" + connectTimeout + " " + connectTimeoutUnit
             + ")";
     }
 }
-

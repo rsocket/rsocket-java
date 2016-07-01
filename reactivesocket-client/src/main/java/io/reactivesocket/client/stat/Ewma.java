@@ -60,6 +60,6 @@ public class Ewma {
 
     @Override
     public String toString() {
-        return "Ewma(" + ewma + ", age: " + (Clock.now() - stamp) + ")";
+        return "Ewma(value=" + ewma + ", age=" + (Clock.now() - stamp) + ")";
     }
 }

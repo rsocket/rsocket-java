@@ -65,6 +65,6 @@ public class RetrySocket extends ReactiveSocketProxy {
 
     @Override
     public String toString() {
-        return "RetrySocket(" + retry + ")->" + child.toString();
+        return "RetrySocket(" + retry + ")->" + child;
     }
 }

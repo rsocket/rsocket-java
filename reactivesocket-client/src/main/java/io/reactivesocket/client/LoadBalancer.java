@@ -861,15 +861,15 @@ public class LoadBalancer<T> implements ReactiveSocket {
 
         @Override
         public String toString() {
-            return "WeightedSocket@" + hashCode()
-                + " [median:" + median.estimation()
-                + " quantile-low:" + lowerQuantile.estimation()
-                + " quantile-high:" + higherQuantile.estimation()
-                + " inter-arrival:" + interArrivalTime.value()
-                + " duration/pending:" + (pending == 0 ? 0 : (double)duration / pending)
-                + " pending:" + pending
-                + " availability: " + availability()
-                + "]->" + child.toString();
+            return "WeightedSocket("
+                + "median=" + median.estimation()
+                + " quantile-low=" + lowerQuantile.estimation()
+                + " quantile-high=" + higherQuantile.estimation()
+                + " inter-arrival=" + interArrivalTime.value()
+                + " duration/pending=" + (pending == 0 ? 0 : (double)duration / pending)
+                + " pending=" + pending
+                + " availability= " + availability()
+                + ")->" + child;
         }
 
         /**

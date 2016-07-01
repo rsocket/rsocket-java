@@ -114,7 +114,7 @@ public class FailureAwareFactory<T> implements ReactiveSocketFactory<T> {
 
     @Override
     public String toString() {
-        return "FailureAwareFactory(" + errorPercentage.value() + ")->" + child.toString();
+        return "FailureAwareFactory(" + errorPercentage.value() + ")->" + child;
     }
 
     /**
@@ -203,7 +203,7 @@ public class FailureAwareFactory<T> implements ReactiveSocketFactory<T> {
 
         @Override
         public String toString() {
-            return "FailureAwareReactiveSocket(" + errorPercentage.value() + ")->" + child.toString();
+            return "FailureAwareReactiveSocket(" + errorPercentage.value() + ")->" + child;
         }
     }
 }

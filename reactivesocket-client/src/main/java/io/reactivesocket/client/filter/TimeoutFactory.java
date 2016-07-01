@@ -44,6 +44,6 @@ public class TimeoutFactory<T> extends ReactiveSocketFactoryProxy<T> {
 
     @Override
     public String toString() {
-        return "TimeoutFactory(" + timeout + " " + unit + ")->" + child.toString();
+        return "TimeoutFactory(" + timeout + " " + unit + ")->" + child;
     }
 }
