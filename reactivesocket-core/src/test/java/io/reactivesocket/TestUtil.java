@@ -16,11 +16,14 @@
 package io.reactivesocket;
 
 import org.agrona.MutableDirectBuffer;
+import org.reactivestreams.Publisher;
+import rx.RxReactiveStreams;
+import rx.observers.TestSubscriber;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 
-public class TestUtil
+public final class TestUtil
 {
     private TestUtil() {}
 
@@ -28,11 +31,13 @@ public class TestUtil
     {
         return Frame.Request.from(streamId, type, new Payload()
         {
+            @Override
             public ByteBuffer getData()
             {
                 return byteBufferFromUtf8String(data);
             }
 
+            @Override
             public ByteBuffer getMetadata()
             {
                 return Frame.NULL_BYTEBUFFER;
@@ -73,10 +78,16 @@ public class TestUtil
         dst.putBytes(offset, frame.getByteBuffer(), frame.offset(), frame.length());
     }
 
+    public static <T> TestSubscriber<T> testSubscribe(Publisher<T> source) {
+        TestSubscriber<T> subscriber = new TestSubscriber<>();
+        RxReactiveStreams.toObservable(source).subscribe(subscriber);
+        return subscriber;
+    }
+
     private static class PayloadImpl implements Payload // some JDK shoutout
     {
-        private ByteBuffer data;
-        private ByteBuffer metadata;
+        private final ByteBuffer data;
+        private final ByteBuffer metadata;
 
         public PayloadImpl(final String data, final String metadata)
         {
@@ -99,23 +110,29 @@ public class TestUtil
             }
         }
 
-        public boolean equals(Object obj)
-        {
-        	System.out.println("equals: " + obj);
+        public boolean equals(Object obj) {
             final Payload rhs = (Payload)obj;
-
-            return (TestUtil.byteToString(data).equals(TestUtil.byteToString(rhs.getData()))) &&
-                (TestUtil.byteToString(metadata).equals(TestUtil.byteToString(rhs.getMetadata())));
+            return byteToString(data).equals(byteToString(rhs.getData())) &&
+                   byteToString(metadata).equals(byteToString(rhs.getMetadata()));
         }
 
+        @Override
         public ByteBuffer getData()
         {
             return data;
         }
 
+        @Override
         public ByteBuffer getMetadata()
         {
             return metadata;
+        }
+
+        @Override
+        public int hashCode() {
+            int result = data != null? data.hashCode() : 0;
+            result = 31 * result + (metadata != null? metadata.hashCode() : 0);
+            return result;
         }
     }
 

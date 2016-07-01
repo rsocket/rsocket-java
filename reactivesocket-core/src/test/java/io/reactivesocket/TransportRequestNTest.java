@@ -16,11 +16,12 @@
 package io.reactivesocket;
 
 import io.reactivesocket.lease.FairLeaseGovernor;
-import io.reactivex.subscribers.TestSubscriber;
 import org.junit.After;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.reactivestreams.Publisher;
+import rx.RxReactiveStreams;
+import rx.observers.TestSubscriber;
 
 import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
@@ -29,18 +30,15 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static io.reactivesocket.TestUtil.utf8EncodedPayload;
-import static io.reactivex.Observable.error;
-import static io.reactivex.Observable.fromPublisher;
-import static io.reactivex.Observable.interval;
-import static io.reactivex.Observable.just;
-import static io.reactivex.Observable.range;
+import static rx.Observable.*;
 import static org.junit.Assert.fail;
+import static rx.RxReactiveStreams.toPublisher;
 
 /**
  * Ensure that request(n) from DuplexConnection "transport" layer is respected.
  *
  */
-public class TestTransportRequestN {
+public class TransportRequestNTest {
 
 	@Test(timeout = 3000)
 	public void testRequestStreamWithNFromTransport() throws InterruptedException {
@@ -49,7 +47,7 @@ public class TestTransportRequestN {
 		setup(clientConnection, serverConnection);
 
 		TestSubscriber<Payload> ts = new TestSubscriber<>();
-		fromPublisher(socketClient.requestStream(utf8EncodedPayload("", null)))
+		RxReactiveStreams.toObservable(socketClient.requestStream(utf8EncodedPayload("", null)))
 				.take(150)
 				.subscribe(ts);
 
@@ -65,11 +63,12 @@ public class TestTransportRequestN {
 
 		// we should not have received more than 11 (10 + default 1 that is requested)
 
-		if (ts.valueCount() > 11) {
-			fail("Received more (" + ts.valueCount() + ") than transport requested (11)");
+		int valueCount = ts.getOnNextEvents().size();
+		if (valueCount > 11) {
+			fail("Received more (" + valueCount + ") than transport requested (11)");
 		}
 
-		ts.cancel();
+		ts.unsubscribe();
 
 		// since we are async, give time for emission to occur
 		Thread.sleep(500);
@@ -86,9 +85,9 @@ public class TestTransportRequestN {
 		setup(clientConnection, serverConnection);
 
 		TestSubscriber<Payload> ts = new TestSubscriber<>();
-		fromPublisher(socketClient.requestChannel(just(utf8EncodedPayload("", null))))
-				.take(150)
-				.subscribe(ts);
+		RxReactiveStreams.toObservable(socketClient.requestStream(utf8EncodedPayload("", null)))
+						 .take(150)
+						 .subscribe(ts);
 
 		// wait for server to add output
 		if (!serverConnection.awaitSubscription(1000)) {
@@ -101,12 +100,12 @@ public class TestTransportRequestN {
 		Thread.sleep(500);
 
 		// we should not have received more than 11 (10 + default 1 that is requested)
-
-		if (ts.valueCount() > 11) {
-			fail("Received more (" + ts.valueCount() + ") than transport requested (11)");
+		int valueCount = ts.getOnNextEvents().size();
+		if (valueCount > 11) {
+			fail("Received more (" + valueCount + ") than transport requested (11)");
 		}
 
-		ts.cancel();
+		ts.unsubscribe();
 
 		// since we are async, give time for emission to occur
 		Thread.sleep(500);
@@ -125,9 +124,9 @@ public class TestTransportRequestN {
 		setup(clientConnection, serverConnection);
 
 		TestSubscriber<Payload> ts = new TestSubscriber<>();
-		fromPublisher(socketClient.requestChannel(range(0, 1000).map(i -> utf8EncodedPayload("" + i, null))))
-				.take(10)
-				.subscribe(ts);
+		RxReactiveStreams.toObservable(socketClient.requestStream(utf8EncodedPayload("", null)))
+						 .take(150)
+						 .subscribe(ts);
 
 		// wait for server to add output
 		if (!serverConnection.awaitSubscription(1000)) {
@@ -141,12 +140,12 @@ public class TestTransportRequestN {
 		Thread.sleep(500);
 
 		// we should not have received more than 11 (10 + default 1 that is requested)
-
-		if (ts.valueCount() > 11) {
-			fail("Received more (" + ts.valueCount() + ") than transport requested (11)");
+		int valueCount = ts.getOnNextEvents().size();
+		if (valueCount > 11) {
+			fail("Received more (" + valueCount + ") than transport requested (11)");
 		}
 
-		ts.cancel();
+		ts.unsubscribe();
 
 		// since we are async, give time for emission to occur
 		Thread.sleep(500);
@@ -164,8 +163,8 @@ public class TestTransportRequestN {
 	private TestConnectionWithControlledRequestN clientConnection;
 	private ReactiveSocket socketServer;
 	private ReactiveSocket socketClient;
-	private AtomicBoolean helloSubscriptionRunning = new AtomicBoolean(false);
-	private AtomicReference<Throwable> lastServerError = new AtomicReference<>();
+	private final AtomicBoolean helloSubscriptionRunning = new AtomicBoolean(false);
+	private final AtomicReference<Throwable> lastServerError = new AtomicReference<>();
 	private CountDownLatch lastServerErrorCountDown;
 
 	public void setup(TestConnectionWithControlledRequestN clientConnection, TestConnectionWithControlledRequestN serverConnection) throws InterruptedException {
@@ -176,27 +175,28 @@ public class TestTransportRequestN {
 
 			@Override
 			public Publisher<Payload> handleRequestResponse(Payload payload) {
-				return just(utf8EncodedPayload("request_response", null));
+				return toPublisher(just(utf8EncodedPayload("request_response", null)));
 			}
 
 			@Override
 			public Publisher<Payload> handleRequestStream(Payload payload) {
-				return range(0, 10000).map(i -> "stream_response_" + i).map(n -> utf8EncodedPayload(n, null));
+				return toPublisher(range(0, 10000).map(i -> "stream_response_" + i)
+												  .map(n -> utf8EncodedPayload(n, null)));
 			}
 
 			@Override
 			public Publisher<Payload> handleSubscription(Payload payload) {
-				return interval(1, TimeUnit.MILLISECONDS)
+				return toPublisher(interval(1, TimeUnit.MILLISECONDS)
 						.onBackpressureDrop()
-						.doOnSubscribe(s -> helloSubscriptionRunning.set(true))
-						.doOnCancel(() -> helloSubscriptionRunning.set(false))
+						.doOnSubscribe(() -> helloSubscriptionRunning.set(true))
+						.doOnUnsubscribe(() -> helloSubscriptionRunning.set(false))
 						.map(i -> "subscription " + i)
-						.map(n -> utf8EncodedPayload(n, null));
+						.map(n -> utf8EncodedPayload(n, null)));
 			}
 
 			@Override
 			public Publisher<Void> handleFireAndForget(Payload payload) {
-				return error(new RuntimeException("Not Found"));
+				return toPublisher(error(new RuntimeException("Not Found")));
 			}
 
 			/**
@@ -204,12 +204,13 @@ public class TestTransportRequestN {
 			 */
 			@Override
 			public Publisher<Payload> handleChannel(Payload initialPayload, Publisher<Payload> inputs) {
-				return range(0, 10000).map(i -> "channel_response_" + i).map(n -> utf8EncodedPayload(n, null));
+				return toPublisher(range(0, 10000).map(i -> "channel_response_" + i)
+									  .map(n -> utf8EncodedPayload(n, null)));
 			}
 
 			@Override
 			public Publisher<Void> handleMetadataPush(Payload payload) {
-				return error(new RuntimeException("Not Found"));
+				return toPublisher(error(new RuntimeException("Not Found")));
 			}
 
 		}, new FairLeaseGovernor(100, 10L, TimeUnit.SECONDS), t -> {
