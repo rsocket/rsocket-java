@@ -182,8 +182,8 @@ public class LoadBalancer<T> implements ReactiveSocket {
         int n = numberOfNewSocket;
         if (n > activeFactories.size()) {
             n = activeFactories.size();
-            logger.info("addSockets(" + numberOfNewSocket
-                + ") restricted by the number of factories, i.e. addSockets(" + n + ")");
+            logger.info("addSockets({}) restricted by the number of factories, i.e. addSockets({})",
+                numberOfNewSocket, n);
         }
 
         Random rng = ThreadLocalRandom.current();
@@ -217,6 +217,8 @@ public class LoadBalancer<T> implements ReactiveSocket {
             if (factory0.availability() < factory1.availability()) {
                 n--;
                 pendingSockets++;
+                // cheaper to permute activeFactories.get(i1) with the last item and remove the last
+                // rather than doing a activeFactories.remove(i1)
                 if (i1 < size - 1) {
                     activeFactories.set(i1, activeFactories.get(size - 1));
                 }
@@ -225,6 +227,7 @@ public class LoadBalancer<T> implements ReactiveSocket {
             } else {
                 n--;
                 pendingSockets++;
+                // c.f. above
                 if (i0 < size - 1) {
                     activeFactories.set(i0, activeFactories.get(size - 1));
                 }
@@ -272,9 +275,8 @@ public class LoadBalancer<T> implements ReactiveSocket {
         pendings.reset((minPendings + maxPendings)/2);
 
         if (targetAperture != previous) {
-            logger.info("Current pending=" + pendings.value()
-                + ", new target=" + targetAperture
-                + ", previous target=" + previous);
+            logger.debug("Current pending={}, new target={}, previous target={}",
+                pendings.value(), targetAperture, previous);
         }
     }
 
@@ -289,14 +291,12 @@ public class LoadBalancer<T> implements ReactiveSocket {
 
         int n = pendingSockets + activeSockets.size();
         if (n < targetAperture) {
-            logger.info("aperture " + n
-                + " is below target " + targetAperture
-                + ", adding " + (targetAperture - n) + " sockets");
+            logger.info("aperture {} is below target {}, adding {} sockets",
+                n, targetAperture, targetAperture - n);
             addSockets(targetAperture - n);
         } else if (targetAperture < n) {
-            logger.info("aperture " + n
-                + " is above target " + targetAperture
-                + ", quicking 1 socket");
+            logger.info("aperture {} is above target {}, quicking 1 socket",
+                n, targetAperture);
             quickSlowestRS();
         }
 
@@ -306,7 +306,7 @@ public class LoadBalancer<T> implements ReactiveSocket {
         } else {
             long prev = refreshPeriod;
             refreshPeriod = (long) Math.min(refreshPeriod * 1.5, maxRefreshPeriod);
-            logger.info("Bumping refresh period, " + (prev/1000) + "->" + (refreshPeriod/1000));
+            logger.info("Bumping refresh period, {}->{}", prev/1000, refreshPeriod/1000);
         }
         lastRefresh = now;
         addSockets(1);
@@ -325,15 +325,16 @@ public class LoadBalancer<T> implements ReactiveSocket {
         double lowestAvailability = Double.MAX_VALUE;
         for (WeightedSocket socket: activeSockets) {
             double load = socket.availability();
+            if (load == 0.0) {
+                slowest = socket;
+                break;
+            }
             if (socket.getPredictedLatency() != 0) {
                 load *= 1.0 / socket.getPredictedLatency();
             }
             if (load < lowestAvailability) {
                 lowestAvailability = load;
                 slowest = socket;
-                if (load == 0.0) {
-                    break;
-                }
             }
         }
 
@@ -344,7 +345,7 @@ public class LoadBalancer<T> implements ReactiveSocket {
 
     private synchronized void removeSocket(WeightedSocket socket) {
         try {
-            logger.info("Removing socket: -> " + socket);
+            logger.debug("Removing socket: -> " + socket);
             activeSockets.remove(socket);
             activeFactories.add(socket.getFactory());
             socket.close();
