@@ -23,15 +23,17 @@ import org.reactivestreams.Publisher;
 
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
 
 public class TimeoutFactory<T> extends ReactiveSocketFactoryProxy<T> {
-
     private final Publisher<Void> timer;
+    private final long timeout;
+    private final TimeUnit unit;
 
     public TimeoutFactory(ReactiveSocketFactory<T> child, long timeout, TimeUnit unit,
                           ScheduledExecutorService executor) {
         super(child);
+        this.timeout = timeout;
+        this.unit = unit;
         timer = Publishers.timer(executor, timeout, unit);
     }
 
@@ -40,12 +42,8 @@ public class TimeoutFactory<T> extends ReactiveSocketFactoryProxy<T> {
         return Publishers.timeout(super.apply(), timer);
     }
 
-    public static Function<Publisher<ReactiveSocket>, Publisher<ReactiveSocket>> asChainFunction(long timeout,
-                                                                                                 TimeUnit unit,
-                                                                                                 ScheduledExecutorService executor) {
-        Publisher<Void> timer = Publishers.timer(executor, timeout, unit);
-        return reactiveSocketPublisher -> {
-            return Publishers.timeout(reactiveSocketPublisher, timer);
-        };
+    @Override
+    public String toString() {
+        return "TimeoutFactory(" + timeout + " " + unit + ")->" + child.toString();
     }
 }

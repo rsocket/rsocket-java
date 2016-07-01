@@ -867,6 +867,7 @@ public class LoadBalancer<T> implements ReactiveSocket {
                 + " quantile-high:" + higherQuantile.estimation()
                 + " inter-arrival:" + interArrivalTime.value()
                 + " duration/pending:" + (pending == 0 ? 0 : (double)duration / pending)
+                + " pending:" + pending
                 + " availability: " + availability()
                 + "]->" + child.toString();
         }

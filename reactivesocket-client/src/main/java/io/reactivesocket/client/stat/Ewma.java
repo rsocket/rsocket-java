@@ -57,4 +57,9 @@ public class Ewma {
     public double value() {
         return ewma;
     }
+
+    @Override
+    public String toString() {
+        return "Ewma(" + ewma + ", age: " + (Clock.now() - stamp) + ")";
+    }
 }

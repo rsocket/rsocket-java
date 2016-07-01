@@ -62,4 +62,9 @@ public class RetrySocket extends ReactiveSocketProxy {
     public Publisher<Void> metadataPush(Payload payload) {
         return Publishers.retry(child.metadataPush(payload), retry, retryThisException);
     }
+
+    @Override
+    public String toString() {
+        return "RetrySocket(" + retry + ")->" + child.toString();
+    }
 }

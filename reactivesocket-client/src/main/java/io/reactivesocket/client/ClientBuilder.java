@@ -219,5 +219,15 @@ public class ClientBuilder<T> {
             null
         );
     }
+
+    @Override
+    public String toString() {
+        return "ClientBuilder("
+            + "source=" + source.toString()
+            + ", connector=" + connector.toString()
+            + ", requestTimeout=" + requestTimeout + " " + requestTimeoutUnit
+            + ", connectTimeout=" + connectTimeout + " " + connectTimeoutUnit
+            + ")";
+    }
 }
 
