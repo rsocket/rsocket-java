@@ -120,7 +120,7 @@ public class FrameHeaderFlyweight
             int flags = mutableDirectBuffer.getShort(frameHeaderStartOffset + FLAGS_FIELD_OFFSET, ByteOrder.BIG_ENDIAN);
             flags |= FLAGS_M;
             mutableDirectBuffer.putShort(frameHeaderStartOffset + FLAGS_FIELD_OFFSET, (short)flags, ByteOrder.BIG_ENDIAN);
-            mutableDirectBuffer.putInt(metadataOffset, metadata.capacity() + BitUtil.SIZE_OF_INT, ByteOrder.BIG_ENDIAN);
+            mutableDirectBuffer.putInt(metadataOffset, metadataLength + BitUtil.SIZE_OF_INT, ByteOrder.BIG_ENDIAN);
             length += BitUtil.SIZE_OF_INT;
             mutableDirectBuffer.putBytes(metadataOffset + length, metadata, metadataLength);
             length += metadataLength;
@@ -137,7 +137,7 @@ public class FrameHeaderFlyweight
         int length = 0;
         final int dataLength = data.remaining();
 
-        if (0 < data.capacity())
+        if (0 < dataLength)
         {
             mutableDirectBuffer.putBytes(dataOffset, data, dataLength);
             length += dataLength;

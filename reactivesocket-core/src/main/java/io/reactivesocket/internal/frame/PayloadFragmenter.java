@@ -84,7 +84,7 @@ public class PayloadFragmenter implements Iterable<Frame>, Iterator<Frame>
 
     public boolean hasNext()
     {
-        return dataOffset < data.capacity() || metadataOffset < metadata.remaining();
+        return dataOffset < data.remaining() || metadataOffset < metadata.remaining();
     }
 
     public Frame next()
