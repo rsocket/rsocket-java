@@ -257,6 +257,7 @@ public final class Publishers {
         public void onError(Throwable t) {
             if (done.compareAndSet(false, true)) {
                 doOnError(t);
+                super.cancel();
             }
         }
 
