@@ -1,17 +1,14 @@
-/**
+/*
  * Copyright 2016 Netflix, Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * <p>
+ *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
+ *  the License. You may obtain a copy of the License at
+ *  <p>
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *  <p>
+ *  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
+ *  an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
+ *  specific language governing permissions and limitations under the License.
  */
 package io.reactivesocket.client;
 
@@ -39,14 +36,14 @@ public class ClientBuilder<T> {
 
     private final ReactiveSocketConnector<T> connector;
 
-    private final Publisher<Collection<T>> source;
+    private final Publisher<? extends Collection<T>> source;
 
     private ClientBuilder(
         ScheduledExecutorService executor,
         long requestTimeout, TimeUnit requestTimeoutUnit,
         long connectTimeout, TimeUnit connectTimeoutUnit,
         ReactiveSocketConnector<T> connector,
-        Publisher<Collection<T>> source
+        Publisher<? extends Collection<T>> source
     ) {
         this.executor = executor;
         this.requestTimeout = requestTimeout;
@@ -97,7 +94,7 @@ public class ClientBuilder<T> {
         );
     }
 
-    public ClientBuilder<T> withSource(Publisher<Collection<T>> source) {
+    public ClientBuilder<T> withSource(Publisher<? extends Collection<T>> source) {
         return new ClientBuilder<>(
             executor,
             requestTimeout, requestTimeoutUnit,
@@ -193,8 +190,8 @@ public class ClientBuilder<T> {
         return "ClientBuilder("
             + "source=" + source
             + ", connector=" + connector
-            + ", requestTimeout=" + requestTimeout + " " + requestTimeoutUnit
-            + ", connectTimeout=" + connectTimeout + " " + connectTimeoutUnit
-            + ")";
+            + ", requestTimeout=" + requestTimeout + ' ' + requestTimeoutUnit
+            + ", connectTimeout=" + connectTimeout + ' ' + connectTimeoutUnit
+            + ')';
     }
 }
