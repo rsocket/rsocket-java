@@ -23,15 +23,10 @@ import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
-import java.net.SocketAddress;
 import java.util.*;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 public class ClientBuilder<T> {
     private final ScheduledExecutorService executor;
@@ -191,5 +186,15 @@ public class ClientBuilder<T> {
             null,
             null
         );
+    }
+
+    @Override
+    public String toString() {
+        return "ClientBuilder("
+            + "source=" + source
+            + ", connector=" + connector
+            + ", requestTimeout=" + requestTimeout + " " + requestTimeoutUnit
+            + ", connectTimeout=" + connectTimeout + " " + connectTimeoutUnit
+            + ")";
     }
 }

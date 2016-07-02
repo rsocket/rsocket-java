@@ -171,6 +171,6 @@ public class DrainingSocket implements ReactiveSocket {
 
     @Override
     public String toString() {
-        return "DrainingSocket(closed=" + closed + ")->" + child.toString();
+        return "DrainingSocket(closed=" + closed + ")->" + child;
     }
 }

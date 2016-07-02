@@ -90,6 +90,11 @@ public class TcpReactiveSocketConnector implements ReactiveSocketConnector<Socke
         return RxReactiveStreams.toPublisher(r.toObservable());
     }
 
+    @Override
+    public String toString() {
+        return "TcpReactiveSocketConnector";
+    }
+
     public static TcpReactiveSocketConnector create(ConnectionSetupPayload setupPayload,
                                                     Consumer<Throwable> errorStream) {
         return new TcpReactiveSocketConnector(setupPayload, errorStream,

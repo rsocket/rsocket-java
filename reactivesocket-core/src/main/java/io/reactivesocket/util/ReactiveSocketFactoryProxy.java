@@ -5,30 +5,29 @@ import io.reactivesocket.ReactiveSocketFactory;
 import org.reactivestreams.Publisher;
 
 /**
- * A simple implementation that just forwards all methods to a passed delegate {@code ReactiveSocketFactory}.
+ * A simple implementation that just forwards all methods to a passed child {@code ReactiveSocketFactory}.
  *
  * @param <T> Type parameter for {@link ReactiveSocketFactory}
  */
 public abstract class ReactiveSocketFactoryProxy<T> implements ReactiveSocketFactory<T> {
+    protected final ReactiveSocketFactory<T> child;
 
-    private final ReactiveSocketFactory<T> delegate;
-
-    protected ReactiveSocketFactoryProxy(ReactiveSocketFactory<T> delegate) {
-        this.delegate = delegate;
+    protected ReactiveSocketFactoryProxy(ReactiveSocketFactory<T> child) {
+        this.child = child;
     }
 
     @Override
     public Publisher<ReactiveSocket> apply() {
-        return delegate.apply();
+        return child.apply();
     }
 
     @Override
     public double availability() {
-        return delegate.availability();
+        return child.availability();
     }
 
     @Override
     public T remote() {
-        return delegate.remote();
+        return child.remote();
     }
 }
