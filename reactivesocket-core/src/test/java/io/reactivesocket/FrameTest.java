@@ -219,7 +219,7 @@ public class FrameTest
         assertEquals("request data", TestUtil.byteToString(reusableFrame.getData()));
 
         final ByteBuffer metadataBuffer = reusableFrame.getMetadata();
-        assertEquals(0, metadataBuffer.capacity());
+        assertEquals(0, metadataBuffer.remaining());
         assertEquals(FrameType.REQUEST_RESPONSE, reusableFrame.getType());
         assertEquals(1, reusableFrame.getStreamId());
     }
@@ -238,7 +238,7 @@ public class FrameTest
         assertEquals("request data", TestUtil.byteToString(reusableFrame.getData()));
 
         final ByteBuffer metadataBuffer = reusableFrame.getMetadata();
-        assertEquals(0, metadataBuffer.capacity());
+        assertEquals(0, metadataBuffer.remaining());
         assertEquals(FrameType.FIRE_AND_FORGET, reusableFrame.getType());
         assertEquals(1, reusableFrame.getStreamId());
     }
@@ -257,7 +257,7 @@ public class FrameTest
         assertEquals("request data", TestUtil.byteToString(reusableFrame.getData()));
 
         final ByteBuffer metadataBuffer = reusableFrame.getMetadata();
-        assertEquals(0, metadataBuffer.capacity());
+        assertEquals(0, metadataBuffer.remaining());
         assertEquals(FrameType.REQUEST_STREAM, reusableFrame.getType());
         assertEquals(1, reusableFrame.getStreamId());
         assertEquals(128, Frame.Request.initialRequestN(reusableFrame));
@@ -277,7 +277,7 @@ public class FrameTest
         assertEquals("request data", TestUtil.byteToString(reusableFrame.getData()));
 
         final ByteBuffer metadataBuffer = reusableFrame.getMetadata();
-        assertEquals(0, metadataBuffer.capacity());
+        assertEquals(0, metadataBuffer.remaining());
         assertEquals(FrameType.REQUEST_SUBSCRIPTION, reusableFrame.getType());
         assertEquals(1, reusableFrame.getStreamId());
         assertEquals(128, Frame.Request.initialRequestN(reusableFrame));
@@ -297,7 +297,7 @@ public class FrameTest
         assertEquals("response data", TestUtil.byteToString(reusableFrame.getData()));
 
         final ByteBuffer metadataBuffer = reusableFrame.getMetadata();
-        assertEquals(0, metadataBuffer.capacity());
+        assertEquals(0, metadataBuffer.remaining());
         assertEquals(FrameType.NEXT, reusableFrame.getType());
         assertEquals(1, reusableFrame.getStreamId());
     }

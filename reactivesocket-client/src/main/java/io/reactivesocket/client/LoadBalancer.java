@@ -60,6 +60,8 @@ public class LoadBalancer<T> implements ReactiveSocket {
     private static Logger logger = LoggerFactory.getLogger(LoadBalancer .class);
     private static final long APERTURE_REFRESH_PERIOD = Clock.unit().convert(15, TimeUnit.SECONDS);
     private static final int EFFORT = 5;
+    private static final long DEFAULT_INITIAL_INTER_ARRIVAL_TIME = Clock.unit().convert(1L, TimeUnit.SECONDS);
+    private static final int DEFAULT_INTER_ARRIVAL_FACTOR = 500;
 
     private final double minPendings;
     private final double maxPendings;
@@ -290,12 +292,12 @@ public class LoadBalancer<T> implements ReactiveSocket {
         refreshAperture();
 
         int n = pendingSockets + activeSockets.size();
-        if (n < targetAperture) {
-            logger.info("aperture {} is below target {}, adding {} sockets",
+        if (n < targetAperture && !activeFactories.isEmpty()) {
+            logger.debug("aperture {} is below target {}, adding {} sockets",
                 n, targetAperture, targetAperture - n);
             addSockets(targetAperture - n);
-        } else if (targetAperture < n) {
-            logger.info("aperture {} is above target {}, quicking 1 socket",
+        } else if (targetAperture <  activeSockets.size()) {
+            logger.debug("aperture {} is above target {}, quicking 1 socket",
                 n, targetAperture);
             quickSlowestRS();
         }
@@ -428,6 +430,9 @@ public class LoadBalancer<T> implements ReactiveSocket {
             rsc2 = activeSockets.get(i2);
             if (rsc1.availability() > 0.0 && rsc2.availability() > 0.0)
                 break;
+            if (i+1 == EFFORT && !activeFactories.isEmpty()) {
+                addSockets(1);
+            }
         }
 
         double w1 = algorithmicWeight(rsc1);
@@ -735,7 +740,7 @@ public class LoadBalancer<T> implements ReactiveSocket {
             this.duration = 0L;
             this.pending = 0;
             this.median = new Median();
-            this.interArrivalTime = new Ewma(1, TimeUnit.MINUTES, 1000);
+            this.interArrivalTime = new Ewma(1, TimeUnit.MINUTES, DEFAULT_INITIAL_INTER_ARRIVAL_TIME);
             this.pendingStreams = new AtomicLong();
         }
 
@@ -745,7 +750,7 @@ public class LoadBalancer<T> implements ReactiveSocket {
             Quantile lowerQuantile,
             Quantile higherQuantile
         ) {
-            this(child, factory, lowerQuantile, higherQuantile, 100);
+            this(child, factory, lowerQuantile, higherQuantile, DEFAULT_INTER_ARRIVAL_FACTOR);
         }
 
         @Override

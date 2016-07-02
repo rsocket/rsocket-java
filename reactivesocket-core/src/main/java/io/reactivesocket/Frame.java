@@ -530,15 +530,15 @@ public class Frame implements Payload {
             byte[] bytes;
 
             byteBuffer = FrameHeaderFlyweight.sliceFrameMetadata(directBuffer, 0, 0);
-            if (0 < byteBuffer.capacity()) {
-                bytes = new byte[byteBuffer.capacity()];
+            if (0 < byteBuffer.remaining()) {
+                bytes = new byte[byteBuffer.remaining()];
                 byteBuffer.get(bytes);
                 payload.append(String.format("metadata: \"%s\" ", new String(bytes, StandardCharsets.UTF_8)));
             }
 
             byteBuffer = FrameHeaderFlyweight.sliceFrameData(directBuffer, 0, 0);
-            if (0 < byteBuffer.capacity()) {
-                bytes = new byte[byteBuffer.capacity()];
+            if (0 < byteBuffer.remaining()) {
+                bytes = new byte[byteBuffer.remaining()];
                 byteBuffer.get(bytes);
                 payload.append(String.format("data: \"%s\"", new String(bytes, StandardCharsets.UTF_8)));
             }

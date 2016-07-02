@@ -23,20 +23,12 @@ import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
-import java.net.SocketAddress;
 import java.util.*;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 public class ClientBuilder<T> {
-    private static AtomicInteger counter = new AtomicInteger(0);
-    private final String name;
-
     private final ScheduledExecutorService executor;
 
     private final long requestTimeout;
@@ -45,46 +37,31 @@ public class ClientBuilder<T> {
     private final long connectTimeout;
     private final TimeUnit connectTimeoutUnit;
 
-    private final double backupQuantile;
-
-    private final int retries;
-
     private final ReactiveSocketConnector<T> connector;
-    private final Function<Throwable, Boolean> retryThisException;
 
     private final Publisher<Collection<T>> source;
 
     private ClientBuilder(
-        String name,
         ScheduledExecutorService executor,
         long requestTimeout, TimeUnit requestTimeoutUnit,
         long connectTimeout, TimeUnit connectTimeoutUnit,
-        double backupQuantile,
-        int retries, Function<Throwable, Boolean> retryThisException,
         ReactiveSocketConnector<T> connector,
         Publisher<Collection<T>> source
     ) {
-        this.name = name;
         this.executor = executor;
         this.requestTimeout = requestTimeout;
         this.requestTimeoutUnit = requestTimeoutUnit;
         this.connectTimeout = connectTimeout;
         this.connectTimeoutUnit = connectTimeoutUnit;
-        this.backupQuantile = backupQuantile;
-        this.retries = retries;
         this.connector = connector;
-        this.retryThisException = retryThisException;
         this.source = source;
     }
 
     public ClientBuilder<T> withRequestTimeout(long timeout, TimeUnit unit) {
         return new ClientBuilder<>(
-            name,
             executor,
             timeout, unit,
             connectTimeout, connectTimeoutUnit,
-            backupQuantile,
-            retries, retryThisException,
             connector,
             source
         );
@@ -92,12 +69,9 @@ public class ClientBuilder<T> {
 
     public ClientBuilder<T> withConnectTimeout(long timeout, TimeUnit unit) {
         return new ClientBuilder<>(
-            name,
             executor,
             requestTimeout, requestTimeoutUnit,
             timeout, unit,
-            backupQuantile,
-            retries, retryThisException,
             connector,
             source
         );
@@ -105,12 +79,9 @@ public class ClientBuilder<T> {
 
     public ClientBuilder<T> withExecutor(ScheduledExecutorService executor) {
         return new ClientBuilder<>(
-            name,
             executor,
             requestTimeout, requestTimeoutUnit,
             connectTimeout, connectTimeoutUnit,
-            backupQuantile,
-            retries, retryThisException,
             connector,
             source
         );
@@ -118,12 +89,9 @@ public class ClientBuilder<T> {
 
     public ClientBuilder<T> withConnector(ReactiveSocketConnector<T> connector) {
         return new ClientBuilder<>(
-            name,
             executor,
             requestTimeout, requestTimeoutUnit,
             connectTimeout, connectTimeoutUnit,
-            backupQuantile,
-            retries, retryThisException,
             connector,
             source
         );
@@ -131,12 +99,9 @@ public class ClientBuilder<T> {
 
     public ClientBuilder<T> withSource(Publisher<Collection<T>> source) {
         return new ClientBuilder<>(
-            name,
             executor,
             requestTimeout, requestTimeoutUnit,
             connectTimeout, connectTimeoutUnit,
-            backupQuantile,
-            retries, retryThisException,
             connector,
             source
         );
@@ -150,14 +115,18 @@ public class ClientBuilder<T> {
             throw new IllegalStateException("Please configure the connector!");
         }
 
-        ReactiveSocketConnector<T> filterConnector = connector
-            .chain(socket -> new TimeoutSocket(socket, requestTimeout, requestTimeoutUnit, executor))
-            .chain(DrainingSocket::new);
+
+        ReactiveSocketConnector<T> filterConnector = connector;
+        if (requestTimeout > 0) {
+            filterConnector = filterConnector
+                .chain(socket -> new TimeoutSocket(socket, requestTimeout, requestTimeoutUnit, executor));
+        }
+        filterConnector = filterConnector.chain(DrainingSocket::new);
 
         Publisher<? extends Collection<ReactiveSocketFactory<T>>> factories =
             sourceToFactory(source, filterConnector);
 
-        return new LoadBalancer<T>(factories);
+        return new LoadBalancer<>(factories);
     }
 
     private Publisher<? extends Collection<ReactiveSocketFactory<T>>> sourceToFactory(
@@ -181,7 +150,9 @@ public class ClientBuilder<T> {
                         ReactiveSocketFactory<T> factory = current.get(sa);
                         if (factory == null) {
                             ReactiveSocketFactory<T> newFactory = connector.toFactory(sa);
-                            newFactory = new TimeoutFactory<>(newFactory, connectTimeout, connectTimeoutUnit, executor);
+                            if (connectTimeout > 0) {
+                                newFactory = new TimeoutFactory<>(newFactory, connectTimeout, connectTimeoutUnit, executor);
+                            }
                             newFactory = new FailureAwareFactory<>(newFactory);
                             next.put(sa, newFactory);
                         } else {
@@ -204,17 +175,14 @@ public class ClientBuilder<T> {
 
     public static <T> ClientBuilder<T> instance() {
         return new ClientBuilder<>(
-            "rs-loadbalancer-" + counter.incrementAndGet(),
             Executors.newScheduledThreadPool(4, runnable -> {
                 Thread thread = new Thread(runnable);
                 thread.setName("reactivesocket-scheduler-thread");
                 thread.setDaemon(true);
                 return thread;
             }),
-            1, TimeUnit.SECONDS,
-            10, TimeUnit.SECONDS,
-            0.99,
-            3, t -> true,
+            -1, TimeUnit.SECONDS,
+            -1, TimeUnit.SECONDS,
             null,
             null
         );
