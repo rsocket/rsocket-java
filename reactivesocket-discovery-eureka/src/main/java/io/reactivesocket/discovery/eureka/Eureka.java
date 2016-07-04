@@ -54,7 +54,7 @@ public class Eureka {
                 List<SocketAddress> socketAddresses = infos.stream()
                     .filter(instanceInfo -> instanceInfo.getStatus() == InstanceStatus.UP)
                     .map(info -> {
-                            String ip = info.getIPAddr();
+                        String ip = info.getIPAddr();
                         int port = secure ? info.getSecurePort() : info.getPort();
                         return InetSocketAddress.createUnresolved(ip, port);
                     })
