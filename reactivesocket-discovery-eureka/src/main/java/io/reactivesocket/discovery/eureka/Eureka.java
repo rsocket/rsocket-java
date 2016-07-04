@@ -52,11 +52,9 @@ public class Eureka {
             private synchronized void pushChanges(Subscriber<? super List<SocketAddress>> subscriber) {
                 List<InstanceInfo> infos = client.getInstancesByVipAddress(vip, secure);
                 List<SocketAddress> socketAddresses = infos.stream()
-                    .filter(instanceInfo -> {
-                        return instanceInfo.getStatus() == InstanceStatus.UP;
-                    })
+                    .filter(instanceInfo -> instanceInfo.getStatus() == InstanceStatus.UP)
                     .map(info -> {
-                        String ip = info.getIPAddr();
+                            String ip = info.getIPAddr();
                         int port = secure ? info.getSecurePort() : info.getPort();
                         return InetSocketAddress.createUnresolved(ip, port);
                     })

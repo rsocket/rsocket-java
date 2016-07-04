@@ -44,7 +44,7 @@ public class EurekaTest {
     @Mock
     public EurekaClient eurekaClient;
 
-    @Test(timeout = 60000)
+    @Test
     public void testFilterNonUp() throws Exception {
         List<InstanceInfo> instances = new ArrayList<>();
         Mockito.when(eurekaClient.getInstancesByVipAddress(anyString(), anyBoolean()))
