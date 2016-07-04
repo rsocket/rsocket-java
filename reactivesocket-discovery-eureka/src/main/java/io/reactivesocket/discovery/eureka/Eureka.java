@@ -14,6 +14,7 @@
 package io.reactivesocket.discovery.eureka;
 
 import com.netflix.appinfo.InstanceInfo;
+import com.netflix.appinfo.InstanceInfo.InstanceStatus;
 import com.netflix.discovery.CacheRefreshedEvent;
 import com.netflix.discovery.EurekaClient;
 import io.reactivesocket.internal.rx.EmptySubscription;
@@ -51,6 +52,9 @@ public class Eureka {
             private synchronized void pushChanges(Subscriber<? super List<SocketAddress>> subscriber) {
                 List<InstanceInfo> infos = client.getInstancesByVipAddress(vip, secure);
                 List<SocketAddress> socketAddresses = infos.stream()
+                    .filter(instanceInfo -> {
+                        return instanceInfo.getStatus() == InstanceStatus.UP;
+                    })
                     .map(info -> {
                         String ip = info.getIPAddr();
                         int port = secure ? info.getSecurePort() : info.getPort();
