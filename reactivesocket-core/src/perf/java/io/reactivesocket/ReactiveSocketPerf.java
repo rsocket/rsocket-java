@@ -1,6 +1,6 @@
 package io.reactivesocket;
 
-import io.reactivesocket.internal.PublisherUtils;
+import io.reactivesocket.internal.Publishers;
 import io.reactivesocket.perfutil.PerfTestConnection;
 import io.reactivesocket.rx.Completable;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -118,7 +118,7 @@ public class ReactiveSocketPerf {
 
 			@Override
 			public Publisher<Void> handleFireAndForget(Payload payload) {
-				return PublisherUtils.empty();
+				return Publishers.empty();
 			}
 
 			@Override

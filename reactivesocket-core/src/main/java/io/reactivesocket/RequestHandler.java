@@ -13,6 +13,7 @@
 package io.reactivesocket;
 
 import io.reactivesocket.internal.PublisherUtils;
+import io.reactivesocket.internal.Publishers;
 import org.reactivestreams.Publisher;
 
 import java.util.function.Function;
@@ -28,13 +29,13 @@ public abstract class RequestHandler {
         payload -> PublisherUtils.errorPayload(new RuntimeException("No 'requestSubscription' handler"));
 
     private static final Function<Payload, Publisher<Void>> NO_FIRE_AND_FORGET_HANDLER =
-        payload -> PublisherUtils.errorVoid(new RuntimeException("No 'fireAndForget' handler"));
+        payload -> Publishers.error(new RuntimeException("No 'fireAndForget' handler"));
 
     private static final Function<Publisher<Payload>, Publisher<Payload>> NO_REQUEST_CHANNEL_HANDLER =
         payloads -> PublisherUtils.errorPayload(new RuntimeException("No 'requestChannel' handler"));
 
     private static final Function<Payload, Publisher<Void>> NO_METADATA_PUSH_HANDLER =
-        payload -> PublisherUtils.errorVoid(new RuntimeException("No 'metadataPush' handler"));
+        payload -> Publishers.error(new RuntimeException("No 'metadataPush' handler"));
 
     public abstract Publisher<Payload> handleRequestResponse(final Payload payload);
 
