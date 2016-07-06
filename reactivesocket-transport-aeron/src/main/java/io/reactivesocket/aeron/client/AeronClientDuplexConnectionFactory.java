@@ -20,6 +20,7 @@ import io.reactivesocket.aeron.internal.AeronUtil;
 import io.reactivesocket.aeron.internal.Constants;
 import io.reactivesocket.aeron.internal.Loggable;
 import io.reactivesocket.aeron.internal.MessageType;
+import io.reactivesocket.internal.Publishers;
 import io.reactivesocket.rx.Observer;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
@@ -210,35 +211,34 @@ public final class AeronClientDuplexConnectionFactory implements Loggable {
                 EstablishConnectionHolder establishConnectionHolder = establishConnectionHolders.remove(ackSessionId);
                 if (establishConnectionHolder != null) {
                     try {
+                        final Publication publication = establishConnectionHolder.getPublication();
                         AeronClientDuplexConnection aeronClientDuplexConnection
-                            = new AeronClientDuplexConnection(establishConnectionHolder.getPublication(), frameSendQueue, new Consumer<Publication>() {
-                            @Override
-                            public void accept(Publication publication) {
-                                connections.remove(publication.sessionId());
+                            = new AeronClientDuplexConnection(publication, frameSendQueue);
+                        Publishers.afterTerminate(aeronClientDuplexConnection.closeNotifier(), () -> {
+                            connections.remove(publication.sessionId());
 
-                                // Send a message to the server that the connection is closed and that it needs to clean-up resources on it's side
-                                if (publication != null && !publication.isClosed()) {
-                                    try {
-                                        AeronUtil.tryClaimOrOffer(publication, (offset, buffer) -> {
-                                            buffer.putShort(offset, (short) 0);
-                                            buffer.putShort(offset + BitUtil.SIZE_OF_SHORT, (short) MessageType.CONNECTION_DISCONNECT.getEncodedType());
-                                        }, BitUtil.SIZE_OF_INT, Constants.CLIENT_SEND_ESTABLISH_CONNECTION_MSG_TIMEOUT_MS, TimeUnit.MILLISECONDS);
-                                    } catch (Throwable t) {
-                                        debug("error closing  publication with session id => {}", publication.sessionId());
-                                    }
-                                    publication.close();
+                            // Send a message to the server that the connection is closed and that it needs to clean-up resources on it's side
+                            if (publication != null && !publication.isClosed()) {
+                                try {
+                                    AeronUtil.tryClaimOrOffer(publication, (_offset, _buffer) -> {
+                                                                  _buffer.putShort(_offset, (short) 0);
+                                                                  _buffer.putShort(_offset + BitUtil.SIZE_OF_SHORT,
+                                                                                  (short) MessageType.CONNECTION_DISCONNECT.getEncodedType());
+                                                              }, BitUtil.SIZE_OF_INT, Constants.CLIENT_SEND_ESTABLISH_CONNECTION_MSG_TIMEOUT_MS,
+                                                              TimeUnit.MILLISECONDS);
+                                } catch (Throwable t) {
+                                    debug("error closing  publication with session id => {}", publication.sessionId());
                                 }
+                                publication.close();
                             }
                         });
-
                         connections.put(header.sessionId(), aeronClientDuplexConnection);
 
                         establishConnectionHolder.getSubscriber().onNext(aeronClientDuplexConnection);
                         establishConnectionHolder.getSubscriber().onComplete();
 
-                        debug("Connection established for channel => {}, stream id => {}",
-                            establishConnectionHolder.getPublication().channel(),
-                            establishConnectionHolder.getPublication().sessionId());
+                        debug("Connection established for channel => {}, stream id => {}", publication.channel(),
+                              publication.sessionId());
                     } catch (Throwable t) {
                         establishConnectionHolder.getSubscriber().onError(t);
                     }

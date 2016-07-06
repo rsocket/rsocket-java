@@ -17,8 +17,7 @@ package io.reactivesocket;
 
 import static io.reactivex.Observable.*;
 
-import java.io.IOException;
-
+import io.reactivesocket.internal.EmptySubject;
 import org.reactivestreams.Publisher;
 
 import io.reactivesocket.rx.Completable;
@@ -31,6 +30,7 @@ public class TestConnection implements DuplexConnection {
 
 	public final SerializedEventBus toInput = new SerializedEventBus();
 	public final SerializedEventBus write = new SerializedEventBus();
+	private final EmptySubject closeSubject = new EmptySubject();
 
 	@Override
 	public void addOutput(Publisher<Frame> o, Completable callback) {
@@ -106,9 +106,18 @@ public class TestConnection implements DuplexConnection {
 	}
 
 	@Override
-	public void close() throws IOException {
-		clientThread.dispose();
-		serverThread.dispose();
+	public Publisher<Void> close() {
+		return s -> {
+			clientThread.dispose();
+			serverThread.dispose();
+			closeSubject.onComplete();
+			closeSubject.subscribe(s);
+		};
+	}
+
+	@Override
+	public Publisher<Void> closeNotifier() {
+		return closeSubject;
 	}
 
 }

@@ -21,6 +21,7 @@ import io.reactivesocket.Frame;
 import io.reactivesocket.aeron.internal.Loggable;
 import io.reactivesocket.aeron.internal.NotConnectedException;
 import io.reactivesocket.exceptions.TransportException;
+import io.reactivesocket.internal.EmptySubject;
 import io.reactivesocket.rx.Completable;
 import io.reactivesocket.rx.Disposable;
 import io.reactivesocket.rx.Observable;
@@ -30,25 +31,21 @@ import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
-import java.io.IOException;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.function.Consumer;
 
 public class AeronClientDuplexConnection implements DuplexConnection, Loggable {
 
     private final Publication publication;
     private final CopyOnWriteArrayList<Observer<Frame>> subjects;
     private final AbstractConcurrentArrayQueue<FrameHolder> frameSendQueue;
-    private final Consumer<Publication> onClose;
+    private final EmptySubject closeSubject = new EmptySubject();
 
     public AeronClientDuplexConnection(
         Publication publication,
-        AbstractConcurrentArrayQueue<FrameHolder> frameSendQueue,
-        Consumer<Publication> onClose) {
+        AbstractConcurrentArrayQueue<FrameHolder> frameSendQueue) {
         this.publication = publication;
         this.subjects = new CopyOnWriteArrayList<>();
         this.frameSendQueue = frameSendQueue;
-        this.onClose = onClose;
     }
 
     @Override
@@ -124,8 +121,16 @@ public class AeronClientDuplexConnection implements DuplexConnection, Loggable {
     }
 
     @Override
-    public void close() throws IOException {
-        onClose.accept(publication);
+    public Publisher<Void> close(){
+        return s -> {
+            closeSubject.onComplete();
+            closeSubject.subscribe(s);
+        };
+    }
+
+    @Override
+    public Publisher<Void> closeNotifier() {
+        return closeSubject;
     }
 
     public CopyOnWriteArrayList<Observer<Frame>> getSubjects() {

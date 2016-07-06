@@ -108,23 +108,18 @@ public class BackupRequestSocket implements ReactiveSocket {
     }
 
     @Override
-    public void onShutdown(Completable c) {
-        child.onShutdown(c);
-    }
-
-    @Override
     public void sendLease(int ttl, int numberOfRequests) {
         child.sendLease(ttl, numberOfRequests);
     }
 
     @Override
-    public void shutdown() {
-        child.shutdown();
+    public Publisher<Void> close() {
+        return child.close();
     }
 
     @Override
-    public void close() throws Exception {
-        child.close();
+    public Publisher<Void> onClose() {
+        return child.onClose();
     }
 
     @Override

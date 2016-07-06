@@ -2,6 +2,7 @@ package io.reactivesocket.client;
 
 import io.reactivesocket.Payload;
 import io.reactivesocket.ReactiveSocket;
+import io.reactivesocket.internal.EmptySubject;
 import io.reactivesocket.internal.rx.EmptySubscription;
 import io.reactivesocket.rx.Completable;
 import org.reactivestreams.Publisher;
@@ -16,6 +17,7 @@ import java.util.function.Function;
 public class TestingReactiveSocket implements ReactiveSocket {
 
     private final AtomicInteger count;
+    private final EmptySubject closeSubject = new EmptySubject();
     private final BiFunction<Subscriber<? super Payload>, Payload, Boolean> eachPayloadHandler;
 
     public TestingReactiveSocket(Function<Payload, Payload> responder) {
@@ -128,16 +130,20 @@ public class TestingReactiveSocket implements ReactiveSocket {
     }
 
     @Override
-    public void onShutdown(Completable c) {}
-
-    @Override
     public void sendLease(int ttl, int numberOfRequests) {
         throw new RuntimeException("Not Implemented");
     }
 
     @Override
-    public void shutdown() {}
+    public Publisher<Void> close() {
+        return s -> {
+            closeSubject.onComplete();
+            closeSubject.subscribe(s);
+        };
+    }
 
     @Override
-    public void close() throws Exception {}
+    public Publisher<Void> onClose() {
+        return closeSubject;
+    }
 }

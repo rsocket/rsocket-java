@@ -15,21 +15,20 @@
  */
 package io.reactivesocket.perfutil;
 
-import java.io.IOException;
-
+import io.reactivesocket.DuplexConnection;
+import io.reactivesocket.Frame;
+import io.reactivesocket.internal.EmptySubject;
+import io.reactivesocket.rx.Completable;
+import io.reactivesocket.rx.Observable;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
-
-import io.reactivesocket.DuplexConnection;
-import io.reactivesocket.Frame;
-import io.reactivesocket.rx.Completable;
-import io.reactivesocket.rx.Observable;
 
 public class PerfTestConnection implements DuplexConnection {
 
 	public final PerfUnicastSubjectNoBackpressure<Frame> toInput = PerfUnicastSubjectNoBackpressure.create();
 	private PerfUnicastSubjectNoBackpressure<Frame> writeSubject = PerfUnicastSubjectNoBackpressure.create();
+	private final EmptySubject closeSubject = new EmptySubject();
 
 	@Override
 	public void addOutput(Publisher<Frame> o, Completable callback) {
@@ -80,6 +79,15 @@ public class PerfTestConnection implements DuplexConnection {
 	}
 
 	@Override
-	public void close() throws IOException {
+	public Publisher<Void> close() {
+		return s -> {
+			closeSubject.onComplete();
+			closeSubject.subscribe(s);
+		};
+	}
+
+	@Override
+	public Publisher<Void> closeNotifier() {
+		return closeSubject;
 	}
 }

@@ -167,8 +167,31 @@ public class ClientWebSocketDuplexConnection implements DuplexConnection {
     }
 
     @Override
-    public void close() throws IOException {
-        channel.close();
+    public Publisher<Void> close() {
+        return s -> {
+            if (channel.isOpen()) {
+                channel.close().addListener(new ChannelFutureListener() {
+                    @Override
+                    public void operationComplete(ChannelFuture future) throws Exception {
+                        s.onComplete();
+                    }
+                });
+            } else {
+                closeNotifier().subscribe(s);
+            }
+        };
+    }
+
+    @Override
+    public Publisher<Void> closeNotifier() {
+        return s -> {
+            channel.closeFuture().addListener(new ChannelFutureListener() {
+                @Override
+                public void operationComplete(ChannelFuture future) throws Exception {
+                    s.onComplete();
+                }
+            });
+        };
     }
 
     public String toString() {

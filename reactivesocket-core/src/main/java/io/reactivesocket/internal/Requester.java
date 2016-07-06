@@ -1026,11 +1026,7 @@ public class Requester {
                 if (!connectionSubscription.compareAndSet(null, CANCELLED)) {
                     // cancel the one that was there if we failed to set the sentinel
                     connectionSubscription.get().dispose();
-                    try {
-                        connection.close();
-                    } catch (IOException e) {
-                        errorStream.accept(e);
-                    }
+                    connection.close();
                 }
             }
         });

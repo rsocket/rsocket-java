@@ -24,6 +24,8 @@ import io.reactivesocket.client.exception.NoAvailableReactiveSocketException;
 import io.reactivesocket.client.stat.Ewma;
 import io.reactivesocket.exceptions.TimeoutException;
 import io.reactivesocket.exceptions.TransportException;
+import io.reactivesocket.internal.EmptySubject;
+import io.reactivesocket.internal.Publishers;
 import io.reactivesocket.internal.Publishers;
 import io.reactivesocket.rx.Completable;
 import io.reactivesocket.client.stat.FrugalQuantile;
@@ -84,6 +86,7 @@ public class LoadBalancer<T> implements ReactiveSocket {
     private long lastApertureRefresh;
     private long refreshPeriod;
     private volatile long lastRefresh;
+    private final EmptySubject closeSubject = new EmptySubject();
 
     /**
      *
@@ -386,24 +389,10 @@ public class LoadBalancer<T> implements ReactiveSocket {
     }
 
     @Override
-    public void onShutdown(Completable c) {
-        throw new RuntimeException("onShutdown not implemented");
-    }
-
-    @Override
     public synchronized void sendLease(int ttl, int numberOfRequests) {
         activeSockets.forEach(socket ->
             socket.sendLease(ttl, numberOfRequests)
         );
-    }
-
-    @Override
-    public void shutdown() {
-        try {
-            close();
-        } catch (Exception e) {
-            logger.warn("Exception while calling `shutdown` on a ReactiveSocket", e);
-        }
     }
 
     private synchronized ReactiveSocket select() {
@@ -482,17 +471,29 @@ public class LoadBalancer<T> implements ReactiveSocket {
     }
 
     @Override
-    public synchronized void close() throws Exception {
-        // TODO: have a `closed` flag?
-        factoryRefresher.close();
-        activeFactories.clear();
-        activeSockets.forEach(rs -> {
-            try {
-                rs.close();
-            } catch (Exception e) {
-                logger.warn("Exception while closing a ReactiveSocket", e);
-            }
-        });
+    public Publisher<Void> close() {
+        return s -> {
+            Publishers.afterTerminate(onClose(), () -> {
+                synchronized (this) {
+                    factoryRefresher.close();
+                    activeFactories.clear();
+                    activeSockets.forEach(rs -> {
+                        try {
+                            rs.close();
+                        } catch (Exception e) {
+                            logger.warn("Exception while closing a ReactiveSocket", e);
+                        }
+                    });
+                }
+            });
+            closeSubject.subscribe(s);
+            closeSubject.onComplete();
+        };
+    }
+
+    @Override
+    public Publisher<Void> onClose() {
+        return closeSubject;
     }
 
     /**
@@ -689,18 +690,17 @@ public class LoadBalancer<T> implements ReactiveSocket {
         }
 
         @Override
-        public void onShutdown(Completable c) {
-            c.error(NO_AVAILABLE_RS_EXCEPTION);
-        }
-
-        @Override
         public void sendLease(int ttl, int numberOfRequests) {}
 
         @Override
-        public void shutdown() {}
+        public Publisher<Void> close() {
+            return Publishers.empty();
+        }
 
         @Override
-        public void close() throws Exception {}
+        public Publisher<Void> onClose() {
+            return Publishers.empty();
+        }
     }
 
     /**
@@ -865,8 +865,8 @@ public class LoadBalancer<T> implements ReactiveSocket {
         }
 
         @Override
-        public void close() throws Exception {
-            child.close();
+        public Publisher<Void> close() {
+            return child.close();
         }
 
         @Override

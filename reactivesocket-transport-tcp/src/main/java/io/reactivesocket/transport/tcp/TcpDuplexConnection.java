@@ -29,9 +29,13 @@ public class TcpDuplexConnection implements DuplexConnection {
 
     private final Connection<Frame, Frame> connection;
     private final rx.Observable<Frame> input;
+    private final Publisher<Void> closeNotifier;
+    private final Publisher<Void> close;
 
     public TcpDuplexConnection(Connection<Frame, Frame> connection) {
         this.connection = connection;
+        closeNotifier = RxReactiveStreams.toPublisher(connection.closeListener());
+        close = RxReactiveStreams.toPublisher(connection.close());
         input = connection.getInput().publish().refCount();
     }
 
@@ -71,8 +75,13 @@ public class TcpDuplexConnection implements DuplexConnection {
     }
 
     @Override
-    public void close() throws IOException {
-        connection.closeNow();
+    public Publisher<Void> close() {
+        return close;
+    }
+
+    @Override
+    public Publisher<Void> closeNotifier() {
+        return closeNotifier;
     }
 
     public String toString() {

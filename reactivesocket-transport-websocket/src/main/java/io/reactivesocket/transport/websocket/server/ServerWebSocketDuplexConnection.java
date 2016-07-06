@@ -19,6 +19,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.http.websocketx.BinaryWebSocketFrame;
 import io.reactivesocket.DuplexConnection;
@@ -30,7 +31,6 @@ import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -101,9 +101,33 @@ public class ServerWebSocketDuplexConnection implements DuplexConnection {
         return ctx.channel().isOpen() ? 1.0 : 0.0;
     }
 
-    @Override
-    public void close() throws IOException {
 
+    @Override
+    public Publisher<Void> close() {
+        return s -> {
+            if (ctx.channel().isOpen()) {
+                ctx.channel().close().addListener(new ChannelFutureListener() {
+                    @Override
+                    public void operationComplete(ChannelFuture future) throws Exception {
+                        s.onComplete();
+                    }
+                });
+            } else {
+                closeNotifier().subscribe(s);
+            }
+        };
+    }
+
+    @Override
+    public Publisher<Void> closeNotifier() {
+        return s -> {
+            ctx.channel().closeFuture().addListener(new ChannelFutureListener() {
+                @Override
+                public void operationComplete(ChannelFuture future) throws Exception {
+                    s.onComplete();
+                }
+            });
+        };
     }
 
     public String toString() {
