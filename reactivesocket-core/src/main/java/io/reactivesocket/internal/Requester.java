@@ -306,6 +306,7 @@ public class Requester {
         return (Subscriber<? super Payload> child) -> {
             child.onSubscribe(new Subscription() {
 
+                private boolean cancelled;
                 final AtomicBoolean started = new AtomicBoolean(false);
                 volatile StreamInputSubscriber streamInputSubscriber;
                 volatile UnicastSubject<Frame> writer;
@@ -316,6 +317,13 @@ public class Requester {
 
                 @Override
                 public void request(long n) {
+                    synchronized (this) {
+                        if (cancelled) {
+                            // It is ok to be cancelled here as cancellations can be happening concurrently.
+                            return;
+                        }
+                    }
+
                     if(n <= 0) {
                         return;
                     }
@@ -389,13 +397,25 @@ public class Requester {
 
                 @Override
                 public void cancel() {
+                    synchronized (this) {
+                        if (cancelled) {
+                            // Multiple cancellations.
+                            return;
+                        }
+                        cancelled = true;
+                    }
+
                     synchronized(Requester.this) {
                         streamInputMap.remove(streamId);
                     }
-                    if (!streamInputSubscriber.terminated.get()) {
-                        writer.onNext(Frame.Cancel.from(streamId));
+                    if (streamInputSubscriber != null) {
+                        if (!streamInputSubscriber.terminated.get()) {
+                            writer.onNext(Frame.Cancel.from(streamId));
+                        }
+                        if (null != streamInputSubscriber.parentSubscription) {
+                            streamInputSubscriber.parentSubscription.cancel();
+                        };
                     }
-                    streamInputSubscriber.parentSubscription.cancel();
                 }
 
             });
@@ -418,6 +438,7 @@ public class Requester {
         return (Subscriber<? super Payload> child) -> {
             child.onSubscribe(new Subscription() {
 
+                private boolean cancelled;
                 AtomicBoolean started = new AtomicBoolean(false);
                 volatile StreamInputSubscriber streamInputSubscriber;
                 volatile UnicastSubject<Frame> writer;
@@ -429,6 +450,13 @@ public class Requester {
 
                 @Override
                 public void request(long n) {
+                    synchronized (this) {
+                        if (cancelled) {
+                            // It is ok to be cancelled here as cancellations can be happening concurrently.
+                            return;
+                        }
+                    }
+
                     if(n <= 0) {
                         return;
                     }
@@ -593,13 +621,23 @@ public class Requester {
 
                 @Override
                 public void cancel() {
+                    synchronized (this) {
+                        if (cancelled) {
+                            // Multiple cancellations.
+                            return;
+                        }
+                        cancelled = true;
+                    }
+
                     synchronized(Requester.this) {
                         streamInputMap.remove(streamId);
                     }
-                    if (!streamInputSubscriber.terminated.get()) {
+                    if (streamInputSubscriber != null && !streamInputSubscriber.terminated.get()) {
                         writer.onNext(Frame.Cancel.from(streamId));
+                        if (streamInputSubscriber.parentSubscription != null) {
+                            streamInputSubscriber.parentSubscription.cancel();
+                        }
                     }
-                    streamInputSubscriber.parentSubscription.cancel();
                     if (payloadsSubscription != null) {
                         if (!payloadsSubscription.compareAndSet(null, EmptySubscription.INSTANCE)) {
                             // unsubscribe it if it already exists
@@ -625,12 +663,19 @@ public class Requester {
             child.onSubscribe(new Subscription() {
 
                 final AtomicBoolean started = new AtomicBoolean(false);
+                private boolean cancelled;
                 volatile StreamInputSubscriber streamInputSubscriber;
-                volatile UnicastSubject<Frame> writer;
 
                 @Override
                 public void request(long n) {
                     if (n > 0 && started.compareAndSet(false, true)) {
+                        synchronized (this) {
+                            if (cancelled) {
+                                // It is ok to be cancelled here as cancellations can be happening concurrently.
+                                return;
+                            }
+                        }
+
                         // Response frames for this Stream
                         UnicastSubject<Frame> transportInputSubject = UnicastSubject.create();
                         synchronized(Requester.this) {
@@ -641,7 +686,7 @@ public class Requester {
                             0,
                             null,
                             null,
-                            writer,
+                            null,
                             child,
                             this::cancel
                         );
@@ -666,7 +711,15 @@ public class Requester {
 
                 @Override
                 public void cancel() {
-                    if (!streamInputSubscriber.terminated.get()) {
+                    synchronized (this) {
+                        if (cancelled) {
+                            // Multiple cancellations.
+                            return;
+                        }
+                        cancelled = true;
+                    }
+
+                    if (streamInputSubscriber != null && !streamInputSubscriber.terminated.get()) {
                         Frame cancelFrame = Frame.Cancel.from(streamId);
                         connection.addOutput(cancelFrame, new Completable() {
                             @Override
@@ -683,7 +736,9 @@ public class Requester {
                     synchronized(Requester.this) {
                         streamInputMap.remove(streamId);
                     }
-                    streamInputSubscriber.parentSubscription.cancel();
+                    if (streamInputSubscriber != null && streamInputSubscriber.parentSubscription != null) {
+                        streamInputSubscriber.parentSubscription.cancel();
+                    }
                 }
             });
         };
