@@ -1,3 +1,16 @@
+/*
+ * Copyright 2016 Netflix, Inc.
+ * <p>
+ *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
+ *  the License. You may obtain a copy of the License at
+ *  <p>
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *  <p>
+ *  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
+ *  an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
+ *  specific language governing permissions and limitations under the License.
+ */
+
 package io.reactivesocket.transport.tcp.client;
 
 import io.netty.buffer.ByteBuf;
@@ -31,10 +44,10 @@ public class TcpReactiveSocketConnector implements ReactiveSocketConnector<Socke
     private final ConcurrentMap<SocketAddress, TcpClient<Frame, Frame>> socketFactories;
     private final ConnectionSetupPayload setupPayload;
     private final Consumer<Throwable> errorStream;
-    private final Function<SocketAddress, TcpClient<ByteBuf, ByteBuf>> clientFactory;
+    private final Function<SocketAddress, TcpClient<Frame, Frame>> clientFactory;
 
     private TcpReactiveSocketConnector(ConnectionSetupPayload setupPayload, Consumer<Throwable> errorStream,
-                                       Function<SocketAddress, TcpClient<ByteBuf, ByteBuf>> clientFactory) {
+                                       Function<SocketAddress, TcpClient<Frame, Frame>> clientFactory) {
         this.setupPayload = setupPayload;
         this.errorStream = errorStream;
         this.clientFactory = clientFactory;
@@ -44,10 +57,22 @@ public class TcpReactiveSocketConnector implements ReactiveSocketConnector<Socke
     @Override
     public Publisher<ReactiveSocket> connect(SocketAddress address) {
         return _connect(socketFactories.computeIfAbsent(address, socketAddress -> {
-            return clientFactory.apply(socketAddress)
-                                .addChannelHandlerLast("length-codec", ReactiveSocketLengthCodec::new)
-                                .addChannelHandlerLast("frame-codec", ReactiveSocketFrameCodec::new);
+            return clientFactory.apply(socketAddress);
         }));
+    }
+
+    /**
+     * Configures the underlying {@link TcpClient} used by this connector.
+     *
+     * @param configurator Function to transform the client.
+     *
+     * @return A new {@link TcpReactiveSocketConnector}
+     */
+    public TcpReactiveSocketConnector configureClient(
+            Function<TcpClient<Frame, Frame>, TcpClient<Frame, Frame>> configurator) {
+        return new TcpReactiveSocketConnector(setupPayload, errorStream, socketAddress -> {
+            return configurator.apply(clientFactory.apply(socketAddress));
+        });
     }
 
     private Publisher<ReactiveSocket> _connect(TcpClient<Frame, Frame> client) {
@@ -98,12 +123,19 @@ public class TcpReactiveSocketConnector implements ReactiveSocketConnector<Socke
     public static TcpReactiveSocketConnector create(ConnectionSetupPayload setupPayload,
                                                     Consumer<Throwable> errorStream) {
         return new TcpReactiveSocketConnector(setupPayload, errorStream,
-                                              socketAddress -> TcpClient.newClient(socketAddress));
+                                              socketAddress -> _configureClient(TcpClient.newClient(socketAddress)));
     }
 
     public static TcpReactiveSocketConnector create(ConnectionSetupPayload setupPayload,
                                                     Consumer<Throwable> errorStream,
                                                     Function<SocketAddress, TcpClient<ByteBuf, ByteBuf>> clientFactory) {
-        return new TcpReactiveSocketConnector(setupPayload, errorStream, clientFactory);
+        return new TcpReactiveSocketConnector(setupPayload, errorStream, socketAddress -> {
+            return _configureClient(clientFactory.apply(socketAddress));
+        });
+    }
+
+    private static TcpClient<Frame, Frame> _configureClient(TcpClient<ByteBuf, ByteBuf> client) {
+        return client.addChannelHandlerLast("length-codec", ReactiveSocketLengthCodec::new)
+                     .addChannelHandlerLast("frame-codec", ReactiveSocketFrameCodec::new);
     }
 }
