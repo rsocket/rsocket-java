@@ -10,10 +10,16 @@
  *  an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
  *  specific language governing permissions and limitations under the License.
  */
+package io.reactivesocket.transport.tcp;
 
-dependencies {
-    compile project(':reactivesocket-transport-tcp')
-    compile project(':reactivesocket-core')
+import io.reactivesocket.test.PingHandler;
+import io.reactivesocket.transport.tcp.server.TcpReactiveSocketServer;
 
-    testCompile project(':reactivesocket-test')
+public final class TcpPongServer {
+
+    public static void main(String... args) throws Exception {
+        TcpReactiveSocketServer.create(7878)
+                               .start(new PingHandler())
+                               .awaitShutdown();
+    }
 }
