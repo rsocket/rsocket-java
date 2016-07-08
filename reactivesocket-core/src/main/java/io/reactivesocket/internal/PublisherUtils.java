@@ -105,69 +105,6 @@ public class PublisherUtils {
         };
     }
 
-    public static final Publisher<Void> errorVoid(Throwable e) {
-        return (Subscriber<? super Void> s) -> {
-            s.onSubscribe(new Subscription() {
-
-                @Override
-                public void request(long n) {
-                }
-
-                @Override
-                public void cancel() {
-                    // ignoring as nothing to do
-                }
-
-            });
-            s.onError(e);
-
-        };
-    }
-
-    public static final Publisher<Frame> just(Frame frame) {
-        return (Subscriber<? super Frame> s) -> {
-            s.onSubscribe(new Subscription() {
-
-                boolean completed = false;
-
-                @Override
-                public void request(long n) {
-                    if (!completed && n > 0) {
-                        completed = true;
-                        s.onNext(frame);
-                        s.onComplete();
-                    }
-                }
-
-                @Override
-                public void cancel() {
-                    // ignoring as nothing to do
-                }
-
-            });
-
-        };
-    }
-
-    public static final <T> Publisher<T> empty() {
-        return (Subscriber<? super T> s) -> {
-            s.onSubscribe(new Subscription() {
-
-                @Override
-                public void request(long n) {
-                }
-
-                @Override
-                public void cancel() {
-                    // ignoring as nothing to do
-                }
-
-            });
-            s.onComplete(); // TODO confirm this is okay with ReactiveStream spec to send immediately after onSubscribe (I think so since no data is being sent so requestN doesn't matter)
-        };
-
-    }
-
     public static final Publisher<Frame> keepaliveTicker(final int interval, final TimeUnit timeUnit) {
         return (Subscriber<? super Frame> s) -> {
             s.onSubscribe(new Subscription()

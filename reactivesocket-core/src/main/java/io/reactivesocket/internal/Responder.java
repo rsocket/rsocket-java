@@ -141,7 +141,7 @@ public class Responder {
      */
     public void sendLease(final int ttl, final int numberOfRequests) {
         Frame leaseFrame = Frame.Lease.from(ttl, numberOfRequests, Frame.NULL_BYTEBUFFER);
-        connection.addOutput(PublisherUtils.just(leaseFrame), new Completable() {
+        connection.addOutput(Publishers.just(leaseFrame), new Completable() {
             @Override
             public void success() {}
 
@@ -284,7 +284,7 @@ public class Responder {
                             if (Frame.Keepalive.hasRespondFlag(requestFrame)) {
                                 Frame keepAliveFrame = Frame.Keepalive.from(
                                     requestFrame.getData(), false);
-                                responsePublisher = PublisherUtils.just(keepAliveFrame);
+                                responsePublisher = Publishers.just(keepAliveFrame);
                             } else {
                                 return;
                             }
@@ -338,7 +338,7 @@ public class Responder {
                 // pass the ErrorFrame output, subscribe to write it, await
                 // onComplete and then tear down
                 final Frame frame = Frame.Error.from(0, setupException);
-                connection.addOutput(PublisherUtils.just(frame),
+                connection.addOutput(Publishers.just(frame),
                     new Completable() {
                         @Override
                         public void success() {
@@ -660,7 +660,7 @@ public class Responder {
         }
         // we always treat this as if it immediately completes as we don't want
         // errors passing back to the user
-        return PublisherUtils.empty();
+        return Publishers.empty();
     }
 
     private Publisher<Frame> handleMetadataPush(
@@ -676,7 +676,7 @@ public class Responder {
         }
         // we always treat this as if it immediately completes as we don't want
         // errors passing back to the user
-        return PublisherUtils.empty();
+        return Publishers.empty();
     }
 
     /**
@@ -844,7 +844,7 @@ public class Responder {
                 }
                 // TODO should at least have an error message of some kind if the
                 // Requester disregarded it
-                return PublisherUtils.empty();
+                return Publishers.empty();
             } else {
                 // TODO should we use a BufferUntilSubscriber solution instead to
                 // handle time-gap issues like this?
