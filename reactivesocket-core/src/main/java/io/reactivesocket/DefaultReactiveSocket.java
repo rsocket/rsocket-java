@@ -478,23 +478,6 @@ public class DefaultReactiveSocket implements ReactiveSocket {
         }
     }
 
-    private static <T> Publisher<T> error(Throwable e) {
-        return (Subscriber<? super T> s) -> {
-            s.onSubscribe(new Subscription() {
-                @Override
-                public void request(long n) {
-                    // should probably worry about n==0
-                    s.onError(e);
-                }
-
-                @Override
-                public void cancel() {
-                    // ignoring just because
-                }
-            });
-        };
-    }
-
     public String toString() {
         return "duplexConnection=[" + this.connection + "]";
     }
