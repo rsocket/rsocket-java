@@ -19,4 +19,5 @@ public interface CancellableSubscriber<T> extends Subscriber<T> {
 
     void cancel();
 
+    boolean isCancelled();
 }

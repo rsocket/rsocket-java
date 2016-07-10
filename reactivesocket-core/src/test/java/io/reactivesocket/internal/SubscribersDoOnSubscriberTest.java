@@ -17,6 +17,7 @@ import org.hamcrest.MatcherAssert;
 import org.junit.Rule;
 import org.junit.Test;
 
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.*;
@@ -42,9 +43,11 @@ public class SubscribersDoOnSubscriberTest {
         CancellableSubscriber<String> subscriber = rule.subscribe();
         rule.assertOnSubscribe(1);
 
-        rule.subscribe(subscriber);
+        AtomicBoolean secondCancellation = new AtomicBoolean();
+        subscriber.onSubscribe(Subscriptions.forCancel(() -> secondCancellation.set(true)));
         rule.assertOnSubscribe(1);
-        rule.assertOnError(1);
+        MatcherAssert.assertThat("Duplicate subscription not cancelled.", secondCancellation.get(), is(true));
+        MatcherAssert.assertThat("Original subscription cancelled.", subscriber.isCancelled(), is(false));
     }
 
     @Test

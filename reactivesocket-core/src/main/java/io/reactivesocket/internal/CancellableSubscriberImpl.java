@@ -67,22 +67,20 @@ final class CancellableSubscriberImpl<T> implements CancellableSubscriber<T> {
     public void onSubscribe(Subscription s) {
 
         boolean _cancel = false;
-        boolean _subscribed;
         synchronized (this) {
-            _subscribed = subscribed;
             if (!subscribed) {
                 subscribed = true;
                 this.s = s;
                 if (cancelled) {
                     _cancel = true;
                 }
+            } else {
+                _cancel = true;
             }
         }
 
-        if (_subscribed) {
-            onError(new IllegalStateException("Duplicate subscription."));
-        } else if (_cancel) {
-            _unsafeCancel();
+        if (_cancel) {
+            s.cancel();
         } else {
             doOnSubscribe.accept(s);
         }
@@ -102,6 +100,11 @@ final class CancellableSubscriberImpl<T> implements CancellableSubscriber<T> {
         if (_cancel) {
             _unsafeCancel();
         }
+    }
+
+    @Override
+    public synchronized boolean isCancelled() {
+        return cancelled;
     }
 
     @Override
