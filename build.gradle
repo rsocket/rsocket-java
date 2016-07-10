@@ -23,7 +23,7 @@ subprojects {
     }
 
     dependencies {
-        compile 'org.reactivestreams:reactive-streams:1.0.0.final'
+        compile 'org.reactivestreams:reactive-streams:1.0.0'
         compile 'org.agrona:Agrona:0.4.13'
         compile 'io.reactivex:rxjava:latest.release'
         compile 'io.reactivex:rxjava-reactive-streams:latest.release'
