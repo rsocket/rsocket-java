@@ -20,8 +20,11 @@ import org.reactivestreams.Subscription;
 
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Function;
+
+import static io.reactivesocket.internal.CancellableSubscriberImpl.*;
 
 /**
  * A set of utility functions for applying function composition over {@link Publisher}s.
@@ -49,7 +52,14 @@ public final class Publishers {
      */
     public static <T, R> Publisher<R> map(Publisher<T> source, Function<T, R> map) {
         return subscriber -> {
-            source.subscribe(new MapSubscriber<>(subscriber, map));
+            source.subscribe(Subscribers.create(subscription -> {
+                subscriber.onSubscribe(subscription);
+            }, t -> {
+                R r = map.apply(t);
+                subscriber.onNext(r);
+            }, throwable -> {
+                subscriber.onError(throwable);
+            }, () -> subscriber.onComplete(), EMPTY_RUNNABLE));
         };
     }
 
@@ -66,52 +76,29 @@ public final class Publishers {
      */
     public static <T> Publisher<T> timeout(Publisher<T> source, Publisher<Void> timeoutSignal) {
         return s -> {
-            source.subscribe(new SafeCancellableSubscriberProxy<T>(s) {
-
-                private Runnable timeoutCancellation;
-                private boolean emitted;
-
-                @Override
-                public void onSubscribe(Subscription s) {
-                    timeoutCancellation = afterTerminate(timeoutSignal, () -> {
-                        boolean _cancel = true;
-                        synchronized (this) {
-                            _cancel = !emitted;
-                        }
-                        if (_cancel) {
-                            onError(TIMEOUT_EXCEPTION);
-                            cancel();
-                        }
+            final AtomicReference<Runnable> timeoutCancellation = new AtomicReference<>();
+            CancellableSubscriber<T> sub = Subscribers.create(
+                    subscription -> {
+                        timeoutCancellation.set(afterTerminate(timeoutSignal, () -> {
+                            s.onError(TIMEOUT_EXCEPTION);
+                        }));
+                        s.onSubscribe(subscription);
+                    },
+                    t -> {
+                        timeoutCancellation.get().run();
+                        s.onNext(t);
+                    },
+                    throwable -> {
+                        timeoutCancellation.get().run();
+                        s.onError(throwable);
+                    },
+                    () -> {
+                        timeoutCancellation.get().run();
+                        s.onComplete();
+                    }, () -> {
+                        timeoutCancellation.get().run();
                     });
-                    super.onSubscribe(s);
-                }
-
-                @Override
-                protected void doOnNext(T t) {
-                    synchronized (this) {
-                        emitted = true;
-                    }
-                    timeoutCancellation.run(); // Cancel the timeout since we have received one item.
-                    super.doOnNext(t);
-                }
-
-                @Override
-                protected void doOnError(Throwable t) {
-                    timeoutCancellation.run();
-                    super.doOnError(t);
-                }
-
-                @Override
-                protected void doOnComplete() {
-                    timeoutCancellation.run();
-                    super.doOnComplete();
-                }
-
-                @Override
-                protected void doAfterCancel() {
-                    timeoutCancellation.run();
-                }
-            });
+            source.subscribe(sub);
         };
     }
 
@@ -142,36 +129,26 @@ public final class Publishers {
      */
     public static Publisher<Void> concatEmpty(Publisher<Void> first, Publisher<Void> second) {
         return subscriber -> {
-            first.subscribe(new SafeCancellableSubscriberProxy<Void>(subscriber) {
-                @Override
-                protected void doOnComplete() {
-                    second.subscribe(new SafeCancellableSubscriber<Void>() {
-                        @Override
-                        public void onSubscribe(Subscription s) {
-                            super.onSubscribe(s);
-                            // This is the second subscription which isn't driven by downstream subscriber.
-                            // So, no onSubscriber callback will be coming here (alread done for first subscriber).
-                            // As we are only dealing with empty (Void) sources, this doesn't break backpressure.
-                            s.request(1);
-                        }
-
-                        @Override
-                        protected void doOnNext(Void aVoid) {
-                            subscriber.onNext(aVoid);
-                        }
-
-                        @Override
-                        protected void doOnError(Throwable t) {
-                            subscriber.onError(t);
-                        }
-
-                        @Override
-                        protected void doOnComplete() {
-                            subscriber.onComplete();
-                        }
-                    });
-                }
-            });
+            first.subscribe(Subscribers.create(subscription -> {
+                subscriber.onSubscribe(subscription);
+            }, t -> {
+                subscriber.onNext(t);
+            }, throwable -> {
+                subscriber.onError(throwable);
+            }, () -> {
+                second.subscribe(Subscribers.create(subscription -> {
+                    // This is the second subscription which isn't driven by downstream subscriber.
+                    // So, no onSubscriber callback will be coming here (alread done for first subscriber).
+                    // As we are only dealing with empty (Void) sources, this doesn't break backpressure.
+                    subscription.request(1);
+                }, t -> {
+                    subscriber.onNext(t);
+                }, throwable -> {
+                    subscriber.onError(throwable);
+                }, () -> {
+                    subscriber.onComplete();
+                }, EMPTY_RUNNABLE));
+            }, EMPTY_RUNNABLE));
         };
     }
 
@@ -222,65 +199,33 @@ public final class Publishers {
      * @return Cancellation handle.
      */
     public static Runnable afterTerminate(Publisher<Void> source, Runnable action) {
-        final CancellableSubscriber<Void> subscriber = new SafeCancellableSubscriber<Void>() {
-            @Override
-            public void doOnError(Throwable t) {
-                action.run();
-            }
-
-            @Override
-            public void doOnComplete() {
-                action.run();
-            }
-        };
+        final CancellableSubscriber<Void> subscriber = Subscribers.doOnTerminate(throwable -> action.run(),
+                                                                                 () -> action.run());
         source.subscribe(subscriber);
         return () -> subscriber.cancel();
     }
 
-    private static class MapSubscriber<T, R> extends SafeCancellableSubscriber<T> {
-        private final Subscriber<? super R> subscriber;
-        private final Function<T, R> map;
+    private static final class TimeoutHolder<T> implements Consumer<Subscription>, Runnable {
 
-        public MapSubscriber(Subscriber<? super R> subscriber, Function<T, R> map) {
+        private final Publisher<Void> timeoutSignal;
+        private final Subscriber<? super T> subscriber;
+        private Runnable timeoutCancellation;
+
+        private TimeoutHolder(Publisher<Void> timeoutSignal, Subscriber<? super T> subscriber) {
+            this.timeoutSignal = timeoutSignal;
             this.subscriber = subscriber;
-            this.map = map;
         }
 
         @Override
-        public void onSubscribe(Subscription s) {
-            Subscription s1 = new Subscription() {
-                @Override
-                public void request(long n) {
-                    s.request(n);
-                }
-
-                @Override
-                public void cancel() {
-                    MapSubscriber.this.cancel();
-                }
-            };
-            super.onSubscribe(s1);
-            subscriber.onSubscribe(s1);
+        public void run() {
+            timeoutCancellation.run();
         }
 
         @Override
-        protected void doOnNext(T t) {
-            try {
-                R r = map.apply(t);
-                subscriber.onNext(r);
-            } catch (Exception e) {
-                onError(e);
-            }
-        }
-
-        @Override
-        protected void doOnError(Throwable t) {
-            subscriber.onError(t);
-        }
-
-        @Override
-        protected void doOnComplete() {
-            subscriber.onComplete();
+        public void accept(Subscription subscription) {
+            timeoutCancellation = afterTerminate(timeoutSignal, () -> {
+                subscriber.onError(TIMEOUT_EXCEPTION);
+            });
         }
     }
 }
