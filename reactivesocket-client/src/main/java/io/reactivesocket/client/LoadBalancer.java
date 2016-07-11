@@ -24,6 +24,7 @@ import io.reactivesocket.client.exception.NoAvailableReactiveSocketException;
 import io.reactivesocket.client.stat.Ewma;
 import io.reactivesocket.exceptions.TimeoutException;
 import io.reactivesocket.exceptions.TransportException;
+import io.reactivesocket.internal.Publishers;
 import io.reactivesocket.rx.Completable;
 import io.reactivesocket.client.stat.FrugalQuantile;
 import io.reactivesocket.client.stat.Quantile;
@@ -629,38 +630,42 @@ public class LoadBalancer<T> implements ReactiveSocket {
      * when dealing with edge cases.
      */
     private static class FailingReactiveSocket implements ReactiveSocket {
+
         @SuppressWarnings("ThrowableInstanceNeverThrown")
         private static final NoAvailableReactiveSocketException NO_AVAILABLE_RS_EXCEPTION =
             new NoAvailableReactiveSocketException();
 
+        private static final Publisher<Void> errorVoid = Publishers.error(NO_AVAILABLE_RS_EXCEPTION);
+        private static final Publisher<Payload> errorPayload = Publishers.error(NO_AVAILABLE_RS_EXCEPTION);
+
         @Override
         public Publisher<Void> fireAndForget(Payload payload) {
-            return subscriber -> subscriber.onError(NO_AVAILABLE_RS_EXCEPTION);
+            return errorVoid;
         }
 
         @Override
         public Publisher<Payload> requestResponse(Payload payload) {
-            return subscriber -> subscriber.onError(NO_AVAILABLE_RS_EXCEPTION);
+            return errorPayload;
         }
 
         @Override
         public Publisher<Payload> requestStream(Payload payload) {
-            return subscriber -> subscriber.onError(NO_AVAILABLE_RS_EXCEPTION);
+            return errorPayload;
         }
 
         @Override
         public Publisher<Payload> requestSubscription(Payload payload) {
-            return subscriber -> subscriber.onError(NO_AVAILABLE_RS_EXCEPTION);
+            return errorPayload;
         }
 
         @Override
         public Publisher<Payload> requestChannel(Publisher<Payload> payloads) {
-            return subscriber -> subscriber.onError(NO_AVAILABLE_RS_EXCEPTION);
+            return errorPayload;
         }
 
         @Override
         public Publisher<Void> metadataPush(Payload payload) {
-            return subscriber -> subscriber.onError(NO_AVAILABLE_RS_EXCEPTION);
+            return errorVoid;
         }
 
         @Override
