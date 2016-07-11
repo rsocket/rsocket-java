@@ -16,6 +16,7 @@ package io.reactivesocket.client;
 import io.reactivesocket.Payload;
 import io.reactivesocket.exceptions.TimeoutException;
 import io.reactivesocket.client.filter.TimeoutSocket;
+import org.hamcrest.MatcherAssert;
 import org.junit.Assert;
 import org.junit.Test;
 import org.reactivestreams.Subscriber;
@@ -24,17 +25,12 @@ import org.reactivestreams.Subscription;
 import java.nio.ByteBuffer;
 import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.Matchers.*;
+
 public class TimeoutFactoryTest {
     @Test
     public void testTimeoutSocket() {
-        TestingReactiveSocket socket = new TestingReactiveSocket(payload -> {
-            try {
-                Thread.sleep(200);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-            return payload;
-        });
+        TestingReactiveSocket socket = new TestingReactiveSocket((subscriber, payload) -> {return false;});
         TimeoutSocket timeout = new TimeoutSocket(socket, 50, TimeUnit.MILLISECONDS);
 
         timeout.requestResponse(new Payload() {
@@ -55,17 +51,17 @@ public class TimeoutFactoryTest {
 
             @Override
             public void onNext(Payload payload) {
-                Assert.assertTrue(false);
+                throw new AssertionError("onNext invoked when not expected.");
             }
 
             @Override
             public void onError(Throwable t) {
-                Assert.assertTrue(t instanceof TimeoutException);
+                MatcherAssert.assertThat("Unexpected exception in onError", t, instanceOf(TimeoutException.class));
             }
 
             @Override
             public void onComplete() {
-                Assert.assertTrue(false);
+                throw new AssertionError("onComplete invoked when not expected.");
             }
         });
     }

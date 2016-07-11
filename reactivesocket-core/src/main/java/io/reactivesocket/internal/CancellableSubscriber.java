@@ -14,48 +14,10 @@
 package io.reactivesocket.internal;
 
 import org.reactivestreams.Subscriber;
-import org.reactivestreams.Subscription;
 
-abstract class CancellableSubscriber<T> implements Subscriber<T> {
+public interface CancellableSubscriber<T> extends Subscriber<T> {
 
-    private Subscription s;
-    private boolean cancelled;
+    void cancel();
 
-    @Override
-    public void onSubscribe(Subscription s) {
-        boolean _cancel = false;
-        synchronized (this) {
-            this.s = s;
-            if (cancelled) {
-                _cancel = true;
-            }
-        }
-
-        if (_cancel) {
-            _unsafeCancel();
-        }
-    }
-
-    public void cancel() {
-        boolean _cancel = false;
-        synchronized (this) {
-            cancelled = true;
-            if (s != null) {
-                _cancel = true;
-            }
-        }
-
-        if (_cancel) {
-            _unsafeCancel();
-        }
-    }
-
-    protected void doAfterCancel() {
-        // NoOp by default.
-    }
-
-    private void _unsafeCancel() {
-        s.cancel();
-        doAfterCancel();
-    }
+    boolean isCancelled();
 }
