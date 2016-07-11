@@ -22,7 +22,6 @@ import static io.reactivex.Observable.*;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
@@ -34,16 +33,53 @@ import io.reactivesocket.FrameType;
 import io.reactivesocket.LatchedCompletable;
 import io.reactivesocket.Payload;
 import io.reactivesocket.TestConnection;
-import io.reactivesocket.rx.Completable;
 import io.reactivex.subscribers.TestSubscriber;
 import io.reactivex.Observable;
 import io.reactivex.subjects.ReplaySubject;
+import org.reactivestreams.Publisher;
+import org.reactivestreams.Subscription;
 
 public class RequesterTest
 {
 	final static Consumer<Throwable> ERROR_HANDLER = Throwable::printStackTrace;
 
 	@Test(timeout=2000)
+    public void testReqRespCancelBeforeRequestN() throws InterruptedException {
+        Requester p = createClientRequester();
+        testCancelBeforeRequestN(p.requestResponse(utf8EncodedPayload("hello", null)));
+    }
+
+    @Test(timeout=2000)
+    public void testReqSubscriptionCancelBeforeRequestN() throws InterruptedException {
+        Requester p = createClientRequester();
+        testCancelBeforeRequestN(p.requestSubscription(utf8EncodedPayload("hello", null)));
+    }
+
+    @Test(timeout=2000)
+    public void testReqStreamCancelBeforeRequestN() throws InterruptedException {
+        Requester p = createClientRequester();
+        testCancelBeforeRequestN(p.requestStream(utf8EncodedPayload("hello", null)));
+    }
+
+    @Test(timeout=2000)
+    public void testReqChannelCancelBeforeRequestN() throws InterruptedException {
+        Requester p = createClientRequester();
+        testCancelBeforeRequestN(p.requestChannel(just(utf8EncodedPayload("hello", null))));
+    }
+
+    @Test(timeout=2000)
+    public void testReqFnFCancelBeforeRequestN() throws InterruptedException {
+        Requester p = createClientRequester();
+        testCancelBeforeRequestN(p.fireAndForget(utf8EncodedPayload("hello", null)));
+    }
+
+    @Test(timeout=2000)
+    public void testReqMetaPushCancelBeforeRequestN() throws InterruptedException {
+        Requester p = createClientRequester();
+        testCancelBeforeRequestN(p.metadataPush(utf8EncodedPayload("hello", null)));
+    }
+
+    @Test(timeout=2000)
     public void testRequestResponseSuccess() throws InterruptedException {
         TestConnection conn = establishConnection();
         ReplaySubject<Frame> requests = captureRequests(conn);
@@ -62,12 +98,12 @@ public class RequesterTest
         assertEquals(0, one.getStreamId());// SETUP always happens on 0
         assertEquals("", byteToString(one.getData()));
         assertEquals(FrameType.SETUP, one.getType());
-        
+
         Frame two = requested.get(1);
         assertEquals(2, two.getStreamId());// need to start at 2, not 0
         assertEquals("hello", byteToString(two.getData()));
         assertEquals(FrameType.REQUEST_RESPONSE, two.getType());
-        
+
         // now emit a response to ensure the Publisher receives and completes
         conn.toInput.send(utf8EncodedResponseFrame(2, FrameType.NEXT_COMPLETE, "world"));
 
@@ -262,14 +298,37 @@ public class RequesterTest
 
     /* **********************************************************************************************/
 
-	private TestConnection establishConnection() {
+    private static <T> void testCancelBeforeRequestN(Publisher<T> source) {
+        TestSubscriber<T> testSubscriber = new CancelBeforeRequestNSubscriber<>();
+        source.subscribe(testSubscriber);
+
+        testSubscriber.assertNoErrors();
+        testSubscriber.assertNotComplete();
+    }
+
+    private static Requester createClientRequester() throws InterruptedException {
+        TestConnection conn = establishConnection();
+        LatchedCompletable rc = new LatchedCompletable(1);
+        Requester p = Requester.createClientRequester(conn, ConnectionSetupPayload.create("UTF-8", "UTF-8", NO_FLAGS), ERROR_HANDLER, rc);
+        rc.await();
+        return p;
+    }
+
+	private static TestConnection establishConnection() {
 		return new TestConnection();
 	}
 
-    private ReplaySubject<Frame> captureRequests(TestConnection conn) {
+    private static ReplaySubject<Frame> captureRequests(TestConnection conn) {
         ReplaySubject<Frame> rs = ReplaySubject.create();
         rs.forEach(i -> System.out.println("capturedRequest => " + i));
         conn.write.add(rs::onNext);
         return rs;
+    }
+
+    private static class CancelBeforeRequestNSubscriber<T> extends TestSubscriber<T> {
+        @Override
+        public void onSubscribe(Subscription s) {
+            s.cancel();
+        }
     }
 }
