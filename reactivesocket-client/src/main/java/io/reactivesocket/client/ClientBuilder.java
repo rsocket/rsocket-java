@@ -118,6 +118,10 @@ public class ClientBuilder<T> {
                         subscriber.onError(new IllegalStateException("Please configure the source!"));
                         return;
                     }
+                    if (executor == null) {
+                        subscriber.onError(new IllegalStateException("Please configure the executor!"));
+                        return;
+                    }
                     if (connector == null) {
                         subscriber.onError(new IllegalStateException("Please configure the connector!"));
                         return;
