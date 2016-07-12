@@ -116,14 +116,14 @@ public class StressTest {
 
         TcpReactiveSocketConnector tcp = TcpReactiveSocketConnector.create(setupPayload, Throwable::printStackTrace);
 
-        ReactiveSocket client = ClientBuilder.<SocketAddress>instance()
+        Publisher<ReactiveSocket> socketPublisher = ClientBuilder.<SocketAddress>instance()
             .withSource(getServersList())
             .withConnector(tcp)
             .withConnectTimeout(1, TimeUnit.SECONDS)
             .withRequestTimeout(1, TimeUnit.SECONDS)
             .build();
 
-        Unsafe.awaitAvailability(client);
+        ReactiveSocket client = Unsafe.blockingSingleWait(socketPublisher, 5, TimeUnit.SECONDS);
         System.out.println("Client ready, starting the load...");
 
         long testDurationNs = TimeUnit.NANOSECONDS.convert(60, TimeUnit.SECONDS);
