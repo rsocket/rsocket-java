@@ -8,6 +8,8 @@ import org.junit.Test;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
+import rx.Observable;
+import rx.observers.TestSubscriber;
 
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
@@ -18,6 +20,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.instanceOf;
+import static rx.RxReactiveStreams.toObservable;
 
 public class ClientBuilderTest {
 
@@ -25,32 +28,14 @@ public class ClientBuilderTest {
     public void testIllegalState() throws ExecutionException, InterruptedException {
         // you need to specify the source and the connector
         Publisher<ReactiveSocket> socketPublisher = ClientBuilder.instance().build();
+        Observable<ReactiveSocket> socketObservable = toObservable(socketPublisher);
+        TestSubscriber<? super ReactiveSocket> testSubscriber = TestSubscriber.create();
 
-        CountDownLatch latch = new CountDownLatch(1);
-        socketPublisher.subscribe(new Subscriber<ReactiveSocket>() {
-            @Override
-            public void onSubscribe(Subscription s) {
-                s.request(1L);
-            }
+        socketObservable.subscribe(testSubscriber);
+        testSubscriber.awaitTerminalEvent();
 
-            @Override
-            public void onNext(ReactiveSocket reactiveSocket) {
-                throw new AssertionError("onNext invoked when not expected.");
-            }
-
-            @Override
-            public void onError(Throwable t) {
-                MatcherAssert.assertThat("Unexpected exception in onError", t, instanceOf(IllegalStateException.class));
-                latch.countDown();
-            }
-
-            @Override
-            public void onComplete() {
-                throw new AssertionError("onComplete invoked when not expected.");
-            }
-        });
-
-        latch.await();
+        testSubscriber.assertNoValues();
+        testSubscriber.assertError(IllegalStateException.class);
     }
 
     @Test(timeout = 10_000L)
@@ -69,32 +54,18 @@ public class ClientBuilderTest {
                 .withConnector(connector)
                 .build();
 
-        CountDownLatch latch = new CountDownLatch(1);
-        socketPublisher.subscribe(new Subscriber<ReactiveSocket>() {
-            @Override
-            public void onSubscribe(Subscription s) {
-                s.request(1L);
-            }
+        Observable<ReactiveSocket> socketObservable = toObservable(socketPublisher);
+        TestSubscriber<? super ReactiveSocket> testSubscriber = TestSubscriber.create();
+        socketObservable.subscribe(testSubscriber);
+        testSubscriber.awaitTerminalEvent();
 
-            @Override
-            public void onNext(ReactiveSocket reactiveSocket) {
-                // the returned ReactiveSocket must have an availability > 0.0
-                if (reactiveSocket.availability() == 0.0) {
-                    throw new AssertionError("Loadbalancer availability is zero!");
-                }
-            }
+        testSubscriber.assertNoErrors();
+        testSubscriber.assertValueCount(1);
+        testSubscriber.assertCompleted();
 
-            @Override
-            public void onError(Throwable t) {
-                throw new AssertionError("onError invoked when not expected.");
-            }
-
-            @Override
-            public void onComplete() {
-                latch.countDown();
-            }
-        });
-
-        latch.await();
+        ReactiveSocket socket = (ReactiveSocket) testSubscriber.getOnNextEvents().get(0);
+        if (socket.availability() == 0.0) {
+            throw new AssertionError("Loadbalancer availability is zero!");
+        }
     }
 }
