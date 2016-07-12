@@ -25,6 +25,7 @@ import io.reactivesocket.Frame;
 import io.reactivesocket.LeaseGovernor;
 import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.transport.tcp.MutableDirectByteBuf;
+import io.reactivesocket.util.Unsafe;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -54,7 +55,7 @@ public class ReactiveSocketServerHandler extends SimpleChannelInboundHandler<Bin
         ReactiveSocket reactiveSocket =
             DefaultReactiveSocket.fromServerConnection(connection, setupHandler, leaseGovernor, Throwable::printStackTrace);
         // Note: No blocking code here (still it should be refactored)
-        reactiveSocket.startAndWait();
+        Unsafe.startAndWait(reactiveSocket);
     }
 
     @Override

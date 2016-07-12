@@ -29,6 +29,7 @@ import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.aeron.internal.Loggable;
 import io.reactivesocket.aeron.internal.MessageType;
 import io.reactivesocket.rx.Observer;
+import io.reactivesocket.util.Unsafe;
 import org.agrona.BitUtil;
 import org.agrona.DirectBuffer;
 import org.agrona.concurrent.UnsafeBuffer;
@@ -174,7 +175,11 @@ public class ReactiveSocketAeronServer implements AutoCloseable, Loggable {
 
             sockets.put(sessionId, socket);
 
-            socket.startAndWait();
+            try {
+                Unsafe.startAndWait(socket);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
         } else {
             debug("Unsupported stream id {}", streamId);
         }
