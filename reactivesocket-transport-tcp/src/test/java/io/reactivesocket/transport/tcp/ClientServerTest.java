@@ -21,33 +21,33 @@ public class ClientServerTest {
     @Rule
     public final ClientSetupRule setup = new TcpClientSetupRule();
 
-    @Test(timeout = 60000)
+    @Test(timeout = 10000)
     public void testRequestResponse1() {
         setup.testRequestResponseN(1);
     }
 
-    @Test(timeout = 60000)
+    @Test(timeout = 10000)
     public void testRequestResponse10() {
         setup.testRequestResponseN(10);
     }
 
 
-    @Test(timeout = 60000)
+    @Test(timeout = 10000)
     public void testRequestResponse100() {
         setup.testRequestResponseN(100);
     }
 
-    @Test(timeout = 60000)
+    @Test(timeout = 10000)
     public void testRequestResponse10_000() {
         setup.testRequestResponseN(10_000);
     }
 
-    @Test(timeout = 60000)
+    @Test(timeout = 10000)
     public void testRequestStream() {
         setup.testRequestStream();
     }
 
-    @Test(timeout = 60000)
+    @Test(timeout = 10000)
     public void testRequestSubscription() throws InterruptedException {
         setup.testRequestSubscription();
     }

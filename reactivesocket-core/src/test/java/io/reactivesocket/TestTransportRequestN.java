@@ -15,6 +15,7 @@
  */
 package io.reactivesocket;
 
+import io.reactivesocket.internal.Publishers;
 import io.reactivesocket.lease.FairLeaseGovernor;
 import io.reactivex.subscribers.TestSubscriber;
 import org.junit.After;
@@ -230,14 +231,10 @@ public class TestTransportRequestN {
 
 	@After
 	public void shutdown() {
-		socketServer.shutdown();
-		socketClient.shutdown();
-		try {
-			clientConnection.close();
-			serverConnection.close();
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
+		Publishers.afterTerminate(socketServer.close(), () -> {});
+		Publishers.afterTerminate(socketClient.close(), () -> {});
+		Publishers.afterTerminate(clientConnection.close(), () -> {});
+		Publishers.afterTerminate(serverConnection.close(), () -> {});
 	}
 
 }

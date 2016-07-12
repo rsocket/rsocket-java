@@ -17,6 +17,7 @@ package io.reactivesocket.local;
 
 import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
+import io.reactivesocket.internal.EmptySubject;
 import io.reactivesocket.rx.Completable;
 import io.reactivesocket.rx.Observable;
 import io.reactivesocket.rx.Observer;
@@ -24,13 +25,13 @@ import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
-import java.io.IOException;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 class LocalServerDuplexConection implements DuplexConnection {
     private final String name;
 
     private final CopyOnWriteArrayList<Observer<Frame>> subjects;
+    private final EmptySubject closeSubject = new EmptySubject();
 
     public LocalServerDuplexConection(String name) {
         this.name = name;
@@ -90,10 +91,18 @@ class LocalServerDuplexConection implements DuplexConnection {
     }
 
     @Override
-    public void close() throws IOException {
-        LocalReactiveSocketManager
-            .getInstance()
-            .removeServerDuplexConnection(name);
+    public Publisher<Void> close() {
+        return s -> {
+            LocalReactiveSocketManager
+                    .getInstance()
+                    .removeServerDuplexConnection(name);
+            s.onComplete();
+            closeSubject.onComplete();
+        };
+    }
 
+    @Override
+    public Publisher<Void> onClose() {
+        return closeSubject;
     }
 }

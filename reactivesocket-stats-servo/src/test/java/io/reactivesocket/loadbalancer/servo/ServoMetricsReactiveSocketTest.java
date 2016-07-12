@@ -17,6 +17,7 @@ package io.reactivesocket.loadbalancer.servo;
 
 import io.reactivesocket.Payload;
 import io.reactivesocket.ReactiveSocket;
+import io.reactivesocket.internal.Publishers;
 import io.reactivesocket.internal.rx.EmptySubscription;
 import io.reactivesocket.rx.Completable;
 import org.junit.Assert;
@@ -87,7 +88,15 @@ public class ServoMetricsReactiveSocketTest {
             }
 
             @Override
-            public void close() throws Exception {}
+            public Publisher<Void> close() {
+                return Publishers.empty();
+            }
+
+            @Override
+            public Publisher<Void> onClose() {
+                return Publishers.empty();
+            }
+
             @Override
             public void start(Completable completable) {}
             @Override
@@ -95,11 +104,7 @@ public class ServoMetricsReactiveSocketTest {
             @Override
             public void onRequestReady(Completable completable) {}
             @Override
-            public void onShutdown(Completable completable) {}
-            @Override
             public void sendLease(int i, int i1) {}
-            @Override
-            public void shutdown() {}
         }, "test");
 
         Publisher<Payload> payloadPublisher = client.requestResponse(new Payload() {
@@ -167,7 +172,15 @@ public class ServoMetricsReactiveSocketTest {
             }
 
             @Override
-            public void close() throws Exception {}
+            public Publisher<Void> close() {
+                return Publishers.empty();
+            }
+
+            @Override
+            public Publisher<Void> onClose() {
+                return Publishers.empty();
+            }
+
             @Override
             public void start(Completable completable) {}
             @Override
@@ -175,11 +188,7 @@ public class ServoMetricsReactiveSocketTest {
             @Override
             public void onRequestReady(Completable completable) {}
             @Override
-            public void onShutdown(Completable completable) {}
-            @Override
             public void sendLease(int i, int i1) {}
-            @Override
-            public void shutdown() {}
         }, "test");
 
         Publisher<Payload> payloadPublisher = client.requestResponse(new Payload() {
@@ -262,7 +271,15 @@ public class ServoMetricsReactiveSocketTest {
             }
 
             @Override
-            public void close() throws Exception {}
+            public Publisher<Void> close() {
+                return Publishers.empty();
+            }
+
+            @Override
+            public Publisher<Void> onClose() {
+                return Publishers.empty();
+            }
+
             @Override
             public void start(Completable completable) {}
             @Override
@@ -270,11 +287,7 @@ public class ServoMetricsReactiveSocketTest {
             @Override
             public void onRequestReady(Completable completable) {}
             @Override
-            public void onShutdown(Completable completable) {}
-            @Override
             public void sendLease(int i, int i1) {}
-            @Override
-            public void shutdown() {}
         }, "test");
 
         for (int i = 0; i < 10; i ++) {

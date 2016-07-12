@@ -15,6 +15,7 @@
  */
 package io.reactivesocket;
 
+import io.reactivesocket.internal.Publishers;
 import io.reactivesocket.internal.Responder;
 import org.junit.After;
 import org.junit.Before;
@@ -143,8 +144,8 @@ public class LeaseTest {
 
     @After
     public void shutdown() {
-        socketServer.shutdown();
-        socketClient.shutdown();
+        Publishers.afterTerminate(socketServer.close(), () -> {});
+        Publishers.afterTerminate(socketClient.close(), () -> {});
     }
 
     @Test(timeout=2000)

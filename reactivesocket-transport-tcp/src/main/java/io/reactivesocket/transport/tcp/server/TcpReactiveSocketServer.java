@@ -19,16 +19,17 @@ import io.reactivesocket.DefaultReactiveSocket;
 import io.reactivesocket.Frame;
 import io.reactivesocket.LeaseGovernor;
 import io.reactivesocket.ReactiveSocket;
+import io.reactivesocket.internal.EmptySubject;
+import io.reactivesocket.internal.Publishers;
+import io.reactivesocket.rx.Completable;
 import io.reactivesocket.transport.tcp.ReactiveSocketFrameCodec;
 import io.reactivesocket.transport.tcp.ReactiveSocketLengthCodec;
 import io.reactivesocket.transport.tcp.TcpDuplexConnection;
 import io.reactivex.netty.channel.Connection;
 import io.reactivex.netty.protocol.tcp.server.ConnectionHandler;
 import io.reactivex.netty.protocol.tcp.server.TcpServer;
-import rx.Completable;
-import rx.Completable.CompletableOnSubscribe;
-import rx.Completable.CompletableSubscriber;
 import rx.Observable;
+import rx.RxReactiveStreams;
 
 import java.net.SocketAddress;
 import java.util.function.Function;
@@ -52,32 +53,19 @@ public class TcpReactiveSocketServer {
                 TcpDuplexConnection c = new TcpDuplexConnection(newConnection);
                 ReactiveSocket rs = DefaultReactiveSocket.fromServerConnection(c, setupHandler, leaseGovernor,
                                                                                Throwable::printStackTrace);
-                return Completable.create(new CompletableOnSubscribe() {
+                EmptySubject startNotifier = new EmptySubject();
+                rs.start(new Completable() {
                     @Override
-                    public void call(CompletableSubscriber s) {
-                        rs.start(new io.reactivesocket.rx.Completable() {
-                            @Override
-                            public void success() {
-                                rs.onShutdown(new io.reactivesocket.rx.Completable() {
-                                    @Override
-                                    public void success() {
-                                        s.onCompleted();
-                                    }
-
-                                    @Override
-                                    public void error(Throwable e) {
-                                        s.onError(e);
-                                    }
-                                });
-                            }
-
-                            @Override
-                            public void error(Throwable e) {
-                                s.onError(e);
-                            }
-                        });
+                    public void success() {
+                        startNotifier.onComplete();
                     }
-                }).toObservable();
+
+                    @Override
+                    public void error(Throwable e) {
+                        startNotifier.onError(e);
+                    }
+                });
+                return RxReactiveStreams.toObservable(Publishers.concatEmpty(startNotifier, rs.onClose()));
             }
         });
 

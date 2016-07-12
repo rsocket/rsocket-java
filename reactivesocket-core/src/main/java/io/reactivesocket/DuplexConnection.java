@@ -22,7 +22,7 @@ import java.io.Closeable;
 /**
  * Represents a connection with input/output that the protocol uses. 
  */
-public interface DuplexConnection extends Closeable {
+public interface DuplexConnection {
 
     Observable<Frame> getInput();
 
@@ -41,4 +41,20 @@ public interface DuplexConnection extends Closeable {
      * (higher is better).
      */
     double availability();
+
+    /**
+     * Close this {@code DuplexConnection} upon subscribing to the returned {@code Publisher}
+     *
+     * <em>This method is idempotent and hence can be called as many times at any point with same outcome.</em>
+     *
+     * @return A {@code Publisher} that completes when this {@code DuplexConnection} close is complete.
+     */
+    Publisher<Void> close();
+
+    /**
+     * Returns a {@code Publisher} that completes when this {@code DuplexConnection} is closed.
+     *
+     * @return A {@code Publisher} that completes when this {@code DuplexConnection} close is complete.
+     */
+    Publisher<Void> onClose();
 }
