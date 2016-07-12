@@ -26,10 +26,7 @@ import io.reactivesocket.rx.Observable;
 import io.reactivesocket.rx.Observer;
 import org.agrona.BitUtil;
 import org.reactivestreams.Publisher;
-import org.reactivestreams.Subscriber;
-import org.reactivestreams.Subscription;
 
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
@@ -374,8 +371,8 @@ public class DefaultReactiveSocket implements ReactiveSocket {
         }
 
         @Override
-        public Publisher<Void> closeNotifier() {
-            return connection.closeNotifier();
+        public Publisher<Void> onClose() {
+            return connection.onClose();
         }
 
         @Override
@@ -467,7 +464,7 @@ public class DefaultReactiveSocket implements ReactiveSocket {
 
     @Override
     public Publisher<Void> onClose() {
-        return connection.closeNotifier();
+        return connection.onClose();
     }
 
     public String toString() {

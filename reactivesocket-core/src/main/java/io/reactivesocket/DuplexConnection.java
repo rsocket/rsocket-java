@@ -56,5 +56,5 @@ public interface DuplexConnection {
      *
      * @return A {@code Publisher} that completes when this {@code DuplexConnection} close is complete.
      */
-    Publisher<Void> closeNotifier();
+    Publisher<Void> onClose();
 }

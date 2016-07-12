@@ -36,7 +36,6 @@ import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
-import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -177,13 +176,13 @@ public class ClientWebSocketDuplexConnection implements DuplexConnection {
                     }
                 });
             } else {
-                closeNotifier().subscribe(s);
+                onClose().subscribe(s);
             }
         };
     }
 
     @Override
-    public Publisher<Void> closeNotifier() {
+    public Publisher<Void> onClose() {
         return s -> {
             channel.closeFuture().addListener(new ChannelFutureListener() {
                 @Override

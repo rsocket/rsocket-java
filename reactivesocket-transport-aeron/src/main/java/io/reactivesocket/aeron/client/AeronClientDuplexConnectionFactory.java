@@ -39,7 +39,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
 
 import static io.reactivesocket.aeron.internal.Constants.SERVER_STREAM_ID;
 
@@ -214,7 +213,7 @@ public final class AeronClientDuplexConnectionFactory implements Loggable {
                         final Publication publication = establishConnectionHolder.getPublication();
                         AeronClientDuplexConnection aeronClientDuplexConnection
                             = new AeronClientDuplexConnection(publication, frameSendQueue);
-                        Publishers.afterTerminate(aeronClientDuplexConnection.closeNotifier(), () -> {
+                        Publishers.afterTerminate(aeronClientDuplexConnection.onClose(), () -> {
                             connections.remove(publication.sessionId());
 
                             // Send a message to the server that the connection is closed and that it needs to clean-up resources on it's side

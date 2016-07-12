@@ -129,7 +129,7 @@ public class AeronClientDuplexConnection implements DuplexConnection, Loggable {
     }
 
     @Override
-    public Publisher<Void> closeNotifier() {
+    public Publisher<Void> onClose() {
         return closeSubject;
     }
 

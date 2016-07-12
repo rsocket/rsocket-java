@@ -116,7 +116,7 @@ public class TestConnection implements DuplexConnection {
 	}
 
 	@Override
-	public Publisher<Void> closeNotifier() {
+	public Publisher<Void> onClose() {
 		return closeSubject;
 	}
 

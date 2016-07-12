@@ -113,13 +113,13 @@ public class ServerWebSocketDuplexConnection implements DuplexConnection {
                     }
                 });
             } else {
-                closeNotifier().subscribe(s);
+                onClose().subscribe(s);
             }
         };
     }
 
     @Override
-    public Publisher<Void> closeNotifier() {
+    public Publisher<Void> onClose() {
         return s -> {
             ctx.channel().closeFuture().addListener(new ChannelFutureListener() {
                 @Override
