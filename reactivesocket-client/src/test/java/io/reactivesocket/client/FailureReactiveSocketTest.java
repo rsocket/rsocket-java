@@ -115,7 +115,7 @@ public class FailureReactiveSocketTest {
                 throw new RuntimeException();
             }
         });
-        ReactiveSocketFactory<String> factory = new ReactiveSocketFactory<String>() {
+        ReactiveSocketFactory factory = new ReactiveSocketFactory() {
             @Override
             public Publisher<ReactiveSocket> apply() {
                 return subscriber -> {
@@ -129,13 +129,9 @@ public class FailureReactiveSocketTest {
                 return 1.0;
             }
 
-            @Override
-            public String remote() {
-                return "Testing";
-            }
         };
 
-        FailureAwareFactory<String> failureFactory = new FailureAwareFactory<>(factory, 100, TimeUnit.MILLISECONDS);
+        FailureAwareFactory failureFactory = new FailureAwareFactory(factory, 100, TimeUnit.MILLISECONDS);
 
         CountDownLatch latch = new CountDownLatch(1);
         failureFactory.apply().subscribe(new Subscriber<ReactiveSocket>() {
