@@ -51,7 +51,7 @@ import java.util.function.Consumer;
  * for each request over the connection.
  */
 public class Responder {
-    private final static Disposable CANCELLED = new EmptyDisposable();
+    private final static Disposable CANCELLED = EmptyDisposable.INSTANCE;
 
     private final DuplexConnection connection;
     private final ConnectionSetupHandler connectionHandler; // for server

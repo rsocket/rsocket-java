@@ -17,13 +17,10 @@ package io.reactivesocket.internal.rx;
 
 import io.reactivesocket.rx.Disposable;
 
-public class EmptyDisposable implements Disposable
-{
-	public static final EmptyDisposable EMPTY = new EmptyDisposable();
+public class EmptyDisposable implements Disposable {
+	public static final EmptyDisposable INSTANCE = new EmptyDisposable();
 	
-    public void dispose()
-    {
-    }
+    public void dispose() {}
     
     public boolean isDisposed() {
     	return false;

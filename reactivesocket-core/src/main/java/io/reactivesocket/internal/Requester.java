@@ -52,7 +52,7 @@ import org.agrona.collections.Int2ObjectHashMap;
  * Concrete implementations of {@link DuplexConnection} over TCP, WebSockets, Aeron, etc can be passed to this class for protocol handling.
  */
 public class Requester {
-    private static final Disposable CANCELLED = new EmptyDisposable();
+    private static final Disposable CANCELLED = EmptyDisposable.INSTANCE;
     private static final int KEEPALIVE_INTERVAL_MS = 1000;
     private static final long DEFAULT_BATCH = 1024;
     private static final long REQUEST_THRESHOLD = 256;
