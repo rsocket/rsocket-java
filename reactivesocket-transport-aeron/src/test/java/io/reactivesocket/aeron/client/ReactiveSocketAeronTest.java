@@ -26,6 +26,7 @@ import io.reactivesocket.RequestHandler;
 import io.reactivesocket.aeron.server.ReactiveSocketAeronServer;
 import io.reactivesocket.exceptions.SetupException;
 import io.reactivesocket.test.TestUtil;
+import io.reactivesocket.util.Unsafe;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Ignore;
@@ -151,8 +152,9 @@ public class ReactiveSocketAeronTest {
         AeronClientDuplexConnection connection = RxReactiveStreams.toObservable(udpConnection).toBlocking().single();
         System.out.println("Created duplex connection");
 
-        ReactiveSocket reactiveSocket = DefaultReactiveSocket.fromClientConnection(connection, ConnectionSetupPayload.create("UTF-8", "UTF-8", ConnectionSetupPayload.NO_FLAGS));
-        reactiveSocket.startAndWait();
+        ConnectionSetupPayload setupPayload = ConnectionSetupPayload.create("UTF-8", "UTF-8", ConnectionSetupPayload.NO_FLAGS);
+        ReactiveSocket reactiveSocket = DefaultReactiveSocket.fromClientConnection(connection, setupPayload);
+        Unsafe.startAndWait(reactiveSocket);
 
         CountDownLatch latch = new CountDownLatch(count);
 
@@ -225,8 +227,9 @@ public class ReactiveSocketAeronTest {
         AeronClientDuplexConnection connection = RxReactiveStreams.toObservable(udpConnection).toBlocking().single();
         System.out.println("Created duplex connection");
 
-        ReactiveSocket reactiveSocket = DefaultReactiveSocket.fromClientConnection(connection, ConnectionSetupPayload.create("UTF-8", "UTF-8", ConnectionSetupPayload.NO_FLAGS));
-        reactiveSocket.startAndWait();
+        ConnectionSetupPayload setupPayload = ConnectionSetupPayload.create("UTF-8", "UTF-8", ConnectionSetupPayload.NO_FLAGS);
+        ReactiveSocket reactiveSocket = DefaultReactiveSocket.fromClientConnection(connection, setupPayload);
+        Unsafe.startAndWait(reactiveSocket);
 
         CountDownLatch latch = new CountDownLatch(count);
         Payload payload = TestUtil.utf8EncodedPayload("client_request", "client_metadata");
@@ -323,8 +326,9 @@ public class ReactiveSocketAeronTest {
             AeronClientDuplexConnection connection = RxReactiveStreams.toObservable(udpConnection).toBlocking().single();
             System.out.println("Created duplex connection => " + j);
 
-            ReactiveSocket client = DefaultReactiveSocket.fromClientConnection(connection, ConnectionSetupPayload.create("UTF-8", "UTF-8", ConnectionSetupPayload.NO_FLAGS));
-            client.startAndWait();
+            ConnectionSetupPayload setupPayload = ConnectionSetupPayload.create("UTF-8", "UTF-8", ConnectionSetupPayload.NO_FLAGS);
+            ReactiveSocket client = DefaultReactiveSocket.fromClientConnection(connection, setupPayload);
+            Unsafe.startAndWait(client);
 
             Observable
                     .range(1, 10)

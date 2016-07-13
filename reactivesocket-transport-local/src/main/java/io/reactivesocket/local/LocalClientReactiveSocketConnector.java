@@ -17,6 +17,7 @@ package io.reactivesocket.local;
 
 import io.reactivesocket.*;
 import io.reactivesocket.internal.rx.EmptySubscription;
+import io.reactivesocket.util.Unsafe;
 import org.reactivestreams.Publisher;
 
 public class LocalClientReactiveSocketConnector implements ReactiveSocketConnector<LocalClientReactiveSocketConnector.Config> {
@@ -35,7 +36,7 @@ public class LocalClientReactiveSocketConnector implements ReactiveSocketConnect
                 ReactiveSocket reactiveSocket = DefaultReactiveSocket
                     .fromClientConnection(clientConnection, ConnectionSetupPayload.create(config.getMetadataMimeType(), config.getDataMimeType()));
 
-                reactiveSocket.startAndWait();
+                Unsafe.startAndWait(reactiveSocket);
 
                 s.onNext(reactiveSocket);
                 s.onComplete();

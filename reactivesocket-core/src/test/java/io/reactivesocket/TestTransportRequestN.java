@@ -17,6 +17,7 @@ package io.reactivesocket;
 
 import io.reactivesocket.internal.Publishers;
 import io.reactivesocket.lease.FairLeaseGovernor;
+import io.reactivesocket.util.Unsafe;
 import io.reactivex.subscribers.TestSubscriber;
 import org.junit.After;
 import org.junit.Ignore;
@@ -225,8 +226,8 @@ public class TestTransportRequestN {
 				err -> err.printStackTrace());
 
 		// start both the server and client and monitor for errors
-		socketServer.startAndWait();
-		socketClient.startAndWait();
+		Unsafe.startAndWait(socketServer);
+		Unsafe.startAndWait(socketClient);
 	}
 
 	@After

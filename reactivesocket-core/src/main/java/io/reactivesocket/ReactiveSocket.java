@@ -68,36 +68,6 @@ public interface ReactiveSocket {
     void start(Completable c);
 
     /**
-     * Start and block the current thread until startup is finished.
-     *
-     * @throws RuntimeException
-     *             of InterruptedException
-     */
-    default void startAndWait() {
-        CountDownLatch latch = new CountDownLatch(1);
-        AtomicReference<Throwable> err = new AtomicReference<>();
-        start(new Completable() {
-            @Override
-            public void success() {
-                latch.countDown();
-            }
-
-            @Override
-            public void error(Throwable e) {
-                latch.countDown();
-            }
-        });
-        try {
-            latch.await();
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-        if (err.get() != null) {
-            throw new RuntimeException(err.get());
-        }
-    }
-
-    /**
      * Invoked when Requester is ready. Non-null exception if error. Null if success.
      *
      * @param c

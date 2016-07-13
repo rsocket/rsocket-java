@@ -79,11 +79,6 @@ public class AvailabilityMetricReactiveSocket implements ReactiveSocket {
     }
 
     @Override
-    public void startAndWait() {
-        child.startAndWait();
-    }
-
-    @Override
     public void onRequestReady(Consumer<Throwable> c) {
         child.onRequestReady(c);
     }
