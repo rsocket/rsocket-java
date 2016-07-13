@@ -368,7 +368,7 @@ public class Frame implements Payload {
             return frame;
         }
 
-        public static long requestN(final Frame frame) {
+        public static int requestN(final Frame frame) {
             ensureFrameType(FrameType.REQUEST_N, frame);
             return RequestNFrameFlyweight.requestN(frame.directBuffer, frame.offset);
         }

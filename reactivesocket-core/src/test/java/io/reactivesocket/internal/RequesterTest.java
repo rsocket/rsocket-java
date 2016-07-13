@@ -15,29 +15,32 @@
  */
 package io.reactivesocket.internal;
 
-import static io.reactivesocket.TestUtil.*;
-import static org.junit.Assert.*;
-import static io.reactivesocket.ConnectionSetupPayload.NO_FLAGS;
-import static io.reactivex.Observable.*;
-
-import java.util.Arrays;
-import java.util.List;
-import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
-
-import org.junit.Test;
-
 import io.reactivesocket.ConnectionSetupPayload;
 import io.reactivesocket.Frame;
 import io.reactivesocket.FrameType;
 import io.reactivesocket.LatchedCompletable;
 import io.reactivesocket.Payload;
 import io.reactivesocket.TestConnection;
-import io.reactivex.subscribers.TestSubscriber;
+import io.reactivesocket.util.PayloadImpl;
 import io.reactivex.Observable;
 import io.reactivex.subjects.ReplaySubject;
+import io.reactivex.subscribers.TestSubscriber;
+import org.hamcrest.MatcherAssert;
+import org.junit.Test;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscription;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
+
+import static io.reactivesocket.ConnectionSetupPayload.*;
+import static io.reactivesocket.TestUtil.*;
+import static io.reactivex.Observable.*;
+import static org.hamcrest.Matchers.*;
+import static org.junit.Assert.*;
 
 public class RequesterTest
 {
@@ -77,6 +80,30 @@ public class RequesterTest
     public void testReqMetaPushCancelBeforeRequestN() throws InterruptedException {
         Requester p = createClientRequester();
         testCancelBeforeRequestN(p.metadataPush(utf8EncodedPayload("hello", null)));
+    }
+
+    @Test()
+    public void testReqStreamRequestLongMax() throws InterruptedException {
+        TestConnection testConnection = establishConnection();
+        Requester p = createClientRequester(testConnection);
+
+        testRequestLongMaxValue(p.requestStream(new PayloadImpl("")), testConnection);
+    }
+
+    @Test()
+    public void testReqSubscriptionRequestLongMax() throws InterruptedException {
+        TestConnection testConnection = establishConnection();
+        Requester p = createClientRequester(testConnection);
+
+        testRequestLongMaxValue(p.requestSubscription(new PayloadImpl("")), testConnection);
+    }
+
+    @Test()
+    public void testReqChannelRequestLongMax() throws InterruptedException {
+        TestConnection testConnection = establishConnection();
+        Requester p = createClientRequester(testConnection);
+
+        testRequestLongMaxValue(p.requestChannel(Publishers.just(new PayloadImpl(""))), testConnection);
     }
 
     @Test(timeout=2000)
@@ -306,12 +333,33 @@ public class RequesterTest
         testSubscriber.assertNotComplete();
     }
 
-    private static Requester createClientRequester() throws InterruptedException {
-        TestConnection conn = establishConnection();
+    private static <T> void testRequestLongMaxValue(Publisher<T> source, TestConnection testConnection) {
+        List<Integer> requestNs = new ArrayList<>();
+        testConnection.write.add(frame -> {
+            if (frame.getType() == FrameType.REQUEST_N) {
+                requestNs.add(Frame.RequestN.requestN(frame));
+            }
+        });
+
+        TestSubscriber<T> testSubscriber = new TestSubscriber<T>(1L);
+        source.subscribe(testSubscriber);
+
+        testSubscriber.request(Long.MAX_VALUE);
+        testSubscriber.assertNoErrors();
+        testSubscriber.assertNotComplete();
+
+        MatcherAssert.assertThat("Negative requestNs received.", requestNs, not(contains(-1)));
+    }
+
+    private static Requester createClientRequester(TestConnection connection) throws InterruptedException {
         LatchedCompletable rc = new LatchedCompletable(1);
-        Requester p = Requester.createClientRequester(conn, ConnectionSetupPayload.create("UTF-8", "UTF-8", NO_FLAGS), ERROR_HANDLER, rc);
+        Requester p = Requester.createClientRequester(connection, ConnectionSetupPayload.create("UTF-8", "UTF-8", NO_FLAGS), ERROR_HANDLER, rc);
         rc.await();
         return p;
+    }
+
+    private static Requester createClientRequester() throws InterruptedException {
+        return createClientRequester(establishConnection());
     }
 
 	private static TestConnection establishConnection() {
