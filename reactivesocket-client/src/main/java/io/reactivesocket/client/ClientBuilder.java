@@ -23,7 +23,9 @@ import org.reactivestreams.Subscription;
 import java.util.*;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class ClientBuilder<T> {
     private final ScheduledExecutorService executor;
@@ -104,26 +106,59 @@ public class ClientBuilder<T> {
         );
     }
 
-    public ReactiveSocket build() {
-        if (source == null) {
-            throw new IllegalStateException("Please configure the source!");
-        }
-        if (connector == null) {
-            throw new IllegalStateException("Please configure the connector!");
-        }
+    public Publisher<ReactiveSocket> build() {
+        return subscriber -> {
+            subscriber.onSubscribe(new Subscription() {
+                private ScheduledFuture<?> scheduledFuture = null;
+                private AtomicBoolean cancelled = new AtomicBoolean(false);
 
+                @Override
+                public void request(long n) {
+                    if (source == null) {
+                        subscriber.onError(new IllegalStateException("Please configure the source!"));
+                        return;
+                    }
+                    if (executor == null) {
+                        subscriber.onError(new IllegalStateException("Please configure the executor!"));
+                        return;
+                    }
+                    if (connector == null) {
+                        subscriber.onError(new IllegalStateException("Please configure the connector!"));
+                        return;
+                    }
 
-        ReactiveSocketConnector<T> filterConnector = connector;
-        if (requestTimeout > 0) {
-            filterConnector = filterConnector
-                .chain(socket -> new TimeoutSocket(socket, requestTimeout, requestTimeoutUnit, executor));
-        }
-        filterConnector = filterConnector.chain(DrainingSocket::new);
+                    ReactiveSocketConnector<T> filterConnector = connector;
+                    if (requestTimeout > 0) {
+                        filterConnector = filterConnector
+                            .chain(socket -> new TimeoutSocket(socket, requestTimeout, requestTimeoutUnit, executor));
+                    }
+                    filterConnector = filterConnector.chain(DrainingSocket::new);
 
-        Publisher<? extends Collection<ReactiveSocketFactory<T>>> factories =
-            sourceToFactory(source, filterConnector);
+                    Publisher<? extends Collection<ReactiveSocketFactory<T>>> factories =
+                        sourceToFactory(source, filterConnector);
+                    LoadBalancer<T> loadBalancer = new LoadBalancer<>(factories);
 
-        return new LoadBalancer<>(factories);
+                    scheduledFuture = executor.scheduleAtFixedRate(() -> {
+                        if (loadBalancer.availability() > 0 && !cancelled.get()) {
+                            subscriber.onNext(loadBalancer);
+                            subscriber.onComplete();
+                            if (scheduledFuture != null) {
+                                scheduledFuture.cancel(true);
+                            }
+                        }
+                    }, 1L, 50L, TimeUnit.MILLISECONDS);
+                }
+
+                @Override
+                public void cancel() {
+                    if (cancelled.compareAndSet(false, true)) {
+                        if (scheduledFuture != null) {
+                            scheduledFuture.cancel(true);
+                        }
+                    }
+                }
+            });
+        };
     }
 
     private Publisher<? extends Collection<ReactiveSocketFactory<T>>> sourceToFactory(
@@ -136,8 +171,8 @@ public class ClientBuilder<T> {
 
                 @Override
                 public void onSubscribe(Subscription s) {
-                    subscriber.onSubscribe(s);
                     current = Collections.emptyMap();
+                    subscriber.onSubscribe(s);
                 }
 
                 @Override
