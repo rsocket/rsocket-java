@@ -24,12 +24,12 @@ import org.reactivestreams.Publisher;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
-public class TimeoutFactory<T> extends ReactiveSocketFactoryProxy<T> {
+public class TimeoutFactory extends ReactiveSocketFactoryProxy {
     private final Publisher<Void> timer;
     private final long timeout;
     private final TimeUnit unit;
 
-    public TimeoutFactory(ReactiveSocketFactory<T> child, long timeout, TimeUnit unit,
+    public TimeoutFactory(ReactiveSocketFactory child, long timeout, TimeUnit unit,
                           ScheduledExecutorService executor) {
         super(child);
         this.timeout = timeout;

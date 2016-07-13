@@ -18,7 +18,6 @@ package io.reactivesocket.client.filter;
 import io.reactivesocket.Payload;
 import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.ReactiveSocketFactory;
-import io.reactivesocket.exceptions.TransportException;
 import io.reactivesocket.client.util.Clock;
 import io.reactivesocket.client.stat.Ewma;
 import io.reactivesocket.util.ReactiveSocketProxy;
@@ -27,7 +26,6 @@ import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
 import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
 
 /**
  * This child compute the error rate of a particular remote location and adapt the availability
@@ -36,25 +34,23 @@ import java.util.function.Function;
  * It means that if a remote host doesn't generate lots of errors when connecting to it, but a
  * lot of them when sending messages, we will still decrease the availability of the child
  * reducing the probability of connecting to it.
- *
- * @param <T> the identifier for the remote server (most likely SocketAddress)
  */
-public class FailureAwareFactory<T> implements ReactiveSocketFactory<T> {
+public class FailureAwareFactory implements ReactiveSocketFactory {
     private static final double EPSILON = 1e-4;
 
-    private final ReactiveSocketFactory<T> child;
+    private final ReactiveSocketFactory child;
     private final long tau;
     private long stamp;
     private Ewma errorPercentage;
 
-    public FailureAwareFactory(ReactiveSocketFactory<T> child, long halfLife, TimeUnit unit) {
+    public FailureAwareFactory(ReactiveSocketFactory child, long halfLife, TimeUnit unit) {
         this.child = child;
         this.tau = Clock.unit().convert((long)(halfLife / Math.log(2)), unit);
         this.stamp = Clock.now();
         errorPercentage = new Ewma(halfLife, unit, 1.0);
     }
 
-    public FailureAwareFactory(ReactiveSocketFactory<T> child) {
+    public FailureAwareFactory(ReactiveSocketFactory child) {
         this(child, 5, TimeUnit.SECONDS);
     }
 
@@ -100,11 +96,6 @@ public class FailureAwareFactory<T> implements ReactiveSocketFactory<T> {
         }
 
         return e;
-    }
-
-    @Override
-    public T remote() {
-        return child.remote();
     }
 
     private synchronized void updateErrorPercentage(double value) {

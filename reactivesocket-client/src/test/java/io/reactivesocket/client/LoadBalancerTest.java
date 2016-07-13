@@ -37,9 +37,9 @@ public class LoadBalancerTest {
         InetSocketAddress local1 = InetSocketAddress.createUnresolved("localhost", 7001);
 
         TestingReactiveSocket socket = new TestingReactiveSocket(Function.identity());
-        ReactiveSocketFactory<SocketAddress> failing = failingFactory(local0);
-        ReactiveSocketFactory<SocketAddress> succeeding = succeedingFactory(local1, socket);
-        List<ReactiveSocketFactory<?>> factories = Arrays.asList(failing, succeeding);
+        ReactiveSocketFactory failing = failingFactory(local0);
+        ReactiveSocketFactory succeeding = succeedingFactory(local1, socket);
+        List<ReactiveSocketFactory> factories = Arrays.asList(failing, succeeding);
 
         testBalancer(factories);
     }
@@ -62,15 +62,15 @@ public class LoadBalancerTest {
             }
         };
 
-        ReactiveSocketFactory<SocketAddress> failing = succeedingFactory(local0, failingSocket);
-        ReactiveSocketFactory<SocketAddress> succeeding = succeedingFactory(local1, socket);
-        List<ReactiveSocketFactory<?>> factories = Arrays.asList(failing, succeeding);
+        ReactiveSocketFactory failing = succeedingFactory(local0, failingSocket);
+        ReactiveSocketFactory succeeding = succeedingFactory(local1, socket);
+        List<ReactiveSocketFactory> factories = Arrays.asList(failing, succeeding);
 
         testBalancer(factories);
     }
 
-    private void testBalancer(List<ReactiveSocketFactory<?>> factories) throws InterruptedException {
-        Publisher<List<ReactiveSocketFactory<?>>> src = s -> {
+    private void testBalancer(List<ReactiveSocketFactory> factories) throws InterruptedException {
+        Publisher<List<ReactiveSocketFactory>> src = s -> {
             s.onNext(factories);
             s.onComplete();
         };
@@ -116,8 +116,8 @@ public class LoadBalancerTest {
         latch.await();
     }
 
-    private ReactiveSocketFactory<SocketAddress> succeedingFactory(SocketAddress sa, ReactiveSocket socket) {
-        return new ReactiveSocketFactory<SocketAddress>() {
+    private ReactiveSocketFactory succeedingFactory(SocketAddress sa, ReactiveSocket socket) {
+        return new ReactiveSocketFactory() {
             @Override
             public Publisher<ReactiveSocket> apply() {
                 return s -> s.onNext(socket);
@@ -128,15 +128,11 @@ public class LoadBalancerTest {
                 return 1.0;
             }
 
-            @Override
-            public SocketAddress remote() {
-                return sa;
-            }
         };
     }
 
-    private ReactiveSocketFactory<SocketAddress> failingFactory(SocketAddress sa) {
-        return new ReactiveSocketFactory<SocketAddress>() {
+    private ReactiveSocketFactory failingFactory(SocketAddress sa) {
+        return new ReactiveSocketFactory() {
             @Override
             public Publisher<ReactiveSocket> apply() {
                 Assert.assertTrue(false);
@@ -148,10 +144,6 @@ public class LoadBalancerTest {
                 return 0.0;
             }
 
-            @Override
-            public SocketAddress remote() {
-                return sa;
-            }
         };
     }
 }

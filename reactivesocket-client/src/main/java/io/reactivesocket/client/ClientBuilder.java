@@ -134,9 +134,9 @@ public class ClientBuilder<T> {
                     }
                     filterConnector = filterConnector.chain(DrainingSocket::new);
 
-                    Publisher<? extends Collection<ReactiveSocketFactory<T>>> factories =
+                    Publisher<? extends Collection<ReactiveSocketFactory>> factories =
                         sourceToFactory(source, filterConnector);
-                    LoadBalancer<T> loadBalancer = new LoadBalancer<>(factories);
+                    LoadBalancer loadBalancer = new LoadBalancer(factories);
 
                     scheduledFuture = executor.scheduleAtFixedRate(() -> {
                         if (loadBalancer.availability() > 0 && !cancelled.get()) {
@@ -161,13 +161,13 @@ public class ClientBuilder<T> {
         };
     }
 
-    private Publisher<? extends Collection<ReactiveSocketFactory<T>>> sourceToFactory(
+    private Publisher<? extends Collection<ReactiveSocketFactory>> sourceToFactory(
         Publisher<? extends Collection<T>> source,
         ReactiveSocketConnector<T> connector
     ) {
         return subscriber ->
             source.subscribe(new Subscriber<Collection<T>>() {
-                private Map<T, ReactiveSocketFactory<T>> current;
+                private Map<T, ReactiveSocketFactory> current;
 
                 @Override
                 public void onSubscribe(Subscription s) {
@@ -177,15 +177,15 @@ public class ClientBuilder<T> {
 
                 @Override
                 public void onNext(Collection<T> socketAddresses) {
-                    Map<T, ReactiveSocketFactory<T>> next = new HashMap<>(socketAddresses.size());
+                    Map<T, ReactiveSocketFactory> next = new HashMap<>(socketAddresses.size());
                     for (T sa: socketAddresses) {
-                        ReactiveSocketFactory<T> factory = current.get(sa);
+                        ReactiveSocketFactory factory = current.get(sa);
                         if (factory == null) {
-                            ReactiveSocketFactory<T> newFactory = connector.toFactory(sa);
+                            ReactiveSocketFactory newFactory = connector.toFactory(sa);
                             if (connectTimeout > 0) {
-                                newFactory = new TimeoutFactory<>(newFactory, connectTimeout, connectTimeoutUnit, executor);
+                                newFactory = new TimeoutFactory(newFactory, connectTimeout, connectTimeoutUnit, executor);
                             }
-                            newFactory = new FailureAwareFactory<>(newFactory);
+                            newFactory = new FailureAwareFactory(newFactory);
                             next.put(sa, newFactory);
                         } else {
                             next.put(sa, factory);
@@ -193,7 +193,7 @@ public class ClientBuilder<T> {
                     }
 
                     current = next;
-                    List<ReactiveSocketFactory<T>> factories = new ArrayList<>(current.values());
+                    List<ReactiveSocketFactory> factories = new ArrayList<>(current.values());
                     subscriber.onNext(factories);
                 }
 
