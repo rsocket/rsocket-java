@@ -21,6 +21,7 @@ import io.reactivesocket.Payload;
 import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.RequestHandler;
 import io.reactivesocket.client.ClientBuilder;
+import io.reactivesocket.lease.FairLeaseGovernor;
 import io.reactivesocket.transport.tcp.client.TcpReactiveSocketConnector;
 import io.reactivesocket.util.Unsafe;
 import io.reactivesocket.test.TestUtil;
@@ -80,13 +81,14 @@ public class StressTest {
                 .build();
 
         SocketAddress addr = new InetSocketAddress("127.0.0.1", 0);
-        TcpReactiveSocketServer.StartedServer server = TcpReactiveSocketServer.create(addr).start(setupHandler);
-        SocketAddress serverAddress = server.getServerAddress();
-        return serverAddress;
+        FairLeaseGovernor leaseGovernor = new FairLeaseGovernor(5000, 100, TimeUnit.MILLISECONDS);
+        TcpReactiveSocketServer.StartedServer server =
+            TcpReactiveSocketServer.create(addr).start(setupHandler, leaseGovernor);
+        return server.getServerAddress();
     }
 
     private static Publisher<Collection<SocketAddress>> getServersList() {
-        Observable<Collection<SocketAddress>> serverAddresses = Observable.interval(2, TimeUnit.SECONDS)
+        Observable<Collection<SocketAddress>> serverAddresses = Observable.interval(0, 2, TimeUnit.SECONDS)
             .map(new Func1<Long, Collection<SocketAddress>>() {
                 List<SocketAddress> addresses = new ArrayList<>();
 
