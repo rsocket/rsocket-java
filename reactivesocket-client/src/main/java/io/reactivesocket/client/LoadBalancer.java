@@ -27,6 +27,8 @@ import io.reactivesocket.exceptions.TransportException;
 import io.reactivesocket.internal.EmptySubject;
 import io.reactivesocket.internal.Publishers;
 import io.reactivesocket.internal.Publishers;
+import io.reactivesocket.internal.rx.EmptySubscriber;
+import io.reactivesocket.internal.rx.EmptySubscription;
 import io.reactivesocket.rx.Completable;
 import io.reactivesocket.client.stat.FrugalQuantile;
 import io.reactivesocket.client.stat.Quantile;
@@ -42,6 +44,7 @@ import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
@@ -468,22 +471,44 @@ public class LoadBalancer implements ReactiveSocket {
 
     @Override
     public Publisher<Void> close() {
-        return s -> {
-            Publishers.afterTerminate(onClose(), () -> {
-                synchronized (this) {
-                    factoryRefresher.close();
-                    activeFactories.clear();
-                    activeSockets.forEach(rs -> {
-                        try {
-                            rs.close();
-                        } catch (Exception e) {
-                            logger.warn("Exception while closing a ReactiveSocket", e);
+        return subscriber -> {
+            subscriber.onSubscribe(EmptySubscription.INSTANCE);
+
+            synchronized (this) {
+                factoryRefresher.close();
+                activeFactories.clear();
+                AtomicInteger n = new AtomicInteger(activeSockets.size());
+
+                activeSockets.forEach(rs -> {
+                    rs.close().subscribe(new Subscriber<Void>() {
+                        @Override
+                        public void onSubscribe(Subscription s) {
+                            s.request(Long.MAX_VALUE);
+                        }
+
+                        @Override
+                        public void onNext(Void aVoid) {}
+
+                        @Override
+                        public void onError(Throwable t) {
+                            if (n.decrementAndGet() == 0) {
+                                subscriber.onComplete();
+                                closeSubject.subscribe(EmptySubscriber.INSTANCE);
+                                closeSubject.onComplete();
+                            }
+                        }
+
+                        @Override
+                        public void onComplete() {
+                            if (n.decrementAndGet() == 0) {
+                                subscriber.onComplete();
+                                closeSubject.subscribe(EmptySubscriber.INSTANCE);
+                                closeSubject.onComplete();
+                            }
                         }
                     });
-                }
-            });
-            closeSubject.subscribe(s);
-            closeSubject.onComplete();
+                });
+            }
         };
     }
 
