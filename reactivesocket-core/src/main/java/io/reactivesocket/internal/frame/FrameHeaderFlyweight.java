@@ -35,8 +35,7 @@ import static io.reactivesocket.internal.frame.ByteBufferUtil.preservingSlice;
  *
  * Not thread-safe. Assumed to be used single-threaded
  */
-public class FrameHeaderFlyweight
-{
+public class FrameHeaderFlyweight {
 
     private FrameHeaderFlyweight() {}
 
@@ -62,14 +61,10 @@ public class FrameHeaderFlyweight
 
     public static final int FLAGS_REQUEST_CHANNEL_F = 0b0010_0000_0000_0000;
 
-    static
-    {
-        if (INCLUDE_FRAME_LENGTH)
-        {
+    static {
+        if (INCLUDE_FRAME_LENGTH) {
             FRAME_LENGTH_FIELD_OFFSET = 0;
-        }
-        else
-        {
+        } else {
             FRAME_LENGTH_FIELD_OFFSET = -BitUtil.SIZE_OF_INT;
         }
 
@@ -81,8 +76,7 @@ public class FrameHeaderFlyweight
         FRAME_HEADER_LENGTH = PAYLOAD_OFFSET;
     }
 
-    public static int computeFrameHeaderLength(final FrameType frameType, int metadataLength, final int dataLength)
-    {
+    public static int computeFrameHeaderLength(final FrameType frameType, int metadataLength, final int dataLength) {
         return PAYLOAD_OFFSET + computeMetadataLength(metadataLength) + dataLength;
     }
 
@@ -92,10 +86,9 @@ public class FrameHeaderFlyweight
         final int frameLength,
         final int flags,
         final FrameType frameType,
-        final int streamId)
-    {
-        if (INCLUDE_FRAME_LENGTH)
-        {
+        final int streamId
+    ) {
+        if (INCLUDE_FRAME_LENGTH) {
             mutableDirectBuffer.putInt(offset + FRAME_LENGTH_FIELD_OFFSET, frameLength, ByteOrder.BIG_ENDIAN);
         }
 
@@ -110,13 +103,12 @@ public class FrameHeaderFlyweight
         final MutableDirectBuffer mutableDirectBuffer,
         final int frameHeaderStartOffset,
         final int metadataOffset,
-        final ByteBuffer metadata)
-    {
+        final ByteBuffer metadata
+    ) {
         int length = 0;
         final int metadataLength = metadata.remaining();
 
-        if (0 < metadataLength)
-        {
+        if (0 < metadataLength) {
             int flags = mutableDirectBuffer.getShort(frameHeaderStartOffset + FLAGS_FIELD_OFFSET, ByteOrder.BIG_ENDIAN);
             flags |= FLAGS_M;
             mutableDirectBuffer.putShort(frameHeaderStartOffset + FLAGS_FIELD_OFFSET, (short)flags, ByteOrder.BIG_ENDIAN);
@@ -132,13 +124,12 @@ public class FrameHeaderFlyweight
     public static int encodeData(
         final MutableDirectBuffer mutableDirectBuffer,
         final int dataOffset,
-        final ByteBuffer data)
-    {
+        final ByteBuffer data
+    ) {
         int length = 0;
         final int dataLength = data.remaining();
 
-        if (0 < dataLength)
-        {
+        if (0 < dataLength) {
             mutableDirectBuffer.putBytes(dataOffset, data, dataLength);
             length += dataLength;
         }
@@ -154,14 +145,13 @@ public class FrameHeaderFlyweight
         int flags,
         final FrameType frameType,
         final ByteBuffer metadata,
-        final ByteBuffer data)
-    {
+        final ByteBuffer data
+    ) {
         final int frameLength = computeFrameHeaderLength(frameType, metadata.remaining(), data.remaining());
 
         final FrameType outFrameType;
 
-        switch (frameType)
-        {
+        switch (frameType) {
             case COMPLETE:
                 outFrameType = FrameType.RESPONSE;
                 flags |= FLAGS_RESPONSE_C;
@@ -182,30 +172,23 @@ public class FrameHeaderFlyweight
         return length;
     }
 
-    public static int flags(final DirectBuffer directBuffer, final int offset)
-    {
+    public static int flags(final DirectBuffer directBuffer, final int offset) {
         return directBuffer.getShort(offset + FLAGS_FIELD_OFFSET, ByteOrder.BIG_ENDIAN);
     }
 
-    public static FrameType frameType(final DirectBuffer directBuffer, final int offset)
-    {
+    public static FrameType frameType(final DirectBuffer directBuffer, final int offset) {
         FrameType result = FrameType.from(directBuffer.getShort(offset + TYPE_FIELD_OFFSET, ByteOrder.BIG_ENDIAN));
 
-        if (FrameType.RESPONSE == result)
-        {
+        if (FrameType.RESPONSE == result) {
             final int flags = flags(directBuffer, offset);
             final int dataLength = dataLength(directBuffer, offset, 0);
 
-            if (FLAGS_RESPONSE_C == (flags & FLAGS_RESPONSE_C) && 0 < dataLength)
-            {
+            boolean complete = FLAGS_RESPONSE_C == (flags & FLAGS_RESPONSE_C);
+            if (complete && 0 < dataLength) {
                 result = FrameType.NEXT_COMPLETE;
-            }
-            else if (FLAGS_RESPONSE_C == (flags & FLAGS_RESPONSE_C))
-            {
+            } else if (complete) {
                 result = FrameType.COMPLETE;
-            }
-            else
-            {
+            } else {
                 result = FrameType.NEXT;
             }
         }
@@ -213,83 +196,71 @@ public class FrameHeaderFlyweight
         return result;
     }
 
-    public static int streamId(final DirectBuffer directBuffer, final int offset)
-    {
+    public static int streamId(final DirectBuffer directBuffer, final int offset) {
         return directBuffer.getInt(offset + STREAM_ID_FIELD_OFFSET, ByteOrder.BIG_ENDIAN);
     }
 
-    public static ByteBuffer sliceFrameData(final DirectBuffer directBuffer, final int offset, final int length)
-    {
+    public static ByteBuffer sliceFrameData(final DirectBuffer directBuffer, final int offset, final int length) {
         final int dataLength = dataLength(directBuffer, offset, length);
         final int dataOffset = dataOffset(directBuffer, offset);
         ByteBuffer result = NULL_BYTEBUFFER;
 
-        if (0 < dataLength)
-        {
+        if (0 < dataLength) {
             result = preservingSlice(directBuffer.byteBuffer(), dataOffset, dataOffset + dataLength);
         }
 
         return result;
     }
 
-    public static ByteBuffer sliceFrameMetadata(final DirectBuffer directBuffer, final int offset, final int length)
-    {
+    public static ByteBuffer sliceFrameMetadata(final DirectBuffer directBuffer, final int offset, final int length) {
         final int metadataLength = Math.max(0, metadataFieldLength(directBuffer, offset) - BitUtil.SIZE_OF_INT);
         final int metadataOffset = metadataOffset(directBuffer, offset) + BitUtil.SIZE_OF_INT;
         ByteBuffer result = NULL_BYTEBUFFER;
 
-        if (0 < metadataLength)
-        {
+        if (0 < metadataLength) {
             result = preservingSlice(directBuffer.byteBuffer(), metadataOffset, metadataOffset + metadataLength);
         }
 
         return result;
     }
 
-    private static int frameLength(final DirectBuffer directBuffer, final int offset, final int externalFrameLength)
-    {
+    private static int frameLength(final DirectBuffer directBuffer, final int offset, final int externalFrameLength) {
         int frameLength = externalFrameLength;
 
-        if (INCLUDE_FRAME_LENGTH)
-        {
+        if (INCLUDE_FRAME_LENGTH) {
             frameLength = directBuffer.getInt(offset + FRAME_LENGTH_FIELD_OFFSET, ByteOrder.BIG_ENDIAN);
         }
 
         return frameLength;
     }
 
-    private static int computeMetadataLength(final int metadataPayloadLength)
-    {
+    private static int computeMetadataLength(final int metadataPayloadLength) {
         return metadataPayloadLength + ((0 == metadataPayloadLength) ? 0 : BitUtil.SIZE_OF_INT);
     }
 
-    private static int metadataFieldLength(final DirectBuffer directBuffer, final int offset)
-    {
+    private static int metadataFieldLength(final DirectBuffer directBuffer, final int offset) {
         int metadataLength = 0;
 
-        if (FLAGS_M == (FLAGS_M & directBuffer.getShort(offset + FLAGS_FIELD_OFFSET, ByteOrder.BIG_ENDIAN)))
-        {
+        short flags = directBuffer.getShort(offset + FLAGS_FIELD_OFFSET, ByteOrder.BIG_ENDIAN);
+        if (FLAGS_M == (FLAGS_M & flags)) {
             metadataLength = directBuffer.getInt(metadataOffset(directBuffer, offset), ByteOrder.BIG_ENDIAN) & 0xFFFFFF;
         }
 
         return metadataLength;
     }
 
-    private static int dataLength(final DirectBuffer directBuffer, final int offset, final int externalLength)
-    {
+    private static int dataLength(final DirectBuffer directBuffer, final int offset, final int externalLength) {
         final int frameLength = frameLength(directBuffer, offset, externalLength);
         final int metadataLength = metadataFieldLength(directBuffer, offset);
 
         return offset + frameLength - metadataLength - payloadOffset(directBuffer, offset);
     }
 
-    private static int payloadOffset(final DirectBuffer directBuffer, final int offset)
-    {
+    private static int payloadOffset(final DirectBuffer directBuffer, final int offset) {
         final FrameType frameType = FrameType.from(directBuffer.getShort(offset + TYPE_FIELD_OFFSET, ByteOrder.BIG_ENDIAN));
         int result = offset + PAYLOAD_OFFSET;
 
-        switch (frameType)
-        {
+        switch (frameType) {
             case SETUP:
                 result = SetupFrameFlyweight.payloadOffset(directBuffer, offset);
                 break;
@@ -317,13 +288,11 @@ public class FrameHeaderFlyweight
         return result;
     }
 
-    private static int metadataOffset(final DirectBuffer directBuffer, final int offset)
-    {
+    private static int metadataOffset(final DirectBuffer directBuffer, final int offset) {
         return payloadOffset(directBuffer, offset);
     }
 
-    private static int dataOffset(final DirectBuffer directBuffer, final int offset)
-    {
+    private static int dataOffset(final DirectBuffer directBuffer, final int offset) {
         return payloadOffset(directBuffer, offset) + metadataFieldLength(directBuffer, offset);
     }
 }

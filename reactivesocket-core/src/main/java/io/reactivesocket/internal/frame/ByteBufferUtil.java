@@ -21,8 +21,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 
 public class ByteBufferUtil {
 
-    private ByteBufferUtil() {
-    }
+    private ByteBufferUtil() {}
 
     /**
      * Slice a portion of the {@link ByteBuffer} while preserving the buffers position and limit.

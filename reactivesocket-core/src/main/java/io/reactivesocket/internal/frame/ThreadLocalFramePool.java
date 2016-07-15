@@ -22,8 +22,7 @@ import org.agrona.concurrent.UnsafeBuffer;
 
 import java.nio.ByteBuffer;
 
-public class ThreadLocalFramePool implements FramePool
-{
+public class ThreadLocalFramePool implements FramePool {
     private static final int MAX_CAHED_FRAMES_PER_THREAD = 16;
 
     private static final ThreadLocal<OneToOneConcurrentArrayQueue<Frame>> PER_THREAD_FRAME_QUEUE =
@@ -32,21 +31,18 @@ public class ThreadLocalFramePool implements FramePool
     private static final ThreadLocal<OneToOneConcurrentArrayQueue<MutableDirectBuffer>> PER_THREAD_DIRECTBUFFER_QUEUE =
         ThreadLocal.withInitial(() -> new OneToOneConcurrentArrayQueue<>(MAX_CAHED_FRAMES_PER_THREAD));
 
-    public Frame acquireFrame(int size)
-    {
+    public Frame acquireFrame(int size) {
         final MutableDirectBuffer directBuffer = acquireMutableDirectBuffer(size);
 
         Frame frame = pollFrame();
-        if (null == frame)
-        {
+        if (null == frame) {
             frame = Frame.allocate(directBuffer);
         }
 
         return frame;
     }
 
-    public Frame acquireFrame(ByteBuffer byteBuffer)
-    {
+    public Frame acquireFrame(ByteBuffer byteBuffer) {
         return Frame.allocate(new UnsafeBuffer(byteBuffer));
     }
 
@@ -55,45 +51,36 @@ public class ThreadLocalFramePool implements FramePool
         PER_THREAD_FRAME_QUEUE.get().offer(frame);
     }
 
-    public Frame acquireFrame(MutableDirectBuffer mutableDirectBuffer)
-    {
+    public Frame acquireFrame(MutableDirectBuffer mutableDirectBuffer) {
         Frame frame = pollFrame();
-        if (null == frame)
-        {
+        if (null == frame) {
             frame = Frame.allocate(mutableDirectBuffer);
         }
 
         return frame;
     }
 
-    public MutableDirectBuffer acquireMutableDirectBuffer(ByteBuffer byteBuffer)
-    {
+    public MutableDirectBuffer acquireMutableDirectBuffer(ByteBuffer byteBuffer) {
         MutableDirectBuffer directBuffer = pollMutableDirectBuffer();
-        if (null == directBuffer)
-        {
+        if (null == directBuffer) {
             directBuffer = new UnsafeBuffer(byteBuffer);
         }
 
         return directBuffer;
     }
 
-    public MutableDirectBuffer acquireMutableDirectBuffer(int size)
-    {
+    public MutableDirectBuffer acquireMutableDirectBuffer(int size) {
         UnsafeBuffer directBuffer = (UnsafeBuffer)pollMutableDirectBuffer();
-        if (null == directBuffer || directBuffer.byteBuffer().capacity() < size)
-        {
+        if (null == directBuffer || directBuffer.byteBuffer().capacity() < size) {
             directBuffer = new UnsafeBuffer(ByteBuffer.allocate(size));
-        }
-        else
-        {
+        } else {
             directBuffer.byteBuffer().limit(size).position(0);
         }
 
         return directBuffer;
     }
 
-    public void release(MutableDirectBuffer mutableDirectBuffer)
-    {
+    public void release(MutableDirectBuffer mutableDirectBuffer) {
         PER_THREAD_DIRECTBUFFER_QUEUE.get().offer(mutableDirectBuffer);
     }
 
@@ -102,8 +89,7 @@ public class ThreadLocalFramePool implements FramePool
         return PER_THREAD_FRAME_QUEUE.get().poll();
     }
 
-    private MutableDirectBuffer pollMutableDirectBuffer()
-    {
+    private MutableDirectBuffer pollMutableDirectBuffer() {
         return PER_THREAD_DIRECTBUFFER_QUEUE.get().poll();
     }
 }
