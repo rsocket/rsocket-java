@@ -15,6 +15,7 @@
  */
 package io.reactivesocket;
 
+import io.reactivesocket.exceptions.RejectedException;
 import io.reactivesocket.internal.Publishers;
 import io.reactivesocket.internal.Responder;
 import org.junit.After;
@@ -182,7 +183,7 @@ public class LeaseTest {
         TestSubscriber<Payload> ts2 = new TestSubscriber<>();
         response2.subscribe(ts2);
         ts2.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
-        ts2.assertError(RuntimeException.class);
+        ts2.assertError(RejectedException.class);
     }
 
     @Test(timeout=2000)

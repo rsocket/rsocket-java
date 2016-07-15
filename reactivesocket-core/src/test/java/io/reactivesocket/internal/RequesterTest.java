@@ -21,6 +21,7 @@ import io.reactivesocket.FrameType;
 import io.reactivesocket.LatchedCompletable;
 import io.reactivesocket.Payload;
 import io.reactivesocket.TestConnection;
+import io.reactivesocket.exceptions.InvalidRequestException;
 import io.reactivesocket.util.PayloadImpl;
 import io.reactivex.Observable;
 import io.reactivex.subjects.ReplaySubject;
@@ -165,7 +166,7 @@ public class RequesterTest
 
         conn.toInput.send(Frame.Error.from(2, new RuntimeException("Failed")));
         ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
-        ts.assertError(Exception.class);
+        ts.assertError(InvalidRequestException.class);
         assertEquals("Failed", ts.errors().get(0).getMessage());
     }
 
@@ -313,7 +314,7 @@ public class RequesterTest
         conn.toInput.send(utf8EncodedErrorFrame(2, "Failure"));
 
         ts.awaitTerminalEvent(500, TimeUnit.MILLISECONDS);
-        ts.assertError(Exception.class);
+        ts.assertError(InvalidRequestException.class);
         ts.assertValue(utf8EncodedPayload("hello", null));
         assertEquals("Failure", ts.errors().get(0).getMessage());
     }
