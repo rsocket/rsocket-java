@@ -22,107 +22,85 @@ import org.agrona.concurrent.UnsafeBuffer;
 
 import java.nio.ByteBuffer;
 
-public class ThreadSafeFramePool implements FramePool
-{
+public class ThreadSafeFramePool implements FramePool {
     private static final int MAX_CACHED_FRAMES = 16;
 
     private final OneToOneConcurrentArrayQueue<Frame> frameQueue;
     private final OneToOneConcurrentArrayQueue<MutableDirectBuffer> directBufferQueue;
 
-    public ThreadSafeFramePool()
-    {
+    public ThreadSafeFramePool() {
         this(MAX_CACHED_FRAMES, MAX_CACHED_FRAMES);
     }
 
-    public ThreadSafeFramePool(final int frameQueueLength, final int directBufferQueueLength)
-    {
+    public ThreadSafeFramePool(final int frameQueueLength, final int directBufferQueueLength) {
         frameQueue = new OneToOneConcurrentArrayQueue<>(frameQueueLength);
         directBufferQueue = new OneToOneConcurrentArrayQueue<>(directBufferQueueLength);
     }
 
-    public Frame acquireFrame(int size)
-    {
+    public Frame acquireFrame(int size) {
         final MutableDirectBuffer directBuffer = acquireMutableDirectBuffer(size);
 
         Frame frame = pollFrame();
-        if (null == frame)
-        {
+        if (null == frame) {
             frame = Frame.allocate(directBuffer);
         }
 
         return frame;
     }
 
-    public Frame acquireFrame(ByteBuffer byteBuffer)
-    {
+    public Frame acquireFrame(ByteBuffer byteBuffer) {
         return Frame.allocate(new UnsafeBuffer(byteBuffer));
     }
 
-    public Frame acquireFrame(MutableDirectBuffer mutableDirectBuffer)
-    {
+    public Frame acquireFrame(MutableDirectBuffer mutableDirectBuffer) {
         Frame frame = pollFrame();
-        if (null == frame)
-        {
+        if (null == frame) {
             frame = Frame.allocate(mutableDirectBuffer);
         }
 
         return frame;
     }
 
-    public MutableDirectBuffer acquireMutableDirectBuffer(ByteBuffer byteBuffer)
-    {
+    public MutableDirectBuffer acquireMutableDirectBuffer(ByteBuffer byteBuffer) {
         MutableDirectBuffer directBuffer = pollMutableDirectBuffer();
-        if (null == directBuffer)
-        {
+        if (null == directBuffer) {
             directBuffer = new UnsafeBuffer(byteBuffer);
         }
 
         return directBuffer;
     }
 
-    public MutableDirectBuffer acquireMutableDirectBuffer(int size)
-    {
+    public MutableDirectBuffer acquireMutableDirectBuffer(int size) {
         UnsafeBuffer directBuffer = (UnsafeBuffer)pollMutableDirectBuffer();
-        if (null == directBuffer || directBuffer.capacity() < size)
-        {
+        if (null == directBuffer || directBuffer.capacity() < size) {
             directBuffer = new UnsafeBuffer(ByteBuffer.allocate(size));
-        }
-        else
-        {
+        } else {
             directBuffer.byteBuffer().limit(size).position(0);
         }
 
         return directBuffer;
     }
 
-    public void release(Frame frame)
-    {
-        synchronized (frameQueue)
-        {
+    public void release(Frame frame) {
+        synchronized (frameQueue) {
             frameQueue.offer(frame);
         }
     }
 
-    public void release(MutableDirectBuffer mutableDirectBuffer)
-    {
-        synchronized (directBufferQueue)
-        {
+    public void release(MutableDirectBuffer mutableDirectBuffer) {
+        synchronized (directBufferQueue) {
             directBufferQueue.offer(mutableDirectBuffer);
         }
     }
 
-    private Frame pollFrame()
-    {
-        synchronized (frameQueue)
-        {
+    private Frame pollFrame() {
+        synchronized (frameQueue) {
             return frameQueue.poll();
         }
     }
 
-    private MutableDirectBuffer pollMutableDirectBuffer()
-    {
-        synchronized (directBufferQueue)
-        {
+    private MutableDirectBuffer pollMutableDirectBuffer() {
+        synchronized (directBufferQueue) {
             return directBufferQueue.poll();
         }
     }

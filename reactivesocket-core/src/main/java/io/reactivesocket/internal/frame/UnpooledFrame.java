@@ -24,42 +24,32 @@ import java.nio.ByteBuffer;
 /**
  * On demand creation for Frames, MutableDirectBuffer backed by ByteBuffers of required capacity
  */
-public class UnpooledFrame implements FramePool
-{
+public class UnpooledFrame implements FramePool {
     /*
      * TODO: have all gneration of UnsafeBuffer and ByteBuffer hidden behind acquire() calls (private for ByteBuffer)
      */
 
-    public Frame acquireFrame(int size)
-    {
+    public Frame acquireFrame(int size) {
         return Frame.allocate(new UnsafeBuffer(ByteBuffer.allocate(size)));
     }
 
-    public Frame acquireFrame(ByteBuffer byteBuffer)
-    {
+    public Frame acquireFrame(ByteBuffer byteBuffer) {
         return Frame.allocate(new UnsafeBuffer(byteBuffer));
     }
 
-    public void release(Frame frame)
-    {
-    }
+    public void release(Frame frame) {}
 
-    public Frame acquireFrame(MutableDirectBuffer mutableDirectBuffer)
-    {
+    public Frame acquireFrame(MutableDirectBuffer mutableDirectBuffer) {
         return Frame.allocate(mutableDirectBuffer);
     }
 
-    public MutableDirectBuffer acquireMutableDirectBuffer(ByteBuffer byteBuffer)
-    {
+    public MutableDirectBuffer acquireMutableDirectBuffer(ByteBuffer byteBuffer) {
         return new UnsafeBuffer(byteBuffer);
     }
 
-    public MutableDirectBuffer acquireMutableDirectBuffer(int size)
-    {
+    public MutableDirectBuffer acquireMutableDirectBuffer(int size) {
         return new UnsafeBuffer(ByteBuffer.allocate(size));
     }
 
-    public void release(MutableDirectBuffer mutableDirectBuffer)
-    {
-    }
+    public void release(MutableDirectBuffer mutableDirectBuffer) {}
 }

@@ -21,22 +21,20 @@ import org.agrona.MutableDirectBuffer;
 
 import java.nio.ByteBuffer;
 
-public class KeepaliveFrameFlyweight
-{
+public class KeepaliveFrameFlyweight {
     private KeepaliveFrameFlyweight() {}
 
     private static final int PAYLOAD_OFFSET = FrameHeaderFlyweight.FRAME_HEADER_LENGTH;
 
-    public static int computeFrameLength(final int dataLength)
-    {
+    public static int computeFrameLength(final int dataLength) {
         return FrameHeaderFlyweight.computeFrameHeaderLength(FrameType.SETUP, 0, dataLength);
     }
 
     public static int encode(
         final MutableDirectBuffer mutableDirectBuffer,
         final int offset,
-        final ByteBuffer data)
-    {
+        final ByteBuffer data
+    ) {
         final int frameLength = computeFrameLength(data.remaining());
 
         int length = FrameHeaderFlyweight.encodeFrameHeader(mutableDirectBuffer, offset, frameLength, 0, FrameType.KEEPALIVE, 0);
@@ -46,8 +44,7 @@ public class KeepaliveFrameFlyweight
         return length;
     }
 
-    public static int payloadOffset(final DirectBuffer directBuffer, final int offset)
-    {
+    public static int payloadOffset(final DirectBuffer directBuffer, final int offset) {
         return offset + PAYLOAD_OFFSET;
     }
 }

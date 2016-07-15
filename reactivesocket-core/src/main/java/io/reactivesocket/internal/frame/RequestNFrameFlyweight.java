@@ -22,15 +22,13 @@ import org.agrona.MutableDirectBuffer;
 
 import java.nio.ByteOrder;
 
-public class RequestNFrameFlyweight
-{
+public class RequestNFrameFlyweight {
     private RequestNFrameFlyweight() {}
 
     // relative to start of passed offset
     private static final int REQUEST_N_FIELD_OFFSET = FrameHeaderFlyweight.FRAME_HEADER_LENGTH;
 
-    public static int computeFrameLength()
-    {
+    public static int computeFrameLength() {
         int length = FrameHeaderFlyweight.computeFrameHeaderLength(FrameType.REQUEST_N, 0, 0);
 
         return length + BitUtil.SIZE_OF_INT;
@@ -40,8 +38,8 @@ public class RequestNFrameFlyweight
         final MutableDirectBuffer mutableDirectBuffer,
         final int offset,
         final int streamId,
-        final int requestN)
-    {
+        final int requestN
+    ) {
         final int frameLength = computeFrameLength();
 
         int length = FrameHeaderFlyweight.encodeFrameHeader(mutableDirectBuffer, offset, frameLength, 0, FrameType.REQUEST_N, streamId);
@@ -51,13 +49,11 @@ public class RequestNFrameFlyweight
         return length + BitUtil.SIZE_OF_INT;
     }
 
-    public static int requestN(final DirectBuffer directBuffer, final int offset)
-    {
+    public static int requestN(final DirectBuffer directBuffer, final int offset) {
         return directBuffer.getInt(offset + REQUEST_N_FIELD_OFFSET, ByteOrder.BIG_ENDIAN);
     }
 
-    public static int payloadOffset(final DirectBuffer directBuffer, final int offset)
-    {
+    public static int payloadOffset(final DirectBuffer directBuffer, final int offset) {
         return offset + FrameHeaderFlyweight.FRAME_HEADER_LENGTH + BitUtil.SIZE_OF_INT;
     }
 }
