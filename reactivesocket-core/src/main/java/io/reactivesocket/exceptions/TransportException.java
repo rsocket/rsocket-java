@@ -24,5 +24,4 @@ public class TransportException extends Throwable {
     public synchronized Throwable fillInStackTrace() {
         return this;
     }
-
 }

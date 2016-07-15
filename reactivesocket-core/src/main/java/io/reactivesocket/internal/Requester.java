@@ -15,7 +15,6 @@
  */
 package io.reactivesocket.internal;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Collection;
@@ -837,9 +836,8 @@ public class Requester {
                 cancel();
             } else if (type == FrameType.ERROR) {
                 terminated.set(true);
-                final ByteBuffer byteBuffer = frame.getData();
-                String errorMessage = getByteBufferAsString(byteBuffer);
-                onError(new RuntimeException(errorMessage));
+                Throwable throwable = Exceptions.from(frame);
+                onError(throwable);
                 cancel();
             } else {
                 onError(new RuntimeException("Unexpected FrameType: " + frame.getType()));
