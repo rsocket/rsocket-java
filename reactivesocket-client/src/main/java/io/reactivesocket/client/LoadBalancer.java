@@ -491,11 +491,8 @@ public class LoadBalancer implements ReactiveSocket {
 
                         @Override
                         public void onError(Throwable t) {
-                            if (n.decrementAndGet() == 0) {
-                                subscriber.onComplete();
-                                closeSubject.subscribe(EmptySubscriber.INSTANCE);
-                                closeSubject.onComplete();
-                            }
+                            logger.warn("Exception while closing a ReactiveSocket", t);
+                            onComplete();
                         }
 
                         @Override
