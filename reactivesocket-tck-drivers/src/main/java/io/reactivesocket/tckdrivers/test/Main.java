@@ -132,15 +132,15 @@ public class Main {
 
         // We start the connection for each of our subscribers
         //fnfPublisher.subscribe(fnfsubscriber);
-        //rrPublisher.subscribe(rrsubscriber);
-        //cPublisher.subscribe(csubscriber);
+        rrPublisher.subscribe(rrsubscriber);
+        cPublisher.subscribe(csubscriber);
         rsPublisher.subscribe(rrsubscriber);
 
     }
 
     private static Publisher<ReactiveSocket> buildConnection(URI uri) {
         if (uri.getScheme().equals("tcp")) {
-            ConnectionSetupPayload setupPayload = ConnectionSetupPayload.create("UTF-8", "UTF-8", ConnectionSetupPayload.HONOR_LEASE);
+            ConnectionSetupPayload setupPayload = ConnectionSetupPayload.create("UTF-8", "UTF-8", ConnectionSetupPayload.NO_FLAGS);
 
             TcpReactiveSocketConnector tcp = TcpReactiveSocketConnector.create(setupPayload, Throwable::printStackTrace);
             Publisher<ReactiveSocket> socketPublisher = tcp.connect(new InetSocketAddress("localhost", 4567));

@@ -13,6 +13,7 @@
 
 package io.reactivesocket.tckdrivers.client;
 
+import io.netty.channel.Channel;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.reactivesocket.ConnectionSetupPayload;
 import io.reactivesocket.DefaultReactiveSocket;
@@ -20,6 +21,7 @@ import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.transport.tcp.TcpDuplexConnection;
 import io.reactivesocket.transport.tcp.client.TcpReactiveSocketConnector;
+import io.reactivesocket.util.Unsafe;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
@@ -52,7 +54,7 @@ public class JavaTCPClient {
 
     private static Publisher<ReactiveSocket> buildConnection(URI uri) {
         if (uri.getScheme().equals("tcp")) {
-            ConnectionSetupPayload setupPayload = ConnectionSetupPayload.create("UTF-8", "UTF-8", ConnectionSetupPayload.HONOR_LEASE);
+            ConnectionSetupPayload setupPayload = ConnectionSetupPayload.create("UTF-8", "UTF-8", ConnectionSetupPayload.NO_FLAGS);
 
             TcpReactiveSocketConnector tcp = TcpReactiveSocketConnector.create(setupPayload, Throwable::printStackTrace);
             Publisher<ReactiveSocket> socketPublisher = tcp.connect(new InetSocketAddress("localhost", 4567));
