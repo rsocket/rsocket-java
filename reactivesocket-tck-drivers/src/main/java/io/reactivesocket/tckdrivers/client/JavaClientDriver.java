@@ -41,13 +41,6 @@ import java.util.function.Supplier;
  */
 public class JavaClientDriver {
 
-    // colors for printing things out
-    private final String ANSI_RESET = "\u001B[0m";
-    private final String ANSI_RED = "\u001B[31m";
-    private final String ANSI_GREEN = "\u001B[32m";
-    private final String ANSI_CYAN = "\u001B[36m";
-    private final String ANSI_BLUE = "\u001B[34m";
-
     private final BufferedReader reader;
     private final Map<String, TestSubscriber<Payload>> payloadSubscribers;
     private final Map<String, TestSubscriber<Void>> fnfSubscribers;
@@ -294,7 +287,7 @@ public class JavaClientDriver {
         try {
             c.await();
         } catch (InterruptedException e) {
-            System.out.println("interrupted");
+            ConsoleUtils.info("interrupted");
         }
         mypct.get().join();
     }
@@ -323,7 +316,7 @@ public class JavaClientDriver {
     private void handleAwaitTerminal(String[] args) {
         String id = args[2];
         if (idToType.get(id) == null) {
-            System.out.println("Could not find subscriber with given id");
+            ConsoleUtils.failure("Could not find subscriber with given id");
         } else {
             if (idToType.get(id).equals("fnf")) {
                 TestSubscriber<Void> sub = fnfSubscribers.get(id);
@@ -341,7 +334,7 @@ public class JavaClientDriver {
             TestSubscriber<Payload> sub = payloadSubscribers.get(id);
             sub.awaitAtLeast(Long.parseLong(args[3]));
         } catch (InterruptedException e) {
-            System.out.println("interrupted");
+            ConsoleUtils.error("interrupted");
         }
     }
 
@@ -351,14 +344,14 @@ public class JavaClientDriver {
             TestSubscriber<Payload> sub = payloadSubscribers.get(id);
             sub.awaitNoEvents(Long.parseLong(args[3]));
         } catch (InterruptedException e) {
-            System.out.println("Interrupted");
+            ConsoleUtils.error("Interrupted");
         }
     }
 
     private void handleNoError(String[] args) {
         String id = args[2];
         if (idToType.get(id) == null) {
-            System.out.println("Could not find subscriber with given id");
+            ConsoleUtils.error("Could not find subscriber with given id");
         } else {
             if (idToType.get(id).equals("fnf")) {
                 TestSubscriber<Void> sub = fnfSubscribers.get(id);
@@ -373,7 +366,7 @@ public class JavaClientDriver {
     private void handleError(String[] args) {
         String id = args[2];
         if (idToType.get(id) == null) {
-            System.out.println("Could not find subscriber with given id");
+            ConsoleUtils.error("Could not find subscriber with given id");
         } else {
             if (idToType.get(id).equals("fnf")) {
                 TestSubscriber<Void> sub = fnfSubscribers.get(id);
@@ -388,7 +381,7 @@ public class JavaClientDriver {
     private void handleCompleted(String[] args) {
         String id = args[2];
         if (idToType.get(id) == null) {
-            System.out.println("Could not find subscriber with given id");
+            ConsoleUtils.error("Could not find subscriber with given id");
         } else {
             if (idToType.get(id).equals("fnf")) {
                 TestSubscriber<Void> sub = fnfSubscribers.get(id);
@@ -403,7 +396,7 @@ public class JavaClientDriver {
     private void handleNoCompleted(String[] args) {
         String id = args[2];
         if (idToType.get(id) == null) {
-            System.out.println("Could not find subscriber with given id");
+            ConsoleUtils.error("Could not find subscriber with given id");
         } else {
             if (idToType.get(id).equals("fnf")) {
                 TestSubscriber<Void> sub = fnfSubscribers.get(id);
@@ -419,7 +412,7 @@ public class JavaClientDriver {
         Long num = Long.parseLong(args[1]);
         String id = args[2];
         if (idToType.get(id) == null) {
-            System.out.println("Could not find subscriber with given id");
+            ConsoleUtils.error("Could not find subscriber with given id");
         } else {
             if (idToType.get(id).equals("fnf")) {
                 TestSubscriber<Void> sub = fnfSubscribers.get(id);
@@ -504,12 +497,12 @@ public class JavaClientDriver {
                         isRun = false;
                         return;
                     }
-                    System.out.println(ANSI_BLUE + "Starting test " + name + ANSI_RESET);
+                    ConsoleUtils.teststart(name);
                     TestResult result = parse(test.subList(1, test.size()), name);
                     if (result == TestResult.PASS)
-                        System.out.println(ANSI_GREEN + name + " results match" + ANSI_RESET);
+                        ConsoleUtils.success(name);
                     else if (result == TestResult.FAIL)
-                        System.out.println(ANSI_RED + name + " results do not match" + ANSI_RESET);
+                        ConsoleUtils.failure(name);
                 }
             } catch (Exception e) {
                 e.printStackTrace();
@@ -525,10 +518,9 @@ public class JavaClientDriver {
             try {
                 t.join();
                 endTime = System.nanoTime();
-                if (isRun) System.out.println(ANSI_CYAN + "TIME : " + (endTime - startTime)/1000000.0 + " MILLISECONDS"
-                        + ANSI_RESET + "\n");
+                if (isRun) ConsoleUtils.time((endTime - startTime)/1000000.0 + " MILLISECONDS\n");
             } catch(Exception e) {
-                System.out.println("join exception");
+                ConsoleUtils.error("join exception");
             }
         }
 

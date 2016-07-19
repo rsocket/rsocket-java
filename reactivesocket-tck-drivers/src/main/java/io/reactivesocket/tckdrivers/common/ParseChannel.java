@@ -25,11 +25,6 @@ import java.util.concurrent.TimeUnit;
  */
 public class ParseChannel {
 
-    // colors for printing things out
-    private final String ANSI_RESET = "\u001B[0m";
-    private final String ANSI_RED = "\u001B[31m";
-    private final String ANSI_GREEN = "\u001B[32m";
-
     private List<String> commands;
     private TestSubscriber<Payload> sub;
     private ParseMarble parseMarble;
@@ -78,14 +73,14 @@ public class ParseChannel {
                             try {
                                 sub.awaitAtLeast(Long.parseLong(args[3]));
                             } catch (InterruptedException e) {
-                                System.out.println("interrupted");
+                                ConsoleUtils.error("interrupted");
                             }
                             break;
                         case "no_events":
                             try {
                                 sub.awaitNoEvents(Long.parseLong(args[3]));
                             } catch (InterruptedException e) {
-                                System.out.println("interrupted");
+                                ConsoleUtils.error("interrupted");
                             }
                             break;
                     }
@@ -123,7 +118,7 @@ public class ParseChannel {
                     break;
                 case "request":
                     sub.request(Long.parseLong(args[1]));
-                    System.out.println("requesting " + args[1]);
+                    ConsoleUtils.info("requesting " + args[1]);
                     break;
                 case "cancel":
                     sub.cancel();
@@ -133,9 +128,9 @@ public class ParseChannel {
         if (name.equals("")) {
             name = "CHANNEL";
         }
-        if (sub.hasPassed() && this.pass) System.out.println(ANSI_GREEN + name + " PASSED" + ANSI_RESET);
-        else if (!sub.hasPassed() && !this.pass) System.out.println(ANSI_GREEN + name + " PASSED" + ANSI_RESET);
-        else System.out.println(ANSI_RED + name + " FAILED" + ANSI_RESET);
+        if (sub.hasPassed() && this.pass) ConsoleUtils.success(name);
+        else if (!sub.hasPassed() && !this.pass) ConsoleUtils.success(name);
+        else ConsoleUtils.failure(name);
     }
 
     /**
@@ -144,7 +139,7 @@ public class ParseChannel {
      * @param args
      */
     private void handleResponse(String[] args) {
-        System.out.println("responding");
+        ConsoleUtils.info("responding");
         if (currentRespondLatch == null) currentRespondLatch = new CountDownLatch(1);
         AddThread addThread = new AddThread(args[1], parseMarble, prevRespondLatch, currentRespondLatch);
         prevRespondLatch = currentRespondLatch;

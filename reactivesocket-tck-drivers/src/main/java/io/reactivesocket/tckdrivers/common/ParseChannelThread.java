@@ -39,7 +39,7 @@ public class ParseChannelThread implements Runnable {
         try {
             t.join();
         } catch (InterruptedException e) {
-            System.out.println("interrupted");
+            ConsoleUtils.error("interrupted");
         }
     }
 }

@@ -61,7 +61,7 @@ public class MarblePublisher implements Publisher<Payload> {
                 argMap = mapper.readValue(temp[1], new TypeReference<Map<String, Map<String, String>>>() {
                 });
             } catch (Exception e) {
-                System.out.println("couldn't convert argmap");
+                ConsoleUtils.error("couldn't convert argmap");
             }
         }
         if (marble.contains("|")  || marble.contains("#")) {
@@ -128,7 +128,7 @@ public class MarblePublisher implements Publisher<Payload> {
                         char c = state.next();
                         switch (c) {
                             case '|':
-                                System.out.println("calling onComplete");
+                                ConsoleUtils.info("calling onComplete");
                                 sub.onCompleted();
                                 break;
                             case '#':
@@ -153,7 +153,7 @@ public class MarblePublisher implements Publisher<Payload> {
                         }
                         return state;
                     }
-                    System.out.println("calling onComplete");
+                    ConsoleUtils.info("calling onComplete");
                     sub.onCompleted();
                     return state;
                 }
