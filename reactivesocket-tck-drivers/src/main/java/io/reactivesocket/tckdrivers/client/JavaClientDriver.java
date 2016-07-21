@@ -233,6 +233,7 @@ public class JavaClientDriver {
         // we now create the publisher that the server will subscribe to with its own subscriber
         // we want to give that subscriber a subscription that the client will use to send data to the server
         ReactiveSocket client = JavaTCPClient.createClient();
+        PCTWrapper mypct = new PCTWrapper();
         Publisher<Payload> pub = client.requestChannel(new Publisher<Payload>() {
             @Override
             public void subscribe(Subscriber<? super Payload> s) {
@@ -242,10 +243,27 @@ public class JavaClientDriver {
                 ParseChannel pc = new ParseChannel(commands, testsub, pm, name);
                 ParseChannelThread pct = new ParseChannelThread(pc);
                 pct.start();
-                pct.join();
+                mypct.set(pct);
+                c.countDown();
             }
         });
         pub.subscribe(testsub);
+        try {
+            c.await();
+        } catch (InterruptedException e) {
+            System.out.println("interrupted");
+        }
+        mypct.get().join();
+    }
+
+    private class PCTWrapper {
+        ParseChannelThread p;
+        public void set(ParseChannelThread p) {
+            this.p = p;
+        }
+        public ParseChannelThread get() {
+            return this.p;
+        }
     }
 
     private void handleEchoChannel(String[] args) {

@@ -1,6 +1,9 @@
 package io.reactivesocket.tckdrivers.test;
 
+import io.netty.buffer.ByteBuf;
 import io.reactivesocket.Payload;
+import io.reactivesocket.internal.frame.ByteBufferUtil;
+import io.reactivesocket.tckdrivers.common.Tuple;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -45,5 +48,9 @@ public class PayloadImpl implements Payload // some JDK shoutout
 
     public ByteBuffer getMetadata() {
         return metadata;
+    }
+
+    public Tuple<String, String> getStuff() {
+        return new Tuple<>(ByteBufferUtil.toUtf8String(getData()), ByteBufferUtil.toUtf8String(getMetadata()));
     }
 }

@@ -1,32 +1,44 @@
 package io.reactivesocket.tckdrivers.test;
 
+import io.netty.buffer.ByteBuf;
 import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.handler.logging.LogLevel;
 import io.reactivesocket.*;
 
+import io.reactivesocket.internal.frame.ByteBufferUtil;
 import io.reactivesocket.rx.Completable;
 import io.reactivesocket.tckdrivers.client.JavaTCPClient;
 import io.reactivesocket.transport.tcp.client.TcpReactiveSocketConnector;
 import io.reactivesocket.util.Unsafe;
+import io.reactivex.netty.protocol.tcp.client.TcpClient;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 import rx.RxReactiveStreams;
 
-import java.net.InetSocketAddress;
-import java.net.MalformedURLException;
-import java.net.URI;
-import java.net.URISyntaxException;
+import java.net.*;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
-import static java.net.InetSocketAddress.createUnresolved;
+import static rx.RxReactiveStreams.toObservable;
+import static rx.RxReactiveStreams.toPublisher;
 
 public class Main {
     public static void main(String[] args) throws MalformedURLException, URISyntaxException, InterruptedException {
         String target = args.length > 0 ? args[0] : "tcp://localhost:4567/rs";
         URI uri = new URI(target);
 
-        ReactiveSocket client = createClient();
+        ReactiveSocket client = buildConnectionAndSocket(uri);
+        CountDownLatch count = new CountDownLatch(1);
+        rx.Completable c = rx.Completable.complete();
 
+        rx.Completable run = run(client);
+        run.await();
+    }
+
+    public static rx.Completable run(ReactiveSocket client) throws InterruptedException {
+        CountDownLatch count = new CountDownLatch(1);
         // trivial publisher for fire n forget
         Publisher<Void> fnfPublisher = client.fireAndForget(new PayloadImpl("abcd", "abcd"));
 
@@ -62,7 +74,7 @@ public class Main {
         });
 
         // subscriber for requestresponse
-        Subscriber<Payload> rrsubscriber = new Subscriber<Payload>() {
+        Subscriber<? super Payload> rrsubscriber = new Subscriber<Payload>() {
             @Override
             public void onSubscribe(Subscription s) {
                 s.request(100);
@@ -132,10 +144,12 @@ public class Main {
 
         // We start the connection for each of our subscribers
         //fnfPublisher.subscribe(fnfsubscriber);
+        //RxReactiveStreams.toPublisher(toObservable(rrPublisher)).subscribe(rrsubscriber);
+        rrPublisher.subscribe(rrsubscriber);
         rrPublisher.subscribe(rrsubscriber);
         cPublisher.subscribe(csubscriber);
         rsPublisher.subscribe(rrsubscriber);
-
+        return rx.Completable.timer(5000, TimeUnit.MILLISECONDS);
     }
 
     private static Publisher<ReactiveSocket> buildConnection(URI uri) {
@@ -199,6 +213,24 @@ public class Main {
 
         public ReactiveSocket getSocket() {
             return this.rs;
+        }
+    }
+
+    public static ReactiveSocket buildConnectionAndSocket(URI uri) throws InterruptedException {
+        ConnectionSetupPayload setupPayload = ConnectionSetupPayload.create("", "");
+
+        if ("tcp".equals(uri.getScheme())) {
+            Function<SocketAddress, TcpClient<ByteBuf, ByteBuf>> clientFactory =
+                    socketAddress -> TcpClient.newClient(socketAddress).enableWireLogging("rs",
+                            LogLevel.ERROR);
+            return toObservable(
+                    TcpReactiveSocketConnector.create(setupPayload, Throwable::printStackTrace, clientFactory)
+                            .connect(new InetSocketAddress(uri.getHost(), uri.getPort()))).toSingle()
+                    .toBlocking()
+                    .value();
+        }
+         else {
+            throw new UnsupportedOperationException("uri unsupported: " + uri);
         }
     }
 }

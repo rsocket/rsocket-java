@@ -31,6 +31,6 @@ public class AddThread implements Runnable {
     }
 
     public void start() {
-        this.t.start();
+        t.start();
     }
 }

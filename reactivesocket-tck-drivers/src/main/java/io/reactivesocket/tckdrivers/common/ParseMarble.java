@@ -75,6 +75,7 @@ public class ParseMarble {
         System.out.println(this.id);
         numRequested += n;
         if (marble.length() > marbleIndex) {
+            parseLatch.countDown();
             sendLatch.countDown();
         }
     }

@@ -13,8 +13,10 @@
 
 package io.reactivesocket.tckdrivers.client;
 
+import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
 import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.handler.logging.LogLevel;
 import io.reactivesocket.ConnectionSetupPayload;
 import io.reactivesocket.DefaultReactiveSocket;
 import io.reactivesocket.DuplexConnection;
@@ -22,21 +24,23 @@ import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.transport.tcp.TcpDuplexConnection;
 import io.reactivesocket.transport.tcp.client.TcpReactiveSocketConnector;
 import io.reactivesocket.util.Unsafe;
+import io.reactivex.netty.protocol.tcp.client.TcpClient;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 import rx.RxReactiveStreams;
 
-import java.net.InetSocketAddress;
-import java.net.MalformedURLException;
-import java.net.URI;
-import java.net.URISyntaxException;
+import java.net.*;
 import java.util.concurrent.CountDownLatch;
+import java.util.function.Function;
 
 import static java.net.InetSocketAddress.createUnresolved;
+import static rx.RxReactiveStreams.toObservable;
 
 // this client should parse the test cases we wrote and use them to
 public class JavaTCPClient {
+
+    public static URI uri;
 
     public static void main(String[] args) throws MalformedURLException, URISyntaxException {
         // we pass in our reactive socket here to the test suite
@@ -45,6 +49,7 @@ public class JavaTCPClient {
             file = args[0];
         }
         try {
+            setURI(new URI("tcp://localhost:4567/rs"));
             JavaClientDriver jd = new JavaClientDriver(file);
             jd.runTests();
         } catch (Exception e) {
@@ -52,67 +57,24 @@ public class JavaTCPClient {
         }
     }
 
-    private static Publisher<ReactiveSocket> buildConnection(URI uri) {
-        if (uri.getScheme().equals("tcp")) {
-            ConnectionSetupPayload setupPayload = ConnectionSetupPayload.create("UTF-8", "UTF-8", ConnectionSetupPayload.NO_FLAGS);
-
-            TcpReactiveSocketConnector tcp = TcpReactiveSocketConnector.create(setupPayload, Throwable::printStackTrace);
-            Publisher<ReactiveSocket> socketPublisher = tcp.connect(new InetSocketAddress("localhost", 4567));
-            return socketPublisher;
-
-        } else {
-            throw new UnsupportedOperationException("uri unsupported: " + uri);
-        }
+    public static void setURI(URI uri2) {
+        uri = uri2;
     }
 
     public static ReactiveSocket createClient() {
-        try {
-            String target = "tcp://localhost:4567/rs";
-            URI uri = new URI(target);
+        ConnectionSetupPayload setupPayload = ConnectionSetupPayload.create("", "");
 
-            Publisher<ReactiveSocket> socketPublisher = buildConnection(uri);
-            SocketWrapper client = new SocketWrapper();
-            CountDownLatch hold = new CountDownLatch(1);
-            socketPublisher.subscribe(new Subscriber<ReactiveSocket>() {
-                @Override
-                public void onSubscribe(Subscription s) {
-                    s.request(1);
-                }
-
-                @Override
-                public void onNext(ReactiveSocket reactiveSocket) {
-                    client.setSocket(reactiveSocket);
-                    hold.countDown();
-                }
-
-                @Override
-                public void onError(Throwable t) {
-                    System.out.println("error when getting reactive socket");
-                }
-
-                @Override
-                public void onComplete() {
-
-                }
-            });
-            hold.await();
-            return client.getSocket();
-        } catch (Exception e) {
-            System.out.println("Something went wrong");
+        if ("tcp".equals(uri.getScheme())) {
+            Function<SocketAddress, TcpClient<ByteBuf, ByteBuf>> clientFactory =
+                    socketAddress -> TcpClient.newClient(socketAddress);
+            return toObservable(
+                    TcpReactiveSocketConnector.create(setupPayload, Throwable::printStackTrace, clientFactory)
+                            .connect(new InetSocketAddress(uri.getHost(), uri.getPort()))).toSingle()
+                    .toBlocking()
+                    .value();
         }
-        return null;
-    }
-
-    private static class SocketWrapper {
-
-        private ReactiveSocket rs;
-
-        public void setSocket(ReactiveSocket rs) {
-            this.rs = rs;
-        }
-
-        public ReactiveSocket getSocket() {
-            return this.rs;
+        else {
+            throw new UnsupportedOperationException("uri unsupported: " + uri);
         }
     }
 
