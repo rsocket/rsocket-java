@@ -29,26 +29,14 @@ import java.util.function.Function;
 import static rx.RxReactiveStreams.toObservable;
 
 // this client should parse the test cases we wrote and use them to
-@Command(name = "client", description = "client")
 public class JavaTCPClient {
 
-    public static URI uri;
-    @Option(name = "--debug", description = "Turns on Frame Level comments")
-    public static boolean debug;
+    private static URI uri;
+    private static boolean debug;
 
-    @Option(name = "--host", description = "Host name")
-    public static String host;
-
-    @Option(name = "--port", description = "port")
-    public static int port;
-
-    @Option(name = "--file", description = "test file")
-    public static String realfile;
-
-    public static void main(String[] args) throws MalformedURLException, URISyntaxException {
-
-        SingleCommand<JavaTCPClient> cmd = SingleCommand.singleCommand(JavaTCPClient.class);
-        cmd.parse(args);
+    public static void run(String realfile, String host, int port, boolean debug2)
+            throws MalformedURLException, URISyntaxException {
+        debug = debug2;
         // we pass in our reactive socket here to the test suite
         String file = "reactivesocket-tck-drivers/src/main/test/resources/clienttest$.txt";
         if (realfile != null) file = realfile;

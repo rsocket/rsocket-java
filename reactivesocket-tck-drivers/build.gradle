@@ -1,4 +1,21 @@
+task wrapper(type: Wrapper) {
+    gradleVersion = '2.13'
+}
 
+apply plugin: 'application'
+apply plugin: 'java'
+
+mainClassName = "io.reactivesocket.tckdrivers.main.Main"
+
+jar {
+    manifest {
+        attributes "Main-Class": "$mainClassName"
+    }
+
+    from {
+        configurations.compile.collect { it.isDirectory() ? it : zipTree(it) }
+    }
+}
 
 dependencies {
 

@@ -19,19 +19,9 @@ import io.airlift.airline.SingleCommand;
 import io.reactivesocket.tckdrivers.client.JavaTCPClient;
 import io.reactivesocket.transport.tcp.server.TcpReactiveSocketServer;
 
-@Command(name = "server", description = "server")
 public class JavaTCPServer {
 
-    @Option(name = "--port", description = "port")
-    public static int port;
-
-    @Option(name = "--file", description = "test file")
-    public static String realfile;
-
-    public static void main(String[] args) {
-
-        SingleCommand<JavaTCPClient> cmd = SingleCommand.singleCommand(JavaTCPClient.class);
-        cmd.parse(args);
+    public static void run(String realfile, int port) {
 
         String file = "reactivesocket-tck-drivers/src/main/test/resources/servertest$.txt";
 
@@ -42,7 +32,7 @@ public class JavaTCPServer {
         JavaServerDriver jsd =
                 new JavaServerDriver(file);
 
-        TcpReactiveSocketServer.create(4567)
+        TcpReactiveSocketServer.create(port)
                 .start((setupPayload, reactiveSocket) -> {
                     // create request handler
                     return jsd.parse();
