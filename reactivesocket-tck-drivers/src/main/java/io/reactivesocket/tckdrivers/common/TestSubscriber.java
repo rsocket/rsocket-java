@@ -14,6 +14,8 @@
 package io.reactivesocket.tckdrivers.common;
 
 import io.reactivesocket.Payload;
+import io.reactivesocket.internal.frame.ByteBufferUtil;
+import io.reactivesocket.util.PayloadImpl;
 import io.reactivex.Notification;
 import io.reactivex.disposables.Disposable;
 import io.reactivex.exceptions.CompositeException;
@@ -186,8 +188,8 @@ public class TestSubscriber<T> implements Subscriber<T>, Subscription, Disposabl
                     try {
                         Payload t;
                         while ((t = qs.poll()) != null) {
-                            values.add(new Tuple<>(PayloadImpl.byteToString(t.getData()),
-                                    PayloadImpl.byteToString(t.getMetadata())));
+                            values.add(new Tuple<>(ByteBufferUtil.toUtf8String(t.getData()),
+                                    ByteBufferUtil.toUtf8String(t.getMetadata())));
                         }
                         completions++;
                     } catch (Throwable ex) {
@@ -218,8 +220,8 @@ public class TestSubscriber<T> implements Subscriber<T>, Subscription, Disposabl
     @Override
     public void onNext(T t) {
         Payload p = (Payload) t;
-        Tuple<String, String> tup = new Tuple<>(PayloadImpl.byteToString(p.getData()),
-                PayloadImpl.byteToString(p.getMetadata()));
+        Tuple<String, String> tup = new Tuple<>(ByteBufferUtil.toUtf8String(p.getData()),
+                ByteBufferUtil.toUtf8String(p.getMetadata()));
         System.out.println("ON NEXT GOT : "  + tup.getK() + " " + tup.getV());
         if (isEcho) {
             echosub.add(tup);
@@ -235,8 +237,8 @@ public class TestSubscriber<T> implements Subscriber<T>, Subscription, Disposabl
 
         if (establishedFusionMode == QueueSubscription.ASYNC) {
             while ((p = qs.poll()) != null) {
-                values.add(new Tuple<>(PayloadImpl.byteToString(p.getData()),
-                        PayloadImpl.byteToString(p.getMetadata())));
+                values.add(new Tuple<>(ByteBufferUtil.toUtf8String(p.getData()),
+                        ByteBufferUtil.toUtf8String(p.getMetadata())));
             }
             return;
         }

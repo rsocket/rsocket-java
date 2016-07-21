@@ -13,43 +13,47 @@
 
 package io.reactivesocket.tckdrivers.client;
 
+import io.airlift.airline.*;
 import io.netty.buffer.ByteBuf;
-import io.netty.channel.Channel;
-import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.handler.logging.LogLevel;
 import io.reactivesocket.ConnectionSetupPayload;
-import io.reactivesocket.DefaultReactiveSocket;
-import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.ReactiveSocket;
-import io.reactivesocket.transport.tcp.TcpDuplexConnection;
+import io.reactivesocket.tckdrivers.test.Main;
 import io.reactivesocket.transport.tcp.client.TcpReactiveSocketConnector;
-import io.reactivesocket.util.Unsafe;
+import io.reactivex.Single;
 import io.reactivex.netty.protocol.tcp.client.TcpClient;
-import org.reactivestreams.Publisher;
-import org.reactivestreams.Subscriber;
-import org.reactivestreams.Subscription;
-import rx.RxReactiveStreams;
 
 import java.net.*;
-import java.util.concurrent.CountDownLatch;
 import java.util.function.Function;
 
-import static java.net.InetSocketAddress.createUnresolved;
 import static rx.RxReactiveStreams.toObservable;
 
 // this client should parse the test cases we wrote and use them to
+@Command(name = "client", description = "client")
 public class JavaTCPClient {
 
     public static URI uri;
+    @Option(name = "--debug", description = "Turns on Frame Level comments")
+    public static boolean debug;
+
+    @Option(name = "--host", description = "Host name")
+    public static String host;
+
+    @Option(name = "--port", description = "port")
+    public static int port;
+
+    @Option(name = "--file", description = "test file")
+    public static String realfile;
 
     public static void main(String[] args) throws MalformedURLException, URISyntaxException {
+
+        SingleCommand<JavaTCPClient> cmd = SingleCommand.singleCommand(JavaTCPClient.class);
+        cmd.parse(args);
         // we pass in our reactive socket here to the test suite
-        String file = "/Users/mjzhu/dev/reactivesocket-java/reactivesocket-tck-drivers/clienttest$.txt";
-        if (args.length > 0) {
-            file = args[0];
-        }
+        String file = "reactivesocket-tck-drivers/src/main/test/resources/clienttest$.txt";
+        if (realfile != null) file = realfile;
         try {
-            setURI(new URI("tcp://localhost:4567/rs"));
+            setURI(new URI("tcp://" + host + ":" + port + "/rs"));
             JavaClientDriver jd = new JavaClientDriver(file);
             jd.runTests();
         } catch (Exception e) {
@@ -67,6 +71,11 @@ public class JavaTCPClient {
         if ("tcp".equals(uri.getScheme())) {
             Function<SocketAddress, TcpClient<ByteBuf, ByteBuf>> clientFactory =
                     socketAddress -> TcpClient.newClient(socketAddress);
+
+            if (debug) clientFactory =
+                    socketAddress -> TcpClient.newClient(socketAddress).enableWireLogging("rs",
+                            LogLevel.ERROR);
+
             return toObservable(
                     TcpReactiveSocketConnector.create(setupPayload, Throwable::printStackTrace, clientFactory)
                             .connect(new InetSocketAddress(uri.getHost(), uri.getPort()))).toSingle()

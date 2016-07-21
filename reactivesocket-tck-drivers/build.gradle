@@ -12,6 +12,7 @@ dependencies {
     compile 'org.apache.commons:commons-lang3:3.4'
     compile 'io.reactivex:rxjava-reactive-streams:1.1.0"'
     compile 'io.reactivex.rxjava2:rxjava:2.0.0-DP0-SNAPSHOT'
+    compile 'io.airlift:airline:0.7'
 }
 
 apply plugin: 'application'

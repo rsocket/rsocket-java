@@ -16,7 +16,7 @@ package io.reactivesocket.tckdrivers.client;
 import io.reactivesocket.Payload;
 import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.tckdrivers.common.*;
-import io.reactivesocket.tckdrivers.test.PayloadImpl;
+import io.reactivesocket.util.PayloadImpl;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;

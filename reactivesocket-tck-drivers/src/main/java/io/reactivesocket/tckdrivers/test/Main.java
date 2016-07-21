@@ -1,20 +1,16 @@
 package io.reactivesocket.tckdrivers.test;
 
 import io.netty.buffer.ByteBuf;
-import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.handler.logging.LogLevel;
-import io.reactivesocket.*;
-
-import io.reactivesocket.internal.frame.ByteBufferUtil;
-import io.reactivesocket.rx.Completable;
-import io.reactivesocket.tckdrivers.client.JavaTCPClient;
+import io.reactivesocket.ConnectionSetupPayload;
+import io.reactivesocket.Payload;
+import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.transport.tcp.client.TcpReactiveSocketConnector;
-import io.reactivesocket.util.Unsafe;
+import io.reactivesocket.util.PayloadImpl;
 import io.reactivex.netty.protocol.tcp.client.TcpClient;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
-import rx.RxReactiveStreams;
 
 import java.net.*;
 import java.util.concurrent.CountDownLatch;
@@ -22,7 +18,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 import static rx.RxReactiveStreams.toObservable;
-import static rx.RxReactiveStreams.toPublisher;
 
 public class Main {
     public static void main(String[] args) throws MalformedURLException, URISyntaxException, InterruptedException {

@@ -16,6 +16,7 @@ package io.reactivesocket.tckdrivers.common;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.reactivesocket.Payload;
+import io.reactivesocket.util.PayloadImpl;
 import org.reactivestreams.Subscriber;
 
 import java.util.*;

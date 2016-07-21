@@ -15,6 +15,7 @@ package io.reactivesocket.tckdrivers.server;
 
 import io.reactivesocket.Payload;
 import io.reactivesocket.RequestHandler;
+import io.reactivesocket.internal.frame.ByteBufferUtil;
 import io.reactivesocket.tckdrivers.common.*;
 import org.reactivestreams.Subscription;
 
@@ -90,12 +91,12 @@ public class JavaServerDriver {
         }
 
         return new RequestHandler.Builder().withFireAndForget(payload -> s -> {
-            Tuple<String, String> initialPayload = new Tuple<>(PayloadImpl.byteToString(payload.getData()),
-                    PayloadImpl.byteToString(payload.getMetadata()));
+            Tuple<String, String> initialPayload = new Tuple<>(ByteBufferUtil.toUtf8String(payload.getData()),
+                    ByteBufferUtil.toUtf8String(payload.getMetadata()));
             System.out.println("firenforget " + initialPayload.getK() + " " + initialPayload.getV());
         }).withRequestResponse(payload -> s -> {
-            Tuple<String, String> initialPayload = new Tuple<>(PayloadImpl.byteToString(payload.getData()),
-                    PayloadImpl.byteToString(payload.getMetadata()));
+            Tuple<String, String> initialPayload = new Tuple<>(ByteBufferUtil.toUtf8String(payload.getData()),
+                    ByteBufferUtil.toUtf8String(payload.getMetadata()));
             String marble = requestResponseMarbles.get(initialPayload);
             System.out.println("requestresponse " + initialPayload.getK() + " " + initialPayload.getV());
             if (marble != null) {
@@ -104,8 +105,8 @@ public class JavaServerDriver {
                 s.onSubscribe(new TestSubscription(pm));
             }
         }).withRequestStream(payload -> s -> {
-            Tuple<String, String> initialPayload = new Tuple<>(PayloadImpl.byteToString(payload.getData()),
-                    PayloadImpl.byteToString(payload.getMetadata()));
+            Tuple<String, String> initialPayload = new Tuple<>(ByteBufferUtil.toUtf8String(payload.getData()),
+                    ByteBufferUtil.toUtf8String(payload.getMetadata()));
             String marble = requestStreamMarbles.get(initialPayload);
             System.out.println("Stream " + initialPayload.getK() + " " + initialPayload.getV());
             if (marble != null) {
@@ -114,8 +115,8 @@ public class JavaServerDriver {
                 s.onSubscribe(new TestSubscription(pm));
             }
         }).withRequestSubscription(payload -> s -> {
-            Tuple<String, String> initialPayload = new Tuple<>(PayloadImpl.byteToString(payload.getData()),
-                    PayloadImpl.byteToString(payload.getMetadata()));
+            Tuple<String, String> initialPayload = new Tuple<>(ByteBufferUtil.toUtf8String(payload.getData()),
+                    ByteBufferUtil.toUtf8String(payload.getMetadata()));
             String marble = requestSubscriptionMarbles.get(initialPayload);
             System.out.println("Subscription " + initialPayload.getK() + " " + initialPayload.getV());
             if (marble != null) {

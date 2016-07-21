@@ -13,17 +13,30 @@
 
 package io.reactivesocket.tckdrivers.server;
 
+import io.airlift.airline.Command;
+import io.airlift.airline.Option;
+import io.airlift.airline.SingleCommand;
+import io.reactivesocket.tckdrivers.client.JavaTCPClient;
 import io.reactivesocket.transport.tcp.server.TcpReactiveSocketServer;
 
-
+@Command(name = "server", description = "server")
 public class JavaTCPServer {
+
+    @Option(name = "--port", description = "port")
+    public static int port;
+
+    @Option(name = "--file", description = "test file")
+    public static String realfile;
 
     public static void main(String[] args) {
 
-        String file = "/Users/mjzhu/dev/reactivesocket-java/reactivesocket-tck-drivers/servertest$.txt";
+        SingleCommand<JavaTCPClient> cmd = SingleCommand.singleCommand(JavaTCPClient.class);
+        cmd.parse(args);
 
-        if (args.length > 0) {
-            file = args[0];
+        String file = "reactivesocket-tck-drivers/src/main/test/resources/servertest$.txt";
+
+        if (realfile != null) {
+            file = realfile;
         }
 
         JavaServerDriver jsd =
