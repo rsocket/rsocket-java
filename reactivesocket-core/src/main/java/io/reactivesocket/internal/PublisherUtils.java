@@ -106,38 +106,30 @@ public class PublisherUtils {
     }
 
     public static final Publisher<Frame> keepaliveTicker(final int interval, final TimeUnit timeUnit) {
-        return (Subscriber<? super Frame> s) -> {
-            s.onSubscribe(new Subscription()
-            {
+        return (Subscriber<? super Frame> subscriber) -> {
+            subscriber.onSubscribe(new Subscription() {
                 final AtomicLong requested = new AtomicLong(0);
                 final AtomicBoolean started = new AtomicBoolean(false);
                 volatile ScheduledFuture ticker;
 
-                public void request(long n)
-                {
+                public void request(long n) {
                     BackpressureUtils.getAndAddRequest(requested, n);
-                    if (started.compareAndSet(false, true))
-                    {
+                    if (started.compareAndSet(false, true)) {
                         ticker = SCHEDULER_THREAD.scheduleWithFixedDelay(() -> {
                             final long value = requested.getAndDecrement();
 
-                            if (0 < value)
-                            {
-                                s.onNext(Frame.Keepalive.from(Frame.NULL_BYTEBUFFER, true));
-                            }
-                            else
-                            {
+                            if (0 < value) {
+                                subscriber.onNext(Frame.Keepalive.from(Frame.NULL_BYTEBUFFER, true));
+                            } else {
                                 requested.getAndIncrement();
                             }
                         }, interval, interval, timeUnit);
                     }
                 }
 
-                public void cancel()
-                {
+                public void cancel() {
                     // only used internally and so should not be called before request is done. Race condition exists!
-                    if (null != ticker)
-                    {
+                    if (null != ticker) {
                         ticker.cancel(true);
                     }
                 }
