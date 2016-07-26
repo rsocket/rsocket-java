@@ -22,7 +22,7 @@ import rx.Observable;
 
 import static rx.RxReactiveStreams.*;
 
-public class TestRequestHandler extends RequestHandler {
+public class TestRequestHandler implements RequestHandler {
 
     @Override
     public Publisher<Payload> handleRequestResponse(Payload payload) {

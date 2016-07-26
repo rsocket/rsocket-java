@@ -18,42 +18,42 @@ import org.reactivestreams.Publisher;
 
 import java.util.function.Function;
 
-public abstract class RequestHandler {
-    private static final Function<Payload, Publisher<Payload>> NO_REQUEST_RESPONSE_HANDLER =
+public interface RequestHandler {
+    Function<Payload, Publisher<Payload>> NO_REQUEST_RESPONSE_HANDLER =
         payload -> PublisherUtils.errorPayload(new RuntimeException("No 'requestResponse' handler"));
 
-    private static final Function<Payload, Publisher<Payload>> NO_REQUEST_STREAM_HANDLER =
+    Function<Payload, Publisher<Payload>> NO_REQUEST_STREAM_HANDLER =
         payload -> PublisherUtils.errorPayload(new RuntimeException("No 'requestStream' handler"));
 
-    private static final Function<Payload, Publisher<Payload>> NO_REQUEST_SUBSCRIPTION_HANDLER =
+    Function<Payload, Publisher<Payload>> NO_REQUEST_SUBSCRIPTION_HANDLER =
         payload -> PublisherUtils.errorPayload(new RuntimeException("No 'requestSubscription' handler"));
 
-    private static final Function<Payload, Publisher<Void>> NO_FIRE_AND_FORGET_HANDLER =
+    Function<Payload, Publisher<Void>> NO_FIRE_AND_FORGET_HANDLER =
         payload -> Publishers.error(new RuntimeException("No 'fireAndForget' handler"));
 
-    private static final Function<Publisher<Payload>, Publisher<Payload>> NO_REQUEST_CHANNEL_HANDLER =
+    Function<Publisher<Payload>, Publisher<Payload>> NO_REQUEST_CHANNEL_HANDLER =
         payloads -> PublisherUtils.errorPayload(new RuntimeException("No 'requestChannel' handler"));
 
-    private static final Function<Payload, Publisher<Void>> NO_METADATA_PUSH_HANDLER =
+    Function<Payload, Publisher<Void>> NO_METADATA_PUSH_HANDLER =
         payload -> Publishers.error(new RuntimeException("No 'metadataPush' handler"));
 
-    public abstract Publisher<Payload> handleRequestResponse(final Payload payload);
+    Publisher<Payload> handleRequestResponse(final Payload payload);
 
-    public abstract Publisher<Payload> handleRequestStream(final Payload payload);
+    Publisher<Payload> handleRequestStream(final Payload payload);
 
-    public abstract Publisher<Payload> handleSubscription(final Payload payload);
+    Publisher<Payload> handleSubscription(final Payload payload);
 
-    public abstract Publisher<Void> handleFireAndForget(final Payload payload);
+    Publisher<Void> handleFireAndForget(final Payload payload);
 
     /**
      * @note The initialPayload will also be part of the inputs publisher.
      * It is there to simplify routing logic.
      */
-    public abstract Publisher<Payload> handleChannel(Payload initialPayload, final Publisher<Payload> inputs);
+    Publisher<Payload> handleChannel(final Payload initialPayload, final Publisher<Payload> inputs);
 
-    public abstract Publisher<Void> handleMetadataPush(final Payload payload);
+    Publisher<Void> handleMetadataPush(final Payload payload);
 
-    public static class Builder {
+    class Builder {
         private Function<Payload, Publisher<Payload>> handleRequestResponse = NO_REQUEST_RESPONSE_HANDLER;
         private Function<Payload, Publisher<Payload>> handleRequestStream = NO_REQUEST_STREAM_HANDLER;
         private Function<Payload, Publisher<Payload>> handleRequestSubscription = NO_REQUEST_SUBSCRIPTION_HANDLER;
