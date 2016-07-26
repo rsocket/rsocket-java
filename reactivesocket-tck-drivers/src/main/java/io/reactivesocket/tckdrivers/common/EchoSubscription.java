@@ -21,8 +21,23 @@ import org.reactivestreams.Subscription;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
+/**
+ * This class is a special subscription that allows us to implement echo tests without having to use ay complex
+ * complex Rx constructs. Subscriptions handle the sending of data to whoever is requesting it, this subscription
+ * has a very basic implementation of a backpressurebuffer that allows for flow control, and allows that the rate at
+ * which elements are produced to it can differ from the rate at which they are consumed.
+ *
+ * This class should be passed inside of TestSubscriber when one wants to do an echo test, so that all the values
+ * that the TestSubscriber receives immediately gets buffered here and prepared to be sent. This implementation is
+ * needed because we want to send both the exact same data and metadata. If we used our ParseMarble class, we could
+ * add a function to allow dynamic changing of our argMap object, but even then, there are only small finite number
+ * of characters we can use in the marble diagram.
+ */
 public class EchoSubscription implements Subscription {
 
+    /**
+     * This is our backpressure buffer
+     */
     private Queue<Tuple<String, String>> q;
     private long numSent = 0;
     private long numRequested = 0;
@@ -34,6 +49,11 @@ public class EchoSubscription implements Subscription {
         this.sub = sub;
     }
 
+    /**
+     * Every time our buffer grows, if there are still requests to satisfy, we need to send as much as we can.
+     * We make this synchronized so we can avoid data races.
+     * @param payload
+     */
     public void add(Tuple<String, String> payload) {
         q.add(payload);
         if (numSent < numRequested) request(0);

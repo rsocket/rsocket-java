@@ -37,7 +37,7 @@ public class Main {
             try {
                 JavaTCPClient.run(file, host, port, debug);
             } catch (Exception e) {
-                System.out.println("Could not launch client");
+                e.printStackTrace();
             }
         }
     }

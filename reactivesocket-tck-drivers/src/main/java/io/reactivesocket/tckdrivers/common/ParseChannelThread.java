@@ -13,6 +13,9 @@
 
 package io.reactivesocket.tckdrivers.common;
 
+/**
+ * This thread parses through channel tests
+ */
 public class ParseChannelThread implements Runnable {
 
     private ParseChannel pc;

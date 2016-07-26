@@ -13,12 +13,11 @@
 
 package io.reactivesocket.tckdrivers.server;
 
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
-import io.airlift.airline.SingleCommand;
-import io.reactivesocket.tckdrivers.client.JavaTCPClient;
 import io.reactivesocket.transport.tcp.server.TcpReactiveSocketServer;
 
+/**
+ * An example of how to run the JavaServerDriver using the ReactiveSocket server creation tool in Java.
+ */
 public class JavaTCPServer {
 
     public static void run(String realfile, int port) {

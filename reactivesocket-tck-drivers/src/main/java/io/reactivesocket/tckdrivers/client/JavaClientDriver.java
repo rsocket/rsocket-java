@@ -26,9 +26,18 @@ import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
+/**
+ * This class is the driver for the Java ReactiveSocket client. To use with class with the current Java impl of
+ * ReactiveSocket, one should supply both a test file as well as a function that can generate ReactiveSockets on demand.
+ * This driver will then parse through the test file, and for each test, it will run them on their own thread and print
+ * out the results.
+ */
 public class JavaClientDriver {
 
     // colors for printing things out
@@ -40,15 +49,21 @@ public class JavaClientDriver {
     private final Map<String, TestSubscriber<Payload>> payloadSubscribers;
     private final Map<String, TestSubscriber<Void>> fnfSubscribers;
     private final Map<String, String> idToType;
+    private final Supplier<ReactiveSocket> createClient;
     private CountDownLatch count;
 
-    public JavaClientDriver(String path) throws FileNotFoundException {
+    public JavaClientDriver(String path, Supplier<ReactiveSocket> createClient) throws FileNotFoundException {
         this.reader = new BufferedReader(new FileReader(path));
         this.payloadSubscribers = new HashMap<>();
         this.fnfSubscribers = new HashMap<>();
         this.idToType = new HashMap<>();
+        this.createClient = createClient;
     }
 
+    /**
+     * Splits the test file into individual tests, and then run each of them on their own thread.
+     * @throws IOException
+     */
     public void runTests() throws IOException {
         List<List<String>> tests = new ArrayList<>();
         List<String> test = new ArrayList<>();
@@ -80,12 +95,23 @@ public class JavaClientDriver {
         }
     }
 
-    public Optional<Boolean> parse(List<String> test) {
+    /**
+     * A wrapper for parse if a test is not named.
+     * @param test
+     * @return
+     */
+    private Optional<Boolean> parse(List<String> test) {
         return parse(test, "");
     }
 
 
-    public Optional<Boolean> parse(List<String> test, String name) {
+    /**
+     * Parses through the commands for each test, and calls handlers that execute the commands.
+     * @param test the list of strings which makes up each test case
+     * @param name the name of the test
+     * @return an option with either true if the test passed, false if it failed, or empty if no subscribers were found
+     */
+    private Optional<Boolean> parse(List<String> test, String name) {
         List<String> id = new ArrayList<>();
         Iterator<String> iter = test.iterator();
         while (iter.hasNext()) {
@@ -164,7 +190,7 @@ public class JavaClientDriver {
             }
 
         }
-
+        // this check each of the subscribers to see that they all passed their assertions
         if (id.size() > 0) {
             boolean hasPassed = true;
             for (String str : id) {
@@ -182,7 +208,7 @@ public class JavaClientDriver {
                 TestSubscriber<Payload> rrsub = new TestSubscriber<>(0L);
                 payloadSubscribers.put(args[2], rrsub);
                 idToType.put(args[2], args[1]);
-                ReactiveSocket rrclient = JavaTCPClient.createClient();
+                ReactiveSocket rrclient = createClient.get();
                 Publisher<Payload> rrpub = rrclient.requestResponse(new PayloadImpl(args[3], args[4]));
                 rrpub.subscribe(rrsub);
                 break;
@@ -190,7 +216,7 @@ public class JavaClientDriver {
                 TestSubscriber<Payload> rssub = new TestSubscriber<>(0L);
                 payloadSubscribers.put(args[2], rssub);
                 idToType.put(args[2], args[1]);
-                ReactiveSocket rsclient = JavaTCPClient.createClient();
+                ReactiveSocket rsclient = createClient.get();
                 Publisher<Payload> rspub = rsclient.requestStream(new PayloadImpl(args[3], args[4]));
                 rspub.subscribe(rssub);
                 break;
@@ -198,7 +224,7 @@ public class JavaClientDriver {
                 TestSubscriber<Payload> rsubsub = new TestSubscriber<>(0L);
                 payloadSubscribers.put(args[2], rsubsub);
                 idToType.put(args[2], args[1]);
-                ReactiveSocket rsubclient = JavaTCPClient.createClient();
+                ReactiveSocket rsubclient = createClient.get();
                 Publisher<Payload> rsubpub = rsubclient.requestSubscription(new PayloadImpl(args[3], args[4]));
                 rsubpub.subscribe(rsubsub);
                 break;
@@ -206,7 +232,7 @@ public class JavaClientDriver {
                 TestSubscriber<Void> fnfsub = new TestSubscriber<>(0L);
                 fnfSubscribers.put(args[2], fnfsub);
                 idToType.put(args[2], args[1]);
-                ReactiveSocket fnfclient = JavaTCPClient.createClient();
+                ReactiveSocket fnfclient = createClient.get();
                 Publisher<Void> fnfpub = fnfclient.fireAndForget(new PayloadImpl(args[3], args[4]));
                 fnfpub.subscribe(fnfsub);
                 break;
@@ -214,6 +240,14 @@ public class JavaClientDriver {
         }
     }
 
+    /**
+     * This function takes in an iterator that is parsing through the test, and collects all the parts that make up
+     * the channel functionality. It then create a thread that runs the test, which we wait to finish before proceeding
+     * with the other tests.
+     * @param args
+     * @param iter
+     * @param name
+     */
     private void handleChannel(String[] args, Iterator<String> iter, String name) {
         List<String> commands = new ArrayList<>();
         String line = iter.next();
@@ -232,7 +266,7 @@ public class JavaClientDriver {
 
         // we now create the publisher that the server will subscribe to with its own subscriber
         // we want to give that subscriber a subscription that the client will use to send data to the server
-        ReactiveSocket client = JavaTCPClient.createClient();
+        ReactiveSocket client = createClient.get();
         PCTWrapper mypct = new PCTWrapper();
         Publisher<Payload> pub = client.requestChannel(new Publisher<Payload>() {
             @Override
@@ -256,6 +290,9 @@ public class JavaClientDriver {
         mypct.get().join();
     }
 
+    /**
+     * Trivial class that wraps around the ParseChannelThread
+     */
     private class PCTWrapper {
         ParseChannelThread p;
         public void set(ParseChannelThread p) {
@@ -266,10 +303,15 @@ public class JavaClientDriver {
         }
     }
 
+    /**
+     * This handles echo tests. This sets up a channel connection with the EchoSubscription, which we pass to
+     * the TestSubscriber.
+     * @param args
+     */
     private void handleEchoChannel(String[] args) {
         Payload initPayload = new PayloadImpl(args[1], args[2]);
         TestSubscriber<Payload> testsub = new TestSubscriber<>(1L);
-        ReactiveSocket client = JavaTCPClient.createClient();
+        ReactiveSocket client = createClient.get();
         Publisher<Payload> pub = client.requestChannel(new Publisher<Payload>() {
             @Override
             public void subscribe(Subscriber<? super Payload> s) {
@@ -485,6 +527,9 @@ public class JavaClientDriver {
 
     }
 
+    /**
+     * A subscription for channel, it handles request(n) by sort of faking an initial payload.
+     */
     private class TestSubscription implements Subscription {
         private boolean firstRequest = true;
         private ParseMarble pm;
@@ -510,7 +555,7 @@ public class JavaClientDriver {
                 firstRequest = false;
                 m = m - 1;
             }
-            pm.request(m);
+            if (m > 0) pm.request(m);
         }
     }
 

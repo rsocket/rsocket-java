@@ -23,7 +23,9 @@ import java.util.*;
 import java.util.concurrent.CountDownLatch;
 
 /**
- * This class is rather straight forward for most interactions except for channel.
+ * This class parses through a marble diagram, but also implements a backpressure buffer so that the rate at
+ * which producers add values can be much faster than the rate at which consumers consume values.
+ * The backpressure buffer is the marble string
  */
 public class ParseMarble {
 
@@ -36,8 +38,13 @@ public class ParseMarble {
     private int marbleIndex = 0;
     private CountDownLatch parseLatch;
     private CountDownLatch sendLatch;
-    private UUID id = UUID.randomUUID();
 
+    /**
+     * This constructor is useful if one already has the entire marble diagram before hand, so add() does not need to
+     * be called.
+     * @param marble the whole marble diagram
+     * @param s the subscriber
+     */
     public ParseMarble(String marble, Subscriber<? super Payload> s) {
         this.s = s;
         this.marble = marble;
@@ -56,7 +63,10 @@ public class ParseMarble {
         sendLatch = new CountDownLatch(1);
     }
 
-    // this is for channel, when the marble can be added incrementally
+    /**
+     * This constructor is useful for channel, when the marble diagram will be build incrementally.
+     * @param s the subscriber
+     */
     public ParseMarble(Subscriber<? super Payload> s) {
         this.s = s;
         this.marble = "";
@@ -64,31 +74,40 @@ public class ParseMarble {
         sendLatch = new CountDownLatch(1);
     }
 
-    // adds stuff to the end of marble
+    /**
+     * This method is synchronized because we don't want two threads to try to add to the string at once.
+     * Calling this method also unblocks the parseLatch, which allows non-emittable symbols to be sent. In other words,
+     * it allows onNext and onComplete to be sent even if we've sent all the values we've been requested of.
+     * @param m
+     */
     public synchronized void add(String m) {
         System.out.println("adding " + m);
         this.marble += m;
         parseLatch.countDown();
     }
 
+    /**
+     * This method is synchronized because we only want to process one request at one time. Calling this method unblocks
+     * the sendLatch as well as the parseLatch if we have more requests,
+     * as it allows both emitted and non-emitted symbols to be sent,
+     * @param n
+     */
     public synchronized void request(long n) {
         System.out.println("requested" + n);
-        System.out.println(this.id);
         numRequested += n;
         if (marble.length() > marbleIndex) {
             parseLatch.countDown();
-            sendLatch.countDown();
         }
+        if (n > 0) sendLatch.countDown();
     }
 
-    // this parses the actual marble diagram and acts out the behavior
-    // should be called upon triggering a handler
+    /**
+     * This function calls parse and executes the specified behavior in each line of commands
+     */
     public void parse() {
         try {
             // if cancel has been called, don't do anything
             if (cancelled) return;
-            String buffer = "";
-            boolean grouped = false;
             while (true) {
                 if (marbleIndex >= marble.length()) {
                     synchronized (parseLatch) {
@@ -100,27 +119,20 @@ public class ParseMarble {
                 char c = marble.charAt(marbleIndex);
                 switch (c) {
                     case '-':
-                        if (grouped) buffer += c;
-                        else try {
-                            Thread.sleep(10);
-                        } catch (Exception e) {
-                            System.out.println("Interrupted");
-                        }
+                        // ignore the '-' characters
                         break;
                     case '|':
-                        if (grouped) buffer += c;
-                        else s.onComplete();
+                        s.onComplete();
                         System.out.println("on complete sent");
                         break;
                     case '#':
-                        if (grouped) buffer += c;
-                        else s.onError(new Throwable("error"));
+                        s.onError(new Throwable());
                         break;
                     case '(':
-                        // ignore groupings for now
+                        // ignore groupings
                         break;
                     case ')':
-                        // ignore groupings for now
+                        // ignore groupings
                         break;
                     default:
                         if (numSent >= numRequested) {
@@ -156,8 +168,9 @@ public class ParseMarble {
 
     }
 
-    // cancel says that values will eventually stop being sent, which means we can wait till we've processed the initial
-    // batch before sending
+    /**
+     * Since cancel is async, it just means that we will eventually, and rather quickly, stop emitting values.
+     */
     public void cancel() {
         cancelled = true;
     }

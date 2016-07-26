@@ -17,6 +17,7 @@ import io.reactivesocket.Payload;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -33,6 +34,8 @@ public class ParseChannel {
     private TestSubscriber<Payload> sub;
     private ParseMarble parseMarble;
     private String name = "";
+    private CountDownLatch prevRespondLatch;
+    private CountDownLatch currentRespondLatch;
 
     public ParseChannel(List<String> commands, TestSubscriber<Payload> sub, ParseMarble parseMarble) {
         this.commands = commands;
@@ -51,7 +54,9 @@ public class ParseChannel {
         parseThread.start();
     }
 
-
+    /**
+     * This parses through each line of the marble test and executes the commands in each line
+     */
     public void parse() {
         for (String line : commands) {
             String[] args = line.split("%%");
@@ -109,7 +114,7 @@ public class ParseChannel {
                     }
                     break;
                 case "take":
-                    handleTake(args);
+                    sub.take(Long.parseLong(args[1]));
                     break;
                 case "request":
                     sub.request(Long.parseLong(args[1]));
@@ -127,16 +132,18 @@ public class ParseChannel {
         else System.out.println(ANSI_RED + name + " FAILED" + ANSI_RESET);
     }
 
+    /**
+     * On handling a command to respond with something, we create an AddThread and pass in latches to make sure
+     * that we don't let this thread request to add something before the previous thread has added something.
+     * @param args
+     */
     private void handleResponse(String[] args) {
         System.out.println("responding");
-        AddThread addThread = new AddThread(args[1], parseMarble);
+        if (currentRespondLatch == null) currentRespondLatch = new CountDownLatch(1);
+        AddThread addThread = new AddThread(args[1], parseMarble, prevRespondLatch, currentRespondLatch);
+        prevRespondLatch = currentRespondLatch;
+        currentRespondLatch = new CountDownLatch(1);
         addThread.start();
-    }
-
-    private void handleTake(String[] args) {
-        RequestThread requestThread = new RequestThread(Long.parseLong(args[1]), parseMarble);
-        requestThread.start();
-        sub.cancel();
     }
 
     private void handleReceived(String[] args) {

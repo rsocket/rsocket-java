@@ -25,7 +25,9 @@ import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
-
+/**
+ * This is the driver for the server.
+ */
 public class JavaServerDriver {
 
     private String path;
@@ -39,7 +41,6 @@ public class JavaServerDriver {
     private Set<Tuple<String, String>> requestEchoChannel;
     // first try to implement single channel subscriber
     private BufferedReader reader;
-    // will implement channel later
 
     public JavaServerDriver(String path) {
         this.path = path;
@@ -55,7 +56,14 @@ public class JavaServerDriver {
         }
     }
 
-    // this parses the text file and primes the marble diagram
+    /**
+     * This function parses through each line of the server handlers and primes the supporting data structures to
+     * be prepared for the first request. We return a RequestHandler object, which tells the ReactiveSocket server
+     * how to handle each type of request. The code inside the RequestHandler is lazily evaluated, and only does so
+     * before the first request. This may lead to a sort of bug, where getting concurrent requests as an initial request
+     * will nondeterministically lead to some data structures to not be initialized.
+     * @return a RequestHandler that details how to handle each type of request.
+     */
     public RequestHandler parse() {
         try {
             String line = reader.readLine();
@@ -87,7 +95,6 @@ public class JavaServerDriver {
 
         } catch (Exception e) {
             e.printStackTrace();
-            //System.out.println("reader exception");
         }
 
         return new RequestHandler.Builder().withFireAndForget(payload -> s -> {
@@ -135,7 +142,6 @@ public class JavaServerDriver {
                 Tuple<String, String> initpayload = new Tuple<>(sub.getElement(0).getK(), sub.getElement(0).getV());
                 System.out.println(initpayload.getK() + " " + initpayload.getV());
                 // if this is a normal channel handler, then initiate the normal setup
-
                 if (requestChannelCommands.containsKey(initpayload)) {
                     ParseMarble pm = new ParseMarble(s);
                     s.onSubscribe(new TestSubscription(pm));
@@ -146,7 +152,7 @@ public class JavaServerDriver {
                     EchoSubscription echoSubscription = new EchoSubscription(s);
                     s.onSubscribe(echoSubscription);
                     sub.setEcho(echoSubscription);
-                    sub.request(10000);
+                    sub.request(10000); // request a large number, which basically means the client can send whatever
                 }
 
             } catch (Exception e) {

@@ -770,7 +770,6 @@ public class TestSubscriber<T> implements Subscriber<T>, Subscription, Disposabl
      *
      * @param values the values expected
      * @return this
-     * @see #assertValueSet(Collection)
      */
     public final TestSubscriber assertValues(List<Tuple<String, String>> values) {
         String prefix = "";
@@ -799,69 +798,6 @@ public class TestSubscriber<T> implements Subscriber<T>, Subscription, Disposabl
         return this;
     }
 
-    /**
-     * Assert that the TestSubscriber received only the specified values in any order.
-     * <p>This helps asserting when the order of the values is not guaranteed, i.e., when merging
-     * asynchronous streams.
-     *
-     * @param values the collection of values expected in any order
-     * @return this
-     */
-    public final TestSubscriber assertValueSet(Collection<? extends Tuple<String, String>> values) {
-        String prefix = "";
-        if (done.getCount() != 0) {
-            prefix = "Subscriber still running! ";
-        }
-        int s = this.values.size();
-        if (s != values.size()) {
-            fail(prefix, "Value count differs; Expected: " + values.size() + " " + values
-                    + ", Actual: " + s + " " + this.values, errors);
-        }
-        for (int i = 0; i < s; i++) {
-            Tuple<String, String> v = this.values.get(i);
-
-            if (!values.contains(v)) {
-                fail(prefix, "Value not in the expected collection: " + valueAndClass(v), errors);
-            }
-        }
-        return this;
-    }
-
-    /**
-     * Assert that the TestSubscriber received only the specified sequence of values in the same order.
-     *
-     * @param sequence the sequence of expected values in order
-     * @return this
-     */
-    public final TestSubscriber assertValueSequence(Iterable<? extends Tuple<String, String>> sequence) {
-        String prefix = "";
-        if (done.getCount() != 0) {
-            prefix = "Subscriber still running! ";
-        }
-        int i = 0;
-        Iterator<Tuple<String, String>> vit = values.iterator();
-        Iterator<? extends Tuple<String, String>> it = sequence.iterator();
-        boolean itNext = false;
-        boolean vitNext = false;
-        while ((itNext = it.hasNext()) && (vitNext = vit.hasNext())) {
-            Tuple<String, String> v = it.next();
-            Tuple<String, String> u = vit.next();
-
-            if (!Objects.equals(u, v)) {
-                fail(prefix, "Values at position " + i + " differ; Expected: "
-                        + valueAndClass(u) + ", Actual: " + valueAndClass(v), errors);
-            }
-            i++;
-        }
-
-        if (itNext && !vitNext) {
-            fail(prefix, "More values received than expected (" + i + ")", errors);
-        }
-        if (!itNext && !vitNext) {
-            fail(prefix, "Fever values received than expected (" + i + ")", errors);
-        }
-        return this;
-    }
 
     /**
      * Assert that the TestSubscriber terminated (i.e., the terminal latch reached zero).
@@ -964,112 +900,6 @@ public class TestSubscriber<T> implements Subscriber<T>, Subscription, Disposabl
             Thread.currentThread().interrupt();
             return false;
         }
-    }
-
-    /**
-     * Assert that there is only a single error with the given message.
-     *
-     * @param message the message to check
-     * @return this
-     */
-    public final TestSubscriber assertErrorMessage(String message) {
-        String prefix = "";
-        if (done.getCount() != 0) {
-            prefix = "Subscriber still running! ";
-        }
-        int s = errors.size();
-        if (s == 0) {
-            fail(prefix, "No errors", Collections.<Throwable>emptyList());
-        } else if (s == 1) {
-            Throwable e = errors.get(0);
-            if (e == null) {
-                fail(prefix, "Error is null", Collections.<Throwable>emptyList());
-            }
-            String errorMessage = e.getMessage();
-            if (!Objects.equals(message, errorMessage)) {
-                fail(prefix, "Error message differs; Expected: " + message + ", Actual: "
-                        + errorMessage, Collections.singletonList(e));
-            }
-        } else {
-            fail(prefix, "Multiple errors", errors);
-        }
-        return this;
-    }
-
-    /**
-     * Returns a list of 3 other lists: the first inner list contains the plain
-     * values received; the second list contains the potential errors
-     * and the final list contains the potential completions as Notifications.
-     *
-     * @return a list of (values, errors, completion-notifications)
-     */
-    @SuppressWarnings({"rawtypes", "unchecked"})
-    public final List<List<Object>> getEvents() {
-        List<List<Object>> result = new ArrayList<List<Object>>();
-
-        result.add((List) values());
-
-        result.add((List) errors());
-
-        List<Object> completeList = new ArrayList<Object>();
-        for (long i = 0; i < completions; i++) {
-            completeList.add(Notification.complete());
-        }
-        result.add(completeList);
-
-        return result;
-    }
-
-    /**
-     * Sets the initial fusion mode if the upstream supports fusion.
-     *
-     * @param mode the mode to establish, see the {@link QueueSubscription} constants
-     * @return this
-     */
-    public final TestSubscriber setInitialFusionMode(int mode) {
-        this.initialFusionMode = mode;
-        return this;
-    }
-
-    /**
-     * Asserts that the given fusion mode has been established
-     *
-     * @param mode the expected mode
-     * @return this
-     */
-    public final TestSubscriber assertFusionMode(int mode) {
-        if (establishedFusionMode != mode) {
-            if (qs != null) {
-                throw new AssertionError("Fusion mode different. Expected: " + mode + ", actual: " + establishedFusionMode);
-            } else {
-                throw new AssertionError("Upstream is not fuseable");
-            }
-        }
-        return this;
-    }
-
-    /**
-     * Assert that the upstream is a fuseable source.
-     *
-     * @return this
-     */
-    public TestSubscriber assertFuseable() {
-        if (qs == null) {
-            throw new AssertionError("Upstream is not fuseable.");
-        }
-        return this;
-    }
-
-    /**
-     * Assert that the upstream is not a fuseable source.
-     *
-     * @return this
-     */
-    public TestSubscriber assertNotFuseable() {
-        if (qs != null) {
-            throw new AssertionError("Upstream is fuseable.");
-        }
-        return this;
     }
 
     /**

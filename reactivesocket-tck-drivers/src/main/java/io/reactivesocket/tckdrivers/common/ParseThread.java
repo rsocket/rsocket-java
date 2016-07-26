@@ -13,6 +13,9 @@
 
 package io.reactivesocket.tckdrivers.common;
 
+/**
+ * This thread calls parse on the parseMarble object.
+ */
 public class ParseThread implements Runnable {
 
     private ParseMarble pm;

@@ -2,7 +2,6 @@ package io.reactivesocket.tckdrivers.common;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.ser.std.IterableSerializer;
 import io.reactivesocket.Payload;
 import io.reactivesocket.util.PayloadImpl;
 import org.reactivestreams.Publisher;
@@ -13,11 +12,14 @@ import rx.functions.Func1;
 import rx.observables.AsyncOnSubscribe;
 import rx.observables.SyncOnSubscribe;
 import rx.schedulers.Schedulers;
-import rx.subjects.*;
+import rx.subjects.ReplaySubject;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
+/**
+ * This class may eventually be used as a more concise way to create publishers.
+ */
 public class MarblePublisher implements Publisher<Payload> {
 
     private Publisher<Payload> pub;
@@ -35,7 +37,6 @@ public class MarblePublisher implements Publisher<Payload> {
     @Override
     public void subscribe(Subscriber<? super Payload> s) {
         this.pub.subscribe(s);
-        //this.pub2.subscribe(s);
         // TODO: Is there a cleaner way to do this?
         while (!this.ps.hasObservers()) {
             try {
@@ -111,7 +112,7 @@ public class MarblePublisher implements Publisher<Payload> {
     /**
      * This function seeks to create a more complex publisher behavior
      * @param marble
-     * @return
+     * @return an Observable of the marble string
      */
     private Observable<Payload> createObservable(String marble) {
         return Observable.create(SyncOnSubscribe.<Iterator<Character>, Payload>createStateful(
@@ -164,6 +165,11 @@ public class MarblePublisher implements Publisher<Payload> {
         });
     }
 
+    /**
+     * We need to create a hot observable if we want to create a subscription connection (a stream without a terminal)
+     * @param marble
+     * @return an Observable of the marble string
+     */
     private Observable<Payload> createHotObservable(String marble) {
         List<Character> list = new ArrayList<>();
         for (char c : marble.toCharArray()) {

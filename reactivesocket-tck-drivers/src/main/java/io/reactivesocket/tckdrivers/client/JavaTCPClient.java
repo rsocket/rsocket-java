@@ -13,14 +13,11 @@
 
 package io.reactivesocket.tckdrivers.client;
 
-import io.airlift.airline.*;
 import io.netty.buffer.ByteBuf;
 import io.netty.handler.logging.LogLevel;
 import io.reactivesocket.ConnectionSetupPayload;
 import io.reactivesocket.ReactiveSocket;
-import io.reactivesocket.tckdrivers.test.Main;
 import io.reactivesocket.transport.tcp.client.TcpReactiveSocketConnector;
-import io.reactivex.Single;
 import io.reactivex.netty.protocol.tcp.client.TcpClient;
 
 import java.net.*;
@@ -28,7 +25,9 @@ import java.util.function.Function;
 
 import static rx.RxReactiveStreams.toObservable;
 
-// this client should parse the test cases we wrote and use them to
+/**
+ * A client that implements a method to create ReactiveSockets, and runs the tests.
+ */
 public class JavaTCPClient {
 
     private static URI uri;
@@ -42,7 +41,7 @@ public class JavaTCPClient {
         if (realfile != null) file = realfile;
         try {
             setURI(new URI("tcp://" + host + ":" + port + "/rs"));
-            JavaClientDriver jd = new JavaClientDriver(file);
+            JavaClientDriver jd = new JavaClientDriver(file, JavaTCPClient::createClient);
             jd.runTests();
         } catch (Exception e) {
             e.printStackTrace();
@@ -53,6 +52,10 @@ public class JavaTCPClient {
         uri = uri2;
     }
 
+    /**
+     * A function that creates a ReactiveSocket on a new TCP connection.
+     * @return a ReactiveSocket
+     */
     public static ReactiveSocket createClient() {
         ConnectionSetupPayload setupPayload = ConnectionSetupPayload.create("", "");
 
