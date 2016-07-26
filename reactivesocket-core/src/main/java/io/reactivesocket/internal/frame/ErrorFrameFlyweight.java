@@ -41,7 +41,7 @@ public class ErrorFrameFlyweight {
     public static final int REJECTED_SETUP = 0x0003;
     public static final int CONNECTION_ERROR = 0x0101;
     public static final int APPLICATION_ERROR = 0x0201;
-    public static final int REJECTED = 0x0022;
+    public static final int REJECTED = 0x0202;
     public static final int CANCEL = 0x0203;
     public static final int INVALID = 0x0204;
 
