@@ -19,8 +19,7 @@ import io.reactivesocket.Frame;
 import io.reactivesocket.LeaseGovernor;
 import io.reactivesocket.internal.Responder;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -44,7 +43,9 @@ public class FairLeaseGovernor implements LeaseGovernor {
 
             // it would be more fair to randomized the distribution of extra
             int extra = tickets - budget * responders.size();
-            for (Responder responder: responders.keySet()) {
+            List<Responder> clients = new ArrayList<>(responders.keySet());;
+            Collections.shuffle(clients);
+            for (Responder responder: clients) {
                 int n = budget;
                 if (extra > 0) {
                     n += 1;
