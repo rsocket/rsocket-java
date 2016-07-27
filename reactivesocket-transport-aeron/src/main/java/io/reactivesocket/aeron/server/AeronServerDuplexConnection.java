@@ -23,6 +23,7 @@ import io.reactivesocket.aeron.internal.Constants;
 import io.reactivesocket.aeron.internal.Loggable;
 import io.reactivesocket.aeron.internal.MessageType;
 import io.reactivesocket.aeron.internal.NotConnectedException;
+import io.reactivesocket.internal.EmptySubject;
 import io.reactivesocket.rx.Completable;
 import io.reactivesocket.rx.Disposable;
 import io.reactivesocket.rx.Observable;
@@ -38,6 +39,7 @@ public class AeronServerDuplexConnection implements DuplexConnection, Loggable {
     private final Publication publication;
     private final CopyOnWriteArrayList<Observer<Frame>> subjects;
     private volatile boolean isClosed;
+    private final EmptySubject closeSubject = new EmptySubject();
 
     public AeronServerDuplexConnection(
         Publication publication) {
@@ -106,11 +108,20 @@ public class AeronServerDuplexConnection implements DuplexConnection, Loggable {
     }
 
     @Override
-    public void close() {
-        isClosed = true;
-        try {
-            publication.close();
-        } catch (Throwable t) {}
+    public Publisher<Void> close() {
+        return s -> {
+            if (!isClosed) {
+                isClosed = true;
+                publication.close();
+                closeSubject.onComplete();
+            }
+            closeSubject.subscribe(s);
+        };
+    }
+
+    @Override
+    public Publisher<Void> onClose() {
+        return closeSubject;
     }
 
     public String toString() {

@@ -16,9 +16,9 @@
 package io.reactivesocket;
 
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.TimeUnit;
 
-import org.apache.commons.math3.stat.inference.TestUtils;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Mode;
@@ -34,7 +34,7 @@ public class FramePerf {
 
 	public static Frame utf8EncodedFrame(final int streamId, final FrameType type, final String data)
 	{
-		final byte[] bytes = data.getBytes();
+		final byte[] bytes = data.getBytes(StandardCharsets.UTF_8);
 		final ByteBuffer byteBuffer = ByteBuffer.wrap(bytes);
 		final Payload payload = new Payload()
 		{
@@ -83,7 +83,7 @@ public class FramePerf {
 		 */
 		public Blackhole bh;
 		
-		public ByteBuffer HELLO = ByteBuffer.wrap("HELLO".getBytes());
+		public ByteBuffer HELLO = ByteBuffer.wrap("HELLO".getBytes(StandardCharsets.UTF_8));
 		public Payload HELLOpayload = new Payload()
 		{
 			public ByteBuffer getData()

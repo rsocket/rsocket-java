@@ -1,11 +1,25 @@
+/**
+ * Copyright 2016 Netflix, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package io.reactivesocket.lease;
 
 import io.reactivesocket.Frame;
 import io.reactivesocket.LeaseGovernor;
 import io.reactivesocket.internal.Responder;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -15,11 +29,11 @@ import java.util.concurrent.TimeUnit;
  * Distribute evenly a static number of tickets to all connected clients.
  */
 public class FairLeaseGovernor implements LeaseGovernor {
-    private static ScheduledExecutorService EXECUTOR = Executors.newScheduledThreadPool(1);
-
     private final int tickets;
     private final long period;
     private final TimeUnit unit;
+    private final ScheduledExecutorService executor;
+
     private final Map<Responder, Integer> responders;
     private ScheduledFuture<?> runningTask;
 
@@ -29,7 +43,9 @@ public class FairLeaseGovernor implements LeaseGovernor {
 
             // it would be more fair to randomized the distribution of extra
             int extra = tickets - budget * responders.size();
-            for (Responder responder: responders.keySet()) {
+            List<Responder> clients = new ArrayList<>(responders.keySet());;
+            Collections.shuffle(clients);
+            for (Responder responder: clients) {
                 int n = budget;
                 if (extra > 0) {
                     n += 1;
@@ -41,11 +57,21 @@ public class FairLeaseGovernor implements LeaseGovernor {
         }
     }
 
-    public FairLeaseGovernor(int tickets, long period, TimeUnit unit) {
+    public FairLeaseGovernor(int tickets, long period, TimeUnit unit, ScheduledExecutorService executor) {
         this.tickets = tickets;
         this.period = period;
         this.unit = unit;
+        this.executor = executor;
         responders = new HashMap<>();
+    }
+
+    public FairLeaseGovernor(int tickets, long period, TimeUnit unit) {
+        this(tickets, period, unit, Executors.newScheduledThreadPool(2, runnable -> {
+            Thread thread = new Thread(runnable);
+            thread.setDaemon(true);
+            thread.setName("FairLeaseGovernor");
+            return thread;
+        }));
     }
 
     @Override
@@ -53,7 +79,7 @@ public class FairLeaseGovernor implements LeaseGovernor {
         responders.put(responder, 0);
         if (runningTask == null) {
             final int ttl = (int)TimeUnit.NANOSECONDS.convert(period, unit);
-            runningTask = EXECUTOR.scheduleAtFixedRate(() -> distribute(ttl), 0, period, unit);
+            runningTask = executor.scheduleAtFixedRate(() -> distribute(ttl), 0, period, unit);
         }
     }
 
@@ -68,8 +94,13 @@ public class FairLeaseGovernor implements LeaseGovernor {
 
     @Override
     public synchronized boolean accept(Responder responder, Frame frame) {
-        boolean valid;
-        final Integer remainingTickets = responders.get(responder);
-        return remainingTickets == null || remainingTickets > 0;
+        Integer remainingTickets = responders.get(responder);
+        if (remainingTickets != null) {
+            remainingTickets--;
+        } else {
+            remainingTickets = -1;
+        }
+        responders.put(responder, remainingTickets);
+        return remainingTickets >= 0;
     }
 }

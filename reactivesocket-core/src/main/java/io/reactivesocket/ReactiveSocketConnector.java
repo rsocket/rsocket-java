@@ -32,8 +32,8 @@ public interface ReactiveSocketConnector<T> {
      * @param address the address to connect the connector to
      * @return the factory
      */
-    default ReactiveSocketFactory<T> toFactory(T address) {
-        return new ReactiveSocketFactory<T>() {
+    default ReactiveSocketFactory toFactory(T address) {
+        return new ReactiveSocketFactory() {
             @Override
             public Publisher<ReactiveSocket> apply() {
                 return connect(address);
@@ -44,10 +44,6 @@ public interface ReactiveSocketConnector<T> {
                 return 1.0;
             }
 
-            @Override
-            public T remote() {
-                return address;
-            }
         };
     }
 }

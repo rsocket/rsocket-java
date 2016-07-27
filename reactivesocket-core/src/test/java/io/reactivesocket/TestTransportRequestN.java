@@ -15,7 +15,9 @@
  */
 package io.reactivesocket;
 
+import io.reactivesocket.internal.Publishers;
 import io.reactivesocket.lease.FairLeaseGovernor;
+import io.reactivesocket.util.Unsafe;
 import io.reactivex.subscribers.TestSubscriber;
 import org.junit.After;
 import org.junit.Ignore;
@@ -224,20 +226,16 @@ public class TestTransportRequestN {
 				err -> err.printStackTrace());
 
 		// start both the server and client and monitor for errors
-		socketServer.startAndWait();
-		socketClient.startAndWait();
+		Unsafe.startAndWait(socketServer);
+		Unsafe.startAndWait(socketClient);
 	}
 
 	@After
 	public void shutdown() {
-		socketServer.shutdown();
-		socketClient.shutdown();
-		try {
-			clientConnection.close();
-			serverConnection.close();
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
+		Publishers.afterTerminate(socketServer.close(), () -> {});
+		Publishers.afterTerminate(socketClient.close(), () -> {});
+		Publishers.afterTerminate(clientConnection.close(), () -> {});
+		Publishers.afterTerminate(serverConnection.close(), () -> {});
 	}
 
 }

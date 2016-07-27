@@ -2,6 +2,7 @@ package io.reactivesocket.client;
 
 import io.reactivesocket.Payload;
 import io.reactivesocket.ReactiveSocket;
+import io.reactivesocket.internal.EmptySubject;
 import io.reactivesocket.internal.rx.EmptySubscription;
 import io.reactivesocket.rx.Completable;
 import org.reactivestreams.Publisher;
@@ -9,15 +10,25 @@ import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
 public class TestingReactiveSocket implements ReactiveSocket {
-    private final Function<Payload, Payload> responder;
+
     private final AtomicInteger count;
+    private final EmptySubject closeSubject = new EmptySubject();
+    private final BiFunction<Subscriber<? super Payload>, Payload, Boolean> eachPayloadHandler;
 
     public TestingReactiveSocket(Function<Payload, Payload> responder) {
-        this.responder = responder;
+        this((subscriber, payload) -> {
+            subscriber.onNext(responder.apply(payload));
+            return true;
+        });
+    }
+
+    public TestingReactiveSocket(BiFunction<Subscriber<? super Payload>, Payload, Boolean> eachPayloadHandler) {
+        this.eachPayloadHandler = eachPayloadHandler;
         this.count = new AtomicInteger(0);
     }
 
@@ -37,7 +48,7 @@ public class TestingReactiveSocket implements ReactiveSocket {
     public Publisher<Payload> requestResponse(Payload payload) {
         return subscriber ->
             subscriber.onSubscribe(new Subscription() {
-                boolean cancelled = false;
+                boolean cancelled;
 
                 @Override
                 public void request(long n) {
@@ -46,9 +57,9 @@ public class TestingReactiveSocket implements ReactiveSocket {
                     }
                     try {
                         count.incrementAndGet();
-                        Payload response = responder.apply(payload);
-                        subscriber.onNext(response);
-                        subscriber.onComplete();
+                        if (eachPayloadHandler.apply(subscriber, payload)) {
+                            subscriber.onComplete();
+                        }
                     } catch (Throwable t) {
                         subscriber.onError(t);
                     }
@@ -80,8 +91,7 @@ public class TestingReactiveSocket implements ReactiveSocket {
 
                 @Override
                 public void onNext(Payload input) {
-                    Payload response = responder.apply(input);
-                    subscriber.onNext(response);
+                    eachPayloadHandler.apply(subscriber, input);
                 }
 
                 @Override
@@ -120,16 +130,20 @@ public class TestingReactiveSocket implements ReactiveSocket {
     }
 
     @Override
-    public void onShutdown(Completable c) {}
-
-    @Override
     public void sendLease(int ttl, int numberOfRequests) {
         throw new RuntimeException("Not Implemented");
     }
 
     @Override
-    public void shutdown() {}
+    public Publisher<Void> close() {
+        return s -> {
+            closeSubject.onComplete();
+            closeSubject.subscribe(s);
+        };
+    }
 
     @Override
-    public void close() throws Exception {}
+    public Publisher<Void> onClose() {
+        return closeSubject;
+    }
 }

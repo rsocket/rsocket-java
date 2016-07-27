@@ -35,6 +35,7 @@ import io.reactivesocket.RequestHandler;
 import io.reactivesocket.transport.websocket.client.ClientWebSocketDuplexConnection;
 import io.reactivesocket.transport.websocket.server.ReactiveSocketServerHandler;
 import io.reactivesocket.test.TestUtil;
+import io.reactivesocket.util.Unsafe;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -131,8 +132,7 @@ public class ClientServerTest {
         client = DefaultReactiveSocket
             .fromClientConnection(duplexConnection, ConnectionSetupPayload.create("UTF-8", "UTF-8"), t -> t.printStackTrace());
 
-        client.startAndWait();
-
+        Unsafe.startAndWait(client);
     }
 
     @AfterClass

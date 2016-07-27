@@ -27,10 +27,8 @@ import java.util.Iterator;
  *
  * Not thread-safe
  */
-public class PayloadFragmenter implements Iterable<Frame>, Iterator<Frame>
-{
-    private enum Type
-    {
+public class PayloadFragmenter implements Iterable<Frame>, Iterator<Frame> {
+    private enum Type {
         RESPONSE, RESPONSE_COMPLETE, REQUEST_CHANNEL
     }
 
@@ -44,51 +42,43 @@ public class PayloadFragmenter implements Iterable<Frame>, Iterator<Frame>
     private int streamId;
     private int initialRequestN;
 
-    public PayloadFragmenter(final int metadataMtu, final int dataMtu)
-    {
+    public PayloadFragmenter(final int metadataMtu, final int dataMtu) {
         this.metadataMtu = metadataMtu;
         this.dataMtu = dataMtu;
     }
 
-    public void resetForResponse(final int streamId, final Payload payload)
-    {
+    public void resetForResponse(final int streamId, final Payload payload) {
         reset(streamId, payload);
         type = Type.RESPONSE;
     }
 
-    public void resetForResponseComplete(final int streamId, final Payload payload)
-    {
+    public void resetForResponseComplete(final int streamId, final Payload payload) {
         reset(streamId, payload);
         type = Type.RESPONSE_COMPLETE;
     }
 
-    public void resetForRequestChannel(final int streamId, final Payload payload, final int initialRequestN)
-    {
+    public void resetForRequestChannel(final int streamId, final Payload payload, final int initialRequestN) {
         reset(streamId, payload);
         type = Type.REQUEST_CHANNEL;
         this.initialRequestN = initialRequestN;
     }
 
-    public static boolean requiresFragmenting(final int metadataMtu, final int dataMtu, final Payload payload)
-    {
+    public static boolean requiresFragmenting(final int metadataMtu, final int dataMtu, final Payload payload) {
         final ByteBuffer metadata = payload.getMetadata();
         final ByteBuffer data = payload.getData();
 
         return metadata.remaining() > metadataMtu || data.remaining() > dataMtu;
     }
 
-    public Iterator<Frame> iterator()
-    {
+    public Iterator<Frame> iterator() {
         return this;
     }
 
-    public boolean hasNext()
-    {
-        return dataOffset < data.capacity() || metadataOffset < metadata.remaining();
+    public boolean hasNext() {
+        return dataOffset < data.remaining() || metadataOffset < metadata.remaining();
     }
 
-    public Frame next()
-    {
+    public Frame next() {
         final int metadataLength = Math.min(metadataMtu, metadata.remaining() - metadataOffset);
         final int dataLength = Math.min(dataMtu, data.remaining() - dataOffset);
 
@@ -106,28 +96,21 @@ public class PayloadFragmenter implements Iterable<Frame>, Iterator<Frame>
         final boolean isMoreFollowing = metadataOffset < metadata.remaining() || dataOffset < data.remaining();
         int flags = 0;
 
-        if (Type.RESPONSE == type)
-        {
-            if (isMoreFollowing)
-            {
+        if (Type.RESPONSE == type) {
+            if (isMoreFollowing) {
                 flags |= FrameHeaderFlyweight.FLAGS_RESPONSE_F;
             }
 
             result = Frame.Response.from(streamId, FrameType.NEXT, metadataBuffer, dataBuffer, flags);
         }
-        if (Type.RESPONSE_COMPLETE == type)
-        {
-            if (isMoreFollowing)
-            {
+        if (Type.RESPONSE_COMPLETE == type) {
+            if (isMoreFollowing) {
                 flags |= FrameHeaderFlyweight.FLAGS_RESPONSE_F;
             }
 
             result = Frame.Response.from(streamId, FrameType.NEXT_COMPLETE, metadataBuffer, dataBuffer, flags);
-        }
-        else if (Type.REQUEST_CHANNEL == type)
-        {
-            if (isMoreFollowing)
-            {
+        } else if (Type.REQUEST_CHANNEL == type) {
+            if (isMoreFollowing) {
                 flags |= FrameHeaderFlyweight.FLAGS_REQUEST_CHANNEL_F;
             }
 
@@ -138,8 +121,7 @@ public class PayloadFragmenter implements Iterable<Frame>, Iterator<Frame>
         return result;
     }
 
-    private void reset(final int streamId, final Payload payload)
-    {
+    private void reset(final int streamId, final Payload payload) {
         data = payload.getData();
         metadata = payload.getMetadata();
         metadataOffset = 0;

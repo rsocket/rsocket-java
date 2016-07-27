@@ -15,7 +15,11 @@
  */
 package io.reactivesocket;
 
+import java.nio.ByteBuffer;
+import java.util.concurrent.TimeUnit;
+
 import io.netty.buffer.ByteBufUtil;
+import io.reactivesocket.exceptions.Exceptions;
 import io.reactivesocket.exceptions.RejectedException;
 import io.reactivesocket.internal.frame.SetupFrameFlyweight;
 import org.agrona.concurrent.UnsafeBuffer;
@@ -227,7 +231,7 @@ public class FrameTest {
         assertEquals("request data", TestUtil.byteToString(reusableFrame.getData()));
 
         final ByteBuffer metadataBuffer = reusableFrame.getMetadata();
-        assertEquals(0, metadataBuffer.capacity());
+        assertEquals(0, metadataBuffer.remaining());
         assertEquals(FrameType.REQUEST_RESPONSE, reusableFrame.getType());
         assertEquals(1, reusableFrame.getStreamId());
     }
@@ -245,7 +249,7 @@ public class FrameTest {
         assertEquals("request data", TestUtil.byteToString(reusableFrame.getData()));
 
         final ByteBuffer metadataBuffer = reusableFrame.getMetadata();
-        assertEquals(0, metadataBuffer.capacity());
+        assertEquals(0, metadataBuffer.remaining());
         assertEquals(FrameType.FIRE_AND_FORGET, reusableFrame.getType());
         assertEquals(1, reusableFrame.getStreamId());
     }
@@ -263,7 +267,7 @@ public class FrameTest {
         assertEquals("request data", TestUtil.byteToString(reusableFrame.getData()));
 
         final ByteBuffer metadataBuffer = reusableFrame.getMetadata();
-        assertEquals(0, metadataBuffer.capacity());
+        assertEquals(0, metadataBuffer.remaining());
         assertEquals(FrameType.REQUEST_STREAM, reusableFrame.getType());
         assertEquals(1, reusableFrame.getStreamId());
         assertEquals(128, Frame.Request.initialRequestN(reusableFrame));
@@ -282,7 +286,7 @@ public class FrameTest {
         assertEquals("request data", TestUtil.byteToString(reusableFrame.getData()));
 
         final ByteBuffer metadataBuffer = reusableFrame.getMetadata();
-        assertEquals(0, metadataBuffer.capacity());
+        assertEquals(0, metadataBuffer.remaining());
         assertEquals(FrameType.REQUEST_SUBSCRIPTION, reusableFrame.getType());
         assertEquals(1, reusableFrame.getStreamId());
         assertEquals(128, Frame.Request.initialRequestN(reusableFrame));
@@ -301,7 +305,7 @@ public class FrameTest {
         assertEquals("response data", TestUtil.byteToString(reusableFrame.getData()));
 
         final ByteBuffer metadataBuffer = reusableFrame.getMetadata();
-        assertEquals(0, metadataBuffer.capacity());
+        assertEquals(0, metadataBuffer.remaining());
         assertEquals(FrameType.NEXT, reusableFrame.getType());
         assertEquals(1, reusableFrame.getStreamId());
     }
@@ -441,7 +445,7 @@ public class FrameTest {
         assertEquals(metadata, TestUtil.byteToString(reusableFrame.getMetadata()));
 
         assertEquals(
-                "0000002c000c40000000001800000022",
+                "0000002c000c40000000001800000202",
                 ByteBufUtil.hexDump(encodedFrame.getByteBuffer().array(), 0, 16));
     }
 
@@ -463,6 +467,9 @@ public class FrameTest {
         assertEquals(FrameType.ERROR, reusableFrame.getType());
         assertEquals(exMessage, TestUtil.byteToString(reusableFrame.getData()));
         assertEquals(TestUtil.byteBufferFromUtf8String(metadata), reusableFrame.getMetadata());
+
+        final Throwable throwable = Exceptions.from(encodedFrame);
+        assertEquals(exMessage, throwable.getMessage());
     }
 
     @Test

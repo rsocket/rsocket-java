@@ -17,6 +17,7 @@ package io.reactivesocket.client.filter;
 
 import io.reactivesocket.Payload;
 import io.reactivesocket.ReactiveSocket;
+import io.reactivesocket.internal.Publishers;
 import io.reactivesocket.rx.Completable;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
@@ -129,29 +130,25 @@ public class DrainingSocket implements ReactiveSocket {
     }
 
     @Override
-    public void onShutdown(Completable c) {
-        child.onShutdown(c);
-    }
-
-    @Override
     public void sendLease(int ttl, int numberOfRequests) {
         child.sendLease(ttl, numberOfRequests);
     }
 
     @Override
-    public void shutdown() {
-        closed = true;
-        if (count.get() == 0) {
-            child.shutdown();
-        }
+    public Publisher<Void> close(){
+        return s -> {
+            closed = true;
+            if (count.get() == 0) {
+                child.close().subscribe(s);
+            } else {
+                onClose().subscribe(s);
+            }
+        };
     }
 
     @Override
-    public void close() throws Exception {
-        closed = true;
-        if (count.get() == 0) {
-            child.close();
-        }
+    public Publisher<Void> onClose() {
+        return child.onClose();
     }
 
     private void incr() {
@@ -161,16 +158,12 @@ public class DrainingSocket implements ReactiveSocket {
     private void decr() {
         int n = count.decrementAndGet();
         if (closed && n == 0) {
-            try {
-                child.close();
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
+            Publishers.afterTerminate(child.close(), () -> {});
         }
     }
 
     @Override
     public String toString() {
-        return "DrainingSocket(closed=" + closed + ")->" + child.toString();
+        return "DrainingSocket(closed=" + closed + ")->" + child;
     }
 }

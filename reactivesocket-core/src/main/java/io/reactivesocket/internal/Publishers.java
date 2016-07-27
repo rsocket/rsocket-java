@@ -1,20 +1,38 @@
+/*
+ * Copyright 2016 Netflix, Inc.
+ * <p>
+ *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
+ *  the License. You may obtain a copy of the License at
+ *  <p>
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *  <p>
+ *  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
+ *  an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
+ *  specific language governing permissions and limitations under the License.
+ */
+
 package io.reactivesocket.internal;
 
+import io.reactivesocket.exceptions.TimeoutException;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Function;
+
+import static io.reactivesocket.internal.CancellableSubscriberImpl.*;
 
 /**
  * A set of utility functions for applying function composition over {@link Publisher}s.
  */
 public final class Publishers {
+
+    @SuppressWarnings("ThrowableInstanceNeverThrown")
+    public static final TimeoutException TIMEOUT_EXCEPTION = new TimeoutException();
 
     private Publishers() {
         // No instances.
@@ -34,32 +52,14 @@ public final class Publishers {
      */
     public static <T, R> Publisher<R> map(Publisher<T> source, Function<T, R> map) {
         return subscriber -> {
-            source.subscribe(new Subscriber<T>() {
-                @Override
-                public void onSubscribe(Subscription s) {
-                    subscriber.onSubscribe(s);
-                }
-
-                @Override
-                public void onNext(T t) {
-                    try {
-                        R r = map.apply(t);
-                        subscriber.onNext(r);
-                    } catch (Exception e) {
-                        onError(e);
-                    }
-                }
-
-                @Override
-                public void onError(Throwable t) {
-                    subscriber.onError(t);
-                }
-
-                @Override
-                public void onComplete() {
-                    subscriber.onComplete();
-                }
-            });
+            source.subscribe(Subscribers.create(subscription -> {
+                subscriber.onSubscribe(subscription);
+            }, t -> {
+                R r = map.apply(t);
+                subscriber.onNext(r);
+            }, throwable -> {
+                subscriber.onError(throwable);
+            }, () -> subscriber.onComplete(), EMPTY_RUNNABLE));
         };
     }
 
@@ -76,52 +76,29 @@ public final class Publishers {
      */
     public static <T> Publisher<T> timeout(Publisher<T> source, Publisher<Void> timeoutSignal) {
         return s -> {
-            source.subscribe(new SafeCancellableSubscriberProxy<T>(s) {
-
-                private Runnable timeoutCancellation;
-                private boolean emitted;
-
-                @Override
-                public void onSubscribe(Subscription s) {
-                    timeoutCancellation = afterTerminate(timeoutSignal, () -> {
-                        boolean _cancel = true;
-                        synchronized (this) {
-                            _cancel = !emitted;
-                        }
-                        if (_cancel) {
-                            onError(new TimeoutException());
-                            cancel();
-                        }
+            final AtomicReference<Runnable> timeoutCancellation = new AtomicReference<>();
+            CancellableSubscriber<T> sub = Subscribers.create(
+                    subscription -> {
+                        timeoutCancellation.set(afterTerminate(timeoutSignal, () -> {
+                            s.onError(TIMEOUT_EXCEPTION);
+                        }));
+                        s.onSubscribe(subscription);
+                    },
+                    t -> {
+                        timeoutCancellation.get().run();
+                        s.onNext(t);
+                    },
+                    throwable -> {
+                        timeoutCancellation.get().run();
+                        s.onError(throwable);
+                    },
+                    () -> {
+                        timeoutCancellation.get().run();
+                        s.onComplete();
+                    }, () -> {
+                        timeoutCancellation.get().run();
                     });
-                    super.onSubscribe(s);
-                }
-
-                @Override
-                protected void doOnNext(T t) {
-                    synchronized (this) {
-                        emitted = true;
-                    }
-                    timeoutCancellation.run(); // Cancel the timeout since we have received one item.
-                    super.doOnNext(t);
-                }
-
-                @Override
-                protected void doOnError(Throwable t) {
-                    timeoutCancellation.run();
-                    super.doOnError(t);
-                }
-
-                @Override
-                protected void doOnComplete() {
-                    timeoutCancellation.run();
-                    super.doOnComplete();
-                }
-
-                @Override
-                protected void doAfterCancel() {
-                    timeoutCancellation.run();
-                }
-            });
+            source.subscribe(sub);
         };
     }
 
@@ -141,33 +118,74 @@ public final class Publishers {
     }
 
     /**
-     * Adds retrying on errors to the passed {@code source}.
+     * Concats {@code first} source with the {@code second} source. This will subscribe to the {@code second} source
+     * when the first one completes. Any errors from the {@code first} source will result in not subscribing to the
+     * {@code second} source
      *
-     * @param source Source to add retry to.
-     * @param retryCount Number of times to retry.
-     * @param retrySelector Function that determines whether an error is retryable.
+     * @param first source to subscribe.
+     * @param second source to subscribe.
      *
-     * @param <T> Type of items emitted by the source.
-     *
-     * @return A new {@code Publisher} with retry enabled.
+     * @return New {@code Publisher} which concats both the passed sources.
      */
-    public static <T> Publisher<T> retry(Publisher<T> source, int retryCount,
-                                         Function<Throwable, Boolean> retrySelector) {
-        return s -> {
-            source.subscribe(new SafeCancellableSubscriberProxy<T>(s) {
-                private final AtomicInteger budget = new AtomicInteger(retryCount);
-                @Override
-                protected void doOnError(Throwable t) {
-                    if (retrySelector.apply(t) && budget.decrementAndGet() >= 0) {
-                        done.set(false); // Reset done since we subscribe again.
-                        // Since cancellation flag isn't cleared, if the subscription cancelled then this new
-                        // subscription will automatically be cancelled.
-                        source.subscribe(this);
-                    } else {
-                        super.doOnError(t); // Proxy to delegate.
-                    }
-                }
-            });
+    public static Publisher<Void> concatEmpty(Publisher<Void> first, Publisher<Void> second) {
+        return subscriber -> {
+            first.subscribe(Subscribers.create(subscription -> {
+                subscriber.onSubscribe(subscription);
+            }, t -> {
+                subscriber.onNext(t);
+            }, throwable -> {
+                subscriber.onError(throwable);
+            }, () -> {
+                second.subscribe(Subscribers.create(subscription -> {
+                    // This is the second subscription which isn't driven by downstream subscriber.
+                    // So, no onSubscriber callback will be coming here (alread done for first subscriber).
+                    // As we are only dealing with empty (Void) sources, this doesn't break backpressure.
+                    subscription.request(1);
+                }, t -> {
+                    subscriber.onNext(t);
+                }, throwable -> {
+                    subscriber.onError(throwable);
+                }, () -> {
+                    subscriber.onComplete();
+                }, EMPTY_RUNNABLE));
+            }, EMPTY_RUNNABLE));
+        };
+    }
+
+    /**
+     * A new {@code Publisher} that just emits the passed error on subscription.
+     *
+     * @param error that the returned source will emit.
+     *
+     * @return New {@code Publisher} which emits the passed {@code error}.
+     */
+    public static <T> Publisher<T> error(Throwable error) {
+        return subscriber -> {
+            subscriber.onSubscribe(new SingleEmissionSubscription<T>(subscriber, error));
+        };
+    }
+
+    /**
+     * A new {@code Publisher} that just emits the passed {@code item} and completes.
+     *
+     * @param item that the returned source will emit.
+     *
+     * @return New {@code Publisher} which just emits the passed {@code item}.
+     */
+    public static <T> Publisher<T> just(T item) {
+        return subscriber -> {
+            subscriber.onSubscribe(new SingleEmissionSubscription<T>(subscriber, item));
+        };
+    }
+
+    /**
+     * A new {@code Publisher} that immediately completes without emitting any item.
+     *
+     * @return New {@code Publisher} which immediately completes without emitting any item.
+     */
+    public static <T> Publisher<T> empty() {
+        return subscriber -> {
+            subscriber.onSubscribe(new SingleEmissionSubscription<T>(subscriber));
         };
     }
 
@@ -181,137 +199,33 @@ public final class Publishers {
      * @return Cancellation handle.
      */
     public static Runnable afterTerminate(Publisher<Void> source, Runnable action) {
-        final CancellableSubscriber<Void> subscriber = new SafeCancellableSubscriber<Void>() {
-            @Override
-            public void doOnError(Throwable t) {
-                action.run();
-            }
-
-            @Override
-            public void doOnComplete() {
-                action.run();
-            }
-        };
+        final CancellableSubscriber<Void> subscriber = Subscribers.doOnTerminate(throwable -> action.run(),
+                                                                                 () -> action.run());
         source.subscribe(subscriber);
         return () -> subscriber.cancel();
     }
 
-    private static abstract class SafeCancellableSubscriberProxy<T> extends SafeCancellableSubscriber<T> {
+    private static final class TimeoutHolder<T> implements Consumer<Subscription>, Runnable {
 
-        private final Subscriber<? super T> delegate;
+        private final Publisher<Void> timeoutSignal;
+        private final Subscriber<? super T> subscriber;
+        private Runnable timeoutCancellation;
 
-        protected SafeCancellableSubscriberProxy(Subscriber<? super T> delegate) {
-            this.delegate = delegate;
+        private TimeoutHolder(Publisher<Void> timeoutSignal, Subscriber<? super T> subscriber) {
+            this.timeoutSignal = timeoutSignal;
+            this.subscriber = subscriber;
         }
 
         @Override
-        public void onSubscribe(Subscription s) {
-            super.onSubscribe(s);
-            delegate.onSubscribe(s);
+        public void run() {
+            timeoutCancellation.run();
         }
 
         @Override
-        protected void doOnNext(T t) {
-            delegate.onNext(t);
-        }
-
-        @Override
-        protected void doOnError(Throwable t) {
-            delegate.onError(t);
-        }
-
-        @Override
-        protected void doOnComplete() {
-            delegate.onComplete();
-        }
-    }
-
-    private static abstract class SafeCancellableSubscriber<T> extends CancellableSubscriber<T> {
-
-        protected final AtomicBoolean done = new AtomicBoolean();
-
-        @Override
-        public void onNext(T t) {
-            if (!done.get()) {
-                doOnNext(t);
-            }
-        }
-
-        @Override
-        public void onError(Throwable t) {
-            if (done.compareAndSet(false, true)) {
-                doOnError(t);
-            }
-        }
-
-        @Override
-        public void onComplete() {
-            if (done.compareAndSet(false, true)) {
-                doOnComplete();
-            }
-        }
-
-        @Override
-        public void cancel() {
-            if (done.compareAndSet(false, true)) {
-                super.cancel();
-            }
-        }
-
-        protected void doOnNext(T t) {
-            // NoOp by default
-        }
-
-        protected void doOnError(Throwable t) {
-            // NoOp by default
-        }
-
-        protected void doOnComplete() {
-            // NoOp by default
-        }
-    }
-
-    private static abstract class CancellableSubscriber<T> implements Subscriber<T> {
-
-        private Subscription s;
-        private boolean cancelled;
-
-        @Override
-        public void onSubscribe(Subscription s) {
-            boolean _cancel = false;
-            synchronized (this) {
-                this.s = s;
-                if (cancelled) {
-                    _cancel = true;
-                }
-            }
-
-            if (_cancel) {
-                _unsafeCancel();
-            }
-        }
-
-        public void cancel() {
-            boolean _cancel = false;
-            synchronized (this) {
-                cancelled = true;
-                if (s != null) {
-                    _cancel = true;
-                }
-            }
-
-            if (_cancel) {
-                _unsafeCancel();
-            }
-        }
-
-        protected void doAfterCancel() {
-            // NoOp by default.
-        }
-
-        private void _unsafeCancel() {
-            s.cancel();
-            doAfterCancel();
+        public void accept(Subscription subscription) {
+            timeoutCancellation = afterTerminate(timeoutSignal, () -> {
+                subscriber.onError(TIMEOUT_EXCEPTION);
+            });
         }
     }
 }

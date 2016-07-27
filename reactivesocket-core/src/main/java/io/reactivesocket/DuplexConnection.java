@@ -1,17 +1,14 @@
-/**
- * Copyright 2015 Netflix, Inc.
- * 
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- * 
- * http://www.apache.org/licenses/LICENSE-2.0
- * 
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+/*
+ * Copyright 2016 Netflix, Inc.
+ * <p>
+ *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
+ *  the License. You may obtain a copy of the License at
+ *  <p>
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *  <p>
+ *  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
+ *  an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
+ *  specific language governing permissions and limitations under the License.
  */
 package io.reactivesocket;
 
@@ -25,23 +22,39 @@ import java.io.Closeable;
 /**
  * Represents a connection with input/output that the protocol uses. 
  */
-public interface DuplexConnection extends Closeable {
+public interface DuplexConnection {
 
-	Observable<Frame> getInput();
+    Observable<Frame> getInput();
 
-	void addOutput(Publisher<Frame> o, Completable callback);
+    void addOutput(Publisher<Frame> o, Completable callback);
 
-	default void addOutput(Frame frame, Completable callback) {
+    default void addOutput(Frame frame, Completable callback) {
         addOutput(s -> {
             s.onSubscribe(EmptySubscription.INSTANCE);
             s.onNext(frame);
             s.onComplete();
         }, callback);
-	}
+    }
 
     /**
      * @return the availability of the underlying connection, a number in [0.0, 1.0]
      * (higher is better).
      */
     double availability();
+
+    /**
+     * Close this {@code DuplexConnection} upon subscribing to the returned {@code Publisher}
+     *
+     * <em>This method is idempotent and hence can be called as many times at any point with same outcome.</em>
+     *
+     * @return A {@code Publisher} that completes when this {@code DuplexConnection} close is complete.
+     */
+    Publisher<Void> close();
+
+    /**
+     * Returns a {@code Publisher} that completes when this {@code DuplexConnection} is closed.
+     *
+     * @return A {@code Publisher} that completes when this {@code DuplexConnection} close is complete.
+     */
+    Publisher<Void> onClose();
 }

@@ -27,8 +27,7 @@ import java.util.Arrays;
 /**
  * Builder for appending buffers that grows dataCapacity as necessary. Similar to Aeron's PayloadBuilder.
  */
-public class PayloadBuilder
-{
+public class PayloadBuilder {
     public static final int INITIAL_CAPACITY = Math.max(Frame.DATA_MTU, Frame.METADATA_MTU);
 
     private final MutableDirectBuffer dataMutableDirectBuffer;
@@ -41,8 +40,7 @@ public class PayloadBuilder
     private int dataCapacity;
     private int metadataCapacity;
 
-    public PayloadBuilder()
-    {
+    public PayloadBuilder() {
         dataCapacity = BitUtil.findNextPositivePowerOfTwo(INITIAL_CAPACITY);
         metadataCapacity = BitUtil.findNextPositivePowerOfTwo(INITIAL_CAPACITY);
         dataBuffer = new byte[dataCapacity];
@@ -51,50 +49,43 @@ public class PayloadBuilder
         metadataMutableDirectBuffer = new UnsafeBuffer(metadataBuffer);
     }
 
-    public Payload payload()
-    {
-        return new Payload()
-        {
+    public Payload payload() {
+        return new Payload() {
             public ByteBuffer getData()
             {
                 return ByteBuffer.wrap(dataBuffer, 0, dataLimit);
             }
 
-            public ByteBuffer getMetadata()
-            {
+            public ByteBuffer getMetadata() {
                 return ByteBuffer.wrap(metadataBuffer, 0, metadataLimit);
             }
         };
     }
 
-    public void append(final Payload payload)
-    {
-        final ByteBuffer payloadData = payload.getData();
+    public void append(final Payload payload) {
         final ByteBuffer payloadMetadata = payload.getMetadata();
-        final int dataLength = payloadData.remaining();
+        final ByteBuffer payloadData = payload.getData();
         final int metadataLength = payloadMetadata.remaining();
+        final int dataLength = payloadData.remaining();
 
-        ensureDataCapacity(dataLength);
         ensureMetadataCapacity(metadataLength);
+        ensureDataCapacity(dataLength);
 
-        dataMutableDirectBuffer.putBytes(dataLimit, payloadData, payloadData.capacity());
-        dataLimit += dataLength;
-        metadataMutableDirectBuffer.putBytes(metadataLimit, payloadMetadata, payloadMetadata.capacity());
+        metadataMutableDirectBuffer.putBytes(metadataLimit, payloadMetadata, metadataLength);
         metadataLimit += metadataLength;
+        dataMutableDirectBuffer.putBytes(dataLimit, payloadData, dataLength);
+        dataLimit += dataLength;
     }
 
-    private void ensureDataCapacity(final int additionalCapacity)
-    {
+    private void ensureDataCapacity(final int additionalCapacity) {
         final int requiredCapacity = dataLimit + additionalCapacity;
 
-        if (requiredCapacity < 0)
-        {
+        if (requiredCapacity < 0) {
             final String s = String.format("Insufficient data capacity: dataLimit=%d additional=%d", dataLimit, additionalCapacity);
             throw new IllegalStateException(s);
         }
 
-        if (requiredCapacity > dataCapacity)
-        {
+        if (requiredCapacity > dataCapacity) {
             final int newCapacity = findSuitableCapacity(dataCapacity, requiredCapacity);
             final byte[] newBuffer = Arrays.copyOf(dataBuffer, newCapacity);
 
@@ -104,18 +95,15 @@ public class PayloadBuilder
         }
     }
 
-    private void ensureMetadataCapacity(final int additionalCapacity)
-    {
+    private void ensureMetadataCapacity(final int additionalCapacity) {
         final int requiredCapacity = metadataLimit + additionalCapacity;
 
-        if (requiredCapacity < 0)
-        {
+        if (requiredCapacity < 0) {
             final String s = String.format("Insufficient metadata capacity: metadataLimit=%d additional=%d", metadataLimit, additionalCapacity);
             throw new IllegalStateException(s);
         }
 
-        if (requiredCapacity > metadataCapacity)
-        {
+        if (requiredCapacity > metadataCapacity) {
             final int newCapacity = findSuitableCapacity(metadataCapacity, requiredCapacity);
             final byte[] newBuffer = Arrays.copyOf(metadataBuffer, newCapacity);
 
@@ -125,13 +113,10 @@ public class PayloadBuilder
         }
     }
 
-    private static int findSuitableCapacity(int capacity, final int requiredCapacity)
-    {
-        do
-        {
+    private static int findSuitableCapacity(int capacity, final int requiredCapacity) {
+        do {
             capacity <<= 1;
-        }
-        while (capacity < requiredCapacity);
+        } while (capacity < requiredCapacity);
 
         return capacity;
     }

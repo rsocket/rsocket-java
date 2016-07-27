@@ -25,7 +25,7 @@ import java.util.function.Consumer;
 /**
  * Interface for a connection that supports sending requests and receiving responses
  */
-public interface ReactiveSocket extends AutoCloseable {
+public interface ReactiveSocket {
     Publisher<Void> fireAndForget(final Payload payload);
 
     Publisher<Payload> requestResponse(final Payload payload);
@@ -46,39 +46,26 @@ public interface ReactiveSocket extends AutoCloseable {
     double availability();
 
     /**
+     * Close this {@code ReactiveSocket} upon subscribing to the returned {@code Publisher}
+     *
+     * <em>This method is idempotent and hence can be called as many times at any point with same outcome.</em>
+     *
+     * @return A {@code Publisher} that completes when this {@code ReactiveSocket} close is complete.
+     */
+    Publisher<Void> close();
+
+    /**
+     * Returns a {@code Publisher} that completes when this {@code ReactiveSocket} is closed. A {@code ReactiveSocket}
+     * can be closed by explicitly calling {@link #close()} or when the underlying transport connection is closed.
+     *
+     * @return A {@code Publisher} that completes when this {@code ReactiveSocket} close is complete.
+     */
+    Publisher<Void> onClose();
+
+    /**
      * Start protocol processing on the given DuplexConnection.
      */
     void start(Completable c);
-
-    /**
-     * Start and block the current thread until startup is finished.
-     *
-     * @throws RuntimeException
-     *             of InterruptedException
-     */
-    default void startAndWait() {
-        CountDownLatch latch = new CountDownLatch(1);
-        AtomicReference<Throwable> err = new AtomicReference<>();
-        start(new Completable() {
-            @Override
-            public void success() {
-                latch.countDown();
-            }
-
-            @Override
-            public void error(Throwable e) {
-                latch.countDown();
-            }
-        });
-        try {
-            latch.await();
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-        if (err.get() != null) {
-            throw new RuntimeException(err.get());
-        }
-    }
 
     /**
      * Invoked when Requester is ready. Non-null exception if error. Null if success.
@@ -95,11 +82,6 @@ public interface ReactiveSocket extends AutoCloseable {
     void onRequestReady(Completable c);
 
     /**
-     * Registers a completable to be run when an ReactiveSocket is closed
-     */
-    void onShutdown(Completable c);
-
-    /**
      * Server granting new lease information to client
      *
      * Initial lease semantics are that server waits for periodic granting of leases by server side.
@@ -108,6 +90,4 @@ public interface ReactiveSocket extends AutoCloseable {
      * @param numberOfRequests
      */
     void sendLease(int ttl, int numberOfRequests);
-
-    void shutdown();
 }

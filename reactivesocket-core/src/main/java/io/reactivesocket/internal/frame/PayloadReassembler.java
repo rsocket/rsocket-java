@@ -22,44 +22,36 @@ import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
 
-public class PayloadReassembler implements Subscriber<Frame>
-{
+public class PayloadReassembler implements Subscriber<Frame> {
     private final Subscriber<? super Payload> child;
     private final Int2ObjectHashMap<PayloadBuilder> payloadByStreamId = new Int2ObjectHashMap<>();
 
-    private PayloadReassembler(final Subscriber<? super Payload> child)
-    {
+    private PayloadReassembler(final Subscriber<? super Payload> child) {
         this.child = child;
     }
 
-    public static PayloadReassembler with(final Subscriber<? super Payload> child)
-    {
+    public static PayloadReassembler with(final Subscriber<? super Payload> child) {
         return new PayloadReassembler(child);
     }
 
-    public void resetStream(final int streamId)
-    {
+    public void resetStream(final int streamId) {
         payloadByStreamId.remove(streamId);
     }
 
-    public void onSubscribe(Subscription s)
-    {
+    public void onSubscribe(Subscription s) {
         // reset
     }
 
-    public void onNext(Frame frame)
-    {
+    public void onNext(Frame frame) {
         // if frame has no F bit and no waiting payload, then simply pass on
         final int streamId = frame.getStreamId();
         PayloadBuilder payloadBuilder = payloadByStreamId.get(streamId);
 
-        if (FrameHeaderFlyweight.FLAGS_RESPONSE_F != (frame.flags() & FrameHeaderFlyweight.FLAGS_RESPONSE_F))
-        {
+        if (FrameHeaderFlyweight.FLAGS_RESPONSE_F != (frame.flags() & FrameHeaderFlyweight.FLAGS_RESPONSE_F)) {
             Payload deliveryPayload = frame;
 
             // terminal frame
-            if (null != payloadBuilder)
-            {
+            if (null != payloadBuilder) {
                 payloadBuilder.append(frame);
                 deliveryPayload = payloadBuilder.payload();
                 payloadByStreamId.remove(streamId);
@@ -67,10 +59,8 @@ public class PayloadReassembler implements Subscriber<Frame>
 
             child.onNext(deliveryPayload);
         }
-        else
-        {
-            if (null == payloadBuilder)
-            {
+        else {
+            if (null == payloadBuilder) {
                 payloadBuilder = new PayloadBuilder();
                 payloadByStreamId.put(streamId, payloadBuilder);
             }
@@ -79,13 +69,11 @@ public class PayloadReassembler implements Subscriber<Frame>
         }
     }
 
-    public void onError(Throwable t)
-    {
+    public void onError(Throwable t) {
         // reset and pass through
     }
 
-    public void onComplete()
-    {
+    public void onComplete() {
         // reset and pass through
     }
 }

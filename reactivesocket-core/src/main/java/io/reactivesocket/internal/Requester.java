@@ -15,9 +15,8 @@
  */
 package io.reactivesocket.internal;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -52,24 +51,23 @@ import org.agrona.collections.Int2ObjectHashMap;
  * Concrete implementations of {@link DuplexConnection} over TCP, WebSockets, Aeron, etc can be passed to this class for protocol handling.
  */
 public class Requester {
-
-    private final static Disposable CANCELLED = new EmptyDisposable();
-    private final static int KEEPALIVE_INTERVAL_MS = 1000;
+    private static final Disposable CANCELLED = EmptyDisposable.INSTANCE;
+    private static final int KEEPALIVE_INTERVAL_MS = 1000;
+    private static final long DEFAULT_BATCH = 1024;
+    private static final long REQUEST_THRESHOLD = 256;
 
     private final boolean isServer;
     private final DuplexConnection connection;
     private final Int2ObjectHashMap<UnicastSubject<Frame>> streamInputMap = new Int2ObjectHashMap<>();
     private final ConnectionSetupPayload setupPayload;
     private final Consumer<Throwable> errorStream;
-
     private final boolean honorLease;
+
     private long ttlExpiration;
     private long numberOfRemainingRequests = 0;
     private long timeOfLastKeepalive = 0;
     private int streamCount = 0; // 0 is reserved for setup, all normal messages are >= 1
-
-    private static final long DEFAULT_BATCH = 1024;
-    private static final long REQUEST_THRESHOLD = 256;
+    private AtomicReference<Disposable> connectionSubscription = new AtomicReference<>();
 
     private volatile boolean requesterStarted = false;
 
@@ -115,8 +113,10 @@ public class Requester {
     }
 
     public void shutdown() {
-        // TODO do something here
-        System.err.println("**** Requester.shutdown => this should actually do something");
+        Disposable disposable = connectionSubscription.getAndSet(CANCELLED);
+        if (disposable != null) {
+            disposable.dispose();
+        }
     }
 
     public boolean isServer() {
@@ -163,7 +163,7 @@ public class Requester {
      */
     public Publisher<Void> fireAndForget(final Payload payload) {
         if (payload == null) {
-            throw new IllegalStateException("Payload can not be null");
+            throw new IllegalStateException(name() + " Payload can not be null");
         }
         assertStarted();
         return child -> child.onSubscribe(new Subscription() {
@@ -211,7 +211,7 @@ public class Requester {
      */
     public Publisher<Void> metadataPush(final Payload payload) {
         if (payload == null) {
-            throw new IllegalArgumentException("Payload can not be null");
+            throw new IllegalArgumentException(name() + " Payload can not be null");
         }
         assertStarted();
         return (Subscriber<? super Void> child) ->
@@ -273,7 +273,7 @@ public class Requester {
 
     private void assertStarted() {
         if (!requesterStarted) {
-            throw new IllegalStateException("Requester not initialized. " +
+            throw new IllegalStateException(name() + " Requester not initialized. " +
                 "Please await 'start()' completion before submitting requests.");
         }
     }
@@ -305,6 +305,7 @@ public class Requester {
         return (Subscriber<? super Payload> child) -> {
             child.onSubscribe(new Subscription() {
 
+                private boolean cancelled;
                 final AtomicBoolean started = new AtomicBoolean(false);
                 volatile StreamInputSubscriber streamInputSubscriber;
                 volatile UnicastSubject<Frame> writer;
@@ -315,6 +316,13 @@ public class Requester {
 
                 @Override
                 public void request(long n) {
+                    synchronized (this) {
+                        if (cancelled) {
+                            // It is ok to be cancelled here as cancellations can be happening concurrently.
+                            return;
+                        }
+                    }
+
                     if(n <= 0) {
                         return;
                     }
@@ -388,13 +396,25 @@ public class Requester {
 
                 @Override
                 public void cancel() {
+                    synchronized (this) {
+                        if (cancelled) {
+                            // Multiple cancellations.
+                            return;
+                        }
+                        cancelled = true;
+                    }
+
                     synchronized(Requester.this) {
                         streamInputMap.remove(streamId);
                     }
-                    if (!streamInputSubscriber.terminated.get()) {
-                        writer.onNext(Frame.Cancel.from(streamId));
+                    if (streamInputSubscriber != null) {
+                        if (!streamInputSubscriber.terminated.get()) {
+                            writer.onNext(Frame.Cancel.from(streamId));
+                        }
+                        if (null != streamInputSubscriber.parentSubscription) {
+                            streamInputSubscriber.parentSubscription.cancel();
+                        };
                     }
-                    streamInputSubscriber.parentSubscription.cancel();
                 }
 
             });
@@ -411,12 +431,13 @@ public class Requester {
         Publisher<Payload> payloads
     ) {
         if (payloads == null) {
-            throw new IllegalStateException("Both payload and payloads can not be null");
+            throw new IllegalStateException(name() + " Both payload and payloads can not be null");
         }
         assertStarted();
         return (Subscriber<? super Payload> child) -> {
             child.onSubscribe(new Subscription() {
 
+                private boolean cancelled;
                 AtomicBoolean started = new AtomicBoolean(false);
                 volatile StreamInputSubscriber streamInputSubscriber;
                 volatile UnicastSubject<Frame> writer;
@@ -428,6 +449,13 @@ public class Requester {
 
                 @Override
                 public void request(long n) {
+                    synchronized (this) {
+                        if (cancelled) {
+                            // It is ok to be cancelled here as cancellations can be happening concurrently.
+                            return;
+                        }
+                    }
+
                     if(n <= 0) {
                         return;
                     }
@@ -497,7 +525,7 @@ public class Requester {
                                                     public void onError(Throwable t) {
                                                         // TODO validate with unit tests
                                                         RuntimeException exc = new RuntimeException(
-                                                            "Error received from request stream.", t);
+                                                            name() + " Error received from request stream.", t);
                                                         transport.onError(exc);
                                                         child.onError(exc);
                                                         cancel();
@@ -592,13 +620,23 @@ public class Requester {
 
                 @Override
                 public void cancel() {
+                    synchronized (this) {
+                        if (cancelled) {
+                            // Multiple cancellations.
+                            return;
+                        }
+                        cancelled = true;
+                    }
+
                     synchronized(Requester.this) {
                         streamInputMap.remove(streamId);
                     }
-                    if (!streamInputSubscriber.terminated.get()) {
+                    if (streamInputSubscriber != null && !streamInputSubscriber.terminated.get()) {
                         writer.onNext(Frame.Cancel.from(streamId));
+                        if (streamInputSubscriber.parentSubscription != null) {
+                            streamInputSubscriber.parentSubscription.cancel();
+                        }
                     }
-                    streamInputSubscriber.parentSubscription.cancel();
                     if (payloadsSubscription != null) {
                         if (!payloadsSubscription.compareAndSet(null, EmptySubscription.INSTANCE)) {
                             // unsubscribe it if it already exists
@@ -617,19 +655,26 @@ public class Requester {
      */
     private Publisher<Payload> startRequestResponse(int streamId, FrameType type, Payload payload) {
         if (payload == null) {
-            throw new IllegalStateException("Both payload and payloads can not be null");
+            throw new IllegalStateException(name() + " Both payload and payloads can not be null");
         }
         assertStarted();
         return (Subscriber<? super Payload> child) -> {
             child.onSubscribe(new Subscription() {
 
                 final AtomicBoolean started = new AtomicBoolean(false);
+                private boolean cancelled;
                 volatile StreamInputSubscriber streamInputSubscriber;
-                volatile UnicastSubject<Frame> writer;
 
                 @Override
                 public void request(long n) {
                     if (n > 0 && started.compareAndSet(false, true)) {
+                        synchronized (this) {
+                            if (cancelled) {
+                                // It is ok to be cancelled here as cancellations can be happening concurrently.
+                                return;
+                            }
+                        }
+
                         // Response frames for this Stream
                         UnicastSubject<Frame> transportInputSubject = UnicastSubject.create();
                         synchronized(Requester.this) {
@@ -640,7 +685,7 @@ public class Requester {
                             0,
                             null,
                             null,
-                            writer,
+                            null,
                             child,
                             this::cancel
                         );
@@ -665,7 +710,15 @@ public class Requester {
 
                 @Override
                 public void cancel() {
-                    if (!streamInputSubscriber.terminated.get()) {
+                    synchronized (this) {
+                        if (cancelled) {
+                            // Multiple cancellations.
+                            return;
+                        }
+                        cancelled = true;
+                    }
+
+                    if (streamInputSubscriber != null && !streamInputSubscriber.terminated.get()) {
                         Frame cancelFrame = Frame.Cancel.from(streamId);
                         connection.addOutput(cancelFrame, new Completable() {
                             @Override
@@ -682,7 +735,9 @@ public class Requester {
                     synchronized(Requester.this) {
                         streamInputMap.remove(streamId);
                     }
-                    streamInputSubscriber.parentSubscription.cancel();
+                    if (streamInputSubscriber != null && streamInputSubscriber.parentSubscription != null) {
+                        streamInputSubscriber.parentSubscription.cancel();
+                    }
                 }
             });
         };
@@ -781,9 +836,8 @@ public class Requester {
                 cancel();
             } else if (type == FrameType.ERROR) {
                 terminated.set(true);
-                final ByteBuffer byteBuffer = frame.getData();
-                String errorMessage = getByteBufferAsString(byteBuffer);
-                onError(new RuntimeException(errorMessage));
+                Throwable throwable = Exceptions.from(frame);
+                onError(throwable);
                 cancel();
             } else {
                 onError(new RuntimeException("Unexpected FrameType: " + frame.getType()));
@@ -837,7 +891,6 @@ public class Requester {
     }
 
     private void start(Completable onComplete) {
-        AtomicReference<Disposable> connectionSubscription = new AtomicReference<>();
         // get input from responder->requestor for responses
         connection.getInput().subscribe(new Observer<Frame>() {
             public void onSubscribe(Disposable d) {
@@ -888,7 +941,7 @@ public class Requester {
                 } else {
                     // means we already were cancelled
                     d.dispose();
-                    onComplete.error(new CancelException("Connection Is Already Cancelled"));
+                    onComplete.error(new CancelException(name() + " Connection Is Already Cancelled"));
                 }
             }
 
@@ -916,7 +969,7 @@ public class Requester {
                         timeOfLastKeepalive = System.currentTimeMillis();
                     } else {
                         onError(new RuntimeException(
-                            "Received unexpected message type on stream 0: " + frame.getType().name()));
+                            name() + " Received unexpected message type on stream 0: " + frame.getType().name()));
                     }
                 } else {
                     UnicastSubject<Frame> streamSubject;
@@ -934,11 +987,11 @@ public class Requester {
                             if (frame.getType() == FrameType.ERROR) {
                                 String errorMessage = getByteBufferAsString(frame.getData());
                                 onError(new RuntimeException(
-                                    "Received error for non-existent stream: "
+                                    name() + " Received error for non-existent stream: "
                                         + streamId + " Message: " + errorMessage));
                             } else {
                                 onError(new RuntimeException(
-                                    "Received message for non-existent stream: " + streamId));
+                                    name() + " Received message for non-existent stream: " + streamId));
                             }
                         }
                     } else {
@@ -971,19 +1024,23 @@ public class Requester {
                 if (!connectionSubscription.compareAndSet(null, CANCELLED)) {
                     // cancel the one that was there if we failed to set the sentinel
                     connectionSubscription.get().dispose();
-                    try {
-                        connection.close();
-                    } catch (IOException e) {
-                        errorStream.accept(e);
-                    }
+                    connection.close();
                 }
             }
         });
     }
 
+    private String name() {
+        if (isServer) {
+            return "ServerRequester";
+        } else {
+            return "ClientRequester";
+        }
+    }
+
     private static String getByteBufferAsString(ByteBuffer bb) {
-        final byte[] bytes = new byte[bb.capacity()];
+        final byte[] bytes = new byte[bb.remaining()];
         bb.get(bytes);
-        return new String(bytes, Charset.forName("UTF-8"));
+        return new String(bytes, StandardCharsets.UTF_8);
     }
 }

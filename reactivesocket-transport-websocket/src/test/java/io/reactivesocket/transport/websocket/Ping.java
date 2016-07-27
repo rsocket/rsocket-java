@@ -21,6 +21,7 @@ import io.reactivesocket.DefaultReactiveSocket;
 import io.reactivesocket.Payload;
 import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.transport.websocket.client.ClientWebSocketDuplexConnection;
+import io.reactivesocket.util.Unsafe;
 import org.HdrHistogram.Recorder;
 import org.reactivestreams.Publisher;
 import rx.Observable;
@@ -30,6 +31,7 @@ import rx.schedulers.Schedulers;
 
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -46,9 +48,9 @@ public class Ping {
         ReactiveSocket reactiveSocket =
             DefaultReactiveSocket.fromClientConnection(duplexConnection, setupPayload, Throwable::printStackTrace);
 
-        reactiveSocket.startAndWait();
+        Unsafe.startAndWait(reactiveSocket);
 
-        byte[] data = "hello".getBytes();
+        byte[] data = "hello".getBytes(StandardCharsets.UTF_8);
 
         Payload keyPayload = new Payload() {
             @Override

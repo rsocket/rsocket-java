@@ -15,6 +15,7 @@
  */
 package io.reactivesocket;
 
+import io.reactivesocket.internal.Publishers;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -457,7 +458,7 @@ public class TestFlowControlRequestN {
 
 	@AfterClass
 	public static void shutdown() {
-		socketServer.shutdown();
-		socketClient.shutdown();
+		Publishers.afterTerminate(socketServer.close(), () -> {});
+		Publishers.afterTerminate(socketClient.close(), () -> {});
 	}
 }

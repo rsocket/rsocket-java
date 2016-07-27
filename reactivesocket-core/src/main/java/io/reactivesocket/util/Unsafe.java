@@ -26,7 +26,6 @@ public class Unsafe {
         };
         rsc.start(completable);
         latch.await();
-//        awaitAvailability(rsc);
 
         return rsc;
     }

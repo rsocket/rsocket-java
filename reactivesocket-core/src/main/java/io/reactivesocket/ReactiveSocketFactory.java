@@ -24,7 +24,7 @@ import java.util.function.Function;
  * This abstraction is useful for abstracting the creation of a ReactiveSocket
  * (e.g. inside the LoadBalancer which create ReactiveSocket as needed)
  */
-public interface ReactiveSocketFactory<T> {
+public interface ReactiveSocketFactory {
 
     /**
      * Construct the ReactiveSocket.
@@ -39,13 +39,8 @@ public interface ReactiveSocketFactory<T> {
      */
     double availability();
 
-    /**
-     * @return an identifier of the remote location
-     */
-    T remote();
-
-    default ReactiveSocketFactory<T> chain(Function<Publisher<ReactiveSocket>, Publisher<ReactiveSocket>> conversion) {
-        return new ReactiveSocketFactoryProxy<T>(ReactiveSocketFactory.this) {
+    default ReactiveSocketFactory chain(Function<Publisher<ReactiveSocket>, Publisher<ReactiveSocket>> conversion) {
+        return new ReactiveSocketFactoryProxy(ReactiveSocketFactory.this) {
             @Override
             public Publisher<ReactiveSocket> apply() {
                 return conversion.apply(super.apply());

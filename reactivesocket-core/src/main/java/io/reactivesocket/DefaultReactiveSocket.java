@@ -15,6 +15,7 @@
  */
 package io.reactivesocket;
 
+import io.reactivesocket.internal.Publishers;
 import io.reactivesocket.internal.Requester;
 import io.reactivesocket.internal.Responder;
 import io.reactivesocket.internal.rx.CompositeCompletable;
@@ -25,11 +26,7 @@ import io.reactivesocket.rx.Observable;
 import io.reactivesocket.rx.Observer;
 import org.agrona.BitUtil;
 import org.reactivestreams.Publisher;
-import org.reactivestreams.Subscriber;
-import org.reactivestreams.Subscription;
 
-import java.io.IOException;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
@@ -56,7 +53,6 @@ public class DefaultReactiveSocket implements ReactiveSocket {
     private final RequestHandler clientRequestHandler;
     private final ConnectionSetupHandler responderConnectionHandler;
     private final LeaseGovernor leaseGovernor;
-    private final CopyOnWriteArrayList<Completable> shutdownListeners;
 
     private DefaultReactiveSocket(
         DuplexConnection connection,
@@ -73,8 +69,7 @@ public class DefaultReactiveSocket implements ReactiveSocket {
         this.clientRequestHandler = clientRequestHandler;
         this.responderConnectionHandler = responderConnectionHandler;
         this.leaseGovernor = leaseGovernor;
-        this.errorStream = errorStream;
-        this.shutdownListeners = new CopyOnWriteArrayList<>();
+        this.errorStream = new KnownErrorFilter(errorStream);
     }
 
     /**
@@ -371,8 +366,13 @@ public class DefaultReactiveSocket implements ReactiveSocket {
         }
 
         @Override
-        public void close() throws IOException {
-            connection.close(); // forward
+        public Publisher<Void> close() {
+            return connection.close(); // forward
+        }
+
+        @Override
+        public Publisher<Void> onClose() {
+            return connection.onClose();
         }
 
         @Override
@@ -447,14 +447,8 @@ public class DefaultReactiveSocket implements ReactiveSocket {
     };
 
     @Override
-    public void onShutdown(Completable c) {
-        shutdownListeners.add(c);
-    }
-
-    @Override
-    public void close() throws Exception {
+    public Publisher<Void> close() {
         try {
-            connection.close();
             leaseGovernor.unregister(responder);
             if (requester != null) {
                 requester.shutdown();
@@ -462,42 +456,18 @@ public class DefaultReactiveSocket implements ReactiveSocket {
             if (responder != null) {
                 responder.shutdown();
             }
-
-            shutdownListeners.forEach(Completable::success);
-
+            return connection.close();
         } catch (Throwable t) {
-            shutdownListeners.forEach(c -> c.error(t));
-            throw t;
+            return Publishers.concatEmpty(connection.close(), Publishers.error(t));
         }
     }
 
     @Override
-    public void shutdown() {
-        try {
-            close();
-        } catch (Exception e) {
-            throw new RuntimeException("Failed Shutdown", e);
-        }
-    }
-
-    private static <T> Publisher<T> error(Throwable e) {
-        return (Subscriber<? super T> s) -> {
-            s.onSubscribe(new Subscription() {
-                @Override
-                public void request(long n) {
-                    // should probably worry about n==0
-                    s.onError(e);
-                }
-
-                @Override
-                public void cancel() {
-                    // ignoring just because
-                }
-            });
-        };
+    public Publisher<Void> onClose() {
+        return connection.onClose();
     }
 
     public String toString() {
-        return "duplexConnection=[" + this.connection + "]";
+        return "duplexConnection=[" + connection + ']';
     }
 }

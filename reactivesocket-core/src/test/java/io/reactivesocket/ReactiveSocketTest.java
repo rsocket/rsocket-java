@@ -15,8 +15,8 @@
  */
 package io.reactivesocket;
 
+import io.reactivesocket.internal.Publishers;
 import io.reactivesocket.lease.FairLeaseGovernor;
-import io.reactivesocket.rx.Completable;
 import io.reactivex.disposables.Disposable;
 import io.reactivex.observables.ConnectableObservable;
 import io.reactivex.subscribers.TestSubscriber;
@@ -204,8 +204,8 @@ public class ReactiveSocketTest {
 
 	@After
 	public void shutdown() {
-		socketServer.shutdown();
-		socketClient.shutdown();
+		Publishers.afterTerminate(socketServer.close(), () -> {});
+		Publishers.afterTerminate(socketClient.close(), () -> {});
 	}
 
 	private void startSockets(int setupFlag, RequestHandler handler) throws InterruptedException {
@@ -258,7 +258,7 @@ public class ReactiveSocketTest {
 	}
 
 	@Test(timeout = 2000)
-	public void testShutdownListener() throws Exception {
+	public void testCloseNotifier() throws Exception {
 		socketClient = DefaultReactiveSocket.fromClientConnection(
 			clientConnection,
 			ConnectionSetupPayload.create("UTF-8", "UTF-8", NO_FLAGS),
@@ -266,26 +266,17 @@ public class ReactiveSocketTest {
 		);
 
 		CountDownLatch latch = new CountDownLatch(1);
-
-		socketClient.onShutdown(new Completable() {
-			@Override
-			public void success() {
-				latch.countDown();
-			}
-
-			@Override
-			public void error(Throwable e) {
-
-			}
+		Publishers.afterTerminate(socketClient.onClose(), () -> {
+			latch.countDown();
 		});
 
-		socketClient.close();
+		Publishers.afterTerminate(socketClient.close(), () -> {});
 
 		latch.await();
 	}
 
 	@Test(timeout = 2000)
-	public void testMultipleShutdownListeners() throws Exception {
+	public void testMultipleCloseListeners() throws Exception {
 		socketClient = DefaultReactiveSocket.fromClientConnection(
 			clientConnection,
 			ConnectionSetupPayload.create("UTF-8", "UTF-8", NO_FLAGS),
@@ -293,34 +284,9 @@ public class ReactiveSocketTest {
 		);
 
 		CountDownLatch latch = new CountDownLatch(2);
-
-		socketClient
-			.onShutdown(new Completable() {
-				@Override
-				public void success() {
-					latch.countDown();
-				}
-
-				@Override
-				public void error(Throwable e) {
-
-				}
-			});
-
-		socketClient
-			.onShutdown(new Completable() {
-				@Override
-				public void success() {
-					latch.countDown();
-				}
-
-				@Override
-				public void error(Throwable e) {
-
-				}
-			});
-
-		socketClient.close();
+		Publishers.afterTerminate(socketClient.onClose(), () -> {latch.countDown();});
+		Publishers.afterTerminate(socketClient.onClose(), () -> {latch.countDown();});
+		Publishers.afterTerminate(socketClient.close(), () -> {});
 
 		latch.await();
 	}

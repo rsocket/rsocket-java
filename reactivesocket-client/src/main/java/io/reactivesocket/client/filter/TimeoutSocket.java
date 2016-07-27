@@ -27,9 +27,13 @@ import java.util.concurrent.TimeUnit;
 
 public class TimeoutSocket extends ReactiveSocketProxy {
     private final Publisher<Void> timer;
+    private final long timeout;
+    private final TimeUnit unit;
 
     public TimeoutSocket(ReactiveSocket child, long timeout, TimeUnit unit, ScheduledExecutorService executor) {
         super(child);
+        this.timeout = timeout;
+        this.unit = unit;
         timer = Publishers.timer(executor, timeout, unit);
     }
 
@@ -55,5 +59,10 @@ public class TimeoutSocket extends ReactiveSocketProxy {
     @Override
     public Publisher<Payload> requestChannel(Publisher<Payload> payload) {
         return Publishers.timeout(super.requestChannel(payload), timer);
+    }
+
+    @Override
+    public String toString() {
+        return "TimeoutSocket(" + timeout + " " + unit + ")->" + child;
     }
 }

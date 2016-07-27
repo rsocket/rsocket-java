@@ -79,11 +79,6 @@ public class AvailabilityMetricReactiveSocket implements ReactiveSocket {
     }
 
     @Override
-    public void startAndWait() {
-        child.startAndWait();
-    }
-
-    @Override
     public void onRequestReady(Consumer<Throwable> c) {
         child.onRequestReady(c);
     }
@@ -99,17 +94,12 @@ public class AvailabilityMetricReactiveSocket implements ReactiveSocket {
     }
 
     @Override
-    public void shutdown() {
-        child.shutdown();
+    public Publisher<Void> close() {
+        return child.close();
     }
 
     @Override
-    public void close() throws Exception {
-        child.close();
-    }
-
-    @Override
-    public void onShutdown(Completable c) {
-        child.onShutdown(c);
+    public Publisher<Void> onClose() {
+        return child.onClose();
     }
 }

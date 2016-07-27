@@ -36,7 +36,6 @@ import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
-import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -62,7 +61,7 @@ public class ClientWebSocketDuplexConnection implements DuplexConnection {
     }
 
     public static Publisher<ClientWebSocketDuplexConnection> create(URI uri, EventLoopGroup eventLoopGroup) {
-        return s -> {
+        return subscriber -> {
             WebSocketClientHandshaker handshaker = WebSocketClientHandshakerFactory.newHandshaker(
                 uri, WebSocketVersion.V13, null, false, new DefaultHttpHeaders());
 
@@ -86,21 +85,21 @@ public class ClientWebSocketDuplexConnection implements DuplexConnection {
                 }).connect(uri.getHost(), uri.getPort());
 
             connect.addListener(connectFuture -> {
+                subscriber.onSubscribe(EmptySubscription.INSTANCE);
                 if (connectFuture.isSuccess()) {
                     final Channel ch = connect.channel();
                     clientHandler
                         .getHandshakePromise()
                         .addListener(handshakeFuture -> {
-                            s.onSubscribe(EmptySubscription.INSTANCE);
                             if (handshakeFuture.isSuccess()) {
-                                s.onNext(new ClientWebSocketDuplexConnection(ch, subjects));
-                                s.onComplete();
+                                subscriber.onNext(new ClientWebSocketDuplexConnection(ch, subjects));
+                                subscriber.onComplete();
                             } else {
-                                s.onError(handshakeFuture.cause());
+                                subscriber.onError(handshakeFuture.cause());
                             }
                         });
                 } else {
-                    s.onError(connectFuture.cause());
+                    subscriber.onError(connectFuture.cause());
                 }
             });
         };
@@ -167,8 +166,31 @@ public class ClientWebSocketDuplexConnection implements DuplexConnection {
     }
 
     @Override
-    public void close() throws IOException {
-        channel.close();
+    public Publisher<Void> close() {
+        return s -> {
+            if (channel.isOpen()) {
+                channel.close().addListener(new ChannelFutureListener() {
+                    @Override
+                    public void operationComplete(ChannelFuture future) throws Exception {
+                        s.onComplete();
+                    }
+                });
+            } else {
+                onClose().subscribe(s);
+            }
+        };
+    }
+
+    @Override
+    public Publisher<Void> onClose() {
+        return s -> {
+            channel.closeFuture().addListener(new ChannelFutureListener() {
+                @Override
+                public void operationComplete(ChannelFuture future) throws Exception {
+                    s.onComplete();
+                }
+            });
+        };
     }
 
     public String toString() {
