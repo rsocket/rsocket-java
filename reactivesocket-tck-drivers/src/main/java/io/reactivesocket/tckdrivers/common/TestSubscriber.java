@@ -101,6 +101,7 @@ public class TestSubscriber<T> implements Subscriber<T>, Subscription, Disposabl
      * The echo subscription, if exists
      */
     private EchoSubscription echosub;
+
     private boolean isEcho = false;
 
     private boolean checkSubscriptionOnce;
@@ -108,6 +109,11 @@ public class TestSubscriber<T> implements Subscriber<T>, Subscription, Disposabl
     private int initialFusionMode;
 
     private int establishedFusionMode;
+
+    /**
+     * The maximum amount of time to await, in miliseconds, for a single assertion, otherwise the test fails
+     */
+    private long maxAwait;
 
     private QueueSubscription<Payload> qs;
 
@@ -152,6 +158,23 @@ public class TestSubscriber<T> implements Subscriber<T>, Subscription, Disposabl
         this.values = new ArrayList<>();
         this.errors = new ArrayList<Throwable>();
         this.done = new CountDownLatch(1);
+        this.maxAwait = 2000; // lets default to 2 seconds
+    }
+
+    /**
+     * Constructs a forwarding TestSubscriber with the specified initial request value.
+     *
+     * @param actual
+     * @param initialRequest
+     * @param maxAwait
+     */
+    public TestSubscriber(Subscriber<? super Payload> actual, Long initialRequest, Long maxAwait) {
+        this.actual = actual;
+        this.initialRequest = initialRequest;
+        this.values = new ArrayList<>();
+        this.errors = new ArrayList<Throwable>();
+        this.done = new CountDownLatch(1);
+        this.maxAwait = maxAwait;
     }
 
     @SuppressWarnings("unchecked")
@@ -328,9 +351,16 @@ public class TestSubscriber<T> implements Subscriber<T>, Subscription, Disposabl
             cancel();
             return;
         }
+        int waitIterations = 0;
         while(Integer.MAX_VALUE - takeLatch.getCount() < n) {
             try {
+                // we keep track of how long we've waited for
+                if (waitIterations * 100 >= maxAwait) {
+                    fail("Timeout in take");
+                    break;
+                }
                 takeLatch.await(100, TimeUnit.MILLISECONDS);
+                waitIterations++;
             } catch (Exception e) {
                 System.out.println("interrupted");
             }
@@ -443,49 +473,22 @@ public class TestSubscriber<T> implements Subscriber<T>, Subscription, Disposabl
         return subscription.get() != null;
     }
 
-    /**
-     * Awaits until this TestSubscriber receives an onError or onComplete events.
-     *
-     * @return this
-     * @throws InterruptedException if the current thread is interrupted while waiting
-     * @see #awaitTerminalEvent()
-     */
-    public final TestSubscriber await() throws InterruptedException {
-        if (done.getCount() == 0) {
-            return this;
-        }
-
-        done.await();
-        return this;
-    }
-
-    /**
-     * Awaits the specified amount of time or until this TestSubscriber
-     * receives an onError or onComplete events, whichever happens first.
-     *
-     * @param time the waiting time
-     * @param unit the time unit of the waiting time
-     * @return true if the TestSubscriber terminated, false if timeout happened
-     * @throws InterruptedException if the current thread is interrupted while waiting
-     * @see #awaitTerminalEvent(long, TimeUnit)
-     */
-    public final boolean await(long time, TimeUnit unit) throws InterruptedException {
-        if (done.getCount() == 0) {
-            return true;
-        }
-        return done.await(time, unit);
-    }
-
-    public final boolean awaitAtLeast(long n, long time, TimeUnit unit) throws InterruptedException {
-        numOnNext.await(time, unit);
+    public final boolean awaitAtLeast(long n) throws InterruptedException {
+        int waitIterations = 0;
         while (values.size() < n) {
-            numOnNext.await(time, unit);
+            if (waitIterations * 100 >= maxAwait) {
+                fail("await at least timed out");
+                break;
+            }
+            numOnNext.await(100, TimeUnit.MILLISECONDS);
+            waitIterations++;
         }
-        pass("got " + values.size() + " out of " + n + " values expected", true);
+        pass("got " + values.size() + " out of " + n + " values expected", isPassing);
         numOnNext = new CountDownLatch(Integer.MAX_VALUE);
         return true;
     }
 
+    // could potentially have a race condition, but cancel is asynchronous anyways
     public final void awaitNoEvents(long time) throws InterruptedException {
         int numValues = values.size();
         boolean iscanceled = cancelled;
@@ -613,14 +616,9 @@ public class TestSubscriber<T> implements Subscriber<T>, Subscription, Disposabl
 
     /**
      * Assert that this TestSubscriber received exactly the specified onError event value.
-     * <p>
-     * <p>The comparison is performed via Objects.equals(); since most exceptions don't
-     * implement equals(), this assertion may fail. Use the {@link #assertError(Class)}
-     * overload to test against the class of an error instead of an instance of an error.
      *
      * @param error the error to check
      * @return this
-     * @see #assertError(Class)
      */
     public final TestSubscriber assertError(Throwable error) {
         String prefix = "";
@@ -633,52 +631,7 @@ public class TestSubscriber<T> implements Subscriber<T>, Subscription, Disposabl
             fail(prefix, "No errors", Collections.<Throwable>emptyList());
             passed = false;
         }
-        /*if (errors.contains(error)) {
-            if (s != 1) {
-                fail(prefix, "Error present but other errors as well", errors);
-                passed = false;
-            }
-        } else {
-            fail(prefix, "Error not present", errors);
-            passed = false;
-        }*/
         pass("error received", passed);
-        return this;
-    }
-
-    /**
-     * Asserts that this TestSubscriber received exactly one onError event which is an
-     * instance of the specified errorClass class.
-     *
-     * @param errorClass the error class to expect
-     * @return this
-     */
-    public final TestSubscriber assertError(Class<? extends Throwable> errorClass) {
-        String prefix = "";
-        if (done.getCount() != 0) {
-            prefix = "Subscriber still running! ";
-        }
-        int s = errors.size();
-        if (s == 0) {
-            fail(prefix, "No errors", Collections.<Throwable>emptyList());
-        }
-
-        boolean found = false;
-
-        for (Throwable e : errors) {
-            if (errorClass.isInstance(e)) {
-                found = true;
-                break;
-            }
-        }
-
-        if (found) {
-            if (s != 1) {
-                fail(prefix, "Error present but other errors as well", errors);
-            }
-        } else {
-            fail(prefix, "Error not present", errors);
-        }
         return this;
     }
 
@@ -877,7 +830,16 @@ public class TestSubscriber<T> implements Subscriber<T>, Subscription, Disposabl
      */
     public final boolean awaitTerminalEvent() {
         try {
-            await();
+            if (done.getCount() == 0) return true;
+            int waitIterations = 0;
+            while (done.getCount() > 0) {
+                if (waitIterations * 100 >= maxAwait) {
+                    fail("awaiting terminal event timed out");
+                    return false;
+                }
+                done.await(100, TimeUnit.MILLISECONDS);
+                waitIterations++;
+            }
             return true;
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
@@ -885,22 +847,6 @@ public class TestSubscriber<T> implements Subscriber<T>, Subscription, Disposabl
         }
     }
 
-    /**
-     * Awaits the specified amount of time or until this TestSubscriber
-     * receives an onError or onComplete events, whichever happens first.
-     *
-     * @param duration the waiting time
-     * @param unit     the time unit of the waiting time
-     * @return true if the TestSubscriber terminated, false if timeout or interrupt happened
-     */
-    public final boolean awaitTerminalEvent(long duration, TimeUnit unit) {
-        try {
-            return await(duration, unit);
-        } catch (InterruptedException ex) {
-            Thread.currentThread().interrupt();
-            return false;
-        }
-    }
 
     /**
      * A subscriber that ignores all events and does not report errors.

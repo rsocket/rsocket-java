@@ -138,7 +138,7 @@ public class JavaServerDriver {
                 payloadPublisher.subscribe(sub);
                 // want to get equivalent of "initial payload"
                 //sub.request(1); // first request of server is implicit, so don't need to call request(1) here
-                sub.awaitAtLeast(1, 1000, TimeUnit.MILLISECONDS);
+                sub.awaitAtLeast(1);
                 Tuple<String, String> initpayload = new Tuple<>(sub.getElement(0).getK(), sub.getElement(0).getV());
                 System.out.println(initpayload.getK() + " " + initpayload.getV());
                 // if this is a normal channel handler, then initiate the normal setup

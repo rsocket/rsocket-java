@@ -50,7 +50,6 @@ public class JavaClientDriver {
     private final Map<String, TestSubscriber<Void>> fnfSubscribers;
     private final Map<String, String> idToType;
     private final Supplier<ReactiveSocket> createClient;
-    private CountDownLatch count;
 
     public JavaClientDriver(String path, Supplier<ReactiveSocket> createClient) throws FileNotFoundException {
         this.reader = new BufferedReader(new FileReader(path));
@@ -82,16 +81,10 @@ public class JavaClientDriver {
         }
         tests.add(test);
         tests = tests.subList(1, tests.size()); // remove the first list, which is empty
-        count = new CountDownLatch(tests.size());
         for (List<String> t : tests) {
             TestThread thread = new TestThread(t);
             thread.start();
             thread.join();
-        }
-        try {
-            count.await();
-        } catch (InterruptedException e) {
-            System.out.println("interrupted");
         }
     }
 
@@ -343,7 +336,7 @@ public class JavaClientDriver {
         try {
             String id = args[2];
             TestSubscriber<Payload> sub = payloadSubscribers.get(id);
-            sub.awaitAtLeast(Long.parseLong(args[3]), Long.parseLong(args[4]), TimeUnit.MILLISECONDS);
+            sub.awaitAtLeast(Long.parseLong(args[3]));
         } catch (InterruptedException e) {
             System.out.println("interrupted");
         }
@@ -512,7 +505,6 @@ public class JavaClientDriver {
                 if (finish.get()) System.out.println(ANSI_GREEN + "Test passed" + ANSI_RESET);
                 else System.out.println(ANSI_RED + "Test failed" + ANSI_RESET);
             }
-            count.countDown();
         }
 
         public void start() {t.start();}

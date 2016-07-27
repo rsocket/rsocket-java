@@ -71,7 +71,7 @@ public class ParseChannel {
                             break;
                         case "atLeast":
                             try {
-                                sub.awaitAtLeast(Long.parseLong(args[3]), Long.parseLong(args[4]), TimeUnit.MILLISECONDS);
+                                sub.awaitAtLeast(Long.parseLong(args[3]));
                             } catch (InterruptedException e) {
                                 System.out.println("interrupted");
                             }
