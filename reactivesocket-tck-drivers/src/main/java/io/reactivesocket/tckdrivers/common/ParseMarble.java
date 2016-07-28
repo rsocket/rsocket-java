@@ -20,22 +20,24 @@ import io.reactivesocket.util.PayloadImpl;
 import org.reactivestreams.Subscriber;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 
 /**
  * This class parses through a marble diagram, but also implements a backpressure buffer so that the rate at
  * which producers add values can be much faster than the rate at which consumers consume values.
- * The backpressure buffer is the marble string
+ * The backpressure buffer is the marble queue. The add function synchronously grows the marble queue, and the
+ * request function synchronously increments the data requested as well as unblocks the latches that are basically
+ * preventing the parse() method from emitting data in the backpressure buffer that it should not.
  */
 public class ParseMarble {
 
-    private String marble;
+    private Queue<Character> marble;
     private Subscriber<? super Payload> s;
     private boolean cancelled = false;
     private Map<String, Map<String, String>> argMap;
     private long numSent = 0;
     private long numRequested = 0;
-    private int marbleIndex = 0;
     private CountDownLatch parseLatch;
     private CountDownLatch sendLatch;
 
@@ -47,10 +49,10 @@ public class ParseMarble {
      */
     public ParseMarble(String marble, Subscriber<? super Payload> s) {
         this.s = s;
-        this.marble = marble;
+        this.marble = new ConcurrentLinkedQueue<>();
         if (marble.contains("&&")) {
             String[] temp = marble.split("&&");
-            this.marble = temp[0];
+            marble = temp[0];
             ObjectMapper mapper = new ObjectMapper();
             try {
                 argMap = mapper.readValue(temp[1], new TypeReference<Map<String, Map<String, String>>>() {
@@ -58,6 +60,10 @@ public class ParseMarble {
             } catch (Exception e) {
                 System.out.println("couldn't convert argmap");
             }
+        }
+        // we want to filter out and disregard '-' since we don't care about time
+        for (char c : marble.toCharArray()) {
+            if (c != '-') this.marble.add(c);
         }
         parseLatch = new CountDownLatch(1);
         sendLatch = new CountDownLatch(1);
@@ -69,7 +75,7 @@ public class ParseMarble {
      */
     public ParseMarble(Subscriber<? super Payload> s) {
         this.s = s;
-        this.marble = "";
+        this.marble = new ConcurrentLinkedQueue<>();
         parseLatch = new CountDownLatch(1);
         sendLatch = new CountDownLatch(1);
     }
@@ -82,7 +88,9 @@ public class ParseMarble {
      */
     public synchronized void add(String m) {
         System.out.println("adding " + m);
-        this.marble += m;
+        for (char c : m.toCharArray()) {
+            if (c != '-') this.marble.add(c);
+        }
         parseLatch.countDown();
     }
 
@@ -95,7 +103,7 @@ public class ParseMarble {
     public synchronized void request(long n) {
         System.out.println("requested" + n);
         numRequested += n;
-        if (marble.length() > marbleIndex) {
+        if (!marble.isEmpty()) {
             parseLatch.countDown();
         }
         if (n > 0) sendLatch.countDown();
@@ -109,30 +117,21 @@ public class ParseMarble {
             // if cancel has been called, don't do anything
             if (cancelled) return;
             while (true) {
-                if (marbleIndex >= marble.length()) {
+                if (marble.isEmpty()) {
                     synchronized (parseLatch) {
                         if (parseLatch.getCount() == 0) parseLatch = new CountDownLatch(1);
                         parseLatch.await();
                     }
                     parseLatch = new CountDownLatch(1);
                 }
-                char c = marble.charAt(marbleIndex);
+                char c = marble.poll();
                 switch (c) {
-                    case '-':
-                        // ignore the '-' characters
-                        break;
                     case '|':
                         s.onComplete();
                         System.out.println("on complete sent");
                         break;
                     case '#':
                         s.onError(new Throwable());
-                        break;
-                    case '(':
-                        // ignore groupings
-                        break;
-                    case ')':
-                        // ignore groupings
                         break;
                     default:
                         if (numSent >= numRequested) {
@@ -160,7 +159,6 @@ public class ParseMarble {
                         numSent++;
                         break;
                 }
-                marbleIndex++;
             }
         } catch (InterruptedException e) {
             System.out.println("interrupted");
@@ -170,6 +168,8 @@ public class ParseMarble {
 
     /**
      * Since cancel is async, it just means that we will eventually, and rather quickly, stop emitting values.
+     * We do this to follow the reactive streams specifications that cancel should mean that the observable eventually
+     * stops emitting items.
      */
     public void cancel() {
         cancelled = true;

@@ -6,6 +6,9 @@ import io.airlift.airline.SingleCommand;
 import io.reactivesocket.tckdrivers.client.JavaTCPClient;
 import io.reactivesocket.tckdrivers.server.JavaTCPServer;
 
+/**
+ * This class is used to run both the server and the client, depending on the options given
+ */
 @Command(name = "reactivesocket-driver", description = "This runs the client and servers that use the driver")
 public class Main {
 

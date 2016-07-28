@@ -195,6 +195,12 @@ public class JavaClientDriver {
         else return Optional.empty();
     }
 
+    /**
+     * This function takes in the arguments for the subscribe command, and subscribes an instance of TestSubscriber
+     * with an initial request of 0 (which means don't immediately make a request) to an instance of the corresponding
+     * publisher
+     * @param args
+     */
     private void handleSubscribe(String[] args) {
         switch (args[1]) {
             case "rr":

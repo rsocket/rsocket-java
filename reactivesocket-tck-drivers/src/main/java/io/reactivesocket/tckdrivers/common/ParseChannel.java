@@ -56,6 +56,8 @@ public class ParseChannel {
 
     /**
      * This parses through each line of the marble test and executes the commands in each line
+     * Most of the functionality is the same as the switch statement in the JavaClientDriver, but this also
+     * allows for the channel to stage items to emit.
      */
     public void parse() {
         for (String line : commands) {
@@ -146,6 +148,10 @@ public class ParseChannel {
         addThread.start();
     }
 
+    /**
+     * This verifies that the data received by our TestSubscriber matches what we expected
+     * @param args
+     */
     private void handleReceived(String[] args) {
         String[] values = args[3].split("&&");
         if (values.length == 1) {
