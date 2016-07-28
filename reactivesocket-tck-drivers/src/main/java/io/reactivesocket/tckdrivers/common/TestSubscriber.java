@@ -16,15 +16,9 @@ package io.reactivesocket.tckdrivers.common;
 import io.reactivesocket.Payload;
 import io.reactivesocket.internal.frame.ByteBufferUtil;
 import io.reactivesocket.util.PayloadImpl;
-import io.reactivex.Notification;
-import io.reactivex.disposables.Disposable;
-import io.reactivex.exceptions.CompositeException;
-import io.reactivex.internal.functions.Objects;
-import io.reactivex.internal.fuseable.QueueSubscription;
-import io.reactivex.internal.subscriptions.SubscriptionHelper;
-import io.reactivex.internal.util.BackpressureHelper;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
+import rx.exceptions.CompositeException;
 
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
@@ -32,7 +26,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
-public class TestSubscriber<T> implements Subscriber<T>, Subscription, Disposable {
+public class TestSubscriber<T> implements Subscriber<T>, Subscription {
 
     /**
      * The actual subscriber to forward events to.
@@ -115,8 +109,6 @@ public class TestSubscriber<T> implements Subscriber<T>, Subscription, Disposabl
      */
     private long maxAwait;
 
-    private QueueSubscription<Payload> qs;
-
     /**
      * Constructs a non-forwarding TestSubscriber with an initial request value of Long.MAX_VALUE.
      */
@@ -188,41 +180,12 @@ public class TestSubscriber<T> implements Subscriber<T>, Subscription, Disposabl
         }
         if (!subscription.compareAndSet(null, s)) {
             s.cancel();
-            if (subscription.get() != SubscriptionHelper.CANCELLED) {
-                errors.add(new IllegalStateException("onSubscribe received multiple subscriptions: " + s));
-            }
             return;
         }
 
         if (cancelled) {
             s.cancel();
         }
-
-        if (initialFusionMode != 0) {
-            if (s instanceof QueueSubscription) {
-                qs = (QueueSubscription<Payload>) s;
-
-                int m = qs.requestFusion(initialFusionMode);
-                establishedFusionMode = m;
-
-                if (m == QueueSubscription.SYNC) {
-                    checkSubscriptionOnce = true;
-                    lastThread = Thread.currentThread();
-                    try {
-                        Payload t;
-                        while ((t = qs.poll()) != null) {
-                            values.add(new Tuple<>(ByteBufferUtil.toUtf8String(t.getData()),
-                                    ByteBufferUtil.toUtf8String(t.getMetadata())));
-                        }
-                        completions++;
-                    } catch (Throwable ex) {
-                        errors.add(ex);
-                    }
-                    return;
-                }
-            }
-        }
-
 
         actual.onSubscribe(s);
 
@@ -257,14 +220,6 @@ public class TestSubscriber<T> implements Subscriber<T>, Subscription, Disposabl
             }
         }
         lastThread = Thread.currentThread();
-
-        if (establishedFusionMode == QueueSubscription.ASYNC) {
-            while ((p = qs.poll()) != null) {
-                values.add(new Tuple<>(ByteBufferUtil.toUtf8String(p.getData()),
-                        ByteBufferUtil.toUtf8String(p.getMetadata())));
-            }
-            return;
-        }
 
         values.add(tup);
         numOnNext.countDown();
@@ -320,21 +275,9 @@ public class TestSubscriber<T> implements Subscriber<T>, Subscription, Disposabl
 
     @Override
     public final void request(long n) {
-        if (!SubscriptionHelper.validate(n)) {
-            return;
-        }
         Subscription s = subscription.get();
         if (s != null) {
             s.request(n);
-        } else {
-            BackpressureHelper.add(missedRequested, n);
-            s = subscription.get();
-            if (s != null) {
-                long mr = missedRequested.getAndSet(0L);
-                if (mr != 0L) {
-                    s.request(mr);
-                }
-            }
         }
     }
 
@@ -371,7 +314,7 @@ public class TestSubscriber<T> implements Subscriber<T>, Subscription, Disposabl
     public final void cancel() {
         if (!cancelled) {
             cancelled = true;
-            SubscriptionHelper.dispose(subscription);
+            subscription.get().cancel();
         }
     }
 
@@ -386,16 +329,6 @@ public class TestSubscriber<T> implements Subscriber<T>, Subscription, Disposabl
         } else {
             fail("cancelled");
         }
-        return cancelled;
-    }
-
-    @Override
-    public final void dispose() {
-        cancel();
-    }
-
-    @Override
-    public final boolean isDisposed() {
         return cancelled;
     }
 
@@ -517,14 +450,12 @@ public class TestSubscriber<T> implements Subscriber<T>, Subscription, Disposabl
         CompositeException ce = new CompositeException();
         for (Throwable e : errors) {
             if (e == null) {
-                ce.suppress(new NullPointerException("Throwable was null!"));
+                ce.addSuppressed(new NullPointerException("Throwable was null!"));
             } else {
-                ce.suppress(e);
+                ce.addSuppressed(e);
             }
         }
-        if (!ce.isEmpty()) {
-            ae.initCause(ce);
-        }
+        ae.initCause(ce);
         isPassing = false;
     }
 

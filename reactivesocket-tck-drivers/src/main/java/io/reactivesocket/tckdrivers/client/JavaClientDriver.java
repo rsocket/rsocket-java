@@ -29,6 +29,7 @@ import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -57,6 +58,10 @@ public class JavaClientDriver {
         this.fnfSubscribers = new HashMap<>();
         this.idToType = new HashMap<>();
         this.createClient = createClient;
+    }
+
+    private enum TestResult {
+        PASS, FAIL, CHANNEL
     }
 
     /**
@@ -89,24 +94,16 @@ public class JavaClientDriver {
     }
 
     /**
-     * A wrapper for parse if a test is not named.
-     * @param test
-     * @return
-     */
-    private Optional<Boolean> parse(List<String> test) {
-        return parse(test, "");
-    }
-
-
-    /**
      * Parses through the commands for each test, and calls handlers that execute the commands.
      * @param test the list of strings which makes up each test case
      * @param name the name of the test
      * @return an option with either true if the test passed, false if it failed, or empty if no subscribers were found
      */
-    private Optional<Boolean> parse(List<String> test, String name) {
+    private TestResult parse(List<String> test, String name) throws Exception {
         List<String> id = new ArrayList<>();
         Iterator<String> iter = test.iterator();
+        boolean shouldPass = true; // determines whether this test is supposed to pass or fail
+        boolean channelTest = false; // tells whether this is a test for channel or not
         while (iter.hasNext()) {
             String line = iter.next();
             String[] args = line.split("%%");
@@ -116,6 +113,7 @@ public class JavaClientDriver {
                     id.add(args[2]);
                     break;
                 case "channel":
+                    channelTest = true;
                     handleChannel(args, iter, name);
                     break;
                 case "echochannel":
@@ -175,10 +173,15 @@ public class JavaClientDriver {
                     handleCancel(args);
                     break;
                 case "EOF":
-
+                    break;
+                case "pass":
+                    shouldPass = true;
+                    break;
+                case "fail":
+                    shouldPass = false;
                     break;
                 default:
-
+                    // the default behavior is to just skip the line, so we can acommodate slight changes to the TCK
                     break;
             }
 
@@ -190,9 +193,11 @@ public class JavaClientDriver {
                 if (payloadSubscribers.get(str) != null) hasPassed = hasPassed && payloadSubscribers.get(str).hasPassed();
                 else hasPassed = hasPassed && fnfSubscribers.get(str).hasPassed();
             }
-            return Optional.of(hasPassed);
+            if ((shouldPass && hasPassed) || (!shouldPass && !hasPassed)) return TestResult.PASS;
+            else return TestResult.FAIL;
         }
-        else return Optional.empty();
+        else if (channelTest) return TestResult.CHANNEL;
+        else throw new Exception("There is no subscriber in this test");
     }
 
     /**
@@ -266,7 +271,7 @@ public class JavaClientDriver {
         // we now create the publisher that the server will subscribe to with its own subscriber
         // we want to give that subscriber a subscription that the client will use to send data to the server
         ReactiveSocket client = createClient.get();
-        PCTWrapper mypct = new PCTWrapper();
+        AtomicReference<ParseChannelThread> mypct = new AtomicReference<>();
         Publisher<Payload> pub = client.requestChannel(new Publisher<Payload>() {
             @Override
             public void subscribe(Subscriber<? super Payload> s) {
@@ -287,19 +292,6 @@ public class JavaClientDriver {
             System.out.println("interrupted");
         }
         mypct.get().join();
-    }
-
-    /**
-     * Trivial class that wraps around the ParseChannelThread
-     */
-    private class PCTWrapper {
-        ParseChannelThread p;
-        public void set(ParseChannelThread p) {
-            this.p = p;
-        }
-        public ParseChannelThread get() {
-            return this.p;
-        }
     }
 
     /**
@@ -496,20 +488,19 @@ public class JavaClientDriver {
 
         @Override
         public void run() {
-            String name = "";
-            if (test.get(0).startsWith("name")) {
-                name = test.get(0).split("%%")[1];
-                System.out.println("Starting test " + name);
-                Optional<Boolean> finish = parse(test.subList(1, test.size()), name);
-                if (!finish.isPresent()) return;
-                if (finish.get()) System.out.println(ANSI_GREEN + name + " passed" + ANSI_RESET);
-                else System.out.println(ANSI_RED + name + " failed" + ANSI_RESET);
-            } else {
-                System.out.println("Starting test");
-                Optional<Boolean> finish = parse(test);
-                if (!finish.isPresent()) return;
-                if (finish.get()) System.out.println(ANSI_GREEN + "Test passed" + ANSI_RESET);
-                else System.out.println(ANSI_RED + "Test failed" + ANSI_RESET);
+            try {
+                String name = "";
+                if (test.get(0).startsWith("name")) {
+                    name = test.get(0).split("%%")[1];
+                    System.out.println("Starting test " + name);
+                    TestResult result = parse(test.subList(1, test.size()), name);
+                    if (result == TestResult.PASS)
+                        System.out.println(ANSI_GREEN + name + " results match" + ANSI_RESET);
+                    else if (result == TestResult.FAIL)
+                        System.out.println(ANSI_RED + name + " results do not match" + ANSI_RESET);
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
             }
         }
 
