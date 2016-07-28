@@ -91,7 +91,7 @@ public class ParseMarble {
         for (char c : m.toCharArray()) {
             if (c != '-') this.marble.add(c);
         }
-        parseLatch.countDown();
+        if (!marble.isEmpty()) parseLatch.countDown();
     }
 
     /**
