@@ -13,7 +13,7 @@
 
 package io.reactivesocket.exceptions;
 
-public class TimeoutException extends Exception {
+public class TimeoutException extends RuntimeException {
 
     private static final long serialVersionUID = -6352901497935205059L;
 

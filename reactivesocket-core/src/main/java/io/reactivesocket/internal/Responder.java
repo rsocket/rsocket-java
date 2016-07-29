@@ -383,6 +383,7 @@ public class Responder {
                 if (disposable != null) {
                     // cancel the one that was there if we failed to set the sentinel
                     transportSubscription.get().dispose();
+                    leaseGovernor.unregister(Responder.this);
                 }
             }
 

@@ -15,7 +15,7 @@
  */
 package io.reactivesocket.exceptions;
 
-public class TransportException extends Throwable {
+public class TransportException extends RuntimeException {
     public TransportException(Throwable t) {
         super(t);
     }

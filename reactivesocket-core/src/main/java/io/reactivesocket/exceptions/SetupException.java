@@ -18,7 +18,7 @@ package io.reactivesocket.exceptions;
 import io.reactivesocket.Frame;
 import io.reactivesocket.FrameType;
 
-public class SetupException extends Throwable {
+public class SetupException extends RuntimeException {
 	public SetupException(String message) {
 		super(message);
 	}
