@@ -1,0 +1,33 @@
+task wrapper(type: Wrapper) {
+    gradleVersion = '2.13'
+}
+
+apply plugin: 'application'
+apply plugin: 'java'
+
+mainClassName = "io.reactivesocket.tckdrivers.main.Main"
+
+jar {
+    manifest {
+        attributes "Main-Class": "$mainClassName"
+    }
+
+    from {
+        configurations.compile.collect { it.isDirectory() ? it : zipTree(it) }
+    }
+}
+
+dependencies {
+
+    compile project(':reactivesocket-core')
+    compile project(':reactivesocket-client')
+    compile project(':reactivesocket-transport-tcp')
+    compile 'com.fasterxml.jackson.core:jackson-core:2.8.0.rc2'
+    compile 'com.fasterxml.jackson.core:jackson-databind:2.8.0.rc2'
+    compile 'org.apache.commons:commons-lang3:3.4'
+    compile 'io.reactivex:rxjava-reactive-streams:1.1.0"'
+    compile 'io.airlift:airline:0.7'
+}
+
+apply plugin: 'application'
+mainClassName = "io.reactivesocket.tckdrivers.JavaTCPServer"
