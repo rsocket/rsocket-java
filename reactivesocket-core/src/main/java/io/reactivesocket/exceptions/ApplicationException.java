@@ -15,7 +15,7 @@
  */
 package io.reactivesocket.exceptions;
 
-public class ApplicationException extends Throwable {
+public class ApplicationException extends RuntimeException {
     public ApplicationException(String message) {
         super(message);
     }

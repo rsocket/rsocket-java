@@ -15,7 +15,7 @@
  */
 package io.reactivesocket.exceptions;
 
-public class InvalidRequestException extends Throwable {
+public class InvalidRequestException extends RuntimeException {
     public InvalidRequestException(String message) {
         super(message);
     }

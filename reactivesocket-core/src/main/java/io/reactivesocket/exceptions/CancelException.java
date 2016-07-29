@@ -15,7 +15,7 @@
  */
 package io.reactivesocket.exceptions;
 
-public class CancelException extends Throwable {
+public class CancelException extends RuntimeException {
     public CancelException(String message) {
         super(message);
     }
