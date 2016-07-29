@@ -1,6 +1,6 @@
 #!/bin/bash
 
-LATEST_VERSION=$(find build/libs/ | sort -r | head -1)
+LATEST_VERSION=$(ls build/libs/ | sort -r | head -1)
 
 echo "running latest version $LATEST_VERSION"
 
