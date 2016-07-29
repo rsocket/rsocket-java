@@ -15,7 +15,7 @@
  */
 package io.reactivesocket.exceptions;
 
-public class ConnectionException extends Throwable implements Retryable {
+public class ConnectionException extends RuntimeException implements Retryable {
     public ConnectionException(String message) {
         super(message);
     }
