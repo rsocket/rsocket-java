@@ -1,3 +1,7 @@
 #!/bin/bash
 
-java -cp build/libs/reactivesocket-tck-drivers-0.2.3-SNAPSHOT.jar io.reactivesocket.tckdrivers.main.Main "$@"
+LATEST_VERSION=$(find build/libs/ | sort -r | head -1)
+
+echo "running latest version $LATEST_VERSION"
+
+java -cp "build/libs/$LATEST_VERSION" io.reactivesocket.tckdrivers.main.Main "$@"
