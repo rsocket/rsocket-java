@@ -84,6 +84,12 @@ public class JavaClientDriver {
             }
             line = reader.readLine();
         }
+        JavaTCPClient.createClient().fireAndForget(new PayloadImpl("a", "b"));
+        try {
+            Thread.sleep(1000);
+        } catch (Exception e) {
+
+        }
         tests.add(test);
         tests = tests.subList(1, tests.size()); // remove the first list, which is empty
         for (List<String> t : tests) {

@@ -108,8 +108,8 @@ public class JavaServerDriver {
             System.out.println("requestresponse " + initialPayload.getK() + " " + initialPayload.getV());
             if (marble != null) {
                 ParseMarble pm = new ParseMarble(marble, s);
-                new ParseThread(pm).start();
                 s.onSubscribe(new TestSubscription(pm));
+                new ParseThread(pm).start();
             }
         }).withRequestStream(payload -> s -> {
             Tuple<String, String> initialPayload = new Tuple<>(ByteBufferUtil.toUtf8String(payload.getData()),
@@ -118,8 +118,8 @@ public class JavaServerDriver {
             System.out.println("Stream " + initialPayload.getK() + " " + initialPayload.getV());
             if (marble != null) {
                 ParseMarble pm = new ParseMarble(marble, s);
-                new ParseThread(pm).start();
                 s.onSubscribe(new TestSubscription(pm));
+                new ParseThread(pm).start();
             }
         }).withRequestSubscription(payload -> s -> {
             Tuple<String, String> initialPayload = new Tuple<>(ByteBufferUtil.toUtf8String(payload.getData()),
@@ -128,8 +128,8 @@ public class JavaServerDriver {
             System.out.println("Subscription " + initialPayload.getK() + " " + initialPayload.getV());
             if (marble != null) {
                 ParseMarble pm = new ParseMarble(marble, s);
-                new ParseThread(pm).start();
                 s.onSubscribe(new TestSubscription(pm));
+                new ParseThread(pm).start();
             }
         }).withRequestChannel(payloadPublisher -> s -> { // design flaw
             try {
