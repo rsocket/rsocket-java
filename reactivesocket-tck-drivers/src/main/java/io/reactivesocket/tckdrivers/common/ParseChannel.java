@@ -36,6 +36,7 @@ public class ParseChannel {
     private String name = "";
     private CountDownLatch prevRespondLatch;
     private CountDownLatch currentRespondLatch;
+    private boolean pass;
 
     public ParseChannel(List<String> commands, TestSubscriber<Payload> sub, ParseMarble parseMarble) {
         this.commands = commands;
@@ -45,13 +46,15 @@ public class ParseChannel {
         parseThread.start();
     }
 
-    public ParseChannel(List<String> commands, TestSubscriber<Payload> sub, ParseMarble parseMarble, String name) {
+    public ParseChannel(List<String> commands, TestSubscriber<Payload> sub, ParseMarble parseMarble,
+                        String name, boolean pass) {
         this.commands = commands;
         this.sub = sub;
         this.parseMarble = parseMarble;
         this.name = name;
         ParseThread parseThread = new ParseThread(parseMarble);
         parseThread.start();
+        this.pass = pass;
     }
 
     /**
@@ -130,7 +133,8 @@ public class ParseChannel {
         if (name.equals("")) {
             name = "CHANNEL";
         }
-        if (sub.hasPassed()) System.out.println(ANSI_GREEN + name + " PASSED" + ANSI_RESET);
+        if (sub.hasPassed() && this.pass) System.out.println(ANSI_GREEN + name + " PASSED" + ANSI_RESET);
+        else if (!sub.hasPassed() && !this.pass) System.out.println(ANSI_GREEN + name + " PASSED" + ANSI_RESET);
         else System.out.println(ANSI_RED + name + " FAILED" + ANSI_RESET);
     }
 

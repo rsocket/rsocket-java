@@ -117,7 +117,7 @@ public class JavaClientDriver {
                     break;
                 case "channel":
                     channelTest = true;
-                    handleChannel(args, iter, name);
+                    handleChannel(args, iter, name, shouldPass);
                     break;
                 case "echochannel":
                     handleEchoChannel(args);
@@ -255,7 +255,7 @@ public class JavaClientDriver {
      * @param iter
      * @param name
      */
-    private void handleChannel(String[] args, Iterator<String> iter, String name) {
+    private void handleChannel(String[] args, Iterator<String> iter, String name, boolean pass) {
         List<String> commands = new ArrayList<>();
         String line = iter.next();
         // channel script should be bounded by curly braces
@@ -281,7 +281,7 @@ public class JavaClientDriver {
                 ParseMarble pm = new ParseMarble(s);
                 TestSubscription ts = new TestSubscription(pm, initialPayload, s);
                 s.onSubscribe(ts);
-                ParseChannel pc = new ParseChannel(commands, testsub, pm, name);
+                ParseChannel pc = new ParseChannel(commands, testsub, pm, name, pass);
                 ParseChannelThread pct = new ParseChannelThread(pc);
                 pct.start();
                 mypct.set(pct);
