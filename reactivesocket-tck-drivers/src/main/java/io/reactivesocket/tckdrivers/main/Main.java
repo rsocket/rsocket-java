@@ -6,6 +6,8 @@ import io.airlift.airline.SingleCommand;
 import io.reactivesocket.tckdrivers.client.JavaTCPClient;
 import io.reactivesocket.tckdrivers.server.JavaTCPServer;
 
+import java.util.Arrays;
+
 /**
  * This class is used to run both the server and the client, depending on the options given
  */
@@ -31,6 +33,10 @@ public class Main {
             "correct files")
     public static String file;
 
+    @Option(name = "--tests", description = "For the client only, optional argument to list out the tests you" +
+            " want run, should be comma separated names")
+    public static String tests;
+
     public static void main(String[] args) {
         SingleCommand<Main> cmd = SingleCommand.singleCommand(Main.class);
         cmd.parse(args);
@@ -38,7 +44,7 @@ public class Main {
             JavaTCPServer.run(file, port);
         } else if (client) {
             try {
-                JavaTCPClient.run(file, host, port, debug);
+                JavaTCPClient.run(file, host, port, debug, Arrays.asList(tests.split(",")));
             } catch (Exception e) {
                 e.printStackTrace();
             }

@@ -51,13 +51,16 @@ public class JavaClientDriver {
     private final Map<String, TestSubscriber<Void>> fnfSubscribers;
     private final Map<String, String> idToType;
     private final Supplier<ReactiveSocket> createClient;
+    private final List<String> testList;
 
-    public JavaClientDriver(String path, Supplier<ReactiveSocket> createClient) throws FileNotFoundException {
+    public JavaClientDriver(String path, Supplier<ReactiveSocket> createClient, List<String> tests)
+            throws FileNotFoundException {
         this.reader = new BufferedReader(new FileReader(path));
         this.payloadSubscribers = new HashMap<>();
         this.fnfSubscribers = new HashMap<>();
         this.idToType = new HashMap<>();
         this.createClient = createClient;
+        this.testList = tests;
     }
 
     private enum TestResult {
@@ -492,6 +495,7 @@ public class JavaClientDriver {
                 String name = "";
                 if (test.get(0).startsWith("name")) {
                     name = test.get(0).split("%%")[1];
+                    if (testList.size() > 0 && !testList.contains(name)) return;
                     System.out.println("Starting test " + name);
                     TestResult result = parse(test.subList(1, test.size()), name);
                     if (result == TestResult.PASS)
