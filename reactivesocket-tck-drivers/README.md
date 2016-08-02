@@ -46,3 +46,14 @@ You can run the client and server using the `run` script with `./run [options]`.
 
 `--debug` : This is if you want to look at the individual frames being sent and received by the client
 
+`--tests` : This allows you, when you're running the client, to specify the tests you want to run by name. Each test
+should be comma separated.
+
+Examples:
+`./run.sh --server --port 4567 --file src/test/resources/servertest.txt` should start up a server  on port `4567` that
+has its behavior determined by the file `servertest.txt`.
+
+`./run.sh --client --host localhost --port 4567 --file src/test/resources/clienttest.txt --debug --tests genericTest,badTest` should
+start the client and have it connect to localhost on port `4567` and load the tests in `clienttest.txt` in debug mode,
+and only run the tests named `genericTest` and `badTest`.
+
