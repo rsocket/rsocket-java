@@ -100,7 +100,7 @@ public class ErrorFrameFlyweight {
         } else if (ex instanceof CancelException) {
             return CANCEL;
         }
-        return INVALID;
+        return APPLICATION_ERROR;
     }
 
     public static int errorCode(final DirectBuffer directBuffer, final int offset) {
