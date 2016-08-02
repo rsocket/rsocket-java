@@ -84,13 +84,6 @@ public class JavaClientDriver {
             }
             line = reader.readLine();
         }
-        // "priming' server, seems to reduce the frequency of random errors
-        JavaTCPClient.createClient().fireAndForget(new PayloadImpl("test", "test"));
-        try {
-            Thread.sleep(1000);
-        } catch (Exception e) {
-
-        }
         tests.add(test);
         tests = tests.subList(1, tests.size()); // remove the first list, which is empty
         for (List<String> t : tests) {
