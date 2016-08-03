@@ -133,8 +133,6 @@ public class ParseChannel {
         if (name.equals("")) {
             name = "CHANNEL";
         }
-        System.out.println(sub.hasPassed());
-        System.out.println(this.pass);
         if (sub.hasPassed() && this.pass) System.out.println(ANSI_GREEN + name + " PASSED" + ANSI_RESET);
         else if (!sub.hasPassed() && !this.pass) System.out.println(ANSI_GREEN + name + " PASSED" + ANSI_RESET);
         else System.out.println(ANSI_RED + name + " FAILED" + ANSI_RESET);

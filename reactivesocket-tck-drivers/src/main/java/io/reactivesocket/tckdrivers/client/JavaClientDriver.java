@@ -45,6 +45,8 @@ public class JavaClientDriver {
     private final String ANSI_RESET = "\u001B[0m";
     private final String ANSI_RED = "\u001B[31m";
     private final String ANSI_GREEN = "\u001B[32m";
+    private final String ANSI_CYAN = "\u001B[36m";
+    private final String ANSI_BLUE = "\u001B[34m";
 
     private final BufferedReader reader;
     private final Map<String, TestSubscriber<Payload>> payloadSubscribers;
@@ -93,6 +95,8 @@ public class JavaClientDriver {
             TestThread thread = new TestThread(t);
             thread.start();
             thread.join();
+            System.out.println(ANSI_CYAN + "TIME : " + thread.getTime() + ANSI_RESET);
+            System.out.println();
         }
     }
 
@@ -483,6 +487,8 @@ public class JavaClientDriver {
     private class TestThread implements Runnable {
         private Thread t;
         private List<String> test;
+        private long startTime;
+        private long endTime;
 
         public TestThread(List<String> test) {
             this.t = new Thread(this);
@@ -496,7 +502,7 @@ public class JavaClientDriver {
                 if (test.get(0).startsWith("name")) {
                     name = test.get(0).split("%%")[1];
                     if (testList.size() > 0 && !testList.contains(name)) return;
-                    System.out.println("Starting test " + name);
+                    System.out.println(ANSI_BLUE + "Starting test " + name + ANSI_RESET);
                     TestResult result = parse(test.subList(1, test.size()), name);
                     if (result == TestResult.PASS)
                         System.out.println(ANSI_GREEN + name + " results match" + ANSI_RESET);
@@ -508,14 +514,23 @@ public class JavaClientDriver {
             }
         }
 
-        public void start() {t.start();}
+        public void start() {
+            startTime = System.nanoTime();
+            t.start();
+        }
 
         public void join() {
             try {
                 t.join();
+                endTime = System.nanoTime();
             } catch(Exception e) {
                 System.out.println("join exception");
             }
+        }
+
+        // returns the time it took to run the test in nanoseconds
+        public long getTime() {
+            return endTime - startTime;
         }
 
     }
