@@ -30,12 +30,12 @@ public class Main {
     @Option(name = "--port", description = "The port")
     public static int port;
 
-    @Option(name = "--file", description = "The script file to parse, make sure to give the client and server the" +
+    @Option(name = "--file", description = "The script file to parse, make sure to give the client and server the " +
             "correct files")
     public static String file;
 
     @Option(name = "--tests", description = "For the client only, optional argument to list out the tests you" +
-            " want run, should be comma separated names")
+            " want to run, should be comma separated names")
     public static String tests;
 
     public static void main(String[] args) {
