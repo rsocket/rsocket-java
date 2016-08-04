@@ -95,8 +95,6 @@ public class JavaClientDriver {
             TestThread thread = new TestThread(t);
             thread.start();
             thread.join();
-            System.out.println(ANSI_CYAN + "TIME : " + thread.getTime() + ANSI_RESET);
-            System.out.println();
         }
     }
 
@@ -489,6 +487,7 @@ public class JavaClientDriver {
         private List<String> test;
         private long startTime;
         private long endTime;
+        private boolean isRun = true;
 
         public TestThread(List<String> test) {
             this.t = new Thread(this);
@@ -501,7 +500,10 @@ public class JavaClientDriver {
                 String name = "";
                 if (test.get(0).startsWith("name")) {
                     name = test.get(0).split("%%")[1];
-                    if (testList.size() > 0 && !testList.contains(name)) return;
+                    if (testList.size() > 0 && !testList.contains(name)) {
+                        isRun = false;
+                        return;
+                    }
                     System.out.println(ANSI_BLUE + "Starting test " + name + ANSI_RESET);
                     TestResult result = parse(test.subList(1, test.size()), name);
                     if (result == TestResult.PASS)
@@ -523,14 +525,11 @@ public class JavaClientDriver {
             try {
                 t.join();
                 endTime = System.nanoTime();
+                if (isRun) System.out.println(ANSI_CYAN + "TIME : " + (endTime - startTime)/1000000.0 + " MILLISECONDS"
+                        + ANSI_RESET + "\n");
             } catch(Exception e) {
                 System.out.println("join exception");
             }
-        }
-
-        // returns the time it took to run the test in nanoseconds
-        public long getTime() {
-            return endTime - startTime;
         }
 
     }

@@ -30,6 +30,9 @@ import java.util.concurrent.TimeUnit;
  */
 public class JavaServerDriver {
 
+    private final String ANSI_RESET = "\u001B[0m";
+    private final String ANSI_CYAN = "\u001B[36m";
+
     private String path;
 
     // these map initial payload -> marble, which dictates the behavior of the server
@@ -100,12 +103,14 @@ public class JavaServerDriver {
         return new RequestHandler.Builder().withFireAndForget(payload -> s -> {
             Tuple<String, String> initialPayload = new Tuple<>(ByteBufferUtil.toUtf8String(payload.getData()),
                     ByteBufferUtil.toUtf8String(payload.getMetadata()));
-            System.out.println("firenforget " + initialPayload.getK() + " " + initialPayload.getV());
+            System.out.println(ANSI_CYAN + "Received firenforget " + initialPayload.getK()
+                    + " " + initialPayload.getV() + ANSI_RESET);
         }).withRequestResponse(payload -> s -> {
             Tuple<String, String> initialPayload = new Tuple<>(ByteBufferUtil.toUtf8String(payload.getData()),
                     ByteBufferUtil.toUtf8String(payload.getMetadata()));
             String marble = requestResponseMarbles.get(initialPayload);
-            System.out.println("requestresponse " + initialPayload.getK() + " " + initialPayload.getV());
+            System.out.println(ANSI_CYAN + "Received requestresponse " + initialPayload.getK()
+                    + " " + initialPayload.getV() + ANSI_RESET);
             if (marble != null) {
                 ParseMarble pm = new ParseMarble(marble, s);
                 s.onSubscribe(new TestSubscription(pm));
@@ -115,7 +120,8 @@ public class JavaServerDriver {
             Tuple<String, String> initialPayload = new Tuple<>(ByteBufferUtil.toUtf8String(payload.getData()),
                     ByteBufferUtil.toUtf8String(payload.getMetadata()));
             String marble = requestStreamMarbles.get(initialPayload);
-            System.out.println("Stream " + initialPayload.getK() + " " + initialPayload.getV());
+            System.out.println(ANSI_CYAN + "Received Stream " + initialPayload.getK() + " " + initialPayload.getV()
+                    + ANSI_RESET);
             if (marble != null) {
                 ParseMarble pm = new ParseMarble(marble, s);
                 s.onSubscribe(new TestSubscription(pm));
@@ -125,7 +131,8 @@ public class JavaServerDriver {
             Tuple<String, String> initialPayload = new Tuple<>(ByteBufferUtil.toUtf8String(payload.getData()),
                     ByteBufferUtil.toUtf8String(payload.getMetadata()));
             String marble = requestSubscriptionMarbles.get(initialPayload);
-            System.out.println("Subscription " + initialPayload.getK() + " " + initialPayload.getV());
+            System.out.println(ANSI_CYAN + "Received Subscription " + initialPayload.getK()
+                    + " " + initialPayload.getV() + ANSI_RESET);
             if (marble != null) {
                 ParseMarble pm = new ParseMarble(marble, s);
                 s.onSubscribe(new TestSubscription(pm));
@@ -133,14 +140,14 @@ public class JavaServerDriver {
             }
         }).withRequestChannel(payloadPublisher -> s -> { // design flaw
             try {
-                System.out.println("Channel");
                 TestSubscriber<Payload> sub = new TestSubscriber<>();
                 payloadPublisher.subscribe(sub);
                 // want to get equivalent of "initial payload"
                 //sub.request(1); // first request of server is implicit, so don't need to call request(1) here
                 sub.awaitAtLeast(1);
                 Tuple<String, String> initpayload = new Tuple<>(sub.getElement(0).getK(), sub.getElement(0).getV());
-                System.out.println(initpayload.getK() + " " + initpayload.getV());
+                System.out.println(ANSI_CYAN + "Received Channel" + initpayload.getK()
+                        + " " + initpayload.getV() + ANSI_RESET);
                 // if this is a normal channel handler, then initiate the normal setup
                 if (requestChannelCommands.containsKey(initpayload)) {
                     ParseMarble pm = new ParseMarble(s);
