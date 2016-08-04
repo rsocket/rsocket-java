@@ -45,6 +45,8 @@ public class JavaClientDriver {
     private final String ANSI_RESET = "\u001B[0m";
     private final String ANSI_RED = "\u001B[31m";
     private final String ANSI_GREEN = "\u001B[32m";
+    private final String ANSI_CYAN = "\u001B[36m";
+    private final String ANSI_BLUE = "\u001B[34m";
 
     private final BufferedReader reader;
     private final Map<String, TestSubscriber<Payload>> payloadSubscribers;
@@ -483,6 +485,9 @@ public class JavaClientDriver {
     private class TestThread implements Runnable {
         private Thread t;
         private List<String> test;
+        private long startTime;
+        private long endTime;
+        private boolean isRun = true;
 
         public TestThread(List<String> test) {
             this.t = new Thread(this);
@@ -495,8 +500,11 @@ public class JavaClientDriver {
                 String name = "";
                 if (test.get(0).startsWith("name")) {
                     name = test.get(0).split("%%")[1];
-                    if (testList.size() > 0 && !testList.contains(name)) return;
-                    System.out.println("Starting test " + name);
+                    if (testList.size() > 0 && !testList.contains(name)) {
+                        isRun = false;
+                        return;
+                    }
+                    System.out.println(ANSI_BLUE + "Starting test " + name + ANSI_RESET);
                     TestResult result = parse(test.subList(1, test.size()), name);
                     if (result == TestResult.PASS)
                         System.out.println(ANSI_GREEN + name + " results match" + ANSI_RESET);
@@ -508,11 +516,17 @@ public class JavaClientDriver {
             }
         }
 
-        public void start() {t.start();}
+        public void start() {
+            startTime = System.nanoTime();
+            t.start();
+        }
 
         public void join() {
             try {
                 t.join();
+                endTime = System.nanoTime();
+                if (isRun) System.out.println(ANSI_CYAN + "TIME : " + (endTime - startTime)/1000000.0 + " MILLISECONDS"
+                        + ANSI_RESET + "\n");
             } catch(Exception e) {
                 System.out.println("join exception");
             }
