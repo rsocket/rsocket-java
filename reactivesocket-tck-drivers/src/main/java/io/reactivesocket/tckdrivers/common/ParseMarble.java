@@ -101,7 +101,7 @@ public class ParseMarble {
      * @param n
      */
     public synchronized void request(long n) {
-        System.out.println("requested" + n);
+        System.out.println("requested " + n);
         numRequested += n;
         if (!marble.isEmpty()) {
             parseLatch.countDown();
@@ -151,9 +151,10 @@ public class ParseMarble {
                             List<String> key = new ArrayList<>(tempMap.keySet());
                             List<String> value = new ArrayList<>(tempMap.values());
                             s.onNext(new PayloadImpl(key.get(0), value.get(0)));
+                            System.out.println("DATA SENT " + key.get(0) + ", " + value.get(0));
                         } else {
                             this.s.onNext(new PayloadImpl(c + "", c + ""));
-                            System.out.println("DATA SENT");
+                            System.out.println("DATA SENT " + c + ", " + c);
                         }
 
                         numSent++;

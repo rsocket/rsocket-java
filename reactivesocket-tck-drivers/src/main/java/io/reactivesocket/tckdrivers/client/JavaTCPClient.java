@@ -21,6 +21,7 @@ import io.reactivesocket.transport.tcp.client.TcpReactiveSocketConnector;
 import io.reactivex.netty.protocol.tcp.client.TcpClient;
 
 import java.net.*;
+import java.util.List;
 import java.util.function.Function;
 
 import static rx.RxReactiveStreams.toObservable;
@@ -33,7 +34,7 @@ public class JavaTCPClient {
     private static URI uri;
     private static boolean debug;
 
-    public static void run(String realfile, String host, int port, boolean debug2)
+    public static void run(String realfile, String host, int port, boolean debug2, List<String> tests)
             throws MalformedURLException, URISyntaxException {
         debug = debug2;
         // we pass in our reactive socket here to the test suite
@@ -41,7 +42,7 @@ public class JavaTCPClient {
         if (realfile != null) file = realfile;
         try {
             setURI(new URI("tcp://" + host + ":" + port + "/rs"));
-            JavaClientDriver jd = new JavaClientDriver(file, JavaTCPClient::createClient);
+            JavaClientDriver jd = new JavaClientDriver(file, JavaTCPClient::createClient, tests);
             jd.runTests();
         } catch (Exception e) {
             e.printStackTrace();

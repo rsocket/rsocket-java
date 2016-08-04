@@ -1,6 +1,3 @@
-task wrapper(type: Wrapper) {
-    gradleVersion = '2.13'
-}
 
 apply plugin: 'application'
 apply plugin: 'java'
@@ -29,5 +26,3 @@ dependencies {
     compile 'io.airlift:airline:0.7'
 }
 
-apply plugin: 'application'
-mainClassName = "io.reactivesocket.tckdrivers.JavaTCPServer"

@@ -6,6 +6,9 @@ import io.airlift.airline.SingleCommand;
 import io.reactivesocket.tckdrivers.client.JavaTCPClient;
 import io.reactivesocket.tckdrivers.server.JavaTCPServer;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+
 /**
  * This class is used to run both the server and the client, depending on the options given
  */
@@ -27,9 +30,13 @@ public class Main {
     @Option(name = "--port", description = "The port")
     public static int port;
 
-    @Option(name = "--file", description = "The script file to parse, make sure to give the client and server the" +
+    @Option(name = "--file", description = "The script file to parse, make sure to give the client and server the " +
             "correct files")
     public static String file;
+
+    @Option(name = "--tests", description = "For the client only, optional argument to list out the tests you" +
+            " want to run, should be comma separated names")
+    public static String tests;
 
     public static void main(String[] args) {
         SingleCommand<Main> cmd = SingleCommand.singleCommand(Main.class);
@@ -38,7 +45,8 @@ public class Main {
             JavaTCPServer.run(file, port);
         } else if (client) {
             try {
-                JavaTCPClient.run(file, host, port, debug);
+                if (tests != null) JavaTCPClient.run(file, host, port, debug, Arrays.asList(tests.split(",")));
+                else JavaTCPClient.run(file, host, port, debug, new ArrayList<>());
             } catch (Exception e) {
                 e.printStackTrace();
             }

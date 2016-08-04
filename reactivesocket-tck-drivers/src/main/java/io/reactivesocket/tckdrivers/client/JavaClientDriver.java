@@ -45,19 +45,24 @@ public class JavaClientDriver {
     private final String ANSI_RESET = "\u001B[0m";
     private final String ANSI_RED = "\u001B[31m";
     private final String ANSI_GREEN = "\u001B[32m";
+    private final String ANSI_CYAN = "\u001B[36m";
+    private final String ANSI_BLUE = "\u001B[34m";
 
     private final BufferedReader reader;
     private final Map<String, TestSubscriber<Payload>> payloadSubscribers;
     private final Map<String, TestSubscriber<Void>> fnfSubscribers;
     private final Map<String, String> idToType;
     private final Supplier<ReactiveSocket> createClient;
+    private final List<String> testList;
 
-    public JavaClientDriver(String path, Supplier<ReactiveSocket> createClient) throws FileNotFoundException {
+    public JavaClientDriver(String path, Supplier<ReactiveSocket> createClient, List<String> tests)
+            throws FileNotFoundException {
         this.reader = new BufferedReader(new FileReader(path));
         this.payloadSubscribers = new HashMap<>();
         this.fnfSubscribers = new HashMap<>();
         this.idToType = new HashMap<>();
         this.createClient = createClient;
+        this.testList = tests;
     }
 
     private enum TestResult {
@@ -114,7 +119,7 @@ public class JavaClientDriver {
                     break;
                 case "channel":
                     channelTest = true;
-                    handleChannel(args, iter, name);
+                    handleChannel(args, iter, name, shouldPass);
                     break;
                 case "echochannel":
                     handleEchoChannel(args);
@@ -252,7 +257,7 @@ public class JavaClientDriver {
      * @param iter
      * @param name
      */
-    private void handleChannel(String[] args, Iterator<String> iter, String name) {
+    private void handleChannel(String[] args, Iterator<String> iter, String name, boolean pass) {
         List<String> commands = new ArrayList<>();
         String line = iter.next();
         // channel script should be bounded by curly braces
@@ -278,7 +283,7 @@ public class JavaClientDriver {
                 ParseMarble pm = new ParseMarble(s);
                 TestSubscription ts = new TestSubscription(pm, initialPayload, s);
                 s.onSubscribe(ts);
-                ParseChannel pc = new ParseChannel(commands, testsub, pm, name);
+                ParseChannel pc = new ParseChannel(commands, testsub, pm, name, pass);
                 ParseChannelThread pct = new ParseChannelThread(pc);
                 pct.start();
                 mypct.set(pct);
@@ -480,6 +485,9 @@ public class JavaClientDriver {
     private class TestThread implements Runnable {
         private Thread t;
         private List<String> test;
+        private long startTime;
+        private long endTime;
+        private boolean isRun = true;
 
         public TestThread(List<String> test) {
             this.t = new Thread(this);
@@ -492,7 +500,11 @@ public class JavaClientDriver {
                 String name = "";
                 if (test.get(0).startsWith("name")) {
                     name = test.get(0).split("%%")[1];
-                    System.out.println("Starting test " + name);
+                    if (testList.size() > 0 && !testList.contains(name)) {
+                        isRun = false;
+                        return;
+                    }
+                    System.out.println(ANSI_BLUE + "Starting test " + name + ANSI_RESET);
                     TestResult result = parse(test.subList(1, test.size()), name);
                     if (result == TestResult.PASS)
                         System.out.println(ANSI_GREEN + name + " results match" + ANSI_RESET);
@@ -504,11 +516,17 @@ public class JavaClientDriver {
             }
         }
 
-        public void start() {t.start();}
+        public void start() {
+            startTime = System.nanoTime();
+            t.start();
+        }
 
         public void join() {
             try {
                 t.join();
+                endTime = System.nanoTime();
+                if (isRun) System.out.println(ANSI_CYAN + "TIME : " + (endTime - startTime)/1000000.0 + " MILLISECONDS"
+                        + ANSI_RESET + "\n");
             } catch(Exception e) {
                 System.out.println("join exception");
             }

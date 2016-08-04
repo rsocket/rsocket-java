@@ -150,7 +150,7 @@ public class TestSubscriber<T> implements Subscriber<T>, Subscription {
         this.values = new ArrayList<>();
         this.errors = new ArrayList<Throwable>();
         this.done = new CountDownLatch(1);
-        this.maxAwait = 2000; // lets default to 2 seconds
+        this.maxAwait = 5000; // lets default to 5 seconds
     }
 
     /**
@@ -466,7 +466,6 @@ public class TestSubscriber<T> implements Subscriber<T>, Subscription {
     private void fail(String message) {
         isPassing = false;
         System.out.println("FAILED: " + message);
-        isPassing = false;
     }
 
     /**
@@ -619,6 +618,7 @@ public class TestSubscriber<T> implements Subscriber<T>, Subscription {
         int s = values.size();
         if (s != count) {
             fail(prefix, "Value counts differ; Expected: " + count + ", Actual: " + s, errors);
+            fail("Value counts differ; Expected: " + count + ", Actual: " + s);
             passed = false;
         }
         pass("received " + count + " values", passed);
