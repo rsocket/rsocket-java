@@ -30,11 +30,6 @@ import java.util.concurrent.TimeUnit;
  */
 public class JavaServerDriver {
 
-    private final String ANSI_RESET = "\u001B[0m";
-    private final String ANSI_CYAN = "\u001B[36m";
-
-    private String path;
-
     // these map initial payload -> marble, which dictates the behavior of the server
     private Map<Tuple<String, String>, String> requestResponseMarbles;
     private Map<Tuple<String, String>, String> requestStreamMarbles;
@@ -46,7 +41,6 @@ public class JavaServerDriver {
     private BufferedReader reader;
 
     public JavaServerDriver(String path) {
-        this.path = path;
         requestResponseMarbles = new HashMap<>();
         requestStreamMarbles = new HashMap<>();
         requestSubscriptionMarbles = new HashMap<>();
@@ -55,7 +49,7 @@ public class JavaServerDriver {
         try {
             reader = new BufferedReader(new FileReader(path));
         } catch (Exception e) {
-            System.out.println("File not found");
+            ConsoleUtils.error("File not found");
         }
     }
 
@@ -103,14 +97,13 @@ public class JavaServerDriver {
         return new RequestHandler.Builder().withFireAndForget(payload -> s -> {
             Tuple<String, String> initialPayload = new Tuple<>(ByteBufferUtil.toUtf8String(payload.getData()),
                     ByteBufferUtil.toUtf8String(payload.getMetadata()));
-            System.out.println(ANSI_CYAN + "Received firenforget " + initialPayload.getK()
-                    + " " + initialPayload.getV() + ANSI_RESET);
+            ConsoleUtils.initialPayload("Received firenforget " + initialPayload.getK() + " " + initialPayload.getV());
         }).withRequestResponse(payload -> s -> {
             Tuple<String, String> initialPayload = new Tuple<>(ByteBufferUtil.toUtf8String(payload.getData()),
                     ByteBufferUtil.toUtf8String(payload.getMetadata()));
             String marble = requestResponseMarbles.get(initialPayload);
-            System.out.println(ANSI_CYAN + "Received requestresponse " + initialPayload.getK()
-                    + " " + initialPayload.getV() + ANSI_RESET);
+            ConsoleUtils.initialPayload("Received requestresponse " + initialPayload.getK()
+                    + " " + initialPayload.getV());
             if (marble != null) {
                 ParseMarble pm = new ParseMarble(marble, s);
                 s.onSubscribe(new TestSubscription(pm));
@@ -120,8 +113,7 @@ public class JavaServerDriver {
             Tuple<String, String> initialPayload = new Tuple<>(ByteBufferUtil.toUtf8String(payload.getData()),
                     ByteBufferUtil.toUtf8String(payload.getMetadata()));
             String marble = requestStreamMarbles.get(initialPayload);
-            System.out.println(ANSI_CYAN + "Received Stream " + initialPayload.getK() + " " + initialPayload.getV()
-                    + ANSI_RESET);
+            ConsoleUtils.initialPayload("Received Stream " + initialPayload.getK() + " " + initialPayload.getV());
             if (marble != null) {
                 ParseMarble pm = new ParseMarble(marble, s);
                 s.onSubscribe(new TestSubscription(pm));
@@ -131,8 +123,7 @@ public class JavaServerDriver {
             Tuple<String, String> initialPayload = new Tuple<>(ByteBufferUtil.toUtf8String(payload.getData()),
                     ByteBufferUtil.toUtf8String(payload.getMetadata()));
             String marble = requestSubscriptionMarbles.get(initialPayload);
-            System.out.println(ANSI_CYAN + "Received Subscription " + initialPayload.getK()
-                    + " " + initialPayload.getV() + ANSI_RESET);
+            ConsoleUtils.initialPayload("Received Subscription " + initialPayload.getK() + " " + initialPayload.getV());
             if (marble != null) {
                 ParseMarble pm = new ParseMarble(marble, s);
                 s.onSubscribe(new TestSubscription(pm));
@@ -146,8 +137,7 @@ public class JavaServerDriver {
                 //sub.request(1); // first request of server is implicit, so don't need to call request(1) here
                 sub.awaitAtLeast(1);
                 Tuple<String, String> initpayload = new Tuple<>(sub.getElement(0).getK(), sub.getElement(0).getV());
-                System.out.println(ANSI_CYAN + "Received Channel" + initpayload.getK()
-                        + " " + initpayload.getV() + ANSI_RESET);
+                ConsoleUtils.initialPayload("Received Channel" + initpayload.getK() + " " + initpayload.getV());
                 // if this is a normal channel handler, then initiate the normal setup
                 if (requestChannelCommands.containsKey(initpayload)) {
                     ParseMarble pm = new ParseMarble(s);
@@ -163,7 +153,7 @@ public class JavaServerDriver {
                 }
 
             } catch (Exception e) {
-                System.out.println("Interrupted");
+                ConsoleUtils.error("Interrupted");
             }
         }).build();
     }

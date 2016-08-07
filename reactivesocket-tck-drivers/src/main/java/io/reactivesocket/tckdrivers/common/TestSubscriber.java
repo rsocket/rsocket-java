@@ -20,6 +20,7 @@ import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 import rx.exceptions.CompositeException;
 
+import java.io.Console;
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -99,10 +100,6 @@ public class TestSubscriber<T> implements Subscriber<T>, Subscription {
     private boolean isEcho = false;
 
     private boolean checkSubscriptionOnce;
-
-    private int initialFusionMode;
-
-    private int establishedFusionMode;
 
     /**
      * The maximum amount of time to await, in miliseconds, for a single assertion, otherwise the test fails
@@ -208,7 +205,7 @@ public class TestSubscriber<T> implements Subscriber<T>, Subscription {
         Payload p = (Payload) t;
         Tuple<String, String> tup = new Tuple<>(ByteBufferUtil.toUtf8String(p.getData()),
                 ByteBufferUtil.toUtf8String(p.getMetadata()));
-        System.out.println("ON NEXT GOT : "  + tup.getK() + " " + tup.getV());
+        ConsoleUtils.info("ON NEXT GOT : "  + tup.getK() + " " + tup.getV());
         if (isEcho) {
             echosub.add(tup);
             return;
@@ -305,7 +302,7 @@ public class TestSubscriber<T> implements Subscriber<T>, Subscription {
                 takeLatch.await(100, TimeUnit.MILLISECONDS);
                 waitIterations++;
             } catch (Exception e) {
-                System.out.println("interrupted");
+                ConsoleUtils.error("interrupted");
             }
         }
     }
@@ -460,12 +457,12 @@ public class TestSubscriber<T> implements Subscriber<T>, Subscription {
     }
 
     private void pass(String message, boolean passed) {
-        if (passed) System.out.println("PASSED: " + message);
+        if (passed) ConsoleUtils.info("PASSED: " + message);
     }
 
     private void fail(String message) {
         isPassing = false;
-        System.out.println("FAILED: " + message);
+        ConsoleUtils.info("FAILED: " + message);
     }
 
     /**

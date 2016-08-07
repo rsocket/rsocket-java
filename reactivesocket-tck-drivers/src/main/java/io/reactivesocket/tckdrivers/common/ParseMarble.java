@@ -151,10 +151,10 @@ public class ParseMarble {
                             List<String> key = new ArrayList<>(tempMap.keySet());
                             List<String> value = new ArrayList<>(tempMap.values());
                             s.onNext(new PayloadImpl(key.get(0), value.get(0)));
-                            System.out.println("DATA SENT " + key.get(0) + ", " + value.get(0));
+                            ConsoleUtils.info("DATA SENT " + key.get(0) + ", " + value.get(0));
                         } else {
                             this.s.onNext(new PayloadImpl(c + "", c + ""));
-                            System.out.println("DATA SENT " + c + ", " + c);
+                            ConsoleUtils.info("DATA SENT " + c + ", " + c);
                         }
 
                         numSent++;
@@ -162,7 +162,7 @@ public class ParseMarble {
                 }
             }
         } catch (InterruptedException e) {
-            System.out.println("interrupted");
+            ConsoleUtils.error("interrupted");
         }
 
     }
