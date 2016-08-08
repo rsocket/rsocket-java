@@ -36,17 +36,18 @@ public class Main {
 
     @Option(name = "--tests", description = "For the client only, optional argument to list out the tests you" +
             " want to run, should be comma separated names")
+
     public static String tests;
 
     public static void main(String[] args) {
         SingleCommand<Main> cmd = SingleCommand.singleCommand(Main.class);
         cmd.parse(args);
         if (server) {
-            JavaTCPServer.run(file, port);
+            new JavaTCPServer().run(file, port);
         } else if (client) {
             try {
-                if (tests != null) JavaTCPClient.run(file, host, port, debug, Arrays.asList(tests.split(",")));
-                else JavaTCPClient.run(file, host, port, debug, new ArrayList<>());
+                if (tests != null) new JavaTCPClient().run(file, host, port, debug, Arrays.asList(tests.split(",")));
+                else new JavaTCPClient().run(file, host, port, debug, new ArrayList<>());
             } catch (Exception e) {
                 e.printStackTrace();
             }
