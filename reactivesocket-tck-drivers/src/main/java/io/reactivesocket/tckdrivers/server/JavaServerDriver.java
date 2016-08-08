@@ -15,8 +15,11 @@ package io.reactivesocket.tckdrivers.server;
 
 import io.reactivesocket.Payload;
 import io.reactivesocket.RequestHandler;
+import io.reactivesocket.exceptions.Exceptions;
 import io.reactivesocket.internal.frame.ByteBufferUtil;
+import io.reactivesocket.internal.frame.ThreadLocalFramePool;
 import io.reactivesocket.tckdrivers.common.*;
+import io.reactivesocket.transport.tcp.server.TcpReactiveSocketServer;
 import org.reactivestreams.Subscription;
 
 import java.io.BufferedReader;
@@ -39,6 +42,9 @@ public class JavaServerDriver {
     private Set<Tuple<String, String>> requestEchoChannel;
     // first try to implement single channel subscriber
     private BufferedReader reader;
+    // the instance of the server so we can shut it down
+    private TcpReactiveSocketServer server;
+    private TcpReactiveSocketServer.StartedServer startedServer;
 
     public JavaServerDriver(String path) {
         requestResponseMarbles = new HashMap<>();
@@ -51,6 +57,16 @@ public class JavaServerDriver {
         } catch (Exception e) {
             ConsoleUtils.error("File not found");
         }
+    }
+
+    // should be used if we want the server to be shutdown upon receiving some EOF packet
+    public JavaServerDriver(String path, TcpReactiveSocketServer server) {
+        this(path);
+        this.server = server;
+        this.startedServer = this.server.start((setupPayload, reactiveSocket) -> {
+            return parse();
+        });
+        startedServer.awaitShutdown();
     }
 
     /**
@@ -98,6 +114,14 @@ public class JavaServerDriver {
             Tuple<String, String> initialPayload = new Tuple<>(ByteBufferUtil.toUtf8String(payload.getData()),
                     ByteBufferUtil.toUtf8String(payload.getMetadata()));
             ConsoleUtils.initialPayload("Received firenforget " + initialPayload.getK() + " " + initialPayload.getV());
+            if (initialPayload.getK().equals("shutdown") && initialPayload.getV().equals("shutdown")) {
+                try {
+                    Thread.sleep(2000);
+                    startedServer.shutdown();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
         }).withRequestResponse(payload -> s -> {
             Tuple<String, String> initialPayload = new Tuple<>(ByteBufferUtil.toUtf8String(payload.getData()),
                     ByteBufferUtil.toUtf8String(payload.getMetadata()));

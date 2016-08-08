@@ -20,7 +20,7 @@ import io.reactivesocket.transport.tcp.server.TcpReactiveSocketServer;
  */
 public class JavaTCPServer {
 
-    public static void run(String realfile, int port) {
+    public void run(String realfile, int port) {
 
         String file = "reactivesocket-tck-drivers/src/main/test/resources/servertest$.txt";
 
@@ -28,14 +28,21 @@ public class JavaTCPServer {
             file = realfile;
         }
 
-        JavaServerDriver jsd =
-                new JavaServerDriver(file);
+        TcpReactiveSocketServer server = TcpReactiveSocketServer.create(port);
 
-        TcpReactiveSocketServer.create(port)
+        JavaServerDriver jsd =
+                new JavaServerDriver(file, server);
+
+        /*server.start((setupPayload, reactiveSocket) -> {
+           return jsd.parse();
+        });*/
+
+
+/*        TcpReactiveSocketServer.create(port)
                 .start((setupPayload, reactiveSocket) -> {
                     // create request handler
                     return jsd.parse();
-                }).awaitShutdown();
+                }).awaitShutdown();*/
 
 
     }

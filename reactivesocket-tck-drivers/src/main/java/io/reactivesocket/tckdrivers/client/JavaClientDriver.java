@@ -171,6 +171,7 @@ public class JavaClientDriver {
                     handleCancel(args);
                     break;
                 case "EOF":
+                    handleEOF();
                     break;
                 case "pass":
                     shouldPass = true;
@@ -470,6 +471,14 @@ public class JavaClientDriver {
         String id = args[2];
         TestSubscriber<Payload> sub = payloadSubscribers.get(id);
         sub.isCancelled();
+    }
+
+    private void handleEOF() {
+        TestSubscriber<Void> fnfsub = new TestSubscriber<>(0L);
+        ReactiveSocket fnfclient = createClient.get();
+        Publisher<Void> fnfpub = fnfclient.fireAndForget(new PayloadImpl("shutdown", "shutdown"));
+        fnfpub.subscribe(fnfsub);
+        fnfsub.request(1);
     }
 
     /**
