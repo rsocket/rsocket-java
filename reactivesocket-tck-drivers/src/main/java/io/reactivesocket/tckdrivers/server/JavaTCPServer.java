@@ -15,29 +15,43 @@ package io.reactivesocket.tckdrivers.server;
 
 import io.reactivesocket.transport.tcp.server.TcpReactiveSocketServer;
 
+import java.util.concurrent.CountDownLatch;
+
 /**
  * An example of how to run the JavaServerDriver using the ReactiveSocket server creation tool in Java.
  */
 public class JavaTCPServer {
 
-    public static void run(String realfile, int port) {
+    private CountDownLatch mutex;
 
-        String file = "reactivesocket-tck-drivers/src/main/test/resources/servertest$.txt";
+    public JavaTCPServer() {
+        mutex = new CountDownLatch(1);
+    }
+
+    public void run(String realfile, int port) {
+
+        String file = "reactivesocket-tck-drivers/src/main/test/resources/server$.txt";
 
         if (realfile != null) {
             file = realfile;
         }
 
+        TcpReactiveSocketServer server = TcpReactiveSocketServer.create(port);
+
         JavaServerDriver jsd =
-                new JavaServerDriver(file);
+                new JavaServerDriver(file, server, mutex);
+        jsd.run();
+    }
 
-        TcpReactiveSocketServer.create(port)
-                .start((setupPayload, reactiveSocket) -> {
-                    // create request handler
-                    return jsd.parse();
-                }).awaitShutdown();
-
-
+    /**
+     * Blocks until the server has started
+     */
+    public void awaitStart() {
+        try {
+            mutex.await();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
     }
 
 }
