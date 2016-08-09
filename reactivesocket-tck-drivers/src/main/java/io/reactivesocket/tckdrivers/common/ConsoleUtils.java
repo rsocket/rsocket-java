@@ -10,6 +10,7 @@ public class ConsoleUtils {
     private static final String ANSI_GREEN = "\u001B[32m";
     private static final String ANSI_CYAN = "\u001B[36m";
     private static final String ANSI_BLUE = "\u001B[34m";
+    private static boolean allPassed = true;
 
     /**
      * Logs something at the info level
@@ -29,6 +30,7 @@ public class ConsoleUtils {
      * Logs a failure event
      */
     public static void failure(String s) {
+        allPassed = false;
         System.out.println(ANSI_RED + "FAILURE: " + s + ANSI_RESET);
     }
 
@@ -36,6 +38,7 @@ public class ConsoleUtils {
      * Logs an error
      */
     public static void error(String s) {
+        allPassed = false;
         System.out.println("ERROR: " + s);
     }
 
@@ -58,6 +61,14 @@ public class ConsoleUtils {
      */
     public static void teststart(String s) {
         System.out.println(ANSI_BLUE + "TEST STARTING: " + s + ANSI_RESET);
+    }
+
+    /**
+     * Returns whether or not all tests up to the point this method is called, has passed
+     * @return false if there has been any failure or error, true if everything has passed
+     */
+    public static boolean allPassed() {
+        return allPassed;
     }
 
 }

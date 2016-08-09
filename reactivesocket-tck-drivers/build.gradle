@@ -26,10 +26,12 @@ dependencies {
     compile 'io.airlift:airline:0.7'
 }
 
-task (runTests, dependsOn: jar, type: JavaExec) {
+task runTests(type: JavaExec) {
     classpath(sourceSets.main.runtimeClasspath, sourceSets.main.compileClasspath)
     main = 'io.reactivesocket.tckdrivers.main.TestMain'
     args '--port',  '4567', '--serverfile',  'src/test/resources/server$.txt',  '--clientfile',  'src/test/resources/client$.txt'
 }
 
-build.finalizedBy(runTests)
+tasks.build.doLast() {
+    runTests.execute()
+}

@@ -37,13 +37,17 @@ public class TestMain {
         cmd.parse(args);
         ServerThread st = new ServerThread(port, serverfile);
         st.start();
-
+        st.awaitStart();
         try {
-            Thread.sleep(2000); // wait for server to start up, 2 seconds to be safe
             if (tests != null) new JavaTCPClient().run(clientfile, "localhost", port, debug, Arrays.asList(tests.split(",")));
             else new JavaTCPClient().run(clientfile, "localhost", port, debug, new ArrayList<>());
         } catch (Exception e) {
             e.printStackTrace();
+        }
+        if (ConsoleUtils.allPassed()) ConsoleUtils.success("ALL TESTS PASSED");
+        else {
+            ConsoleUtils.failure("SOME TESTS FAILED");
+            //System.exit(1);
         }
     }
 
