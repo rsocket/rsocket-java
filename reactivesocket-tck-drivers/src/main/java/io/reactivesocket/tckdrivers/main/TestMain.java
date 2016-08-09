@@ -47,7 +47,7 @@ public class TestMain {
         if (ConsoleUtils.allPassed()) ConsoleUtils.success("ALL TESTS PASSED");
         else {
             ConsoleUtils.failure("SOME TESTS FAILED");
-            //System.exit(1);
+            System.exit(1); // exit with code 1 so that the gradle build process fails
         }
     }
 
