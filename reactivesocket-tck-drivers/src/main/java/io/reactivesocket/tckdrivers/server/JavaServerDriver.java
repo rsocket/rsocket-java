@@ -26,6 +26,7 @@ import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -45,6 +46,7 @@ public class JavaServerDriver {
     // the instance of the server so we can shut it down
     private TcpReactiveSocketServer server;
     private TcpReactiveSocketServer.StartedServer startedServer;
+    private CountDownLatch waitStart;
 
     public JavaServerDriver(String path) {
         requestResponseMarbles = new HashMap<>();
@@ -60,12 +62,20 @@ public class JavaServerDriver {
     }
 
     // should be used if we want the server to be shutdown upon receiving some EOF packet
-    public JavaServerDriver(String path, TcpReactiveSocketServer server) {
+    public JavaServerDriver(String path, TcpReactiveSocketServer server, CountDownLatch waitStart) {
         this(path);
         this.server = server;
+        this.waitStart = waitStart;
+    }
+
+    /**
+     * Starts up the server
+     */
+    public void run() {
         this.startedServer = this.server.start((setupPayload, reactiveSocket) -> {
             return parse();
         });
+        waitStart.countDown(); // notify that this server has started
         startedServer.awaitShutdown();
     }
 
