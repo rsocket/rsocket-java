@@ -32,4 +32,6 @@ task runTests(type: JavaExec) {
     args '--port',  '4567', '--serverfile',  'src/test/resources/server$.txt',  '--clientfile',  'src/test/resources/client$.txt'
 }
 
-build.dependsOn runTests
+tasks.build.doLast() {
+    runTests.execute()
+}
