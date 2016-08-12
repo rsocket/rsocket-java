@@ -16,6 +16,7 @@ import io.reactivesocket.internal.PublisherUtils;
 import io.reactivesocket.internal.Publishers;
 import org.reactivestreams.Publisher;
 
+import java.util.function.BiFunction;
 import java.util.function.Function;
 
 public interface RequestHandler {
@@ -31,8 +32,8 @@ public interface RequestHandler {
     Function<Payload, Publisher<Void>> NO_FIRE_AND_FORGET_HANDLER =
         payload -> Publishers.error(new RuntimeException("No 'fireAndForget' handler"));
 
-    Function<Publisher<Payload>, Publisher<Payload>> NO_REQUEST_CHANNEL_HANDLER =
-        payloads -> PublisherUtils.errorPayload(new RuntimeException("No 'requestChannel' handler"));
+    BiFunction<Payload, Publisher<Payload>, Publisher<Payload>> NO_REQUEST_CHANNEL_HANDLER =
+        (initialPayload, payloads) -> PublisherUtils.errorPayload(new RuntimeException("No 'requestChannel' handler"));
 
     Function<Payload, Publisher<Void>> NO_METADATA_PUSH_HANDLER =
         payload -> Publishers.error(new RuntimeException("No 'metadataPush' handler"));
@@ -58,7 +59,7 @@ public interface RequestHandler {
         private Function<Payload, Publisher<Payload>> handleRequestStream = NO_REQUEST_STREAM_HANDLER;
         private Function<Payload, Publisher<Payload>> handleRequestSubscription = NO_REQUEST_SUBSCRIPTION_HANDLER;
         private Function<Payload, Publisher<Void>> handleFireAndForget = NO_FIRE_AND_FORGET_HANDLER;
-        private Function<Publisher<Payload>, Publisher<Payload>> handleRequestChannel = NO_REQUEST_CHANNEL_HANDLER;
+        private BiFunction<Payload, Publisher<Payload>, Publisher<Payload>> handleRequestChannel = NO_REQUEST_CHANNEL_HANDLER;
         private Function<Payload, Publisher<Void>> handleMetadataPush = NO_METADATA_PUSH_HANDLER;
 
         public Builder withRequestResponse(final Function<Payload, Publisher<Payload>> handleRequestResponse) {
@@ -81,7 +82,7 @@ public interface RequestHandler {
             return this;
         }
 
-        public Builder withRequestChannel(final Function<Publisher<Payload> , Publisher<Payload>> handleRequestChannel) {
+        public Builder withRequestChannel(final BiFunction<Payload, Publisher<Payload> , Publisher<Payload>> handleRequestChannel) {
             this.handleRequestChannel = handleRequestChannel;
             return this;
         }
@@ -110,7 +111,7 @@ public interface RequestHandler {
                 }
 
                 public Publisher<Payload> handleChannel(Payload initialPayload, Publisher<Payload> inputs) {
-                    return handleRequestChannel.apply(inputs);
+                    return handleRequestChannel.apply(initialPayload, inputs);
                 }
 
                 public Publisher<Void> handleMetadataPush(Payload payload) {
