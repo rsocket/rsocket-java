@@ -40,6 +40,7 @@ public class JavaServerDriver {
     private Map<Tuple<String, String>, String> requestSubscriptionMarbles;
     // channel doesn't have an initial payload, but maybe the first payload sent can be viewed as the "initial"
     private Map<Tuple<String, String>, List<String>> requestChannelCommands;
+    private Set<Tuple<String, String>> requestChannelFail;
     private Set<Tuple<String, String>> requestEchoChannel;
     // first try to implement single channel subscriber
     private BufferedReader reader;
@@ -59,6 +60,7 @@ public class JavaServerDriver {
         } catch (Exception e) {
             ConsoleUtils.error("File not found");
         }
+        requestChannelFail = new HashSet<>();
     }
 
     // should be used if we want the server to be shutdown upon receiving some EOF packet
@@ -66,6 +68,7 @@ public class JavaServerDriver {
         this(path);
         this.server = server;
         this.waitStart = waitStart;
+        requestChannelFail = new HashSet<>();
     }
 
     /**
@@ -176,7 +179,11 @@ public class JavaServerDriver {
                 if (requestChannelCommands.containsKey(initpayload)) {
                     ParseMarble pm = new ParseMarble(s);
                     s.onSubscribe(new TestSubscription(pm));
-                    ParseChannel pc = new ParseChannel(requestChannelCommands.get(initpayload), sub, pm);
+                    ParseChannel pc;
+                    if (requestChannelFail.contains(initpayload))
+                        pc = new ParseChannel(requestChannelCommands.get(initpayload), sub, pm, "CHANNEL", false);
+                    else
+                        pc = new ParseChannel(requestChannelCommands.get(initpayload), sub, pm);
                     ParseChannelThread pct = new ParseChannelThread(pc);
                     pct.start();
                 } else if (requestEchoChannel.contains(initpayload)) {
@@ -201,6 +208,10 @@ public class JavaServerDriver {
      */
     private void handleChannel(String[] args, BufferedReader reader) throws IOException {
         Tuple<String, String> initialPayload = new Tuple<>(args[1], args[2]);
+        if (args.length == 5) {
+            // we know that this test should fail
+            requestChannelFail.add(initialPayload);
+        }
         String line = reader.readLine();
         List<String> commands = new ArrayList<>();
         while (!line.equals("}")) {
