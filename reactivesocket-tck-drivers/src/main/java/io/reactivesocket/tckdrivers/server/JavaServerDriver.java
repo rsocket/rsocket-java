@@ -129,14 +129,16 @@ public class JavaServerDriver {
                 s.onSubscribe(new TestSubscription(pm));
                 new ParseThread(pm).start();
             }
-        }).withRequestChannel(payloadPublisher -> s -> { // design flaw
+        }).withRequestChannel((payload, payloadPublisher) -> s -> { // design flaw
             try {
                 TestSubscriber<Payload> sub = new TestSubscriber<>();
                 payloadPublisher.subscribe(sub);
                 // want to get equivalent of "initial payload"
                 //sub.request(1); // first request of server is implicit, so don't need to call request(1) here
-                sub.awaitAtLeast(1);
-                Tuple<String, String> initpayload = new Tuple<>(sub.getElement(0).getK(), sub.getElement(0).getV());
+                //sub.awaitAtLeast(1);
+                //Tuple<String, String> initpayload = new Tuple<>(sub.getElement(0).getK(), sub.getElement(0).getV());
+                Tuple<String, String> initpayload = new Tuple<>(ByteBufferUtil.toUtf8String(payload.getData()),
+                        ByteBufferUtil.toUtf8String(payload.getMetadata()));
                 ConsoleUtils.initialPayload("Received Channel" + initpayload.getK() + " " + initpayload.getV());
                 // if this is a normal channel handler, then initiate the normal setup
                 if (requestChannelCommands.containsKey(initpayload)) {
