@@ -168,10 +168,10 @@ public class JavaServerDriver {
             }
         }).withRequestChannel(payloadPublisher -> s -> { // design flaw
             try {
-                TestSubscriber<Payload> sub = new TestSubscriber<>();
+                TestSubscriber<Payload> sub = new TestSubscriber<>(0L);
                 payloadPublisher.subscribe(sub);
-                // want to get equivalent of "initial payload"
-                //sub.request(1); // first request of server is implicit, so don't need to call request(1) here
+                // want to get equivalent of "initial payload" so we can route behavior, this might change in the future
+                sub.request(1);
                 sub.awaitAtLeast(1);
                 Tuple<String, String> initpayload = new Tuple<>(sub.getElement(0).getK(), sub.getElement(0).getV());
                 ConsoleUtils.initialPayload("Received Channel" + initpayload.getK() + " " + initpayload.getV());
