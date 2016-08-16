@@ -15,14 +15,18 @@ package io.reactivesocket.tckdrivers.server;
 
 import io.reactivesocket.Payload;
 import io.reactivesocket.RequestHandler;
+import io.reactivesocket.exceptions.Exceptions;
 import io.reactivesocket.internal.frame.ByteBufferUtil;
+import io.reactivesocket.internal.frame.ThreadLocalFramePool;
 import io.reactivesocket.tckdrivers.common.*;
+import io.reactivesocket.transport.tcp.server.TcpReactiveSocketServer;
 import org.reactivestreams.Subscription;
 
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -36,9 +40,14 @@ public class JavaServerDriver {
     private Map<Tuple<String, String>, String> requestSubscriptionMarbles;
     // channel doesn't have an initial payload, but maybe the first payload sent can be viewed as the "initial"
     private Map<Tuple<String, String>, List<String>> requestChannelCommands;
+    private Set<Tuple<String, String>> requestChannelFail;
     private Set<Tuple<String, String>> requestEchoChannel;
     // first try to implement single channel subscriber
     private BufferedReader reader;
+    // the instance of the server so we can shut it down
+    private TcpReactiveSocketServer server;
+    private TcpReactiveSocketServer.StartedServer startedServer;
+    private CountDownLatch waitStart;
 
     public JavaServerDriver(String path) {
         requestResponseMarbles = new HashMap<>();
@@ -51,6 +60,26 @@ public class JavaServerDriver {
         } catch (Exception e) {
             ConsoleUtils.error("File not found");
         }
+        requestChannelFail = new HashSet<>();
+    }
+
+    // should be used if we want the server to be shutdown upon receiving some EOF packet
+    public JavaServerDriver(String path, TcpReactiveSocketServer server, CountDownLatch waitStart) {
+        this(path);
+        this.server = server;
+        this.waitStart = waitStart;
+        requestChannelFail = new HashSet<>();
+    }
+
+    /**
+     * Starts up the server
+     */
+    public void run() {
+        this.startedServer = this.server.start((setupPayload, reactiveSocket) -> {
+            return parse();
+        });
+        waitStart.countDown(); // notify that this server has started
+        startedServer.awaitShutdown();
     }
 
     /**
@@ -98,6 +127,14 @@ public class JavaServerDriver {
             Tuple<String, String> initialPayload = new Tuple<>(ByteBufferUtil.toUtf8String(payload.getData()),
                     ByteBufferUtil.toUtf8String(payload.getMetadata()));
             ConsoleUtils.initialPayload("Received firenforget " + initialPayload.getK() + " " + initialPayload.getV());
+            if (initialPayload.getK().equals("shutdown") && initialPayload.getV().equals("shutdown")) {
+                try {
+                    Thread.sleep(2000);
+                    startedServer.shutdown();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
         }).withRequestResponse(payload -> s -> {
             Tuple<String, String> initialPayload = new Tuple<>(ByteBufferUtil.toUtf8String(payload.getData()),
                     ByteBufferUtil.toUtf8String(payload.getMetadata()));
@@ -131,10 +168,10 @@ public class JavaServerDriver {
             }
         }).withRequestChannel(payloadPublisher -> s -> { // design flaw
             try {
-                TestSubscriber<Payload> sub = new TestSubscriber<>();
+                TestSubscriber<Payload> sub = new TestSubscriber<>(0L);
                 payloadPublisher.subscribe(sub);
-                // want to get equivalent of "initial payload"
-                //sub.request(1); // first request of server is implicit, so don't need to call request(1) here
+                // want to get equivalent of "initial payload" so we can route behavior, this might change in the future
+                sub.request(1);
                 sub.awaitAtLeast(1);
                 Tuple<String, String> initpayload = new Tuple<>(sub.getElement(0).getK(), sub.getElement(0).getV());
                 ConsoleUtils.initialPayload("Received Channel" + initpayload.getK() + " " + initpayload.getV());
@@ -142,7 +179,11 @@ public class JavaServerDriver {
                 if (requestChannelCommands.containsKey(initpayload)) {
                     ParseMarble pm = new ParseMarble(s);
                     s.onSubscribe(new TestSubscription(pm));
-                    ParseChannel pc = new ParseChannel(requestChannelCommands.get(initpayload), sub, pm);
+                    ParseChannel pc;
+                    if (requestChannelFail.contains(initpayload))
+                        pc = new ParseChannel(requestChannelCommands.get(initpayload), sub, pm, "CHANNEL", false);
+                    else
+                        pc = new ParseChannel(requestChannelCommands.get(initpayload), sub, pm);
                     ParseChannelThread pct = new ParseChannelThread(pc);
                     pct.start();
                 } else if (requestEchoChannel.contains(initpayload)) {
@@ -167,6 +208,10 @@ public class JavaServerDriver {
      */
     private void handleChannel(String[] args, BufferedReader reader) throws IOException {
         Tuple<String, String> initialPayload = new Tuple<>(args[1], args[2]);
+        if (args.length == 5) {
+            // we know that this test should fail
+            requestChannelFail.add(initialPayload);
+        }
         String line = reader.readLine();
         List<String> commands = new ArrayList<>();
         while (!line.equals("}")) {

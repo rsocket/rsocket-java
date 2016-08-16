@@ -171,6 +171,7 @@ public class JavaClientDriver {
                     handleCancel(args);
                     break;
                 case "EOF":
+                    handleEOF();
                     break;
                 case "pass":
                     shouldPass = true;
@@ -472,6 +473,14 @@ public class JavaClientDriver {
         sub.isCancelled();
     }
 
+    private void handleEOF() {
+        TestSubscriber<Void> fnfsub = new TestSubscriber<>(0L);
+        ReactiveSocket fnfclient = createClient.get();
+        Publisher<Void> fnfpub = fnfclient.fireAndForget(new PayloadImpl("shutdown", "shutdown"));
+        fnfpub.subscribe(fnfsub);
+        fnfsub.request(1);
+    }
+
     /**
      * This thread class parses through a single test and prints whether it succeeded or not
      */
@@ -489,23 +498,23 @@ public class JavaClientDriver {
 
         @Override
         public void run() {
+            String name = "";
+            name = test.get(0).split("%%")[1];
+            if (testList.size() > 0 && !testList.contains(name)) {
+                isRun = false;
+                return;
+            }
             try {
-                String name = "";
-                if (test.get(0).startsWith("name")) {
-                    name = test.get(0).split("%%")[1];
-                    if (testList.size() > 0 && !testList.contains(name)) {
-                        isRun = false;
-                        return;
-                    }
-                    ConsoleUtils.teststart(name);
-                    TestResult result = parse(test.subList(1, test.size()), name);
-                    if (result == TestResult.PASS)
-                        ConsoleUtils.success(name);
-                    else if (result == TestResult.FAIL)
-                        ConsoleUtils.failure(name);
-                }
+                ConsoleUtils.teststart(name);
+                TestResult result = parse(test.subList(1, test.size()), name);
+                if (result == TestResult.PASS)
+                    ConsoleUtils.success(name);
+                else if (result == TestResult.FAIL)
+                    ConsoleUtils.failure(name);
+
             } catch (Exception e) {
                 e.printStackTrace();
+                ConsoleUtils.failure(name);
             }
         }
 
