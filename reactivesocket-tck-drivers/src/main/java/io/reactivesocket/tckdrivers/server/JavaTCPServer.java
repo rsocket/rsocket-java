@@ -30,7 +30,7 @@ public class JavaTCPServer {
 
     public void run(String realfile, int port) {
 
-        String file = "reactivesocket-tck-drivers/src/main/resources/server$.txt";
+        String file = "reactivesocket-tck-drivers/src/main/resources/server.txt";
 
         if (realfile != null) {
             file = realfile;

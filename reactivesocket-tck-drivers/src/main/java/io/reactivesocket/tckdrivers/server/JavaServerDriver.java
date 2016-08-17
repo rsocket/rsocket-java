@@ -145,7 +145,10 @@ public class JavaServerDriver {
                 ParseMarble pm = new ParseMarble(marble, s);
                 s.onSubscribe(new TestSubscription(pm));
                 new ParseThread(pm).start();
-            }
+            } else {
+                ConsoleUtils.failure("Request response payload " + initialPayload.getK() + " " + initialPayload.getV()
+                    + "has no handler");
+        }
         }).withRequestStream(payload -> s -> {
             Tuple<String, String> initialPayload = new Tuple<>(ByteBufferUtil.toUtf8String(payload.getData()),
                     ByteBufferUtil.toUtf8String(payload.getMetadata()));
@@ -155,6 +158,9 @@ public class JavaServerDriver {
                 ParseMarble pm = new ParseMarble(marble, s);
                 s.onSubscribe(new TestSubscription(pm));
                 new ParseThread(pm).start();
+            } else {
+                ConsoleUtils.failure("Request stream payload " + initialPayload.getK() + " " + initialPayload.getV()
+                        + "has no handler");
             }
         }).withRequestSubscription(payload -> s -> {
             Tuple<String, String> initialPayload = new Tuple<>(ByteBufferUtil.toUtf8String(payload.getData()),
@@ -165,6 +171,9 @@ public class JavaServerDriver {
                 ParseMarble pm = new ParseMarble(marble, s);
                 s.onSubscribe(new TestSubscription(pm));
                 new ParseThread(pm).start();
+            } else {
+                ConsoleUtils.failure("Request subscription payload " + initialPayload.getK() + " " + initialPayload.getV()
+                        + "has no handler");
             }
         }).withRequestChannel(payloadPublisher -> s -> { // design flaw
             try {
@@ -191,10 +200,13 @@ public class JavaServerDriver {
                     s.onSubscribe(echoSubscription);
                     sub.setEcho(echoSubscription);
                     sub.request(10000); // request a large number, which basically means the client can send whatever
+                } else {
+                    ConsoleUtils.error("Request channel payload " + initpayload.getK() + " " + initpayload.getV()
+                            + "has no handler");
                 }
 
             } catch (Exception e) {
-                ConsoleUtils.error("Interrupted");
+                ConsoleUtils.failure("Interrupted");
             }
         }).build();
     }
