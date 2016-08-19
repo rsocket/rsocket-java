@@ -27,7 +27,8 @@ public class ConsoleUtils {
     }
 
     /**
-     * Logs a failure event
+     * Logs a failure event, and sets the allPassed boolean in this class to false. This can be used to check if there
+     * have been any failures in any tests after all tests have been run by the driver.
      */
     public static void failure(String s) {
         allPassed = false;
@@ -35,7 +36,8 @@ public class ConsoleUtils {
     }
 
     /**
-     * Logs an error
+     * Logs an error event, and sets the allPassed boolean in this class to false. This can be used to check if there
+     * have been any failures in any tests after all tests have been run by the driver.
      */
     public static void error(String s) {
         allPassed = false;
