@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2016 Netflix, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,11 +17,9 @@ package io.reactivesocket.util;
 
 import io.reactivesocket.Payload;
 import io.reactivesocket.ReactiveSocket;
-import io.reactivesocket.rx.Completable;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 
-import java.util.function.Consumer;
 import java.util.function.Function;
 
 
@@ -103,26 +101,6 @@ public class ReactiveSocketProxy implements ReactiveSocket {
     @Override
     public double availability() {
         return child.availability();
-    }
-
-    @Override
-    public void start(Completable c) {
-        child.start(c);
-    }
-
-    @Override
-    public void onRequestReady(Consumer<Throwable> c) {
-        child.onRequestReady(c);
-    }
-
-    @Override
-    public void onRequestReady(Completable c) {
-        child.onRequestReady(c);
-    }
-
-    @Override
-    public void sendLease(int ttl, int numberOfRequests) {
-        child.sendLease(ttl, numberOfRequests);
     }
 
     @Override

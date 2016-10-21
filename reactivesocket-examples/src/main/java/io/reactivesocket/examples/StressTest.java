@@ -1,11 +1,11 @@
-/**
+/*
  * Copyright 2016 Netflix, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -15,120 +15,109 @@
  */
 package io.reactivesocket.examples;
 
-import io.reactivesocket.ConnectionSetupHandler;
-import io.reactivesocket.ConnectionSetupPayload;
+import io.reactivesocket.AbstractReactiveSocket;
 import io.reactivesocket.Payload;
 import io.reactivesocket.ReactiveSocket;
-import io.reactivesocket.RequestHandler;
-import io.reactivesocket.client.ClientBuilder;
-import io.reactivesocket.lease.FairLeaseGovernor;
-import io.reactivesocket.transport.tcp.client.TcpReactiveSocketConnector;
-import io.reactivesocket.util.Unsafe;
-import io.reactivesocket.test.TestUtil;
+import io.reactivesocket.client.KeepAliveProvider;
+import io.reactivesocket.client.LoadBalancingClient;
+import io.reactivesocket.client.ReactiveSocketClient;
+import io.reactivesocket.client.SetupProvider;
+import io.reactivesocket.lease.DisabledLeaseAcceptingSocket;
+import io.reactivesocket.lease.FairLeaseDistributor;
+import io.reactivesocket.reactivestreams.extensions.ExecutorServiceBasedScheduler;
+import io.reactivesocket.server.ReactiveSocketServer;
+import io.reactivesocket.transport.tcp.client.TcpTransportClient;
+import io.reactivesocket.transport.tcp.server.TcpTransportServer;
+import io.reactivesocket.util.PayloadImpl;
+import io.reactivex.Flowable;
+import io.reactivex.functions.Function;
 import org.HdrHistogram.ConcurrentHistogram;
 import org.HdrHistogram.Histogram;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
-import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import io.reactivesocket.transport.tcp.server.TcpReactiveSocketServer;
-import rx.Observable;
-import rx.RxReactiveStreams;
-import rx.functions.Func1;
 
-public class StressTest {
-    private static AtomicInteger count = new AtomicInteger(0);
+import static io.reactivesocket.client.filter.ReactiveSocketClients.*;
+import static io.reactivesocket.client.filter.ReactiveSockets.*;
 
-    private static SocketAddress startServer() throws InterruptedException {
+public final class StressTest {
+
+    private static final AtomicInteger count = new AtomicInteger(0);
+
+    private static SocketAddress startServer() {
         // 25% of bad servers
         boolean bad = count.incrementAndGet() % 4 == 3;
-
-        ConnectionSetupHandler setupHandler = (setupPayload, reactiveSocket) ->
-            new RequestHandler.Builder()
-                .withRequestResponse(
-                    payload ->
-                        subscriber -> {
-                            Subscription subscription = new Subscription() {
-                                @Override
-                                public void request(long n) {
-                                    if (bad) {
-                                        if (ThreadLocalRandom.current().nextInt(2) == 0) {
-                                            subscriber.onError(new Exception("SERVER EXCEPTION"));
-                                        } else {
-                                            // This will generate a timeout
-                                            //System.out.println("Server: No response");
-                                        }
-                                    } else {
-                                        subscriber.onNext(TestUtil.utf8EncodedPayload("RESPONSE", "NO_META"));
-                                        subscriber.onComplete();
-                                    }
-                                }
-
-                                @Override
-                                public void cancel() {}
-                            };
-                            subscriber.onSubscribe(subscription);
-                        }
-                )
-                .build();
-
-        SocketAddress addr = new InetSocketAddress("127.0.0.1", 0);
-        FairLeaseGovernor leaseGovernor = new FairLeaseGovernor(5000, 100, TimeUnit.MILLISECONDS);
-        TcpReactiveSocketServer.StartedServer server =
-            TcpReactiveSocketServer.create(addr).start(setupHandler, leaseGovernor);
-        return server.getServerAddress();
+        FairLeaseDistributor leaseDistributor = new FairLeaseDistributor(() -> 5000, 5000,
+                                                                         Flowable.interval(0, 30, TimeUnit.SECONDS));
+        return ReactiveSocketServer.create(TcpTransportServer.create())
+                                   .start((setup, sendingSocket) -> {
+                                       return new DisabledLeaseAcceptingSocket(new AbstractReactiveSocket() {
+                                           @Override
+                                           public Publisher<Payload> requestResponse(Payload payload) {
+                                               return Flowable.defer(() -> {
+                                                   if (bad) {
+                                                       if (ThreadLocalRandom.current().nextInt(2) == 0) {
+                                                           return Flowable.error(new Exception("SERVER EXCEPTION"));
+                                                       } else {
+                                                           return Flowable.never(); // Cause timeout
+                                                       }
+                                                   } else {
+                                                       return Flowable.just(new PayloadImpl("Response"));
+                                                   }
+                                               });
+                                           }
+                                       });
+                                   })
+                                   .getServerAddress();
     }
 
     private static Publisher<Collection<SocketAddress>> getServersList() {
-        Observable<Collection<SocketAddress>> serverAddresses = Observable.interval(0, 2, TimeUnit.SECONDS)
-            .map(new Func1<Long, Collection<SocketAddress>>() {
-                List<SocketAddress> addresses = new ArrayList<>();
+        return Flowable.interval(2, TimeUnit.SECONDS)
+                   .map(aLong -> startServer())
+                   .map(new Function<SocketAddress, Collection<SocketAddress>>() {
+                       private final List<SocketAddress> addresses = new ArrayList<SocketAddress>();
 
-                @Override
-                public List<SocketAddress> call(Long aLong) {
-                    try {
-                        SocketAddress socketAddress = startServer();
-                        System.out.println("Adding server " + socketAddress);
-                        addresses.add(socketAddress);
-                    } catch (InterruptedException e) {
-                        e.printStackTrace();
-                    }
-                    if (addresses.size() > 15) {
-                        SocketAddress address = addresses.get(0);
-                        System.out.println("Removing server " + address);
-                        addresses.remove(address);
-                    }
-                    return new ArrayList<>(addresses);
-                }
-            });
-        return RxReactiveStreams.toPublisher(serverAddresses);
+                       @Override
+                       public Collection<SocketAddress> apply(SocketAddress socketAddress) {
+                           System.out.println("Adding server " + socketAddress);
+                           addresses.add(socketAddress);
+                           if (addresses.size() > 15) {
+                               SocketAddress address = addresses.remove(0);
+                               System.out.println("Removed server " + address);
+                           }
+                           return addresses;
+                       }
+                   });
     }
 
     public static void main(String... args) throws Exception {
-        ConnectionSetupPayload setupPayload =
-            ConnectionSetupPayload.create("UTF-8", "UTF-8", ConnectionSetupPayload.HONOR_LEASE);
+        long testDurationNs = TimeUnit.NANOSECONDS.convert(60, TimeUnit.SECONDS);
 
-        TcpReactiveSocketConnector tcp = TcpReactiveSocketConnector.create(setupPayload, Throwable::printStackTrace);
+        ExecutorServiceBasedScheduler scheduler = new ExecutorServiceBasedScheduler();
+        SetupProvider setupProvider = SetupProvider.keepAlive(KeepAliveProvider.never()).disableLease();
+        LoadBalancingClient client = LoadBalancingClient.create(getServersList(),
+                                 address -> {
+                                     TcpTransportClient transport = TcpTransportClient.create(address);
+                                     ReactiveSocketClient raw = ReactiveSocketClient.create(transport, setupProvider);
+                                     return wrap(detectFailures(connectTimeout(raw, 1, TimeUnit.SECONDS, scheduler)),
+                                                 timeout(1, TimeUnit.SECONDS, scheduler));
+                                 });
 
-        Publisher<ReactiveSocket> socketPublisher = ClientBuilder.<SocketAddress>instance()
-            .withSource(getServersList())
-            .withConnector(tcp)
-            .withConnectTimeout(1, TimeUnit.SECONDS)
-            .withRequestTimeout(1, TimeUnit.SECONDS)
-            .build();
+        ReactiveSocket socket = Flowable.fromPublisher(client.connect())
+                                      .switchIfEmpty(Flowable.error(new IllegalStateException("No socket returned.")))
+                                      .blockingFirst();
 
-        ReactiveSocket client = Unsafe.blockingSingleWait(socketPublisher, 5, TimeUnit.SECONDS);
         System.out.println("Client ready, starting the load...");
 
-        long testDurationNs = TimeUnit.NANOSECONDS.convert(60, TimeUnit.SECONDS);
+
         AtomicInteger successes = new AtomicInteger(0);
         AtomicInteger failures = new AtomicInteger(0);
 
@@ -140,8 +129,9 @@ public class StressTest {
         AtomicInteger outstandings = new AtomicInteger(0);
         while (System.nanoTime() - start < testDurationNs) {
             if (outstandings.get() <= concurrency) {
-                Payload request = TestUtil.utf8EncodedPayload("Hello", "META");
-                client.requestResponse(request).subscribe(new MeasurerSusbcriber<>(histogram, successes, failures, outstandings));
+                Payload request = new PayloadImpl("Hello", "META");
+                socket.requestResponse(request)
+                      .subscribe(new MeasurerSusbcriber<>(histogram, successes, failures, outstandings));
             } else {
                 Thread.sleep(1);
             }
@@ -158,13 +148,15 @@ public class StressTest {
         System.out.println("Latency distribution in us");
         histogram.outputPercentileDistribution(System.out, 1000.0);
         System.out.flush();
+        Flowable.fromPublisher(socket.close()).ignoreElements().blockingGet();
+        System.exit(-1);
     }
 
     private static class MeasurerSusbcriber<T> implements Subscriber<T> {
         private final Histogram histo;
         private final AtomicInteger successes;
         private final AtomicInteger failures;
-        private AtomicInteger outstandings;
+        private final AtomicInteger outstandings;
         private long start;
 
         private MeasurerSusbcriber(
@@ -192,8 +184,10 @@ public class StressTest {
         @Override
         public void onError(Throwable t) {
             record();
-            System.err.println("Error: " + t);
             failures.incrementAndGet();
+            if (failures.get() % 1000 == 0) {
+                System.err.println("Error: " + t);
+            }
         }
 
         @Override

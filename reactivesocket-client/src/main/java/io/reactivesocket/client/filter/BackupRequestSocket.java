@@ -1,11 +1,11 @@
-/**
+/*
  * Copyright 2016 Netflix, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,10 +17,9 @@ package io.reactivesocket.client.filter;
 
 import io.reactivesocket.Payload;
 import io.reactivesocket.ReactiveSocket;
-import io.reactivesocket.client.util.Clock;
-import io.reactivesocket.client.stat.FrugalQuantile;
-import io.reactivesocket.client.stat.Quantile;
-import io.reactivesocket.rx.Completable;
+import io.reactivesocket.stat.FrugalQuantile;
+import io.reactivesocket.stat.Quantile;
+import io.reactivesocket.util.Clock;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
@@ -30,7 +29,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 public class BackupRequestSocket implements ReactiveSocket {
@@ -93,26 +91,6 @@ public class BackupRequestSocket implements ReactiveSocket {
     }
 
     @Override
-    public void start(Completable c) {
-        child.start(c);
-    }
-
-    @Override
-    public void onRequestReady(Consumer<Throwable> c) {
-        child.onRequestReady(c);
-    }
-
-    @Override
-    public void onRequestReady(Completable c) {
-        child.onRequestReady(c);
-    }
-
-    @Override
-    public void sendLease(int ttl, int numberOfRequests) {
-        child.sendLease(ttl, numberOfRequests);
-    }
-
-    @Override
     public Publisher<Void> close() {
         return child.close();
     }
@@ -127,7 +105,7 @@ public class BackupRequestSocket implements ReactiveSocket {
         return "BackupRequest(q=" + q + ")->" + child;
     }
 
-    private class OneSubscriber<T> implements Subscriber<T> {
+    private static class OneSubscriber<T> implements Subscriber<T> {
         private final Subscriber<T> subscriber;
         private final AtomicBoolean firstEvent;
         private final AtomicBoolean firstTerminal;
@@ -167,7 +145,7 @@ public class BackupRequestSocket implements ReactiveSocket {
 
     private class FirstRequestSubscriber implements Subscriber<Payload> {
         private final Subscriber<? super Payload> oneSubscriber;
-        private Supplier<Publisher<Payload>> action;
+        private final Supplier<Publisher<Payload>> action;
         private long start;
         private ScheduledFuture<?> future;
 
@@ -210,7 +188,7 @@ public class BackupRequestSocket implements ReactiveSocket {
 
     private class BackupRequestSubscriber<T> implements Subscriber<T> {
         private final Subscriber<? super T> oneSubscriber;
-        private Subscription firstRequestSubscription;
+        private final Subscription firstRequestSubscription;
         private long start;
 
         private BackupRequestSubscriber(Subscriber<? super T> oneSubscriber, Subscription firstRequestSubscription) {

@@ -1,134 +1,105 @@
+/*
+ * Copyright 2016 Netflix, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package io.reactivesocket.integration;
 
-import io.reactivesocket.*;
-import io.reactivesocket.client.ClientBuilder;
-import io.reactivesocket.internal.Publishers;
-import io.reactivesocket.test.TestUtil;
-import io.reactivesocket.transport.tcp.client.TcpReactiveSocketConnector;
-import io.reactivesocket.transport.tcp.server.TcpReactiveSocketServer;
-import io.reactivesocket.util.Unsafe;
+import io.reactivesocket.AbstractReactiveSocket;
+import io.reactivesocket.Payload;
+import io.reactivesocket.ReactiveSocket;
+import io.reactivesocket.client.KeepAliveProvider;
+import io.reactivesocket.client.ReactiveSocketClient;
+import io.reactivesocket.client.SetupProvider;
+import io.reactivesocket.lease.DisabledLeaseAcceptingSocket;
+import io.reactivesocket.server.ReactiveSocketServer;
+import io.reactivesocket.transport.TransportServer.StartedServer;
+import io.reactivesocket.transport.tcp.client.TcpTransportClient;
+import io.reactivesocket.transport.tcp.server.TcpTransportServer;
+import io.reactivesocket.util.PayloadImpl;
+import io.reactivex.Flowable;
+import io.reactivex.Single;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExternalResource;
+import org.junit.runner.Description;
+import org.junit.runners.model.Statement;
 import org.reactivestreams.Publisher;
-import org.reactivestreams.Subscriber;
-import org.reactivestreams.Subscription;
 
-import java.net.InetSocketAddress;
-import java.net.SocketAddress;
-import java.util.Collections;
-import java.util.List;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.hamcrest.Matchers.*;
 import static org.junit.Assert.*;
-import static rx.RxReactiveStreams.toObservable;
 
 public class IntegrationTest {
 
-    private interface TestingServer {
-        int requestCount();
-        int disconnectionCount();
-        SocketAddress getListeningAddress();
-    }
-
-    private TestingServer createServer() {
-        AtomicInteger requestCounter = new AtomicInteger();
-        AtomicInteger disconnectionCounter = new AtomicInteger();
-
-        ConnectionSetupHandler setupHandler = (setupPayload, reactiveSocket) -> {
-            reactiveSocket.onClose().subscribe(new Subscriber<Void>() {
-                @Override
-                public void onSubscribe(Subscription s) {
-                    s.request(Long.MAX_VALUE);
-                }
-
-                @Override
-                public void onNext(Void aVoid) {}
-
-                @Override
-                public void onError(Throwable t) {}
-
-                @Override
-                public void onComplete() {
-                    disconnectionCounter.incrementAndGet();
-                }
-            });
-            return new RequestHandler.Builder()
-                .withRequestResponse(
-                    payload -> subscriber -> subscriber.onSubscribe(new Subscription() {
-                        @Override
-                        public void request(long n) {
-                            requestCounter.incrementAndGet();
-                            subscriber.onNext(TestUtil.utf8EncodedPayload("RESPONSE", "NO_META"));
-                            subscriber.onComplete();
-                        }
-
-                        @Override
-                        public void cancel() {}
-                    })
-                )
-                .build();
-        };
-
-        SocketAddress addr = new InetSocketAddress("127.0.0.1", 0);
-        TcpReactiveSocketServer.StartedServer server =
-            TcpReactiveSocketServer.create(addr).start(setupHandler);
-
-        return new TestingServer() {
-            @Override
-            public int requestCount() {
-                return requestCounter.get();
-            }
-
-            @Override
-            public int disconnectionCount() {
-                return disconnectionCounter.get();
-            }
-
-            @Override
-            public SocketAddress getListeningAddress() {
-                return server.getServerAddress();
-            }
-        };
-    }
-
-    private ReactiveSocket createClient(SocketAddress addr) throws InterruptedException, ExecutionException, TimeoutException {
-        List<SocketAddress> addrs = Collections.singletonList(addr);
-        Publisher<List<SocketAddress>> src = Publishers.just(addrs);
-
-        ConnectionSetupPayload setupPayload =
-            ConnectionSetupPayload.create("UTF-8", "UTF-8", ConnectionSetupPayload.HONOR_LEASE);
-        TcpReactiveSocketConnector tcp = TcpReactiveSocketConnector.create(setupPayload, Throwable::printStackTrace);
-
-        Publisher<ReactiveSocket> socketPublisher =
-            ClientBuilder.<SocketAddress>instance()
-                .withSource(src)
-                .withConnector(tcp)
-                .build();
-
-        return Unsafe.blockingSingleWait(socketPublisher, 5, TimeUnit.SECONDS);
-    }
+    @Rule
+    public final ClientServerRule rule = new ClientServerRule();
 
     @Test(timeout = 2_000L)
-    public void testRequest() throws ExecutionException, InterruptedException, TimeoutException {
-        TestingServer server = createServer();
-        ReactiveSocket client = createClient(server.getListeningAddress());
-
-        toObservable(client.requestResponse(TestUtil.utf8EncodedPayload("RESPONSE", "NO_META")))
-            .toBlocking()
-            .subscribe();
-        assertTrue("Server see the request", server.requestCount() > 0);
+    public void testRequest() {
+        Flowable.fromPublisher(rule.client.requestResponse(new PayloadImpl("REQUEST", "META")))
+                .blockingFirst();
+        assertThat("Server did not see the request.", rule.requestCount.get(), is(1));
     }
 
     @Test(timeout = 2_000L)
     public void testClose() throws ExecutionException, InterruptedException, TimeoutException {
-        TestingServer server = createServer();
-        ReactiveSocket client = createClient(server.getListeningAddress());
-
-        toObservable(client.close()).toBlocking().subscribe();
-
+        Flowable.fromPublisher(rule.client.close()).ignoreElements().blockingGet();
         Thread.sleep(100);
-        assertTrue("Server see disconnection", server.disconnectionCount() > 0);
+        assertThat("Server did not disconnect.", rule.disconnectionCounter.get(), is(1));
     }
+
+    public static class ClientServerRule extends ExternalResource {
+
+        private StartedServer server;
+        private ReactiveSocket client;
+        private AtomicInteger requestCount;
+        private AtomicInteger disconnectionCounter;
+
+        @Override
+        public Statement apply(final Statement base, Description description) {
+            return new Statement() {
+                @Override
+                public void evaluate() throws Throwable {
+                    requestCount = new AtomicInteger();
+                    disconnectionCounter = new AtomicInteger();
+                    server = ReactiveSocketServer.create(TcpTransportServer.create())
+                                        .start((setup, sendingSocket) -> {
+                                            Flowable.fromPublisher(sendingSocket.onClose())
+                                                .doOnTerminate(() -> disconnectionCounter.incrementAndGet())
+                                                .subscribe();
+
+                                            return new DisabledLeaseAcceptingSocket(new AbstractReactiveSocket() {
+                                                @Override
+                                                public Publisher<Payload> requestResponse(Payload payload) {
+                                                    return Flowable.<Payload>just(new PayloadImpl("RESPONSE", "METADATA"))
+                                                            .doOnSubscribe(s -> requestCount.incrementAndGet());
+                                                }
+                                            });
+                                        });
+                    client = Single.fromPublisher(ReactiveSocketClient.create(TcpTransportClient.create(server.getServerAddress()),
+                                                                     SetupProvider.keepAlive(KeepAliveProvider.never())
+                                                                                .disableLease())
+                                                             .connect())
+                                   .blockingGet();
+                    base.evaluate();
+                }
+            };
+        }
+    }
+
 }

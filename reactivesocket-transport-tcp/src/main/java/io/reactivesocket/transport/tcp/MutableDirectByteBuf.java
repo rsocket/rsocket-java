@@ -1,5 +1,5 @@
-/**
- * Copyright 2015 Netflix, Inc.
+/*
+ * Copyright 2016 Netflix, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -55,6 +55,11 @@ public class MutableDirectByteBuf implements MutableDirectBuffer
 
         byteBuffer.limit(savedLimit).position(savedPosition);
         return result;
+    }
+
+    @Override
+    public boolean isExpandable() {
+        return false;
     }
 
     @Override
@@ -355,6 +360,11 @@ public class MutableDirectByteBuf implements MutableDirectBuffer
     }
 
     @Override
+    public void getBytes(int index, ByteBuffer dstBuffer, int dstOffset, int length) {
+        throw new UnsupportedOperationException("getBytes(ByteBuffer) not supported");
+    }
+
+    @Override
     public String getStringUtf8(int offset, ByteOrder byteOrder)
     {
         final int length = getInt(offset, byteOrder);
@@ -377,6 +387,11 @@ public class MutableDirectByteBuf implements MutableDirectBuffer
     public void boundsCheck(int index, int length)
     {
         throw new UnsupportedOperationException("boundsCheck not supported");
+    }
+
+    @Override
+    public int wrapAdjustment() {
+        throw new UnsupportedOperationException("wrapAdjustment not supported");
     }
 
     private void ensureByteOrder(final ByteOrder byteOrder)
@@ -420,5 +435,10 @@ public class MutableDirectByteBuf implements MutableDirectBuffer
     @Override
     public String getStringUtf8(int index) {
         return null;
+    }
+
+    @Override
+    public int compareTo(DirectBuffer o) {
+        throw new UnsupportedOperationException("compareTo not supported");
     }
 }

@@ -1,3 +1,19 @@
+/*
+ * Copyright 2016 Netflix, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package io.reactivesocket.loadbalancer.servo;
 
 import com.google.common.util.concurrent.AtomicDouble;
@@ -7,13 +23,10 @@ import com.netflix.servo.monitor.MonitorConfig;
 import com.netflix.servo.tag.TagList;
 import io.reactivesocket.Payload;
 import io.reactivesocket.ReactiveSocket;
-import io.reactivesocket.rx.Completable;
 import org.reactivestreams.Publisher;
 
-import java.util.function.Consumer;
-
 /**
- * ReactiveSocket that delegates all calls to child reactice socket, and records the current availability as a servo metric
+ * ReactiveSocket that delegates all calls to child reactive socket, and records the current availability as a servo metric
  */
 public class AvailabilityMetricReactiveSocket implements ReactiveSocket {
     private final ReactiveSocket child;
@@ -71,26 +84,6 @@ public class AvailabilityMetricReactiveSocket implements ReactiveSocket {
         double availability = child.availability();
         atomicDouble.set(availability);
         return availability;
-    }
-
-    @Override
-    public void start(Completable c) {
-        child.start(c);
-    }
-
-    @Override
-    public void onRequestReady(Consumer<Throwable> c) {
-        child.onRequestReady(c);
-    }
-
-    @Override
-    public void onRequestReady(Completable c) {
-        child.onRequestReady(c);
-    }
-
-    @Override
-    public void sendLease(int ttl, int numberOfRequests) {
-        child.sendLease(ttl, numberOfRequests);
     }
 
     @Override

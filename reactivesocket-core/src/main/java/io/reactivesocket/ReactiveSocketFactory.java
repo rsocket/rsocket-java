@@ -1,5 +1,5 @@
-/**
- * Copyright 2015 Netflix, Inc.
+/*
+ * Copyright 2016 Netflix, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,14 +15,12 @@
  */
 package io.reactivesocket;
 
-import io.reactivesocket.util.ReactiveSocketFactoryProxy;
 import org.reactivestreams.Publisher;
-import java.util.function.Function;
 
 /**
  * Factory of ReactiveSocket interface
  * This abstraction is useful for abstracting the creation of a ReactiveSocket
- * (e.g. inside the LoadBalancer which create ReactiveSocket as needed)
+ * (e.g. inside the LoadBalancer which getInstance ReactiveSocket as needed)
  */
 public interface ReactiveSocketFactory {
 
@@ -31,20 +29,11 @@ public interface ReactiveSocketFactory {
      *
      * @return A source that emits a single {@code ReactiveSocket}.
      */
-    Publisher<ReactiveSocket> apply();
+    Publisher<? extends ReactiveSocket> apply();
 
     /**
      * @return a positive numbers representing the availability of the factory.
      * Higher is better, 0.0 means not available
      */
     double availability();
-
-    default ReactiveSocketFactory chain(Function<Publisher<ReactiveSocket>, Publisher<ReactiveSocket>> conversion) {
-        return new ReactiveSocketFactoryProxy(ReactiveSocketFactory.this) {
-            @Override
-            public Publisher<ReactiveSocket> apply() {
-                return conversion.apply(super.apply());
-            }
-        };
-    }
 }

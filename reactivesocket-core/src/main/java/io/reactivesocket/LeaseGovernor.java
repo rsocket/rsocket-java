@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2016 Netflix, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,7 +15,6 @@
  */
 package io.reactivesocket;
 
-import io.reactivesocket.internal.Responder;
 import io.reactivesocket.lease.NullLeaseGovernor;
 import io.reactivesocket.lease.UnlimitedLeaseGovernor;
 
@@ -29,7 +28,7 @@ public interface LeaseGovernor {
      *
      * @param responder the responder that will receive lease
      */
-    void register(Responder responder);
+   // void register(Responder responder);
 
     /**
      * Unregister a responder from the LeaseGovernor.
@@ -37,7 +36,7 @@ public interface LeaseGovernor {
      * the tickets/window to the remaining responders.
      * @param responder the responder to be removed
      */
-    void unregister(Responder responder);
+    //void unregister(Responder responder);
 
     /**
      * Check if the message received by the responder is valid (i.e. received during a
@@ -48,5 +47,5 @@ public interface LeaseGovernor {
      * @param frame the received frame
      * @return
      */
-    boolean accept(Responder responder, Frame frame);
+   // boolean accept(Responder responder, Frame frame);
 }

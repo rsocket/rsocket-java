@@ -1,5 +1,5 @@
-/**
- * Copyright 2015 Netflix, Inc.
+/*
+ * Copyright 2016 Netflix, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,37 +13,72 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package io.reactivesocket;
 
-import io.reactivesocket.rx.Completable;
 import org.reactivestreams.Publisher;
-
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
+import io.reactivesocket.reactivestreams.extensions.Px;
 
 /**
- * Interface for a connection that supports sending requests and receiving responses
+ * A contract providing different interaction models for <a href="https://github.com/ReactiveSocket/reactivesocket/blob/master/Protocol.md">ReactiveSocket protocol</a>.
  */
 public interface ReactiveSocket {
-    Publisher<Void> fireAndForget(final Payload payload);
 
-    Publisher<Payload> requestResponse(final Payload payload);
+    /**
+     * Fire and Forget interaction model of {@code ReactiveSocket}.
+     *
+     * @param payload Request payload.
+     *
+     * @return {@code Publisher} that completes when the passed {@code payload} is successfully handled, otherwise errors.
+     */
+    Publisher<Void> fireAndForget(Payload payload);
 
-    Publisher<Payload> requestStream(final Payload payload);
+    /**
+     * Request-Response interaction model of {@code ReactiveSocket}.
+     *
+     * @param payload Request payload.
+     *
+     * @return {@code Publisher} containing at most a single {@code Payload} representing the response.
+     */
+    Publisher<Payload> requestResponse(Payload payload);
 
-    Publisher<Payload> requestSubscription(final Payload payload);
+    /**
+     * Request-Stream interaction model of {@code ReactiveSocket}.
+     *
+     * @param payload Request payload.
+     *
+     * @return {@code Publisher} containing the stream of {@code Payload}s representing the response.
+     */
+    Publisher<Payload> requestStream(Payload payload);
 
-    Publisher<Payload> requestChannel(final Publisher<Payload> payloads);
+    Publisher<Payload> requestSubscription(Payload payload);
 
-    Publisher<Void> metadataPush(final Payload payload);
+    /**
+     * Request-Channel interaction model of {@code ReactiveSocket}.
+     *
+     * @param payloads Stream of request payloads.
+     *
+     * @return Stream of response payloads.
+     */
+    Publisher<Payload> requestChannel(Publisher<Payload> payloads);
+
+    /**
+     * Metadata-Push interaction model of {@code ReactiveSocket}.
+     *
+     * @param payload Request payloads.
+     *
+     * @return {@code Publisher} that completes when the passed {@code payload} is successfully handled, otherwise errors.
+     */
+    Publisher<Void> metadataPush(Payload payload);
 
     /**
      * Client check for availability to send request based on lease
      *
      * @return 0.0 to 1.0 indicating availability of sending requests
      */
-    double availability();
+    default double availability() {
+        return 0.0;
+    }
 
     /**
      * Close this {@code ReactiveSocket} upon subscribing to the returned {@code Publisher}
@@ -61,33 +96,4 @@ public interface ReactiveSocket {
      * @return A {@code Publisher} that completes when this {@code ReactiveSocket} close is complete.
      */
     Publisher<Void> onClose();
-
-    /**
-     * Start protocol processing on the given DuplexConnection.
-     */
-    void start(Completable c);
-
-    /**
-     * Invoked when Requester is ready. Non-null exception if error. Null if success.
-     *
-     * @param c
-     */
-    void onRequestReady(Consumer<Throwable> c);
-
-    /**
-     * Invoked when Requester is ready with success or fail.
-     *
-     * @param c
-     */
-    void onRequestReady(Completable c);
-
-    /**
-     * Server granting new lease information to client
-     *
-     * Initial lease semantics are that server waits for periodic granting of leases by server side.
-     *
-     * @param ttl
-     * @param numberOfRequests
-     */
-    void sendLease(int ttl, int numberOfRequests);
 }

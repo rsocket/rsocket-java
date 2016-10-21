@@ -1,6 +1,6 @@
 ## Overview
 
-This module provides support for encoding/decoding ReactiveSocket data and metadata into using different mime types as defined by [ReactiveSocket protocol](https://github.com/ReactiveSocket/reactivesocket/blob/master/Protocol.md#setup-frame).
+This module provides support for encoding/decoding ReactiveSocket data and metadata into using different mime types as defined by [ReactiveSocket protocol](https://github.com/ReactiveSocket/reactivesocket/blob/master/Protocol.md#sendSetupFrame-frame).
 The support for mime types is not comprehensive but it will at least support the [default metadata mime type](https://github.com/ReactiveSocket/reactivesocket/blob/mimetypes/MimeTypes.md)
 
 ## Usage
