@@ -1,44 +1,52 @@
 /*
  * Copyright 2016 Netflix, Inc.
- * <p>
- *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
- *  the License. You may obtain a copy of the License at
- *  <p>
- *  http://www.apache.org/licenses/LICENSE-2.0
- *  <p>
- *  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
- *  an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
- *  specific language governing permissions and limitations under the License.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 package io.reactivesocket.test;
 
 import io.reactivesocket.Payload;
 import io.reactivesocket.ReactiveSocket;
-import io.reactivesocket.ReactiveSocketConnector;
+import io.reactivesocket.client.KeepAliveProvider;
+import io.reactivesocket.client.ReactiveSocketClient;
+import io.reactivesocket.client.SetupProvider;
+import io.reactivesocket.transport.TransportClient;
+import io.reactivex.Flowable;
+import io.reactivex.Single;
+import io.reactivex.subscribers.TestSubscriber;
 import org.junit.rules.ExternalResource;
 import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
 import org.reactivestreams.Publisher;
-import rx.Observable;
-import rx.functions.Func0;
-import rx.observers.TestSubscriber;
 
 import java.net.SocketAddress;
+import java.util.concurrent.Callable;
 import java.util.function.Function;
 
-import static io.reactivesocket.test.TestUtil.*;
-import static rx.RxReactiveStreams.*;
+import static org.junit.Assert.*;
+
 
 public class ClientSetupRule extends ExternalResource {
 
-    private final ReactiveSocketConnector<SocketAddress> client;
-    private final Func0<SocketAddress> serverStarter;
+    private final Callable<SocketAddress> serverStarter;
+    private final Function<SocketAddress, TransportClient> clientFactory;
     private SocketAddress serverAddress;
     private ReactiveSocket reactiveSocket;
+    private ReactiveSocketClient reactiveSocketClient;
 
-    public ClientSetupRule(ReactiveSocketConnector<SocketAddress> connector, Func0<SocketAddress> serverStarter) {
-        client = connector;
+    public ClientSetupRule(Function<SocketAddress, TransportClient> clientFactory, Callable<SocketAddress> serverStarter) {
+        this.clientFactory = clientFactory;
         this.serverStarter = serverStarter;
     }
 
@@ -48,15 +56,16 @@ public class ClientSetupRule extends ExternalResource {
             @Override
             public void evaluate() throws Throwable {
                 serverAddress = serverStarter.call();
-                reactiveSocket = toObservable(client.connect(serverAddress)).toSingle().toBlocking().value();
-
+                TransportClient client = clientFactory.apply(serverAddress);
+                SetupProvider setup = SetupProvider.keepAlive(KeepAliveProvider.never()).disableLease();
+                reactiveSocketClient = ReactiveSocketClient.create(client, setup);
                 base.evaluate();
             }
         };
     }
 
-    public ReactiveSocketConnector<SocketAddress> getClient() {
-        return client;
+    public ReactiveSocketClient getClient() {
+        return reactiveSocketClient;
     }
 
     public SocketAddress getServerAddress() {
@@ -64,42 +73,55 @@ public class ClientSetupRule extends ExternalResource {
     }
 
     public ReactiveSocket getReactiveSocket() {
+        if (null == reactiveSocket) {
+            reactiveSocket = Single.fromPublisher(reactiveSocketClient.connect()).blockingGet();
+        }
         return reactiveSocket;
     }
 
     public void testRequestResponseN(int count) {
         TestSubscriber<String> ts = TestSubscriber.create();
-        Observable
-                .range(1, count)
-                .flatMap(i -> toObservable(getReactiveSocket().requestResponse(utf8EncodedPayload("hello", "metadata")))
-                                         .map(payload -> byteToString(payload.getData()))
-                )
+        Flowable.range(1, count)
+                .flatMap(i ->
+                getReactiveSocket()
+                .requestResponse(TestUtil.utf8EncodedPayload("hello", "metadata")))
+                .map(payload -> TestUtil.byteToString(payload.getData())
+            )
                 .doOnError(Throwable::printStackTrace)
                 .subscribe(ts);
 
-        ts.awaitTerminalEvent();
+        await(ts);
+        ts.assertTerminated();
         ts.assertValueCount(count);
         ts.assertNoErrors();
-        ts.assertCompleted();
+        ts.assertTerminated();
     }
 
     public void testRequestSubscription() {
-        _testStream(
-                socket -> toPublisher(toObservable(socket.requestSubscription(utf8EncodedPayload("hello", "metadata")))
-                                              .take(10)));
+        testStream(
+            socket -> socket.requestSubscription(TestUtil.utf8EncodedPayload("hello", "metadata")));
     }
 
     public void testRequestStream() {
-        _testStream(socket -> socket.requestStream(utf8EncodedPayload("hello", "metadata")));
+        testStream(socket -> socket.requestStream(TestUtil.utf8EncodedPayload("hello", "metadata")));
     }
 
-    private void _testStream(Function<ReactiveSocket, Publisher<Payload>> invoker) {
+    private void testStream(Function<ReactiveSocket, Publisher<Payload>> invoker) {
         TestSubscriber<Payload> ts = TestSubscriber.create();
         Publisher<Payload> publisher = invoker.apply(reactiveSocket);
-        toObservable(publisher).subscribe(ts);
-        ts.awaitTerminalEvent();
-        ts.assertValueCount(10);
+        Flowable.fromPublisher(publisher).take(10).subscribe(ts);
+        await(ts);
+        ts.assertTerminated();
         ts.assertNoErrors();
-        ts.assertCompleted();
+        ts.assertValueCount(10);
+        ts.assertTerminated();
+    }
+
+    private static void await(TestSubscriber<?> ts) {
+        try {
+            ts.await();
+        } catch (InterruptedException e) {
+            fail("Interrupted while waiting for completion.");
+        }
     }
 }

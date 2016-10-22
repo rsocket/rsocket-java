@@ -1,5 +1,5 @@
-/**
- * Copyright 2015 Netflix, Inc.
+/*
+ * Copyright 2016 Netflix, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,25 +16,25 @@
 package io.reactivesocket.exceptions;
 
 import io.reactivesocket.Frame;
-import io.reactivesocket.internal.frame.ByteBufferUtil;
+import io.reactivesocket.frame.ByteBufferUtil;
 
 import java.nio.ByteBuffer;
 
-import static io.reactivesocket.internal.frame.ErrorFrameFlyweight.*;
+import static io.reactivesocket.frame.ErrorFrameFlyweight.*;
 
 public class Exceptions {
 
     private Exceptions() {}
 
-    public static Throwable from(Frame frame) {
+    public static RuntimeException from(Frame frame) {
         final int errorCode = Frame.Error.errorCode(frame);
         ByteBuffer dataBuffer = frame.getData();
         String message = dataBuffer.remaining() == 0 ? "<empty message>" : ByteBufferUtil.toUtf8String(dataBuffer);
 
-        Throwable ex;
+        RuntimeException ex;
         switch (errorCode) {
             case APPLICATION_ERROR:
-                ex = new ApplicationException(message);
+                ex = new ApplicationException(frame);
                 break;
             case CONNECTION_ERROR:
                 ex = new ConnectionException(message);

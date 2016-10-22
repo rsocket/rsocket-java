@@ -1,12 +1,12 @@
-/**
- * Copyright 2015 Netflix, Inc.
- * 
+/*
+ * Copyright 2016 Netflix, Inc.
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  * http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -15,16 +15,18 @@
  */
 package io.reactivesocket;
 
-import io.reactivesocket.internal.frame.ErrorFrameFlyweight;
-import io.reactivesocket.internal.frame.FrameHeaderFlyweight;
-import io.reactivesocket.internal.frame.FramePool;
-import io.reactivesocket.internal.frame.LeaseFrameFlyweight;
-import io.reactivesocket.internal.frame.RequestFrameFlyweight;
-import io.reactivesocket.internal.frame.RequestNFrameFlyweight;
-import io.reactivesocket.internal.frame.SetupFrameFlyweight;
-import io.reactivesocket.internal.frame.UnpooledFrame;
+import io.reactivesocket.frame.ErrorFrameFlyweight;
+import io.reactivesocket.frame.FrameHeaderFlyweight;
+import io.reactivesocket.frame.FramePool;
+import io.reactivesocket.frame.LeaseFrameFlyweight;
+import io.reactivesocket.frame.RequestFrameFlyweight;
+import io.reactivesocket.frame.RequestNFrameFlyweight;
+import io.reactivesocket.frame.SetupFrameFlyweight;
+import io.reactivesocket.frame.UnpooledFrame;
 import org.agrona.DirectBuffer;
 import org.agrona.MutableDirectBuffer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -45,16 +47,19 @@ public class Frame implements Payload {
      * ThreadLocal handling in the pool itself. We don't have a per thread pool at this level.
      */
     private static final String FRAME_POOLER_CLASS_NAME =
-        getProperty("io.reactivesocket.FramePool", "io.reactivesocket.internal.UnpooledFrame");
-    private static final FramePool POOL;
+        getProperty("io.reactivesocket.FramePool", UnpooledFrame.class.getName());
+        //getProperty("io.reactivesocket.FramePool", ThreadLocalFramePool.class.getName());
+    protected static final FramePool POOL;
 
     static {
         FramePool tmpPool;
 
         try {
+            System.out.println("Creating thread pooled named " + FRAME_POOLER_CLASS_NAME);
             tmpPool = (FramePool)Class.forName(FRAME_POOLER_CLASS_NAME).newInstance();
         }
         catch (final Exception ex) {
+            ex.printStackTrace();
             tmpPool = new UnpooledFrame();
         }
 
@@ -62,11 +67,11 @@ public class Frame implements Payload {
     }
 
     // not final so we can reuse this object
-    private MutableDirectBuffer directBuffer;
-    private int offset = 0;
-    private int length = 0;
+    protected MutableDirectBuffer directBuffer;
+    protected int offset = 0;
+    protected int length = 0;
 
-    private Frame(final MutableDirectBuffer directBuffer) {
+    protected Frame(final MutableDirectBuffer directBuffer) {
         this.directBuffer = directBuffer;
     }
 
@@ -294,6 +299,7 @@ public class Frame implements Payload {
     }
 
     public static class Error {
+        private static final Logger logger = LoggerFactory.getLogger(Error.class);
 
         private Error() {}
 
@@ -306,6 +312,10 @@ public class Frame implements Payload {
             final int code = ErrorFrameFlyweight.errorCodeFromException(throwable);
             final Frame frame = POOL.acquireFrame(
                 ErrorFrameFlyweight.computeFrameLength(metadata.remaining(), data.remaining()));
+
+            if (logger.isDebugEnabled()) {
+                logger.debug("an error occurred, creating error frame", throwable);
+            }
 
             frame.length = ErrorFrameFlyweight.encode(
                 frame.directBuffer, frame.offset, streamId, code, metadata, data);
@@ -361,6 +371,11 @@ public class Frame implements Payload {
     public static class RequestN {
         private RequestN() {}
 
+        public static Frame from(int streamId, long requestN) {
+            int v = requestN > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) requestN;
+            return from(streamId, v);
+        }
+
         public static Frame from(int streamId, int requestN) {
             final Frame frame = POOL.acquireFrame(RequestNFrameFlyweight.computeFrameLength());
 
@@ -408,9 +423,9 @@ public class Frame implements Payload {
 
         }
 
-        public static long initialRequestN(final Frame frame) {
+        public static int initialRequestN(final Frame frame) {
             final FrameType type = frame.getType();
-            long result;
+            int result;
 
             if (!type.isRequestType()) {
                 throw new AssertionError("expected request type, but saw " + type.name());

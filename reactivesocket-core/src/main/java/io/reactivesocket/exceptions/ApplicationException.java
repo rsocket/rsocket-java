@@ -1,5 +1,5 @@
-/**
- * Copyright 2015 Netflix, Inc.
+/*
+ * Copyright 2016 Netflix, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,13 +15,29 @@
  */
 package io.reactivesocket.exceptions;
 
+import io.reactivesocket.Payload;
+
+import java.nio.ByteBuffer;
+
 public class ApplicationException extends RuntimeException {
-    public ApplicationException(String message) {
-        super(message);
+
+    private static final long serialVersionUID = -8801579369150844447L;
+    private final Payload payload;
+
+    public ApplicationException(Payload payload) {
+        this.payload = payload;
     }
 
-    @Override
-    public synchronized Throwable fillInStackTrace() {
-        return this;
+    public ByteBuffer getErrorMetadata() {
+        return payload.getMetadata();
     }
+
+    public ByteBuffer getErrorData() {
+        return payload.getData();
+    }
+
+    //@Override
+    //public synchronized Throwable fillInStackTrace() {
+    //    return this;
+    //}
 }

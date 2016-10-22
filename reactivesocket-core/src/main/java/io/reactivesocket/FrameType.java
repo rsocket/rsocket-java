@@ -1,12 +1,12 @@
-/**
- * Copyright 2015 Netflix, Inc.
- * 
+/*
+ * Copyright 2016 Netflix, Inc.
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  * http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -42,7 +42,8 @@ public enum FrameType {
     // synthetic types from Responder for use by the rest of the machinery
     NEXT(0x0E, Flags.CAN_HAVE_METADATA_AND_DATA),
     COMPLETE(0x0F),
-    NEXT_COMPLETE(0x10, Flags.CAN_HAVE_METADATA_AND_DATA);
+    NEXT_COMPLETE(0x10, Flags.CAN_HAVE_METADATA_AND_DATA),
+    EXT(0xFFFF, Flags.CAN_HAVE_METADATA_AND_DATA);
 
     private static class Flags {
         private Flags() {}

@@ -1,5 +1,5 @@
-/**
- * Copyright 2015 Netflix, Inc.
+/*
+ * Copyright 2016 Netflix, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,8 +18,8 @@ package io.reactivesocket.internal;
 import io.reactivesocket.Frame;
 import io.reactivesocket.Payload;
 import io.reactivesocket.TestUtil;
-import io.reactivesocket.internal.frame.FrameHeaderFlyweight;
-import io.reactivesocket.internal.frame.PayloadFragmenter;
+import io.reactivesocket.frame.FrameHeaderFlyweight;
+import io.reactivesocket.frame.PayloadFragmenter;
 
 import org.junit.Test;
 

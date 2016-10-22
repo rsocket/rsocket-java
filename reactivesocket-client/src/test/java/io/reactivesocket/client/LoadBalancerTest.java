@@ -1,3 +1,19 @@
+/*
+ * Copyright 2016 Netflix, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package io.reactivesocket.client;
 
 import io.reactivesocket.Payload;
@@ -37,9 +53,9 @@ public class LoadBalancerTest {
         InetSocketAddress local1 = InetSocketAddress.createUnresolved("localhost", 7001);
 
         TestingReactiveSocket socket = new TestingReactiveSocket(Function.identity());
-        ReactiveSocketFactory failing = failingFactory(local0);
-        ReactiveSocketFactory succeeding = succeedingFactory(local1, socket);
-        List<ReactiveSocketFactory> factories = Arrays.asList(failing, succeeding);
+        ReactiveSocketClient failing = failingClient(local0);
+        ReactiveSocketClient succeeding = succeedingFactory(socket);
+        List<ReactiveSocketClient> factories = Arrays.asList(failing, succeeding);
 
         testBalancer(factories);
     }
@@ -57,20 +73,21 @@ public class LoadBalancerTest {
                     subscriber.onError(new RuntimeException("You shouldn't be here"));
             }
 
+            @Override
             public double availability() {
                 return 0.0;
             }
         };
 
-        ReactiveSocketFactory failing = succeedingFactory(local0, failingSocket);
-        ReactiveSocketFactory succeeding = succeedingFactory(local1, socket);
-        List<ReactiveSocketFactory> factories = Arrays.asList(failing, succeeding);
+        ReactiveSocketClient failing = succeedingFactory(failingSocket);
+        ReactiveSocketClient succeeding = succeedingFactory(socket);
+        List<ReactiveSocketClient> clients = Arrays.asList(failing, succeeding);
 
-        testBalancer(factories);
+        testBalancer(clients);
     }
 
-    private void testBalancer(List<ReactiveSocketFactory> factories) throws InterruptedException {
-        Publisher<List<ReactiveSocketFactory>> src = s -> {
+    private void testBalancer(List<ReactiveSocketClient> factories) throws InterruptedException {
+        Publisher<List<ReactiveSocketClient>> src = s -> {
             s.onNext(factories);
             s.onComplete();
         };
@@ -116,10 +133,10 @@ public class LoadBalancerTest {
         latch.await();
     }
 
-    private ReactiveSocketFactory succeedingFactory(SocketAddress sa, ReactiveSocket socket) {
-        return new ReactiveSocketFactory() {
+    private static ReactiveSocketClient succeedingFactory(ReactiveSocket socket) {
+        return new ReactiveSocketClient() {
             @Override
-            public Publisher<ReactiveSocket> apply() {
+            public Publisher<ReactiveSocket> connect() {
                 return s -> s.onNext(socket);
             }
 
@@ -131,11 +148,11 @@ public class LoadBalancerTest {
         };
     }
 
-    private ReactiveSocketFactory failingFactory(SocketAddress sa) {
-        return new ReactiveSocketFactory() {
+    private static ReactiveSocketClient failingClient(SocketAddress sa) {
+        return new ReactiveSocketClient() {
             @Override
-            public Publisher<ReactiveSocket> apply() {
-                Assert.assertTrue(false);
+            public Publisher<ReactiveSocket> connect() {
+                Assert.fail();
                 return null;
             }
 
@@ -143,7 +160,6 @@ public class LoadBalancerTest {
             public double availability() {
                 return 0.0;
             }
-
         };
     }
 }

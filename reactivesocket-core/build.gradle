@@ -1,4 +1,45 @@
+/*
+ * Copyright 2016 Netflix, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+buildscript {
+    repositories {
+        maven { url "https://plugins.gradle.org/m2/" }
+    }
+
+    dependencies {
+        classpath 'gradle.plugin.me.champeau.gradle:jmh-gradle-plugin:0.3.0'
+    }
+}
+
+apply plugin: 'me.champeau.gradle.jmh'
+
+jmh {
+    jmhVersion = '1.12'
+    jvmArgs = '-XX:+UnlockCommercialFeatures -XX:+FlightRecorder'
+    profilers = ['gc']
+    zip64 = true
+    warmupBatchSize = 10
+    iterations = 500
+
+}
+
 dependencies {
-    testCompile 'io.reactivex:rxjava:2.0.0-DP0-20151003.214425-143'
-    testCompile 'io.netty:netty-codec-http:4.1.0.Final'
+    compile project(':reactivesocket-publishers')
+
+    testCompile project(':reactivesocket-test')
+
+    jmh group: 'org.openjdk.jmh', name: 'jmh-generator-annprocess', version: '1.12'
 }
