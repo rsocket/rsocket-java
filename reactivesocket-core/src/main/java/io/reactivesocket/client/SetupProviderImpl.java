@@ -21,6 +21,7 @@ import io.reactivesocket.ConnectionSetupPayload;
 import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
 import io.reactivesocket.FrameType;
+import io.reactivesocket.Payload;
 import io.reactivesocket.ServerReactiveSocket;
 import io.reactivesocket.client.ReactiveSocketClient.SocketAcceptor;
 import io.reactivesocket.internal.ClientServerInputMultiplexer;
@@ -101,6 +102,16 @@ final class SetupProviderImpl implements SetupProvider {
                               keepaliveInterval(setupFrame), maxLifetime(setupFrame),
                               Frame.Setup.metadataMimeType(setupFrame), Frame.Setup.dataMimeType(setupFrame),
                               setupFrame);
+        return new SetupProviderImpl(newSetup, reactiveSocket -> new DisableLeaseSocket(reactiveSocket),
+                                     keepAliveProvider, errorConsumer);
+    }
+
+    @Override
+    public SetupProvider setupPayload(Payload setupPayload) {
+        Frame newSetup = from(getFlags(setupFrame) & ~ConnectionSetupPayload.HONOR_LEASE,
+                              keepaliveInterval(setupFrame), maxLifetime(setupFrame),
+                              Frame.Setup.metadataMimeType(setupFrame), Frame.Setup.dataMimeType(setupFrame),
+                              setupPayload);
         return new SetupProviderImpl(newSetup, reactiveSocket -> new DisableLeaseSocket(reactiveSocket),
                                      keepAliveProvider, errorConsumer);
     }

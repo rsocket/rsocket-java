@@ -24,6 +24,12 @@ import org.reactivestreams.Subscription;
 
 import java.util.function.LongSupplier;
 
+/**
+ * A provider of keep-alive ticks that are sent from a client to a server over a ReactiveSocket connection.
+ * {@link #ticks()} provides a source that emits an item whenever a keep-alive frame is to be sent. This expects to
+ * receive an acknowledgment from the peer for every keep-alive frame sent, in absence of a configurable number of
+ * consecutive missed acknowledgments, it will generate an error from the {@link #ticks()} source.
+ */
 public final class KeepAliveProvider {
 
     private volatile boolean ackThresholdBreached;
@@ -120,15 +126,47 @@ public final class KeepAliveProvider {
         return from(Integer.MAX_VALUE, Px.never());
     }
 
+    /**
+     * Creates a new {@link KeepAliveProvider} that sends a keep alive frame every {@code keepAlivePeriodMillis}
+     * milliseconds.
+     *
+     * @param keepAlivePeriodMillis Duration in milliseconds after which a keep-alive frame is sent.
+     * @param keepAliveTicks A source which emits an item whenever a keepa-live frame is to be sent.
+     *
+     * @return A new {@link KeepAliveProvider} that never sends a keep-alive frame.
+     */
     public static KeepAliveProvider from(int keepAlivePeriodMillis, Publisher<Long> keepAliveTicks) {
         return from(keepAlivePeriodMillis, SetupProvider.DEFAULT_MAX_KEEP_ALIVE_MISSING_ACK, keepAliveTicks);
     }
 
+    /**
+     * Creates a new {@link KeepAliveProvider} that sends a keep alive frame every {@code keepAlivePeriodMillis}
+     * milliseconds. The created provider will tolerate a maximum of {@code missedKeepAliveThreshold} consecutive
+     * acknowledgments from the peer, before generating an error from {@link #ticks()}
+     *
+     * @param keepAlivePeriodMillis Duration in milliseconds after which a keep-alive frame is sent.
+     * @param missedKeepAliveThreshold Maximum concurrent missed acknowledgements for keep-alives from the peer.
+     * @param keepAliveTicks A source which emits an item whenever a keepa-live frame is to be sent.
+     *
+     * @return A new {@link KeepAliveProvider} that never sends a keep-alive frame.
+     */
     public static KeepAliveProvider from(int keepAlivePeriodMillis, int missedKeepAliveThreshold,
                                          Publisher<Long> keepAliveTicks) {
         return from(keepAlivePeriodMillis, missedKeepAliveThreshold, keepAliveTicks, System::currentTimeMillis);
     }
 
+    /**
+     * Creates a new {@link KeepAliveProvider} that sends a keep alive frame every {@code keepAlivePeriodMillis}
+     * milliseconds. The created provider will tolerate a maximum of {@code missedKeepAliveThreshold} consecutive
+     * acknowledgments from the peer, before generating an error from {@link #ticks()}
+     *
+     * @param keepAlivePeriodMillis Duration in milliseconds after which a keep-alive frame is sent.
+     * @param missedKeepAliveThreshold Maximum concurrent missed acknowledgements for keep-alives from the peer.
+     * @param keepAliveTicks A source which emits an item whenever a keepa-live frame is to be sent.
+     * @param currentTimeSupplier Supplier for the current system time.
+     *
+     * @return A new {@link KeepAliveProvider} that never sends a keep-alive frame.
+     */
     public static KeepAliveProvider from(int keepAlivePeriodMillis, int missedKeepAliveThreshold,
                                          Publisher<Long> keepAliveTicks, LongSupplier currentTimeSupplier) {
         return new KeepAliveProvider(keepAliveTicks, keepAlivePeriodMillis, missedKeepAliveThreshold,

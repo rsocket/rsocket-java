@@ -28,6 +28,9 @@ import io.reactivesocket.util.PayloadImpl;
 import io.reactivex.Flowable;
 import org.junit.Test;
 
+import java.nio.ByteBuffer;
+import java.nio.charset.Charset;
+
 import static io.reactivesocket.client.SetupProvider.*;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
@@ -37,9 +40,14 @@ public class SetupProviderImplTest {
     @Test(timeout = 2000)
     public void testSetup() throws Exception {
         Frame setup = Setup.from(0, 0, 0, DEFAULT_DATA_MIME_TYPE, DEFAULT_DATA_MIME_TYPE, PayloadImpl.EMPTY);
-        SetupProviderImpl setupProvider =
+        SetupProvider setupProvider =
                 new SetupProviderImpl(setup, reactiveSocket -> new DefaultLeaseHonoringSocket(reactiveSocket),
                                       KeepAliveProvider.never(), Throwable::printStackTrace);
+        ByteBuffer dataBuffer = ByteBuffer.wrap("hello".getBytes(Charset.defaultCharset()));
+        ByteBuffer metaDataBuffer = ByteBuffer.wrap("helloMeta".getBytes(Charset.defaultCharset()));
+        PayloadImpl setupPayload = new PayloadImpl(dataBuffer, metaDataBuffer);
+
+        setupProvider = setupProvider.setupPayload(setupPayload);
         TestDuplexConnection connection = new TestDuplexConnection();
         FairLeaseDistributor distributor = new FairLeaseDistributor(() -> 0, 0, Flowable.never());
         ReactiveSocket socket = Flowable.fromPublisher(setupProvider
@@ -48,9 +56,15 @@ public class SetupProviderImplTest {
                                                                  reactiveSocket, distributor)))
                                       .switchIfEmpty(Flowable.error(new IllegalStateException("No socket returned.")))
                                       .blockingFirst();
+
+        dataBuffer.rewind();
+        metaDataBuffer.rewind();
+
         assertThat("Unexpected socket.", socket, is(notNullValue()));
         assertThat("Unexpected frames sent on connection.", connection.getSent(), hasSize(1));
-        assertThat("Unexpected frame sent on connection.", connection.getSent().iterator().next().getType(),
-                   is(FrameType.SETUP));
+        Frame receivedSetup = connection.getSent().iterator().next();
+        assertThat("Unexpected frame sent on connection.", receivedSetup.getType(), is(FrameType.SETUP));
+        assertThat("Unexpected setup frame payload data.", receivedSetup.getData(), equalTo(dataBuffer));
+        assertThat("Unexpected setup frame payload metadata.", receivedSetup.getMetadata(), equalTo(metaDataBuffer));
     }
 }
