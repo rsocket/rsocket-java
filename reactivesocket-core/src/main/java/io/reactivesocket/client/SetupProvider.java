@@ -16,6 +16,7 @@
 
 package io.reactivesocket.client;
 
+import io.reactivesocket.Payload;
 import io.reactivesocket.client.ReactiveSocketClient.SocketAcceptor;
 import io.reactivesocket.lease.DefaultLeaseHonoringSocket;
 import io.reactivesocket.DuplexConnection;
@@ -39,16 +40,66 @@ public interface SetupProvider {
     String DEFAULT_METADATA_MIME_TYPE = "application/x.reactivesocket.meta+cbor";
     String DEFAULT_DATA_MIME_TYPE = "application/binary";
 
+    /**
+     * Accept a {@link DuplexConnection} and does the setup to produce a {@code ReactiveSocket}.
+     *
+     * @param connection To setup.
+     * @param acceptor of the newly created {@code ReactiveSocket}.
+     *
+     * @return Asynchronous source for the created {@code ReactiveSocket}
+     */
     Publisher<ReactiveSocket> accept(DuplexConnection connection, SocketAcceptor acceptor);
 
+    /**
+     * Creates a new {@code SetupProvider} by modifying the mime type for data payload of this {@code SetupProvider}
+     *
+     * @param dataMimeType Mime type for data payloads for all created {@code ReactiveSocket}
+     *
+     * @return A new {@code SetupProvider} instance.
+     */
     SetupProvider dataMimeType(String dataMimeType);
 
+    /**
+     * Creates a new {@code SetupProvider} by modifying the mime type for metadata payload of this {@code SetupProvider}
+     *
+     * @param metadataMimeType Mime type for metadata payloads for all created {@code ReactiveSocket}
+     *
+     * @return A new {@code SetupProvider} instance.
+     */
     SetupProvider metadataMimeType(String metadataMimeType);
 
+    /**
+     * Creates a new {@code SetupProvider} that honors leases sent from the server.
+     *
+     * @param leaseDecorator A factory that decorates a {@code ReactiveSocket} to honor leases.
+     *
+     * @return A new {@code SetupProvider} instance.
+     */
     SetupProvider honorLease(Function<ReactiveSocket, LeaseHonoringSocket> leaseDecorator);
 
+    /**
+     * Creates a new {@code SetupProvider} that does not honor leases.
+     *
+     * @return A new {@code SetupProvider} instance.
+     */
     SetupProvider disableLease();
 
+    /**
+     * Creates a new {@code SetupProvider} that uses the passed {@code setupPayload} as the payload for the setup frame.
+     * Default instances, do not have any payload.
+     *
+     * @return A new {@code SetupProvider} instance.
+     */
+    SetupProvider setupPayload(Payload setupPayload);
+
+    /**
+     * Creates a new {@link SetupProvider} using the passed {@code keepAliveProvider} for keep alives to be sent on the
+     * {@link ReactiveSocket}s created by this provider.
+     *
+     * @param keepAliveProvider Provider for keep-alive.
+     *
+     * @return A new {@code SetupProvider}.
+     */
     static SetupProvider keepAlive(KeepAliveProvider keepAliveProvider) {
         int period = keepAliveProvider.getKeepAlivePeriodMillis();
         Frame setupFrame =
