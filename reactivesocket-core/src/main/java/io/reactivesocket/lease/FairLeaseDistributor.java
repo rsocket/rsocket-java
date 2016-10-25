@@ -36,20 +36,17 @@ public final class FairLeaseDistributor implements DefaultLeaseEnforcingSocket.L
 
     private final LinkedBlockingQueue<Consumer<Lease>> activeRecipients;
     private Subscription ticksSubscription;
+    private volatile boolean startTicks;
+    private final IntSupplier capacitySupplier;
     private final int leaseTTL;
+    private final Publisher<Long> leaseDistributionTicks;
     private volatile int remainingPermits;
 
     public FairLeaseDistributor(IntSupplier capacitySupplier, int leaseTTL, Publisher<Long> leaseDistributionTicks) {
+        this.capacitySupplier = capacitySupplier;
         this.leaseTTL = leaseTTL;
+        this.leaseDistributionTicks = leaseDistributionTicks;
         activeRecipients = new LinkedBlockingQueue<>();
-        Px.from(leaseDistributionTicks)
-            .doOnSubscribe(subscription -> ticksSubscription = subscription)
-                              .doOnNext(aLong -> {
-                                  remainingPermits = capacitySupplier.getAsInt();
-                                  distribute(remainingPermits);
-                              })
-                              .ignore()
-                              .subscribe();
     }
 
     /**
@@ -71,6 +68,12 @@ public final class FairLeaseDistributor implements DefaultLeaseEnforcingSocket.L
     @Override
     public Cancellable registerSocket(Consumer<Lease> leaseConsumer) {
         activeRecipients.add(leaseConsumer);
+        synchronized (this) {
+            if (!startTicks) {
+                startTicks();
+                startTicks = true;
+            }
+        }
         return new CancellableImpl() {
             @Override
             protected void onCancel() {
@@ -100,5 +103,16 @@ public final class FairLeaseDistributor implements DefaultLeaseEnforcingSocket.L
             }
             recipient.accept(leaseToSend);
         }
+    }
+
+    private void startTicks() {
+        Px.from(leaseDistributionTicks)
+          .doOnSubscribe(subscription -> ticksSubscription = subscription)
+          .doOnNext(aLong -> {
+              remainingPermits = capacitySupplier.getAsInt();
+              distribute(remainingPermits);
+          })
+          .ignore()
+          .subscribe();
     }
 }

@@ -98,7 +98,10 @@ public class ClientServerInputMultiplexer {
 
         @Override
         public void onNext(Frame frame) {
-            if (BitUtil.isEven(frame.getStreamId())) {
+            if (frame.getStreamId() == 0) {
+                evenSubscription.safeOnNext(frame);
+                oddSubscription.safeOnNext(frame);
+            } else if (BitUtil.isEven(frame.getStreamId())) {
                 evenSubscription.safeOnNext(frame);
             } else {
                 oddSubscription.safeOnNext(frame);

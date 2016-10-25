@@ -183,7 +183,7 @@ public class ServerReactiveSocket implements ReactiveSocket {
                 case METADATA_PUSH:
                     return metadataPush(frame);
                 case LEASE:
-                    //TODO: Handle leasing
+                    // Lease must not be received here as this is the server end of the socket which sends leases.
                     return Px.empty();
                 case NEXT:
                     synchronized (channelProcessors) {
