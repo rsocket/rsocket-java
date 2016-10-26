@@ -67,24 +67,28 @@ public class LocalSendReceiveTest {
 
     public static class LocalRule extends ExternalResource {
 
-        private LocalClient localClient;
-        private String name;
+        protected String name;
+        protected LocalServer localServer;
+        protected LocalClient localClient;
 
         @Override
         public Statement apply(final Statement base, Description description) {
             return new Statement() {
                 @Override
                 public void evaluate() throws Throwable {
-                    name = "test-send-receive-server-" + ThreadLocalRandom.current().nextInt();
-                    LocalServer.create(name)
-                               .start(duplexConnection -> {
-                                   return duplexConnection.send(duplexConnection.receive());
-                               });
-
-                    localClient = LocalClient.create(name);
+                    init();
+                    localServer.start(duplexConnection -> {
+                        return duplexConnection.send(duplexConnection.receive());
+                    });
                     base.evaluate();
                 }
             };
+        }
+
+        protected void init() {
+            name = "test-send-receive-server-" + ThreadLocalRandom.current().nextInt();
+            localServer = LocalServer.create(name);
+            localClient = LocalClient.create(name);
         }
 
         public DuplexConnection connect() {

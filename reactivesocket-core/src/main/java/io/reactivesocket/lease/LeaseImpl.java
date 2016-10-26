@@ -57,4 +57,13 @@ public final class LeaseImpl implements Lease {
     public ByteBuffer metadata() {
         return metadata;
     }
+
+    @Override
+    public String toString() {
+        return "LeaseImpl{" +
+               "allowedRequests=" + allowedRequests +
+               ", ttl=" + ttl +
+               ", expiry=" + expiry +
+               '}';
+    }
 }

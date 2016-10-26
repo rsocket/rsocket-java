@@ -19,11 +19,15 @@ package io.reactivesocket.lease;
 import io.reactivesocket.Payload;
 import io.reactivesocket.ReactiveSocket;
 import org.reactivestreams.Publisher;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * {@link LeaseHonoringSocket} that does not expect to receive any leases and {@link #accept(Lease)} throws an error.
  */
 public class DisableLeaseSocket implements LeaseHonoringSocket {
+
+    private static final Logger logger = LoggerFactory.getLogger(DisableLeaseSocket.class);
 
     private final ReactiveSocket delegate;
 
@@ -31,12 +35,9 @@ public class DisableLeaseSocket implements LeaseHonoringSocket {
         this.delegate = delegate;
     }
 
-    /**
-     * @throws IllegalArgumentException Always thrown.
-     */
     @Override
     public void accept(Lease lease) {
-        throw new IllegalArgumentException("Leases are disabled.");
+        logger.info("Leases are disabled but received a lease from the peer. " + lease);
     }
 
     @Override
