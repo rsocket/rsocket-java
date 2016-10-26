@@ -53,6 +53,7 @@ public interface ReactiveSocketServer {
                                                                                  KeepAliveProvider.never());
                           LeaseEnforcingSocket handler = acceptor.accept(setupPayload, sender);
                           ServerReactiveSocket receiver = new ServerReactiveSocket(duplexConnection, handler,
+                                                                                   setupPayload.willClientHonorLease(),
                                                                                    Throwable::printStackTrace);
                           receiver.start();
                           return duplexConnection.onClose();

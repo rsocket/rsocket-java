@@ -22,6 +22,7 @@ import io.reactivesocket.lease.DefaultLeaseHonoringSocket;
 import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
 import io.reactivesocket.Frame.Setup;
+import io.reactivesocket.lease.DisableLeaseSocket;
 import io.reactivesocket.lease.LeaseHonoringSocket;
 import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.frame.SetupFrameFlyweight;
@@ -83,6 +84,15 @@ public interface SetupProvider {
      * @return A new {@code SetupProvider} instance.
      */
     SetupProvider disableLease();
+
+    /**
+     * Creates a new {@code SetupProvider} that does not honor leases.
+     *
+     * @param socketFactory A factory to create {@link DisableLeaseSocket} for each accepted socket.
+     *
+     * @return A new {@code SetupProvider} instance.
+     */
+    SetupProvider disableLease(Function<ReactiveSocket, DisableLeaseSocket> socketFactory);
 
     /**
      * Creates a new {@code SetupProvider} that uses the passed {@code setupPayload} as the payload for the setup frame.

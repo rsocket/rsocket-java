@@ -42,11 +42,11 @@ import static io.reactivesocket.Frame.Setup.*;
 final class SetupProviderImpl implements SetupProvider {
 
     private final Frame setupFrame;
-    private final Function<ReactiveSocket, LeaseHonoringSocket> leaseDecorator;
+    private final Function<ReactiveSocket, ? extends LeaseHonoringSocket> leaseDecorator;
     private final Consumer<Throwable> errorConsumer;
     private final KeepAliveProvider keepAliveProvider;
 
-    SetupProviderImpl(Frame setupFrame, Function<ReactiveSocket, LeaseHonoringSocket> leaseDecorator,
+    SetupProviderImpl(Frame setupFrame, Function<ReactiveSocket, ? extends LeaseHonoringSocket> leaseDecorator,
                       KeepAliveProvider keepAliveProvider, Consumer<Throwable> errorConsumer) {
         this.keepAliveProvider = keepAliveProvider;
         this.errorConsumer = errorConsumer;
@@ -98,12 +98,16 @@ final class SetupProviderImpl implements SetupProvider {
 
     @Override
     public SetupProvider disableLease() {
+        return disableLease(DisableLeaseSocket::new);
+    }
+
+    @Override
+    public SetupProvider disableLease(Function<ReactiveSocket, DisableLeaseSocket> socketFactory) {
         Frame newSetup = from(getFlags(setupFrame) & ~ConnectionSetupPayload.HONOR_LEASE,
                               keepaliveInterval(setupFrame), maxLifetime(setupFrame),
                               Frame.Setup.metadataMimeType(setupFrame), Frame.Setup.dataMimeType(setupFrame),
                               setupFrame);
-        return new SetupProviderImpl(newSetup, reactiveSocket -> new DisableLeaseSocket(reactiveSocket),
-                                     keepAliveProvider, errorConsumer);
+        return new SetupProviderImpl(newSetup, socketFactory, keepAliveProvider, errorConsumer);
     }
 
     @Override

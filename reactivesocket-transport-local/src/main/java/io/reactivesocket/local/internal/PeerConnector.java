@@ -65,13 +65,13 @@ public class PeerConnector {
         return new PeerConnector(uniqueName);
     }
 
-    private final class LocalDuplexConnection implements DuplexConnection, Consumer<Frame> {
+    private final class LocalDuplexConnection implements DuplexConnection {
 
         private volatile ValidatingSubscription<Frame> receiver;
         private volatile boolean connected;
         private final EmptySubject closeNotifier;
         private final boolean client;
-        private volatile Consumer<Frame> peer;
+        private volatile LocalDuplexConnection peer;
 
         private LocalDuplexConnection(EmptySubject closeNotifier, boolean client) {
             this.closeNotifier = closeNotifier;
@@ -91,7 +91,7 @@ public class PeerConnector {
                     subscription.request(Long.MAX_VALUE); // Local transport is not flow controlled.
                 }, frame -> {
                     if (peer != null) {
-                        peer.accept(frame);
+                        peer.receiveFrameFromPeer(frame);
                     } else {
                         logger.warn("Sending a frame but peer not connected. Ignoring frame: " + frame);
                     }
@@ -145,8 +145,7 @@ public class PeerConnector {
             return "[local connection(" + (client ? "client" : "server" + ") - ") + name + "] connected: " + connected;
         }
 
-        @Override
-        public void accept(Frame frame) {
+        public void receiveFrameFromPeer(Frame frame) {
             if (receiver != null) {
                 receiver.safeOnNext(frame);
             } else {

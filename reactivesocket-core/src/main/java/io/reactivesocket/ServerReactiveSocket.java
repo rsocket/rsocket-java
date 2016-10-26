@@ -52,9 +52,8 @@ public class ServerReactiveSocket implements ReactiveSocket {
 
     private final ReactiveSocket requestHandler;
     private Subscription receiversSubscription;
-
     public ServerReactiveSocket(DuplexConnection connection, ReactiveSocket requestHandler,
-                                Consumer<Throwable> errorConsumer) {
+                                boolean clientHonorsLease, Consumer<Throwable> errorConsumer) {
         this.requestHandler = requestHandler;
         this.connection = connection;
         serverInput = connection.receive();
@@ -64,12 +63,20 @@ public class ServerReactiveSocket implements ReactiveSocket {
         if (requestHandler instanceof LeaseEnforcingSocket) {
             LeaseEnforcingSocket enforcer = (LeaseEnforcingSocket) requestHandler;
             enforcer.acceptLeaseSender(lease -> {
+                if (!clientHonorsLease) {
+                    return;
+                }
                 Frame leaseFrame = Lease.from(lease.getTtl(), lease.getAllowedRequests(), lease.metadata());
                 Px.from(connection.sendOne(leaseFrame))
-                    .doOnError(errorConsumer)
-                    .subscribe();
+                  .doOnError(errorConsumer)
+                  .subscribe();
             });
         }
+    }
+
+    public ServerReactiveSocket(DuplexConnection connection, ReactiveSocket requestHandler,
+                                Consumer<Throwable> errorConsumer) {
+        this(connection, requestHandler, true, errorConsumer);
     }
 
     @Override
