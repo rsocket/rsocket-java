@@ -175,11 +175,11 @@ public class ServerReactiveSocket implements ReactiveSocket {
                 case REQUEST_N:
                     return handleRequestN(streamId, frame);
                 case REQUEST_STREAM:
-                    return handleReceive(streamId, requestStream(frame));
+                    return doReceive(streamId, requestStream(frame));
                 case FIRE_AND_FORGET:
                     return handleFireAndForget(streamId, fireAndForget(frame));
                 case REQUEST_SUBSCRIPTION:
-                    return handleReceive(streamId, requestSubscription(frame));
+                    return doReceive(streamId, requestSubscription(frame));
                 case REQUEST_CHANNEL:
                     return handleChannel(streamId, frame);
                 case RESPONSE:
@@ -286,6 +286,14 @@ public class ServerReactiveSocket implements ReactiveSocket {
 
         return Px.from(connection.send(frames));
 
+    }
+
+    private Publisher<Void> doReceive(int streamId, Publisher<Payload> response) {
+        Px<Frame> resp = Px.from(response)
+                           .map(payload -> Response.from(streamId, FrameType.RESPONSE, payload));
+        RemoteSender sender = new RemoteSender(resp, () -> subscriptions.remove(streamId), streamId, 2);
+        subscriptions.put(streamId, sender);
+        return connection.send(sender);
     }
 
     private Publisher<Void> handleChannel(int streamId, Frame firstFrame) {

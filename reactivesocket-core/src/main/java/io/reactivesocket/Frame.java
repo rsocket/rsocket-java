@@ -39,6 +39,9 @@ import static java.lang.System.getProperty;
  * This provides encoding, decoding and field accessors.
  */
 public class Frame implements Payload {
+
+    private static final Logger logger = LoggerFactory.getLogger(Frame.class);
+
     public static final ByteBuffer NULL_BYTEBUFFER = FrameHeaderFlyweight.NULL_BYTEBUFFER;
     public static final int DATA_MTU = 32 * 1024;
     public static final int METADATA_MTU = 32 * 1024;
@@ -55,11 +58,11 @@ public class Frame implements Payload {
         FramePool tmpPool;
 
         try {
-            System.out.println("Creating thread pooled named " + FRAME_POOLER_CLASS_NAME);
+            logger.info("Creating thread pooled named " + FRAME_POOLER_CLASS_NAME);
             tmpPool = (FramePool)Class.forName(FRAME_POOLER_CLASS_NAME).newInstance();
         }
         catch (final Exception ex) {
-            ex.printStackTrace();
+            logger.error("Error initializing frame pool.", ex);
             tmpPool = new UnpooledFrame();
         }
 
@@ -299,7 +302,7 @@ public class Frame implements Payload {
     }
 
     public static class Error {
-        private static final Logger logger = LoggerFactory.getLogger(Error.class);
+        private static final Logger errorLogger = LoggerFactory.getLogger(Error.class);
 
         private Error() {}
 
@@ -313,8 +316,8 @@ public class Frame implements Payload {
             final Frame frame = POOL.acquireFrame(
                 ErrorFrameFlyweight.computeFrameLength(metadata.remaining(), data.remaining()));
 
-            if (logger.isDebugEnabled()) {
-                logger.debug("an error occurred, creating error frame", throwable);
+            if (errorLogger.isDebugEnabled()) {
+                errorLogger.debug("an error occurred, creating error frame", throwable);
             }
 
             frame.length = ErrorFrameFlyweight.encode(
