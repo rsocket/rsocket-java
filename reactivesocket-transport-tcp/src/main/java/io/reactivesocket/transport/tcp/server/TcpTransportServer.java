@@ -20,11 +20,14 @@ import io.netty.buffer.ByteBuf;
 import io.reactivesocket.Frame;
 import io.reactivesocket.transport.TransportServer;
 import io.reactivesocket.transport.tcp.ReactiveSocketFrameCodec;
+import io.reactivesocket.transport.tcp.ReactiveSocketFrameLogger;
 import io.reactivesocket.transport.tcp.ReactiveSocketLengthCodec;
 import io.reactivesocket.transport.tcp.TcpDuplexConnection;
+import io.reactivesocket.transport.tcp.client.TcpTransportClient;
 import io.reactivex.netty.channel.Connection;
 import io.reactivex.netty.protocol.tcp.server.ConnectionHandler;
 import io.reactivex.netty.protocol.tcp.server.TcpServer;
+import org.slf4j.event.Level;
 import rx.Observable;
 
 import java.net.SocketAddress;
@@ -62,6 +65,20 @@ public class TcpTransportServer implements TransportServer {
      */
     public TcpTransportServer configureServer(Function<TcpServer<Frame, Frame>, TcpServer<Frame, Frame>> configurator) {
         return new TcpTransportServer(configurator.apply(rxNettyServer));
+    }
+
+    /**
+     * Enable logging of every frame read and written on every connection accepted by this server.
+     *
+     * @param name Name of the logger.
+     * @param logLevel Level at which the messages will be logged.
+     *
+     * @return A new {@link TcpTransportServer}
+     */
+    public TcpTransportServer logReactiveSocketFrames(String name, Level logLevel) {
+        return configureServer(c -> c.addChannelHandlerLast("reactive-socket-frame-codec",
+                                                            () -> new ReactiveSocketFrameLogger(name, logLevel))
+        );
     }
 
     public static TcpTransportServer create() {

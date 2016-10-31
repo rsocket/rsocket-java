@@ -21,10 +21,12 @@ import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
 import io.reactivesocket.transport.TransportClient;
 import io.reactivesocket.transport.tcp.ReactiveSocketFrameCodec;
+import io.reactivesocket.transport.tcp.ReactiveSocketFrameLogger;
 import io.reactivesocket.transport.tcp.ReactiveSocketLengthCodec;
 import io.reactivesocket.transport.tcp.TcpDuplexConnection;
 import io.reactivex.netty.protocol.tcp.client.TcpClient;
 import org.reactivestreams.Publisher;
+import org.slf4j.event.Level;
 
 import java.net.SocketAddress;
 import java.util.function.Function;
@@ -54,6 +56,20 @@ public class TcpTransportClient implements TransportClient {
      */
     public TcpTransportClient configureClient(Function<TcpClient<Frame, Frame>, TcpClient<Frame, Frame>> configurator) {
         return new TcpTransportClient(configurator.apply(rxNettyClient));
+    }
+
+    /**
+     * Enable logging of every frame read and written on every connection created by this client.
+     *
+     * @param name Name of the logger.
+     * @param logLevel Level at which the messages will be logged.
+     *
+     * @return A new {@link TcpTransportClient}
+     */
+    public TcpTransportClient logReactiveSocketFrames(String name, Level logLevel) {
+        return configureClient(c ->
+            c.addChannelHandlerLast("reactive-socket-frame-codec", () -> new ReactiveSocketFrameLogger(name, logLevel))
+        );
     }
 
     public static TcpTransportClient create(SocketAddress serverAddress) {
