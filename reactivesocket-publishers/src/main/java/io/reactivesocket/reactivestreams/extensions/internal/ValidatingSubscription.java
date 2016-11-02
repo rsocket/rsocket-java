@@ -22,6 +22,16 @@ import java.util.function.LongConsumer;
 
 public final class ValidatingSubscription<T> implements Subscription {
 
+    private static final Subscription emptySubscription = new Subscription() {
+        @Override
+        public void request(long n) {
+        }
+
+        @Override
+        public void cancel() {
+        }
+    };
+
     private enum State {
         Active, Cancelled, Done
     }
@@ -125,5 +135,9 @@ public final class ValidatingSubscription<T> implements Subscription {
     public static <T> ValidatingSubscription<T> create(Subscriber<? super T> subscriber, Runnable onCancel,
                                                        LongConsumer onRequestN) {
         return new ValidatingSubscription<>(subscriber, onCancel, onRequestN);
+    }
+
+    public static Subscription empty() {
+        return emptySubscription;
     }
 }
