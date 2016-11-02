@@ -13,6 +13,24 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+buildscript {
+    repositories {
+        maven { url "https://plugins.gradle.org/m2/" }
+    }
+
+    dependencies {
+        classpath 'gradle.plugin.me.champeau.gradle:jmh-gradle-plugin:0.3.0'
+    }
+}
+
+apply plugin: 'me.champeau.gradle.jmh'
+
+jmh {
+    jmhVersion = '1.15'
+    jvmArgs = '-XX:+UnlockCommercialFeatures -XX:+FlightRecorder'
+    profilers = ['gc']
+    zip64 = true
+}
 
 dependencies {
     compile project(':reactivesocket-core')
@@ -20,6 +38,11 @@ dependencies {
     compile project(':reactivesocket-discovery-eureka')
     compile project(':reactivesocket-stats-servo')
     compile project(':reactivesocket-transport-tcp')
+    compile project(':reactivesocket-transport-local')
 
     compile project(':reactivesocket-test')
+
+    compile 'org.slf4j:slf4j-log4j12:1.7.21'
+
+    jmh group: 'org.openjdk.jmh', name: 'jmh-generator-annprocess', version: '1.15'
 }

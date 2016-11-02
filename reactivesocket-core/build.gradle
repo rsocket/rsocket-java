@@ -27,7 +27,7 @@ buildscript {
 apply plugin: 'me.champeau.gradle.jmh'
 
 jmh {
-    jmhVersion = '1.12'
+    jmhVersion = '1.15'
     jvmArgs = '-XX:+UnlockCommercialFeatures -XX:+FlightRecorder'
     profilers = ['gc']
     zip64 = true
@@ -41,5 +41,5 @@ dependencies {
 
     testCompile project(':reactivesocket-test')
 
-    jmh group: 'org.openjdk.jmh', name: 'jmh-generator-annprocess', version: '1.12'
+    jmh group: 'org.openjdk.jmh', name: 'jmh-generator-annprocess', version: '1.15'
 }
