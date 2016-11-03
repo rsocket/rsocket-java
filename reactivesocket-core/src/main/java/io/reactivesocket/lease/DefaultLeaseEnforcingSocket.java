@@ -18,6 +18,8 @@ package io.reactivesocket.lease;
 
 import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.reactivestreams.extensions.Px;
+import io.reactivesocket.exceptions.RejectedException;
+import io.reactivesocket.reactivestreams.extensions.Px;
 import io.reactivesocket.reactivestreams.extensions.internal.Cancellable;
 import io.reactivesocket.reactivestreams.extensions.internal.subscribers.Subscribers;
 import org.reactivestreams.Publisher;
@@ -30,11 +32,23 @@ public class DefaultLeaseEnforcingSocket extends DefaultLeaseHonoringSocket impl
     private final LeaseDistributor leaseDistributor;
     private volatile Consumer<Lease> leaseSender;
     private Cancellable distributorCancellation;
+    @SuppressWarnings("rawtypes")
+    private final Px rejectError;
+
+    public DefaultLeaseEnforcingSocket(ReactiveSocket delegate, LeaseDistributor leaseDistributor,
+                                       LongSupplier currentTimeSupplier, boolean clientHonorsLeases) {
+        super(delegate, currentTimeSupplier);
+        this.leaseDistributor = leaseDistributor;
+        if (!clientHonorsLeases) {
+            rejectError = Px.error(new RejectedException("Server overloaded."));
+        } else {
+            rejectError = null;
+        }
+    }
 
     public DefaultLeaseEnforcingSocket(ReactiveSocket delegate, LeaseDistributor leaseDistributor,
                                        LongSupplier currentTimeSupplier) {
-        super(delegate, currentTimeSupplier);
-        this.leaseDistributor = leaseDistributor;
+        this(delegate, leaseDistributor, currentTimeSupplier, true);
     }
 
     public DefaultLeaseEnforcingSocket(ReactiveSocket delegate, LeaseDistributor leaseDistributor) {
@@ -64,6 +78,11 @@ public class DefaultLeaseEnforcingSocket extends DefaultLeaseHonoringSocket impl
                  .doOnSubscribe(subscription -> {
                      leaseDistributor.shutdown();
                  });
+    }
+
+    @Override
+    protected <T> Publisher<T> rejectError() {
+        return null == rejectError ? super.rejectError() : rejectError;
     }
 
     /**
