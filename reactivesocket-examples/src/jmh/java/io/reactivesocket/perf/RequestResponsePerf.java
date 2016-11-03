@@ -13,6 +13,7 @@
 
 package io.reactivesocket.perf;
 
+import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.local.LocalClient;
 import io.reactivesocket.local.LocalServer;
 import io.reactivesocket.perf.util.AbstractMicrobenchmarkBase;
@@ -35,22 +36,28 @@ import org.openjdk.jmh.infra.Blackhole;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 @BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(TimeUnit.SECONDS)
 @State(Scope.Benchmark)
 public class RequestResponsePerf extends AbstractMicrobenchmarkBase {
 
+    public static final String TRANSPORT_TCP_MULTI_CONNECTIONS = "tcp_multi_connections";
     public static final String TRANSPORT_TCP = "tcp";
     public static final String TRANSPORT_LOCAL = "local";
 
-    @Param({ TRANSPORT_TCP, TRANSPORT_LOCAL })
+    @Param({ TRANSPORT_TCP_MULTI_CONNECTIONS, TRANSPORT_TCP, TRANSPORT_LOCAL })
     public String transport;
+
+    @Param({ "1", "100", "1000"})
+    public int requestCount;
 
     public Blackhole bh;
 
-    public ClientServerHolder localHolder;
-    public ClientServerHolder tcpHolder;
+    public Supplier<ReactiveSocket> localHolder;
+    public Supplier<ReactiveSocket> tcpHolder;
+    public Supplier<ReactiveSocket> multiClientTcpHolders;
 
     @Setup(Level.Trial)
     public void setup(Blackhole bh) {
@@ -59,29 +66,36 @@ public class RequestResponsePerf extends AbstractMicrobenchmarkBase {
         String clientName = "local-" + ThreadLocalRandom.current().nextInt();
         localHolder = ClientServerHolder.requestResponse(LocalServer.create(clientName),
                                                          socketAddress -> LocalClient.create(clientName));
+        multiClientTcpHolders = ClientServerHolder.requestResponseMultiTcp(Runtime.getRuntime().availableProcessors());
         this.bh = bh;
     }
 
     @Benchmark
     public void requestResponse() throws InterruptedException {
-        ClientServerHolder holder;
+        Supplier<ReactiveSocket> socketSupplier;
         switch (transport) {
         case TRANSPORT_LOCAL:
-            holder = localHolder;
+            socketSupplier = localHolder;
             break;
         case TRANSPORT_TCP:
-            holder = tcpHolder;
+            socketSupplier = tcpHolder;
+            break;
+        case TRANSPORT_TCP_MULTI_CONNECTIONS:
+            socketSupplier = multiClientTcpHolders;
             break;
         default:
             throw new IllegalArgumentException("Unknown transport: " + transport);
         }
-        requestResponse(holder);
+        requestResponse(socketSupplier);
     }
 
-    protected void requestResponse(ClientServerHolder holder) throws InterruptedException {
-        CountDownLatch latch = new CountDownLatch(1);
-        holder.getClient().requestResponse(new PayloadImpl(ClientServerHolder.HELLO))
-              .subscribe(new BlackholeSubscriber<>(bh, () -> latch.countDown()));
+    protected void requestResponse(Supplier<ReactiveSocket> socketSupplier) throws InterruptedException {
+        CountDownLatch latch = new CountDownLatch(requestCount);
+        for (int i = 0; i < requestCount; i++) {
+            socketSupplier.get()
+                          .requestResponse(new PayloadImpl(ClientServerHolder.HELLO))
+                          .subscribe(new BlackholeSubscriber<>(bh, () -> latch.countDown()));
+        }
         latch.await();
     }
 }
