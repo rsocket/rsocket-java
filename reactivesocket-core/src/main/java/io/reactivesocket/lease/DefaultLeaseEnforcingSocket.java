@@ -17,8 +17,10 @@
 package io.reactivesocket.lease;
 
 import io.reactivesocket.ReactiveSocket;
+import io.reactivesocket.reactivestreams.extensions.Px;
 import io.reactivesocket.reactivestreams.extensions.internal.Cancellable;
 import io.reactivesocket.reactivestreams.extensions.internal.subscribers.Subscribers;
+import org.reactivestreams.Publisher;
 
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
@@ -54,6 +56,14 @@ public class DefaultLeaseEnforcingSocket extends DefaultLeaseHonoringSocket impl
 
     public LeaseDistributor getLeaseDistributor() {
         return leaseDistributor;
+    }
+
+    @Override
+    public Publisher<Void> close() {
+        return Px.from(super.close())
+                 .doOnSubscribe(subscription -> {
+                     leaseDistributor.shutdown();
+                 });
     }
 
     /**
