@@ -162,20 +162,30 @@ public final class RemoteReceiver implements Processor<Frame, Payload> {
 
     @Override
     public void onError(Throwable t) {
-        if (!isMissed()) {
+        boolean _missed = false;
+        synchronized (this) {
+            if (subscription == null) {
+                _missed = true;
+                missedError = t;
+            }
+        }
+        if (!_missed) {
             subscription.safeOnError(t);
-        } else {
-            missedError = t;
         }
         cleanup.run();
     }
 
     @Override
     public void onComplete() {
-        if (!isMissed()) {
+        boolean _missed = false;
+        synchronized (this) {
+            if (subscription == null) {
+                _missed = true;
+                missedComplete = true;
+            }
+        }
+        if (!_missed) {
             subscription.safeOnComplete();
-        } else {
-            missedComplete = true;
         }
         cleanup.run();
     }
@@ -184,16 +194,6 @@ public final class RemoteReceiver implements Processor<Frame, Payload> {
         sourceSubscription.cancel();
         // Since, source subscription is cancelled, send an error to the subscriber to cleanup.
         onError(new CancelException("Remote subscription cancelled."));
-    }
-
-    private boolean isMissed() {
-        boolean _missed = false;
-        synchronized (this) {
-            if (subscription == null) {
-                _missed = true;
-            }
-        }
-        return _missed;
     }
 
     private class SubscriptionFramesSource implements Publisher<Frame> {
