@@ -127,6 +127,27 @@ public class RemoteReceiverTest {
         assertThat("Receiver not cleaned up.", rule.receiverCleanedUp, is(true));
     }
 
+    @Test
+    public void testMissedComplete() throws Exception {
+        rule.receiver.onComplete();
+        final TestSubscriber<Payload> receiverSub = TestSubscriber.create();
+        rule.receiver.subscribe(receiverSub);
+        receiverSub.assertComplete().assertNoErrors();
+    }
+
+    @Test
+    public void testMissedError() throws Exception {
+        rule.receiver.onError(new NullPointerException("Deliberate exception"));
+        final TestSubscriber<Payload> receiverSub = TestSubscriber.create();
+        rule.receiver.subscribe(receiverSub);
+        receiverSub.assertError(NullPointerException.class).assertNotComplete();
+    }
+
+    @Test(expected = IllegalStateException.class)
+    public void testOnNextWithoutSubscribe() throws Exception {
+        rule.receiver.onNext(Frame.RequestN.from(1, 1));
+    }
+
     public static class ReceiverRule extends ExternalResource {
 
         private TestDuplexConnection connection;
@@ -143,7 +164,8 @@ public class RemoteReceiverTest {
                     connection = new TestDuplexConnection();
                     streamId = 10;
                     source = UnicastProcessor.create();
-                    receiver = new RemoteReceiver(connection, streamId, () -> receiverCleanedUp = true, null, null, true);
+                    receiver = new RemoteReceiver(connection, streamId, () -> receiverCleanedUp = true, null, null,
+                                                  true);
                     base.evaluate();
                 }
             };
