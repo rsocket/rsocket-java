@@ -42,7 +42,7 @@ public class FairLeaseDistributorTest {
         assertThat("Unexpected leases received.", rule.leases, hasSize(1));
         Lease lease = rule.leases.remove(0);
         assertThat("Unexpected permits", lease.getAllowedRequests(), is(rule.permits));
-        assertThat("Unexpected ttl", lease.getTtl(), is(rule.ttl));
+        rule.assertTTL(lease);
         cancel.cancel();
         rule.ticks.onNext(1L);
         assertThat("Unexpected leases received post cancellation.", rule.leases, is(empty()));
@@ -73,8 +73,25 @@ public class FairLeaseDistributorTest {
         assertThat("Unexpected leases received.", rule.leases, hasSize(1));
     }
 
+    @Test(timeout = 10000)
+    public void testRedistribute() throws Exception {
+        rule.permits = 2;
+        rule.redistributeLeasesOnConnect();
+
+        Cancellable cancel1 = rule.distributor.registerSocket(rule);
+        rule.distributor.registerSocket(rule);
+
+        assertThat("Unexpected leases received.", rule.leases, hasSize(2));
+        rule.assertLease(rule.permits/2);
+        rule.assertLease(rule.permits/2);
+        cancel1.cancel();
+        rule.ticks.onNext(1L);
+        assertThat("Unexpected leases received.", rule.leases, hasSize(1));
+    }
+
     public static class DistributorRule extends ExternalResource implements Consumer<Lease> {
 
+        private boolean redistributeOnConnect;
         private FairLeaseDistributor distributor;
         private int permits;
         private int ttl;
@@ -86,18 +103,27 @@ public class FairLeaseDistributorTest {
             return new Statement() {
                 @Override
                 public void evaluate() throws Throwable {
-                    ticks = PublishProcessor.create();
-                    if (0 == permits) {
-                        permits = 1;
-                    }
-                    if (0 == ttl) {
-                        ttl = 10;
-                    }
-                    distributor = new FairLeaseDistributor(() -> permits, ttl, ticks);
-                    leases = new CopyOnWriteArrayList<>();
+                    init();
                     base.evaluate();
                 }
             };
+        }
+
+        protected void init() {
+            ticks = PublishProcessor.create();
+            if (0 == permits) {
+                permits = 1;
+            }
+            if (0 == ttl) {
+                ttl = 10;
+            }
+            distributor = new FairLeaseDistributor(() -> permits, ttl, ticks, redistributeOnConnect);
+            leases = new CopyOnWriteArrayList<>();
+        }
+
+        public void redistributeLeasesOnConnect() {
+            redistributeOnConnect = true;
+            init();
         }
 
         @Override
@@ -108,7 +134,11 @@ public class FairLeaseDistributorTest {
         public void assertLease(int expectedPermits) {
             Lease lease = leases.remove(0);
             assertThat("Unexpected permits", lease.getAllowedRequests(), is(expectedPermits));
-            assertThat("Unexpected ttl", lease.getTtl(), is(ttl));
+            assertTTL(lease);
+        }
+
+        protected void assertTTL(Lease lease) {
+            assertThat("Unexpected ttl", lease.getTtl(), is((int)(ttl * 1.1)));
         }
     }
 }
