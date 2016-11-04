@@ -53,6 +53,7 @@ import org.reactivestreams.Subscription;
  */
 public final class RemoteReceiver implements Processor<Frame, Payload> {
 
+    private final Publisher<Frame> transportSource;
     private final DuplexConnection connection;
     private final int streamId;
     private final Runnable cleanup;
@@ -64,10 +65,22 @@ public final class RemoteReceiver implements Processor<Frame, Payload> {
     private volatile boolean missedComplete;
     private volatile Throwable missedError;
 
+    public RemoteReceiver(Publisher<Frame> transportSource, DuplexConnection connection, int streamId,
+                          Runnable cleanup, boolean sendRequestN) {
+        this.transportSource = transportSource;
+        this.connection = connection;
+        this.streamId = streamId;
+        this.cleanup = cleanup;
+        this.sendRequestN = sendRequestN;
+        requestFrame = null;
+        transportSubscription = null;
+    }
+
     public RemoteReceiver(DuplexConnection connection, int streamId, Runnable cleanup, Frame requestFrame,
                           Subscription transportSubscription, boolean sendRequestN) {
         this.requestFrame = requestFrame;
         this.transportSubscription = transportSubscription;
+        transportSource = null;
         this.connection = connection;
         this.streamId = streamId;
         this.cleanup = cleanup;
@@ -109,7 +122,9 @@ public final class RemoteReceiver implements Processor<Frame, Payload> {
             return;
         }
 
-        if (transportSubscription != null) {
+        if (transportSource != null) {
+            transportSource.subscribe(this);
+        } else if (transportSubscription != null) {
             onSubscribe(transportSubscription);
             onNext(requestFrame);
         }
