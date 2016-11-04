@@ -26,6 +26,7 @@ import io.reactivesocket.reactivestreams.extensions.DefaultSubscriber;
 import io.reactivesocket.reactivestreams.extensions.Px;
 import io.reactivesocket.reactivestreams.extensions.internal.processors.ConnectableUnicastProcessor;
 import io.reactivesocket.reactivestreams.extensions.internal.subscribers.CancellableSubscriber;
+import io.reactivesocket.reactivestreams.extensions.internal.subscribers.Subscribers;
 import org.agrona.collections.Int2ObjectHashMap;
 import org.reactivestreams.Processor;
 import org.reactivestreams.Publisher;
@@ -64,6 +65,9 @@ public class ClientReactiveSocket implements ReactiveSocket {
         this.keepAliveProvider = keepAliveProvider;
         senders = new Int2ObjectHashMap<>(256, 0.9f);
         receivers = new Int2ObjectHashMap<>(256, 0.9f);
+        connection.onClose().subscribe(Subscribers.cleanup(() -> {
+            cleanup();
+        }));
     }
 
     @Override
@@ -173,9 +177,7 @@ public class ClientReactiveSocket implements ReactiveSocket {
     @Override
     public Publisher<Void> close() {
         return Px.concatEmpty(Px.defer(() -> {
-            // TODO: Stop sending requests first
-            keepAliveSendSub.cancel();
-            transportReceiveSubscription.cancel();
+            cleanup();
             return Px.empty();
         }), connection.close());
     }
@@ -205,6 +207,16 @@ public class ClientReactiveSocket implements ReactiveSocket {
             .doOnSubscribe(subscription -> transportReceiveSubscription = subscription)
             .doOnNext(this::handleIncomingFrames)
             .subscribe();
+    }
+
+    protected void cleanup() {
+        // TODO: Stop sending requests first
+        if (null != keepAliveSendSub) {
+            keepAliveSendSub.cancel();
+        }
+        if (null != transportReceiveSubscription) {
+            transportReceiveSubscription.cancel();
+        }
     }
 
     private void handleIncomingFrames(Frame frame) {

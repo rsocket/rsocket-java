@@ -60,6 +60,9 @@ public class ServerReactiveSocket implements ReactiveSocket {
         this.errorConsumer = new KnownErrorFilter(errorConsumer);
         subscriptions = new Int2ObjectHashMap<>();
         channelProcessors = new Int2ObjectHashMap<>();
+        Px.from(connection.onClose()).subscribe(Subscribers.cleanup(() -> {
+            cleanup();
+        }));
         if (requestHandler instanceof LeaseEnforcingSocket) {
             LeaseEnforcingSocket enforcer = (LeaseEnforcingSocket) requestHandler;
             enforcer.acceptLeaseSender(lease -> {
@@ -112,12 +115,7 @@ public class ServerReactiveSocket implements ReactiveSocket {
     @Override
     public Publisher<Void> close() {
         return Px.concatEmpty(Px.defer(() -> {
-            synchronized (this) {
-                subscriptions.values().forEach(Subscription::cancel);
-                subscriptions.clear();
-                channelProcessors.values().forEach(RemoteReceiver::cancel);
-                subscriptions.clear();
-            }
+            cleanup();
             return Px.empty();
         }), connection.close());
     }
@@ -239,16 +237,20 @@ public class ServerReactiveSocket implements ReactiveSocket {
         }
     }
 
-    private void removeChannelProcessor(int streamId) {
-        synchronized (this) {
-            channelProcessors.remove(streamId);
-        }
+    private synchronized void removeChannelProcessor(int streamId) {
+        channelProcessors.remove(streamId);
     }
 
-    private void removeSubscriptions(int streamId) {
-        synchronized (this) {
-            subscriptions.remove(streamId);
-        }
+    private synchronized void removeSubscriptions(int streamId) {
+        subscriptions.remove(streamId);
+    }
+
+    private synchronized void cleanup() {
+        subscriptions.values().forEach(Subscription::cancel);
+        subscriptions.clear();
+        channelProcessors.values().forEach(RemoteReceiver::cancel);
+        subscriptions.clear();
+        requestHandler.close().subscribe(Subscribers.empty());
     }
 
     private Publisher<Void> handleReceive(int streamId, Publisher<Payload> response) {
