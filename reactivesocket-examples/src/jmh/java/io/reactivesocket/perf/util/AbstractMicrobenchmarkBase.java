@@ -26,7 +26,6 @@ import java.util.concurrent.TimeUnit;
  */
 @Warmup(iterations = AbstractMicrobenchmarkBase.DEFAULT_WARMUP_ITERATIONS)
 @Measurement(iterations = AbstractMicrobenchmarkBase.DEFAULT_MEASURE_ITERATIONS,
-        batchSize = AbstractMicrobenchmarkBase.DEFAULT_WARMUP_ITERATIONS,
         time = 1, timeUnit = TimeUnit.SECONDS)
 @Fork(AbstractMicrobenchmarkBase.DEFAULT_FORKS)
 @State(Scope.Thread)
