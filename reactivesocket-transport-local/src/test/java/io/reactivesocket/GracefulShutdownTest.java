@@ -14,29 +14,37 @@
 package io.reactivesocket;
 
 import io.reactivesocket.test.util.LocalRSRule;
-import io.reactivesocket.util.PayloadImpl;
 import io.reactivex.subscribers.TestSubscriber;
 import org.junit.Rule;
 import org.junit.Test;
 
-import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
-public class ClientDishonorLeaseTest {
-
+public class GracefulShutdownTest {
     @Rule
     public final LocalRSRule rule = new LocalRSRule();
 
     @Test(timeout = 10000)
-    public void testNoLeasesSentToClient() throws Exception {
-        ReactiveSocket socket = rule.connectSocket();
-        rule.sendLease();
+    public void testClientCloseWillCloseHandler() throws Exception {
+        ReactiveSocket rs = rule.connectSocket();
+        TestSubscriber<Void> sub = TestSubscriber.create();
+        rs.close().subscribe(sub);
+        sub.await().assertNoErrors();
 
-        TestSubscriber<Payload> s = TestSubscriber.create();
-        socket.requestResponse(PayloadImpl.EMPTY).subscribe(s);
-        s.awaitTerminalEvent();
-
-        assertThat("Unexpected leases received by the client.", rule.getLeases(), is(empty()));
+        assertThat("Accepting socket not closed.", rule.getAcceptingSocketCloses(), hasSize(1));
     }
 
+    @Test(timeout = 10000)
+    public void testServerCloseClosesClient() throws Exception {
+        ReactiveSocket rs = rule.connectSocket();
+        TestSubscriber<Void> sub = TestSubscriber.create();
+        rs.onClose().subscribe(sub);
+
+        rule.getStartedServer().shutdown();
+
+        sub.await().assertNoErrors();
+
+        assertThat("Accepting socket not closed.", rule.getAcceptingSocketCloses(), hasSize(1));
+    }
 }
