@@ -327,7 +327,7 @@ public class ServerReactiveSocket implements ReactiveSocket {
 
     private Publisher<Void> handleKeepAliveFrame(Frame frame) {
         if (Frame.Keepalive.hasRespondFlag(frame)) {
-            return Px.from(connection.sendOne(frame))
+            return Px.from(connection.sendOne(Frame.Keepalive.from(Frame.NULL_BYTEBUFFER, false)))
                 .doOnError(errorConsumer);
         }
         return Px.empty();
