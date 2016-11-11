@@ -17,14 +17,14 @@
 package io.reactivesocket.client;
 
 import io.reactivesocket.AbstractReactiveSocket;
-import io.reactivesocket.AvailabilityProvider;
+import io.reactivesocket.Availability;
 import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.lease.DisabledLeaseAcceptingSocket;
 import io.reactivesocket.lease.LeaseEnforcingSocket;
 import io.reactivesocket.transport.TransportClient;
 import org.reactivestreams.Publisher;
 
-public interface ReactiveSocketClient extends AvailabilityProvider {
+public interface ReactiveSocketClient extends Availability {
 
     /**
      * Creates a new {@code ReactiveSocket} every time the returned {@code Publisher} is subscribed.

@@ -17,12 +17,11 @@
 package io.reactivesocket;
 
 import org.reactivestreams.Publisher;
-import io.reactivesocket.reactivestreams.extensions.Px;
 
 /**
  * A contract providing different interaction models for <a href="https://github.com/ReactiveSocket/reactivesocket/blob/master/Protocol.md">ReactiveSocket protocol</a>.
  */
-public interface ReactiveSocket extends AvailabilityProvider {
+public interface ReactiveSocket extends Availability {
 
     /**
      * Fire and Forget interaction model of {@code ReactiveSocket}.

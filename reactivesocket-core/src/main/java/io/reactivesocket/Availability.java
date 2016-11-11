@@ -13,7 +13,7 @@
 
 package io.reactivesocket;
 
-public interface AvailabilityProvider {
+public interface Availability {
 
     /**
      * @return a positive numbers representing the availability of the entity.
