@@ -24,7 +24,7 @@ import java.nio.channels.ClosedChannelException;
 /**
  * Represents a connection with input/output that the protocol uses. 
  */
-public interface DuplexConnection {
+public interface DuplexConnection extends Availability {
 
     /**
      * Sends the source of {@link Frame}s on this connection and returns the {@code Publisher} representing the result
@@ -76,12 +76,6 @@ public interface DuplexConnection {
      * @return Stream of all {@code Frame}s received.
      */
     Publisher<Frame> receive();
-
-    /**
-     * @return the availability of the underlying connection, a number in [0.0, 1.0]
-     * (higher is better).
-     */
-    double availability();
 
     /**
      * Close this {@code DuplexConnection} upon subscribing to the returned {@code Publisher}
