@@ -43,7 +43,8 @@ public class ServerReactiveSocketTest {
         rule.connection.addToReceivedBuffer(Frame.Keepalive.from(Frame.NULL_BYTEBUFFER, true));
         Frame sent = rule.connection.awaitSend();
         assertThat("Unexpected frame sent.", sent.getType(), is(FrameType.KEEPALIVE));
-        assertThat("Unexpected keep-alive frame respond flag.", Frame.Keepalive.hasRespondFlag(sent), is(true));
+        /*Keep alive ack must not have respond flag else, it will result in infinite ping-pong of keep alive frames.*/
+        assertThat("Unexpected keep-alive frame respond flag.", Frame.Keepalive.hasRespondFlag(sent), is(false));
     }
 
 
