@@ -16,6 +16,7 @@
 
 package io.reactivesocket;
 
+import io.reactivesocket.reactivestreams.extensions.internal.EmptySubject;
 import org.reactivestreams.Publisher;
 import io.reactivesocket.reactivestreams.extensions.Px;
 
@@ -26,6 +27,8 @@ import io.reactivesocket.reactivestreams.extensions.Px;
  * {@link #close()} and {@link #onClose()} returns a {@code Publisher} that never terminates.
  */
 public abstract class AbstractReactiveSocket implements ReactiveSocket {
+
+    private final EmptySubject onClose = new EmptySubject();
 
     @Override
     public Publisher<Void> fireAndForget(Payload payload) {
@@ -59,11 +62,14 @@ public abstract class AbstractReactiveSocket implements ReactiveSocket {
 
     @Override
     public Publisher<Void> close() {
-        return Px.never();
+        return s -> {
+            onClose.onComplete();
+            onClose.subscribe(s);
+        };
     }
 
     @Override
     public Publisher<Void> onClose() {
-        return Px.never();
+        return onClose;
     }
 }

@@ -18,6 +18,7 @@ package io.reactivesocket.local;
 
 import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.local.internal.PeerConnector;
+import io.reactivesocket.reactivestreams.extensions.DefaultSubscriber;
 import io.reactivesocket.reactivestreams.extensions.Px;
 import io.reactivesocket.reactivestreams.extensions.internal.subscribers.Subscribers;
 import io.reactivesocket.transport.TransportServer;
@@ -25,6 +26,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.net.SocketAddress;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -37,6 +39,10 @@ public final class LocalServer implements TransportServer {
 
     private final String name;
     private volatile StartedImpl started;
+    /**
+     * Active connections, to close when server is shutdown.
+     */
+    private final ConcurrentLinkedQueue<DuplexConnection> activeConnections = new ConcurrentLinkedQueue<>();
 
     private LocalServer(String name) {
         this.name = name;
@@ -76,6 +82,8 @@ public final class LocalServer implements TransportServer {
         }
 
         DuplexConnection serverConn = peerConnector.forServer();
+        activeConnections.add(serverConn);
+        serverConn.onClose().subscribe(Subscribers.doOnTerminate(() -> activeConnections.remove(serverConn)));
         Px.from(started.acceptor.apply(serverConn))
           .subscribe(Subscribers.cleanup(() -> {
               serverConn.close().subscribe(Subscribers.empty());
@@ -140,6 +148,9 @@ public final class LocalServer implements TransportServer {
         @Override
         public void shutdown() {
             shutdownLatch.countDown();
+            for (DuplexConnection activeConnection : activeConnections) {
+                activeConnection.close().subscribe(DefaultSubscriber.defaultInstance());
+            }
             LocalPeersManager.unregister(name);
         }
     }
