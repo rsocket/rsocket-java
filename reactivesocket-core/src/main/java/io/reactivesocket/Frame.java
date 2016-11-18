@@ -567,7 +567,7 @@ public class Frame implements Payload {
 
             switch (type) {
             case LEASE:
-                additionalFlags = " Permits: " + Lease.numberOfRequests(this) + ", TTL: " + Lease.ttl(this);
+                additionalFlags = " Permits: " + Lease.numberOfRequests(this) + " TTL: " + Lease.ttl(this);
                 break;
             case REQUEST_N:
                 additionalFlags = " RequestN: " + RequestN.requestN(this);
@@ -584,10 +584,10 @@ public class Frame implements Payload {
                 break;
             case SETUP:
                 additionalFlags = " Version: " + Setup.version(this)
-                                  + ", keep-alive interval: " + Setup.keepaliveInterval(this)
-                                  + ", max lifetime: " + Setup.maxLifetime(this)
-                                  + ", metadata mime type: " + Setup.metadataMimeType(this)
-                                  + ", data mime type: " + Setup.dataMimeType(this);
+                                  + " keep-alive interval: " + Setup.keepaliveInterval(this)
+                                  + " max lifetime: " + Setup.maxLifetime(this)
+                                  + " metadata mime type: " + Setup.metadataMimeType(this)
+                                  + " data mime type: " + Setup.dataMimeType(this);
                 break;
             }
         } catch (Exception e) {

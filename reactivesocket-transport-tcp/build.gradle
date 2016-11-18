@@ -16,7 +16,7 @@
 
 dependencies {
     compile project(':reactivesocket-core')
-    compile 'io.reactivex:rxnetty-tcp:0.5.2-rc.4'
+    compile 'io.reactivex:rxnetty-tcp:0.5.2-rc.5'
     compile 'io.reactivex:rxjava-reactive-streams:1.2.0'
 
     testCompile project(':reactivesocket-test')
