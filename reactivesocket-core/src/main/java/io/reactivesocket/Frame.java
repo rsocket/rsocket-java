@@ -541,9 +541,11 @@ public class Frame implements Payload {
         FrameType type = FrameType.UNDEFINED;
         StringBuilder payload = new StringBuilder();
         long streamId = -1;
+        String additionalFlags = "";
 
         try {
             type = FrameHeaderFlyweight.frameType(directBuffer, 0);
+
             ByteBuffer byteBuffer;
             byte[] bytes;
 
@@ -562,9 +564,37 @@ public class Frame implements Payload {
             }
 
             streamId = FrameHeaderFlyweight.streamId(directBuffer, 0);
+
+            switch (type) {
+            case LEASE:
+                additionalFlags = " Permits: " + Lease.numberOfRequests(this) + ", TTL: " + Lease.ttl(this);
+                break;
+            case REQUEST_N:
+                additionalFlags = " RequestN: " + RequestN.requestN(this);
+                break;
+            case KEEPALIVE:
+                additionalFlags = " Respond flag: " + Keepalive.hasRespondFlag(this);
+                break;
+            case REQUEST_STREAM:
+            case REQUEST_CHANNEL:
+                additionalFlags = " Initial Request N: " + Request.initialRequestN(this);
+                break;
+            case ERROR:
+                additionalFlags = " Error code: " + Error.errorCode(this);
+                break;
+            case SETUP:
+                additionalFlags = " Version: " + Setup.version(this)
+                                  + ", keep-alive interval: " + Setup.keepaliveInterval(this)
+                                  + ", max lifetime: " + Setup.maxLifetime(this)
+                                  + ", metadata mime type: " + Setup.metadataMimeType(this)
+                                  + ", data mime type: " + Setup.dataMimeType(this);
+                break;
+            }
         } catch (Exception e) {
-            e.printStackTrace();
+            logger.error("Error generating toString, ignored.", e);
         }
-        return "Frame[" + offset + "] => Stream ID: " + streamId + " Type: " + type + " Payload: " + payload;
+        return "Frame[" + offset + "] => Stream ID: " + streamId + " Type: " + type
+               + (!additionalFlags.isEmpty() ? additionalFlags : "")
+               + " Payload: " + payload;
     }
 }
