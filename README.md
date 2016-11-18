@@ -39,7 +39,7 @@ repositories {
 }
 
 dependencies {
-    compile 'io.reactivesocket:reactivesocket:0.0.1-SNAPSHOT'
+    compile 'io.reactivesocket:reactivesocket:0.5.0-SNAPSHOT'
 }
 ```
 
