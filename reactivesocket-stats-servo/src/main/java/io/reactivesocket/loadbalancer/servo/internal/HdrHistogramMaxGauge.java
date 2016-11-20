@@ -25,9 +25,9 @@ import org.HdrHistogram.Histogram;
  * Gauge that wraps a {@link Histogram} and when its polled returns it's max
  */
 public class HdrHistogramMaxGauge extends NumberGauge {
-    private final Histogram histogram;
+    private final SlidingWindowHistogram histogram;
 
-    public HdrHistogramMaxGauge(MonitorConfig monitorConfig, Histogram histogram) {
+    public HdrHistogramMaxGauge(MonitorConfig monitorConfig, SlidingWindowHistogram histogram) {
         super(monitorConfig);
         this.histogram = histogram;
 
@@ -36,6 +36,6 @@ public class HdrHistogramMaxGauge extends NumberGauge {
 
     @Override
     public Long getValue() {
-        return histogram.getMaxValue();
+        return histogram.aggregateHistogram().getMaxValue();
     }
 }

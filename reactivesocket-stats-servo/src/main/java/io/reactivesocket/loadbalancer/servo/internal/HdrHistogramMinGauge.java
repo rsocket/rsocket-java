@@ -25,9 +25,9 @@ import org.HdrHistogram.Histogram;
  * Gauge that wraps a {@link Histogram} and when its polled returns it's min
  */
 public class HdrHistogramMinGauge extends NumberGauge {
-    private final Histogram histogram;
+    private final SlidingWindowHistogram histogram;
 
-    public HdrHistogramMinGauge(MonitorConfig monitorConfig, Histogram histogram) {
+    public HdrHistogramMinGauge(MonitorConfig monitorConfig, SlidingWindowHistogram histogram) {
         super(monitorConfig);
         this.histogram = histogram;
 
@@ -36,6 +36,6 @@ public class HdrHistogramMinGauge extends NumberGauge {
 
     @Override
     public Long getValue() {
-        return histogram.getMinValue();
+        return histogram.aggregateHistogram().getMinValue();
     }
 }
