@@ -33,10 +33,10 @@ import java.util.function.Supplier;
 @BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(TimeUnit.SECONDS)
 @State(Scope.Benchmark)
-public class RequestResponsePerf extends AbstractReactiveSocketPerf {
+public class RequestStreamPerf extends AbstractReactiveSocketPerf {
 
     @Param({ "1", "100", "1000"})
-    public int requestCount;
+    public int itemCount;
 
     @Setup(Level.Trial)
     public void setup(Blackhole bh) {
@@ -44,8 +44,8 @@ public class RequestResponsePerf extends AbstractReactiveSocketPerf {
     }
 
     @Benchmark
-    public void requestResponse() throws InterruptedException {
+    public void requestStream() throws InterruptedException {
         Supplier<ReactiveSocket> socketSupplier = getSocketSupplier();
-        requestResponse(socketSupplier, () -> new PayloadImpl(ClientServerHolder.HELLO), requestCount);
+        requestStream(socketSupplier, () -> new PayloadImpl(ClientServerHolder.HELLO), 1, itemCount);
     }
 }
