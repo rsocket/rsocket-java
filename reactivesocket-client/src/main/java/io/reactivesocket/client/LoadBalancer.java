@@ -600,6 +600,8 @@ public class LoadBalancer implements ReactiveSocket {
     private class SocketAdder implements Subscriber<ReactiveSocket> {
         private final ReactiveSocketClient factory;
 
+        private int errors = 0;
+
         private SocketAdder(ReactiveSocketClient factory) {
             this.factory = factory;
         }
@@ -632,7 +634,11 @@ public class LoadBalancer implements ReactiveSocket {
             logger.warn("Exception while subscribing to the ReactiveSocket source", t);
             synchronized (LoadBalancer.this) {
                 pendingSockets -= 1;
-                activeFactories.add(factory);
+                if (++errors < 5) {
+                    activeFactories.add(factory);
+                } else {
+                    logger.warn("Exception count greater than 5, not re-adding factory {}", factory.toString());
+                }
             }
         }
 
