@@ -17,8 +17,6 @@ package io.reactivesocket.loadbalancer.servo.internal;
 
 import com.netflix.servo.monitor.MonitorConfig;
 import com.netflix.servo.tag.Tag;
-import org.HdrHistogram.ConcurrentHistogram;
-import org.HdrHistogram.Histogram;
 
 import java.util.Arrays;
 import java.util.List;
@@ -29,7 +27,11 @@ import java.util.concurrent.TimeUnit;
  * The buckets are min, max, 50%, 90%, 99%, 99.9%, and 99.99%
  */
 public class HdrHistogramServoTimer {
-    private final Histogram histogram = new ConcurrentHistogram(TimeUnit.MINUTES.toNanos(1), 2);
+    private final SlidingWindowHistogram histogram = new SlidingWindowHistogram();
+
+    private static final long TIMEOUT = TimeUnit.MINUTES.toMillis(1);
+
+    private volatile long lastCleared = System.currentTimeMillis();
 
     private HdrHistogramMinGauge min;
 
@@ -46,31 +48,26 @@ public class HdrHistogramServoTimer {
     private HdrHistogramGauge p99_99;
 
     private HdrHistogramServoTimer(String label) {
-        histogram.setAutoResize(true);
 
-        min = new HdrHistogramMinGauge(MonitorConfig.builder(label + "_min").build(), histogram);
-        max = new HdrHistogramMaxGauge(MonitorConfig.builder(label + "_max").build(), histogram);
+        min = new HdrHistogramMinGauge(MonitorConfig.builder(label).withTag("value", "min").build(), histogram);
+        max = new HdrHistogramMaxGauge(MonitorConfig.builder(label).withTag("value", "max").build(), histogram);
 
-        p50 = new HdrHistogramGauge(MonitorConfig.builder(label + "_p50").build(), histogram, 50);
-        p90 = new HdrHistogramGauge(MonitorConfig.builder(label + "_p90").build(), histogram, 90);
-        p99 = new HdrHistogramGauge(MonitorConfig.builder(label + "_p99").build(), histogram, 99);
-        p99_9 = new HdrHistogramGauge(MonitorConfig.builder(label + "_p99_9").build(), histogram, 99.9);
-        p99_99 = new HdrHistogramGauge(MonitorConfig.builder(label + "_p99_99").build(), histogram, 99.99);
+        p50 = new HdrHistogramGauge(MonitorConfig.builder(label).withTag("value", "p50").build(), histogram, 50, this::slide);
+        p90 = new HdrHistogramGauge(MonitorConfig.builder(label).withTag("value", "p90").build(), histogram, 90, this::slide);
+        p99 = new HdrHistogramGauge(MonitorConfig.builder(label).withTag("value", "p99").build(), histogram, 99, this::slide);
+        p99_9 = new HdrHistogramGauge(MonitorConfig.builder(label).withTag("value", "p99_9").build(), histogram, 99.9, this::slide);
+        p99_99 = new HdrHistogramGauge(MonitorConfig.builder(label).withTag("value", "p99_99").build(), histogram, 99.99, this::slide);
     }
 
-
     private HdrHistogramServoTimer(String label, List<Tag> tags) {
-        histogram.setAutoResize(true);
+        min = new HdrHistogramMinGauge(MonitorConfig.builder(label).withTag("value", "min").withTags(tags).build(), histogram);
+        max = new HdrHistogramMaxGauge(MonitorConfig.builder(label).withTag("value", "min").withTags(tags).build(), histogram);
 
-
-        min = new HdrHistogramMinGauge(MonitorConfig.builder(label + "_min").withTags(tags).build(), histogram);
-        max = new HdrHistogramMaxGauge(MonitorConfig.builder(label + "_max").withTags(tags).build(), histogram);
-
-        p50 = new HdrHistogramGauge(MonitorConfig.builder(label + "_p50").withTags(tags).build(), histogram, 50);
-        p90 = new HdrHistogramGauge(MonitorConfig.builder(label + "_p90").withTags(tags).build(), histogram, 90);
-        p99 = new HdrHistogramGauge(MonitorConfig.builder(label + "_p99").withTags(tags).build(), histogram, 99);
-        p99_9 = new HdrHistogramGauge(MonitorConfig.builder(label + "_p99_9").withTags(tags).build(), histogram, 99.9);
-        p99_99 = new HdrHistogramGauge(MonitorConfig.builder(label + "_p99_99").withTags(tags).build(), histogram, 99.99);
+        p50 = new HdrHistogramGauge(MonitorConfig.builder(label).withTag("value", "p50").withTags(tags).build(), histogram, 50, this::slide);
+        p90 = new HdrHistogramGauge(MonitorConfig.builder(label).withTag("value", "p90").withTags(tags).build(), histogram, 90, this::slide);
+        p99 = new HdrHistogramGauge(MonitorConfig.builder(label).withTag("value", "p90").withTags(tags).build(), histogram, 99, this::slide);
+        p99_9 = new HdrHistogramGauge(MonitorConfig.builder(label).withTag("value", "p99_9").withTags(tags).build(), histogram, 99.9, this::slide);
+        p99_99 = new HdrHistogramGauge(MonitorConfig.builder(label).withTag("value", "p99_99").withTags(tags).build(), histogram, 99.99, this::slide);
     }
 
     public static HdrHistogramServoTimer newInstance(String label) {
@@ -87,6 +84,7 @@ public class HdrHistogramServoTimer {
 
     /**
      * Records a value for to the histogram and updates the Servo counter buckets
+     *
      * @param value the value to update
      */
     public void record(long value) {
@@ -120,4 +118,12 @@ public class HdrHistogramServoTimer {
     public Long getP99_99() {
         return p99_99.getValue();
     }
+
+    private synchronized void slide() {
+        if (System.currentTimeMillis() - lastCleared > TIMEOUT) {
+            histogram.rotateHistogram();
+            lastCleared = System.currentTimeMillis();
+        }
+    }
+
 }

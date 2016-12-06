@@ -21,37 +21,27 @@ import com.netflix.servo.monitor.MonitorConfig;
 import com.netflix.servo.monitor.NumberGauge;
 import org.HdrHistogram.Histogram;
 
-import java.util.concurrent.TimeUnit;
-
 /**
  * Gauge that wraps a {@link Histogram} and when it's polled returns a particular percentage
  */
 public class HdrHistogramGauge extends NumberGauge {
-    private static final long TIMEOUT = TimeUnit.MINUTES.toMillis(1);
-    private final Histogram histogram;
+    private final SlidingWindowHistogram histogram;
     private final double percentile;
-    private volatile long lastCleared = System.currentTimeMillis();
+    private final Runnable slide;
 
-    public HdrHistogramGauge(MonitorConfig monitorConfig, Histogram histogram, double percentile) {
+    public HdrHistogramGauge(MonitorConfig monitorConfig, SlidingWindowHistogram histogram, double percentile, Runnable slide) {
         super(monitorConfig);
         this.histogram = histogram;
         this.percentile = percentile;
+        this.slide = slide;
 
         DefaultMonitorRegistry.getInstance().register(this);
     }
 
     @Override
     public Long getValue() {
-        long value = histogram.getValueAtPercentile(percentile);
-        if (System.currentTimeMillis() - lastCleared > TIMEOUT) {
-            synchronized (histogram) {
-                if (System.currentTimeMillis() - lastCleared > TIMEOUT) {
-                    histogram.reset();
-                    lastCleared = System.currentTimeMillis();
-                }
-            }
-        }
-
+        long value = histogram.aggregateHistogram().getValueAtPercentile(percentile);
+        slide.run();
         return value;
     }
 }
