@@ -17,15 +17,14 @@
 package io.reactivesocket.client;
 
 import io.reactivesocket.AbstractReactiveSocket;
+import io.reactivesocket.Availability;
 import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.lease.DisabledLeaseAcceptingSocket;
 import io.reactivesocket.lease.LeaseEnforcingSocket;
 import io.reactivesocket.transport.TransportClient;
 import org.reactivestreams.Publisher;
 
-import java.util.function.Function;
-
-public interface ReactiveSocketClient {
+public interface ReactiveSocketClient extends Availability {
 
     /**
      * Creates a new {@code ReactiveSocket} every time the returned {@code Publisher} is subscribed.
@@ -33,12 +32,6 @@ public interface ReactiveSocketClient {
      * @return A {@code Publisher} that provides a new {@code ReactiveSocket} every time it is subscribed.
      */
     Publisher<? extends ReactiveSocket> connect();
-
-    /**
-     * @return a positive numbers representing the availability of the factory.
-     * Higher is better, 0.0 means not available
-     */
-    double availability();
 
     /**
      * Creates a new instances of {@code ReactiveSocketClient} using the passed {@code transportClient}. This client

@@ -17,12 +17,11 @@
 package io.reactivesocket;
 
 import org.reactivestreams.Publisher;
-import io.reactivesocket.reactivestreams.extensions.Px;
 
 /**
  * A contract providing different interaction models for <a href="https://github.com/ReactiveSocket/reactivesocket/blob/master/Protocol.md">ReactiveSocket protocol</a>.
  */
-public interface ReactiveSocket {
+public interface ReactiveSocket extends Availability {
 
     /**
      * Fire and Forget interaction model of {@code ReactiveSocket}.
@@ -71,11 +70,7 @@ public interface ReactiveSocket {
      */
     Publisher<Void> metadataPush(Payload payload);
 
-    /**
-     * Client check for availability to send request based on lease
-     *
-     * @return 0.0 to 1.0 indicating availability of sending requests
-     */
+    @Override
     default double availability() {
         return 0.0;
     }

@@ -14,7 +14,6 @@
 package io.reactivesocket.perf;
 
 import io.reactivesocket.ReactiveSocket;
-import io.reactivesocket.perf.util.ClientServerHolder;
 import io.reactivesocket.util.PayloadImpl;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -27,25 +26,30 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.infra.Blackhole;
 
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 @BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(TimeUnit.SECONDS)
 @State(Scope.Benchmark)
-public class RequestResponsePerf extends AbstractReactiveSocketPerf {
+public class RequestResponseLargePayloadPerf extends AbstractReactiveSocketPerf {
 
-    @Param({ "1", "100", "1000"})
-    public int requestCount;
+    @Param({"16", "1024"})
+    public int payloadSizeKb;
+
+    private byte[] payloadBytes;
 
     @Setup(Level.Trial)
     public void setup(Blackhole bh) {
         _setup(bh);
+        payloadBytes = new byte[1024 * payloadSizeKb];
+        ThreadLocalRandom.current().nextBytes(payloadBytes);
     }
 
     @Benchmark
-    public void requestResponse() throws InterruptedException {
+    public void requestResponseLargePayload() throws InterruptedException {
         Supplier<ReactiveSocket> socketSupplier = getSocketSupplier();
-        requestResponse(socketSupplier, () -> new PayloadImpl(ClientServerHolder.HELLO), requestCount);
+        requestResponse(socketSupplier, () -> new PayloadImpl(payloadBytes), 1);
     }
 }

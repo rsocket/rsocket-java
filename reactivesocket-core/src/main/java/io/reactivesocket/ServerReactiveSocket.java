@@ -60,6 +60,9 @@ public class ServerReactiveSocket implements ReactiveSocket {
         this.errorConsumer = new KnownErrorFilter(errorConsumer);
         subscriptions = new Int2ObjectHashMap<>();
         channelProcessors = new Int2ObjectHashMap<>();
+        Px.from(connection.onClose()).subscribe(Subscribers.cleanup(() -> {
+            cleanup();
+        }));
         if (requestHandler instanceof LeaseEnforcingSocket) {
             LeaseEnforcingSocket enforcer = (LeaseEnforcingSocket) requestHandler;
             enforcer.acceptLeaseSender(lease -> {
@@ -112,12 +115,7 @@ public class ServerReactiveSocket implements ReactiveSocket {
     @Override
     public Publisher<Void> close() {
         return Px.concatEmpty(Px.defer(() -> {
-            synchronized (this) {
-                subscriptions.values().forEach(Subscription::cancel);
-                subscriptions.clear();
-                channelProcessors.values().forEach(RemoteReceiver::cancel);
-                subscriptions.clear();
-            }
+            cleanup();
             return Px.empty();
         }), connection.close());
     }
@@ -177,11 +175,11 @@ public class ServerReactiveSocket implements ReactiveSocket {
                 case REQUEST_N:
                     return handleRequestN(streamId, frame);
                 case REQUEST_STREAM:
-                    return handleReceive(streamId, requestStream(frame));
+                    return doReceive(streamId, requestStream(frame));
                 case FIRE_AND_FORGET:
                     return handleFireAndForget(streamId, fireAndForget(frame));
                 case REQUEST_SUBSCRIPTION:
-                    return handleReceive(streamId, requestSubscription(frame));
+                    return doReceive(streamId, requestSubscription(frame));
                 case REQUEST_CHANNEL:
                     return handleChannel(streamId, frame);
                 case RESPONSE:
@@ -239,16 +237,20 @@ public class ServerReactiveSocket implements ReactiveSocket {
         }
     }
 
-    private void removeChannelProcessor(int streamId) {
-        synchronized (this) {
-            channelProcessors.remove(streamId);
-        }
+    private synchronized void removeChannelProcessor(int streamId) {
+        channelProcessors.remove(streamId);
     }
 
-    private void removeSubscriptions(int streamId) {
-        synchronized (this) {
-            subscriptions.remove(streamId);
-        }
+    private synchronized void removeSubscriptions(int streamId) {
+        subscriptions.remove(streamId);
+    }
+
+    private synchronized void cleanup() {
+        subscriptions.values().forEach(Subscription::cancel);
+        subscriptions.clear();
+        channelProcessors.values().forEach(RemoteReceiver::cancel);
+        subscriptions.clear();
+        requestHandler.close().subscribe(Subscribers.empty());
     }
 
     private Publisher<Void> handleReceive(int streamId, Publisher<Payload> response) {
@@ -286,6 +288,14 @@ public class ServerReactiveSocket implements ReactiveSocket {
 
     }
 
+    private Publisher<Void> doReceive(int streamId, Publisher<Payload> response) {
+        Px<Frame> resp = Px.from(response)
+                           .map(payload -> Response.from(streamId, FrameType.RESPONSE, payload));
+        RemoteSender sender = new RemoteSender(resp, () -> subscriptions.remove(streamId), streamId, 2);
+        subscriptions.put(streamId, sender);
+        return connection.send(sender);
+    }
+
     private Publisher<Void> handleChannel(int streamId, Frame firstFrame) {
         int initialRequestN = Request.initialRequestN(firstFrame);
         Frame firstAsNext = Request.from(streamId, FrameType.NEXT, firstFrame, initialRequestN);
@@ -317,7 +327,7 @@ public class ServerReactiveSocket implements ReactiveSocket {
 
     private Publisher<Void> handleKeepAliveFrame(Frame frame) {
         if (Frame.Keepalive.hasRespondFlag(frame)) {
-            return Px.from(connection.sendOne(frame))
+            return Px.from(connection.sendOne(Frame.Keepalive.from(Frame.NULL_BYTEBUFFER, false)))
                 .doOnError(errorConsumer);
         }
         return Px.empty();

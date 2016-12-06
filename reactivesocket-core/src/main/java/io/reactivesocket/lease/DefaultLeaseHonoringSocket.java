@@ -21,11 +21,15 @@ import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.exceptions.RejectedException;
 import io.reactivesocket.reactivestreams.extensions.Px;
 import org.reactivestreams.Publisher;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.LongSupplier;
 
 public class DefaultLeaseHonoringSocket implements LeaseHonoringSocket {
+
+    private static final Logger logger = LoggerFactory.getLogger(DefaultLeaseHonoringSocket.class);
 
     private volatile Lease currentLease;
     private final ReactiveSocket delegate;
@@ -34,6 +38,8 @@ public class DefaultLeaseHonoringSocket implements LeaseHonoringSocket {
 
     @SuppressWarnings("ThrowableInstanceNeverThrown")
     private static final RejectedException rejectedException = new RejectedException("Lease exhausted.");
+    @SuppressWarnings("rawtypes")
+    private static final Px rejectedPx = Px.error(rejectedException);
 
     public DefaultLeaseHonoringSocket(ReactiveSocket delegate, LongSupplier currentTimeSupplier) {
         this.delegate = delegate;
@@ -55,7 +61,7 @@ public class DefaultLeaseHonoringSocket implements LeaseHonoringSocket {
     public Publisher<Void> fireAndForget(Payload payload) {
         return Px.defer(() -> {
             if (!checkLease()) {
-                return Px.error(rejectedException);
+                return rejectError();
             }
             return delegate.fireAndForget(payload);
         });
@@ -65,7 +71,7 @@ public class DefaultLeaseHonoringSocket implements LeaseHonoringSocket {
     public Publisher<Payload> requestResponse(Payload payload) {
         return Px.defer(() -> {
             if (!checkLease()) {
-                return Px.error(rejectedException);
+                return rejectError();
             }
             return delegate.requestResponse(payload);
         });
@@ -75,7 +81,7 @@ public class DefaultLeaseHonoringSocket implements LeaseHonoringSocket {
     public Publisher<Payload> requestStream(Payload payload) {
         return Px.defer(() -> {
             if (!checkLease()) {
-                return Px.error(rejectedException);
+                return rejectError();
             }
             return delegate.requestStream(payload);
         });
@@ -85,7 +91,7 @@ public class DefaultLeaseHonoringSocket implements LeaseHonoringSocket {
     public Publisher<Payload> requestSubscription(Payload payload) {
         return Px.defer(() -> {
             if (!checkLease()) {
-                return Px.error(rejectedException);
+                return rejectError();
             }
             return delegate.requestSubscription(payload);
         });
@@ -95,7 +101,7 @@ public class DefaultLeaseHonoringSocket implements LeaseHonoringSocket {
     public Publisher<Payload> requestChannel(Publisher<Payload> payloads) {
         return Px.defer(() -> {
             if (!checkLease()) {
-                return Px.error(rejectedException);
+                return rejectError();
             }
             return delegate.requestChannel(payloads);
         });
@@ -105,7 +111,7 @@ public class DefaultLeaseHonoringSocket implements LeaseHonoringSocket {
     public Publisher<Void> metadataPush(Payload payload) {
         return Px.defer(() -> {
             if (!checkLease()) {
-                return Px.error(rejectedException);
+                return rejectError();
             }
             return delegate.metadataPush(payload);
         });
@@ -126,7 +132,20 @@ public class DefaultLeaseHonoringSocket implements LeaseHonoringSocket {
         return delegate.onClose();
     }
 
+    @SuppressWarnings("unchecked")
+    protected  <T> Publisher<T> rejectError() {
+        return rejectedPx;
+    }
+
     private boolean checkLease() {
-        return remainingQuota.getAndDecrement() > 0 && !currentLease.isExpired(currentTimeSupplier.getAsLong());
+        boolean allow = remainingQuota.getAndDecrement() > 0 && !currentLease.isExpired(currentTimeSupplier.getAsLong());
+        if (!allow) {
+            if (logger.isDebugEnabled()) {
+                logger.debug("Lease expired. Lease: " + currentLease + ", remaining quota: "
+                             + Math.max(0, remainingQuota.get()) + ", current time (ms) "
+                             + currentTimeSupplier.getAsLong());
+            }
+        }
+        return allow;
     }
 }

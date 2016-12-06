@@ -39,6 +39,9 @@ import static java.lang.System.getProperty;
  * This provides encoding, decoding and field accessors.
  */
 public class Frame implements Payload {
+
+    private static final Logger logger = LoggerFactory.getLogger(Frame.class);
+
     public static final ByteBuffer NULL_BYTEBUFFER = FrameHeaderFlyweight.NULL_BYTEBUFFER;
     public static final int DATA_MTU = 32 * 1024;
     public static final int METADATA_MTU = 32 * 1024;
@@ -55,11 +58,11 @@ public class Frame implements Payload {
         FramePool tmpPool;
 
         try {
-            System.out.println("Creating thread pooled named " + FRAME_POOLER_CLASS_NAME);
+            logger.info("Creating thread pooled named " + FRAME_POOLER_CLASS_NAME);
             tmpPool = (FramePool)Class.forName(FRAME_POOLER_CLASS_NAME).newInstance();
         }
         catch (final Exception ex) {
-            ex.printStackTrace();
+            logger.error("Error initializing frame pool.", ex);
             tmpPool = new UnpooledFrame();
         }
 
@@ -299,7 +302,7 @@ public class Frame implements Payload {
     }
 
     public static class Error {
-        private static final Logger logger = LoggerFactory.getLogger(Error.class);
+        private static final Logger errorLogger = LoggerFactory.getLogger(Error.class);
 
         private Error() {}
 
@@ -313,8 +316,8 @@ public class Frame implements Payload {
             final Frame frame = POOL.acquireFrame(
                 ErrorFrameFlyweight.computeFrameLength(metadata.remaining(), data.remaining()));
 
-            if (logger.isDebugEnabled()) {
-                logger.debug("an error occurred, creating error frame", throwable);
+            if (errorLogger.isDebugEnabled()) {
+                errorLogger.debug("an error occurred, creating error frame", throwable);
             }
 
             frame.length = ErrorFrameFlyweight.encode(
@@ -538,9 +541,11 @@ public class Frame implements Payload {
         FrameType type = FrameType.UNDEFINED;
         StringBuilder payload = new StringBuilder();
         long streamId = -1;
+        String additionalFlags = "";
 
         try {
             type = FrameHeaderFlyweight.frameType(directBuffer, 0);
+
             ByteBuffer byteBuffer;
             byte[] bytes;
 
@@ -559,9 +564,37 @@ public class Frame implements Payload {
             }
 
             streamId = FrameHeaderFlyweight.streamId(directBuffer, 0);
+
+            switch (type) {
+            case LEASE:
+                additionalFlags = " Permits: " + Lease.numberOfRequests(this) + " TTL: " + Lease.ttl(this);
+                break;
+            case REQUEST_N:
+                additionalFlags = " RequestN: " + RequestN.requestN(this);
+                break;
+            case KEEPALIVE:
+                additionalFlags = " Respond flag: " + Keepalive.hasRespondFlag(this);
+                break;
+            case REQUEST_STREAM:
+            case REQUEST_CHANNEL:
+                additionalFlags = " Initial Request N: " + Request.initialRequestN(this);
+                break;
+            case ERROR:
+                additionalFlags = " Error code: " + Error.errorCode(this);
+                break;
+            case SETUP:
+                additionalFlags = " Version: " + Setup.version(this)
+                                  + " keep-alive interval: " + Setup.keepaliveInterval(this)
+                                  + " max lifetime: " + Setup.maxLifetime(this)
+                                  + " metadata mime type: " + Setup.metadataMimeType(this)
+                                  + " data mime type: " + Setup.dataMimeType(this);
+                break;
+            }
         } catch (Exception e) {
-            e.printStackTrace();
+            logger.error("Error generating toString, ignored.", e);
         }
-        return "Frame[" + offset + "] => Stream ID: " + streamId + " Type: " + type + " Payload: " + payload;
+        return "Frame[" + offset + "] => Stream ID: " + streamId + " Type: " + type
+               + (!additionalFlags.isEmpty() ? additionalFlags : "")
+               + " Payload: " + payload;
     }
 }

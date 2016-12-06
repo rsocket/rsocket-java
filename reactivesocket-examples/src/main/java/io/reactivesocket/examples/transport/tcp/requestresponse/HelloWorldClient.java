@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package io.reactivesocket.examples.helloworld;
+package io.reactivesocket.examples.transport.tcp.requestresponse;
 
 import io.reactivesocket.AbstractReactiveSocket;
 import io.reactivesocket.Payload;

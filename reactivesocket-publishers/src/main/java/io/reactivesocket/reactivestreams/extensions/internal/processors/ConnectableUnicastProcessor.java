@@ -27,19 +27,19 @@ import org.reactivestreams.Subscription;
  * has subscribed to a Publisher. It has a method requestMore that lets you limit the number of items being requested in addition
  * to the items being requested from the subscriber.
  */
-public class ConnectableUnicastProcessor<T> implements Processor<T,T>, Px<T> {
+public class ConnectableUnicastProcessor<T> implements Processor<T,T>, Px<T>, Subscription {
     private Subscription subscription;
 
-    private long destinationRequested = 0;
-    private long externallyRequested = 0;
-    private long actuallyRequested = 0;
+    private long destinationRequested;
+    private long externallyRequested;
+    private long actuallyRequested;
 
     private Subscriber<? super T> destination;
 
     private boolean complete;
     private boolean erred;
     private boolean cancelled;
-    private boolean stated = false;
+    private boolean stated;
 
     private Throwable error;
 
@@ -137,6 +137,7 @@ public class ConnectableUnicastProcessor<T> implements Processor<T,T>, Px<T> {
         return !complete && !erred && !cancelled;
     }
 
+    @Override
     public void cancel() {
         synchronized (this) {
             cancelled = true;
@@ -158,10 +159,11 @@ public class ConnectableUnicastProcessor<T> implements Processor<T,T>, Px<T> {
 
             stated = true;
         }
-        requestMore(request);
+        request(request);
     }
 
-    public void requestMore(long request) {
+    @Override
+    public void request(long request) {
         if (canEmit()) {
             synchronized (this) {
                 externallyRequested = FlowControlHelper.incrementRequestN(externallyRequested, request);

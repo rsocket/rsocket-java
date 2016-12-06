@@ -61,11 +61,11 @@ public final class RemoteReceiver implements Processor<Frame, Payload> {
     private final Subscription transportSubscription;
     private final boolean sendRequestN;
     private volatile ValidatingSubscription<? super Frame> subscription;
-    private volatile Subscription sourceSubscription;  //TODO: Guarded access
+    private volatile Subscription sourceSubscription;
+    private volatile boolean missedComplete;
+    private volatile Throwable missedError;
 
-    public RemoteReceiver(Publisher<Frame> transportSource,
-                          DuplexConnection connection,
-                          int streamId,
+    public RemoteReceiver(Publisher<Frame> transportSource, DuplexConnection connection, int streamId,
                           Runnable cleanup, boolean sendRequestN) {
         this.transportSource = transportSource;
         this.connection = connection;
@@ -76,10 +76,7 @@ public final class RemoteReceiver implements Processor<Frame, Payload> {
         transportSubscription = null;
     }
 
-    public RemoteReceiver(DuplexConnection connection,
-                          int streamId,
-                          Runnable cleanup,
-                          Frame requestFrame,
+    public RemoteReceiver(DuplexConnection connection, int streamId, Runnable cleanup, Frame requestFrame,
                           Subscription transportSubscription, boolean sendRequestN) {
         this.requestFrame = requestFrame;
         this.transportSubscription = transportSubscription;
@@ -93,26 +90,41 @@ public final class RemoteReceiver implements Processor<Frame, Payload> {
     @Override
     public void subscribe(Subscriber<? super Payload> s) {
         final SubscriptionFramesSource framesSource = new SubscriptionFramesSource();
+        boolean _missed;
         synchronized (this) {
             if (subscription != null && subscription.isActive()) {
                 throw new IllegalStateException("Duplicate subscriptions not allowed.");
             }
-            // Since, the subscriber to this subscription is not started (via onSubscribe) till we receive
-            // onSubscribe on this class, the callbacks here will always find sourceSubscription.
-            subscription = ValidatingSubscription.create(s, () -> {
-                sourceSubscription.cancel();
-                framesSource.sendCancel();
-                cleanup.run();
-            }, requestN -> {
-                sourceSubscription.request(requestN);
-                if (sendRequestN) {
-                    framesSource.sendRequestN(requestN);
-                }
-            });
+            _missed = missedComplete || null != missedError;
+            if (!_missed) {
+                // Since, the subscriber to this subscription is not started (via onSubscribe) till we receive
+                // onSubscribe on this class, the callbacks here will always find sourceSubscription.
+                subscription = ValidatingSubscription.create(s, () -> {
+                    sourceSubscription.cancel();
+                    framesSource.sendCancel();
+                    cleanup.run();
+                }, requestN -> {
+                    sourceSubscription.request(requestN);
+                    if (sendRequestN) {
+                        framesSource.sendRequestN(requestN);
+                    }
+                });
+            }
         }
+
+        if (_missed) {
+            s.onSubscribe(ValidatingSubscription.empty());
+            if (null != missedError) {
+                s.onError(missedError);
+            } else {
+                s.onComplete();
+            }
+            return;
+        }
+
         if (transportSource != null) {
             transportSource.subscribe(this);
-        } else if(transportSubscription != null){
+        } else if (transportSubscription != null) {
             onSubscribe(transportSubscription);
             onNext(requestFrame);
         }
@@ -141,6 +153,11 @@ public final class RemoteReceiver implements Processor<Frame, Payload> {
 
     @Override
     public void onNext(Frame frame) {
+        synchronized (this) {
+            if (subscription == null) {
+                throw new IllegalStateException("Received onNext before subscription.");
+            }
+        }
         switch (frame.getType()) {
         case ERROR:
             onError(new ApplicationException(frame));
@@ -160,13 +177,31 @@ public final class RemoteReceiver implements Processor<Frame, Payload> {
 
     @Override
     public void onError(Throwable t) {
-        subscription.safeOnError(t);
+        boolean _missed = false;
+        synchronized (this) {
+            if (subscription == null) {
+                _missed = true;
+                missedError = t;
+            }
+        }
+        if (!_missed) {
+            subscription.safeOnError(t);
+        }
         cleanup.run();
     }
 
     @Override
     public void onComplete() {
-        subscription.safeOnComplete();
+        boolean _missed = false;
+        synchronized (this) {
+            if (subscription == null) {
+                _missed = true;
+                missedComplete = true;
+            }
+        }
+        if (!_missed) {
+            subscription.safeOnComplete();
+        }
         cleanup.run();
     }
 

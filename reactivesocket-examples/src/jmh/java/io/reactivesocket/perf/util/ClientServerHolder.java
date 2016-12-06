@@ -29,16 +29,15 @@ import io.reactivesocket.transport.tcp.client.TcpTransportClient;
 import io.reactivesocket.transport.tcp.server.TcpTransportServer;
 import io.reactivesocket.util.PayloadImpl;
 import io.reactivex.Flowable;
-import io.reactivex.Observable;
-import org.openjdk.jmh.infra.Blackhole;
 import org.reactivestreams.Publisher;
 
 import java.net.SocketAddress;
 import java.nio.charset.StandardCharsets;
-import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
-public class ClientServerHolder {
+public class ClientServerHolder implements Supplier<ReactiveSocket> {
 
     public static final byte[] HELLO = "HELLO".getBytes(StandardCharsets.UTF_8);
 
@@ -47,27 +46,64 @@ public class ClientServerHolder {
 
     public ClientServerHolder(TransportServer transportServer, Function<SocketAddress, TransportClient> clientFactory,
                               ReactiveSocket handler) {
-        server = ReactiveSocketServer.create(transportServer)
-                                     .start((setup, sendingSocket) -> {
-                                         return new DisabledLeaseAcceptingSocket(handler);
-                                     });
-        SetupProvider setupProvider = SetupProvider.keepAlive(KeepAliveProvider.never()).disableLease();
-        ReactiveSocketClient client =
-                ReactiveSocketClient.create(clientFactory.apply(server.getServerAddress()), setupProvider);
-        this.client = Flowable.fromPublisher(client.connect()).blockingLast();
+        server = startServer(transportServer, handler);
+        client = newClient(server.getServerAddress(), clientFactory);
     }
 
-    public ReactiveSocket getClient() {
+    @Override
+    public ReactiveSocket get() {
         return client;
     }
 
-    public static ClientServerHolder requestResponse(TransportServer transportServer,
-                                                     Function<SocketAddress, TransportClient> clientFactory) {
-        return new ClientServerHolder(transportServer, clientFactory, new AbstractReactiveSocket() {
+    public static ClientServerHolder create(TransportServer transportServer,
+                                            Function<SocketAddress, TransportClient> clientFactory) {
+        return new ClientServerHolder(transportServer, clientFactory, new Handler());
+    }
+
+    public static Supplier<ReactiveSocket> requestResponseMultiTcp(int clientCount) {
+        StartedServer server = startServer(TcpTransportServer.create(), new Handler());
+        final ReactiveSocket[] sockets = new ReactiveSocket[clientCount];
+        for (int i = 0; i < clientCount; i++) {
+            sockets[i] = newClient(server.getServerAddress(), sock -> TcpTransportClient.create(sock));
+        }
+        return new Supplier<ReactiveSocket>() {
+
+            private final AtomicInteger index = new AtomicInteger();
+
             @Override
-            public Publisher<Payload> requestResponse(Payload payload) {
-                return Px.just(new PayloadImpl(HELLO));
+            public ReactiveSocket get() {
+                int index = Math.abs(this.index.incrementAndGet()) % clientCount;
+                return sockets[index];
             }
-        });
+        };
+    }
+
+    private static StartedServer startServer(TransportServer transportServer, ReactiveSocket handler) {
+        return ReactiveSocketServer.create(transportServer)
+                                   .start((setup, sendingSocket) -> {
+                                       return new DisabledLeaseAcceptingSocket(handler);
+                                   });
+    }
+
+    private static ReactiveSocket newClient(SocketAddress serverAddress,
+                                            Function<SocketAddress, TransportClient> clientFactory) {
+        SetupProvider setupProvider = SetupProvider.keepAlive(KeepAliveProvider.never()).disableLease();
+        ReactiveSocketClient client =
+                ReactiveSocketClient.create(clientFactory.apply(serverAddress), setupProvider);
+        return Flowable.fromPublisher(client.connect()).blockingLast();
+    }
+
+    private static class Handler extends AbstractReactiveSocket {
+
+        @Override
+        public Publisher<Payload> requestResponse(Payload payload) {
+            return Px.just(new PayloadImpl(HELLO));
+        }
+
+        @Override
+        public Publisher<Payload> requestStream(Payload payload) {
+            return Flowable.range(1, Integer.MAX_VALUE)
+                           .map(integer -> new PayloadImpl(HELLO));
+        }
     }
 }

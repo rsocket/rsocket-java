@@ -38,15 +38,29 @@ public final class FairLeaseDistributor implements DefaultLeaseEnforcingSocket.L
     private Subscription ticksSubscription;
     private volatile boolean startTicks;
     private final IntSupplier capacitySupplier;
-    private final int leaseTTL;
+    private final int leaseTTLMillis;
     private final Publisher<Long> leaseDistributionTicks;
-    private volatile int remainingPermits;
+    private final boolean redistributeOnConnect;
 
-    public FairLeaseDistributor(IntSupplier capacitySupplier, int leaseTTL, Publisher<Long> leaseDistributionTicks) {
+    public FairLeaseDistributor(IntSupplier capacitySupplier, int leaseTTLMillis,
+                                Publisher<Long> leaseDistributionTicks, boolean redistributeOnConnect) {
         this.capacitySupplier = capacitySupplier;
-        this.leaseTTL = leaseTTL;
+        /*
+         * If lease TTL is exactly the same as the period of replenishment, then there would be a time period when new
+         * lease has not arrived and old lease is expired. This isn't a good reflection of server's intent as the server
+         * can handle the new requests but the lease has not yet reached the client. So, having TTL slightly more
+         * than distribution period (accomodating for network lag) is more representative of server's intent. OTOH, if
+         * server isn't ready, it can always reject a request.
+         */
+        this.leaseTTLMillis = (int) (leaseTTLMillis * 1.1);
         this.leaseDistributionTicks = leaseDistributionTicks;
+        this.redistributeOnConnect = redistributeOnConnect;
         activeRecipients = new LinkedBlockingQueue<>();
+    }
+
+    public FairLeaseDistributor(IntSupplier capacitySupplier, int leaseTTLMillis,
+                                Publisher<Long> leaseDistributionTicks) {
+        this(capacitySupplier, leaseTTLMillis, leaseDistributionTicks, true);
     }
 
     /**
@@ -68,12 +82,23 @@ public final class FairLeaseDistributor implements DefaultLeaseEnforcingSocket.L
     @Override
     public Cancellable registerSocket(Consumer<Lease> leaseConsumer) {
         activeRecipients.add(leaseConsumer);
+        boolean _started;
         synchronized (this) {
+            _started = startTicks;
             if (!startTicks) {
                 startTicks();
                 startTicks = true;
             }
         }
+
+        if (_started && redistributeOnConnect) {
+            /*
+             * This is a way to make sure that the clients that arrive in the middle of a distribution period, do not
+             * have to wait for the next tick to arrive.
+             */
+            distribute(capacitySupplier.getAsInt());
+        }
+
         return new CancellableImpl() {
             @Override
             protected void onCancel() {
@@ -86,20 +111,19 @@ public final class FairLeaseDistributor implements DefaultLeaseEnforcingSocket.L
         if (activeRecipients.isEmpty()) {
             return;
         }
-        remainingPermits -= permits;
         int recipients = activeRecipients.size();
         int budget = permits / recipients;
 
         // it would be more fair to randomized the distribution of extra
         int extra = permits - budget * recipients;
-        Lease budgetLease = new LeaseImpl(budget, leaseTTL, Frame.NULL_BYTEBUFFER);
+        Lease budgetLease = new LeaseImpl(budget, leaseTTLMillis, Frame.NULL_BYTEBUFFER);
         for (Consumer<Lease> recipient: activeRecipients) {
             Lease leaseToSend = budgetLease;
             int n = budget;
             if (extra > 0) {
                 n += 1;
                 extra -= 1;
-                leaseToSend = new LeaseImpl(n, leaseTTL, Frame.NULL_BYTEBUFFER);
+                leaseToSend = new LeaseImpl(n, leaseTTLMillis, Frame.NULL_BYTEBUFFER);
             }
             recipient.accept(leaseToSend);
         }
@@ -109,8 +133,7 @@ public final class FairLeaseDistributor implements DefaultLeaseEnforcingSocket.L
         Px.from(leaseDistributionTicks)
           .doOnSubscribe(subscription -> ticksSubscription = subscription)
           .doOnNext(aLong -> {
-              remainingPermits = capacitySupplier.getAsInt();
-              distribute(remainingPermits);
+              distribute(capacitySupplier.getAsInt());
           })
           .ignore()
           .subscribe();
