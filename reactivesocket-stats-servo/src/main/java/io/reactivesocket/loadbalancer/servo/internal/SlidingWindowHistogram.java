@@ -6,17 +6,16 @@ import org.HdrHistogram.Histogram;
 import java.io.PrintStream;
 import java.util.ArrayDeque;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Wraps HdrHistogram to create a sliding window of n histogramQueue. Default window number is five.
  */
 public class SlidingWindowHistogram {
-    private static final ThreadLocal<Histogram> AGGREGATE_HISTOGRAM = ThreadLocal.withInitial(SlidingWindowHistogram::createHistogram);
-
-    private final AtomicReference<Histogram> histogramAtomicReference;
+    private volatile Histogram liveHistogram;
 
     private final ArrayDeque<Histogram> histogramQueue;
+
+    private final Object LOCK = new Object();
 
     public SlidingWindowHistogram() {
         this(5);
@@ -27,7 +26,7 @@ public class SlidingWindowHistogram {
             throw new IllegalArgumentException("number of windows must be greater than 1");
         }
         this.histogramQueue = new ArrayDeque<>(numOfWindows - 1);
-        this.histogramAtomicReference = new AtomicReference<>(createHistogram());
+        this.liveHistogram = createHistogram();
 
         for (int i = 0; i < numOfWindows - 1; i++) {
             histogramQueue.offer(createHistogram());
@@ -41,12 +40,12 @@ public class SlidingWindowHistogram {
     }
 
     /**
-     * Records a value to the in window histogramAtomicReference
+     * Records a value to the in window liveHistogram
      *
      * @param value value to record
      */
     public void recordValue(long value) {
-        histogramAtomicReference.get().recordValue(value);
+        liveHistogram.recordValue(value);
     }
 
     /**
@@ -54,38 +53,27 @@ public class SlidingWindowHistogram {
      * on in the queue.
      */
     public void rotateHistogram() {
-        histogramAtomicReference
-            .updateAndGet(old -> {
-                Histogram onDeck;
-                synchronized (this) {
-                    onDeck = histogramQueue.poll();
-                }
-
-                if (onDeck != null) {
-                    onDeck.reset();
-                    synchronized (this) {
-                        histogramQueue.offer(old);
-                    }
-                    return onDeck;
-                } else {
-                    return old;
-                }
-
-            });
+        synchronized (LOCK) {
+            Histogram onDeck = histogramQueue.poll();
+            if (onDeck != null) {
+                onDeck.reset();
+                Histogram old = liveHistogram;
+                liveHistogram = onDeck;
+                histogramQueue.offer(old);
+            }
+        }
     }
 
     /**
-     * Aggregates the Histograms into a single histogramAtomicReference and returns it.
+     * Aggregates the Histograms into a single Histogram and returns it.
      *
-     * @return Aggregated histogramAtomicReference
+     * @return Aggregated liveHistogram
      */
     public Histogram aggregateHistogram() {
-        Histogram aggregate = AGGREGATE_HISTOGRAM.get();
-        aggregate.reset();
+        Histogram aggregate = createHistogram();
 
-        aggregate.add(histogramAtomicReference.get());
-
-        synchronized (this) {
+        synchronized (LOCK) {
+            aggregate.add(liveHistogram);
             histogramQueue
                 .forEach(aggregate::add);
         }
