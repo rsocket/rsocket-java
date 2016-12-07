@@ -28,6 +28,15 @@ import java.util.concurrent.TimeoutException;
 
 public final class TimeoutPublisher<T> implements Px<T> {
 
+    @SuppressWarnings("ThrowableInstanceNeverThrown")
+    private static final TimeoutException timeoutException = new TimeoutException();
+
+    private static final StackTraceElement[] EMPTY_STACK = new StackTraceElement[0];
+
+    static {
+        timeoutException.setStackTrace(EMPTY_STACK);
+    }
+
     private final Publisher<T> child;
     private final Scheduler scheduler;
     private final long timeout;
@@ -42,7 +51,7 @@ public final class TimeoutPublisher<T> implements Px<T> {
 
     @Override
     public void subscribe(Subscriber<? super T> subscriber) {
-        Runnable onTimeout = () -> subscriber.onError(new TimeoutException());
+        Runnable onTimeout = () -> subscriber.onError(timeoutException);
         CancellableSubscriber<Void> timeoutSub = Subscribers.create(null, null, throwable -> onTimeout.run(),
                                                                     onTimeout, null);
         Runnable cancelTimeout = () -> timeoutSub.cancel();
