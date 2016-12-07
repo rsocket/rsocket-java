@@ -29,13 +29,14 @@ import java.util.concurrent.TimeoutException;
 public final class TimeoutPublisher<T> implements Px<T> {
 
     @SuppressWarnings("ThrowableInstanceNeverThrown")
-    private static final TimeoutException timeoutException = new TimeoutException();
+    private static final TimeoutException timeoutException = new TimeoutException() {
+        private static final long serialVersionUID = 6195545973881750858L;
 
-    private static final StackTraceElement[] EMPTY_STACK = new StackTraceElement[0];
-
-    static {
-        timeoutException.setStackTrace(EMPTY_STACK);
-    }
+        @Override
+        public synchronized Throwable fillInStackTrace() {
+            return this;
+        }
+    };
 
     private final Publisher<T> child;
     private final Scheduler scheduler;
