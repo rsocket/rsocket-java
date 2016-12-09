@@ -21,6 +21,7 @@ import io.reactivesocket.reactivestreams.extensions.internal.ValidatingSubscript
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -29,7 +30,14 @@ public class ExecutorServiceBasedScheduler implements Scheduler {
     private static final ScheduledExecutorService globalExecutor;
 
     static {
-        globalExecutor = Executors.newSingleThreadScheduledExecutor();
+        globalExecutor = Executors.newSingleThreadScheduledExecutor(new ThreadFactory() {
+            @Override
+            public Thread newThread(Runnable r) {
+                Thread t = new Thread(r, "global-executor-scheduler");
+                t.setDaemon(true);
+                return t;
+            }
+        });
     }
 
     private final ScheduledExecutorService executorService;
