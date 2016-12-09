@@ -30,16 +30,9 @@ import io.reactivex.subscribers.TestSubscriber;
 import java.util.ArrayList;
 import java.util.List;
 
-import static io.reactivesocket.FrameType.CANCEL;
-import static io.reactivesocket.FrameType.KEEPALIVE;
-import static io.reactivesocket.FrameType.NEXT_COMPLETE;
-import static io.reactivesocket.FrameType.REQUEST_RESPONSE;
+import static io.reactivesocket.FrameType.*;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.*;
 
 public class ClientReactiveSocketTest {
 
@@ -63,7 +56,6 @@ public class ClientReactiveSocketTest {
     public void testHandleSetupException() throws Throwable {
         rule.connection.addToReceivedBuffer(Frame.Error.from(0, new RejectedSetupException("boom")));
     }
-
 
     @Test(timeout = 2_000)
     public void testHandleApplicationException() throws Throwable {
@@ -91,7 +83,7 @@ public class ClientReactiveSocketTest {
         responseSub.assertComplete();
     }
 
-    @Test(timeout = 2_000)
+    @Test
     public void testRequestReplyWithCancel() throws Throwable {
         rule.connection.clearSendReceiveBuffers(); // clear setup frame
         Publisher<Payload> response = rule.socket.requestResponse(PayloadImpl.EMPTY);
@@ -102,6 +94,7 @@ public class ClientReactiveSocketTest {
         responseSub.assertValueCount(0);
         responseSub.assertNotTerminated();
 
+        assertThat("Unexpected frame sent on the connection.", rule.connection.awaitSend().getType(), is(REQUEST_RESPONSE));
         assertThat("Unexpected frame sent on the connection.", rule.connection.awaitSend().getType(), is(CANCEL));
     }
 
@@ -116,9 +109,27 @@ public class ClientReactiveSocketTest {
         responseSub.assertError(RuntimeException.class);
     }
 
+    @Test
+    public void testLazyRequestResponse() throws Exception {
+        Publisher<Payload> response = rule.socket.requestResponse(PayloadImpl.EMPTY);
+        int streamId = sendRequestResponse(response);
+        rule.connection.clearSendReceiveBuffers();
+        int streamId2 = sendRequestResponse(response);
+        assertThat("Stream ID reused.", streamId2, not(equalTo(streamId)));
+    }
+
+    public int sendRequestResponse(Publisher<Payload> response) {
+        TestSubscriber<Payload> sub = TestSubscriber.create();
+        response.subscribe(sub);
+        int streamId = rule.getStreamIdForRequestType(REQUEST_RESPONSE);
+        rule.connection.addToReceivedBuffer(Frame.Response.from(streamId, RESPONSE, PayloadImpl.EMPTY));
+        sub.assertValueCount(1).assertNoErrors();
+        return streamId;
+    }
+
     public static class ClientSocketRule extends AbstractSocketRule<ClientReactiveSocket> {
 
-        private PublishProcessor<Long> keepAliveTicks = PublishProcessor.create();
+        private final PublishProcessor<Long> keepAliveTicks = PublishProcessor.create();
 
         @Override
         protected ClientReactiveSocket newReactiveSocket() {

@@ -55,10 +55,10 @@ public final class HelloWorldClient {
                                                               .connect())
                                     .blockingFirst();
 
-        Flowable.fromPublisher(socket.requestResponse(PayloadImpl.EMPTY))
+        Flowable.fromPublisher(socket.requestResponse(new PayloadImpl("Hello")))
                 .map(payload -> payload.getData())
                 .map(ByteBufferUtil::toUtf8String)
-                .doOnNext(x -> System.out.println("===>>>> " + x))
+                .doOnNext(System.out::println)
                 .concatWith(Flowable.fromPublisher(socket.close()).cast(String.class))
                 .blockingFirst();
     }
