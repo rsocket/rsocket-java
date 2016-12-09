@@ -27,11 +27,9 @@ import io.reactivesocket.lease.LeaseImpl;
 import io.reactivesocket.reactivestreams.extensions.DefaultSubscriber;
 import io.reactivesocket.reactivestreams.extensions.Px;
 import io.reactivesocket.reactivestreams.extensions.internal.ValidatingSubscription;
-import io.reactivesocket.reactivestreams.extensions.internal.processors.ConnectableUnicastProcessor;
 import io.reactivesocket.reactivestreams.extensions.internal.subscribers.CancellableSubscriber;
 import io.reactivesocket.reactivestreams.extensions.internal.subscribers.Subscribers;
 import org.agrona.collections.Int2ObjectHashMap;
-import org.reactivestreams.Processor;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
@@ -40,7 +38,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.function.Consumer;
 
-import static io.reactivesocket.reactivestreams.extensions.internal.subscribers.Subscribers.doOnError;
+import static io.reactivesocket.reactivestreams.extensions.internal.subscribers.Subscribers.*;
 
 /**
  * Client Side of a ReactiveSocket socket. Sends {@link Frame}s
@@ -75,46 +73,31 @@ public class ClientReactiveSocket implements ReactiveSocket {
 
     @Override
     public Publisher<Void> fireAndForget(Payload payload) {
-        try {
+        return Px.defer(() -> {
             final int streamId = nextStreamId();
             final Frame requestFrame = Frame.Request.from(streamId, FrameType.FIRE_AND_FORGET, payload, 0);
             return connection.sendOne(requestFrame);
-        } catch (Throwable t) {
-            return Px.error(t);
-        }
+        });
     }
 
     @Override
     public Publisher<Payload> requestResponse(Payload payload) {
-        final int streamId = nextStreamId();
-        final Frame requestFrame = Frame.Request.from(streamId, FrameType.REQUEST_RESPONSE, payload, 1);
-
-        return handleRequestResponse(Px.just(requestFrame), streamId, 1, false);
+        return handleRequestResponse(payload);
     }
 
     @Override
     public Publisher<Payload> requestStream(Payload payload) {
-        final int streamId = nextStreamId();
-        final Frame requestFrame = Frame.Request.from(streamId, FrameType.REQUEST_STREAM, payload, 1);
-
-        return handleStreamResponse(Px.just(requestFrame), streamId);
+        return handleStreamResponse(Px.just(payload), FrameType.REQUEST_STREAM);
     }
 
     @Override
     public Publisher<Payload> requestSubscription(Payload payload) {
-        final int streamId = nextStreamId();
-        final Frame requestFrame = Frame.Request.from(streamId, FrameType.REQUEST_SUBSCRIPTION, payload, 1);
-
-        return handleStreamResponse(Px.just(requestFrame), streamId);
+        return handleStreamResponse(Px.just(payload), FrameType.REQUEST_SUBSCRIPTION);
     }
 
     @Override
     public Publisher<Payload> requestChannel(Publisher<Payload> payloads) {
-        final int streamId = nextStreamId();
-        return handleStreamResponse(Px.from(payloads)
-                                      .map(payload -> {
-                                   return Frame.Request.from(streamId, FrameType.REQUEST_CHANNEL, payload, 1);
-                               }), streamId);
+        return handleStreamResponse(Px.from(payloads), FrameType.REQUEST_CHANNEL);
     }
 
     @Override
@@ -148,77 +131,53 @@ public class ClientReactiveSocket implements ReactiveSocket {
         return this;
     }
 
-    private Publisher<Payload> handleRequestResponse(final Publisher<Frame> payload, final int streamId,
-                                                     final int initialRequestN, final boolean sendRequestN) {
-        ConnectableUnicastProcessor<Frame> sender = new ConnectableUnicastProcessor<>();
-
-        synchronized (this) {
-            senders.put(streamId, sender);
-        }
-
-        final Runnable cleanup = () -> {
+    private Publisher<Payload> handleRequestResponse(final Payload payload) {
+        return Px.create(subscriber -> {
+            int streamId = nextStreamId();
+            final Frame requestFrame = Frame.Request.from(streamId, FrameType.REQUEST_RESPONSE, payload, 1);
             synchronized (this) {
-                receivers.remove(streamId);
-                senders.remove(streamId);
+                @SuppressWarnings("rawtypes")
+                Subscriber raw = subscriber;
+                @SuppressWarnings("unchecked")
+                Subscriber<Frame> fs = raw;
+                receivers.put(streamId, fs);
             }
-        };
-
-        return Px
-                .<Payload>create(subscriber -> {
-                    @SuppressWarnings("rawtypes")
-                    Subscriber raw = subscriber;
-                    @SuppressWarnings("unchecked")
-                    Subscriber<Frame> fs = raw;
-                    synchronized (this) {
-                        receivers.put(streamId, fs);
-                    }
-
-                    payload.subscribe(sender);
-
-                    subscriber.onSubscribe(new Subscription() {
-
-                        @Override
-                        public void request(long n) {
-                            if (sendRequestN) {
-                                sender.onNext(Frame.RequestN.from(streamId, n));
-                            }
-                        }
-
-                        @Override
-                        public void cancel() {
-                            sender.onNext(Frame.Cancel.from(streamId));
-                            sender.cancel();
-                        }
-                    });
-
-                    Px.from(connection.send(sender))
-                      .doOnError(th -> subscriber.onError(th))
-                      .subscribe(DefaultSubscriber.defaultInstance());
-
-                })
-                .doOnRequest(subscription -> sender.start(initialRequestN))
-                .doOnTerminate(cleanup);
+            Px.concatEmpty(connection.sendOne(requestFrame), Px.never())
+              .cast(Payload.class)
+              .doOnCancel(() -> {
+                  if (connection.availability() > 0.0) {
+                      connection.sendOne(Frame.Cancel.from(streamId))
+                                .subscribe(DefaultSubscriber.defaultInstance());
+                  }
+              })
+              .subscribe(subscriber);
+        });
     }
 
-    private Publisher<Payload> handleStreamResponse(Publisher<Frame> request, final int streamId) {
-        RemoteSender sender = new RemoteSender(request, () -> senders.remove(streamId), streamId, 1);
-        Publisher<Frame> src = s -> {
-            CancellableSubscriber<Void> sendSub = doOnError(throwable -> {
-                s.onError(throwable);
-            });
-            ValidatingSubscription<? super Frame> sub = ValidatingSubscription.create(s, () -> {
-                sendSub.cancel();
-            }, requestN -> {
-                transportReceiveSubscription.request(requestN);
-            });
-            connection.send(sender).subscribe(sendSub);
-            s.onSubscribe(sub);
-        };
+    private Publisher<Payload> handleStreamResponse(Px<Payload> request, FrameType requestType) {
+        return Px.defer(() -> {
+            int streamId = nextStreamId();
+            RemoteSender sender = new RemoteSender(request.map(payload -> Frame.Request.from(streamId, requestType,
+                                                                                             payload, 1)),
+                                                   removeSenderLambda(streamId), 1);
+            Publisher<Frame> src = s -> {
+                CancellableSubscriber<Void> sendSub = doOnError(throwable -> {
+                    s.onError(throwable);
+                });
+                ValidatingSubscription<? super Frame> sub = ValidatingSubscription.create(s, () -> {
+                    sendSub.cancel();
+                }, requestN -> {
+                    transportReceiveSubscription.request(requestN);
+                });
+                connection.send(sender).subscribe(sendSub);
+                s.onSubscribe(sub);
+            };
 
-        RemoteReceiver receiver = new RemoteReceiver(src, connection, streamId, () -> receivers.remove(streamId), true);
-        senders.put(streamId, sender);
-        receivers.put(streamId, receiver);
-        return receiver;
+            RemoteReceiver receiver = new RemoteReceiver(src, connection, streamId, removeReceiverLambda(streamId),
+                                                         true);
+            registerSenderReceiver(streamId, sender, receiver);
+            return receiver;
+        });
     }
 
     private void startKeepAlive() {
@@ -291,10 +250,16 @@ public class ClientReactiveSocket implements ReactiveSocket {
             switch (type) {
                 case ERROR:
                     receiver.onError(Exceptions.from(frame));
+                    synchronized (this) {
+                        receivers.remove(streamId);
+                    }
                     break;
                 case NEXT_COMPLETE:
                     receiver.onNext(frame);
                     receiver.onComplete();
+                    synchronized (this) {
+                        receivers.remove(streamId);
+                    }
                     break;
                 case CANCEL: {
                     Subscription sender;
@@ -324,6 +289,9 @@ public class ClientReactiveSocket implements ReactiveSocket {
                 }
                 case COMPLETE:
                     receiver.onComplete();
+                    synchronized (this) {
+                        receivers.remove(streamId);
+                    }
                     break;
                 default:
                     throw new IllegalStateException(
@@ -360,5 +328,28 @@ public class ClientReactiveSocket implements ReactiveSocket {
         return new String(bytes, StandardCharsets.UTF_8);
     }
 
+    private Runnable removeReceiverLambda(int streamId) {
+        return () -> {
+            removeReceiver(streamId);
+        };
+    }
 
+    private synchronized void removeReceiver(int streamId) {
+        receivers.remove(streamId);
+    }
+
+    private Runnable removeSenderLambda(int streamId) {
+        return () -> {
+            removeSender(streamId);
+        };
+    }
+
+    private synchronized void removeSender(int streamId) {
+        senders.remove(streamId);
+    }
+
+    private synchronized void registerSenderReceiver(int streamId, Subscription sender, Subscriber<Frame> receiver) {
+        senders.put(streamId, sender);
+        receivers.put(streamId, receiver);
+    }
 }
