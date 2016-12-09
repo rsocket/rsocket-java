@@ -1,0 +1,47 @@
+/*
+ * Copyright 2016 Netflix, Inc.
+ * <p>
+ *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
+ *  the License. You may obtain a copy of the License at
+ *  <p>
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *  <p>
+ *  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
+ *  an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
+ *  specific language governing permissions and limitations under the License.
+ */
+
+package io.reactivesocket.internal;
+
+import io.reactivesocket.events.EventListener;
+
+public class EventPublisherImpl<T extends EventListener> implements EventPublisher<T> {
+
+    private final T listener;
+    private volatile boolean enabled;
+
+    protected EventPublisherImpl() {
+        listener = null;
+        enabled = false;
+    }
+
+    public EventPublisherImpl(T listener) {
+        this.listener = listener;
+        enabled = true;
+    }
+
+    @Override
+    public T getEventListener() {
+        return listener;
+    }
+
+    @Override
+    public boolean isEventPublishingEnabled() {
+        return enabled;
+    }
+
+    @Override
+    public void cancel() {
+        enabled = false;
+    }
+}

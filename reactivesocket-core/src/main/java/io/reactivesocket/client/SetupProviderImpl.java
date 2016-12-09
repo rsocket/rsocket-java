@@ -24,13 +24,21 @@ import io.reactivesocket.FrameType;
 import io.reactivesocket.Payload;
 import io.reactivesocket.ServerReactiveSocket;
 import io.reactivesocket.client.ReactiveSocketClient.SocketAcceptor;
+import io.reactivesocket.events.AbstractEventSource;
+import io.reactivesocket.events.ClientEventListener;
+import io.reactivesocket.events.ConnectionEventInterceptor;
 import io.reactivesocket.internal.ClientServerInputMultiplexer;
+import io.reactivesocket.internal.DisabledEventPublisher;
+import io.reactivesocket.internal.EventPublisher;
 import io.reactivesocket.lease.DisableLeaseSocket;
 import io.reactivesocket.lease.LeaseEnforcingSocket;
 import io.reactivesocket.lease.LeaseHonoringSocket;
 import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.StreamIdSupplier;
 import io.reactivesocket.reactivestreams.extensions.Px;
+import io.reactivesocket.reactivestreams.extensions.internal.publishers.InstrumentingPublisher;
+import io.reactivesocket.reactivestreams.extensions.internal.subscribers.Subscribers;
+import io.reactivesocket.util.Clock;
 import io.reactivesocket.util.PayloadImpl;
 import org.reactivestreams.Publisher;
 
@@ -38,8 +46,9 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static io.reactivesocket.Frame.Setup.*;
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
-final class SetupProviderImpl implements SetupProvider {
+final class SetupProviderImpl extends AbstractEventSource<ClientEventListener> implements SetupProvider {
 
     private final Frame setupFrame;
     private final Function<ReactiveSocket, ? extends LeaseHonoringSocket> leaseDecorator;
@@ -57,23 +66,20 @@ final class SetupProviderImpl implements SetupProvider {
 
     @Override
     public Publisher<ReactiveSocket> accept(DuplexConnection connection, SocketAcceptor acceptor) {
-        return Px.from(connection.sendOne(copySetupFrame()))
-                 .cast(ReactiveSocket.class)
-                 .concatWith(Px.defer(() -> {
-                     ClientServerInputMultiplexer multiplexer = new ClientServerInputMultiplexer(connection);
-                     ClientReactiveSocket sendingSocket =
-                             new ClientReactiveSocket(multiplexer.asClientConnection(), errorConsumer,
-                                                      StreamIdSupplier.clientSupplier(),
-                                                      keepAliveProvider);
-                     LeaseHonoringSocket leaseHonoringSocket = leaseDecorator.apply(sendingSocket);
-                     sendingSocket.start(leaseHonoringSocket);
-                     LeaseEnforcingSocket acceptingSocket = acceptor.accept(sendingSocket);
-                     ServerReactiveSocket receivingSocket = new ServerReactiveSocket(multiplexer.asServerConnection(),
-                                                                                     acceptingSocket,
-                                                                                     errorConsumer);
-                     receivingSocket.start();
-                     return Px.just(leaseHonoringSocket);
-                 }));
+        DuplexConnection dc;
+        if (isEventPublishingEnabled()) {
+            dc = new ConnectionEventInterceptor(connection, this);
+        } else {
+            dc = connection;
+        }
+
+        Publisher<ReactiveSocket> source = _setup(dc, acceptor);
+        return new InstrumentingPublisher<>(source, subscriber -> {
+            if (!isEventPublishingEnabled()) {
+                return ConnectInspector.empty;
+            }
+            return new ConnectInspector(this);
+        }, ConnectInspector::connectFailed, null, ConnectInspector::connectCancelled, ConnectInspector::connectSuccess);
     }
 
     @Override
@@ -127,4 +133,67 @@ final class SetupProviderImpl implements SetupProvider {
         return newSetup;
     }
 
+    private Publisher<ReactiveSocket> _setup(DuplexConnection connection, SocketAcceptor acceptor) {
+        return Px.from(connection.sendOne(copySetupFrame()))
+                 .cast(ReactiveSocket.class)
+                 .concatWith(Px.defer(() -> {
+                     ClientServerInputMultiplexer multiplexer = new ClientServerInputMultiplexer(connection);
+                     ClientReactiveSocket sendingSocket =
+                             new ClientReactiveSocket(multiplexer.asClientConnection(), errorConsumer,
+                                                      StreamIdSupplier.clientSupplier(),
+                                                      keepAliveProvider, this);
+                     LeaseHonoringSocket leaseHonoringSocket = leaseDecorator.apply(sendingSocket);
+
+                     sendingSocket.start(leaseHonoringSocket);
+
+                     LeaseEnforcingSocket acceptingSocket = acceptor.accept(sendingSocket);
+                     ServerReactiveSocket receivingSocket = new ServerReactiveSocket(multiplexer.asServerConnection(),
+                                                                                     acceptingSocket, true,
+                                                                                     errorConsumer, this);
+                     receivingSocket.start();
+
+                     return Px.just(leaseHonoringSocket);
+                 }));
+    }
+
+    private static class ConnectInspector {
+
+        private static final ConnectInspector empty = new ConnectInspector(new DisabledEventPublisher<>());
+        private final EventPublisher<ClientEventListener> publisher;
+        private final long startTime;
+
+        public ConnectInspector(EventPublisher<ClientEventListener> publisher) {
+            this.publisher = publisher;
+            startTime = Clock.now();
+            if (publisher.isEventPublishingEnabled()) {
+                publisher.getEventListener().connectStart();
+            }
+        }
+
+        public void connectSuccess(ReactiveSocket socket) {
+            if (publisher.isEventPublishingEnabled()) {
+                publisher.getEventListener()
+                         .connectCompleted(() -> socket.availability(), System.nanoTime() - startTime, NANOSECONDS);
+                socket.onClose()
+                      .subscribe(Subscribers.doOnTerminate(() -> {
+                          if (publisher.isEventPublishingEnabled()) {
+                              publisher.getEventListener()
+                                       .socketClosed(Clock.elapsedSince(startTime), Clock.unit());
+                          }
+                      }));
+            }
+        }
+
+        public void connectFailed(Throwable cause) {
+            if (publisher.isEventPublishingEnabled()) {
+                publisher.getEventListener().connectFailed(System.nanoTime() - startTime, NANOSECONDS, cause);
+            }
+        }
+
+        public void connectCancelled() {
+            if (publisher.isEventPublishingEnabled()) {
+                publisher.getEventListener().connectCancelled(System.nanoTime() - startTime, NANOSECONDS);
+            }
+        }
+    }
 }

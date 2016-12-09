@@ -17,31 +17,39 @@
 package io.reactivesocket.client;
 
 import io.reactivesocket.ReactiveSocket;
+import io.reactivesocket.events.ClientEventListener;
+import io.reactivesocket.events.ConnectionEventInterceptor;
+import io.reactivesocket.internal.DisabledEventPublisher;
+import io.reactivesocket.internal.EventPublisher;
 import io.reactivesocket.reactivestreams.extensions.Px;
+import io.reactivesocket.reactivestreams.extensions.internal.publishers.InstrumentingPublisher;
+import io.reactivesocket.reactivestreams.extensions.internal.subscribers.Subscribers;
 import io.reactivesocket.transport.TransportClient;
+import io.reactivesocket.util.Clock;
 import org.reactivestreams.Publisher;
+
+import static java.util.concurrent.TimeUnit.*;
 
 /**
  * Default implementation of {@link ReactiveSocketClient} providing the functionality to create a {@link ReactiveSocket}
  * from a {@link TransportClient}.
  */
-public final class DefaultReactiveSocketClient implements ReactiveSocketClient {
+public final class DefaultReactiveSocketClient extends AbstractReactiveSocketClient {
 
-    private final TransportClient transportClient;
-    private final SetupProvider setupProvider;
-    private final SocketAcceptor acceptor;
+    private final Px<ReactiveSocket> connectSource;
 
     public DefaultReactiveSocketClient(TransportClient transportClient, SetupProvider setupProvider,
                                        SocketAcceptor acceptor) {
-        this.transportClient = transportClient;
-        this.setupProvider = setupProvider;
-        this.acceptor = acceptor;
+        super(setupProvider);
+        connectSource = Px.from(transportClient.connect())
+                          .switchTo(connection -> {
+                              return setupProvider.accept(connection, acceptor);
+                          });
     }
 
     @Override
     public Publisher<? extends ReactiveSocket> connect() {
-        return Px.from(transportClient.connect())
-                 .switchTo(connection -> setupProvider.accept(connection, acceptor));
+        return connectSource;
     }
 
     @Override

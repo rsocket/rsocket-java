@@ -17,8 +17,14 @@
 package io.reactivesocket;
 
 import io.reactivesocket.client.KeepAliveProvider;
+import io.reactivesocket.events.EventListener;
+import io.reactivesocket.events.EventListener.RequestType;
+import io.reactivesocket.events.EventPublishingSocket;
+import io.reactivesocket.events.EventPublishingSocketImpl;
 import io.reactivesocket.exceptions.CancelException;
 import io.reactivesocket.exceptions.Exceptions;
+import io.reactivesocket.internal.DisabledEventPublisher;
+import io.reactivesocket.internal.EventPublisher;
 import io.reactivesocket.internal.KnownErrorFilter;
 import io.reactivesocket.internal.RemoteReceiver;
 import io.reactivesocket.internal.RemoteSender;
@@ -39,6 +45,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.function.Consumer;
 
+import static io.reactivesocket.events.EventListener.RequestType.*;
 import static io.reactivesocket.reactivestreams.extensions.internal.subscribers.Subscribers.*;
 
 /**
@@ -51,6 +58,7 @@ public class ClientReactiveSocket implements ReactiveSocket {
     private final Consumer<Throwable> errorConsumer;
     private final StreamIdSupplier streamIdSupplier;
     private final KeepAliveProvider keepAliveProvider;
+    private final EventPublishingSocket eventPublishingSocket;
 
     private final Int2ObjectHashMap<Subscription> senders;
     private final Int2ObjectHashMap<Subscriber<Frame>> receivers;
@@ -60,16 +68,24 @@ public class ClientReactiveSocket implements ReactiveSocket {
     private volatile Consumer<Lease> leaseConsumer; // Provided on start()
 
     public ClientReactiveSocket(DuplexConnection connection, Consumer<Throwable> errorConsumer,
-                                StreamIdSupplier streamIdSupplier, KeepAliveProvider keepAliveProvider) {
+                                StreamIdSupplier streamIdSupplier, KeepAliveProvider keepAliveProvider,
+                                EventPublisher<? extends EventListener> publisher) {
         this.connection = connection;
         this.errorConsumer = new KnownErrorFilter(errorConsumer);
         this.streamIdSupplier = streamIdSupplier;
         this.keepAliveProvider = keepAliveProvider;
+        eventPublishingSocket = publisher.isEventPublishingEnabled()? new EventPublishingSocketImpl(publisher, true)
+                                                                    : EventPublishingSocket.DISABLED;
         senders = new Int2ObjectHashMap<>(256, 0.9f);
         receivers = new Int2ObjectHashMap<>(256, 0.9f);
         connection.onClose().subscribe(Subscribers.cleanup(() -> {
             cleanup();
         }));
+    }
+
+    public ClientReactiveSocket(DuplexConnection connection, Consumer<Throwable> errorConsumer,
+                                StreamIdSupplier streamIdSupplier, KeepAliveProvider keepAliveProvider) {
+        this(connection, errorConsumer, streamIdSupplier, keepAliveProvider, new DisabledEventPublisher<>());
     }
 
     @Override
@@ -143,15 +159,17 @@ public class ClientReactiveSocket implements ReactiveSocket {
                 Subscriber<Frame> fs = raw;
                 receivers.put(streamId, fs);
             }
-            Px.concatEmpty(connection.sendOne(requestFrame), Px.never())
-              .cast(Payload.class)
-              .doOnCancel(() -> {
+            Publisher<Void> send = eventPublishingSocket.decorateSend(streamId, connection.sendOne(requestFrame), 0,
+                                                                      RequestResponse);
+            eventPublishingSocket.decorateReceive(streamId, Px.concatEmpty(send, Px.never())
+                                                              .cast(Payload.class)
+                                                              .doOnCancel(() -> {
                   if (connection.availability() > 0.0) {
                       connection.sendOne(Frame.Cancel.from(streamId))
                                 .subscribe(DefaultSubscriber.defaultInstance());
                   }
-              })
-              .subscribe(subscriber);
+                  removeReceiver(streamId);
+              }), RequestResponse).subscribe(subscriber);
         });
     }
 
@@ -170,14 +188,15 @@ public class ClientReactiveSocket implements ReactiveSocket {
                 }, requestN -> {
                     transportReceiveSubscription.request(requestN);
                 });
-                connection.send(sender).subscribe(sendSub);
+                eventPublishingSocket.decorateSend(streamId, connection.send(sender), 0,
+                                                   fromFrameType(requestType)).subscribe(sendSub);
                 s.onSubscribe(sub);
             };
 
             RemoteReceiver receiver = new RemoteReceiver(src, connection, streamId, removeReceiverLambda(streamId),
                                                          true);
             registerSenderReceiver(streamId, sender, receiver);
-            return receiver;
+            return eventPublishingSocket.decorateReceive(streamId, receiver, fromFrameType(requestType));
         });
     }
 

@@ -17,6 +17,7 @@ import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.FrameType;
 import io.reactivesocket.Payload;
 import io.reactivesocket.ReactiveSocket;
+import io.reactivesocket.events.EventSource.EventSubscription;
 import io.reactivesocket.lease.Lease;
 
 import java.util.concurrent.TimeUnit;
@@ -34,7 +35,24 @@ public interface EventListener {
         RequestStream,
         RequestChannel,
         MetadataPush,
-        FireAndForget
+        FireAndForget;
+
+        public static RequestType fromFrameType(FrameType frameType) {
+            switch (frameType) {
+            case REQUEST_RESPONSE:
+                return RequestResponse;
+            case FIRE_AND_FORGET:
+                return FireAndForget;
+            case REQUEST_STREAM:
+                return RequestStream;
+            case REQUEST_CHANNEL:
+                return RequestChannel;
+            case METADATA_PUSH:
+                return MetadataPush;
+            default:
+                throw new IllegalArgumentException("Unknown frame type: " + frameType);
+            }
+        }
     }
 
     /**
@@ -61,8 +79,8 @@ public interface EventListener {
     default void requestReceiveComplete(int streamId, RequestType type, long duration, TimeUnit durationUnit) {}
 
     /**
-     * End event for receiving a new request from the peer. This callback will be invoked when an cause frame is
-     * received on the request. If the request is successfully completed,
+     * End event for receiving a new request from the peer. This callback will be invoked when an error frame is
+     * received for the request. If the request is successfully completed,
      * {@link #requestReceiveComplete(int, RequestType, long, TimeUnit)} will be called instead.
      *
      * @param streamId Stream Id for the request.
@@ -73,6 +91,17 @@ public interface EventListener {
      */
     default void requestReceiveFailed(int streamId, RequestType type, long duration, TimeUnit durationUnit,
                                       Throwable cause) {}
+
+    /**
+     * Cancel event for receiving a new request from the peer. This callback will be invoked when request receive is
+     * cancelled.
+     *
+     * @param streamId Stream Id for the request.
+     * @param type Request type.
+     * @param duration Time in the {@code durationUnit} since the start of the request receive.
+     * @param durationUnit {@code TimeUnit} for the duration.
+     */
+    default void requestReceiveCancelled(int streamId, RequestType type, long duration, TimeUnit durationUnit) {}
 
     /**
      * Start event for sending a new request to the peer. This callback will be invoked when first frame of the
@@ -90,7 +119,7 @@ public interface EventListener {
      *
      * @param streamId Stream Id for the request.
      * @param type Request type.
-     * @param duration Time between writing of the first request frame and last.
+     * @param duration Time between subscription to request stream and last.
      * @param durationUnit {@code TimeUnit} for the duration.
      */
     default void requestSendComplete(int streamId, RequestType type, long duration, TimeUnit durationUnit) {}
@@ -101,12 +130,24 @@ public interface EventListener {
      *
      * @param streamId Stream Id for the request.
      * @param type Request type.
-     * @param duration Time between writing of the first request frame and error.
+     * @param duration Time between subscription to request stream and error.
      * @param durationUnit {@code TimeUnit} for the duration.
      * @param cause Cause for the failure.
      */
     default void requestSendFailed(int streamId, RequestType type, long duration, TimeUnit durationUnit,
                                    Throwable cause) {}
+
+    /**
+     * Cancel event for sending a new request to the peer. This callback will be invoked if the write was cancelled by
+     * transport or user cancelled the response before the request was written.
+     *
+     * @param streamId Stream Id for the request.
+     * @param type Request type.
+     * @param duration Time between subscription to request stream and cancellation.
+     * @param durationUnit {@code TimeUnit} for the duration.
+     */
+    default void requestSendCancelled(int streamId, RequestType type, long duration, TimeUnit durationUnit) {
+    }
 
     /**
      * Start event for sending a response to the peer. This callback will be invoked when first frame of the
@@ -125,7 +166,7 @@ public interface EventListener {
      *
      * @param streamId Stream Id for the response.
      * @param type Request type.
-     * @param duration Time between sending the first response frame and last.
+     * @param duration Time between subscription to response stream and last.
      * @param durationUnit {@code TimeUnit} for the duration.
      */
     default void responseSendComplete(int streamId, RequestType type, long duration, TimeUnit durationUnit) {}
@@ -136,12 +177,24 @@ public interface EventListener {
      *
      * @param streamId Stream Id for the response.
      * @param type Request type.
-     * @param duration Time between sending the first response frame and error.
+     * @param duration Time between subscription to response stream and error.
      * @param durationUnit {@code TimeUnit} for the duration.
      * @param cause Cause for the failure.
      */
     default void responseSendFailed(int streamId, RequestType type, long duration, TimeUnit durationUnit,
                                        Throwable cause) {}
+
+    /**
+     * Cancel event for sending a response to the peer. This callback will be invoked if the write was cancelled by
+     * transport or peer cancelled the response subscription.
+     *
+     * @param streamId Stream Id for the response.
+     * @param type Request type.
+     * @param duration Time between subscription to response stream and cancel.
+     * @param durationUnit {@code TimeUnit} for the duration.
+     */
+    default void responseSendCancelled(int streamId, RequestType type, long duration, TimeUnit durationUnit) {
+    }
 
     /**
      * Start event for receiving a response from the peer. This callback will be invoked when first frame of the
@@ -160,7 +213,7 @@ public interface EventListener {
      *
      * @param streamId Stream Id for the response.
      * @param type Request type.
-     * @param duration Time between receiving the first response frame and last.
+     * @param duration Time between subscription to response stream and completion.
      * @param durationUnit {@code TimeUnit} for the duration.
      */
     default void responseReceiveComplete(int streamId, RequestType type, long duration, TimeUnit durationUnit) {}
@@ -171,12 +224,24 @@ public interface EventListener {
      *
      * @param streamId Stream Id for the response.
      * @param type Request type.
-     * @param duration Time between receiving the first response frame and error.
+     * @param duration Time between subscription to response stream and error.
      * @param durationUnit {@code TimeUnit} for the duration.
      * @param cause Cause for the failure.
      */
     default void responseReceiveFailed(int streamId, RequestType type, long duration, TimeUnit durationUnit,
                                        Throwable cause) {}
+
+    /**
+     * Cancel event for receiving a response from the peer. This callback will be invoked if the user cancelled the
+     * response subscription.
+     *
+     * @param streamId Stream Id for the response.
+     * @param type Request type.
+     * @param duration Time between subscription to response stream and error.
+     * @param durationUnit {@code TimeUnit} for the duration.
+     */
+    default void responseReceiveCancelled(int streamId, RequestType type, long duration, TimeUnit durationUnit) {
+    }
 
     /**
      * On {@code ReactiveSocket} close.
@@ -205,16 +270,18 @@ public interface EventListener {
     /**
      * When a lease is sent.
      *
-     * @param lease Lease sent.
+     * @param permits Permits in the lease.
+     * @param ttl Time to live for the lease.
      */
-    default void leaseSent(Lease lease) {}
+    default void leaseSent(int permits, int ttl) {}
 
     /**
      * When a lease is received.
      *
-     * @param lease Lease received.
+     * @param permits Permits in the lease.
+     * @param ttl Time to live for the lease.
      */
-    default void leaseReceived(Lease lease) {}
+    default void leaseReceived(int permits, int ttl) {}
 
     /**
      * When an error is sent.
@@ -232,4 +299,11 @@ public interface EventListener {
      */
     default void errorReceived(int streamId, int errorCode) {}
 
+    /**
+     * Disposes this listener. This is a callback that can be invoked as a result of {@link EventSubscription#cancel()}
+     * of the associated subscription OR as an explicit signal from the {@link EventSource}.<p>
+     *     This would mark the end of notifications to this listener. Some in-flight notifications may be sent, due to
+     *     the concurrent nature of the act of disposing and generation of notifications.
+     */
+    default void dispose() { }
 }
