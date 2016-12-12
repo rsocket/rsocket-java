@@ -148,8 +148,8 @@ public class FrameHeaderFlyweight {
         final int frameLength = computeFrameHeaderLength(frameType, metadata.remaining(), data.remaining());
 
         final FrameType outFrameType;
-
         switch (frameType) {
+            case NEXT_COMPLETE:
             case COMPLETE:
                 outFrameType = FrameType.RESPONSE;
                 flags |= FLAGS_RESPONSE_C;
@@ -162,10 +162,10 @@ public class FrameHeaderFlyweight {
                 break;
         }
 
-        int length = FrameHeaderFlyweight.encodeFrameHeader(mutableDirectBuffer, offset, frameLength, flags, outFrameType, streamId);
+        int length = encodeFrameHeader(mutableDirectBuffer, offset, frameLength, flags, outFrameType, streamId);
 
-        length += FrameHeaderFlyweight.encodeMetadata(mutableDirectBuffer, offset, offset + length, metadata);
-        length += FrameHeaderFlyweight.encodeData(mutableDirectBuffer, offset + length, data);
+        length += encodeMetadata(mutableDirectBuffer, offset, offset + length, metadata);
+        length += encodeData(mutableDirectBuffer, offset + length, data);
 
         return length;
     }
@@ -179,13 +179,10 @@ public class FrameHeaderFlyweight {
 
         if (FrameType.RESPONSE == result) {
             final int flags = flags(directBuffer, offset);
-            final int dataLength = dataLength(directBuffer, offset, 0);
 
             boolean complete = FLAGS_RESPONSE_C == (flags & FLAGS_RESPONSE_C);
-            if (complete && 0 < dataLength) {
+            if (complete) {
                 result = FrameType.NEXT_COMPLETE;
-            } else if (complete) {
-                result = FrameType.COMPLETE;
             } else {
                 result = FrameType.NEXT;
             }
@@ -233,7 +230,7 @@ public class FrameHeaderFlyweight {
     }
 
     private static int computeMetadataLength(final int metadataPayloadLength) {
-        return metadataPayloadLength + ((0 == metadataPayloadLength) ? 0 : BitUtil.SIZE_OF_INT);
+        return metadataPayloadLength + (0 == metadataPayloadLength? 0 : BitUtil.SIZE_OF_INT);
     }
 
     private static int metadataFieldLength(final DirectBuffer directBuffer, final int offset) {
