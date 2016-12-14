@@ -29,9 +29,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.*;
 
 public class ServerReactiveSocketTest {
 
@@ -60,7 +58,8 @@ public class ServerReactiveSocketTest {
         assertThat("Unexpected error.", rule.errors, is(empty()));
         TestSubscriber<Frame> sendSub = sendSubscribers.iterator().next();
         sendSub.request(2);
-        assertThat("Unexpected frame sent.", rule.connection.awaitSend().getType(), is(FrameType.COMPLETE));
+        assertThat("Unexpected frame sent.", rule.connection.awaitSend().getType(),
+                   anyOf(is(FrameType.COMPLETE), is(FrameType.NEXT_COMPLETE)));
     }
 
     @Test(timeout = 2000)

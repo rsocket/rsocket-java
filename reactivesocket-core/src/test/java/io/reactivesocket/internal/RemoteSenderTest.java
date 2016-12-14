@@ -77,7 +77,7 @@ public class RemoteSenderTest {
         receiverSub.assertValue(new Predicate<Frame>() {
             @Override
             public boolean test(Frame frame) throws Exception {
-                return frame.getType() == FrameType.COMPLETE;
+                return frame.getType() == FrameType.COMPLETE || frame.getType() == FrameType.NEXT_COMPLETE;
             }
         });
 
@@ -138,7 +138,7 @@ public class RemoteSenderTest {
         receiverSub.assertValue(new Predicate<Frame>() {
             @Override
             public boolean test(Frame frame) throws Exception {
-                return frame.getType() == FrameType.COMPLETE;
+                return frame.getType() == FrameType.COMPLETE || frame.getType() == FrameType.NEXT_COMPLETE;
             }
         });
         receiverSub.assertNoErrors();

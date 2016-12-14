@@ -142,7 +142,8 @@ public final class RemoteSender implements Processor<Frame, Frame>, Subscription
     @Override
     public void onNext(Frame frame) {
         // No flow-control check
-        assert frame.getType() != FrameType.ERROR && frame.getType() != FrameType.COMPLETE;
+        FrameType frameType = frame.getType();
+        assert frameType != FrameType.ERROR && !isCompleteFrame(frameType);
         synchronized (this) {
             outstanding--;
         }
@@ -229,10 +230,14 @@ public final class RemoteSender implements Processor<Frame, Frame>, Subscription
 
     private void unsafeSendTerminalFrameToTransport(Frame terminalFrame, Throwable optionalError) {
         transportSubscription.safeOnNext(terminalFrame);
-        if (terminalFrame.getType() == FrameType.COMPLETE) {
+        if (terminalFrame.getType() == FrameType.COMPLETE || terminalFrame.getType() == FrameType.NEXT_COMPLETE) {
             transportSubscription.safeOnComplete();
         } else {
             transportSubscription.safeOnError(optionalError);
         }
+    }
+
+    private static boolean isCompleteFrame(FrameType frameType) {
+        return frameType == FrameType.COMPLETE || frameType == FrameType.NEXT_COMPLETE;
     }
 }
