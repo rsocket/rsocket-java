@@ -16,7 +16,7 @@
 
 dependencies {
     compile project(':reactivesocket-core')
-    compile 'io.reactivex.rxjava2:rxjava:2.0.0-RC5'
+    compile 'io.reactivex.rxjava2:rxjava:2.0.2'
     compile 'junit:junit:4.12'
     compile 'org.mockito:mockito-core:1.10.19'
     compile "org.hamcrest:hamcrest-library:1.3"
