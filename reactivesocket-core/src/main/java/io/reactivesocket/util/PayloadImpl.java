@@ -23,13 +23,23 @@ import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 
 /**
- * An implementation of {@link Payload}
+ * An implementation of {@link Payload}. This implementation is <b>not</b> thread-safe, and hence any method can not be
+ * invoked concurrently.
+ *
+ * <h2>Reusability</h2>
+ *
+ * By default, an instance is reusable, i.e. everytime {@link #getData()} or {@link #getMetadata()} is invoked, the
+ * position of the returned buffer is reset to the start of data in the buffer. For creating an instance for single-use,
+ * {@link #PayloadImpl(ByteBuffer, ByteBuffer, boolean)} must be used.
  */
 public class PayloadImpl implements Payload {
 
     public static final Payload EMPTY = new PayloadImpl(Frame.NULL_BYTEBUFFER, Frame.NULL_BYTEBUFFER);
 
     private final ByteBuffer data;
+    private final int dataStartPosition;
+    private final int metadataStartPosition;
+    private final boolean reusable;
     private final ByteBuffer metadata;
 
     public PayloadImpl(String data) {
@@ -61,17 +71,39 @@ public class PayloadImpl implements Payload {
     }
 
     public PayloadImpl(ByteBuffer data, ByteBuffer metadata) {
+        this(data, metadata, true);
+    }
+
+    /**
+     * New instance where every invocation of {@link #getMetadata()} and {@link #getData()} will reset the position of
+     * the buffer to the position when it is created, if and only if, {@code reusable} is set to {@code true}.
+     *
+     * @param data Buffer for data.
+     * @param metadata Buffer for metadata.
+     * @param reusable {@code true} if the buffer position is to be reset on every invocation of {@link #getData()} and
+     * {@link #getMetadata()}.
+     */
+    public PayloadImpl(ByteBuffer data, ByteBuffer metadata, boolean reusable) {
         this.data = data;
+        this.reusable = reusable;
         this.metadata = null == metadata ? Frame.NULL_BYTEBUFFER : metadata;
+        dataStartPosition = reusable ? this.data.position() : 0;
+        metadataStartPosition = reusable ? this.metadata.position() : 0;
     }
 
     @Override
     public ByteBuffer getData() {
+        if (reusable) {
+            data.position(dataStartPosition);
+        }
         return data;
     }
 
     @Override
     public ByteBuffer getMetadata() {
+        if (reusable) {
+            metadata.position(metadataStartPosition);
+        }
         return metadata;
     }
 
