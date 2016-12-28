@@ -30,14 +30,18 @@ public class StreamIdSupplier {
     }
 
     public synchronized boolean isValid(int streamId) {
-        return this.streamId < streamId;
+        return (isEven(streamId) == isEven(this.streamId)) && this.streamId >= streamId && streamId > 0;
+    }
+
+    private boolean isEven(int streamId) {
+        return streamId % 2 == 0;
     }
 
     public static StreamIdSupplier clientSupplier() {
-        return new StreamIdSupplier(1);
+        return new StreamIdSupplier(-1);
     }
 
     public static StreamIdSupplier serverSupplier() {
-        return new StreamIdSupplier(2);
+        return new StreamIdSupplier(0);
     }
 }
