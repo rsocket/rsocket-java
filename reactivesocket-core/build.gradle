@@ -39,7 +39,5 @@ jmh {
 dependencies {
     compile project(':reactivesocket-publishers')
 
-    testCompile project(':reactivesocket-test')
-
     jmh group: 'org.openjdk.jmh', name: 'jmh-generator-annprocess', version: '1.15'
 }
