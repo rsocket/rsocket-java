@@ -159,7 +159,7 @@ public class ClientReactiveSocket implements ReactiveSocket {
             int streamId = nextStreamId();
             RemoteSender sender = new RemoteSender(request.map(payload -> Frame.Request.from(streamId, requestType,
                                                                                              payload, 1)),
-                                                   removeSenderLambda(streamId), 1);
+                                                   removeSenderLambda(streamId), streamId, 1);
             Publisher<Frame> src = s -> {
                 CancellableSubscriber<Void> sendSub = doOnError(throwable -> {
                     s.onError(throwable);
