@@ -27,43 +27,43 @@ public class StreamIdSupplierTest {
     public void testClientIsValid() {
         StreamIdSupplier s = StreamIdSupplier.clientSupplier();
 
-        assertFalse(s.isValid(1));
-        assertFalse(s.isValid(3));
+        assertFalse(s.isBeforeOrCurrent(1));
+        assertFalse(s.isBeforeOrCurrent(3));
 
         s.nextStreamId();
-        assertTrue(s.isValid(1));
-        assertFalse(s.isValid(3));
+        assertTrue(s.isBeforeOrCurrent(1));
+        assertFalse(s.isBeforeOrCurrent(3));
 
         s.nextStreamId();
-        assertTrue(s.isValid(3));
+        assertTrue(s.isBeforeOrCurrent(3));
 
         // negative
-        assertFalse(s.isValid(-1));
+        assertFalse(s.isBeforeOrCurrent(-1));
         // connection
-        assertFalse(s.isValid(0));
-        // server
-        assertFalse(s.isValid(2));
+        assertFalse(s.isBeforeOrCurrent(0));
+        // server also accepted (checked externally)
+        assertTrue(s.isBeforeOrCurrent(2));
     }
 
     @Test
     public void testServerIsValid() {
         StreamIdSupplier s = StreamIdSupplier.serverSupplier();
 
-        assertFalse(s.isValid(2));
-        assertFalse(s.isValid(4));
+        assertFalse(s.isBeforeOrCurrent(2));
+        assertFalse(s.isBeforeOrCurrent(4));
 
         s.nextStreamId();
-        assertTrue(s.isValid(2));
-        assertFalse(s.isValid(4));
+        assertTrue(s.isBeforeOrCurrent(2));
+        assertFalse(s.isBeforeOrCurrent(4));
 
         s.nextStreamId();
-        assertTrue(s.isValid(4));
+        assertTrue(s.isBeforeOrCurrent(4));
 
         // negative
-        assertFalse(s.isValid(-2));
+        assertFalse(s.isBeforeOrCurrent(-2));
         // connection
-        assertFalse(s.isValid(0));
-        // server
-        assertFalse(s.isValid(1));
+        assertFalse(s.isBeforeOrCurrent(0));
+        // client also accepted (checked externally)
+        assertTrue(s.isBeforeOrCurrent(1));
     }
 }
