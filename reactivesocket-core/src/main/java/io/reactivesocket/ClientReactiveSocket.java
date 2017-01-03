@@ -301,7 +301,7 @@ public class ClientReactiveSocket implements ReactiveSocket {
     }
 
     private void handleMissingResponseProcessor(int streamId, FrameType type, Frame frame) {
-        if (!streamIdSupplier.isValid(streamId)) {
+        if (!streamIdSupplier.isBeforeOrCurrent(streamId)) {
             if (type == FrameType.ERROR) {
                 // message for stream that has never existed, we have a problem with
                 // the overall connection and must tear down

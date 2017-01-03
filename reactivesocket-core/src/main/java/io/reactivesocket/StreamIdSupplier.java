@@ -29,15 +29,15 @@ public class StreamIdSupplier {
         return streamId;
     }
 
-    public synchronized boolean isValid(int streamId) {
-        return this.streamId < streamId;
+    public synchronized boolean isBeforeOrCurrent(int streamId) {
+        return this.streamId >= streamId && streamId > 0;
     }
 
     public static StreamIdSupplier clientSupplier() {
-        return new StreamIdSupplier(1);
+        return new StreamIdSupplier(-1);
     }
 
     public static StreamIdSupplier serverSupplier() {
-        return new StreamIdSupplier(2);
+        return new StreamIdSupplier(0);
     }
 }
