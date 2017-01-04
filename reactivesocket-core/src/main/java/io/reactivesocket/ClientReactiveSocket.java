@@ -26,6 +26,7 @@ import io.reactivesocket.lease.Lease;
 import io.reactivesocket.lease.LeaseImpl;
 import io.reactivesocket.reactivestreams.extensions.DefaultSubscriber;
 import io.reactivesocket.reactivestreams.extensions.Px;
+import io.reactivesocket.reactivestreams.extensions.internal.FlowControlHelper;
 import io.reactivesocket.reactivestreams.extensions.internal.ValidatingSubscription;
 import io.reactivesocket.reactivestreams.extensions.internal.subscribers.CancellableSubscriber;
 import io.reactivesocket.reactivestreams.extensions.internal.subscribers.Subscribers;
@@ -54,7 +55,7 @@ public class ClientReactiveSocket implements ReactiveSocket {
     private final Int2ObjectHashMap<Subscription> senders;
     private final Int2ObjectHashMap<Subscriber<Frame>> receivers;
 
-    private volatile Subscription transportReceiveSubscription;
+    private final BufferingSubscription transportReceiveSubscription = new BufferingSubscription();
     private CancellableSubscriber<Void> keepAliveSendSub;
     private volatile Consumer<Lease> leaseConsumer; // Provided on start()
 
@@ -190,7 +191,7 @@ public class ClientReactiveSocket implements ReactiveSocket {
     private void startReceivingRequests() {
         Px
             .from(connection.receive())
-            .doOnSubscribe(subscription -> transportReceiveSubscription = subscription)
+            .doOnSubscribe(subscription -> transportReceiveSubscription.switchTo(subscription))
             .doOnNext(this::handleIncomingFrames)
             .subscribe();
     }
@@ -200,9 +201,7 @@ public class ClientReactiveSocket implements ReactiveSocket {
         if (null != keepAliveSendSub) {
             keepAliveSendSub.cancel();
         }
-        if (null != transportReceiveSubscription) {
-            transportReceiveSubscription.cancel();
-        }
+        transportReceiveSubscription.cancel();
     }
 
     private void handleIncomingFrames(Frame frame) {
@@ -351,5 +350,46 @@ public class ClientReactiveSocket implements ReactiveSocket {
     private synchronized void registerSenderReceiver(int streamId, Subscription sender, Subscriber<Frame> receiver) {
         senders.put(streamId, sender);
         receivers.put(streamId, receiver);
+    }
+
+    private static class BufferingSubscription implements Subscription {
+
+        private int requested;
+        private boolean cancelled;
+        private Subscription delegate;
+
+        @Override
+        public void request(long n) {
+            if (relay()) {
+                delegate.request(n);
+            } else {
+                requested = FlowControlHelper.incrementRequestN(requested, n);
+            }
+        }
+
+        @Override
+        public void cancel() {
+            if (relay()) {
+                delegate.cancel();
+            } else {
+                cancelled = true;
+            }
+        }
+
+        private void switchTo(Subscription subscription) {
+            synchronized (this) {
+                delegate = subscription;
+            }
+            if (requested > 0) {
+                subscription.request(requested);
+            }
+            if (cancelled) {
+                subscription.cancel();
+            }
+        }
+
+        private synchronized boolean relay() {
+            return delegate != null;
+        }
     }
 }

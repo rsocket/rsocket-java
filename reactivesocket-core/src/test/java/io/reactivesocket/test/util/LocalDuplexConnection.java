@@ -19,6 +19,7 @@ package io.reactivesocket.test.util;
 import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
 import io.reactivesocket.reactivestreams.extensions.Px;
+import io.reactivesocket.reactivestreams.extensions.internal.EmptySubject;
 import io.reactivex.Flowable;
 import io.reactivex.processors.PublishProcessor;
 import org.reactivestreams.Publisher;
@@ -26,12 +27,14 @@ import org.reactivestreams.Publisher;
 public class LocalDuplexConnection implements DuplexConnection {
     private final PublishProcessor<Frame> send;
     private final PublishProcessor<Frame> receive;
+    private final EmptySubject closeNotifier;
     private final String name;
 
     public LocalDuplexConnection(String name, PublishProcessor<Frame> send, PublishProcessor<Frame> receive) {
         this.name = name;
         this.send = send;
         this.receive = receive;
+        closeNotifier = new EmptySubject();
     }
 
     @Override
@@ -56,11 +59,14 @@ public class LocalDuplexConnection implements DuplexConnection {
 
     @Override
     public Publisher<Void> close() {
-        return Px.empty();
+        return Px.defer(() -> {
+            closeNotifier.onComplete();
+            return Px.empty();
+        });
     }
 
     @Override
     public Publisher<Void> onClose() {
-        return Px.empty();
+        return closeNotifier;
     }
 }
