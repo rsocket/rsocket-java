@@ -17,6 +17,9 @@ package io.reactivesocket.util;
 
 import java.util.concurrent.TimeUnit;
 
+/**
+ * Abstraction to get current time and durations.
+ */
 public final class Clock {
 
     private Clock() {

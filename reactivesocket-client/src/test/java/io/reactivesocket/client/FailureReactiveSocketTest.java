@@ -114,7 +114,7 @@ public class FailureReactiveSocketTest {
                 throw new RuntimeException();
             }
         });
-        ReactiveSocketClient factory = new ReactiveSocketClient() {
+        ReactiveSocketClient factory = new AbstractReactiveSocketClient() {
             @Override
             public Publisher<ReactiveSocket> connect() {
                 return subscriber -> {

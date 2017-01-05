@@ -31,7 +31,7 @@ import java.util.function.Function;
  * An implementation of {@code ReactiveSocketClient} that operates on a cluster of target servers instead of a single
  * server.
  */
-public class LoadBalancingClient implements ReactiveSocketClient {
+public class LoadBalancingClient extends AbstractReactiveSocketClient {
 
     private final LoadBalancerInitializer initializer;
 

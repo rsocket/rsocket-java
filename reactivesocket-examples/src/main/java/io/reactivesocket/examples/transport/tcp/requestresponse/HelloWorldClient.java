@@ -39,27 +39,27 @@ public final class HelloWorldClient {
 
     public static void main(String[] args) {
 
-        StartedServer server = ReactiveSocketServer.create(TcpTransportServer.create())
-                                                   .start((setupPayload, reactiveSocket) -> {
-                                                       return new DisabledLeaseAcceptingSocket(new AbstractReactiveSocket() {
-                                                           @Override
-                                                           public Publisher<Payload> requestResponse(Payload p) {
-                                                               return Flowable.just(p);
-                                                           }
-                                                       });
-                                                   });
+        ReactiveSocketServer s = ReactiveSocketServer.create(TcpTransportServer.create());
+        StartedServer server = s.start((setupPayload, reactiveSocket) -> {
+            return new DisabledLeaseAcceptingSocket(new AbstractReactiveSocket() {
+                @Override
+                public Publisher<Payload> requestResponse(Payload p) {
+                    return Flowable.just(p);
+                }
+            });
+        });
 
         SocketAddress address = server.getServerAddress();
-        ReactiveSocket socket = Flowable.fromPublisher(ReactiveSocketClient.create(TcpTransportClient.create(address),
-                                                                      keepAlive(never()).disableLease())
-                                                              .connect())
-                                    .blockingFirst();
+        ReactiveSocketClient client = ReactiveSocketClient.create(TcpTransportClient.create(address),
+                                                                  keepAlive(never()).disableLease());
+        ReactiveSocket socket = Flowable.fromPublisher(client.connect()).singleOrError().blockingGet();
 
         Flowable.fromPublisher(socket.requestResponse(new PayloadImpl("Hello")))
                 .map(payload -> payload.getData())
                 .map(ByteBufferUtil::toUtf8String)
                 .doOnNext(System.out::println)
                 .concatWith(Flowable.fromPublisher(socket.close()).cast(String.class))
-                .blockingFirst();
+                .ignoreElements()
+                .blockingAwait();
     }
 }

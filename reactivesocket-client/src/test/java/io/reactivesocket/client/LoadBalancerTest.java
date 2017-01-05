@@ -134,7 +134,7 @@ public class LoadBalancerTest {
     }
 
     private static ReactiveSocketClient succeedingFactory(ReactiveSocket socket) {
-        return new ReactiveSocketClient() {
+        return new AbstractReactiveSocketClient() {
             @Override
             public Publisher<ReactiveSocket> connect() {
                 return s -> s.onNext(socket);
@@ -149,7 +149,7 @@ public class LoadBalancerTest {
     }
 
     private static ReactiveSocketClient failingClient(SocketAddress sa) {
-        return new ReactiveSocketClient() {
+        return new AbstractReactiveSocketClient() {
             @Override
             public Publisher<ReactiveSocket> connect() {
                 Assert.fail();

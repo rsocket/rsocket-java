@@ -17,6 +17,7 @@
 package io.reactivesocket.client.filter;
 
 import io.reactivesocket.ReactiveSocket;
+import io.reactivesocket.client.AbstractReactiveSocketClient;
 import io.reactivesocket.client.ReactiveSocketClient;
 import io.reactivesocket.reactivestreams.extensions.Px;
 import io.reactivesocket.reactivestreams.extensions.Scheduler;
@@ -47,7 +48,7 @@ public final class ReactiveSocketClients {
      */
     public static ReactiveSocketClient connectTimeout(ReactiveSocketClient orig, long timeout, TimeUnit unit,
                                                       Scheduler scheduler) {
-        return new ReactiveSocketClient() {
+        return new AbstractReactiveSocketClient(orig) {
             @Override
             public Publisher<? extends ReactiveSocket> connect() {
                 return Px.from(orig.connect()).timeout(timeout, unit, scheduler);
@@ -82,7 +83,7 @@ public final class ReactiveSocketClients {
      * @return A new client wrapping the original.
      */
     public static ReactiveSocketClient wrap(ReactiveSocketClient orig, Function<ReactiveSocket, ReactiveSocket> mapper) {
-        return new ReactiveSocketClient() {
+        return new AbstractReactiveSocketClient(orig) {
             @Override
             public Publisher<? extends ReactiveSocket> connect() {
                 return Px.from(orig.connect()).map(mapper::apply);
