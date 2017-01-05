@@ -16,23 +16,16 @@
 
 package io.reactivesocket.server;
 
-import io.reactivesocket.ClientReactiveSocket;
 import io.reactivesocket.ConnectionSetupPayload;
-import io.reactivesocket.FrameType;
 import io.reactivesocket.ReactiveSocket;
-import io.reactivesocket.ServerReactiveSocket;
-import io.reactivesocket.StreamIdSupplier;
-import io.reactivesocket.client.KeepAliveProvider;
+import io.reactivesocket.events.EventSource;
+import io.reactivesocket.events.ServerEventListener;
 import io.reactivesocket.exceptions.SetupException;
-import io.reactivesocket.internal.ClientServerInputMultiplexer;
-import io.reactivesocket.lease.DefaultLeaseHonoringSocket;
 import io.reactivesocket.lease.LeaseEnforcingSocket;
-import io.reactivesocket.lease.LeaseHonoringSocket;
-import io.reactivesocket.reactivestreams.extensions.Px;
 import io.reactivesocket.transport.TransportServer;
 import io.reactivesocket.transport.TransportServer.StartedServer;
 
-public interface ReactiveSocketServer {
+public interface ReactiveSocketServer extends EventSource<ServerEventListener> {
 
     /**
      * Starts this server.
@@ -44,34 +37,7 @@ public interface ReactiveSocketServer {
     StartedServer start(SocketAcceptor acceptor);
 
     static ReactiveSocketServer create(TransportServer transportServer) {
-        return acceptor -> {
-            return transportServer.start(connection -> {
-                return Px.from(connection.receive())
-                  .switchTo(setupFrame -> {
-                      if (setupFrame.getType() == FrameType.SETUP) {
-                          ClientServerInputMultiplexer multiplexer = new ClientServerInputMultiplexer(connection);
-                          ConnectionSetupPayload setupPayload = ConnectionSetupPayload.create(setupFrame);
-                          ClientReactiveSocket sender = new ClientReactiveSocket(multiplexer.asServerConnection(),
-                                                                                 Throwable::printStackTrace,
-                                                                                 StreamIdSupplier.serverSupplier(),
-                                                                                 KeepAliveProvider.never());
-                          LeaseHonoringSocket lhs = new DefaultLeaseHonoringSocket(sender);
-                          sender.start(lhs);
-                          LeaseEnforcingSocket handler = acceptor.accept(setupPayload, sender);
-                          ServerReactiveSocket receiver = new ServerReactiveSocket(multiplexer.asClientConnection(),
-                                                                                   handler,
-                                                                                   setupPayload.willClientHonorLease(),
-                                                                                   Throwable::printStackTrace);
-                          receiver.start();
-                          return connection.onClose();
-                      } else {
-                          return Px.<Void>error(new IllegalStateException("Invalid first frame on the connection: "
-                                                                          + connection + ", frame type received: "
-                                                                          + setupFrame.getType()));
-                      }
-                  });
-            });
-        };
+        return new DefaultReactiveSocketServer(transportServer);
     }
 
     /**

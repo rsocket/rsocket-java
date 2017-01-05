@@ -43,4 +43,12 @@ public interface ClientEventListener extends EventListener {
      * @param cause Cause for the failure.
      */
     default void connectFailed(long duration, TimeUnit durationUnit, Throwable cause) {}
+
+    /**
+     * Event when a connection attempt is cancelled.
+     *
+     * @param duration Time taken since connection initiation and cancellation.
+     * @param durationUnit {@code TimeUnit} for the duration.
+     */
+    default void connectCancelled(long duration, TimeUnit durationUnit) {}
 }
