@@ -17,6 +17,8 @@
 package io.reactivesocket.client;
 
 import io.reactivesocket.ReactiveSocket;
+import io.reactivesocket.events.AbstractEventSource;
+import io.reactivesocket.events.ClientEventListener;
 import io.reactivesocket.reactivestreams.extensions.Px;
 import io.reactivesocket.reactivestreams.extensions.internal.ValidatingSubscription;
 import org.reactivestreams.Publisher;
@@ -31,21 +33,30 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * This is a temporary class to provide a {@link LoadBalancingClient#connect()} implementation when {@link LoadBalancer}
  * does not support it.
  */
-final class LoadBalancerInitializer implements Runnable {
+final class LoadBalancerInitializer extends AbstractEventSource<ClientEventListener> implements Runnable {
 
     private volatile LoadBalancer loadBalancer;
     private final Publisher<ReactiveSocket> emitSource;
     private boolean ready; // Guarded by this.
+    private boolean created; // Guarded by this.
     private final List<Subscriber<? super ReactiveSocket>> earlySubscribers = new CopyOnWriteArrayList<>();
 
-    private LoadBalancerInitializer() {
+    private LoadBalancerInitializer(Publisher<? extends Collection<ReactiveSocketClient>> factories) {
         emitSource = s -> {
             final boolean _emit;
+            final boolean _create;
             synchronized (this) {
+                _create = !created;
                 _emit = ready;
                 if (!_emit) {
                     earlySubscribers.add(s);
                 }
+                if (!created) {
+                    created = true;
+                }
+            }
+            if (_create) {
+                loadBalancer = new LoadBalancer(factories, this, this);
             }
             if (_emit) {
                 s.onSubscribe(ValidatingSubscription.empty(s));
@@ -56,10 +67,7 @@ final class LoadBalancerInitializer implements Runnable {
     }
 
     static LoadBalancerInitializer create(Publisher<? extends Collection<ReactiveSocketClient>> factories) {
-        final LoadBalancerInitializer initializer = new LoadBalancerInitializer();
-        final LoadBalancer loadBalancer = new LoadBalancer(factories, initializer);
-        initializer.loadBalancer = loadBalancer;
-        return initializer;
+        return new LoadBalancerInitializer(factories);
     }
 
     Publisher<ReactiveSocket> connect() {

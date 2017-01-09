@@ -36,6 +36,7 @@ public class LoadBalancingClient extends AbstractReactiveSocketClient {
     private final LoadBalancerInitializer initializer;
 
     public LoadBalancingClient(LoadBalancerInitializer initializer) {
+        super(initializer);
         this.initializer = initializer;
     }
 
