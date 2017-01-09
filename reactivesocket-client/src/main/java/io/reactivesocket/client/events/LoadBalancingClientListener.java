@@ -13,6 +13,7 @@
 
 package io.reactivesocket.client.events;
 
+import io.reactivesocket.Availability;
 import io.reactivesocket.client.LoadBalancingClient;
 import io.reactivesocket.events.ClientEventListener;
 
@@ -27,45 +28,47 @@ public interface LoadBalancingClientListener extends ClientEventListener {
     /**
      * Event when a new socket is added to the load balancer.
      *
-     * @param socketAddress Address for the socket.
+     * @param availability Availability for the added socket.
      */
-    default void socketAdded(SocketAddress socketAddress) {}
+    default void socketAdded(Availability availability) {}
 
     /**
      * Event when a socket is removed from the load balancer.
      *
-     * @param socketAddress Address for the socket.
+     * @param availability Availability for the removed socket.
      */
-    default void socketRemoved(SocketAddress socketAddress) {}
+    default void socketRemoved(Availability availability) {}
 
     /**
      * An event when a server is added to the load balancer.
      *
-     * @param socketAddress Address for the server.
+     * @param availability Availability of the added server.
      */
-    default void serverAdded(SocketAddress socketAddress) {}
+    default void serverAdded(Availability availability) {}
 
     /**
      * An event when a server is removed from the load balancer.
      *
-     * @param socketAddress Address for the server.
+     * @param availability Availability of the removed server.
      */
-    default void serverRemoved(SocketAddress socketAddress) {}
+    default void serverRemoved(Availability availability) {}
 
     /**
      * An event when the expected number of active sockets held by the load balancer changes.
      *
+     * @param oldAperture Old aperture size, i.e. expected number of active sockets.
      * @param newAperture New aperture size, i.e. expected number of active sockets.
      */
-    default void apertureChanged(int newAperture) {}
+    default void apertureChanged(int oldAperture, int newAperture) {}
 
     /**
      * An event when the expected time period for refreshing active sockets in the load balancer changes.
      *
+     * @param oldPeriod Old refresh period.
      * @param newPeriod New refresh period.
      * @param periodUnit {@link TimeUnit} for the refresh period.
      */
-    default void socketRefreshPeriodChanged(long newPeriod, TimeUnit periodUnit) {}
+    default void socketRefreshPeriodChanged(long oldPeriod, long newPeriod, TimeUnit periodUnit) {}
 
     /**
      * An event to mark the start of the socket refresh cycle.
