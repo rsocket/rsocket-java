@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.reactivesocket.loadbalancer.servo;
+package io.reactivesocket.spectator;
 
 import io.reactivesocket.AbstractReactiveSocket;
 import io.reactivesocket.Payload;
@@ -25,10 +25,10 @@ import org.junit.Assert;
 import org.junit.Test;
 import org.reactivestreams.Publisher;
 
-public class ServoMetricsReactiveSocketTest {
+public class InstrumentedReactiveSocketTest {
     @Test
     public void testCountSuccess() {
-        ServoMetricsReactiveSocket client = new ServoMetricsReactiveSocket(new RequestResponseSocket(), "test");
+        InstrumentedReactiveSocket client = new InstrumentedReactiveSocket(new RequestResponseSocket(), "test");
 
         Publisher<Payload> payloadPublisher = client.requestResponse(PayloadImpl.EMPTY);
 
@@ -42,7 +42,7 @@ public class ServoMetricsReactiveSocketTest {
 
     @Test
     public void testCountFailure() {
-        ServoMetricsReactiveSocket client = new ServoMetricsReactiveSocket(new AbstractReactiveSocket() {}, "test");
+        InstrumentedReactiveSocket client = new InstrumentedReactiveSocket(new AbstractReactiveSocket() {}, "test");
 
         Publisher<Payload> payloadPublisher = client.requestResponse(PayloadImpl.EMPTY);
 
@@ -57,7 +57,7 @@ public class ServoMetricsReactiveSocketTest {
 
     @Test
     public void testHistogram() throws Exception {
-        ServoMetricsReactiveSocket client = new ServoMetricsReactiveSocket(new RequestResponseSocket(), "test");
+        InstrumentedReactiveSocket client = new InstrumentedReactiveSocket(new RequestResponseSocket(), "test");
 
         for (int i = 0; i < 10; i ++) {
             Publisher<Payload> payloadPublisher = client.requestResponse(PayloadImpl.EMPTY);

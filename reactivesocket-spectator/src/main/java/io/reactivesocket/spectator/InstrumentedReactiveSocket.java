@@ -1,24 +1,21 @@
 /*
- * Copyright 2016 Netflix, Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2017 Netflix, Inc.
+ * <p>
+ *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
+ *  the License. You may obtain a copy of the License at
+ *  <p>
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *  <p>
+ *  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
+ *  an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
+ *  specific language governing permissions and limitations under the License.
  */
-package io.reactivesocket.loadbalancer.servo;
+package io.reactivesocket.spectator;
 
 import io.reactivesocket.Payload;
 import io.reactivesocket.ReactiveSocket;
-import io.reactivesocket.loadbalancer.servo.internal.HdrHistogramServoTimer;
-import io.reactivesocket.loadbalancer.servo.internal.ThreadLocalAdderCounter;
+import io.reactivesocket.spectator.internal.HdrHistogramPercentileTimer;
+import io.reactivesocket.spectator.internal.ThreadLocalAdderCounter;
 import io.reactivesocket.util.ReactiveSocketProxy;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
@@ -29,10 +26,10 @@ import static java.util.concurrent.TimeUnit.NANOSECONDS;
 /**
  * An implementation of {@link ReactiveSocket} that sends metrics to Servo
  */
-public class ServoMetricsReactiveSocket extends ReactiveSocketProxy {
+public class InstrumentedReactiveSocket extends ReactiveSocketProxy {
     final ThreadLocalAdderCounter success;
     final ThreadLocalAdderCounter failure;
-    final HdrHistogramServoTimer timer;
+    final HdrHistogramPercentileTimer timer;
 
     private class RecordingSubscriber<T> implements Subscriber<T> {
         private final Subscriber<T> child;
@@ -66,11 +63,11 @@ public class ServoMetricsReactiveSocket extends ReactiveSocketProxy {
         }
     }
 
-    public ServoMetricsReactiveSocket(ReactiveSocket child, String prefix) {
+    public InstrumentedReactiveSocket(ReactiveSocket child, String prefix) {
         super(child);
-        this.success = ThreadLocalAdderCounter.newThreadLocalAdderCounter(prefix + "_success");
-        this.failure = ThreadLocalAdderCounter.newThreadLocalAdderCounter(prefix + "_failure");
-        this.timer = HdrHistogramServoTimer.newInstance(prefix + "_timer");
+        success = new ThreadLocalAdderCounter("success", prefix);
+        failure = new ThreadLocalAdderCounter("failure", prefix);
+        timer = new HdrHistogramPercentileTimer("latency", prefix);
     }
 
     @Override
@@ -118,13 +115,13 @@ public class ServoMetricsReactiveSocket extends ReactiveSocketProxy {
 
         StringBuilder s = new StringBuilder();
         s.append(String.format("%-12s%-12s\n","Percentile","Latency"));
-        s.append(String.format("=========================\n"));
+        s.append("=========================\n");
         s.append(String.format("%-12s%dms\n","50%",NANOSECONDS.toMillis(timer.getP50())));
         s.append(String.format("%-12s%dms\n","90%",NANOSECONDS.toMillis(timer.getP90())));
         s.append(String.format("%-12s%dms\n","99%",NANOSECONDS.toMillis(timer.getP99())));
         s.append(String.format("%-12s%dms\n","99.9%",NANOSECONDS.toMillis(timer.getP99_9())));
         s.append(String.format("%-12s%dms\n","99.99%",NANOSECONDS.toMillis(timer.getP99_99())));
-        s.append(String.format("-------------------------\n"));
+        s.append("-------------------------\n");
         s.append(String.format("%-12s%dms\n","min",NANOSECONDS.toMillis(timer.getMin())));
         s.append(String.format("%-12s%dms\n","max",NANOSECONDS.toMillis(timer.getMax())));
         s.append(String.format("%-12s%d (%.0f%%)\n","success",successCount,100.0*successCount/totalCount));
@@ -133,7 +130,7 @@ public class ServoMetricsReactiveSocket extends ReactiveSocketProxy {
         return s.toString();
     }
 
-    private long recordStart() {
+    private static long recordStart() {
         return System.nanoTime();
     }
 
