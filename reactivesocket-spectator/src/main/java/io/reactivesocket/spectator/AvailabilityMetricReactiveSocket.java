@@ -14,13 +14,11 @@
  * limitations under the License.
  */
 
-package io.reactivesocket.loadbalancer.servo;
+package io.reactivesocket.spectator;
 
-import com.google.common.util.concurrent.AtomicDouble;
-import com.netflix.servo.DefaultMonitorRegistry;
-import com.netflix.servo.monitor.DoubleGauge;
-import com.netflix.servo.monitor.MonitorConfig;
-import com.netflix.servo.tag.TagList;
+import com.netflix.spectator.api.Id;
+import com.netflix.spectator.api.Registry;
+import com.netflix.spectator.impl.AtomicDouble;
 import io.reactivesocket.Payload;
 import io.reactivesocket.ReactiveSocket;
 import org.reactivestreams.Publisher;
@@ -29,25 +27,16 @@ import org.reactivestreams.Publisher;
  * ReactiveSocket that delegates all calls to child reactive socket, and records the current availability as a servo metric
  */
 public class AvailabilityMetricReactiveSocket implements ReactiveSocket {
+
     private final ReactiveSocket child;
-
-    private final DoubleGauge availabilityGauge;
-
     private final AtomicDouble atomicDouble;
 
-    public AvailabilityMetricReactiveSocket(ReactiveSocket child, String name, TagList tags) {
+    public AvailabilityMetricReactiveSocket(ReactiveSocket child, Registry registry, String name, String monitorId) {
+        atomicDouble = new AtomicDouble();
         this.child = child;
-        MonitorConfig.Builder builder = MonitorConfig.builder(name);
-
-        if (tags != null) {
-            builder.withTags(tags);
-        }
-        MonitorConfig config = builder.build();
-        availabilityGauge = new DoubleGauge(config);
-        DefaultMonitorRegistry.getInstance().register(availabilityGauge);
-        atomicDouble = availabilityGauge.getNumber();
+        Id id = registry.createId(name, "id", monitorId);
+        registry.gauge(id, this, socket -> socket.atomicDouble.get());
     }
-
 
     @Override
     public Publisher<Payload> requestResponse(Payload payload) {

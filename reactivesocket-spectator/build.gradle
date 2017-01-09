@@ -16,7 +16,7 @@
 
 dependencies {
     compile project(':reactivesocket-core')
-    compile 'com.netflix.servo:servo-core:latest.release'
+    compile 'com.netflix.spectator:spectator-api:0.45.0'
     compile 'org.hdrhistogram:HdrHistogram:latest.release'
 
     testCompile project(':reactivesocket-test')

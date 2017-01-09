@@ -1,4 +1,17 @@
-package io.reactivesocket.loadbalancer.servo.internal;
+/*
+ * Copyright 2017 Netflix, Inc.
+ * <p>
+ *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
+ *  the License. You may obtain a copy of the License at
+ *  <p>
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *  <p>
+ *  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
+ *  an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
+ *  specific language governing permissions and limitations under the License.
+ */
+
+package io.reactivesocket.spectator.internal;
 
 import org.HdrHistogram.ConcurrentHistogram;
 import org.HdrHistogram.Histogram;
@@ -15,7 +28,7 @@ public class SlidingWindowHistogram {
 
     private final ArrayDeque<Histogram> histogramQueue;
 
-    private final Object LOCK = new Object();
+    private final Object lock = new Object();
 
     public SlidingWindowHistogram() {
         this(5);
@@ -25,8 +38,8 @@ public class SlidingWindowHistogram {
         if (numOfWindows < 2) {
             throw new IllegalArgumentException("number of windows must be greater than 1");
         }
-        this.histogramQueue = new ArrayDeque<>(numOfWindows - 1);
-        this.liveHistogram = createHistogram();
+        histogramQueue = new ArrayDeque<>(numOfWindows - 1);
+        liveHistogram = createHistogram();
 
         for (int i = 0; i < numOfWindows - 1; i++) {
             histogramQueue.offer(createHistogram());
@@ -53,7 +66,7 @@ public class SlidingWindowHistogram {
      * on in the queue.
      */
     public void rotateHistogram() {
-        synchronized (LOCK) {
+        synchronized (lock) {
             Histogram onDeck = histogramQueue.poll();
             if (onDeck != null) {
                 onDeck.reset();
@@ -72,7 +85,7 @@ public class SlidingWindowHistogram {
     public Histogram aggregateHistogram() {
         Histogram aggregate = createHistogram();
 
-        synchronized (LOCK) {
+        synchronized (lock) {
             aggregate.add(liveHistogram);
             histogramQueue
                 .forEach(aggregate::add);
