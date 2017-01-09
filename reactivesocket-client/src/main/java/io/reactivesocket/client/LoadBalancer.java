@@ -223,15 +223,15 @@ public class LoadBalancer implements ReactiveSocket {
 
     private synchronized void addSockets(int numberOfNewSocket) {
         int n = numberOfNewSocket;
-        if (n > activeFactories.holder.size()) {
-            n = activeFactories.holder.size();
+        if (n > activeFactories.size()) {
+            n = activeFactories.size();
             logger.debug("addSockets({}) restricted by the number of factories, i.e. addSockets({})",
                 numberOfNewSocket, n);
         }
 
         Random rng = ThreadLocalRandom.current();
         while (n > 0) {
-            int size = activeFactories.holder.size();
+            int size = activeFactories.size();
             if (size == 1) {
                 ReactiveSocketClient factory = activeFactories.holder.get(0);
                 if (factory.availability() > 0.0) {
@@ -282,7 +282,7 @@ public class LoadBalancer implements ReactiveSocket {
     }
 
     private synchronized void refreshAperture() {
-        int n = activeSockets.holder.size();
+        int n = activeSockets.size();
         if (n == 0) {
             return;
         }
@@ -313,7 +313,7 @@ public class LoadBalancer implements ReactiveSocket {
         int previous = targetAperture;
         targetAperture = newValue;
         targetAperture = Math.max(minAperture, targetAperture);
-        int maxAperture = Math.min(this.maxAperture, activeSockets.holder.size() + activeFactories.holder.size());
+        int maxAperture = Math.min(this.maxAperture, activeSockets.size() + activeFactories.size());
         targetAperture = Math.min(maxAperture, targetAperture);
         lastApertureRefresh = now;
         pendings.reset((minPendings + maxPendings)/2);
@@ -335,12 +335,12 @@ public class LoadBalancer implements ReactiveSocket {
      */
     private synchronized void refreshSockets() {
         refreshAperture();
-        int n = pendingSockets + activeSockets.holder.size();
+        int n = pendingSockets + activeSockets.size();
         if (n < targetAperture && !activeFactories.holder.isEmpty()) {
             logger.debug("aperture {} is below target {}, adding {} sockets",
                 n, targetAperture, targetAperture - n);
             addSockets(targetAperture - n);
-        } else if (targetAperture <  activeSockets.holder.size()) {
+        } else if (targetAperture <  activeSockets.size()) {
             logger.debug("aperture {} is above target {}, quicking 1 socket",
                 n, targetAperture);
             quickSlowestRS();
@@ -366,7 +366,7 @@ public class LoadBalancer implements ReactiveSocket {
     }
 
     private synchronized void quickSlowestRS() {
-        if (activeSockets.holder.size() <= 1) {
+        if (activeSockets.size() <= 1) {
             return;
         }
 
@@ -410,7 +410,7 @@ public class LoadBalancer implements ReactiveSocket {
             for (WeightedSocket rs : activeSockets.holder) {
                 currentAvailability += rs.availability();
             }
-            currentAvailability /= activeSockets.holder.size();
+            currentAvailability /= activeSockets.size();
         }
 
         return currentAvailability;
@@ -422,7 +422,7 @@ public class LoadBalancer implements ReactiveSocket {
         }
         refreshSockets();
 
-        int size = activeSockets.holder.size();
+        int size = activeSockets.size();
         if (size == 1) {
             return activeSockets.holder.get(0);
         }
@@ -483,8 +483,8 @@ public class LoadBalancer implements ReactiveSocket {
 
     @Override
     public synchronized String toString() {
-        return "LoadBalancer(a:" + activeSockets.holder.size()+ ", f: "
-            + activeFactories.holder.size()
+        return "LoadBalancer(a:" + activeSockets.size()+ ", f: "
+            + activeFactories.size()
             + ", avgPendings=" + pendings.value()
             + ", targetAperture=" + targetAperture
             + ", band=[" + lowerQuantile.estimation()
@@ -500,7 +500,7 @@ public class LoadBalancer implements ReactiveSocket {
             synchronized (this) {
                 factoryRefresher.close();
                 activeFactories.clear();
-                AtomicInteger n = new AtomicInteger(activeSockets.holder.size());
+                AtomicInteger n = new AtomicInteger(activeSockets.size());
 
                 activeSockets.holder.forEach(rs -> {
                     rs.close().subscribe(new Subscriber<Void>() {
@@ -554,7 +554,7 @@ public class LoadBalancer implements ReactiveSocket {
             synchronized (LoadBalancer.this) {
 
                 Set<ReactiveSocketClient> current =
-                    new HashSet<>(activeFactories.holder.size() + activeSockets.holder.size());
+                    new HashSet<>(activeFactories.size() + activeSockets.size());
                 current.addAll(activeFactories.holder);
                 for (WeightedSocket socket: activeSockets.holder) {
                     ReactiveSocketClient factory = socket.getFactory();
@@ -596,7 +596,7 @@ public class LoadBalancer implements ReactiveSocket {
 
                 if (changed && logger.isDebugEnabled()) {
                     StringBuilder msgBuilder = new StringBuilder();
-                    msgBuilder.append("\nUpdated active factories (size: " + activeFactories.holder.size() + ")\n");
+                    msgBuilder.append("\nUpdated active factories (size: " + activeFactories.size() + ")\n");
                     for (ReactiveSocketClient f : activeFactories.holder) {
                         msgBuilder.append(" + ").append(f).append('\n');
                     }
@@ -644,7 +644,7 @@ public class LoadBalancer implements ReactiveSocket {
         @Override
         public void onNext(ReactiveSocket rs) {
             synchronized (LoadBalancer.this) {
-                if (activeSockets.holder.size() >= targetAperture) {
+                if (activeSockets.size() >= targetAperture) {
                     quickSlowestRS();
                 }
 
@@ -1113,6 +1113,10 @@ public class LoadBalancer implements ReactiveSocket {
                 }
             }
             holder.clear();
+        }
+
+        public int size() {
+            return holder.size();
         }
 
         private void publishRemoveEvent(T item) {
