@@ -18,37 +18,59 @@ package io.reactivesocket.spectator.internal;
 
 import com.netflix.spectator.api.Counter;
 import com.netflix.spectator.api.Id;
+import com.netflix.spectator.api.Measurement;
 import com.netflix.spectator.api.Registry;
 import com.netflix.spectator.api.Spectator;
-import com.netflix.spectator.api.Tag;
+import io.reactivesocket.util.Clock;
 
-import java.util.List;
+import java.util.Collections;
 
 /**
  * A {@link Counter} implementation that uses {@link ThreadLocalAdderCounter}
  */
-public class ThreadLocalAdderCounter {
+public class ThreadLocalAdderCounter implements Counter {
 
     private final ThreadLocalAdder adder = new ThreadLocalAdder();
-    private final Counter counter;
+    private final Id id;
 
     public ThreadLocalAdderCounter(String name, String monitorId) {
         this(Spectator.globalRegistry(), name, monitorId);
     }
 
-    public ThreadLocalAdderCounter(Registry registry, String name, String monitorId) {
-        counter = registry.counter(name, "id", monitorId);
+    public ThreadLocalAdderCounter(Registry registry, String name, String monitorId, String... tags) {
+        id = registry.createId(name, SpectatorUtil.mergeTags(tags, "id", monitorId));
+        registry.register(this);
     }
 
+    @Override
     public void increment() {
         adder.increment();
     }
 
+    @Override
     public void increment(long amount) {
         adder.increment(amount);
     }
 
-    public long get() {
+    @Override
+    public long count() {
         return adder.get();
+    }
+
+    @Override
+    public Id id() {
+        return id;
+    }
+
+    @Override
+    public Iterable<Measurement> measure() {
+        long now = Clock.now();
+        long v = adder.get();
+        return Collections.singleton(new Measurement(id, now, v));
+    }
+
+    @Override
+    public boolean hasExpired() {
+        return false;
     }
 }

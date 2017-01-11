@@ -33,18 +33,14 @@ public class HdrHistogramPercentileTimer {
 
     private volatile long lastCleared = System.currentTimeMillis();
 
-    public HdrHistogramPercentileTimer(Registry registry, String name, String monitorId) {
-        registerGauge(name, monitorId, registry, "min", timer -> getMin());
-        registerGauge(name, monitorId, registry, "max", timer -> getMax());
-        registerGauge(name, monitorId, registry, "50", timer -> getP50());
-        registerGauge(name, monitorId, registry, "90", timer -> getP90());
-        registerGauge(name, monitorId, registry, "99", timer -> getP99());
-        registerGauge(name, monitorId, registry, "99.9", timer -> getP99_9());
-        registerGauge(name, monitorId, registry, "99.99", timer -> getP99_99());
-    }
-
-    public HdrHistogramPercentileTimer(String name, String monitorId) {
-        this(Spectator.globalRegistry(), name, monitorId);
+    public HdrHistogramPercentileTimer(Registry registry, String name, String monitorId, String... tags) {
+        registerGauge(name, monitorId, registry, "min", timer -> getMin(), tags);
+        registerGauge(name, monitorId, registry, "max", timer -> getMax(), tags);
+        registerGauge(name, monitorId, registry, "50", timer -> getP50(), tags);
+        registerGauge(name, monitorId, registry, "90", timer -> getP90(), tags);
+        registerGauge(name, monitorId, registry, "99", timer -> getP99(), tags);
+        registerGauge(name, monitorId, registry, "99.9", timer -> getP99_9(), tags);
+        registerGauge(name, monitorId, registry, "99.99", timer -> getP99_99(), tags);
     }
 
     /**
@@ -97,8 +93,9 @@ public class HdrHistogramPercentileTimer {
     }
 
     private void registerGauge(String metricName, String monitorId, Registry registry, String percentileTag,
-                               ToDoubleFunction<HdrHistogramPercentileTimer> function) {
-        Id id = registry.createId(metricName, "id", monitorId, "value", percentileTag);
+                               ToDoubleFunction<HdrHistogramPercentileTimer> function, String... tagPairs) {
+        Id id = registry.createId(metricName, SpectatorUtil.mergeTags(tagPairs, "id", monitorId,
+                                                                      "value", percentileTag));
         registry.gauge(id, this, function);
     }
 }
