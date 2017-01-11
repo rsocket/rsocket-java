@@ -158,7 +158,7 @@ public interface EventListener {
      *
      * @param streamId Stream Id for the response.
      * @param type Request type.
-     * @param duration Time between event {@link #requestSendComplete(int, RequestType, long, TimeUnit)} and this.
+     * @param duration Time between event {@link #requestReceiveComplete(int, RequestType, long, TimeUnit)} and this.
      * @param durationUnit {@code TimeUnit} for the duration.
      */
     default void responseSendStart(int streamId, RequestType type, long duration, TimeUnit durationUnit) {}

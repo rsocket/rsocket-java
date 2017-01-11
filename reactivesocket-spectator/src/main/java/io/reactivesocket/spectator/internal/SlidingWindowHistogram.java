@@ -24,6 +24,7 @@ import java.util.concurrent.TimeUnit;
  * Wraps HdrHistogram to create a sliding window of n histogramQueue. Default window number is five.
  */
 public class SlidingWindowHistogram {
+
     private volatile Histogram liveHistogram;
 
     private final ArrayDeque<Histogram> histogramQueue;
