@@ -117,7 +117,7 @@ public class FairLeaseDistributorTest {
             if (0 == ttl) {
                 ttl = 10;
             }
-            distributor = new FairLeaseDistributor(() -> permits, ttl, ticks, redistributeOnConnect);
+            distributor = new FairLeaseDistributor(() -> permits, () -> ttl, ticks, redistributeOnConnect);
             leases = new CopyOnWriteArrayList<>();
         }
 

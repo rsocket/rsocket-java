@@ -86,7 +86,7 @@ public class DefaultLeaseEnforcingSocketTest extends DefaultLeaseTest<SocketHold
         public static SocketHolder newHolder(LongSupplier currentTimeSupplier, int permits, int ttl) {
             LongSupplier _currentTimeSupplier = null == currentTimeSupplier? () -> -1 : currentTimeSupplier;
             PublishProcessor<Long> leaseTicks = PublishProcessor.create();
-            FairLeaseDistributor distributor = new FairLeaseDistributor(() -> permits, ttl, leaseTicks);
+            FairLeaseDistributor distributor = new FairLeaseDistributor(() -> permits, () -> ttl, leaseTicks);
             AbstractSocketRule<DefaultLeaseEnforcingSocket> rule = new AbstractSocketRule<DefaultLeaseEnforcingSocket>() {
                 @Override
                 protected DefaultLeaseEnforcingSocket newSocket(ReactiveSocket delegate) {

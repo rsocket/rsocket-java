@@ -23,8 +23,11 @@ import io.reactivesocket.reactivestreams.extensions.internal.Cancellable;
 import io.reactivesocket.reactivestreams.extensions.internal.CancellableImpl;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscription;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import java.util.concurrent.LinkedBlockingQueue;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.IntSupplier;
 
@@ -34,31 +37,25 @@ import java.util.function.IntSupplier;
  */
 public final class FairLeaseDistributor implements DefaultLeaseEnforcingSocket.LeaseDistributor {
 
-    private final LinkedBlockingQueue<Consumer<Lease>> activeRecipients;
+    private static final Logger logger = LoggerFactory.getLogger(FairLeaseDistributor.class);
+    private final List<Consumer<Lease>> activeRecipients;
     private Subscription ticksSubscription;
-    private volatile boolean startTicks;
+    private boolean ticksStarted;
     private final IntSupplier capacitySupplier;
-    private final int leaseTTLMillis;
+    private final IntSupplier leaseTTLMillis;
     private final Publisher<Long> leaseDistributionTicks;
     private final boolean redistributeOnConnect;
 
-    public FairLeaseDistributor(IntSupplier capacitySupplier, int leaseTTLMillis,
+    public FairLeaseDistributor(IntSupplier capacitySupplier, IntSupplier leaseTTLMillis,
                                 Publisher<Long> leaseDistributionTicks, boolean redistributeOnConnect) {
+        this.leaseTTLMillis = leaseTTLMillis;
         this.capacitySupplier = capacitySupplier;
-        /*
-         * If lease TTL is exactly the same as the period of replenishment, then there would be a time period when new
-         * lease has not arrived and old lease is expired. This isn't a good reflection of server's intent as the server
-         * can handle the new requests but the lease has not yet reached the client. So, having TTL slightly more
-         * than distribution period (accomodating for network lag) is more representative of server's intent. OTOH, if
-         * server isn't ready, it can always reject a request.
-         */
-        this.leaseTTLMillis = (int) (leaseTTLMillis * 1.1);
         this.leaseDistributionTicks = leaseDistributionTicks;
         this.redistributeOnConnect = redistributeOnConnect;
-        activeRecipients = new LinkedBlockingQueue<>();
+        activeRecipients = new ArrayList<>();
     }
 
-    public FairLeaseDistributor(IntSupplier capacitySupplier, int leaseTTLMillis,
+    public FairLeaseDistributor(IntSupplier capacitySupplier, IntSupplier leaseTTLMillis,
                                 Publisher<Long> leaseDistributionTicks) {
         this(capacitySupplier, leaseTTLMillis, leaseDistributionTicks, true);
     }
@@ -67,8 +64,12 @@ public final class FairLeaseDistributor implements DefaultLeaseEnforcingSocket.L
      * Shutdown this distributor. No more leases will be provided to the registered sockets.
      */
     @Override
-    public void shutdown() {
-        ticksSubscription.cancel();
+    public synchronized void shutdown() {
+        if (activeRecipients.isEmpty()) {
+            logger.debug("activeRecipients is empty, stopping ticker");
+            ticksStarted = false;
+            ticksSubscription.cancel();
+        }
     }
 
     /**
@@ -76,18 +77,22 @@ public final class FairLeaseDistributor implements DefaultLeaseEnforcingSocket.L
      * provided to this socket, otherwise, a fair share will be provided on the next distribution.
      *
      * @param leaseConsumer Consumer of the leases (usually the registered socket).
-     *
      * @return A handle to cancel this registration, when the socket is closed.
      */
     @Override
     public Cancellable registerSocket(Consumer<Lease> leaseConsumer) {
-        activeRecipients.add(leaseConsumer);
+        logger.debug("registering socket => {}", leaseConsumer.toString());
+
         boolean _started;
+
         synchronized (this) {
-            _started = startTicks;
-            if (!startTicks) {
+            activeRecipients.add(leaseConsumer);
+
+            _started = ticksStarted;
+            if (!ticksStarted) {
+                logger.debug("starting ticker");
                 startTicks();
-                startTicks = true;
+                ticksStarted = true;
             }
         }
 
@@ -102,28 +107,38 @@ public final class FairLeaseDistributor implements DefaultLeaseEnforcingSocket.L
         return new CancellableImpl() {
             @Override
             protected void onCancel() {
-                activeRecipients.remove(leaseConsumer);
+                synchronized (FairLeaseDistributor.this) {
+                    logger.debug("removing socket => {}", leaseConsumer.toString());
+                    activeRecipients.remove(leaseConsumer);
+                }
             }
         };
     }
 
-    private void distribute(int permits) {
+    private synchronized void distribute(int permits) {
         if (activeRecipients.isEmpty()) {
             return;
         }
-        int recipients = activeRecipients.size();
-        int budget = permits / recipients;
 
-        // it would be more fair to randomized the distribution of extra
+        final int recipients = activeRecipients.size();
+        final int budget = permits / recipients;
+        final int ttl = (int) (leaseTTLMillis.getAsInt() * 1.1);
         int extra = permits - budget * recipients;
-        Lease budgetLease = new LeaseImpl(budget, leaseTTLMillis, Frame.NULL_BYTEBUFFER);
-        for (Consumer<Lease> recipient: activeRecipients) {
+
+        logger.debug("distribute recipients => {}, budget => {}, ttl => {}, extra permits => {}", recipients, budget, ttl, extra);
+
+        // Pick a random starting point to fairly distributed leases
+        //int start = ThreadLocalRandom.current().nextInt(0, recipients);
+
+        Lease budgetLease = new LeaseImpl(budget, ttl, Frame.NULL_BYTEBUFFER);
+        for (int i = 0; i < recipients; i++) {
+            Consumer<Lease> recipient = activeRecipients.get(i);
             Lease leaseToSend = budgetLease;
             int n = budget;
             if (extra > 0) {
                 n += 1;
                 extra -= 1;
-                leaseToSend = new LeaseImpl(n, leaseTTLMillis, Frame.NULL_BYTEBUFFER);
+                leaseToSend = new LeaseImpl(n, ttl, Frame.NULL_BYTEBUFFER);
             }
             recipient.accept(leaseToSend);
         }
@@ -131,11 +146,9 @@ public final class FairLeaseDistributor implements DefaultLeaseEnforcingSocket.L
 
     private void startTicks() {
         Px.from(leaseDistributionTicks)
-          .doOnSubscribe(subscription -> ticksSubscription = subscription)
-          .doOnNext(aLong -> {
-              distribute(capacitySupplier.getAsInt());
-          })
-          .ignore()
-          .subscribe();
+            .doOnSubscribe(subscription -> ticksSubscription = subscription)
+            .doOnNext(tick -> distribute(capacitySupplier.getAsInt()))
+            .ignore()
+            .subscribe();
     }
 }

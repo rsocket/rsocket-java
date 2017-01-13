@@ -32,12 +32,22 @@ import java.util.concurrent.TimeUnit;
  *      new and the old value)
  */
 public class Ewma {
-    private final long tau;
+    private final long tau_up;
+    private final long tau_down;
     private volatile long stamp;
     private volatile double ewma;
 
     public Ewma(long halfLife, TimeUnit unit, double initialValue) {
-        this.tau = Clock.unit().convert((long)(halfLife / Math.log(2)), unit);
+        this(
+            halfLife,
+            halfLife,
+            unit,
+            initialValue);
+    }
+
+    public Ewma(long halfLife_up, long halfLife_down, TimeUnit unit, double initialValue) {
+        tau_up = Clock.unit().convert((long)(halfLife_up / Math.log(2)), unit);
+        tau_down = Clock.unit().convert((long)(halfLife_down / Math.log(2)), unit);
         stamp = 0L;
         ewma = initialValue;
     }
@@ -47,7 +57,12 @@ public class Ewma {
         double elapsed = Math.max(0, now - stamp);
         stamp = now;
 
-        double w = Math.exp(-elapsed / tau);
+        double w;
+        if (x > ewma) {
+            w = Math.exp(-elapsed / tau_up);
+        } else {
+            w = Math.exp(-elapsed / tau_down);
+        }
         ewma = w * ewma + (1.0 - w) * x;
     }
 
