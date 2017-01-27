@@ -13,27 +13,29 @@
 
 package io.reactivesocket.spectator;
 
+import com.netflix.spectator.api.Counter;
 import com.netflix.spectator.api.Gauge;
 import com.netflix.spectator.api.Registry;
 import com.netflix.spectator.api.Spectator;
 import io.reactivesocket.Availability;
 import io.reactivesocket.client.LoadBalancerSocketMetrics;
 import io.reactivesocket.client.events.LoadBalancingClientListener;
-import io.reactivesocket.spectator.internal.ThreadLocalAdderCounter;
 
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+
+import static io.reactivesocket.spectator.internal.SpectatorUtil.*;
 
 public class LoadBalancingClientListenerImpl extends ClientEventListenerImpl
         implements LoadBalancingClientListener {
 
     private final ConcurrentHashMap<Availability, SocketStats> sockets;
     private final ConcurrentHashMap<Availability, Availability> servers;
-    private final ThreadLocalAdderCounter socketsAdded;
-    private final ThreadLocalAdderCounter socketsRemoved;
-    private final ThreadLocalAdderCounter serversAdded;
-    private final ThreadLocalAdderCounter serversRemoved;
-    private final ThreadLocalAdderCounter socketRefresh;
+    private final Counter socketsAdded;
+    private final Counter socketsRemoved;
+    private final Counter serversAdded;
+    private final Counter serversRemoved;
+    private final Counter socketRefresh;
     private final Gauge aperture;
     private final Gauge socketRefreshPeriodMillis;
     private final Registry registry;
@@ -45,11 +47,11 @@ public class LoadBalancingClientListenerImpl extends ClientEventListenerImpl
         this.monitorId = monitorId;
         sockets = new ConcurrentHashMap<>();
         servers = new ConcurrentHashMap<>();
-        socketsAdded = new ThreadLocalAdderCounter(registry, "socketsAdded", monitorId);
-        socketsRemoved = new ThreadLocalAdderCounter(registry, "socketsRemoved", monitorId);
-        serversAdded = new ThreadLocalAdderCounter(registry, "serversAdded", monitorId);
-        serversRemoved = new ThreadLocalAdderCounter(registry, "serversRemoved", monitorId);
-        socketRefresh = new ThreadLocalAdderCounter(registry, "socketRefresh", monitorId);
+        socketsAdded = registry.counter(createId(registry, "socketsAdded", monitorId));
+        socketsRemoved = registry.counter(createId(registry, "socketsRemoved", monitorId));
+        serversAdded = registry.counter(createId(registry, "serversAdded", monitorId));
+        serversRemoved = registry.counter(createId(registry, "serversRemoved", monitorId));
+        socketRefresh = registry.counter(createId(registry, "socketRefresh", monitorId));
         aperture = registry.gauge(registry.createId("aperture", "id", monitorId));
         socketRefreshPeriodMillis = registry.gauge(registry.createId("socketRefreshPeriodMillis",
                                                                      "id", monitorId));
