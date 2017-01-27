@@ -29,6 +29,7 @@ import io.reactivesocket.internal.EventPublisher;
 import io.reactivesocket.reactivestreams.extensions.Px;
 import io.reactivesocket.reactivestreams.extensions.internal.EmptySubject;
 import io.reactivesocket.reactivestreams.extensions.internal.ValidatingSubscription;
+import io.reactivesocket.reactivestreams.extensions.internal.subscribers.Subscribers;
 import io.reactivesocket.stat.Ewma;
 import io.reactivesocket.stat.FrugalQuantile;
 import io.reactivesocket.stat.Median;
@@ -388,16 +389,19 @@ public class LoadBalancer implements ReactiveSocket {
         }
 
         if (slowest != null) {
-            removeSocket(slowest);
+            removeSocket(slowest, false);
         }
     }
 
-    private synchronized void removeSocket(WeightedSocket socket) {
+    private synchronized void removeSocket(WeightedSocket socket, boolean refresh) {
         try {
             logger.debug("Removing socket: -> " + socket);
             activeSockets.remove(socket);
             activeFactories.add(socket.getFactory());
-            socket.close();
+            socket.close().subscribe(Subscribers.empty());
+            if (refresh) {
+                refreshSockets();
+            }
         } catch (Exception e) {
             logger.warn("Exception while closing a ReactiveSocket", e);
         }
@@ -786,6 +790,7 @@ public class LoadBalancer implements ReactiveSocket {
             this.median = new Median();
             this.interArrivalTime = new Ewma(1, TimeUnit.MINUTES, DEFAULT_INITIAL_INTER_ARRIVAL_TIME);
             this.pendingStreams = new AtomicLong();
+            child.onClose().subscribe(Subscribers.doOnTerminate(() -> removeSocket(this, true)));
         }
 
         WeightedSocket(
@@ -997,7 +1002,7 @@ public class LoadBalancer implements ReactiveSocket {
                     child.onError(t);
                     long now = decr(start);
                     if (t instanceof TransportException || t instanceof ClosedChannelException) {
-                        removeSocket(socket);
+                        removeSocket(socket, true);
                     } else if (t instanceof TimeoutException) {
                         observe(now - start);
                     }
@@ -1043,7 +1048,7 @@ public class LoadBalancer implements ReactiveSocket {
                 socket.pendingStreams.decrementAndGet();
                 child.onError(t);
                 if (t instanceof TransportException || t instanceof ClosedChannelException) {
-                    removeSocket(socket);
+                    removeSocket(socket, true);
                 }
             }
 
