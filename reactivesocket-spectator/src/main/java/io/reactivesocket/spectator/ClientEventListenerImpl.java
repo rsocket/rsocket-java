@@ -13,38 +13,39 @@
 
 package io.reactivesocket.spectator;
 
+import com.netflix.spectator.api.Counter;
 import com.netflix.spectator.api.Registry;
 import com.netflix.spectator.api.Spectator;
+import com.netflix.spectator.api.histogram.PercentileTimer;
 import io.reactivesocket.events.ClientEventListener;
-import io.reactivesocket.spectator.internal.HdrHistogramPercentileTimer;
-import io.reactivesocket.spectator.internal.ThreadLocalAdderCounter;
-import io.reactivesocket.util.Clock;
 
 import java.util.concurrent.TimeUnit;
 import java.util.function.DoubleSupplier;
 
+import static io.reactivesocket.spectator.internal.SpectatorUtil.*;
+
 public class ClientEventListenerImpl extends EventListenerImpl implements ClientEventListener {
 
-    private final ThreadLocalAdderCounter connectStarts;
-    private final ThreadLocalAdderCounter connectFailed;
-    private final ThreadLocalAdderCounter connectCancelled;
-    private final ThreadLocalAdderCounter connectSuccess;
-    private final HdrHistogramPercentileTimer connectSuccessLatency;
-    private final HdrHistogramPercentileTimer connectFailureLatency;
-    private final HdrHistogramPercentileTimer connectCancelledLatency;
+    private final Counter connectStarts;
+    private final Counter connectFailed;
+    private final Counter connectCancelled;
+    private final Counter connectSuccess;
+    private final PercentileTimer connectSuccessLatency;
+    private final PercentileTimer connectFailureLatency;
+    private final PercentileTimer connectCancelledLatency;
 
     public ClientEventListenerImpl(Registry registry, String monitorId) {
         super(registry, monitorId);
-        connectStarts = new ThreadLocalAdderCounter(registry, "connectStart", monitorId);
-        connectFailed = new ThreadLocalAdderCounter(registry, "connectFailed", monitorId);
-        connectCancelled = new ThreadLocalAdderCounter(registry, "connectCancelled", monitorId);
-        connectSuccess = new ThreadLocalAdderCounter(registry, "connectSuccess", monitorId);
-        connectSuccessLatency = new HdrHistogramPercentileTimer(registry, "connectLatency", monitorId,
-                                                                "outcome", "success");
-        connectFailureLatency = new HdrHistogramPercentileTimer(registry, "connectLatency", monitorId,
-                                                                "outcome", "success");
-        connectCancelledLatency = new HdrHistogramPercentileTimer(registry, "connectLatency", monitorId,
-                                                                  "outcome", "success");
+        connectStarts = registry.counter(createId(registry, "connectStart", monitorId));
+        connectFailed = registry.counter(createId(registry, "connectFailed", monitorId));
+        connectCancelled = registry.counter(createId(registry, "connectCancelled", monitorId));
+        connectSuccess = registry.counter(createId(registry, "connectSuccess", monitorId));
+        connectSuccessLatency = PercentileTimer.get(registry, createId(registry, "connectLatency", monitorId,
+                                                                       "outcome", "success"));
+        connectFailureLatency = PercentileTimer.get(registry, createId(registry, "connectLatency", monitorId,
+                                                                       "outcome", "success"));
+        connectCancelledLatency = PercentileTimer.get(registry, createId(registry, "connectLatency", monitorId,
+                                                                         "outcome", "success"));
     }
 
     public ClientEventListenerImpl(String monitorId) {
@@ -59,18 +60,18 @@ public class ClientEventListenerImpl extends EventListenerImpl implements Client
     @Override
     public void connectCompleted(DoubleSupplier socketAvailabilitySupplier, long duration, TimeUnit durationUnit) {
         connectSuccess.increment();
-        connectSuccessLatency.record(Clock.unit().convert(duration, durationUnit));
+        connectSuccessLatency.record(duration, durationUnit);
     }
 
     @Override
     public void connectFailed(long duration, TimeUnit durationUnit, Throwable cause) {
         connectFailed.increment();
-        connectFailureLatency.record(Clock.unit().convert(duration, durationUnit));
+        connectFailureLatency.record(duration, durationUnit);
     }
 
     @Override
     public void connectCancelled(long duration, TimeUnit durationUnit) {
         connectCancelled.increment();
-        connectCancelledLatency.record(Clock.unit().convert(duration, durationUnit));
+        connectCancelledLatency.record(duration, durationUnit);
     }
 }

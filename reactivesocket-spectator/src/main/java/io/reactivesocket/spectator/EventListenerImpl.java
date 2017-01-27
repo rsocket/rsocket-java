@@ -13,6 +13,7 @@
 
 package io.reactivesocket.spectator;
 
+import com.netflix.spectator.api.Counter;
 import com.netflix.spectator.api.Registry;
 import com.netflix.spectator.api.Spectator;
 import io.reactivesocket.FrameType;
@@ -20,26 +21,27 @@ import io.reactivesocket.events.EventListener;
 import io.reactivesocket.spectator.internal.ErrorStats;
 import io.reactivesocket.spectator.internal.LeaseStats;
 import io.reactivesocket.spectator.internal.RequestStats;
-import io.reactivesocket.spectator.internal.ThreadLocalAdderCounter;
 
 import java.util.EnumMap;
 import java.util.concurrent.TimeUnit;
+
+import static io.reactivesocket.spectator.internal.SpectatorUtil.*;
 
 public class EventListenerImpl implements EventListener {
 
     private final LeaseStats leaseStats;
     private final ErrorStats errorStats;
-    private final ThreadLocalAdderCounter socketClosed;
-    private final ThreadLocalAdderCounter frameRead;
-    private final ThreadLocalAdderCounter frameWritten;
+    private final Counter socketClosed;
+    private final Counter frameRead;
+    private final Counter frameWritten;
     private final EnumMap<RequestType, RequestStats> requestStats;
 
     public EventListenerImpl(Registry registry, String monitorId) {
         leaseStats = new LeaseStats(registry, monitorId);
         errorStats = new ErrorStats(registry, monitorId);
-        socketClosed = new ThreadLocalAdderCounter(registry, "socketClosed", monitorId);
-        frameRead = new ThreadLocalAdderCounter(registry, "frameRead", monitorId);
-        frameWritten = new ThreadLocalAdderCounter(registry, "frameWritten", monitorId);
+        socketClosed = registry.counter(createId(registry, "socketClosed", monitorId));
+        frameRead = registry.counter(createId(registry, "frameRead", monitorId));
+        frameWritten = registry.counter(createId(registry, "frameWritten", monitorId));
         requestStats = new EnumMap<RequestType, RequestStats>(RequestType.class);
         for (RequestType type : RequestType.values()) {
             requestStats.put(type, new RequestStats(registry, type, monitorId));
