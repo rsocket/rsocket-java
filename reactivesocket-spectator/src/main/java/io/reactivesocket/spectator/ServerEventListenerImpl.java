@@ -13,18 +13,19 @@
 
 package io.reactivesocket.spectator;
 
+import com.netflix.spectator.api.Counter;
 import com.netflix.spectator.api.Registry;
 import com.netflix.spectator.api.Spectator;
 import io.reactivesocket.events.ServerEventListener;
-import io.reactivesocket.spectator.internal.ThreadLocalAdderCounter;
+import io.reactivesocket.spectator.internal.SpectatorUtil;
 
 public class ServerEventListenerImpl extends EventListenerImpl implements ServerEventListener {
 
-    private final ThreadLocalAdderCounter socketAccepted;
+    private final Counter socketAccepted;
 
     public ServerEventListenerImpl(Registry registry, String monitorId) {
         super(registry, monitorId);
-        socketAccepted = new ThreadLocalAdderCounter(registry, "socketAccepted", monitorId);
+        socketAccepted = registry.counter(SpectatorUtil.createId(registry, "socketAccepted", monitorId));
     }
 
     public ServerEventListenerImpl(String monitorId) {
