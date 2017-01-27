@@ -16,18 +16,18 @@
 
 package io.reactivesocket.client;
 
-import io.reactivesocket.Payload;
-import io.reactivesocket.client.ReactiveSocketClient.SocketAcceptor;
-import io.reactivesocket.events.ClientEventListener;
-import io.reactivesocket.events.EventSource;
-import io.reactivesocket.lease.DefaultLeaseHonoringSocket;
 import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
 import io.reactivesocket.Frame.Setup;
-import io.reactivesocket.lease.DisableLeaseSocket;
-import io.reactivesocket.lease.LeaseHonoringSocket;
+import io.reactivesocket.Payload;
 import io.reactivesocket.ReactiveSocket;
+import io.reactivesocket.client.ReactiveSocketClient.SocketAcceptor;
+import io.reactivesocket.events.ClientEventListener;
+import io.reactivesocket.events.EventSource;
 import io.reactivesocket.frame.SetupFrameFlyweight;
+import io.reactivesocket.lease.DisableLeaseSocket;
+import io.reactivesocket.lease.LeaseBasedAvailabilitySocket;
+import io.reactivesocket.lease.LeaseHonoringSocket;
 import io.reactivesocket.util.PayloadImpl;
 import org.reactivestreams.Publisher;
 
@@ -115,9 +115,9 @@ public interface SetupProvider extends EventSource<ClientEventListener> {
     static SetupProvider keepAlive(KeepAliveProvider keepAliveProvider) {
         int period = keepAliveProvider.getKeepAlivePeriodMillis();
         Frame setupFrame =
-                Setup.from(DEFAULT_FLAGS, period, keepAliveProvider.getMissedKeepAliveThreshold() * period,
-                           DEFAULT_METADATA_MIME_TYPE, DEFAULT_DATA_MIME_TYPE, PayloadImpl.EMPTY);
-        return new SetupProviderImpl(setupFrame, reactiveSocket -> new DefaultLeaseHonoringSocket(reactiveSocket),
-                                     keepAliveProvider, Throwable::printStackTrace);
+            Setup.from(DEFAULT_FLAGS, period, keepAliveProvider.getMissedKeepAliveThreshold() * period,
+                DEFAULT_METADATA_MIME_TYPE, DEFAULT_DATA_MIME_TYPE, PayloadImpl.EMPTY);
+        return new SetupProviderImpl(setupFrame, reactiveSocket -> new LeaseBasedAvailabilitySocket(reactiveSocket),
+            keepAliveProvider, Throwable::printStackTrace);
     }
 }

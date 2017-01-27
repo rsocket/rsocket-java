@@ -95,7 +95,7 @@ public class TestConfig {
         if (serverCapacitySupplier == null) {
             return new DisabledLeaseAcceptingSocket(socket);
         } else {
-            FairLeaseDistributor leaseDistributor = new FairLeaseDistributor(serverCapacitySupplier, leaseTtlMillis,
+            FairLeaseDistributor leaseDistributor = new FairLeaseDistributor(serverCapacitySupplier, () -> leaseTtlMillis,
                                                                              Flowable.interval(0, leaseTtlMillis,
                                                                                                MILLISECONDS));
             return new DefaultLeaseEnforcingSocket(socket, leaseDistributor);

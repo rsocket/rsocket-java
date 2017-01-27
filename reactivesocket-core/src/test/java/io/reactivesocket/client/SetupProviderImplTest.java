@@ -49,7 +49,7 @@ public class SetupProviderImplTest {
 
         setupProvider = setupProvider.setupPayload(setupPayload);
         TestDuplexConnection connection = new TestDuplexConnection();
-        FairLeaseDistributor distributor = new FairLeaseDistributor(() -> 0, 0, Flowable.never());
+        FairLeaseDistributor distributor = new FairLeaseDistributor(() -> 0, () -> 0, Flowable.never());
         ReactiveSocket socket = Flowable.fromPublisher(setupProvider
                                                  .accept(connection,
                                                          reactiveSocket -> new DefaultLeaseEnforcingSocket(

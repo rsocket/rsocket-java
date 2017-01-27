@@ -29,6 +29,7 @@ import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongConsumer;
@@ -449,6 +450,30 @@ public interface Px<T> extends Publisher<T> {
 
     default Px<T> doOnCompleteOrError(Runnable doOnComplete, Consumer<Throwable> doOnError) {
         return DoOnEventPublisher.onCompleteOrError(this, doOnComplete, doOnError);
+    }
+
+    /**
+     * Executes after the publisher errors, cancels or completes
+     */
+    default Px<T> doFinally(Runnable doFinally) {
+        AtomicBoolean completed = new AtomicBoolean();
+        return DoOnEventPublisher.onCompleteOrErrorOrCancel(
+            this,
+            () -> {
+                if (completed.compareAndSet(false ,true)) {
+                    doFinally.run();
+                }
+            },
+            () -> {
+                if (completed.compareAndSet(false ,true)) {
+                    doFinally.run();
+                }
+            },
+            t -> {
+                if (completed.compareAndSet(false ,true)) {
+                    doFinally.run();
+                }
+            });
     }
 
     default Px<T> doOnTerminate(Runnable doOnTerminate) {
