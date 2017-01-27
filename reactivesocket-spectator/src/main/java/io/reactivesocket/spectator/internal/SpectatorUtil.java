@@ -13,13 +13,16 @@
 
 package io.reactivesocket.spectator.internal;
 
-final class SpectatorUtil {
+import com.netflix.spectator.api.Id;
+import com.netflix.spectator.api.Registry;
+
+public final class SpectatorUtil {
 
     private SpectatorUtil() {
         // No instances
     }
 
-    static String[] mergeTags(String[] tags1, String... tags2) {
+    public static String[] mergeTags(String[] tags1, String... tags2) {
         if (tags1.length == 0) {
             return tags2;
         }
@@ -31,5 +34,9 @@ final class SpectatorUtil {
         System.arraycopy(tags1, 0, toReturn, 0, tags1.length);
         System.arraycopy(tags2, 0, toReturn, tags1.length, tags2.length);
         return toReturn;
+    }
+
+    public static Id createId(Registry registry, String name, String monitorId, String... tags) {
+        return registry.createId(name, mergeTags(tags, "id", monitorId));
     }
 }

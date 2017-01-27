@@ -13,34 +13,30 @@
 
 package io.reactivesocket.spectator.internal;
 
+import com.netflix.spectator.api.Counter;
 import com.netflix.spectator.api.Registry;
 
 import static io.reactivesocket.frame.ErrorFrameFlyweight.*;
+import static io.reactivesocket.spectator.internal.SpectatorUtil.*;
 
 public class ErrorStats {
 
-    private final ThreadLocalAdderCounter connectionErrorSent;
-    private final ThreadLocalAdderCounter connectionErrorReceived;
-    private final ThreadLocalAdderCounter rejectedSent;
-    private final ThreadLocalAdderCounter rejectedReceived;
-    private final ThreadLocalAdderCounter setupFailed;
-    private final ThreadLocalAdderCounter otherSent;
-    private final ThreadLocalAdderCounter otherReceived;
+    private final Counter connectionErrorSent;
+    private final Counter connectionErrorReceived;
+    private final Counter rejectedSent;
+    private final Counter rejectedReceived;
+    private final Counter setupFailed;
+    private final Counter otherSent;
+    private final Counter otherReceived;
 
     public ErrorStats(Registry registry, String monitorId) {
-        connectionErrorSent = new ThreadLocalAdderCounter(registry, "connectionError", monitorId,
-                                                          "direction", "sent");
-        connectionErrorReceived = new ThreadLocalAdderCounter(registry, "connectionError", monitorId,
-                                                              "direction", "received");
-        rejectedSent = new ThreadLocalAdderCounter(registry, "rejects", monitorId,
-                                                   "direction", "sent");
-        rejectedReceived = new ThreadLocalAdderCounter(registry, "rejects", monitorId,
-                                                       "direction", "received");
-        setupFailed = new ThreadLocalAdderCounter(registry, "setupFailed", monitorId);
-        otherSent = new ThreadLocalAdderCounter(registry, "otherErrors", monitorId,
-                                                   "direction", "sent");
-        otherReceived = new ThreadLocalAdderCounter(registry, "otherErrors", monitorId,
-                                                       "direction", "received");
+        connectionErrorSent = registry.counter(createId(registry, "connectionError", monitorId, "direction", "sent"));
+        connectionErrorReceived = registry.counter(createId(registry, "connectionError", monitorId, "direction", "received"));
+        rejectedSent = registry.counter(createId(registry, "rejects", monitorId, "direction", "sent"));
+        rejectedReceived = registry.counter(createId(registry, "rejects", monitorId, "direction", "received"));
+        setupFailed = registry.counter(createId(registry, "setupFailed", monitorId));
+        otherSent = registry.counter(createId(registry, "otherErrors", monitorId, "direction", "sent"));
+        otherReceived = registry.counter(createId(registry, "otherErrors", monitorId, "direction", "received"));
     }
 
     public void onErrorSent(int errorCode) {
@@ -51,7 +47,7 @@ public class ErrorStats {
         getCounterForError(errorCode, false).increment();
     }
 
-    private ThreadLocalAdderCounter getCounterForError(int errorCode, boolean sent) {
+    private Counter getCounterForError(int errorCode, boolean sent) {
         switch (errorCode) {
         case INVALID_SETUP:
             return setupFailed;

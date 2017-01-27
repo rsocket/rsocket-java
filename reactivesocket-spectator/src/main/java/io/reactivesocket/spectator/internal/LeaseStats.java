@@ -13,26 +13,23 @@
 
 package io.reactivesocket.spectator.internal;
 
+import com.netflix.spectator.api.Counter;
 import com.netflix.spectator.api.Registry;
 
-import static io.reactivesocket.spectator.internal.SpectatorUtil.mergeTags;
+import static io.reactivesocket.spectator.internal.SpectatorUtil.*;
 
 public class LeaseStats {
 
-    private final ThreadLocalAdderCounter leaseSent;
-    private final ThreadLocalAdderCounter ttlSent;
-    private final ThreadLocalAdderCounter leaseReceived;
-    private final ThreadLocalAdderCounter ttlReceived;
+    private final Counter leaseSent;
+    private final Counter ttlSent;
+    private final Counter leaseReceived;
+    private final Counter ttlReceived;
 
     public LeaseStats(Registry registry, String monitorId, String... tags) {
-        leaseSent = new ThreadLocalAdderCounter(registry, "lease", monitorId,
-                                                mergeTags(tags, "direction", "sent"));
-        ttlSent = new ThreadLocalAdderCounter(registry, "ttl", monitorId,
-                                              mergeTags(tags, "direction", "sent"));
-        leaseReceived = new ThreadLocalAdderCounter(registry, "lease", monitorId,
-                                                    mergeTags(tags, "direction", "received"));
-        ttlReceived = new ThreadLocalAdderCounter(registry, "ttl", monitorId,
-                                                  mergeTags(tags, "direction", "received"));
+        leaseSent = registry.counter(createId(registry, "lease", monitorId, mergeTags(tags, "direction", "sent")));
+        ttlSent = registry.counter(createId(registry, "ttl", monitorId, mergeTags(tags, "direction", "sent")));
+        leaseReceived = registry.counter(createId(registry, "lease", monitorId, mergeTags(tags, "direction", "received")));
+        ttlReceived = registry.counter(createId(registry, "ttl", monitorId, mergeTags(tags, "direction", "received")));
     }
 
     public void newLeaseSent(int permits, int ttl) {

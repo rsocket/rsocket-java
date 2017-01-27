@@ -13,12 +13,15 @@
 
 package io.reactivesocket.spectator.internal;
 
+import com.netflix.spectator.api.Counter;
 import com.netflix.spectator.api.Registry;
 import com.netflix.spectator.api.Spectator;
+import com.netflix.spectator.api.histogram.PercentileTimer;
 import io.reactivesocket.events.EventListener.RequestType;
-import io.reactivesocket.util.Clock;
 
 import java.util.concurrent.TimeUnit;
+
+import static io.reactivesocket.spectator.internal.SpectatorUtil.*;
 
 public class RequestStats {
 
@@ -48,107 +51,107 @@ public class RequestStats {
 
     public void requestSendSuccess(long duration, TimeUnit timeUnit) {
         requestSentStats.success.increment();
-        requestSentStats.successLatency.record(Clock.unit().convert(duration, timeUnit));
+        requestSentStats.successLatency.record(duration, timeUnit);
     }
 
     public void requestReceivedSuccess(long duration, TimeUnit timeUnit) {
         requestReceivedStats.success.increment();
-        requestReceivedStats.successLatency.record(Clock.unit().convert(duration, timeUnit));
+        requestReceivedStats.successLatency.record(duration, timeUnit);
     }
 
     public void requestSendFailed(long duration, TimeUnit timeUnit) {
         requestSentStats.failure.increment();
-        requestSentStats.failureLatency.record(Clock.unit().convert(duration, timeUnit));
+        requestSentStats.failureLatency.record(duration, timeUnit);
     }
 
     public void requestReceivedFailed(long duration, TimeUnit timeUnit) {
         requestReceivedStats.failure.increment();
-        requestReceivedStats.failureLatency.record(Clock.unit().convert(duration, timeUnit));
+        requestReceivedStats.failureLatency.record(duration, timeUnit);
     }
 
     public void requestSendCancelled(long duration, TimeUnit timeUnit) {
         requestSentStats.cancel.increment();
-        requestSentStats.cancelLatency.record(Clock.unit().convert(duration, timeUnit));
+        requestSentStats.cancelLatency.record(duration, timeUnit);
     }
 
     public void requestReceivedCancelled(long duration, TimeUnit timeUnit) {
         requestReceivedStats.cancel.increment();
-        requestReceivedStats.cancelLatency.record(Clock.unit().convert(duration, timeUnit));
+        requestReceivedStats.cancelLatency.record(duration, timeUnit);
     }
 
     public void responseSendStart(long requestToResponseLatency, TimeUnit timeUnit) {
         responseSentStats.start.increment();
-        responseSentStats.processLatency.record(Clock.unit().convert(requestToResponseLatency, timeUnit));
+        responseSentStats.processLatency.record(requestToResponseLatency, timeUnit);
     }
 
     public void responseReceivedStart(long requestToResponseLatency, TimeUnit timeUnit) {
         responseReceivedStats.start.increment();
-        responseReceivedStats.processLatency.record(Clock.unit().convert(requestToResponseLatency, timeUnit));
+        responseReceivedStats.processLatency.record(requestToResponseLatency, timeUnit);
     }
 
     public void responseSendSuccess(long duration, TimeUnit timeUnit) {
         responseSentStats.success.increment();
-        responseSentStats.successLatency.record(Clock.unit().convert(duration, timeUnit));
+        responseSentStats.successLatency.record(duration, timeUnit);
     }
 
     public void responseReceivedSuccess(long duration, TimeUnit timeUnit) {
         responseReceivedStats.success.increment();
-        responseReceivedStats.successLatency.record(Clock.unit().convert(duration, timeUnit));
+        responseReceivedStats.successLatency.record(duration, timeUnit);
     }
 
     public void responseSendFailed(long duration, TimeUnit timeUnit) {
         responseSentStats.failure.increment();
-        responseSentStats.failureLatency.record(Clock.unit().convert(duration, timeUnit));
+        responseSentStats.failureLatency.record(duration, timeUnit);
     }
 
     public void responseReceivedFailed(long duration, TimeUnit timeUnit) {
         responseReceivedStats.failure.increment();
-        responseReceivedStats.failureLatency.record(Clock.unit().convert(duration, timeUnit));
+        responseReceivedStats.failureLatency.record(duration, timeUnit);
     }
 
     public void responseSendCancelled(long duration, TimeUnit timeUnit) {
         responseSentStats.cancel.increment();
-        responseSentStats.cancelLatency.record(Clock.unit().convert(duration, timeUnit));
+        responseSentStats.cancelLatency.record(duration, timeUnit);
     }
 
     public void responseReceivedCancelled(long duration, TimeUnit timeUnit) {
         responseReceivedStats.cancel.increment();
-        responseReceivedStats.cancelLatency.record(Clock.unit().convert(duration, timeUnit));
+        responseReceivedStats.cancelLatency.record(duration, timeUnit);
     }
 
     private static class Stats {
 
-        private final ThreadLocalAdderCounter start;
-        private final ThreadLocalAdderCounter success;
-        private final ThreadLocalAdderCounter failure;
-        private final ThreadLocalAdderCounter cancel;
-        private final HdrHistogramPercentileTimer successLatency;
-        private final HdrHistogramPercentileTimer failureLatency;
-        private final HdrHistogramPercentileTimer cancelLatency;
-        private final HdrHistogramPercentileTimer processLatency;
+        private final Counter start;
+        private final Counter success;
+        private final Counter failure;
+        private final Counter cancel;
+        private final PercentileTimer successLatency;
+        private final PercentileTimer failureLatency;
+        private final PercentileTimer cancelLatency;
+        private final PercentileTimer processLatency;
 
         public Stats(Registry registry, RequestType requestType, String monitorId, String namePrefix,
                      String direction) {
-            start = new ThreadLocalAdderCounter(registry, namePrefix + "Start", monitorId,
-                                                "requestType", requestType.name(), "direction", direction);
-            success = new ThreadLocalAdderCounter(registry, namePrefix + "Success", monitorId,
-                                                  "requestType", requestType.name(), "direction", direction);
-            failure = new ThreadLocalAdderCounter(registry, namePrefix + "Failure", monitorId,
-                                                  "requestType", requestType.name(), "direction", direction);
-            cancel = new ThreadLocalAdderCounter(registry, namePrefix + "Cancel", monitorId,
-                                                 "requestType", requestType.name(), "direction", direction);
-            successLatency = new HdrHistogramPercentileTimer(registry, namePrefix + "Latency", monitorId,
-                                                             "requestType", requestType.name(),
-                                                             "direction", direction, "outcome", "success");
-            failureLatency = new HdrHistogramPercentileTimer(registry, namePrefix + "Latency", monitorId,
-                                                             "requestType", requestType.name(),
-                                                             "direction", direction, "outcome", "failure");
-            cancelLatency = new HdrHistogramPercentileTimer(registry, namePrefix + "Latency", monitorId,
-                                                             "requestType", requestType.name(),
-                                                             "direction", direction, "outcome", "cancel");
-            processLatency = new HdrHistogramPercentileTimer(registry, namePrefix + "processingTime", monitorId,
-                                                             "requestType", requestType.name(),
-                                                             "direction", direction);
+            start = registry.counter(createId(registry, namePrefix + "Start", monitorId,
+                                              "requestType", requestType.name(), "direction", direction));
+            success = registry.counter(createId(registry, namePrefix + "Success", monitorId,
+                                                "requestType", requestType.name(), "direction", direction));
+            failure = registry.counter(createId(registry, namePrefix + "Failure", monitorId,
+                                                "requestType", requestType.name(), "direction", direction));
+            cancel = registry.counter(createId(registry, namePrefix + "Cancel", monitorId,
+                                               "requestType", requestType.name(), "direction", direction));
+            successLatency = PercentileTimer.get(registry, createId(registry, namePrefix + "Latency", monitorId,
+                                                                    "requestType", requestType.name(),
+                                                                    "direction", direction, "outcome", "success"));
+            failureLatency = PercentileTimer.get(registry, createId(registry, namePrefix + "Latency", monitorId,
+                                                                    "requestType", requestType.name(),
+                                                                    "direction", direction, "outcome", "failure"));
+            cancelLatency = PercentileTimer.get(registry, createId(registry, namePrefix + "Latency", monitorId,
+                                                                   "requestType", requestType.name(),
+                                                                   "direction", direction, "outcome", "cancel"));
+            processLatency = PercentileTimer.get(registry, createId(registry, namePrefix + "processingTime", monitorId,
+                                                                    "requestType", requestType.name(),
+                                                                    "direction", direction));
         }
     }
 }
