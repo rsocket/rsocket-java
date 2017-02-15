@@ -1,0 +1,35 @@
+apply plugin: 'application'
+apply plugin: 'java'
+
+mainClassName = "io.reactivesocket.tckdrivers.main.Main"
+
+jar {
+    manifest {
+        attributes "Main-Class": "$mainClassName"
+    }
+
+    from {
+        configurations.compile.collect { it.isDirectory() ? it : zipTree(it) }
+    }
+}
+
+dependencies {
+
+    compile project(':reactivesocket-core')
+    compile project(':reactivesocket-client')
+    compile project(':reactivesocket-transport-tcp')
+    testCompile project(':reactivesocket-test')
+    compile 'com.fasterxml.jackson.core:jackson-core:2.8.0.rc2'
+    compile 'com.fasterxml.jackson.core:jackson-databind:2.8.0.rc2'
+    compile 'org.apache.commons:commons-lang3:3.4'
+    compile 'io.reactivex:rxjava-reactive-streams:1.1.0"'
+    compile 'io.airlift:airline:0.7'
+}
+
+task runTests(type: JavaExec) {
+    classpath(sourceSets.main.runtimeClasspath, sourceSets.main.compileClasspath)
+    main = 'io.reactivesocket.tckdrivers.main.TestMain'
+    args '--port',  '4567', '--serverfile',  'src/test/resources/server$.txt',  '--clientfile',  'src/test/resources/client$.txt'
+}
+
+build.dependsOn runTests
