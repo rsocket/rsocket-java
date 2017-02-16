@@ -51,7 +51,8 @@ public class Tuple<K, V> {
         if (!o.getClass().isInstance(this)) {
             return false;
         }
-        Tuple<K, V> temp = (Tuple<K, V>) o;
+        @SuppressWarnings("unchecked")
+		Tuple<K, V> temp = (Tuple<K, V>) o;
         return temp.getV().equals(this.getV()) && temp.getK().equals(this.getK());
     }
 

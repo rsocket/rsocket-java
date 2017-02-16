@@ -13,18 +13,17 @@
 
 package io.reactivesocket.tckdrivers.client;
 
-import io.netty.buffer.ByteBuf;
-import io.netty.handler.logging.LogLevel;
-import io.reactivesocket.ConnectionSetupPayload;
 import io.reactivesocket.ReactiveSocket;
-import io.reactivesocket.transport.tcp.client.TcpReactiveSocketConnector;
-import io.reactivex.netty.protocol.tcp.client.TcpClient;
+import io.reactivesocket.transport.tcp.client.TcpTransportClient;
+
+import io.reactivesocket.client.ReactiveSocketClient;
+import io.reactivex.Flowable;
+import io.reactivesocket.client.KeepAliveProvider;
+import io.reactivesocket.client.SetupProvider;
 
 import java.net.*;
 import java.util.List;
-import java.util.function.Function;
 
-import static rx.RxReactiveStreams.toObservable;
 
 /**
  * A client that implements a method to create ReactiveSockets, and runs the tests.
@@ -32,13 +31,11 @@ import static rx.RxReactiveStreams.toObservable;
 public class JavaTCPClient {
 
     private static URI uri;
-    private static boolean debug;
 
     public void run(String realfile, String host, int port, boolean debug2, List<String> tests)
             throws MalformedURLException, URISyntaxException {
-        debug = debug2;
         // we pass in our reactive socket here to the test suite
-        String file = "reactivesocket-tck-drivers/src/test/resources/client$.txt";
+        String file = "reactivesocket-tck-drivers/src/test/resources/clienttest$.txt";
         if (realfile != null) file = realfile;
         try {
             setURI(new URI("tcp://" + host + ":" + port + "/rs"));
@@ -58,21 +55,12 @@ public class JavaTCPClient {
      * @return a ReactiveSocket
      */
     public static ReactiveSocket createClient() {
-        ConnectionSetupPayload setupPayload = ConnectionSetupPayload.create("", "");
-
         if ("tcp".equals(uri.getScheme())) {
-            Function<SocketAddress, TcpClient<ByteBuf, ByteBuf>> clientFactory =
-                    socketAddress -> TcpClient.newClient(socketAddress);
-
-            if (debug) clientFactory =
-                    socketAddress -> TcpClient.newClient(socketAddress).enableWireLogging("rs",
-                            LogLevel.ERROR);
-
-            return toObservable(
-                    TcpReactiveSocketConnector.create(setupPayload, Throwable::printStackTrace, clientFactory)
-                            .connect(new InetSocketAddress(uri.getHost(), uri.getPort()))).toSingle()
-                    .toBlocking()
-                    .value();
+            SocketAddress address = new InetSocketAddress(uri.getHost(), uri.getPort());
+            ReactiveSocketClient client = ReactiveSocketClient.create(TcpTransportClient.create(address),
+                    SetupProvider.keepAlive(KeepAliveProvider.never()).disableLease());
+            ReactiveSocket socket = Flowable.fromPublisher(client.connect()).singleOrError().blockingGet();
+            return socket;
         }
         else {
             throw new UnsupportedOperationException("uri unsupported: " + uri);

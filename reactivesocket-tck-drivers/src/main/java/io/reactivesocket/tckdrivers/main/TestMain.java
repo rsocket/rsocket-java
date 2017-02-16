@@ -1,13 +1,14 @@
 package io.reactivesocket.tckdrivers.main;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+
 import io.airlift.airline.Command;
 import io.airlift.airline.Option;
 import io.airlift.airline.SingleCommand;
 import io.reactivesocket.tckdrivers.client.JavaTCPClient;
-import io.reactivesocket.tckdrivers.common.*;
-
-import java.util.ArrayList;
-import java.util.Arrays;
+import io.reactivesocket.tckdrivers.common.ConsoleUtils;
+import io.reactivesocket.tckdrivers.common.ServerThread;
 
 /**
  * This class fires up both the client and the server, is used for the Gradle task to run the tests
@@ -44,9 +45,11 @@ public class TestMain {
         } catch (Exception e) {
             e.printStackTrace();
         }
-        if (ConsoleUtils.allPassed()) ConsoleUtils.success("ALL TESTS PASSED");
-        else {
-            ConsoleUtils.failure("SOME TESTS FAILED");
+        if (ConsoleUtils.allPassed()) {
+			System.out.println("ALL TESTS PASSED");
+			System.exit(0);
+        } else {
+            System.out.println("SOME TESTS FAILED");
             System.exit(1); // exit with code 1 so that the gradle build process fails
         }
     }

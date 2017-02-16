@@ -18,7 +18,6 @@ import io.reactivesocket.Payload;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 
 /**
  * This class is exclusively used to parse channel commands on both the client and the server
@@ -26,23 +25,25 @@ import java.util.concurrent.TimeUnit;
 public class ParseChannel {
 
     private List<String> commands;
-    private TestSubscriber<Payload> sub;
+    private MySubscriber<Payload> sub;
     private ParseMarble parseMarble;
     private String name = "";
     private CountDownLatch prevRespondLatch;
     private CountDownLatch currentRespondLatch;
     private boolean pass = true;
+    public ConsoleUtils consoleUtils;
 
-    public ParseChannel(List<String> commands, TestSubscriber<Payload> sub, ParseMarble parseMarble) {
+    public ParseChannel(List<String> commands, MySubscriber<Payload> sub, ParseMarble parseMarble, String agent) {
         this.commands = commands;
         this.sub = sub;
         this.parseMarble = parseMarble;
         ParseThread parseThread = new ParseThread(parseMarble);
         parseThread.start();
+        consoleUtils = new ConsoleUtils(agent);
     }
 
-    public ParseChannel(List<String> commands, TestSubscriber<Payload> sub, ParseMarble parseMarble,
-                        String name, boolean pass) {
+    public ParseChannel(List<String> commands, MySubscriber<Payload> sub, ParseMarble parseMarble,
+                        String name, boolean pass, String agent) {
         this.commands = commands;
         this.sub = sub;
         this.parseMarble = parseMarble;
@@ -50,6 +51,7 @@ public class ParseChannel {
         ParseThread parseThread = new ParseThread(parseMarble);
         parseThread.start();
         this.pass = pass;
+        consoleUtils = new ConsoleUtils(agent);
     }
 
     /**
@@ -73,14 +75,14 @@ public class ParseChannel {
                             try {
                                 sub.awaitAtLeast(Long.parseLong(args[3]));
                             } catch (InterruptedException e) {
-                                ConsoleUtils.error("interrupted");
+                                consoleUtils.error("interrupted");
                             }
                             break;
                         case "no_events":
                             try {
                                 sub.awaitNoEvents(Long.parseLong(args[3]));
                             } catch (InterruptedException e) {
-                                ConsoleUtils.error("interrupted");
+                                consoleUtils.error("interrupted");
                             }
                             break;
                     }
@@ -118,7 +120,7 @@ public class ParseChannel {
                     break;
                 case "request":
                     sub.request(Long.parseLong(args[1]));
-                    ConsoleUtils.info("requesting " + args[1]);
+                    consoleUtils.info("requesting " + args[1]);
                     break;
                 case "cancel":
                     sub.cancel();
@@ -128,9 +130,9 @@ public class ParseChannel {
         if (name.equals("")) {
             name = "CHANNEL";
         }
-        if (sub.hasPassed() && this.pass) ConsoleUtils.success(name);
-        else if (!sub.hasPassed() && !this.pass) ConsoleUtils.success(name);
-        else ConsoleUtils.failure(name);
+        if (sub.hasPassed() && this.pass) consoleUtils.success(name);
+        else if (!sub.hasPassed() && !this.pass) consoleUtils.success(name);
+        else consoleUtils.failure(name);
     }
 
     /**
@@ -139,7 +141,7 @@ public class ParseChannel {
      * @param args
      */
     private void handleResponse(String[] args) {
-        ConsoleUtils.info("responding");
+        consoleUtils.info("responding " + args);
         if (currentRespondLatch == null) currentRespondLatch = new CountDownLatch(1);
         AddThread addThread = new AddThread(args[1], parseMarble, prevRespondLatch, currentRespondLatch);
         prevRespondLatch = currentRespondLatch;
@@ -148,7 +150,7 @@ public class ParseChannel {
     }
 
     /**
-     * This verifies that the data received by our TestSubscriber matches what we expected
+     * This verifies that the data received by our MySubscriber matches what we expected
      * @param args
      */
     private void handleReceived(String[] args) {

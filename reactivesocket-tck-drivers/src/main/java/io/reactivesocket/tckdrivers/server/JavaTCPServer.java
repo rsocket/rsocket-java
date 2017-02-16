@@ -13,7 +13,7 @@
 
 package io.reactivesocket.tckdrivers.server;
 
-import io.reactivesocket.transport.tcp.server.TcpReactiveSocketServer;
+import io.reactivesocket.transport.tcp.server.TcpTransportServer;
 
 import java.util.concurrent.CountDownLatch;
 
@@ -30,13 +30,13 @@ public class JavaTCPServer {
 
     public void run(String realfile, int port) {
 
-        String file = "reactivesocket-tck-drivers/src/main/resources/server$.txt";
+        String file = "reactivesocket-tck-drivers/src/main/resources/servertest$.txt";
 
         if (realfile != null) {
             file = realfile;
         }
 
-        TcpReactiveSocketServer server = TcpReactiveSocketServer.create(port);
+        TcpTransportServer server = TcpTransportServer.create(port);
 
         JavaServerDriver jsd =
                 new JavaServerDriver(file, server, mutex);

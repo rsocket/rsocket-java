@@ -66,3 +66,6 @@ atlassian-ide-plugin.xml
 # NetBeans specific files/directories
 .nbattrs
 /bin
+
+#.gitignore in subdirectory
+.gitignore

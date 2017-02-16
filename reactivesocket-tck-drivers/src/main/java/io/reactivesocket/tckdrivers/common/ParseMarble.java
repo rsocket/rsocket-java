@@ -40,6 +40,7 @@ public class ParseMarble {
     private long numRequested = 0;
     private CountDownLatch parseLatch;
     private CountDownLatch sendLatch;
+    private ConsoleUtils consoleUtils;
 
     /**
      * This constructor is useful if one already has the entire marble diagram before hand, so add() does not need to
@@ -47,7 +48,7 @@ public class ParseMarble {
      * @param marble the whole marble diagram
      * @param s the subscriber
      */
-    public ParseMarble(String marble, Subscriber<? super Payload> s) {
+    public ParseMarble(String marble, Subscriber<? super Payload> s, String agent) {
         this.s = s;
         this.marble = new ConcurrentLinkedQueue<>();
         if (marble.contains("&&")) {
@@ -67,17 +68,19 @@ public class ParseMarble {
         }
         parseLatch = new CountDownLatch(1);
         sendLatch = new CountDownLatch(1);
+        consoleUtils = new ConsoleUtils(agent);
     }
 
     /**
      * This constructor is useful for channel, when the marble diagram will be build incrementally.
      * @param s the subscriber
      */
-    public ParseMarble(Subscriber<? super Payload> s) {
+    public ParseMarble(Subscriber<? super Payload> s, String agent) {
         this.s = s;
         this.marble = new ConcurrentLinkedQueue<>();
         parseLatch = new CountDownLatch(1);
         sendLatch = new CountDownLatch(1);
+        consoleUtils = new ConsoleUtils(agent);
     }
 
     /**
@@ -87,7 +90,7 @@ public class ParseMarble {
      * @param m
      */
     public synchronized void add(String m) {
-        System.out.println("adding " + m);
+        consoleUtils.info("adding " + m);
         for (char c : m.toCharArray()) {
             if (c != '-') this.marble.add(c);
         }
@@ -101,7 +104,6 @@ public class ParseMarble {
      * @param n
      */
     public synchronized void request(long n) {
-        System.out.println("requested " + n);
         numRequested += n;
         if (!marble.isEmpty()) {
             parseLatch.countDown();
@@ -128,10 +130,11 @@ public class ParseMarble {
                 switch (c) {
                     case '|':
                         s.onComplete();
-                        System.out.println("on complete sent");
+                        consoleUtils.info("On complete sent");
                         break;
                     case '#':
                         s.onError(new Throwable());
+                        consoleUtils.info("On error sent");
                         break;
                     default:
                         if (numSent >= numRequested) {
@@ -141,20 +144,22 @@ public class ParseMarble {
                             }
                             sendLatch = new CountDownLatch(1);
                         }
+                        consoleUtils.info("numSent " + numSent + ": numRequested " + numRequested);
                         if (argMap != null) {
                             // this is hacky, but we only expect one key and one value
                             Map<String, String> tempMap = argMap.get(c + "");
                             if (tempMap == null) {
                                 s.onNext(new PayloadImpl(c + "", c + ""));
-                                break;
+                                consoleUtils.info("DATA SENT " + c + ", " + c);
+                            } else {
+	                            List<String> key = new ArrayList<>(tempMap.keySet());
+	                            List<String> value = new ArrayList<>(tempMap.values());
+	                            s.onNext(new PayloadImpl(key.get(0), value.get(0)));
+	                            consoleUtils.info("DATA SENT " + key.get(0) + ", " + value.get(0));
                             }
-                            List<String> key = new ArrayList<>(tempMap.keySet());
-                            List<String> value = new ArrayList<>(tempMap.values());
-                            s.onNext(new PayloadImpl(key.get(0), value.get(0)));
-                            ConsoleUtils.info("DATA SENT " + key.get(0) + ", " + value.get(0));
                         } else {
                             this.s.onNext(new PayloadImpl(c + "", c + ""));
-                            ConsoleUtils.info("DATA SENT " + c + ", " + c);
+                            consoleUtils.info("DATA SENT " + c + ", " + c);
                         }
 
                         numSent++;
@@ -162,7 +167,7 @@ public class ParseMarble {
                 }
             }
         } catch (InterruptedException e) {
-            ConsoleUtils.error("interrupted");
+            consoleUtils.error("interrupted");
         }
 
     }

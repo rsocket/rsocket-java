@@ -13,21 +13,27 @@
 
 package io.reactivesocket.tckdrivers.server;
 
+import io.reactivesocket.AbstractReactiveSocket;
+import io.reactivesocket.ConnectionSetupPayload;
 import io.reactivesocket.Payload;
-import io.reactivesocket.RequestHandler;
-import io.reactivesocket.exceptions.Exceptions;
-import io.reactivesocket.internal.frame.ByteBufferUtil;
-import io.reactivesocket.internal.frame.ThreadLocalFramePool;
+import io.reactivesocket.ReactiveSocket;
+import io.reactivesocket.frame.ByteBufferUtil;
+import io.reactivesocket.lease.DisabledLeaseAcceptingSocket;
+import io.reactivesocket.lease.LeaseEnforcingSocket;
 import io.reactivesocket.tckdrivers.common.*;
-import io.reactivesocket.transport.tcp.server.TcpReactiveSocketServer;
+import io.reactivesocket.transport.tcp.server.TcpTransportServer;
+
+import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscription;
+
+import io.reactivesocket.server.ReactiveSocketServer;
+import io.reactivesocket.server.ReactiveSocketServer.SocketAcceptor;
 
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 
 /**
  * This is the driver for the server.
@@ -45,9 +51,10 @@ public class JavaServerDriver {
     // first try to implement single channel subscriber
     private BufferedReader reader;
     // the instance of the server so we can shut it down
-    private TcpReactiveSocketServer server;
-    private TcpReactiveSocketServer.StartedServer startedServer;
+    private TcpTransportServer server;
+    private TcpTransportServer.StartedServer startedServer;
     private CountDownLatch waitStart;
+    private ConsoleUtils consoleUtils = new ConsoleUtils("[SERVER]");
 
     public JavaServerDriver(String path) {
         requestResponseMarbles = new HashMap<>();
@@ -58,13 +65,13 @@ public class JavaServerDriver {
         try {
             reader = new BufferedReader(new FileReader(path));
         } catch (Exception e) {
-            ConsoleUtils.error("File not found");
+            consoleUtils.error("File not found");
         }
         requestChannelFail = new HashSet<>();
     }
 
     // should be used if we want the server to be shutdown upon receiving some EOF packet
-    public JavaServerDriver(String path, TcpReactiveSocketServer server, CountDownLatch waitStart) {
+    public JavaServerDriver(String path, TcpTransportServer server, CountDownLatch waitStart) {
         this(path);
         this.server = server;
         this.waitStart = waitStart;
@@ -75,12 +82,112 @@ public class JavaServerDriver {
      * Starts up the server
      */
     public void run() {
-        this.startedServer = this.server.start((setupPayload, reactiveSocket) -> {
-            return parse();
-        });
+        this.parse();
+        ReactiveSocketServer s = ReactiveSocketServer.create(this.server);
+        this.startedServer = s.start(new SocketAcceptorImpl());
         waitStart.countDown(); // notify that this server has started
         startedServer.awaitShutdown();
     }
+
+    class SocketAcceptorImpl implements SocketAcceptor {
+        @Override
+        public LeaseEnforcingSocket accept(ConnectionSetupPayload setupPayload, ReactiveSocket reactiveSocket) {
+            return new DisabledLeaseAcceptingSocket(new AbstractReactiveSocket() {
+                @Override
+                public Publisher<Payload> requestChannel(Publisher<Payload> payloads) {
+                    return s -> {
+                        try {
+                            MySubscriber<Payload> sub = new MySubscriber<>(0L, "[SERVER]");
+                            payloads.subscribe(sub);
+                            // want to get equivalent of "initial payload" so we can route behavior, this might change in the future
+                            sub.request(1);
+                            sub.awaitAtLeast(1);
+                            Tuple<String, String> initpayload = new Tuple<>(sub.getElement(0).getK(), sub.getElement(0).getV());
+                            consoleUtils.initialPayload("Received Channel " + initpayload.getK() + " " + initpayload.getV());
+                            // if this is a normal channel handler, then initiate the normal setup
+                            if (requestChannelCommands.containsKey(initpayload)) {
+                                ParseMarble pm = new ParseMarble(s, "[SERVER]");
+                                s.onSubscribe(new TestSubscription(pm));
+                                ParseChannel pc;
+                                if (requestChannelFail.contains(initpayload))
+                                    pc = new ParseChannel(requestChannelCommands.get(initpayload), sub, pm, "CHANNEL", false, "[SERVER]");
+                                else
+                                    pc = new ParseChannel(requestChannelCommands.get(initpayload), sub, pm, "[SERVER]");
+                                ParseChannelThread pct = new ParseChannelThread(pc);
+                                pct.start();
+                            } else if (requestEchoChannel.contains(initpayload)) {
+                                EchoSubscription echoSubscription = new EchoSubscription(s);
+                                s.onSubscribe(echoSubscription);
+                                sub.setEcho(echoSubscription);
+                                sub.request(10000); // request a large number, which basically means the client can send whatever
+                            } else {
+                                consoleUtils.error("Request channel payload " + initpayload.getK() + " " + initpayload.getV()
+                                        + "has no handler");
+                            }
+
+                        } catch (Exception e) {
+                            consoleUtils.failure("Interrupted");
+                        }
+                    };
+                }
+
+                @Override
+                public final Publisher<Void> fireAndForget(Payload payload) {
+                    return s -> {
+                        Tuple<String, String> initialPayload = new Tuple<>(ByteBufferUtil.toUtf8String(payload.getData()),
+                                ByteBufferUtil.toUtf8String(payload.getMetadata()));
+                        consoleUtils.initialPayload("Received firenforget " + initialPayload.getK() + " " + initialPayload.getV());
+                        if (initialPayload.getK().equals("shutdown") && initialPayload.getV().equals("shutdown")) {
+                            try {
+                                Thread.sleep(2000);
+                                startedServer.shutdown();
+                            } catch (Exception e) {
+                                e.printStackTrace();
+                            }
+                        }
+                    };
+                }
+
+                @Override
+                public Publisher<Payload> requestResponse(Payload payload) {
+                    return s -> {
+                        Tuple<String, String> initialPayload = new Tuple<>(ByteBufferUtil.toUtf8String(payload.getData()),
+                                ByteBufferUtil.toUtf8String(payload.getMetadata()));
+                        String marble = requestResponseMarbles.get(initialPayload);
+                        consoleUtils.initialPayload("Received requestresponse " + initialPayload.getK()
+                                + " " + initialPayload.getV());
+                        if (marble != null) {
+                            ParseMarble pm = new ParseMarble(marble, s, "[SERVER]");
+                            s.onSubscribe(new TestSubscription(pm));
+                            new ParseThread(pm).start();
+                        } else {
+                            consoleUtils.failure("Request response payload " + initialPayload.getK() + " " + initialPayload.getV()
+                                + "has no handler");
+                        }
+                    };
+                }
+
+                @Override
+                public Publisher<Payload> requestStream(Payload payload) {
+                    return s -> {
+                        Tuple<String, String> initialPayload = new Tuple<>(ByteBufferUtil.toUtf8String(payload.getData()),
+                                ByteBufferUtil.toUtf8String(payload.getMetadata()));
+                        String marble = requestStreamMarbles.get(initialPayload);
+                        consoleUtils.initialPayload("Received Stream " + initialPayload.getK() + " " + initialPayload.getV());
+                        if (marble != null) {
+                            ParseMarble pm = new ParseMarble(marble, s, "[SERVER]");
+                            s.onSubscribe(new TestSubscription(pm));
+                            new ParseThread(pm).start();
+                        } else {
+                            consoleUtils.failure("Request stream payload " + initialPayload.getK() + " " + initialPayload.getV()
+                                    + "has no handler");
+                        }
+                    };
+                }
+            });
+        }
+    }
+
 
     /**
      * This function parses through each line of the server handlers and primes the supporting data structures to
@@ -90,7 +197,7 @@ public class JavaServerDriver {
      * will nondeterministically lead to some data structures to not be initialized.
      * @return a RequestHandler that details how to handle each type of request.
      */
-    public RequestHandler parse() {
+    public void parse() {
         try {
             String line = reader.readLine();
             while (line != null) {
@@ -122,93 +229,6 @@ public class JavaServerDriver {
         } catch (Exception e) {
             e.printStackTrace();
         }
-
-        return new RequestHandler.Builder().withFireAndForget(payload -> s -> {
-            Tuple<String, String> initialPayload = new Tuple<>(ByteBufferUtil.toUtf8String(payload.getData()),
-                    ByteBufferUtil.toUtf8String(payload.getMetadata()));
-            ConsoleUtils.initialPayload("Received firenforget " + initialPayload.getK() + " " + initialPayload.getV());
-            if (initialPayload.getK().equals("shutdown") && initialPayload.getV().equals("shutdown")) {
-                try {
-                    Thread.sleep(2000);
-                    startedServer.shutdown();
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            }
-        }).withRequestResponse(payload -> s -> {
-            Tuple<String, String> initialPayload = new Tuple<>(ByteBufferUtil.toUtf8String(payload.getData()),
-                    ByteBufferUtil.toUtf8String(payload.getMetadata()));
-            String marble = requestResponseMarbles.get(initialPayload);
-            ConsoleUtils.initialPayload("Received requestresponse " + initialPayload.getK()
-                    + " " + initialPayload.getV());
-            if (marble != null) {
-                ParseMarble pm = new ParseMarble(marble, s);
-                s.onSubscribe(new TestSubscription(pm));
-                new ParseThread(pm).start();
-            } else {
-                ConsoleUtils.failure("Request response payload " + initialPayload.getK() + " " + initialPayload.getV()
-                    + "has no handler");
-        }
-        }).withRequestStream(payload -> s -> {
-            Tuple<String, String> initialPayload = new Tuple<>(ByteBufferUtil.toUtf8String(payload.getData()),
-                    ByteBufferUtil.toUtf8String(payload.getMetadata()));
-            String marble = requestStreamMarbles.get(initialPayload);
-            ConsoleUtils.initialPayload("Received Stream " + initialPayload.getK() + " " + initialPayload.getV());
-            if (marble != null) {
-                ParseMarble pm = new ParseMarble(marble, s);
-                s.onSubscribe(new TestSubscription(pm));
-                new ParseThread(pm).start();
-            } else {
-                ConsoleUtils.failure("Request stream payload " + initialPayload.getK() + " " + initialPayload.getV()
-                        + "has no handler");
-            }
-        }).withRequestSubscription(payload -> s -> {
-            Tuple<String, String> initialPayload = new Tuple<>(ByteBufferUtil.toUtf8String(payload.getData()),
-                    ByteBufferUtil.toUtf8String(payload.getMetadata()));
-            String marble = requestSubscriptionMarbles.get(initialPayload);
-            ConsoleUtils.initialPayload("Received Subscription " + initialPayload.getK() + " " + initialPayload.getV());
-            if (marble != null) {
-                ParseMarble pm = new ParseMarble(marble, s);
-                s.onSubscribe(new TestSubscription(pm));
-                new ParseThread(pm).start();
-            } else {
-                ConsoleUtils.failure("Request subscription payload " + initialPayload.getK() + " " + initialPayload.getV()
-                        + "has no handler");
-            }
-        }).withRequestChannel(payloadPublisher -> s -> { // design flaw
-            try {
-                TestSubscriber<Payload> sub = new TestSubscriber<>(0L);
-                payloadPublisher.subscribe(sub);
-                // want to get equivalent of "initial payload" so we can route behavior, this might change in the future
-                sub.request(1);
-                sub.awaitAtLeast(1);
-                Tuple<String, String> initpayload = new Tuple<>(sub.getElement(0).getK(), sub.getElement(0).getV());
-                ConsoleUtils.initialPayload("Received Channel" + initpayload.getK() + " " + initpayload.getV());
-                // if this is a normal channel handler, then initiate the normal setup
-                if (requestChannelCommands.containsKey(initpayload)) {
-                    ParseMarble pm = new ParseMarble(s);
-                    s.onSubscribe(new TestSubscription(pm));
-                    ParseChannel pc;
-                    if (requestChannelFail.contains(initpayload))
-                        pc = new ParseChannel(requestChannelCommands.get(initpayload), sub, pm, "CHANNEL", false);
-                    else
-                        pc = new ParseChannel(requestChannelCommands.get(initpayload), sub, pm);
-                    ParseChannelThread pct = new ParseChannelThread(pc);
-                    pct.start();
-                } else if (requestEchoChannel.contains(initpayload)) {
-                    EchoSubscription echoSubscription = new EchoSubscription(s);
-                    s.onSubscribe(echoSubscription);
-                    sub.setEcho(echoSubscription);
-                    sub.request(10000); // request a large number, which basically means the client can send whatever
-                } else {
-                    ConsoleUtils.error("Request channel payload " + initpayload.getK() + " " + initpayload.getV()
-                            + "has no handler");
-                }
-
-            } catch (Exception e) {
-                ConsoleUtils.failure("Interrupted");
-            }
-        }).build();
     }
 
     /**
@@ -249,6 +269,7 @@ public class JavaServerDriver {
 
         @Override
         public void request(long n) {
+			consoleUtils.info("TestSubscription: request received for " + n);
             pm.request(n);
         }
     }
