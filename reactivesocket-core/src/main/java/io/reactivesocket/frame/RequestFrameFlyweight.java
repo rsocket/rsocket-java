@@ -27,8 +27,9 @@ public class RequestFrameFlyweight {
 
     private RequestFrameFlyweight() {}
 
-    public static final int FLAGS_REQUEST_CHANNEL_C = 0b0001_0000_0000_0000;
-    public static final int FLAGS_REQUEST_CHANNEL_N = 0b0000_1000_0000_0000;
+    public static final int FLAGS_REQUEST_CHANNEL_C = 0b00_0100_0000;
+    // TODO(lexs) Remove flag for initial N present
+    public static final int FLAGS_REQUEST_CHANNEL_N = 0b00_0010_0000;
 
     // relative to start of passed offset
     private static final int INITIAL_REQUEST_N_FIELD_OFFSET = FrameHeaderFlyweight.FRAME_HEADER_LENGTH;
