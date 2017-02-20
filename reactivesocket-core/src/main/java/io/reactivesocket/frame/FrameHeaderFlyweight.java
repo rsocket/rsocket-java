@@ -187,8 +187,7 @@ public class FrameHeaderFlyweight {
         FrameType result = FrameType.from(typeAndFlags >> FRAME_TYPE_SHIFT);
 
         if (FrameType.RESPONSE == result) {
-            // FIXME
-            final int flags = flags(directBuffer, offset);
+            final int flags = typeAndFlags & FRAME_FLAGS_MASK;
 
             boolean complete = FLAGS_RESPONSE_C == (flags & FLAGS_RESPONSE_C);
             if (complete) {
