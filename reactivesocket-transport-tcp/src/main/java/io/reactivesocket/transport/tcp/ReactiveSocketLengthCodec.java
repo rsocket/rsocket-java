@@ -17,11 +17,13 @@
 package io.reactivesocket.transport.tcp;
 
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
-import org.agrona.BitUtil;
+
+import static io.reactivesocket.frame.FrameHeaderFlyweight.FRAME_LENGTH_MASK;
+import static io.reactivesocket.frame.FrameHeaderFlyweight.FRAME_LENGTH_SIZE;
 
 public class ReactiveSocketLengthCodec extends LengthFieldBasedFrameDecoder {
 
     public ReactiveSocketLengthCodec() {
-        super(Integer.MAX_VALUE, 0, BitUtil.SIZE_OF_INT, -1 * BitUtil.SIZE_OF_INT, 0);
+        super(FRAME_LENGTH_MASK, 0, FRAME_LENGTH_SIZE, -1 * FRAME_LENGTH_SIZE, 0);
     }
 }
