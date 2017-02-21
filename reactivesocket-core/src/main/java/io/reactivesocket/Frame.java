@@ -261,7 +261,7 @@ public class Frame implements Payload {
             final ByteBuffer data = payload.getData();
 
             final Frame frame =
-                POOL.acquireFrame(SetupFrameFlyweight.computeFrameLength(metadataMimeType, dataMimeType, metadata.remaining(), data.remaining()));
+                POOL.acquireFrame(SetupFrameFlyweight.computeFrameLength(flags, metadataMimeType, dataMimeType, metadata.remaining(), data.remaining()));
 
             frame.length = SetupFrameFlyweight.encode(
                 frame.directBuffer, frame.offset, flags, keepaliveInterval, maxLifetime, metadataMimeType, dataMimeType, metadata, data);
@@ -272,7 +272,7 @@ public class Frame implements Payload {
             ensureFrameType(FrameType.SETUP, frame);
             final int flags = FrameHeaderFlyweight.flags(frame.directBuffer, frame.offset);
 
-            return flags & (SetupFrameFlyweight.FLAGS_WILL_HONOR_LEASE | SetupFrameFlyweight.FLAGS_STRICT_INTERPRETATION);
+            return flags & SetupFrameFlyweight.VALID_FLAGS;
         }
 
         public static int version(final Frame frame) {
