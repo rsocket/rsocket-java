@@ -16,6 +16,7 @@
 package io.reactivesocket.frame;
 
 import io.reactivesocket.FrameType;
+import org.agrona.BitUtil;
 import org.agrona.DirectBuffer;
 import org.agrona.MutableDirectBuffer;
 
@@ -24,20 +25,26 @@ import java.nio.ByteBuffer;
 public class KeepaliveFrameFlyweight {
     private KeepaliveFrameFlyweight() {}
 
-    private static final int PAYLOAD_OFFSET = FrameHeaderFlyweight.FRAME_HEADER_LENGTH;
+    private static final int LAST_POSITION_OFFSET = FrameHeaderFlyweight.FRAME_HEADER_LENGTH;
+    private static final int PAYLOAD_OFFSET = LAST_POSITION_OFFSET + BitUtil.SIZE_OF_LONG;
 
     public static int computeFrameLength(final int dataLength) {
-        return FrameHeaderFlyweight.computeFrameHeaderLength(FrameType.SETUP, 0, dataLength);
+        return FrameHeaderFlyweight.computeFrameHeaderLength(FrameType.SETUP, 0, dataLength) + BitUtil.SIZE_OF_LONG;
     }
 
     public static int encode(
         final MutableDirectBuffer mutableDirectBuffer,
         final int offset,
+        int flags,
         final ByteBuffer data
     ) {
         final int frameLength = computeFrameLength(data.remaining());
 
-        int length = FrameHeaderFlyweight.encodeFrameHeader(mutableDirectBuffer, offset, frameLength, 0, FrameType.KEEPALIVE, 0);
+        int length = FrameHeaderFlyweight.encodeFrameHeader(mutableDirectBuffer, offset, frameLength, flags, FrameType.KEEPALIVE, 0);
+
+        // We don't support resumability, last position is always zero
+        mutableDirectBuffer.putLong(length, 0);
+        length += BitUtil.SIZE_OF_LONG;
 
         length += FrameHeaderFlyweight.encodeData(mutableDirectBuffer, offset + length, data);
 

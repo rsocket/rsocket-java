@@ -18,6 +18,7 @@ package io.reactivesocket;
 import io.reactivesocket.frame.ErrorFrameFlyweight;
 import io.reactivesocket.frame.FrameHeaderFlyweight;
 import io.reactivesocket.frame.FramePool;
+import io.reactivesocket.frame.KeepaliveFrameFlyweight;
 import io.reactivesocket.frame.LeaseFrameFlyweight;
 import io.reactivesocket.frame.RequestFrameFlyweight;
 import io.reactivesocket.frame.RequestNFrameFlyweight;
@@ -510,12 +511,11 @@ public class Frame implements Payload {
 
         public static Frame from(ByteBuffer data, boolean respond) {
             final Frame frame =
-                POOL.acquireFrame(FrameHeaderFlyweight.computeFrameHeaderLength(FrameType.KEEPALIVE, 0, data.remaining()));
+                POOL.acquireFrame(KeepaliveFrameFlyweight.computeFrameLength(data.remaining()));
 
             final int flags = respond ? FrameHeaderFlyweight.FLAGS_KEEPALIVE_R : 0;
 
-            frame.length = FrameHeaderFlyweight.encode(
-                frame.directBuffer, frame.offset, 0, flags, FrameType.KEEPALIVE, Frame.NULL_BYTEBUFFER, data);
+            frame.length = KeepaliveFrameFlyweight.encode(frame.directBuffer, frame.offset, flags, data);
 
             return frame;
         }
