@@ -77,7 +77,7 @@ public class ClientReactiveSocketTest {
         response.subscribe(responseSub);
 
         int streamId = rule.getStreamIdForRequestType(REQUEST_RESPONSE);
-        rule.connection.addToReceivedBuffer(Frame.Response.from(streamId, NEXT_COMPLETE, PayloadImpl.EMPTY));
+        rule.connection.addToReceivedBuffer(Frame.PayloadFrame.from(streamId, NEXT_COMPLETE, PayloadImpl.EMPTY));
 
         responseSub.assertValueCount(1);
         responseSub.assertComplete();
@@ -122,7 +122,7 @@ public class ClientReactiveSocketTest {
         TestSubscriber<Payload> sub = TestSubscriber.create();
         response.subscribe(sub);
         int streamId = rule.getStreamIdForRequestType(REQUEST_RESPONSE);
-        rule.connection.addToReceivedBuffer(Frame.Response.from(streamId, RESPONSE, PayloadImpl.EMPTY));
+        rule.connection.addToReceivedBuffer(Frame.PayloadFrame.from(streamId, PAYLOAD, PayloadImpl.EMPTY));
         sub.assertValueCount(1).assertNoErrors();
         return streamId;
     }

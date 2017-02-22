@@ -172,7 +172,7 @@ public class RemoteReceiverTest {
         }
 
         public Frame newFrame(FrameType frameType) {
-            return Frame.Response.from(streamId, frameType);
+            return Frame.PayloadFrame.from(streamId, frameType);
         }
 
         public TestSubscriber<Payload> subscribeToReceiver(int initialRequestN) {

@@ -458,9 +458,9 @@ public class Frame implements Payload {
         }
     }
 
-    public static class Response {
+    public static class PayloadFrame {
 
-        private Response() {}
+        private PayloadFrame() {}
 
         public static Frame from(int streamId, FrameType type, Payload payload) {
             final ByteBuffer data = payload.getData() != null ? payload.getData() : NULL_BYTEBUFFER;

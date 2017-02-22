@@ -35,7 +35,7 @@ public enum FrameType {
     REQUEST_N(0x09),
     CANCEL(0x0A, Flags.CAN_HAVE_METADATA),
     // Responder
-    RESPONSE(0x0B, Flags.CAN_HAVE_METADATA_AND_DATA),
+    PAYLOAD(0x0B, Flags.CAN_HAVE_METADATA_AND_DATA),
     ERROR(0x0C, Flags.CAN_HAVE_METADATA_AND_DATA),
     // Requester & Responder
     METADATA_PUSH(0x0D, Flags.CAN_HAVE_METADATA),
