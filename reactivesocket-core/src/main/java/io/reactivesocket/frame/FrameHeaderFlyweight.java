@@ -58,13 +58,8 @@ public class FrameHeaderFlyweight {
     public static final int FLAGS_I = 0b10_0000_0000;
     public static final int FLAGS_M = 0b01_0000_0000;
 
-    // TODO(lexs): These are frame specific and should not live here
-    public static final int FLAGS_KEEPALIVE_R = 0b00_1000_0000;
-
-    public static final int FLAGS_RESPONSE_F = 0b00_1000_0000;
-    public static final int FLAGS_RESPONSE_C = 0b00_0100_0000;
-
-    public static final int FLAGS_REQUEST_CHANNEL_F = 0b00_1000_0000;
+    public static final int FLAGS_F = 0b00_1000_0000;
+    public static final int FLAGS_C = 0b00_0100_0000;
 
     static {
         if (INCLUDE_FRAME_LENGTH) {
@@ -159,7 +154,7 @@ public class FrameHeaderFlyweight {
             case NEXT_COMPLETE:
             case COMPLETE:
                 outFrameType = FrameType.PAYLOAD;
-                flags |= FLAGS_RESPONSE_C;
+                flags |= FLAGS_C;
                 break;
             case NEXT:
                 outFrameType = FrameType.PAYLOAD;
@@ -189,7 +184,7 @@ public class FrameHeaderFlyweight {
         if (FrameType.PAYLOAD == result) {
             final int flags = typeAndFlags & FRAME_FLAGS_MASK;
 
-            boolean complete = FLAGS_RESPONSE_C == (flags & FLAGS_RESPONSE_C);
+            boolean complete = FLAGS_C == (flags & FLAGS_C);
             if (complete) {
                 result = FrameType.NEXT_COMPLETE;
             } else {

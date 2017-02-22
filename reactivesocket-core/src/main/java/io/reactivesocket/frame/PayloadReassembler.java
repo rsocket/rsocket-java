@@ -47,7 +47,7 @@ public class PayloadReassembler implements Subscriber<Frame> {
         final int streamId = frame.getStreamId();
         PayloadBuilder payloadBuilder = payloadByStreamId.get(streamId);
 
-        if (FrameHeaderFlyweight.FLAGS_RESPONSE_F != (frame.flags() & FrameHeaderFlyweight.FLAGS_RESPONSE_F)) {
+        if (FrameHeaderFlyweight.FLAGS_F != (frame.flags() & FrameHeaderFlyweight.FLAGS_F)) {
             Payload deliveryPayload = frame;
 
             // terminal frame
