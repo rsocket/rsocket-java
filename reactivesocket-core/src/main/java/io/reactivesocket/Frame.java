@@ -454,7 +454,7 @@ public class Frame implements Payload {
             ensureFrameType(FrameType.REQUEST_CHANNEL, frame);
             final int flags = FrameHeaderFlyweight.flags(frame.directBuffer, frame.offset);
 
-            return (flags & RequestFrameFlyweight.FLAGS_REQUEST_CHANNEL_C) == RequestFrameFlyweight.FLAGS_REQUEST_CHANNEL_C;
+            return (flags & FrameHeaderFlyweight.FLAGS_C) == FrameHeaderFlyweight.FLAGS_C;
         }
     }
 
@@ -513,7 +513,7 @@ public class Frame implements Payload {
             final Frame frame =
                 POOL.acquireFrame(KeepaliveFrameFlyweight.computeFrameLength(data.remaining()));
 
-            final int flags = respond ? FrameHeaderFlyweight.FLAGS_KEEPALIVE_R : 0;
+            final int flags = respond ? KeepaliveFrameFlyweight.FLAGS_KEEPALIVE_R : 0;
 
             frame.length = KeepaliveFrameFlyweight.encode(frame.directBuffer, frame.offset, flags, data);
 
@@ -524,7 +524,7 @@ public class Frame implements Payload {
             ensureFrameType(FrameType.KEEPALIVE, frame);
             final int flags = FrameHeaderFlyweight.flags(frame.directBuffer, frame.offset);
 
-            return (flags & FrameHeaderFlyweight.FLAGS_KEEPALIVE_R) == FrameHeaderFlyweight.FLAGS_KEEPALIVE_R;
+            return (flags & KeepaliveFrameFlyweight.FLAGS_KEEPALIVE_R) == KeepaliveFrameFlyweight.FLAGS_KEEPALIVE_R;
         }
     }
 

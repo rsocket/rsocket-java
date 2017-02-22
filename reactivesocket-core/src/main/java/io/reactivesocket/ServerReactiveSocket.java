@@ -283,7 +283,7 @@ public class ServerReactiveSocket implements ReactiveSocket {
                     }
                 })
                 .map(payload -> Frame.PayloadFrame
-                    .from(streamId, FrameType.PAYLOAD, payload.getMetadata(), payload.getData(), FrameHeaderFlyweight.FLAGS_RESPONSE_C))
+                    .from(streamId, FrameType.PAYLOAD, payload.getMetadata(), payload.getData(), FrameHeaderFlyweight.FLAGS_C))
                 .doOnComplete(cleanup)
                 .emitOnCancelOrError(
                     // on cancel

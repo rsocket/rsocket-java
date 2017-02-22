@@ -57,7 +57,7 @@ public class ReassemblerTest
         final ByteBuffer metadataBuffer = TestUtil.byteBufferFromUtf8String(metadata);
         final ByteBuffer dataBuffer = TestUtil.byteBufferFromUtf8String(data);
 
-        reassembler.onNext(Frame.PayloadFrame.from(STREAM_ID, FrameType.NEXT, metadataBuffer, dataBuffer, FrameHeaderFlyweight.FLAGS_RESPONSE_F));
+        reassembler.onNext(Frame.PayloadFrame.from(STREAM_ID, FrameType.NEXT, metadataBuffer, dataBuffer, FrameHeaderFlyweight.FLAGS_F));
 
         //assertEquals(0, replaySubject.getValues().length);
     }
@@ -78,7 +78,7 @@ public class ReassemblerTest
         final ByteBuffer metadata1Buffer = TestUtil.byteBufferFromUtf8String(metadata1);
         final ByteBuffer data1Buffer = TestUtil.byteBufferFromUtf8String(data1);
 
-        reassembler.onNext(Frame.PayloadFrame.from(STREAM_ID, FrameType.NEXT, metadata0Buffer, data0Buffer, FrameHeaderFlyweight.FLAGS_RESPONSE_F));
+        reassembler.onNext(Frame.PayloadFrame.from(STREAM_ID, FrameType.NEXT, metadata0Buffer, data0Buffer, FrameHeaderFlyweight.FLAGS_F));
         reassembler.onNext(Frame.PayloadFrame.from(STREAM_ID, FrameType.NEXT, metadata1Buffer, data1Buffer, 0));
 
         //assertEquals(1, replaySubject.getValues().length);
@@ -99,7 +99,7 @@ public class ReassemblerTest
         final ByteBuffer data0Buffer = TestUtil.byteBufferFromUtf8String(data0);
         final ByteBuffer data1Buffer = TestUtil.byteBufferFromUtf8String(data1);
 
-        reassembler.onNext(Frame.PayloadFrame.from(STREAM_ID, FrameType.NEXT, metadataBuffer, data0Buffer, FrameHeaderFlyweight.FLAGS_RESPONSE_F));
+        reassembler.onNext(Frame.PayloadFrame.from(STREAM_ID, FrameType.NEXT, metadataBuffer, data0Buffer, FrameHeaderFlyweight.FLAGS_F));
         reassembler.onNext(Frame.PayloadFrame.from(STREAM_ID, FrameType.NEXT, Frame.NULL_BYTEBUFFER, data1Buffer, 0));
 
         //assertEquals(1, replaySubject.getValues().length);
@@ -120,7 +120,7 @@ public class ReassemblerTest
         final ByteBuffer dataBuffer = TestUtil.byteBufferFromUtf8String(data);
         final ByteBuffer metadata1Buffer = TestUtil.byteBufferFromUtf8String(metadata1);
 
-        reassembler.onNext(Frame.PayloadFrame.from(STREAM_ID, FrameType.NEXT, metadata0Buffer, dataBuffer, FrameHeaderFlyweight.FLAGS_RESPONSE_F));
+        reassembler.onNext(Frame.PayloadFrame.from(STREAM_ID, FrameType.NEXT, metadata0Buffer, dataBuffer, FrameHeaderFlyweight.FLAGS_F));
         reassembler.onNext(Frame.PayloadFrame.from(STREAM_ID, FrameType.NEXT, metadata1Buffer, Frame.NULL_BYTEBUFFER, 0));
 
         //assertEquals(1, replaySubject.getValues().length);
@@ -146,8 +146,8 @@ public class ReassemblerTest
         final ByteBuffer data1Buffer = TestUtil.byteBufferFromUtf8String(data1);
         final ByteBuffer data2Buffer = TestUtil.byteBufferFromUtf8String(data2);
 
-        reassembler.onNext(Frame.PayloadFrame.from(STREAM_ID, FrameType.NEXT, metadata0Buffer, data0Buffer, FrameHeaderFlyweight.FLAGS_RESPONSE_F));
-        reassembler.onNext(Frame.PayloadFrame.from(STREAM_ID, FrameType.NEXT, metadata1Buffer, data1Buffer, FrameHeaderFlyweight.FLAGS_RESPONSE_F));
+        reassembler.onNext(Frame.PayloadFrame.from(STREAM_ID, FrameType.NEXT, metadata0Buffer, data0Buffer, FrameHeaderFlyweight.FLAGS_F));
+        reassembler.onNext(Frame.PayloadFrame.from(STREAM_ID, FrameType.NEXT, metadata1Buffer, data1Buffer, FrameHeaderFlyweight.FLAGS_F));
         reassembler.onNext(Frame.PayloadFrame.from(STREAM_ID, FrameType.NEXT, Frame.NULL_BYTEBUFFER, data2Buffer, 0));
 
         //assertEquals(1, replaySubject.getValues().length);
