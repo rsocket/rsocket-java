@@ -43,7 +43,7 @@ public class TestUtil
 
     public static Frame utf8EncodedResponseFrame(final int streamId, final FrameType type, final String data)
     {
-        return Frame.Response.from(streamId, type, utf8EncodedPayload(data, null));
+        return Frame.PayloadFrame.from(streamId, type, utf8EncodedPayload(data, null));
     }
 
     public static Frame utf8EncodedErrorFrame(final int streamId, final String data)

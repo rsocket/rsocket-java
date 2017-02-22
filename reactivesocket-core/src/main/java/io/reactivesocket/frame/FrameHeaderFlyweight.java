@@ -158,11 +158,11 @@ public class FrameHeaderFlyweight {
         switch (frameType) {
             case NEXT_COMPLETE:
             case COMPLETE:
-                outFrameType = FrameType.RESPONSE;
+                outFrameType = FrameType.PAYLOAD;
                 flags |= FLAGS_RESPONSE_C;
                 break;
             case NEXT:
-                outFrameType = FrameType.RESPONSE;
+                outFrameType = FrameType.PAYLOAD;
                 break;
             default:
                 outFrameType = frameType;
@@ -186,7 +186,7 @@ public class FrameHeaderFlyweight {
         int typeAndFlags = directBuffer.getShort(offset + FRAME_TYPE_AND_FLAGS_FIELD_OFFSET, ByteOrder.BIG_ENDIAN);
         FrameType result = FrameType.from(typeAndFlags >> FRAME_TYPE_SHIFT);
 
-        if (FrameType.RESPONSE == result) {
+        if (FrameType.PAYLOAD == result) {
             final int flags = typeAndFlags & FRAME_FLAGS_MASK;
 
             boolean complete = FLAGS_RESPONSE_C == (flags & FLAGS_RESPONSE_C);

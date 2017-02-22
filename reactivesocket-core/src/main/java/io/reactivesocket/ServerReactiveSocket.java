@@ -18,7 +18,7 @@ package io.reactivesocket;
 
 import io.reactivesocket.Frame.Lease;
 import io.reactivesocket.Frame.Request;
-import io.reactivesocket.Frame.Response;
+import io.reactivesocket.Frame.PayloadFrame;
 import io.reactivesocket.events.EventListener;
 import io.reactivesocket.events.EventListener.RequestType;
 import io.reactivesocket.events.EventPublishingSocket;
@@ -201,7 +201,7 @@ public class ServerReactiveSocket implements ReactiveSocket {
                     return doReceive(streamId, requestSubscription(frame), RequestStream);
                 case REQUEST_CHANNEL:
                     return handleChannel(streamId, frame);
-                case RESPONSE:
+                case PAYLOAD:
                     // TODO: Hook in receiving socket.
                     return Px.empty();
                 case METADATA_PUSH:
@@ -289,8 +289,8 @@ public class ServerReactiveSocket implements ReactiveSocket {
                         subscriptions.put(streamId, subscription);
                     }
                 })
-                .map(payload -> Response
-                    .from(streamId, FrameType.RESPONSE, payload.getMetadata(), payload.getData(), FrameHeaderFlyweight.FLAGS_RESPONSE_C))
+                .map(payload -> Frame.PayloadFrame
+                    .from(streamId, FrameType.PAYLOAD, payload.getMetadata(), payload.getData(), FrameHeaderFlyweight.FLAGS_RESPONSE_C))
                 .doOnComplete(cleanup)
                 .emitOnCancelOrError(
                     // on cancel
@@ -311,7 +311,7 @@ public class ServerReactiveSocket implements ReactiveSocket {
     private Publisher<Void> doReceive(int streamId, Publisher<Payload> response, RequestType requestType) {
         long now = publishSingleFrameReceiveEvents(streamId, requestType);
         Px<Frame> resp = Px.from(response)
-                           .map(payload -> Response.from(streamId, FrameType.RESPONSE, payload));
+                           .map(payload -> PayloadFrame.from(streamId, FrameType.PAYLOAD, payload));
         RemoteSender sender = new RemoteSender(resp, () -> subscriptions.remove(streamId), streamId, 2);
         subscriptions.put(streamId, sender);
         return eventPublishingSocket.decorateSend(streamId, connection.send(sender), now, requestType);
@@ -327,7 +327,7 @@ public class ServerReactiveSocket implements ReactiveSocket {
 
         Px<Frame> response = Px.from(requestChannel(eventPublishingSocket.decorateReceive(streamId, receiver,
                                                                                           RequestChannel)))
-            .map(payload -> Response.from(streamId, FrameType.RESPONSE, payload));
+            .map(payload -> Frame.PayloadFrame.from(streamId, FrameType.PAYLOAD, payload));
 
         RemoteSender sender = new RemoteSender(response, () -> removeSubscriptions(streamId), streamId,
             initialRequestN);

@@ -101,14 +101,14 @@ public class PayloadFragmenter implements Iterable<Frame>, Iterator<Frame> {
                 flags |= FrameHeaderFlyweight.FLAGS_RESPONSE_F;
             }
 
-            result = Frame.Response.from(streamId, FrameType.NEXT, metadataBuffer, dataBuffer, flags);
+            result = Frame.PayloadFrame.from(streamId, FrameType.NEXT, metadataBuffer, dataBuffer, flags);
         }
         if (Type.RESPONSE_COMPLETE == type) {
             if (isMoreFollowing) {
                 flags |= FrameHeaderFlyweight.FLAGS_RESPONSE_F;
             }
 
-            result = Frame.Response.from(streamId, FrameType.NEXT_COMPLETE, metadataBuffer, dataBuffer, flags);
+            result = Frame.PayloadFrame.from(streamId, FrameType.NEXT_COMPLETE, metadataBuffer, dataBuffer, flags);
         } else if (Type.REQUEST_CHANNEL == type) {
             if (isMoreFollowing) {
                 flags |= FrameHeaderFlyweight.FLAGS_REQUEST_CHANNEL_F;

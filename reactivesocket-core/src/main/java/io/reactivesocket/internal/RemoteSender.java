@@ -160,7 +160,7 @@ public final class RemoteSender implements Processor<Frame, Frame>, Subscription
 
     @Override
     public void onComplete() {
-        if (trySendTerminalFrame(Frame.Response.from(streamId, FrameType.COMPLETE), null)) {
+        if (trySendTerminalFrame(Frame.PayloadFrame.from(streamId, FrameType.COMPLETE), null)) {
             transportSubscription.safeOnComplete();
             cleanup.run();
         }
