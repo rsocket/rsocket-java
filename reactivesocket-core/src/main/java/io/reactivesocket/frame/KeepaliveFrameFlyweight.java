@@ -23,6 +23,8 @@ import org.agrona.MutableDirectBuffer;
 import java.nio.ByteBuffer;
 
 public class KeepaliveFrameFlyweight {
+    public static final int FLAGS_KEEPALIVE_R = 0b00_1000_0000;
+
     private KeepaliveFrameFlyweight() {}
 
     private static final int LAST_POSITION_OFFSET = FrameHeaderFlyweight.FRAME_HEADER_LENGTH;

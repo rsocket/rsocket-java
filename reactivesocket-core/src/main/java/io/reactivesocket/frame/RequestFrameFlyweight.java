@@ -27,7 +27,6 @@ public class RequestFrameFlyweight {
 
     private RequestFrameFlyweight() {}
 
-    public static final int FLAGS_REQUEST_CHANNEL_C = 0b00_0100_0000;
     // TODO(lexs) Remove flag for initial N present
     public static final int FLAGS_REQUEST_CHANNEL_N = 0b00_0010_0000;
 
