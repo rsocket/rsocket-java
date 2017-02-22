@@ -317,7 +317,6 @@ public class FrameHeaderFlyweight {
             case REQUEST_RESPONSE:
             case FIRE_AND_FORGET:
             case REQUEST_STREAM:
-            case REQUEST_SUBSCRIPTION:
             case REQUEST_CHANNEL:
                 result = RequestFrameFlyweight.payloadOffset(frameType, directBuffer, offset);
                 break;

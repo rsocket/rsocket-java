@@ -65,12 +65,6 @@ public class MockReactiveSocket implements ReactiveSocket {
     }
 
     @Override
-    public final Publisher<Payload> requestSubscription(Payload payload) {
-        return Px.from(delegate.requestSubscription(payload))
-                 .doOnSubscribe(s -> rSubCount.incrementAndGet());
-    }
-
-    @Override
     public final Publisher<Payload> requestChannel(Publisher<Payload> payloads) {
         return Px.from(delegate.requestChannel(payloads))
                  .doOnSubscribe(s -> rChannelCount.incrementAndGet());

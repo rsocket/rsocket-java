@@ -50,8 +50,6 @@ public interface ReactiveSocket extends Availability {
      */
     Publisher<Payload> requestStream(Payload payload);
 
-    Publisher<Payload> requestSubscription(Payload payload);
-
     /**
      * Request-Channel interaction model of {@code ReactiveSocket}.
      *

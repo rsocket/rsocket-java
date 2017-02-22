@@ -88,16 +88,6 @@ public class DefaultLeaseHonoringSocket implements LeaseHonoringSocket {
     }
 
     @Override
-    public Publisher<Payload> requestSubscription(Payload payload) {
-        return Px.defer(() -> {
-            if (!checkLease()) {
-                return rejectError();
-            }
-            return delegate.requestSubscription(payload);
-        });
-    }
-
-    @Override
     public Publisher<Payload> requestChannel(Publisher<Payload> payloads) {
         return Px.defer(() -> {
             if (!checkLease()) {

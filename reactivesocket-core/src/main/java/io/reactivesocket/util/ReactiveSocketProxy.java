@@ -70,18 +70,6 @@ public class ReactiveSocketProxy implements ReactiveSocket {
     }
 
     @Override
-    public Publisher<Payload> requestSubscription(Payload payload) {
-        if (subscriberWrapper == null) {
-            return child.requestSubscription(payload);
-        } else {
-            return s -> {
-                Subscriber<? super Payload> subscriber = subscriberWrapper.apply(s);
-                child.requestSubscription(payload).subscribe(subscriber);
-            };
-        }
-    }
-
-    @Override
     public Publisher<Payload> requestChannel(Publisher<Payload> payloads) {
         if (subscriberWrapper == null) {
             return child.requestChannel(payloads);

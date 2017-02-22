@@ -33,7 +33,6 @@ public class ReactiveSocketDecorator {
 
     private Function<Payload, Publisher<Payload>> reqResp;
     private Function<Payload, Publisher<Payload>> reqStream;
-    private Function<Payload, Publisher<Payload>> reqSub;
     private Function<Publisher<Payload>, Publisher<Payload>> reqChannel;
     private Function<Payload, Publisher<Void>> fnf;
     private Function<Payload, Publisher<Void>> metaPush;
@@ -47,7 +46,6 @@ public class ReactiveSocketDecorator {
         this.delegate = delegate;
         reqResp = payload -> delegate.requestResponse(payload);
         reqStream = payload -> delegate.requestStream(payload);
-        reqSub = payload -> delegate.requestSubscription(payload);
         reqChannel = payload -> delegate.requestChannel(payload);
         fnf = payload -> delegate.fireAndForget(payload);
         metaPush = payload -> delegate.metadataPush(payload);
@@ -71,11 +69,6 @@ public class ReactiveSocketDecorator {
             @Override
             public Publisher<Payload> requestStream(Payload payload) {
                 return reqStream.apply(payload);
-            }
-
-            @Override
-            public Publisher<Payload> requestSubscription(Payload payload) {
-                return reqSub.apply(payload);
             }
 
             @Override
@@ -154,32 +147,6 @@ public class ReactiveSocketDecorator {
      */
     public ReactiveSocketDecorator requestStream(BiFunction<Payload, ReactiveSocket, Publisher<Payload>> mapper) {
         reqStream = payload -> mapper.apply(payload, delegate);
-        return this;
-    }
-
-    /**
-     * Decorates underlying {@link ReactiveSocket#requestSubscription(Payload)} with the provided mapping function.
-     *
-     * @param responseMapper Mapper used to decorate the response of {@link ReactiveSocket#requestSubscription(Payload)}.
-     * Input to the function is the original response of the underlying {@code ReactiveSocket}
-     *
-     * @return {@code this}
-     */
-    public ReactiveSocketDecorator requestSubscription(Function<Publisher<Payload>, Publisher<Payload>> responseMapper) {
-        reqSub = payload -> responseMapper.apply(delegate.requestSubscription(payload));
-        return this;
-    }
-
-    /**
-     * Decorates underlying {@link ReactiveSocket#requestSubscription(Payload)} with the provided mapping function.
-     *
-     * @param mapper Mapper used to override the call to the underlying {@code ReactiveSocket}. First argument here is
-     * the payload for request and the socket passed is the underlying {@code ReactiveSocket}.
-     *
-     * @return {@code this}
-     */
-    public ReactiveSocketDecorator requestSubscription(BiFunction<Payload, ReactiveSocket, Publisher<Payload>> mapper) {
-        reqSub = payload -> mapper.apply(payload, delegate);
         return this;
     }
 
@@ -263,8 +230,8 @@ public class ReactiveSocketDecorator {
 
     /**
      * Decorates all responses of the underlying {@code ReactiveSocket} with the provided mapping function. This will
-     * only decorate {@link ReactiveSocket#requestResponse(Payload)}, {@link ReactiveSocket#requestStream(Payload)},
-     * {@link ReactiveSocket#requestSubscription(Payload)} and {@link ReactiveSocket#requestChannel(Publisher)}.
+     * only decorate {@link ReactiveSocket#requestResponse(Payload)}, {@link ReactiveSocket#requestStream(Payload)}
+     * and {@link ReactiveSocket#requestChannel(Publisher)}.
      *
      * @param mapper Mapper used to override the call to the underlying {@code ReactiveSocket}. First argument here is
      * the original response.
@@ -273,7 +240,6 @@ public class ReactiveSocketDecorator {
      */
     public ReactiveSocketDecorator decorateAllResponses(Function<Publisher<Payload>, Publisher<Payload>> mapper) {
         requestResponse(resp -> mapper.apply(resp)).requestStream(resp -> mapper.apply(resp))
-                                                   .requestSubscription(resp -> mapper.apply(resp))
                                                    .requestChannel(resp -> mapper.apply(resp));
         return this;
     }
