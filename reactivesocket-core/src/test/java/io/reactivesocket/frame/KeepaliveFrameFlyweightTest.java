@@ -13,10 +13,10 @@ public class KeepaliveFrameFlyweightTest {
     @Test
     public void canReadData() {
         ByteBuffer data = ByteBuffer.wrap(new byte[]{5, 4, 3});
-        int length = KeepaliveFrameFlyweight.encode(directBuffer, 0, FrameHeaderFlyweight.FLAGS_KEEPALIVE_R, data);
+        int length = KeepaliveFrameFlyweight.encode(directBuffer, 0, KeepaliveFrameFlyweight.FLAGS_KEEPALIVE_R, data);
         data.rewind();
 
-        assertEquals(FrameHeaderFlyweight.FLAGS_KEEPALIVE_R, FrameHeaderFlyweight.flags(directBuffer, 0) & FrameHeaderFlyweight.FLAGS_KEEPALIVE_R);
+        assertEquals(KeepaliveFrameFlyweight.FLAGS_KEEPALIVE_R, FrameHeaderFlyweight.flags(directBuffer, 0) & KeepaliveFrameFlyweight.FLAGS_KEEPALIVE_R);
         assertEquals(data, FrameHeaderFlyweight.sliceFrameData(directBuffer, 0, length));
     }
 }
