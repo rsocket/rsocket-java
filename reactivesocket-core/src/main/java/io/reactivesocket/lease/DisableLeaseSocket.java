@@ -56,11 +56,6 @@ public class DisableLeaseSocket implements LeaseHonoringSocket {
     }
 
     @Override
-    public Publisher<Payload> requestSubscription(Payload payload) {
-        return delegate.requestSubscription(payload);
-    }
-
-    @Override
     public Publisher<Payload> requestChannel(Publisher<Payload> payloads) {
         return delegate.requestChannel(payloads);
     }

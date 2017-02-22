@@ -117,11 +117,6 @@ public class ServerReactiveSocket implements ReactiveSocket {
     }
 
     @Override
-    public Publisher<Payload> requestSubscription(Payload payload) {
-        return requestHandler.requestSubscription(payload);
-    }
-
-    @Override
     public Publisher<Payload> requestChannel(Publisher<Payload> payloads) {
         return requestHandler.requestChannel(payloads);
     }
@@ -197,8 +192,6 @@ public class ServerReactiveSocket implements ReactiveSocket {
                     return doReceive(streamId, requestStream(frame), RequestStream);
                 case FIRE_AND_FORGET:
                     return handleFireAndForget(streamId, fireAndForget(frame));
-                case REQUEST_SUBSCRIPTION:
-                    return doReceive(streamId, requestSubscription(frame), RequestStream);
                 case REQUEST_CHANNEL:
                     return handleChannel(streamId, frame);
                 case PAYLOAD:

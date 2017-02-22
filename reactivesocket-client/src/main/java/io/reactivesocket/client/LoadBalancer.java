@@ -203,11 +203,6 @@ public class LoadBalancer implements ReactiveSocket {
     }
 
     @Override
-    public Publisher<Payload> requestSubscription(Payload payload) {
-        return subscriber -> select().requestSubscription(payload).subscribe(subscriber);
-    }
-
-    @Override
     public Publisher<Payload> requestStream(Payload payload) {
         return subscriber -> select().requestStream(payload).subscribe(subscriber);
     }
@@ -715,11 +710,6 @@ public class LoadBalancer implements ReactiveSocket {
         }
 
         @Override
-        public Publisher<Payload> requestSubscription(Payload payload) {
-            return errorPayload;
-        }
-
-        @Override
         public Publisher<Payload> requestChannel(Publisher<Payload> payloads) {
             return errorPayload;
         }
@@ -812,12 +802,6 @@ public class LoadBalancer implements ReactiveSocket {
         public Publisher<Payload> requestStream(Payload payload) {
             return subscriber ->
                 child.requestStream(payload).subscribe(new CountingSubscriber<>(subscriber, this));
-        }
-
-        @Override
-        public Publisher<Payload> requestSubscription(Payload payload) {
-            return subscriber ->
-                child.requestSubscription(payload).subscribe(new CountingSubscriber<>(subscriber, this));
         }
 
         @Override

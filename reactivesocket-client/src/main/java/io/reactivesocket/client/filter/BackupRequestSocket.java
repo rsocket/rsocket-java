@@ -71,11 +71,6 @@ public class BackupRequestSocket implements ReactiveSocket {
     }
 
     @Override
-    public Publisher<Payload> requestSubscription(Payload payload) {
-        return child.requestSubscription(payload);
-    }
-
-    @Override
     public Publisher<Payload> requestChannel(Publisher<Payload> payloads) {
         return child.requestChannel(payloads);
     }

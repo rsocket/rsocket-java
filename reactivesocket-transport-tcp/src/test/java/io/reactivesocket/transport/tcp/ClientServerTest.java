@@ -51,10 +51,4 @@ public class ClientServerTest {
     public void testRequestStream() {
         setup.testRequestStream();
     }
-
-    @Ignore("Fix request-subscription")
-    @Test(timeout = 10000)
-    public void testRequestSubscription() throws InterruptedException {
-        setup.testRequestSubscription();
-    }
 }

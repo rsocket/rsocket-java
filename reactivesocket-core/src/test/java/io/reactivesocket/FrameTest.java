@@ -168,25 +168,6 @@ public class FrameTest
 
     @Test
     @Theory
-    public void shouldReturnCorrectDataPlusMetadataForRequestSubscription(final int offset)
-    {
-        final ByteBuffer requestData = TestUtil.byteBufferFromUtf8String("request data");
-        final ByteBuffer requestMetadata = TestUtil.byteBufferFromUtf8String("request metadata");
-        final Payload payload = createPayload(requestMetadata, requestData);
-
-        Frame encodedFrame = Frame.Request.from(1, FrameType.REQUEST_SUBSCRIPTION, payload, 128);
-        TestUtil.copyFrame(reusableMutableDirectBuffer, offset, encodedFrame);
-        reusableFrame.wrap(reusableMutableDirectBuffer, offset);
-
-        assertEquals("request data", TestUtil.byteToString(reusableFrame.getData()));
-        assertEquals("request metadata", TestUtil.byteToString(reusableFrame.getMetadata()));
-        assertEquals(FrameType.REQUEST_SUBSCRIPTION, reusableFrame.getType());
-        assertEquals(1, reusableFrame.getStreamId());
-        assertEquals(128, Frame.Request.initialRequestN(reusableFrame));
-    }
-
-    @Test
-    @Theory
     public void shouldReturnCorrectDataPlusMetadataForResponse(final int offset)
     {
         final ByteBuffer requestData = TestUtil.byteBufferFromUtf8String("response data");
@@ -257,26 +238,6 @@ public class FrameTest
         final ByteBuffer metadataBuffer = reusableFrame.getMetadata();
         assertEquals(0, metadataBuffer.remaining());
         assertEquals(FrameType.REQUEST_STREAM, reusableFrame.getType());
-        assertEquals(1, reusableFrame.getStreamId());
-        assertEquals(128, Frame.Request.initialRequestN(reusableFrame));
-    }
-
-    @Test
-    @Theory
-    public void shouldReturnCorrectDataWithoutMetadataForRequestSubscription(final int offset)
-    {
-        final ByteBuffer requestData = TestUtil.byteBufferFromUtf8String("request data");
-        final Payload payload = createPayload(Frame.NULL_BYTEBUFFER, requestData);
-
-        Frame encodedFrame = Frame.Request.from(1, FrameType.REQUEST_SUBSCRIPTION, payload, 128);
-        TestUtil.copyFrame(reusableMutableDirectBuffer, offset, encodedFrame);
-        reusableFrame.wrap(reusableMutableDirectBuffer, offset);
-
-        assertEquals("request data", TestUtil.byteToString(reusableFrame.getData()));
-
-        final ByteBuffer metadataBuffer = reusableFrame.getMetadata();
-        assertEquals(0, metadataBuffer.remaining());
-        assertEquals(FrameType.REQUEST_SUBSCRIPTION, reusableFrame.getType());
         assertEquals(1, reusableFrame.getStreamId());
         assertEquals(128, Frame.Request.initialRequestN(reusableFrame));
     }

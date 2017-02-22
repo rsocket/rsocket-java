@@ -35,11 +35,6 @@ public class TestReactiveSocket extends AbstractReactiveSocket {
     }
 
     @Override
-    public Publisher<Payload> requestSubscription(Payload payload) {
-        return Flowable.fromPublisher(requestStream(payload)).repeat();
-    }
-
-    @Override
     public Publisher<Void> fireAndForget(Payload payload) {
         return Subscriber::onComplete;
     }

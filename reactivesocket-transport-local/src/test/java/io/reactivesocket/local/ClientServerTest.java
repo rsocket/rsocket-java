@@ -57,12 +57,6 @@ public class ClientServerTest {
         setup.testRequestStream();
     }
 
-    @Ignore("Stream/Subscription does not work as of now.")
-    @Test(timeout = 10000)
-    public void testRequestSubscription() throws InterruptedException {
-        setup.testRequestSubscription();
-    }
-
     private static class LocalRule extends ClientSetupRule {
 
         private static final AtomicInteger uniqueNameGenerator = new AtomicInteger();
