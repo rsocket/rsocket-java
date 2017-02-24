@@ -22,6 +22,8 @@ import java.nio.charset.StandardCharsets;
 
 public class TestUtil
 {
+    private static final char[] hexArray = "0123456789ABCDEF".toCharArray();
+
     private TestUtil() {}
 
     public static Frame utf8EncodedRequestFrame(final int streamId, final FrameType type, final String data, final int initialRequestN)
@@ -71,6 +73,17 @@ public class TestUtil
     public static void copyFrame(final MutableDirectBuffer dst, final int offset, final Frame frame)
     {
         dst.putBytes(offset, frame.getByteBuffer(), frame.offset(), frame.length());
+    }
+
+    public static String bytesToHex(ByteBuffer buffer)
+    {
+        char[] hexChars = new char[buffer.limit() * 2];
+        for ( int j = 0; j < buffer.limit(); j++ ) {
+            int v = buffer.get(j) & 0xFF;
+            hexChars[j * 2] = hexArray[v >>> 4];
+            hexChars[j * 2 + 1] = hexArray[v & 0x0F];
+        }
+        return new String(hexChars);
     }
 
     private static class PayloadImpl implements Payload // some JDK shoutout
