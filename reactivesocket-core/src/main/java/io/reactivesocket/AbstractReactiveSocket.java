@@ -16,9 +16,10 @@
 
 package io.reactivesocket;
 
-import io.reactivesocket.reactivestreams.extensions.internal.EmptySubject;
 import org.reactivestreams.Publisher;
-import io.reactivesocket.reactivestreams.extensions.Px;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+import reactor.core.publisher.MonoProcessor;
 
 /**
  * An abstract implementation of {@link ReactiveSocket}. All request handling methods emit
@@ -28,48 +29,48 @@ import io.reactivesocket.reactivestreams.extensions.Px;
  */
 public abstract class AbstractReactiveSocket implements ReactiveSocket {
 
-    private final EmptySubject onClose = new EmptySubject();
+    private final MonoProcessor<Void> onClose = MonoProcessor.create();
 
     @Override
-    public Publisher<Void> fireAndForget(Payload payload) {
-        return Px.error(new UnsupportedOperationException("Fire and forget not implemented."));
+    public Mono<Void> fireAndForget(Payload payload) {
+        return Mono.error(new UnsupportedOperationException("Fire and forget not implemented."));
     }
 
     @Override
-    public Publisher<Payload> requestResponse(Payload payload) {
-        return Px.error(new UnsupportedOperationException("Request-Response not implemented."));
+    public Mono<Payload> requestResponse(Payload payload) {
+        return Mono.error(new UnsupportedOperationException("Request-Response not implemented."));
     }
 
     @Override
-    public Publisher<Payload> requestStream(Payload payload) {
-        return Px.error(new UnsupportedOperationException("Request-Stream not implemented."));
+    public Flux<Payload> requestStream(Payload payload) {
+        return Flux.error(new UnsupportedOperationException("Request-Stream not implemented."));
     }
 
     @Override
-    public Publisher<Payload> requestSubscription(Payload payload) {
-        return Px.error(new UnsupportedOperationException("Request-Subscription not implemented."));
+    public Flux<Payload> requestSubscription(Payload payload) {
+        return Flux.error(new UnsupportedOperationException("Request-Subscription not implemented."));
     }
 
     @Override
-    public Publisher<Payload> requestChannel(Publisher<Payload> payloads) {
-        return Px.error(new UnsupportedOperationException("Request-Channel not implemented."));
+    public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
+        return Flux.error(new UnsupportedOperationException("Request-Channel not implemented."));
     }
 
     @Override
-    public Publisher<Void> metadataPush(Payload payload) {
-        return Px.error(new UnsupportedOperationException("Metadata-Push not implemented."));
+    public Mono<Void> metadataPush(Payload payload) {
+        return Mono.error(new UnsupportedOperationException("Metadata-Push not implemented."));
     }
 
     @Override
-    public Publisher<Void> close() {
-        return s -> {
+    public Mono<Void> close() {
+        return Mono.defer(() -> {
             onClose.onComplete();
-            onClose.subscribe(s);
-        };
+            return onClose;
+        });
     }
 
     @Override
-    public Publisher<Void> onClose() {
+    public Mono<Void> onClose() {
         return onClose;
     }
 }

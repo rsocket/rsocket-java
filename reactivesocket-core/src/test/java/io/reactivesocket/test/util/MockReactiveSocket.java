@@ -20,6 +20,8 @@ import io.reactivesocket.Payload;
 import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.reactivestreams.extensions.Px;
 import org.reactivestreams.Publisher;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -47,38 +49,38 @@ public class MockReactiveSocket implements ReactiveSocket {
     }
 
     @Override
-    public final Publisher<Void> fireAndForget(Payload payload) {
-        return Px.from(delegate.fireAndForget(payload))
+    public final Mono<Void> fireAndForget(Payload payload) {
+        return delegate.fireAndForget(payload)
                  .doOnSubscribe(s -> fnfCount.incrementAndGet());
     }
 
     @Override
-    public final Publisher<Payload> requestResponse(Payload payload) {
-        return Px.from(delegate.requestResponse(payload))
+    public final Mono<Payload> requestResponse(Payload payload) {
+        return delegate.requestResponse(payload)
                  .doOnSubscribe(s -> rrCount.incrementAndGet());
     }
 
     @Override
-    public final Publisher<Payload> requestStream(Payload payload) {
-        return Px.from(delegate.requestStream(payload))
+    public final Flux<Payload> requestStream(Payload payload) {
+        return delegate.requestStream(payload)
                  .doOnSubscribe(s -> rStreamCount.incrementAndGet());
     }
 
     @Override
-    public final Publisher<Payload> requestSubscription(Payload payload) {
-        return Px.from(delegate.requestSubscription(payload))
+    public final Flux<Payload> requestSubscription(Payload payload) {
+        return delegate.requestSubscription(payload)
                  .doOnSubscribe(s -> rSubCount.incrementAndGet());
     }
 
     @Override
-    public final Publisher<Payload> requestChannel(Publisher<Payload> payloads) {
-        return Px.from(delegate.requestChannel(payloads))
+    public final Flux<Payload> requestChannel(Publisher<Payload> payloads) {
+        return delegate.requestChannel(payloads)
                  .doOnSubscribe(s -> rChannelCount.incrementAndGet());
     }
 
     @Override
-    public final Publisher<Void> metadataPush(Payload payload) {
-        return Px.from(delegate.metadataPush(payload))
+    public final Mono<Void> metadataPush(Payload payload) {
+        return delegate.metadataPush(payload)
                  .doOnSubscribe(s -> pushCount.incrementAndGet());
     }
 
@@ -88,12 +90,12 @@ public class MockReactiveSocket implements ReactiveSocket {
     }
 
     @Override
-    public Publisher<Void> close() {
+    public Mono<Void> close() {
         return delegate.close();
     }
 
     @Override
-    public Publisher<Void> onClose() {
+    public Mono<Void> onClose() {
         return delegate.onClose();
     }
 

@@ -14,17 +14,9 @@
  * limitations under the License.
  */
 
-buildscript {
-    repositories {
-        maven { url "https://plugins.gradle.org/m2/" }
-    }
-
-    dependencies {
-        classpath 'gradle.plugin.me.champeau.gradle:jmh-gradle-plugin:0.3.0'
-    }
+plugins {
+    id "me.champeau.gradle.jmh" version "0.3.1"
 }
-
-apply plugin: 'me.champeau.gradle.jmh'
 
 jmh {
     jmhVersion = '1.15'
@@ -38,6 +30,9 @@ jmh {
 
 dependencies {
     compile project(':reactivesocket-publishers')
+    compile 'io.projectreactor:reactor-core:3.0.5.RELEASE'
+    compile 'org.agrona:Agrona:0.5.4'
 
-    jmh group: 'org.openjdk.jmh', name: 'jmh-generator-annprocess', version: '1.15'
+    jmh 'org.openjdk.jmh:jmh-core:1.15'
+    jmh 'org.openjdk.jmh:jmh-generator-annprocess:1.15'
 }

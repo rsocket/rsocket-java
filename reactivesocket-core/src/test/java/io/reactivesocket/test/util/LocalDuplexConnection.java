@@ -23,6 +23,8 @@ import io.reactivesocket.reactivestreams.extensions.internal.EmptySubject;
 import io.reactivex.Flowable;
 import io.reactivex.processors.PublishProcessor;
 import org.reactivestreams.Publisher;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 public class LocalDuplexConnection implements DuplexConnection {
     private final PublishProcessor<Frame> send;
@@ -38,18 +40,17 @@ public class LocalDuplexConnection implements DuplexConnection {
     }
 
     @Override
-    public Publisher<Void> send(Publisher<Frame> frame) {
-        return Flowable
-            .fromPublisher(frame)
+    public Mono<Void> send(Publisher<Frame> frame) {
+        return Mono
+            .from(frame)
             .doOnNext(send::onNext)
             .doOnError(send::onError)
-            .ignoreElements()
-            .toFlowable();
+            .then();
     }
 
     @Override
-    public Publisher<Frame> receive() {
-        return receive;
+    public Flux<Frame> receive() {
+        return Flux.from(receive);
     }
 
     @Override
@@ -58,15 +59,15 @@ public class LocalDuplexConnection implements DuplexConnection {
     }
 
     @Override
-    public Publisher<Void> close() {
-        return Px.defer(() -> {
+    public Mono<Void> close() {
+        return Mono.defer(() -> {
             closeNotifier.onComplete();
-            return Px.empty();
+            return Mono.empty();
         });
     }
 
     @Override
-    public Publisher<Void> onClose() {
-        return closeNotifier;
+    public Mono<Void> onClose() {
+        return Mono.from(closeNotifier);
     }
 }

@@ -18,103 +18,62 @@ package io.reactivesocket.util;
 import io.reactivesocket.Payload;
 import io.reactivesocket.ReactiveSocket;
 import org.reactivestreams.Publisher;
-import org.reactivestreams.Subscriber;
-
-import java.util.function.Function;
-
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 /**
  * Wrapper/Proxy for a ReactiveSocket.
  * This is useful when we want to override a specific method.
  */
 public class ReactiveSocketProxy implements ReactiveSocket {
-    protected final ReactiveSocket child;
-    private final Function<Subscriber<? super Payload>, Subscriber<? super Payload>> subscriberWrapper;
+    protected final ReactiveSocket source;
 
-    public ReactiveSocketProxy(ReactiveSocket child, Function<Subscriber<? super Payload>, Subscriber<? super Payload>> subscriberWrapper) {
-        this.child = child;
-        this.subscriberWrapper = subscriberWrapper;
-    }
-
-    public ReactiveSocketProxy(ReactiveSocket child) {
-        this(child, null);
+    public ReactiveSocketProxy(ReactiveSocket source) {
+        this.source = source;
     }
 
     @Override
-    public Publisher<Void> fireAndForget(Payload payload) {
-        return child.fireAndForget(payload);
+    public Mono<Void> fireAndForget(Payload payload) {
+        return source.fireAndForget(payload);
     }
 
     @Override
-    public Publisher<Payload> requestResponse(Payload payload) {
-        if (subscriberWrapper == null) {
-            return child.requestResponse(payload);
-        } else {
-            return s -> {
-                Subscriber<? super Payload> subscriber = subscriberWrapper.apply(s);
-                child.requestResponse(payload).subscribe(subscriber);
-            };
-        }
+    public Mono<Payload> requestResponse(Payload payload) {
+        return source.requestResponse(payload);
     }
 
     @Override
-    public Publisher<Payload> requestStream(Payload payload) {
-        if (subscriberWrapper == null) {
-            return child.requestStream(payload);
-        } else {
-            return s -> {
-                Subscriber<? super Payload> subscriber = subscriberWrapper.apply(s);
-                child.requestStream(payload).subscribe(subscriber);
-            };
-        }
+    public Flux<Payload> requestStream(Payload payload) {
+        return source.requestStream(payload);
     }
 
     @Override
-    public Publisher<Payload> requestSubscription(Payload payload) {
-        if (subscriberWrapper == null) {
-            return child.requestSubscription(payload);
-        } else {
-            return s -> {
-                Subscriber<? super Payload> subscriber = subscriberWrapper.apply(s);
-                child.requestSubscription(payload).subscribe(subscriber);
-            };
-        }
+    public Flux<Payload> requestSubscription(Payload payload) {
+        return source.requestSubscription(payload);
     }
 
     @Override
-    public Publisher<Payload> requestChannel(Publisher<Payload> payloads) {
-        if (subscriberWrapper == null) {
-            return child.requestChannel(payloads);
-        } else {
-            return s -> {
-                Subscriber<? super Payload> subscriber = subscriberWrapper.apply(s);
-                child.requestChannel(payloads).subscribe(subscriber);
-            };
-        }
+    public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
+        return source.requestChannel(payloads);
     }
 
     @Override
-    public Publisher<Void> metadataPush(Payload payload) {
-        return child.metadataPush(payload);
+    public Mono<Void> metadataPush(Payload payload) {
+        return source.metadataPush(payload);
     }
 
     @Override
     public double availability() {
-        return child.availability();
+        return source.availability();
     }
 
     @Override
-    public Publisher<Void> close() {
-        return child.close();
+    public Mono<Void> close() {
+        return source.close();
     }
 
     @Override
-    public Publisher<Void> onClose() {
-        return child.onClose();
-    }
-
-    @Override
-    public String toString() {
-        return "ReactiveSocketProxy(" + child + ')';
+    public Mono<Void> onClose() {
+        return source.onClose();
     }
 }

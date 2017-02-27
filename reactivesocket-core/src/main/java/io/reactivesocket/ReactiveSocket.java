@@ -17,6 +17,8 @@
 package io.reactivesocket;
 
 import org.reactivestreams.Publisher;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 /**
  * A contract providing different interaction models for <a href="https://github.com/ReactiveSocket/reactivesocket/blob/master/Protocol.md">ReactiveSocket protocol</a>.
@@ -30,7 +32,7 @@ public interface ReactiveSocket extends Availability {
      *
      * @return {@code Publisher} that completes when the passed {@code payload} is successfully handled, otherwise errors.
      */
-    Publisher<Void> fireAndForget(Payload payload);
+    Mono<Void> fireAndForget(Payload payload);
 
     /**
      * Request-Response interaction model of {@code ReactiveSocket}.
@@ -39,7 +41,7 @@ public interface ReactiveSocket extends Availability {
      *
      * @return {@code Publisher} containing at most a single {@code Payload} representing the response.
      */
-    Publisher<Payload> requestResponse(Payload payload);
+    Mono<Payload> requestResponse(Payload payload);
 
     /**
      * Request-Stream interaction model of {@code ReactiveSocket}.
@@ -48,9 +50,9 @@ public interface ReactiveSocket extends Availability {
      *
      * @return {@code Publisher} containing the stream of {@code Payload}s representing the response.
      */
-    Publisher<Payload> requestStream(Payload payload);
+    Flux<Payload> requestStream(Payload payload);
 
-    Publisher<Payload> requestSubscription(Payload payload);
+    Flux<Payload> requestSubscription(Payload payload);
 
     /**
      * Request-Channel interaction model of {@code ReactiveSocket}.
@@ -59,7 +61,7 @@ public interface ReactiveSocket extends Availability {
      *
      * @return Stream of response payloads.
      */
-    Publisher<Payload> requestChannel(Publisher<Payload> payloads);
+    Flux<Payload> requestChannel(Publisher<Payload> payloads);
 
     /**
      * Metadata-Push interaction model of {@code ReactiveSocket}.
@@ -68,7 +70,7 @@ public interface ReactiveSocket extends Availability {
      *
      * @return {@code Publisher} that completes when the passed {@code payload} is successfully handled, otherwise errors.
      */
-    Publisher<Void> metadataPush(Payload payload);
+    Mono<Void> metadataPush(Payload payload);
 
     @Override
     default double availability() {
@@ -82,7 +84,7 @@ public interface ReactiveSocket extends Availability {
      *
      * @return A {@code Publisher} that completes when this {@code ReactiveSocket} close is complete.
      */
-    Publisher<Void> close();
+    Mono<Void> close();
 
     /**
      * Returns a {@code Publisher} that completes when this {@code ReactiveSocket} is closed. A {@code ReactiveSocket}
@@ -90,5 +92,5 @@ public interface ReactiveSocket extends Availability {
      *
      * @return A {@code Publisher} that completes when this {@code ReactiveSocket} close is complete.
      */
-    Publisher<Void> onClose();
+    Mono<Void> onClose();
 }

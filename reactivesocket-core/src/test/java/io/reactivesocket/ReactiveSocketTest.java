@@ -18,7 +18,6 @@ package io.reactivesocket;
 
 import io.reactivesocket.client.KeepAliveProvider;
 import io.reactivesocket.exceptions.InvalidRequestException;
-import io.reactivesocket.reactivestreams.extensions.Px;
 import io.reactivesocket.test.util.LocalDuplexConnection;
 import io.reactivesocket.util.PayloadImpl;
 import io.reactivex.Flowable;
@@ -31,6 +30,7 @@ import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
 import org.reactivestreams.Publisher;
 import io.reactivex.subscribers.TestSubscriber;
+import reactor.core.publisher.Mono;
 
 import java.util.ArrayList;
 
@@ -56,8 +56,8 @@ public class ReactiveSocketTest {
     public void testHandlerEmitsError() {
         rule.setRequestAcceptor(new AbstractReactiveSocket() {
             @Override
-            public Publisher<Payload> requestResponse(Payload payload) {
-                return Flowable.error(new NullPointerException("Deliberate exception."));
+            public Mono<Payload> requestResponse(Payload payload) {
+                return Mono.error(new NullPointerException("Deliberate exception."));
             }
         });
         TestSubscriber<Payload> subscriber = TestSubscriber.create();
@@ -107,8 +107,8 @@ public class ReactiveSocketTest {
 
             requestAcceptor = null != requestAcceptor? requestAcceptor : new AbstractReactiveSocket() {
                 @Override
-                public Publisher<Payload> requestResponse(Payload payload) {
-                    return Px.just(payload);
+                public Mono<Payload> requestResponse(Payload payload) {
+                    return Mono.just(payload);
                 }
             };
 

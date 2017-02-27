@@ -28,6 +28,7 @@ import org.reactivestreams.Processor;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
+import reactor.core.publisher.FluxProcessor;
 
 /**
  * An abstraction to receive data from a {@link Publisher} that is available remotely over a {@code ReactiveSocket}
@@ -51,7 +52,7 @@ import org.reactivestreams.Subscription;
  * ready to write, no frames will be enqueued into the connection. All {@code RequestN} frames sent during such time
  * will be merged into a single {@code RequestN} frame.
  */
-public final class RemoteReceiver implements Processor<Frame, Payload> {
+public final class RemoteReceiver extends FluxProcessor<Frame, Payload> {
 
     private final Publisher<Frame> transportSource;
     private final DuplexConnection connection;

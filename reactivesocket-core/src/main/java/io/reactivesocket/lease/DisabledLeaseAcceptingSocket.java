@@ -18,67 +18,19 @@ package io.reactivesocket.lease;
 
 import io.reactivesocket.Payload;
 import io.reactivesocket.ReactiveSocket;
+import io.reactivesocket.util.ReactiveSocketProxy;
 import org.reactivestreams.Publisher;
 
 import java.util.function.Consumer;
 
-public final class DisabledLeaseAcceptingSocket implements LeaseEnforcingSocket {
+public final class DisabledLeaseAcceptingSocket extends ReactiveSocketProxy implements LeaseEnforcingSocket {
 
-    private final ReactiveSocket delegate;
-
-    public DisabledLeaseAcceptingSocket(ReactiveSocket delegate) {
-        this.delegate = delegate;
+    public DisabledLeaseAcceptingSocket(ReactiveSocket source) {
+        super(source);
     }
 
     @Override
     public void acceptLeaseSender(Consumer<Lease> leaseSender) {
         // No Op, shouldn't be used when leases are required.
-    }
-
-    @Override
-    public Publisher<Void> fireAndForget(Payload payload) {
-        return delegate.fireAndForget(payload);
-    }
-
-    @Override
-    public Publisher<Payload> requestResponse(Payload payload) {
-        return delegate.requestResponse(payload);
-    }
-
-    @Override
-    public Publisher<Payload> requestStream(Payload payload) {
-        return delegate.requestStream(payload);
-    }
-
-    @Override
-    public Publisher<Payload> requestSubscription(
-            Payload payload) {
-        return delegate.requestSubscription(payload);
-    }
-
-    @Override
-    public Publisher<Payload> requestChannel(
-            Publisher<Payload> payloads) {
-        return delegate.requestChannel(payloads);
-    }
-
-    @Override
-    public Publisher<Void> metadataPush(Payload payload) {
-        return delegate.metadataPush(payload);
-    }
-
-    @Override
-    public double availability() {
-        return delegate.availability();
-    }
-
-    @Override
-    public Publisher<Void> close() {
-        return delegate.close();
-    }
-
-    @Override
-    public Publisher<Void> onClose() {
-        return delegate.onClose();
     }
 }

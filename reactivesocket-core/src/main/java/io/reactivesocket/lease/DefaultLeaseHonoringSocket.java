@@ -19,30 +19,30 @@ package io.reactivesocket.lease;
 import io.reactivesocket.Payload;
 import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.exceptions.RejectedException;
-import io.reactivesocket.reactivestreams.extensions.Px;
+import io.reactivesocket.util.ReactiveSocketProxy;
 import org.reactivestreams.Publisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.LongSupplier;
 
-public class DefaultLeaseHonoringSocket implements LeaseHonoringSocket {
+public class DefaultLeaseHonoringSocket extends ReactiveSocketProxy implements LeaseHonoringSocket {
 
     private static final Logger logger = LoggerFactory.getLogger(DefaultLeaseHonoringSocket.class);
 
     private volatile Lease currentLease;
-    private final ReactiveSocket delegate;
     private final LongSupplier currentTimeSupplier;
     private final AtomicInteger remainingQuota;
 
     @SuppressWarnings("ThrowableInstanceNeverThrown")
     private static final RejectedException rejectedException = new RejectedException("Lease exhausted.");
-    @SuppressWarnings("rawtypes")
-    private static final Px rejectedPx = Px.error(rejectedException);
+    private static final Mono<?> rejected = Mono.error(rejectedException);
 
-    public DefaultLeaseHonoringSocket(ReactiveSocket delegate, LongSupplier currentTimeSupplier) {
-        this.delegate = delegate;
+    public DefaultLeaseHonoringSocket(ReactiveSocket source, LongSupplier currentTimeSupplier) {
+        super(source);
         this.currentTimeSupplier = currentTimeSupplier;
         remainingQuota = new AtomicInteger();
     }
@@ -58,83 +58,73 @@ public class DefaultLeaseHonoringSocket implements LeaseHonoringSocket {
     }
 
     @Override
-    public Publisher<Void> fireAndForget(Payload payload) {
-        return Px.defer(() -> {
+    public Mono<Void> fireAndForget(Payload payload) {
+        return Mono.defer(() -> {
             if (!checkLease()) {
                 return rejectError();
             }
-            return delegate.fireAndForget(payload);
+            return source.fireAndForget(payload);
         });
     }
 
     @Override
-    public Publisher<Payload> requestResponse(Payload payload) {
-        return Px.defer(() -> {
+    public Mono<Payload> requestResponse(Payload payload) {
+        return Mono.defer(() -> {
             if (!checkLease()) {
                 return rejectError();
             }
-            return delegate.requestResponse(payload);
+            return source.requestResponse(payload);
         });
     }
 
     @Override
-    public Publisher<Payload> requestStream(Payload payload) {
-        return Px.defer(() -> {
+    public Flux<Payload> requestStream(Payload payload) {
+        return Flux.defer(() -> {
             if (!checkLease()) {
                 return rejectError();
             }
-            return delegate.requestStream(payload);
+            return source.requestStream(payload);
         });
     }
 
     @Override
-    public Publisher<Payload> requestSubscription(Payload payload) {
-        return Px.defer(() -> {
+    public Flux<Payload> requestSubscription(Payload payload) {
+        return Flux.defer(() -> {
             if (!checkLease()) {
                 return rejectError();
             }
-            return delegate.requestSubscription(payload);
+            return source.requestSubscription(payload);
         });
     }
 
     @Override
-    public Publisher<Payload> requestChannel(Publisher<Payload> payloads) {
-        return Px.defer(() -> {
+    public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
+        return Flux.defer(() -> {
             if (!checkLease()) {
                 return rejectError();
             }
-            return delegate.requestChannel(payloads);
+            return source.requestChannel(payloads);
         });
     }
 
     @Override
-    public Publisher<Void> metadataPush(Payload payload) {
-        return Px.defer(() -> {
+    public Mono<Void> metadataPush(Payload payload) {
+        return Mono.defer(() -> {
             if (!checkLease()) {
                 return rejectError();
             }
-            return delegate.metadataPush(payload);
+            return source.metadataPush(payload);
         });
     }
 
     @Override
     public double availability() {
-        return remainingQuota.get() <= 0 || currentLease.isExpired() ? 0.0 : delegate.availability();
-    }
-
-    @Override
-    public Publisher<Void> close() {
-        return delegate.close();
-    }
-
-    @Override
-    public Publisher<Void> onClose() {
-        return delegate.onClose();
+        return remainingQuota.get() <= 0 || currentLease.isExpired() ? 0.0 : source.availability();
     }
 
     @SuppressWarnings("unchecked")
-    protected  <T> Publisher<T> rejectError() {
-        return rejectedPx;
+    protected <T> Mono<T> rejectError() {
+        return (Mono<T>) rejected;
     }
 
     private boolean checkLease() {

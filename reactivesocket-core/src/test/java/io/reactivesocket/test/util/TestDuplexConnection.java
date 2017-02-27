@@ -27,6 +27,8 @@ import io.reactivesocket.reactivestreams.extensions.Px;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import io.reactivex.subscribers.TestSubscriber;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 import java.util.Collection;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -56,9 +58,9 @@ public class TestDuplexConnection implements DuplexConnection {
     }
 
     @Override
-    public Publisher<Void> send(Publisher<Frame> frames) {
+    public Mono<Void> send(Publisher<Frame> frames) {
         if (availability <= 0) {
-            return Px.error(new IllegalStateException("ReactiveSocket not available. Availability: " + availability));
+            return Mono.error(new IllegalStateException("ReactiveSocket not available. Availability: " + availability));
         }
         TestSubscriber<Frame> subscriber = TestSubscriber.create(initialSendRequestN);
         Flowable.fromPublisher(frames)
@@ -71,12 +73,12 @@ public class TestDuplexConnection implements DuplexConnection {
             })
                 .subscribe(subscriber);
         sendSubscribers.add(subscriber);
-        return Px.empty();
+        return Mono.empty();
     }
 
     @Override
-    public Publisher<Frame> receive() {
-        return received;
+    public Flux<Frame> receive() {
+        return Flux.from(received);
     }
 
     @Override
@@ -85,12 +87,12 @@ public class TestDuplexConnection implements DuplexConnection {
     }
 
     @Override
-    public Publisher<Void> close() {
-        return close;
+    public Mono<Void> close() {
+        return Mono.from(close);
     }
 
     @Override
-    public Publisher<Void> onClose() {
+    public Mono<Void> onClose() {
         return close();
     }
 

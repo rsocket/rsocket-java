@@ -15,17 +15,12 @@ package io.reactivesocket.events;
 
 import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
-import io.reactivesocket.events.EventListener.RequestType;
 import io.reactivesocket.internal.EventPublisher;
-import io.reactivesocket.reactivestreams.extensions.Px;
-import io.reactivesocket.reactivestreams.extensions.internal.subscribers.Subscribers;
 import org.reactivestreams.Publisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.util.function.LongSupplier;
-
-import static java.util.concurrent.TimeUnit.*;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 public final class ConnectionEventInterceptor implements DuplexConnection {
 
@@ -40,35 +35,18 @@ public final class ConnectionEventInterceptor implements DuplexConnection {
     }
 
     @Override
-    public Publisher<Void> send(Publisher<Frame> frame) {
-        return delegate.send(Px.from(frame)
-                               .map(f -> {
-                                   try {
-                                       publishEventsForFrameWrite(f);
-                                   } catch (Exception e) {
-                                       logger.info("Error while emitting events for frame " + f
-                                                   + " written. Ignoring error.", e);
-                                   }
-                                   return f;
-                               }));
+    public Mono<Void> send(Publisher<Frame> frame) {
+        return delegate.send(Flux.from(frame).doOnNext(this::publishEventsForFrameWrite));
     }
 
     @Override
-    public Publisher<Void> sendOne(Frame frame) {
+    public Mono<Void> sendOne(Frame frame) {
         return delegate.sendOne(frame);
     }
 
     @Override
-    public Publisher<Frame> receive() {
-        return Px.from(delegate.receive())
-                 .map(f -> {
-                     try {
-                         publishEventsForFrameRead(f);
-                     } catch (Exception e) {
-                         logger.info("Error while emitting events for frame " + f + " read. Ignoring error.", e);
-                     }
-                     return f;
-                 });
+    public Flux<Frame> receive() {
+        return delegate.receive().doOnNext(this::publishEventsForFrameRead);
     }
 
     @Override
@@ -77,12 +55,12 @@ public final class ConnectionEventInterceptor implements DuplexConnection {
     }
 
     @Override
-    public Publisher<Void> close() {
+    public Mono<Void> close() {
         return delegate.close();
     }
 
     @Override
-    public Publisher<Void> onClose() {
+    public Mono<Void> onClose() {
         return delegate.onClose();
     }
 

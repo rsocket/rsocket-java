@@ -23,6 +23,8 @@ import org.agrona.BitUtil;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 /**
  * {@link DuplexConnection#receive()} is a single stream on which the following type of frames arrive:
@@ -47,7 +49,7 @@ public class ClientServerInputMultiplexer {
      *
      * @return The frames for streams that were initiated by the server.
      */
-    public Publisher<Frame> getServerInput() {
+    public Flux<Frame> getServerInput() {
         return sourceInput.evenStream();
     }
 
@@ -56,7 +58,7 @@ public class ClientServerInputMultiplexer {
      *
      * @return The frames for streams that were initiated by the client.
      */
-    public Publisher<Frame> getClientInput() {
+    public Flux<Frame> getClientInput() {
         return sourceInput.oddStream();
     }
 
@@ -120,16 +122,16 @@ public class ClientServerInputMultiplexer {
             evenSubscription.safeOnComplete();
         }
 
-        public Publisher<Frame> oddStream() {
-            return s -> {
-                subscribe(s, true);
-            };
+        public Flux<Frame> oddStream() {
+            return Flux.from(s ->
+                subscribe(s, true)
+            );
         }
 
-        public Publisher<Frame> evenStream() {
-            return s -> {
-                subscribe(s, false);
-            };
+        public Flux<Frame> evenStream() {
+            return Flux.from(s ->
+                subscribe(s, false)
+            );
         }
 
         private void subscribe(Subscriber<? super Frame> s, boolean odd) {
@@ -181,18 +183,19 @@ public class ClientServerInputMultiplexer {
 
     private class InternalDuplexConnection implements DuplexConnection {
 
-        private final Publisher<Frame> input;
-        public InternalDuplexConnection(Publisher<Frame> input) {
+        private final Flux<Frame> input;
+
+        InternalDuplexConnection(Flux<Frame> input) {
             this.input = input;
         }
 
         @Override
-        public Publisher<Void> send(Publisher<Frame> frame) {
+        public Mono<Void> send(Publisher<Frame> frame) {
             return sourceInput.source.send(frame);
         }
 
         @Override
-        public Publisher<Frame> receive() {
+        public Flux<Frame> receive() {
             return input;
         }
 
@@ -202,12 +205,12 @@ public class ClientServerInputMultiplexer {
         }
 
         @Override
-        public Publisher<Void> close() {
+        public Mono<Void> close() {
             return sourceInput.source.close();
         }
 
         @Override
-        public Publisher<Void> onClose() {
+        public Mono<Void> onClose() {
             return sourceInput.source.onClose();
         }
     }
