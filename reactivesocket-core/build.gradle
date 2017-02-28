@@ -29,7 +29,6 @@ jmh {
 }
 
 dependencies {
-    compile project(':reactivesocket-publishers')
     compile 'io.projectreactor:reactor-core:3.0.5.RELEASE'
     compile 'org.agrona:Agrona:0.5.4'
 

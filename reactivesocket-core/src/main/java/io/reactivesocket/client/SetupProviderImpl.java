@@ -35,12 +35,9 @@ import io.reactivesocket.lease.LeaseEnforcingSocket;
 import io.reactivesocket.lease.LeaseHonoringSocket;
 import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.StreamIdSupplier;
-import io.reactivesocket.reactivestreams.extensions.Px;
-import io.reactivesocket.reactivestreams.extensions.internal.publishers.InstrumentingPublisher;
-import io.reactivesocket.reactivestreams.extensions.internal.subscribers.Subscribers;
 import io.reactivesocket.util.Clock;
 import io.reactivesocket.util.PayloadImpl;
-import org.reactivestreams.Publisher;
+import reactor.core.publisher.Mono;
 
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -65,21 +62,21 @@ final class SetupProviderImpl extends AbstractEventSource<ClientEventListener> i
     }
 
     @Override
-    public Publisher<ReactiveSocket> accept(DuplexConnection connection, SocketAcceptor acceptor) {
-        DuplexConnection dc;
+    public Mono<ReactiveSocket> accept(DuplexConnection connection, SocketAcceptor acceptor) {
         if (isEventPublishingEnabled()) {
-            dc = new ConnectionEventInterceptor(connection, this);
+            ConnectionEventInterceptor interceptor = new ConnectionEventInterceptor(connection, this);
+            Mono<ReactiveSocket> source = _setup(interceptor, acceptor);
+            return Mono.using(
+                () -> new ConnectInspector(this),
+                connectInspector -> source
+                    .doOnSuccess(connectInspector::connectSuccess)
+                    .doOnError(connectInspector::connectFailed)
+                    .doOnCancel(connectInspector::connectCancelled),
+                connectInspector -> {}
+            );
         } else {
-            dc = connection;
+            return _setup(connection, acceptor);
         }
-
-        Publisher<ReactiveSocket> source = _setup(dc, acceptor);
-        return new InstrumentingPublisher<>(source, subscriber -> {
-            if (!isEventPublishingEnabled()) {
-                return ConnectInspector.empty;
-            }
-            return new ConnectInspector(this);
-        }, ConnectInspector::connectFailed, null, ConnectInspector::connectCancelled, ConnectInspector::connectSuccess);
     }
 
     @Override
@@ -133,27 +130,26 @@ final class SetupProviderImpl extends AbstractEventSource<ClientEventListener> i
         return newSetup;
     }
 
-    private Publisher<ReactiveSocket> _setup(DuplexConnection connection, SocketAcceptor acceptor) {
-        return Px.from(connection.sendOne(copySetupFrame()))
-                 .cast(ReactiveSocket.class)
-                 .concatWith(Px.defer(() -> {
-                     ClientServerInputMultiplexer multiplexer = new ClientServerInputMultiplexer(connection);
-                     ClientReactiveSocket sendingSocket =
-                             new ClientReactiveSocket(multiplexer.asClientConnection(), errorConsumer,
-                                                      StreamIdSupplier.clientSupplier(),
-                                                      keepAliveProvider, this);
-                     LeaseHonoringSocket leaseHonoringSocket = leaseDecorator.apply(sendingSocket);
+    private Mono<ReactiveSocket> _setup(DuplexConnection connection, SocketAcceptor acceptor) {
+        return connection.sendOne(copySetupFrame())
+            .then(() -> {
+                ClientServerInputMultiplexer multiplexer = new ClientServerInputMultiplexer(connection);
+                ClientReactiveSocket sendingSocket =
+                    new ClientReactiveSocket(multiplexer.asClientConnection(), errorConsumer,
+                        StreamIdSupplier.clientSupplier(),
+                        keepAliveProvider, this);
+                LeaseHonoringSocket leaseHonoringSocket = leaseDecorator.apply(sendingSocket);
 
-                     sendingSocket.start(leaseHonoringSocket);
+                sendingSocket.start(leaseHonoringSocket);
 
-                     LeaseEnforcingSocket acceptingSocket = acceptor.accept(sendingSocket);
-                     ServerReactiveSocket receivingSocket = new ServerReactiveSocket(multiplexer.asServerConnection(),
-                                                                                     acceptingSocket, true,
-                                                                                     errorConsumer, this);
-                     receivingSocket.start();
+                LeaseEnforcingSocket acceptingSocket = acceptor.accept(sendingSocket);
+                ServerReactiveSocket receivingSocket = new ServerReactiveSocket(multiplexer.asServerConnection(),
+                    acceptingSocket, true,
+                    errorConsumer, this);
+                receivingSocket.start();
 
-                     return Px.just(leaseHonoringSocket);
-                 }));
+                return Mono.just(leaseHonoringSocket);
+            });
     }
 
     private static class ConnectInspector {
@@ -173,14 +169,15 @@ final class SetupProviderImpl extends AbstractEventSource<ClientEventListener> i
         public void connectSuccess(ReactiveSocket socket) {
             if (publisher.isEventPublishingEnabled()) {
                 publisher.getEventListener()
-                         .connectCompleted(() -> socket.availability(), System.nanoTime() - startTime, NANOSECONDS);
+                    .connectCompleted(socket::availability, System.nanoTime() - startTime, NANOSECONDS);
                 socket.onClose()
-                      .subscribe(Subscribers.doOnTerminate(() -> {
-                          if (publisher.isEventPublishingEnabled()) {
-                              publisher.getEventListener()
-                                       .socketClosed(Clock.elapsedSince(startTime), Clock.unit());
-                          }
-                      }));
+                    .doFinally(signalType -> {
+                        if (publisher.isEventPublishingEnabled()) {
+                            publisher.getEventListener()
+                                .socketClosed(Clock.elapsedSince(startTime), Clock.unit());
+                        }
+                    })
+                    .subscribe();
             }
         }
 

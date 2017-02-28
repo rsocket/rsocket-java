@@ -17,10 +17,10 @@
 package io.reactivesocket.client;
 
 import io.reactivesocket.exceptions.ConnectionException;
-import io.reactivesocket.reactivestreams.extensions.Px;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
+import reactor.core.publisher.Flux;
 
 import java.util.function.LongSupplier;
 
@@ -123,7 +123,7 @@ public final class KeepAliveProvider {
      * @return A new {@link KeepAliveProvider} that never sends a keep-alive frame.
      */
     public static KeepAliveProvider never() {
-        return from(Integer.MAX_VALUE, Px.never());
+        return from(Integer.MAX_VALUE, Flux.never());
     }
 
     /**

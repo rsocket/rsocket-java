@@ -21,10 +21,6 @@ import io.reactivesocket.Frame;
 import io.reactivesocket.Payload;
 import io.reactivesocket.exceptions.ApplicationException;
 import io.reactivesocket.exceptions.CancelException;
-import io.reactivesocket.reactivestreams.extensions.internal.FlowControlHelper;
-import io.reactivesocket.reactivestreams.extensions.internal.ValidatingSubscription;
-import io.reactivesocket.reactivestreams.extensions.internal.subscribers.Subscribers;
-import org.reactivestreams.Processor;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
@@ -130,7 +126,8 @@ public final class RemoteReceiver extends FluxProcessor<Frame, Payload> {
             onNext(requestFrame);
         }
         connection.send(framesSource)
-                  .subscribe(Subscribers.doOnError(throwable -> subscription.safeOnError(throwable)));
+            .doOnError(throwable -> subscription.safeOnError(throwable))
+            .subscribe();
     }
 
     @Override

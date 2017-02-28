@@ -18,12 +18,12 @@ package io.reactivesocket.lease;
 
 import io.reactivesocket.Payload;
 import io.reactivesocket.ReactiveSocket;
-import io.reactivesocket.reactivestreams.extensions.Px;
 import io.reactivesocket.test.util.MockReactiveSocket;
 import io.reactivesocket.util.PayloadImpl;
 import org.junit.Test;
 import org.junit.runners.Parameterized.Parameter;
 import io.reactivex.subscribers.TestSubscriber;
+import reactor.core.publisher.Flux;
 
 import java.util.function.LongSupplier;
 
@@ -80,7 +80,7 @@ public abstract class DefaultLeaseTest<T> {
     public void testRequestChannel() throws Exception {
         T state = init();
         TestSubscriber<Payload> subscriber = TestSubscriber.create();
-        getReactiveSocket(state).requestChannel(Px.just(PayloadImpl.EMPTY)).subscribe(subscriber);
+        getReactiveSocket(state).requestChannel(Flux.just(PayloadImpl.EMPTY)).subscribe(subscriber);
         subscriber.assertError(expectedException);
         getMockSocket(state).assertRequestChannelCount(expectedInvocations);
     }

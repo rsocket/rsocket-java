@@ -27,6 +27,7 @@ import io.reactivesocket.test.util.TestDuplexConnection;
 import io.reactivesocket.util.PayloadImpl;
 import io.reactivex.Flowable;
 import org.junit.Test;
+import reactor.core.publisher.Flux;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
@@ -49,7 +50,7 @@ public class SetupProviderImplTest {
 
         setupProvider = setupProvider.setupPayload(setupPayload);
         TestDuplexConnection connection = new TestDuplexConnection();
-        FairLeaseDistributor distributor = new FairLeaseDistributor(() -> 0, 0, Flowable.never());
+        FairLeaseDistributor distributor = new FairLeaseDistributor(() -> 0, 0, Flux.never());
         ReactiveSocket socket = Flowable.fromPublisher(setupProvider
                                                  .accept(connection,
                                                          reactiveSocket -> new DefaultLeaseEnforcingSocket(

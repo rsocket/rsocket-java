@@ -24,6 +24,7 @@ import io.reactivex.processors.PublishProcessor;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
+import reactor.core.publisher.DirectProcessor;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -65,10 +66,10 @@ public class DefaultLeaseEnforcingSocketTest extends DefaultLeaseTest<SocketHold
 
         private final MockReactiveSocket mockSocket;
         private final DefaultLeaseEnforcingSocket reactiveSocket;
-        private final PublishProcessor<Long> leaseTicks;
+        private final DirectProcessor<Long> leaseTicks;
 
         public SocketHolder(MockReactiveSocket mockSocket, DefaultLeaseEnforcingSocket reactiveSocket,
-                            PublishProcessor<Long> leaseTicks) {
+                            DirectProcessor<Long> leaseTicks) {
             this.mockSocket = mockSocket;
             this.reactiveSocket = reactiveSocket;
             this.reactiveSocket.acceptLeaseSender(lease -> {});
@@ -85,7 +86,7 @@ public class DefaultLeaseEnforcingSocketTest extends DefaultLeaseTest<SocketHold
 
         public static SocketHolder newHolder(LongSupplier currentTimeSupplier, int permits, int ttl) {
             LongSupplier _currentTimeSupplier = null == currentTimeSupplier? () -> -1 : currentTimeSupplier;
-            PublishProcessor<Long> leaseTicks = PublishProcessor.create();
+            DirectProcessor<Long> leaseTicks = DirectProcessor.create();
             FairLeaseDistributor distributor = new FairLeaseDistributor(() -> permits, ttl, leaseTicks);
             AbstractSocketRule<DefaultLeaseEnforcingSocket> rule = new AbstractSocketRule<DefaultLeaseEnforcingSocket>() {
                 @Override

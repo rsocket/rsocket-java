@@ -16,7 +16,6 @@
 
 rootProject.name='reactivesocket'
 include 'reactivesocket-client'
-include 'reactivesocket-publishers'
 include 'reactivesocket-core'
 include 'reactivesocket-discovery-eureka'
 include 'reactivesocket-examples'

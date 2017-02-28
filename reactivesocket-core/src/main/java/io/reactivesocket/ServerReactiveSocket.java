@@ -28,7 +28,6 @@ import io.reactivesocket.exceptions.SetupException;
 import io.reactivesocket.frame.FrameHeaderFlyweight;
 import io.reactivesocket.internal.*;
 import io.reactivesocket.lease.LeaseEnforcingSocket;
-import io.reactivesocket.reactivestreams.extensions.internal.subscribers.Subscribers;
 import io.reactivesocket.util.Clock;
 import org.agrona.collections.Int2ObjectHashMap;
 import org.reactivestreams.Publisher;
@@ -144,7 +143,7 @@ public class ServerReactiveSocket implements ReactiveSocket {
     public ServerReactiveSocket start() {
         serverInput
             .doOnNext(frame -> {
-                handleFrame(frame).subscribe(Subscribers.doOnError(errorConsumer));
+                handleFrame(frame).doOnError(errorConsumer).subscribe();
             })
             .doOnError(t -> {
                 errorConsumer.accept(t);
@@ -266,7 +265,7 @@ public class ServerReactiveSocket implements ReactiveSocket {
         subscriptions.clear();
         channelProcessors.values().forEach(RemoteReceiver::cancel);
         subscriptions.clear();
-        requestHandler.close().subscribe(Subscribers.empty());
+        requestHandler.close().subscribe();
     }
 
     private Mono<Void> handleRequestResponse(int streamId, Publisher<Payload> response) {

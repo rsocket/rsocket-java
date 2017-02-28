@@ -18,7 +18,6 @@ package io.reactivesocket.internal;
 
 import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
-import io.reactivesocket.reactivestreams.extensions.internal.ValidatingSubscription;
 import org.agrona.BitUtil;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;

@@ -16,13 +16,13 @@
 
 package io.reactivesocket.lease;
 
-import io.reactivesocket.reactivestreams.extensions.internal.Cancellable;
-import io.reactivex.processors.PublishProcessor;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExternalResource;
 import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
+import reactor.core.Disposable;
+import reactor.core.publisher.DirectProcessor;
 
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
@@ -37,13 +37,13 @@ public class FairLeaseDistributorTest {
 
     @Test
     public void testRegisterCancel() throws Exception {
-        Cancellable cancel = rule.distributor.registerSocket(rule);
+        Disposable disposable = rule.distributor.registerSocket(rule);
         rule.ticks.onNext(1L);
         assertThat("Unexpected leases received.", rule.leases, hasSize(1));
         Lease lease = rule.leases.remove(0);
         assertThat("Unexpected permits", lease.getAllowedRequests(), is(rule.permits));
         rule.assertTTL(lease);
-        cancel.cancel();
+        disposable.dispose();
         rule.ticks.onNext(1L);
         assertThat("Unexpected leases received post cancellation.", rule.leases, is(empty()));
     }
@@ -62,13 +62,13 @@ public class FairLeaseDistributorTest {
     @Test
     public void testTwoSocketsAndCancel() throws Exception {
         rule.permits = 2;
-        Cancellable cancel1 = rule.distributor.registerSocket(rule);
+        Disposable disposable = rule.distributor.registerSocket(rule);
         rule.distributor.registerSocket(rule);
         rule.ticks.onNext(1L);
         assertThat("Unexpected leases received.", rule.leases, hasSize(2));
         rule.assertLease(rule.permits/2);
         rule.assertLease(rule.permits/2);
-        cancel1.cancel();
+        disposable.dispose();
         rule.ticks.onNext(1L);
         assertThat("Unexpected leases received.", rule.leases, hasSize(1));
     }
@@ -78,13 +78,13 @@ public class FairLeaseDistributorTest {
         rule.permits = 2;
         rule.redistributeLeasesOnConnect();
 
-        Cancellable cancel1 = rule.distributor.registerSocket(rule);
+        Disposable disposable = rule.distributor.registerSocket(rule);
         rule.distributor.registerSocket(rule);
 
         assertThat("Unexpected leases received.", rule.leases, hasSize(2));
         rule.assertLease(rule.permits/2);
         rule.assertLease(rule.permits/2);
-        cancel1.cancel();
+        disposable.dispose();
         rule.ticks.onNext(1L);
         assertThat("Unexpected leases received.", rule.leases, hasSize(1));
     }
@@ -95,7 +95,7 @@ public class FairLeaseDistributorTest {
         private FairLeaseDistributor distributor;
         private int permits;
         private int ttl;
-        private PublishProcessor<Long> ticks;
+        private DirectProcessor<Long> ticks;
         private CopyOnWriteArrayList<Lease> leases;
 
         @Override
@@ -110,7 +110,7 @@ public class FairLeaseDistributorTest {
         }
 
         protected void init() {
-            ticks = PublishProcessor.create();
+            ticks = DirectProcessor.create();
             if (0 == permits) {
                 permits = 1;
             }
