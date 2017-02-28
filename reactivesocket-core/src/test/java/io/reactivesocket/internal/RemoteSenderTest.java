@@ -18,14 +18,13 @@ package io.reactivesocket.internal;
 
 import io.reactivesocket.Frame;
 import io.reactivesocket.FrameType;
-import io.reactivex.functions.Predicate;
-import io.reactivex.processors.UnicastProcessor;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExternalResource;
 import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
 import io.reactivex.subscribers.TestSubscriber;
+import reactor.core.publisher.UnicastProcessor;
 
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
@@ -42,12 +41,7 @@ public class RemoteSenderTest {
         rule.sendFrame(FrameType.NEXT);
 
         receiverSub.assertValueCount(1);
-        receiverSub.assertValue(new Predicate<Frame>() {
-            @Override
-            public boolean test(Frame frame) throws Exception {
-                return frame.getType() == FrameType.NEXT;
-            }
-        });
+        receiverSub.assertValue(frame -> frame.getType() == FrameType.NEXT);
         assertThat("Unexpected sender cleaned up.", rule.senderCleanedUp, is(false));
     }
 
@@ -57,12 +51,7 @@ public class RemoteSenderTest {
         rule.sender.onError(new NullPointerException("deliberate test exception."));
 
         receiverSub.assertValueCount(1);
-        receiverSub.assertValue(new Predicate<Frame>() {
-            @Override
-            public boolean test(Frame frame) throws Exception {
-                return frame.getType() == FrameType.ERROR;
-            }
-        });
+        receiverSub.assertValue(frame -> frame.getType() == FrameType.ERROR);
         receiverSub.assertError(NullPointerException.class);
         receiverSub.assertNotComplete();
         assertThat("Unexpected sender cleaned up.", rule.senderCleanedUp, is(true));
@@ -74,12 +63,7 @@ public class RemoteSenderTest {
         rule.sender.onComplete();
 
         receiverSub.assertValueCount(1);
-        receiverSub.assertValue(new Predicate<Frame>() {
-            @Override
-            public boolean test(Frame frame) throws Exception {
-                return frame.getType() == FrameType.COMPLETE || frame.getType() == FrameType.NEXT_COMPLETE;
-            }
-        });
+        receiverSub.assertValue(frame -> frame.getType() == FrameType.COMPLETE || frame.getType() == FrameType.NEXT_COMPLETE);
 
         receiverSub.assertNoErrors();
         receiverSub.assertComplete();
@@ -93,12 +77,7 @@ public class RemoteSenderTest {
         rule.sendFrame(FrameType.NEXT);
 
         receiverSub.assertValueCount(1);
-        receiverSub.assertValue(new Predicate<Frame>() {
-            @Override
-            public boolean test(Frame frame) throws Exception {
-                return frame.getType() == FrameType.NEXT;
-            }
-        });
+        receiverSub.assertValue(frame -> frame.getType() == FrameType.NEXT);
         receiverSub.cancel();// Transport cancel.
         assertThat("Sender not cleaned up.", rule.senderCleanedUp, is(true));
 
@@ -113,12 +92,7 @@ public class RemoteSenderTest {
         rule.sendFrame(FrameType.NEXT);
 
         receiverSub.assertValueCount(1);
-        receiverSub.assertValue(new Predicate<Frame>() {
-            @Override
-            public boolean test(Frame frame) throws Exception {
-                return frame.getType() == FrameType.NEXT;
-            }
-        });
+        receiverSub.assertValue(frame -> frame.getType() == FrameType.NEXT);
         rule.sender.acceptCancelFrame(Frame.Cancel.from(rule.streamId));// Remote cancel.
         assertThat("Sender not cleaned up.", rule.senderCleanedUp, is(true));
 
@@ -135,12 +109,7 @@ public class RemoteSenderTest {
         receiverSub.request(1); // Now get completion
 
         receiverSub.assertValueCount(1);
-        receiverSub.assertValue(new Predicate<Frame>() {
-            @Override
-            public boolean test(Frame frame) throws Exception {
-                return frame.getType() == FrameType.COMPLETE || frame.getType() == FrameType.NEXT_COMPLETE;
-            }
-        });
+        receiverSub.assertValue(frame -> frame.getType() == FrameType.COMPLETE || frame.getType() == FrameType.NEXT_COMPLETE);
         receiverSub.assertNoErrors();
         receiverSub.assertComplete();
         assertThat("Unexpected sender cleaned up.", rule.senderCleanedUp, is(true));
@@ -155,12 +124,7 @@ public class RemoteSenderTest {
         receiverSub.request(1); // Now get completion
 
         receiverSub.assertValueCount(1);
-        receiverSub.assertValue(new Predicate<Frame>() {
-            @Override
-            public boolean test(Frame frame) throws Exception {
-                return frame.getType() == FrameType.ERROR;
-            }
-        });
+        receiverSub.assertValue(frame -> frame.getType() == FrameType.ERROR);
         receiverSub.assertError(NullPointerException.class);
         receiverSub.assertNotComplete();
         assertThat("Unexpected sender cleaned up.", rule.senderCleanedUp, is(true));

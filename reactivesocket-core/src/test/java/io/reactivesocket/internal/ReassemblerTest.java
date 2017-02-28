@@ -21,8 +21,8 @@ import io.reactivesocket.Payload;
 import io.reactivesocket.TestUtil;
 import io.reactivesocket.frame.FrameHeaderFlyweight;
 import io.reactivesocket.frame.PayloadReassembler;
-import io.reactivex.processors.ReplayProcessor;
 import org.junit.Test;
+import reactor.core.publisher.ReplayProcessor;
 
 import java.nio.ByteBuffer;
 

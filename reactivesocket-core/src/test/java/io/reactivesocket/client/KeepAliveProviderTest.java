@@ -17,9 +17,9 @@
 package io.reactivesocket.client;
 
 import io.reactivesocket.exceptions.ConnectionException;
-import io.reactivex.Flowable;
 import io.reactivex.subscribers.TestSubscriber;
 import org.junit.Test;
+import reactor.core.publisher.Flux;
 
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -27,7 +27,7 @@ public class KeepAliveProviderTest {
 
     @Test
     public void testEmptyTicks() throws Exception {
-        KeepAliveProvider provider = KeepAliveProvider.from(10, 1, Flowable.empty(), () -> 1);
+        KeepAliveProvider provider = KeepAliveProvider.from(10, 1, Flux.empty(), () -> 1);
         TestSubscriber<Long> subscriber = TestSubscriber.create();
         provider.ticks().subscribe(subscriber);
         subscriber.assertComplete().assertNoErrors().assertNoValues();
@@ -36,18 +36,18 @@ public class KeepAliveProviderTest {
     @Test
     public void testTicksWithAck() throws Exception {
         AtomicLong time = new AtomicLong();
-        KeepAliveProvider provider = KeepAliveProvider.from(10, 1, Flowable.just(1L, 2L), () -> time.longValue());
+        KeepAliveProvider provider = KeepAliveProvider.from(10, 1, Flux.just(1L, 2L), time::longValue);
         TestSubscriber<Long> subscriber = TestSubscriber.create();
-        Flowable.fromPublisher(provider.ticks()).doOnNext(aLong -> provider.ack()).subscribe(subscriber);
+        provider.ticks().doOnNext(aLong -> provider.ack()).subscribe(subscriber);
         subscriber.assertNoErrors().assertComplete().assertValues(1L, 2L);
     }
 
     @Test
     public void testMissingAck() throws Exception {
         AtomicLong time = new AtomicLong();
-        KeepAliveProvider provider = KeepAliveProvider.from(10, 1, Flowable.just(1L, 2L), () -> time.addAndGet(100));
+        KeepAliveProvider provider = KeepAliveProvider.from(10, 1, Flux.just(1L, 2L), () -> time.addAndGet(100));
         TestSubscriber<Long> subscriber = TestSubscriber.create();
-        Flowable.fromPublisher(provider.ticks()).subscribe(subscriber);
+        provider.ticks().subscribe(subscriber);
         subscriber.assertError(ConnectionException.class).assertValues(1L);
     }
 }

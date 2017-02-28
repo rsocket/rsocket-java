@@ -18,16 +18,14 @@ package io.reactivesocket.test.util;
 
 import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
-import io.reactivex.Flowable;
-import io.reactivex.processors.PublishProcessor;
-import io.reactivex.processors.UnicastProcessor;
-import org.reactivestreams.Processor;
 import org.reactivestreams.Publisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import io.reactivex.subscribers.TestSubscriber;
+import reactor.core.publisher.DirectProcessor;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.publisher.MonoProcessor;
 
 import java.util.Collection;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -41,19 +39,19 @@ public class TestDuplexConnection implements DuplexConnection {
     private static final Logger logger = LoggerFactory.getLogger(TestDuplexConnection.class);
 
     private final LinkedBlockingQueue<Frame> sent;
-    private final UnicastProcessor<Frame> sentPublisher;
-    private final UnicastProcessor<Frame> received;
-    private final Processor<Void, Void> close;
+    private final DirectProcessor<Frame> sentPublisher;
+    private final DirectProcessor<Frame> received;
+    private final MonoProcessor<Void> close;
     private final ConcurrentLinkedQueue<TestSubscriber<Frame>> sendSubscribers;
     private volatile double availability =1;
     private volatile int initialSendRequestN = Integer.MAX_VALUE;
 
     public TestDuplexConnection() {
         sent = new LinkedBlockingQueue<>();
-        received = UnicastProcessor.create();
-        sentPublisher = UnicastProcessor.create();
+        received = DirectProcessor.create();
+        sentPublisher = DirectProcessor.create();
         sendSubscribers = new ConcurrentLinkedQueue<>();
-        close = PublishProcessor.create();
+        close = MonoProcessor.create();
     }
 
     @Override
@@ -62,7 +60,7 @@ public class TestDuplexConnection implements DuplexConnection {
             return Mono.error(new IllegalStateException("ReactiveSocket not available. Availability: " + availability));
         }
         TestSubscriber<Frame> subscriber = TestSubscriber.create(initialSendRequestN);
-        Flowable.fromPublisher(frames)
+        Flux.from(frames)
                 .doOnNext(frame -> {
                 sent.offer(frame);
                 sentPublisher.onNext(frame);
@@ -77,7 +75,7 @@ public class TestDuplexConnection implements DuplexConnection {
 
     @Override
     public Flux<Frame> receive() {
-        return Flux.from(received);
+        return received;
     }
 
     @Override
@@ -87,7 +85,7 @@ public class TestDuplexConnection implements DuplexConnection {
 
     @Override
     public Mono<Void> close() {
-        return Mono.from(close);
+        return close;
     }
 
     @Override

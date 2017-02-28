@@ -32,6 +32,7 @@ import org.reactivestreams.Subscription;
 import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.publisher.MonoSource;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -140,7 +141,7 @@ public class ClientReactiveSocket implements ReactiveSocket {
     }
 
     private Mono<Payload> handleRequestResponse(final Payload payload) {
-        return Mono.from(subscriber -> {
+        return MonoSource.wrap(subscriber -> {
             int streamId = nextStreamId();
             final Frame requestFrame = Frame.Request.from(streamId, FrameType.REQUEST_RESPONSE, payload, 1);
             synchronized (this) {
@@ -179,7 +180,7 @@ public class ClientReactiveSocket implements ReactiveSocket {
     }
 
     private void startKeepAlive() {
-        keepAliveSendSub = connection.send(Flux.from(keepAliveProvider.ticks())
+        keepAliveSendSub = connection.send(keepAliveProvider.ticks()
             .map(i -> Frame.Keepalive.from(Frame.NULL_BYTEBUFFER, true)))
             .subscribe(null, errorConsumer);
     }

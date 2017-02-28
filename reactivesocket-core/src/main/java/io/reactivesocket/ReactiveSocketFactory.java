@@ -16,6 +16,7 @@
 package io.reactivesocket;
 
 import org.reactivestreams.Publisher;
+import reactor.core.publisher.Mono;
 
 /**
  * Factory of ReactiveSocket interface
@@ -29,7 +30,7 @@ public interface ReactiveSocketFactory {
      *
      * @return A source that emits a single {@code ReactiveSocket}.
      */
-    Publisher<? extends ReactiveSocket> apply();
+    Mono<? extends ReactiveSocket> apply();
 
     /**
      * @return a positive numbers representing the availability of the factory.

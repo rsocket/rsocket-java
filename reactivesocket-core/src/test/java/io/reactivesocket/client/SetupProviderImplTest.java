@@ -25,9 +25,9 @@ import io.reactivesocket.lease.DefaultLeaseHonoringSocket;
 import io.reactivesocket.lease.FairLeaseDistributor;
 import io.reactivesocket.test.util.TestDuplexConnection;
 import io.reactivesocket.util.PayloadImpl;
-import io.reactivex.Flowable;
 import org.junit.Test;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
@@ -51,12 +51,10 @@ public class SetupProviderImplTest {
         setupProvider = setupProvider.setupPayload(setupPayload);
         TestDuplexConnection connection = new TestDuplexConnection();
         FairLeaseDistributor distributor = new FairLeaseDistributor(() -> 0, 0, Flux.never());
-        ReactiveSocket socket = Flowable.fromPublisher(setupProvider
-                                                 .accept(connection,
-                                                         reactiveSocket -> new DefaultLeaseEnforcingSocket(
-                                                                 reactiveSocket, distributor)))
-                                      .switchIfEmpty(Flowable.error(new IllegalStateException("No socket returned.")))
-                                      .blockingFirst();
+        ReactiveSocket socket = setupProvider
+            .accept(connection, reactiveSocket -> new DefaultLeaseEnforcingSocket(reactiveSocket, distributor))
+            .otherwiseIfEmpty(Mono.error(new IllegalStateException("No socket returned.")))
+            .block();
 
         dataBuffer.rewind();
         metaDataBuffer.rewind();

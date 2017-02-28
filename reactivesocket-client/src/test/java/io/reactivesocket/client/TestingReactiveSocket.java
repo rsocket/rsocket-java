@@ -18,11 +18,13 @@ package io.reactivesocket.client;
 
 import io.reactivesocket.Payload;
 import io.reactivesocket.ReactiveSocket;
-import io.reactivesocket.reactivestreams.extensions.Px;
-import io.reactivesocket.reactivestreams.extensions.internal.EmptySubject;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+import reactor.core.publisher.MonoProcessor;
+import reactor.core.publisher.MonoSource;
 
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
@@ -31,7 +33,7 @@ import java.util.function.Function;
 public class TestingReactiveSocket implements ReactiveSocket {
 
     private final AtomicInteger count;
-    private final EmptySubject closeSubject = new EmptySubject();
+    private final MonoProcessor<Void> closeSubject = MonoProcessor.create();
     private final BiFunction<Subscriber<? super Payload>, Payload, Boolean> eachPayloadHandler;
 
     public TestingReactiveSocket(Function<Payload, Payload> responder) {
@@ -51,13 +53,13 @@ public class TestingReactiveSocket implements ReactiveSocket {
     }
 
     @Override
-    public Publisher<Void> fireAndForget(Payload payload) {
-        return Px.empty();
+    public Mono<Void> fireAndForget(Payload payload) {
+        return Mono.empty();
     }
 
     @Override
-    public Publisher<Payload> requestResponse(Payload payload) {
-        return subscriber ->
+    public Mono<Payload> requestResponse(Payload payload) {
+        return MonoSource.wrap(subscriber ->
             subscriber.onSubscribe(new Subscription() {
                 boolean cancelled;
 
@@ -78,22 +80,22 @@ public class TestingReactiveSocket implements ReactiveSocket {
 
                 @Override
                 public void cancel() {}
-            });
+            }));
     }
 
     @Override
-    public Publisher<Payload> requestStream(Payload payload) {
-        return requestResponse(payload);
+    public Flux<Payload> requestStream(Payload payload) {
+        return requestResponse(payload).flux();
     }
 
     @Override
-    public Publisher<Payload> requestSubscription(Payload payload) {
-        return requestResponse(payload);
+    public Flux<Payload> requestSubscription(Payload payload) {
+        return requestResponse(payload).flux();
     }
 
     @Override
-    public Publisher<Payload> requestChannel(Publisher<Payload> inputs) {
-        return subscriber ->
+    public Flux<Payload> requestChannel(Publisher<Payload> inputs) {
+        return Flux.from(subscriber ->
             inputs.subscribe(new Subscriber<Payload>() {
                 @Override
                 public void onSubscribe(Subscription s) {
@@ -114,11 +116,11 @@ public class TestingReactiveSocket implements ReactiveSocket {
                 public void onComplete() {
                     subscriber.onComplete();
                 }
-            });
+            }));
     }
 
     @Override
-    public Publisher<Void> metadataPush(Payload payload) {
+    public Mono<Void> metadataPush(Payload payload) {
         return fireAndForget(payload);
     }
 
@@ -128,15 +130,15 @@ public class TestingReactiveSocket implements ReactiveSocket {
     }
 
     @Override
-    public Publisher<Void> close() {
-        return s -> {
+    public Mono<Void> close() {
+        return Mono.defer(() -> {
             closeSubject.onComplete();
-            closeSubject.subscribe(s);
-        };
+            return closeSubject;
+        });
     }
 
     @Override
-    public Publisher<Void> onClose() {
+    public Mono<Void> onClose() {
         return closeSubject;
     }
 }

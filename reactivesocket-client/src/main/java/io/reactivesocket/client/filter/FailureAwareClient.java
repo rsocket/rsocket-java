@@ -15,17 +15,18 @@
  */
 package io.reactivesocket.client.filter;
 
+import io.reactivesocket.Payload;
 import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.client.AbstractReactiveSocketClient;
 import io.reactivesocket.client.ReactiveSocketClient;
-import io.reactivesocket.reactivestreams.extensions.Px;
 import io.reactivesocket.stat.Ewma;
 import io.reactivesocket.util.Clock;
-import io.reactivesocket.util.ReactiveSocketDecorator;
+import io.reactivesocket.util.ReactiveSocketProxy;
 import org.reactivestreams.Publisher;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
 
 /**
  * This child compute the error rate of a particular remote location and adapt the availability
@@ -57,24 +58,63 @@ public class FailureAwareClient extends AbstractReactiveSocketClient {
     }
 
     @Override
-    public Publisher<? extends ReactiveSocket> connect() {
-        return Px.from(delegate.connect())
-                 .doOnNext(o -> updateErrorPercentage(1.0))
-                 .doOnError(t ->  updateErrorPercentage(0.0))
-                 .map(socket ->
-                     ReactiveSocketDecorator.wrap(socket)
-                                            .availability(delegate -> {
-                                                // If the window is expired set success and failure to zero and return
-                                                // the child availability
-                                                if (Clock.now() - stamp > tau) {
-                                                    updateErrorPercentage(1.0);
-                                                }
-                                                return delegate.availability() * errorPercentage.value();
-                                            })
-                                            .decorateAllResponses(_record())
-                                            .decorateAllVoidResponses(_record())
-                                            .finish()
-                 );
+    public Mono<? extends ReactiveSocket> connect() {
+        return delegate.connect()
+            .doOnNext(o -> updateErrorPercentage(1.0))
+            .doOnError(t ->  updateErrorPercentage(0.0))
+            .map(socket -> new ReactiveSocketProxy(socket) {
+                @Override
+                public Mono<Void> fireAndForget(Payload payload) {
+                    return source.fireAndForget(payload)
+                            .doOnError(t -> errorPercentage.insert(0.0))
+                            .doOnSuccess(v -> updateErrorPercentage(1.0));
+                }
+
+                @Override
+                public Mono<Payload> requestResponse(Payload payload) {
+                    return source.requestResponse(payload)
+                            .doOnError(t -> errorPercentage.insert(0.0))
+                            .doOnSuccess(p -> updateErrorPercentage(1.0));
+                }
+
+                @Override
+                public Flux<Payload> requestStream(Payload payload) {
+                    return source.requestStream(payload)
+                            .doOnError(th -> errorPercentage.insert(0.0))
+                            .doOnComplete(() -> updateErrorPercentage(1.0));
+                }
+
+                @Override
+                public Flux<Payload> requestSubscription(Payload payload) {
+                    return source.requestSubscription(payload)
+                            .doOnError(th -> errorPercentage.insert(0.0))
+                            .doOnComplete(() -> updateErrorPercentage(1.0));
+                }
+
+                @Override
+                public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
+                    return source.requestChannel(payloads)
+                            .doOnError(th -> errorPercentage.insert(0.0))
+                            .doOnComplete(() -> updateErrorPercentage(1.0));
+                }
+
+                @Override
+                public Mono<Void> metadataPush(Payload payload) {
+                    return source.metadataPush(payload)
+                            .doOnError(t -> errorPercentage.insert(0.0))
+                            .doOnSuccess(v -> updateErrorPercentage(1.0));
+                }
+
+                @Override
+                public double availability() {
+                    // If the window is expired set success and failure to zero and return
+                    // the child availability
+                    if (Clock.now() - stamp > tau) {
+                        updateErrorPercentage(1.0);
+                    }
+                    return source.availability() * errorPercentage.value();
+                }
+            });
     }
 
     @Override
@@ -97,12 +137,6 @@ public class FailureAwareClient extends AbstractReactiveSocketClient {
     private synchronized void updateErrorPercentage(double value) {
         errorPercentage.insert(value);
         stamp = Clock.now();
-    }
-
-    private <T> Function<Publisher<T>, Publisher<T>> _record() {
-        return t -> Px.from(t)
-                      .doOnError(th -> errorPercentage.insert(0.0))
-                      .doOnComplete(() -> updateErrorPercentage(1.0));
     }
 
     @Override

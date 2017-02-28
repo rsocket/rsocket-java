@@ -18,19 +18,19 @@ package io.reactivesocket.test.util;
 
 import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
-import io.reactivex.processors.PublishProcessor;
 import org.reactivestreams.Publisher;
+import reactor.core.publisher.DirectProcessor;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
 
 public class LocalDuplexConnection implements DuplexConnection {
-    private final PublishProcessor<Frame> send;
-    private final PublishProcessor<Frame> receive;
+    private final DirectProcessor<Frame> send;
+    private final DirectProcessor<Frame> receive;
     private final MonoProcessor<Void> closeNotifier;
     private final String name;
 
-    public LocalDuplexConnection(String name, PublishProcessor<Frame> send, PublishProcessor<Frame> receive) {
+    public LocalDuplexConnection(String name, DirectProcessor<Frame> send, DirectProcessor<Frame> receive) {
         this.name = name;
         this.send = send;
         this.receive = receive;
@@ -48,7 +48,7 @@ public class LocalDuplexConnection implements DuplexConnection {
 
     @Override
     public Flux<Frame> receive() {
-        return Flux.from(receive);
+        return receive;
     }
 
     @Override
@@ -66,6 +66,6 @@ public class LocalDuplexConnection implements DuplexConnection {
 
     @Override
     public Mono<Void> onClose() {
-        return Mono.from(closeNotifier);
+        return closeNotifier;
     }
 }

@@ -268,11 +268,11 @@ public class ServerReactiveSocket implements ReactiveSocket {
         requestHandler.close().subscribe();
     }
 
-    private Mono<Void> handleRequestResponse(int streamId, Publisher<Payload> response) {
+    private Mono<Void> handleRequestResponse(int streamId, Mono<Payload> response) {
         long now = publishSingleFrameReceiveEvents(streamId, RequestResponse);
 
         Mono<Frame> frames = new MonoOnErrorOrCancelReturn<>(
-            Mono.from(response)
+            response
                 .doOnSubscribe(subscription -> {
                     synchronized (this) {
                         subscriptions.put(streamId, subscription);

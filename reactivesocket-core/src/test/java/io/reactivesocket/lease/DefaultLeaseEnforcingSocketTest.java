@@ -20,7 +20,6 @@ import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.exceptions.RejectedException;
 import io.reactivesocket.lease.DefaultLeaseEnforcingSocketTest.SocketHolder;
 import io.reactivesocket.test.util.MockReactiveSocket;
-import io.reactivex.processors.PublishProcessor;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;

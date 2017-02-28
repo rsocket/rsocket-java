@@ -18,8 +18,7 @@ package io.reactivesocket.client;
 
 import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.transport.TransportClient;
-import org.reactivestreams.Publisher;
-import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 /**
  * Default implementation of {@link ReactiveSocketClient} providing the functionality to create a {@link ReactiveSocket}
@@ -27,17 +26,17 @@ import reactor.core.publisher.Flux;
  */
 public final class DefaultReactiveSocketClient extends AbstractReactiveSocketClient {
 
-    private final Flux<ReactiveSocket> connectSource;
+    private final Mono<ReactiveSocket> connectSource;
 
     public DefaultReactiveSocketClient(TransportClient transportClient, SetupProvider setupProvider,
                                        SocketAcceptor acceptor) {
         super(setupProvider);
         connectSource = transportClient.connect()
-            .flatMap(connection -> setupProvider.accept(connection, acceptor));
+            .then(connection -> setupProvider.accept(connection, acceptor));
     }
 
     @Override
-    public Publisher<? extends ReactiveSocket> connect() {
+    public Mono<? extends ReactiveSocket> connect() {
         return connectSource;
     }
 
