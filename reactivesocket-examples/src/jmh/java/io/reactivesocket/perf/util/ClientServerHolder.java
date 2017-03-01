@@ -20,7 +20,6 @@ import io.reactivesocket.client.KeepAliveProvider;
 import io.reactivesocket.client.ReactiveSocketClient;
 import io.reactivesocket.client.SetupProvider;
 import io.reactivesocket.lease.DisabledLeaseAcceptingSocket;
-import io.reactivesocket.reactivestreams.extensions.Px;
 import io.reactivesocket.server.ReactiveSocketServer;
 import io.reactivesocket.transport.TransportClient;
 import io.reactivesocket.transport.TransportServer;
@@ -29,7 +28,8 @@ import io.reactivesocket.transport.tcp.client.TcpTransportClient;
 import io.reactivesocket.transport.tcp.server.TcpTransportServer;
 import io.reactivesocket.util.PayloadImpl;
 import io.reactivex.Flowable;
-import org.reactivestreams.Publisher;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 import java.net.SocketAddress;
 import java.nio.charset.StandardCharsets;
@@ -96,13 +96,13 @@ public class ClientServerHolder implements Supplier<ReactiveSocket> {
     private static class Handler extends AbstractReactiveSocket {
 
         @Override
-        public Publisher<Payload> requestResponse(Payload payload) {
-            return Px.just(new PayloadImpl(HELLO));
+        public Mono<Payload> requestResponse(Payload payload) {
+            return Mono.just(new PayloadImpl(HELLO));
         }
 
         @Override
-        public Publisher<Payload> requestStream(Payload payload) {
-            return Flowable.range(1, Integer.MAX_VALUE)
+        public Flux<Payload> requestStream(Payload payload) {
+            return Flux.range(1, Integer.MAX_VALUE)
                            .map(integer -> new PayloadImpl(HELLO));
         }
     }

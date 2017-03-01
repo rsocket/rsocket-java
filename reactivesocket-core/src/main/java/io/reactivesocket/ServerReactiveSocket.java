@@ -158,17 +158,7 @@ public class ServerReactiveSocket implements ReactiveSocket {
                     .forEach(Subscription::cancel);
             })
             .doOnSubscribe(subscription -> {
-                receiversSubscription = new Subscription() {
-                    @Override
-                    public void request(long n) {
-                        subscription.request(n);
-                    }
-
-                    @Override
-                    public void cancel() {
-                        subscription.cancel();
-                    }
-                };
+                receiversSubscription = subscription;
             })
             .subscribe();
         return this;

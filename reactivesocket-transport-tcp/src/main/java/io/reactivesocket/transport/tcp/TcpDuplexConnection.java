@@ -19,29 +19,33 @@ import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
 import io.reactivex.netty.channel.Connection;
 import org.reactivestreams.Publisher;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.FluxSource;
+import reactor.core.publisher.Mono;
+import reactor.core.publisher.MonoSource;
 
 import static rx.RxReactiveStreams.*;
 
 public class TcpDuplexConnection implements DuplexConnection {
 
     private final Connection<Frame, Frame> connection;
-    private final Publisher<Void> closeNotifier;
-    private final Publisher<Void> close;
+    private final Mono<Void> closeNotifier;
+    private final Mono<Void> close;
 
     public TcpDuplexConnection(Connection<Frame, Frame> connection) {
         this.connection = connection;
-        closeNotifier = toPublisher(connection.closeListener());
-        close = toPublisher(connection.close());
+        closeNotifier = MonoSource.wrap(toPublisher(connection.closeListener()));
+        close = MonoSource.wrap(toPublisher(connection.close()));
     }
 
     @Override
-    public Publisher<Void> send(Publisher<Frame> frames) {
-        return toPublisher(connection.writeAndFlushOnEach(toObservable(frames)));
+    public Mono<Void> send(Publisher<Frame> frames) {
+        return MonoSource.wrap(toPublisher(connection.writeAndFlushOnEach(toObservable(frames))));
     }
 
     @Override
-    public Publisher<Frame> receive() {
-        return toPublisher(connection.getInput());
+    public Flux<Frame> receive() {
+        return FluxSource.wrap(toPublisher(connection.getInput()));
     }
 
     @Override
@@ -50,12 +54,12 @@ public class TcpDuplexConnection implements DuplexConnection {
     }
 
     @Override
-    public Publisher<Void> close() {
+    public Mono<Void> close() {
         return close;
     }
 
     @Override
-    public Publisher<Void> onClose() {
+    public Mono<Void> onClose() {
         return closeNotifier;
     }
 

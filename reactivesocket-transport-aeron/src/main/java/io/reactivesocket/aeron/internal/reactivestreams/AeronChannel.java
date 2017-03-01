@@ -18,9 +18,9 @@ package io.reactivesocket.aeron.internal.reactivestreams;
 import io.aeron.Publication;
 import io.aeron.Subscription;
 import io.reactivesocket.aeron.internal.EventLoop;
-import io.reactivesocket.reactivestreams.extensions.Px;
 import org.agrona.DirectBuffer;
-import org.reactivestreams.Publisher;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 import java.util.Objects;
 
@@ -55,14 +55,14 @@ public class AeronChannel implements ReactiveStreamsRemote.Channel<DirectBuffer>
      * @param in
      * @return
      */
-    public Publisher<Void> send(ReactiveStreamsRemote.In<? extends DirectBuffer> in) {
+    public Mono<Void> send(Flux<? extends DirectBuffer> in) {
         AeronInSubscriber inSubscriber = new AeronInSubscriber(name, destination);
         Objects.requireNonNull(in, "in must not be null");
-        return Px.completable(onComplete ->
-                in
-                    .doOnCompleteOrError(onComplete, t -> { throw new RuntimeException(t); })
-                    .subscribe(inSubscriber)
-            );
+        return Mono.create(sink ->
+            in.doOnComplete(sink::success)
+                .doOnError(sink::error)
+                .subscribe(inSubscriber)
+        );
     }
 
     /**
@@ -71,7 +71,7 @@ public class AeronChannel implements ReactiveStreamsRemote.Channel<DirectBuffer>
      *
      * @return ReactiveStreamsRemote.Out of DirectBuffer
      */
-    public ReactiveStreamsRemote.Out<? extends DirectBuffer> receive() {
+    public Flux<? extends DirectBuffer> receive() {
         return outPublisher;
     }
 

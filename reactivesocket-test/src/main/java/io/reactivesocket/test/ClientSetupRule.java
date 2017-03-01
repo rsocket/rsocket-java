@@ -22,13 +22,13 @@ import io.reactivesocket.client.KeepAliveProvider;
 import io.reactivesocket.client.ReactiveSocketClient;
 import io.reactivesocket.client.SetupProvider;
 import io.reactivesocket.transport.TransportClient;
-import io.reactivex.Flowable;
-import io.reactivex.Single;
 import io.reactivex.subscribers.TestSubscriber;
 import org.junit.rules.ExternalResource;
 import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
 import org.reactivestreams.Publisher;
+import reactor.core.publisher.Flux;
+import reactor.core.scheduler.Schedulers;
 
 import java.net.SocketAddress;
 import java.util.concurrent.Callable;
@@ -74,14 +74,14 @@ public class ClientSetupRule extends ExternalResource {
 
     public ReactiveSocket getReactiveSocket() {
         if (null == reactiveSocket) {
-            reactiveSocket = Single.fromPublisher(reactiveSocketClient.connect()).blockingGet();
+            reactiveSocket = reactiveSocketClient.connect().block();
         }
         return reactiveSocket;
     }
 
     public void testRequestResponseN(int count) {
         TestSubscriber<String> ts = TestSubscriber.create();
-        Flowable.range(1, count)
+        Flux.range(1, count)
                 .flatMap(i ->
                 getReactiveSocket()
                 .requestResponse(TestUtil.utf8EncodedPayload("hello", "metadata")))
@@ -106,10 +106,10 @@ public class ClientSetupRule extends ExternalResource {
         testStream(socket -> socket.requestStream(TestUtil.utf8EncodedPayload("hello", "metadata")));
     }
 
-    private void testStream(Function<ReactiveSocket, Publisher<Payload>> invoker) {
+    private void testStream(Function<ReactiveSocket, Flux<Payload>> invoker) {
         TestSubscriber<Payload> ts = TestSubscriber.create();
-        Publisher<Payload> publisher = invoker.apply(reactiveSocket);
-        Flowable.fromPublisher(publisher).take(10).subscribe(ts);
+        Flux<Payload> publisher = invoker.apply(reactiveSocket);
+        publisher.take(10).subscribe(ts);
         await(ts);
         ts.assertTerminated();
         ts.assertNoErrors();

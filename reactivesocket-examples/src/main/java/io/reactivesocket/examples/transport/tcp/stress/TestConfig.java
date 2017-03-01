@@ -21,9 +21,8 @@ import io.reactivesocket.lease.DefaultLeaseEnforcingSocket;
 import io.reactivesocket.lease.DisabledLeaseAcceptingSocket;
 import io.reactivesocket.lease.FairLeaseDistributor;
 import io.reactivesocket.lease.LeaseEnforcingSocket;
-import io.reactivesocket.reactivestreams.extensions.ExecutorServiceBasedScheduler;
 import io.reactivesocket.transport.tcp.client.TcpTransportClient;
-import io.reactivex.Flowable;
+import reactor.core.publisher.Flux;
 
 import java.net.SocketAddress;
 import java.time.Duration;
@@ -32,7 +31,6 @@ import java.util.function.IntSupplier;
 import static io.reactivesocket.client.filter.ReactiveSocketClients.*;
 import static io.reactivesocket.client.filter.ReactiveSockets.*;
 import static io.reactivesocket.examples.transport.tcp.stress.StressTestHandler.*;
-import static java.util.concurrent.TimeUnit.*;
 
 public class TestConfig {
 
@@ -41,7 +39,6 @@ public class TestConfig {
     private final IntSupplier serverCapacitySupplier;
     private final int leaseTtlMillis;
     private final SetupProvider setupProvider;
-    private static final ExecutorServiceBasedScheduler scheduler = new ExecutorServiceBasedScheduler();
 
     public TestConfig() {
         this(Duration.ofMinutes(1), 100, true);
@@ -65,7 +62,7 @@ public class TestConfig {
         this.maxConcurrency = maxConcurrency;
         this.serverCapacitySupplier = serverCapacitySupplier;
         this.leaseTtlMillis = leaseTtlMillis;
-        KeepAliveProvider keepAliveProvider = KeepAliveProvider.from(30_000, Flowable.interval(30, SECONDS));
+        KeepAliveProvider keepAliveProvider = KeepAliveProvider.from(30_000, Flux.interval(Duration.ofSeconds(30)));
         SetupProvider setup = SetupProvider.keepAlive(keepAliveProvider);
         setupProvider = serverCapacitySupplier == null? setup.disableLease() : setup;
     }
@@ -78,15 +75,15 @@ public class TestConfig {
         return maxConcurrency;
     }
 
-    public Flowable<Long> serverListChangeTicks() {
-        return Flowable.interval(2, SECONDS);
+    public Flux<Long> serverListChangeTicks() {
+        return Flux.interval(Duration.ofSeconds(2));
     }
 
     public final ReactiveSocketClient newClientForServer(SocketAddress server) {
         TcpTransportClient transport = TcpTransportClient.create(server);
         ReactiveSocketClient raw = ReactiveSocketClient.create(transport, setupProvider);
-        return wrap(detectFailures(connectTimeout(raw, 1, SECONDS, scheduler)),
-                    timeout(1, SECONDS, scheduler));
+        return wrap(detectFailures(connectTimeout(raw, Duration.ofSeconds(1))),
+                    timeout(Duration.ofSeconds(1)));
     }
 
     public final LeaseEnforcingSocket nextServerHandler(int serverCount) {
@@ -96,8 +93,7 @@ public class TestConfig {
             return new DisabledLeaseAcceptingSocket(socket);
         } else {
             FairLeaseDistributor leaseDistributor = new FairLeaseDistributor(serverCapacitySupplier, leaseTtlMillis,
-                                                                             Flowable.interval(0, leaseTtlMillis,
-                                                                                               MILLISECONDS));
+                                                                             Flux.interval(Duration.ofMillis(leaseTtlMillis)));
             return new DefaultLeaseEnforcingSocket(socket, leaseDistributor);
         }
     }

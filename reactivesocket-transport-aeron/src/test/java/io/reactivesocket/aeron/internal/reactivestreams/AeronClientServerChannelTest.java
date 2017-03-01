@@ -21,9 +21,6 @@ import io.reactivesocket.aeron.internal.AeronWrapper;
 import io.reactivesocket.aeron.internal.DefaultAeronWrapper;
 import io.reactivesocket.aeron.internal.EventLoop;
 import io.reactivesocket.aeron.internal.SingleThreadedEventLoop;
-import io.reactivesocket.reactivestreams.extensions.Px;
-import io.reactivex.Flowable;
-import io.reactivex.Single;
 import org.agrona.BitUtil;
 import org.agrona.DirectBuffer;
 import org.agrona.concurrent.UnsafeBuffer;
@@ -31,6 +28,8 @@ import org.junit.Assert;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.reactivestreams.Publisher;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadLocalRandom;
@@ -88,7 +87,7 @@ public class AeronClientServerChannelTest {
 
         Publisher<AeronChannel> publisher = connector
             .apply(config);
-        Px
+        Flux
             .from(publisher)
             .doOnNext(Assert::assertNotNull)
             .doOnNext(c -> latch.countDown())
@@ -131,14 +130,13 @@ public class AeronClientServerChannelTest {
         AeronChannelServer.AeronChannelConsumer consumer = (AeronChannel aeronChannel) -> {
             Assert.assertNotNull(aeronChannel);
 
-            ReactiveStreamsRemote.Out<? extends DirectBuffer> receive = aeronChannel
+            Flux<? extends DirectBuffer> receive = aeronChannel
                 .receive();
 
-            Flowable<? extends DirectBuffer> data = Flowable.fromPublisher(receive)
+            Flux<? extends DirectBuffer> data = receive
                 .doOnNext(b -> System.out.println("server received => " + b.getInt(0)));
 
-            Flowable
-                .fromPublisher(aeronChannel.send(ReactiveStreamsRemote.In.from(data)))
+            aeronChannel.send(data)
                 .subscribe();
         };
 
@@ -155,10 +153,10 @@ public class AeronClientServerChannelTest {
         int count = 10;
         CountDownLatch latch = new CountDownLatch(count);
 
-        Single.fromPublisher(publisher)
-              .flatMap(aeronChannel ->
-                               Single.create(callback -> {
-                                   Flowable<UnsafeBuffer> data = Flowable
+        Mono.from(publisher)
+              .then(aeronChannel ->
+                               Mono.create(callback -> {
+                                   Flux<UnsafeBuffer> data = Flux
                                            .range(1, count)
                                            .map(i -> {
                                                byte[] b = new byte[BitUtil.SIZE_OF_INT];
@@ -167,9 +165,9 @@ public class AeronClientServerChannelTest {
                                                return buffer;
                                            });
 
-                                   Flowable.fromPublisher(aeronChannel.receive()).doOnNext(b -> latch.countDown())
-                                           .doOnNext(callback::onSuccess).subscribe();
-                                   Flowable.fromPublisher(aeronChannel.send(ReactiveStreamsRemote.In.from(data)))
+                                   aeronChannel.receive().doOnNext(b -> latch.countDown())
+                                           .doOnNext(callback::success).subscribe();
+                                   aeronChannel.send(data)
                                            .subscribe();
                                })
               )

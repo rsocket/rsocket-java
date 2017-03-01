@@ -18,11 +18,10 @@ import io.reactivesocket.client.LoadBalancingClient;
 import io.reactivesocket.exceptions.RejectedException;
 import io.reactivesocket.server.ReactiveSocketServer;
 import io.reactivesocket.transport.tcp.server.TcpTransportServer;
-import io.reactivex.Flowable;
-import io.reactivex.Single;
-import io.reactivex.disposables.Disposable;
 import org.HdrHistogram.Recorder;
 import org.reactivestreams.Publisher;
+import reactor.core.Disposable;
+import reactor.core.publisher.Flux;
 
 import java.net.SocketAddress;
 import java.time.Duration;
@@ -59,10 +58,10 @@ class StressTest {
     }
 
     public StressTest printStatsEvery(Duration duration) {
-        printDisposable = Flowable.interval(duration.getSeconds(), TimeUnit.SECONDS)
-                                  .forEach(aLong -> {
+        printDisposable = Flux.interval(duration)
+                .doOnEach(aLong -> {
                     printTestStats(false);
-                });
+                }).subscribe();
         return this;
     }
 
@@ -90,7 +89,7 @@ class StressTest {
     public StressTest startClient() {
         LoadBalancingClient client = LoadBalancingClient.create(getServerList(),
                                                                 address -> config.newClientForServer(address));
-        clientSocket = Single.fromPublisher(client.connect()).blockingGet();
+        clientSocket = client.connect().block();
         System.out.println("Client ready!");
         return this;
     }
@@ -98,7 +97,7 @@ class StressTest {
     private Publisher<? extends Collection<SocketAddress>> getServerList() {
         return config.serverListChangeTicks()
                      .map(aLong -> startServer())
-                     .map(new io.reactivex.functions.Function<SocketAddress, Collection<SocketAddress>>() {
+                     .map(new Function<SocketAddress, Collection<SocketAddress>>() {
                          private final List<SocketAddress> addresses = new ArrayList<SocketAddress>();
 
                          @Override
@@ -123,7 +122,7 @@ class StressTest {
         while (System.nanoTime() - testStartTime < config.getTestDuration().toNanos()) {
             if (outstandings.get() <= config.getMaxConcurrency()) {
                 AtomicLong startTime = new AtomicLong();
-                Flowable.defer(() -> testFunction.apply(clientSocket))
+                Flux.defer(() -> testFunction.apply(clientSocket))
                         .doOnSubscribe(subscription -> {
                             startTime.set(System.nanoTime());
                             outstandings.incrementAndGet();
@@ -136,7 +135,7 @@ class StressTest {
                         .doOnComplete(() -> {
                             successes.incrementAndGet();
                         })
-                        .onErrorResumeNext(e -> {
+                        .onErrorResumeWith(e -> {
                             failures.incrementAndGet();
                             if (e instanceof RejectedException) {
                                 leaseExhausted.incrementAndGet();
@@ -146,7 +145,7 @@ class StressTest {
                             if (failures.get() % 1000 == 0) {
                                 e.printStackTrace();
                             }
-                            return Flowable.empty();
+                            return Flux.empty();
                         })
                         .subscribe();
             } else {
@@ -161,7 +160,7 @@ class StressTest {
         System.out.println("Stress test finished. Duration (minutes): "
                            + Duration.ofNanos(System.nanoTime() - testStartTime).toMinutes());
         printTestStats(true);
-        Flowable.fromPublisher(clientSocket.close()).ignoreElements().blockingGet();
+        clientSocket.close().block();
 
         if (null != printDisposable) {
             printDisposable.dispose();

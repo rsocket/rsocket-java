@@ -24,7 +24,6 @@ import org.HdrHistogram.Recorder;
 
 import java.net.InetSocketAddress;
 import java.time.Duration;
-import java.util.concurrent.TimeUnit;
 
 public final class TcpPing {
 
@@ -33,14 +32,13 @@ public final class TcpPing {
         ReactiveSocketClient client =
                 ReactiveSocketClient.create(TcpTransportClient.create(new InetSocketAddress("localhost", 7878)), setup);
         PingClient pingClient = new PingClient(client);
-        Recorder recorder = pingClient.startTracker(1, TimeUnit.SECONDS);
+        Recorder recorder = pingClient.startTracker(Duration.ofSeconds(1));
         final int count = 1_000_000_000;
         pingClient.connect()
                   .startPingPong(count, recorder)
                   .doOnTerminate(() -> {
                       System.out.println("Sent " + count + " messages.");
                   })
-                  .last(null)
-                  .blockingGet();
+                  .blockLast();
     }
 }

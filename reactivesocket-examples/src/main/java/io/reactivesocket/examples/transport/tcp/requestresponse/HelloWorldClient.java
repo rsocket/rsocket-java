@@ -27,8 +27,7 @@ import io.reactivesocket.transport.TransportServer.StartedServer;
 import io.reactivesocket.transport.tcp.client.TcpTransportClient;
 import io.reactivesocket.transport.tcp.server.TcpTransportServer;
 import io.reactivesocket.util.PayloadImpl;
-import io.reactivex.Flowable;
-import org.reactivestreams.Publisher;
+import reactor.core.publisher.Mono;
 
 import java.net.SocketAddress;
 
@@ -43,8 +42,8 @@ public final class HelloWorldClient {
         StartedServer server = s.start((setupPayload, reactiveSocket) -> {
             return new DisabledLeaseAcceptingSocket(new AbstractReactiveSocket() {
                 @Override
-                public Publisher<Payload> requestResponse(Payload p) {
-                    return Flowable.just(p);
+                public Mono<Payload> requestResponse(Payload p) {
+                    return Mono.just(p);
                 }
             });
         });
@@ -52,14 +51,14 @@ public final class HelloWorldClient {
         SocketAddress address = server.getServerAddress();
         ReactiveSocketClient client = ReactiveSocketClient.create(TcpTransportClient.create(address),
                                                                   keepAlive(never()).disableLease());
-        ReactiveSocket socket = Flowable.fromPublisher(client.connect()).singleOrError().blockingGet();
+        ReactiveSocket socket = client.connect().block();
 
-        Flowable.fromPublisher(socket.requestResponse(new PayloadImpl("Hello")))
+        socket.requestResponse(new PayloadImpl("Hello"))
                 .map(payload -> payload.getData())
                 .map(ByteBufferUtil::toUtf8String)
                 .doOnNext(System.out::println)
-                .concatWith(Flowable.fromPublisher(socket.close()).cast(String.class))
+                .concatWith(socket.close().cast(String.class))
                 .ignoreElements()
-                .blockingAwait();
+                .block();
     }
 }

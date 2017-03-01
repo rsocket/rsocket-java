@@ -25,8 +25,9 @@ import io.reactivesocket.transport.tcp.ReactiveSocketFrameLogger;
 import io.reactivesocket.transport.tcp.ReactiveSocketLengthCodec;
 import io.reactivesocket.transport.tcp.TcpDuplexConnection;
 import io.reactivex.netty.protocol.tcp.client.TcpClient;
-import org.reactivestreams.Publisher;
 import org.slf4j.event.Level;
+import reactor.core.publisher.Mono;
+import reactor.core.publisher.MonoSource;
 
 import java.net.SocketAddress;
 import java.util.function.Function;
@@ -42,9 +43,9 @@ public class TcpTransportClient implements TransportClient {
     }
 
     @Override
-    public Publisher<DuplexConnection> connect() {
-        return toPublisher(rxNettyClient.createConnectionRequest()
-                                        .map(connection -> new TcpDuplexConnection(connection)));
+    public Mono<DuplexConnection> connect() {
+        return MonoSource.wrap(toPublisher(rxNettyClient.createConnectionRequest()
+                                        .map(connection -> new TcpDuplexConnection(connection))));
     }
 
     /**

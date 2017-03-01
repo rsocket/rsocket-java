@@ -194,6 +194,11 @@ public class ClientServerInputMultiplexer {
         }
 
         @Override
+        public Mono<Void> sendOne(Frame frame) {
+            return sourceInput.source.sendOne(frame);
+        }
+
+        @Override
         public Flux<Frame> receive() {
             return input;
         }

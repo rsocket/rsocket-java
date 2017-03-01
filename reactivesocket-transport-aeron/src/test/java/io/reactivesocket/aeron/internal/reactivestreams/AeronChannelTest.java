@@ -22,12 +22,12 @@ import io.reactivesocket.aeron.MediaDriverHolder;
 import io.reactivesocket.aeron.internal.Constants;
 import io.reactivesocket.aeron.internal.EventLoop;
 import io.reactivesocket.aeron.internal.SingleThreadedEventLoop;
-import io.reactivex.Flowable;
 import org.agrona.BitUtil;
 import org.agrona.LangUtil;
 import org.agrona.concurrent.UnsafeBuffer;
 import org.junit.Ignore;
 import org.junit.Test;
+import reactor.core.publisher.Flux;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadLocalRandom;
@@ -112,14 +112,14 @@ public class AeronChannelTest {
         EventLoop serverLoop = new SingleThreadedEventLoop("server");
 
         AeronOutPublisher publisher = new AeronOutPublisher("server", clientPublication.sessionId(), serverSubscription, serverLoop);
-        Flowable.fromPublisher(publisher)
+        publisher
                 .doOnNext(i -> countDownLatch.countDown())
                 .doOnError(Throwable::printStackTrace)
                 .subscribe();
 
         AeronInSubscriber aeronInSubscriber = new AeronInSubscriber("client", clientPublication);
 
-        Flowable<UnsafeBuffer> unsafeBufferObservable = Flowable
+        Flux<UnsafeBuffer> unsafeBufferObservable = Flux
             .range(1, count)
             //.doOnNext(i -> LockSupport.parkNanos(TimeUnit.MICROSECONDS.toNanos(50)))
            // .doOnNext(i -> System.out.println(Thread.currentThread() + " => client sending => " + i))
@@ -261,7 +261,7 @@ public class AeronChannelTest {
 
         CountDownLatch latch = new CountDownLatch(count);
 
-        Flowable.fromPublisher(serverChannel.receive())
+        serverChannel.receive()
             .flatMap(f -> {
                 // latch.countDown();
                 //System.out.println("received -> " + f.getInt(0));
@@ -291,7 +291,7 @@ public class AeronChannelTest {
         byte[] bytes = new byte[8];
         ThreadLocalRandom.current().nextBytes(bytes);
 
-        Flowable
+        Flux
             .range(1, count)
             //.doOnRequest(l -> System.out.println("requested => " + l))
             .flatMap(i -> {

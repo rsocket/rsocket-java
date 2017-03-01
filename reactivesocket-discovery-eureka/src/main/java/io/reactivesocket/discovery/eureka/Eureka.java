@@ -20,7 +20,7 @@ import com.netflix.appinfo.InstanceInfo;
 import com.netflix.appinfo.InstanceInfo.InstanceStatus;
 import com.netflix.discovery.CacheRefreshedEvent;
 import com.netflix.discovery.EurekaClient;
-import io.reactivesocket.reactivestreams.extensions.internal.ValidatingSubscription;
+import io.reactivesocket.internal.ValidatingSubscription;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 
