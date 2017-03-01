@@ -33,8 +33,7 @@ public class SetupFrameFlyweight {
 
     public static final int VALID_FLAGS = FLAGS_RESUME_ENABLE | FLAGS_WILL_HONOR_LEASE | FLAGS_STRICT_INTERPRETATION;
 
-    // TODO(lexs) Update this 1.0
-    public static final byte CURRENT_VERSION = 0;
+    public static final int CURRENT_VERSION = VersionFlyweight.encode(1, 0);
 
     // relative to start of passed offset
     private static final int VERSION_FIELD_OFFSET = FrameHeaderFlyweight.FRAME_HEADER_LENGTH;
