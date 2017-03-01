@@ -170,11 +170,6 @@ public class ReactiveSocketPerf {
                     }
 
                     @Override
-                    public Publisher<Payload> requestSubscription(Payload payload) {
-                        return null;
-                    }
-
-                    @Override
                     public Publisher<Payload> requestChannel(Publisher<Payload> payloads) {
                         return null;
                     }
