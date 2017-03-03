@@ -21,6 +21,7 @@ import io.reactivesocket.TestUtil;
 import io.reactivesocket.frame.FrameHeaderFlyweight;
 import io.reactivesocket.frame.PayloadFragmenter;
 
+import io.reactivesocket.frame.RequestFrameFlyweight;
 import org.junit.Test;
 
 import static org.junit.Assert.*;
@@ -45,7 +46,7 @@ public class FragmenterTest
 
         assertEquals("response data", TestUtil.byteToString(frame1.getData()));
         assertEquals("response metadata", TestUtil.byteToString(frame1.getMetadata()));
-        assertEquals(0, (frame1.flags() & FrameHeaderFlyweight.FLAGS_RESPONSE_F));
+        assertEquals(0, (frame1.flags() & FrameHeaderFlyweight.FLAGS_F));
         assertFalse(fragmenter.hasNext());
     }
 
@@ -65,14 +66,14 @@ public class FragmenterTest
 
         assertEquals(responseData0, TestUtil.byteToString(frame1.getData()));
         assertEquals("response metadata", TestUtil.byteToString(frame1.getMetadata()));
-        assertEquals(FrameHeaderFlyweight.FLAGS_RESPONSE_F, (frame1.flags() & FrameHeaderFlyweight.FLAGS_RESPONSE_F));
+        assertEquals(FrameHeaderFlyweight.FLAGS_F, (frame1.flags() & FrameHeaderFlyweight.FLAGS_F));
 
         assertTrue(fragmenter.hasNext());
         final Frame frame2 = fragmenter.next();
 
         assertEquals(responseData1, TestUtil.byteToString(frame2.getData()));
         assertEquals("", TestUtil.byteToString(frame2.getMetadata()));
-        assertEquals(0, (frame2.flags() & FrameHeaderFlyweight.FLAGS_RESPONSE_F));
+        assertEquals(0, (frame2.flags() & FrameHeaderFlyweight.FLAGS_F));
         assertFalse(fragmenter.hasNext());
     }
 
@@ -92,14 +93,14 @@ public class FragmenterTest
 
         assertEquals("response data", TestUtil.byteToString(frame1.getData()));
         assertEquals(responseMetadata0, TestUtil.byteToString(frame1.getMetadata()));
-        assertEquals(FrameHeaderFlyweight.FLAGS_RESPONSE_F, (frame1.flags() & FrameHeaderFlyweight.FLAGS_RESPONSE_F));
+        assertEquals(FrameHeaderFlyweight.FLAGS_F, (frame1.flags() & FrameHeaderFlyweight.FLAGS_F));
 
         assertTrue(fragmenter.hasNext());
         final Frame frame2 = fragmenter.next();
 
         assertEquals("", TestUtil.byteToString(frame2.getData()));
         assertEquals(responseMetadata1, TestUtil.byteToString(frame2.getMetadata()));
-        assertEquals(0, (frame2.flags() & FrameHeaderFlyweight.FLAGS_RESPONSE_F));
+        assertEquals(0, (frame2.flags() & FrameHeaderFlyweight.FLAGS_F));
         assertFalse(fragmenter.hasNext());
     }
 
@@ -122,14 +123,14 @@ public class FragmenterTest
 
         assertEquals(responseData0, TestUtil.byteToString(frame1.getData()));
         assertEquals(responseMetadata0, TestUtil.byteToString(frame1.getMetadata()));
-        assertEquals(FrameHeaderFlyweight.FLAGS_RESPONSE_F, (frame1.flags() & FrameHeaderFlyweight.FLAGS_RESPONSE_F));
+        assertEquals(FrameHeaderFlyweight.FLAGS_F, (frame1.flags() & FrameHeaderFlyweight.FLAGS_F));
 
         assertTrue(fragmenter.hasNext());
         final Frame frame2 = fragmenter.next();
 
         assertEquals(responseData1, TestUtil.byteToString(frame2.getData()));
         assertEquals(responseMetadata1, TestUtil.byteToString(frame2.getMetadata()));
-        assertEquals(0, (frame2.flags() & FrameHeaderFlyweight.FLAGS_RESPONSE_F));
+        assertEquals(0, (frame2.flags() & FrameHeaderFlyweight.FLAGS_F));
         assertFalse(fragmenter.hasNext());
     }
 
@@ -153,21 +154,21 @@ public class FragmenterTest
 
         assertEquals(responseData0, TestUtil.byteToString(frame1.getData()));
         assertEquals(responseMetadata0, TestUtil.byteToString(frame1.getMetadata()));
-        assertEquals(FrameHeaderFlyweight.FLAGS_RESPONSE_F, (frame1.flags() & FrameHeaderFlyweight.FLAGS_RESPONSE_F));
+        assertEquals(FrameHeaderFlyweight.FLAGS_F, (frame1.flags() & FrameHeaderFlyweight.FLAGS_F));
 
         assertTrue(fragmenter.hasNext());
         final Frame frame2 = fragmenter.next();
 
         assertEquals(responseData1, TestUtil.byteToString(frame2.getData()));
         assertEquals(responseMetadata1, TestUtil.byteToString(frame2.getMetadata()));
-        assertEquals(FrameHeaderFlyweight.FLAGS_RESPONSE_F, (frame2.flags() & FrameHeaderFlyweight.FLAGS_RESPONSE_F));
+        assertEquals(FrameHeaderFlyweight.FLAGS_F, (frame2.flags() & FrameHeaderFlyweight.FLAGS_F));
 
         assertTrue(fragmenter.hasNext());
         final Frame frame3 = fragmenter.next();
 
         assertEquals(responseData2, TestUtil.byteToString(frame3.getData()));
         assertEquals("", TestUtil.byteToString(frame3.getMetadata()));
-        assertEquals(0, (frame3.flags() & FrameHeaderFlyweight.FLAGS_RESPONSE_F));
+        assertEquals(0, (frame3.flags() & FrameHeaderFlyweight.FLAGS_F));
         assertFalse(fragmenter.hasNext());
     }
 
@@ -190,14 +191,14 @@ public class FragmenterTest
 
         assertEquals(requestData0, TestUtil.byteToString(frame1.getData()));
         assertEquals(requestMetadata0, TestUtil.byteToString(frame1.getMetadata()));
-        assertEquals(FrameHeaderFlyweight.FLAGS_REQUEST_CHANNEL_F, (frame1.flags() & FrameHeaderFlyweight.FLAGS_REQUEST_CHANNEL_F));
+        assertEquals(FrameHeaderFlyweight.FLAGS_F, (frame1.flags() & FrameHeaderFlyweight.FLAGS_F));
 
         assertTrue(fragmenter.hasNext());
         final Frame frame2 = fragmenter.next();
 
         assertEquals(requestData1, TestUtil.byteToString(frame2.getData()));
         assertEquals(requestMetadata1, TestUtil.byteToString(frame2.getMetadata()));
-        assertEquals(0, (frame2.flags() & FrameHeaderFlyweight.FLAGS_REQUEST_CHANNEL_F));
+        assertEquals(0, (frame2.flags() & FrameHeaderFlyweight.FLAGS_F));
         assertFalse(fragmenter.hasNext());
     }
 }

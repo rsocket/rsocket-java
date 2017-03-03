@@ -100,11 +100,6 @@ public class ClientReactiveSocket implements ReactiveSocket {
     }
 
     @Override
-    public Flux<Payload> requestSubscription(Payload payload) {
-        return handleStreamResponse(Flux.just(payload), FrameType.REQUEST_SUBSCRIPTION);
-    }
-
-    @Override
     public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
         return handleStreamResponse(Flux.from(payloads), FrameType.REQUEST_CHANNEL);
     }

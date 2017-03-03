@@ -18,6 +18,7 @@ package io.reactivesocket;
 import io.reactivesocket.frame.ErrorFrameFlyweight;
 import io.reactivesocket.frame.FrameHeaderFlyweight;
 import io.reactivesocket.frame.FramePool;
+import io.reactivesocket.frame.KeepaliveFrameFlyweight;
 import io.reactivesocket.frame.LeaseFrameFlyweight;
 import io.reactivesocket.frame.RequestFrameFlyweight;
 import io.reactivesocket.frame.RequestNFrameFlyweight;
@@ -261,7 +262,7 @@ public class Frame implements Payload {
             final ByteBuffer data = payload.getData();
 
             final Frame frame =
-                POOL.acquireFrame(SetupFrameFlyweight.computeFrameLength(metadataMimeType, dataMimeType, metadata.remaining(), data.remaining()));
+                POOL.acquireFrame(SetupFrameFlyweight.computeFrameLength(flags, metadataMimeType, dataMimeType, metadata.remaining(), data.remaining()));
 
             frame.length = SetupFrameFlyweight.encode(
                 frame.directBuffer, frame.offset, flags, keepaliveInterval, maxLifetime, metadataMimeType, dataMimeType, metadata, data);
@@ -272,7 +273,7 @@ public class Frame implements Payload {
             ensureFrameType(FrameType.SETUP, frame);
             final int flags = FrameHeaderFlyweight.flags(frame.directBuffer, frame.offset);
 
-            return flags & (SetupFrameFlyweight.FLAGS_WILL_HONOR_LEASE | SetupFrameFlyweight.FLAGS_STRICT_INTERPRETATION);
+            return flags & SetupFrameFlyweight.VALID_FLAGS;
         }
 
         public static int version(final Frame frame) {
@@ -453,13 +454,13 @@ public class Frame implements Payload {
             ensureFrameType(FrameType.REQUEST_CHANNEL, frame);
             final int flags = FrameHeaderFlyweight.flags(frame.directBuffer, frame.offset);
 
-            return (flags & RequestFrameFlyweight.FLAGS_REQUEST_CHANNEL_C) == RequestFrameFlyweight.FLAGS_REQUEST_CHANNEL_C;
+            return (flags & FrameHeaderFlyweight.FLAGS_C) == FrameHeaderFlyweight.FLAGS_C;
         }
     }
 
-    public static class Response {
+    public static class PayloadFrame {
 
-        private Response() {}
+        private PayloadFrame() {}
 
         public static Frame from(int streamId, FrameType type, Payload payload) {
             final ByteBuffer data = payload.getData() != null ? payload.getData() : NULL_BYTEBUFFER;
@@ -510,12 +511,11 @@ public class Frame implements Payload {
 
         public static Frame from(ByteBuffer data, boolean respond) {
             final Frame frame =
-                POOL.acquireFrame(FrameHeaderFlyweight.computeFrameHeaderLength(FrameType.KEEPALIVE, 0, data.remaining()));
+                POOL.acquireFrame(KeepaliveFrameFlyweight.computeFrameLength(data.remaining()));
 
-            final int flags = respond ? FrameHeaderFlyweight.FLAGS_KEEPALIVE_R : 0;
+            final int flags = respond ? KeepaliveFrameFlyweight.FLAGS_KEEPALIVE_R : 0;
 
-            frame.length = FrameHeaderFlyweight.encode(
-                frame.directBuffer, frame.offset, 0, flags, FrameType.KEEPALIVE, Frame.NULL_BYTEBUFFER, data);
+            frame.length = KeepaliveFrameFlyweight.encode(frame.directBuffer, frame.offset, flags, data);
 
             return frame;
         }
@@ -524,7 +524,7 @@ public class Frame implements Payload {
             ensureFrameType(FrameType.KEEPALIVE, frame);
             final int flags = FrameHeaderFlyweight.flags(frame.directBuffer, frame.offset);
 
-            return (flags & FrameHeaderFlyweight.FLAGS_KEEPALIVE_R) == FrameHeaderFlyweight.FLAGS_KEEPALIVE_R;
+            return (flags & KeepaliveFrameFlyweight.FLAGS_KEEPALIVE_R) == KeepaliveFrameFlyweight.FLAGS_KEEPALIVE_R;
         }
     }
 

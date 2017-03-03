@@ -88,16 +88,6 @@ public class DefaultLeaseHonoringSocket extends ReactiveSocketProxy implements L
     }
 
     @Override
-    public Flux<Payload> requestSubscription(Payload payload) {
-        return Flux.defer(() -> {
-            if (!checkLease()) {
-                return rejectError();
-            }
-            return source.requestSubscription(payload);
-        });
-    }
-
-    @Override
     public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
         return Flux.defer(() -> {
             if (!checkLease()) {

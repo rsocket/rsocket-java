@@ -33,7 +33,6 @@ public interface EventListener {
     enum RequestType {
         RequestResponse,
         RequestStream,
-        RequestSubscription,
         RequestChannel,
         MetadataPush,
         FireAndForget;
@@ -46,8 +45,6 @@ public interface EventListener {
                 return FireAndForget;
             case REQUEST_STREAM:
                 return RequestStream;
-            case REQUEST_SUBSCRIPTION:
-                return RequestSubscription;
             case REQUEST_CHANNEL:
                 return RequestChannel;
             case METADATA_PUSH:

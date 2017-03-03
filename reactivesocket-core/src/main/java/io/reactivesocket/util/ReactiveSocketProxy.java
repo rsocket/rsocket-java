@@ -48,11 +48,6 @@ public class ReactiveSocketProxy implements ReactiveSocket {
     }
 
     @Override
-    public Flux<Payload> requestSubscription(Payload payload) {
-        return source.requestSubscription(payload);
-    }
-
-    @Override
     public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
         return source.requestChannel(payloads);
     }

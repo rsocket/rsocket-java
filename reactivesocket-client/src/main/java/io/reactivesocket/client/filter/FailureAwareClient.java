@@ -85,13 +85,6 @@ public class FailureAwareClient extends AbstractReactiveSocketClient {
                 }
 
                 @Override
-                public Flux<Payload> requestSubscription(Payload payload) {
-                    return source.requestSubscription(payload)
-                            .doOnError(th -> errorPercentage.insert(0.0))
-                            .doOnComplete(() -> updateErrorPercentage(1.0));
-                }
-
-                @Override
                 public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
                     return source.requestChannel(payloads)
                             .doOnError(th -> errorPercentage.insert(0.0))

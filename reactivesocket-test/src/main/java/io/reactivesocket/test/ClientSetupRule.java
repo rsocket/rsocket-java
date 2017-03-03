@@ -97,11 +97,6 @@ public class ClientSetupRule extends ExternalResource {
         ts.assertTerminated();
     }
 
-    public void testRequestSubscription() {
-        testStream(
-            socket -> socket.requestSubscription(TestUtil.utf8EncodedPayload("hello", "metadata")));
-    }
-
     public void testRequestStream() {
         testStream(socket -> socket.requestStream(TestUtil.utf8EncodedPayload("hello", "metadata")));
     }

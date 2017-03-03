@@ -47,11 +47,6 @@ public abstract class AbstractReactiveSocket implements ReactiveSocket {
     }
 
     @Override
-    public Flux<Payload> requestSubscription(Payload payload) {
-        return Flux.error(new UnsupportedOperationException("Request-Subscription not implemented."));
-    }
-
-    @Override
     public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
         return Flux.error(new UnsupportedOperationException("Request-Channel not implemented."));
     }

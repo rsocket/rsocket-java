@@ -66,12 +66,6 @@ public class MockReactiveSocket implements ReactiveSocket {
     }
 
     @Override
-    public final Flux<Payload> requestSubscription(Payload payload) {
-        return delegate.requestSubscription(payload)
-                 .doOnSubscribe(s -> rSubCount.incrementAndGet());
-    }
-
-    @Override
     public final Flux<Payload> requestChannel(Publisher<Payload> payloads) {
         return delegate.requestChannel(payloads)
                  .doOnSubscribe(s -> rChannelCount.incrementAndGet());

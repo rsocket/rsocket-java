@@ -27,18 +27,34 @@ import java.nio.charset.StandardCharsets;
 public class SetupFrameFlyweight {
     private SetupFrameFlyweight() {}
 
-    public static final int FLAGS_WILL_HONOR_LEASE = 0b0010_0000;
-    public static final int FLAGS_STRICT_INTERPRETATION = 0b0001_0000;
+    public static final int FLAGS_RESUME_ENABLE = 0b00_1000_0000;
+    public static final int FLAGS_WILL_HONOR_LEASE = 0b00_0100_0000;
+    public static final int FLAGS_STRICT_INTERPRETATION = 0b00_0010_0000;
 
+    public static final int VALID_FLAGS = FLAGS_RESUME_ENABLE | FLAGS_WILL_HONOR_LEASE | FLAGS_STRICT_INTERPRETATION;
+
+    // TODO(lexs) Update this 1.0
     public static final byte CURRENT_VERSION = 0;
 
     // relative to start of passed offset
     private static final int VERSION_FIELD_OFFSET = FrameHeaderFlyweight.FRAME_HEADER_LENGTH;
     private static final int KEEPALIVE_INTERVAL_FIELD_OFFSET = VERSION_FIELD_OFFSET + BitUtil.SIZE_OF_INT;
     private static final int MAX_LIFETIME_FIELD_OFFSET = KEEPALIVE_INTERVAL_FIELD_OFFSET + BitUtil.SIZE_OF_INT;
-    private static final int METADATA_MIME_TYPE_LENGTH_OFFSET = MAX_LIFETIME_FIELD_OFFSET + BitUtil.SIZE_OF_INT;
+    private static final int VARIABLE_DATA_OFFSET = MAX_LIFETIME_FIELD_OFFSET + BitUtil.SIZE_OF_INT;
 
     public static int computeFrameLength(
+        final int flags,
+        final String metadataMimeType,
+        final String dataMimeType,
+        final int metadataLength,
+        final int dataLength
+    ) {
+        return computeFrameLength(flags, 0, metadataMimeType, dataMimeType, metadataLength, dataLength);
+    }
+
+    private static int computeFrameLength(
+        final int flags,
+        final int resumeTokenLength,
         final String metadataMimeType,
         final String dataMimeType,
         final int metadataLength,
@@ -47,6 +63,11 @@ public class SetupFrameFlyweight {
         int length = FrameHeaderFlyweight.computeFrameHeaderLength(FrameType.SETUP, metadataLength, dataLength);
 
         length += BitUtil.SIZE_OF_INT * 3;
+
+        if ((flags & FLAGS_RESUME_ENABLE) != 0) {
+            length += BitUtil.SIZE_OF_SHORT + resumeTokenLength;
+        }
+
         length += 1 + metadataMimeType.getBytes(StandardCharsets.UTF_8).length;
         length += 1 + dataMimeType.getBytes(StandardCharsets.UTF_8).length;
 
@@ -64,7 +85,37 @@ public class SetupFrameFlyweight {
         final ByteBuffer metadata,
         final ByteBuffer data
     ) {
-        final int frameLength = computeFrameLength(metadataMimeType, dataMimeType, metadata.remaining(), data.remaining());
+        if ((flags & FLAGS_RESUME_ENABLE) != 0) {
+            throw new IllegalArgumentException("RESUME_ENABLE not supported");
+        }
+
+        return encode(
+                mutableDirectBuffer,
+                offset,
+                flags,
+                keepaliveInterval,
+                maxLifetime,
+                FrameHeaderFlyweight.NULL_BYTEBUFFER,
+                metadataMimeType,
+                dataMimeType,
+                metadata,
+                data);
+    }
+
+    // Only exposed for testing, other code shouldn't create frames with resumption tokens for now
+    static int encode(
+        final MutableDirectBuffer mutableDirectBuffer,
+        final int offset,
+        int flags,
+        final int keepaliveInterval,
+        final int maxLifetime,
+        final ByteBuffer resumeToken,
+        final String metadataMimeType,
+        final String dataMimeType,
+        final ByteBuffer metadata,
+        final ByteBuffer data
+    ) {
+        final int frameLength = computeFrameLength(flags, resumeToken.remaining(), metadataMimeType, dataMimeType, metadata.remaining(), data.remaining());
 
         int length = FrameHeaderFlyweight.encodeFrameHeader(mutableDirectBuffer, offset, frameLength, flags, FrameType.SETUP, 0);
 
@@ -73,6 +124,14 @@ public class SetupFrameFlyweight {
         mutableDirectBuffer.putInt(offset + MAX_LIFETIME_FIELD_OFFSET, maxLifetime, ByteOrder.BIG_ENDIAN);
 
         length += BitUtil.SIZE_OF_INT * 3;
+
+        if ((flags & FLAGS_RESUME_ENABLE) != 0) {
+            mutableDirectBuffer.putShort(offset + length, (short) resumeToken.remaining(), ByteOrder.BIG_ENDIAN);
+            length += BitUtil.SIZE_OF_SHORT;
+            int resumeTokenLength = resumeToken.remaining();
+            mutableDirectBuffer.putBytes(offset + length, resumeToken, resumeTokenLength);
+            length += resumeTokenLength;
+        }
 
         length += putMimeType(mutableDirectBuffer, offset + length, metadataMimeType);
         length += putMimeType(mutableDirectBuffer, offset + length, dataMimeType);
@@ -96,12 +155,12 @@ public class SetupFrameFlyweight {
     }
 
     public static String metadataMimeType(final DirectBuffer directBuffer, final int offset) {
-        final byte[] bytes = getMimeType(directBuffer, offset + METADATA_MIME_TYPE_LENGTH_OFFSET);
+        final byte[] bytes = getMimeType(directBuffer, offset + metadataMimetypeOffset(directBuffer, offset));
         return new String(bytes, StandardCharsets.UTF_8);
     }
 
     public static String dataMimeType(final DirectBuffer directBuffer, final int offset) {
-        int fieldOffset = offset + METADATA_MIME_TYPE_LENGTH_OFFSET;
+        int fieldOffset = offset + metadataMimetypeOffset(directBuffer, offset);
 
         fieldOffset += 1 + directBuffer.getByte(fieldOffset);
 
@@ -110,7 +169,7 @@ public class SetupFrameFlyweight {
     }
 
     public static int payloadOffset(final DirectBuffer directBuffer, final int offset) {
-        int fieldOffset = offset + METADATA_MIME_TYPE_LENGTH_OFFSET;
+        int fieldOffset = offset + metadataMimetypeOffset(directBuffer, offset);
 
         final int metadataMimeTypeLength = directBuffer.getByte(fieldOffset);
         fieldOffset += 1 + metadataMimeTypeLength;
@@ -119,6 +178,18 @@ public class SetupFrameFlyweight {
         fieldOffset += 1 + dataMimeTypeLength;
 
         return fieldOffset;
+    }
+
+    private static int metadataMimetypeOffset(final DirectBuffer directBuffer, final int offset) {
+        return VARIABLE_DATA_OFFSET + resumeTokenTotalLength(directBuffer, offset);
+    }
+
+    private static int resumeTokenTotalLength(final DirectBuffer directBuffer, final int offset) {
+        if ((FrameHeaderFlyweight.flags(directBuffer, offset) & FLAGS_RESUME_ENABLE) == 0) {
+            return 0;
+        } else {
+            return BitUtil.SIZE_OF_SHORT + directBuffer.getShort(offset + VARIABLE_DATA_OFFSET, ByteOrder.BIG_ENDIAN);
+        }
     }
 
     private static int putMimeType(

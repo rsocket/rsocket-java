@@ -60,11 +60,6 @@ public final class ReactiveSockets {
             }
 
             @Override
-            public Flux<Payload> requestSubscription(Payload payload) {
-                return source.requestSubscription(payload).timeout(timeout);
-            }
-
-            @Override
             public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
                 return source.requestChannel(payloads).timeout(timeout);
             }
@@ -113,17 +108,6 @@ public final class ReactiveSockets {
             @Override
             public Flux<Payload> requestStream(Payload payload) {
                 return source.requestStream(payload)
-                    .doOnSubscribe(s -> count.incrementAndGet())
-                    .doFinally(signalType -> {
-                        if (count.decrementAndGet() == 0 && closed.get()) {
-                            source.close().subscribe();
-                        }
-                    });
-            }
-
-            @Override
-            public Flux<Payload> requestSubscription(Payload payload) {
-                return source.requestSubscription(payload)
                     .doOnSubscribe(s -> count.incrementAndGet())
                     .doFinally(signalType -> {
                         if (count.decrementAndGet() == 0 && closed.get()) {

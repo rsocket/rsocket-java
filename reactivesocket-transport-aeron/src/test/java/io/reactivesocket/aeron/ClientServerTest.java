@@ -51,9 +51,4 @@ public class ClientServerTest {
     public void testRequestStream() {
         setup.testRequestStream();
     }
-
-    @Test(timeout = 10000)
-    public void testRequestSubscription() throws InterruptedException {
-        setup.testRequestSubscription();
-    }
 }

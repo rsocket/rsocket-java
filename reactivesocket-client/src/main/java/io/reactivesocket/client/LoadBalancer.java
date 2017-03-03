@@ -203,11 +203,6 @@ public class LoadBalancer implements ReactiveSocket {
     }
 
     @Override
-    public Flux<Payload> requestSubscription(Payload payload) {
-        return selectSocket.flatMap(socket -> socket.requestSubscription(payload));
-    }
-
-    @Override
     public Flux<Payload> requestStream(Payload payload) {
         return selectSocket.flatMap(socket -> socket.requestStream(payload));
     }
@@ -715,11 +710,6 @@ public class LoadBalancer implements ReactiveSocket {
         }
 
         @Override
-        public Flux<Payload> requestSubscription(Payload payload) {
-            return errorPayload.flux();
-        }
-
-        @Override
         public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
             return errorPayload.flux();
         }
@@ -812,12 +802,6 @@ public class LoadBalancer implements ReactiveSocket {
         public Flux<Payload> requestStream(Payload payload) {
             return FluxSource.wrap(subscriber ->
                 source.requestStream(payload).subscribe(new CountingSubscriber<>(subscriber, this)));
-        }
-
-        @Override
-        public Flux<Payload> requestSubscription(Payload payload) {
-            return FluxSource.wrap(subscriber ->
-                source.requestSubscription(payload).subscribe(new CountingSubscriber<>(subscriber, this)));
         }
 
         @Override

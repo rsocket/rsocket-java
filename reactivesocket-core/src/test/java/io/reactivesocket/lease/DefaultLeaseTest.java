@@ -68,15 +68,6 @@ public abstract class DefaultLeaseTest<T> {
     }
 
     @Test
-    public void testRequestSubscription() throws Exception {
-        T state = init();
-        TestSubscriber<Payload> subscriber = TestSubscriber.create();
-        getReactiveSocket(state).requestSubscription(PayloadImpl.EMPTY).subscribe(subscriber);
-        subscriber.assertError(expectedException);
-        getMockSocket(state).assertRequestSubscriptionCount(expectedInvocations);
-    }
-
-    @Test
     public void testRequestChannel() throws Exception {
         T state = init();
         TestSubscriber<Payload> subscriber = TestSubscriber.create();

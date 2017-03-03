@@ -89,11 +89,6 @@ public class TestingReactiveSocket implements ReactiveSocket {
     }
 
     @Override
-    public Flux<Payload> requestSubscription(Payload payload) {
-        return requestResponse(payload).flux();
-    }
-
-    @Override
     public Flux<Payload> requestChannel(Publisher<Payload> inputs) {
         return Flux.from(subscriber ->
             inputs.subscribe(new Subscriber<Payload>() {

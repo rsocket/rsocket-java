@@ -27,9 +27,6 @@ public class RequestFrameFlyweight {
 
     private RequestFrameFlyweight() {}
 
-    public static final int FLAGS_REQUEST_CHANNEL_C = 0b0001_0000_0000_0000;
-    public static final int FLAGS_REQUEST_CHANNEL_N = 0b0000_1000_0000_0000;
-
     // relative to start of passed offset
     private static final int INITIAL_REQUEST_N_FIELD_OFFSET = FrameHeaderFlyweight.FRAME_HEADER_LENGTH;
 
@@ -55,7 +52,6 @@ public class RequestFrameFlyweight {
     ) {
         final int frameLength = computeFrameLength(type, metadata.remaining(), data.remaining());
 
-        flags |= FLAGS_REQUEST_CHANNEL_N;
         int length = FrameHeaderFlyweight.encodeFrameHeader(mutableDirectBuffer, offset, frameLength, flags, type, streamId);
 
         mutableDirectBuffer.putInt(offset + INITIAL_REQUEST_N_FIELD_OFFSET, initialRequestN, ByteOrder.BIG_ENDIAN);
@@ -76,6 +72,9 @@ public class RequestFrameFlyweight {
         final ByteBuffer metadata,
         final ByteBuffer data
     ) {
+        if (type.hasInitialRequestN()) {
+            throw new AssertionError(type + " must not be encoded without initial request N");
+        }
         final int frameLength = computeFrameLength(type, metadata.remaining(), data.remaining());
 
         int length = FrameHeaderFlyweight.encodeFrameHeader(mutableDirectBuffer, offset, frameLength, flags, type, streamId);

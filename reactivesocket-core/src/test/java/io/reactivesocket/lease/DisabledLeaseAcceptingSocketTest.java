@@ -53,14 +53,6 @@ public class DisabledLeaseAcceptingSocketTest {
     }
 
     @Test(timeout = 10000)
-    public void testRequestSubscription() throws Exception {
-        TestSubscriber<Payload> subscriber = TestSubscriber.create();
-        socketRule.getReactiveSocket().requestSubscription(PayloadImpl.EMPTY).subscribe(subscriber);
-        subscriber.assertError(UnsupportedOperationException.class);
-        socketRule.getMockSocket().assertRequestSubscriptionCount(1);
-    }
-
-    @Test(timeout = 10000)
     public void testRequestChannel() throws Exception {
         TestSubscriber<Payload> subscriber = TestSubscriber.create();
         socketRule.getReactiveSocket().requestChannel(Flux.just(PayloadImpl.EMPTY)).subscribe(subscriber);

@@ -34,11 +34,6 @@ public class TestReactiveSocket extends AbstractReactiveSocket {
     }
 
     @Override
-    public Flux<Payload> requestSubscription(Payload payload) {
-        return requestStream(payload).repeat();
-    }
-
-    @Override
     public Mono<Void> fireAndForget(Payload payload) {
         return Mono.empty();
     }

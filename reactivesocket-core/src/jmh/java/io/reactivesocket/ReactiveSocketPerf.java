@@ -171,11 +171,6 @@ public class ReactiveSocketPerf {
                     }
 
                     @Override
-                    public Flux<Payload> requestSubscription(Payload payload) {
-                        return Flux.empty();
-                    }
-
-                    @Override
                     public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
                         return Flux.empty();
                     }

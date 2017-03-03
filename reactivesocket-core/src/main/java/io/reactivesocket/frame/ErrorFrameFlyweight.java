@@ -36,14 +36,16 @@ public class ErrorFrameFlyweight {
     private ErrorFrameFlyweight() {}
 
     // defined error codes
-    public static final int INVALID_SETUP = 0x0001;
-    public static final int UNSUPPORTED_SETUP = 0x0002;
-    public static final int REJECTED_SETUP = 0x0003;
-    public static final int CONNECTION_ERROR = 0x0101;
-    public static final int APPLICATION_ERROR = 0x0201;
-    public static final int REJECTED = 0x0022;
-    public static final int CANCEL = 0x0203;
-    public static final int INVALID = 0x0204;
+    public static final int INVALID_SETUP = 0x00000001;
+    public static final int UNSUPPORTED_SETUP = 0x00000002;
+    public static final int REJECTED_SETUP = 0x00000003;
+    public static final int REJECTED_RESUME = 0x00000004;
+    public static final int CONNECTION_ERROR = 0x00000101;
+    public static final int CONNECTION_CLOSE = 0x00000102;
+    public static final int APPLICATION_ERROR = 0x00000201;
+    public static final int REJECTED = 0x00000202;
+    public static final int CANCEL = 0x00000203;
+    public static final int INVALID = 0x00000204;
 
     // relative to start of passed offset
     private static final int ERROR_CODE_FIELD_OFFSET = FrameHeaderFlyweight.FRAME_HEADER_LENGTH;

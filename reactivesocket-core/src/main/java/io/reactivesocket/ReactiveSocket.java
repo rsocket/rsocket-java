@@ -52,8 +52,6 @@ public interface ReactiveSocket extends Availability {
      */
     Flux<Payload> requestStream(Payload payload);
 
-    Flux<Payload> requestSubscription(Payload payload);
-
     /**
      * Request-Channel interaction model of {@code ReactiveSocket}.
      *
