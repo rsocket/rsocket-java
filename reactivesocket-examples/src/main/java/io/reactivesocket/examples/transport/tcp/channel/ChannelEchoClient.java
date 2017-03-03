@@ -24,12 +24,15 @@ import io.reactivesocket.lease.LeaseEnforcingSocket;
 import io.reactivesocket.server.ReactiveSocketServer;
 import io.reactivesocket.server.ReactiveSocketServer.SocketAcceptor;
 import io.reactivesocket.transport.TransportServer.StartedServer;
-import io.reactivesocket.transport.tcp.client.TcpTransportClient;
-import io.reactivesocket.transport.tcp.server.TcpTransportServer;
+import io.reactivesocket.transport.netty.client.TcpTransportClient;
+import io.reactivesocket.transport.netty.server.TcpTransportServer;
 import io.reactivesocket.util.PayloadImpl;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
+import reactor.ipc.netty.tcp.TcpClient;
+import reactor.ipc.netty.tcp.TcpServer;
 
+import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.time.Duration;
 
@@ -39,14 +42,14 @@ import static io.reactivesocket.client.SetupProvider.*;
 public final class ChannelEchoClient {
 
     public static void main(String[] args) {
-        StartedServer server = ReactiveSocketServer.create(TcpTransportServer.create())
+        StartedServer server = ReactiveSocketServer.create(TcpTransportServer.create(TcpServer.create()))
                                                    .start(new SocketAcceptorImpl());
 
         SocketAddress address = server.getServerAddress();
-        ReactiveSocket socket = ReactiveSocketClient.create(TcpTransportClient.create(address),
-                                                                                   keepAlive(never()).disableLease())
-                                                                           .connect()
-                                        .block();
+        ReactiveSocket socket = ReactiveSocketClient.create(
+                TcpTransportClient.create(TcpClient.create(options -> options.connect((InetSocketAddress)address))),
+                keepAlive(never()).disableLease()
+        ).connect().block();
 
         socket.requestChannel(Flux.interval(Duration.ofMillis(100))
                                                              .map(i -> "Hello - " + i)

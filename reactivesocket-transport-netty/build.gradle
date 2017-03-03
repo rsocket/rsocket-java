@@ -14,14 +14,9 @@
  * limitations under the License.
  */
 
-package io.reactivesocket.transport.tcp;
+dependencies {
+    compile project(':reactivesocket-core')
+    compile 'io.projectreactor.ipc:reactor-netty:0.6.1.RELEASE'
 
-import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
-import org.agrona.BitUtil;
-
-public class ReactiveSocketLengthCodec extends LengthFieldBasedFrameDecoder {
-
-    public ReactiveSocketLengthCodec() {
-        super(Integer.MAX_VALUE, 0, BitUtil.SIZE_OF_INT, -1 * BitUtil.SIZE_OF_INT, 0);
-    }
+    testCompile project(':reactivesocket-test')
 }

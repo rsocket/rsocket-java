@@ -13,17 +13,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.reactivesocket.transport.tcp;
 
-import io.reactivesocket.server.ReactiveSocketServer;
-import io.reactivesocket.test.PingHandler;
-import io.reactivesocket.transport.tcp.server.TcpTransportServer;
+package io.reactivesocket.transport.netty;
 
-public final class TcpPongServer {
+import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
+import org.agrona.BitUtil;
 
-    public static void main(String... args) throws Exception {
-        ReactiveSocketServer.create(TcpTransportServer.create(7878))
-                               .start(new PingHandler())
-                               .awaitShutdown();
+public class ReactiveSocketLengthCodec extends LengthFieldBasedFrameDecoder {
+
+    public ReactiveSocketLengthCodec() {
+        super(Integer.MAX_VALUE, 0, BitUtil.SIZE_OF_INT, -1 * BitUtil.SIZE_OF_INT, 0);
     }
 }

@@ -21,9 +21,11 @@ import io.reactivesocket.lease.DefaultLeaseEnforcingSocket;
 import io.reactivesocket.lease.DisabledLeaseAcceptingSocket;
 import io.reactivesocket.lease.FairLeaseDistributor;
 import io.reactivesocket.lease.LeaseEnforcingSocket;
-import io.reactivesocket.transport.tcp.client.TcpTransportClient;
+import io.reactivesocket.transport.netty.client.TcpTransportClient;
 import reactor.core.publisher.Flux;
+import reactor.ipc.netty.tcp.TcpClient;
 
+import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.time.Duration;
 import java.util.function.IntSupplier;
@@ -80,7 +82,8 @@ public class TestConfig {
     }
 
     public final ReactiveSocketClient newClientForServer(SocketAddress server) {
-        TcpTransportClient transport = TcpTransportClient.create(server);
+        TcpTransportClient transport = TcpTransportClient.create(TcpClient.create(options ->
+                options.connect((InetSocketAddress)server)));
         ReactiveSocketClient raw = ReactiveSocketClient.create(transport, setupProvider);
         return wrap(detectFailures(connectTimeout(raw, Duration.ofSeconds(1))),
                     timeout(Duration.ofSeconds(1)));

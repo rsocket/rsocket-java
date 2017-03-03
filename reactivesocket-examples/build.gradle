@@ -37,7 +37,7 @@ dependencies {
     compile project(':reactivesocket-client')
     compile project(':reactivesocket-discovery-eureka')
     compile project(':reactivesocket-spectator')
-    compile project(':reactivesocket-transport-tcp')
+    compile project(':reactivesocket-transport-netty')
     compile project(':reactivesocket-transport-local')
 
     compile project(':reactivesocket-test')

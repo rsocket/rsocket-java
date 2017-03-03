@@ -25,8 +25,8 @@ import io.reactivesocket.client.SetupProvider;
 import io.reactivesocket.lease.DisabledLeaseAcceptingSocket;
 import io.reactivesocket.server.ReactiveSocketServer;
 import io.reactivesocket.transport.TransportServer.StartedServer;
-import io.reactivesocket.transport.tcp.client.TcpTransportClient;
-import io.reactivesocket.transport.tcp.server.TcpTransportServer;
+import io.reactivesocket.transport.netty.client.TcpTransportClient;
+import io.reactivesocket.transport.netty.server.TcpTransportServer;
 import io.reactivesocket.util.PayloadImpl;
 import org.junit.Rule;
 import org.junit.Test;
@@ -34,7 +34,11 @@ import org.junit.rules.ExternalResource;
 import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
 import reactor.core.publisher.Mono;
+import reactor.ipc.netty.tcp.TcpClient;
+import reactor.ipc.netty.tcp.TcpServer;
 
+import java.net.InetSocketAddress;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -53,11 +57,11 @@ public class IntegrationTest {
         assertThat("Server did not see the request.", rule.requestCount.get(), is(1));
     }
 
-    @Test(timeout = 2_000L)
+    @Test//(timeout = 2_000L)
     public void testClose() throws ExecutionException, InterruptedException, TimeoutException {
+
         rule.client.close().block();
-        Thread.sleep(100);
-        assertThat("Server did not disconnect.", rule.disconnectionCounter.get(), is(1));
+        rule.disconnectionCounter.await();
     }
 
     public static class ClientServerRule extends ExternalResource {
@@ -65,7 +69,7 @@ public class IntegrationTest {
         private StartedServer server;
         private ReactiveSocket client;
         private AtomicInteger requestCount;
-        private AtomicInteger disconnectionCounter;
+        private CountDownLatch disconnectionCounter;
 
         @Override
         public Statement apply(final Statement base, Description description) {
@@ -73,11 +77,11 @@ public class IntegrationTest {
                 @Override
                 public void evaluate() throws Throwable {
                     requestCount = new AtomicInteger();
-                    disconnectionCounter = new AtomicInteger();
-                    server = ReactiveSocketServer.create(TcpTransportServer.create())
+                    disconnectionCounter = new CountDownLatch(1);
+                    server = ReactiveSocketServer.create(TcpTransportServer.create(TcpServer.create()))
                                         .start((setup, sendingSocket) -> {
                                             sendingSocket.onClose()
-                                                .doFinally(signalType -> disconnectionCounter.incrementAndGet())
+                                                .doFinally(signalType -> disconnectionCounter.countDown())
                                                 .subscribe();
 
                                             return new DisabledLeaseAcceptingSocket(new AbstractReactiveSocket() {
@@ -88,7 +92,8 @@ public class IntegrationTest {
                                                 }
                                             });
                                         });
-                    client = ReactiveSocketClient.create(TcpTransportClient.create(server.getServerAddress()),
+                    client = ReactiveSocketClient.create(TcpTransportClient.create(TcpClient.create(options ->
+                                    options.connect((InetSocketAddress)server.getServerAddress()))),
                                                                      SetupProvider.keepAlive(KeepAliveProvider.never())
                                                                                 .disableLease())
                                                              .connect()

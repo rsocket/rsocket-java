@@ -129,10 +129,7 @@ public class ServerReactiveSocket implements ReactiveSocket {
 
     @Override
     public Mono<Void> close() {
-        return Mono.defer(() -> {
-            cleanup();
-            return Mono.empty();
-        }).thenEmpty(connection.close());
+        return connection.close();
     }
 
     @Override

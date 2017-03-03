@@ -14,23 +14,24 @@
  * limitations under the License.
  */
 
-package io.reactivesocket.transport.tcp;
+package io.reactivesocket.transport.netty;
 
 import io.reactivesocket.lease.DisabledLeaseAcceptingSocket;
 import io.reactivesocket.server.ReactiveSocketServer;
 import io.reactivesocket.test.ClientSetupRule;
 import io.reactivesocket.test.TestReactiveSocket;
-import io.reactivesocket.transport.tcp.client.TcpTransportClient;
-import io.reactivesocket.transport.tcp.server.TcpTransportServer;
+import io.reactivesocket.transport.netty.client.TcpTransportClient;
+import io.reactivesocket.transport.netty.server.TcpTransportServer;
+import reactor.ipc.netty.tcp.TcpClient;
+import reactor.ipc.netty.tcp.TcpServer;
 
-import static io.netty.handler.logging.LogLevel.DEBUG;
+import java.net.InetSocketAddress;
 
 public class TcpClientSetupRule extends ClientSetupRule {
 
     public TcpClientSetupRule() {
-        super(TcpTransportClient::create, () -> {
-            return ReactiveSocketServer.create(TcpTransportServer.create(0)
-                .configureServer(server -> server.enableWireLogging("test-server", DEBUG)))
+        super(address -> TcpTransportClient.create(TcpClient.create(options -> options.connect((InetSocketAddress) address))), () -> {
+            return ReactiveSocketServer.create(TcpTransportServer.create(TcpServer.create()))
                 .start((setup, sendingSocket) -> {
                     return new DisabledLeaseAcceptingSocket(new TestReactiveSocket());
                 })

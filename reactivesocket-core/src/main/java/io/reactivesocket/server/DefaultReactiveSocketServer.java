@@ -58,33 +58,36 @@ public final class DefaultReactiveSocketServer extends AbstractEventSource<Serve
                 dc = connection;
             }
 
-            return dc.receive()
-                .next()
-                .then(setupFrame -> {
-                    if (setupFrame.getType() == FrameType.SETUP) {
-                        ClientServerInputMultiplexer multiplexer = new ClientServerInputMultiplexer(dc);
-                        ConnectionSetupPayload setup = ConnectionSetupPayload.create(setupFrame);
-                        ClientReactiveSocket sender = new ClientReactiveSocket(multiplexer.asServerConnection(),
-                                                                               Throwable::printStackTrace,
-                                                                               StreamIdSupplier.serverSupplier(),
-                                                                               KeepAliveProvider.never(),
-                                                                               this);
-                        LeaseHonoringSocket lhs = new DefaultLeaseHonoringSocket(sender);
-                        sender.start(lhs);
-                        LeaseEnforcingSocket handler = acceptor.accept(setup, sender);
-                        ServerReactiveSocket receiver = new ServerReactiveSocket(multiplexer.asClientConnection(),
-                                                                                 handler,
-                                                                                 setup.willClientHonorLease(),
-                                                                                 Throwable::printStackTrace,
-                                                                                 this);
-                        receiver.start();
-                        return dc.onClose();
-                    } else {
-                        return Mono.<Void>error(new IllegalStateException("Invalid first frame on the connection: "
-                                                                        + dc + ", frame type received: "
-                                                                        + setupFrame.getType()));
-                    }
-                });
+            ClientServerInputMultiplexer multiplexer = new ClientServerInputMultiplexer(dc);
+
+            return multiplexer
+                    .asStreamZeroConnection()
+                    .receive()
+                    .next()
+                    .then(setupFrame -> {
+                        if (setupFrame.getType() == FrameType.SETUP) {
+                            ConnectionSetupPayload setup = ConnectionSetupPayload.create(setupFrame);
+                            ClientReactiveSocket sender = new ClientReactiveSocket(multiplexer.asServerConnection(),
+                                                                                   Throwable::printStackTrace,
+                                                                                   StreamIdSupplier.serverSupplier(),
+                                                                                   KeepAliveProvider.never(),
+                                                                                   this);
+                            LeaseHonoringSocket lhs = new DefaultLeaseHonoringSocket(sender);
+                            sender.start(lhs);
+                            LeaseEnforcingSocket handler = acceptor.accept(setup, sender);
+                            ServerReactiveSocket receiver = new ServerReactiveSocket(multiplexer.asClientConnection(),
+                                                                                     handler,
+                                                                                     setup.willClientHonorLease(),
+                                                                                     Throwable::printStackTrace,
+                                                                                     this);
+                            receiver.start();
+                            return dc.onClose();
+                        } else {
+                            return Mono.<Void>error(new IllegalStateException("Invalid first frame on the connection: "
+                                                                            + dc + ", frame type received: "
+                                                                            + setupFrame.getType()));
+                        }
+                    });
         });
     }
 }

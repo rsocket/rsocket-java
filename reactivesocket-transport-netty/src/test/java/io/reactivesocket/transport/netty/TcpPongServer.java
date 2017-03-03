@@ -13,11 +13,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package io.reactivesocket.transport.netty;
 
-dependencies {
-    compile project(':reactivesocket-core')
-    compile 'io.reactivex:rxnetty-tcp:0.5.2-rc.5'
-    compile 'io.reactivex:rxjava-reactive-streams:1.2.0'
+import io.reactivesocket.server.ReactiveSocketServer;
+import io.reactivesocket.test.PingHandler;
+import io.reactivesocket.transport.netty.server.TcpTransportServer;
+import reactor.ipc.netty.tcp.TcpServer;
 
-    testCompile project(':reactivesocket-test')
+public final class TcpPongServer {
+
+    public static void main(String... args) throws Exception {
+        ReactiveSocketServer.create(TcpTransportServer.create(TcpServer.create(7878)))
+                               .start(new PingHandler())
+                               .awaitShutdown();
+    }
 }

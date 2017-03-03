@@ -17,11 +17,12 @@ import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.client.LoadBalancingClient;
 import io.reactivesocket.exceptions.RejectedException;
 import io.reactivesocket.server.ReactiveSocketServer;
-import io.reactivesocket.transport.tcp.server.TcpTransportServer;
+import io.reactivesocket.transport.netty.server.TcpTransportServer;
 import org.HdrHistogram.Recorder;
 import org.reactivestreams.Publisher;
 import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
+import reactor.ipc.netty.tcp.TcpServer;
 
 import java.net.SocketAddress;
 import java.time.Duration;
@@ -168,7 +169,7 @@ class StressTest {
     }
 
     private SocketAddress startServer() {
-        return ReactiveSocketServer.create(TcpTransportServer.create())
+        return ReactiveSocketServer.create(TcpTransportServer.create(TcpServer.create()))
                                    .start((setup, sendingSocket) -> {
                                        return config.nextServerHandler(serverCount.incrementAndGet());
                                    })

@@ -24,13 +24,16 @@ import io.reactivesocket.server.ReactiveSocketServer;
 import io.reactivesocket.transport.TransportClient;
 import io.reactivesocket.transport.TransportServer;
 import io.reactivesocket.transport.TransportServer.StartedServer;
-import io.reactivesocket.transport.tcp.client.TcpTransportClient;
-import io.reactivesocket.transport.tcp.server.TcpTransportServer;
+import io.reactivesocket.transport.netty.client.TcpTransportClient;
+import io.reactivesocket.transport.netty.server.TcpTransportServer;
 import io.reactivesocket.util.PayloadImpl;
 import io.reactivex.Flowable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.ipc.netty.tcp.TcpClient;
+import reactor.ipc.netty.tcp.TcpServer;
 
+import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -61,10 +64,12 @@ public class ClientServerHolder implements Supplier<ReactiveSocket> {
     }
 
     public static Supplier<ReactiveSocket> requestResponseMultiTcp(int clientCount) {
-        StartedServer server = startServer(TcpTransportServer.create(), new Handler());
+        StartedServer server = startServer(TcpTransportServer.create(TcpServer.create()), new Handler());
         final ReactiveSocket[] sockets = new ReactiveSocket[clientCount];
         for (int i = 0; i < clientCount; i++) {
-            sockets[i] = newClient(server.getServerAddress(), sock -> TcpTransportClient.create(sock));
+            sockets[i] = newClient(server.getServerAddress(), sock ->
+                TcpTransportClient.create(TcpClient.create(options -> options.connect((InetSocketAddress)sock)))
+            );
         }
         return new Supplier<ReactiveSocket>() {
 

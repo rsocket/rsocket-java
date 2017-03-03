@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.reactivesocket.transport.tcp;
+package io.reactivesocket.transport.netty;
 
 import io.reactivesocket.test.ClientSetupRule;
 import org.junit.Ignore;

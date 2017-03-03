@@ -24,11 +24,14 @@ import io.reactivesocket.frame.ByteBufferUtil;
 import io.reactivesocket.lease.DisabledLeaseAcceptingSocket;
 import io.reactivesocket.server.ReactiveSocketServer;
 import io.reactivesocket.transport.TransportServer.StartedServer;
-import io.reactivesocket.transport.tcp.client.TcpTransportClient;
-import io.reactivesocket.transport.tcp.server.TcpTransportServer;
+import io.reactivesocket.transport.netty.client.TcpTransportClient;
+import io.reactivesocket.transport.netty.server.TcpTransportServer;
 import io.reactivesocket.util.PayloadImpl;
 import reactor.core.publisher.Mono;
+import reactor.ipc.netty.tcp.TcpClient;
+import reactor.ipc.netty.tcp.TcpServer;
 
+import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 
 import static io.reactivesocket.client.KeepAliveProvider.*;
@@ -38,7 +41,7 @@ public final class HelloWorldClient {
 
     public static void main(String[] args) {
 
-        ReactiveSocketServer s = ReactiveSocketServer.create(TcpTransportServer.create());
+        ReactiveSocketServer s = ReactiveSocketServer.create(TcpTransportServer.create(TcpServer.create()));
         StartedServer server = s.start((setupPayload, reactiveSocket) -> {
             return new DisabledLeaseAcceptingSocket(new AbstractReactiveSocket() {
                 @Override
@@ -49,7 +52,8 @@ public final class HelloWorldClient {
         });
 
         SocketAddress address = server.getServerAddress();
-        ReactiveSocketClient client = ReactiveSocketClient.create(TcpTransportClient.create(address),
+        ReactiveSocketClient client = ReactiveSocketClient.create(TcpTransportClient.create(TcpClient.create(options ->
+                        options.connect((InetSocketAddress)address))),
                                                                   keepAlive(never()).disableLease());
         ReactiveSocket socket = client.connect().block();
 

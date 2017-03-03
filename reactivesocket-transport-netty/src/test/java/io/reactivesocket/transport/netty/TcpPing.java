@@ -13,14 +13,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.reactivesocket.transport.tcp;
+package io.reactivesocket.transport.netty;
 
 import io.reactivesocket.client.KeepAliveProvider;
 import io.reactivesocket.client.ReactiveSocketClient;
 import io.reactivesocket.client.SetupProvider;
 import io.reactivesocket.test.PingClient;
-import io.reactivesocket.transport.tcp.client.TcpTransportClient;
+import io.reactivesocket.transport.netty.client.TcpTransportClient;
 import org.HdrHistogram.Recorder;
+import reactor.ipc.netty.tcp.TcpClient;
 
 import java.net.InetSocketAddress;
 import java.time.Duration;
@@ -30,7 +31,7 @@ public final class TcpPing {
     public static void main(String... args) throws Exception {
         SetupProvider setup = SetupProvider.keepAlive(KeepAliveProvider.never()).disableLease();
         ReactiveSocketClient client =
-                ReactiveSocketClient.create(TcpTransportClient.create(new InetSocketAddress("localhost", 7878)), setup);
+                ReactiveSocketClient.create(TcpTransportClient.create(TcpClient.create(options -> options.connect(new InetSocketAddress("localhost", 7878)))), setup);
         PingClient pingClient = new PingClient(client);
         Recorder recorder = pingClient.startTracker(Duration.ofSeconds(1));
         final int count = 1_000_000_000;
