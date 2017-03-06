@@ -20,18 +20,18 @@ import io.reactivesocket.lease.DisabledLeaseAcceptingSocket;
 import io.reactivesocket.server.ReactiveSocketServer;
 import io.reactivesocket.test.ClientSetupRule;
 import io.reactivesocket.test.TestReactiveSocket;
-import io.reactivesocket.transport.netty.client.TcpTransportClient;
-import io.reactivesocket.transport.netty.server.TcpTransportServer;
-import reactor.ipc.netty.tcp.TcpClient;
-import reactor.ipc.netty.tcp.TcpServer;
+import io.reactivesocket.transport.netty.client.WebsocketTransportClient;
+import io.reactivesocket.transport.netty.server.WebsocketTransportServer;
+import reactor.ipc.netty.http.client.HttpClient;
+import reactor.ipc.netty.http.server.HttpServer;
 
 import java.net.InetSocketAddress;
 
-public class TcpClientSetupRule extends ClientSetupRule {
+public class WebsocketClientSetupRule extends ClientSetupRule {
 
-    public TcpClientSetupRule() {
-        super(address -> TcpTransportClient.create(TcpClient.create(((InetSocketAddress)address).getPort())), () -> {
-            return ReactiveSocketServer.create(TcpTransportServer.create(TcpServer.create(0)))
+    public WebsocketClientSetupRule() {
+        super(address -> WebsocketTransportClient.create(HttpClient.create(((InetSocketAddress)address).getPort())), () -> {
+            return ReactiveSocketServer.create(WebsocketTransportServer.create(HttpServer.create(0)))
                 .start((setup, sendingSocket) -> {
                     return new DisabledLeaseAcceptingSocket(new TestReactiveSocket());
                 })

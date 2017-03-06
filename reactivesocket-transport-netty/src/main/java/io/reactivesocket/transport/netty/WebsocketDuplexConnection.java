@@ -16,6 +16,7 @@
 package io.reactivesocket.transport.netty;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.handler.codec.http.websocketx.BinaryWebSocketFrame;
 import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
 import org.reactivestreams.Publisher;
@@ -27,12 +28,12 @@ import reactor.ipc.netty.NettyOutbound;
 
 import java.nio.ByteBuffer;
 
-public class NettyDuplexConnection implements DuplexConnection {
+public class WebsocketDuplexConnection implements DuplexConnection {
     private final NettyInbound in;
     private final NettyOutbound out;
     private final NettyContext context;
 
-    public NettyDuplexConnection(NettyInbound in, NettyOutbound out, NettyContext context) {
+    public WebsocketDuplexConnection(NettyInbound in, NettyOutbound out, NettyContext context) {
         this.in = in;
         this.out = out;
         this.context = context;
@@ -49,7 +50,7 @@ public class NettyDuplexConnection implements DuplexConnection {
     public Mono<Void> sendOne(Frame frame) {
         ByteBuffer src = frame.getByteBuffer();
         ByteBuf msg = out.alloc().buffer(src.remaining()).writeBytes(src);
-        return out.sendObject(msg).then();
+        return out.sendObject(new BinaryWebSocketFrame(msg)).then();
     }
 
     @Override

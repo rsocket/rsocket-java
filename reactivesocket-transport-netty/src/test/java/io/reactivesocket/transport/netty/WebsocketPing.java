@@ -19,18 +19,18 @@ import io.reactivesocket.client.KeepAliveProvider;
 import io.reactivesocket.client.ReactiveSocketClient;
 import io.reactivesocket.client.SetupProvider;
 import io.reactivesocket.test.PingClient;
-import io.reactivesocket.transport.netty.client.TcpTransportClient;
+import io.reactivesocket.transport.netty.client.WebsocketTransportClient;
 import org.HdrHistogram.Recorder;
-import reactor.ipc.netty.tcp.TcpClient;
+import reactor.ipc.netty.http.client.HttpClient;
 
 import java.time.Duration;
 
-public final class TcpPing {
+public final class WebsocketPing {
 
     public static void main(String... args) throws Exception {
         SetupProvider setup = SetupProvider.keepAlive(KeepAliveProvider.never()).disableLease();
         ReactiveSocketClient client =
-                ReactiveSocketClient.create(TcpTransportClient.create(TcpClient.create(7878)), setup);
+            ReactiveSocketClient.create(WebsocketTransportClient.create(HttpClient.create(7878)), setup);
         PingClient pingClient = new PingClient(client);
         Recorder recorder = pingClient.startTracker(Duration.ofSeconds(1));
         final int count = 1_000_000_000;
