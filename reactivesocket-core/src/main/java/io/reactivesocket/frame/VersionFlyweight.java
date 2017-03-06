@@ -29,4 +29,8 @@ public class VersionFlyweight {
     public static int minor(int version) {
         return version & 0xFFFF;
     }
+
+    public static String toString(int version) {
+        return major(version) + "." + minor(version);
+    }
 }

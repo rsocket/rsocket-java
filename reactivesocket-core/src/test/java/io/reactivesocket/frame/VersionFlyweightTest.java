@@ -11,6 +11,7 @@ public class VersionFlyweightTest {
         assertEquals(1, VersionFlyweight.major(version));
         assertEquals(0, VersionFlyweight.minor(version));
         assertEquals(0x00010000, version);
+        assertEquals("1.0", VersionFlyweight.toString(version));
     }
 
     @Test
@@ -19,5 +20,6 @@ public class VersionFlyweightTest {
         assertEquals(0x1234, VersionFlyweight.major(version));
         assertEquals(0x5678, VersionFlyweight.minor(version));
         assertEquals(0x12345678, version);
+        assertEquals("4660.22136", VersionFlyweight.toString(version));
     }
 }
