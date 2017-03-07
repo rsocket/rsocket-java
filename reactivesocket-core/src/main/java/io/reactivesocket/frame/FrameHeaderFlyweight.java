@@ -60,6 +60,7 @@ public class FrameHeaderFlyweight {
 
     public static final int FLAGS_F = 0b00_1000_0000;
     public static final int FLAGS_C = 0b00_0100_0000;
+    public static final int FLAGS_N = 0b00_0010_0000;
 
     static {
         if (INCLUDE_FRAME_LENGTH) {
@@ -151,13 +152,19 @@ public class FrameHeaderFlyweight {
 
         final FrameType outFrameType;
         switch (frameType) {
+            case PAYLOAD:
+                throw new IllegalArgumentException("Don't encode raw PAYLOAD frames, use NEXT_COMPLETE, COMPLETE or NEXT");
             case NEXT_COMPLETE:
+                outFrameType = FrameType.PAYLOAD;
+                flags |= FLAGS_C | FLAGS_N;
+                break;
             case COMPLETE:
                 outFrameType = FrameType.PAYLOAD;
                 flags |= FLAGS_C;
                 break;
             case NEXT:
                 outFrameType = FrameType.PAYLOAD;
+                flags |= FLAGS_N;
                 break;
             default:
                 outFrameType = frameType;
@@ -185,10 +192,15 @@ public class FrameHeaderFlyweight {
             final int flags = typeAndFlags & FRAME_FLAGS_MASK;
 
             boolean complete = FLAGS_C == (flags & FLAGS_C);
-            if (complete) {
+            boolean next = FLAGS_N == (flags & FLAGS_N);
+            if (next && complete) {
                 result = FrameType.NEXT_COMPLETE;
-            } else {
+            } else if (complete) {
+                result = FrameType.COMPLETE;
+            } else if (next) {
                 result = FrameType.NEXT;
+            } else {
+                throw new IllegalArgumentException("Payload must set either or both of NEXT and COMPLETE.");
             }
         }
 

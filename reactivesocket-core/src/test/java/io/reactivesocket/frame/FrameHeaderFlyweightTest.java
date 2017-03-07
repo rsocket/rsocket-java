@@ -116,12 +116,11 @@ public class FrameHeaderFlyweightTest {
         expectedMutable.putInt(currentIndex, 5, ByteOrder.BIG_ENDIAN);
         currentIndex += BitUtil.SIZE_OF_INT;
         // flags and frame type
-        expectedMutable.putShort(currentIndex, (short) 0b001010_0001000000, ByteOrder.BIG_ENDIAN);
+        expectedMutable.putShort(currentIndex, (short) 0b001010_0001100000, ByteOrder.BIG_ENDIAN);
         currentIndex += BitUtil.SIZE_OF_SHORT;
 
-        FrameType frameType = FrameType.PAYLOAD;
-        int flags = 0b0001000000;
-        FrameHeaderFlyweight.encode(directBuffer, 0, 5, flags, frameType, NULL_BYTEBUFFER, NULL_BYTEBUFFER);
+        FrameType frameType = FrameType.NEXT_COMPLETE;
+        FrameHeaderFlyweight.encode(directBuffer, 0, 5, 0, frameType, NULL_BYTEBUFFER, NULL_BYTEBUFFER);
 
         ByteBuffer expected = ByteBufferUtil.preservingSlice(expectedMutable.byteBuffer(), 0, currentIndex);
         ByteBuffer actual = ByteBufferUtil.preservingSlice(directBuffer.byteBuffer(), 0, FRAME_HEADER_LENGTH);
