@@ -283,7 +283,7 @@ public class ServerReactiveSocket implements ReactiveSocket {
                     }
                 })
                 .map(payload -> Frame.PayloadFrame
-                    .from(streamId, FrameType.PAYLOAD, payload.getMetadata(), payload.getData(), FrameHeaderFlyweight.FLAGS_C))
+                    .from(streamId, FrameType.NEXT_COMPLETE, payload.getMetadata(), payload.getData(), FrameHeaderFlyweight.FLAGS_C))
                 .doOnComplete(cleanup)
                 .emitOnCancelOrError(
                     // on cancel
@@ -304,7 +304,7 @@ public class ServerReactiveSocket implements ReactiveSocket {
     private Publisher<Void> doReceive(int streamId, Publisher<Payload> response, RequestType requestType) {
         long now = publishSingleFrameReceiveEvents(streamId, requestType);
         Px<Frame> resp = Px.from(response)
-                           .map(payload -> PayloadFrame.from(streamId, FrameType.PAYLOAD, payload));
+                           .map(payload -> PayloadFrame.from(streamId, FrameType.NEXT, payload));
         RemoteSender sender = new RemoteSender(resp, () -> subscriptions.remove(streamId), streamId, 2);
         subscriptions.put(streamId, sender);
         return eventPublishingSocket.decorateSend(streamId, connection.send(sender), now, requestType);
@@ -320,7 +320,7 @@ public class ServerReactiveSocket implements ReactiveSocket {
 
         Px<Frame> response = Px.from(requestChannel(eventPublishingSocket.decorateReceive(streamId, receiver,
                                                                                           RequestChannel)))
-            .map(payload -> Frame.PayloadFrame.from(streamId, FrameType.PAYLOAD, payload));
+            .map(payload -> Frame.PayloadFrame.from(streamId, FrameType.NEXT, payload));
 
         RemoteSender sender = new RemoteSender(response, () -> removeSubscriptions(streamId), streamId,
             initialRequestN);
