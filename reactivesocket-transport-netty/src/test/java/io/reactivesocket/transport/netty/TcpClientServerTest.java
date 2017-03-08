@@ -20,7 +20,7 @@ import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 
-public class ClientServerTest {
+public class TcpClientServerTest {
 
     @Rule
     public final ClientSetupRule setup = new TcpClientSetupRule();
