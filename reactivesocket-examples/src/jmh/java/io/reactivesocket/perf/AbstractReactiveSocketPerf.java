@@ -20,12 +20,15 @@ import io.reactivesocket.local.LocalServer;
 import io.reactivesocket.perf.util.AbstractMicrobenchmarkBase;
 import io.reactivesocket.perf.util.BlackholeSubscriber;
 import io.reactivesocket.perf.util.ClientServerHolder;
-import io.reactivesocket.transport.tcp.client.TcpTransportClient;
-import io.reactivesocket.transport.tcp.server.TcpTransportServer;
+import io.reactivesocket.transport.netty.client.TcpTransportClient;
+import io.reactivesocket.transport.netty.server.TcpTransportServer;
 import io.reactivex.Flowable;
 import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.infra.Blackhole;
+import reactor.ipc.netty.tcp.TcpClient;
+import reactor.ipc.netty.tcp.TcpServer;
 
+import java.net.InetSocketAddress;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Supplier;
@@ -45,8 +48,9 @@ public class AbstractReactiveSocketPerf extends AbstractMicrobenchmarkBase {
     protected Supplier<ReactiveSocket> multiClientTcpHolders;
 
     protected void _setup(Blackhole bh) {
-        tcpHolder = ClientServerHolder.create(TcpTransportServer.create(),
-                                                       socketAddress -> TcpTransportClient.create(socketAddress));
+        tcpHolder = ClientServerHolder.create(TcpTransportServer.create(TcpServer.create()), socketAddress ->
+            TcpTransportClient.create(TcpClient.create(options -> options.connect((InetSocketAddress)socketAddress)))
+        );
         String clientName = "local-" + ThreadLocalRandom.current().nextInt();
         localHolder = ClientServerHolder.create(LocalServer.create(clientName),
                                                          socketAddress -> LocalClient.create(clientName));

@@ -18,17 +18,15 @@ package io.reactivesocket.local.internal;
 
 import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
-import io.reactivesocket.reactivestreams.extensions.Px;
-import io.reactivesocket.reactivestreams.extensions.internal.EmptySubject;
-import io.reactivesocket.reactivestreams.extensions.internal.ValidatingSubscription;
-import io.reactivesocket.reactivestreams.extensions.internal.subscribers.CancellableSubscriber;
-import io.reactivesocket.reactivestreams.extensions.internal.subscribers.Subscribers;
+import io.reactivesocket.internal.ValidatingSubscription;
 import org.reactivestreams.Publisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+import reactor.core.publisher.MonoProcessor;
 
 import java.nio.channels.ClosedChannelException;
-import java.util.function.Consumer;
 
 public class PeerConnector {
 
@@ -37,11 +35,11 @@ public class PeerConnector {
     private final LocalDuplexConnection client;
     private final LocalDuplexConnection server;
     private final String name;
-    private final EmptySubject closeNotifier;
+    private final MonoProcessor<Void> closeNotifier;
 
     private PeerConnector(String name) {
         this.name = name;
-        closeNotifier = new EmptySubject();
+        closeNotifier = MonoProcessor.create();
         server = new LocalDuplexConnection(closeNotifier, false);
         client = new LocalDuplexConnection(closeNotifier, true);
         server.connect(client);
@@ -69,41 +67,36 @@ public class PeerConnector {
 
         private volatile ValidatingSubscription<Frame> receiver;
         private volatile boolean connected;
-        private final EmptySubject closeNotifier;
+        private final MonoProcessor<Void> closeNotifier;
         private final boolean client;
         private volatile LocalDuplexConnection peer;
 
-        private LocalDuplexConnection(EmptySubject closeNotifier, boolean client) {
+        private LocalDuplexConnection(MonoProcessor<Void> closeNotifier, boolean client) {
             this.closeNotifier = closeNotifier;
             this.client = client;
-            closeNotifier.subscribe(Subscribers.doOnTerminate(() -> {
-                connected = false;
-                if (receiver != null) {
-                    receiver.safeOnError(new ClosedChannelException());
-                }
-            }));
-        }
-
-        @Override
-        public Publisher<Void> send(Publisher<Frame> frames) {
-            return s -> {
-                CancellableSubscriber<Frame> writeSub = Subscribers.create(subscription -> {
-                    subscription.request(Long.MAX_VALUE); // Local transport is not flow controlled.
-                }, frame -> {
-                    if (peer != null) {
-                        peer.receiveFrameFromPeer(frame);
-                    } else {
-                        logger.warn("Sending a frame but peer not connected. Ignoring frame: " + frame);
+            closeNotifier
+                .doFinally(signalType -> {
+                    connected = false;
+                    if (receiver != null) {
+                        receiver.safeOnError(new ClosedChannelException());
                     }
-                }, s::onError, s::onComplete, null);
-                s.onSubscribe(ValidatingSubscription.onCancel(s, () -> writeSub.cancel()));
-                frames.subscribe(writeSub);
-            };
+                }).subscribe();
         }
 
         @Override
-        public Publisher<Frame> receive() {
-            return sub -> {
+        public Mono<Void> send(Publisher<Frame> frames) {
+            return Flux.from(frames).doOnNext(frame -> {
+                if (peer != null) {
+                    peer.receiveFrameFromPeer(frame);
+                } else {
+                    logger.warn("Sending a frame but peer not connected. Ignoring frame: " + frame);
+                }
+            }).then();
+        }
+
+        @Override
+        public Flux<Frame> receive() {
+            return Flux.from(sub -> {
                 boolean invalid = false;
                 synchronized (this) {
                     if (receiver != null && receiver.isActive()) {
@@ -119,7 +112,7 @@ public class PeerConnector {
                 } else {
                     sub.onSubscribe(receiver);
                 }
-            };
+            });
         }
 
         @Override
@@ -128,15 +121,15 @@ public class PeerConnector {
         }
 
         @Override
-        public Publisher<Void> close() {
-            return Px.defer(() -> {
+        public Mono<Void> close() {
+            return Mono.defer(() -> {
                 closeNotifier.onComplete();
                 return closeNotifier;
             });
         }
 
         @Override
-        public Publisher<Void> onClose() {
+        public Mono<Void> onClose() {
             return closeNotifier;
         }
 

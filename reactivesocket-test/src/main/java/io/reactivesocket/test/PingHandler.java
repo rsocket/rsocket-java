@@ -24,8 +24,7 @@ import io.reactivesocket.lease.DisabledLeaseAcceptingSocket;
 import io.reactivesocket.lease.LeaseEnforcingSocket;
 import io.reactivesocket.server.ReactiveSocketServer.SocketAcceptor;
 import io.reactivesocket.util.PayloadImpl;
-import io.reactivex.Flowable;
-import org.reactivestreams.Publisher;
+import reactor.core.publisher.Mono;
 
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -46,8 +45,8 @@ public class PingHandler implements SocketAcceptor {
     public LeaseEnforcingSocket accept(ConnectionSetupPayload setupPayload, ReactiveSocket reactiveSocket) {
         return new DisabledLeaseAcceptingSocket(new AbstractReactiveSocket() {
             @Override
-            public Publisher<Payload> requestResponse(Payload payload) {
-                return Flowable.just(new PayloadImpl(pong));
+            public Mono<Payload> requestResponse(Payload payload) {
+                return Mono.just(new PayloadImpl(pong));
             }
         });
     }

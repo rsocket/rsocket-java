@@ -17,8 +17,9 @@
 package io.reactivesocket.client;
 
 import io.reactivesocket.ReactiveSocket;
-import io.reactivesocket.reactivestreams.extensions.Px;
 import org.reactivestreams.Publisher;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -41,7 +42,7 @@ public class LoadBalancingClient extends AbstractReactiveSocketClient {
     }
 
     @Override
-    public Publisher<? extends ReactiveSocket> connect() {
+    public Mono<? extends ReactiveSocket> connect() {
         return initializer.connect();
     }
 
@@ -65,7 +66,7 @@ public class LoadBalancingClient extends AbstractReactiveSocketClient {
     public static <T> LoadBalancingClient create(Publisher<? extends Collection<T>> servers,
                                                  Function<T, ReactiveSocketClient> clientFactory) {
         SourceToClient<T> f = new SourceToClient<T>(clientFactory);
-        return new LoadBalancingClient(LoadBalancerInitializer.create(Px.from(servers).map(f)));
+        return new LoadBalancingClient(LoadBalancerInitializer.create(Flux.from(servers).map(f)));
     }
 
     /**

@@ -18,35 +18,27 @@ package io.reactivesocket;
 
 import io.reactivesocket.client.KeepAliveProvider;
 import io.reactivesocket.events.EventListener;
-import io.reactivesocket.events.EventListener.RequestType;
 import io.reactivesocket.events.EventPublishingSocket;
 import io.reactivesocket.events.EventPublishingSocketImpl;
 import io.reactivesocket.exceptions.CancelException;
 import io.reactivesocket.exceptions.Exceptions;
-import io.reactivesocket.internal.DisabledEventPublisher;
-import io.reactivesocket.internal.EventPublisher;
-import io.reactivesocket.internal.KnownErrorFilter;
-import io.reactivesocket.internal.RemoteReceiver;
-import io.reactivesocket.internal.RemoteSender;
+import io.reactivesocket.internal.*;
 import io.reactivesocket.lease.Lease;
 import io.reactivesocket.lease.LeaseImpl;
-import io.reactivesocket.reactivestreams.extensions.DefaultSubscriber;
-import io.reactivesocket.reactivestreams.extensions.Px;
-import io.reactivesocket.reactivestreams.extensions.internal.FlowControlHelper;
-import io.reactivesocket.reactivestreams.extensions.internal.ValidatingSubscription;
-import io.reactivesocket.reactivestreams.extensions.internal.subscribers.CancellableSubscriber;
-import io.reactivesocket.reactivestreams.extensions.internal.subscribers.Subscribers;
 import org.agrona.collections.Int2ObjectHashMap;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
+import reactor.core.Disposable;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+import reactor.core.publisher.MonoSource;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.function.Consumer;
 
 import static io.reactivesocket.events.EventListener.RequestType.*;
-import static io.reactivesocket.reactivestreams.extensions.internal.subscribers.Subscribers.*;
 
 /**
  * Client Side of a ReactiveSocket socket. Sends {@link Frame}s
@@ -61,10 +53,10 @@ public class ClientReactiveSocket implements ReactiveSocket {
     private final EventPublishingSocket eventPublishingSocket;
 
     private final Int2ObjectHashMap<Subscription> senders;
-    private final Int2ObjectHashMap<Subscriber<Frame>> receivers;
+    private final Int2ObjectHashMap<Subscriber<? super Frame>> receivers;
 
     private final BufferingSubscription transportReceiveSubscription = new BufferingSubscription();
-    private CancellableSubscriber<Void> keepAliveSendSub;
+    private Disposable keepAliveSendSub;
     private volatile Consumer<Lease> leaseConsumer; // Provided on start()
 
     public ClientReactiveSocket(DuplexConnection connection, Consumer<Throwable> errorConsumer,
@@ -78,9 +70,9 @@ public class ClientReactiveSocket implements ReactiveSocket {
                                                                     : EventPublishingSocket.DISABLED;
         senders = new Int2ObjectHashMap<>(256, 0.9f);
         receivers = new Int2ObjectHashMap<>(256, 0.9f);
-        connection.onClose().subscribe(Subscribers.cleanup(() -> {
-            cleanup();
-        }));
+        connection.onClose()
+            .doFinally(signalType -> cleanup())
+            .subscribe();
     }
 
     public ClientReactiveSocket(DuplexConnection connection, Consumer<Throwable> errorConsumer,
@@ -89,8 +81,8 @@ public class ClientReactiveSocket implements ReactiveSocket {
     }
 
     @Override
-    public Publisher<Void> fireAndForget(Payload payload) {
-        return Px.defer(() -> {
+    public Mono<Void> fireAndForget(Payload payload) {
+        return Mono.defer(() -> {
             final int streamId = nextStreamId();
             final Frame requestFrame = Frame.Request.from(streamId, FrameType.FIRE_AND_FORGET, payload, 0);
             return connection.sendOne(requestFrame);
@@ -98,22 +90,22 @@ public class ClientReactiveSocket implements ReactiveSocket {
     }
 
     @Override
-    public Publisher<Payload> requestResponse(Payload payload) {
+    public Mono<Payload> requestResponse(Payload payload) {
         return handleRequestResponse(payload);
     }
 
     @Override
-    public Publisher<Payload> requestStream(Payload payload) {
-        return handleStreamResponse(Px.just(payload), FrameType.REQUEST_STREAM);
+    public Flux<Payload> requestStream(Payload payload) {
+        return handleStreamResponse(Flux.just(payload), FrameType.REQUEST_STREAM);
     }
 
     @Override
-    public Publisher<Payload> requestChannel(Publisher<Payload> payloads) {
-        return handleStreamResponse(Px.from(payloads), FrameType.REQUEST_CHANNEL);
+    public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
+        return handleStreamResponse(Flux.from(payloads), FrameType.REQUEST_CHANNEL);
     }
 
     @Override
-    public Publisher<Void> metadataPush(Payload payload) {
+    public Mono<Void> metadataPush(Payload payload) {
         final Frame requestFrame = Frame.Request.from(0, FrameType.METADATA_PUSH, payload, 0);
         return connection.sendOne(requestFrame);
     }
@@ -124,15 +116,12 @@ public class ClientReactiveSocket implements ReactiveSocket {
     }
 
     @Override
-    public Publisher<Void> close() {
-        return Px.concatEmpty(Px.defer(() -> {
-            cleanup();
-            return Px.empty();
-        }), connection.close());
+    public Mono<Void> close() {
+        return connection.close();
     }
 
     @Override
-    public Publisher<Void> onClose() {
+    public Mono<Void> onClose() {
         return connection.onClose();
     }
 
@@ -143,48 +132,35 @@ public class ClientReactiveSocket implements ReactiveSocket {
         return this;
     }
 
-    private Publisher<Payload> handleRequestResponse(final Payload payload) {
-        return Px.create(subscriber -> {
+    private Mono<Payload> handleRequestResponse(final Payload payload) {
+        return MonoSource.wrap(subscriber -> {
             int streamId = nextStreamId();
             final Frame requestFrame = Frame.Request.from(streamId, FrameType.REQUEST_RESPONSE, payload, 1);
             synchronized (this) {
-                @SuppressWarnings("rawtypes")
-                Subscriber raw = subscriber;
-                @SuppressWarnings("unchecked")
-                Subscriber<Frame> fs = raw;
-                receivers.put(streamId, fs);
+                receivers.put(streamId, subscriber);
             }
-            Publisher<Void> send = eventPublishingSocket.decorateSend(streamId, connection.sendOne(requestFrame), 0,
+            Mono<Void> send = eventPublishingSocket.decorateSend(streamId, connection.sendOne(requestFrame), 0,
                                                                       RequestResponse);
-            eventPublishingSocket.decorateReceive(streamId, Px.concatEmpty(send, Px.never())
-                                                              .cast(Payload.class)
-                                                              .doOnCancel(() -> {
-                  if (connection.availability() > 0.0) {
-                      connection.sendOne(Frame.Cancel.from(streamId))
-                                .subscribe(DefaultSubscriber.defaultInstance());
-                  }
-                  removeReceiver(streamId);
-              }), RequestResponse).subscribe(subscriber);
+            eventPublishingSocket.decorateReceive(streamId, send.then(Mono.<Payload>never())
+                .doOnCancel(() -> {
+                    if (connection.availability() > 0.0) {
+                        connection.sendOne(Frame.Cancel.from(streamId)).subscribe();
+                    }
+                    removeReceiver(streamId);
+                }), RequestResponse).subscribe(subscriber);
         });
     }
 
-    private Publisher<Payload> handleStreamResponse(Px<Payload> request, FrameType requestType) {
-        return Px.defer(() -> {
+    private Flux<Payload> handleStreamResponse(Flux<Payload> request, FrameType requestType) {
+        return Flux.defer(() -> {
             int streamId = nextStreamId();
             RemoteSender sender = new RemoteSender(request.map(payload -> Frame.Request.from(streamId, requestType,
                                                                                              payload, 1)),
                                                    removeSenderLambda(streamId), streamId, 1);
             Publisher<Frame> src = s -> {
-                CancellableSubscriber<Void> sendSub = doOnError(throwable -> {
-                    s.onError(throwable);
-                });
-                ValidatingSubscription<? super Frame> sub = ValidatingSubscription.create(s, () -> {
-                    sendSub.cancel();
-                }, requestN -> {
-                    transportReceiveSubscription.request(requestN);
-                });
-                eventPublishingSocket.decorateSend(streamId, connection.send(sender), 0,
-                                                   fromFrameType(requestType)).subscribe(sendSub);
+                Disposable disposable = eventPublishingSocket.decorateSend(streamId, connection.send(sender), 0, fromFrameType(requestType))
+                        .subscribe(null, s::onError);
+                ValidatingSubscription<? super Frame> sub = ValidatingSubscription.create(s, disposable::dispose, transportReceiveSubscription::request);
                 s.onSubscribe(sub);
             };
 
@@ -196,24 +172,23 @@ public class ClientReactiveSocket implements ReactiveSocket {
     }
 
     private void startKeepAlive() {
-        keepAliveSendSub = doOnError(errorConsumer);
-        connection.send(Px.from(keepAliveProvider.ticks())
+        keepAliveSendSub = connection.send(keepAliveProvider.ticks()
             .map(i -> Frame.Keepalive.from(Frame.NULL_BYTEBUFFER, true)))
-            .subscribe(keepAliveSendSub);
+            .subscribe(null, errorConsumer);
     }
 
     private void startReceivingRequests() {
-        Px
-            .from(connection.receive())
-            .doOnSubscribe(subscription -> transportReceiveSubscription.switchTo(subscription))
+        connection.receive()
+            .doOnSubscribe(transportReceiveSubscription::switchTo)
             .doOnNext(this::handleIncomingFrames)
+            .doOnError(errorConsumer)
             .subscribe();
     }
 
     protected void cleanup() {
         // TODO: Stop sending requests first
         if (null != keepAliveSendSub) {
-            keepAliveSendSub.cancel();
+            keepAliveSendSub.dispose();
         }
         transportReceiveSubscription.cancel();
     }
@@ -253,7 +228,7 @@ public class ClientReactiveSocket implements ReactiveSocket {
 
     @SuppressWarnings("unchecked")
     private void handleFrame(int streamId, FrameType type, Frame frame) {
-        Subscriber<Frame> receiver;
+        Subscriber<? super Frame> receiver;
         synchronized (this) {
             receiver = receivers.get(streamId);
         }

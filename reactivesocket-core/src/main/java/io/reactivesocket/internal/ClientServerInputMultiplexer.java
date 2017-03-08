@@ -18,11 +18,11 @@ package io.reactivesocket.internal;
 
 import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
-import io.reactivesocket.reactivestreams.extensions.internal.ValidatingSubscription;
 import org.agrona.BitUtil;
 import org.reactivestreams.Publisher;
-import org.reactivestreams.Subscriber;
-import org.reactivestreams.Subscription;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+import reactor.core.publisher.MonoProcessor;
 
 /**
  * {@link DuplexConnection#receive()} is a single stream on which the following type of frames arrive:
@@ -36,179 +36,99 @@ import org.reactivestreams.Subscription;
  */
 public class ClientServerInputMultiplexer {
 
-    private final SourceInput sourceInput;
+    private final InternalDuplexConnection streamZeroConnection;
+    private final InternalDuplexConnection serverConnection;
+    private final InternalDuplexConnection clientConnection;
+
+    private enum Type { ZERO, CLIENT, SERVER }
 
     public ClientServerInputMultiplexer(DuplexConnection source) {
-        sourceInput = new SourceInput(source);
-    }
+        final MonoProcessor<Flux<Frame>> streamZero = MonoProcessor.create();
+        final MonoProcessor<Flux<Frame>> server = MonoProcessor.create();
+        final MonoProcessor<Flux<Frame>> client = MonoProcessor.create();
 
-    /**
-     * Returns the frames for streams that were initiated by the server.
-     *
-     * @return The frames for streams that were initiated by the server.
-     */
-    public Publisher<Frame> getServerInput() {
-        return sourceInput.evenStream();
-    }
+        streamZeroConnection = new InternalDuplexConnection(source, streamZero);
+        serverConnection = new InternalDuplexConnection(source, server);
+        clientConnection = new InternalDuplexConnection(source, client);
 
-    /**
-     * Returns the frames for streams that were initiated by the client.
-     *
-     * @return The frames for streams that were initiated by the client.
-     */
-    public Publisher<Frame> getClientInput() {
-        return sourceInput.oddStream();
+        source.receive()
+            .groupBy(frame -> {
+                int streamId = frame.getStreamId();
+                Type type;
+                if (streamId == 0) {
+                    type = Type.ZERO;
+                } else if (BitUtil.isEven(streamId)) {
+                    type = Type.SERVER;
+                } else {
+                    type = Type.CLIENT;
+                }
+                return type;
+            })
+            .subscribe(group -> {
+                switch (group.key()) {
+                    case ZERO:
+                        streamZero.onNext(group);
+                        break;
+                    case SERVER:
+                        server.onNext(group);
+                        break;
+                    case CLIENT:
+                        client.onNext(group);
+                        break;
+                }
+            });
     }
 
     public DuplexConnection asServerConnection() {
-        return new InternalDuplexConnection(getServerInput());
+        return serverConnection;
     }
 
     public DuplexConnection asClientConnection() {
-        return new InternalDuplexConnection(getClientInput());
+        return clientConnection;
     }
 
-    private static final class SourceInput implements Subscriber<Frame> {
+    public DuplexConnection asStreamZeroConnection() {
+        return streamZeroConnection;
+    }
 
+    private static class InternalDuplexConnection implements DuplexConnection {
         private final DuplexConnection source;
-        private int subscriberCount; // Guarded by this
-        private volatile Subscription sourceSubscription;
-        private volatile ValidatingSubscription<? super Frame> oddSubscription;
-        private volatile ValidatingSubscription<? super Frame> evenSubscription;
+        private final MonoProcessor<Flux<Frame>> processor;
 
-        public SourceInput(DuplexConnection source) {
+        public InternalDuplexConnection(DuplexConnection source, MonoProcessor<Flux<Frame>> processor) {
             this.source = source;
+            this.processor = processor;
         }
 
         @Override
-        public void onSubscribe(Subscription s) {
-            boolean cancelThis;
-            synchronized (this) {
-                cancelThis = sourceSubscription != null/*ReactiveStreams rule 2.5*/;
-                sourceSubscription = s;
-            }
-            if (cancelThis) {
-                s.cancel();
-            } else {
-                // Start downstream subscriptions only when this subscriber is active. This elimiates any buffering.
-                oddSubscription.getSubscriber().onSubscribe(oddSubscription);
-                evenSubscription.getSubscriber().onSubscribe(evenSubscription);
-            }
+        public Mono<Void> send(Publisher<Frame> frame) {
+            return source.send(frame);
         }
 
         @Override
-        public void onNext(Frame frame) {
-            if (frame.getStreamId() == 0) {
-                evenSubscription.safeOnNext(frame);
-                oddSubscription.safeOnNext(frame);
-            } else if (BitUtil.isEven(frame.getStreamId())) {
-                evenSubscription.safeOnNext(frame);
-            } else {
-                oddSubscription.safeOnNext(frame);
-            }
+        public Mono<Void> sendOne(Frame frame) {
+            return source.sendOne(frame);
         }
 
         @Override
-        public void onError(Throwable t) {
-            oddSubscription.safeOnError(t);
-            evenSubscription.safeOnError(t);
+        public Flux<Frame> receive() {
+            return processor.flatMap(f -> f);
         }
 
         @Override
-        public void onComplete() {
-            oddSubscription.safeOnComplete();
-            evenSubscription.safeOnComplete();
-        }
-
-        public Publisher<Frame> oddStream() {
-            return s -> {
-                subscribe(s, true);
-            };
-        }
-
-        public Publisher<Frame> evenStream() {
-            return s -> {
-                subscribe(s, false);
-            };
-        }
-
-        private void subscribe(Subscriber<? super Frame> s, boolean odd) {
-            Throwable sendError = null;
-            boolean subscribeUp = false;
-            synchronized (this) {
-                if(subscriberCount == 0 || subscriberCount == 1) {
-                    if (odd) {
-                        if (oddSubscription == null) {
-                            oddSubscription = newSubscription(s);
-                        } else {
-                            sendError = new IllegalStateException("An active subscription already exists.");
-                        }
-                    } else if (evenSubscription == null) {
-                        evenSubscription = newSubscription(s);
-                    } else {
-                        sendError = new IllegalStateException("An active subscription already exists.");
-                    }
-                    subscriberCount++;
-                    subscribeUp = subscriberCount == 2;
-                } else {
-                    sendError = new IllegalStateException("More than " + 2 + " subscribers received.");
-                }
-            }
-
-            if (sendError != null) {
-                s.onError(sendError);
-            } else if(subscribeUp) {
-                source.receive().subscribe(this);
-            }
-        }
-
-        private ValidatingSubscription<? super Frame> newSubscription(Subscriber<? super Frame> s) {
-            return ValidatingSubscription.create(s, () -> {
-                final boolean cancelUp;
-                synchronized (this) {
-                    cancelUp = --subscriberCount == 0;
-                }
-                if (cancelUp) {
-                    sourceSubscription.cancel();
-                }
-            }, requestN -> {
-                // Since these are requests from odd/even streams they are for different frames and hence can pass
-                // through to upstream.
-                sourceSubscription.request(requestN);
-            });
-        }
-    }
-
-    private class InternalDuplexConnection implements DuplexConnection {
-
-        private final Publisher<Frame> input;
-        public InternalDuplexConnection(Publisher<Frame> input) {
-            this.input = input;
+        public Mono<Void> close() {
+            return source.close();
         }
 
         @Override
-        public Publisher<Void> send(Publisher<Frame> frame) {
-            return sourceInput.source.send(frame);
-        }
-
-        @Override
-        public Publisher<Frame> receive() {
-            return input;
+        public Mono<Void> onClose() {
+            return source.onClose();
         }
 
         @Override
         public double availability() {
-            return sourceInput.source.availability();
-        }
-
-        @Override
-        public Publisher<Void> close() {
-            return sourceInput.source.close();
-        }
-
-        @Override
-        public Publisher<Void> onClose() {
-            return sourceInput.source.onClose();
+            return source.availability();
         }
     }
+
 }

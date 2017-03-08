@@ -21,13 +21,10 @@ import io.reactivesocket.Frame;
 import io.reactivesocket.Payload;
 import io.reactivesocket.exceptions.ApplicationException;
 import io.reactivesocket.exceptions.CancelException;
-import io.reactivesocket.reactivestreams.extensions.internal.FlowControlHelper;
-import io.reactivesocket.reactivestreams.extensions.internal.ValidatingSubscription;
-import io.reactivesocket.reactivestreams.extensions.internal.subscribers.Subscribers;
-import org.reactivestreams.Processor;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
+import reactor.core.publisher.FluxProcessor;
 
 /**
  * An abstraction to receive data from a {@link Publisher} that is available remotely over a {@code ReactiveSocket}
@@ -51,7 +48,7 @@ import org.reactivestreams.Subscription;
  * ready to write, no frames will be enqueued into the connection. All {@code RequestN} frames sent during such time
  * will be merged into a single {@code RequestN} frame.
  */
-public final class RemoteReceiver implements Processor<Frame, Payload> {
+public final class RemoteReceiver extends FluxProcessor<Frame, Payload> {
 
     private final Publisher<Frame> transportSource;
     private final DuplexConnection connection;
@@ -129,7 +126,8 @@ public final class RemoteReceiver implements Processor<Frame, Payload> {
             onNext(requestFrame);
         }
         connection.send(framesSource)
-                  .subscribe(Subscribers.doOnError(throwable -> subscription.safeOnError(throwable)));
+            .doOnError(throwable -> subscription.safeOnError(throwable))
+            .subscribe();
     }
 
     @Override

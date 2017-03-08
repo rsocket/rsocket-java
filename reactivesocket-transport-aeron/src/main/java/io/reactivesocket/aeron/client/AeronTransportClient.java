@@ -20,9 +20,9 @@ import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.aeron.AeronDuplexConnection;
 import io.reactivesocket.aeron.internal.reactivestreams.AeronChannel;
 import io.reactivesocket.aeron.internal.reactivestreams.AeronClientChannelConnector;
-import io.reactivesocket.reactivestreams.extensions.Px;
 import io.reactivesocket.transport.TransportClient;
 import org.reactivestreams.Publisher;
+import reactor.core.publisher.Mono;
 
 import java.util.Objects;
 
@@ -41,10 +41,10 @@ public class AeronTransportClient implements TransportClient {
     }
 
     @Override
-    public Publisher<DuplexConnection> connect() {
+    public Mono<DuplexConnection> connect() {
         Publisher<AeronChannel> channelPublisher = connector.apply(config);
 
-        return Px
+        return Mono
             .from(channelPublisher)
             .map(aeronChannel -> new AeronDuplexConnection("client", aeronChannel));
     }

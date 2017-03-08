@@ -18,9 +18,6 @@ package io.reactivesocket.local;
 
 import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.local.internal.PeerConnector;
-import io.reactivesocket.reactivestreams.extensions.DefaultSubscriber;
-import io.reactivesocket.reactivestreams.extensions.Px;
-import io.reactivesocket.reactivestreams.extensions.internal.subscribers.Subscribers;
 import io.reactivesocket.transport.TransportServer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -83,11 +80,12 @@ public final class LocalServer implements TransportServer {
 
         DuplexConnection serverConn = peerConnector.forServer();
         activeConnections.add(serverConn);
-        serverConn.onClose().subscribe(Subscribers.doOnTerminate(() -> activeConnections.remove(serverConn)));
-        Px.from(started.acceptor.apply(serverConn))
-          .subscribe(Subscribers.cleanup(() -> {
-              serverConn.close().subscribe(Subscribers.empty());
-          }));
+        serverConn.onClose()
+                .doFinally(signalType -> activeConnections.remove(serverConn))
+                .subscribe();
+        started.acceptor.apply(serverConn)
+                .doFinally(signalType -> serverConn.close().subscribe())
+                .subscribe();
     }
 
     boolean isActive() {
@@ -149,7 +147,7 @@ public final class LocalServer implements TransportServer {
         public void shutdown() {
             shutdownLatch.countDown();
             for (DuplexConnection activeConnection : activeConnections) {
-                activeConnection.close().subscribe(DefaultSubscriber.defaultInstance());
+                activeConnection.close().subscribe();
             }
             LocalPeersManager.unregister(name);
         }

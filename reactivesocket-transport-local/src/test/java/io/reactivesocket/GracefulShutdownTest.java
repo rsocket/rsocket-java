@@ -15,12 +15,14 @@ package io.reactivesocket;
 
 import io.reactivesocket.test.util.LocalRSRule;
 import io.reactivex.subscribers.TestSubscriber;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
+@Ignore
 public class GracefulShutdownTest {
     @Rule
     public final LocalRSRule rule = new LocalRSRule();

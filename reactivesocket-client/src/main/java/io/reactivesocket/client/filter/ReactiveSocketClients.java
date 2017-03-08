@@ -19,11 +19,9 @@ package io.reactivesocket.client.filter;
 import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.client.AbstractReactiveSocketClient;
 import io.reactivesocket.client.ReactiveSocketClient;
-import io.reactivesocket.reactivestreams.extensions.Px;
-import io.reactivesocket.reactivestreams.extensions.Scheduler;
-import org.reactivestreams.Publisher;
+import reactor.core.publisher.Mono;
 
-import java.util.concurrent.TimeUnit;
+import java.time.Duration;
 import java.util.function.Function;
 
 /**
@@ -41,17 +39,14 @@ public final class ReactiveSocketClients {
      *
      * @param orig Client to wrap.
      * @param timeout timeout duration.
-     * @param unit timeout duration unit.
-     * @param scheduler scheduler for timeout.
      *
      * @return New client that imposes the passed {@code timeout}.
      */
-    public static ReactiveSocketClient connectTimeout(ReactiveSocketClient orig, long timeout, TimeUnit unit,
-                                                      Scheduler scheduler) {
+    public static ReactiveSocketClient connectTimeout(ReactiveSocketClient orig, Duration timeout) {
         return new AbstractReactiveSocketClient(orig) {
             @Override
-            public Publisher<? extends ReactiveSocket> connect() {
-                return Px.from(orig.connect()).timeout(timeout, unit, scheduler);
+            public Mono<? extends ReactiveSocket> connect() {
+                return orig.connect().timeout(timeout);
             }
 
             @Override
@@ -85,8 +80,8 @@ public final class ReactiveSocketClients {
     public static ReactiveSocketClient wrap(ReactiveSocketClient orig, Function<ReactiveSocket, ReactiveSocket> mapper) {
         return new AbstractReactiveSocketClient(orig) {
             @Override
-            public Publisher<? extends ReactiveSocket> connect() {
-                return Px.from(orig.connect()).map(mapper::apply);
+            public Mono<? extends ReactiveSocket> connect() {
+                return orig.connect().map(mapper);
             }
 
             @Override

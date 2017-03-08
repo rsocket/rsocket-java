@@ -23,11 +23,8 @@ import io.reactivesocket.lease.DisableLeaseSocket;
 import io.reactivesocket.lease.Lease;
 import io.reactivesocket.lease.LeaseImpl;
 import io.reactivesocket.local.LocalSendReceiveTest.LocalRule;
-import io.reactivesocket.reactivestreams.extensions.internal.CancellableImpl;
-import io.reactivesocket.reactivestreams.extensions.internal.subscribers.Subscribers;
 import io.reactivesocket.server.ReactiveSocketServer;
 import io.reactivesocket.transport.TransportServer.StartedServer;
-import io.reactivex.Single;
 import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
 import org.mockito.ArgumentCaptor;
@@ -58,13 +55,13 @@ public class LocalRSRule extends LocalRule {
                 leases = new CopyOnWriteArrayList<>();
                 acceptingSocketCloses = new CopyOnWriteArrayList<>();
                 leaseDistributorMock = Mockito.mock(LeaseDistributor.class);
-                Mockito.when(leaseDistributorMock.registerSocket(any())).thenReturn(new CancellableImpl());
+                Mockito.when(leaseDistributorMock.registerSocket(any())).thenReturn(() -> {});
                 init();
                 socketServer = ReactiveSocketServer.create(localServer);
                 started = socketServer.start((setup, sendingSocket) -> {
                     AbstractReactiveSocket accept = new AbstractReactiveSocket() {
                     };
-                    accept.onClose().subscribe(Subscribers.doOnTerminate(() -> acceptingSocketCloses.add(true)));
+                    accept.onClose().doFinally(signalType -> acceptingSocketCloses.add(true)).subscribe();
                     return new DefaultLeaseEnforcingSocket(accept, leaseDistributorMock);
                 });
                 socketClient = ReactiveSocketClient.create(localClient, keepAlive(never())
@@ -80,7 +77,7 @@ public class LocalRSRule extends LocalRule {
     }
 
     public ReactiveSocket connectSocket() {
-        return Single.fromPublisher(socketClient.connect()).blockingGet();
+        return socketClient.connect().block();
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})

@@ -24,15 +24,17 @@ import io.reactivesocket.lease.LeaseEnforcingSocket;
 import io.reactivesocket.server.ReactiveSocketServer;
 import io.reactivesocket.server.ReactiveSocketServer.SocketAcceptor;
 import io.reactivesocket.transport.TransportServer.StartedServer;
-import io.reactivesocket.transport.tcp.client.TcpTransportClient;
-import io.reactivesocket.transport.tcp.server.TcpTransportServer;
+import io.reactivesocket.transport.netty.client.TcpTransportClient;
+import io.reactivesocket.transport.netty.server.TcpTransportServer;
 import io.reactivesocket.util.PayloadImpl;
-import io.reactivesocket.util.ReactiveSocketDecorator;
-import io.reactivex.Flowable;
 import org.reactivestreams.Publisher;
+import reactor.core.publisher.Flux;
+import reactor.ipc.netty.tcp.TcpClient;
+import reactor.ipc.netty.tcp.TcpServer;
 
+import java.net.InetSocketAddress;
 import java.net.SocketAddress;
-import java.util.concurrent.TimeUnit;
+import java.time.Duration;
 
 import static io.reactivesocket.client.KeepAliveProvider.*;
 import static io.reactivesocket.client.SetupProvider.*;
@@ -40,25 +42,25 @@ import static io.reactivesocket.client.SetupProvider.*;
 public final class ChannelEchoClient {
 
     public static void main(String[] args) {
-        StartedServer server = ReactiveSocketServer.create(TcpTransportServer.create())
+        StartedServer server = ReactiveSocketServer.create(TcpTransportServer.create(TcpServer.create()))
                                                    .start(new SocketAcceptorImpl());
 
         SocketAddress address = server.getServerAddress();
-        ReactiveSocket socket = Flowable.fromPublisher(ReactiveSocketClient.create(TcpTransportClient.create(address),
-                                                                                   keepAlive(never()).disableLease())
-                                                                           .connect())
-                                        .blockingFirst();
+        ReactiveSocket socket = ReactiveSocketClient.create(
+                TcpTransportClient.create(TcpClient.create(options -> options.connect((InetSocketAddress)address))),
+                keepAlive(never()).disableLease()
+        ).connect().block();
 
-        Flowable.fromPublisher(socket.requestChannel(Flowable.interval(0, 100, TimeUnit.MILLISECONDS)
+        socket.requestChannel(Flux.interval(Duration.ofMillis(100))
                                                              .map(i -> "Hello - " + i)
                                                              .<Payload>map(PayloadImpl::new)
-                                                             .repeat()))
+                                                             .repeat())
                 .map(payload -> payload.getData())
                 .map(ByteBufferUtil::toUtf8String)
                 .doOnNext(System.out::println)
                 .take(10)
-                .concatWith(Flowable.fromPublisher(socket.close()).cast(String.class))
-                .blockingLast();
+                .concatWith(socket.close().cast(String.class))
+                .blockLast();
     }
 
     private static class SocketAcceptorImpl implements SocketAcceptor {
@@ -66,8 +68,8 @@ public final class ChannelEchoClient {
         public LeaseEnforcingSocket accept(ConnectionSetupPayload setupPayload, ReactiveSocket reactiveSocket) {
             return new DisabledLeaseAcceptingSocket(new AbstractReactiveSocket() {
                 @Override
-                public Publisher<Payload> requestChannel(Publisher<Payload> payloads) {
-                    return Flowable.fromPublisher(payloads)
+                public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
+                    return Flux.from(payloads)
                                    .map(Payload::getData)
                                    .map(ByteBufferUtil::toUtf8String)
                                    .map(s -> "Echo: " + s)

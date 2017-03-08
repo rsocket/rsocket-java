@@ -20,23 +20,21 @@ import io.reactivesocket.Payload;
 import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.client.filter.ReactiveSockets;
 import io.reactivesocket.exceptions.TimeoutException;
-import io.reactivesocket.reactivestreams.extensions.ExecutorServiceBasedScheduler;
 import org.hamcrest.MatcherAssert;
 import org.junit.Test;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
 import java.nio.ByteBuffer;
-import java.util.concurrent.TimeUnit;
+import java.time.Duration;
 
 import static org.hamcrest.Matchers.instanceOf;
 
 public class TimeoutClientTest {
     @Test
     public void testTimeoutSocket() {
-        ExecutorServiceBasedScheduler scheduler = new ExecutorServiceBasedScheduler();
         TestingReactiveSocket socket = new TestingReactiveSocket((subscriber, payload) -> {return false;});
-        ReactiveSocket timeout = ReactiveSockets.timeout(50, TimeUnit.MILLISECONDS, scheduler).apply(socket);
+        ReactiveSocket timeout = ReactiveSockets.timeout(Duration.ofMillis(50)).apply(socket);
 
         timeout.requestResponse(new Payload() {
             @Override

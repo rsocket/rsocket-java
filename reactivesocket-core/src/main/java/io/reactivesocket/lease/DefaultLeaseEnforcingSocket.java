@@ -17,12 +17,9 @@
 package io.reactivesocket.lease;
 
 import io.reactivesocket.ReactiveSocket;
-import io.reactivesocket.reactivestreams.extensions.Px;
 import io.reactivesocket.exceptions.RejectedException;
-import io.reactivesocket.reactivestreams.extensions.Px;
-import io.reactivesocket.reactivestreams.extensions.internal.Cancellable;
-import io.reactivesocket.reactivestreams.extensions.internal.subscribers.Subscribers;
-import org.reactivestreams.Publisher;
+import reactor.core.Disposable;
+import reactor.core.publisher.Mono;
 
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
@@ -31,16 +28,15 @@ public class DefaultLeaseEnforcingSocket extends DefaultLeaseHonoringSocket impl
 
     private final LeaseDistributor leaseDistributor;
     private volatile Consumer<Lease> leaseSender;
-    private Cancellable distributorCancellation;
-    @SuppressWarnings("rawtypes")
-    private final Px rejectError;
+    private Disposable distributorCancellation;
+    private final Mono<?> rejectError;
 
     public DefaultLeaseEnforcingSocket(ReactiveSocket delegate, LeaseDistributor leaseDistributor,
                                        LongSupplier currentTimeSupplier, boolean clientHonorsLeases) {
         super(delegate, currentTimeSupplier);
         this.leaseDistributor = leaseDistributor;
         if (!clientHonorsLeases) {
-            rejectError = Px.error(new RejectedException("Server overloaded."));
+            rejectError = Mono.error(new RejectedException("Server overloaded."));
         } else {
             rejectError = null;
         }
@@ -58,8 +54,8 @@ public class DefaultLeaseEnforcingSocket extends DefaultLeaseHonoringSocket impl
     @Override
     public void acceptLeaseSender(Consumer<Lease> leaseSender) {
         this.leaseSender = leaseSender;
-        distributorCancellation = leaseDistributor.registerSocket(lease -> accept(lease));
-        onClose().subscribe(Subscribers.doOnTerminate(() -> distributorCancellation.cancel()));
+        distributorCancellation = leaseDistributor.registerSocket(this);
+        onClose().doFinally(signalType -> distributorCancellation.dispose()).subscribe();
     }
 
     @Override
@@ -73,16 +69,16 @@ public class DefaultLeaseEnforcingSocket extends DefaultLeaseHonoringSocket impl
     }
 
     @Override
-    public Publisher<Void> close() {
-        return Px.from(super.close())
+    public Mono<Void> close() {
+        return super.close()
                  .doOnSubscribe(subscription -> {
                      leaseDistributor.shutdown();
                  });
     }
 
-    @Override
-    protected <T> Publisher<T> rejectError() {
-        return null == rejectError ? super.rejectError() : rejectError;
+    @SuppressWarnings("unchecked")
+    protected <T> Mono<T> rejectError() {
+        return null == rejectError ? super.rejectError() : (Mono<T>) rejectError;
     }
 
     /**
@@ -97,12 +93,12 @@ public class DefaultLeaseEnforcingSocket extends DefaultLeaseHonoringSocket impl
 
         /**
          * Registers a new socket (a consumer of lease) to this distributor. This registration can be canclled by
-         * cancelling the returned {@link Cancellable}.
+         * cancelling the returned {@link Disposable}.
          *
          * @param leaseConsumer Consumer of lease.
          *
-         * @return Cancellation handle. Call {@link Cancellable#cancel()} to unregister this socket.
+         * @return Cancellation handle. Call {@link Disposable#dispose()} to unregister this socket.
          */
-        Cancellable registerSocket(Consumer<Lease> leaseConsumer);
+        Disposable registerSocket(Consumer<Lease> leaseConsumer);
     }
 }

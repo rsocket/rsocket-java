@@ -16,13 +16,12 @@
 
 package io.reactivesocket;
 
-import io.reactivesocket.reactivestreams.extensions.Px;
 import io.reactivesocket.test.util.TestDuplexConnection;
 import io.reactivesocket.util.PayloadImpl;
 import org.junit.Rule;
 import org.junit.Test;
-import org.reactivestreams.Publisher;
 import io.reactivex.subscribers.TestSubscriber;
+import reactor.core.publisher.Mono;
 
 import java.util.Collection;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -76,8 +75,8 @@ public class ServerReactiveSocketTest {
         final AtomicBoolean cancelled = new AtomicBoolean();
         rule.setAcceptingSocket(new AbstractReactiveSocket() {
             @Override
-            public Publisher<Payload> requestResponse(Payload payload) {
-                return Px.<Payload>never()
+            public Mono<Payload> requestResponse(Payload payload) {
+                return Mono.<Payload>never()
                          .doOnCancel(() -> cancelled.set(true));
             }
         });
@@ -99,8 +98,8 @@ public class ServerReactiveSocketTest {
         protected void init() {
             acceptingSocket = new AbstractReactiveSocket() {
                 @Override
-                public Publisher<Payload> requestResponse(Payload payload) {
-                    return Px.just(payload);
+                public Mono<Payload> requestResponse(Payload payload) {
+                    return Mono.just(payload);
                 }
             };
             super.init();

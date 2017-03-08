@@ -20,12 +20,10 @@ import io.reactivesocket.Payload;
 import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.client.ReactiveSocketClient;
 import io.reactivesocket.util.PayloadImpl;
-import io.reactivex.Flowable;
-import io.reactivex.Single;
 import org.HdrHistogram.Recorder;
-import org.reactivestreams.Publisher;
+import reactor.core.publisher.Flux;
 
-import java.util.concurrent.TimeUnit;
+import java.time.Duration;
 
 public class PingClient {
 
@@ -40,14 +38,14 @@ public class PingClient {
 
     public PingClient connect() {
         if (null == reactiveSocket) {
-            reactiveSocket = Single.fromPublisher(client.connect()).blockingGet();
+            reactiveSocket = client.connect().block();
         }
         return this;
     }
 
-    public Recorder startTracker(long interval, TimeUnit timeUnit) {
+    public Recorder startTracker(Duration interval) {
         final Recorder histogram = new Recorder(3600000000000L, 3);
-        Flowable.interval(timeUnit.toNanos(interval), TimeUnit.NANOSECONDS)
+        Flux.interval(interval)
                 .doOnNext(aLong -> {
                 System.out.println("---- PING/ PONG HISTO ----");
                 histogram.getIntervalHistogram()
@@ -58,13 +56,13 @@ public class PingClient {
         return histogram;
     }
 
-    public Flowable<Payload> startPingPong(int count, final Recorder histogram) {
+    public Flux<Payload> startPingPong(int count, final Recorder histogram) {
         connect();
-        return Flowable.range(1, count)
+        return Flux.range(1, count)
                 .flatMap(i -> {
                     long start = System.nanoTime();
-                    return Flowable.fromPublisher(reactiveSocket.requestResponse(new PayloadImpl(request)))
-                                            .doOnTerminate(() -> {
+                    return reactiveSocket.requestResponse(new PayloadImpl(request))
+                                            .doFinally(signalType -> {
                                                 long diff = System.nanoTime() - start;
                                                 histogram.recordValue(diff);
                                             });

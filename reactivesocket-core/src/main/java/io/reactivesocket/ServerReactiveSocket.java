@@ -26,18 +26,14 @@ import io.reactivesocket.events.EventPublishingSocketImpl;
 import io.reactivesocket.exceptions.ApplicationException;
 import io.reactivesocket.exceptions.SetupException;
 import io.reactivesocket.frame.FrameHeaderFlyweight;
-import io.reactivesocket.internal.DisabledEventPublisher;
-import io.reactivesocket.internal.EventPublisher;
-import io.reactivesocket.internal.KnownErrorFilter;
-import io.reactivesocket.internal.RemoteReceiver;
-import io.reactivesocket.internal.RemoteSender;
+import io.reactivesocket.internal.*;
 import io.reactivesocket.lease.LeaseEnforcingSocket;
-import io.reactivesocket.reactivestreams.extensions.Px;
-import io.reactivesocket.reactivestreams.extensions.internal.subscribers.Subscribers;
 import io.reactivesocket.util.Clock;
 import org.agrona.collections.Int2ObjectHashMap;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscription;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 import java.util.Collection;
 import java.util.function.Consumer;
@@ -51,7 +47,7 @@ import static io.reactivesocket.events.EventListener.RequestType.*;
 public class ServerReactiveSocket implements ReactiveSocket {
 
     private final DuplexConnection connection;
-    private final Publisher<Frame> serverInput;
+    private final Flux<Frame> serverInput;
     private final Consumer<Throwable> errorConsumer;
     private final EventPublisher<? extends EventListener> eventPublisher;
 
@@ -75,9 +71,9 @@ public class ServerReactiveSocket implements ReactiveSocket {
         eventPublishingSocket = eventPublisher.isEventPublishingEnabled()?
                 new EventPublishingSocketImpl(eventPublisher, false) : EventPublishingSocket.DISABLED;
 
-        Px.from(connection.onClose()).subscribe(Subscribers.cleanup(() -> {
-            cleanup();
-        }));
+        connection.onClose()
+            .doFinally(signalType -> cleanup())
+            .subscribe();
         if (requestHandler instanceof LeaseEnforcingSocket) {
             LeaseEnforcingSocket enforcer = (LeaseEnforcingSocket) requestHandler;
             enforcer.acceptLeaseSender(lease -> {
@@ -85,7 +81,7 @@ public class ServerReactiveSocket implements ReactiveSocket {
                     return;
                 }
                 Frame leaseFrame = Lease.from(lease.getTtl(), lease.getAllowedRequests(), lease.metadata());
-                Px.from(connection.sendOne(leaseFrame))
+                connection.sendOne(leaseFrame)
                   .doOnError(errorConsumer)
                   .subscribe();
             });
@@ -102,47 +98,44 @@ public class ServerReactiveSocket implements ReactiveSocket {
     }
 
     @Override
-    public Publisher<Void> fireAndForget(Payload payload) {
+    public Mono<Void> fireAndForget(Payload payload) {
         return requestHandler.fireAndForget(payload);
     }
 
     @Override
-    public Publisher<Payload> requestResponse(Payload payload) {
+    public Mono<Payload> requestResponse(Payload payload) {
         return requestHandler.requestResponse(payload);
     }
 
     @Override
-    public Publisher<Payload> requestStream(Payload payload) {
+    public Flux<Payload> requestStream(Payload payload) {
         return requestHandler.requestStream(payload);
     }
 
     @Override
-    public Publisher<Payload> requestChannel(Publisher<Payload> payloads) {
+    public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
         return requestHandler.requestChannel(payloads);
     }
 
     @Override
-    public Publisher<Void> metadataPush(Payload payload) {
+    public Mono<Void> metadataPush(Payload payload) {
         return requestHandler.metadataPush(payload);
     }
 
     @Override
-    public Publisher<Void> close() {
-        return Px.concatEmpty(Px.defer(() -> {
-            cleanup();
-            return Px.empty();
-        }), connection.close());
+    public Mono<Void> close() {
+        return connection.close();
     }
 
     @Override
-    public Publisher<Void> onClose() {
+    public Mono<Void> onClose() {
         return connection.onClose();
     }
 
     public ServerReactiveSocket start() {
-        Px.from(serverInput)
+        serverInput
             .doOnNext(frame -> {
-                handleFrame(frame).subscribe(Subscribers.doOnError(errorConsumer));
+                handleFrame(frame).doOnError(errorConsumer).subscribe();
             })
             .doOnError(t -> {
                 errorConsumer.accept(t);
@@ -157,29 +150,19 @@ public class ServerReactiveSocket implements ReactiveSocket {
                     .forEach(Subscription::cancel);
             })
             .doOnSubscribe(subscription -> {
-                receiversSubscription = new Subscription() {
-                    @Override
-                    public void request(long n) {
-                        subscription.request(n);
-                    }
-
-                    @Override
-                    public void cancel() {
-                        subscription.cancel();
-                    }
-                };
+                receiversSubscription = subscription;
             })
             .subscribe();
         return this;
     }
 
-    private Publisher<Void> handleFrame(Frame frame) {
+    private Mono<Void> handleFrame(Frame frame) {
         final int streamId = frame.getStreamId();
         try {
             RemoteReceiver receiver;
             switch (frame.getType()) {
                 case SETUP:
-                    return Px.error(new IllegalStateException("Setup frame received post setup."));
+                    return Mono.error(new IllegalStateException("Setup frame received post setup."));
                 case REQUEST_RESPONSE:
                     return handleRequestResponse(streamId, requestResponse(frame));
                 case CANCEL:
@@ -196,12 +179,12 @@ public class ServerReactiveSocket implements ReactiveSocket {
                     return handleChannel(streamId, frame);
                 case PAYLOAD:
                     // TODO: Hook in receiving socket.
-                    return Px.empty();
+                    return Mono.empty();
                 case METADATA_PUSH:
                     return metadataPush(frame);
                 case LEASE:
                     // Lease must not be received here as this is the server end of the socket which sends leases.
-                    return Px.empty();
+                    return Mono.empty();
                 case NEXT:
                     synchronized (channelProcessors) {
                         receiver = channelProcessors.get(streamId);
@@ -209,7 +192,7 @@ public class ServerReactiveSocket implements ReactiveSocket {
                     if (receiver != null) {
                         receiver.onNext(frame);
                     }
-                    return Px.empty();
+                    return Mono.empty();
                 case COMPLETE:
                     synchronized (channelProcessors) {
                         receiver = channelProcessors.get(streamId);
@@ -217,7 +200,7 @@ public class ServerReactiveSocket implements ReactiveSocket {
                     if (receiver != null) {
                         receiver.onComplete();
                     }
-                    return Px.empty();
+                    return Mono.empty();
                 case ERROR:
                     synchronized (channelProcessors) {
                         receiver = channelProcessors.get(streamId);
@@ -225,7 +208,7 @@ public class ServerReactiveSocket implements ReactiveSocket {
                     if (receiver != null) {
                         receiver.onError(new ApplicationException(frame));
                     }
-                    return Px.empty();
+                    return Mono.empty();
                 case NEXT_COMPLETE:
                     synchronized (channelProcessors) {
                         receiver = channelProcessors.get(streamId);
@@ -234,16 +217,16 @@ public class ServerReactiveSocket implements ReactiveSocket {
                         receiver.onNext(frame);
                         receiver.onComplete();
                     }
-                    return Px.empty();
+                    return Mono.empty();
                 default:
                     return handleError(streamId, new IllegalStateException("ServerReactiveSocket: Unexpected frame type: "
                         + frame.getType()));
             }
         } catch (Throwable t) {
-            Publisher<Void> toReturn = handleError(streamId, t);
+            Mono<Void> toReturn = handleError(streamId, t);
             // If it's a setup exception re-throw the exception to tear everything down
             if (t instanceof SetupException) {
-                toReturn = Px.concatEmpty(toReturn, Px.error(t));
+                toReturn = toReturn.thenEmpty(Mono.error(t));
             }
             return toReturn;
         }
@@ -262,55 +245,41 @@ public class ServerReactiveSocket implements ReactiveSocket {
         subscriptions.clear();
         channelProcessors.values().forEach(RemoteReceiver::cancel);
         subscriptions.clear();
-        requestHandler.close().subscribe(Subscribers.empty());
+        requestHandler.close().subscribe();
     }
 
-    private Publisher<Void> handleRequestResponse(int streamId, Publisher<Payload> response) {
-        final Runnable cleanup = () -> {
-            synchronized (this) {
-                subscriptions.remove(streamId);
-            }
-
-        };
+    private Mono<Void> handleRequestResponse(int streamId, Mono<Payload> response) {
         long now = publishSingleFrameReceiveEvents(streamId, RequestResponse);
 
-        Px<Frame> frames =
-            Px
-                .from(response)
+        Mono<Frame> frames = new MonoOnErrorOrCancelReturn<>(
+            response
                 .doOnSubscribe(subscription -> {
                     synchronized (this) {
                         subscriptions.put(streamId, subscription);
                     }
-                })
-                .map(payload -> Frame.PayloadFrame
-                    .from(streamId, FrameType.NEXT_COMPLETE, payload.getMetadata(), payload.getData(), FrameHeaderFlyweight.FLAGS_C))
-                .doOnComplete(cleanup)
-                .emitOnCancelOrError(
-                    // on cancel
-                    () -> {
-                        cleanup.run();
-                        return Frame.Cancel.from(streamId);
-                    },
-                    // on error
-                    throwable -> {
-                        cleanup.run();
-                        return Frame.Error.from(streamId, throwable);
-                    });
+                }).map(payload ->
+                    Frame.PayloadFrame.from(streamId, FrameType.NEXT_COMPLETE, payload.getMetadata(), payload.getData(), FrameHeaderFlyweight.FLAGS_C)
+                ).doFinally(signalType -> {
+                    synchronized (this) {
+                        subscriptions.remove(streamId);
+                    }
+                }),
+            throwable -> Frame.Error.from(streamId, throwable),
+            () -> Frame.Cancel.from(streamId)
+        );
 
-        return Px.from(eventPublishingSocket.decorateSend(streamId, connection.send(frames), now, RequestResponse));
-
+        return eventPublishingSocket.decorateSend(streamId, connection.send(frames), now, RequestResponse);
     }
 
-    private Publisher<Void> doReceive(int streamId, Publisher<Payload> response, RequestType requestType) {
+    private Mono<Void> doReceive(int streamId, Flux<Payload> response, RequestType requestType) {
         long now = publishSingleFrameReceiveEvents(streamId, requestType);
-        Px<Frame> resp = Px.from(response)
-                           .map(payload -> PayloadFrame.from(streamId, FrameType.NEXT, payload));
+        Flux<Frame> resp = response.map(payload -> Frame.PayloadFrame.from(streamId, FrameType.NEXT, payload));
         RemoteSender sender = new RemoteSender(resp, () -> subscriptions.remove(streamId), streamId, 2);
         subscriptions.put(streamId, sender);
         return eventPublishingSocket.decorateSend(streamId, connection.send(sender), now, requestType);
     }
 
-    private Publisher<Void> handleChannel(int streamId, Frame firstFrame) {
+    private Mono<Void> handleChannel(int streamId, Frame firstFrame) {
         long now = publishSingleFrameReceiveEvents(streamId, RequestChannel);
         int initialRequestN = Request.initialRequestN(firstFrame);
         Frame firstAsNext = Request.from(streamId, FrameType.NEXT, firstFrame, initialRequestN);
@@ -318,8 +287,7 @@ public class ServerReactiveSocket implements ReactiveSocket {
             firstAsNext, receiversSubscription, true);
         channelProcessors.put(streamId, receiver);
 
-        Px<Frame> response = Px.from(requestChannel(eventPublishingSocket.decorateReceive(streamId, receiver,
-                                                                                          RequestChannel)))
+        Flux<Frame> response = requestChannel(eventPublishingSocket.decorateReceive(streamId, receiver, RequestChannel))
             .map(payload -> Frame.PayloadFrame.from(streamId, FrameType.NEXT, payload));
 
         RemoteSender sender = new RemoteSender(response, () -> removeSubscriptions(streamId), streamId,
@@ -331,25 +299,25 @@ public class ServerReactiveSocket implements ReactiveSocket {
         return eventPublishingSocket.decorateSend(streamId, connection.send(sender), now, RequestChannel);
     }
 
-    private Publisher<Void> handleFireAndForget(int streamId, Publisher<Void> result) {
-        return Px.from(result)
+    private Mono<Void> handleFireAndForget(int streamId, Mono<Void> result) {
+        return result
             .doOnSubscribe(subscription -> addSubscription(streamId, subscription))
             .doOnError(t -> {
                 removeSubscription(streamId);
                 errorConsumer.accept(t);
             })
-            .doOnComplete(() -> removeSubscription(streamId));
+            .doFinally(signalType -> removeSubscription(streamId));
     }
 
-    private Publisher<Void> handleKeepAliveFrame(Frame frame) {
+    private Mono<Void> handleKeepAliveFrame(Frame frame) {
         if (Frame.Keepalive.hasRespondFlag(frame)) {
-            return Px.from(connection.sendOne(Frame.Keepalive.from(Frame.NULL_BYTEBUFFER, false)))
+            return connection.sendOne(Frame.Keepalive.from(Frame.NULL_BYTEBUFFER, false))
                 .doOnError(errorConsumer);
         }
-        return Px.empty();
+        return Mono.empty();
     }
 
-    private Publisher<Void> handleCancelFrame(int streamId) {
+    private Mono<Void> handleCancelFrame(int streamId) {
         Subscription subscription;
         synchronized (this) {
             subscription = subscriptions.remove(streamId);
@@ -359,15 +327,15 @@ public class ServerReactiveSocket implements ReactiveSocket {
             subscription.cancel();
         }
 
-        return Px.empty();
+        return Mono.empty();
     }
 
-    private Publisher<Void> handleError(int streamId, Throwable t) {
-        return Px.from(connection.sendOne(Frame.Error.from(streamId, t)))
+    private Mono<Void> handleError(int streamId, Throwable t) {
+        return connection.sendOne(Frame.Error.from(streamId, t))
             .doOnError(errorConsumer);
     }
 
-    private Px<Void> handleRequestN(int streamId, Frame frame) {
+    private Mono<Void> handleRequestN(int streamId, Frame frame) {
         Subscription subscription;
         synchronized (this) {
             subscription = subscriptions.get(streamId);
@@ -376,7 +344,7 @@ public class ServerReactiveSocket implements ReactiveSocket {
             int n = Frame.RequestN.requestN(frame);
             subscription.request(n >= Integer.MAX_VALUE ? Long.MAX_VALUE : n);
         }
-        return Px.empty();
+        return Mono.empty();
     }
 
     private synchronized void addSubscription(int streamId, Subscription subscription) {

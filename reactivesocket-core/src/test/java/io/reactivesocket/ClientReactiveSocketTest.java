@@ -20,12 +20,12 @@ import io.reactivesocket.client.KeepAliveProvider;
 import io.reactivesocket.exceptions.ApplicationException;
 import io.reactivesocket.exceptions.RejectedSetupException;
 import io.reactivesocket.util.PayloadImpl;
-import io.reactivex.Flowable;
-import io.reactivex.processors.PublishProcessor;
 import org.junit.Rule;
 import org.junit.Test;
 import org.reactivestreams.Publisher;
 import io.reactivex.subscribers.TestSubscriber;
+import reactor.core.publisher.DirectProcessor;
+import reactor.core.publisher.Mono;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -52,9 +52,11 @@ public class ClientReactiveSocketTest {
         assertThat("Unexpected error received.", rule.errors, contains(instanceOf(IllegalStateException.class)));
     }
 
-    @Test(timeout = 2_000, expected = RejectedSetupException.class)
+    @Test(timeout = 2_000)
     public void testHandleSetupException() throws Throwable {
         rule.connection.addToReceivedBuffer(Frame.Error.from(0, new RejectedSetupException("boom")));
+        assertThat("Unexpected errors.", rule.errors, hasSize(1));
+        assertThat("Unexpected error received.", rule.errors, contains(instanceOf(RejectedSetupException.class)));
     }
 
     @Test(timeout = 2_000)
@@ -101,10 +103,9 @@ public class ClientReactiveSocketTest {
     @Test(timeout = 2_000)
     public void testRequestReplyErrorOnSend() throws Throwable {
         rule.connection.setAvailability(0); // Fails send
-        Publisher<Payload> response = rule.socket.requestResponse(PayloadImpl.EMPTY);
+        Mono<Payload> response = rule.socket.requestResponse(PayloadImpl.EMPTY);
         TestSubscriber<Payload> responseSub = TestSubscriber.create();
-        Flowable.fromPublisher(response)
-                .subscribe(responseSub);
+        response.subscribe(responseSub);
 
         responseSub.assertError(RuntimeException.class);
     }
@@ -129,7 +130,7 @@ public class ClientReactiveSocketTest {
 
     public static class ClientSocketRule extends AbstractSocketRule<ClientReactiveSocket> {
 
-        private final PublishProcessor<Long> keepAliveTicks = PublishProcessor.create();
+        private final DirectProcessor<Long> keepAliveTicks = DirectProcessor.create();
 
         @Override
         protected ClientReactiveSocket newReactiveSocket() {

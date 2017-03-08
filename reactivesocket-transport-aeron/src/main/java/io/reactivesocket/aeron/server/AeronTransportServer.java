@@ -23,7 +23,6 @@ import io.reactivesocket.aeron.internal.EventLoop;
 import io.reactivesocket.aeron.internal.reactivestreams.AeronChannelServer;
 import io.reactivesocket.aeron.internal.reactivestreams.AeronSocketAddress;
 import io.reactivesocket.aeron.internal.reactivestreams.ReactiveStreamsRemote;
-import io.reactivesocket.reactivestreams.extensions.Px;
 import io.reactivesocket.transport.TransportServer;
 
 import java.net.SocketAddress;
@@ -55,7 +54,7 @@ public class AeronTransportServer implements TransportServer {
             aeronChannelServer = AeronChannelServer.create(
                 aeronChannel -> {
                     DuplexConnection connection = new AeronDuplexConnection("server", aeronChannel);
-                    Px.from(acceptor.apply(connection)).subscribe();
+                    acceptor.apply(connection).subscribe();
                 },
                 aeronWrapper,
                 managementSubscriptionSocket,

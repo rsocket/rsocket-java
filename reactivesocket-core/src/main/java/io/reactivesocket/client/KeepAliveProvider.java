@@ -17,10 +17,7 @@
 package io.reactivesocket.client;
 
 import io.reactivesocket.exceptions.ConnectionException;
-import io.reactivesocket.reactivestreams.extensions.Px;
-import org.reactivestreams.Publisher;
-import org.reactivestreams.Subscriber;
-import org.reactivestreams.Subscription;
+import reactor.core.publisher.Flux;
 
 import java.util.function.LongSupplier;
 
@@ -35,46 +32,22 @@ public final class KeepAliveProvider {
     private volatile boolean ackThresholdBreached;
     private volatile long lastKeepAliveMillis;
     private volatile long lastAckMillis;
-    private final Publisher<Long> ticks;
+    private final Flux<Long> ticks;
     private final int keepAlivePeriodMillis;
     private final int missedKeepAliveThreshold;
     private final LongSupplier currentTimeSupplier;
 
-    private KeepAliveProvider(Publisher<Long> ticks, int keepAlivePeriodMillis, int missedKeepAliveThreshold,
+    private KeepAliveProvider(Flux<Long> ticks, int keepAlivePeriodMillis, int missedKeepAliveThreshold,
                               LongSupplier currentTimeSupplier) {
-        this.ticks = s -> {
-            ticks.subscribe(new Subscriber<Long>() {
-                private Subscription subscription;
-
-                @Override
-                public void onSubscribe(Subscription subscription) {
-                    this.subscription = subscription;
-                    s.onSubscribe(subscription);
-                }
-
-                @Override
-                public void onNext(Long aLong) {
-                    updateAckBreachThreshold();
-                    if (ackThresholdBreached) {
-                        onError(new ConnectionException("Missing keep alive from the peer."));
-                        subscription.cancel();
-                    } else {
-                        lastKeepAliveMillis = currentTimeSupplier.getAsLong();
-                        s.onNext(aLong);
-                    }
-                }
-
-                @Override
-                public void onError(Throwable t) {
-                    s.onError(t);
-                }
-
-                @Override
-                public void onComplete() {
-                    s.onComplete();
-                }
-            });
-        };
+        this.ticks = ticks.map(tick -> {
+            updateAckBreachThreshold();
+            if (ackThresholdBreached) {
+                throw new ConnectionException("Missing keep alive from the peer.");
+            } else {
+                lastKeepAliveMillis = currentTimeSupplier.getAsLong();
+                return tick;
+            }
+        });
         this.keepAlivePeriodMillis = keepAlivePeriodMillis;
         this.missedKeepAliveThreshold = missedKeepAliveThreshold;
         this.currentTimeSupplier = currentTimeSupplier;
@@ -87,7 +60,7 @@ public final class KeepAliveProvider {
      *
      * @return Source of keep-alive ticks.
      */
-    public Publisher<Long> ticks() {
+    public Flux<Long> ticks() {
         return ticks;
     }
 
@@ -123,7 +96,7 @@ public final class KeepAliveProvider {
      * @return A new {@link KeepAliveProvider} that never sends a keep-alive frame.
      */
     public static KeepAliveProvider never() {
-        return from(Integer.MAX_VALUE, Px.never());
+        return from(Integer.MAX_VALUE, Flux.never());
     }
 
     /**
@@ -135,7 +108,7 @@ public final class KeepAliveProvider {
      *
      * @return A new {@link KeepAliveProvider} that never sends a keep-alive frame.
      */
-    public static KeepAliveProvider from(int keepAlivePeriodMillis, Publisher<Long> keepAliveTicks) {
+    public static KeepAliveProvider from(int keepAlivePeriodMillis, Flux<Long> keepAliveTicks) {
         return from(keepAlivePeriodMillis, SetupProvider.DEFAULT_MAX_KEEP_ALIVE_MISSING_ACK, keepAliveTicks);
     }
 
@@ -151,7 +124,7 @@ public final class KeepAliveProvider {
      * @return A new {@link KeepAliveProvider} that never sends a keep-alive frame.
      */
     public static KeepAliveProvider from(int keepAlivePeriodMillis, int missedKeepAliveThreshold,
-                                         Publisher<Long> keepAliveTicks) {
+                                         Flux<Long> keepAliveTicks) {
         return from(keepAlivePeriodMillis, missedKeepAliveThreshold, keepAliveTicks, System::currentTimeMillis);
     }
 
@@ -168,7 +141,7 @@ public final class KeepAliveProvider {
      * @return A new {@link KeepAliveProvider} that never sends a keep-alive frame.
      */
     public static KeepAliveProvider from(int keepAlivePeriodMillis, int missedKeepAliveThreshold,
-                                         Publisher<Long> keepAliveTicks, LongSupplier currentTimeSupplier) {
+                                         Flux<Long> keepAliveTicks, LongSupplier currentTimeSupplier) {
         return new KeepAliveProvider(keepAliveTicks, keepAlivePeriodMillis, missedKeepAliveThreshold,
                                      currentTimeSupplier);
     }

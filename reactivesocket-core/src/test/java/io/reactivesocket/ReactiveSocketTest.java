@@ -18,19 +18,17 @@ package io.reactivesocket;
 
 import io.reactivesocket.client.KeepAliveProvider;
 import io.reactivesocket.exceptions.InvalidRequestException;
-import io.reactivesocket.reactivestreams.extensions.Px;
 import io.reactivesocket.test.util.LocalDuplexConnection;
 import io.reactivesocket.util.PayloadImpl;
-import io.reactivex.Flowable;
-import io.reactivex.processors.PublishProcessor;
 import org.hamcrest.MatcherAssert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExternalResource;
 import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
-import org.reactivestreams.Publisher;
 import io.reactivex.subscribers.TestSubscriber;
+import reactor.core.publisher.DirectProcessor;
+import reactor.core.publisher.Mono;
 
 import java.util.ArrayList;
 
@@ -46,7 +44,7 @@ public class ReactiveSocketTest {
     @Test(timeout = 2_000)
     public void testRequestReplyNoError() {
         TestSubscriber<Payload> subscriber = TestSubscriber.create();
-        Flowable.fromPublisher(rule.crs.requestResponse(new PayloadImpl("hello")))
+        rule.crs.requestResponse(new PayloadImpl("hello"))
                 .subscribe(subscriber);
         await(subscriber).assertNoErrors().assertComplete().assertValueCount(1);
         rule.assertNoErrors();
@@ -56,12 +54,12 @@ public class ReactiveSocketTest {
     public void testHandlerEmitsError() {
         rule.setRequestAcceptor(new AbstractReactiveSocket() {
             @Override
-            public Publisher<Payload> requestResponse(Payload payload) {
-                return Flowable.error(new NullPointerException("Deliberate exception."));
+            public Mono<Payload> requestResponse(Payload payload) {
+                return Mono.error(new NullPointerException("Deliberate exception."));
             }
         });
         TestSubscriber<Payload> subscriber = TestSubscriber.create();
-        Flowable.fromPublisher(rule.crs.requestResponse(PayloadImpl.EMPTY))
+        rule.crs.requestResponse(PayloadImpl.EMPTY)
             .subscribe(subscriber);
         await(subscriber).assertNotComplete().assertNoValues()
                          .assertError(InvalidRequestException.class);
@@ -82,8 +80,8 @@ public class ReactiveSocketTest {
         private ClientReactiveSocket crs;
         private ServerReactiveSocket srs;
         private ReactiveSocket requestAcceptor;
-        PublishProcessor<Frame> serverProcessor;
-        PublishProcessor<Frame> clientProcessor;
+        DirectProcessor<Frame> serverProcessor;
+        DirectProcessor<Frame> clientProcessor;
         private ArrayList<Throwable> clientErrors = new ArrayList<>();
         private ArrayList<Throwable> serverErrors = new ArrayList<>();
 
@@ -99,16 +97,16 @@ public class ReactiveSocketTest {
         }
 
         protected void init() {
-            serverProcessor = PublishProcessor.create();
-            clientProcessor = PublishProcessor.create();
+            serverProcessor = DirectProcessor.create();
+            clientProcessor = DirectProcessor.create();
 
             LocalDuplexConnection serverConnection = new LocalDuplexConnection("server", clientProcessor, serverProcessor);
             LocalDuplexConnection clientConnection = new LocalDuplexConnection("client", serverProcessor, clientProcessor);
 
             requestAcceptor = null != requestAcceptor? requestAcceptor : new AbstractReactiveSocket() {
                 @Override
-                public Publisher<Payload> requestResponse(Payload payload) {
-                    return Px.just(payload);
+                public Mono<Payload> requestResponse(Payload payload) {
+                    return Mono.just(payload);
                 }
             };
 

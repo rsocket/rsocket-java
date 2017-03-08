@@ -18,12 +18,12 @@ package io.reactivesocket.client;
 
 import io.reactivesocket.Payload;
 import io.reactivesocket.ReactiveSocket;
-import io.reactivesocket.ReactiveSocketFactory;
 import org.junit.Assert;
 import org.junit.Test;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
+import reactor.core.publisher.Mono;
 
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
@@ -68,9 +68,8 @@ public class LoadBalancerTest {
         TestingReactiveSocket socket = new TestingReactiveSocket(Function.identity());
         TestingReactiveSocket failingSocket = new TestingReactiveSocket(Function.identity()) {
             @Override
-            public Publisher<Payload> requestResponse(Payload payload) {
-                return subscriber ->
-                    subscriber.onError(new RuntimeException("You shouldn't be here"));
+            public Mono<Payload> requestResponse(Payload payload) {
+                return Mono.error(new RuntimeException("You shouldn't be here"));
             }
 
             @Override
@@ -136,8 +135,8 @@ public class LoadBalancerTest {
     private static ReactiveSocketClient succeedingFactory(ReactiveSocket socket) {
         return new AbstractReactiveSocketClient() {
             @Override
-            public Publisher<ReactiveSocket> connect() {
-                return s -> s.onNext(socket);
+            public Mono<ReactiveSocket> connect() {
+                return Mono.just(socket);
             }
 
             @Override
@@ -151,7 +150,7 @@ public class LoadBalancerTest {
     private static ReactiveSocketClient failingClient(SocketAddress sa) {
         return new AbstractReactiveSocketClient() {
             @Override
-            public Publisher<ReactiveSocket> connect() {
+            public Mono<ReactiveSocket> connect() {
                 Assert.fail();
                 return null;
             }

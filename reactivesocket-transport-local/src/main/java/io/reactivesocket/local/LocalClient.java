@@ -19,8 +19,7 @@ package io.reactivesocket.local;
 import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.local.internal.PeerConnector;
 import io.reactivesocket.transport.TransportClient;
-import org.reactivestreams.Publisher;
-import org.reactivestreams.Subscription;
+import reactor.core.publisher.Mono;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -39,41 +38,12 @@ public class LocalClient implements TransportClient {
     }
 
     @Override
-    public Publisher<DuplexConnection> connect() {
-        return sub -> {
-            sub.onSubscribe(new Subscription() {
-                private boolean emit = true;
-
-                @Override
-                public void request(long n) {
-                    synchronized (this) {
-                        if (!emit) {
-                            return;
-                        }
-                        emit = false;
-                    }
-
-                    if (n < 0) {
-                        sub.onError(new IllegalArgumentException("Rule 3.9: n > 0 is required, but it was " + n));
-                    } else {
-                        PeerConnector peerConnector = PeerConnector.connect(peer.getName(),
-                                                                            connIdGenerator.incrementAndGet());
-                        try {
-                            peer.accept(peerConnector);
-                            sub.onNext(peerConnector.forClient());
-                            sub.onComplete();
-                        } catch (Exception e) {
-                            sub.onError(e);
-                        }
-                    }
-                }
-
-                @Override
-                public synchronized void cancel() {
-                    emit = false;
-                }
-            });
-        };
+    public Mono<DuplexConnection> connect() {
+        return Mono.fromCallable(() -> {
+            PeerConnector peerConnector = PeerConnector.connect(peer.getName(), connIdGenerator.incrementAndGet());
+            peer.accept(peerConnector);
+            return peerConnector.forClient();
+        });
     }
 
     /**

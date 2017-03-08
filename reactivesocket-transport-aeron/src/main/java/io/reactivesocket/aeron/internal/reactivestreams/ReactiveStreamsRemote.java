@@ -15,8 +15,9 @@
  */
 package io.reactivesocket.aeron.internal.reactivestreams;
 
-import io.reactivesocket.reactivestreams.extensions.Px;
 import org.reactivestreams.Publisher;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 import java.net.SocketAddress;
 import java.util.concurrent.TimeUnit;
@@ -27,34 +28,14 @@ import java.util.function.Function;
  * Interfaces to define a ReactiveStream over a remote channel
  */
 public interface ReactiveStreamsRemote {
-    interface In<T> extends Px<T> {
-        static <T> In<T> from(Publisher<T> source) {
-            if (source instanceof In) {
-                return (In<T>) source;
-            } else {
-                return source::subscribe;
-            }
-        }
-    }
-
-    interface Out<T> extends Px<T> {
-        static <T> Out<T> from(Publisher<T> source) {
-            if (source instanceof Out) {
-                return (Out<T>) source;
-            } else {
-                return source::subscribe;
-            }
-        }
-    }
-
     interface Channel<T> {
-        Publisher<Void> send(ReactiveStreamsRemote.In<? extends T> in);
+        Mono<Void> send(Flux<? extends T> in);
 
-        default Publisher<Void> send(T t) {
-            return send(ReactiveStreamsRemote.In.from(Px.just(t)));
+        default Mono<Void> send(T t) {
+            return send(Flux.just(t));
         }
 
-        ReactiveStreamsRemote.Out<? extends T> receive();
+        Flux<? extends T> receive();
         boolean isActive();
     }
 

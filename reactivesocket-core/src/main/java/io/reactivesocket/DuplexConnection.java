@@ -17,7 +17,8 @@ package io.reactivesocket;
 
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
-import io.reactivesocket.reactivestreams.extensions.Px;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 import java.nio.channels.ClosedChannelException;
 
@@ -39,7 +40,7 @@ public interface DuplexConnection extends Availability {
      * @return {@code Publisher} that completes when all the frames are written on the connection successfully and
      * errors when it fails.
      */
-    Publisher<Void> send(Publisher<Frame> frame);
+    Mono<Void> send(Publisher<Frame> frame);
 
     /**
      * Sends a single {@code Frame} on this connection and returns the {@code Publisher} representing the result
@@ -50,8 +51,8 @@ public interface DuplexConnection extends Availability {
      * @return {@code Publisher} that completes when the frame is written on the connection successfully and errors
      * when it fails.
      */
-    default Publisher<Void> sendOne(Frame frame) {
-        return send(Px.just(frame));
+    default Mono<Void> sendOne(Frame frame) {
+        return send(Mono.just(frame));
     }
 
     /**
@@ -75,7 +76,7 @@ public interface DuplexConnection extends Availability {
      *
      * @return Stream of all {@code Frame}s received.
      */
-    Publisher<Frame> receive();
+    Flux<Frame> receive();
 
     /**
      * Close this {@code DuplexConnection} upon subscribing to the returned {@code Publisher}
@@ -84,12 +85,12 @@ public interface DuplexConnection extends Availability {
      *
      * @return A {@code Publisher} that completes when this {@code DuplexConnection} close is complete.
      */
-    Publisher<Void> close();
+    Mono<Void> close();
 
     /**
      * Returns a {@code Publisher} that completes when this {@code DuplexConnection} is closed.
      *
      * @return A {@code Publisher} that completes when this {@code DuplexConnection} close is complete.
      */
-    Publisher<Void> onClose();
+    Mono<Void> onClose();
 }

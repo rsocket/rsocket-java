@@ -19,11 +19,9 @@ package io.reactivesocket.aeron.internal.reactivestreams;
 import io.reactivesocket.aeron.internal.AeronWrapper;
 import io.reactivesocket.aeron.internal.DefaultAeronWrapper;
 import io.reactivesocket.aeron.internal.SingleThreadedEventLoop;
-import io.reactivesocket.reactivestreams.extensions.Px;
-import io.reactivex.Flowable;
-import io.reactivex.Single;
 import org.HdrHistogram.Recorder;
 import org.agrona.concurrent.UnsafeBuffer;
+import reactor.core.publisher.Flux;
 
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -57,11 +55,11 @@ public final class AeronChannelPing {
             config =
             AeronClientChannelConnector.AeronClientConfig.create(receiveAddress ,sendAddress, 1, 2, eventLoop);
 
-        AeronChannel channel = Single.fromPublisher(connector.apply(config)).blockingGet();
+        AeronChannel channel = connector.apply(config).block();
 
         AtomicLong lastUpdate = new AtomicLong(System.nanoTime());
-        Px.from(channel
-            .receive())
+        channel
+            .receive()
             .doOnNext(b -> {
                 synchronized (wrapper) {
                     int anInt = b.getInt(0);
@@ -76,14 +74,14 @@ public final class AeronChannelPing {
             .subscribe();
 
         byte[] b = new byte[1024];
-        Flowable.range(0, count)
+        Flux.range(0, count)
                 .flatMap(i -> {
 
                     UnsafeBuffer buffer = new UnsafeBuffer(b);
                     buffer.putInt(0, i);
-                    return channel.send(ReactiveStreamsRemote.In.from(Px.just(buffer)));
+                    return channel.send(buffer);
                 }, 8)
                 .last(null)
-                .blockingGet();
+                .block();
     }
 }

@@ -18,24 +18,23 @@ package io.reactivesocket.test;
 
 import io.reactivesocket.AbstractReactiveSocket;
 import io.reactivesocket.Payload;
-import io.reactivex.Flowable;
-import org.reactivestreams.Publisher;
-import org.reactivestreams.Subscriber;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 public class TestReactiveSocket extends AbstractReactiveSocket {
 
     @Override
-    public Publisher<Payload> requestResponse(Payload payload) {
-        return Flowable.just(TestUtil.utf8EncodedPayload("hello world", "metadata"));
+    public Mono<Payload> requestResponse(Payload payload) {
+        return Mono.just(TestUtil.utf8EncodedPayload("hello world", "metadata"));
     }
 
     @Override
-    public Publisher<Payload> requestStream(Payload payload) {
-        return Flowable.fromPublisher(requestResponse(payload)).repeat(10);
+    public Flux<Payload> requestStream(Payload payload) {
+        return requestResponse(payload).repeat(10);
     }
 
     @Override
-    public Publisher<Void> fireAndForget(Payload payload) {
-        return Subscriber::onComplete;
+    public Mono<Void> fireAndForget(Payload payload) {
+        return Mono.empty();
     }
 }
