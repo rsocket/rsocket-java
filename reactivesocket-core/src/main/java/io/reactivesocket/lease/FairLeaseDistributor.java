@@ -18,11 +18,9 @@ package io.reactivesocket.lease;
 
 import io.reactivesocket.Frame;
 import io.reactivesocket.ReactiveSocket;
-import io.reactivesocket.reactivestreams.extensions.Px;
-import io.reactivesocket.reactivestreams.extensions.internal.Cancellable;
-import io.reactivesocket.reactivestreams.extensions.internal.CancellableImpl;
-import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscription;
+import reactor.core.Disposable;
+import reactor.core.publisher.Flux;
 
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.function.Consumer;
@@ -39,11 +37,11 @@ public final class FairLeaseDistributor implements DefaultLeaseEnforcingSocket.L
     private volatile boolean startTicks;
     private final IntSupplier capacitySupplier;
     private final int leaseTTLMillis;
-    private final Publisher<Long> leaseDistributionTicks;
+    private final Flux<Long> leaseDistributionTicks;
     private final boolean redistributeOnConnect;
 
     public FairLeaseDistributor(IntSupplier capacitySupplier, int leaseTTLMillis,
-                                Publisher<Long> leaseDistributionTicks, boolean redistributeOnConnect) {
+                                Flux<Long> leaseDistributionTicks, boolean redistributeOnConnect) {
         this.capacitySupplier = capacitySupplier;
         /*
          * If lease TTL is exactly the same as the period of replenishment, then there would be a time period when new
@@ -59,7 +57,7 @@ public final class FairLeaseDistributor implements DefaultLeaseEnforcingSocket.L
     }
 
     public FairLeaseDistributor(IntSupplier capacitySupplier, int leaseTTLMillis,
-                                Publisher<Long> leaseDistributionTicks) {
+                                Flux<Long> leaseDistributionTicks) {
         this(capacitySupplier, leaseTTLMillis, leaseDistributionTicks, true);
     }
 
@@ -80,7 +78,7 @@ public final class FairLeaseDistributor implements DefaultLeaseEnforcingSocket.L
      * @return A handle to cancel this registration, when the socket is closed.
      */
     @Override
-    public Cancellable registerSocket(Consumer<Lease> leaseConsumer) {
+    public Disposable registerSocket(Consumer<Lease> leaseConsumer) {
         activeRecipients.add(leaseConsumer);
         boolean _started;
         synchronized (this) {
@@ -99,12 +97,7 @@ public final class FairLeaseDistributor implements DefaultLeaseEnforcingSocket.L
             distribute(capacitySupplier.getAsInt());
         }
 
-        return new CancellableImpl() {
-            @Override
-            protected void onCancel() {
-                activeRecipients.remove(leaseConsumer);
-            }
-        };
+        return () -> activeRecipients.remove(leaseConsumer);
     }
 
     private void distribute(int permits) {
@@ -130,12 +123,11 @@ public final class FairLeaseDistributor implements DefaultLeaseEnforcingSocket.L
     }
 
     private void startTicks() {
-        Px.from(leaseDistributionTicks)
+        leaseDistributionTicks
           .doOnSubscribe(subscription -> ticksSubscription = subscription)
           .doOnNext(aLong -> {
               distribute(capacitySupplier.getAsInt());
           })
-          .ignore()
           .subscribe();
     }
 }

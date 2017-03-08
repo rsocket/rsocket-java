@@ -22,10 +22,8 @@ import io.reactivesocket.client.SetupProvider;
 import io.reactivesocket.lease.DisabledLeaseAcceptingSocket;
 import io.reactivesocket.lease.LeaseEnforcingSocket;
 import io.reactivesocket.perfutil.TestDuplexConnection;
-import io.reactivesocket.reactivestreams.extensions.Px;
 import io.reactivesocket.server.ReactiveSocketServer;
 import io.reactivesocket.transport.TransportServer;
-import io.reactivex.processors.PublishProcessor;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Mode;
@@ -37,6 +35,9 @@ import org.openjdk.jmh.infra.Blackhole;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
+import reactor.core.publisher.DirectProcessor;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
@@ -111,8 +112,8 @@ public class ReactiveSocketPerf {
         };
 
 
-        static final PublishProcessor<Frame> clientReceive = PublishProcessor.create();
-        static final PublishProcessor<Frame> serverReceive = PublishProcessor.create();
+        static final DirectProcessor<Frame> clientReceive = DirectProcessor.create();
+        static final DirectProcessor<Frame> serverReceive = DirectProcessor.create();
 
         static final TestDuplexConnection clientConnection = new TestDuplexConnection(serverReceive, clientReceive);
         static final TestDuplexConnection serverConnection = new TestDuplexConnection(clientReceive, serverReceive);
@@ -120,7 +121,7 @@ public class ReactiveSocketPerf {
         static final Object server = ReactiveSocketServer.create(new TransportServer() {
             @Override
             public StartedServer start(ConnectionAcceptor acceptor) {
-                Px.from(acceptor.apply(serverConnection)).subscribe();
+                acceptor.apply(serverConnection).subscribe();
                 return new StartedServer() {
                     @Override
                     public SocketAddress getServerAddress() {
@@ -155,43 +156,38 @@ public class ReactiveSocketPerf {
 
                 return new DisabledLeaseAcceptingSocket(new ReactiveSocket() {
                     @Override
-                    public Publisher<Void> fireAndForget(Payload payload) {
-                        return Px.empty();
+                    public Mono<Void> fireAndForget(Payload payload) {
+                        return Mono.empty();
                     }
 
                     @Override
-                    public Publisher<Payload> requestResponse(Payload payload) {
-                        return Px.just(HELLO_PAYLOAD);
+                    public Mono<Payload> requestResponse(Payload payload) {
+                        return Mono.just(HELLO_PAYLOAD);
                     }
 
                     @Override
-                    public Publisher<Payload> requestStream(Payload payload) {
-                        return null;
+                    public Flux<Payload> requestStream(Payload payload) {
+                        return Flux.empty();
                     }
 
                     @Override
-                    public Publisher<Payload> requestSubscription(Payload payload) {
-                        return null;
+                    public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
+                        return Flux.empty();
                     }
 
                     @Override
-                    public Publisher<Payload> requestChannel(Publisher<Payload> payloads) {
-                        return null;
+                    public Mono<Void> metadataPush(Payload payload) {
+                        return Mono.empty();
                     }
 
                     @Override
-                    public Publisher<Void> metadataPush(Payload payload) {
-                        return null;
+                    public Mono<Void> close() {
+                        return Mono.empty();
                     }
 
                     @Override
-                    public Publisher<Void> close() {
-                        return null;
-                    }
-
-                    @Override
-                    public Publisher<Void> onClose() {
-                        return null;
+                    public Mono<Void> onClose() {
+                        return Mono.empty();
                     }
                 });
             }
@@ -226,13 +222,12 @@ public class ReactiveSocketPerf {
             };
 
             SetupProvider setupProvider = SetupProvider.keepAlive(KeepAliveProvider.never()).disableLease();
-            ReactiveSocketClient reactiveSocketClient = ReactiveSocketClient.create(() -> Px.just(clientConnection), setupProvider);
+            ReactiveSocketClient reactiveSocketClient = ReactiveSocketClient.create(() -> Mono.just(clientConnection), setupProvider);
 
             CountDownLatch latch = new CountDownLatch(1);
-            Px
-                .from(reactiveSocketClient.connect())
+            reactiveSocketClient.connect()
                 .doOnNext(r -> this.client = r)
-                .doOnComplete(latch::countDown)
+                .doFinally(signalType -> latch.countDown())
                 .subscribe();
 
             try {

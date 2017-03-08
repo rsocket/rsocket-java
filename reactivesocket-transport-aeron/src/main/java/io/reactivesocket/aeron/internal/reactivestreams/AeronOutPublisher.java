@@ -26,6 +26,7 @@ import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import reactor.core.publisher.Flux;
 
 import java.nio.ByteBuffer;
 import java.util.Objects;
@@ -34,7 +35,7 @@ import java.util.function.IntSupplier;
 /**
  *
  */
-public class AeronOutPublisher implements ReactiveStreamsRemote.Out<DirectBuffer> {
+public class AeronOutPublisher extends Flux<DirectBuffer> {
     private static final Logger logger = LoggerFactory.getLogger(AeronOutPublisher.class);
     private final io.aeron.Subscription source;
     private final EventLoop eventLoop;

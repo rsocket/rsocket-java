@@ -20,8 +20,8 @@ import io.reactivesocket.aeron.MediaDriverHolder;
 import io.reactivesocket.aeron.internal.AeronWrapper;
 import io.reactivesocket.aeron.internal.DefaultAeronWrapper;
 import io.reactivesocket.aeron.internal.SingleThreadedEventLoop;
-import io.reactivesocket.reactivestreams.extensions.Px;
 import org.agrona.DirectBuffer;
+import reactor.core.publisher.Flux;
 
 /**
  *
@@ -36,13 +36,12 @@ public class AeronChannelPongServer {
         AeronChannelServer.AeronChannelConsumer consumer = new AeronChannelServer.AeronChannelConsumer() {
             @Override
             public void accept(AeronChannel aeronChannel) {
-                Px<? extends DirectBuffer> receive =
+                Flux<? extends DirectBuffer> receive =
                     aeronChannel
                         .receive();
                         //.doOnNext(b -> System.out.println("server got => " + b.getInt(0)));
 
-                Px
-                    .from(aeronChannel.send(ReactiveStreamsRemote.In.from(receive)))
+                aeronChannel.send(receive)
                     .doOnError(throwable -> throwable.printStackTrace())
                     .subscribe();
             }

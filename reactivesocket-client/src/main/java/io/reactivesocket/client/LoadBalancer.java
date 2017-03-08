@@ -26,10 +26,7 @@ import io.reactivesocket.exceptions.TimeoutException;
 import io.reactivesocket.exceptions.TransportException;
 import io.reactivesocket.internal.DisabledEventPublisher;
 import io.reactivesocket.internal.EventPublisher;
-import io.reactivesocket.reactivestreams.extensions.Px;
-import io.reactivesocket.reactivestreams.extensions.internal.EmptySubject;
-import io.reactivesocket.reactivestreams.extensions.internal.ValidatingSubscription;
-import io.reactivesocket.reactivestreams.extensions.internal.subscribers.Subscribers;
+import io.reactivesocket.internal.ValidatingSubscription;
 import io.reactivesocket.stat.Ewma;
 import io.reactivesocket.stat.FrugalQuantile;
 import io.reactivesocket.stat.Median;
@@ -41,6 +38,7 @@ import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import reactor.core.publisher.*;
 
 import java.nio.channels.ClosedChannelException;
 import java.util.ArrayList;
@@ -93,13 +91,14 @@ public class LoadBalancer implements ReactiveSocket {
     private final ActiveList<WeightedSocket> activeSockets;
     private final ActiveList<ReactiveSocketClient> activeFactories;
     private final FactoriesRefresher factoryRefresher;
+    private final Mono<ReactiveSocket> selectSocket;
 
     private final Ewma pendings;
     private volatile int targetAperture;
     private long lastApertureRefresh;
     private long refreshPeriod;
     private volatile long lastRefresh;
-    private final EmptySubject closeSubject = new EmptySubject();
+    private final MonoProcessor<Void> closeSubject = MonoProcessor.create();
 
     private final LoadBalancingClientListener eventListener;
     private final EventPublisher<ClientEventListener> eventPublisher;
@@ -152,6 +151,7 @@ public class LoadBalancer implements ReactiveSocket {
         this.activeFactories = new ActiveList<>(eventListener, true);
         this.pendingSockets = 0;
         this.factoryRefresher = new FactoriesRefresher();
+        this.selectSocket = Mono.fromCallable(this::select);
 
         this.minPendings = minPendings;
         this.maxPendings = maxPendings;
@@ -193,28 +193,28 @@ public class LoadBalancer implements ReactiveSocket {
     }
 
     @Override
-    public Publisher<Void> fireAndForget(Payload payload) {
-        return subscriber -> select().fireAndForget(payload).subscribe(subscriber);
+    public Mono<Void> fireAndForget(Payload payload) {
+        return selectSocket.then(socket -> socket.fireAndForget(payload));
     }
 
     @Override
-    public Publisher<Payload> requestResponse(Payload payload) {
-        return subscriber -> select().requestResponse(payload).subscribe(subscriber);
+    public Mono<Payload> requestResponse(Payload payload) {
+        return selectSocket.then(socket -> socket.requestResponse(payload));
     }
 
     @Override
-    public Publisher<Payload> requestStream(Payload payload) {
-        return subscriber -> select().requestStream(payload).subscribe(subscriber);
+    public Flux<Payload> requestStream(Payload payload) {
+        return selectSocket.flatMap(socket -> socket.requestStream(payload));
     }
 
     @Override
-    public Publisher<Void> metadataPush(Payload payload) {
-        return subscriber -> select().metadataPush(payload).subscribe(subscriber);
+    public Mono<Void> metadataPush(Payload payload) {
+        return selectSocket.then(socket -> socket.metadataPush(payload));
     }
 
     @Override
-    public Publisher<Payload> requestChannel(Publisher<Payload> payloads) {
-        return subscriber -> select().requestChannel(payloads).subscribe(subscriber);
+    public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
+        return selectSocket.flatMap(socket -> socket.requestChannel(payloads));
     }
 
     private synchronized void addSockets(int numberOfNewSocket) {
@@ -393,7 +393,7 @@ public class LoadBalancer implements ReactiveSocket {
             logger.debug("Removing socket: -> " + socket);
             activeSockets.remove(socket);
             activeFactories.add(socket.getFactory());
-            socket.close().subscribe(Subscribers.empty());
+            socket.close().subscribe();
             if (refresh) {
                 refreshSockets();
             }
@@ -492,8 +492,8 @@ public class LoadBalancer implements ReactiveSocket {
     }
 
     @Override
-    public Publisher<Void> close() {
-        return subscriber -> {
+    public Mono<Void> close() {
+        return MonoSource.wrap(subscriber -> {
             subscriber.onSubscribe(ValidatingSubscription.empty(subscriber));
 
             synchronized (this) {
@@ -527,11 +527,11 @@ public class LoadBalancer implements ReactiveSocket {
                     });
                 });
             }
-        };
+        });
     }
 
     @Override
-    public Publisher<Void> onClose() {
+    public Mono<Void> onClose() {
         return closeSubject;
     }
 
@@ -691,31 +691,31 @@ public class LoadBalancer implements ReactiveSocket {
         private static final NoAvailableReactiveSocketException NO_AVAILABLE_RS_EXCEPTION =
             new NoAvailableReactiveSocketException();
 
-        private static final Publisher<Void> errorVoid = Px.error(NO_AVAILABLE_RS_EXCEPTION);
-        private static final Publisher<Payload> errorPayload = Px.error(NO_AVAILABLE_RS_EXCEPTION);
+        private static final Mono<Void> errorVoid = Mono.error(NO_AVAILABLE_RS_EXCEPTION);
+        private static final Mono<Payload> errorPayload = Mono.error(NO_AVAILABLE_RS_EXCEPTION);
 
         @Override
-        public Publisher<Void> fireAndForget(Payload payload) {
+        public Mono<Void> fireAndForget(Payload payload) {
             return errorVoid;
         }
 
         @Override
-        public Publisher<Payload> requestResponse(Payload payload) {
+        public Mono<Payload> requestResponse(Payload payload) {
             return errorPayload;
         }
 
         @Override
-        public Publisher<Payload> requestStream(Payload payload) {
-            return errorPayload;
+        public Flux<Payload> requestStream(Payload payload) {
+            return errorPayload.flux();
         }
 
         @Override
-        public Publisher<Payload> requestChannel(Publisher<Payload> payloads) {
-            return errorPayload;
+        public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
+            return errorPayload.flux();
         }
 
         @Override
-        public Publisher<Void> metadataPush(Payload payload) {
+        public Mono<Void> metadataPush(Payload payload) {
             return errorVoid;
         }
 
@@ -725,13 +725,13 @@ public class LoadBalancer implements ReactiveSocket {
         }
 
         @Override
-        public Publisher<Void> close() {
-            return Px.empty();
+        public Mono<Void> close() {
+            return Mono.empty();
         }
 
         @Override
-        public Publisher<Void> onClose() {
-            return Px.empty();
+        public Mono<Void> onClose() {
+            return Mono.empty();
         }
     }
 
@@ -743,7 +743,6 @@ public class LoadBalancer implements ReactiveSocket {
 
         private static final double STARTUP_PENALTY = Long.MAX_VALUE >> 12;
 
-        private final ReactiveSocket child;
         private ReactiveSocketClient factory;
         private final Quantile lowerQuantile;
         private final Quantile higherQuantile;
@@ -767,7 +766,6 @@ public class LoadBalancer implements ReactiveSocket {
             int inactivityFactor
         ) {
             super(child);
-            this.child = child;
             this.factory = factory;
             this.lowerQuantile = lowerQuantile;
             this.higherQuantile = higherQuantile;
@@ -780,7 +778,9 @@ public class LoadBalancer implements ReactiveSocket {
             this.median = new Median();
             this.interArrivalTime = new Ewma(1, TimeUnit.MINUTES, DEFAULT_INITIAL_INTER_ARRIVAL_TIME);
             this.pendingStreams = new AtomicLong();
-            child.onClose().subscribe(Subscribers.doOnTerminate(() -> removeSocket(this, true)));
+            child.onClose()
+                .doFinally(signalType -> removeSocket(this, true))
+                .subscribe();
         }
 
         WeightedSocket(
@@ -793,33 +793,33 @@ public class LoadBalancer implements ReactiveSocket {
         }
 
         @Override
-        public Publisher<Payload> requestResponse(Payload payload) {
-            return subscriber ->
-                child.requestResponse(payload).subscribe(new LatencySubscriber<>(subscriber, this));
+        public Mono<Payload> requestResponse(Payload payload) {
+            return MonoSource.wrap(subscriber ->
+                source.requestResponse(payload).subscribe(new LatencySubscriber<>(subscriber, this)));
         }
 
         @Override
-        public Publisher<Payload> requestStream(Payload payload) {
-            return subscriber ->
-                child.requestStream(payload).subscribe(new CountingSubscriber<>(subscriber, this));
+        public Flux<Payload> requestStream(Payload payload) {
+            return FluxSource.wrap(subscriber ->
+                source.requestStream(payload).subscribe(new CountingSubscriber<>(subscriber, this)));
         }
 
         @Override
-        public Publisher<Void> fireAndForget(Payload payload) {
-            return subscriber ->
-                child.fireAndForget(payload).subscribe(new CountingSubscriber<>(subscriber, this));
+        public Mono<Void> fireAndForget(Payload payload) {
+            return MonoSource.wrap(subscriber ->
+                source.fireAndForget(payload).subscribe(new CountingSubscriber<>(subscriber, this)));
         }
 
         @Override
-        public Publisher<Void> metadataPush(Payload payload) {
-            return subscriber ->
-                child.metadataPush(payload).subscribe(new CountingSubscriber<>(subscriber, this));
+        public Mono<Void> metadataPush(Payload payload) {
+            return MonoSource.wrap(subscriber ->
+                source.metadataPush(payload).subscribe(new CountingSubscriber<>(subscriber, this)));
         }
 
         @Override
-        public Publisher<Payload> requestChannel(Publisher<Payload> payloads) {
-            return subscriber ->
-                child.requestChannel(payloads).subscribe(new CountingSubscriber<>(subscriber, this));
+        public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
+            return FluxSource.wrap(subscriber ->
+                source.requestChannel(payloads).subscribe(new CountingSubscriber<>(subscriber, this)));
         }
 
         ReactiveSocketClient getFactory() {
@@ -893,8 +893,8 @@ public class LoadBalancer implements ReactiveSocket {
         }
 
         @Override
-        public Publisher<Void> close() {
-            return child.close();
+        public Mono<Void> close() {
+            return source.close();
         }
 
         @Override
@@ -907,7 +907,7 @@ public class LoadBalancer implements ReactiveSocket {
                 + " duration/pending=" + (pending == 0 ? 0 : (double)duration / pending)
                 + " pending=" + pending
                 + " availability= " + availability()
-                + ")->" + child;
+                + ")->" + source;
         }
 
         @Override

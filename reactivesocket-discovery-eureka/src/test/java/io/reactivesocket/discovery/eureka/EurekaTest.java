@@ -22,7 +22,6 @@ import com.netflix.appinfo.InstanceInfo.InstanceStatus;
 import com.netflix.discovery.CacheRefreshedEvent;
 import com.netflix.discovery.EurekaClient;
 import com.netflix.discovery.EurekaEventListener;
-import io.reactivex.Flowable;
 import io.reactivex.subscribers.TestSubscriber;
 import org.hamcrest.MatcherAssert;
 import org.junit.Test;
@@ -31,6 +30,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.runners.MockitoJUnitRunner;
+import org.reactivestreams.Publisher;
 
 import java.net.SocketAddress;
 import java.util.ArrayList;
@@ -55,7 +55,7 @@ public class EurekaTest {
 
         final ArgumentCaptor<EurekaEventListener> listenerCaptor = ArgumentCaptor.forClass(EurekaEventListener.class);
 
-        Flowable<Collection<SocketAddress>> src = Flowable.fromPublisher(eureka.subscribeToAsg("vip-1", false));
+        Publisher<Collection<SocketAddress>> src = eureka.subscribeToAsg("vip-1", false);
         TestSubscriber<Collection<SocketAddress>> testSubscriber = new TestSubscriber<>();
 
         src.subscribe(testSubscriber);

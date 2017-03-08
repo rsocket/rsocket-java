@@ -23,13 +23,13 @@ import io.reactivesocket.exceptions.ApplicationException;
 import io.reactivesocket.exceptions.CancelException;
 import io.reactivesocket.test.util.TestDuplexConnection;
 import io.reactivesocket.util.PayloadImpl;
-import io.reactivex.processors.UnicastProcessor;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExternalResource;
 import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
 import io.reactivex.subscribers.TestSubscriber;
+import reactor.core.publisher.UnicastProcessor;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.empty;

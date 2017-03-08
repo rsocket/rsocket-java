@@ -23,14 +23,16 @@ import io.reactivesocket.lease.DisabledLeaseAcceptingSocket;
 import io.reactivesocket.lease.LeaseEnforcingSocket;
 import io.reactivesocket.server.ReactiveSocketServer;
 import io.reactivesocket.transport.TransportServer.StartedServer;
-import io.reactivesocket.transport.tcp.client.TcpTransportClient;
-import io.reactivesocket.transport.tcp.server.TcpTransportServer;
+import io.reactivesocket.transport.netty.client.TcpTransportClient;
+import io.reactivesocket.transport.netty.server.TcpTransportServer;
 import io.reactivesocket.util.PayloadImpl;
-import io.reactivex.Flowable;
-import org.reactivestreams.Publisher;
+import reactor.core.publisher.Flux;
+import reactor.ipc.netty.tcp.TcpClient;
+import reactor.ipc.netty.tcp.TcpServer;
 
+import java.net.InetSocketAddress;
 import java.net.SocketAddress;
-import java.util.concurrent.TimeUnit;
+import java.time.Duration;
 
 import static io.reactivesocket.client.KeepAliveProvider.*;
 import static io.reactivesocket.client.SetupProvider.*;
@@ -38,32 +40,33 @@ import static io.reactivesocket.client.SetupProvider.*;
 public final class DuplexClient {
 
     public static void main(String[] args) {
-        StartedServer server = ReactiveSocketServer.create(TcpTransportServer.create())
+        StartedServer server = ReactiveSocketServer.create(TcpTransportServer.create(TcpServer.create()))
                                                   .start((setupPayload, reactiveSocket) -> {
-                                                      Flowable.fromPublisher(reactiveSocket.requestStream(new PayloadImpl("Hello-Bidi")))
+                                                      reactiveSocket.requestStream(new PayloadImpl("Hello-Bidi"))
                                                               .map(Payload::getData)
                                                               .map(ByteBufferUtil::toUtf8String)
-                                                              .forEach(System.out::println);
+                                                              .log()
+                                                              .subscribe();
                                                       return new DisabledLeaseAcceptingSocket(new AbstractReactiveSocket() { });
                                                   });
 
         SocketAddress address = server.getServerAddress();
 
-        ReactiveSocketClient rsclient = ReactiveSocketClient.createDuplex(TcpTransportClient.create(address),
-                                                                          new SocketAcceptor() {
+        ReactiveSocketClient rsclient = ReactiveSocketClient.createDuplex(TcpTransportClient.create(TcpClient.create(options ->
+                options.connect((InetSocketAddress)address))), new SocketAcceptor() {
             @Override
             public LeaseEnforcingSocket accept(ReactiveSocket reactiveSocket) {
                 return new DisabledLeaseAcceptingSocket(new AbstractReactiveSocket() {
                     @Override
-                    public Publisher<Payload> requestStream(Payload payload) {
-                        return Flowable.interval(0, 1, TimeUnit.SECONDS).map(aLong -> new PayloadImpl("Bi-di Response => " + aLong));
+                    public Flux<Payload> requestStream(Payload payload) {
+                        return Flux.interval(Duration.ofSeconds(1)).map(aLong -> new PayloadImpl("Bi-di Response => " + aLong));
                     }
                 });
             }
         }, keepAlive(never()).disableLease());
 
-        ReactiveSocket socket = Flowable.fromPublisher(rsclient.connect()).blockingFirst();
+        ReactiveSocket socket = rsclient.connect().block();
 
-        Flowable.fromPublisher(socket.onClose()).ignoreElements().blockingAwait();
+        socket.onClose().block();
     }
 }

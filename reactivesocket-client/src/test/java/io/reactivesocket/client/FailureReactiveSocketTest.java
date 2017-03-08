@@ -23,6 +23,7 @@ import org.junit.Test;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
+import reactor.core.publisher.Mono;
 
 import java.nio.ByteBuffer;
 import java.util.concurrent.CountDownLatch;
@@ -116,11 +117,8 @@ public class FailureReactiveSocketTest {
         });
         ReactiveSocketClient factory = new AbstractReactiveSocketClient() {
             @Override
-            public Publisher<ReactiveSocket> connect() {
-                return subscriber -> {
-                    subscriber.onNext(socket);
-                    subscriber.onComplete();
-                };
+            public Mono<ReactiveSocket> connect() {
+                return Mono.just(socket);
             }
 
             @Override

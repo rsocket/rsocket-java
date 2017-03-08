@@ -25,18 +25,20 @@ import io.reactivesocket.client.SetupProvider;
 import io.reactivesocket.lease.DisabledLeaseAcceptingSocket;
 import io.reactivesocket.server.ReactiveSocketServer;
 import io.reactivesocket.transport.TransportServer.StartedServer;
-import io.reactivesocket.transport.tcp.client.TcpTransportClient;
-import io.reactivesocket.transport.tcp.server.TcpTransportServer;
+import io.reactivesocket.transport.netty.client.TcpTransportClient;
+import io.reactivesocket.transport.netty.server.TcpTransportServer;
 import io.reactivesocket.util.PayloadImpl;
-import io.reactivex.Flowable;
-import io.reactivex.Single;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExternalResource;
 import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
-import org.reactivestreams.Publisher;
+import reactor.core.publisher.Mono;
+import reactor.ipc.netty.tcp.TcpClient;
+import reactor.ipc.netty.tcp.TcpServer;
 
+import java.net.InetSocketAddress;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -51,16 +53,15 @@ public class IntegrationTest {
 
     @Test(timeout = 2_000L)
     public void testRequest() {
-        Flowable.fromPublisher(rule.client.requestResponse(new PayloadImpl("REQUEST", "META")))
-                .blockingFirst();
+        rule.client.requestResponse(new PayloadImpl("REQUEST", "META")).block();
         assertThat("Server did not see the request.", rule.requestCount.get(), is(1));
     }
 
-    @Test(timeout = 2_000L)
+    @Test//(timeout = 2_000L)
     public void testClose() throws ExecutionException, InterruptedException, TimeoutException {
-        Flowable.fromPublisher(rule.client.close()).ignoreElements().blockingGet();
-        Thread.sleep(100);
-        assertThat("Server did not disconnect.", rule.disconnectionCounter.get(), is(1));
+
+        rule.client.close().block();
+        rule.disconnectionCounter.await();
     }
 
     public static class ClientServerRule extends ExternalResource {
@@ -68,7 +69,7 @@ public class IntegrationTest {
         private StartedServer server;
         private ReactiveSocket client;
         private AtomicInteger requestCount;
-        private AtomicInteger disconnectionCounter;
+        private CountDownLatch disconnectionCounter;
 
         @Override
         public Statement apply(final Statement base, Description description) {
@@ -76,26 +77,27 @@ public class IntegrationTest {
                 @Override
                 public void evaluate() throws Throwable {
                     requestCount = new AtomicInteger();
-                    disconnectionCounter = new AtomicInteger();
-                    server = ReactiveSocketServer.create(TcpTransportServer.create())
+                    disconnectionCounter = new CountDownLatch(1);
+                    server = ReactiveSocketServer.create(TcpTransportServer.create(TcpServer.create()))
                                         .start((setup, sendingSocket) -> {
-                                            Flowable.fromPublisher(sendingSocket.onClose())
-                                                .doOnTerminate(() -> disconnectionCounter.incrementAndGet())
+                                            sendingSocket.onClose()
+                                                .doFinally(signalType -> disconnectionCounter.countDown())
                                                 .subscribe();
 
                                             return new DisabledLeaseAcceptingSocket(new AbstractReactiveSocket() {
                                                 @Override
-                                                public Publisher<Payload> requestResponse(Payload payload) {
-                                                    return Flowable.<Payload>just(new PayloadImpl("RESPONSE", "METADATA"))
+                                                public Mono<Payload> requestResponse(Payload payload) {
+                                                    return Mono.<Payload>just(new PayloadImpl("RESPONSE", "METADATA"))
                                                             .doOnSubscribe(s -> requestCount.incrementAndGet());
                                                 }
                                             });
                                         });
-                    client = Single.fromPublisher(ReactiveSocketClient.create(TcpTransportClient.create(server.getServerAddress()),
+                    client = ReactiveSocketClient.create(TcpTransportClient.create(TcpClient.create(options ->
+                                    options.connect((InetSocketAddress)server.getServerAddress()))),
                                                                      SetupProvider.keepAlive(KeepAliveProvider.never())
                                                                                 .disableLease())
-                                                             .connect())
-                                   .blockingGet();
+                                                             .connect()
+                                   .block();
                     base.evaluate();
                 }
             };

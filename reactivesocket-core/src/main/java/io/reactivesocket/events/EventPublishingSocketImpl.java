@@ -15,9 +15,9 @@ package io.reactivesocket.events;
 
 import io.reactivesocket.events.EventListener.RequestType;
 import io.reactivesocket.internal.EventPublisher;
-import io.reactivesocket.reactivestreams.extensions.internal.publishers.InstrumentingPublisher;
 import io.reactivesocket.util.Clock;
-import org.reactivestreams.Publisher;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 import java.util.concurrent.TimeUnit;
 
@@ -32,22 +32,39 @@ public class EventPublishingSocketImpl implements EventPublishingSocket {
     }
 
     @Override
-    public <T> Publisher<T> decorateReceive(int streamId, Publisher<T> stream, RequestType requestType) {
-        final long startTime = Clock.now();
-        return new InstrumentingPublisher<>(stream,
-                                            subscriber -> new ReceiveInterceptor(streamId, requestType, startTime),
-                                            ReceiveInterceptor::receiveFailed, ReceiveInterceptor::receiveComplete,
-                                            ReceiveInterceptor::receiveCancelled, null);
+    public <T> Mono<T> decorateReceive(int streamId, Mono<T> stream, RequestType requestType) {
+        return Mono.using(
+            () -> new ReceiveInterceptor(streamId, requestType, Clock.now()),
+            receiveInterceptor -> stream
+                .doOnSuccess(t -> receiveInterceptor.receiveComplete())
+                .doOnError(receiveInterceptor::receiveFailed)
+                .doOnCancel(receiveInterceptor::receiveCancelled),
+            receiveInterceptor -> {}
+        );
     }
 
     @Override
-    public <T> Publisher<T> decorateSend(int streamId, Publisher<T> stream, long receiveStartTimeNanos,
-                                         RequestType requestType) {
-        return new InstrumentingPublisher<>(stream,
-                                            subscriber -> new SendInterceptor(streamId, requestType,
-                                                                              receiveStartTimeNanos),
-                                            SendInterceptor::sendFailed, SendInterceptor::sendComplete,
-                                            SendInterceptor::sendCancelled, null);
+    public <T> Flux<T> decorateReceive(int streamId, Flux<T> stream, RequestType requestType) {
+        return Flux.using(
+            () -> new ReceiveInterceptor(streamId, requestType, Clock.now()),
+            receiveInterceptor -> stream
+                .doOnComplete(receiveInterceptor::receiveComplete)
+                .doOnError(receiveInterceptor::receiveFailed)
+                .doOnCancel(receiveInterceptor::receiveCancelled),
+            receiveInterceptor -> {}
+        );
+    }
+
+    @Override
+    public Mono<Void> decorateSend(int streamId, Mono<Void> stream, long receiveStartTimeNanos, RequestType requestType) {
+        return Mono.using(
+            () -> new SendInterceptor(streamId, requestType, receiveStartTimeNanos),
+            sendInterceptor -> stream
+                .doOnSuccess(t -> sendInterceptor.sendComplete())
+                .doOnError(sendInterceptor::sendFailed)
+                .doOnCancel(sendInterceptor::sendCancelled),
+            sendInterceptor -> {}
+        );
     }
 
     private class ReceiveInterceptor {

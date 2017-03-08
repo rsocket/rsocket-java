@@ -17,31 +17,30 @@ import io.reactivesocket.AbstractReactiveSocket;
 import io.reactivesocket.Payload;
 import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.util.PayloadImpl;
-import io.reactivex.Flowable;
-import org.reactivestreams.Publisher;
+import reactor.core.publisher.Mono;
 
-import java.util.concurrent.Callable;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.Supplier;
 
 class StressTestHandler extends AbstractReactiveSocket {
 
-    private final Callable<Result> failureSelector;
+    private final Supplier<Result> failureSelector;
 
-    private StressTestHandler(Callable<Result> failureSelector) {
+    private StressTestHandler(Supplier<Result> failureSelector) {
         this.failureSelector = failureSelector;
     }
 
     @Override
-    public Publisher<Payload> requestResponse(Payload payload) {
-        return Flowable.defer(() -> {
-            Result result = failureSelector.call();
+    public Mono<Payload> requestResponse(Payload payload) {
+        return Mono.defer(() -> {
+            Result result = failureSelector.get();
             switch (result) {
             case Fail:
-                return Flowable.error(new Exception("SERVER EXCEPTION"));
+                return Mono.error(new Exception("SERVER EXCEPTION"));
             case DontReply:
-                return Flowable.never(); // Cause timeout
+                return Mono.never(); // Cause timeout
             default:
-                return Flowable.just(new PayloadImpl("Response"));
+                return Mono.just(new PayloadImpl("Response"));
             }
         });
     }

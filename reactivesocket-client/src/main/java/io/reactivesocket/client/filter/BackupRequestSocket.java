@@ -23,6 +23,9 @@ import io.reactivesocket.util.Clock;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+import reactor.core.publisher.MonoSource;
 
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -51,32 +54,32 @@ public class BackupRequestSocket implements ReactiveSocket {
     }
 
     @Override
-    public Publisher<Void> fireAndForget(Payload payload) {
+    public Mono<Void> fireAndForget(Payload payload) {
         return child.fireAndForget(payload);
     }
 
     @Override
-    public Publisher<Payload> requestResponse(Payload payload) {
-        return subscriber -> {
+    public Mono<Payload> requestResponse(Payload payload) {
+        return MonoSource.wrap(subscriber -> {
             Subscriber<? super Payload> oneSubscriber = new OneSubscriber<>(subscriber);
             Subscriber<? super Payload> backupRequest =
                 new FirstRequestSubscriber(oneSubscriber, () -> child.requestResponse(payload));
             child.requestResponse(payload).subscribe(backupRequest);
-        };
+        });
     }
 
     @Override
-    public Publisher<Payload> requestStream(Payload payload) {
+    public Flux<Payload> requestStream(Payload payload) {
         return child.requestStream(payload);
     }
 
     @Override
-    public Publisher<Payload> requestChannel(Publisher<Payload> payloads) {
+    public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
         return child.requestChannel(payloads);
     }
 
     @Override
-    public Publisher<Void> metadataPush(Payload payload) {
+    public Mono<Void> metadataPush(Payload payload) {
         return child.metadataPush(payload);
     }
 
@@ -86,12 +89,12 @@ public class BackupRequestSocket implements ReactiveSocket {
     }
 
     @Override
-    public Publisher<Void> close() {
+    public Mono<Void> close() {
         return child.close();
     }
 
     @Override
-    public Publisher<Void> onClose() {
+    public Mono<Void> onClose() {
         return child.onClose();
     }
 

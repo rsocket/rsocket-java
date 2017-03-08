@@ -24,12 +24,14 @@ import io.reactivesocket.frame.ByteBufferUtil;
 import io.reactivesocket.lease.DisabledLeaseAcceptingSocket;
 import io.reactivesocket.server.ReactiveSocketServer;
 import io.reactivesocket.transport.TransportServer.StartedServer;
-import io.reactivesocket.transport.tcp.client.TcpTransportClient;
-import io.reactivesocket.transport.tcp.server.TcpTransportServer;
+import io.reactivesocket.transport.netty.client.TcpTransportClient;
+import io.reactivesocket.transport.netty.server.TcpTransportServer;
 import io.reactivesocket.util.PayloadImpl;
-import io.reactivex.Flowable;
-import org.reactivestreams.Publisher;
+import reactor.core.publisher.Mono;
+import reactor.ipc.netty.tcp.TcpClient;
+import reactor.ipc.netty.tcp.TcpServer;
 
+import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 
 import static io.reactivesocket.client.KeepAliveProvider.*;
@@ -39,27 +41,28 @@ public final class HelloWorldClient {
 
     public static void main(String[] args) {
 
-        ReactiveSocketServer s = ReactiveSocketServer.create(TcpTransportServer.create());
+        ReactiveSocketServer s = ReactiveSocketServer.create(TcpTransportServer.create(TcpServer.create()));
         StartedServer server = s.start((setupPayload, reactiveSocket) -> {
             return new DisabledLeaseAcceptingSocket(new AbstractReactiveSocket() {
                 @Override
-                public Publisher<Payload> requestResponse(Payload p) {
-                    return Flowable.just(p);
+                public Mono<Payload> requestResponse(Payload p) {
+                    return Mono.just(p);
                 }
             });
         });
 
         SocketAddress address = server.getServerAddress();
-        ReactiveSocketClient client = ReactiveSocketClient.create(TcpTransportClient.create(address),
+        ReactiveSocketClient client = ReactiveSocketClient.create(TcpTransportClient.create(TcpClient.create(options ->
+                        options.connect((InetSocketAddress)address))),
                                                                   keepAlive(never()).disableLease());
-        ReactiveSocket socket = Flowable.fromPublisher(client.connect()).singleOrError().blockingGet();
+        ReactiveSocket socket = client.connect().block();
 
-        Flowable.fromPublisher(socket.requestResponse(new PayloadImpl("Hello")))
+        socket.requestResponse(new PayloadImpl("Hello"))
                 .map(payload -> payload.getData())
                 .map(ByteBufferUtil::toUtf8String)
                 .doOnNext(System.out::println)
-                .concatWith(Flowable.fromPublisher(socket.close()).cast(String.class))
+                .concatWith(socket.close().cast(String.class))
                 .ignoreElements()
-                .blockingAwait();
+                .block();
     }
 }

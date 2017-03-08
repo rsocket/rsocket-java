@@ -16,14 +16,14 @@
 
 package io.reactivesocket.client.filter;
 
+import io.reactivesocket.Payload;
 import io.reactivesocket.ReactiveSocket;
-import io.reactivesocket.reactivestreams.extensions.Px;
-import io.reactivesocket.reactivestreams.extensions.Scheduler;
-import io.reactivesocket.reactivestreams.extensions.internal.subscribers.Subscribers;
-import io.reactivesocket.util.ReactiveSocketDecorator;
+import io.reactivesocket.util.ReactiveSocketProxy;
 import org.reactivestreams.Publisher;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
-import java.util.concurrent.TimeUnit;
+import java.time.Duration;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
@@ -39,16 +39,36 @@ public final class ReactiveSockets {
      * completed after the specified {@code timeout}.
      *
      * @param timeout timeout duration.
-     * @param unit timeout duration unit.
-     * @param scheduler scheduler for timeout.
      *
      * @return Function to transform any socket into a timeout socket.
      */
-    public static Function<ReactiveSocket, ReactiveSocket> timeout(long timeout, TimeUnit unit, Scheduler scheduler) {
-        return src -> ReactiveSocketDecorator.wrap(src)
-                                             .decorateAllResponses(_timeout(timeout, unit, scheduler))
-                                             .decorateAllVoidResponses(_timeout(timeout, unit, scheduler))
-                                             .finish();
+    public static Function<ReactiveSocket, ReactiveSocket> timeout(Duration timeout) {
+        return source -> new ReactiveSocketProxy(source) {
+            @Override
+            public Mono<Void> fireAndForget(Payload payload) {
+                return source.fireAndForget(payload).timeout(timeout);
+            }
+
+            @Override
+            public Mono<Payload> requestResponse(Payload payload) {
+                return source.requestResponse(payload).timeout(timeout);
+            }
+
+            @Override
+            public Flux<Payload> requestStream(Payload payload) {
+                return source.requestStream(payload).timeout(timeout);
+            }
+
+            @Override
+            public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
+                return source.requestChannel(payloads).timeout(timeout);
+            }
+
+            @Override
+            public Mono<Void> metadataPush(Payload payload) {
+                return source.metadataPush(payload).timeout(timeout);
+            }
+        };
     }
 
     /**
@@ -59,41 +79,78 @@ public final class ReactiveSockets {
      * @return Function to transform any socket into a safe closing socket.
      */
     public static Function<ReactiveSocket, ReactiveSocket> safeClose() {
-        return src -> {
+        return source -> new ReactiveSocketProxy(source) {
             final AtomicInteger count = new AtomicInteger();
             final AtomicBoolean closed = new AtomicBoolean();
 
-            return ReactiveSocketDecorator.wrap(src)
-                                          .close(reactiveSocket ->
-                                              Px.defer(() -> {
-                                                  if (closed.compareAndSet(false, true)) {
-                                                      if (count.get() == 0) {
-                                                          return src.close();
-                                                      } else {
-                                                          return src.onClose();
-                                                      }
-                                                  }
-                                                  return src.onClose();
-                                              })
-                                          )
-                                          .decorateAllResponses(_safeClose(src, closed, count))
-                                          .decorateAllVoidResponses(_safeClose(src, closed, count))
-                                          .finish();
+            @Override
+            public Mono<Void> fireAndForget(Payload payload) {
+                return source.fireAndForget(payload)
+                    .doOnSubscribe(s -> count.incrementAndGet())
+                    .doFinally(signalType -> {
+                        if (count.decrementAndGet() == 0 && closed.get()) {
+                            source.close().subscribe();
+                        }
+                    });
+            }
+
+            @Override
+            public Mono<Payload> requestResponse(Payload payload) {
+                return source.requestResponse(payload)
+                    .doOnSubscribe(s -> count.incrementAndGet())
+                    .doFinally(signalType -> {
+                        if (count.decrementAndGet() == 0 && closed.get()) {
+                            source.close().subscribe();
+                        }
+                    });
+            }
+
+            @Override
+            public Flux<Payload> requestStream(Payload payload) {
+                return source.requestStream(payload)
+                    .doOnSubscribe(s -> count.incrementAndGet())
+                    .doFinally(signalType -> {
+                        if (count.decrementAndGet() == 0 && closed.get()) {
+                            source.close().subscribe();
+                        }
+                    });
+            }
+
+            @Override
+            public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
+                return source.requestChannel(payloads)
+                    .doOnSubscribe(s -> count.incrementAndGet())
+                    .doFinally(signalType -> {
+                        if (count.decrementAndGet() == 0 && closed.get()) {
+                            source.close().subscribe();
+                        }
+                    });
+            }
+
+            @Override
+            public Mono<Void> metadataPush(Payload payload) {
+                return source.metadataPush(payload)
+                    .doOnSubscribe(s -> count.incrementAndGet())
+                    .doFinally(signalType -> {
+                        if (count.decrementAndGet() == 0 && closed.get()) {
+                            source.close().subscribe();
+                        }
+                    });
+            }
+
+            @Override
+            public Mono<Void> close() {
+                return Mono.defer(() -> {
+                    if (closed.compareAndSet(false, true)) {
+                        if (count.get() == 0) {
+                            return source.close();
+                        } else {
+                            return source.onClose();
+                        }
+                    }
+                    return source.onClose();
+                });
+            }
         };
-    }
-
-    private static <T> Function<Publisher<T>, Publisher<T>> _timeout(long timeout, TimeUnit unit, Scheduler scheduler) {
-        return t -> Px.from(t).timeout(timeout, unit, scheduler);
-    }
-
-    private static <T> Function<Publisher<T>, Publisher<T>> _safeClose(ReactiveSocket src, AtomicBoolean closed,
-                                                                       AtomicInteger count) {
-        return t -> Px.from(t)
-                      .doOnSubscribe(s -> count.incrementAndGet())
-                      .doOnTerminate(() -> {
-                          if (count.decrementAndGet() == 0 && closed.get()) {
-                              src.close().subscribe(Subscribers.empty());
-                          }
-                      });
     }
 }

@@ -20,8 +20,6 @@ import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
 import io.reactivesocket.Frame.RequestN;
 import io.reactivesocket.FrameType;
-import io.reactivesocket.reactivestreams.extensions.internal.FlowControlHelper;
-import io.reactivesocket.reactivestreams.extensions.internal.ValidatingSubscription;
 import org.reactivestreams.Processor;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;

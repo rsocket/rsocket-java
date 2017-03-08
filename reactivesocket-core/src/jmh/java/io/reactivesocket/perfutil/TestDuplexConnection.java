@@ -18,37 +18,37 @@ package io.reactivesocket.perfutil;
 
 import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
-import io.reactivesocket.reactivestreams.extensions.Px;
-import io.reactivex.processors.PublishProcessor;
-import io.reactivex.subjects.PublishSubject;
 import org.reactivestreams.Publisher;
+import reactor.core.publisher.DirectProcessor;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 /**
  * An implementation of {@link DuplexConnection} that provides functionality to modify the behavior dynamically.
  */
 public class TestDuplexConnection implements DuplexConnection {
 
-    private final PublishProcessor<Frame> send;
-    private final PublishProcessor<Frame> receive;
+    private final DirectProcessor<Frame> send;
+    private final DirectProcessor<Frame> receive;
 
-    public TestDuplexConnection(PublishProcessor<Frame> send, PublishProcessor<Frame> receive) {
+    public TestDuplexConnection(DirectProcessor<Frame> send, DirectProcessor<Frame> receive) {
         this.send = send;
         this.receive = receive;
     }
 
     @Override
-    public Publisher<Void> send(Publisher<Frame> frame) {
-        Px
+    public Mono<Void> send(Publisher<Frame> frame) {
+        Flux
             .from(frame)
             .doOnNext(f -> send.onNext(f))
             .doOnError(t -> {throw new RuntimeException(t); })
             .subscribe();
 
-        return Px.empty();
+        return Mono.empty();
     }
 
     @Override
-    public Publisher<Frame> receive() {
+    public Flux<Frame> receive() {
         return receive;
     }
 
@@ -58,12 +58,12 @@ public class TestDuplexConnection implements DuplexConnection {
     }
 
     @Override
-    public Publisher<Void> close() {
-        return Px.empty();
+    public Mono<Void> close() {
+        return Mono.empty();
     }
 
     @Override
-    public Publisher<Void> onClose() {
-        return Px.empty();
+    public Mono<Void> onClose() {
+        return Mono.empty();
     }
 }

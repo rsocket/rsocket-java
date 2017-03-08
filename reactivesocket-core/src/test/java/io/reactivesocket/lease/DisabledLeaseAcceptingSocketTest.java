@@ -18,11 +18,11 @@ package io.reactivesocket.lease;
 
 import io.reactivesocket.Payload;
 import io.reactivesocket.ReactiveSocket;
-import io.reactivesocket.reactivestreams.extensions.Px;
 import io.reactivesocket.util.PayloadImpl;
 import org.junit.Rule;
 import org.junit.Test;
 import io.reactivex.subscribers.TestSubscriber;
+import reactor.core.publisher.Flux;
 
 public class DisabledLeaseAcceptingSocketTest {
     @Rule
@@ -55,7 +55,7 @@ public class DisabledLeaseAcceptingSocketTest {
     @Test(timeout = 10000)
     public void testRequestChannel() throws Exception {
         TestSubscriber<Payload> subscriber = TestSubscriber.create();
-        socketRule.getReactiveSocket().requestChannel(Px.just(PayloadImpl.EMPTY)).subscribe(subscriber);
+        socketRule.getReactiveSocket().requestChannel(Flux.just(PayloadImpl.EMPTY)).subscribe(subscriber);
         subscriber.assertError(UnsupportedOperationException.class);
         socketRule.getMockSocket().assertRequestChannelCount(1);
     }

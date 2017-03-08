@@ -16,67 +16,24 @@
 
 package io.reactivesocket.lease;
 
-import io.reactivesocket.Payload;
 import io.reactivesocket.ReactiveSocket;
-import org.reactivestreams.Publisher;
+import io.reactivesocket.util.ReactiveSocketProxy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
  * {@link LeaseHonoringSocket} that does not expect to receive any leases and {@link #accept(Lease)} throws an error.
  */
-public class DisableLeaseSocket implements LeaseHonoringSocket {
+public class DisableLeaseSocket extends ReactiveSocketProxy implements LeaseHonoringSocket {
 
     private static final Logger logger = LoggerFactory.getLogger(DisableLeaseSocket.class);
 
-    private final ReactiveSocket delegate;
-
-    public DisableLeaseSocket(ReactiveSocket delegate) {
-        this.delegate = delegate;
+    public DisableLeaseSocket(ReactiveSocket source) {
+        super(source);
     }
 
     @Override
     public void accept(Lease lease) {
         logger.info("Leases are disabled but received a lease from the peer. " + lease);
-    }
-
-    @Override
-    public Publisher<Void> fireAndForget(Payload payload) {
-        return delegate.fireAndForget(payload);
-    }
-
-    @Override
-    public Publisher<Payload> requestResponse(Payload payload) {
-        return delegate.requestResponse(payload);
-    }
-
-    @Override
-    public Publisher<Payload> requestStream(Payload payload) {
-        return delegate.requestStream(payload);
-    }
-
-    @Override
-    public Publisher<Payload> requestChannel(Publisher<Payload> payloads) {
-        return delegate.requestChannel(payloads);
-    }
-
-    @Override
-    public Publisher<Void> metadataPush(Payload payload) {
-        return delegate.metadataPush(payload);
-    }
-
-    @Override
-    public double availability() {
-        return delegate.availability();
-    }
-
-    @Override
-    public Publisher<Void> close() {
-        return delegate.close();
-    }
-
-    @Override
-    public Publisher<Void> onClose() {
-        return delegate.onClose();
     }
 }

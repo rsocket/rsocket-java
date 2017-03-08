@@ -24,14 +24,16 @@ import io.reactivesocket.lease.LeaseEnforcingSocket;
 import io.reactivesocket.server.ReactiveSocketServer;
 import io.reactivesocket.server.ReactiveSocketServer.SocketAcceptor;
 import io.reactivesocket.transport.TransportServer.StartedServer;
-import io.reactivesocket.transport.tcp.client.TcpTransportClient;
-import io.reactivesocket.transport.tcp.server.TcpTransportServer;
+import io.reactivesocket.transport.netty.client.TcpTransportClient;
+import io.reactivesocket.transport.netty.server.TcpTransportServer;
 import io.reactivesocket.util.PayloadImpl;
-import io.reactivex.Flowable;
-import org.reactivestreams.Publisher;
+import reactor.core.publisher.Flux;
+import reactor.ipc.netty.tcp.TcpClient;
+import reactor.ipc.netty.tcp.TcpServer;
 
+import java.net.InetSocketAddress;
 import java.net.SocketAddress;
-import java.util.concurrent.TimeUnit;
+import java.time.Duration;
 
 import static io.reactivesocket.client.KeepAliveProvider.*;
 import static io.reactivesocket.client.SetupProvider.*;
@@ -39,22 +41,23 @@ import static io.reactivesocket.client.SetupProvider.*;
 public final class StreamingClient {
 
     public static void main(String[] args) {
-        StartedServer server = ReactiveSocketServer.create(TcpTransportServer.create())
+        StartedServer server = ReactiveSocketServer.create(TcpTransportServer.create(TcpServer.create()))
                                                    .start(new SocketAcceptorImpl());
 
         SocketAddress address = server.getServerAddress();
-        ReactiveSocket socket = Flowable.fromPublisher(ReactiveSocketClient.create(TcpTransportClient.create(address),
+        ReactiveSocket socket = ReactiveSocketClient.create(TcpTransportClient.create(TcpClient.create(options ->
+                        options.connect((InetSocketAddress)address))),
                                                                                    keepAlive(never()).disableLease())
-                                                                           .connect())
-                                        .blockingFirst();
+                                                                           .connect()
+                                        .block();
 
-        Flowable.fromPublisher(socket.requestStream(new PayloadImpl("Hello")))
+        socket.requestStream(new PayloadImpl("Hello"))
                 .map(payload -> payload.getData())
                 .map(ByteBufferUtil::toUtf8String)
                 .doOnNext(System.out::println)
                 .take(10)
-                .concatWith(Flowable.fromPublisher(socket.close()).cast(String.class))
-                .blockingLast();
+                .thenEmpty(socket.close())
+                .block();
     }
 
     private static class SocketAcceptorImpl implements SocketAcceptor {
@@ -62,8 +65,8 @@ public final class StreamingClient {
         public LeaseEnforcingSocket accept(ConnectionSetupPayload setupPayload, ReactiveSocket reactiveSocket) {
             return new DisabledLeaseAcceptingSocket(new AbstractReactiveSocket() {
                 @Override
-                public Publisher<Payload> requestStream(Payload payload) {
-                    return Flowable.interval(100, TimeUnit.MILLISECONDS)
+                public Flux<Payload> requestStream(Payload payload) {
+                    return Flux.interval(Duration.ofMillis(100))
                                    .map(aLong -> new PayloadImpl("Interval: " + aLong));
                 }
             });

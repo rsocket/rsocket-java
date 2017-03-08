@@ -17,9 +17,9 @@
 package io.reactivesocket.client;
 
 import io.reactivesocket.ReactiveSocket;
-import io.reactivex.processors.UnicastProcessor;
 import io.reactivex.subscribers.TestSubscriber;
 import org.junit.Test;
+import reactor.core.publisher.UnicastProcessor;
 
 import java.util.List;
 

@@ -18,6 +18,7 @@ package io.reactivesocket.transport;
 
 import io.reactivesocket.DuplexConnection;
 import org.reactivestreams.Publisher;
+import reactor.core.publisher.Mono;
 
 import java.net.SocketAddress;
 import java.util.concurrent.TimeUnit;
@@ -51,7 +52,7 @@ public interface TransportServer {
          * @return A {@code Publisher} which terminates when the processing of the connection finishes.
          */
         @Override
-        Publisher<Void> apply(DuplexConnection duplexConnection);
+        Mono<Void> apply(DuplexConnection duplexConnection);
     }
 
     /**

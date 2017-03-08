@@ -24,7 +24,7 @@ import io.reactivesocket.events.EventSource;
 import io.reactivesocket.lease.DisabledLeaseAcceptingSocket;
 import io.reactivesocket.lease.LeaseEnforcingSocket;
 import io.reactivesocket.transport.TransportClient;
-import org.reactivestreams.Publisher;
+import reactor.core.publisher.Mono;
 
 public interface ReactiveSocketClient extends Availability, EventSource<ClientEventListener> {
 
@@ -33,7 +33,7 @@ public interface ReactiveSocketClient extends Availability, EventSource<ClientEv
      *
      * @return A {@code Publisher} that provides a new {@code ReactiveSocket} every time it is subscribed.
      */
-    Publisher<? extends ReactiveSocket> connect();
+    Mono<? extends ReactiveSocket> connect();
 
     /**
      * Creates a new instances of {@code ReactiveSocketClient} using the passed {@code transportClient}. This client

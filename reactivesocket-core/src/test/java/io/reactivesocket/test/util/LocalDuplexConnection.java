@@ -18,37 +18,36 @@ package io.reactivesocket.test.util;
 
 import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
-import io.reactivesocket.reactivestreams.extensions.Px;
-import io.reactivesocket.reactivestreams.extensions.internal.EmptySubject;
-import io.reactivex.Flowable;
-import io.reactivex.processors.PublishProcessor;
 import org.reactivestreams.Publisher;
+import reactor.core.publisher.DirectProcessor;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+import reactor.core.publisher.MonoProcessor;
 
 public class LocalDuplexConnection implements DuplexConnection {
-    private final PublishProcessor<Frame> send;
-    private final PublishProcessor<Frame> receive;
-    private final EmptySubject closeNotifier;
+    private final DirectProcessor<Frame> send;
+    private final DirectProcessor<Frame> receive;
+    private final MonoProcessor<Void> closeNotifier;
     private final String name;
 
-    public LocalDuplexConnection(String name, PublishProcessor<Frame> send, PublishProcessor<Frame> receive) {
+    public LocalDuplexConnection(String name, DirectProcessor<Frame> send, DirectProcessor<Frame> receive) {
         this.name = name;
         this.send = send;
         this.receive = receive;
-        closeNotifier = new EmptySubject();
+        closeNotifier = MonoProcessor.create();
     }
 
     @Override
-    public Publisher<Void> send(Publisher<Frame> frame) {
-        return Flowable
-            .fromPublisher(frame)
+    public Mono<Void> send(Publisher<Frame> frame) {
+        return Mono
+            .from(frame)
             .doOnNext(send::onNext)
             .doOnError(send::onError)
-            .ignoreElements()
-            .toFlowable();
+            .then();
     }
 
     @Override
-    public Publisher<Frame> receive() {
+    public Flux<Frame> receive() {
         return receive;
     }
 
@@ -58,15 +57,15 @@ public class LocalDuplexConnection implements DuplexConnection {
     }
 
     @Override
-    public Publisher<Void> close() {
-        return Px.defer(() -> {
+    public Mono<Void> close() {
+        return Mono.defer(() -> {
             closeNotifier.onComplete();
-            return Px.empty();
+            return Mono.empty();
         });
     }
 
     @Override
-    public Publisher<Void> onClose() {
+    public Mono<Void> onClose() {
         return closeNotifier;
     }
 }

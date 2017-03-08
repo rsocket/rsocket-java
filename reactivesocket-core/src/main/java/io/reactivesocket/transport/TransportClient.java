@@ -17,7 +17,7 @@
 package io.reactivesocket.transport;
 
 import io.reactivesocket.DuplexConnection;
-import org.reactivestreams.Publisher;
+import reactor.core.publisher.Mono;
 
 import java.net.SocketAddress;
 
@@ -31,6 +31,6 @@ public interface TransportClient {
      *
      * @return {@code Publisher}, every subscription returns a single {@code DuplexConnection}.
      */
-    Publisher<DuplexConnection> connect();
+    Mono<DuplexConnection> connect();
 
 }

@@ -17,18 +17,8 @@
 package io.reactivesocket.client;
 
 import io.reactivesocket.ReactiveSocket;
-import io.reactivesocket.events.ClientEventListener;
-import io.reactivesocket.events.ConnectionEventInterceptor;
-import io.reactivesocket.internal.DisabledEventPublisher;
-import io.reactivesocket.internal.EventPublisher;
-import io.reactivesocket.reactivestreams.extensions.Px;
-import io.reactivesocket.reactivestreams.extensions.internal.publishers.InstrumentingPublisher;
-import io.reactivesocket.reactivestreams.extensions.internal.subscribers.Subscribers;
 import io.reactivesocket.transport.TransportClient;
-import io.reactivesocket.util.Clock;
-import org.reactivestreams.Publisher;
-
-import static java.util.concurrent.TimeUnit.*;
+import reactor.core.publisher.Mono;
 
 /**
  * Default implementation of {@link ReactiveSocketClient} providing the functionality to create a {@link ReactiveSocket}
@@ -36,19 +26,17 @@ import static java.util.concurrent.TimeUnit.*;
  */
 public final class DefaultReactiveSocketClient extends AbstractReactiveSocketClient {
 
-    private final Px<ReactiveSocket> connectSource;
+    private final Mono<ReactiveSocket> connectSource;
 
     public DefaultReactiveSocketClient(TransportClient transportClient, SetupProvider setupProvider,
                                        SocketAcceptor acceptor) {
         super(setupProvider);
-        connectSource = Px.from(transportClient.connect())
-                          .switchTo(connection -> {
-                              return setupProvider.accept(connection, acceptor);
-                          });
+        connectSource = transportClient.connect()
+            .then(connection -> setupProvider.accept(connection, acceptor));
     }
 
     @Override
-    public Publisher<? extends ReactiveSocket> connect() {
+    public Mono<? extends ReactiveSocket> connect() {
         return connectSource;
     }
 

@@ -29,12 +29,13 @@ import io.reactivesocket.aeron.internal.reactivestreams.messages.AckConnectDecod
 import io.reactivesocket.aeron.internal.reactivestreams.messages.ConnectEncoder;
 import io.reactivesocket.aeron.internal.reactivestreams.messages.MessageHeaderDecoder;
 import io.reactivesocket.aeron.internal.reactivestreams.messages.MessageHeaderEncoder;
-import io.reactivesocket.reactivestreams.extensions.Px;
 import org.agrona.DirectBuffer;
 import org.agrona.concurrent.UnsafeBuffer;
-import org.reactivestreams.Publisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import reactor.core.publisher.Mono;
+import reactor.core.publisher.MonoSource;
+import reactor.core.publisher.Operators;
 
 import java.nio.ByteBuffer;
 import java.util.concurrent.ConcurrentHashMap;
@@ -134,9 +135,9 @@ public class AeronClientChannelConnector implements ReactiveStreamsRemote.Client
     }
 
     @Override
-    public Publisher<AeronChannel> apply(AeronClientConfig aeronClientConfig) {
-        return subscriber -> {
-            subscriber.onSubscribe(Px.EMPTY_SUBSCRIPTION);
+    public Mono<AeronChannel> apply(AeronClientConfig aeronClientConfig) {
+        return MonoSource.wrap(subscriber -> {
+            subscriber.onSubscribe(Operators.emptySubscription());
             final long channelId = CHANNEL_ID_COUNTER.get();
             try {
 
@@ -202,7 +203,7 @@ public class AeronClientChannelConnector implements ReactiveStreamsRemote.Client
                 clientSubscriptions.remove(channelId);
                 subscriber.onError(t);
             }
-        };
+        });
     }
 
     public DirectBuffer encodeConnectMessage(long channelId, AeronClientConfig config, int clientSessionId) {

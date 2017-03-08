@@ -14,26 +14,34 @@
 package io.reactivesocket.events;
 
 import io.reactivesocket.events.EventListener.RequestType;
-import org.reactivestreams.Publisher;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 public interface EventPublishingSocket {
 
     EventPublishingSocket DISABLED = new EventPublishingSocket() {
         @Override
-        public <T> Publisher<T> decorateReceive(int streamId, Publisher<T> stream, RequestType requestType) {
+        public <T> Mono<T> decorateReceive(int streamId, Mono<T> stream, RequestType requestType) {
             return stream;
         }
 
         @Override
-        public <T> Publisher<T> decorateSend(int streamId, Publisher<T> stream, long receiveStartTimeNanos,
+        public <T> Flux<T> decorateReceive(int streamId, Flux<T> stream, RequestType requestType) {
+            return stream;
+        }
+
+        @Override
+        public Mono<Void> decorateSend(int streamId, Mono<Void> stream, long receiveStartTimeNanos,
                                              RequestType requestType) {
             return stream;
         }
     };
 
-    <T> Publisher<T> decorateReceive(int streamId, Publisher<T> stream, RequestType requestType);
+    <T> Mono<T> decorateReceive(int streamId, Mono<T> stream, RequestType requestType);
 
-    <T> Publisher<T> decorateSend(int streamId, Publisher<T> stream, long receiveStartTimeNanos,
-                                  RequestType requestType);
+    <T> Flux<T> decorateReceive(int streamId, Flux<T> stream, RequestType requestType);
+
+    Mono<Void> decorateSend(int streamId, Mono<Void> stream, long receiveStartTimeNanos,
+                             RequestType requestType);
 
 }

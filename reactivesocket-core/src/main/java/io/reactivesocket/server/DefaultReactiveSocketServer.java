@@ -27,11 +27,10 @@ import io.reactivesocket.internal.ClientServerInputMultiplexer;
 import io.reactivesocket.lease.DefaultLeaseHonoringSocket;
 import io.reactivesocket.lease.LeaseEnforcingSocket;
 import io.reactivesocket.lease.LeaseHonoringSocket;
-import io.reactivesocket.reactivestreams.extensions.Px;
-import io.reactivesocket.reactivestreams.extensions.internal.subscribers.Subscribers;
 import io.reactivesocket.transport.TransportServer;
 import io.reactivesocket.transport.TransportServer.StartedServer;
 import io.reactivesocket.util.Clock;
+import reactor.core.publisher.Mono;
 
 public final class DefaultReactiveSocketServer extends AbstractEventSource<ServerEventListener>
         implements ReactiveSocketServer {
@@ -50,42 +49,45 @@ public final class DefaultReactiveSocketServer extends AbstractEventSource<Serve
                 long startTime = Clock.now();
                 dc = new ConnectionEventInterceptor(connection, this);
                 getEventListener().socketAccepted();
-                dc.onClose()
-                  .subscribe(Subscribers.doOnTerminate(() -> {
-                      if (isEventPublishingEnabled()) {
-                          getEventListener().socketClosed(Clock.elapsedSince(startTime), Clock.unit());
-                      }
-                  }));
+                dc.onClose().doFinally(signalType -> {
+                    if (isEventPublishingEnabled()) {
+                        getEventListener().socketClosed(Clock.elapsedSince(startTime), Clock.unit());
+                    }
+                }).subscribe();
             } else {
                 dc = connection;
             }
 
-            return Px.from(dc.receive())
-                     .switchTo(setupFrame -> {
-                         if (setupFrame.getType() == FrameType.SETUP) {
-                             ClientServerInputMultiplexer multiplexer = new ClientServerInputMultiplexer(dc);
-                             ConnectionSetupPayload setup = ConnectionSetupPayload.create(setupFrame);
-                             ClientReactiveSocket sender = new ClientReactiveSocket(multiplexer.asServerConnection(),
-                                                                                    Throwable::printStackTrace,
-                                                                                    StreamIdSupplier.serverSupplier(),
-                                                                                    KeepAliveProvider.never(),
-                                                                                    this);
-                             LeaseHonoringSocket lhs = new DefaultLeaseHonoringSocket(sender);
-                             sender.start(lhs);
-                             LeaseEnforcingSocket handler = acceptor.accept(setup, sender);
-                             ServerReactiveSocket receiver = new ServerReactiveSocket(multiplexer.asClientConnection(),
-                                                                                      handler,
-                                                                                      setup.willClientHonorLease(),
-                                                                                      Throwable::printStackTrace,
-                                                                                      this);
-                             receiver.start();
-                             return dc.onClose();
-                         } else {
-                             return Px.<Void>error(new IllegalStateException("Invalid first frame on the connection: "
-                                                                             + dc + ", frame type received: "
-                                                                             + setupFrame.getType()));
-                         }
-                     });
+            ClientServerInputMultiplexer multiplexer = new ClientServerInputMultiplexer(dc);
+
+            return multiplexer
+                    .asStreamZeroConnection()
+                    .receive()
+                    .next()
+                    .then(setupFrame -> {
+                        if (setupFrame.getType() == FrameType.SETUP) {
+                            ConnectionSetupPayload setup = ConnectionSetupPayload.create(setupFrame);
+                            ClientReactiveSocket sender = new ClientReactiveSocket(multiplexer.asServerConnection(),
+                                                                                   Throwable::printStackTrace,
+                                                                                   StreamIdSupplier.serverSupplier(),
+                                                                                   KeepAliveProvider.never(),
+                                                                                   this);
+                            LeaseHonoringSocket lhs = new DefaultLeaseHonoringSocket(sender);
+                            sender.start(lhs);
+                            LeaseEnforcingSocket handler = acceptor.accept(setup, sender);
+                            ServerReactiveSocket receiver = new ServerReactiveSocket(multiplexer.asClientConnection(),
+                                                                                     handler,
+                                                                                     setup.willClientHonorLease(),
+                                                                                     Throwable::printStackTrace,
+                                                                                     this);
+                            receiver.start();
+                            return dc.onClose();
+                        } else {
+                            return Mono.<Void>error(new IllegalStateException("Invalid first frame on the connection: "
+                                                                            + dc + ", frame type received: "
+                                                                            + setupFrame.getType()));
+                        }
+                    });
         });
     }
 }

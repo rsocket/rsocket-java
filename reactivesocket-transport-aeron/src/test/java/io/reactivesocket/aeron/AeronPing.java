@@ -30,7 +30,6 @@ import io.reactivesocket.test.PingClient;
 import org.HdrHistogram.Recorder;
 
 import java.time.Duration;
-import java.util.concurrent.TimeUnit;
 
 public final class AeronPing {
 
@@ -64,14 +63,14 @@ public final class AeronPing {
         ReactiveSocketClient client =
                 ReactiveSocketClient.create(aeronTransportClient, setup);
         PingClient pingClient = new PingClient(client);
-        Recorder recorder = pingClient.startTracker(1, TimeUnit.SECONDS);
+        Recorder recorder = pingClient.startTracker(Duration.ofSeconds(1));
         final int count = 1_000_000_000;
         pingClient.connect()
                   .startPingPong(count, recorder)
                   .doOnTerminate(() -> {
                       System.out.println("Sent " + count + " messages.");
                   })
-                  .last(null).blockingGet();
+                  .last(null).block();
 
         System.exit(0);
     }

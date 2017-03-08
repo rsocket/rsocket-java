@@ -29,7 +29,7 @@ import io.reactivesocket.lease.LeaseHonoringSocket;
 import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.frame.SetupFrameFlyweight;
 import io.reactivesocket.util.PayloadImpl;
-import org.reactivestreams.Publisher;
+import reactor.core.publisher.Mono;
 
 import java.util.function.Function;
 
@@ -51,7 +51,7 @@ public interface SetupProvider extends EventSource<ClientEventListener> {
      *
      * @return Asynchronous source for the created {@code ReactiveSocket}
      */
-    Publisher<ReactiveSocket> accept(DuplexConnection connection, SocketAcceptor acceptor);
+    Mono<ReactiveSocket> accept(DuplexConnection connection, SocketAcceptor acceptor);
 
     /**
      * Creates a new {@code SetupProvider} by modifying the mime type for data payload of this {@code SetupProvider}

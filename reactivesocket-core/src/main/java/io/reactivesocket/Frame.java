@@ -24,6 +24,7 @@ import io.reactivesocket.frame.RequestFrameFlyweight;
 import io.reactivesocket.frame.RequestNFrameFlyweight;
 import io.reactivesocket.frame.SetupFrameFlyweight;
 import io.reactivesocket.frame.UnpooledFrame;
+import io.reactivesocket.frame.VersionFlyweight;
 import org.agrona.DirectBuffer;
 import org.agrona.MutableDirectBuffer;
 import org.slf4j.Logger;
@@ -583,7 +584,8 @@ public class Frame implements Payload {
                 additionalFlags = " Error code: " + Error.errorCode(this);
                 break;
             case SETUP:
-                additionalFlags = " Version: " + Setup.version(this)
+                int version = Setup.version(this);
+                additionalFlags = " Version: " + VersionFlyweight.toString(version)
                                   + " keep-alive interval: " + Setup.keepaliveInterval(this)
                                   + " max lifetime: " + Setup.maxLifetime(this)
                                   + " metadata mime type: " + Setup.metadataMimeType(this)
