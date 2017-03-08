@@ -13,7 +13,9 @@
 
 package io.reactivesocket.tckdrivers.server;
 
-import io.reactivesocket.transport.tcp.server.TcpTransportServer;
+import io.reactivesocket.transport.netty.server.TcpTransportServer;
+
+import reactor.ipc.netty.tcp.TcpServer;
 
 import java.util.concurrent.CountDownLatch;
 
@@ -36,7 +38,7 @@ public class JavaTCPServer {
             file = realfile;
         }
 
-        TcpTransportServer server = TcpTransportServer.create(port);
+        TcpTransportServer server = TcpTransportServer.create(TcpServer.create(port));
 
         JavaServerDriver jsd =
                 new JavaServerDriver(file, server, mutex);

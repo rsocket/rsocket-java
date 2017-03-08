@@ -14,12 +14,14 @@
 package io.reactivesocket.tckdrivers.client;
 
 import io.reactivesocket.ReactiveSocket;
-import io.reactivesocket.transport.tcp.client.TcpTransportClient;
+import io.reactivesocket.transport.netty.client.TcpTransportClient;
 
 import io.reactivesocket.client.ReactiveSocketClient;
 import io.reactivex.Flowable;
 import io.reactivesocket.client.KeepAliveProvider;
 import io.reactivesocket.client.SetupProvider;
+
+import reactor.ipc.netty.tcp.TcpClient;
 
 import java.net.*;
 import java.util.List;
@@ -57,7 +59,8 @@ public class JavaTCPClient {
     public static ReactiveSocket createClient() {
         if ("tcp".equals(uri.getScheme())) {
             SocketAddress address = new InetSocketAddress(uri.getHost(), uri.getPort());
-            ReactiveSocketClient client = ReactiveSocketClient.create(TcpTransportClient.create(address),
+            ReactiveSocketClient client = ReactiveSocketClient.create(TcpTransportClient.create(TcpClient.create(options ->
+            options.connect((InetSocketAddress)address))),
                     SetupProvider.keepAlive(KeepAliveProvider.never()).disableLease());
             ReactiveSocket socket = Flowable.fromPublisher(client.connect()).singleOrError().blockingGet();
             return socket;

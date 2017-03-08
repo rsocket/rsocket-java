@@ -21,7 +21,10 @@ import io.reactivesocket.frame.ByteBufferUtil;
 import io.reactivesocket.lease.DisabledLeaseAcceptingSocket;
 import io.reactivesocket.lease.LeaseEnforcingSocket;
 import io.reactivesocket.tckdrivers.common.*;
-import io.reactivesocket.transport.tcp.server.TcpTransportServer;
+import io.reactivesocket.transport.netty.server.TcpTransportServer;
+
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscription;
@@ -94,8 +97,8 @@ public class JavaServerDriver {
         public LeaseEnforcingSocket accept(ConnectionSetupPayload setupPayload, ReactiveSocket reactiveSocket) {
             return new DisabledLeaseAcceptingSocket(new AbstractReactiveSocket() {
                 @Override
-                public Publisher<Payload> requestChannel(Publisher<Payload> payloads) {
-                    return s -> {
+                public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
+                    return Flux.from(s -> {
                         try {
                             MySubscriber<Payload> sub = new MySubscriber<>(0L, "[SERVER]");
                             payloads.subscribe(sub);
@@ -128,12 +131,12 @@ public class JavaServerDriver {
                         } catch (Exception e) {
                             consoleUtils.failure("Interrupted");
                         }
-                    };
+                    });
                 }
 
                 @Override
-                public final Publisher<Void> fireAndForget(Payload payload) {
-                    return s -> {
+                public final Mono<Void> fireAndForget(Payload payload) {
+                    return Mono.from(s -> {
                         Tuple<String, String> initialPayload = new Tuple<>(ByteBufferUtil.toUtf8String(payload.getData()),
                                 ByteBufferUtil.toUtf8String(payload.getMetadata()));
                         consoleUtils.initialPayload("Received firenforget " + initialPayload.getK() + " " + initialPayload.getV());
@@ -145,12 +148,12 @@ public class JavaServerDriver {
                                 e.printStackTrace();
                             }
                         }
-                    };
+                    });
                 }
 
                 @Override
-                public Publisher<Payload> requestResponse(Payload payload) {
-                    return s -> {
+                public Mono<Payload> requestResponse(Payload payload) {
+                    return Mono.from(s -> {
                         Tuple<String, String> initialPayload = new Tuple<>(ByteBufferUtil.toUtf8String(payload.getData()),
                                 ByteBufferUtil.toUtf8String(payload.getMetadata()));
                         String marble = requestResponseMarbles.get(initialPayload);
@@ -164,12 +167,12 @@ public class JavaServerDriver {
                             consoleUtils.failure("Request response payload " + initialPayload.getK() + " " + initialPayload.getV()
                                 + "has no handler");
                         }
-                    };
+                    });
                 }
 
                 @Override
-                public Publisher<Payload> requestStream(Payload payload) {
-                    return s -> {
+                public Flux<Payload> requestStream(Payload payload) {
+                    return Flux.from(s -> {
                         Tuple<String, String> initialPayload = new Tuple<>(ByteBufferUtil.toUtf8String(payload.getData()),
                                 ByteBufferUtil.toUtf8String(payload.getMetadata()));
                         String marble = requestStreamMarbles.get(initialPayload);
@@ -182,7 +185,7 @@ public class JavaServerDriver {
                             consoleUtils.failure("Request stream payload " + initialPayload.getK() + " " + initialPayload.getV()
                                     + "has no handler");
                         }
-                    };
+                    });
                 }
             });
         }
