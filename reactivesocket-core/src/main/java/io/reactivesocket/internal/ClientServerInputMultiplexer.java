@@ -20,6 +20,8 @@ import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
 import org.agrona.BitUtil;
 import org.reactivestreams.Publisher;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
@@ -35,12 +37,13 @@ import reactor.core.publisher.MonoProcessor;
  * for the streams initiated by server and odds are for streams initiated by the client. <p>
  */
 public class ClientServerInputMultiplexer {
+    private static final Logger LOGGER = LoggerFactory.getLogger("io.reactivesocket.FrameLogger");
 
     private final InternalDuplexConnection streamZeroConnection;
     private final InternalDuplexConnection serverConnection;
     private final InternalDuplexConnection clientConnection;
 
-    private enum Type { ZERO, CLIENT, SERVER }
+    private enum Type { STREAM_ZERO, CLIENT, SERVER }
 
     public ClientServerInputMultiplexer(DuplexConnection source) {
         final MonoProcessor<Flux<Frame>> streamZero = MonoProcessor.create();
@@ -56,7 +59,7 @@ public class ClientServerInputMultiplexer {
                 int streamId = frame.getStreamId();
                 Type type;
                 if (streamId == 0) {
-                    type = Type.ZERO;
+                    type = Type.STREAM_ZERO;
                 } else if (BitUtil.isEven(streamId)) {
                     type = Type.SERVER;
                 } else {
@@ -66,7 +69,7 @@ public class ClientServerInputMultiplexer {
             })
             .subscribe(group -> {
                 switch (group.key()) {
-                    case ZERO:
+                    case STREAM_ZERO:
                         streamZero.onNext(group);
                         break;
                     case SERVER:
@@ -94,25 +97,41 @@ public class ClientServerInputMultiplexer {
     private static class InternalDuplexConnection implements DuplexConnection {
         private final DuplexConnection source;
         private final MonoProcessor<Flux<Frame>> processor;
+        private final boolean debugEnabled;
 
         public InternalDuplexConnection(DuplexConnection source, MonoProcessor<Flux<Frame>> processor) {
             this.source = source;
             this.processor = processor;
+            this.debugEnabled = LOGGER.isDebugEnabled();
         }
 
         @Override
         public Mono<Void> send(Publisher<Frame> frame) {
+            if (debugEnabled) {
+                frame = Flux.from(frame).doOnNext(f -> LOGGER.debug(f.toString()));
+            }
+
             return source.send(frame);
         }
 
         @Override
         public Mono<Void> sendOne(Frame frame) {
+            if (debugEnabled) {
+                LOGGER.debug(frame.toString());
+            }
+
             return source.sendOne(frame);
         }
 
         @Override
         public Flux<Frame> receive() {
-            return processor.flatMap(f -> f);
+            return processor.flatMap(f -> {
+                if (debugEnabled) {
+                    return f.doOnNext(frame -> LOGGER.debug(frame.toString()));
+                } else {
+                    return f;
+                }
+            });
         }
 
         @Override
