@@ -46,6 +46,9 @@ dependencies {
 No releases to Maven Central or JCenter have occurred yet.
 
 
+## Debugging
+Frames can be printed out to help debugging. Set the logger `io.reactivesocket.FrameLogger` to debug to print the frames.
+
 ## Bugs and Feedback
 
 For bugs, questions and discussions please use the [Github Issues](https://github.com/ReactiveSocket/reactivesocket-java/issues).
