@@ -57,6 +57,7 @@ public class Client {
                 .map(payload -> payload.getData())
                 .map(ByteBufferUtil::toUtf8String)
                 .buffer(Duration.ofSeconds(1))
+
                 .map(l -> {
                 double avgSize = l
                     .stream()

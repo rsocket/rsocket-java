@@ -6,13 +6,14 @@ import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 import reactor.core.Fuseable;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Operators;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  *
  */
-public class LimitableRequestPublisher<T extends Payload> extends Flux<T> {
+public class LimitableRequestPublisher<T extends Payload> extends Flux<T> implements Subscription {
     private final Publisher<T> source;
 
     private final AtomicBoolean canceled;
@@ -55,24 +56,33 @@ public class LimitableRequestPublisher<T extends Payload> extends Flux<T> {
         }
     }
 
-
     public void increaseRequestLimit(long n) {
-        long e;
-        long i;
         synchronized (this) {
-            e = FlowControlHelper.incrementRequestN(externalRequested, n);
-            externalRequested = e;
-            i = internalRequested;
+            externalRequested = Operators.addCap(n, externalRequested);
         }
 
-        requestUpstream(e, i);
+        requestN();
     }
 
-    private void requestUpstream(long e, long i) {
-        long n = Math.min(e , i);
+    @Override
+    public void request(long n) {
+        increaseRequestLimit(n);
+    }
 
-        if (n > 0 && s != null & !canceled.get()) {
-            s.request(n);
+    private void requestN() {
+        long r;
+        synchronized (this) {
+            if (s == null) {
+                return;
+            }
+
+            r = Math.min(internalRequested, externalRequested);
+            externalRequested -= r;
+            internalRequested -= r;
+        }
+
+        if (r > 0) {
+            s.request(r);
         }
     }
 
@@ -106,13 +116,7 @@ public class LimitableRequestPublisher<T extends Payload> extends Flux<T> {
 
         @Override
         public void onNext(T t) {
-            synchronized (LimitableRequestPublisher.this) {
-                externalRequested--;
-                internalRequested--;
-            }
-
             destination.onNext(t);
-
         }
 
         @Override
@@ -130,15 +134,11 @@ public class LimitableRequestPublisher<T extends Payload> extends Flux<T> {
 
         @Override
         public void request(long n) {
-            long e;
-            long i;
-            synchronized (this) {
-                i = FlowControlHelper.incrementRequestN(internalRequested, n);
-                internalRequested = i;
-                e = externalRequested;
+            synchronized (LimitableRequestPublisher.this) {
+                internalRequested = Operators.addCap(n, internalRequested);
             }
 
-            requestUpstream(e, i);
+            requestN();
         }
 
         @Override
@@ -146,4 +146,5 @@ public class LimitableRequestPublisher<T extends Payload> extends Flux<T> {
             LimitableRequestPublisher.this.cancel();
         }
     }
+
 }
