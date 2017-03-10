@@ -18,7 +18,6 @@ import io.reactivesocket.FrameType;
 import io.reactivesocket.Payload;
 import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.events.EventSource.EventSubscription;
-import io.reactivesocket.lease.Lease;
 
 import java.util.concurrent.TimeUnit;
 
@@ -31,24 +30,24 @@ public interface EventListener {
      * An enum to represent the various interaction models of {@code ReactiveSocket}.
      */
     enum RequestType {
-        RequestResponse,
-        RequestStream,
-        RequestChannel,
-        MetadataPush,
-        FireAndForget;
+        REQUEST_RESPONSE,
+        REQUEST_STREAM,
+        REQUEST_CHANNEL,
+        METADATA_PUSH,
+        FIRE_AND_FORGET;
 
         public static RequestType fromFrameType(FrameType frameType) {
             switch (frameType) {
             case REQUEST_RESPONSE:
-                return RequestResponse;
+                return REQUEST_RESPONSE;
             case FIRE_AND_FORGET:
-                return FireAndForget;
+                return FIRE_AND_FORGET;
             case REQUEST_STREAM:
-                return RequestStream;
+                return REQUEST_STREAM;
             case REQUEST_CHANNEL:
-                return RequestChannel;
+                return REQUEST_CHANNEL;
             case METADATA_PUSH:
-                return MetadataPush;
+                return METADATA_PUSH;
             default:
                 throw new IllegalArgumentException("Unknown frame type: " + frameType);
             }

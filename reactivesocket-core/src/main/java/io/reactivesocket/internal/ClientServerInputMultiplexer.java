@@ -108,7 +108,7 @@ public class ClientServerInputMultiplexer {
         @Override
         public Mono<Void> send(Publisher<Frame> frame) {
             if (debugEnabled) {
-                frame = Flux.from(frame).doOnNext(f -> LOGGER.debug(f.toString()));
+                frame = Flux.from(frame).doOnNext(f -> LOGGER.debug("sending -> " + f.toString()));
             }
 
             return source.send(frame);
@@ -117,7 +117,7 @@ public class ClientServerInputMultiplexer {
         @Override
         public Mono<Void> sendOne(Frame frame) {
             if (debugEnabled) {
-                LOGGER.debug(frame.toString());
+                LOGGER.debug("sending -> " + frame.toString());
             }
 
             return source.sendOne(frame);
@@ -127,7 +127,7 @@ public class ClientServerInputMultiplexer {
         public Flux<Frame> receive() {
             return processor.flatMap(f -> {
                 if (debugEnabled) {
-                    return f.doOnNext(frame -> LOGGER.debug(frame.toString()));
+                    return f.doOnNext(frame -> LOGGER.debug("receiving -> " + frame.toString()));
                 } else {
                     return f;
                 }

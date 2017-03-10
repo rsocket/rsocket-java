@@ -18,7 +18,6 @@ package io.reactivesocket;
 
 import io.reactivesocket.Frame.Lease;
 import io.reactivesocket.Frame.Request;
-import io.reactivesocket.Frame.PayloadFrame;
 import io.reactivesocket.events.EventListener;
 import io.reactivesocket.events.EventListener.RequestType;
 import io.reactivesocket.events.EventPublishingSocket;
@@ -172,7 +171,7 @@ public class ServerReactiveSocket implements ReactiveSocket {
                 case REQUEST_N:
                     return handleRequestN(streamId, frame);
                 case REQUEST_STREAM:
-                    return doReceive(streamId, requestStream(frame), RequestStream);
+                    return doReceive(streamId, requestStream(frame), REQUEST_STREAM);
                 case FIRE_AND_FORGET:
                     return handleFireAndForget(streamId, fireAndForget(frame));
                 case REQUEST_CHANNEL:
@@ -249,7 +248,7 @@ public class ServerReactiveSocket implements ReactiveSocket {
     }
 
     private Mono<Void> handleRequestResponse(int streamId, Mono<Payload> response) {
-        long now = publishSingleFrameReceiveEvents(streamId, RequestResponse);
+        long now = publishSingleFrameReceiveEvents(streamId, REQUEST_RESPONSE);
 
         Mono<Frame> frames = new MonoOnErrorOrCancelReturn<>(
             response
@@ -268,7 +267,7 @@ public class ServerReactiveSocket implements ReactiveSocket {
             () -> Frame.Cancel.from(streamId)
         );
 
-        return eventPublishingSocket.decorateSend(streamId, connection.send(frames), now, RequestResponse);
+        return eventPublishingSocket.decorateSend(streamId, connection.send(frames), now, REQUEST_RESPONSE);
     }
 
     private Mono<Void> doReceive(int streamId, Flux<Payload> response, RequestType requestType) {
@@ -280,14 +279,14 @@ public class ServerReactiveSocket implements ReactiveSocket {
     }
 
     private Mono<Void> handleChannel(int streamId, Frame firstFrame) {
-        long now = publishSingleFrameReceiveEvents(streamId, RequestChannel);
+        long now = publishSingleFrameReceiveEvents(streamId, REQUEST_CHANNEL);
         int initialRequestN = Request.initialRequestN(firstFrame);
         Frame firstAsNext = Request.from(streamId, FrameType.NEXT, firstFrame, initialRequestN);
         RemoteReceiver receiver = new RemoteReceiver(connection, streamId, () -> removeChannelProcessor(streamId),
             firstAsNext, receiversSubscription, true);
         channelProcessors.put(streamId, receiver);
 
-        Flux<Frame> response = requestChannel(eventPublishingSocket.decorateReceive(streamId, receiver, RequestChannel))
+        Flux<Frame> response = requestChannel(eventPublishingSocket.decorateReceive(streamId, receiver, REQUEST_CHANNEL))
             .map(payload -> Frame.PayloadFrame.from(streamId, FrameType.NEXT, payload));
 
         RemoteSender sender = new RemoteSender(response, () -> removeSubscriptions(streamId), streamId,
@@ -296,7 +295,7 @@ public class ServerReactiveSocket implements ReactiveSocket {
             subscriptions.put(streamId, sender);
         }
 
-        return eventPublishingSocket.decorateSend(streamId, connection.send(sender), now, RequestChannel);
+        return eventPublishingSocket.decorateSend(streamId, connection.send(sender), now, REQUEST_CHANNEL);
     }
 
     private Mono<Void> handleFireAndForget(int streamId, Mono<Void> result) {

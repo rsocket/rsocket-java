@@ -66,7 +66,7 @@ public class PingClient {
                                                 long diff = System.nanoTime() - start;
                                                 histogram.recordValue(diff);
                                             });
-                }, 16)
+                })
                 .doOnError(Throwable::printStackTrace);
     }
 }
