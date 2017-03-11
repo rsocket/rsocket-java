@@ -32,7 +32,7 @@ public class LeaseFrameFlyweight {
     private static final int PAYLOAD_OFFSET = NUM_REQUESTS_FIELD_OFFSET + BitUtil.SIZE_OF_INT;
 
     public static int computeFrameLength(final int metadataLength) {
-        int length = FrameHeaderFlyweight.computeFrameHeaderLength(FrameType.SETUP, metadataLength, 0);
+        int length = FrameHeaderFlyweight.computeFrameHeaderLength(FrameType.LEASE, metadataLength, 0);
         return length + BitUtil.SIZE_OF_INT * 2;
     }
 
@@ -51,7 +51,7 @@ public class LeaseFrameFlyweight {
         mutableDirectBuffer.putInt(offset + NUM_REQUESTS_FIELD_OFFSET, numRequests, ByteOrder.BIG_ENDIAN);
 
         length += BitUtil.SIZE_OF_INT * 2;
-        length += FrameHeaderFlyweight.encodeMetadata(mutableDirectBuffer, offset, offset + length, metadata);
+        length += FrameHeaderFlyweight.encodeMetadata(mutableDirectBuffer, FrameType.LEASE, offset, offset + length, metadata);
 
         return length;
     }

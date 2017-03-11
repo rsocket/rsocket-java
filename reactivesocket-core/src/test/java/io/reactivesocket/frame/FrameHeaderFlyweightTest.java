@@ -1,7 +1,6 @@
 package io.reactivesocket.frame;
 
 import io.reactivesocket.FrameType;
-import io.reactivesocket.TestUtil;
 import org.agrona.BitUtil;
 import org.agrona.concurrent.UnsafeBuffer;
 import org.junit.Test;
@@ -49,14 +48,14 @@ public class FrameHeaderFlyweightTest {
     public void metadataLength() {
         ByteBuffer metadata = ByteBuffer.wrap(new byte[]{1, 2, 3, 4});
         FrameHeaderFlyweight.encode(directBuffer, 0, 0, 0, FrameType.SETUP, metadata, NULL_BYTEBUFFER);
-        assertEquals(4, FrameHeaderFlyweight.metadataLength(directBuffer, 0, FrameHeaderFlyweight.FRAME_HEADER_LENGTH));
+        assertEquals(4, FrameHeaderFlyweight.decodeMetadataLength(directBuffer, 0, FrameHeaderFlyweight.FRAME_HEADER_LENGTH));
     }
 
     @Test
     public void dataLength() {
         ByteBuffer data = ByteBuffer.wrap(new byte[]{1, 2, 3, 4, 5});
         int length = FrameHeaderFlyweight.encode(directBuffer, 0, 0, 0, FrameType.SETUP, NULL_BYTEBUFFER, data);
-        assertEquals(5, FrameHeaderFlyweight.dataLength(directBuffer, 0, length, FrameHeaderFlyweight.FRAME_HEADER_LENGTH));
+        assertEquals(5, FrameHeaderFlyweight.dataLength(directBuffer, FrameType.SETUP, 0, length, FrameHeaderFlyweight.FRAME_HEADER_LENGTH));
     }
 
     @Test
@@ -103,6 +102,29 @@ public class FrameHeaderFlyweightTest {
         assertNotEquals(flags, FrameHeaderFlyweight.flags(directBuffer, 0));
         assertEquals(flags & 0b0000_0011_1111_1111, FrameHeaderFlyweight.flags(directBuffer, 0));
         assertEquals(frameType, FrameHeaderFlyweight.frameType(directBuffer, 0));
+    }
+
+    @Test
+    public void missingMetadataLength() {
+        for (FrameType frameType : FrameType.values()) {
+            switch (frameType) {
+                case UNDEFINED:
+                    break;
+                case CANCEL:
+                case METADATA_PUSH:
+                case LEASE:
+                    assertFalse(
+                            "!hasMetadataLengthField(): " + frameType,
+                            FrameHeaderFlyweight.hasMetadataLengthField(frameType));
+                    break;
+                default:
+                    if (frameType.canHaveMetadata()) {
+                        assertTrue(
+                                "hasMetadataLengthField(): " + frameType,
+                                FrameHeaderFlyweight.hasMetadataLengthField(frameType));
+                    }
+            }
+        }
     }
 
     @Test

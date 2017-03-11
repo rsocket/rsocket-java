@@ -78,7 +78,7 @@ public class ErrorFrameFlyweight {
         length += BitUtil.SIZE_OF_INT;
 
         length += FrameHeaderFlyweight.encodeMetadata(
-            mutableDirectBuffer, offset, offset + length, metadata);
+            mutableDirectBuffer, FrameType.ERROR, offset, offset + length, metadata);
         length += FrameHeaderFlyweight.encodeData(mutableDirectBuffer, offset + length, data);
 
         return length;
