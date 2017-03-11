@@ -137,7 +137,7 @@ public class ServerReactiveSocket implements ReactiveSocket {
                     case REQUEST_N:
                         return handleRequestN(streamId, frame);
                     case REQUEST_STREAM:
-                        return handleStream(streamId, requestStream(frame));
+                        return handleStream(streamId, requestStream(frame), frame);
                     case REQUEST_CHANNEL:
                         return handleChannel(streamId, frame);
                     case PAYLOAD:
@@ -257,31 +257,21 @@ public class ServerReactiveSocket implements ReactiveSocket {
         return send(streamId, responseFrame);
     }
 
-    private Mono<Void> handleStream(int streamId, Flux<Payload> response) {
-        return handleStream(streamId, response, 1);
-    }
-
-    private Mono<Void> handleStream(int streamId, Flux<Payload> response, int initialRequestN) {
-        Flux<Frame> responseFrames = response
-            .map(payload -> Frame.PayloadFrame.from(streamId, FrameType.NEXT, payload))
-            .transform(f -> {
-                LimitableRequestPublisher<Frame> wrap = LimitableRequestPublisher.wrap(f);
-                synchronized (ServerReactiveSocket.this) {
-                    wrap.increaseRequestLimit(initialRequestN);
-                    sendingSubscriptions.put(streamId, wrap);
-                }
-
-                return wrap;
-            });
-
+    private Mono<Void> handleStream(int streamId, Flux<Payload> response, Frame firstFrame) {
+        int initialRequestN = Request.initialRequestN(firstFrame);
+        LimitableRequestPublisher<Frame> responseFrames = LimitableRequestPublisher.wrap(
+            response.map(payload -> Frame.PayloadFrame.from(streamId, FrameType.NEXT, payload))
+        );
+        synchronized (this) {
+            responseFrames.increaseRequestLimit(initialRequestN);
+            sendingSubscriptions.put(streamId, responseFrames);
+        }
         return send(streamId, responseFrames);
     }
 
     private Mono<Void> handleChannel(int streamId, Frame firstFrame) {
         return Mono.defer(() -> {
             UnicastProcessor<Frame> frames = UnicastProcessor.create();
-            int initialRequestN = Request.initialRequestN(firstFrame);
-
             Flux<Payload> payloads = frames
                 .doOnCancel(() -> {
                     if (connection.availability() > 0.0) {
@@ -300,9 +290,7 @@ public class ServerReactiveSocket implements ReactiveSocket {
                 })
                 .cast(Payload.class);
 
-            Flux<Payload> responses = requestChannel(payloads);
-
-            return handleStream(streamId, responses, initialRequestN)
+            return handleStream(streamId, requestChannel(payloads), firstFrame)
                 .doFinally(s -> {
                     synchronized (ServerReactiveSocket.this) {
                         receivers.remove(streamId);
