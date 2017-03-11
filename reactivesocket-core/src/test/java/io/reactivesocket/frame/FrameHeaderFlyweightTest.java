@@ -110,7 +110,8 @@ public class FrameHeaderFlyweightTest {
         UnsafeBuffer expectedMutable = new UnsafeBuffer(ByteBuffer.allocate(1024));
         int currentIndex = 0;
         // frame length
-        expectedMutable.putInt(currentIndex, FrameHeaderFlyweight.FRAME_HEADER_LENGTH << 8, ByteOrder.BIG_ENDIAN);
+        int frameLength = FrameHeaderFlyweight.FRAME_HEADER_LENGTH - FrameHeaderFlyweight.FRAME_LENGTH_SIZE;
+        expectedMutable.putInt(currentIndex, frameLength << 8, ByteOrder.BIG_ENDIAN);
         currentIndex += 3;
         // stream id
         expectedMutable.putInt(currentIndex, 5, ByteOrder.BIG_ENDIAN);
