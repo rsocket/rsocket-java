@@ -172,7 +172,7 @@ public class ServerReactiveSocket implements ReactiveSocket {
                 case REQUEST_N:
                     return handleRequestN(streamId, frame);
                 case REQUEST_STREAM:
-                    return doReceive(streamId, requestStream(frame), RequestStream);
+                    return handleRequestStream(streamId, requestStream(frame), frame);
                 case FIRE_AND_FORGET:
                     return handleFireAndForget(streamId, fireAndForget(frame));
                 case REQUEST_CHANNEL:
@@ -271,12 +271,12 @@ public class ServerReactiveSocket implements ReactiveSocket {
         return eventPublishingSocket.decorateSend(streamId, connection.send(frames), now, RequestResponse);
     }
 
-    private Mono<Void> doReceive(int streamId, Flux<Payload> response, RequestType requestType) {
-        long now = publishSingleFrameReceiveEvents(streamId, requestType);
-        Flux<Frame> resp = response.map(payload -> Frame.PayloadFrame.from(streamId, FrameType.NEXT, payload));
-        RemoteSender sender = new RemoteSender(resp, () -> subscriptions.remove(streamId), streamId, 2);
+    private Mono<Void> handleRequestStream(int streamId, Flux<Payload> response, Frame firstFrame) {
+        long now = publishSingleFrameReceiveEvents(streamId, RequestStream);
+        Flux<Frame> resp = response.map(payload -> Frame.PayloadFrame.from(streamId, FrameType.NEXT, payload));      
+        RemoteSender sender = new RemoteSender(resp, () -> subscriptions.remove(streamId), streamId, Request.initialRequestN(firstFrame));
         subscriptions.put(streamId, sender);
-        return eventPublishingSocket.decorateSend(streamId, connection.send(sender), now, requestType);
+        return eventPublishingSocket.decorateSend(streamId, connection.send(sender), now, RequestStream);
     }
 
     private Mono<Void> handleChannel(int streamId, Frame firstFrame) {
