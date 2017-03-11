@@ -51,7 +51,7 @@ public class ServerReactiveSocket implements ReactiveSocket {
     private volatile Disposable subscribe;
 
     public ServerReactiveSocket(DuplexConnection connection, ReactiveSocket requestHandler,
-                                 boolean clientHonorsLease, Consumer<Throwable> errorConsumer) {
+                                boolean clientHonorsLease, Consumer<Throwable> errorConsumer) {
         this.requestHandler = requestHandler;
         this.connection = connection;
         this.errorConsumer = new KnownErrorFilter(errorConsumer);
@@ -76,7 +76,7 @@ public class ServerReactiveSocket implements ReactiveSocket {
     }
 
     public ServerReactiveSocket(DuplexConnection connection, ReactiveSocket requestHandler,
-                                 Consumer<Throwable> errorConsumer) {
+                                Consumer<Throwable> errorConsumer) {
         this(connection, requestHandler, true, errorConsumer);
     }
 
