@@ -57,7 +57,7 @@ public class RequestFrameFlyweight {
         mutableDirectBuffer.putInt(offset + INITIAL_REQUEST_N_FIELD_OFFSET, initialRequestN, ByteOrder.BIG_ENDIAN);
         length += BitUtil.SIZE_OF_INT;
 
-        length += FrameHeaderFlyweight.encodeMetadata(mutableDirectBuffer, offset, offset + length, metadata);
+        length += FrameHeaderFlyweight.encodeMetadata(mutableDirectBuffer, type, offset, offset + length, metadata);
         length += FrameHeaderFlyweight.encodeData(mutableDirectBuffer, offset + length, data);
 
         return length;
@@ -79,7 +79,7 @@ public class RequestFrameFlyweight {
 
         int length = FrameHeaderFlyweight.encodeFrameHeader(mutableDirectBuffer, offset, frameLength, flags, type, streamId);
 
-        length += FrameHeaderFlyweight.encodeMetadata(mutableDirectBuffer, offset, offset + length, metadata);
+        length += FrameHeaderFlyweight.encodeMetadata(mutableDirectBuffer, type, offset, offset + length, metadata);
         length += FrameHeaderFlyweight.encodeData(mutableDirectBuffer, offset + length, data);
 
         return length;

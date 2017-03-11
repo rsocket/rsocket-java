@@ -135,7 +135,8 @@ public class SetupFrameFlyweight {
         length += putMimeType(mutableDirectBuffer, offset + length, metadataMimeType);
         length += putMimeType(mutableDirectBuffer, offset + length, dataMimeType);
 
-        length += FrameHeaderFlyweight.encodeMetadata(mutableDirectBuffer, offset, offset + length, metadata);
+        length += FrameHeaderFlyweight.encodeMetadata(
+                mutableDirectBuffer, FrameType.SETUP, offset, offset + length, metadata);
         length += FrameHeaderFlyweight.encodeData(mutableDirectBuffer, offset + length, data);
 
         return length;
