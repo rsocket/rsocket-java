@@ -17,7 +17,6 @@ package io.reactivesocket.client.filter;
 
 import io.reactivesocket.Payload;
 import io.reactivesocket.ReactiveSocket;
-import io.reactivesocket.client.AbstractReactiveSocketClient;
 import io.reactivesocket.client.ReactiveSocketClient;
 import io.reactivesocket.stat.Ewma;
 import io.reactivesocket.util.Clock;
@@ -36,7 +35,7 @@ import java.util.concurrent.TimeUnit;
  * lot of them when sending messages, we will still decrease the availability of the child
  * reducing the probability of connecting to it.
  */
-public class FailureAwareClient extends AbstractReactiveSocketClient {
+public class FailureAwareClient implements ReactiveSocketClient {
 
     private static final double EPSILON = 1e-4;
 
@@ -46,7 +45,6 @@ public class FailureAwareClient extends AbstractReactiveSocketClient {
     private final Ewma errorPercentage;
 
     public FailureAwareClient(ReactiveSocketClient delegate, long halfLife, TimeUnit unit) {
-        super(delegate);
         this.delegate = delegate;
         this.tau = Clock.unit().convert((long)(halfLife / Math.log(2)), unit);
         this.stamp = Clock.now();

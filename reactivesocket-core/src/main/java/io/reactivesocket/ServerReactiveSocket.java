@@ -18,11 +18,8 @@ package io.reactivesocket;
 
 import io.reactivesocket.Frame.Lease;
 import io.reactivesocket.Frame.Request;
-import io.reactivesocket.events.EventListener;
 import io.reactivesocket.exceptions.ApplicationException;
 import io.reactivesocket.frame.FrameHeaderFlyweight;
-import io.reactivesocket.internal.DisabledEventPublisher;
-import io.reactivesocket.internal.EventPublisher;
 import io.reactivesocket.internal.KnownErrorFilter;
 import io.reactivesocket.internal.LimitableRequestPublisher;
 import io.reactivesocket.lease.LeaseEnforcingSocket;
@@ -54,8 +51,7 @@ public class ServerReactiveSocket implements ReactiveSocket {
     private volatile Disposable subscribe;
 
     public ServerReactiveSocket(DuplexConnection connection, ReactiveSocket requestHandler,
-                                 boolean clientHonorsLease, Consumer<Throwable> errorConsumer,
-                                 EventPublisher<? extends EventListener> eventPublisher) {
+                                 boolean clientHonorsLease, Consumer<Throwable> errorConsumer) {
         this.requestHandler = requestHandler;
         this.connection = connection;
         this.errorConsumer = new KnownErrorFilter(errorConsumer);
@@ -77,11 +73,6 @@ public class ServerReactiveSocket implements ReactiveSocket {
                     .subscribe();
             });
         }
-    }
-
-    public ServerReactiveSocket(DuplexConnection connection, ReactiveSocket requestHandler,
-                                 boolean clientHonorsLease, Consumer<Throwable> errorConsumer) {
-        this(connection, requestHandler, clientHonorsLease, errorConsumer, new DisabledEventPublisher<>());
     }
 
     public ServerReactiveSocket(DuplexConnection connection, ReactiveSocket requestHandler,

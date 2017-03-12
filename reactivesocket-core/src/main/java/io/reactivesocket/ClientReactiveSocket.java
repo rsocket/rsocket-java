@@ -17,10 +17,7 @@
 package io.reactivesocket;
 
 import io.reactivesocket.client.KeepAliveProvider;
-import io.reactivesocket.events.EventListener;
 import io.reactivesocket.exceptions.Exceptions;
-import io.reactivesocket.internal.DisabledEventPublisher;
-import io.reactivesocket.internal.EventPublisher;
 import io.reactivesocket.internal.KnownErrorFilter;
 import io.reactivesocket.internal.LimitableRequestPublisher;
 import io.reactivesocket.lease.Lease;
@@ -56,8 +53,7 @@ public class ClientReactiveSocket implements ReactiveSocket {
     private volatile Consumer<Lease> leaseConsumer; // Provided on start()
 
     public ClientReactiveSocket(DuplexConnection connection, Consumer<Throwable> errorConsumer,
-                                StreamIdSupplier streamIdSupplier, KeepAliveProvider keepAliveProvider,
-                                EventPublisher<? extends EventListener> publisher) {
+                                StreamIdSupplier streamIdSupplier, KeepAliveProvider keepAliveProvider) {
         this.connection = connection;
         this.errorConsumer = new KnownErrorFilter(errorConsumer);
         this.streamIdSupplier = streamIdSupplier;
@@ -69,11 +65,6 @@ public class ClientReactiveSocket implements ReactiveSocket {
         connection.onClose()
             .doFinally(signalType -> cleanup())
             .subscribe();
-    }
-
-    public ClientReactiveSocket(DuplexConnection connection, Consumer<Throwable> errorConsumer,
-                                StreamIdSupplier streamIdSupplier, KeepAliveProvider keepAliveProvider) {
-        this(connection, errorConsumer, streamIdSupplier, keepAliveProvider, new DisabledEventPublisher<>());
     }
 
     @Override

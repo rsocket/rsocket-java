@@ -18,7 +18,6 @@ package io.reactivesocket.local.internal;
 
 import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
-import io.reactivesocket.internal.ValidatingSubscription;
 import org.reactivestreams.Publisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -80,18 +79,22 @@ public class PeerConnector {
                     if (receiver != null) {
                         receiver.safeOnError(new ClosedChannelException());
                     }
-                }).subscribe();
+                })
+                .subscribe();
         }
 
         @Override
         public Mono<Void> send(Publisher<Frame> frames) {
-            return Flux.from(frames).doOnNext(frame -> {
-                if (peer != null) {
-                    peer.receiveFrameFromPeer(frame);
-                } else {
-                    logger.warn("Sending a frame but peer not connected. Ignoring frame: " + frame);
-                }
-            }).then();
+            return Flux
+                .from(frames)
+                .doOnNext(frame -> {
+                    if (peer != null) {
+                        peer.receiveFrameFromPeer(frame);
+                    } else {
+                        logger.warn("Sending a frame but peer not connected. Ignoring frame: " + frame);
+                    }
+                })
+                .then();
         }
 
         @Override

@@ -16,18 +16,16 @@
 
 package io.reactivesocket.client;
 
-import io.reactivesocket.Payload;
-import io.reactivesocket.client.ReactiveSocketClient.SocketAcceptor;
-import io.reactivesocket.events.ClientEventListener;
-import io.reactivesocket.events.EventSource;
-import io.reactivesocket.lease.DefaultLeaseHonoringSocket;
 import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
 import io.reactivesocket.Frame.Setup;
+import io.reactivesocket.Payload;
+import io.reactivesocket.ReactiveSocket;
+import io.reactivesocket.client.ReactiveSocketClient.SocketAcceptor;
+import io.reactivesocket.frame.SetupFrameFlyweight;
+import io.reactivesocket.lease.DefaultLeaseHonoringSocket;
 import io.reactivesocket.lease.DisableLeaseSocket;
 import io.reactivesocket.lease.LeaseHonoringSocket;
-import io.reactivesocket.ReactiveSocket;
-import io.reactivesocket.frame.SetupFrameFlyweight;
 import io.reactivesocket.util.PayloadImpl;
 import reactor.core.publisher.Mono;
 
@@ -36,7 +34,7 @@ import java.util.function.Function;
 /**
  * A provider for ReactiveSocket setup from a client.
  */
-public interface SetupProvider extends EventSource<ClientEventListener> {
+public interface SetupProvider {
 
     int DEFAULT_FLAGS = SetupFrameFlyweight.FLAGS_WILL_HONOR_LEASE | SetupFrameFlyweight.FLAGS_STRICT_INTERPRETATION;
     int DEFAULT_MAX_KEEP_ALIVE_MISSING_ACK = 3;

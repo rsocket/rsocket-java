@@ -18,14 +18,12 @@ package io.reactivesocket.server;
 
 import io.reactivesocket.ConnectionSetupPayload;
 import io.reactivesocket.ReactiveSocket;
-import io.reactivesocket.events.EventSource;
-import io.reactivesocket.events.ServerEventListener;
 import io.reactivesocket.exceptions.SetupException;
 import io.reactivesocket.lease.LeaseEnforcingSocket;
 import io.reactivesocket.transport.TransportServer;
 import io.reactivesocket.transport.TransportServer.StartedServer;
 
-public interface ReactiveSocketServer extends EventSource<ServerEventListener> {
+public interface ReactiveSocketServer {
 
     /**
      * Starts this server.

@@ -133,7 +133,7 @@ public class LoadBalancerTest {
     }
 
     private static ReactiveSocketClient succeedingFactory(ReactiveSocket socket) {
-        return new AbstractReactiveSocketClient() {
+        return new ReactiveSocketClient() {
             @Override
             public Mono<ReactiveSocket> connect() {
                 return Mono.just(socket);
@@ -148,7 +148,7 @@ public class LoadBalancerTest {
     }
 
     private static ReactiveSocketClient failingClient(SocketAddress sa) {
-        return new AbstractReactiveSocketClient() {
+        return new ReactiveSocketClient() {
             @Override
             public Mono<ReactiveSocket> connect() {
                 Assert.fail();

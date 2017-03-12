@@ -28,11 +28,13 @@ import io.reactivesocket.transport.TransportServer.StartedServer;
 import io.reactivesocket.transport.netty.client.TcpTransportClient;
 import io.reactivesocket.transport.netty.server.TcpTransportServer;
 import io.reactivesocket.util.PayloadImpl;
+import io.reactivex.subscribers.TestSubscriber;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExternalResource;
 import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.ipc.netty.tcp.TcpClient;
 import reactor.ipc.netty.tcp.TcpServer;
@@ -43,8 +45,8 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.hamcrest.Matchers.*;
-import static org.junit.Assert.*;
+import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertThat;
 
 public class IntegrationTest {
 
@@ -57,7 +59,20 @@ public class IntegrationTest {
         assertThat("Server did not see the request.", rule.requestCount.get(), is(1));
     }
 
-    @Test//(timeout = 2_000L)
+    @Test
+    public void testStream() throws Exception {
+        TestSubscriber subscriber  = TestSubscriber.create();
+        rule
+            .client
+            .requestStream(new PayloadImpl("start"))
+            .subscribe(subscriber);
+
+        subscriber.cancel();
+        subscriber.isCancelled();
+        subscriber.assertNotComplete();
+    }
+
+    @Test(timeout = 3_000L)
     public void testClose() throws ExecutionException, InterruptedException, TimeoutException {
 
         rule.client.close().block();
@@ -79,25 +94,32 @@ public class IntegrationTest {
                     requestCount = new AtomicInteger();
                     disconnectionCounter = new CountDownLatch(1);
                     server = ReactiveSocketServer.create(TcpTransportServer.create(TcpServer.create()))
-                                        .start((setup, sendingSocket) -> {
-                                            sendingSocket.onClose()
-                                                .doFinally(signalType -> disconnectionCounter.countDown())
-                                                .subscribe();
+                        .start((setup, sendingSocket) -> {
+                            sendingSocket.onClose()
+                                .doFinally(signalType -> disconnectionCounter.countDown())
+                                .subscribe();
 
-                                            return new DisabledLeaseAcceptingSocket(new AbstractReactiveSocket() {
-                                                @Override
-                                                public Mono<Payload> requestResponse(Payload payload) {
-                                                    return Mono.<Payload>just(new PayloadImpl("RESPONSE", "METADATA"))
-                                                            .doOnSubscribe(s -> requestCount.incrementAndGet());
-                                                }
-                                            });
-                                        });
+                            return new DisabledLeaseAcceptingSocket(new AbstractReactiveSocket() {
+                                @Override
+                                public Mono<Payload> requestResponse(Payload payload) {
+                                    return Mono.<Payload>just(new PayloadImpl("RESPONSE", "METADATA"))
+                                        .doOnSubscribe(s -> requestCount.incrementAndGet());
+                                }
+
+                                @Override
+                                public Flux<Payload> requestStream(Payload payload) {
+                                    return Flux
+                                        .range(1, 1_000_000)
+                                        .map(i -> new PayloadImpl("data -> " + i));
+                                }
+                            });
+                        });
                     client = ReactiveSocketClient.create(TcpTransportClient.create(TcpClient.create(options ->
-                                    options.connect((InetSocketAddress)server.getServerAddress()))),
-                                                                     SetupProvider.keepAlive(KeepAliveProvider.never())
-                                                                                .disableLease())
-                                                             .connect()
-                                   .block();
+                            options.connect((InetSocketAddress) server.getServerAddress()))),
+                        SetupProvider.keepAlive(KeepAliveProvider.never())
+                            .disableLease())
+                        .connect()
+                        .block();
                     base.evaluate();
                 }
             };

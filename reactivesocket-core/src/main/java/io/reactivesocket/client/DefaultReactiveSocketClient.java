@@ -24,13 +24,12 @@ import reactor.core.publisher.Mono;
  * Default implementation of {@link ReactiveSocketClient} providing the functionality to create a {@link ReactiveSocket}
  * from a {@link TransportClient}.
  */
-public final class DefaultReactiveSocketClient extends AbstractReactiveSocketClient {
+public final class DefaultReactiveSocketClient implements ReactiveSocketClient {
 
     private final Mono<ReactiveSocket> connectSource;
 
     public DefaultReactiveSocketClient(TransportClient transportClient, SetupProvider setupProvider,
                                        SocketAcceptor acceptor) {
-        super(setupProvider);
         connectSource = transportClient.connect()
             .then(connection -> setupProvider.accept(connection, acceptor));
     }

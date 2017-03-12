@@ -18,15 +18,9 @@ package io.reactivesocket.client;
 import io.reactivesocket.Availability;
 import io.reactivesocket.Payload;
 import io.reactivesocket.ReactiveSocket;
-import io.reactivesocket.client.events.LoadBalancingClientListener;
-import io.reactivesocket.events.ClientEventListener;
-import io.reactivesocket.events.EventSource;
 import io.reactivesocket.exceptions.NoAvailableReactiveSocketException;
 import io.reactivesocket.exceptions.TimeoutException;
 import io.reactivesocket.exceptions.TransportException;
-import io.reactivesocket.internal.DisabledEventPublisher;
-import io.reactivesocket.internal.EventPublisher;
-import io.reactivesocket.internal.ValidatingSubscription;
 import io.reactivesocket.stat.Ewma;
 import io.reactivesocket.stat.FrugalQuantile;
 import io.reactivesocket.stat.Median;
@@ -38,7 +32,12 @@ import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import reactor.core.publisher.*;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.FluxSource;
+import reactor.core.publisher.Mono;
+import reactor.core.publisher.MonoProcessor;
+import reactor.core.publisher.MonoSource;
+import reactor.core.publisher.Operators;
 
 import java.nio.channels.ClosedChannelException;
 import java.util.ArrayList;
@@ -88,8 +87,8 @@ public class LoadBalancer implements ReactiveSocket {
     private Runnable readyCallback;
 
     private int pendingSockets;
-    private final ActiveList<WeightedSocket> activeSockets;
-    private final ActiveList<ReactiveSocketClient> activeFactories;
+    private final ArrayList<WeightedSocket> activeSockets;
+    private final ArrayList<ReactiveSocketClient> activeFactories;
     private final FactoriesRefresher factoryRefresher;
     private final Mono<ReactiveSocket> selectSocket;
 
@@ -99,10 +98,6 @@ public class LoadBalancer implements ReactiveSocket {
     private long refreshPeriod;
     private volatile long lastRefresh;
     private final MonoProcessor<Void> closeSubject = MonoProcessor.create();
-
-    private final LoadBalancingClientListener eventListener;
-    private final EventPublisher<ClientEventListener> eventPublisher;
-
     /**
      *
      * @param factories the source (factories) of ReactiveSocket
@@ -132,23 +127,14 @@ public class LoadBalancer implements ReactiveSocket {
         double maxPendings,
         int minAperture,
         int maxAperture,
-        long maxRefreshPeriodMs,
-        EventPublisher<ClientEventListener> eventPublisher
+        long maxRefreshPeriodMs
     ) {
         this.expFactor = expFactor;
         this.lowerQuantile = new FrugalQuantile(lowQuantile);
         this.higherQuantile = new FrugalQuantile(highQuantile);
-        this.eventPublisher = eventPublisher;
 
-        if (eventPublisher.isEventPublishingEnabled()
-            && eventPublisher.getEventListener() instanceof LoadBalancingClientListener) {
-            eventListener = (LoadBalancingClientListener) eventPublisher.getEventListener();
-        } else {
-            eventListener = null;
-        }
-
-        this.activeSockets = new ActiveList<>(eventListener, false);
-        this.activeFactories = new ActiveList<>(eventListener, true);
+        this.activeSockets = new ArrayList<>();
+        this.activeFactories = new ArrayList<>();
         this.pendingSockets = 0;
         this.factoryRefresher = new FactoriesRefresher();
         this.selectSocket = Mono.fromCallable(this::select);
@@ -174,20 +160,17 @@ public class LoadBalancer implements ReactiveSocket {
             DEFAULT_LOWER_QUANTILE, DEFAULT_HIGHER_QUANTILE,
             DEFAULT_MIN_PENDING, DEFAULT_MAX_PENDING,
             DEFAULT_MIN_APERTURE, DEFAULT_MAX_APERTURE,
-            DEFAULT_MAX_REFRESH_PERIOD_MS,
-             new DisabledEventPublisher<>()
+            DEFAULT_MAX_REFRESH_PERIOD_MS
         );
     }
 
-    LoadBalancer(Publisher<? extends Collection<ReactiveSocketClient>> factories, Runnable readyCallback,
-                 EventPublisher<ClientEventListener> eventPublisher) {
+    LoadBalancer(Publisher<? extends Collection<ReactiveSocketClient>> factories, Runnable readyCallback) {
         this(factories,
             DEFAULT_EXP_FACTOR,
             DEFAULT_LOWER_QUANTILE, DEFAULT_HIGHER_QUANTILE,
             DEFAULT_MIN_PENDING, DEFAULT_MAX_PENDING,
             DEFAULT_MIN_APERTURE, DEFAULT_MAX_APERTURE,
-            DEFAULT_MAX_REFRESH_PERIOD_MS,
-             eventPublisher
+            DEFAULT_MAX_REFRESH_PERIOD_MS
         );
         this.readyCallback = readyCallback;
     }
@@ -229,7 +212,7 @@ public class LoadBalancer implements ReactiveSocket {
         while (n > 0) {
             int size = activeFactories.size();
             if (size == 1) {
-                ReactiveSocketClient factory = activeFactories.holder.get(0);
+                ReactiveSocketClient factory = activeFactories.get(0);
                 if (factory.availability() > 0.0) {
                     activeFactories.remove(0);
                     pendingSockets++;
@@ -247,8 +230,8 @@ public class LoadBalancer implements ReactiveSocket {
                 if (i1 >= i0) {
                     i1++;
                 }
-                factory0 = activeFactories.holder.get(i0);
-                factory1 = activeFactories.holder.get(i1);
+                factory0 = activeFactories.get(i0);
+                factory1 = activeFactories.get(i1);
                 if (factory0.availability() > 0.0 && factory1.availability() > 0.0) {
                     break;
                 }
@@ -260,7 +243,7 @@ public class LoadBalancer implements ReactiveSocket {
                 // cheaper to permute activeFactories.get(i1) with the last item and remove the last
                 // rather than doing a activeFactories.remove(i1)
                 if (i1 < size - 1) {
-                    activeFactories.set(i1, activeFactories.holder.get(size - 1));
+                    activeFactories.set(i1, activeFactories.get(size - 1));
                 }
                 activeFactories.remove(size - 1);
                 factory1.connect().subscribe(new SocketAdder(factory1));
@@ -269,7 +252,7 @@ public class LoadBalancer implements ReactiveSocket {
                 pendingSockets++;
                 // c.f. above
                 if (i0 < size - 1) {
-                    activeFactories.set(i0, activeFactories.holder.get(size - 1));
+                    activeFactories.set(i0, activeFactories.get(size - 1));
                 }
                 activeFactories.remove(size - 1);
                 factory0.connect().subscribe(new SocketAdder(factory0));
@@ -284,7 +267,7 @@ public class LoadBalancer implements ReactiveSocket {
         }
 
         double p = 0.0;
-        for (WeightedSocket wrs: activeSockets.holder) {
+        for (WeightedSocket wrs: activeSockets) {
             p += wrs.getPending();
         }
         p /= n + pendingSockets;
@@ -315,9 +298,6 @@ public class LoadBalancer implements ReactiveSocket {
         pendings.reset((minPendings + maxPendings)/2);
 
         if (targetAperture != previous) {
-            if (eventListener != null) {
-                eventListener.apertureChanged(previous, targetAperture);
-            }
             logger.debug("Current pending={}, new target={}, previous target={}",
                 pendings.value(), targetAperture, previous);
         }
@@ -332,7 +312,7 @@ public class LoadBalancer implements ReactiveSocket {
     private synchronized void refreshSockets() {
         refreshAperture();
         int n = pendingSockets + activeSockets.size();
-        if (n < targetAperture && !activeFactories.holder.isEmpty()) {
+        if (n < targetAperture && !activeFactories.isEmpty()) {
             logger.debug("aperture {} is below target {}, adding {} sockets",
                 n, targetAperture, targetAperture - n);
             addSockets(targetAperture - n);
@@ -344,20 +324,11 @@ public class LoadBalancer implements ReactiveSocket {
 
         long now = Clock.now();
         if (now - lastRefresh >= refreshPeriod) {
-            if (eventListener != null) {
-                eventListener.socketsRefreshStart();
-            }
             long prev = refreshPeriod;
             refreshPeriod = (long) Math.min(refreshPeriod * 1.5, maxRefreshPeriod);
             logger.debug("Bumping refresh period, {}->{}", prev / 1000, refreshPeriod / 1000);
-            if (prev != refreshPeriod && eventListener != null) {
-                eventListener.socketRefreshPeriodChanged(prev, refreshPeriod, Clock.unit());
-            }
             lastRefresh = now;
             addSockets(1);
-            if (eventListener != null) {
-                eventListener.socketsRefreshCompleted(Clock.elapsedSince(now), Clock.unit());
-            }
         }
     }
 
@@ -368,7 +339,7 @@ public class LoadBalancer implements ReactiveSocket {
 
         WeightedSocket slowest = null;
         double lowestAvailability = Double.MAX_VALUE;
-        for (WeightedSocket socket: activeSockets.holder) {
+        for (WeightedSocket socket: activeSockets) {
             double load = socket.availability();
             if (load == 0.0) {
                 slowest = socket;
@@ -405,8 +376,8 @@ public class LoadBalancer implements ReactiveSocket {
     @Override
     public synchronized double availability() {
         double currentAvailability = 0.0;
-        if (!activeSockets.holder.isEmpty()) {
-            for (WeightedSocket rs : activeSockets.holder) {
+        if (!activeSockets.isEmpty()) {
+            for (WeightedSocket rs : activeSockets) {
                 currentAvailability += rs.availability();
             }
             currentAvailability /= activeSockets.size();
@@ -416,14 +387,14 @@ public class LoadBalancer implements ReactiveSocket {
     }
 
     private synchronized ReactiveSocket select() {
-        if (activeSockets.holder.isEmpty()) {
+        if (activeSockets.isEmpty()) {
             return FAILING_REACTIVE_SOCKET;
         }
         refreshSockets();
 
         int size = activeSockets.size();
         if (size == 1) {
-            return activeSockets.holder.get(0);
+            return activeSockets.get(0);
         }
 
         WeightedSocket rsc1 = null;
@@ -436,12 +407,12 @@ public class LoadBalancer implements ReactiveSocket {
             if (i2 >= i1) {
                 i2++;
             }
-            rsc1 = activeSockets.holder.get(i1);
-            rsc2 = activeSockets.holder.get(i2);
+            rsc1 = activeSockets.get(i1);
+            rsc2 = activeSockets.get(i2);
             if (rsc1.availability() > 0.0 && rsc2.availability() > 0.0) {
                 break;
             }
-            if (i+1 == EFFORT && !activeFactories.holder.isEmpty()) {
+            if (i+1 == EFFORT && !activeFactories.isEmpty()) {
                 addSockets(1);
             }
         }
@@ -494,14 +465,14 @@ public class LoadBalancer implements ReactiveSocket {
     @Override
     public Mono<Void> close() {
         return MonoSource.wrap(subscriber -> {
-            subscriber.onSubscribe(ValidatingSubscription.empty(subscriber));
+            subscriber.onSubscribe(Operators.emptySubscription());
 
             synchronized (this) {
                 factoryRefresher.close();
                 activeFactories.clear();
                 AtomicInteger n = new AtomicInteger(activeSockets.size());
 
-                activeSockets.holder.forEach(rs -> {
+                activeSockets.forEach(rs -> {
                     rs.close().subscribe(new Subscriber<Void>() {
                         @Override
                         public void onSubscribe(Subscription s) {
@@ -554,8 +525,8 @@ public class LoadBalancer implements ReactiveSocket {
 
                 Set<ReactiveSocketClient> current =
                     new HashSet<>(activeFactories.size() + activeSockets.size());
-                current.addAll(activeFactories.holder);
-                for (WeightedSocket socket: activeSockets.holder) {
+                current.addAll(activeFactories);
+                for (WeightedSocket socket: activeSockets) {
                     ReactiveSocketClient factory = socket.getFactory();
                     current.add(factory);
                 }
@@ -567,12 +538,11 @@ public class LoadBalancer implements ReactiveSocket {
                 added.removeAll(current);
 
                 boolean changed = false;
-                Iterator<WeightedSocket> it0 = activeSockets.holder.iterator();
+                Iterator<WeightedSocket> it0 = activeSockets.iterator();
                 while (it0.hasNext()) {
                     WeightedSocket socket = it0.next();
                     if (removed.contains(socket.getFactory())) {
                         it0.remove();
-                        activeSockets.publishRemoveEvent(socket);
                         try {
                             changed = true;
                             socket.close();
@@ -581,12 +551,11 @@ public class LoadBalancer implements ReactiveSocket {
                         }
                     }
                 }
-                Iterator<ReactiveSocketClient> it1 = activeFactories.holder.iterator();
+                Iterator<ReactiveSocketClient> it1 = activeFactories.iterator();
                 while (it1.hasNext()) {
                     ReactiveSocketClient factory = it1.next();
                     if (removed.contains(factory)) {
                         it1.remove();
-                        activeFactories.publishRemoveEvent(factory);
                         changed = true;
                     }
                 }
@@ -596,11 +565,11 @@ public class LoadBalancer implements ReactiveSocket {
                 if (changed && logger.isDebugEnabled()) {
                     StringBuilder msgBuilder = new StringBuilder();
                     msgBuilder.append("\nUpdated active factories (size: " + activeFactories.size() + ")\n");
-                    for (ReactiveSocketClient f : activeFactories.holder) {
+                    for (ReactiveSocketClient f : activeFactories) {
                         msgBuilder.append(" + ").append(f).append('\n');
                     }
                     msgBuilder.append("Active sockets:\n");
-                    for (WeightedSocket socket: activeSockets.holder) {
+                    for (WeightedSocket socket: activeSockets) {
                         msgBuilder.append(" + ").append(socket).append('\n');
                     }
                     logger.debug(msgBuilder.toString());
@@ -651,9 +620,6 @@ public class LoadBalancer implements ReactiveSocket {
                 logger.debug("Adding new WeightedSocket {}", weightedSocket);
 
                 activeSockets.add(weightedSocket);
-                if (eventListener != null) {
-                    eventListener.socketAdded(weightedSocket);
-                }
                 if (readyCallback != null) {
                     readyCallback.run();
                 }
@@ -1047,60 +1013,37 @@ public class LoadBalancer implements ReactiveSocket {
     private class ActiveList<T extends Availability> {
 
         private final ArrayList<T> holder;
-        private final LoadBalancingClientListener listener;
         private final boolean server;
 
-        public ActiveList(LoadBalancingClientListener listener, boolean server) {
-            this.listener = listener;
+        public ActiveList(boolean server) {
             this.server = server;
-            holder = new ArrayList<T>(128);
+            holder = new ArrayList<>(128);
         }
 
         public void add(T item) {
             holder.add(item);
-            publishAddEvent(item);
         }
 
         public T remove(int index) {
             T item = holder.remove(index);
-            if (item != null) {
-                publishRemoveEvent(item);
-            }
             return item;
         }
 
         public boolean remove(T item) {
             boolean removed = holder.remove(item);
-            if (removed) {
-                publishRemoveEvent(item);
-            }
             return removed;
         }
 
         public T set(int index, T item) {
             T prev = holder.set(index, item);
-            if (prev != null) {
-                publishRemoveEvent(prev);
-            }
-            publishAddEvent(item);
             return prev;
         }
 
         public void addAll(Collection<? extends T> toAdd) {
             holder.addAll(toAdd);
-            if (listener != null) {
-                for (T t : toAdd) {
-                    publishAddEvent(t);
-                }
-            }
         }
 
         public void clear() {
-            if (listener != null) {
-                for (T t : holder) {
-                    publishRemoveEvent(t);
-                }
-            }
             holder.clear();
         }
 
@@ -1108,31 +1051,5 @@ public class LoadBalancer implements ReactiveSocket {
             return holder.size();
         }
 
-        private void publishRemoveEvent(T item) {
-            if (listener == null) {
-                return;
-            }
-            if (server) {
-                listener.serverRemoved(item);
-            } else {
-                listener.socketRemoved(item);
-            }
-        }
-
-        private void publishAddEvent(T item) {
-            if (server && eventPublisher.isEventPublishingEnabled()) {
-                @SuppressWarnings("unchecked")
-                EventSource<ClientEventListener> src = (EventSource<ClientEventListener>) item;
-                src.subscribe(eventPublisher.getEventListener());
-            }
-            if (listener == null) {
-                return;
-            }
-            if (server) {
-                listener.serverAdded(item);
-            } else {
-                listener.socketAdded(item);
-            }
-        }
     }
 }

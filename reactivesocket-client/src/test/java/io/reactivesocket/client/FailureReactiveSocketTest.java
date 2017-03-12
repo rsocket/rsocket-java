@@ -115,7 +115,7 @@ public class FailureReactiveSocketTest {
                 throw new RuntimeException();
             }
         });
-        ReactiveSocketClient factory = new AbstractReactiveSocketClient() {
+        ReactiveSocketClient factory = new ReactiveSocketClient() {
             @Override
             public Mono<ReactiveSocket> connect() {
                 return Mono.just(socket);
