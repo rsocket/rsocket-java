@@ -34,7 +34,7 @@ public class TcpClientServerTest {
     public void testRequestResponse10() {
         setup.testRequestResponseN(10);
     }
-    
+
     @Test(timeout = 10000)
     public void testRequestResponse100() {
         setup.testRequestResponseN(100);
@@ -45,7 +45,7 @@ public class TcpClientServerTest {
         setup.testRequestResponseN(10_000);
     }
 
-    @Test(timeout = 1000000)
+    @Test(timeout = 10000)
     public void testRequestStream() {
         setup.testRequestStream();
     }
