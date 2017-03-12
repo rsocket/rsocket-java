@@ -39,8 +39,9 @@ public class LocalDuplexConnection implements DuplexConnection {
 
     @Override
     public Mono<Void> send(Publisher<Frame> frame) {
-        return Mono
+        return Flux
             .from(frame)
+            .doOnNext(f -> System.out.println(name + " - " + f.toString()))
             .doOnNext(send::onNext)
             .doOnError(send::onError)
             .then();
@@ -48,7 +49,7 @@ public class LocalDuplexConnection implements DuplexConnection {
 
     @Override
     public Flux<Frame> receive() {
-        return receive;
+        return receive.doOnNext(f -> System.out.println(name + " - " + f.toString()));
     }
 
     @Override

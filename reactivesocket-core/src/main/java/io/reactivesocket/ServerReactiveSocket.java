@@ -236,20 +236,25 @@ public class ServerReactiveSocket implements ReactiveSocket {
     }
 
     private Mono<Void> send(int streamId, Publisher<Frame> responseFrames) {
-        return connection
-            .send(responseFrames)
-            .doOnCancel(() -> {
-                if (connection.availability() > 0.0) {
-                    connection.sendOne(Frame.Cancel.from(streamId)).subscribe(null, errorConsumer::accept);
-                }
-            })
-            .doOnError(t -> {
-                if (connection.availability() > 0.0) {
-                    connection.sendOne(Frame.Error.from(streamId, t)).subscribe(null, errorConsumer::accept);
-                }
-            })
-            .doFinally(signalType -> removeSubscription(streamId))
-            .ignoreElement();
+        return Mono.create(sink ->
+            connection
+                .send(responseFrames)
+                .doOnCancel(() -> {
+                    if (connection.availability() > 0.0) {
+                        connection.sendOne(Frame.Cancel.from(streamId)).subscribe(null, errorConsumer::accept);
+                    }
+                })
+                .doOnError(t -> {
+                    if (connection.availability() > 0.0) {
+                        connection.sendOne(Frame.Error.from(streamId, t)).subscribe(null, errorConsumer::accept);
+                    }
+                })
+                .doFinally(signalType -> {
+                    sink.success();
+                    removeSubscription(streamId);
+                })
+                .subscribe()
+        );
     }
 
     private Mono<Void> handleRequestResponse(int streamId, Mono<Payload> response) {
@@ -294,7 +299,7 @@ public class ServerReactiveSocket implements ReactiveSocket {
                 })
                 .doOnError(t -> {
                     if (connection.availability() > 0.0) {
-                        connection.sendOne(Frame.Error.from(streamId, t)).subscribe(null, errorConsumer::accept);
+                        connection.sendOne(Frame.Error.from(streamId, t)).doOnError(throwable -> System.out.println("EREREERERERERER")).subscribe(null, errorConsumer::accept);
                     }
                 })
                 .doOnRequest(l -> {
