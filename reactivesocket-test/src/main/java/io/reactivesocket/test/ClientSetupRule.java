@@ -103,7 +103,7 @@ public class ClientSetupRule extends ExternalResource {
 
     private void testStream(Function<ReactiveSocket, Flux<Payload>> invoker) {
         TestSubscriber<Payload> ts = TestSubscriber.create();
-        Flux<Payload> publisher = invoker.apply(reactiveSocket);
+        Flux<Payload> publisher = invoker.apply(getReactiveSocket());
         publisher.take(10).subscribe(ts);
         await(ts);
         ts.assertTerminated();
