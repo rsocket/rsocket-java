@@ -24,6 +24,6 @@ import static io.reactivesocket.frame.FrameHeaderFlyweight.FRAME_LENGTH_SIZE;
 public class ReactiveSocketLengthCodec extends LengthFieldBasedFrameDecoder {
 
     public ReactiveSocketLengthCodec() {
-        super(FRAME_LENGTH_MASK, 0, FRAME_LENGTH_SIZE, -1 * FRAME_LENGTH_SIZE, 0);
+        super(FRAME_LENGTH_MASK, 0, FRAME_LENGTH_SIZE, 0, 0);
     }
 }

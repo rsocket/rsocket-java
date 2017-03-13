@@ -89,8 +89,13 @@ public class FrameHeaderFlyweight {
             final FrameType frameType,
             final int streamId
     ) {
+        if ((frameLength & ~FRAME_LENGTH_MASK) != 0) {
+            throw new IllegalArgumentException("Frame length is larger than 24 bits");
+        }
+
         if (INCLUDE_FRAME_LENGTH) {
-            encodeLength(mutableDirectBuffer, offset + FRAME_LENGTH_FIELD_OFFSET, frameLength);
+            // frame length field needs to be excluded from the length
+            encodeLength(mutableDirectBuffer, offset + FRAME_LENGTH_FIELD_OFFSET, frameLength - FRAME_LENGTH_SIZE);
         }
 
         mutableDirectBuffer.putInt(offset + STREAM_ID_FIELD_OFFSET, streamId, ByteOrder.BIG_ENDIAN);
@@ -251,7 +256,9 @@ public class FrameHeaderFlyweight {
             return externalFrameLength;
         }
 
-        return decodeLength(directBuffer, offset + FRAME_LENGTH_FIELD_OFFSET);
+        // frame length field was excluded from the length so we will add it to represent
+        // the entire block
+        return decodeLength(directBuffer, offset + FRAME_LENGTH_FIELD_OFFSET) + FRAME_LENGTH_SIZE;
     }
 
     private static int metadataFieldLength(DirectBuffer directBuffer, FrameType frameType, int offset, int frameLength) {
