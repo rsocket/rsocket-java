@@ -35,7 +35,6 @@ public class TcpClientServerTest {
         setup.testRequestResponseN(10);
     }
 
-
     @Test(timeout = 10000)
     public void testRequestResponse100() {
         setup.testRequestResponseN(100);
@@ -46,7 +45,6 @@ public class TcpClientServerTest {
         setup.testRequestResponseN(10_000);
     }
 
-    @Ignore("Fix request-stream")
     @Test(timeout = 10000)
     public void testRequestStream() {
         setup.testRequestStream();
