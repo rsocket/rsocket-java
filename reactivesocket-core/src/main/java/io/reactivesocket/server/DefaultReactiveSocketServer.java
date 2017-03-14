@@ -16,12 +16,13 @@ package io.reactivesocket.server;
 import io.reactivesocket.ClientReactiveSocket;
 import io.reactivesocket.ConnectionSetupPayload;
 import io.reactivesocket.FrameType;
+import io.reactivesocket.Plugins;
+import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.ServerReactiveSocket;
 import io.reactivesocket.StreamIdSupplier;
 import io.reactivesocket.client.KeepAliveProvider;
 import io.reactivesocket.internal.ClientServerInputMultiplexer;
 import io.reactivesocket.lease.DefaultLeaseHonoringSocket;
-import io.reactivesocket.lease.LeaseEnforcingSocket;
 import io.reactivesocket.lease.LeaseHonoringSocket;
 import io.reactivesocket.transport.TransportServer;
 import io.reactivesocket.transport.TransportServer.StartedServer;
@@ -38,7 +39,8 @@ public final class DefaultReactiveSocketServer
 
     @Override
     public StartedServer start(SocketAcceptor acceptor) {
-        return transportServer.start(connection -> {
+        return transportServer
+            .start(connection -> {
             ClientServerInputMultiplexer multiplexer = new ClientServerInputMultiplexer(connection);
             return multiplexer
                     .asStreamZeroConnection()
@@ -51,9 +53,19 @@ public final class DefaultReactiveSocketServer
                                                                                    Throwable::printStackTrace,
                                                                                    StreamIdSupplier.serverSupplier(),
                                                                                    KeepAliveProvider.never());
-                            LeaseHonoringSocket lhs = new DefaultLeaseHonoringSocket(sender);
-                            sender.start(lhs);
-                            LeaseEnforcingSocket handler = acceptor.accept(setup, sender);
+
+                            if (Plugins.emptyClientReactiveSocketInterceptor()) {
+                                LeaseHonoringSocket lhs = new DefaultLeaseHonoringSocket(sender);
+                                sender.start(lhs);
+                            } else {
+                                LeaseHonoringSocket lhs = new DefaultLeaseHonoringSocket(Plugins.CLIENT_REACTIVE_SOCKET_INTERCEPTOR.apply(sender));
+                                sender.start(lhs);
+                            }
+
+                            ReactiveSocket handler = Plugins.emptyServerReactiveSocketInterceptor()
+                                ? acceptor.accept(setup, sender)
+                                : Plugins.SERVER_REACTIVE_SOCKET_INTERCEPTOR.apply(acceptor.accept(setup, sender));
+
                             ServerReactiveSocket receiver = new ServerReactiveSocket(multiplexer.asClientConnection(),
                                                                                      handler,
                                                                                      setup.willClientHonorLease(),

@@ -18,6 +18,7 @@ package io.reactivesocket.internal;
 
 import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
+import io.reactivesocket.Plugins;
 import org.agrona.BitUtil;
 import org.reactivestreams.Publisher;
 import org.slf4j.Logger;
@@ -25,6 +26,8 @@ import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
+
+import static io.reactivesocket.Plugins.NOOP_COUNTER;
 
 /**
  * {@link DuplexConnection#receive()} is a single stream on which the following type of frames arrive:
@@ -39,11 +42,13 @@ import reactor.core.publisher.MonoProcessor;
 public class ClientServerInputMultiplexer {
     private static final Logger LOGGER = LoggerFactory.getLogger("io.reactivesocket.FrameLogger");
 
+    public static volatile Plugins.FrameCounter COUNTERS = NOOP_COUNTER;
+
     private final InternalDuplexConnection streamZeroConnection;
     private final InternalDuplexConnection serverConnection;
     private final InternalDuplexConnection clientConnection;
 
-    private enum Type { STREAM_ZERO, CLIENT, SERVER }
+    public enum Type { STREAM_ZERO, CLIENT, SERVER }
 
     public ClientServerInputMultiplexer(DuplexConnection source) {
         final MonoProcessor<Flux<Frame>> streamZero = MonoProcessor.create();
@@ -68,15 +73,30 @@ public class ClientServerInputMultiplexer {
                 return type;
             })
             .subscribe(group -> {
+                Flux<Frame> frames = group;
                 switch (group.key()) {
                     case STREAM_ZERO:
-                        streamZero.onNext(group);
+                        if (COUNTERS == NOOP_COUNTER) {
+                            frames = group.doOnNext(COUNTERS.apply(Type.STREAM_ZERO)::accept);
+                        }
+
+                        streamZero.onNext(frames);
                         break;
+
                     case SERVER:
-                        server.onNext(group);
+                        if (COUNTERS == NOOP_COUNTER) {
+                            frames = group.doOnNext(COUNTERS.apply(Type.SERVER)::accept);
+                        }
+
+                        server.onNext(frames);
                         break;
+
                     case CLIENT:
-                        client.onNext(group);
+                        if (COUNTERS == NOOP_COUNTER) {
+                            frames = group.doOnNext(COUNTERS.apply(Type.CLIENT)::accept);
+                        }
+
+                        client.onNext(frames);
                         break;
                 }
             });

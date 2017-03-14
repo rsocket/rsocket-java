@@ -16,6 +16,7 @@
 
 package io.reactivesocket.client;
 
+import io.reactivesocket.Plugins;
 import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.transport.TransportClient;
 import reactor.core.publisher.Mono;
@@ -30,8 +31,11 @@ public final class DefaultReactiveSocketClient implements ReactiveSocketClient {
 
     public DefaultReactiveSocketClient(TransportClient transportClient, SetupProvider setupProvider,
                                        SocketAcceptor acceptor) {
-        connectSource = transportClient.connect()
-            .then(connection -> setupProvider.accept(connection, acceptor));
+        connectSource =
+            transportClient
+                .connect()
+                .then(connection -> setupProvider.accept(connection, acceptor))
+                .map(Plugins.CLIENT_REACTIVE_SOCKET_INTERCEPTOR);
     }
 
     @Override
