@@ -26,6 +26,16 @@ public class ClientServerTest {
     @Rule
     public final ClientSetupRule setup = new AeronClientSetupRule();
 
+    @Test(timeout = 10000)
+    public void testFireNForget10() {
+        setup.testFireAndForget(10);
+    }
+
+    @Test(timeout = 10000)
+    public void testPushMetadata10() {
+        setup.testMetadata(10);
+    }
+
     @Test(timeout = 5000000)
     public void testRequestResponse1() {
         setup.testRequestResponseN(1);

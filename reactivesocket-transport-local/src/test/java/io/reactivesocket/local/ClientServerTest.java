@@ -31,6 +31,17 @@ public class ClientServerTest {
     public final ClientSetupRule setup = new LocalRule();
 
     @Test(timeout = 10000)
+    public void testFireNForget10() {
+        setup.testFireAndForget(10);
+    }
+
+    @Ignore("Push Metadata does not work as of now.")
+    @Test(timeout = 10000)
+    public void testPushMetadata10() {
+        setup.testMetadata(10);
+    }
+
+    @Test(timeout = 10000)
     public void testRequestResponse1() {
         setup.testRequestResponseN(1);
     }
@@ -39,7 +50,6 @@ public class ClientServerTest {
     public void testRequestResponse10() {
         setup.testRequestResponseN(10);
     }
-
 
     @Test(timeout = 10000)
     public void testRequestResponse100() {
@@ -51,7 +61,7 @@ public class ClientServerTest {
         setup.testRequestResponseN(10_000);
     }
 
-    @Ignore("Stream/Subscription does not work as of now.")
+    @Ignore("Stream does not work as of now.")
     @Test(timeout = 10000)
     public void testRequestStream() {
         setup.testRequestStream();
@@ -72,9 +82,7 @@ public class ClientServerTest {
                 LocalServer localServer = LocalServer.create("test-local-server-"
                                                              + uniqueNameGenerator.incrementAndGet());
                 return ReactiveSocketServer.create(localServer)
-                                           .start((setup, sendingSocket) -> {
-                                               return new DisabledLeaseAcceptingSocket(new TestReactiveSocket());
-                                           })
+                                           .start((setup, sendingSocket) -> new DisabledLeaseAcceptingSocket(new TestReactiveSocket()))
                                            .getServerAddress();
             });
         }
