@@ -79,6 +79,38 @@ public class ClientSetupRule extends ExternalResource {
         return reactiveSocket;
     }
 
+    public void testFireAndForget(int count) {
+        TestSubscriber<Void> ts = TestSubscriber.create();
+        Flux.range(1, count)
+            .flatMap(i ->
+                getReactiveSocket()
+                    .fireAndForget(TestUtil.utf8EncodedPayload("hello", "metadata"))
+            )
+            .doOnError(Throwable::printStackTrace)
+            .subscribe(ts);
+
+        await(ts);
+        ts.assertTerminated();
+        ts.assertNoErrors();
+        ts.assertTerminated();
+    }
+
+    public void testMetadata(int count) {
+        TestSubscriber<Void> ts = TestSubscriber.create();
+        Flux.range(1, count)
+            .flatMap(i ->
+                getReactiveSocket()
+                    .metadataPush(TestUtil.utf8EncodedPayload("", "metadata"))
+            )
+            .doOnError(Throwable::printStackTrace)
+            .subscribe(ts);
+
+        await(ts);
+        ts.assertTerminated();
+        ts.assertNoErrors();
+        ts.assertTerminated();
+    }
+
     public void testRequestResponseN(int count) {
         TestSubscriber<String> ts = TestSubscriber.create();
         Flux.range(1, count)
