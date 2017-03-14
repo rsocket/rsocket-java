@@ -116,16 +116,11 @@ public class MySubscriber<T> extends TestSubscriber<T> {
         if (done.getCount() != 0) {
             prefix = "Subscriber still running! ";
         }
-        assertReceivedAtLeast(values.size());
+        if (!assertReceivedAtLeast(values.size())) {
+            return false;
+        }
         for (int i = 0; i < values.size(); i++) {
-            Frame p = (Frame) values().get(i);
-            try {
-                // TODO (somasun) : debug why this occurs
-                p.getType();
-            } catch (Exception ex) {
-                System.out.println("Undefined Payload. Skipping");
-                continue;
-            }
+            Frame p = (Frame) this.values().get(i);
             Tuple<String, String> v = new Tuple<>(ByteBufferUtil.toUtf8String(p.getData()),
                     ByteBufferUtil.toUtf8String(p.getMetadata()));
             Tuple<String, String> u = values.get(i);
