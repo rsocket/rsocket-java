@@ -27,7 +27,7 @@ Others can be found in the [ReactiveSocket Github](https://github.com/ReactiveSo
 
 ## Build and Binaries
 
-<a href='https://travis-ci.org/ReactiveSocket/reactivesocket-java/builds'><img src='https://travis-ci.org/ReactiveSocket/reactivesocket-java.svg?branch=master'></a>
+<a href='https://travis-ci.org/ReactiveSocket/reactivesocket-java/builds'><img src='https://travis-ci.org/ReactiveSocket/reactivesocket-java.svg?branch=1.0.x'></a>
 
 Snapshots are available via JFrog.
 
