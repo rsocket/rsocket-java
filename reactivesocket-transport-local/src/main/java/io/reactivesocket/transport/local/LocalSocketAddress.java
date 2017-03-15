@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package io.reactivesocket.local;
+package io.reactivesocket.transport.local;
 
 import java.net.SocketAddress;
 
