@@ -35,7 +35,8 @@ public final class DefaultReactiveSocketClient implements ReactiveSocketClient {
             transportClient
                 .connect()
                 .then(connection -> setupProvider.accept(connection, acceptor))
-                .map(Plugins.CLIENT_REACTIVE_SOCKET_INTERCEPTOR);
+                .then(Plugins.CLIENT_REACTIVE_SOCKET_INTERCEPTOR::apply);
+
     }
 
     @Override

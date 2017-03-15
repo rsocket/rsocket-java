@@ -18,6 +18,7 @@ package io.reactivesocket.integration;
 
 import io.reactivesocket.AbstractReactiveSocket;
 import io.reactivesocket.Payload;
+import io.reactivesocket.Plugins;
 import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.client.KeepAliveProvider;
 import io.reactivesocket.client.ReactiveSocketClient;
@@ -28,6 +29,7 @@ import io.reactivesocket.transport.TransportServer.StartedServer;
 import io.reactivesocket.transport.netty.client.TcpTransportClient;
 import io.reactivesocket.transport.netty.server.TcpTransportServer;
 import io.reactivesocket.util.PayloadImpl;
+import io.reactivesocket.util.ReactiveSocketProxy;
 import io.reactivex.subscribers.TestSubscriber;
 import org.junit.Rule;
 import org.junit.Test;
@@ -47,6 +49,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 
 public class IntegrationTest {
 
@@ -57,11 +60,13 @@ public class IntegrationTest {
     public void testRequest() {
         rule.client.requestResponse(new PayloadImpl("REQUEST", "META")).block();
         assertThat("Server did not see the request.", rule.requestCount.get(), is(1));
+        assertTrue(ClientServerRule.calledClient);
+        assertTrue(ClientServerRule.calledServer);
     }
 
     @Test
     public void testStream() throws Exception {
-        TestSubscriber subscriber  = TestSubscriber.create();
+        TestSubscriber subscriber = TestSubscriber.create();
         rule
             .client
             .requestStream(new PayloadImpl("start"))
@@ -85,6 +90,28 @@ public class IntegrationTest {
         private ReactiveSocket client;
         private AtomicInteger requestCount;
         private CountDownLatch disconnectionCounter;
+        public static volatile boolean calledClient = false;
+        public static volatile boolean calledServer = false;
+
+        static {
+            Plugins.CLIENT_REACTIVE_SOCKET_INTERCEPTOR = reactiveSocket ->
+                Mono.just(new ReactiveSocketProxy(reactiveSocket) {
+                    @Override
+                    public Mono<Payload> requestResponse(Payload payload) {
+                        calledClient = true;
+                        return reactiveSocket.requestResponse(payload);
+                    }
+                });
+
+            Plugins.SERVER_REACTIVE_SOCKET_INTERCEPTOR = reactiveSocket ->
+                Mono.just(new ReactiveSocketProxy(reactiveSocket) {
+                    @Override
+                    public Mono<Payload> requestResponse(Payload payload) {
+                        calledServer = true;
+                        return reactiveSocket.requestResponse(payload);
+                    }
+                });
+        }
 
         @Override
         public Statement apply(final Statement base, Description description) {

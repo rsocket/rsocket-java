@@ -49,35 +49,42 @@ public final class DefaultReactiveSocketServer
                     .then(setupFrame -> {
                         if (setupFrame.getType() == FrameType.SETUP) {
                             ConnectionSetupPayload setup = ConnectionSetupPayload.create(setupFrame);
-                            ClientReactiveSocket sender = new ClientReactiveSocket(multiplexer.asServerConnection(),
-                                                                                   Throwable::printStackTrace,
-                                                                                   StreamIdSupplier.serverSupplier(),
-                                                                                   KeepAliveProvider.never());
 
-                            if (Plugins.emptyClientReactiveSocketInterceptor()) {
-                                LeaseHonoringSocket lhs = new DefaultLeaseHonoringSocket(sender);
-                                sender.start(lhs);
-                            } else {
-                                LeaseHonoringSocket lhs = new DefaultLeaseHonoringSocket(Plugins.CLIENT_REACTIVE_SOCKET_INTERCEPTOR.apply(sender));
-                                sender.start(lhs);
-                            }
+                            return Mono.defer(() -> {
+                                ClientReactiveSocket clientReactiveSocket = new ClientReactiveSocket(multiplexer.asServerConnection(),
+                                    Throwable::printStackTrace,
+                                    StreamIdSupplier.serverSupplier(),
+                                    KeepAliveProvider.never());
 
-                            ReactiveSocket handler = Plugins.emptyServerReactiveSocketInterceptor()
-                                ? acceptor.accept(setup, sender)
-                                : Plugins.SERVER_REACTIVE_SOCKET_INTERCEPTOR.apply(acceptor.accept(setup, sender));
+                                Mono<ReactiveSocket> wrappedClientReactiveSocket =
+                                    Plugins.CLIENT_REACTIVE_SOCKET_INTERCEPTOR.apply(clientReactiveSocket);
 
-                            ServerReactiveSocket receiver = new ServerReactiveSocket(multiplexer.asClientConnection(),
-                                                                                     handler,
-                                                                                     setup.willClientHonorLease(),
-                                                                                     Throwable::printStackTrace);
-                            receiver.start();
-                            return connection.onClose();
+                                return wrappedClientReactiveSocket
+                                    .then(sender -> {
+                                        LeaseHonoringSocket lhs = new DefaultLeaseHonoringSocket(sender);
+                                        clientReactiveSocket.start(lhs);
+
+                                        return Plugins.SERVER_REACTIVE_SOCKET_INTERCEPTOR.apply(acceptor.accept(setup, lhs));
+                                    });
+
+                            })
+                            .then(handler -> {
+                                ServerReactiveSocket receiver = new ServerReactiveSocket(multiplexer.asClientConnection(),
+                                    handler,
+                                    setup.willClientHonorLease(),
+                                    Throwable::printStackTrace);
+                                receiver.start();
+                                return connection.onClose();
+
+                            });
+
                         } else {
                             return Mono.<Void>error(new IllegalStateException("Invalid first frame on the connection: "
                                                                             + connection + ", frame type received: "
                                                                             + setupFrame.getType()));
                         }
                     });
+
         });
     }
 }

@@ -1,39 +1,28 @@
 package io.reactivesocket;
 
 import io.reactivesocket.internal.ClientServerInputMultiplexer;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
-import java.util.function.Consumer;
 import java.util.function.Function;
 
 /**
  *
  */
 public class Plugins {
-    public static final FrameCounter NOOP_COUNTER = type -> frame -> {};
 
-    private static final ReactiveSocketInterceptor NOOP_INTERCEPTOR = reactiveSocket -> reactiveSocket;
+    public interface FrameInterceptor extends Function<ClientServerInputMultiplexer.Type, Function<Frame, Frame>> {}
+    public interface AsyncFrameInterceptor extends Function<ClientServerInputMultiplexer.Type, Function<Frame, Flux<Frame>>> {}
+    public interface ReactiveSocketInterceptor extends Function<ReactiveSocket, Mono<ReactiveSocket>> {}
 
-    public interface FrameCounter extends Function<ClientServerInputMultiplexer.Type, Consumer<Frame>> {}
+    public static final FrameInterceptor NOOP_FRAME_INTERCEPTOR = type -> Function.identity();
+    public static final AsyncFrameInterceptor NOOP_ASYNC_FRAME_INTERCEPTOR = type -> Flux::just;
+    private static final ReactiveSocketInterceptor NOOP_INTERCEPTOR = Mono::just;
 
-    public interface ReactiveSocketInterceptor extends Function<ReactiveSocket, ReactiveSocket> {}
-
-    public static volatile Plugins.FrameCounter FRAME_COUNTER = NOOP_COUNTER;
-
+    public static volatile FrameInterceptor FRAME_INTERCEPTOR = NOOP_FRAME_INTERCEPTOR;
+    public static volatile AsyncFrameInterceptor ASYNC_FRAME_INTERCEPTOR = NOOP_ASYNC_FRAME_INTERCEPTOR;
     public static volatile ReactiveSocketInterceptor CLIENT_REACTIVE_SOCKET_INTERCEPTOR = NOOP_INTERCEPTOR;
-
     public static volatile ReactiveSocketInterceptor SERVER_REACTIVE_SOCKET_INTERCEPTOR = NOOP_INTERCEPTOR;
-
-    public static boolean emptyCounter() {
-        return FRAME_COUNTER == NOOP_COUNTER;
-    }
-
-    public static boolean emptyClientReactiveSocketInterceptor() {
-        return CLIENT_REACTIVE_SOCKET_INTERCEPTOR == NOOP_INTERCEPTOR;
-    }
-
-    public static boolean emptyServerReactiveSocketInterceptor() {
-        return SERVER_REACTIVE_SOCKET_INTERCEPTOR == NOOP_INTERCEPTOR;
-    }
 
     private Plugins() {}
 

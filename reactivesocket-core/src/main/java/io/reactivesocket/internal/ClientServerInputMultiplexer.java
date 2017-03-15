@@ -27,7 +27,8 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
 
-import static io.reactivesocket.Plugins.NOOP_COUNTER;
+import static io.reactivesocket.Plugins.NOOP_ASYNC_FRAME_INTERCEPTOR;
+import static io.reactivesocket.Plugins.NOOP_FRAME_INTERCEPTOR;
 
 /**
  * {@link DuplexConnection#receive()} is a single stream on which the following type of frames arrive:
@@ -41,8 +42,6 @@ import static io.reactivesocket.Plugins.NOOP_COUNTER;
  */
 public class ClientServerInputMultiplexer {
     private static final Logger LOGGER = LoggerFactory.getLogger("io.reactivesocket.FrameLogger");
-
-    public static volatile Plugins.FrameCounter COUNTERS = NOOP_COUNTER;
 
     private final InternalDuplexConnection streamZeroConnection;
     private final InternalDuplexConnection serverConnection;
@@ -76,24 +75,42 @@ public class ClientServerInputMultiplexer {
                 Flux<Frame> frames = group;
                 switch (group.key()) {
                     case STREAM_ZERO:
-                        if (COUNTERS == NOOP_COUNTER) {
-                            frames = group.doOnNext(COUNTERS.apply(Type.STREAM_ZERO)::accept);
+                        if (Plugins.FRAME_INTERCEPTOR != NOOP_FRAME_INTERCEPTOR) {
+                            frames = group
+                                .map(Plugins.FRAME_INTERCEPTOR.apply(Type.STREAM_ZERO)::apply);
+                        }
+
+                        if (Plugins.ASYNC_FRAME_INTERCEPTOR != NOOP_ASYNC_FRAME_INTERCEPTOR) {
+                            frames = frames
+                                .flatMap(Plugins.ASYNC_FRAME_INTERCEPTOR.apply(Type.STREAM_ZERO)::apply);
                         }
 
                         streamZero.onNext(frames);
                         break;
 
                     case SERVER:
-                        if (COUNTERS == NOOP_COUNTER) {
-                            frames = group.doOnNext(COUNTERS.apply(Type.SERVER)::accept);
+                        if (Plugins.FRAME_INTERCEPTOR != NOOP_FRAME_INTERCEPTOR) {
+                            frames = group
+                                .map(Plugins.FRAME_INTERCEPTOR.apply(Type.SERVER)::apply);
+                        }
+
+                        if (Plugins.ASYNC_FRAME_INTERCEPTOR != NOOP_ASYNC_FRAME_INTERCEPTOR) {
+                            frames = frames
+                                .flatMap(Plugins.ASYNC_FRAME_INTERCEPTOR.apply(Type.SERVER)::apply);
                         }
 
                         server.onNext(frames);
                         break;
 
                     case CLIENT:
-                        if (COUNTERS == NOOP_COUNTER) {
-                            frames = group.doOnNext(COUNTERS.apply(Type.CLIENT)::accept);
+                        if (Plugins.FRAME_INTERCEPTOR != NOOP_FRAME_INTERCEPTOR) {
+                            frames = group
+                                .map(Plugins.FRAME_INTERCEPTOR.apply(Type.CLIENT)::apply);
+                        }
+
+                        if (Plugins.ASYNC_FRAME_INTERCEPTOR != NOOP_ASYNC_FRAME_INTERCEPTOR) {
+                            frames = frames
+                                .flatMap(Plugins.ASYNC_FRAME_INTERCEPTOR.apply(Type.CLIENT)::apply);
                         }
 
                         client.onNext(frames);
