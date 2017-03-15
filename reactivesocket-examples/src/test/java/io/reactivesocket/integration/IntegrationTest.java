@@ -62,6 +62,7 @@ public class IntegrationTest {
         assertThat("Server did not see the request.", rule.requestCount.get(), is(1));
         assertTrue(ClientServerRule.calledClient);
         assertTrue(ClientServerRule.calledServer);
+        assertTrue(ClientServerRule.calledFrame);
     }
 
     @Test
@@ -92,6 +93,7 @@ public class IntegrationTest {
         private CountDownLatch disconnectionCounter;
         public static volatile boolean calledClient = false;
         public static volatile boolean calledServer = false;
+        public static volatile boolean calledFrame = false;
 
         static {
             Plugins.CLIENT_REACTIVE_SOCKET_INTERCEPTOR = reactiveSocket ->
@@ -111,6 +113,11 @@ public class IntegrationTest {
                         return reactiveSocket.requestResponse(payload);
                     }
                 });
+
+            Plugins.FRAME_INTERCEPTOR = type -> frame -> {
+                calledFrame = true;
+                return frame;
+            };
         }
 
         @Override

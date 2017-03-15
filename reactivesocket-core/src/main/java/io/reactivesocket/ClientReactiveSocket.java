@@ -152,7 +152,7 @@ public class ClientReactiveSocket implements ReactiveSocket {
 
             return receiver
                 .doOnError(t -> {
-                    if (contains(streamId) && connection.availability() > 0.0) {
+                    if (contains(streamId) && connection.availability() > 0.0  && !receiver.isTerminated()) {
                         connection
                             .sendOne(Frame.Error.from(streamId, t))
                             .doOnError(errorConsumer::accept)
@@ -160,7 +160,7 @@ public class ClientReactiveSocket implements ReactiveSocket {
                     }
                 })
                 .doOnCancel(() -> {
-                    if (contains(streamId) && connection.availability() > 0.0) {
+                    if (contains(streamId) && connection.availability() > 0.0 && !receiver.isTerminated()) {
                         connection
                             .sendOne(Frame.Cancel.from(streamId))
                             .doOnError(errorConsumer::accept)
@@ -204,7 +204,7 @@ public class ClientReactiveSocket implements ReactiveSocket {
 
             return receiver
                 .doOnRequest(l -> {
-                    if (contains(streamId) && connection.availability() > 0.0) {
+                    if (contains(streamId) && connection.availability() > 0.0 && !receiver.isTerminated()) {
                         connection
                             .sendOne(Frame.RequestN.from(streamId, l))
                             .doOnError(receiver::onError)
@@ -212,7 +212,7 @@ public class ClientReactiveSocket implements ReactiveSocket {
                     }
                 })
                 .doOnError(t -> {
-                    if (contains(streamId) && connection.availability() > 0.0) {
+                    if (contains(streamId) && connection.availability() > 0.0 && !receiver.isTerminated()) {
                         connection
                             .sendOne(Frame.Error.from(streamId, t))
                             .doOnError(errorConsumer::accept)
@@ -220,7 +220,7 @@ public class ClientReactiveSocket implements ReactiveSocket {
                     }
                 })
                 .doOnCancel(() -> {
-                    if (contains(streamId) && connection.availability() > 0.0) {
+                    if (contains(streamId) && connection.availability() > 0.0 && !receiver.isTerminated()) {
                         connection
                             .sendOne(Frame.Cancel.from(streamId))
                             .doOnError(errorConsumer::accept)
