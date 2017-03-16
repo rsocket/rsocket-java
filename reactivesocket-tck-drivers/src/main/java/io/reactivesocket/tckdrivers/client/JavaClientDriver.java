@@ -76,7 +76,7 @@ public class JavaClientDriver {
      * Splits the test file into individual tests, and then run each of them on their own thread.
      * @throws IOException
      */
-    public void runTests() throws IOException {
+    public boolean runTests() throws IOException {
         List<List<String>> tests = new ArrayList<>();
         List<String> test = new ArrayList<>();
         String line = reader.readLine();
@@ -99,6 +99,7 @@ public class JavaClientDriver {
             thread.start();
             thread.join();
         }
+        return ConsoleUtils.allPassed();
     }
 
     /**

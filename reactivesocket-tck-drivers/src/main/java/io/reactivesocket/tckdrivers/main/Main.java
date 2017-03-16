@@ -42,16 +42,21 @@ public class Main {
     public static void main(String[] args) {
         SingleCommand<Main> cmd = SingleCommand.singleCommand(Main.class);
         cmd.parse(args);
+        boolean passed = true;
         if (server) {
             new JavaTCPServer().run(file, port);
         } else if (client) {
             try {
-                if (tests != null) new JavaTCPClient().run(file, host, port, debug, Arrays.asList(tests.split(",")));
-                else new JavaTCPClient().run(file, host, port, debug, new ArrayList<>());
+                if (tests != null) {
+                    passed = new JavaTCPClient().run(file, host, port, debug, Arrays.asList(tests.split(",")));
+                } else {
+                    passed = new JavaTCPClient().run(file, host, port, debug, new ArrayList<>());
+                }
             } catch (Exception e) {
                 e.printStackTrace();
             }
         }
+        System.exit(passed ? 0 : 1);
     }
 
 }
