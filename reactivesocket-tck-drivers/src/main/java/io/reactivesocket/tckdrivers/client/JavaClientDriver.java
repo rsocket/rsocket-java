@@ -76,7 +76,7 @@ public class JavaClientDriver {
      * Splits the test file into individual tests, and then run each of them on their own thread.
      * @throws IOException
      */
-    public void runTests() throws IOException {
+    public boolean runTests() throws IOException {
         List<List<String>> tests = new ArrayList<>();
         List<String> test = new ArrayList<>();
         String line = reader.readLine();
@@ -99,6 +99,7 @@ public class JavaClientDriver {
             thread.start();
             thread.join();
         }
+        return ConsoleUtils.allPassed();
     }
 
     /**
@@ -110,7 +111,6 @@ public class JavaClientDriver {
     private TestResult parse(List<String> test, String name) throws Exception {
         List<String> id = new ArrayList<>();
         Iterator<String> iter = test.iterator();
-        boolean shouldPass = true; // determines whether this test is supposed to pass or fail
         boolean channelTest = false; // tells whether this is a test for channel or not
         boolean hasPassed = true;
         while (iter.hasNext()) {
@@ -123,7 +123,7 @@ public class JavaClientDriver {
                     break;
                 case "channel":
                     channelTest = true;
-                    handleChannel(args, iter, name, shouldPass);
+                    handleChannel(args, iter, name, true);
                     break;
                 case "echochannel":
                     handleEchoChannel(args);
@@ -184,12 +184,6 @@ public class JavaClientDriver {
                 case "EOF":
                     handleEOF();
                     break;
-                case "pass":
-                    shouldPass = true;
-                    break;
-                case "fail":
-                    shouldPass = false;
-                    break;
                 default:
                     // the default behavior is to just skip the line, so we can acommodate slight changes to the TCK
                     break;
@@ -202,7 +196,7 @@ public class JavaClientDriver {
                 if (payloadSubscribers.get(str) != null) hasPassed = hasPassed && payloadSubscribers.get(str).hasPassed();
                 else hasPassed = hasPassed && fnfSubscribers.get(str).hasPassed();
             }
-            if ((shouldPass && hasPassed) || (!shouldPass && !hasPassed)) return TestResult.PASS;
+            if (hasPassed) return TestResult.PASS;
             else return TestResult.FAIL;
         }
         else if (channelTest) return TestResult.CHANNEL;
