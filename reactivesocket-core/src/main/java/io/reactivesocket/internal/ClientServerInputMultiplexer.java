@@ -19,6 +19,7 @@ package io.reactivesocket.internal;
 import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
 import io.reactivesocket.Plugins;
+import io.reactivesocket.Plugins.DuplexConnectionInterceptor.Type;
 import org.agrona.BitUtil;
 import org.reactivestreams.Publisher;
 import org.slf4j.Logger;
@@ -26,9 +27,6 @@ import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
-
-import static io.reactivesocket.Plugins.NOOP_ASYNC_FRAME_INTERCEPTOR;
-import static io.reactivesocket.Plugins.NOOP_FRAME_INTERCEPTOR;
 
 /**
  * {@link DuplexConnection#receive()} is a single stream on which the following type of frames arrive:
@@ -43,20 +41,18 @@ import static io.reactivesocket.Plugins.NOOP_FRAME_INTERCEPTOR;
 public class ClientServerInputMultiplexer {
     private static final Logger LOGGER = LoggerFactory.getLogger("io.reactivesocket.FrameLogger");
 
-    private final InternalDuplexConnection streamZeroConnection;
-    private final InternalDuplexConnection serverConnection;
-    private final InternalDuplexConnection clientConnection;
-
-    public enum Type { STREAM_ZERO, CLIENT, SERVER }
+    private final DuplexConnection streamZeroConnection;
+    private final DuplexConnection serverConnection;
+    private final DuplexConnection clientConnection;
 
     public ClientServerInputMultiplexer(DuplexConnection source) {
         final MonoProcessor<Flux<Frame>> streamZero = MonoProcessor.create();
         final MonoProcessor<Flux<Frame>> server = MonoProcessor.create();
         final MonoProcessor<Flux<Frame>> client = MonoProcessor.create();
 
-        streamZeroConnection = new InternalDuplexConnection(source, streamZero);
-        serverConnection = new InternalDuplexConnection(source, server);
-        clientConnection = new InternalDuplexConnection(source, client);
+        streamZeroConnection = Plugins.DUPLEX_CONNECTION_INTERCEPTOR.apply(Type.STREAM_ZERO, new InternalDuplexConnection(source, streamZero));
+        serverConnection = Plugins.DUPLEX_CONNECTION_INTERCEPTOR.apply(Type.SERVER, new InternalDuplexConnection(source, server));
+        clientConnection = Plugins.DUPLEX_CONNECTION_INTERCEPTOR.apply(Type.CLIENT, new InternalDuplexConnection(source, client));
 
         source.receive()
             .groupBy(frame -> {
@@ -72,48 +68,17 @@ public class ClientServerInputMultiplexer {
                 return type;
             })
             .subscribe(group -> {
-                Flux<Frame> frames = group;
                 switch (group.key()) {
                     case STREAM_ZERO:
-                        if (Plugins.FRAME_INTERCEPTOR != NOOP_FRAME_INTERCEPTOR) {
-                            frames = group
-                                .map(Plugins.FRAME_INTERCEPTOR.apply(Type.STREAM_ZERO)::apply);
-                        }
-
-                        if (Plugins.ASYNC_FRAME_INTERCEPTOR != NOOP_ASYNC_FRAME_INTERCEPTOR) {
-                            frames = frames
-                                .flatMap(Plugins.ASYNC_FRAME_INTERCEPTOR.apply(Type.STREAM_ZERO)::apply);
-                        }
-
-                        streamZero.onNext(frames);
+                        streamZero.onNext(group);
                         break;
 
                     case SERVER:
-                        if (Plugins.FRAME_INTERCEPTOR != NOOP_FRAME_INTERCEPTOR) {
-                            frames = group
-                                .map(Plugins.FRAME_INTERCEPTOR.apply(Type.SERVER)::apply);
-                        }
-
-                        if (Plugins.ASYNC_FRAME_INTERCEPTOR != NOOP_ASYNC_FRAME_INTERCEPTOR) {
-                            frames = frames
-                                .flatMap(Plugins.ASYNC_FRAME_INTERCEPTOR.apply(Type.SERVER)::apply);
-                        }
-
-                        server.onNext(frames);
+                        server.onNext(group);
                         break;
 
                     case CLIENT:
-                        if (Plugins.FRAME_INTERCEPTOR != NOOP_FRAME_INTERCEPTOR) {
-                            frames = group
-                                .map(Plugins.FRAME_INTERCEPTOR.apply(Type.CLIENT)::apply);
-                        }
-
-                        if (Plugins.ASYNC_FRAME_INTERCEPTOR != NOOP_ASYNC_FRAME_INTERCEPTOR) {
-                            frames = frames
-                                .flatMap(Plugins.ASYNC_FRAME_INTERCEPTOR.apply(Type.CLIENT)::apply);
-                        }
-
-                        client.onNext(frames);
+                        client.onNext(group);
                         break;
                 }
             });

@@ -2,17 +2,18 @@ package io.reactivesocket.spectator;
 
 import com.netflix.spectator.api.Counter;
 import com.netflix.spectator.api.Registry;
+import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
 import io.reactivesocket.FrameType;
 import io.reactivesocket.Plugins;
-import io.reactivesocket.internal.ClientServerInputMultiplexer;
-
-import java.util.function.Function;
+import org.reactivestreams.Publisher;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 /**
- * An implementation of {@link Plugins.FrameInterceptor} that uses Spectator
+ * An implementation of {@link Plugins.DuplexConnectionInterceptor} that uses Spectator
  */
-public class SpectatorFrameInterceptor implements Plugins.FrameInterceptor {
+public class SpectatorFrameInterceptor implements Plugins.DuplexConnectionInterceptor {
     private final Registry registry;
 
     public SpectatorFrameInterceptor(Registry registry) {
@@ -20,12 +21,8 @@ public class SpectatorFrameInterceptor implements Plugins.FrameInterceptor {
     }
 
     @Override
-    public Function<Frame, Frame> apply(ClientServerInputMultiplexer.Type type) {
-        return counter(type);
-    }
-
-    private Function<Frame, Frame> counter(ClientServerInputMultiplexer.Type type) {
-        return new Function<Frame, Frame>() {
+    public DuplexConnection apply(Type type, DuplexConnection connection) {
+        return new DuplexConnection() {
             Counter cancelCounter = registry.counter(FrameType.CANCEL.name(), type.name());
             Counter requestChannelCounter = registry.counter(FrameType.REQUEST_CHANNEL.name(), type.name());
             Counter completeCounter = registry.counter(FrameType.COMPLETE.name(), type.name());
@@ -47,7 +44,40 @@ public class SpectatorFrameInterceptor implements Plugins.FrameInterceptor {
             Counter undefinedCounter = registry.counter(FrameType.UNDEFINED.name(), type.name());
 
             @Override
-            public Frame apply(Frame frame) {
+            public Mono<Void> send(Publisher<Frame> frame) {
+                return connection.send(Flux.from(frame).doOnNext(this::count));
+            }
+
+            @Override
+            public Mono<Void> sendOne(Frame frame) {
+                return Mono
+                    .defer(() -> {
+                        count(frame);
+                        return connection.sendOne(frame);
+                    });
+            }
+
+            @Override
+            public Flux<Frame> receive() {
+                return connection.receive().doOnNext(this::count);
+            }
+
+            @Override
+            public Mono<Void> close() {
+                return connection.close();
+            }
+
+            @Override
+            public Mono<Void> onClose() {
+                return connection.onClose();
+            }
+
+            @Override
+            public double availability() {
+                return connection.availability();
+            }
+
+            private void count(Frame frame) {
                 switch (frame.getType()) {
                     case CANCEL:
                         cancelCounter.increment();
@@ -108,8 +138,6 @@ public class SpectatorFrameInterceptor implements Plugins.FrameInterceptor {
                         undefinedCounter.increment();
                         break;
                 }
-
-                return frame;
             }
         };
     }

@@ -114,9 +114,9 @@ public class IntegrationTest {
                     }
                 });
 
-            Plugins.FRAME_INTERCEPTOR = type -> frame -> {
+            Plugins.DUPLEX_CONNECTION_INTERCEPTOR = (type, connection) -> {
                 calledFrame = true;
-                return frame;
+                return connection;
             };
         }
 
