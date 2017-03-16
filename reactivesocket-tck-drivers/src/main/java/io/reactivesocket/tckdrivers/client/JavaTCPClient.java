@@ -34,18 +34,19 @@ public class JavaTCPClient {
 
     private static URI uri;
 
-    public void run(String realfile, String host, int port, boolean debug2, List<String> tests)
+    public boolean run(String realfile, String host, int port, boolean debug2, List<String> tests)
             throws MalformedURLException, URISyntaxException {
         // we pass in our reactive socket here to the test suite
-        String file = "reactivesocket-tck-drivers/src/test/resources/clienttest$.txt";
+        String file = "reactivesocket-tck-drivers/src/test/resources/clienttest.txt";
         if (realfile != null) file = realfile;
         try {
             setURI(new URI("tcp://" + host + ":" + port + "/rs"));
             JavaClientDriver jd = new JavaClientDriver(file, JavaTCPClient::createClient, tests);
-            jd.runTests();
+            return jd.runTests();
         } catch (Exception e) {
             e.printStackTrace();
         }
+        return false;
     }
 
     public static void setURI(URI uri2) {
