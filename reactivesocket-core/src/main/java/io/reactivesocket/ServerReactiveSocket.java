@@ -280,7 +280,7 @@ public class ServerReactiveSocket implements ReactiveSocket {
                 })
                 .doOnError(t -> {
                     if (connection.availability() > 0.0) {
-                        connection.sendOne(Frame.Error.from(streamId, t)).doOnError(throwable -> System.out.println("EREREERERERERER")).subscribe(null, errorConsumer::accept);
+                        connection.sendOne(Frame.Error.from(streamId, t)).subscribe(null, errorConsumer::accept);
                     }
                 })
                 .doOnRequest(l -> {

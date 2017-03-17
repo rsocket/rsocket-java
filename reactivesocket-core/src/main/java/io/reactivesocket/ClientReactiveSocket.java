@@ -191,7 +191,6 @@ public class ClientReactiveSocket implements ReactiveSocket {
 
                         return wrapped;
                     })
-                    .doOnRequest(l -> System.out.println("request n from netty -> "  + l))
                     .map(payload -> Frame.Request.from(streamId, requestType, payload, 1));
 
             MonoProcessor<Void> subscribedRequests = connection
