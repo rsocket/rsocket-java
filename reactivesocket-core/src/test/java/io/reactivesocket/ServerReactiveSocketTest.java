@@ -18,10 +18,9 @@ package io.reactivesocket;
 
 import io.reactivesocket.test.util.TestDuplexConnection;
 import io.reactivesocket.util.PayloadImpl;
-import org.junit.Ignore;
+import io.reactivex.subscribers.TestSubscriber;
 import org.junit.Rule;
 import org.junit.Test;
-import io.reactivex.subscribers.TestSubscriber;
 import reactor.core.publisher.Mono;
 
 import java.util.Collection;
@@ -29,7 +28,10 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 
 public class ServerReactiveSocketTest {
 
@@ -63,7 +65,6 @@ public class ServerReactiveSocketTest {
     }
 
     @Test(timeout = 2000)
-    @Ignore
     public void testHandlerEmitsError() throws Exception {
         final int streamId = 4;
         rule.sendRequest(streamId, FrameType.REQUEST_STREAM);
@@ -72,7 +73,6 @@ public class ServerReactiveSocketTest {
     }
 
     @Test(timeout = 2_0000)
-    @Ignore
     public void testCancel() throws Exception {
         final int streamId = 4;
         final AtomicBoolean cancelled = new AtomicBoolean();

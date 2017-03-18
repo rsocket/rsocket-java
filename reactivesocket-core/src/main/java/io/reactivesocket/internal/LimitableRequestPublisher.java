@@ -49,10 +49,14 @@ public class LimitableRequestPublisher<T extends Payload> extends Flux<T> implem
         source.subscribe(new InnerSubscriber<>(destination));
 
         if (source instanceof Fuseable.ScalarCallable) {
-            Fuseable.ScalarCallable source = (Fuseable.ScalarCallable) this.source;
-            Object call = source.call();
-            destination.onNext((T) call);
-            destination.onComplete();
+            try {
+                Fuseable.ScalarCallable source = (Fuseable.ScalarCallable) this.source;
+                Object call = source.call();
+                destination.onNext((T) call);
+                destination.onComplete();
+            } catch (Throwable t) {
+                destination.onError(t);
+            }
         }
     }
 
@@ -116,7 +120,11 @@ public class LimitableRequestPublisher<T extends Payload> extends Flux<T> implem
 
         @Override
         public void onNext(T t) {
-            destination.onNext(t);
+            try {
+                destination.onNext(t);
+            } catch (Throwable e) {
+                onError(e);
+            }
         }
 
         @Override

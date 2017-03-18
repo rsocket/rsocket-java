@@ -82,27 +82,47 @@ public class ServerReactiveSocket implements ReactiveSocket {
 
     @Override
     public Mono<Void> fireAndForget(Payload payload) {
-        return requestHandler.fireAndForget(payload);
+        try {
+            return requestHandler.fireAndForget(payload);
+        } catch (Throwable t) {
+            return Mono.error(t);
+        }
     }
 
     @Override
     public Mono<Payload> requestResponse(Payload payload) {
-        return requestHandler.requestResponse(payload);
+        try {
+            return requestHandler.requestResponse(payload);
+        } catch (Throwable t) {
+            return Mono.error(t);
+        }
     }
 
     @Override
     public Flux<Payload> requestStream(Payload payload) {
-        return requestHandler.requestStream(payload);
+        try {
+            return requestHandler.requestStream(payload);
+        } catch (Throwable t) {
+            return Flux.error(t);
+        }
     }
 
     @Override
     public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
-        return requestHandler.requestChannel(payloads);
+        try {
+            return requestHandler.requestChannel(payloads);
+        } catch (Throwable t) {
+            return Flux.error(t);
+        }
     }
 
     @Override
     public Mono<Void> metadataPush(Payload payload) {
-        return requestHandler.metadataPush(payload);
+        try {
+            return requestHandler.metadataPush(payload);
+        } catch (Throwable t) {
+            return Mono.error(t);
+        }
     }
 
     @Override
@@ -226,10 +246,12 @@ public class ServerReactiveSocket implements ReactiveSocket {
             .ignoreElement();
     }
 
-    private Mono<Void> send(int streamId, Publisher<Frame> responseFrames) {
-        return Mono.create(sink ->
-            connection
-                .send(responseFrames)
+    private Mono<Void> handleRequestResponse(int streamId, Mono<Payload> response) {
+        Mono<Frame> responseFrame =
+            response
+                .doOnSubscribe(subscription -> addSubscription(streamId, subscription))
+                .map(payload ->
+                    Frame.PayloadFrame.from(streamId, FrameType.NEXT_COMPLETE, payload.getMetadata(), payload.getData(), FrameHeaderFlyweight.FLAGS_C))
                 .doOnCancel(() -> {
                     if (connection.availability() > 0.0) {
                         connection.sendOne(Frame.Cancel.from(streamId)).subscribe(null, errorConsumer::accept);
@@ -241,32 +263,46 @@ public class ServerReactiveSocket implements ReactiveSocket {
                     }
                 })
                 .doFinally(signalType -> {
-                    sink.success();
                     removeSubscription(streamId);
-                })
-                .subscribe()
-        );
-    }
+                });
 
-    private Mono<Void> handleRequestResponse(int streamId, Mono<Payload> response) {
-        Mono<Frame> responseFrame = response
-            .doOnSubscribe(subscription -> addSubscription(streamId, subscription))
-            .map(payload ->
-                Frame.PayloadFrame.from(streamId, FrameType.NEXT_COMPLETE, payload.getMetadata(), payload.getData(), FrameHeaderFlyweight.FLAGS_C));
-
-        return send(streamId, responseFrame);
+        return responseFrame.then(connection::sendOne);
     }
 
     private Mono<Void> handleStream(int streamId, Flux<Payload> response, Frame firstFrame) {
         int initialRequestN = Request.initialRequestN(firstFrame);
-        LimitableRequestPublisher<Frame> responseFrames = LimitableRequestPublisher.wrap(
-            response.map(payload -> Frame.PayloadFrame.from(streamId, FrameType.NEXT, payload))
-        );
-        synchronized (this) {
-            responseFrames.increaseRequestLimit(initialRequestN);
-            sendingSubscriptions.put(streamId, responseFrames);
-        }
-        return send(streamId, responseFrames);
+        Flux<Frame> responseFrames =
+            response
+                .map(payload -> Frame.PayloadFrame.from(streamId, FrameType.NEXT, payload))
+                .transform(frameFlux -> {
+                    LimitableRequestPublisher<Frame> frames = LimitableRequestPublisher.wrap(frameFlux);
+                    synchronized (this) {
+                        frames.increaseRequestLimit(initialRequestN);
+                        sendingSubscriptions.put(streamId, frames);
+                    }
+
+                    return frames;
+                })
+                .doOnCancel(() -> {
+                    if (connection.availability() > 0.0) {
+                        connection.sendOne(Frame.Cancel.from(streamId)).subscribe(null, errorConsumer::accept);
+                    }
+                })
+                .doOnError(t -> {
+                    if (connection.availability() > 0.0) {
+                        connection.sendOne(Frame.Error.from(streamId, t)).subscribe(null, errorConsumer::accept);
+                    }
+                })
+                .doOnComplete(() -> {
+                    if (connection.availability() > 0.0) {
+                        connection.sendOne(Frame.PayloadFrame.from(streamId, FrameType.COMPLETE)).subscribe(null, errorConsumer::accept);
+                    }
+                })
+                .doFinally(signalType -> {
+                    removeSubscription(streamId);
+                });
+
+        return connection.send(responseFrames);
     }
 
     private Mono<Void> handleChannel(int streamId, Frame firstFrame) {
@@ -290,12 +326,7 @@ public class ServerReactiveSocket implements ReactiveSocket {
                 })
                 .cast(Payload.class);
 
-            return handleStream(streamId, requestChannel(payloads), firstFrame)
-                .doFinally(s -> {
-                    synchronized (ServerReactiveSocket.this) {
-                        receivers.remove(streamId);
-                    }
-                });
+            return handleStream(streamId, requestChannel(payloads), firstFrame);
         });
     }
 
