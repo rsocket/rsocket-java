@@ -226,14 +226,27 @@ public class ServerReactiveSocket implements ReactiveSocket {
         return this;
     }
 
-    private synchronized void cleanup() {
+    private void cleanup() {
         subscribe.dispose();
-        sendingSubscriptions.values().forEach(Subscription::cancel);
-        sendingSubscriptions.clear();
-        receivers.values().forEach(Subscription::cancel);
-        sendingSubscriptions.clear();
+        sendingSubscriptions.values().forEach(this::cleanUpSendingSubscription);
+        receivers.values().forEach(this::cleanUpReceivingSubscription);
+
+        synchronized (this) {
+            sendingSubscriptions.clear();
+            receivers.clear();
+        }
+
         requestHandler.close().subscribe();
     }
+
+    private synchronized void cleanUpSendingSubscription(Subscription subscription) {
+        subscription.cancel();
+    }
+
+    private synchronized void cleanUpReceivingSubscription(Subscription subscription) {
+        subscription.cancel();
+    }
+
 
     private Mono<Void> handleFireAndForget(int streamId, Mono<Void> result) {
         return result

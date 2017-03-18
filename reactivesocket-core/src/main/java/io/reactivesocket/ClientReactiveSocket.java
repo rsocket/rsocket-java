@@ -32,6 +32,7 @@ import reactor.core.publisher.MonoProcessor;
 import reactor.core.publisher.UnicastProcessor;
 
 import java.nio.ByteBuffer;
+import java.nio.channels.ClosedChannelException;
 import java.nio.charset.StandardCharsets;
 import java.util.function.Consumer;
 
@@ -40,6 +41,8 @@ import java.util.function.Consumer;
  * to a {@link ServerReactiveSocket}
  */
 public class ClientReactiveSocket implements ReactiveSocket {
+
+    private static final ClosedChannelException CLOSED_CHANNEL_EXCEPTION = new ClosedChannelException();
 
     private final DuplexConnection connection;
     private final Consumer<Throwable> errorConsumer;
@@ -62,7 +65,8 @@ public class ClientReactiveSocket implements ReactiveSocket {
 
         senders = new Int2ObjectHashMap<>(256, 0.9f);
         receivers = new Int2ObjectHashMap<>(256, 0.9f);
-        connection.onClose()
+        connection
+            .onClose()
             .doFinally(signalType -> cleanup())
             .subscribe();
     }
@@ -152,7 +156,7 @@ public class ClientReactiveSocket implements ReactiveSocket {
 
             return receiver
                 .doOnError(t -> {
-                    if (contains(streamId) && connection.availability() > 0.0  && !receiver.isTerminated()) {
+                    if (contains(streamId) && connection.availability() > 0.0 && !receiver.isTerminated()) {
                         connection
                             .sendOne(Frame.Error.from(streamId, t))
                             .doOnError(errorConsumer::accept)
@@ -241,10 +245,28 @@ public class ClientReactiveSocket implements ReactiveSocket {
     }
 
     protected void cleanup() {
-        // TODO: Stop sending requests first
+        senders
+            .forEach((integer, limitableRequestPublisher) -> cleanUpLimitableRequestPublisher(limitableRequestPublisher));
+
+        receivers
+            .forEach((integer, subscriber) -> cleanUpSubscriber(subscriber));
+
+        synchronized (this) {
+            senders.clear();
+            receivers.clear();
+        }
+
         if (null != keepAliveSendSub) {
             keepAliveSendSub.dispose();
         }
+    }
+
+    private synchronized void cleanUpLimitableRequestPublisher(LimitableRequestPublisher<?> limitableRequestPublisher) {
+        limitableRequestPublisher.cancel();
+    }
+
+    private synchronized void cleanUpSubscriber(Subscriber<?> subscriber) {
+        subscriber.onError(CLOSED_CHANNEL_EXCEPTION);
     }
 
     private void handleIncomingFrames(Frame frame) {
