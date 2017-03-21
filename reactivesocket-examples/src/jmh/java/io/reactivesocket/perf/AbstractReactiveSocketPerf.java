@@ -15,11 +15,11 @@ package io.reactivesocket.perf;
 
 import io.reactivesocket.Payload;
 import io.reactivesocket.ReactiveSocket;
-import io.reactivesocket.local.LocalClient;
-import io.reactivesocket.local.LocalServer;
 import io.reactivesocket.perf.util.AbstractMicrobenchmarkBase;
 import io.reactivesocket.perf.util.BlackholeSubscriber;
 import io.reactivesocket.perf.util.ClientServerHolder;
+import io.reactivesocket.transport.local.LocalClient;
+import io.reactivesocket.transport.local.LocalServer;
 import io.reactivesocket.transport.netty.client.TcpTransportClient;
 import io.reactivesocket.transport.netty.server.TcpTransportServer;
 import io.reactivex.Flowable;

@@ -227,7 +227,9 @@ public class ServerReactiveSocket implements ReactiveSocket {
     }
 
     private void cleanup() {
-        subscribe.dispose();
+        if (subscribe != null) {
+            subscribe.dispose();
+        }
         sendingSubscriptions.values().forEach(this::cleanUpSendingSubscription);
         receivers.values().forEach(this::cleanUpReceivingSubscription);
 

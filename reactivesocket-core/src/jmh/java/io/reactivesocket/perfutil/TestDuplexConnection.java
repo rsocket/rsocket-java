@@ -38,12 +38,16 @@ public class TestDuplexConnection implements DuplexConnection {
 
     @Override
     public Mono<Void> send(Publisher<Frame> frame) {
-        Flux
+        return Flux
             .from(frame)
             .doOnNext(f -> send.onNext(f))
             .doOnError(t -> {throw new RuntimeException(t); })
-            .subscribe();
+            .then();
+    }
 
+    @Override
+    public Mono<Void> sendOne(Frame frame) {
+        send.onNext(frame);
         return Mono.empty();
     }
 
