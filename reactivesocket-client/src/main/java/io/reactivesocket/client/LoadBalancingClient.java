@@ -32,12 +32,11 @@ import java.util.function.Function;
  * An implementation of {@code ReactiveSocketClient} that operates on a cluster of target servers instead of a single
  * server.
  */
-public class LoadBalancingClient extends AbstractReactiveSocketClient {
+public class LoadBalancingClient implements ReactiveSocketClient {
 
     private final LoadBalancerInitializer initializer;
 
     public LoadBalancingClient(LoadBalancerInitializer initializer) {
-        super(initializer);
         this.initializer = initializer;
     }
 
@@ -65,7 +64,7 @@ public class LoadBalancingClient extends AbstractReactiveSocketClient {
      */
     public static <T> LoadBalancingClient create(Publisher<? extends Collection<T>> servers,
                                                  Function<T, ReactiveSocketClient> clientFactory) {
-        SourceToClient<T> f = new SourceToClient<T>(clientFactory);
+        SourceToClient<T> f = new SourceToClient<>(clientFactory);
         return new LoadBalancingClient(LoadBalancerInitializer.create(Flux.from(servers).map(f)));
     }
 

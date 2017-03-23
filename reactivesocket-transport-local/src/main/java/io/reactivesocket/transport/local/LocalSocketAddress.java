@@ -14,14 +14,25 @@
  * limitations under the License.
  */
 
-rootProject.name='reactivesocket'
-include 'reactivesocket-client'
-include 'reactivesocket-core'
-include 'reactivesocket-discovery-eureka'
-include 'reactivesocket-examples'
-include 'reactivesocket-spectator'
-include 'reactivesocket-test'
-include 'reactivesocket-transport-aeron'
-include 'reactivesocket-transport-local'
-include 'reactivesocket-transport-netty'
-include 'reactivesocket-tck-drivers'
+package io.reactivesocket.transport.local;
+
+import java.net.SocketAddress;
+
+public class LocalSocketAddress extends SocketAddress {
+
+    private static final long serialVersionUID = -5974652906020342524L;
+    private final String name;
+
+    public LocalSocketAddress(String name) {
+        this.name = name;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    @Override
+    public String toString() {
+        return "[local server] " + name;
+    }
+}

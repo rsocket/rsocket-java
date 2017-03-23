@@ -18,6 +18,8 @@ package io.reactivesocket.internal;
 
 import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
+import io.reactivesocket.Plugins;
+import io.reactivesocket.Plugins.DuplexConnectionInterceptor.Type;
 import org.agrona.BitUtil;
 import org.reactivestreams.Publisher;
 import org.slf4j.Logger;
@@ -39,20 +41,18 @@ import reactor.core.publisher.MonoProcessor;
 public class ClientServerInputMultiplexer {
     private static final Logger LOGGER = LoggerFactory.getLogger("io.reactivesocket.FrameLogger");
 
-    private final InternalDuplexConnection streamZeroConnection;
-    private final InternalDuplexConnection serverConnection;
-    private final InternalDuplexConnection clientConnection;
-
-    private enum Type { STREAM_ZERO, CLIENT, SERVER }
+    private final DuplexConnection streamZeroConnection;
+    private final DuplexConnection serverConnection;
+    private final DuplexConnection clientConnection;
 
     public ClientServerInputMultiplexer(DuplexConnection source) {
         final MonoProcessor<Flux<Frame>> streamZero = MonoProcessor.create();
         final MonoProcessor<Flux<Frame>> server = MonoProcessor.create();
         final MonoProcessor<Flux<Frame>> client = MonoProcessor.create();
 
-        streamZeroConnection = new InternalDuplexConnection(source, streamZero);
-        serverConnection = new InternalDuplexConnection(source, server);
-        clientConnection = new InternalDuplexConnection(source, client);
+        streamZeroConnection = Plugins.DUPLEX_CONNECTION_INTERCEPTOR.apply(Type.STREAM_ZERO, new InternalDuplexConnection(source, streamZero));
+        serverConnection = Plugins.DUPLEX_CONNECTION_INTERCEPTOR.apply(Type.SERVER, new InternalDuplexConnection(source, server));
+        clientConnection = Plugins.DUPLEX_CONNECTION_INTERCEPTOR.apply(Type.CLIENT, new InternalDuplexConnection(source, client));
 
         source.receive()
             .groupBy(frame -> {
@@ -72,9 +72,11 @@ public class ClientServerInputMultiplexer {
                     case STREAM_ZERO:
                         streamZero.onNext(group);
                         break;
+
                     case SERVER:
                         server.onNext(group);
                         break;
+
                     case CLIENT:
                         client.onNext(group);
                         break;
@@ -108,7 +110,7 @@ public class ClientServerInputMultiplexer {
         @Override
         public Mono<Void> send(Publisher<Frame> frame) {
             if (debugEnabled) {
-                frame = Flux.from(frame).doOnNext(f -> LOGGER.debug(f.toString()));
+                frame = Flux.from(frame).doOnNext(f -> LOGGER.debug("sending -> " + f.toString()));
             }
 
             return source.send(frame);
@@ -117,7 +119,7 @@ public class ClientServerInputMultiplexer {
         @Override
         public Mono<Void> sendOne(Frame frame) {
             if (debugEnabled) {
-                LOGGER.debug(frame.toString());
+                LOGGER.debug("sending -> " + frame.toString());
             }
 
             return source.sendOne(frame);
@@ -127,7 +129,7 @@ public class ClientServerInputMultiplexer {
         public Flux<Frame> receive() {
             return processor.flatMap(f -> {
                 if (debugEnabled) {
-                    return f.doOnNext(frame -> LOGGER.debug(frame.toString()));
+                    return f.doOnNext(frame -> LOGGER.debug("receiving -> " + frame.toString()));
                 } else {
                     return f;
                 }

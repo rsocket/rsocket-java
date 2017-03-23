@@ -20,9 +20,9 @@ import com.netflix.appinfo.InstanceInfo;
 import com.netflix.appinfo.InstanceInfo.InstanceStatus;
 import com.netflix.discovery.CacheRefreshedEvent;
 import com.netflix.discovery.EurekaClient;
-import io.reactivesocket.internal.ValidatingSubscription;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
+import reactor.core.publisher.Operators;
 
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
@@ -42,7 +42,7 @@ public class Eureka {
             @Override
             public void subscribe(Subscriber<? super Collection<SocketAddress>> subscriber) {
                 // TODO: backpressure
-                subscriber.onSubscribe(ValidatingSubscription.empty(subscriber));
+                subscriber.onSubscribe(Operators.emptySubscription());
                 pushChanges(subscriber);
 
                 client.registerEventListener(event -> {

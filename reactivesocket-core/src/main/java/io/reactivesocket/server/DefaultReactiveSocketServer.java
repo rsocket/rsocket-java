@@ -15,24 +15,20 @@ package io.reactivesocket.server;
 
 import io.reactivesocket.ClientReactiveSocket;
 import io.reactivesocket.ConnectionSetupPayload;
-import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.FrameType;
+import io.reactivesocket.Plugins;
+import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.ServerReactiveSocket;
 import io.reactivesocket.StreamIdSupplier;
 import io.reactivesocket.client.KeepAliveProvider;
-import io.reactivesocket.events.AbstractEventSource;
-import io.reactivesocket.events.ConnectionEventInterceptor;
-import io.reactivesocket.events.ServerEventListener;
 import io.reactivesocket.internal.ClientServerInputMultiplexer;
 import io.reactivesocket.lease.DefaultLeaseHonoringSocket;
-import io.reactivesocket.lease.LeaseEnforcingSocket;
 import io.reactivesocket.lease.LeaseHonoringSocket;
 import io.reactivesocket.transport.TransportServer;
 import io.reactivesocket.transport.TransportServer.StartedServer;
-import io.reactivesocket.util.Clock;
 import reactor.core.publisher.Mono;
 
-public final class DefaultReactiveSocketServer extends AbstractEventSource<ServerEventListener>
+public final class DefaultReactiveSocketServer
         implements ReactiveSocketServer {
 
     private final TransportServer transportServer;
@@ -43,23 +39,9 @@ public final class DefaultReactiveSocketServer extends AbstractEventSource<Serve
 
     @Override
     public StartedServer start(SocketAcceptor acceptor) {
-        return transportServer.start(connection -> {
-            DuplexConnection dc;
-            if (isEventPublishingEnabled()) {
-                long startTime = Clock.now();
-                dc = new ConnectionEventInterceptor(connection, this);
-                getEventListener().socketAccepted();
-                dc.onClose().doFinally(signalType -> {
-                    if (isEventPublishingEnabled()) {
-                        getEventListener().socketClosed(Clock.elapsedSince(startTime), Clock.unit());
-                    }
-                }).subscribe();
-            } else {
-                dc = connection;
-            }
-
-            ClientServerInputMultiplexer multiplexer = new ClientServerInputMultiplexer(dc);
-
+        return transportServer
+            .start(connection -> {
+            ClientServerInputMultiplexer multiplexer = new ClientServerInputMultiplexer(connection);
             return multiplexer
                     .asStreamZeroConnection()
                     .receive()
@@ -67,27 +49,42 @@ public final class DefaultReactiveSocketServer extends AbstractEventSource<Serve
                     .then(setupFrame -> {
                         if (setupFrame.getType() == FrameType.SETUP) {
                             ConnectionSetupPayload setup = ConnectionSetupPayload.create(setupFrame);
-                            ClientReactiveSocket sender = new ClientReactiveSocket(multiplexer.asServerConnection(),
-                                                                                   Throwable::printStackTrace,
-                                                                                   StreamIdSupplier.serverSupplier(),
-                                                                                   KeepAliveProvider.never(),
-                                                                                   this);
-                            LeaseHonoringSocket lhs = new DefaultLeaseHonoringSocket(sender);
-                            sender.start(lhs);
-                            LeaseEnforcingSocket handler = acceptor.accept(setup, sender);
-                            ServerReactiveSocket receiver = new ServerReactiveSocket(multiplexer.asClientConnection(),
-                                                                                     handler,
-                                                                                     setup.willClientHonorLease(),
-                                                                                     Throwable::printStackTrace,
-                                                                                     this);
-                            receiver.start();
-                            return dc.onClose();
+
+                            return Mono.defer(() -> {
+                                ClientReactiveSocket clientReactiveSocket = new ClientReactiveSocket(multiplexer.asServerConnection(),
+                                    Throwable::printStackTrace,
+                                    StreamIdSupplier.serverSupplier(),
+                                    KeepAliveProvider.never());
+
+                                Mono<ReactiveSocket> wrappedClientReactiveSocket =
+                                    Plugins.CLIENT_REACTIVE_SOCKET_INTERCEPTOR.apply(clientReactiveSocket);
+
+                                return wrappedClientReactiveSocket
+                                    .then(sender -> {
+                                        LeaseHonoringSocket lhs = new DefaultLeaseHonoringSocket(sender);
+                                        clientReactiveSocket.start(lhs);
+
+                                        return Plugins.SERVER_REACTIVE_SOCKET_INTERCEPTOR.apply(acceptor.accept(setup, lhs));
+                                    });
+
+                            })
+                            .then(handler -> {
+                                ServerReactiveSocket receiver = new ServerReactiveSocket(multiplexer.asClientConnection(),
+                                    handler,
+                                    setup.willClientHonorLease(),
+                                    Throwable::printStackTrace);
+                                receiver.start();
+                                return connection.onClose();
+
+                            });
+
                         } else {
                             return Mono.<Void>error(new IllegalStateException("Invalid first frame on the connection: "
-                                                                            + dc + ", frame type received: "
+                                                                            + connection + ", frame type received: "
                                                                             + setupFrame.getType()));
                         }
                     });
+
         });
     }
 }

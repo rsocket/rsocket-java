@@ -17,8 +17,6 @@
 package io.reactivesocket.client;
 
 import io.reactivesocket.ReactiveSocket;
-import io.reactivesocket.events.AbstractEventSource;
-import io.reactivesocket.events.ClientEventListener;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
@@ -29,20 +27,20 @@ import java.util.Collection;
  * This is a temporary class to provide a {@link LoadBalancingClient#connect()} implementation when {@link LoadBalancer}
  * does not support it.
  */
-final class LoadBalancerInitializer extends AbstractEventSource<ClientEventListener> implements Runnable {
+final class LoadBalancerInitializer implements ReactiveSocketClient, Runnable {
 
     private final LoadBalancer loadBalancer;
     private final MonoProcessor<ReactiveSocket> emitSource = MonoProcessor.create();
 
     private LoadBalancerInitializer(Publisher<? extends Collection<ReactiveSocketClient>> factories) {
-        loadBalancer = new LoadBalancer(factories, this, this);
+        loadBalancer = new LoadBalancer(factories, this);
     }
 
     static LoadBalancerInitializer create(Publisher<? extends Collection<ReactiveSocketClient>> factories) {
         return new LoadBalancerInitializer(factories);
     }
 
-    Mono<ReactiveSocket> connect() {
+    public Mono<ReactiveSocket> connect() {
         return emitSource;
     }
 
@@ -51,7 +49,7 @@ final class LoadBalancerInitializer extends AbstractEventSource<ClientEventListe
         emitSource.onNext(loadBalancer);
     }
 
-    synchronized double availability() {
+    public synchronized double availability() {
         return emitSource.isTerminated() ? 1.0 : 0.0;
     }
 }

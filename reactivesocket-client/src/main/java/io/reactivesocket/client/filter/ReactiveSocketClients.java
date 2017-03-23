@@ -17,7 +17,6 @@
 package io.reactivesocket.client.filter;
 
 import io.reactivesocket.ReactiveSocket;
-import io.reactivesocket.client.AbstractReactiveSocketClient;
 import io.reactivesocket.client.ReactiveSocketClient;
 import reactor.core.publisher.Mono;
 
@@ -43,7 +42,7 @@ public final class ReactiveSocketClients {
      * @return New client that imposes the passed {@code timeout}.
      */
     public static ReactiveSocketClient connectTimeout(ReactiveSocketClient orig, Duration timeout) {
-        return new AbstractReactiveSocketClient(orig) {
+        return new ReactiveSocketClient() {
             @Override
             public Mono<? extends ReactiveSocket> connect() {
                 return orig.connect().timeout(timeout);
@@ -78,7 +77,7 @@ public final class ReactiveSocketClients {
      * @return A new client wrapping the original.
      */
     public static ReactiveSocketClient wrap(ReactiveSocketClient orig, Function<ReactiveSocket, ReactiveSocket> mapper) {
-        return new AbstractReactiveSocketClient(orig) {
+        return new ReactiveSocketClient() {
             @Override
             public Mono<? extends ReactiveSocket> connect() {
                 return orig.connect().map(mapper);

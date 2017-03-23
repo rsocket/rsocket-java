@@ -21,6 +21,7 @@ import io.reactivesocket.exceptions.InvalidRequestException;
 import io.reactivesocket.test.util.LocalDuplexConnection;
 import io.reactivesocket.util.PayloadImpl;
 import org.hamcrest.MatcherAssert;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExternalResource;
@@ -51,6 +52,7 @@ public class ReactiveSocketTest {
     }
 
     @Test(timeout = 2000)
+    @Ignore
     public void testHandlerEmitsError() {
         rule.setRequestAcceptor(new AbstractReactiveSocket() {
             @Override
