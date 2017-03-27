@@ -26,15 +26,14 @@ import io.reactivex.subscribers.TestSubscriber;
 import org.junit.rules.ExternalResource;
 import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
-import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
-import reactor.core.scheduler.Schedulers;
 
 import java.net.SocketAddress;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
 import java.util.function.Function;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.fail;
 
 
 public class ClientSetupRule extends ExternalResource {
@@ -133,14 +132,43 @@ public class ClientSetupRule extends ExternalResource {
         testStream(socket -> socket.requestStream(TestUtil.utf8EncodedPayload("hello", "metadata")));
     }
 
+    public void testRequestStreamWithRequestN() {
+        testStreamRequestN(socket -> socket.requestStream(TestUtil.utf8EncodedPayload("hello", "metadata")));
+    }
+
+
+    private void testStreamRequestN(Function<ReactiveSocket, Flux<Payload>> invoker) {
+        int count = 10;
+        CountDownLatch latch = new CountDownLatch(count);
+        TestSubscriber<Payload> ts = TestSubscriber.create(count / 2);
+        Flux<Payload> publisher = invoker.apply(getReactiveSocket());
+        publisher
+            .doOnNext(s -> latch.countDown())
+            .subscribe(ts);
+
+        ts.request(count / 2);
+
+        try {
+            latch.await();
+        } catch (InterruptedException e) {
+            fail(e.getMessage());
+        }
+
+        ts.assertNoErrors();
+        ts.assertValueCount(count);
+        ts.assertNotTerminated();
+    }
+
     private void testStream(Function<ReactiveSocket, Flux<Payload>> invoker) {
         TestSubscriber<Payload> ts = TestSubscriber.create();
         Flux<Payload> publisher = invoker.apply(getReactiveSocket());
-        publisher.take(10).subscribe(ts);
+        publisher
+            .take(5)
+            .subscribe(ts);
         await(ts);
         ts.assertTerminated();
         ts.assertNoErrors();
-        ts.assertValueCount(10);
+        ts.assertValueCount(5);
         ts.assertTerminated();
     }
 

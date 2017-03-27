@@ -397,6 +397,11 @@ public class Frame implements Payload {
     public static class Request {
         private Request() {}
 
+        public static Frame from(int streamId, FrameType type, Payload payload, long initialRequestN) {
+            int v = initialRequestN > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) initialRequestN;
+            return from(streamId, type, payload, v);
+        }
+
         public static Frame from(int streamId, FrameType type, Payload payload, int initialRequestN) {
             final ByteBuffer d = payload.getData() != null ? payload.getData() : NULL_BYTEBUFFER;
             final ByteBuffer md = payload.getMetadata() != null ? payload.getMetadata() : NULL_BYTEBUFFER;
