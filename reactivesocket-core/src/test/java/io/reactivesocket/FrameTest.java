@@ -137,7 +137,7 @@ public class FrameTest
         final ByteBuffer requestMetadata = TestUtil.byteBufferFromUtf8String("request metadata");
         final Payload payload = createPayload(requestMetadata, requestData);
 
-        Frame encodedFrame = Frame.Request.from(1, FrameType.FIRE_AND_FORGET, payload, 0);
+        Frame encodedFrame = Frame.Request.from(1, FrameType.FIRE_AND_FORGET, payload, 1);
         TestUtil.copyFrame(reusableMutableDirectBuffer, offset, encodedFrame);
         reusableFrame.wrap(reusableMutableDirectBuffer, offset);
 
@@ -210,7 +210,7 @@ public class FrameTest
         final ByteBuffer requestData = TestUtil.byteBufferFromUtf8String("request data");
         final Payload payload = createPayload(Frame.NULL_BYTEBUFFER, requestData);
 
-        Frame encodedFrame = Frame.Request.from(1, FrameType.FIRE_AND_FORGET, payload, 0);
+        Frame encodedFrame = Frame.Request.from(1, FrameType.FIRE_AND_FORGET, payload, 1);
         TestUtil.copyFrame(reusableMutableDirectBuffer, offset, encodedFrame);
         reusableFrame.wrap(reusableMutableDirectBuffer, offset);
 

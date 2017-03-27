@@ -382,6 +382,10 @@ public class Frame implements Payload {
         }
 
         public static Frame from(int streamId, int requestN) {
+            if (requestN < 1) {
+                throw new IllegalStateException("request n must be greater than 0");
+            }
+
             final Frame frame = POOL.acquireFrame(RequestNFrameFlyweight.computeFrameLength());
 
             frame.length = RequestNFrameFlyweight.encode(frame.directBuffer, frame.offset, streamId, requestN);
@@ -403,6 +407,10 @@ public class Frame implements Payload {
         }
 
         public static Frame from(int streamId, FrameType type, Payload payload, int initialRequestN) {
+            if (initialRequestN < 1) {
+                throw new IllegalStateException("initial request n must be greater than 0");
+            }
+
             final ByteBuffer d = payload.getData() != null ? payload.getData() : NULL_BYTEBUFFER;
             final ByteBuffer md = payload.getMetadata() != null ? payload.getMetadata() : NULL_BYTEBUFFER;
 

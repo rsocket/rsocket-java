@@ -77,7 +77,7 @@ public class ClientReactiveSocket implements ReactiveSocket {
     public Mono<Void> fireAndForget(Payload payload) {
         Mono<Void> defer = Mono.defer(() -> {
             final int streamId = streamIdSupplier.nextStreamId();
-            final Frame requestFrame = Frame.Request.from(streamId, FrameType.FIRE_AND_FORGET, payload, 0);
+            final Frame requestFrame = Frame.Request.from(streamId, FrameType.FIRE_AND_FORGET, payload, 1);
             return connection.sendOne(requestFrame);
         });
 
@@ -101,7 +101,7 @@ public class ClientReactiveSocket implements ReactiveSocket {
 
     @Override
     public Mono<Void> metadataPush(Payload payload) {
-        final Frame requestFrame = Frame.Request.from(0, FrameType.METADATA_PUSH, payload, 0);
+        final Frame requestFrame = Frame.Request.from(0, FrameType.METADATA_PUSH, payload, 1);
         return connection.sendOne(requestFrame);
     }
 
