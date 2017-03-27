@@ -24,7 +24,7 @@ public class LimitableRequestPublisher<T extends Payload> extends Flux<T> implem
 
     private volatile boolean subscribed;
 
-    private volatile Subscription s;
+    private volatile Subscription internalSubscription;
 
     private LimitableRequestPublisher(Publisher<T> source) {
         this.source = source;
@@ -76,7 +76,7 @@ public class LimitableRequestPublisher<T extends Payload> extends Flux<T> implem
     private void requestN() {
         long r;
         synchronized (this) {
-            if (s == null) {
+            if (internalSubscription == null) {
                 return;
             }
 
@@ -86,14 +86,14 @@ public class LimitableRequestPublisher<T extends Payload> extends Flux<T> implem
         }
 
         if (r > 0) {
-            s.request(r);
+            internalSubscription.request(r);
         }
     }
 
     public void cancel() {
-        if (canceled.compareAndSet(false, true) && s != null) {
-            s.cancel();
-            s = null;
+        if (canceled.compareAndSet(false, true) && internalSubscription != null) {
+            internalSubscription.cancel();
+            internalSubscription = null;
             subscribed = false;
         }
     }
@@ -108,14 +108,16 @@ public class LimitableRequestPublisher<T extends Payload> extends Flux<T> implem
         @Override
         public void onSubscribe(Subscription s) {
             synchronized (LimitableRequestPublisher.this) {
-                LimitableRequestPublisher.this.s = s;
+                LimitableRequestPublisher.this.internalSubscription = s;
 
                 if (canceled.get()) {
                     s.cancel();
                     subscribed = false;
-                    LimitableRequestPublisher.this.s = null;
+                    LimitableRequestPublisher.this.internalSubscription = null;
                 }
             }
+
+            requestN();
         }
 
         @Override

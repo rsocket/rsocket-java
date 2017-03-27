@@ -65,16 +65,19 @@ public class ReactiveSocketPerf {
         }
     }
 
-    //@Benchmark
+    @Benchmark
     public void requestStreamHello1000(Input input) {
-        // this is synchronous so we don't need to use a CountdownLatch to wait
-        //Input.client.requestStream(Input.HELLO_PAYLOAD).subscribe(input.blackholeConsumer);
+        try {
+            input.client.requestStream(Input.HELLO_PAYLOAD).subscribe(input.blackHoleSubscriber);
+        }  catch (Throwable t) {
+            t.printStackTrace();
+        }
     }
 
-    //@Benchmark
+    @Benchmark
     public void fireAndForgetHello(Input input) {
         // this is synchronous so we don't need to use a CountdownLatch to wait
-        //Input.client.fireAndForget(Input.HELLO_PAYLOAD).subscribe(input.voidBlackholeConsumer);
+        input.client.fireAndForget(Input.HELLO_PAYLOAD).subscribe(input.blackHoleSubscriber);
     }
 
     @State(Scope.Thread)
@@ -172,7 +175,7 @@ public class ReactiveSocketPerf {
 
                     @Override
                     public Flux<Payload> requestStream(Payload payload) {
-                        return Flux.empty();
+                        return Flux.range(1, 1_000).flatMap(i -> requestResponse(payload));
                     }
 
                     @Override

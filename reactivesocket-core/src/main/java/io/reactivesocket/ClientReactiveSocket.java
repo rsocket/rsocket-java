@@ -18,6 +18,7 @@ package io.reactivesocket;
 
 import io.reactivesocket.client.KeepAliveProvider;
 import io.reactivesocket.exceptions.Exceptions;
+import io.reactivesocket.frame.ByteBufferUtil;
 import io.reactivesocket.internal.KnownErrorFilter;
 import io.reactivesocket.internal.LimitableRequestPublisher;
 import io.reactivesocket.lease.Lease;
@@ -31,10 +32,10 @@ import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
 import reactor.core.publisher.UnicastProcessor;
 
-import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
-import java.nio.charset.StandardCharsets;
 import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * Client Side of a ReactiveSocket socket. Sends {@link Frame}s
@@ -62,20 +63,21 @@ public class ClientReactiveSocket implements ReactiveSocket {
         this.streamIdSupplier = streamIdSupplier;
         this.keepAliveProvider = keepAliveProvider;
         this.started = MonoProcessor.create();
+        this.senders = new Int2ObjectHashMap<>(256, 0.9f);
+        this.receivers = new Int2ObjectHashMap<>(256, 0.9f);
 
-        senders = new Int2ObjectHashMap<>(256, 0.9f);
-        receivers = new Int2ObjectHashMap<>(256, 0.9f);
         connection
             .onClose()
             .doFinally(signalType -> cleanup())
+            .doOnError(errorConsumer::accept)
             .subscribe();
     }
 
     @Override
     public Mono<Void> fireAndForget(Payload payload) {
         Mono<Void> defer = Mono.defer(() -> {
-            final int streamId = nextStreamId();
-            final Frame requestFrame = Frame.Request.from(streamId, FrameType.FIRE_AND_FORGET, payload, 0);
+            final int streamId = streamIdSupplier.nextStreamId();
+            final Frame requestFrame = Frame.Request.from(streamId, FrameType.FIRE_AND_FORGET, payload, 1);
             return connection.sendOne(requestFrame);
         });
 
@@ -99,7 +101,7 @@ public class ClientReactiveSocket implements ReactiveSocket {
 
     @Override
     public Mono<Void> metadataPush(Payload payload) {
-        final Frame requestFrame = Frame.Request.from(0, FrameType.METADATA_PUSH, payload, 0);
+        final Frame requestFrame = Frame.Request.from(0, FrameType.METADATA_PUSH, payload, 1);
         return connection.sendOne(requestFrame);
     }
 
@@ -137,7 +139,7 @@ public class ClientReactiveSocket implements ReactiveSocket {
 
     private Mono<Payload> handleRequestResponse(final Payload payload) {
         return started.then(() -> {
-            int streamId = nextStreamId();
+            int streamId = streamIdSupplier.nextStreamId();
             final Frame requestFrame = Frame.Request.from(streamId, FrameType.REQUEST_RESPONSE, payload, 1);
 
             MonoProcessor<Payload> receiver = MonoProcessor.create();
@@ -146,8 +148,8 @@ public class ClientReactiveSocket implements ReactiveSocket {
                 receivers.put(streamId, receiver);
             }
 
-            MonoProcessor<Void> subscribedRequest = connection
-                .sendOne(requestFrame)
+            MonoProcessor<Void> subscribedRequest =
+                connection.sendOne(requestFrame)
                 .doOnError(t -> {
                     errorConsumer.accept(t);
                     receiver.cancel();
@@ -179,62 +181,98 @@ public class ClientReactiveSocket implements ReactiveSocket {
     }
 
     private Flux<Payload> handleStreamResponse(Flux<Payload> request, FrameType requestType) {
-        return started.thenMany(() -> {
-            int streamId = nextStreamId();
+        return started.thenMany(new Supplier<Publisher<Payload>>() {
+            final UnicastProcessor<Payload> receiver = UnicastProcessor.create();
+            final int streamId = streamIdSupplier.nextStreamId();
+            volatile MonoProcessor<Void> subscribedRequests;
+            boolean firstRequest = true;
 
-            UnicastProcessor<Payload> receiver = UnicastProcessor.create();
+            boolean isValidToSendFrame() {
+                return contains(streamId) && connection.availability() > 0.0 && !receiver.isTerminated();
+            }
 
-            Flux<Frame> requestFrames =
-                request
-                    .transform(f -> {
-                        LimitableRequestPublisher<Payload> wrapped = LimitableRequestPublisher.wrap(f);
+            void sendOneFrame(Frame frame) {
+                if (isValidToSendFrame()) {
+                    connection
+                        .sendOne(frame)
+                        .doOnError(errorConsumer::accept)
+                        .subscribe();
+                }
+            }
+
+            @Override
+            public Publisher<Payload> get() {
+                return receiver
+                    .doOnRequest(l -> {
+                        boolean _firstRequest = false;
                         synchronized (ClientReactiveSocket.this) {
-                            senders.put(streamId, wrapped);
-                            receivers.put(streamId, receiver);
+                            if (firstRequest) {
+                                _firstRequest = true;
+                                firstRequest = false;
+                            }
                         }
 
-                        return wrapped;
+                        if (_firstRequest) {
+                            Flux<Frame> requestFrames =
+                                request
+                                    .transform(f -> {
+                                        LimitableRequestPublisher<Payload> wrapped = LimitableRequestPublisher.wrap(f);
+                                        synchronized (ClientReactiveSocket.this) {
+                                            senders.put(streamId, wrapped);
+                                            receivers.put(streamId, receiver);
+                                        }
+
+                                        return wrapped;
+                                    })
+                                    .map(new Function<Payload, Frame>() {
+                                        boolean firstPayload = true;
+
+                                        @Override
+                                        public Frame apply(Payload payload) {
+                                            boolean _firstPayload = false;
+                                            synchronized (this) {
+                                                if (firstPayload) {
+                                                    firstPayload = false;
+                                                    _firstPayload = true;
+                                                }
+                                            }
+
+                                            if (_firstPayload) {
+                                                return Frame.Request.from(streamId, requestType, payload, l);
+                                            } else {
+                                                return Frame.PayloadFrame.from(streamId, FrameType.NEXT, payload);
+                                            }
+                                        }
+                                    })
+                                    .doOnComplete(() -> {
+                                        if (FrameType.REQUEST_CHANNEL == requestType) {
+                                            sendOneFrame(Frame.PayloadFrame.from(streamId, FrameType.COMPLETE));
+                                        }
+                                    });
+
+                            subscribedRequests = connection
+                                .send(requestFrames)
+                                .doOnError(t -> {
+                                    errorConsumer.accept(t);
+                                    receiver.cancel();
+                                })
+                                .subscribe();
+                        } else {
+                            sendOneFrame(Frame.RequestN.from(streamId, l));
+                        }
                     })
-                    .map(payload -> Frame.Request.from(streamId, requestType, payload, 1));
-
-            MonoProcessor<Void> subscribedRequests = connection
-                .send(requestFrames)
-                .doOnError(t -> {
-                    errorConsumer.accept(t);
-                    receiver.cancel();
-                })
-                .subscribe();
-
-            return receiver
-                .doOnRequest(l -> {
-                    if (contains(streamId) && connection.availability() > 0.0 && !receiver.isTerminated()) {
-                        connection
-                            .sendOne(Frame.RequestN.from(streamId, l))
-                            .doOnError(receiver::onError)
-                            .subscribe();
-                    }
-                })
-                .doOnError(t -> {
-                    if (contains(streamId) && connection.availability() > 0.0 && !receiver.isTerminated()) {
-                        connection
-                            .sendOne(Frame.Error.from(streamId, t))
-                            .doOnError(errorConsumer::accept)
-                            .subscribe();
-                    }
-                })
-                .doOnCancel(() -> {
-                    if (contains(streamId) && connection.availability() > 0.0 && !receiver.isTerminated()) {
-                        connection
-                            .sendOne(Frame.Cancel.from(streamId))
-                            .doOnError(errorConsumer::accept)
-                            .subscribe();
-                    }
-                    subscribedRequests.cancel();
-                })
-                .doFinally(s -> {
-                    removeReceiver(streamId);
-                    removeSender(streamId);
-                });
+                    .doOnError(t -> sendOneFrame(Frame.Error.from(streamId, t)))
+                    .doOnCancel(() -> {
+                        sendOneFrame(Frame.Cancel.from(streamId));
+                        if (subscribedRequests != null) {
+                            subscribedRequests.cancel();
+                        }
+                    })
+                    .doFinally(s -> {
+                        removeReceiver(streamId);
+                        removeSender(streamId);
+                    });
+            }
         });
     }
 
@@ -363,7 +401,7 @@ public class ClientReactiveSocket implements ReactiveSocket {
             if (type == FrameType.ERROR) {
                 // message for stream that has never existed, we have a problem with
                 // the overall connection and must tear down
-                String errorMessage = getByteBufferAsString(frame.getData());
+                String errorMessage = ByteBufferUtil.toUtf8String(frame.getData());
 
                 throw new IllegalStateException("Client received error for non-existent stream: "
                     + streamId + " Message: " + errorMessage);
@@ -374,16 +412,6 @@ public class ClientReactiveSocket implements ReactiveSocket {
         }
         // receiving a frame after a given stream has been cancelled/completed,
         // so ignore (cancellation is async so there is a race condition)
-    }
-
-    private int nextStreamId() {
-        return streamIdSupplier.nextStreamId();
-    }
-
-    private static String getByteBufferAsString(ByteBuffer bb) {
-        final byte[] bytes = new byte[bb.remaining()];
-        bb.get(bytes);
-        return new String(bytes, StandardCharsets.UTF_8);
     }
 
     private synchronized void removeReceiver(int streamId) {

@@ -16,7 +16,6 @@
 package io.reactivesocket.transport.netty;
 
 import io.reactivesocket.test.ClientSetupRule;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 
@@ -58,5 +57,10 @@ public class TcpClientServerTest {
     @Test(timeout = 10000)
     public void testRequestStream() {
         setup.testRequestStream();
+    }
+
+    @Test(timeout = 10000)
+    public void testRequestStreamWithRequestN() {
+        setup.testRequestStreamWithRequestN();
     }
 }

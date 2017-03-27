@@ -30,7 +30,9 @@ public class TestReactiveSocket extends AbstractReactiveSocket {
 
     @Override
     public Flux<Payload> requestStream(Payload payload) {
-        return requestResponse(payload).repeat(10);
+        return Flux
+            .range(1, 10_000)
+            .flatMap(l -> requestResponse(payload));
     }
 
     @Override
