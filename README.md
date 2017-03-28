@@ -13,12 +13,6 @@ It enables the following interaction models via async message passing over a sin
 
 This is the core project for Java that implements the protocol and exposes Reactive Stream APIs. Typically most use will come via another library that uses this one.
 
-For example:
-
-- ReactiveSocket over WebSockets using Netty [reactivesocket-websockets-netty](https://github.com/ReactiveSocket/reactivesocket-java-impl)
-- ReactiveSocket over TCP using Netty [reactivesocket-tcp-netty](https://github.com/ReactiveSocket/reactivesocket-java-impl)
-- ReactiveSocket over Aeron using Aeron Java [reactivesocket-aeron-java](https://github.com/ReactiveSocket/reactivesocket-java-impl)
-
 ReactiveSocket is for communicating across network boundaries thus it is intended to be polyglot. Common libraries include:
 
 - ReactiveSocket over WebSockets using Javascript (for Node.js and browsers) [reactivesocket-websockets-javascript](https://github.com/ReactiveSocket/reactivesocket-websockets-javascript)
