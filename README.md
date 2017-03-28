@@ -2,18 +2,16 @@
 
 [![Join the chat at https://gitter.im/ReactiveSocket/reactivesocket-java](https://badges.gitter.im/ReactiveSocket/reactivesocket-java.svg)](https://gitter.im/ReactiveSocket/reactivesocket-java?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
-ReactiveSocket is network protocol with client and server that uses [Reactive Streams](http://reactive-streams.org) (and optimistically [Reactive Streams IO](http://reactive-streams.io) as it gets defined).
+RSocket is a binary protocol for use on byte stream transports such as TCP, WebSockets, and Aeron.
 
-It enables the following interaction models via async message passing over a single network connection:
+It enables the following symmetric interaction models via async message passing over a single connection:
 
 - request/response (stream of 1)
 - request/stream (finite stream of many)
 - fire-and-forget (no response)
 - event subscription (infinite stream of many)
 
-This is the core project for Java that implements the protocol and exposes Reactive Stream APIs. Typically most use will come via another library that uses this one.
-
-Others can be found in the [ReactiveSocket Github](https://github.com/ReactiveSocket) project.
+Learn more at http://rsocket.io
 
 ## Build and Binaries
 
