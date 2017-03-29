@@ -25,37 +25,35 @@ import java.nio.charset.Charset;
 /**
  * An implementation of {@link Payload}. This implementation is <b>not</b> thread-safe, and hence any method can not be
  * invoked concurrently.
- *
- * <h2>Reusability</h2>
- *
- * By default, an instance is reusable, i.e. everytime {@link #getData()} or {@link #getMetadata()} is invoked, the
- * position of the returned buffer is reset to the start of data in the buffer. For creating an instance for single-use,
- * {@link #PayloadImpl(ByteBuffer, ByteBuffer, boolean)} must be used.
  */
 public class PayloadImpl implements Payload {
 
-    public static final Payload EMPTY = new PayloadImpl(Frame.NULL_BYTEBUFFER, Frame.NULL_BYTEBUFFER);
+    public static final PayloadImpl EMPTY = new PayloadImpl(Frame.NULL_BYTEBUFFER, Frame.NULL_BYTEBUFFER, false);
 
     private final ByteBuffer data;
+    private final ByteBuffer metadata;
     private final int dataStartPosition;
     private final int metadataStartPosition;
     private final boolean reusable;
-    private final ByteBuffer metadata;
+
+    public PayloadImpl(Frame frame) {
+        this(frame.getData(), frame.getMetadata());
+    }
 
     public PayloadImpl(String data) {
-        this(data, (String) null);
+        this(data, Charset.defaultCharset());
     }
 
     public PayloadImpl(String data, String metadata) {
-        this(fromString(data), fromString(metadata));
+        this(data, Charset.defaultCharset(), metadata, Charset.defaultCharset());
     }
 
-    public PayloadImpl(String data, Charset charset) {
-        this(fromString(data, charset), fromString(null));
+    public PayloadImpl(String data, Charset dataCharset) {
+        this(dataCharset.encode(data), Frame.NULL_BYTEBUFFER);
     }
 
     public PayloadImpl(String data, Charset dataCharset, String metadata, Charset metaDataCharset) {
-        this(fromString(data, dataCharset), fromString(metadata, metaDataCharset));
+        this(dataCharset.encode(data), metaDataCharset.encode(metadata));
     }
 
     public PayloadImpl(byte[] data) {
@@ -74,21 +72,12 @@ public class PayloadImpl implements Payload {
         this(data, metadata, true);
     }
 
-    /**
-     * New instance where every invocation of {@link #getMetadata()} and {@link #getData()} will reset the position of
-     * the buffer to the position when it is created, if and only if, {@code reusable} is set to {@code true}.
-     *
-     * @param data Buffer for data.
-     * @param metadata Buffer for metadata.
-     * @param reusable {@code true} if the buffer position is to be reset on every invocation of {@link #getData()} and
-     * {@link #getMetadata()}.
-     */
     public PayloadImpl(ByteBuffer data, ByteBuffer metadata, boolean reusable) {
         this.data = data;
+        this.metadata = metadata;
         this.reusable = reusable;
-        this.metadata = null == metadata ? Frame.NULL_BYTEBUFFER : metadata;
-        dataStartPosition = reusable ? this.data.position() : 0;
-        metadataStartPosition = reusable ? this.metadata.position() : 0;
+        this.dataStartPosition = reusable ? this.data.position() : 0;
+        this.metadataStartPosition = reusable ? this.metadata.position() : 0;
     }
 
     @Override
@@ -105,13 +94,5 @@ public class PayloadImpl implements Payload {
             metadata.position(metadataStartPosition);
         }
         return metadata;
-    }
-
-    private static ByteBuffer fromString(String data) {
-        return fromString(data, Charset.defaultCharset());
-    }
-
-    private static ByteBuffer fromString(String data, Charset charset) {
-        return data == null ? Frame.NULL_BYTEBUFFER : ByteBuffer.wrap(data.getBytes(charset));
     }
 }

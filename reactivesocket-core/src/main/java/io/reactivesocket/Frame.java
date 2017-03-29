@@ -15,78 +15,202 @@
  */
 package io.reactivesocket;
 
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufAllocator;
+import io.netty.buffer.ByteBufHolder;
+import io.netty.buffer.Unpooled;
+import io.netty.util.IllegalReferenceCountException;
+import io.netty.util.Recycler;
+import io.netty.util.Recycler.Handle;
+import io.netty.util.ResourceLeakDetector;
 import io.reactivesocket.frame.ErrorFrameFlyweight;
 import io.reactivesocket.frame.FrameHeaderFlyweight;
-import io.reactivesocket.frame.FramePool;
 import io.reactivesocket.frame.KeepaliveFrameFlyweight;
 import io.reactivesocket.frame.LeaseFrameFlyweight;
 import io.reactivesocket.frame.RequestFrameFlyweight;
 import io.reactivesocket.frame.RequestNFrameFlyweight;
 import io.reactivesocket.frame.SetupFrameFlyweight;
-import io.reactivesocket.frame.UnpooledFrame;
 import io.reactivesocket.frame.VersionFlyweight;
-import org.agrona.DirectBuffer;
-import org.agrona.MutableDirectBuffer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 
-import static java.lang.System.getProperty;
-
 /**
  * Represents a Frame sent over a {@link DuplexConnection}.
  * <p>
  * This provides encoding, decoding and field accessors.
  */
-public class Frame implements Payload {
+public class Frame implements ByteBufHolder {
 
     private static final Logger logger = LoggerFactory.getLogger(Frame.class);
 
-    public static final ByteBuffer NULL_BYTEBUFFER = FrameHeaderFlyweight.NULL_BYTEBUFFER;
-    public static final int DATA_MTU = 32 * 1024;
+    public static final ByteBuffer NULL_BYTEBUFFER = ByteBuffer.allocateDirect(0);
     public static final int METADATA_MTU = 32 * 1024;
+    public static final int DATA_MTU = 32 * 1024;
 
-    /*
-     * ThreadLocal handling in the pool itself. We don't have a per thread pool at this level.
-     */
-    private static final String FRAME_POOLER_CLASS_NAME =
-        getProperty("io.reactivesocket.FramePool", UnpooledFrame.class.getName());
-        //getProperty("io.reactivesocket.FramePool", ThreadLocalFramePool.class.getName());
-    protected static final FramePool POOL;
-
-    static {
-        FramePool tmpPool;
-
-        try {
-            logger.info("Creating thread pooled named " + FRAME_POOLER_CLASS_NAME);
-            tmpPool = (FramePool)Class.forName(FRAME_POOLER_CLASS_NAME).newInstance();
+    private static final Recycler<Frame> RECYCLER = new Recycler<Frame>() {
+        protected Frame newObject(Handle<Frame> handle) {
+            return new Frame(handle);
         }
-        catch (final Exception ex) {
-            logger.error("Error initializing frame pool.", ex);
-            tmpPool = new UnpooledFrame();
-        }
+    };
 
-        POOL = tmpPool;
-    }
+    private final Handle<Frame> handle;
+    private ByteBuf content;
 
-    // not final so we can reuse this object
-    protected MutableDirectBuffer directBuffer;
-    protected int offset = 0;
-    protected int length = 0;
-
-    protected Frame(final MutableDirectBuffer directBuffer) {
-        this.directBuffer = directBuffer;
+    private Frame(final Handle<Frame> handle) {
+        this.handle = handle;
     }
 
     /**
-     * Return underlying {@link ByteBuffer} for frame
-     *
-     * @return underlying {@link ByteBuffer} for frame
+     * Clear and recycle this instance.
      */
-    public ByteBuffer getByteBuffer() {
-        return directBuffer.byteBuffer();
+    private void recycle() {
+        content = null;
+        handle.recycle(this);
+    }
+
+    /**
+     * Return the content which is held by this {@link Frame}.
+     */
+    @Override
+    public ByteBuf content() {
+        if (content.refCnt() <= 0) {
+            throw new IllegalReferenceCountException(content.refCnt());
+        }
+        return content;
+    }
+
+    /**
+     * Creates a deep copy of this {@link Frame}.
+     */
+    @Override
+    public Frame copy() {
+        return replace(content.copy());
+    }
+
+    /**
+     * Duplicates this {@link Frame}. Be aware that this will not automatically call {@link #retain()}.
+     */
+    @Override
+    public Frame duplicate() {
+        return replace(content.duplicate());
+    }
+
+    /**
+     * Duplicates this {@link Frame}. This method returns a retained duplicate unlike {@link #duplicate()}.
+     *
+     * @see ByteBuf#retainedDuplicate()
+     */
+    @Override
+    public Frame retainedDuplicate() {
+        return replace(content.retainedDuplicate());
+    }
+
+    /**
+     * Returns a new {@link Frame} which contains the specified {@code content}.
+     */
+    @Override
+    public Frame replace(ByteBuf content) {
+        return from(content);
+    }
+
+    /**
+     * Returns the reference count of this object.  If {@code 0}, it means this object has been deallocated.
+     */
+    @Override
+    public int refCnt() {
+        return content.refCnt();
+    }
+
+    /**
+     * Increases the reference count by {@code 1}.
+     */
+    @Override
+    public Frame retain() {
+        content.retain();
+        return this;
+    }
+
+    /**
+     * Increases the reference count by the specified {@code increment}.
+     */
+    @Override
+    public Frame retain(int increment) {
+        content.retain(increment);
+        return this;
+    }
+
+    /**
+     * Records the current access location of this object for debugging purposes.
+     * If this object is determined to be leaked, the information recorded by this operation will be provided to you
+     * via {@link ResourceLeakDetector}.  This method is a shortcut to {@link #touch(Object) touch(null)}.
+     */
+    @Override
+    public Frame touch() {
+        content.touch();
+        return this;
+    }
+
+    /**
+     * Records the current access location of this object with an additonal arbitrary information for debugging
+     * purposes.  If this object is determined to be leaked, the information recorded by this operation will be
+     * provided to you via {@link ResourceLeakDetector}.
+     */
+    @Override
+    public Frame touch(Object hint) {
+        content.touch(hint);
+        return this;
+    }
+
+    /**
+     * Decreases the reference count by {@code 1} and deallocates this object if the reference count reaches at
+     * {@code 0}.
+     *
+     * @return {@code true} if and only if the reference count became {@code 0} and this object has been deallocated
+     */
+    @Override
+    public boolean release() {
+        if (content.release()) {
+            recycle();
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Decreases the reference count by the specified {@code decrement} and deallocates this object if the reference
+     * count reaches at {@code 0}.
+     *
+     * @return {@code true} if and only if the reference count became {@code 0} and this object has been deallocated
+     */
+    @Override
+    public boolean release(int decrement) {
+        if (content.release(decrement)) {
+            recycle();
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Return {@link ByteBuffer} that is a {@link ByteBuffer#slice()} for the frame metadata
+     *
+     * If no metadata is present, the ByteBuffer will have 0 capacity.
+     *
+     * @return ByteBuffer containing the content
+     */
+    public ByteBuffer getMetadata() {
+        final ByteBuf metadata = FrameHeaderFlyweight.sliceFrameMetadata(content);
+        if (metadata.readableBytes() > 0) {
+            final ByteBuffer buffer = ByteBuffer.allocateDirect(metadata.readableBytes());
+            metadata.readBytes(buffer);
+            buffer.flip();
+            return buffer;
+        } else {
+            return NULL_BYTEBUFFER;
+        }
     }
 
     /**
@@ -97,18 +221,15 @@ public class Frame implements Payload {
      * @return ByteBuffer containing the data
      */
     public ByteBuffer getData() {
-        return FrameHeaderFlyweight.sliceFrameData(directBuffer, offset, 0);
-    }
-
-    /**
-     * Return {@link ByteBuffer} that is a {@link ByteBuffer#slice()} for the frame metadata
-     *
-     * If no metadata is present, the ByteBuffer will have 0 capacity.
-     *
-     * @return ByteBuffer containing the data
-     */
-    public ByteBuffer getMetadata() {
-        return FrameHeaderFlyweight.sliceFrameMetadata(directBuffer, offset, 0);
+        final ByteBuf data = FrameHeaderFlyweight.sliceFrameData(content);
+        if (data.readableBytes() > 0) {
+            final ByteBuffer buffer = ByteBuffer.allocateDirect(data.readableBytes());
+            data.readBytes(buffer);
+            buffer.flip();
+            return buffer;
+        } else {
+            return NULL_BYTEBUFFER;
+        }
     }
 
     /**
@@ -117,7 +238,7 @@ public class Frame implements Payload {
      * @return frame stream identifier
      */
     public int getStreamId() {
-        return FrameHeaderFlyweight.streamId(directBuffer, offset);
+        return FrameHeaderFlyweight.streamId(content);
     }
 
     /**
@@ -126,25 +247,7 @@ public class Frame implements Payload {
      * @return frame type
      */
     public FrameType getType() {
-        return FrameHeaderFlyweight.frameType(directBuffer, offset);
-    }
-
-    /**
-     * Return the offset in the buffer of the frame
-     *
-     * @return offset of frame within the buffer
-     */
-    public int offset() {
-        return offset;
-    }
-
-    /**
-     * Return the encoded length of a frame or the frame length
-     *
-     * @return frame length
-     */
-    public int length() {
-        return length;
+        return FrameHeaderFlyweight.frameType(content);
     }
 
     /**
@@ -153,96 +256,26 @@ public class Frame implements Payload {
      * @return frame flags field value
      */
     public int flags() {
-        return FrameHeaderFlyweight.flags(directBuffer, offset);
+        return FrameHeaderFlyweight.flags(content);
     }
 
     /**
-     * Mutates this Frame to contain the given ByteBuffer
-     * 
-     * @param byteBuffer to wrap
-     */
-    public void wrap(final ByteBuffer byteBuffer, final int offset) {
-        wrap(POOL.acquireMutableDirectBuffer(byteBuffer), offset);
-    }
-
-    /**
-     * Mutates this Frame to contain the given MutableDirectBuffer
+     * Acquire a free Frame backed by given ByteBuf
      *
-     * @param directBuffer to wrap
-     */
-    public void wrap(final MutableDirectBuffer directBuffer, final int offset) {
-        this.directBuffer = directBuffer;
-        this.offset = offset;
-    }
-
-    /**
-     * Acquire a free Frame backed by given ByteBuffer
-     * 
-     * @param byteBuffer to wrap
-     * @return new {@link Frame}
-     */
-    public static Frame from(final ByteBuffer byteBuffer) {
-        return POOL.acquireFrame(byteBuffer);
-    }
-
-    /**
-     * Acquire a free Frame and back with the given {@link DirectBuffer} starting at offset for length bytes
-     *
-     * @param directBuffer to use as backing buffer
-     * @param offset of start of frame
-     * @param length of frame in bytes
+     * @param content to use as backing buffer
      * @return frame
      */
-    public static Frame from(final DirectBuffer directBuffer, final int offset, final int length) {
-        final Frame frame = POOL.acquireFrame((MutableDirectBuffer)directBuffer);
-        frame.offset = offset;
-        frame.length = length;
+    public static Frame from(final ByteBuf content) {
+        final Frame frame = RECYCLER.get();
+        frame.content = content;
 
         return frame;
-    }
-
-    /**
-     * Construct a new Frame from the given {@link MutableDirectBuffer}
-     *
-     * NOTE: always allocates. Used for pooling.
-     *
-     * @param directBuffer to wrap
-     * @return new {@link Frame}
-     */
-    public static Frame allocate(final MutableDirectBuffer directBuffer) {
-        return new Frame(directBuffer);
-    }
-
-    /**
-     * Release frame for re-use.
-     */
-    public void release() {
-        POOL.release(this.directBuffer);
-        POOL.release(this);
-    }
-
-    /**
-     * Mutates this Frame to contain the given parameters.
-     *
-     * NOTE: acquires a new backing buffer and releases current backing buffer
-     *
-     * @param streamId to include in frame
-     * @param type     to include in frame
-     * @param data     to include in frame
-     */
-    public void wrap(final int streamId, final FrameType type, final ByteBuffer data) {
-        POOL.release(this.directBuffer);
-
-        this.directBuffer =
-            POOL.acquireMutableDirectBuffer(FrameHeaderFlyweight.computeFrameHeaderLength(type, 0, data.remaining()));
-
-        this.length = FrameHeaderFlyweight.encode(this.directBuffer, offset, streamId, 0, type, NULL_BYTEBUFFER, data);
     }
 
     /* TODO:
      *
      * fromRequest(type, id, payload)
-     * fromKeepalive(ByteBuffer data)
+     * fromKeepalive(ByteBuf content)
      *
      */
 
@@ -259,47 +292,47 @@ public class Frame implements Payload {
             String dataMimeType,
             Payload payload)
         {
-            final ByteBuffer metadata = payload.getMetadata();
-            final ByteBuffer data = payload.getData();
+            final ByteBuf metadata = payload.getMetadata() != null ? Unpooled.wrappedBuffer(payload.getMetadata()) : Unpooled.EMPTY_BUFFER;
+            final ByteBuf data = payload.getData() != null ? Unpooled.wrappedBuffer(payload.getData()) : Unpooled.EMPTY_BUFFER;
 
-            final Frame frame =
-                POOL.acquireFrame(SetupFrameFlyweight.computeFrameLength(flags, metadataMimeType, dataMimeType, metadata.remaining(), data.remaining()));
-
-            frame.length = SetupFrameFlyweight.encode(
-                frame.directBuffer, frame.offset, flags, keepaliveInterval, maxLifetime, metadataMimeType, dataMimeType, metadata, data);
+            final Frame frame = RECYCLER.get();
+            frame.content = ByteBufAllocator.DEFAULT.buffer(
+                SetupFrameFlyweight.computeFrameLength(flags, metadataMimeType, dataMimeType, metadata.readableBytes(), data.readableBytes()));
+            frame.content.writerIndex(SetupFrameFlyweight.encode(
+                    frame.content, flags, keepaliveInterval, maxLifetime, metadataMimeType, dataMimeType, metadata, data));
             return frame;
         }
 
         public static int getFlags(final Frame frame) {
             ensureFrameType(FrameType.SETUP, frame);
-            final int flags = FrameHeaderFlyweight.flags(frame.directBuffer, frame.offset);
+            final int flags = FrameHeaderFlyweight.flags(frame.content);
 
             return flags & SetupFrameFlyweight.VALID_FLAGS;
         }
 
         public static int version(final Frame frame) {
             ensureFrameType(FrameType.SETUP, frame);
-            return SetupFrameFlyweight.version(frame.directBuffer, frame.offset);
+            return SetupFrameFlyweight.version(frame.content);
         }
 
         public static int keepaliveInterval(final Frame frame) {
             ensureFrameType(FrameType.SETUP, frame);
-            return SetupFrameFlyweight.keepaliveInterval(frame.directBuffer, frame.offset);
+            return SetupFrameFlyweight.keepaliveInterval(frame.content);
         }
 
         public static int maxLifetime(final Frame frame) {
             ensureFrameType(FrameType.SETUP, frame);
-            return SetupFrameFlyweight.maxLifetime(frame.directBuffer, frame.offset);
+            return SetupFrameFlyweight.maxLifetime(frame.content);
         }
 
         public static String metadataMimeType(final Frame frame) {
             ensureFrameType(FrameType.SETUP, frame);
-            return SetupFrameFlyweight.metadataMimeType(frame.directBuffer, frame.offset);
+            return SetupFrameFlyweight.metadataMimeType(frame.content);
         }
 
         public static String dataMimeType(final Frame frame) {
             ensureFrameType(FrameType.SETUP, frame);
-            return SetupFrameFlyweight.dataMimeType(frame.directBuffer, frame.offset);
+            return SetupFrameFlyweight.dataMimeType(frame.content);
         }
     }
 
@@ -311,30 +344,29 @@ public class Frame implements Payload {
         public static Frame from(
             int streamId,
             final Throwable throwable,
-            ByteBuffer metadata,
-            ByteBuffer data
+            ByteBuf metadata,
+            ByteBuf data
         ) {
-            final int code = ErrorFrameFlyweight.errorCodeFromException(throwable);
-            final Frame frame = POOL.acquireFrame(
-                ErrorFrameFlyweight.computeFrameLength(metadata.remaining(), data.remaining()));
-
             if (errorLogger.isDebugEnabled()) {
                 errorLogger.debug("an error occurred, creating error frame", throwable);
             }
 
-            frame.length = ErrorFrameFlyweight.encode(
-                frame.directBuffer, frame.offset, streamId, code, metadata, data);
+            final int code = ErrorFrameFlyweight.errorCodeFromException(throwable);
+            final Frame frame = RECYCLER.get();
+            frame.content = ByteBufAllocator.DEFAULT.buffer(
+                ErrorFrameFlyweight.computeFrameLength(metadata.readableBytes(), data.readableBytes()));
+            frame.content.writerIndex(ErrorFrameFlyweight.encode(frame.content, streamId, code, metadata, data));
             return frame;
         }
 
         public static Frame from(
             int streamId,
             final Throwable throwable,
-            ByteBuffer metadata
+            ByteBuf metadata
         ) {
             String data = throwable.getMessage() == null ? "" : throwable.getMessage();
             byte[] bytes = data.getBytes(StandardCharsets.UTF_8);
-            final ByteBuffer dataBuffer = ByteBuffer.wrap(bytes);
+            final ByteBuf dataBuffer = Unpooled.wrappedBuffer(bytes);
 
             return from(streamId, throwable, metadata, dataBuffer);
         }
@@ -343,33 +375,34 @@ public class Frame implements Payload {
             int streamId,
             final Throwable throwable
         ) {
-            return from(streamId, throwable, NULL_BYTEBUFFER);
+            return from(streamId, throwable, Unpooled.EMPTY_BUFFER);
         }
 
         public static int errorCode(final Frame frame) {
             ensureFrameType(FrameType.ERROR, frame);
-            return ErrorFrameFlyweight.errorCode(frame.directBuffer, frame.offset);
+            return ErrorFrameFlyweight.errorCode(frame.content);
         }
     }
 
     public static class Lease {
         private Lease() {}
 
-        public static Frame from(int ttl, int numberOfRequests, ByteBuffer metadata) {
-            final Frame frame = POOL.acquireFrame(LeaseFrameFlyweight.computeFrameLength(metadata.remaining()));
-
-            frame.length = LeaseFrameFlyweight.encode(frame.directBuffer, frame.offset, ttl, numberOfRequests, metadata);
+        public static Frame from(int ttl, int numberOfRequests, ByteBuf metadata) {
+            final Frame frame = RECYCLER.get();
+            frame.content = ByteBufAllocator.DEFAULT.buffer(
+                LeaseFrameFlyweight.computeFrameLength(metadata.readableBytes()));
+            frame.content.writerIndex(LeaseFrameFlyweight.encode(frame.content, ttl, numberOfRequests, metadata));
             return frame;
         }
 
         public static int ttl(final Frame frame) {
             ensureFrameType(FrameType.LEASE, frame);
-            return LeaseFrameFlyweight.ttl(frame.directBuffer, frame.offset);
+            return LeaseFrameFlyweight.ttl(frame.content);
         }
 
         public static int numberOfRequests(final Frame frame) {
             ensureFrameType(FrameType.LEASE, frame);
-            return LeaseFrameFlyweight.numRequests(frame.directBuffer, frame.offset);
+            return LeaseFrameFlyweight.numRequests(frame.content);
         }
     }
 
@@ -386,15 +419,15 @@ public class Frame implements Payload {
                 throw new IllegalStateException("request n must be greater than 0");
             }
 
-            final Frame frame = POOL.acquireFrame(RequestNFrameFlyweight.computeFrameLength());
-
-            frame.length = RequestNFrameFlyweight.encode(frame.directBuffer, frame.offset, streamId, requestN);
+            final Frame frame = RECYCLER.get();
+            frame.content = ByteBufAllocator.DEFAULT.buffer(RequestNFrameFlyweight.computeFrameLength());
+            frame.content.writerIndex(RequestNFrameFlyweight.encode(frame.content, streamId, requestN));
             return frame;
         }
 
         public static int requestN(final Frame frame) {
             ensureFrameType(FrameType.REQUEST_N, frame);
-            return RequestNFrameFlyweight.requestN(frame.directBuffer, frame.offset);
+            return RequestNFrameFlyweight.requestN(frame.content);
         }
     }
 
@@ -411,34 +444,35 @@ public class Frame implements Payload {
                 throw new IllegalStateException("initial request n must be greater than 0");
             }
 
-            final ByteBuffer d = payload.getData() != null ? payload.getData() : NULL_BYTEBUFFER;
-            final ByteBuffer md = payload.getMetadata() != null ? payload.getMetadata() : NULL_BYTEBUFFER;
+            final ByteBuf metadata = payload.getMetadata() != null ? Unpooled.wrappedBuffer(payload.getMetadata()) : Unpooled.EMPTY_BUFFER;
+            final ByteBuf data = payload.getData() != null ? Unpooled.wrappedBuffer(payload.getData()) : Unpooled.EMPTY_BUFFER;
 
-            final Frame frame = POOL.acquireFrame(RequestFrameFlyweight.computeFrameLength(type, md.remaining(), d.remaining()));
+            final Frame frame = RECYCLER.get();
+            frame.content = ByteBufAllocator.DEFAULT.buffer(
+                RequestFrameFlyweight.computeFrameLength(type, metadata.readableBytes(), data.readableBytes()));
 
             if (type.hasInitialRequestN()) {
-                frame.length = RequestFrameFlyweight.encode(frame.directBuffer, frame.offset, streamId, 0, type, initialRequestN, md, d);
+                frame.content.writerIndex(RequestFrameFlyweight.encode(frame.content, streamId, 0, type, initialRequestN, metadata, data));
             }
             else {
-                frame.length = RequestFrameFlyweight.encode(frame.directBuffer, frame.offset, streamId, 0, type, md, d);
+                frame.content.writerIndex(RequestFrameFlyweight.encode(frame.content, streamId, 0, type, metadata, data));
             }
 
             return frame;
         }
 
         public static Frame from(int streamId, FrameType type, int flags) {
-            final Frame frame = POOL.acquireFrame(RequestFrameFlyweight.computeFrameLength(type, 0, 0));
-
-            frame.length = RequestFrameFlyweight.encode(frame.directBuffer, frame.offset, streamId, flags, type, NULL_BYTEBUFFER, NULL_BYTEBUFFER);
+            final Frame frame = RECYCLER.get();
+            frame.content = ByteBufAllocator.DEFAULT.buffer(RequestFrameFlyweight.computeFrameLength(type, 0, 0));
+            frame.content.writerIndex(RequestFrameFlyweight.encode(frame.content, streamId, flags, type, Unpooled.EMPTY_BUFFER, Unpooled.EMPTY_BUFFER));
             return frame;
         }
 
-        public static Frame from(int streamId, FrameType type, ByteBuffer metadata, ByteBuffer data, int initialRequestN, int flags) {
-            final Frame frame = POOL.acquireFrame(RequestFrameFlyweight.computeFrameLength(type, metadata.remaining(), data.remaining()));
-
-            frame.length = RequestFrameFlyweight.encode(frame.directBuffer, frame.offset, streamId, flags, type, initialRequestN, metadata, data);
+        public static Frame from(int streamId, FrameType type, ByteBuf metadata, ByteBuf data, int initialRequestN, int flags) {
+            final Frame frame = RECYCLER.get();
+            frame.content = ByteBufAllocator.DEFAULT.buffer(RequestFrameFlyweight.computeFrameLength(type, metadata.readableBytes(), data.readableBytes()));
+            frame.content.writerIndex(RequestFrameFlyweight.encode(frame.content, streamId, flags, type, initialRequestN, metadata, data));
             return frame;
-
         }
 
         public static int initialRequestN(final Frame frame) {
@@ -457,7 +491,7 @@ public class Frame implements Payload {
                     result = 0;
                     break;
                 default:
-                    result = RequestFrameFlyweight.initialRequestN(frame.directBuffer, frame.offset);
+                    result = RequestFrameFlyweight.initialRequestN(frame.content);
                     break;
             }
 
@@ -466,7 +500,7 @@ public class Frame implements Payload {
 
         public static boolean isRequestChannelComplete(final Frame frame) {
             ensureFrameType(FrameType.REQUEST_CHANNEL, frame);
-            final int flags = FrameHeaderFlyweight.flags(frame.directBuffer, frame.offset);
+            final int flags = FrameHeaderFlyweight.flags(frame.content);
 
             return (flags & FrameHeaderFlyweight.FLAGS_C) == FrameHeaderFlyweight.FLAGS_C;
         }
@@ -476,31 +510,25 @@ public class Frame implements Payload {
 
         private PayloadFrame() {}
 
-        public static Frame from(int streamId, FrameType type, Payload payload) {
-            final ByteBuffer data = payload.getData() != null ? payload.getData() : NULL_BYTEBUFFER;
-            final ByteBuffer metadata = payload.getMetadata() != null ? payload.getMetadata() : NULL_BYTEBUFFER;
-
-            final Frame frame =
-                POOL.acquireFrame(FrameHeaderFlyweight.computeFrameHeaderLength(type, metadata.remaining(), data.remaining()));
-
-            frame.length = FrameHeaderFlyweight.encode(frame.directBuffer, frame.offset, streamId, 0, type, metadata, data);
-            return frame;
-        }
-
-        public static Frame from(int streamId, FrameType type, ByteBuffer metadata, ByteBuffer data, int flags) {
-            final Frame frame =
-                POOL.acquireFrame(FrameHeaderFlyweight.computeFrameHeaderLength(type, metadata.remaining(), data.remaining()));
-
-            frame.length = FrameHeaderFlyweight.encode(frame.directBuffer, frame.offset, streamId, flags, type, metadata, data);
-            return frame;
-        }
-
         public static Frame from(int streamId, FrameType type) {
-            final Frame frame =
-                POOL.acquireFrame(FrameHeaderFlyweight.computeFrameHeaderLength(type, 0, 0));
+            return from(streamId, type, Unpooled.EMPTY_BUFFER, Unpooled.EMPTY_BUFFER, 0);
+        }
 
-            frame.length = FrameHeaderFlyweight.encode(
-                frame.directBuffer, frame.offset, streamId, 0, type, Frame.NULL_BYTEBUFFER, Frame.NULL_BYTEBUFFER);
+        public static Frame from(int streamId, FrameType type, Payload payload) {
+            return from(streamId, type, payload, 0);
+        }
+
+        public static Frame from(int streamId, FrameType type, Payload payload, int flags) {
+            final ByteBuf metadata = payload.getMetadata() != null ? Unpooled.wrappedBuffer(payload.getMetadata()) : Unpooled.EMPTY_BUFFER;
+            final ByteBuf data = payload.getData() != null ? Unpooled.wrappedBuffer(payload.getData()) : Unpooled.EMPTY_BUFFER;
+            return from(streamId, type, metadata, data, flags);
+        }
+
+        public static Frame from(int streamId, FrameType type, ByteBuf metadata, ByteBuf data, int flags) {
+            final Frame frame = RECYCLER.get();
+            frame.content = ByteBufAllocator.DEFAULT.buffer(
+                FrameHeaderFlyweight.computeFrameHeaderLength(type, metadata.readableBytes(), data.readableBytes()));
+            frame.content.writerIndex(FrameHeaderFlyweight.encode(frame.content, streamId, flags, type, metadata, data));
             return frame;
         }
     }
@@ -510,11 +538,11 @@ public class Frame implements Payload {
         private Cancel() {}
 
         public static Frame from(int streamId) {
-            final Frame frame =
-                POOL.acquireFrame(FrameHeaderFlyweight.computeFrameHeaderLength(FrameType.CANCEL, 0, 0));
-
-            frame.length = FrameHeaderFlyweight.encode(
-                frame.directBuffer, frame.offset, streamId, 0, FrameType.CANCEL, Frame.NULL_BYTEBUFFER, Frame.NULL_BYTEBUFFER);
+            final Frame frame = RECYCLER.get();
+            frame.content = ByteBufAllocator.DEFAULT.buffer(
+                FrameHeaderFlyweight.computeFrameHeaderLength(FrameType.CANCEL, 0, 0));
+            frame.content.writerIndex(FrameHeaderFlyweight.encode(
+                frame.content, streamId, 0, FrameType.CANCEL, Unpooled.EMPTY_BUFFER, Unpooled.EMPTY_BUFFER));
             return frame;
         }
     }
@@ -523,20 +551,20 @@ public class Frame implements Payload {
 
         private Keepalive() {}
 
-        public static Frame from(ByteBuffer data, boolean respond) {
-            final Frame frame =
-                POOL.acquireFrame(KeepaliveFrameFlyweight.computeFrameLength(data.remaining()));
+        public static Frame from(ByteBuf data, boolean respond) {
+            final Frame frame = RECYCLER.get();
+            frame.content = ByteBufAllocator.DEFAULT.buffer(
+                KeepaliveFrameFlyweight.computeFrameLength(data.readableBytes()));
 
             final int flags = respond ? KeepaliveFrameFlyweight.FLAGS_KEEPALIVE_R : 0;
-
-            frame.length = KeepaliveFrameFlyweight.encode(frame.directBuffer, frame.offset, flags, data);
+            frame.content.writerIndex(KeepaliveFrameFlyweight.encode(frame.content, flags, data));
 
             return frame;
         }
 
         public static boolean hasRespondFlag(final Frame frame) {
             ensureFrameType(FrameType.KEEPALIVE, frame);
-            final int flags = FrameHeaderFlyweight.flags(frame.directBuffer, frame.offset);
+            final int flags = FrameHeaderFlyweight.flags(frame.content);
 
             return (flags & KeepaliveFrameFlyweight.FLAGS_KEEPALIVE_R) == KeepaliveFrameFlyweight.FLAGS_KEEPALIVE_R;
         }
@@ -558,26 +586,19 @@ public class Frame implements Payload {
         String additionalFlags = "";
 
         try {
-            type = FrameHeaderFlyweight.frameType(directBuffer, 0);
+            type = FrameHeaderFlyweight.frameType(content);
 
-            ByteBuffer byteBuffer;
-            byte[] bytes;
-
-            byteBuffer = FrameHeaderFlyweight.sliceFrameMetadata(directBuffer, 0, 0);
-            if (0 < byteBuffer.remaining()) {
-                bytes = new byte[byteBuffer.remaining()];
-                byteBuffer.get(bytes);
-                payload.append(String.format("metadata: \"%s\" ", new String(bytes, StandardCharsets.UTF_8)));
+            ByteBuf metadata = FrameHeaderFlyweight.sliceFrameMetadata(content);
+            if (0 < metadata.readableBytes()) {
+                payload.append(String.format("metadata: \"%s\" ", metadata.toString(StandardCharsets.UTF_8)));
             }
 
-            byteBuffer = FrameHeaderFlyweight.sliceFrameData(directBuffer, 0, 0);
-            if (0 < byteBuffer.remaining()) {
-                bytes = new byte[byteBuffer.remaining()];
-                byteBuffer.get(bytes);
-                payload.append(String.format("data: \"%s\"", new String(bytes, StandardCharsets.UTF_8)));
+            ByteBuf data = FrameHeaderFlyweight.sliceFrameData(content);
+            if (0 < data.readableBytes()) {
+                payload.append(String.format("data: \"%s\" ", data.toString(StandardCharsets.UTF_8)));
             }
 
-            streamId = FrameHeaderFlyweight.streamId(directBuffer, 0);
+            streamId = FrameHeaderFlyweight.streamId(content);
 
             switch (type) {
             case LEASE:
@@ -608,7 +629,7 @@ public class Frame implements Payload {
         } catch (Exception e) {
             logger.error("Error generating toString, ignored.", e);
         }
-        return "Frame[" + offset + "] => Stream ID: " + streamId + " Type: " + type
+        return "Frame => Stream ID: " + streamId + " Type: " + type
                + (!additionalFlags.isEmpty() ? additionalFlags : "")
                + " Payload: " + payload;
     }

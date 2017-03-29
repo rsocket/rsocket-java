@@ -18,6 +18,7 @@ package io.reactivesocket.client;
 import io.reactivesocket.Payload;
 import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.client.filter.FailureAwareClient;
+import io.reactivesocket.util.PayloadImpl;
 import io.reactivex.subscribers.TestSubscriber;
 import org.junit.Test;
 import org.reactivestreams.Publisher;
@@ -25,7 +26,6 @@ import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 import reactor.core.publisher.Mono;
 
-import java.nio.ByteBuffer;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -35,23 +35,11 @@ import static org.junit.Assert.*;
 
 public class FailureReactiveSocketTest {
 
-    private final Payload dummyPayload = new Payload() {
-        @Override
-        public ByteBuffer getData() {
-            return null;
-        }
-
-        @Override
-        public ByteBuffer getMetadata() {
-            return null;
-        }
-    };
-
     @Test
     public void testError() throws InterruptedException {
         testReactiveSocket((latch, socket) -> {
             assertEquals(1.0, socket.availability(), 0.0);
-            Publisher<Payload> payloadPublisher = socket.requestResponse(dummyPayload);
+            Publisher<Payload> payloadPublisher = socket.requestResponse(PayloadImpl.EMPTY);
 
             TestSubscriber<Payload> subscriber = new TestSubscriber<>();
             payloadPublisher.subscribe(subscriber);
@@ -79,7 +67,7 @@ public class FailureReactiveSocketTest {
     public void testWidowReset() throws InterruptedException {
         testReactiveSocket((latch, socket) -> {
             assertEquals(1.0, socket.availability(), 0.0);
-            Publisher<Payload> payloadPublisher = socket.requestResponse(dummyPayload);
+            Publisher<Payload> payloadPublisher = socket.requestResponse(PayloadImpl.EMPTY);
 
             TestSubscriber<Payload> subscriber = new TestSubscriber<>();
             payloadPublisher.subscribe(subscriber);
@@ -110,7 +98,7 @@ public class FailureReactiveSocketTest {
         AtomicInteger count = new AtomicInteger(0);
         TestingReactiveSocket socket = new TestingReactiveSocket(input -> {
             if (count.getAndIncrement() < 1) {
-                return dummyPayload;
+                return PayloadImpl.EMPTY;
             } else {
                 throw new RuntimeException();
             }

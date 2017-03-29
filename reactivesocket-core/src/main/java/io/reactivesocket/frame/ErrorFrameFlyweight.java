@@ -15,6 +15,7 @@
  */
 package io.reactivesocket.frame;
 
+import io.netty.buffer.ByteBuf;
 import io.reactivesocket.FrameType;
 import io.reactivesocket.exceptions.ApplicationException;
 import io.reactivesocket.exceptions.CancelException;
@@ -24,12 +25,7 @@ import io.reactivesocket.exceptions.InvalidSetupException;
 import io.reactivesocket.exceptions.RejectedException;
 import io.reactivesocket.exceptions.RejectedSetupException;
 import io.reactivesocket.exceptions.UnsupportedSetupException;
-import org.agrona.BitUtil;
-import org.agrona.DirectBuffer;
-import org.agrona.MutableDirectBuffer;
-
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
+import io.reactivesocket.util.BitUtil;
 
 public class ErrorFrameFlyweight {
 
@@ -61,25 +57,23 @@ public class ErrorFrameFlyweight {
     }
 
     public static int encode(
-        final MutableDirectBuffer mutableDirectBuffer,
-        final int offset,
+        final ByteBuf byteBuf,
         final int streamId,
         final int errorCode,
-        final ByteBuffer metadata,
-        final ByteBuffer data
+        final ByteBuf metadata,
+        final ByteBuf data
     ) {
-        final int frameLength = computeFrameLength(metadata.remaining(), data.remaining());
+        final int frameLength = computeFrameLength(metadata.readableBytes(), data.readableBytes());
 
         int length = FrameHeaderFlyweight.encodeFrameHeader(
-            mutableDirectBuffer, offset, frameLength, 0, FrameType.ERROR, streamId);
+                byteBuf, frameLength, 0, FrameType.ERROR, streamId);
 
-        mutableDirectBuffer.putInt(
-            offset + ERROR_CODE_FIELD_OFFSET, errorCode, ByteOrder.BIG_ENDIAN);
+        byteBuf.setInt(ERROR_CODE_FIELD_OFFSET, errorCode);
         length += BitUtil.SIZE_OF_INT;
 
         length += FrameHeaderFlyweight.encodeMetadata(
-            mutableDirectBuffer, FrameType.ERROR, offset, offset + length, metadata);
-        length += FrameHeaderFlyweight.encodeData(mutableDirectBuffer, offset + length, data);
+                byteBuf, FrameType.ERROR, length, metadata);
+        length += FrameHeaderFlyweight.encodeData(byteBuf, length, data);
 
         return length;
     }
@@ -105,11 +99,11 @@ public class ErrorFrameFlyweight {
         return INVALID;
     }
 
-    public static int errorCode(final DirectBuffer directBuffer, final int offset) {
-        return directBuffer.getInt(offset + ERROR_CODE_FIELD_OFFSET, ByteOrder.BIG_ENDIAN);
+    public static int errorCode(final ByteBuf byteBuf) {
+        return byteBuf.getInt(ERROR_CODE_FIELD_OFFSET);
     }
 
-    public static int payloadOffset(final DirectBuffer directBuffer, final int offset) {
-        return offset + FrameHeaderFlyweight.FRAME_HEADER_LENGTH + BitUtil.SIZE_OF_INT;
+    public static int payloadOffset(final ByteBuf byteBuf) {
+        return FrameHeaderFlyweight.FRAME_HEADER_LENGTH + BitUtil.SIZE_OF_INT;
     }
 }

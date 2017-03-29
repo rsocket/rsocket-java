@@ -17,7 +17,8 @@ package io.reactivesocket.frame;
 
 import io.reactivesocket.Frame;
 import io.reactivesocket.Payload;
-import org.agrona.collections.Int2ObjectHashMap;
+import io.reactivesocket.internal.Int2ObjectHashMap;
+import io.reactivesocket.util.PayloadImpl;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
@@ -48,16 +49,18 @@ public class PayloadReassembler implements Subscriber<Frame> {
         PayloadBuilder payloadBuilder = payloadByStreamId.get(streamId);
 
         if (FrameHeaderFlyweight.FLAGS_F != (frame.flags() & FrameHeaderFlyweight.FLAGS_F)) {
-            Payload deliveryPayload = frame;
+            final Payload payload;
 
             // terminal frame
             if (null != payloadBuilder) {
                 payloadBuilder.append(frame);
-                deliveryPayload = payloadBuilder.payload();
+                payload = payloadBuilder.payload();
                 payloadByStreamId.remove(streamId);
+            } else {
+                payload = new PayloadImpl(frame);
             }
 
-            child.onNext(deliveryPayload);
+            child.onNext(payload);
         }
         else {
             if (null == payloadBuilder) {

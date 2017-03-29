@@ -16,14 +16,15 @@
 
 package io.reactivesocket;
 
+import io.netty.buffer.Unpooled;
 import io.reactivesocket.client.KeepAliveProvider;
+import io.reactivesocket.internal.Int2ObjectHashMap;
 import io.reactivesocket.exceptions.Exceptions;
-import io.reactivesocket.frame.ByteBufferUtil;
 import io.reactivesocket.internal.KnownErrorFilter;
 import io.reactivesocket.internal.LimitableRequestPublisher;
 import io.reactivesocket.lease.Lease;
 import io.reactivesocket.lease.LeaseImpl;
-import org.agrona.collections.Int2ObjectHashMap;
+import io.reactivesocket.util.PayloadImpl;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import reactor.core.Disposable;
@@ -33,6 +34,7 @@ import reactor.core.publisher.MonoProcessor;
 import reactor.core.publisher.UnicastProcessor;
 
 import java.nio.channels.ClosedChannelException;
+import java.nio.charset.StandardCharsets;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -51,7 +53,7 @@ public class ClientReactiveSocket implements ReactiveSocket {
     private final KeepAliveProvider keepAliveProvider;
     private final MonoProcessor<Void> started;
     private final Int2ObjectHashMap<LimitableRequestPublisher> senders;
-    private final Int2ObjectHashMap<Subscriber<? super Frame>> receivers;
+    private final Int2ObjectHashMap<Subscriber<Payload>> receivers;
 
     private Disposable keepAliveSendSub;
     private volatile Consumer<Lease> leaseConsumer; // Provided on start()
@@ -124,7 +126,7 @@ public class ClientReactiveSocket implements ReactiveSocket {
         this.leaseConsumer = leaseConsumer;
 
         keepAliveSendSub = connection.send(keepAliveProvider.ticks()
-            .map(i -> Frame.Keepalive.from(Frame.NULL_BYTEBUFFER, true)))
+            .map(i -> Frame.Keepalive.from(Unpooled.EMPTY_BUFFER, true)))
             .subscribe(null, errorConsumer);
 
         connection
@@ -308,12 +310,16 @@ public class ClientReactiveSocket implements ReactiveSocket {
     }
 
     private void handleIncomingFrames(Frame frame) {
-        int streamId = frame.getStreamId();
-        FrameType type = frame.getType();
-        if (streamId == 0) {
-            handleStreamZero(type, frame);
-        } else {
-            handleFrame(streamId, type, frame);
+        try {
+            int streamId = frame.getStreamId();
+            FrameType type = frame.getType();
+            if (streamId == 0) {
+                handleStreamZero(type, frame);
+            } else {
+                handleFrame(streamId, type, frame);
+            }
+        } finally {
+            frame.release();
         }
     }
 
@@ -323,6 +329,7 @@ public class ClientReactiveSocket implements ReactiveSocket {
                 throw Exceptions.from(frame);
             case LEASE: {
                 if (leaseConsumer != null) {
+
                     leaseConsumer.accept(new LeaseImpl(frame));
                 }
                 break;
@@ -342,7 +349,7 @@ public class ClientReactiveSocket implements ReactiveSocket {
 
     @SuppressWarnings("unchecked")
     private void handleFrame(int streamId, FrameType type, Frame frame) {
-        Subscriber<? super Frame> receiver;
+        Subscriber<Payload> receiver;
         synchronized (this) {
             receiver = receivers.get(streamId);
         }
@@ -355,7 +362,7 @@ public class ClientReactiveSocket implements ReactiveSocket {
                     removeReceiver(streamId);
                     break;
                 case NEXT_COMPLETE:
-                    receiver.onNext(frame);
+                    receiver.onNext(new PayloadImpl(frame));
                     receiver.onComplete();
                     break;
                 case CANCEL: {
@@ -370,7 +377,7 @@ public class ClientReactiveSocket implements ReactiveSocket {
                     break;
                 }
                 case NEXT:
-                    receiver.onNext(frame);
+                    receiver.onNext(new PayloadImpl(frame));
                     break;
                 case REQUEST_N: {
                     LimitableRequestPublisher sender;
@@ -401,7 +408,7 @@ public class ClientReactiveSocket implements ReactiveSocket {
             if (type == FrameType.ERROR) {
                 // message for stream that has never existed, we have a problem with
                 // the overall connection and must tear down
-                String errorMessage = ByteBufferUtil.toUtf8String(frame.getData());
+                String errorMessage = StandardCharsets.UTF_8.decode(frame.getData()).toString();
 
                 throw new IllegalStateException("Client received error for non-existent stream: "
                     + streamId + " Message: " + errorMessage);

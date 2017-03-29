@@ -15,16 +15,17 @@
  */
 package io.reactivesocket.internal;
 
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import io.reactivesocket.Frame;
 import io.reactivesocket.FrameType;
 import io.reactivesocket.Payload;
-import io.reactivesocket.TestUtil;
 import io.reactivesocket.frame.FrameHeaderFlyweight;
 import io.reactivesocket.frame.PayloadReassembler;
 import org.junit.Test;
 import reactor.core.publisher.ReplayProcessor;
 
-import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 
 public class ReassemblerTest
 {
@@ -37,8 +38,8 @@ public class ReassemblerTest
         final PayloadReassembler reassembler = PayloadReassembler.with(replaySubject);
         final String metadata = "metadata";
         final String data = "data";
-        final ByteBuffer metadataBuffer = TestUtil.byteBufferFromUtf8String(metadata);
-        final ByteBuffer dataBuffer = TestUtil.byteBufferFromUtf8String(data);
+        final ByteBuf metadataBuffer = Unpooled.copiedBuffer(metadata, StandardCharsets.UTF_8);
+        final ByteBuf dataBuffer = Unpooled.copiedBuffer(data, StandardCharsets.UTF_8);
 
         reassembler.onNext(Frame.PayloadFrame.from(STREAM_ID, FrameType.NEXT, metadataBuffer, dataBuffer, 0));
 
@@ -54,8 +55,8 @@ public class ReassemblerTest
         final PayloadReassembler reassembler = PayloadReassembler.with(replaySubject);
         final String metadata = "metadata";
         final String data = "data";
-        final ByteBuffer metadataBuffer = TestUtil.byteBufferFromUtf8String(metadata);
-        final ByteBuffer dataBuffer = TestUtil.byteBufferFromUtf8String(data);
+        final ByteBuf metadataBuffer = Unpooled.copiedBuffer(metadata, StandardCharsets.UTF_8);
+        final ByteBuf dataBuffer = Unpooled.copiedBuffer(data, StandardCharsets.UTF_8);
 
         reassembler.onNext(Frame.PayloadFrame.from(STREAM_ID, FrameType.NEXT, metadataBuffer, dataBuffer, FrameHeaderFlyweight.FLAGS_F));
 
@@ -73,10 +74,10 @@ public class ReassemblerTest
         final String data0 = "data0";
         final String data1 = "d1";
         final String data = data0 + data1;
-        final ByteBuffer metadata0Buffer = TestUtil.byteBufferFromUtf8String(metadata0);
-        final ByteBuffer data0Buffer = TestUtil.byteBufferFromUtf8String(data0);
-        final ByteBuffer metadata1Buffer = TestUtil.byteBufferFromUtf8String(metadata1);
-        final ByteBuffer data1Buffer = TestUtil.byteBufferFromUtf8String(data1);
+        final ByteBuf metadata0Buffer = Unpooled.copiedBuffer(metadata0, StandardCharsets.UTF_8);
+        final ByteBuf data0Buffer = Unpooled.copiedBuffer(data0, StandardCharsets.UTF_8);
+        final ByteBuf metadata1Buffer = Unpooled.copiedBuffer(metadata1, StandardCharsets.UTF_8);
+        final ByteBuf data1Buffer = Unpooled.copiedBuffer(data1, StandardCharsets.UTF_8);
 
         reassembler.onNext(Frame.PayloadFrame.from(STREAM_ID, FrameType.NEXT, metadata0Buffer, data0Buffer, FrameHeaderFlyweight.FLAGS_F));
         reassembler.onNext(Frame.PayloadFrame.from(STREAM_ID, FrameType.NEXT, metadata1Buffer, data1Buffer, 0));
@@ -95,12 +96,12 @@ public class ReassemblerTest
         final String data0 = "data0";
         final String data1 = "d1";
         final String data = data0 + data1;
-        final ByteBuffer metadataBuffer = TestUtil.byteBufferFromUtf8String(metadata);
-        final ByteBuffer data0Buffer = TestUtil.byteBufferFromUtf8String(data0);
-        final ByteBuffer data1Buffer = TestUtil.byteBufferFromUtf8String(data1);
+        final ByteBuf metadataBuffer = Unpooled.copiedBuffer(metadata, StandardCharsets.UTF_8);
+        final ByteBuf data0Buffer = Unpooled.copiedBuffer(data0, StandardCharsets.UTF_8);
+        final ByteBuf data1Buffer = Unpooled.copiedBuffer(data1, StandardCharsets.UTF_8);
 
         reassembler.onNext(Frame.PayloadFrame.from(STREAM_ID, FrameType.NEXT, metadataBuffer, data0Buffer, FrameHeaderFlyweight.FLAGS_F));
-        reassembler.onNext(Frame.PayloadFrame.from(STREAM_ID, FrameType.NEXT, Frame.NULL_BYTEBUFFER, data1Buffer, 0));
+        reassembler.onNext(Frame.PayloadFrame.from(STREAM_ID, FrameType.NEXT, Unpooled.EMPTY_BUFFER, data1Buffer, 0));
 
         //assertEquals(1, replaySubject.getValues().length);
         //assertEquals(data, TestUtil.byteToString(replaySubject.getValue().getData()));
@@ -116,12 +117,12 @@ public class ReassemblerTest
         final String metadata1 = "md1";
         final String metadata = metadata0 + metadata1;
         final String data = "data";
-        final ByteBuffer metadata0Buffer = TestUtil.byteBufferFromUtf8String(metadata0);
-        final ByteBuffer dataBuffer = TestUtil.byteBufferFromUtf8String(data);
-        final ByteBuffer metadata1Buffer = TestUtil.byteBufferFromUtf8String(metadata1);
+        final ByteBuf metadata0Buffer = Unpooled.copiedBuffer(metadata0, StandardCharsets.UTF_8);
+        final ByteBuf dataBuffer = Unpooled.copiedBuffer(data, StandardCharsets.UTF_8);
+        final ByteBuf metadata1Buffer = Unpooled.copiedBuffer(metadata1, StandardCharsets.UTF_8);
 
         reassembler.onNext(Frame.PayloadFrame.from(STREAM_ID, FrameType.NEXT, metadata0Buffer, dataBuffer, FrameHeaderFlyweight.FLAGS_F));
-        reassembler.onNext(Frame.PayloadFrame.from(STREAM_ID, FrameType.NEXT, metadata1Buffer, Frame.NULL_BYTEBUFFER, 0));
+        reassembler.onNext(Frame.PayloadFrame.from(STREAM_ID, FrameType.NEXT, metadata1Buffer, Unpooled.EMPTY_BUFFER, 0));
 
         //assertEquals(1, replaySubject.getValues().length);
         //assertEquals(data, TestUtil.byteToString(replaySubject.getValue().getData()));
@@ -140,15 +141,15 @@ public class ReassemblerTest
         final String data1 = "d1";
         final String data2 = "d2";
         final String data = data0 + data1 + data2;
-        final ByteBuffer metadata0Buffer = TestUtil.byteBufferFromUtf8String(metadata0);
-        final ByteBuffer data0Buffer = TestUtil.byteBufferFromUtf8String(data0);
-        final ByteBuffer metadata1Buffer = TestUtil.byteBufferFromUtf8String(metadata1);
-        final ByteBuffer data1Buffer = TestUtil.byteBufferFromUtf8String(data1);
-        final ByteBuffer data2Buffer = TestUtil.byteBufferFromUtf8String(data2);
+        final ByteBuf metadata0Buffer = Unpooled.copiedBuffer(metadata0, StandardCharsets.UTF_8);
+        final ByteBuf data0Buffer = Unpooled.copiedBuffer(data0, StandardCharsets.UTF_8);
+        final ByteBuf metadata1Buffer = Unpooled.copiedBuffer(metadata1, StandardCharsets.UTF_8);
+        final ByteBuf data1Buffer = Unpooled.copiedBuffer(data1, StandardCharsets.UTF_8);
+        final ByteBuf data2Buffer = Unpooled.copiedBuffer(data2, StandardCharsets.UTF_8);
 
         reassembler.onNext(Frame.PayloadFrame.from(STREAM_ID, FrameType.NEXT, metadata0Buffer, data0Buffer, FrameHeaderFlyweight.FLAGS_F));
         reassembler.onNext(Frame.PayloadFrame.from(STREAM_ID, FrameType.NEXT, metadata1Buffer, data1Buffer, FrameHeaderFlyweight.FLAGS_F));
-        reassembler.onNext(Frame.PayloadFrame.from(STREAM_ID, FrameType.NEXT, Frame.NULL_BYTEBUFFER, data2Buffer, 0));
+        reassembler.onNext(Frame.PayloadFrame.from(STREAM_ID, FrameType.NEXT, Unpooled.EMPTY_BUFFER, data2Buffer, 0));
 
         //assertEquals(1, replaySubject.getValues().length);
         //assertEquals(data, TestUtil.byteToString(replaySubject.getValue().getData()));

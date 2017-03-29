@@ -59,7 +59,7 @@ final class SetupProviderImpl implements SetupProvider {
 
     @Override
     public Mono<ReactiveSocket> accept(DuplexConnection connection, SocketAcceptor acceptor) {
-        return connection.sendOne(copySetupFrame())
+        return connection.sendOne(setupFrame)
             .then(() -> {
                 ClientServerInputMultiplexer multiplexer = new ClientServerInputMultiplexer(connection);
                 ClientReactiveSocket sendingSocket =
@@ -83,7 +83,8 @@ final class SetupProviderImpl implements SetupProvider {
     @Override
     public SetupProvider dataMimeType(String dataMimeType) {
         Frame newSetup = from(getFlags(setupFrame), keepaliveInterval(setupFrame), maxLifetime(setupFrame),
-            Frame.Setup.metadataMimeType(setupFrame), dataMimeType, setupFrame);
+            Frame.Setup.metadataMimeType(setupFrame), dataMimeType, new PayloadImpl(setupFrame));
+        setupFrame.release();
         return new SetupProviderImpl(newSetup, leaseDecorator, keepAliveProvider, errorConsumer);
     }
 
@@ -91,7 +92,8 @@ final class SetupProviderImpl implements SetupProvider {
     public SetupProvider metadataMimeType(String metadataMimeType) {
         Frame newSetup = from(getFlags(setupFrame), keepaliveInterval(setupFrame), maxLifetime(setupFrame),
             metadataMimeType, Frame.Setup.dataMimeType(setupFrame),
-            setupFrame);
+                new PayloadImpl(setupFrame));
+        setupFrame.release();
         return new SetupProviderImpl(newSetup, leaseDecorator, keepAliveProvider, errorConsumer);
     }
 
@@ -110,7 +112,8 @@ final class SetupProviderImpl implements SetupProvider {
         Frame newSetup = from(getFlags(setupFrame) & ~ConnectionSetupPayload.HONOR_LEASE,
             keepaliveInterval(setupFrame), maxLifetime(setupFrame),
             Frame.Setup.metadataMimeType(setupFrame), Frame.Setup.dataMimeType(setupFrame),
-            setupFrame);
+                new PayloadImpl(setupFrame));
+        setupFrame.release();
         return new SetupProviderImpl(newSetup, socketFactory, keepAliveProvider, errorConsumer);
     }
 
@@ -120,14 +123,8 @@ final class SetupProviderImpl implements SetupProvider {
             keepaliveInterval(setupFrame), maxLifetime(setupFrame),
             Frame.Setup.metadataMimeType(setupFrame), Frame.Setup.dataMimeType(setupFrame),
             setupPayload);
+        setupFrame.release();
         return new SetupProviderImpl(newSetup, reactiveSocket -> new DisableLeaseSocket(reactiveSocket),
             keepAliveProvider, errorConsumer);
-    }
-
-    private Frame copySetupFrame() {
-        Frame newSetup = from(getFlags(setupFrame), keepaliveInterval(setupFrame), maxLifetime(setupFrame),
-            Frame.Setup.metadataMimeType(setupFrame), Frame.Setup.dataMimeType(setupFrame),
-            new PayloadImpl(setupFrame.getData().duplicate(), setupFrame.getMetadata().duplicate()));
-        return newSetup;
     }
 }

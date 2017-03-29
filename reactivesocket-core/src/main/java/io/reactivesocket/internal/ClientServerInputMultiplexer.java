@@ -20,7 +20,7 @@ import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
 import io.reactivesocket.Plugins;
 import io.reactivesocket.Plugins.DuplexConnectionInterceptor.Type;
-import org.agrona.BitUtil;
+import io.reactivesocket.util.BitUtil;
 import org.reactivestreams.Publisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

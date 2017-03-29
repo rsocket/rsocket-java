@@ -17,7 +17,6 @@ import io.reactivesocket.AbstractReactiveSocket;
 import io.reactivesocket.ConnectionSetupPayload;
 import io.reactivesocket.Payload;
 import io.reactivesocket.ReactiveSocket;
-import io.reactivesocket.frame.ByteBufferUtil;
 import io.reactivesocket.lease.DisabledLeaseAcceptingSocket;
 import io.reactivesocket.lease.LeaseEnforcingSocket;
 import io.reactivesocket.tckdrivers.common.*;
@@ -35,6 +34,7 @@ import io.reactivesocket.server.ReactiveSocketServer.SocketAcceptor;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
 
@@ -137,8 +137,8 @@ public class JavaServerDriver {
                 @Override
                 public final Mono<Void> fireAndForget(Payload payload) {
                     return Mono.from(s -> {
-                        Tuple<String, String> initialPayload = new Tuple<>(ByteBufferUtil.toUtf8String(payload.getData()),
-                                ByteBufferUtil.toUtf8String(payload.getMetadata()));
+                        Tuple<String, String> initialPayload = new Tuple<>(StandardCharsets.UTF_8.decode(payload.getData()).toString(),
+                                StandardCharsets.UTF_8.decode(payload.getMetadata()).toString());
                         consoleUtils.initialPayload("Received firenforget " + initialPayload.getK() + " " + initialPayload.getV());
                         if (initialPayload.getK().equals("shutdown") && initialPayload.getV().equals("shutdown")) {
                             try {
@@ -154,8 +154,8 @@ public class JavaServerDriver {
                 @Override
                 public Mono<Payload> requestResponse(Payload payload) {
                     return Mono.from(s -> {
-                        Tuple<String, String> initialPayload = new Tuple<>(ByteBufferUtil.toUtf8String(payload.getData()),
-                                ByteBufferUtil.toUtf8String(payload.getMetadata()));
+                        Tuple<String, String> initialPayload = new Tuple<>(StandardCharsets.UTF_8.decode(payload.getData()).toString(),
+                                StandardCharsets.UTF_8.decode(payload.getMetadata()).toString());
                         String marble = requestResponseMarbles.get(initialPayload);
                         consoleUtils.initialPayload("Received requestresponse " + initialPayload.getK()
                                 + " " + initialPayload.getV());
@@ -173,8 +173,8 @@ public class JavaServerDriver {
                 @Override
                 public Flux<Payload> requestStream(Payload payload) {
                     return Flux.from(s -> {
-                        Tuple<String, String> initialPayload = new Tuple<>(ByteBufferUtil.toUtf8String(payload.getData()),
-                                ByteBufferUtil.toUtf8String(payload.getMetadata()));
+                        Tuple<String, String> initialPayload = new Tuple<>(StandardCharsets.UTF_8.decode(payload.getData()).toString(),
+                                StandardCharsets.UTF_8.decode(payload.getMetadata()).toString());
                         String marble = requestStreamMarbles.get(initialPayload);
                         consoleUtils.initialPayload("Received Stream " + initialPayload.getK() + " " + initialPayload.getV());
                         if (marble != null) {

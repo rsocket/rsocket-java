@@ -16,14 +16,17 @@
 
 package io.reactivesocket;
 
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import io.reactivesocket.Frame.Lease;
 import io.reactivesocket.Frame.Request;
+import io.reactivesocket.internal.Int2ObjectHashMap;
 import io.reactivesocket.exceptions.ApplicationException;
 import io.reactivesocket.frame.FrameHeaderFlyweight;
 import io.reactivesocket.internal.KnownErrorFilter;
 import io.reactivesocket.internal.LimitableRequestPublisher;
 import io.reactivesocket.lease.LeaseEnforcingSocket;
-import org.agrona.collections.Int2ObjectHashMap;
+import io.reactivesocket.util.PayloadImpl;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscription;
 import reactor.core.Disposable;
@@ -67,7 +70,8 @@ public class ServerReactiveSocket implements ReactiveSocket {
                 if (!clientHonorsLease) {
                     return;
                 }
-                Frame leaseFrame = Lease.from(lease.getTtl(), lease.getAllowedRequests(), lease.metadata());
+                ByteBuf metadata = lease.getMetadata() == null ? Unpooled.EMPTY_BUFFER : Unpooled.wrappedBuffer(lease.getMetadata());
+                Frame leaseFrame = Lease.from(lease.getTtl(), lease.getAllowedRequests(), metadata);
                 connection.sendOne(leaseFrame)
                     .doOnError(errorConsumer)
                     .subscribe();
@@ -143,71 +147,75 @@ public class ServerReactiveSocket implements ReactiveSocket {
         subscribe = connection
             .receive()
             .flatMap(frame -> {
-                int streamId = frame.getStreamId();
-                UnicastProcessor<Payload> receiver;
-                switch (frame.getType()) {
-                    case FIRE_AND_FORGET:
-                        return handleFireAndForget(streamId, fireAndForget(frame));
-                    case REQUEST_RESPONSE:
-                        return handleRequestResponse(streamId, requestResponse(frame));
-                    case CANCEL:
-                        return handleCancelFrame(streamId);
-                    case KEEPALIVE:
-                        return handleKeepAliveFrame(frame);
-                    case REQUEST_N:
-                        return handleRequestN(streamId, frame);
-                    case REQUEST_STREAM:
-                        return handleStream(streamId, requestStream(frame), frame);
-                    case REQUEST_CHANNEL:
-                        return handleChannel(streamId, frame);
-                    case PAYLOAD:
-                        // TODO: Hook in receiving socket.
-                        return Mono.empty();
-                    case METADATA_PUSH:
-                        return metadataPush(frame);
-                    case LEASE:
-                        // Lease must not be received here as this is the server end of the socket which sends leases.
-                        return Mono.empty();
-                    case NEXT:
-                        synchronized (ServerReactiveSocket.this) {
-                            receiver = receivers.get(streamId);
-                        }
-                        if (receiver != null) {
-                            receiver.onNext(frame);
-                        }
-                        return Mono.empty();
-                    case COMPLETE:
-                        synchronized (ServerReactiveSocket.this) {
-                            receiver = receivers.get(streamId);
-                        }
-                        if (receiver != null) {
-                            receiver.onComplete();
-                        }
-                        return Mono.empty();
-                    case ERROR:
-                        synchronized (ServerReactiveSocket.this) {
-                            receiver = receivers.get(streamId);
-                        }
-                        if (receiver != null) {
-                            receiver.onError(new ApplicationException(frame));
-                        }
-                        return Mono.empty();
-                    case NEXT_COMPLETE:
-                        synchronized (ServerReactiveSocket.this) {
-                            receiver = receivers.get(streamId);
-                        }
-                        if (receiver != null) {
-                            receiver.onNext(frame);
-                            receiver.onComplete();
-                        }
+                try {
+                    int streamId = frame.getStreamId();
+                    UnicastProcessor<Payload> receiver;
+                    switch (frame.getType()) {
+                        case FIRE_AND_FORGET:
+                            return handleFireAndForget(streamId, fireAndForget(new PayloadImpl(frame)));
+                        case REQUEST_RESPONSE:
+                            return handleRequestResponse(streamId, requestResponse(new PayloadImpl(frame)));
+                        case CANCEL:
+                            return handleCancelFrame(streamId);
+                        case KEEPALIVE:
+                            return handleKeepAliveFrame(frame);
+                        case REQUEST_N:
+                            return handleRequestN(streamId, frame);
+                        case REQUEST_STREAM:
+                            return handleStream(streamId, requestStream(new PayloadImpl(frame)), frame);
+                        case REQUEST_CHANNEL:
+                            return handleChannel(streamId, frame);
+                        case PAYLOAD:
+                            // TODO: Hook in receiving socket.
+                            return Mono.empty();
+                        case METADATA_PUSH:
+                            return metadataPush(new PayloadImpl(frame));
+                        case LEASE:
+                            // Lease must not be received here as this is the server end of the socket which sends leases.
+                            return Mono.empty();
+                        case NEXT:
+                            synchronized (ServerReactiveSocket.this) {
+                                receiver = receivers.get(streamId);
+                            }
+                            if (receiver != null) {
+                                receiver.onNext(new PayloadImpl(frame));
+                            }
+                            return Mono.empty();
+                        case COMPLETE:
+                            synchronized (ServerReactiveSocket.this) {
+                                receiver = receivers.get(streamId);
+                            }
+                            if (receiver != null) {
+                                receiver.onComplete();
+                            }
+                            return Mono.empty();
+                        case ERROR:
+                            synchronized (ServerReactiveSocket.this) {
+                                receiver = receivers.get(streamId);
+                            }
+                            if (receiver != null) {
+                                receiver.onError(new ApplicationException(new PayloadImpl(frame)));
+                            }
+                            return Mono.empty();
+                        case NEXT_COMPLETE:
+                            synchronized (ServerReactiveSocket.this) {
+                                receiver = receivers.get(streamId);
+                            }
+                            if (receiver != null) {
+                                receiver.onNext(new PayloadImpl(frame));
+                                receiver.onComplete();
+                            }
 
-                        return Mono.empty();
+                            return Mono.empty();
 
-                    case SETUP:
-                        return handleError(streamId, new IllegalStateException("Setup frame received post setup."));
-                    default:
-                        return handleError(streamId, new IllegalStateException("ServerReactiveSocket: Unexpected frame type: "
-                            + frame.getType()));
+                        case SETUP:
+                            return handleError(streamId, new IllegalStateException("Setup frame received post setup."));
+                        default:
+                            return handleError(streamId, new IllegalStateException("ServerReactiveSocket: Unexpected frame type: "
+                                    + frame.getType()));
+                    }
+                } finally {
+                    frame.release();
                 }
             })
             .doOnError(t -> {
@@ -230,6 +238,7 @@ public class ServerReactiveSocket implements ReactiveSocket {
         if (subscribe != null) {
             subscribe.dispose();
         }
+
         sendingSubscriptions.values().forEach(this::cleanUpSendingSubscription);
         receivers.values().forEach(this::cleanUpReceivingSubscription);
 
@@ -266,7 +275,7 @@ public class ServerReactiveSocket implements ReactiveSocket {
             response
                 .doOnSubscribe(subscription -> addSubscription(streamId, subscription))
                 .map(payload ->
-                    Frame.PayloadFrame.from(streamId, FrameType.NEXT_COMPLETE, payload.getMetadata(), payload.getData(), FrameHeaderFlyweight.FLAGS_C))
+                    Frame.PayloadFrame.from(streamId, FrameType.NEXT_COMPLETE, payload, FrameHeaderFlyweight.FLAGS_C))
                 .doOnCancel(() -> {
                     if (connection.availability() > 0.0) {
                         connection.sendOne(Frame.Cancel.from(streamId)).subscribe(null, errorConsumer::accept);
@@ -321,33 +330,31 @@ public class ServerReactiveSocket implements ReactiveSocket {
     }
 
     private Mono<Void> handleChannel(int streamId, Frame firstFrame) {
-        return Mono.defer(() -> {
-            UnicastProcessor<Frame> frames = UnicastProcessor.create();
-            Flux<Payload> payloads = frames
-                .doOnCancel(() -> {
-                    if (connection.availability() > 0.0) {
-                        connection.sendOne(Frame.Cancel.from(streamId)).subscribe(null, errorConsumer::accept);
-                    }
-                })
-                .doOnError(t -> {
-                    if (connection.availability() > 0.0) {
-                        connection.sendOne(Frame.Error.from(streamId, t)).subscribe(null, errorConsumer::accept);
-                    }
-                })
-                .doOnRequest(l -> {
-                    if (connection.availability() > 0.0) {
-                        connection.sendOne(Frame.RequestN.from(streamId, l)).subscribe(null, errorConsumer::accept);
-                    }
-                })
-                .cast(Payload.class);
+        UnicastProcessor<Frame> frames = UnicastProcessor.create();
+        Flux<Payload> payloads = frames
+            .doOnCancel(() -> {
+                if (connection.availability() > 0.0) {
+                    connection.sendOne(Frame.Cancel.from(streamId)).subscribe(null, errorConsumer::accept);
+                }
+            })
+            .doOnError(t -> {
+                if (connection.availability() > 0.0) {
+                    connection.sendOne(Frame.Error.from(streamId, t)).subscribe(null, errorConsumer::accept);
+                }
+            })
+            .doOnRequest(l -> {
+                if (connection.availability() > 0.0) {
+                    connection.sendOne(Frame.RequestN.from(streamId, l)).subscribe(null, errorConsumer::accept);
+                }
+            })
+            .cast(Payload.class);
 
-            return handleStream(streamId, requestChannel(payloads), firstFrame);
-        });
+        return handleStream(streamId, requestChannel(payloads), firstFrame);
     }
 
     private Mono<Void> handleKeepAliveFrame(Frame frame) {
         if (Frame.Keepalive.hasRespondFlag(frame)) {
-            return connection.sendOne(Frame.Keepalive.from(Frame.NULL_BYTEBUFFER, false))
+            return connection.sendOne(Frame.Keepalive.from(Unpooled.EMPTY_BUFFER, false))
                 .doOnError(errorConsumer);
         }
         return Mono.empty();

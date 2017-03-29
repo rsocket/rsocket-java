@@ -20,7 +20,6 @@ import io.reactivesocket.AbstractReactiveSocket;
 import io.reactivesocket.Payload;
 import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.client.ReactiveSocketClient;
-import io.reactivesocket.frame.ByteBufferUtil;
 import io.reactivesocket.lease.DisabledLeaseAcceptingSocket;
 import io.reactivesocket.server.ReactiveSocketServer;
 import io.reactivesocket.transport.TransportServer.StartedServer;
@@ -33,6 +32,7 @@ import reactor.ipc.netty.tcp.TcpServer;
 
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
+import java.nio.charset.StandardCharsets;
 
 import static io.reactivesocket.client.KeepAliveProvider.*;
 import static io.reactivesocket.client.SetupProvider.*;
@@ -58,8 +58,7 @@ public final class HelloWorldClient {
         ReactiveSocket socket = client.connect().block();
 
         socket.requestResponse(new PayloadImpl("Hello"))
-                .map(payload -> payload.getData())
-                .map(ByteBufferUtil::toUtf8String)
+                .map(payload -> StandardCharsets.UTF_8.decode(payload.getData()).toString())
                 .doOnNext(System.out::println)
                 .concatWith(socket.close().cast(String.class))
                 .ignoreElements()

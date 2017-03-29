@@ -15,13 +15,9 @@
  */
 package io.reactivesocket.frame;
 
+import io.netty.buffer.ByteBuf;
 import io.reactivesocket.FrameType;
-import org.agrona.BitUtil;
-import org.agrona.DirectBuffer;
-import org.agrona.MutableDirectBuffer;
-
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
+import io.reactivesocket.util.BitUtil;
 
 public class LeaseFrameFlyweight {
     private LeaseFrameFlyweight() {}
@@ -37,34 +33,33 @@ public class LeaseFrameFlyweight {
     }
 
     public static int encode(
-        final MutableDirectBuffer mutableDirectBuffer,
-        final int offset,
+        final ByteBuf byteBuf,
         final int ttl,
         final int numRequests,
-        final ByteBuffer metadata
+        final ByteBuf metadata
     ) {
-        final int frameLength = computeFrameLength(metadata.remaining());
+        final int frameLength = computeFrameLength(metadata.readableBytes());
 
-        int length = FrameHeaderFlyweight.encodeFrameHeader(mutableDirectBuffer, offset, frameLength, 0, FrameType.LEASE, 0);
+        int length = FrameHeaderFlyweight.encodeFrameHeader(byteBuf, frameLength, 0, FrameType.LEASE, 0);
 
-        mutableDirectBuffer.putInt(offset + TTL_FIELD_OFFSET, ttl, ByteOrder.BIG_ENDIAN);
-        mutableDirectBuffer.putInt(offset + NUM_REQUESTS_FIELD_OFFSET, numRequests, ByteOrder.BIG_ENDIAN);
+        byteBuf.setInt(TTL_FIELD_OFFSET, ttl);
+        byteBuf.setInt(NUM_REQUESTS_FIELD_OFFSET, numRequests);
 
         length += BitUtil.SIZE_OF_INT * 2;
-        length += FrameHeaderFlyweight.encodeMetadata(mutableDirectBuffer, FrameType.LEASE, offset, offset + length, metadata);
+        length += FrameHeaderFlyweight.encodeMetadata(byteBuf, FrameType.LEASE, length, metadata);
 
         return length;
     }
 
-    public static int ttl(final DirectBuffer directBuffer, final int offset) {
-        return directBuffer.getInt(offset + TTL_FIELD_OFFSET, ByteOrder.BIG_ENDIAN);
+    public static int ttl(final ByteBuf byteBuf) {
+        return byteBuf.getInt(TTL_FIELD_OFFSET);
     }
 
-    public static int numRequests(final DirectBuffer directBuffer, final int offset) {
-        return directBuffer.getInt(offset + NUM_REQUESTS_FIELD_OFFSET, ByteOrder.BIG_ENDIAN);
+    public static int numRequests(final ByteBuf byteBuf) {
+        return byteBuf.getInt(NUM_REQUESTS_FIELD_OFFSET);
     }
 
-    public static int payloadOffset(final DirectBuffer directBuffer, final int offset) {
-        return offset + PAYLOAD_OFFSET;
+    public static int payloadOffset(final ByteBuf byteBuf) {
+        return PAYLOAD_OFFSET;
     }
 }

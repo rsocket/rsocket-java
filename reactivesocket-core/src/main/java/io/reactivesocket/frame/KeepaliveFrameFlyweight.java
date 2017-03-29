@@ -15,12 +15,9 @@
  */
 package io.reactivesocket.frame;
 
+import io.netty.buffer.ByteBuf;
 import io.reactivesocket.FrameType;
-import org.agrona.BitUtil;
-import org.agrona.DirectBuffer;
-import org.agrona.MutableDirectBuffer;
-
-import java.nio.ByteBuffer;
+import io.reactivesocket.util.BitUtil;
 
 public class KeepaliveFrameFlyweight {
     public static final int FLAGS_KEEPALIVE_R = 0b00_1000_0000;
@@ -35,25 +32,24 @@ public class KeepaliveFrameFlyweight {
     }
 
     public static int encode(
-        final MutableDirectBuffer mutableDirectBuffer,
-        final int offset,
+        final ByteBuf byteBuf,
         int flags,
-        final ByteBuffer data
+        final ByteBuf data
     ) {
-        final int frameLength = computeFrameLength(data.remaining());
+        final int frameLength = computeFrameLength(data.readableBytes());
 
-        int length = FrameHeaderFlyweight.encodeFrameHeader(mutableDirectBuffer, offset, frameLength, flags, FrameType.KEEPALIVE, 0);
+        int length = FrameHeaderFlyweight.encodeFrameHeader(byteBuf, frameLength, flags, FrameType.KEEPALIVE, 0);
 
         // We don't support resumability, last position is always zero
-        mutableDirectBuffer.putLong(length, 0);
+        byteBuf.setLong(length, 0);
         length += BitUtil.SIZE_OF_LONG;
 
-        length += FrameHeaderFlyweight.encodeData(mutableDirectBuffer, offset + length, data);
+        length += FrameHeaderFlyweight.encodeData(byteBuf, length, data);
 
         return length;
     }
 
-    public static int payloadOffset(final DirectBuffer directBuffer, final int offset) {
-        return offset + PAYLOAD_OFFSET;
+    public static int payloadOffset(final ByteBuf byteBuf) {
+        return PAYLOAD_OFFSET;
     }
 }

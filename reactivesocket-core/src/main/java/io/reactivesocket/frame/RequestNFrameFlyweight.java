@@ -15,12 +15,9 @@
  */
 package io.reactivesocket.frame;
 
+import io.netty.buffer.ByteBuf;
 import io.reactivesocket.FrameType;
-import org.agrona.BitUtil;
-import org.agrona.DirectBuffer;
-import org.agrona.MutableDirectBuffer;
-
-import java.nio.ByteOrder;
+import io.reactivesocket.util.BitUtil;
 
 public class RequestNFrameFlyweight {
     private RequestNFrameFlyweight() {}
@@ -35,25 +32,24 @@ public class RequestNFrameFlyweight {
     }
 
     public static int encode(
-        final MutableDirectBuffer mutableDirectBuffer,
-        final int offset,
+        final ByteBuf byteBuf,
         final int streamId,
         final int requestN
     ) {
         final int frameLength = computeFrameLength();
 
-        int length = FrameHeaderFlyweight.encodeFrameHeader(mutableDirectBuffer, offset, frameLength, 0, FrameType.REQUEST_N, streamId);
+        int length = FrameHeaderFlyweight.encodeFrameHeader(byteBuf, frameLength, 0, FrameType.REQUEST_N, streamId);
 
-        mutableDirectBuffer.putInt(offset + REQUEST_N_FIELD_OFFSET, requestN, ByteOrder.BIG_ENDIAN);
+        byteBuf.setInt(REQUEST_N_FIELD_OFFSET, requestN);
 
         return length + BitUtil.SIZE_OF_INT;
     }
 
-    public static int requestN(final DirectBuffer directBuffer, final int offset) {
-        return directBuffer.getInt(offset + REQUEST_N_FIELD_OFFSET, ByteOrder.BIG_ENDIAN);
+    public static int requestN(final ByteBuf byteBuf) {
+        return byteBuf.getInt(REQUEST_N_FIELD_OFFSET);
     }
 
-    public static int payloadOffset(final DirectBuffer directBuffer, final int offset) {
-        return offset + FrameHeaderFlyweight.FRAME_HEADER_LENGTH + BitUtil.SIZE_OF_INT;
+    public static int payloadOffset(final ByteBuf byteBuf) {
+        return FrameHeaderFlyweight.FRAME_HEADER_LENGTH + BitUtil.SIZE_OF_INT;
     }
 }

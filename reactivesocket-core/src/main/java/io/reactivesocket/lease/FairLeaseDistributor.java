@@ -16,7 +16,7 @@
 
 package io.reactivesocket.lease;
 
-import io.reactivesocket.Frame;
+import io.netty.buffer.Unpooled;
 import io.reactivesocket.ReactiveSocket;
 import org.reactivestreams.Subscription;
 import reactor.core.Disposable;
@@ -109,14 +109,14 @@ public final class FairLeaseDistributor implements DefaultLeaseEnforcingSocket.L
 
         // it would be more fair to randomized the distribution of extra
         int extra = permits - budget * recipients;
-        Lease budgetLease = new LeaseImpl(budget, leaseTTLMillis, Frame.NULL_BYTEBUFFER);
+        Lease budgetLease = new LeaseImpl(budget, leaseTTLMillis);
         for (Consumer<Lease> recipient: activeRecipients) {
             Lease leaseToSend = budgetLease;
             int n = budget;
             if (extra > 0) {
                 n += 1;
                 extra -= 1;
-                leaseToSend = new LeaseImpl(n, leaseTTLMillis, Frame.NULL_BYTEBUFFER);
+                leaseToSend = new LeaseImpl(n, leaseTTLMillis);
             }
             recipient.accept(leaseToSend);
         }

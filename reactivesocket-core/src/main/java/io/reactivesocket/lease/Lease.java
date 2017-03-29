@@ -49,7 +49,7 @@ public interface Lease {
      *
      * @return Metadata for the lease.
      */
-    ByteBuffer metadata();
+    ByteBuffer getMetadata();
 
     /**
      * Checks if the lease is expired now.

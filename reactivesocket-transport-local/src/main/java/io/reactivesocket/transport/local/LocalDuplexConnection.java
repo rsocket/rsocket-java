@@ -28,8 +28,9 @@ public class LocalDuplexConnection implements DuplexConnection {
 
     @Override
     public Mono<Void> sendOne(Frame frame) {
-        out.onNext(frame);
-        return Mono.empty();
+        return Mono.fromRunnable(() ->
+            out.onNext(frame)
+        );
     }
 
     @Override

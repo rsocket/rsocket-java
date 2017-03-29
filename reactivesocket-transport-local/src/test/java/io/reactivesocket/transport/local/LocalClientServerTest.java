@@ -16,7 +16,6 @@
 package io.reactivesocket.transport.local;
 
 import io.reactivesocket.test.ClientSetupRule;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 
@@ -24,6 +23,16 @@ public class LocalClientServerTest {
 
     @Rule
     public final ClientSetupRule setup = new LocalClientSetupRule();
+
+    @Test(timeout = 10000)
+    public void testFireNForget10() {
+        setup.testFireAndForget(10);
+    }
+
+    @Test(timeout = 10000)
+    public void testPushMetadata10() {
+        setup.testMetadata(10);
+    }
 
     @Test(timeout = 10000)
     public void testRequestResponse1() {
@@ -35,7 +44,6 @@ public class LocalClientServerTest {
         setup.testRequestResponseN(10);
     }
 
-
     @Test(timeout = 10000)
     public void testRequestResponse100() {
         setup.testRequestResponseN(100);
@@ -46,9 +54,13 @@ public class LocalClientServerTest {
         setup.testRequestResponseN(10_000);
     }
 
-    @Ignore("Fix request-stream")
     @Test(timeout = 10000)
     public void testRequestStream() {
         setup.testRequestStream();
+    }
+
+    @Test(timeout = 10000)
+    public void testRequestStreamWithRequestN() {
+        setup.testRequestStreamWithRequestN();
     }
 }

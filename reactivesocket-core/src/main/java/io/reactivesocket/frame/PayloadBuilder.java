@@ -15,14 +15,13 @@
  */
 package io.reactivesocket.frame;
 
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import io.reactivesocket.Frame;
 import io.reactivesocket.Payload;
-import org.agrona.BitUtil;
-import org.agrona.MutableDirectBuffer;
-import org.agrona.concurrent.UnsafeBuffer;
+import io.reactivesocket.util.PayloadImpl;
 
 import java.nio.ByteBuffer;
-import java.util.Arrays;
 
 /**
  * Builder for appending buffers that grows dataCapacity as necessary. Similar to Aeron's PayloadBuilder.
@@ -30,94 +29,42 @@ import java.util.Arrays;
 public class PayloadBuilder {
     public static final int INITIAL_CAPACITY = Math.max(Frame.DATA_MTU, Frame.METADATA_MTU);
 
-    private final MutableDirectBuffer dataMutableDirectBuffer;
-    private final MutableDirectBuffer metadataMutableDirectBuffer;
-
-    private byte[] dataBuffer;
-    private byte[] metadataBuffer;
-    private int dataLimit = 0;
-    private int metadataLimit = 0;
-    private int dataCapacity;
-    private int metadataCapacity;
+    private final ByteBuf dataBuffer;
+    private final ByteBuf metadataBuffer;
 
     public PayloadBuilder() {
-        dataCapacity = BitUtil.findNextPositivePowerOfTwo(INITIAL_CAPACITY);
-        metadataCapacity = BitUtil.findNextPositivePowerOfTwo(INITIAL_CAPACITY);
-        dataBuffer = new byte[dataCapacity];
-        metadataBuffer = new byte[metadataCapacity];
-        dataMutableDirectBuffer = new UnsafeBuffer(dataBuffer);
-        metadataMutableDirectBuffer = new UnsafeBuffer(metadataBuffer);
+        dataBuffer = Unpooled.directBuffer(INITIAL_CAPACITY);
+        metadataBuffer = Unpooled.directBuffer(INITIAL_CAPACITY);
     }
 
     public Payload payload() {
-        return new Payload() {
-            public ByteBuffer getData()
-            {
-                return ByteBuffer.wrap(dataBuffer, 0, dataLimit);
-            }
-
-            public ByteBuffer getMetadata() {
-                return ByteBuffer.wrap(metadataBuffer, 0, metadataLimit);
-            }
-        };
+        final ByteBuffer data;
+        final ByteBuffer metadata;
+        if (dataBuffer.readableBytes() > 0) {
+            data = ByteBuffer.allocateDirect(dataBuffer.readableBytes());
+            dataBuffer.readBytes(data);
+            data.flip();
+        } else {
+            data = Frame.NULL_BYTEBUFFER;
+        }
+        if (metadataBuffer.readableBytes() > 0) {
+            metadata = ByteBuffer.allocateDirect(metadataBuffer.readableBytes());
+            metadataBuffer.readBytes(metadata);
+            metadata.flip();
+        } else {
+            metadata = Frame.NULL_BYTEBUFFER;
+        }
+        return new PayloadImpl(data, metadata);
     }
 
-    public void append(final Payload payload) {
-        final ByteBuffer payloadMetadata = payload.getMetadata();
-        final ByteBuffer payloadData = payload.getData();
-        final int metadataLength = payloadMetadata.remaining();
-        final int dataLength = payloadData.remaining();
+    public void append(final Frame frame) {
+        final ByteBuf data = FrameHeaderFlyweight.sliceFrameData(frame.content());
+        final ByteBuf metadata = FrameHeaderFlyweight.sliceFrameMetadata(frame.content());
 
-        ensureMetadataCapacity(metadataLength);
-        ensureDataCapacity(dataLength);
+        dataBuffer.ensureWritable(data.readableBytes(), true);
+        metadataBuffer.ensureWritable(metadata.readableBytes(), true);
 
-        metadataMutableDirectBuffer.putBytes(metadataLimit, payloadMetadata, metadataLength);
-        metadataLimit += metadataLength;
-        dataMutableDirectBuffer.putBytes(dataLimit, payloadData, dataLength);
-        dataLimit += dataLength;
-    }
-
-    private void ensureDataCapacity(final int additionalCapacity) {
-        final int requiredCapacity = dataLimit + additionalCapacity;
-
-        if (requiredCapacity < 0) {
-            final String s = String.format("Insufficient data capacity: dataLimit=%d additional=%d", dataLimit, additionalCapacity);
-            throw new IllegalStateException(s);
-        }
-
-        if (requiredCapacity > dataCapacity) {
-            final int newCapacity = findSuitableCapacity(dataCapacity, requiredCapacity);
-            final byte[] newBuffer = Arrays.copyOf(dataBuffer, newCapacity);
-
-            dataCapacity = newCapacity;
-            dataBuffer = newBuffer;
-            dataMutableDirectBuffer.wrap(newBuffer);
-        }
-    }
-
-    private void ensureMetadataCapacity(final int additionalCapacity) {
-        final int requiredCapacity = metadataLimit + additionalCapacity;
-
-        if (requiredCapacity < 0) {
-            final String s = String.format("Insufficient metadata capacity: metadataLimit=%d additional=%d", metadataLimit, additionalCapacity);
-            throw new IllegalStateException(s);
-        }
-
-        if (requiredCapacity > metadataCapacity) {
-            final int newCapacity = findSuitableCapacity(metadataCapacity, requiredCapacity);
-            final byte[] newBuffer = Arrays.copyOf(metadataBuffer, newCapacity);
-
-            metadataCapacity = newCapacity;
-            metadataBuffer = newBuffer;
-            metadataMutableDirectBuffer.wrap(newBuffer);
-        }
-    }
-
-    private static int findSuitableCapacity(int capacity, final int requiredCapacity) {
-        do {
-            capacity <<= 1;
-        } while (capacity < requiredCapacity);
-
-        return capacity;
+        dataBuffer.writeBytes(data);
+        metadataBuffer.writeBytes(metadata);
     }
 }

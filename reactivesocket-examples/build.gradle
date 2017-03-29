@@ -13,23 +13,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-buildscript {
-    repositories {
-        maven { url "https://plugins.gradle.org/m2/" }
-    }
 
-    dependencies {
-        classpath 'gradle.plugin.me.champeau.gradle:jmh-gradle-plugin:0.3.0'
-    }
+plugins {
+    id "me.champeau.gradle.jmh" version "0.3.1"
 }
-
-apply plugin: 'me.champeau.gradle.jmh'
 
 jmh {
     jmhVersion = '1.15'
-    jvmArgs = '-XX:+UnlockCommercialFeatures -XX:+FlightRecorder'
+    jvmArgs = '-XX:+UseG1GC -Xmx16g -Xms16g -XX:+UnlockCommercialFeatures -XX:+FlightRecorder'
     profilers = ['gc']
     zip64 = true
+    warmupBatchSize = 10
+    iterations = 500
+    duplicateClassesStrategy = 'warn'
 }
 
 dependencies {

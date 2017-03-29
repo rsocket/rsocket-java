@@ -15,6 +15,8 @@
  */
 package io.reactivesocket.frame;
 
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import io.reactivesocket.Frame;
 import io.reactivesocket.FrameType;
 import io.reactivesocket.Payload;
@@ -34,8 +36,8 @@ public class PayloadFragmenter implements Iterable<Frame>, Iterator<Frame> {
 
     private final int metadataMtu;
     private final int dataMtu;
-    private ByteBuffer metadata;
-    private ByteBuffer data;
+    private ByteBuf metadata;
+    private ByteBuf data;
     private Type type;
     private int metadataOffset;
     private int dataOffset;
@@ -75,25 +77,25 @@ public class PayloadFragmenter implements Iterable<Frame>, Iterator<Frame> {
     }
 
     public boolean hasNext() {
-        return dataOffset < data.remaining() || metadataOffset < metadata.remaining();
+        return dataOffset < data.readableBytes() || metadataOffset < metadata.readableBytes();
     }
 
     public Frame next() {
-        final int metadataLength = Math.min(metadataMtu, metadata.remaining() - metadataOffset);
-        final int dataLength = Math.min(dataMtu, data.remaining() - dataOffset);
+        final int metadataLength = Math.min(metadataMtu, metadata.readableBytes() - metadataOffset);
+        final int dataLength = Math.min(dataMtu, data.readableBytes() - dataOffset);
 
         Frame result = null;
 
-        final ByteBuffer metadataBuffer = metadataLength > 0 ?
-            ByteBufferUtil.preservingSlice(metadata, metadataOffset, metadataOffset + metadataLength) : Frame.NULL_BYTEBUFFER;
+        final ByteBuf metadataBuffer = metadataLength > 0 ?
+            metadata.slice(metadataOffset, metadataLength) : Unpooled.EMPTY_BUFFER;
 
-        final ByteBuffer dataBuffer = dataLength > 0 ?
-            ByteBufferUtil.preservingSlice(data, dataOffset, dataOffset + dataLength) : Frame.NULL_BYTEBUFFER;
+        final ByteBuf dataBuffer = dataLength > 0 ?
+            data.slice(dataOffset, dataLength) : Unpooled.EMPTY_BUFFER;
 
         metadataOffset += metadataLength;
         dataOffset += dataLength;
 
-        final boolean isMoreFollowing = metadataOffset < metadata.remaining() || dataOffset < data.remaining();
+        final boolean isMoreFollowing = metadataOffset < metadata.readableBytes() || dataOffset < data.readableBytes();
         int flags = 0;
 
         if (Type.RESPONSE == type) {
@@ -122,8 +124,8 @@ public class PayloadFragmenter implements Iterable<Frame>, Iterator<Frame> {
     }
 
     private void reset(final int streamId, final Payload payload) {
-        data = payload.getData();
-        metadata = payload.getMetadata();
+        data = Unpooled.wrappedBuffer(payload.getData());
+        metadata = Unpooled.wrappedBuffer(payload.getMetadata());
         metadataOffset = 0;
         dataOffset = 0;
         this.streamId = streamId;

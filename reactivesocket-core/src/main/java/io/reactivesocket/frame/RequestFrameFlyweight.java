@@ -15,13 +15,9 @@
  */
 package io.reactivesocket.frame;
 
+import io.netty.buffer.ByteBuf;
 import io.reactivesocket.FrameType;
-import org.agrona.BitUtil;
-import org.agrona.DirectBuffer;
-import org.agrona.MutableDirectBuffer;
-
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
+import io.reactivesocket.util.BitUtil;
 
 public class RequestFrameFlyweight {
 
@@ -41,56 +37,54 @@ public class RequestFrameFlyweight {
     }
 
     public static int encode(
-        final MutableDirectBuffer mutableDirectBuffer,
-        final int offset,
+        final ByteBuf byteBuf,
         final int streamId,
         int flags,
         final FrameType type,
         final int initialRequestN,
-        final ByteBuffer metadata,
-        final ByteBuffer data
+        final ByteBuf metadata,
+        final ByteBuf data
     ) {
-        final int frameLength = computeFrameLength(type, metadata.remaining(), data.remaining());
+        final int frameLength = computeFrameLength(type, metadata.readableBytes(), data.readableBytes());
 
-        int length = FrameHeaderFlyweight.encodeFrameHeader(mutableDirectBuffer, offset, frameLength, flags, type, streamId);
+        int length = FrameHeaderFlyweight.encodeFrameHeader(byteBuf, frameLength, flags, type, streamId);
 
-        mutableDirectBuffer.putInt(offset + INITIAL_REQUEST_N_FIELD_OFFSET, initialRequestN, ByteOrder.BIG_ENDIAN);
+        byteBuf.setInt(INITIAL_REQUEST_N_FIELD_OFFSET, initialRequestN);
         length += BitUtil.SIZE_OF_INT;
 
-        length += FrameHeaderFlyweight.encodeMetadata(mutableDirectBuffer, type, offset, offset + length, metadata);
-        length += FrameHeaderFlyweight.encodeData(mutableDirectBuffer, offset + length, data);
+        length += FrameHeaderFlyweight.encodeMetadata(byteBuf, type, length, metadata);
+        length += FrameHeaderFlyweight.encodeData(byteBuf, length, data);
 
         return length;
     }
 
     public static int encode(
-        final MutableDirectBuffer mutableDirectBuffer,
-        final int offset,
+        final ByteBuf byteBuf,
         final int streamId,
         final int flags,
         final FrameType type,
-        final ByteBuffer metadata,
-        final ByteBuffer data
+        final ByteBuf metadata,
+        final ByteBuf data
     ) {
         if (type.hasInitialRequestN()) {
             throw new AssertionError(type + " must not be encoded without initial request N");
         }
-        final int frameLength = computeFrameLength(type, metadata.remaining(), data.remaining());
+        final int frameLength = computeFrameLength(type, metadata.readableBytes(), data.readableBytes());
 
-        int length = FrameHeaderFlyweight.encodeFrameHeader(mutableDirectBuffer, offset, frameLength, flags, type, streamId);
+        int length = FrameHeaderFlyweight.encodeFrameHeader(byteBuf, frameLength, flags, type, streamId);
 
-        length += FrameHeaderFlyweight.encodeMetadata(mutableDirectBuffer, type, offset, offset + length, metadata);
-        length += FrameHeaderFlyweight.encodeData(mutableDirectBuffer, offset + length, data);
+        length += FrameHeaderFlyweight.encodeMetadata(byteBuf, type, length, metadata);
+        length += FrameHeaderFlyweight.encodeData(byteBuf, length, data);
 
         return length;
     }
 
-    public static int initialRequestN(final DirectBuffer directBuffer, final int offset) {
-        return directBuffer.getInt(offset + INITIAL_REQUEST_N_FIELD_OFFSET, ByteOrder.BIG_ENDIAN);
+    public static int initialRequestN(final ByteBuf byteBuf) {
+        return byteBuf.getInt(INITIAL_REQUEST_N_FIELD_OFFSET);
     }
 
-    public static int payloadOffset(final FrameType type, final DirectBuffer directBuffer, final int offset) {
-        int result = offset + FrameHeaderFlyweight.FRAME_HEADER_LENGTH;
+    public static int payloadOffset(final FrameType type, final ByteBuf byteBuf) {
+        int result = FrameHeaderFlyweight.FRAME_HEADER_LENGTH;
 
         if (type.hasInitialRequestN()) {
             result += BitUtil.SIZE_OF_INT;

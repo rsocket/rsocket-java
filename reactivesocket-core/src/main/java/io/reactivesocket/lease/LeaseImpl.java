@@ -27,6 +27,10 @@ public final class LeaseImpl implements Lease {
     private final long expiry;
     private final ByteBuffer metadata;
 
+    public LeaseImpl(int allowedRequests, int ttl) {
+        this(allowedRequests, ttl, null);
+    }
+
     public LeaseImpl(int allowedRequests, int ttl, ByteBuffer metadata) {
         this.allowedRequests = allowedRequests;
         this.ttl = ttl;
@@ -54,7 +58,7 @@ public final class LeaseImpl implements Lease {
     }
 
     @Override
-    public ByteBuffer metadata() {
+    public ByteBuffer getMetadata() {
         return metadata;
     }
 

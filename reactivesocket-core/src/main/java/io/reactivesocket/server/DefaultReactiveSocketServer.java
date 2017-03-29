@@ -74,6 +74,7 @@ public final class DefaultReactiveSocketServer
                                     setup.willClientHonorLease(),
                                     Throwable::printStackTrace);
                                 receiver.start();
+                                setupFrame.release();
                                 return connection.onClose();
 
                             });

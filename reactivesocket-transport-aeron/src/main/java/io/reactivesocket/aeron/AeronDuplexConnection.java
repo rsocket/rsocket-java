@@ -15,6 +15,7 @@
  */
 package io.reactivesocket.aeron;
 
+import io.netty.buffer.Unpooled;
 import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
 import io.reactivesocket.aeron.internal.reactivestreams.AeronChannel;
@@ -42,7 +43,7 @@ public class AeronDuplexConnection implements DuplexConnection {
     @Override
     public Mono<Void> send(Publisher<Frame> frame) {
         Flux<UnsafeBuffer> buffers = Flux.from(frame)
-            .map(f -> new UnsafeBuffer(f.getByteBuffer()));
+            .map(f -> new UnsafeBuffer(f.content().nioBuffer()));
 
         return channel.send(buffers);
     }
@@ -51,7 +52,7 @@ public class AeronDuplexConnection implements DuplexConnection {
     public Flux<Frame> receive() {
         return channel
             .receive()
-            .map(b -> Frame.from(b, 0, b.capacity()))
+            .map(b -> Frame.from(Unpooled.wrappedBuffer(b.byteBuffer())))
             .doOnError(throwable -> throwable.printStackTrace());
     }
 

@@ -18,6 +18,7 @@ package io.reactivesocket.test;
 
 import io.reactivesocket.AbstractReactiveSocket;
 import io.reactivesocket.Payload;
+import io.reactivesocket.util.PayloadImpl;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -25,7 +26,7 @@ public class TestReactiveSocket extends AbstractReactiveSocket {
 
     @Override
     public Mono<Payload> requestResponse(Payload payload) {
-        return Mono.just(TestUtil.utf8EncodedPayload("hello world", "metadata"));
+        return Mono.just(new PayloadImpl("hello world", "metadata"));
     }
 
     @Override
@@ -33,6 +34,11 @@ public class TestReactiveSocket extends AbstractReactiveSocket {
         return Flux
             .range(1, 10_000)
             .flatMap(l -> requestResponse(payload));
+    }
+
+    @Override
+    public Mono<Void> metadataPush(Payload payload) {
+        return Mono.empty();
     }
 
     @Override
