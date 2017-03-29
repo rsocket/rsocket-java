@@ -34,7 +34,6 @@ subprojects {
     repositories {
         jcenter()
         maven { url 'https://oss.jfrog.org/libs-snapshot' }
-        maven { url 'http://repo.spring.io/snapshot' }
         maven { url 'https://dl.bintray.com/reactivesocket/ReactiveSocket' }
     }
 
