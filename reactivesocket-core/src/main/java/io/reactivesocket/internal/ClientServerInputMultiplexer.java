@@ -51,6 +51,7 @@ public class ClientServerInputMultiplexer {
         final MonoProcessor<Flux<Frame>> server = MonoProcessor.create();
         final MonoProcessor<Flux<Frame>> client = MonoProcessor.create();
 
+        source = Plugins.DUPLEX_CONNECTION_INTERCEPTOR.apply(Type.SOURCE, source);
         streamZeroConnection = Plugins.DUPLEX_CONNECTION_INTERCEPTOR.apply(Type.STREAM_ZERO, new InternalDuplexConnection(source, streamZero));
         serverConnection = Plugins.DUPLEX_CONNECTION_INTERCEPTOR.apply(Type.SERVER, new InternalDuplexConnection(source, server));
         clientConnection = Plugins.DUPLEX_CONNECTION_INTERCEPTOR.apply(Type.CLIENT, new InternalDuplexConnection(source, client));

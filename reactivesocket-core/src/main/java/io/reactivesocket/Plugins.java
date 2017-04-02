@@ -11,7 +11,7 @@ import java.util.function.Function;
 public class Plugins {
 
     public interface DuplexConnectionInterceptor extends BiFunction<DuplexConnectionInterceptor.Type, DuplexConnection, DuplexConnection> {
-        enum Type { STREAM_ZERO, CLIENT, SERVER }
+        enum Type { STREAM_ZERO, CLIENT, SERVER, SOURCE }
     }
     public interface ReactiveSocketInterceptor extends Function<ReactiveSocket, Mono<ReactiveSocket>> {}
 
