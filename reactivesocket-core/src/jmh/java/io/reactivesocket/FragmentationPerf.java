@@ -33,9 +33,6 @@ public class FragmentationPerf {
         Frame largeFrame;
         FrameFragmenter largeFrameFragmenter;
 
-        FrameReassembler smallFragmentAssembler = new FrameReassembler(2);
-        FrameReassembler largeFragmentAssembler = new FrameReassembler(1024);
-
         Iterable<Frame> smallFramesIterable;
 
         @Setup
@@ -76,7 +73,7 @@ public class FragmentationPerf {
 
     @Benchmark
     public void smallFragmentationFrameReassembler(Input input) {
-        FrameReassembler smallFragmentAssembler = new FrameReassembler(2);
+        FrameReassembler smallFragmentAssembler = new FrameReassembler(input.smallFrame);
 
         input
             .smallFramesIterable

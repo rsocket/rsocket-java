@@ -78,7 +78,7 @@ public class FragmentionDuplexConnection implements DuplexConnection {
             .receive()
             .concatMap(frame -> {
                 if (FrameHeaderFlyweight.FLAGS_F == (frame.flags() & FrameHeaderFlyweight.FLAGS_F)) {
-                    FrameReassembler frameReassembler = getFrameReassmbler(frame.getStreamId());
+                    FrameReassembler frameReassembler = getFrameReassmbler(frame);
                     frameReassembler.append(frame);
                     return Mono.empty();
                 } else if (frameReassemblersContain(frame.getStreamId())) {
@@ -97,8 +97,8 @@ public class FragmentionDuplexConnection implements DuplexConnection {
         return source.close();
     }
 
-    private synchronized FrameReassembler getFrameReassmbler(int streamId) {
-        return frameReassemblers.computeIfAbsent(streamId, s -> new FrameReassembler(mtu));
+    private synchronized FrameReassembler getFrameReassmbler(Frame frame) {
+        return frameReassemblers.computeIfAbsent(frame.getStreamId(), s -> new FrameReassembler(frame));
     }
 
     private synchronized FrameReassembler removeFrameReassembler(int streamId) {
@@ -115,7 +115,7 @@ public class FragmentionDuplexConnection implements DuplexConnection {
             synchronized (FragmentionDuplexConnection.this) {
                 frameReassemblers
                     .values()
-                    .forEach(FrameReassembler::clear);
+                    .forEach(FrameReassembler::dispose);
 
                 frameReassemblers.clear();
             }

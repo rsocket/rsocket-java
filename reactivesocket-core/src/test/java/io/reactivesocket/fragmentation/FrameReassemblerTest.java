@@ -19,7 +19,7 @@ public class FrameReassemblerTest {
 
         Frame from = Frame.Request.from(1024, FrameType.REQUEST_RESPONSE, new PayloadImpl(data, metadata), 1);
         FrameFragmenter frameFragmenter = new FrameFragmenter(2);
-        FrameReassembler reassembler = new FrameReassembler(2);
+        FrameReassembler reassembler = new FrameReassembler(from);
         frameFragmenter
             .fragment(from)
             .subscribe(reassembler::append);

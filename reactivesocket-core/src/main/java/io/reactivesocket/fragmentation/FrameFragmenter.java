@@ -1,18 +1,12 @@
 package io.reactivesocket.fragmentation;
 
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.buffer.Unpooled;
 import io.reactivesocket.Frame;
 import io.reactivesocket.FrameType;
 import io.reactivesocket.frame.FrameHeaderFlyweight;
 import reactor.core.publisher.Flux;
 
-import java.util.ArrayDeque;
-
-/**
- *
- */
 public class FrameFragmenter {
     private final int mtu;
 
@@ -21,7 +15,7 @@ public class FrameFragmenter {
     }
 
     public boolean shouldFragment(Frame frame) {
-        return isFragmentableFrame(frame.getType()) && frame.content().capacity() > mtu;
+        return isFragmentableFrame(frame.getType()) && FrameHeaderFlyweight.payloadLength(frame.content()) > mtu;
     }
 
     private boolean isFragmentableFrame(FrameType type) {
@@ -39,82 +33,40 @@ public class FrameFragmenter {
         }
     }
 
-    ArrayDeque<ByteBuf> slice(ByteBuf byteBuf) {
-        ArrayDeque<ByteBuf> slices = new ArrayDeque<>(byteBuf.capacity() / mtu);
-
-        int capacity = byteBuf.capacity();
-        for (int i = byteBuf.readerIndex(); i < capacity;) {
-            int length = Math.min(capacity - i, mtu);
-            slices.add(byteBuf.readSlice(length));
-            i += mtu;
-        }
-
-        return slices;
-    }
-
     public Flux<Frame> fragment(Frame frame) {
+        final FrameType frameType = frame.getType();
+        final int streamId = frame.getStreamId();
+        final int flags = frame.flags() & ~FrameHeaderFlyweight.FLAGS_F & ~FrameHeaderFlyweight.FLAGS_M;
+        final ByteBuf metadata = FrameHeaderFlyweight.sliceFrameMetadata(frame.content());
+        final ByteBuf data = FrameHeaderFlyweight.sliceFrameData(frame.content());
         frame.retain();
-        final ByteBuf frameContent = frame.content();
-        final ByteBuf metadata = FrameHeaderFlyweight.sliceFrameMetadata(frameContent);
-        final ByteBuf data = FrameHeaderFlyweight.sliceFrameData(frameContent);
 
-        Flux<Frame> metadataFlux;
-        if (metadata.capacity() > 0) {
-            ArrayDeque<ByteBuf> metadataSlices = slice(metadata);
-            metadataFlux = fragment(frame, metadataSlices, data.capacity() > 0, true);
-        } else {
-            metadataFlux = Flux.empty();
-        }
+        return Flux.generate(sink -> {
+            final int metadataLength = metadata.readableBytes();
+            final int dataLength = data.readableBytes();
 
-        Flux<Frame> dataFlux;
-        if (data.capacity() > 0) {
-            ArrayDeque<ByteBuf> dataSlices = slice(data);
-            dataFlux = fragment(frame, dataSlices, true, false);
-        } else {
-            dataFlux = Flux.empty();
-        }
-
-        return Flux
-            .concat(metadataFlux, dataFlux)
-            .log()
-            .doFinally(s -> {
-                if (frame.refCnt() > 0) {
+            if (metadataLength > mtu) {
+                sink.next(Frame.PayloadFrame.from(streamId, frameType, metadata.readSlice(mtu), Unpooled.EMPTY_BUFFER,
+                    flags | FrameHeaderFlyweight.FLAGS_M | FrameHeaderFlyweight.FLAGS_F));
+            } else if (metadataLength > 0) {
+                if (dataLength > 0) {
+                    sink.next(Frame.PayloadFrame.from(streamId, frameType, metadata.readSlice(metadataLength), Unpooled.EMPTY_BUFFER,
+                        flags | FrameHeaderFlyweight.FLAGS_M | FrameHeaderFlyweight.FLAGS_F));
+                } else {
+                    sink.next(Frame.PayloadFrame.from(streamId, frameType, metadata.readSlice(metadataLength), Unpooled.EMPTY_BUFFER,
+                        flags | FrameHeaderFlyweight.FLAGS_M));
                     frame.release();
+                    sink.complete();
                 }
-            });
+            } else if (dataLength > mtu) {
+                sink.next(Frame.PayloadFrame.from(streamId, frameType, Unpooled.EMPTY_BUFFER, data.readSlice(mtu),
+                    flags | FrameHeaderFlyweight.FLAGS_F));
+            } else {
+                sink.next(Frame.PayloadFrame.from(streamId, frameType, Unpooled.EMPTY_BUFFER, data.readSlice(dataLength),
+                    flags & ~FrameHeaderFlyweight.FLAGS_M));
+                frame.release();
+                sink.complete();
+            }
+        });
     }
-
-    Flux<Frame> fragment(
-        Frame frame,
-        ArrayDeque<ByteBuf> slices,
-        boolean lastFrame,
-        boolean metadata) {
-        return Flux
-            .generate(
-                sink -> {
-                    if (!slices.isEmpty()) {
-                        ByteBuf byteBuf = slices.poll();
-                        int frameLength = metadata
-                            ? FrameHeaderFlyweight.computeFrameHeaderLength(frame.getType(), byteBuf.capacity(), 0)
-                            : FrameHeaderFlyweight.computeFrameHeaderLength(frame.getType(), 0, byteBuf.capacity());
-
-                        ByteBuf content = PooledByteBufAllocator.DEFAULT.buffer(frameLength);
-
-                        int flags = slices.isEmpty() && lastFrame
-                            ? frame.flags()
-                            : frame.flags() | FrameHeaderFlyweight.FLAGS_F;
-
-                        if (metadata) {
-                            FrameHeaderFlyweight.encode(content, frame.getStreamId(), flags, frame.getType(), byteBuf, Unpooled.EMPTY_BUFFER);
-                        } else {
-                            FrameHeaderFlyweight.encode(content, frame.getStreamId(), flags, frame.getType(), Unpooled.EMPTY_BUFFER, byteBuf);
-                        }
-
-                        sink.next(Frame.from(content));
-                    } else {
-                        sink.complete();
-                    }
-                });
-    }
-
 }

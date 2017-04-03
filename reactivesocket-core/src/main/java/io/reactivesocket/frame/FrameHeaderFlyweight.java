@@ -218,6 +218,20 @@ public class FrameHeaderFlyweight {
         return result;
     }
 
+    public static ByteBuf sliceFrameDataRetained(final ByteBuf byteBuf) {
+        final FrameType frameType = frameType(byteBuf);
+        final int frameLength = frameLength(byteBuf);
+        final int dataLength = dataLength(byteBuf, frameType);
+        final int dataOffset = dataOffset(byteBuf, frameType, frameLength);
+        ByteBuf result = Unpooled.EMPTY_BUFFER;
+
+        if (0 < dataLength) {
+            result = byteBuf.retainedSlice(dataOffset, dataLength);
+        }
+
+        return result;
+    }
+
     public static ByteBuf sliceFrameMetadata(final ByteBuf byteBuf) {
         final FrameType frameType = frameType(byteBuf);
         final int frameLength = frameLength(byteBuf);
@@ -230,6 +244,23 @@ public class FrameHeaderFlyweight {
 
         if (0 < metadataLength) {
             result = byteBuf.slice(metadataOffset, metadataLength);
+        }
+
+        return result;
+    }
+
+    public static ByteBuf sliceFrameMetadataRetained(final ByteBuf byteBuf) {
+        final FrameType frameType = frameType(byteBuf);
+        final int frameLength = frameLength(byteBuf);
+        final int metadataLength = Math.max(0, metadataLength(byteBuf, frameType, frameLength));
+        int metadataOffset = metadataOffset(byteBuf);
+        if (hasMetadataLengthField(frameType)) {
+            metadataOffset += FRAME_LENGTH_SIZE;
+        }
+        ByteBuf result = Unpooled.EMPTY_BUFFER;
+
+        if (0 < metadataLength) {
+            result = byteBuf.retainedSlice(metadataOffset, metadataLength);
         }
 
         return result;
@@ -312,6 +343,13 @@ public class FrameHeaderFlyweight {
         final int metadataLength = metadataFieldLength(byteBuf, frameType, frameLength);
 
         return frameLength - metadataLength - payloadOffset;
+    }
+
+    public static int payloadLength(final ByteBuf byteBuf) {
+        final int frameLength = frameLength(byteBuf);
+        final int payloadOffset = payloadOffset(byteBuf);
+
+        return frameLength - payloadOffset;
     }
 
     private static int payloadOffset(final ByteBuf byteBuf) {
