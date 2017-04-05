@@ -21,6 +21,7 @@ import io.reactivesocket.Payload;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 
 /**
  * An implementation of {@link Payload}. This implementation is <b>not</b> thread-safe, and hence any method can not be
@@ -45,7 +46,7 @@ public class PayloadImpl implements Payload {
     }
 
     public PayloadImpl(String data, String metadata) {
-        this(data, Charset.defaultCharset(), metadata, Charset.defaultCharset());
+        this(data, StandardCharsets.UTF_8, metadata, StandardCharsets.UTF_8);
     }
 
     public PayloadImpl(String data, Charset dataCharset) {

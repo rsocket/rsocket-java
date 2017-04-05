@@ -15,9 +15,9 @@
  */
 package io.reactivesocket.frame;
 
+import io.netty.util.collection.IntObjectHashMap;
 import io.reactivesocket.Frame;
 import io.reactivesocket.Payload;
-import io.reactivesocket.internal.Int2ObjectHashMap;
 import io.reactivesocket.util.PayloadImpl;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
@@ -25,7 +25,7 @@ import org.reactivestreams.Subscription;
 
 public class PayloadReassembler implements Subscriber<Frame> {
     private final Subscriber<? super Payload> child;
-    private final Int2ObjectHashMap<PayloadBuilder> payloadByStreamId = new Int2ObjectHashMap<>();
+    private final IntObjectHashMap<PayloadBuilder> payloadByStreamId = new IntObjectHashMap<>();
 
     private PayloadReassembler(final Subscriber<? super Payload> child) {
         this.child = child;

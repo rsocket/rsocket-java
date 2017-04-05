@@ -17,8 +17,8 @@
 package io.reactivesocket;
 
 import io.netty.buffer.Unpooled;
+import io.netty.util.collection.IntObjectHashMap;
 import io.reactivesocket.client.KeepAliveProvider;
-import io.reactivesocket.internal.Int2ObjectHashMap;
 import io.reactivesocket.exceptions.Exceptions;
 import io.reactivesocket.internal.KnownErrorFilter;
 import io.reactivesocket.internal.LimitableRequestPublisher;
@@ -52,8 +52,8 @@ public class ClientReactiveSocket implements ReactiveSocket {
     private final StreamIdSupplier streamIdSupplier;
     private final KeepAliveProvider keepAliveProvider;
     private final MonoProcessor<Void> started;
-    private final Int2ObjectHashMap<LimitableRequestPublisher> senders;
-    private final Int2ObjectHashMap<Subscriber<Payload>> receivers;
+    private final IntObjectHashMap<LimitableRequestPublisher> senders;
+    private final IntObjectHashMap<Subscriber<Payload>> receivers;
 
     private Disposable keepAliveSendSub;
     private volatile Consumer<Lease> leaseConsumer; // Provided on start()
@@ -65,8 +65,8 @@ public class ClientReactiveSocket implements ReactiveSocket {
         this.streamIdSupplier = streamIdSupplier;
         this.keepAliveProvider = keepAliveProvider;
         this.started = MonoProcessor.create();
-        this.senders = new Int2ObjectHashMap<>(256, 0.9f);
-        this.receivers = new Int2ObjectHashMap<>(256, 0.9f);
+        this.senders = new IntObjectHashMap<>(256, 0.9f);
+        this.receivers = new IntObjectHashMap<>(256, 0.9f);
 
         connection
             .onClose()

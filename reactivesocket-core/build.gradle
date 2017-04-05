@@ -29,7 +29,7 @@ jmh {
 }
 
 dependencies {
-    compile 'io.projectreactor:reactor-core:3.0.5.RELEASE'
+    compile 'io.projectreactor:reactor-core:3.0.6.RELEASE'
     compile 'io.netty:netty-buffer:4.1.8.Final'
 
     jmh 'org.openjdk.jmh:jmh-core:1.15'
