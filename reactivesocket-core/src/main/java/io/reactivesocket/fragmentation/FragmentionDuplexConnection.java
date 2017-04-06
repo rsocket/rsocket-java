@@ -2,7 +2,6 @@ package io.reactivesocket.fragmentation;
 
 import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
-import io.reactivesocket.Plugins;
 import io.reactivesocket.frame.FrameHeaderFlyweight;
 import io.reactivesocket.internal.Int2ObjectHashMap;
 import org.reactivestreams.Publisher;
@@ -13,31 +12,6 @@ import reactor.core.publisher.Mono;
  * Fragments and Re-assembles frames. MTU is number of bytes per fragment. The default is 1024
  */
 public class FragmentionDuplexConnection implements DuplexConnection {
-
-    static {
-        if (Boolean.getBoolean("io.reactivesocket.fragmentation.enable")) {
-            int mtu = Integer.getInteger("io.reactivesocket.fragmentation.mtu", 1024);
-
-            if (Plugins.DUPLEX_CONNECTION_INTERCEPTOR == null) {
-                Plugins.DUPLEX_CONNECTION_INTERCEPTOR = (type, connection) -> {
-                    if (type == Plugins.DuplexConnectionInterceptor.Type.SOURCE) {
-                        return new FragmentionDuplexConnection(connection, mtu);
-                    } else {
-                        return connection;
-                    }
-                };
-            } else {
-                Plugins.DuplexConnectionInterceptor original = Plugins.DUPLEX_CONNECTION_INTERCEPTOR;
-                Plugins.DUPLEX_CONNECTION_INTERCEPTOR = (type, connection) -> {
-                    if (type == Plugins.DuplexConnectionInterceptor.Type.SOURCE) {
-                        return original.apply(type, new FragmentionDuplexConnection(connection, mtu));
-                    } else {
-                        return original.apply(type, connection);
-                    }
-                };
-            }
-        }
-    }
 
     private final int mtu;
     private final DuplexConnection source;
