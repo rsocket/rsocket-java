@@ -18,6 +18,7 @@ package io.reactivesocket.client;
 
 import io.reactivesocket.Payload;
 import io.reactivesocket.ReactiveSocket;
+import io.reactivesocket.util.PayloadImpl;
 import org.junit.Assert;
 import org.junit.Test;
 import org.reactivestreams.Publisher;
@@ -27,25 +28,12 @@ import reactor.core.publisher.Mono;
 
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
-import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.Function;
 
 public class LoadBalancerTest {
-
-    private Payload dummy = new Payload() {
-        @Override
-        public ByteBuffer getData() {
-            return null;
-        }
-
-        @Override
-        public ByteBuffer getMetadata() {
-            return null;
-        }
-    };
 
     @Test(timeout = 10_000L)
     public void testNeverSelectFailingFactories() throws InterruptedException {
@@ -105,7 +93,7 @@ public class LoadBalancerTest {
     private void makeAcall(ReactiveSocket balancer) throws InterruptedException {
         CountDownLatch latch = new CountDownLatch(1);
 
-        balancer.requestResponse(dummy).subscribe(new Subscriber<Payload>() {
+        balancer.requestResponse(PayloadImpl.EMPTY).subscribe(new Subscriber<Payload>() {
             @Override
             public void onSubscribe(Subscription s) {
                 s.request(1L);

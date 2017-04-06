@@ -16,6 +16,7 @@
 
 package io.reactivesocket;
 
+import io.netty.buffer.Unpooled;
 import io.reactivesocket.test.util.TestDuplexConnection;
 import io.reactivesocket.util.PayloadImpl;
 import io.reactivex.subscribers.TestSubscriber;
@@ -40,7 +41,7 @@ public class ServerReactiveSocketTest {
 
     @Test(timeout = 2000)
     public void testHandleKeepAlive() throws Exception {
-        rule.connection.addToReceivedBuffer(Frame.Keepalive.from(Frame.NULL_BYTEBUFFER, true));
+        rule.connection.addToReceivedBuffer(Frame.Keepalive.from(Unpooled.EMPTY_BUFFER, true));
         Frame sent = rule.connection.awaitSend();
         assertThat("Unexpected frame sent.", sent.getType(), is(FrameType.KEEPALIVE));
         /*Keep alive ack must not have respond flag else, it will result in infinite ping-pong of keep alive frames.*/

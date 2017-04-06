@@ -18,7 +18,6 @@ import io.reactivesocket.ConnectionSetupPayload;
 import io.reactivesocket.Payload;
 import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.client.ReactiveSocketClient;
-import io.reactivesocket.frame.ByteBufferUtil;
 import io.reactivesocket.lease.DisabledLeaseAcceptingSocket;
 import io.reactivesocket.lease.LeaseEnforcingSocket;
 import io.reactivesocket.server.ReactiveSocketServer;
@@ -33,6 +32,7 @@ import reactor.ipc.netty.tcp.TcpServer;
 
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 
 import static io.reactivesocket.client.KeepAliveProvider.*;
@@ -52,8 +52,7 @@ public final class StreamingClient {
                                         .block();
 
         socket.requestStream(new PayloadImpl("Hello"))
-                .map(payload -> payload.getData())
-                .map(ByteBufferUtil::toUtf8String)
+                .map(payload -> StandardCharsets.UTF_8.decode(payload.getData()).toString())
                 .doOnNext(System.out::println)
                 .take(10)
                 .thenEmpty(socket.close())

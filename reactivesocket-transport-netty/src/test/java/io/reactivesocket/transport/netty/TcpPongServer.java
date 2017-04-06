@@ -24,7 +24,7 @@ public final class TcpPongServer {
 
     public static void main(String... args) throws Exception {
         ReactiveSocketServer.create(TcpTransportServer.create(TcpServer.create(7878)))
-                               .start(new PingHandler())
-                               .awaitShutdown();
+           .start(new PingHandler())
+           .awaitShutdown();
     }
 }

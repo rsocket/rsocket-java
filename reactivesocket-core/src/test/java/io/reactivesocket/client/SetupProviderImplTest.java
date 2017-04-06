@@ -20,6 +20,7 @@ import io.reactivesocket.Frame;
 import io.reactivesocket.Frame.Setup;
 import io.reactivesocket.FrameType;
 import io.reactivesocket.ReactiveSocket;
+import io.reactivesocket.TestUtil;
 import io.reactivesocket.lease.DefaultLeaseEnforcingSocket;
 import io.reactivesocket.lease.DefaultLeaseHonoringSocket;
 import io.reactivesocket.lease.FairLeaseDistributor;
@@ -30,7 +31,6 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.nio.ByteBuffer;
-import java.nio.charset.Charset;
 
 import static io.reactivesocket.client.SetupProvider.*;
 import static org.hamcrest.MatcherAssert.*;
@@ -44,8 +44,8 @@ public class SetupProviderImplTest {
         SetupProvider setupProvider =
                 new SetupProviderImpl(setup, reactiveSocket -> new DefaultLeaseHonoringSocket(reactiveSocket),
                                       KeepAliveProvider.never(), Throwable::printStackTrace);
-        ByteBuffer dataBuffer = ByteBuffer.wrap("hello".getBytes(Charset.defaultCharset()));
-        ByteBuffer metaDataBuffer = ByteBuffer.wrap("helloMeta".getBytes(Charset.defaultCharset()));
+        ByteBuffer dataBuffer = TestUtil.byteBufferFromUtf8String("hello");
+        ByteBuffer metaDataBuffer = TestUtil.byteBufferFromUtf8String("helloMeta");
         PayloadImpl setupPayload = new PayloadImpl(dataBuffer, metaDataBuffer);
 
         setupProvider = setupProvider.setupPayload(setupPayload);

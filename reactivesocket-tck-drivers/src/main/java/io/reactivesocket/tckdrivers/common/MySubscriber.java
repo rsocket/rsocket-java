@@ -1,6 +1,7 @@
 
 package io.reactivesocket.tckdrivers.common;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
@@ -10,7 +11,6 @@ import org.reactivestreams.*;
 
 import io.reactivesocket.Frame;
 import io.reactivesocket.Payload;
-import io.reactivesocket.frame.ByteBufferUtil;
 
 import io.reactivex.subscribers.TestSubscriber;
 
@@ -55,8 +55,8 @@ public class MySubscriber<T> extends TestSubscriber<T> {
     @Override
     public void onNext(T t) {
         Payload p = (Payload) t;
-        Tuple<String, String> tup = new Tuple<>(ByteBufferUtil.toUtf8String(p.getData()),
-                ByteBufferUtil.toUtf8String(p.getMetadata()));
+        Tuple<String, String> tup = new Tuple<>(StandardCharsets.UTF_8.decode(p.getData()).toString(),
+                StandardCharsets.UTF_8.decode(p.getMetadata()).toString());
         consoleUtils.info("On NEXT got : "  + tup.getK() + " " + tup.getV());
         if (isEcho) {
             echosub.add(tup);
@@ -121,8 +121,8 @@ public class MySubscriber<T> extends TestSubscriber<T> {
         }
         for (int i = 0; i < values.size(); i++) {
             Frame p = (Frame) this.values().get(i);
-            Tuple<String, String> v = new Tuple<>(ByteBufferUtil.toUtf8String(p.getData()),
-                    ByteBufferUtil.toUtf8String(p.getMetadata()));
+            Tuple<String, String> v = new Tuple<>(StandardCharsets.UTF_8.decode(p.getData()).toString(),
+                    StandardCharsets.UTF_8.decode(p.getMetadata()).toString());
             Tuple<String, String> u = values.get(i);
             if (!Objects.equals(u, v)) {
                 myFail(prefix + "Values at position " + i + " differ; Expected: "
@@ -146,8 +146,8 @@ public class MySubscriber<T> extends TestSubscriber<T> {
             myFail("value does not match");
         }
         Payload p = (Payload) values().get(0);
-        Tuple<String, String> v = new Tuple<>(ByteBufferUtil.toUtf8String(p.getData()),
-                ByteBufferUtil.toUtf8String(p.getMetadata()));
+        Tuple<String, String> v = new Tuple<>(StandardCharsets.UTF_8.decode(p.getData()).toString(),
+                StandardCharsets.UTF_8.decode(p.getMetadata()).toString());
         if (!Objects.equals(value, v)) {
             myFail(prefix + "Expected: " + valueAndClass(value) + ", Actual: " + valueAndClass(v));
             myFail("value does not match");
@@ -209,8 +209,8 @@ public class MySubscriber<T> extends TestSubscriber<T> {
     public Tuple<String, String> getElement(int n) {
         assert(n < values.size());
         Payload p = (Payload) values().get(n);
-        Tuple<String, String> tup = new Tuple<>(ByteBufferUtil.toUtf8String(p.getData()),
-                ByteBufferUtil.toUtf8String(p.getMetadata()));
+        Tuple<String, String> tup = new Tuple<>(StandardCharsets.UTF_8.decode(p.getData()).toString(),
+                StandardCharsets.UTF_8.decode(p.getMetadata()).toString());
         return tup;
     }
 

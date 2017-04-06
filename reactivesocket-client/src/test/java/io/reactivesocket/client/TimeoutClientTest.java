@@ -20,12 +20,12 @@ import io.reactivesocket.Payload;
 import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.client.filter.ReactiveSockets;
 import io.reactivesocket.exceptions.TimeoutException;
+import io.reactivesocket.util.PayloadImpl;
 import org.hamcrest.MatcherAssert;
 import org.junit.Test;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
-import java.nio.ByteBuffer;
 import java.time.Duration;
 
 import static org.hamcrest.Matchers.instanceOf;
@@ -36,17 +36,7 @@ public class TimeoutClientTest {
         TestingReactiveSocket socket = new TestingReactiveSocket((subscriber, payload) -> {return false;});
         ReactiveSocket timeout = ReactiveSockets.timeout(Duration.ofMillis(50)).apply(socket);
 
-        timeout.requestResponse(new Payload() {
-            @Override
-            public ByteBuffer getData() {
-                return null;
-            }
-
-            @Override
-            public ByteBuffer getMetadata() {
-                return null;
-            }
-        }).subscribe(new Subscriber<Payload>() {
+        timeout.requestResponse(PayloadImpl.EMPTY).subscribe(new Subscriber<Payload>() {
             @Override
             public void onSubscribe(Subscription s) {
                 s.request(1);

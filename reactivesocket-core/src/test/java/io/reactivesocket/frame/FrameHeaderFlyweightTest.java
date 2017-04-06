@@ -1,107 +1,104 @@
 package io.reactivesocket.frame;
 
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufUtil;
+import io.netty.buffer.Unpooled;
 import io.reactivesocket.FrameType;
-import org.agrona.BitUtil;
-import org.agrona.concurrent.UnsafeBuffer;
+import io.reactivesocket.util.BitUtil;
 import org.junit.Test;
 
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-
-import static io.reactivesocket.TestUtil.bytesToHex;
 import static io.reactivesocket.frame.FrameHeaderFlyweight.FRAME_HEADER_LENGTH;
-import static io.reactivesocket.frame.FrameHeaderFlyweight.NULL_BYTEBUFFER;
 import static org.junit.Assert.*;
 
 public class FrameHeaderFlyweightTest {
     // Taken from spec
     private static final int FRAME_MAX_SIZE = 16_777_215;
 
-    private final UnsafeBuffer directBuffer = new UnsafeBuffer(ByteBuffer.allocate(1024));
+    private final ByteBuf byteBuf = Unpooled.buffer(1024);
 
     @Test
     public void headerSize() {
         int frameLength = 123456;
-        FrameHeaderFlyweight.encodeFrameHeader(directBuffer, 0, frameLength, 0, FrameType.SETUP, 0);
-        assertEquals(frameLength, FrameHeaderFlyweight.frameLength(directBuffer, 0, frameLength));
+        FrameHeaderFlyweight.encodeFrameHeader(byteBuf, frameLength, 0, FrameType.SETUP, 0);
+        assertEquals(frameLength, FrameHeaderFlyweight.frameLength(byteBuf));
     }
 
     @Test
     public void headerSizeMax() {
         int frameLength = FRAME_MAX_SIZE;
-        FrameHeaderFlyweight.encodeFrameHeader(directBuffer, 0, frameLength, 0, FrameType.SETUP, 0);
-        assertEquals(frameLength, FrameHeaderFlyweight.frameLength(directBuffer, 0, frameLength));
+        FrameHeaderFlyweight.encodeFrameHeader(byteBuf, frameLength, 0, FrameType.SETUP, 0);
+        assertEquals(frameLength, FrameHeaderFlyweight.frameLength(byteBuf));
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void headerSizeTooLarge() {
-        FrameHeaderFlyweight.encodeFrameHeader(directBuffer, 0, FRAME_MAX_SIZE + 1, 0, FrameType.SETUP, 0);
+        FrameHeaderFlyweight.encodeFrameHeader(byteBuf, FRAME_MAX_SIZE + 1, 0, FrameType.SETUP, 0);
     }
 
     @Test
     public void frameLength() {
-        int length = FrameHeaderFlyweight.encode(directBuffer, 0, 0, 0, FrameType.SETUP, NULL_BYTEBUFFER, NULL_BYTEBUFFER);
+        int length = FrameHeaderFlyweight.encode(byteBuf,  0, 0, FrameType.SETUP, Unpooled.EMPTY_BUFFER, Unpooled.EMPTY_BUFFER);
         assertEquals(length, 9); // 72 bits
     }
 
     @Test
     public void metadataLength() {
-        ByteBuffer metadata = ByteBuffer.wrap(new byte[]{1, 2, 3, 4});
-        FrameHeaderFlyweight.encode(directBuffer, 0, 0, 0, FrameType.SETUP, metadata, NULL_BYTEBUFFER);
-        assertEquals(4, FrameHeaderFlyweight.decodeMetadataLength(directBuffer, 0, FrameHeaderFlyweight.FRAME_HEADER_LENGTH));
+        ByteBuf metadata = Unpooled.wrappedBuffer(new byte[]{1, 2, 3, 4});
+        FrameHeaderFlyweight.encode(byteBuf,  0, 0, FrameType.SETUP, metadata, Unpooled.EMPTY_BUFFER);
+        assertEquals(4, FrameHeaderFlyweight.decodeMetadataLength(byteBuf, FrameHeaderFlyweight.FRAME_HEADER_LENGTH));
     }
 
     @Test
     public void dataLength() {
-        ByteBuffer data = ByteBuffer.wrap(new byte[]{1, 2, 3, 4, 5});
-        int length = FrameHeaderFlyweight.encode(directBuffer, 0, 0, 0, FrameType.SETUP, NULL_BYTEBUFFER, data);
-        assertEquals(5, FrameHeaderFlyweight.dataLength(directBuffer, FrameType.SETUP, 0, length, FrameHeaderFlyweight.FRAME_HEADER_LENGTH));
+        ByteBuf data = Unpooled.wrappedBuffer(new byte[]{1, 2, 3, 4, 5});
+        int length = FrameHeaderFlyweight.encode(byteBuf, 0, 0, FrameType.SETUP, Unpooled.EMPTY_BUFFER, data);
+        assertEquals(5, FrameHeaderFlyweight.dataLength(byteBuf, FrameType.SETUP, FrameHeaderFlyweight.FRAME_HEADER_LENGTH));
     }
 
     @Test
     public void metadataSlice() {
-        ByteBuffer metadata = ByteBuffer.wrap(new byte[]{1, 2, 3, 4});
-        FrameHeaderFlyweight.encode(directBuffer, 0, 0, 0, FrameType.REQUEST_RESPONSE, metadata, NULL_BYTEBUFFER);
-        metadata.rewind();
+        ByteBuf metadata = Unpooled.wrappedBuffer(new byte[]{1, 2, 3, 4});
+        FrameHeaderFlyweight.encode(byteBuf, 0, 0, FrameType.REQUEST_RESPONSE, metadata, Unpooled.EMPTY_BUFFER);
+        metadata.resetReaderIndex();
 
-        assertEquals(metadata, FrameHeaderFlyweight.sliceFrameMetadata(directBuffer, 0, FrameHeaderFlyweight.FRAME_HEADER_LENGTH));
+        assertEquals(metadata, FrameHeaderFlyweight.sliceFrameMetadata(byteBuf));
     }
 
     @Test
     public void dataSlice() {
-        ByteBuffer data = ByteBuffer.wrap(new byte[]{1, 2, 3, 4, 5});
-        FrameHeaderFlyweight.encode(directBuffer, 0, 0, 0, FrameType.REQUEST_RESPONSE, NULL_BYTEBUFFER, data);
-        data.rewind();
+        ByteBuf data = Unpooled.wrappedBuffer(new byte[]{1, 2, 3, 4, 5});
+        FrameHeaderFlyweight.encode(byteBuf, 0, 0, FrameType.REQUEST_RESPONSE, Unpooled.EMPTY_BUFFER, data);
+        data.resetReaderIndex();
 
-        assertEquals(data, FrameHeaderFlyweight.sliceFrameData(directBuffer, 0, FrameHeaderFlyweight.FRAME_HEADER_LENGTH));
+        assertEquals(data, FrameHeaderFlyweight.sliceFrameData(byteBuf));
     }
 
     @Test
     public void streamId() {
         int streamId = 1234;
-        FrameHeaderFlyweight.encode(directBuffer, 0, streamId, 0, FrameType.SETUP, NULL_BYTEBUFFER, NULL_BYTEBUFFER);
-        assertEquals(streamId, FrameHeaderFlyweight.streamId(directBuffer, 0));
+        FrameHeaderFlyweight.encode(byteBuf,  streamId, 0, FrameType.SETUP, Unpooled.EMPTY_BUFFER, Unpooled.EMPTY_BUFFER);
+        assertEquals(streamId, FrameHeaderFlyweight.streamId(byteBuf));
     }
 
     @Test
     public void typeAndFlag() {
         FrameType frameType = FrameType.FIRE_AND_FORGET;
         int flags = 0b1110110111;
-        FrameHeaderFlyweight.encode(directBuffer, 0, 0, flags, frameType, NULL_BYTEBUFFER, NULL_BYTEBUFFER);
+        FrameHeaderFlyweight.encode(byteBuf, 0, flags, frameType, Unpooled.EMPTY_BUFFER, Unpooled.EMPTY_BUFFER);
 
-        assertEquals(flags, FrameHeaderFlyweight.flags(directBuffer, 0));
-        assertEquals(frameType, FrameHeaderFlyweight.frameType(directBuffer, 0));
+        assertEquals(flags, FrameHeaderFlyweight.flags(byteBuf));
+        assertEquals(frameType, FrameHeaderFlyweight.frameType(byteBuf));
     }
 
     @Test
     public void typeAndFlagTruncated() {
         FrameType frameType = FrameType.SETUP;
         int flags = 0b11110110111; // 1 bit too many
-        FrameHeaderFlyweight.encode(directBuffer, 0, 0, flags, FrameType.SETUP, NULL_BYTEBUFFER, NULL_BYTEBUFFER);
+        FrameHeaderFlyweight.encode(byteBuf,  0, flags, FrameType.SETUP, Unpooled.EMPTY_BUFFER, Unpooled.EMPTY_BUFFER);
 
-        assertNotEquals(flags, FrameHeaderFlyweight.flags(directBuffer, 0));
-        assertEquals(flags & 0b0000_0011_1111_1111, FrameHeaderFlyweight.flags(directBuffer, 0));
-        assertEquals(frameType, FrameHeaderFlyweight.frameType(directBuffer, 0));
+        assertNotEquals(flags, FrameHeaderFlyweight.flags(byteBuf));
+        assertEquals(flags & 0b0000_0011_1111_1111, FrameHeaderFlyweight.flags(byteBuf));
+        assertEquals(frameType, FrameHeaderFlyweight.frameType(byteBuf));
     }
 
     @Test
@@ -129,25 +126,25 @@ public class FrameHeaderFlyweightTest {
 
     @Test
     public void wireFormat() {
-        UnsafeBuffer expectedMutable = new UnsafeBuffer(ByteBuffer.allocate(1024));
+        ByteBuf expectedBuffer = Unpooled.buffer(1024);
         int currentIndex = 0;
         // frame length
         int frameLength = FrameHeaderFlyweight.FRAME_HEADER_LENGTH - FrameHeaderFlyweight.FRAME_LENGTH_SIZE;
-        expectedMutable.putInt(currentIndex, frameLength << 8, ByteOrder.BIG_ENDIAN);
+        expectedBuffer.setInt(currentIndex, frameLength << 8);
         currentIndex += 3;
         // stream id
-        expectedMutable.putInt(currentIndex, 5, ByteOrder.BIG_ENDIAN);
+        expectedBuffer.setInt(currentIndex, 5);
         currentIndex += BitUtil.SIZE_OF_INT;
         // flags and frame type
-        expectedMutable.putShort(currentIndex, (short) 0b001010_0001100000, ByteOrder.BIG_ENDIAN);
+        expectedBuffer.setShort(currentIndex, (short) 0b001010_0001100000);
         currentIndex += BitUtil.SIZE_OF_SHORT;
 
         FrameType frameType = FrameType.NEXT_COMPLETE;
-        FrameHeaderFlyweight.encode(directBuffer, 0, 5, 0, frameType, NULL_BYTEBUFFER, NULL_BYTEBUFFER);
+        FrameHeaderFlyweight.encode(byteBuf,  5, 0, frameType, Unpooled.EMPTY_BUFFER, Unpooled.EMPTY_BUFFER);
 
-        ByteBuffer expected = ByteBufferUtil.preservingSlice(expectedMutable.byteBuffer(), 0, currentIndex);
-        ByteBuffer actual = ByteBufferUtil.preservingSlice(directBuffer.byteBuffer(), 0, FRAME_HEADER_LENGTH);
+        ByteBuf expected = expectedBuffer.slice(0, currentIndex);
+        ByteBuf actual = byteBuf.slice(0, FRAME_HEADER_LENGTH);
 
-        assertEquals(bytesToHex(expected), bytesToHex(actual));
+        assertEquals(ByteBufUtil.hexDump(expected), ByteBufUtil.hexDump(actual));
     }
 }

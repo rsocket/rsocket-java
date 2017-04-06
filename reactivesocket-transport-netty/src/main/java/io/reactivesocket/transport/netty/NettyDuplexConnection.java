@@ -15,7 +15,6 @@
  */
 package io.reactivesocket.transport.netty;
 
-import io.netty.buffer.ByteBuf;
 import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
 import org.reactivestreams.Publisher;
@@ -24,8 +23,6 @@ import reactor.core.publisher.Mono;
 import reactor.ipc.netty.NettyContext;
 import reactor.ipc.netty.NettyInbound;
 import reactor.ipc.netty.NettyOutbound;
-
-import java.nio.ByteBuffer;
 
 public class NettyDuplexConnection implements DuplexConnection {
     private final NettyInbound in;
@@ -41,26 +38,21 @@ public class NettyDuplexConnection implements DuplexConnection {
     @Override
     public Mono<Void> send(Publisher<Frame> frames) {
         return Flux.from(frames)
-                .concatMap(this::sendOne)
-                .then();
+            .concatMap(this::sendOne)
+            .then();
     }
 
     @Override
     public Mono<Void> sendOne(Frame frame) {
-        ByteBuffer src = frame.getByteBuffer();
-        ByteBuf msg = out.alloc().buffer(src.remaining()).writeBytes(src);
-        return out.sendObject(msg).then();
+        return out.sendObject(frame.content())
+            .then();
     }
 
     @Override
     public Flux<Frame> receive() {
         return in
             .receive()
-            .map(byteBuf -> {
-                ByteBuffer buffer = ByteBuffer.allocate(byteBuf.capacity());
-                byteBuf.getBytes(0, buffer);
-                return Frame.from(buffer);
-            });
+            .map(buf -> Frame.from(buf.retain()));
     }
 
     @Override

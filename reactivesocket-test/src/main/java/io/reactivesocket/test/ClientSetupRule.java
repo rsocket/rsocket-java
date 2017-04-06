@@ -22,6 +22,7 @@ import io.reactivesocket.client.KeepAliveProvider;
 import io.reactivesocket.client.ReactiveSocketClient;
 import io.reactivesocket.client.SetupProvider;
 import io.reactivesocket.transport.TransportClient;
+import io.reactivesocket.util.PayloadImpl;
 import io.reactivex.subscribers.TestSubscriber;
 import org.junit.rules.ExternalResource;
 import org.junit.runner.Description;
@@ -29,6 +30,7 @@ import org.junit.runners.model.Statement;
 import reactor.core.publisher.Flux;
 
 import java.net.SocketAddress;
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.Function;
@@ -83,7 +85,7 @@ public class ClientSetupRule extends ExternalResource {
         Flux.range(1, count)
             .flatMap(i ->
                 getReactiveSocket()
-                    .fireAndForget(TestUtil.utf8EncodedPayload("hello", "metadata"))
+                    .fireAndForget(new PayloadImpl("hello", "metadata"))
             )
             .doOnError(Throwable::printStackTrace)
             .subscribe(ts);
@@ -99,7 +101,7 @@ public class ClientSetupRule extends ExternalResource {
         Flux.range(1, count)
             .flatMap(i ->
                 getReactiveSocket()
-                    .metadataPush(TestUtil.utf8EncodedPayload("", "metadata"))
+                    .metadataPush(new PayloadImpl("", "metadata"))
             )
             .doOnError(Throwable::printStackTrace)
             .subscribe(ts);
@@ -113,10 +115,10 @@ public class ClientSetupRule extends ExternalResource {
     public void testRequestResponseN(int count) {
         TestSubscriber<String> ts = TestSubscriber.create();
         Flux.range(1, count)
-                .flatMap(i ->
+            .flatMap(i ->
                 getReactiveSocket()
-                .requestResponse(TestUtil.utf8EncodedPayload("hello", "metadata")))
-                .map(payload -> TestUtil.byteToString(payload.getData())
+                .requestResponse(new PayloadImpl("hello", "metadata"))
+                .map(payload -> StandardCharsets.UTF_8.decode(payload.getData()).toString())
             )
                 .doOnError(Throwable::printStackTrace)
                 .subscribe(ts);
@@ -129,11 +131,11 @@ public class ClientSetupRule extends ExternalResource {
     }
 
     public void testRequestStream() {
-        testStream(socket -> socket.requestStream(TestUtil.utf8EncodedPayload("hello", "metadata")));
+        testStream(socket -> socket.requestStream(new PayloadImpl("hello", "metadata")));
     }
 
     public void testRequestStreamWithRequestN() {
-        testStreamRequestN(socket -> socket.requestStream(TestUtil.utf8EncodedPayload("hello", "metadata")));
+        testStreamRequestN(socket -> socket.requestStream(new PayloadImpl("hello", "metadata")));
     }
 
 

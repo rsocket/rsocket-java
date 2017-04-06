@@ -16,6 +16,8 @@
 
 package io.reactivesocket;
 
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import io.reactivesocket.client.KeepAliveProvider;
 import io.reactivesocket.client.ReactiveSocketClient;
 import io.reactivesocket.client.SetupProvider;
@@ -24,6 +26,7 @@ import io.reactivesocket.lease.LeaseEnforcingSocket;
 import io.reactivesocket.perfutil.TestDuplexConnection;
 import io.reactivesocket.server.ReactiveSocketServer;
 import io.reactivesocket.transport.TransportServer;
+import io.reactivesocket.util.PayloadImpl;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -88,37 +91,8 @@ public class ReactiveSocketPerf {
         public Blackhole bh;
 
         static final ByteBuffer HELLO = ByteBuffer.wrap("HELLO".getBytes(StandardCharsets.UTF_8));
-        static final ByteBuffer HELLO_WORLD = ByteBuffer.wrap("HELLO_WORLD".getBytes(StandardCharsets.UTF_8));
-        static final ByteBuffer EMPTY = ByteBuffer.allocate(0);
 
-        static final Payload HELLO_PAYLOAD = new Payload() {
-
-            @Override
-            public ByteBuffer getMetadata() {
-                return EMPTY;
-            }
-
-            @Override
-            public ByteBuffer getData() {
-                HELLO.position(0);
-                return HELLO;
-            }
-        };
-
-        static final Payload HELLO_WORLD_PAYLOAD = new Payload() {
-
-            @Override
-            public ByteBuffer getMetadata() {
-                return EMPTY;
-            }
-
-            @Override
-            public ByteBuffer getData() {
-                HELLO_WORLD.position(0);
-                return HELLO_WORLD;
-            }
-        };
-
+        static final Payload HELLO_PAYLOAD = new PayloadImpl(HELLO);
 
         static final DirectProcessor<Frame> clientReceive = DirectProcessor.create();
         static final DirectProcessor<Frame> serverReceive = DirectProcessor.create();

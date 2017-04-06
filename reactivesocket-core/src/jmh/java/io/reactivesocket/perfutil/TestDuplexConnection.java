@@ -40,8 +40,13 @@ public class TestDuplexConnection implements DuplexConnection {
     public Mono<Void> send(Publisher<Frame> frame) {
         return Flux
             .from(frame)
-            .doOnNext(f -> send.onNext(f))
-            .doOnError(t -> {throw new RuntimeException(t); })
+            .doOnNext(f -> {
+                try {
+                    send.onNext(f);
+                } finally {
+                    f.release();
+                }
+            })
             .then();
     }
 

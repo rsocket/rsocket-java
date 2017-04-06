@@ -16,7 +16,6 @@
 
 package io.reactivesocket.lease;
 
-import io.reactivesocket.Frame;
 import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.exceptions.RejectedException;
 import io.reactivesocket.lease.DefaultLeaseHonoringSocketTest.SocketHolder;
@@ -92,7 +91,7 @@ public class DefaultLeaseHonoringSocketTest extends DefaultLeaseTest<SocketHolde
         }
 
         public SocketHolder sendLease(int permits, int ttl) {
-            reactiveSocket.accept(new LeaseImpl(permits, ttl, Frame.NULL_BYTEBUFFER));
+            reactiveSocket.accept(new LeaseImpl(permits, ttl));
             return this;
         }
     }

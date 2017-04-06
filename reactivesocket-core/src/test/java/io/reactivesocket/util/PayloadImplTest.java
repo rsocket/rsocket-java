@@ -13,31 +13,21 @@
 
 package io.reactivesocket.util;
 
+import io.reactivesocket.TestUtil;
 import org.junit.Test;
 
-import java.nio.ByteBuffer;
-
-import static java.nio.ByteBuffer.wrap;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
 public class PayloadImplTest {
-
     public static final String DATA_VAL = "data";
-    public static final String METADATA_VAL = "Metadata";
+    public static final String METADATA_VAL = "metadata";
 
     @Test
     public void testReuse() throws Exception {
         PayloadImpl p = new PayloadImpl(DATA_VAL, METADATA_VAL);
         assertDataAndMetadata(p);
         assertDataAndMetadata(p);
-    }
-    @Test
-    public void testSingleUse() throws Exception {
-        PayloadImpl p = new PayloadImpl(wrap(DATA_VAL.getBytes()), wrap(METADATA_VAL.getBytes()), false);
-        assertDataAndMetadata(p);
-        assertThat("Unexpected data length", p.getData().remaining(), is(0));
-        assertThat("Unexpected metadata length", p.getMetadata().remaining(), is(0));
     }
 
     @Test
@@ -49,13 +39,7 @@ public class PayloadImplTest {
     }
 
     public void assertDataAndMetadata(PayloadImpl p) {
-        assertThat("Unexpected data.", readValue(p.getData()), equalTo(DATA_VAL));
-        assertThat("Unexpected metadata.", readValue(p.getMetadata()), equalTo(METADATA_VAL));
-    }
-
-    public String readValue(ByteBuffer buffer) {
-        byte[] bytes = new byte[buffer.remaining()];
-        buffer.get(bytes);
-        return new String(bytes);
+        assertThat("Unexpected data.", TestUtil.byteToString(p.getData()), equalTo(DATA_VAL));
+        assertThat("Unexpected metadata.", TestUtil.byteToString(p.getMetadata()), equalTo(METADATA_VAL));
     }
 }

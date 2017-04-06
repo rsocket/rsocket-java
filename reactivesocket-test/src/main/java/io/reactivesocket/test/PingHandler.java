@@ -30,15 +30,16 @@ import java.util.concurrent.ThreadLocalRandom;
 
 public class PingHandler implements SocketAcceptor {
 
-    private final byte[] pong;
+    private final Payload pong;
 
     public PingHandler() {
-        pong = new byte[1024];
-        ThreadLocalRandom.current().nextBytes(pong);
+        byte[] data = new byte[1024];
+        ThreadLocalRandom.current().nextBytes(data);
+        pong = new PayloadImpl(data);
     }
 
-    public PingHandler(byte[] pong) {
-        this.pong = pong;
+    public PingHandler(byte[] data) {
+        pong = new PayloadImpl(data);
     }
 
     @Override
@@ -46,7 +47,7 @@ public class PingHandler implements SocketAcceptor {
         return new DisabledLeaseAcceptingSocket(new AbstractReactiveSocket() {
             @Override
             public Mono<Payload> requestResponse(Payload payload) {
-                return Mono.just(new PayloadImpl(pong));
+                return Mono.just(pong);
             }
         });
     }

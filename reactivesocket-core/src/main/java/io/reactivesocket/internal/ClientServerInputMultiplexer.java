@@ -18,9 +18,10 @@ package io.reactivesocket.internal;
 
 import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
+import io.reactivesocket.FrameType;
 import io.reactivesocket.Plugins;
 import io.reactivesocket.Plugins.DuplexConnectionInterceptor.Type;
-import org.agrona.BitUtil;
+import io.reactivesocket.util.BitUtil;
 import org.reactivestreams.Publisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -57,9 +58,13 @@ public class ClientServerInputMultiplexer {
         source.receive()
             .groupBy(frame -> {
                 int streamId = frame.getStreamId();
-                Type type;
+                final Type type;
                 if (streamId == 0) {
-                    type = Type.STREAM_ZERO;
+                    if (frame.getType() == FrameType.SETUP) {
+                        type = Type.STREAM_ZERO;
+                    } else {
+                        type = Type.CLIENT;
+                    }
                 } else if (BitUtil.isEven(streamId)) {
                     type = Type.SERVER;
                 } else {

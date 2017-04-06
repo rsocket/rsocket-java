@@ -26,6 +26,16 @@ public class WebsocketClientServerTest {
     public final ClientSetupRule setup = new WebsocketClientSetupRule();
 
     @Test(timeout = 10000)
+    public void testFireNForget10() {
+        setup.testFireAndForget(10);
+    }
+
+    @Test(timeout = 10000)
+    public void testPushMetadata10() {
+        setup.testMetadata(10);
+    }
+
+    @Test(timeout = 10000)
     public void testRequestResponse1() {
         setup.testRequestResponseN(1);
     }
@@ -34,7 +44,6 @@ public class WebsocketClientServerTest {
     public void testRequestResponse10() {
         setup.testRequestResponseN(10);
     }
-
 
     @Test(timeout = 10000)
     public void testRequestResponse100() {
@@ -46,7 +55,6 @@ public class WebsocketClientServerTest {
         setup.testRequestResponseN(10_000);
     }
 
-    @Ignore("Fix request-stream")
     @Test(timeout = 10000)
     public void testRequestStream() {
         setup.testRequestStream();

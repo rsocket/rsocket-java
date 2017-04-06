@@ -1,6 +1,5 @@
 package io.reactivesocket.internal;
 
-import io.reactivesocket.Payload;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
@@ -13,7 +12,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /**
  *
  */
-public class LimitableRequestPublisher<T extends Payload> extends Flux<T> implements Subscription {
+public class LimitableRequestPublisher<T> extends Flux<T> implements Subscription {
     private final Publisher<T> source;
 
     private final AtomicBoolean canceled;
@@ -31,7 +30,7 @@ public class LimitableRequestPublisher<T extends Payload> extends Flux<T> implem
         this.canceled = new AtomicBoolean();
     }
 
-    public static <T extends Payload> LimitableRequestPublisher<T> wrap(Publisher<T> source) {
+    public static <T> LimitableRequestPublisher<T> wrap(Publisher<T> source) {
         return new LimitableRequestPublisher<>(source);
     }
 

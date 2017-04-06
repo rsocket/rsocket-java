@@ -27,13 +27,13 @@ import java.time.Duration;
 
 public class PingClient {
 
-    private final String request;
+    private final Payload payload;
     private final ReactiveSocketClient client;
     private ReactiveSocket reactiveSocket;
 
     public PingClient(ReactiveSocketClient client) {
         this.client = client;
-        request = "hello";
+        this.payload = new PayloadImpl("hello");
     }
 
     public PingClient connect() {
@@ -61,11 +61,11 @@ public class PingClient {
         return Flux.range(1, count)
                 .flatMap(i -> {
                     long start = System.nanoTime();
-                    return reactiveSocket.requestResponse(new PayloadImpl(request))
-                                            .doFinally(signalType -> {
-                                                long diff = System.nanoTime() - start;
-                                                histogram.recordValue(diff);
-                                            });
+                    return reactiveSocket.requestResponse(payload)
+                        .doFinally(signalType -> {
+                            long diff = System.nanoTime() - start;
+                            histogram.recordValue(diff);
+                        });
                 })
                 .doOnError(Throwable::printStackTrace);
     }

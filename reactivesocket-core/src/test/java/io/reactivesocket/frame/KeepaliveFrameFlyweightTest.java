@@ -1,22 +1,21 @@
 package io.reactivesocket.frame;
 
-import org.agrona.concurrent.UnsafeBuffer;
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import org.junit.Test;
-
-import java.nio.ByteBuffer;
 
 import static org.junit.Assert.*;
 
 public class KeepaliveFrameFlyweightTest {
-    private final UnsafeBuffer directBuffer = new UnsafeBuffer(ByteBuffer.allocate(1024));
+    private final ByteBuf byteBuf = Unpooled.buffer(1024);
 
     @Test
     public void canReadData() {
-        ByteBuffer data = ByteBuffer.wrap(new byte[]{5, 4, 3});
-        int length = KeepaliveFrameFlyweight.encode(directBuffer, 0, KeepaliveFrameFlyweight.FLAGS_KEEPALIVE_R, data);
-        data.rewind();
+        ByteBuf data = Unpooled.wrappedBuffer(new byte[]{5, 4, 3});
+        int length = KeepaliveFrameFlyweight.encode(byteBuf, KeepaliveFrameFlyweight.FLAGS_KEEPALIVE_R, data);
+        data.resetReaderIndex();
 
-        assertEquals(KeepaliveFrameFlyweight.FLAGS_KEEPALIVE_R, FrameHeaderFlyweight.flags(directBuffer, 0) & KeepaliveFrameFlyweight.FLAGS_KEEPALIVE_R);
-        assertEquals(data, FrameHeaderFlyweight.sliceFrameData(directBuffer, 0, length));
+        assertEquals(KeepaliveFrameFlyweight.FLAGS_KEEPALIVE_R, FrameHeaderFlyweight.flags(byteBuf) & KeepaliveFrameFlyweight.FLAGS_KEEPALIVE_R);
+        assertEquals(data, FrameHeaderFlyweight.sliceFrameData(byteBuf));
     }
 }

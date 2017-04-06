@@ -16,9 +16,9 @@
 package io.reactivesocket.exceptions;
 
 import io.reactivesocket.Frame;
-import io.reactivesocket.frame.ByteBufferUtil;
+import io.reactivesocket.util.PayloadImpl;
 
-import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 
 import static io.reactivesocket.frame.ErrorFrameFlyweight.*;
 
@@ -28,31 +28,29 @@ public class Exceptions {
 
     public static RuntimeException from(Frame frame) {
         final int errorCode = Frame.Error.errorCode(frame);
-        ByteBuffer dataBuffer = frame.getData();
-        String message = dataBuffer.remaining() == 0 ? "<empty message>" : ByteBufferUtil.toUtf8String(dataBuffer);
 
         RuntimeException ex;
         switch (errorCode) {
             case APPLICATION_ERROR:
-                ex = new ApplicationException(frame);
+                ex = new ApplicationException(new PayloadImpl(frame));
                 break;
             case CONNECTION_ERROR:
-                ex = new ConnectionException(message);
+                ex = new ConnectionException(StandardCharsets.UTF_8.decode(frame.getData()).toString());
                 break;
             case INVALID:
-                ex = new InvalidRequestException(message);
+                ex = new InvalidRequestException(StandardCharsets.UTF_8.decode(frame.getData()).toString());
                 break;
             case INVALID_SETUP:
-                ex = new InvalidSetupException(message);
+                ex = new InvalidSetupException(StandardCharsets.UTF_8.decode(frame.getData()).toString());
                 break;
             case REJECTED:
-                ex = new RejectedException(message);
+                ex = new RejectedException(StandardCharsets.UTF_8.decode(frame.getData()).toString());
                 break;
             case REJECTED_SETUP:
-                ex = new RejectedSetupException(message);
+                ex = new RejectedSetupException(StandardCharsets.UTF_8.decode(frame.getData()).toString());
                 break;
             case UNSUPPORTED_SETUP:
-                ex = new UnsupportedSetupException(message);
+                ex = new UnsupportedSetupException(StandardCharsets.UTF_8.decode(frame.getData()).toString());
                 break;
             default:
                 ex = new InvalidRequestException("Invalid Error frame");
