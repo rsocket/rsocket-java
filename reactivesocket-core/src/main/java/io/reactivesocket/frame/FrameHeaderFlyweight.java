@@ -218,20 +218,6 @@ public class FrameHeaderFlyweight {
         return result;
     }
 
-    public static ByteBuf sliceFrameDataRetained(final ByteBuf byteBuf) {
-        final FrameType frameType = frameType(byteBuf);
-        final int frameLength = frameLength(byteBuf);
-        final int dataLength = dataLength(byteBuf, frameType);
-        final int dataOffset = dataOffset(byteBuf, frameType, frameLength);
-        ByteBuf result = Unpooled.EMPTY_BUFFER;
-
-        if (0 < dataLength) {
-            result = byteBuf.retainedSlice(dataOffset, dataLength);
-        }
-
-        return result;
-    }
-
     public static ByteBuf sliceFrameMetadata(final ByteBuf byteBuf) {
         final FrameType frameType = frameType(byteBuf);
         final int frameLength = frameLength(byteBuf);
@@ -249,24 +235,7 @@ public class FrameHeaderFlyweight {
         return result;
     }
 
-    public static ByteBuf sliceFrameMetadataRetained(final ByteBuf byteBuf) {
-        final FrameType frameType = frameType(byteBuf);
-        final int frameLength = frameLength(byteBuf);
-        final int metadataLength = Math.max(0, metadataLength(byteBuf, frameType, frameLength));
-        int metadataOffset = metadataOffset(byteBuf);
-        if (hasMetadataLengthField(frameType)) {
-            metadataOffset += FRAME_LENGTH_SIZE;
-        }
-        ByteBuf result = Unpooled.EMPTY_BUFFER;
-
-        if (0 < metadataLength) {
-            result = byteBuf.retainedSlice(metadataOffset, metadataLength);
-        }
-
-        return result;
-    }
-
-    static int frameLength(final ByteBuf byteBuf) {
+    public static int frameLength(final ByteBuf byteBuf) {
         // frame length field was excluded from the length so we will add it to represent
         // the entire block
         return decodeLength(byteBuf, FRAME_LENGTH_FIELD_OFFSET) + FRAME_LENGTH_SIZE;
@@ -276,7 +245,7 @@ public class FrameHeaderFlyweight {
         return computeMetadataLength(frameType, metadataLength(byteBuf, frameType, frameLength));
     }
 
-    private static int metadataLength(ByteBuf byteBuf, FrameType frameType, int frameLength) {
+    public static int metadataLength(ByteBuf byteBuf, FrameType frameType, int frameLength) {
         int metadataOffset = metadataOffset(byteBuf);
         if (!hasMetadataLengthField(frameType)) {
             return frameLength - metadataOffset;
@@ -305,7 +274,7 @@ public class FrameHeaderFlyweight {
         }
     }
 
-    static boolean hasMetadataLengthField(FrameType frameType) {
+    public static boolean hasMetadataLengthField(FrameType frameType) {
         return frameType.canHaveData();
     }
 
@@ -330,7 +299,7 @@ public class FrameHeaderFlyweight {
         return length;
     }
 
-    private static int dataLength(final ByteBuf byteBuf, final FrameType frameType) {
+    public static int dataLength(final ByteBuf byteBuf, final FrameType frameType) {
         return dataLength(byteBuf, frameType, payloadOffset(byteBuf));
     }
 
@@ -384,11 +353,11 @@ public class FrameHeaderFlyweight {
         return result;
     }
 
-    private static int metadataOffset(final ByteBuf byteBuf) {
+    public static int metadataOffset(final ByteBuf byteBuf) {
         return payloadOffset(byteBuf);
     }
 
-    private static int dataOffset(ByteBuf byteBuf, FrameType frameType, int frameLength) {
+    public static int dataOffset(ByteBuf byteBuf, FrameType frameType, int frameLength) {
         return payloadOffset(byteBuf) + metadataFieldLength(byteBuf, frameType, frameLength);
     }
 }

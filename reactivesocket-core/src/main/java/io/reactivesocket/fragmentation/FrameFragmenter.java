@@ -49,11 +49,11 @@ public class FrameFragmenter {
                 sink.next(Frame.PayloadFrame.from(streamId, frameType, metadata.readSlice(mtu), Unpooled.EMPTY_BUFFER,
                     flags | FrameHeaderFlyweight.FLAGS_M | FrameHeaderFlyweight.FLAGS_F));
             } else if (metadataLength > 0) {
-                if (dataLength > 0) {
-                    sink.next(Frame.PayloadFrame.from(streamId, frameType, metadata.readSlice(metadataLength), Unpooled.EMPTY_BUFFER,
+                if (dataLength > mtu - metadataLength) {
+                    sink.next(Frame.PayloadFrame.from(streamId, frameType, metadata.readSlice(metadataLength), data.readSlice(mtu - metadataLength),
                         flags | FrameHeaderFlyweight.FLAGS_M | FrameHeaderFlyweight.FLAGS_F));
                 } else {
-                    sink.next(Frame.PayloadFrame.from(streamId, frameType, metadata.readSlice(metadataLength), Unpooled.EMPTY_BUFFER,
+                    sink.next(Frame.PayloadFrame.from(streamId, frameType, metadata.readSlice(metadataLength), data.readSlice(dataLength),
                         flags | FrameHeaderFlyweight.FLAGS_M));
                     frame.release();
                     sink.complete();
@@ -63,7 +63,7 @@ public class FrameFragmenter {
                     flags | FrameHeaderFlyweight.FLAGS_F));
             } else {
                 sink.next(Frame.PayloadFrame.from(streamId, frameType, Unpooled.EMPTY_BUFFER, data.readSlice(dataLength),
-                    flags & ~FrameHeaderFlyweight.FLAGS_M));
+                    flags));
                 frame.release();
                 sink.complete();
             }

@@ -36,7 +36,7 @@ public class FrameFragmenterTest {
 
         StepVerifier
             .create(frameFragmenter.fragment(from))
-            .expectNextCount(18)
+            .expectNextCount(17)
             .verifyComplete();
 
     }

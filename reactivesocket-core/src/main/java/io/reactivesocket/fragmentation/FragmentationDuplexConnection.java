@@ -1,9 +1,9 @@
 package io.reactivesocket.fragmentation;
 
+import io.netty.util.collection.IntObjectHashMap;
 import io.reactivesocket.DuplexConnection;
 import io.reactivesocket.Frame;
 import io.reactivesocket.frame.FrameHeaderFlyweight;
-import io.reactivesocket.internal.Int2ObjectHashMap;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -11,15 +11,13 @@ import reactor.core.publisher.Mono;
 /**
  * Fragments and Re-assembles frames. MTU is number of bytes per fragment. The default is 1024
  */
-public class FragmentionDuplexConnection implements DuplexConnection {
+public class FragmentationDuplexConnection implements DuplexConnection {
 
-    private final int mtu;
     private final DuplexConnection source;
-    private final Int2ObjectHashMap<FrameReassembler> frameReassemblers = new Int2ObjectHashMap<>();
+    private final IntObjectHashMap<FrameReassembler> frameReassemblers = new IntObjectHashMap<>();
     private final FrameFragmenter frameFragmenter;
 
-    public FragmentionDuplexConnection(DuplexConnection source, int mtu) {
-        this.mtu = mtu;
+    public FragmentationDuplexConnection(DuplexConnection source, int mtu) {
         this.source = source;
         this.frameFragmenter = new FrameFragmenter(mtu);
     }
@@ -52,7 +50,7 @@ public class FragmentionDuplexConnection implements DuplexConnection {
             .receive()
             .concatMap(frame -> {
                 if (FrameHeaderFlyweight.FLAGS_F == (frame.flags() & FrameHeaderFlyweight.FLAGS_F)) {
-                    FrameReassembler frameReassembler = getFrameReassmbler(frame);
+                    FrameReassembler frameReassembler = getFrameReassembler(frame);
                     frameReassembler.append(frame);
                     return Mono.empty();
                 } else if (frameReassemblersContain(frame.getStreamId())) {
@@ -71,7 +69,7 @@ public class FragmentionDuplexConnection implements DuplexConnection {
         return source.close();
     }
 
-    private synchronized FrameReassembler getFrameReassmbler(Frame frame) {
+    private synchronized FrameReassembler getFrameReassembler(Frame frame) {
         return frameReassemblers.computeIfAbsent(frame.getStreamId(), s -> new FrameReassembler(frame));
     }
 
@@ -86,7 +84,7 @@ public class FragmentionDuplexConnection implements DuplexConnection {
     @Override
     public Mono<Void> onClose() {
         return source.onClose().doFinally(s -> {
-            synchronized (FragmentionDuplexConnection.this) {
+            synchronized (FragmentationDuplexConnection.this) {
                 frameReassemblers
                     .values()
                     .forEach(FrameReassembler::dispose);

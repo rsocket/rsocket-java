@@ -23,7 +23,7 @@ import static org.mockito.Mockito.when;
 /**
  *
  */
-public class FragmentionDuplexConnectionTest {
+public class FragmentationDuplexConnectionTest {
     @Test
     public void testSendOneWithFragmentation() {
         DuplexConnection mockConnection = mock(DuplexConnection.class);
@@ -47,7 +47,7 @@ public class FragmentionDuplexConnectionTest {
         Frame frame = Frame.Request.from(1, FrameType.REQUEST_RESPONSE, new PayloadImpl(data, metadata), 1);
 
 
-        FragmentionDuplexConnection duplexConnection = new FragmentionDuplexConnection(mockConnection, 2);
+        FragmentationDuplexConnection duplexConnection = new FragmentationDuplexConnection(mockConnection, 2);
 
         StepVerifier
             .create(duplexConnection.sendOne(frame))
@@ -64,7 +64,7 @@ public class FragmentionDuplexConnectionTest {
 
         Frame frame = Frame.Cancel.from(1);
 
-        FragmentionDuplexConnection duplexConnection = new FragmentionDuplexConnection(mockConnection, 2);
+        FragmentationDuplexConnection duplexConnection = new FragmentationDuplexConnection(mockConnection, 2);
 
         StepVerifier
             .create(duplexConnection.sendOne(frame))
@@ -97,7 +97,7 @@ public class FragmentionDuplexConnectionTest {
         Frame frame2 = Frame.Request.from(2, FrameType.REQUEST_RESPONSE, new PayloadImpl(data, metadata), 1);
         Frame frame3 = Frame.Request.from(3, FrameType.REQUEST_RESPONSE, new PayloadImpl(data, metadata), 1);
 
-        FragmentionDuplexConnection duplexConnection = new FragmentionDuplexConnection(mockConnection, 2);
+        FragmentationDuplexConnection duplexConnection = new FragmentationDuplexConnection(mockConnection, 2);
 
         StepVerifier
             .create(duplexConnection.send(Flux.just(frame1, frame2, frame3)))
@@ -117,7 +117,7 @@ public class FragmentionDuplexConnectionTest {
         DuplexConnection mockConnection = mock(DuplexConnection.class);
         when(mockConnection.receive()).then(answer -> processor);
 
-        FragmentionDuplexConnection duplexConnection  = new FragmentionDuplexConnection(mockConnection, 2);
+        FragmentationDuplexConnection duplexConnection  = new FragmentationDuplexConnection(mockConnection, 2);
 
         fragmentedFrames
             .subscribe(processor);

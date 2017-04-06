@@ -27,12 +27,21 @@ public class FrameReassembler implements Disposable {
     }
 
     public synchronized void append(Frame frame) {
-        if (FrameHeaderFlyweight.FLAGS_M == (FrameHeaderFlyweight.FLAGS_M & frame.flags())) {
-            final ByteBuf buffer = FrameHeaderFlyweight.sliceFrameMetadataRetained(frame.content());
-            metadataBuffer.addComponent(true, buffer);
-        } else {
-            final ByteBuf buffer = FrameHeaderFlyweight.sliceFrameDataRetained(frame.content());
-            dataBuffer.addComponent(true, buffer);
+        final ByteBuf byteBuf = frame.content();
+        final FrameType frameType = FrameHeaderFlyweight.frameType(byteBuf);
+        final int frameLength = FrameHeaderFlyweight.frameLength(byteBuf);
+        final int metadataLength = FrameHeaderFlyweight.metadataLength(byteBuf, frameType, frameLength);
+        final int dataLength = FrameHeaderFlyweight.dataLength(byteBuf, frameType);
+        if (0 < metadataLength) {
+            int metadataOffset = FrameHeaderFlyweight.metadataOffset(byteBuf);
+            if (FrameHeaderFlyweight.hasMetadataLengthField(frameType)) {
+                metadataOffset += FrameHeaderFlyweight.FRAME_LENGTH_SIZE;
+            }
+            metadataBuffer.addComponent(true, byteBuf.retainedSlice(metadataOffset, metadataLength));
+        }
+        if (0 < dataLength) {
+            final int dataOffset = FrameHeaderFlyweight.dataOffset(byteBuf, frameType, frameLength);
+            dataBuffer.addComponent(true, byteBuf.retainedSlice(dataOffset, dataLength));
         }
     }
 

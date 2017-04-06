@@ -1,6 +1,6 @@
 package io.reactivesocket;
 
-import io.reactivesocket.fragmentation.FragmentionDuplexConnection;
+import io.reactivesocket.fragmentation.FragmentationDuplexConnection;
 import reactor.core.publisher.Mono;
 
 import java.util.function.BiFunction;
@@ -32,7 +32,7 @@ public class Plugins {
             if (Plugins.DUPLEX_CONNECTION_INTERCEPTOR == null) {
                 Plugins.DUPLEX_CONNECTION_INTERCEPTOR = (type, connection) -> {
                     if (type == Plugins.DuplexConnectionInterceptor.Type.SOURCE) {
-                        return new FragmentionDuplexConnection(connection, mtu);
+                        return new FragmentationDuplexConnection(connection, mtu);
                     } else {
                         return connection;
                     }
@@ -41,7 +41,7 @@ public class Plugins {
                 Plugins.DuplexConnectionInterceptor original = Plugins.DUPLEX_CONNECTION_INTERCEPTOR;
                 Plugins.DUPLEX_CONNECTION_INTERCEPTOR = (type, connection) -> {
                     if (type == Plugins.DuplexConnectionInterceptor.Type.SOURCE) {
-                        return original.apply(type, new FragmentionDuplexConnection(connection, mtu));
+                        return original.apply(type, new FragmentationDuplexConnection(connection, mtu));
                     } else {
                         return original.apply(type, connection);
                     }
