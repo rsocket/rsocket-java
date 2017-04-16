@@ -120,7 +120,7 @@ public class MySubscriber<T> extends TestSubscriber<T> {
             return false;
         }
         for (int i = 0; i < values.size(); i++) {
-            Frame p = (Frame) this.values().get(i);
+            Payload p = (Payload) this.values().get(i);
             Tuple<String, String> v = new Tuple<>(StandardCharsets.UTF_8.decode(p.getData()).toString(),
                     StandardCharsets.UTF_8.decode(p.getMetadata()).toString());
             Tuple<String, String> u = values.get(i);
