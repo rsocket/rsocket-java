@@ -17,19 +17,18 @@ package io.reactivesocket.frame;
 
 import io.netty.buffer.ByteBuf;
 import io.reactivesocket.FrameType;
-import io.reactivesocket.util.BitUtil;
 
 public class LeaseFrameFlyweight {
     private LeaseFrameFlyweight() {}
 
     // relative to start of passed offset
     private static final int TTL_FIELD_OFFSET = FrameHeaderFlyweight.FRAME_HEADER_LENGTH;
-    private static final int NUM_REQUESTS_FIELD_OFFSET = TTL_FIELD_OFFSET + BitUtil.SIZE_OF_INT;
-    private static final int PAYLOAD_OFFSET = NUM_REQUESTS_FIELD_OFFSET + BitUtil.SIZE_OF_INT;
+    private static final int NUM_REQUESTS_FIELD_OFFSET = TTL_FIELD_OFFSET + Integer.BYTES;
+    private static final int PAYLOAD_OFFSET = NUM_REQUESTS_FIELD_OFFSET + Integer.BYTES;
 
     public static int computeFrameLength(final int metadataLength) {
         int length = FrameHeaderFlyweight.computeFrameHeaderLength(FrameType.LEASE, metadataLength, 0);
-        return length + BitUtil.SIZE_OF_INT * 2;
+        return length + Integer.BYTES * 2;
     }
 
     public static int encode(
@@ -45,7 +44,7 @@ public class LeaseFrameFlyweight {
         byteBuf.setInt(TTL_FIELD_OFFSET, ttl);
         byteBuf.setInt(NUM_REQUESTS_FIELD_OFFSET, numRequests);
 
-        length += BitUtil.SIZE_OF_INT * 2;
+        length += Integer.BYTES * 2;
         length += FrameHeaderFlyweight.encodeMetadata(byteBuf, FrameType.LEASE, length, metadata);
 
         return length;

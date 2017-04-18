@@ -17,11 +17,7 @@ package io.reactivesocket.frame;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
-import io.reactivesocket.Frame;
 import io.reactivesocket.FrameType;
-import io.reactivesocket.util.BitUtil;
-
-import java.nio.ByteBuffer;
 
 /**
  * Per connection frame flyweight.
@@ -61,8 +57,8 @@ public class FrameHeaderFlyweight {
     static {
         FRAME_LENGTH_FIELD_OFFSET = 0;
         STREAM_ID_FIELD_OFFSET = FRAME_LENGTH_FIELD_OFFSET + FRAME_LENGTH_SIZE;
-        FRAME_TYPE_AND_FLAGS_FIELD_OFFSET = STREAM_ID_FIELD_OFFSET + BitUtil.SIZE_OF_INT;
-        PAYLOAD_OFFSET = FRAME_TYPE_AND_FLAGS_FIELD_OFFSET + BitUtil.SIZE_OF_SHORT;
+        FRAME_TYPE_AND_FLAGS_FIELD_OFFSET = STREAM_ID_FIELD_OFFSET + Integer.BYTES;
+        PAYLOAD_OFFSET = FRAME_TYPE_AND_FLAGS_FIELD_OFFSET + Short.BYTES;
         FRAME_HEADER_LENGTH = PAYLOAD_OFFSET;
     }
 

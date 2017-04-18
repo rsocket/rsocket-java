@@ -18,7 +18,6 @@ package io.reactivesocket.frame;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.reactivesocket.FrameType;
-import io.reactivesocket.util.BitUtil;
 
 import java.nio.charset.StandardCharsets;
 
@@ -35,9 +34,9 @@ public class SetupFrameFlyweight {
 
     // relative to start of passed offset
     private static final int VERSION_FIELD_OFFSET = FrameHeaderFlyweight.FRAME_HEADER_LENGTH;
-    private static final int KEEPALIVE_INTERVAL_FIELD_OFFSET = VERSION_FIELD_OFFSET + BitUtil.SIZE_OF_INT;
-    private static final int MAX_LIFETIME_FIELD_OFFSET = KEEPALIVE_INTERVAL_FIELD_OFFSET + BitUtil.SIZE_OF_INT;
-    private static final int VARIABLE_DATA_OFFSET = MAX_LIFETIME_FIELD_OFFSET + BitUtil.SIZE_OF_INT;
+    private static final int KEEPALIVE_INTERVAL_FIELD_OFFSET = VERSION_FIELD_OFFSET + Integer.BYTES;
+    private static final int MAX_LIFETIME_FIELD_OFFSET = KEEPALIVE_INTERVAL_FIELD_OFFSET + Integer.BYTES;
+    private static final int VARIABLE_DATA_OFFSET = MAX_LIFETIME_FIELD_OFFSET + Integer.BYTES;
 
     public static int computeFrameLength(
         final int flags,
@@ -59,10 +58,10 @@ public class SetupFrameFlyweight {
     ) {
         int length = FrameHeaderFlyweight.computeFrameHeaderLength(FrameType.SETUP, metadataLength, dataLength);
 
-        length += BitUtil.SIZE_OF_INT * 3;
+        length += Integer.BYTES * 3;
 
         if ((flags & FLAGS_RESUME_ENABLE) != 0) {
-            length += BitUtil.SIZE_OF_SHORT + resumeTokenLength;
+            length += Short.BYTES + resumeTokenLength;
         }
 
         length += 1 + metadataMimeType.getBytes(StandardCharsets.UTF_8).length;
@@ -117,11 +116,11 @@ public class SetupFrameFlyweight {
         byteBuf.setInt(KEEPALIVE_INTERVAL_FIELD_OFFSET, keepaliveInterval);
         byteBuf.setInt(MAX_LIFETIME_FIELD_OFFSET, maxLifetime);
 
-        length += BitUtil.SIZE_OF_INT * 3;
+        length += Integer.BYTES * 3;
 
         if ((flags & FLAGS_RESUME_ENABLE) != 0) {
             byteBuf.setShort(length, resumeToken.readableBytes());
-            length += BitUtil.SIZE_OF_SHORT;
+            length += Short.BYTES;
             int resumeTokenLength = resumeToken.readableBytes();
             byteBuf.setBytes(length, resumeToken, resumeTokenLength);
             length += resumeTokenLength;
@@ -183,7 +182,7 @@ public class SetupFrameFlyweight {
         if ((FrameHeaderFlyweight.flags(byteBuf) & FLAGS_RESUME_ENABLE) == 0) {
             return 0;
         } else {
-            return BitUtil.SIZE_OF_SHORT + byteBuf.getShort(VARIABLE_DATA_OFFSET);
+            return Short.BYTES + byteBuf.getShort(VARIABLE_DATA_OFFSET);
         }
     }
 

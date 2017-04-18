@@ -17,7 +17,6 @@ package io.reactivesocket.frame;
 
 import io.netty.buffer.ByteBuf;
 import io.reactivesocket.FrameType;
-import io.reactivesocket.util.BitUtil;
 
 public class RequestNFrameFlyweight {
     private RequestNFrameFlyweight() {}
@@ -28,7 +27,7 @@ public class RequestNFrameFlyweight {
     public static int computeFrameLength() {
         int length = FrameHeaderFlyweight.computeFrameHeaderLength(FrameType.REQUEST_N, 0, 0);
 
-        return length + BitUtil.SIZE_OF_INT;
+        return length + Integer.BYTES;
     }
 
     public static int encode(
@@ -42,7 +41,7 @@ public class RequestNFrameFlyweight {
 
         byteBuf.setInt(REQUEST_N_FIELD_OFFSET, requestN);
 
-        return length + BitUtil.SIZE_OF_INT;
+        return length + Integer.BYTES;
     }
 
     public static int requestN(final ByteBuf byteBuf) {
@@ -50,6 +49,6 @@ public class RequestNFrameFlyweight {
     }
 
     public static int payloadOffset(final ByteBuf byteBuf) {
-        return FrameHeaderFlyweight.FRAME_HEADER_LENGTH + BitUtil.SIZE_OF_INT;
+        return FrameHeaderFlyweight.FRAME_HEADER_LENGTH + Integer.BYTES;
     }
 }

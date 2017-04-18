@@ -21,7 +21,6 @@ import io.reactivesocket.Frame;
 import io.reactivesocket.FrameType;
 import io.reactivesocket.Plugins;
 import io.reactivesocket.Plugins.DuplexConnectionInterceptor.Type;
-import io.reactivesocket.util.BitUtil;
 import org.reactivestreams.Publisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -66,7 +65,7 @@ public class ClientServerInputMultiplexer {
                     } else {
                         type = Type.CLIENT;
                     }
-                } else if (BitUtil.isEven(streamId)) {
+                } else if ((streamId & 0b1) == 0) {
                     type = Type.SERVER;
                 } else {
                     type = Type.CLIENT;
