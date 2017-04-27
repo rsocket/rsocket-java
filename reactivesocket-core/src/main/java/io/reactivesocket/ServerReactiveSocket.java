@@ -288,11 +288,6 @@ public class ServerReactiveSocket implements ReactiveSocket {
 
                     return frames;
                 })
-                .doOnCancel(() -> {
-                    if (connection.availability() > 0.0) {
-                        connection.sendOne(Frame.Cancel.from(streamId)).subscribe(null, errorConsumer);
-                    }
-                })
                 .doOnError(t -> {
                     if (connection.availability() > 0.0) {
                         connection.sendOne(Frame.Error.from(streamId, t)).subscribe(null, errorConsumer);
