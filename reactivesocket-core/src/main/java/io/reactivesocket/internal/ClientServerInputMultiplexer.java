@@ -55,8 +55,7 @@ public class ClientServerInputMultiplexer {
         serverConnection = Plugins.DUPLEX_CONNECTION_INTERCEPTOR.apply(Type.SERVER, new InternalDuplexConnection(source, server));
         clientConnection = Plugins.DUPLEX_CONNECTION_INTERCEPTOR.apply(Type.CLIENT, new InternalDuplexConnection(source, client));
 
-        source.receive()
-            .groupBy(frame -> {
+        source.receive().groupBy(frame -> {
                 int streamId = frame.getStreamId();
                 final Type type;
                 if (streamId == 0) {
