@@ -284,7 +284,7 @@ public class ServerReactiveSocket implements ReactiveSocket {
 
                     return frames;
                 })
-                .doOnComplete(() -> Mono.just(Frame.PayloadFrame.from(streamId, FrameType.COMPLETE)))
+                .concatWith(Mono.just(Frame.PayloadFrame.from(streamId, FrameType.COMPLETE)))
                 .onErrorResume(t -> Mono.just(Frame.Error.from(streamId, t)))
                 .doFinally(signalType -> {
                     removeSubscription(streamId);
