@@ -44,9 +44,15 @@ public final class HelloWorldClient {
         ReactiveSocketServer s = ReactiveSocketServer.create(TcpTransportServer.create(TcpServer.create()));
         StartedServer server = s.start((setupPayload, reactiveSocket) -> {
             return new DisabledLeaseAcceptingSocket(new AbstractReactiveSocket() {
+                boolean fail = true;
                 @Override
                 public Mono<Payload> requestResponse(Payload p) {
-                    return Mono.just(p);
+                    if (fail) {
+                        fail = false;
+                        return Mono.error(new Throwable());
+                    } else {
+                        return Mono.just(p);
+                    }
                 }
             });
         });
@@ -59,9 +65,22 @@ public final class HelloWorldClient {
 
         socket.requestResponse(new PayloadImpl("Hello"))
                 .map(payload -> StandardCharsets.UTF_8.decode(payload.getData()).toString())
+                .onErrorReturn("error")
                 .doOnNext(System.out::println)
-                .concatWith(socket.close().cast(String.class))
-                .ignoreElements()
                 .block();
+
+        socket.requestResponse(new PayloadImpl("Hello"))
+                .map(payload -> StandardCharsets.UTF_8.decode(payload.getData()).toString())
+                .onErrorReturn("error")
+                .doOnNext(System.out::println)
+                .block();
+
+        socket.requestResponse(new PayloadImpl("Hello"))
+                .map(payload -> StandardCharsets.UTF_8.decode(payload.getData()).toString())
+                .onErrorReturn("error")
+                .doOnNext(System.out::println)
+                .block();
+
+        socket.close().block();
     }
 }
