@@ -17,6 +17,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 import reactor.ipc.netty.tcp.TcpClient;
 import reactor.ipc.netty.tcp.TcpServer;
 
@@ -50,7 +51,6 @@ public class TcpIntegrationTest {
         server.shutdown();
     }
 
-    // This will throw as it completes without any onNext
     @Test(timeout = 2_000L)
     public void testCompleteWithoutNext() throws InterruptedException {
         handler = new AbstractReactiveSocket() {
@@ -97,5 +97,30 @@ public class TcpIntegrationTest {
         Payload result = client.requestStream(new PayloadImpl("REQUEST", "META")).blockFirst();
 
         assertEquals("", StandardCharsets.UTF_8.decode(result.getData()).toString());
+    }
+
+    @Test(timeout = 2_000L)
+    public void testRequestResponseErrors() throws InterruptedException {
+        handler = new AbstractReactiveSocket() {
+            boolean first = true;
+
+            @Override
+            public Mono<Payload> requestResponse(Payload payload) {
+                if (first) {
+                    first = false;
+                    return Mono.error(new RuntimeException("EX"));
+                } else {
+                    return Mono.just(new PayloadImpl("SUCCESS"));
+                }
+            }
+        };
+
+        ReactiveSocket client = buildClient();
+
+        Payload response1 = client.requestResponse(new PayloadImpl("REQUEST", "META")).onErrorReturn(new PayloadImpl("ERROR")).block();
+        Payload response2 = client.requestResponse(new PayloadImpl("REQUEST", "META")).onErrorReturn(new PayloadImpl("ERROR")).block();
+
+        assertEquals("ERROR", StandardCharsets.UTF_8.decode(response1.getData()).toString());
+        assertEquals("SUCCESS", StandardCharsets.UTF_8.decode(response2.getData()).toString());
     }
 }
