@@ -19,10 +19,10 @@ dependencies {
     compile project(':reactivesocket-client')
     compile project(':reactivesocket-transport-netty')
     testCompile project(':reactivesocket-test')
-    compile 'com.fasterxml.jackson.core:jackson-core:2.8.0.rc2'
-    compile 'com.fasterxml.jackson.core:jackson-databind:2.8.0.rc2'
+    compile 'com.fasterxml.jackson.core:jackson-core:2.8.8'
+    compile 'com.fasterxml.jackson.core:jackson-databind:2.8.8'
     compile 'org.apache.commons:commons-lang3:3.4'
-    compile 'io.reactivex:rxnetty-tcp:0.5.2-rc.5'
-    compile 'io.reactivex.rxjava2:rxjava:2.0.2'
+    compile 'io.reactivex:rxnetty-tcp:0.5.2'
+    compile 'io.reactivex.rxjava2:rxjava:2.1.0'
     compile 'io.airlift:airline:0.7'
 }
