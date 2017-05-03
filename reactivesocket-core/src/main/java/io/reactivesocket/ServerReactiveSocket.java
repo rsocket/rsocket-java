@@ -262,11 +262,7 @@ public class ServerReactiveSocket implements ReactiveSocket {
                 .doOnSubscribe(subscription -> addSubscription(streamId, subscription))
                 .map(payload ->
                     Frame.PayloadFrame.from(streamId, FrameType.NEXT_COMPLETE, payload, FrameHeaderFlyweight.FLAGS_C))
-                .doOnError(t -> {
-                    if (connection.availability() > 0.0) {
-                        connection.sendOne(Frame.Error.from(streamId, t)).subscribe(null, errorConsumer);
-                    }
-                })
+                .onErrorResume(t -> Mono.just(Frame.Error.from(streamId, t)))
                 .doFinally(signalType -> {
                     removeSubscription(streamId);
                 });
@@ -288,16 +284,8 @@ public class ServerReactiveSocket implements ReactiveSocket {
 
                     return frames;
                 })
-                .doOnError(t -> {
-                    if (connection.availability() > 0.0) {
-                        connection.sendOne(Frame.Error.from(streamId, t)).subscribe(null, errorConsumer);
-                    }
-                })
-                .doOnComplete(() -> {
-                    if (connection.availability() > 0.0) {
-                        connection.sendOne(Frame.PayloadFrame.from(streamId, FrameType.COMPLETE)).subscribe(null, errorConsumer);
-                    }
-                })
+                .doOnComplete(() -> Mono.just(Frame.PayloadFrame.from(streamId, FrameType.COMPLETE)))
+                .onErrorResume(t -> Mono.just(Frame.Error.from(streamId, t)))
                 .doFinally(signalType -> {
                     removeSubscription(streamId);
                 });

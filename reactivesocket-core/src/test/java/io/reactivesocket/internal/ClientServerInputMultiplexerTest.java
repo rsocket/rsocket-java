@@ -46,25 +46,4 @@ public class ClientServerInputMultiplexerTest {
         assertEquals(1, serverFrames.get());
         assertEquals(0, connectionFrames.get());
     }
-
-    /**
-     * This (arguably) invalid test reproduces what we observe with Mono.error() in requestResponse.
-     */
-    @Test
-    public void testHandlesErrors() {
-        AtomicInteger clientFrames = new AtomicInteger();
-
-        Flux<Frame> receive = multiplexer.asClientConnection().receive();
-        Disposable s = receive.doOnNext(f -> {
-            clientFrames.incrementAndGet();
-        }).subscribe();
-
-        source.addToReceivedBuffer(Frame.Error.from(1, new Exception()));
-        assertEquals(1, clientFrames.get());
-
-        s.dispose();
-
-        source.addToReceivedBuffer(Frame.Error.from(1, new Exception()));
-        assertEquals(2, clientFrames.get());
-    }
 }
