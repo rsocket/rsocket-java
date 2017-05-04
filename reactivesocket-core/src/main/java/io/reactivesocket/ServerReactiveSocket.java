@@ -153,9 +153,11 @@ public class ServerReactiveSocket implements ReactiveSocket {
                     Subscriber<Payload> receiver;
                     switch (frame.getType()) {
                         case FIRE_AND_FORGET:
-                            return handleFireAndForget(streamId, fireAndForget(new PayloadImpl(frame)));
+                            return handleFireAndForget(streamId,
+                                fireAndForget(new PayloadImpl(frame)));
                         case REQUEST_RESPONSE:
-                            return handleRequestResponse(streamId, requestResponse(new PayloadImpl(frame)));
+                            return handleRequestResponse(streamId,
+                                requestResponse(new PayloadImpl(frame)));
                         case CANCEL:
                             return handleCancelFrame(streamId);
                         case KEEPALIVE:
@@ -163,7 +165,8 @@ public class ServerReactiveSocket implements ReactiveSocket {
                         case REQUEST_N:
                             return handleRequestN(streamId, frame);
                         case REQUEST_STREAM:
-                            return handleStream(streamId, requestStream(new PayloadImpl(frame)), frame);
+                            return handleStream(streamId, requestStream(new PayloadImpl(frame)),
+                                frame);
                         case REQUEST_CHANNEL:
                             return handleChannel(streamId, frame);
                         case PAYLOAD:
@@ -202,9 +205,11 @@ public class ServerReactiveSocket implements ReactiveSocket {
                             return Mono.empty();
 
                         case SETUP:
-                            return handleError(streamId, new IllegalStateException("Setup frame received post setup."));
+                            return handleError(streamId,
+                                new IllegalStateException("Setup frame received post setup."));
                         default:
-                            return handleError(streamId, new IllegalStateException("ServerReactiveSocket: Unexpected frame type: "
+                            return handleError(streamId, new IllegalStateException(
+                                "ServerReactiveSocket: Unexpected frame type: "
                                     + frame.getType()));
                     }
                 } finally {

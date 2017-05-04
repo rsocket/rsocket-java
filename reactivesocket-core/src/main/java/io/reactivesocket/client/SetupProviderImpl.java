@@ -118,6 +118,11 @@ final class SetupProviderImpl implements SetupProvider {
     }
 
     @Override
+    public SetupProvider errorConsumer(Consumer<Throwable> errorConsumer) {
+        return new SetupProviderImpl(setupFrame, leaseDecorator, keepAliveProvider, errorConsumer);
+    }
+
+    @Override
     public SetupProvider setupPayload(Payload setupPayload) {
         Frame newSetup = from(getFlags(setupFrame) & ~ConnectionSetupPayload.HONOR_LEASE,
             keepaliveInterval(setupFrame), maxLifetime(setupFrame),
