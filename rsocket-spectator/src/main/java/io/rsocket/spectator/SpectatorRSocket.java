@@ -4,7 +4,7 @@ import com.netflix.spectator.api.Counter;
 import com.netflix.spectator.api.Registry;
 import com.netflix.spectator.api.Timer;
 import io.rsocket.Payload;
-import io.rsocket.ReactiveSocket;
+import io.rsocket.RSocket;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -13,10 +13,10 @@ import java.lang.reflect.Array;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Wraps a {@link ReactiveSocket} with counters
+ * Wraps a {@link RSocket} with counters
  */
-public class SpectatorReactiveSocket implements ReactiveSocket {
-    private final ReactiveSocket delegate;
+public class SpectatorRSocket implements RSocket {
+    private final RSocket delegate;
 
     private Counter fireAndForgetErrors;
     private Counter fireAndForgetCanceled;
@@ -41,7 +41,7 @@ public class SpectatorReactiveSocket implements ReactiveSocket {
     private Counter metadataPushTotal;
     private Timer metadataPushTimer;
 
-    public SpectatorReactiveSocket(Registry registry, ReactiveSocket delegate, String... tags) {
+    public SpectatorRSocket(Registry registry, RSocket delegate, String... tags) {
         this.delegate = delegate;
 
         this.fireAndForgetErrors = registry.counter("reactiveSocketStats", concatenate(tags, "fireAndForget", "errors"));

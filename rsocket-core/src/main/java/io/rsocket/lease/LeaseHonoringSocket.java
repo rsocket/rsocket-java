@@ -16,9 +16,9 @@
 
 package io.rsocket.lease;
 
-import io.rsocket.ReactiveSocket;
+import io.rsocket.RSocket;
 
 import java.util.function.Consumer;
 
-public interface LeaseHonoringSocket extends ReactiveSocket, Consumer<Lease> {
+public interface LeaseHonoringSocket extends RSocket, Consumer<Lease> {
 }

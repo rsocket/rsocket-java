@@ -16,16 +16,16 @@
 
 package io.rsocket.client;
 
-import io.rsocket.ClientReactiveSocket;
+import io.rsocket.ClientRSocket;
 import io.rsocket.ConnectionSetupPayload;
 import io.rsocket.DuplexConnection;
 import io.rsocket.Frame;
 import io.rsocket.FrameType;
 import io.rsocket.Payload;
-import io.rsocket.ReactiveSocket;
-import io.rsocket.ServerReactiveSocket;
+import io.rsocket.RSocket;
+import io.rsocket.ServerRSocket;
 import io.rsocket.StreamIdSupplier;
-import io.rsocket.client.ReactiveSocketClient.SocketAcceptor;
+import io.rsocket.client.RSocketClient.SocketAcceptor;
 import io.rsocket.internal.ClientServerInputMultiplexer;
 import io.rsocket.lease.DisableLeaseSocket;
 import io.rsocket.lease.LeaseEnforcingSocket;
@@ -44,11 +44,11 @@ import static io.rsocket.Frame.Setup.maxLifetime;
 final class SetupProviderImpl implements SetupProvider {
 
     private final Frame setupFrame;
-    private final Function<ReactiveSocket, ? extends LeaseHonoringSocket> leaseDecorator;
+    private final Function<RSocket, ? extends LeaseHonoringSocket> leaseDecorator;
     private final Consumer<Throwable> errorConsumer;
     private final KeepAliveProvider keepAliveProvider;
 
-    SetupProviderImpl(Frame setupFrame, Function<ReactiveSocket, ? extends LeaseHonoringSocket> leaseDecorator,
+    SetupProviderImpl(Frame setupFrame, Function<RSocket, ? extends LeaseHonoringSocket> leaseDecorator,
                       KeepAliveProvider keepAliveProvider, Consumer<Throwable> errorConsumer) {
         this.keepAliveProvider = keepAliveProvider;
         this.errorConsumer = errorConsumer;
@@ -58,12 +58,12 @@ final class SetupProviderImpl implements SetupProvider {
     }
 
     @Override
-    public Mono<ReactiveSocket> accept(DuplexConnection connection, SocketAcceptor acceptor) {
+    public Mono<RSocket> accept(DuplexConnection connection, SocketAcceptor acceptor) {
         return connection.sendOne(setupFrame)
             .then(() -> {
                 ClientServerInputMultiplexer multiplexer = new ClientServerInputMultiplexer(connection);
-                ClientReactiveSocket sendingSocket =
-                    new ClientReactiveSocket(multiplexer.asClientConnection(), errorConsumer,
+                ClientRSocket sendingSocket =
+                    new ClientRSocket(multiplexer.asClientConnection(), errorConsumer,
                         StreamIdSupplier.clientSupplier(),
                         keepAliveProvider);
                 LeaseHonoringSocket leaseHonoringSocket = leaseDecorator.apply(sendingSocket);
@@ -71,7 +71,7 @@ final class SetupProviderImpl implements SetupProvider {
                 sendingSocket.start(leaseHonoringSocket);
 
                 LeaseEnforcingSocket acceptingSocket = acceptor.accept(sendingSocket);
-                ServerReactiveSocket receivingSocket = new ServerReactiveSocket(multiplexer.asServerConnection(),
+                ServerRSocket receivingSocket = new ServerRSocket(multiplexer.asServerConnection(),
                     acceptingSocket, true,
                     errorConsumer);
                 receivingSocket.start();
@@ -98,7 +98,7 @@ final class SetupProviderImpl implements SetupProvider {
     }
 
     @Override
-    public SetupProvider honorLease(Function<ReactiveSocket, LeaseHonoringSocket> leaseDecorator) {
+    public SetupProvider honorLease(Function<RSocket, LeaseHonoringSocket> leaseDecorator) {
         return new SetupProviderImpl(setupFrame, leaseDecorator, keepAliveProvider, errorConsumer);
     }
 
@@ -108,7 +108,7 @@ final class SetupProviderImpl implements SetupProvider {
     }
 
     @Override
-    public SetupProvider disableLease(Function<ReactiveSocket, DisableLeaseSocket> socketFactory) {
+    public SetupProvider disableLease(Function<RSocket, DisableLeaseSocket> socketFactory) {
         Frame newSetup = from(getFlags(setupFrame) & ~ConnectionSetupPayload.HONOR_LEASE,
             keepaliveInterval(setupFrame), maxLifetime(setupFrame),
             Frame.Setup.metadataMimeType(setupFrame), Frame.Setup.dataMimeType(setupFrame),

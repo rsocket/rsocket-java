@@ -17,7 +17,7 @@
 package io.rsocket.test.util;
 
 import io.rsocket.Payload;
-import io.rsocket.ReactiveSocket;
+import io.rsocket.RSocket;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -27,7 +27,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 
-public class MockReactiveSocket implements ReactiveSocket {
+public class MockRSocket implements RSocket {
 
     private final AtomicInteger fnfCount;
     private final AtomicInteger rrCount;
@@ -35,9 +35,9 @@ public class MockReactiveSocket implements ReactiveSocket {
     private final AtomicInteger rSubCount;
     private final AtomicInteger rChannelCount;
     private final AtomicInteger pushCount;
-    private final ReactiveSocket delegate;
+    private final RSocket delegate;
 
-    public MockReactiveSocket(ReactiveSocket delegate) {
+    public MockRSocket(RSocket delegate) {
         this.delegate = delegate;
         fnfCount = new AtomicInteger();
         rrCount = new AtomicInteger();

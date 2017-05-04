@@ -17,8 +17,8 @@
 package io.rsocket.test;
 
 import io.rsocket.Payload;
-import io.rsocket.ReactiveSocket;
-import io.rsocket.client.ReactiveSocketClient;
+import io.rsocket.RSocket;
+import io.rsocket.client.RSocketClient;
 import io.rsocket.util.PayloadImpl;
 import org.HdrHistogram.Recorder;
 import reactor.core.publisher.Flux;
@@ -28,10 +28,10 @@ import java.time.Duration;
 public class PingClient {
 
     private final Payload payload;
-    private final ReactiveSocketClient client;
-    private ReactiveSocket reactiveSocket;
+    private final RSocketClient client;
+    private RSocket reactiveSocket;
 
-    public PingClient(ReactiveSocketClient client) {
+    public PingClient(RSocketClient client) {
         this.client = client;
         this.payload = new PayloadImpl("hello");
     }

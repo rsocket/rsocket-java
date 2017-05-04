@@ -16,58 +16,58 @@
 
 package io.rsocket.client;
 
-import io.rsocket.AbstractReactiveSocket;
+import io.rsocket.AbstractRSocket;
 import io.rsocket.Availability;
-import io.rsocket.ReactiveSocket;
+import io.rsocket.RSocket;
 import io.rsocket.lease.DisabledLeaseAcceptingSocket;
 import io.rsocket.lease.LeaseEnforcingSocket;
 import io.rsocket.transport.TransportClient;
 import reactor.core.publisher.Mono;
 
-public interface ReactiveSocketClient extends Availability {
+public interface RSocketClient extends Availability {
 
     /**
-     * Creates a new {@code ReactiveSocket} every time the returned {@code Publisher} is subscribed.
+     * Creates a new {@code RSocket} every time the returned {@code Publisher} is subscribed.
      *
-     * @return A {@code Publisher} that provides a new {@code ReactiveSocket} every time it is subscribed.
+     * @return A {@code Publisher} that provides a new {@code RSocket} every time it is subscribed.
      */
-    Mono<? extends ReactiveSocket> connect();
+    Mono<? extends RSocket> connect();
 
     /**
-     * Creates a new instances of {@code ReactiveSocketClient} using the passed {@code transportClient}. This client
+     * Creates a new instances of {@code RSocketClient} using the passed {@code transportClient}. This client
      * will not accept any requests from the server, so the client is half duplex. To create full duplex clients use
      * {@link #createDuplex(TransportClient, SocketAcceptor, SetupProvider)}.
      *
      * @param transportClient Transport to use.
-     * @param setupProvider provider of {@code ReactiveSocket} setup.
+     * @param setupProvider provider of {@code RSocket} setup.
      *
-     * @return A new {@code ReactiveSocketClient} client.
+     * @return A new {@code RSocketClient} client.
      */
-    static ReactiveSocketClient create(TransportClient transportClient, SetupProvider setupProvider) {
+    static RSocketClient create(TransportClient transportClient, SetupProvider setupProvider) {
         return createDuplex(transportClient, reactiveSocket -> {
-            return new DisabledLeaseAcceptingSocket(new AbstractReactiveSocket() { /*Reject all requests.*/ });
+            return new DisabledLeaseAcceptingSocket(new AbstractRSocket() { /*Reject all requests.*/ });
         }, setupProvider);
     }
 
     /**
-     * Creates a new instances of {@code ReactiveSocketClient} using the passed {@code transportClient}. This creates a
+     * Creates a new instances of {@code RSocketClient} using the passed {@code transportClient}. This creates a
      * full duplex client that accepts requests from the server once the connection is setup.
      *
      * @param transportClient Transport to use.
-     * @param acceptor Acceptor to accept new {@link ReactiveSocket} established by the client.
-     * @param setupProvider provider of {@code ReactiveSocket} setup.
+     * @param acceptor Acceptor to accept new {@link RSocket} established by the client.
+     * @param setupProvider provider of {@code RSocket} setup.
      *
-     * @return A new {@code ReactiveSocketClient} client.
+     * @return A new {@code RSocketClient} client.
      */
-    static ReactiveSocketClient createDuplex(TransportClient transportClient, SocketAcceptor acceptor,
+    static RSocketClient createDuplex(TransportClient transportClient, SocketAcceptor acceptor,
                                              SetupProvider setupProvider) {
-        return new DefaultReactiveSocketClient(transportClient, setupProvider, acceptor);
+        return new DefaultRSocketClient(transportClient, setupProvider, acceptor);
     }
 
     /**
-     * {@code ReactiveSocket} is a full duplex protocol where a client and server are identical in terms of both having
+     * {@code RSocket} is a full duplex protocol where a client and server are identical in terms of both having
      * the capability to initiate requests to their peer. This interface provides the contract where a client accepts
-     * a new {@code ReactiveSocket} for sending requests to the peer and returns a new {@code ReactiveSocket} that will
+     * a new {@code RSocket} for sending requests to the peer and returns a new {@code RSocket} that will
      * be used to accept requests from it's peer.
      */
     interface SocketAcceptor {
@@ -80,7 +80,7 @@ public interface ReactiveSocketClient extends Availability {
          *
          * @return Socket for receiving requests from the peer.
          */
-        LeaseEnforcingSocket accept(ReactiveSocket reactiveSocket);
+        LeaseEnforcingSocket accept(RSocket reactiveSocket);
 
     }
 }

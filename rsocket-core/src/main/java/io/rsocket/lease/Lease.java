@@ -19,7 +19,7 @@ package io.rsocket.lease;
 import java.nio.ByteBuffer;
 
 /**
- * A contract for ReactiveSocket lease, which is sent by a request acceptor and is time bound.
+ * A contract for RSocket lease, which is sent by a request acceptor and is time bound.
  */
 public interface Lease {
 

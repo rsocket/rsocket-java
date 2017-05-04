@@ -57,7 +57,7 @@ public class TestDuplexConnection implements DuplexConnection {
     @Override
     public Mono<Void> send(Publisher<Frame> frames) {
         if (availability <= 0) {
-            return Mono.error(new IllegalStateException("ReactiveSocket not available. Availability: " + availability));
+            return Mono.error(new IllegalStateException("RSocket not available. Availability: " + availability));
         }
         TestSubscriber<Frame> subscriber = TestSubscriber.create(initialSendRequestN);
         Flux.from(frames)

@@ -17,7 +17,7 @@
 package io.rsocket.client;
 
 import io.rsocket.Payload;
-import io.rsocket.ReactiveSocket;
+import io.rsocket.RSocket;
 import io.rsocket.util.PayloadImpl;
 import org.junit.Assert;
 import org.junit.Test;
@@ -40,10 +40,10 @@ public class LoadBalancerTest {
         InetSocketAddress local0 = InetSocketAddress.createUnresolved("localhost", 7000);
         InetSocketAddress local1 = InetSocketAddress.createUnresolved("localhost", 7001);
 
-        TestingReactiveSocket socket = new TestingReactiveSocket(Function.identity());
-        ReactiveSocketClient failing = failingClient(local0);
-        ReactiveSocketClient succeeding = succeedingFactory(socket);
-        List<ReactiveSocketClient> factories = Arrays.asList(failing, succeeding);
+        TestingRSocket socket = new TestingRSocket(Function.identity());
+        RSocketClient failing = failingClient(local0);
+        RSocketClient succeeding = succeedingFactory(socket);
+        List<RSocketClient> factories = Arrays.asList(failing, succeeding);
 
         testBalancer(factories);
     }
@@ -53,8 +53,8 @@ public class LoadBalancerTest {
         InetSocketAddress local0 = InetSocketAddress.createUnresolved("localhost", 7000);
         InetSocketAddress local1 = InetSocketAddress.createUnresolved("localhost", 7001);
 
-        TestingReactiveSocket socket = new TestingReactiveSocket(Function.identity());
-        TestingReactiveSocket failingSocket = new TestingReactiveSocket(Function.identity()) {
+        TestingRSocket socket = new TestingRSocket(Function.identity());
+        TestingRSocket failingSocket = new TestingRSocket(Function.identity()) {
             @Override
             public Mono<Payload> requestResponse(Payload payload) {
                 return Mono.error(new RuntimeException("You shouldn't be here"));
@@ -66,15 +66,15 @@ public class LoadBalancerTest {
             }
         };
 
-        ReactiveSocketClient failing = succeedingFactory(failingSocket);
-        ReactiveSocketClient succeeding = succeedingFactory(socket);
-        List<ReactiveSocketClient> clients = Arrays.asList(failing, succeeding);
+        RSocketClient failing = succeedingFactory(failingSocket);
+        RSocketClient succeeding = succeedingFactory(socket);
+        List<RSocketClient> clients = Arrays.asList(failing, succeeding);
 
         testBalancer(clients);
     }
 
-    private void testBalancer(List<ReactiveSocketClient> factories) throws InterruptedException {
-        Publisher<List<ReactiveSocketClient>> src = s -> {
+    private void testBalancer(List<RSocketClient> factories) throws InterruptedException {
+        Publisher<List<RSocketClient>> src = s -> {
             s.onNext(factories);
             s.onComplete();
         };
@@ -90,7 +90,7 @@ public class LoadBalancerTest {
         }
     }
 
-    private void makeAcall(ReactiveSocket balancer) throws InterruptedException {
+    private void makeAcall(RSocket balancer) throws InterruptedException {
         CountDownLatch latch = new CountDownLatch(1);
 
         balancer.requestResponse(PayloadImpl.EMPTY).subscribe(new Subscriber<Payload>() {
@@ -120,10 +120,10 @@ public class LoadBalancerTest {
         latch.await();
     }
 
-    private static ReactiveSocketClient succeedingFactory(ReactiveSocket socket) {
-        return new ReactiveSocketClient() {
+    private static RSocketClient succeedingFactory(RSocket socket) {
+        return new RSocketClient() {
             @Override
-            public Mono<ReactiveSocket> connect() {
+            public Mono<RSocket> connect() {
                 return Mono.just(socket);
             }
 
@@ -135,10 +135,10 @@ public class LoadBalancerTest {
         };
     }
 
-    private static ReactiveSocketClient failingClient(SocketAddress sa) {
-        return new ReactiveSocketClient() {
+    private static RSocketClient failingClient(SocketAddress sa) {
+        return new RSocketClient() {
             @Override
-            public Mono<ReactiveSocket> connect() {
+            public Mono<RSocket> connect() {
                 Assert.fail();
                 return null;
             }

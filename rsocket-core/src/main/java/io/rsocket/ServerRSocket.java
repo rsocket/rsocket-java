@@ -39,10 +39,10 @@ import java.util.Collection;
 import java.util.function.Consumer;
 
 /**
- * Server side ReactiveSocket. Receives {@link Frame}s from a
- * {@link ClientReactiveSocket}
+ * Server side RSocket. Receives {@link Frame}s from a
+ * {@link ClientRSocket}
  */
-public class ServerReactiveSocket implements ReactiveSocket {
+public class ServerRSocket implements RSocket {
 
     private final DuplexConnection connection;
     private final Consumer<Throwable> errorConsumer;
@@ -50,11 +50,11 @@ public class ServerReactiveSocket implements ReactiveSocket {
     private final IntObjectHashMap<Subscription> sendingSubscriptions;
     private final IntObjectHashMap<UnicastProcessor<Payload>> channelProcessors;
 
-    private final ReactiveSocket requestHandler;
+    private final RSocket requestHandler;
 
     private volatile Disposable subscribe;
 
-    public ServerReactiveSocket(DuplexConnection connection, ReactiveSocket requestHandler,
+    public ServerRSocket(DuplexConnection connection, RSocket requestHandler,
                                 boolean clientHonorsLease, Consumer<Throwable> errorConsumer) {
         this.requestHandler = requestHandler;
         this.connection = connection;
@@ -80,7 +80,7 @@ public class ServerReactiveSocket implements ReactiveSocket {
         }
     }
 
-    public ServerReactiveSocket(DuplexConnection connection, ReactiveSocket requestHandler,
+    public ServerRSocket(DuplexConnection connection, RSocket requestHandler,
                                 Consumer<Throwable> errorConsumer) {
         this(connection, requestHandler, true, errorConsumer);
     }
@@ -144,7 +144,7 @@ public class ServerReactiveSocket implements ReactiveSocket {
         return connection.onClose();
     }
 
-    public ServerReactiveSocket start() {
+    public ServerRSocket start() {
         subscribe = connection
             .receive()
             .flatMap(frame -> {
@@ -204,7 +204,7 @@ public class ServerReactiveSocket implements ReactiveSocket {
                         case SETUP:
                             return handleError(streamId, new IllegalStateException("Setup frame received post setup."));
                         default:
-                            return handleError(streamId, new IllegalStateException("ServerReactiveSocket: Unexpected frame type: "
+                            return handleError(streamId, new IllegalStateException("ServerRSocket: Unexpected frame type: "
                                     + frame.getType()));
                     }
                 } finally {

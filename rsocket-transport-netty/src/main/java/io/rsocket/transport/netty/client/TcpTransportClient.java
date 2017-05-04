@@ -18,7 +18,7 @@ package io.rsocket.transport.netty.client;
 
 import io.rsocket.DuplexConnection;
 import io.rsocket.transport.TransportClient;
-import io.rsocket.transport.netty.ReactiveSocketLengthCodec;
+import io.rsocket.transport.netty.RSocketLengthCodec;
 import io.rsocket.transport.netty.NettyDuplexConnection;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,7 +41,7 @@ public class TcpTransportClient implements TransportClient {
     public Mono<DuplexConnection> connect() {
         return Mono.create(sink ->
             client.newHandler((in, out) -> {
-                in.context().addHandler("client-length-codec", new ReactiveSocketLengthCodec());
+                in.context().addHandler("client-length-codec", new RSocketLengthCodec());
                 NettyDuplexConnection connection = new NettyDuplexConnection(in, out, in.context());
                 sink.success(connection);
                 return connection.onClose();

@@ -16,19 +16,19 @@
 package io.rsocket.util;
 
 import io.rsocket.Payload;
-import io.rsocket.ReactiveSocket;
+import io.rsocket.RSocket;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 /**
- * Wrapper/Proxy for a ReactiveSocket.
+ * Wrapper/Proxy for a RSocket.
  * This is useful when we want to override a specific method.
  */
-public class ReactiveSocketProxy implements ReactiveSocket {
-    protected final ReactiveSocket source;
+public class RSocketProxy implements RSocket {
+    protected final RSocket source;
 
-    public ReactiveSocketProxy(ReactiveSocket source) {
+    public RSocketProxy(RSocket source) {
         this.source = source;
     }
 

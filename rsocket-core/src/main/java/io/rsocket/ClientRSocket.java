@@ -40,10 +40,10 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
- * Client Side of a ReactiveSocket socket. Sends {@link Frame}s
- * to a {@link ServerReactiveSocket}
+ * Client Side of a RSocket socket. Sends {@link Frame}s
+ * to a {@link ServerRSocket}
  */
-public class ClientReactiveSocket implements ReactiveSocket {
+public class ClientRSocket implements RSocket {
 
     private static final ClosedChannelException CLOSED_CHANNEL_EXCEPTION = new ClosedChannelException();
 
@@ -58,7 +58,7 @@ public class ClientReactiveSocket implements ReactiveSocket {
     private Disposable keepAliveSendSub;
     private volatile Consumer<Lease> leaseConsumer; // Provided on start()
 
-    public ClientReactiveSocket(DuplexConnection connection, Consumer<Throwable> errorConsumer,
+    public ClientRSocket(DuplexConnection connection, Consumer<Throwable> errorConsumer,
                                 StreamIdSupplier streamIdSupplier, KeepAliveProvider keepAliveProvider) {
         this.connection = connection;
         this.errorConsumer = new KnownErrorFilter(errorConsumer);
@@ -122,7 +122,7 @@ public class ClientReactiveSocket implements ReactiveSocket {
         return connection.onClose();
     }
 
-    public ClientReactiveSocket start(Consumer<Lease> leaseConsumer) {
+    public ClientRSocket start(Consumer<Lease> leaseConsumer) {
         this.leaseConsumer = leaseConsumer;
 
         keepAliveSendSub = connection.send(keepAliveProvider.ticks()
@@ -207,7 +207,7 @@ public class ClientReactiveSocket implements ReactiveSocket {
                 return receiver
                     .doOnRequest(l -> {
                         boolean _firstRequest = false;
-                        synchronized (ClientReactiveSocket.this) {
+                        synchronized (ClientRSocket.this) {
                             if (firstRequest) {
                                 _firstRequest = true;
                                 firstRequest = false;
@@ -219,7 +219,7 @@ public class ClientReactiveSocket implements ReactiveSocket {
                                 request
                                     .transform(f -> {
                                         LimitableRequestPublisher<Payload> wrapped = LimitableRequestPublisher.wrap(f);
-                                        synchronized (ClientReactiveSocket.this) {
+                                        synchronized (ClientRSocket.this) {
                                             senders.put(streamId, wrapped);
                                             receivers.put(streamId, receiver);
                                         }
@@ -279,7 +279,7 @@ public class ClientReactiveSocket implements ReactiveSocket {
     }
 
     private boolean contains(int streamId) {
-        synchronized (ClientReactiveSocket.this) {
+        synchronized (ClientRSocket.this) {
             return receivers.containsKey(streamId);
         }
     }

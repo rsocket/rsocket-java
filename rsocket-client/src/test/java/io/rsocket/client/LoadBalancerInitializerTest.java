@@ -16,7 +16,7 @@
 
 package io.rsocket.client;
 
-import io.rsocket.ReactiveSocket;
+import io.rsocket.RSocket;
 import io.reactivex.subscribers.TestSubscriber;
 import org.junit.Test;
 import reactor.core.publisher.UnicastProcessor;
@@ -27,9 +27,9 @@ public class LoadBalancerInitializerTest {
 
     @Test
     public void testEarlySubscribe() throws Exception {
-        UnicastProcessor<List<ReactiveSocketClient>> src = UnicastProcessor.create();
+        UnicastProcessor<List<RSocketClient>> src = UnicastProcessor.create();
         LoadBalancerInitializer initializer = LoadBalancerInitializer.create(src);
-        TestSubscriber<ReactiveSocket> subscriber = TestSubscriber.create();
+        TestSubscriber<RSocket> subscriber = TestSubscriber.create();
         initializer.connect().subscribe(subscriber);
         subscriber.assertNotTerminated().assertNoValues();
 
@@ -40,23 +40,23 @@ public class LoadBalancerInitializerTest {
 
     @Test
     public void testLateSubscribe() throws Exception {
-        UnicastProcessor<List<ReactiveSocketClient>> src = UnicastProcessor.create();
+        UnicastProcessor<List<RSocketClient>> src = UnicastProcessor.create();
         LoadBalancerInitializer initializer = LoadBalancerInitializer.create(src);
         initializer.run();
-        TestSubscriber<ReactiveSocket> subscriber = TestSubscriber.create();
+        TestSubscriber<RSocket> subscriber = TestSubscriber.create();
         initializer.connect().subscribe(subscriber);
         subscriber.assertComplete().assertValueCount(1);
     }
 
     @Test
     public void testEarlyAndLateSubscribe() throws Exception {
-        UnicastProcessor<List<ReactiveSocketClient>> src = UnicastProcessor.create();
+        UnicastProcessor<List<RSocketClient>> src = UnicastProcessor.create();
         LoadBalancerInitializer initializer = LoadBalancerInitializer.create(src);
-        TestSubscriber<ReactiveSocket> early = TestSubscriber.create();
+        TestSubscriber<RSocket> early = TestSubscriber.create();
         initializer.connect().subscribe(early);
         early.assertNotTerminated().assertNoValues();
         initializer.run();
-        TestSubscriber<ReactiveSocket> late = TestSubscriber.create();
+        TestSubscriber<RSocket> late = TestSubscriber.create();
         initializer.connect().subscribe(late);
         early.assertComplete().assertValueCount(1);
         late.assertComplete().assertValueCount(1);

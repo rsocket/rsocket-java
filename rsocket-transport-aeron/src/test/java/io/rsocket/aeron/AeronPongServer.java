@@ -23,7 +23,7 @@ import io.rsocket.aeron.internal.EventLoop;
 import io.rsocket.aeron.internal.SingleThreadedEventLoop;
 import io.rsocket.aeron.internal.reactivestreams.AeronSocketAddress;
 import io.rsocket.aeron.server.AeronTransportServer;
-import io.rsocket.server.ReactiveSocketServer;
+import io.rsocket.server.RSocketServer;
 import io.rsocket.test.PingHandler;
 
 public final class AeronPongServer {
@@ -42,7 +42,7 @@ public final class AeronPongServer {
         EventLoop serverEventLoop = new SingleThreadedEventLoop("server");
         AeronTransportServer server = new AeronTransportServer(aeronWrapper, serverManagementSocketAddress, serverEventLoop);
 
-        ReactiveSocketServer.create(server)
+        RSocketServer.create(server)
                                .start(new PingHandler())
                                .awaitShutdown();
     }

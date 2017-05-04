@@ -20,7 +20,7 @@ import reactor.ipc.netty.tcp.TcpServer;
 import java.util.concurrent.CountDownLatch;
 
 /**
- * An example of how to run the JavaServerDriver using the ReactiveSocket server creation tool in Java.
+ * An example of how to run the JavaServerDriver using the RSocket server creation tool in Java.
  */
 public class JavaTCPServer {
 

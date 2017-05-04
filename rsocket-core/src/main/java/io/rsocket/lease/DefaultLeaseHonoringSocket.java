@@ -17,9 +17,9 @@
 package io.rsocket.lease;
 
 import io.rsocket.Payload;
-import io.rsocket.ReactiveSocket;
+import io.rsocket.RSocket;
 import io.rsocket.exceptions.RejectedException;
-import io.rsocket.util.ReactiveSocketProxy;
+import io.rsocket.util.RSocketProxy;
 import org.reactivestreams.Publisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,7 +29,7 @@ import reactor.core.publisher.Mono;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.LongSupplier;
 
-public class DefaultLeaseHonoringSocket extends ReactiveSocketProxy implements LeaseHonoringSocket {
+public class DefaultLeaseHonoringSocket extends RSocketProxy implements LeaseHonoringSocket {
 
     private static final Logger logger = LoggerFactory.getLogger(DefaultLeaseHonoringSocket.class);
 
@@ -41,13 +41,13 @@ public class DefaultLeaseHonoringSocket extends ReactiveSocketProxy implements L
     private static final RejectedException rejectedException = new RejectedException("Lease exhausted.");
     private static final Mono<?> rejected = Mono.error(rejectedException);
 
-    public DefaultLeaseHonoringSocket(ReactiveSocket source, LongSupplier currentTimeSupplier) {
+    public DefaultLeaseHonoringSocket(RSocket source, LongSupplier currentTimeSupplier) {
         super(source);
         this.currentTimeSupplier = currentTimeSupplier;
         remainingQuota = new AtomicInteger();
     }
 
-    public DefaultLeaseHonoringSocket(ReactiveSocket delegate) {
+    public DefaultLeaseHonoringSocket(RSocket delegate) {
         this(delegate, System::currentTimeMillis);
     }
 

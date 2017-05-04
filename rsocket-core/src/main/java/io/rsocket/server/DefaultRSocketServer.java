@@ -13,12 +13,12 @@
 
 package io.rsocket.server;
 
-import io.rsocket.ClientReactiveSocket;
+import io.rsocket.ClientRSocket;
 import io.rsocket.ConnectionSetupPayload;
 import io.rsocket.FrameType;
 import io.rsocket.Plugins;
-import io.rsocket.ReactiveSocket;
-import io.rsocket.ServerReactiveSocket;
+import io.rsocket.RSocket;
+import io.rsocket.ServerRSocket;
 import io.rsocket.StreamIdSupplier;
 import io.rsocket.client.KeepAliveProvider;
 import io.rsocket.internal.ClientServerInputMultiplexer;
@@ -29,13 +29,13 @@ import io.rsocket.transport.TransportServer.StartedServer;
 import java.util.function.Consumer;
 import reactor.core.publisher.Mono;
 
-public final class DefaultReactiveSocketServer
-        implements ReactiveSocketServer {
+public final class DefaultRSocketServer
+        implements RSocketServer {
 
     private final TransportServer transportServer;
     private Consumer<Throwable> errorConsumer;
 
-    public DefaultReactiveSocketServer(TransportServer transportServer,
+    public DefaultRSocketServer(TransportServer transportServer,
           Consumer<Throwable> errorConsumer) {
         this.transportServer = transportServer;
         this.errorConsumer = errorConsumer;
@@ -55,25 +55,25 @@ public final class DefaultReactiveSocketServer
                             ConnectionSetupPayload setup = ConnectionSetupPayload.create(setupFrame);
 
                             return Mono.defer(() -> {
-                                ClientReactiveSocket clientReactiveSocket = new ClientReactiveSocket(multiplexer.asServerConnection(),
+                                ClientRSocket clientRSocket = new ClientRSocket(multiplexer.asServerConnection(),
                                     Throwable::printStackTrace,
                                     StreamIdSupplier.serverSupplier(),
                                     KeepAliveProvider.never());
 
-                                Mono<ReactiveSocket> wrappedClientReactiveSocket =
-                                    Plugins.CLIENT_REACTIVE_SOCKET_INTERCEPTOR.apply(clientReactiveSocket);
+                                Mono<RSocket> wrappedClientRSocket =
+                                    Plugins.CLIENT_REACTIVE_SOCKET_INTERCEPTOR.apply(clientRSocket);
 
-                                return wrappedClientReactiveSocket
+                                return wrappedClientRSocket
                                     .then(sender -> {
                                         LeaseHonoringSocket lhs = new DefaultLeaseHonoringSocket(sender);
-                                        clientReactiveSocket.start(lhs);
+                                        clientRSocket.start(lhs);
 
                                         return Plugins.SERVER_REACTIVE_SOCKET_INTERCEPTOR.apply(acceptor.accept(setup, lhs));
                                     });
 
                             })
                             .then(handler -> {
-                                ServerReactiveSocket receiver = new ServerReactiveSocket(multiplexer.asClientConnection(),
+                                ServerRSocket receiver = new ServerRSocket(multiplexer.asClientConnection(),
                                     handler,
                                     setup.willClientHonorLease(),
                                     errorConsumer);

@@ -17,14 +17,14 @@
 package io.rsocket.server;
 
 import io.rsocket.ConnectionSetupPayload;
-import io.rsocket.ReactiveSocket;
+import io.rsocket.RSocket;
 import io.rsocket.exceptions.SetupException;
 import io.rsocket.lease.LeaseEnforcingSocket;
 import io.rsocket.transport.TransportServer;
 import io.rsocket.transport.TransportServer.StartedServer;
 import java.util.function.Consumer;
 
-public interface ReactiveSocketServer {
+public interface RSocketServer {
 
     /**
      * Starts this server.
@@ -35,26 +35,26 @@ public interface ReactiveSocketServer {
      */
     StartedServer start(SocketAcceptor acceptor);
 
-    static ReactiveSocketServer create(TransportServer transportServer) {
+    static RSocketServer create(TransportServer transportServer) {
         return create(transportServer, Throwable::printStackTrace);
     }
 
-    static ReactiveSocketServer create(TransportServer transportServer,
+    static RSocketServer create(TransportServer transportServer,
         Consumer<Throwable> errorConsumer) {
-        return new DefaultReactiveSocketServer(transportServer, errorConsumer);
+        return new DefaultRSocketServer(transportServer, errorConsumer);
     }
 
     /**
-     * {@code ReactiveSocket} is a full duplex protocol where a client and server are identical in terms of both having
+     * {@code RSocket} is a full duplex protocol where a client and server are identical in terms of both having
      * the capability to initiate requests to their peer. This interface provides the contract where a server accepts
-     * a new {@code ReactiveSocket} for sending requests to the peer and returns a new {@code ReactiveSocket} that will
+     * a new {@code RSocket} for sending requests to the peer and returns a new {@code RSocket} that will
      * be used to accept requests from it's peer.
      */
     interface SocketAcceptor {
 
         /**
-         * Accepts a new {@code ReactiveSocket} used to send requests to the peer and returns another
-         * {@code ReactiveSocket} that is used for accepting requests from the peer.
+         * Accepts a new {@code RSocket} used to send requests to the peer and returns another
+         * {@code RSocket} that is used for accepting requests from the peer.
          *
          * @param setup Setup as sent by the client.
          * @param sendingSocket Socket used to send requests to the peer.
@@ -63,6 +63,6 @@ public interface ReactiveSocketServer {
          *
          * @throws SetupException If the acceptor needs to reject the setup of this socket.
          */
-        LeaseEnforcingSocket accept(ConnectionSetupPayload setup, ReactiveSocket sendingSocket);
+        LeaseEnforcingSocket accept(ConnectionSetupPayload setup, RSocket sendingSocket);
     }
 }

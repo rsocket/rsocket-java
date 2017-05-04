@@ -16,7 +16,7 @@
 
 package io.rsocket.client;
 
-import io.rsocket.ReactiveSocket;
+import io.rsocket.RSocket;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -29,10 +29,10 @@ import java.util.Map;
 import java.util.function.Function;
 
 /**
- * An implementation of {@code ReactiveSocketClient} that operates on a cluster of target servers instead of a single
+ * An implementation of {@code RSocketClient} that operates on a cluster of target servers instead of a single
  * server.
  */
-public class LoadBalancingClient implements ReactiveSocketClient {
+public class LoadBalancingClient implements RSocketClient {
 
     private final LoadBalancerInitializer initializer;
 
@@ -41,7 +41,7 @@ public class LoadBalancingClient implements ReactiveSocketClient {
     }
 
     @Override
-    public Mono<? extends ReactiveSocket> connect() {
+    public Mono<? extends RSocket> connect() {
         return initializer.connect();
     }
 
@@ -52,44 +52,44 @@ public class LoadBalancingClient implements ReactiveSocketClient {
 
     /**
      * Creates a client that will load balance on the active servers as provided by the passed {@code servers}. A
-     * server provided by this stream will be converted to a {@code ReactiveSocketClient} using the passed
+     * server provided by this stream will be converted to a {@code RSocketClient} using the passed
      * {@code clientFactory}.
      *
      * @param servers Stream of a collection of active servers. Every emission on this stream must contain all active
      * servers. This client does not collect servers over multiple emissions.
-     * @param clientFactory A function to convert a server to {@code ReactiveSocketClient}
+     * @param clientFactory A function to convert a server to {@code RSocketClient}
      * @param <T> Type of the server.
      *
      * @return A new {@code LoadBalancingClient}.
      */
     public static <T> LoadBalancingClient create(Publisher<? extends Collection<T>> servers,
-                                                 Function<T, ReactiveSocketClient> clientFactory) {
+                                                 Function<T, RSocketClient> clientFactory) {
         SourceToClient<T> f = new SourceToClient<>(clientFactory);
         return new LoadBalancingClient(LoadBalancerInitializer.create(Flux.from(servers).map(f)));
     }
 
     /**
-     * A mapping function from a collection of any type to a collection of {@code ReactiveSocketClient}.
+     * A mapping function from a collection of any type to a collection of {@code RSocketClient}.
      *
-     * @param <T> Type of objects to convert to {@code ReactiveSocketClient}.
+     * @param <T> Type of objects to convert to {@code RSocketClient}.
      */
-    public static final class SourceToClient<T> implements Function<Collection<T>, Collection<ReactiveSocketClient>> {
+    public static final class SourceToClient<T> implements Function<Collection<T>, Collection<RSocketClient>> {
 
-        private final Function<T, ReactiveSocketClient> tToClient;
-        private Map<T, ReactiveSocketClient> seenClients;
+        private final Function<T, RSocketClient> tToClient;
+        private Map<T, RSocketClient> seenClients;
 
-        public SourceToClient(Function<T, ReactiveSocketClient> tToClient) {
+        public SourceToClient(Function<T, RSocketClient> tToClient) {
             this.tToClient = tToClient;
             seenClients = Collections.emptyMap();
         }
 
         @Override
-        public Collection<ReactiveSocketClient> apply(Collection<T> servers) {
-            Map<T, ReactiveSocketClient> next = new HashMap<>(servers.size());
+        public Collection<RSocketClient> apply(Collection<T> servers) {
+            Map<T, RSocketClient> next = new HashMap<>(servers.size());
             for (T server: servers) {
-                ReactiveSocketClient client = seenClients.get(server);
+                RSocketClient client = seenClients.get(server);
                 if (client == null) {
-                    ReactiveSocketClient newClient = tToClient.apply(server);
+                    RSocketClient newClient = tToClient.apply(server);
                     next.put(server, newClient);
                 } else {
                     next.put(server, client);

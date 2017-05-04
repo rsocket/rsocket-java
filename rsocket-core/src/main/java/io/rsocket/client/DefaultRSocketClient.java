@@ -17,19 +17,19 @@
 package io.rsocket.client;
 
 import io.rsocket.Plugins;
-import io.rsocket.ReactiveSocket;
+import io.rsocket.RSocket;
 import io.rsocket.transport.TransportClient;
 import reactor.core.publisher.Mono;
 
 /**
- * Default implementation of {@link ReactiveSocketClient} providing the functionality to create a {@link ReactiveSocket}
+ * Default implementation of {@link RSocketClient} providing the functionality to create a {@link RSocket}
  * from a {@link TransportClient}.
  */
-public final class DefaultReactiveSocketClient implements ReactiveSocketClient {
+public final class DefaultRSocketClient implements RSocketClient {
 
-    private final Mono<ReactiveSocket> connectSource;
+    private final Mono<RSocket> connectSource;
 
-    public DefaultReactiveSocketClient(TransportClient transportClient, SetupProvider setupProvider,
+    public DefaultRSocketClient(TransportClient transportClient, SetupProvider setupProvider,
                                        SocketAcceptor acceptor) {
         connectSource =
             transportClient
@@ -40,7 +40,7 @@ public final class DefaultReactiveSocketClient implements ReactiveSocketClient {
     }
 
     @Override
-    public Mono<? extends ReactiveSocket> connect() {
+    public Mono<? extends RSocket> connect() {
         return connectSource;
     }
 

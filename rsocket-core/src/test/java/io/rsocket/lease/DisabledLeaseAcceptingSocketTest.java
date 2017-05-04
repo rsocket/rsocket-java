@@ -17,7 +17,7 @@
 package io.rsocket.lease;
 
 import io.rsocket.Payload;
-import io.rsocket.ReactiveSocket;
+import io.rsocket.RSocket;
 import io.rsocket.util.PayloadImpl;
 import org.junit.Rule;
 import org.junit.Test;
@@ -31,7 +31,7 @@ public class DisabledLeaseAcceptingSocketTest {
     @Test(timeout = 10000)
     public void testFireAndForget() throws Exception {
         TestSubscriber<Void> subscriber = TestSubscriber.create();
-        socketRule.getReactiveSocket().fireAndForget(PayloadImpl.EMPTY).subscribe(subscriber);
+        socketRule.getRSocket().fireAndForget(PayloadImpl.EMPTY).subscribe(subscriber);
         subscriber.assertError(UnsupportedOperationException.class);
         socketRule.getMockSocket().assertFireAndForgetCount(1);
     }
@@ -39,7 +39,7 @@ public class DisabledLeaseAcceptingSocketTest {
     @Test(timeout = 10000)
     public void testRequestResponse() throws Exception {
         TestSubscriber<Payload> subscriber = TestSubscriber.create();
-        socketRule.getReactiveSocket().requestResponse(PayloadImpl.EMPTY).subscribe(subscriber);
+        socketRule.getRSocket().requestResponse(PayloadImpl.EMPTY).subscribe(subscriber);
         subscriber.assertError(UnsupportedOperationException.class);
         socketRule.getMockSocket().assertRequestResponseCount(1);
     }
@@ -47,7 +47,7 @@ public class DisabledLeaseAcceptingSocketTest {
     @Test(timeout = 10000)
     public void testRequestStream() throws Exception {
         TestSubscriber<Payload> subscriber = TestSubscriber.create();
-        socketRule.getReactiveSocket().requestStream(PayloadImpl.EMPTY).subscribe(subscriber);
+        socketRule.getRSocket().requestStream(PayloadImpl.EMPTY).subscribe(subscriber);
         subscriber.assertError(UnsupportedOperationException.class);
         socketRule.getMockSocket().assertRequestStreamCount(1);
     }
@@ -55,7 +55,7 @@ public class DisabledLeaseAcceptingSocketTest {
     @Test(timeout = 10000)
     public void testRequestChannel() throws Exception {
         TestSubscriber<Payload> subscriber = TestSubscriber.create();
-        socketRule.getReactiveSocket().requestChannel(Flux.just(PayloadImpl.EMPTY)).subscribe(subscriber);
+        socketRule.getRSocket().requestChannel(Flux.just(PayloadImpl.EMPTY)).subscribe(subscriber);
         subscriber.assertError(UnsupportedOperationException.class);
         socketRule.getMockSocket().assertRequestChannelCount(1);
     }
@@ -63,14 +63,14 @@ public class DisabledLeaseAcceptingSocketTest {
     @Test(timeout = 10000)
     public void testMetadataPush() throws Exception {
         TestSubscriber<Void> subscriber = TestSubscriber.create();
-        socketRule.getReactiveSocket().metadataPush(PayloadImpl.EMPTY).subscribe(subscriber);
+        socketRule.getRSocket().metadataPush(PayloadImpl.EMPTY).subscribe(subscriber);
         subscriber.assertError(UnsupportedOperationException.class);
         socketRule.getMockSocket().assertMetadataPushCount(1);
     }
 
     public static class LeaseSocketRule extends AbstractSocketRule<DisabledLeaseAcceptingSocket> {
         @Override
-        protected DisabledLeaseAcceptingSocket newSocket(ReactiveSocket delegate) {
+        protected DisabledLeaseAcceptingSocket newSocket(RSocket delegate) {
             return new DisabledLeaseAcceptingSocket(delegate);
         }
     }

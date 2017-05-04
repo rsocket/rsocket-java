@@ -16,13 +16,13 @@
 
 package io.rsocket.test;
 
-import io.rsocket.AbstractReactiveSocket;
+import io.rsocket.AbstractRSocket;
 import io.rsocket.Payload;
 import io.rsocket.util.PayloadImpl;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-public class TestReactiveSocket extends AbstractReactiveSocket {
+public class TestRSocket extends AbstractRSocket {
 
     @Override
     public Mono<Payload> requestResponse(Payload payload) {

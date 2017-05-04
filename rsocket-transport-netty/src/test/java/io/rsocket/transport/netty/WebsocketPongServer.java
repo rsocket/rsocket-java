@@ -15,7 +15,7 @@
  */
 package io.rsocket.transport.netty;
 
-import io.rsocket.server.ReactiveSocketServer;
+import io.rsocket.server.RSocketServer;
 import io.rsocket.test.PingHandler;
 import io.rsocket.transport.netty.server.WebsocketTransportServer;
 import reactor.ipc.netty.http.server.HttpServer;
@@ -23,7 +23,7 @@ import reactor.ipc.netty.http.server.HttpServer;
 public final class WebsocketPongServer {
 
     public static void main(String... args) throws Exception {
-        ReactiveSocketServer.create(WebsocketTransportServer.create(HttpServer.create(7878)))
+        RSocketServer.create(WebsocketTransportServer.create(HttpServer.create(7878)))
                                .start(new PingHandler())
                                .awaitShutdown();
     }

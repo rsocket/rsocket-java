@@ -13,7 +13,7 @@
 
 package io.rsocket.perf;
 
-import io.rsocket.ReactiveSocket;
+import io.rsocket.RSocket;
 import io.rsocket.perf.util.ClientServerHolder;
 import io.rsocket.util.PayloadImpl;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -36,7 +36,7 @@ import java.util.function.Supplier;
 @Warmup(iterations = 10)
 @Measurement(iterations = 10)
 @State(Scope.Benchmark)
-public class RequestResponsePerf extends AbstractReactiveSocketPerf {
+public class RequestResponsePerf extends AbstractRSocketPerf {
 
     @Param({ "1", "100", "1000"})
     public int requestCount;
@@ -48,7 +48,7 @@ public class RequestResponsePerf extends AbstractReactiveSocketPerf {
 
     @Benchmark
     public void requestResponse() throws InterruptedException {
-        Supplier<ReactiveSocket> socketSupplier = getSocketSupplier();
+        Supplier<RSocket> socketSupplier = getSocketSupplier();
         requestResponse(socketSupplier, () -> new PayloadImpl(ClientServerHolder.HELLO), requestCount);
     }
 }

@@ -13,9 +13,9 @@
 
 package io.rsocket.examples.transport.tcp.stress;
 
-import io.rsocket.ReactiveSocket;
+import io.rsocket.RSocket;
 import io.rsocket.client.KeepAliveProvider;
-import io.rsocket.client.ReactiveSocketClient;
+import io.rsocket.client.RSocketClient;
 import io.rsocket.client.SetupProvider;
 import io.rsocket.lease.DefaultLeaseEnforcingSocket;
 import io.rsocket.lease.DisabledLeaseAcceptingSocket;
@@ -30,8 +30,8 @@ import java.net.SocketAddress;
 import java.time.Duration;
 import java.util.function.IntSupplier;
 
-import static io.rsocket.client.filter.ReactiveSocketClients.*;
-import static io.rsocket.client.filter.ReactiveSockets.*;
+import static io.rsocket.client.filter.RSocketClients.*;
+import static io.rsocket.client.filter.RSockets.*;
 import static io.rsocket.examples.transport.tcp.stress.StressTestHandler.*;
 
 public class TestConfig {
@@ -81,17 +81,17 @@ public class TestConfig {
         return Flux.interval(Duration.ofSeconds(2));
     }
 
-    public final ReactiveSocketClient newClientForServer(SocketAddress server) {
+    public final RSocketClient newClientForServer(SocketAddress server) {
         TcpTransportClient transport = TcpTransportClient.create(TcpClient.create(options ->
                 options.connect((InetSocketAddress)server)));
-        ReactiveSocketClient raw = ReactiveSocketClient.create(transport, setupProvider);
+        RSocketClient raw = RSocketClient.create(transport, setupProvider);
         return wrap(detectFailures(connectTimeout(raw, Duration.ofSeconds(1))),
                     timeout(Duration.ofSeconds(1)));
     }
 
     public final LeaseEnforcingSocket nextServerHandler(int serverCount) {
         boolean bad = nextServerBad(serverCount);
-        ReactiveSocket socket = bad? randomFailuresAndDelays() : alwaysPass();
+        RSocket socket = bad? randomFailuresAndDelays() : alwaysPass();
         if (serverCapacitySupplier == null) {
             return new DisabledLeaseAcceptingSocket(socket);
         } else {

@@ -13,14 +13,14 @@
 
 package io.rsocket.perf.util;
 
-import io.rsocket.AbstractReactiveSocket;
+import io.rsocket.AbstractRSocket;
 import io.rsocket.Payload;
-import io.rsocket.ReactiveSocket;
+import io.rsocket.RSocket;
 import io.rsocket.client.KeepAliveProvider;
-import io.rsocket.client.ReactiveSocketClient;
+import io.rsocket.client.RSocketClient;
 import io.rsocket.client.SetupProvider;
 import io.rsocket.lease.DisabledLeaseAcceptingSocket;
-import io.rsocket.server.ReactiveSocketServer;
+import io.rsocket.server.RSocketServer;
 import io.rsocket.transport.TransportClient;
 import io.rsocket.transport.TransportServer;
 import io.rsocket.transport.TransportServer.StartedServer;
@@ -40,21 +40,21 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-public class ClientServerHolder implements Supplier<ReactiveSocket> {
+public class ClientServerHolder implements Supplier<RSocket> {
 
     public static final byte[] HELLO = "HELLO".getBytes(StandardCharsets.UTF_8);
 
     private final StartedServer server;
-    private final ReactiveSocket client;
+    private final RSocket client;
 
     public ClientServerHolder(TransportServer transportServer, Function<SocketAddress, TransportClient> clientFactory,
-                              ReactiveSocket handler) {
+                              RSocket handler) {
         server = startServer(transportServer, handler);
         client = newClient(server.getServerAddress(), clientFactory);
     }
 
     @Override
-    public ReactiveSocket get() {
+    public RSocket get() {
         return client;
     }
 
@@ -63,42 +63,42 @@ public class ClientServerHolder implements Supplier<ReactiveSocket> {
         return new ClientServerHolder(transportServer, clientFactory, new Handler());
     }
 
-    public static Supplier<ReactiveSocket> requestResponseMultiTcp(int clientCount) {
+    public static Supplier<RSocket> requestResponseMultiTcp(int clientCount) {
         StartedServer server = startServer(TcpTransportServer.create(TcpServer.create()), new Handler());
-        final ReactiveSocket[] sockets = new ReactiveSocket[clientCount];
+        final RSocket[] sockets = new RSocket[clientCount];
         for (int i = 0; i < clientCount; i++) {
             sockets[i] = newClient(server.getServerAddress(), sock ->
                 TcpTransportClient.create(TcpClient.create(options -> options.connect((InetSocketAddress)sock)))
             );
         }
-        return new Supplier<ReactiveSocket>() {
+        return new Supplier<RSocket>() {
 
             private final AtomicInteger index = new AtomicInteger();
 
             @Override
-            public ReactiveSocket get() {
+            public RSocket get() {
                 int index = Math.abs(this.index.incrementAndGet()) % clientCount;
                 return sockets[index];
             }
         };
     }
 
-    private static StartedServer startServer(TransportServer transportServer, ReactiveSocket handler) {
-        return ReactiveSocketServer.create(transportServer)
+    private static StartedServer startServer(TransportServer transportServer, RSocket handler) {
+        return RSocketServer.create(transportServer)
                                    .start((setup, sendingSocket) -> {
                                        return new DisabledLeaseAcceptingSocket(handler);
                                    });
     }
 
-    private static ReactiveSocket newClient(SocketAddress serverAddress,
+    private static RSocket newClient(SocketAddress serverAddress,
                                             Function<SocketAddress, TransportClient> clientFactory) {
         SetupProvider setupProvider = SetupProvider.keepAlive(KeepAliveProvider.never()).disableLease();
-        ReactiveSocketClient client =
-                ReactiveSocketClient.create(clientFactory.apply(serverAddress), setupProvider);
+        RSocketClient client =
+                RSocketClient.create(clientFactory.apply(serverAddress), setupProvider);
         return Flowable.fromPublisher(client.connect()).blockingLast();
     }
 
-    private static class Handler extends AbstractReactiveSocket {
+    private static class Handler extends AbstractRSocket {
 
         @Override
         public Mono<Payload> requestResponse(Payload payload) {

@@ -26,9 +26,9 @@ import io.rsocket.aeron.internal.reactivestreams.AeronClientChannelConnector;
 import io.rsocket.aeron.internal.reactivestreams.AeronSocketAddress;
 import io.rsocket.aeron.server.AeronTransportServer;
 import io.rsocket.lease.DisabledLeaseAcceptingSocket;
-import io.rsocket.server.ReactiveSocketServer;
+import io.rsocket.server.RSocketServer;
 import io.rsocket.test.ClientSetupRule;
-import io.rsocket.test.TestReactiveSocket;
+import io.rsocket.test.TestRSocket;
 import org.agrona.LangUtil;
 
 import java.net.Inet4Address;
@@ -75,10 +75,10 @@ class AeronClientSetupRule extends ClientSetupRule {
         super(
             socketAddress -> client,
             () ->
-                ReactiveSocketServer.create(server)
+                RSocketServer.create(server)
                     .start((setup, sendingSocket) ->
                         new DisabledLeaseAcceptingSocket(
-                            new TestReactiveSocket()))
+                            new TestRSocket()))
             .getServerAddress()
         );
     }

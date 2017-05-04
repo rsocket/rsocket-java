@@ -16,7 +16,7 @@
 package io.rsocket.client;
 
 import io.rsocket.Payload;
-import io.rsocket.ReactiveSocket;
+import io.rsocket.RSocket;
 import io.rsocket.client.filter.FailureAwareClient;
 import io.rsocket.util.PayloadImpl;
 import io.reactivex.subscribers.TestSubscriber;
@@ -33,11 +33,11 @@ import java.util.function.BiConsumer;
 
 import static org.junit.Assert.*;
 
-public class FailureReactiveSocketTest {
+public class FailureRSocketTest {
 
     @Test
     public void testError() throws InterruptedException {
-        testReactiveSocket((latch, socket) -> {
+        testRSocket((latch, socket) -> {
             assertEquals(1.0, socket.availability(), 0.0);
             Publisher<Payload> payloadPublisher = socket.requestResponse(PayloadImpl.EMPTY);
 
@@ -65,7 +65,7 @@ public class FailureReactiveSocketTest {
 
     @Test
     public void testWidowReset() throws InterruptedException {
-        testReactiveSocket((latch, socket) -> {
+        testRSocket((latch, socket) -> {
             assertEquals(1.0, socket.availability(), 0.0);
             Publisher<Payload> payloadPublisher = socket.requestResponse(PayloadImpl.EMPTY);
 
@@ -94,18 +94,18 @@ public class FailureReactiveSocketTest {
         });
     }
 
-    private void testReactiveSocket(BiConsumer<CountDownLatch, ReactiveSocket> f) throws InterruptedException {
+    private void testRSocket(BiConsumer<CountDownLatch, RSocket> f) throws InterruptedException {
         AtomicInteger count = new AtomicInteger(0);
-        TestingReactiveSocket socket = new TestingReactiveSocket(input -> {
+        TestingRSocket socket = new TestingRSocket(input -> {
             if (count.getAndIncrement() < 1) {
                 return PayloadImpl.EMPTY;
             } else {
                 throw new RuntimeException();
             }
         });
-        ReactiveSocketClient factory = new ReactiveSocketClient() {
+        RSocketClient factory = new RSocketClient() {
             @Override
-            public Mono<ReactiveSocket> connect() {
+            public Mono<RSocket> connect() {
                 return Mono.just(socket);
             }
 
@@ -119,14 +119,14 @@ public class FailureReactiveSocketTest {
         FailureAwareClient failureFactory = new FailureAwareClient(factory, 100, TimeUnit.MILLISECONDS);
 
         CountDownLatch latch = new CountDownLatch(1);
-        failureFactory.connect().subscribe(new Subscriber<ReactiveSocket>() {
+        failureFactory.connect().subscribe(new Subscriber<RSocket>() {
             @Override
             public void onSubscribe(Subscription s) {
                 s.request(1);
             }
 
             @Override
-            public void onNext(ReactiveSocket socket) {
+            public void onNext(RSocket socket) {
                 f.accept(latch, socket);
             }
 

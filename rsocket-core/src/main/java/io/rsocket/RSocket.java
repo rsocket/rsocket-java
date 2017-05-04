@@ -21,12 +21,12 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 /**
- * A contract providing different interaction models for <a href="https://github.com/ReactiveSocket/reactivesocket/blob/master/Protocol.md">ReactiveSocket protocol</a>.
+ * A contract providing different interaction models for <a href="https://github.com/RSocket/reactivesocket/blob/master/Protocol.md">RSocket protocol</a>.
  */
-public interface ReactiveSocket extends Availability {
+public interface RSocket extends Availability {
 
     /**
-     * Fire and Forget interaction model of {@code ReactiveSocket}.
+     * Fire and Forget interaction model of {@code RSocket}.
      *
      * @param payload Request payload.
      *
@@ -35,7 +35,7 @@ public interface ReactiveSocket extends Availability {
     Mono<Void> fireAndForget(Payload payload);
 
     /**
-     * Request-Response interaction model of {@code ReactiveSocket}.
+     * Request-Response interaction model of {@code RSocket}.
      *
      * @param payload Request payload.
      *
@@ -44,7 +44,7 @@ public interface ReactiveSocket extends Availability {
     Mono<Payload> requestResponse(Payload payload);
 
     /**
-     * Request-Stream interaction model of {@code ReactiveSocket}.
+     * Request-Stream interaction model of {@code RSocket}.
      *
      * @param payload Request payload.
      *
@@ -53,7 +53,7 @@ public interface ReactiveSocket extends Availability {
     Flux<Payload> requestStream(Payload payload);
 
     /**
-     * Request-Channel interaction model of {@code ReactiveSocket}.
+     * Request-Channel interaction model of {@code RSocket}.
      *
      * @param payloads Stream of request payloads.
      *
@@ -62,7 +62,7 @@ public interface ReactiveSocket extends Availability {
     Flux<Payload> requestChannel(Publisher<Payload> payloads);
 
     /**
-     * Metadata-Push interaction model of {@code ReactiveSocket}.
+     * Metadata-Push interaction model of {@code RSocket}.
      *
      * @param payload Request payloads.
      *
@@ -76,19 +76,19 @@ public interface ReactiveSocket extends Availability {
     }
 
     /**
-     * Close this {@code ReactiveSocket} upon subscribing to the returned {@code Publisher}
+     * Close this {@code RSocket} upon subscribing to the returned {@code Publisher}
      *
      * <em>This method is idempotent and hence can be called as many times at any point with same outcome.</em>
      *
-     * @return A {@code Publisher} that completes when this {@code ReactiveSocket} close is complete.
+     * @return A {@code Publisher} that completes when this {@code RSocket} close is complete.
      */
     Mono<Void> close();
 
     /**
-     * Returns a {@code Publisher} that completes when this {@code ReactiveSocket} is closed. A {@code ReactiveSocket}
+     * Returns a {@code Publisher} that completes when this {@code RSocket} is closed. A {@code RSocket}
      * can be closed by explicitly calling {@link #close()} or when the underlying transport connection is closed.
      *
-     * @return A {@code Publisher} that completes when this {@code ReactiveSocket} close is complete.
+     * @return A {@code Publisher} that completes when this {@code RSocket} close is complete.
      */
     Mono<Void> onClose();
 }

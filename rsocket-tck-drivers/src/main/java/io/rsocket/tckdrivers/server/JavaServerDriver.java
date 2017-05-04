@@ -13,10 +13,10 @@
 
 package io.rsocket.tckdrivers.server;
 
-import io.rsocket.AbstractReactiveSocket;
+import io.rsocket.AbstractRSocket;
 import io.rsocket.ConnectionSetupPayload;
 import io.rsocket.Payload;
-import io.rsocket.ReactiveSocket;
+import io.rsocket.RSocket;
 import io.rsocket.lease.DisabledLeaseAcceptingSocket;
 import io.rsocket.lease.LeaseEnforcingSocket;
 import io.rsocket.tckdrivers.common.*;
@@ -28,8 +28,8 @@ import reactor.core.publisher.Mono;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscription;
 
-import io.rsocket.server.ReactiveSocketServer;
-import io.rsocket.server.ReactiveSocketServer.SocketAcceptor;
+import io.rsocket.server.RSocketServer;
+import io.rsocket.server.RSocketServer.SocketAcceptor;
 
 import java.io.BufferedReader;
 import java.io.FileReader;
@@ -86,7 +86,7 @@ public class JavaServerDriver {
      */
     public void run() {
         this.parse();
-        ReactiveSocketServer s = ReactiveSocketServer.create(this.server);
+        RSocketServer s = RSocketServer.create(this.server);
         this.startedServer = s.start(new SocketAcceptorImpl());
         waitStart.countDown(); // notify that this server has started
         startedServer.awaitShutdown();
@@ -94,8 +94,8 @@ public class JavaServerDriver {
 
     class SocketAcceptorImpl implements SocketAcceptor {
         @Override
-        public LeaseEnforcingSocket accept(ConnectionSetupPayload setupPayload, ReactiveSocket reactiveSocket) {
-            return new DisabledLeaseAcceptingSocket(new AbstractReactiveSocket() {
+        public LeaseEnforcingSocket accept(ConnectionSetupPayload setupPayload, RSocket reactiveSocket) {
+            return new DisabledLeaseAcceptingSocket(new AbstractRSocket() {
                 @Override
                 public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
                     return Flux.from(s -> {
@@ -194,7 +194,7 @@ public class JavaServerDriver {
 
     /**
      * This function parses through each line of the server handlers and primes the supporting data structures to
-     * be prepared for the first request. We return a RequestHandler object, which tells the ReactiveSocket server
+     * be prepared for the first request. We return a RequestHandler object, which tells the RSocket server
      * how to handle each type of request. The code inside the RequestHandler is lazily evaluated, and only does so
      * before the first request. This may lead to a sort of bug, where getting concurrent requests as an initial request
      * will nondeterministically lead to some data structures to not be initialized.

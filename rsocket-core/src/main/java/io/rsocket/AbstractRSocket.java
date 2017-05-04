@@ -22,12 +22,12 @@ import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
 
 /**
- * An abstract implementation of {@link ReactiveSocket}. All request handling methods emit
+ * An abstract implementation of {@link RSocket}. All request handling methods emit
  * {@link UnsupportedOperationException} and hence must be overridden to provide a valid implementation.<p>
  *
  * {@link #close()} and {@link #onClose()} returns a {@code Publisher} that never terminates.
  */
-public abstract class AbstractReactiveSocket implements ReactiveSocket {
+public abstract class AbstractRSocket implements RSocket {
 
     private final MonoProcessor<Void> onClose = MonoProcessor.create();
 

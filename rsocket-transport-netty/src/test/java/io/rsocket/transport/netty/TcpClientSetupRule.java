@@ -17,9 +17,9 @@
 package io.rsocket.transport.netty;
 
 import io.rsocket.lease.DisabledLeaseAcceptingSocket;
-import io.rsocket.server.ReactiveSocketServer;
+import io.rsocket.server.RSocketServer;
 import io.rsocket.test.ClientSetupRule;
-import io.rsocket.test.TestReactiveSocket;
+import io.rsocket.test.TestRSocket;
 import io.rsocket.transport.netty.client.TcpTransportClient;
 import io.rsocket.transport.netty.server.TcpTransportServer;
 import reactor.ipc.netty.tcp.TcpClient;
@@ -31,9 +31,9 @@ public class TcpClientSetupRule extends ClientSetupRule {
 
     public TcpClientSetupRule() {
         super(address -> TcpTransportClient.create(TcpClient.create(((InetSocketAddress)address).getPort())), () -> {
-            return ReactiveSocketServer.create(TcpTransportServer.create(TcpServer.create(0)))
+            return RSocketServer.create(TcpTransportServer.create(TcpServer.create(0)))
                 .start((setup, sendingSocket) -> {
-                    return new DisabledLeaseAcceptingSocket(new TestReactiveSocket());
+                    return new DisabledLeaseAcceptingSocket(new TestRSocket());
                 })
                 .getServerAddress();
         });

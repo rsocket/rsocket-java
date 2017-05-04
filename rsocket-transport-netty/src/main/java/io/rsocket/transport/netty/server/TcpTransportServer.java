@@ -17,7 +17,7 @@
 package io.rsocket.transport.netty.server;
 
 import io.rsocket.transport.TransportServer;
-import io.rsocket.transport.netty.ReactiveSocketLengthCodec;
+import io.rsocket.transport.netty.RSocketLengthCodec;
 import io.rsocket.transport.netty.NettyDuplexConnection;
 import reactor.ipc.netty.NettyContext;
 import reactor.ipc.netty.tcp.TcpServer;
@@ -39,7 +39,7 @@ public class TcpTransportServer implements TransportServer {
     @Override
     public StartedServer start(ConnectionAcceptor acceptor) {
         NettyContext context = server.newHandler((in, out) -> {
-            in.context().addHandler("server-length-codec", new ReactiveSocketLengthCodec());
+            in.context().addHandler("server-length-codec", new RSocketLengthCodec());
             NettyDuplexConnection connection = new NettyDuplexConnection(in, out, in.context());
              acceptor.apply(connection).subscribe();
 

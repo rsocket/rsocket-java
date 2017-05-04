@@ -69,7 +69,7 @@ public interface DuplexConnection extends Availability {
      *
      * <h2>Multiple Subscriptions</h2>
      *
-     * Returned {@code Publisher} is not required to support multiple concurrent subscriptions. ReactiveSocket will
+     * Returned {@code Publisher} is not required to support multiple concurrent subscriptions. RSocket will
      * never have multiple subscriptions to this source. Implementations <em>MUST</em> emit an
      * {@link IllegalStateException} for subsequent concurrent subscriptions, if they do not support multiple
      * concurrent subscriptions.

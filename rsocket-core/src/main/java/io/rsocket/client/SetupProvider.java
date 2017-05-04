@@ -20,8 +20,8 @@ import io.rsocket.DuplexConnection;
 import io.rsocket.Frame;
 import io.rsocket.Frame.Setup;
 import io.rsocket.Payload;
-import io.rsocket.ReactiveSocket;
-import io.rsocket.client.ReactiveSocketClient.SocketAcceptor;
+import io.rsocket.RSocket;
+import io.rsocket.client.RSocketClient.SocketAcceptor;
 import io.rsocket.frame.SetupFrameFlyweight;
 import io.rsocket.lease.DefaultLeaseHonoringSocket;
 import io.rsocket.lease.DisableLeaseSocket;
@@ -33,7 +33,7 @@ import reactor.core.publisher.Mono;
 import java.util.function.Function;
 
 /**
- * A provider for ReactiveSocket setup from a client.
+ * A provider for RSocket setup from a client.
  */
 public interface SetupProvider {
 
@@ -43,19 +43,19 @@ public interface SetupProvider {
     String DEFAULT_DATA_MIME_TYPE = "application/binary";
 
     /**
-     * Accept a {@link DuplexConnection} and does the setup to produce a {@code ReactiveSocket}.
+     * Accept a {@link DuplexConnection} and does the setup to produce a {@code RSocket}.
      *
      * @param connection To setup.
-     * @param acceptor of the newly created {@code ReactiveSocket}.
+     * @param acceptor of the newly created {@code RSocket}.
      *
-     * @return Asynchronous source for the created {@code ReactiveSocket}
+     * @return Asynchronous source for the created {@code RSocket}
      */
-    Mono<ReactiveSocket> accept(DuplexConnection connection, SocketAcceptor acceptor);
+    Mono<RSocket> accept(DuplexConnection connection, SocketAcceptor acceptor);
 
     /**
      * Creates a new {@code SetupProvider} by modifying the mime type for data payload of this {@code SetupProvider}
      *
-     * @param dataMimeType Mime type for data payloads for all created {@code ReactiveSocket}
+     * @param dataMimeType Mime type for data payloads for all created {@code RSocket}
      *
      * @return A new {@code SetupProvider} instance.
      */
@@ -64,7 +64,7 @@ public interface SetupProvider {
     /**
      * Creates a new {@code SetupProvider} by modifying the mime type for metadata payload of this {@code SetupProvider}
      *
-     * @param metadataMimeType Mime type for metadata payloads for all created {@code ReactiveSocket}
+     * @param metadataMimeType Mime type for metadata payloads for all created {@code RSocket}
      *
      * @return A new {@code SetupProvider} instance.
      */
@@ -73,11 +73,11 @@ public interface SetupProvider {
     /**
      * Creates a new {@code SetupProvider} that honors leases sent from the server.
      *
-     * @param leaseDecorator A factory that decorates a {@code ReactiveSocket} to honor leases.
+     * @param leaseDecorator A factory that decorates a {@code RSocket} to honor leases.
      *
      * @return A new {@code SetupProvider} instance.
      */
-    SetupProvider honorLease(Function<ReactiveSocket, LeaseHonoringSocket> leaseDecorator);
+    SetupProvider honorLease(Function<RSocket, LeaseHonoringSocket> leaseDecorator);
 
     /**
      * Creates a new {@code SetupProvider} that does not honor leases.
@@ -93,7 +93,7 @@ public interface SetupProvider {
      *
      * @return A new {@code SetupProvider} instance.
      */
-    SetupProvider disableLease(Function<ReactiveSocket, DisableLeaseSocket> socketFactory);
+    SetupProvider disableLease(Function<RSocket, DisableLeaseSocket> socketFactory);
 
     SetupProvider errorConsumer(Consumer<Throwable> errorConsumer);
 
@@ -107,7 +107,7 @@ public interface SetupProvider {
 
     /**
      * Creates a new {@link SetupProvider} using the passed {@code keepAliveProvider} for keep alives to be sent on the
-     * {@link ReactiveSocket}s created by this provider.
+     * {@link RSocket}s created by this provider.
      *
      * @param keepAliveProvider Provider for keep-alive.
      *

@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
-public class ServerReactiveSocketTest {
+public class ServerRSocketTest {
 
     @Rule
     public final ServerSocketRule rule = new ServerSocketRule();
@@ -77,7 +77,7 @@ public class ServerReactiveSocketTest {
     public void testCancel() throws Exception {
         final int streamId = 4;
         final AtomicBoolean cancelled = new AtomicBoolean();
-        rule.setAcceptingSocket(new AbstractReactiveSocket() {
+        rule.setAcceptingSocket(new AbstractRSocket() {
             @Override
             public Mono<Payload> requestResponse(Payload payload) {
                 return Mono.<Payload>never()
@@ -94,13 +94,13 @@ public class ServerReactiveSocketTest {
         assertThat("Subscription not cancelled.", cancelled.get(), is(true));
     }
 
-    public static class ServerSocketRule extends AbstractSocketRule<ServerReactiveSocket> {
+    public static class ServerSocketRule extends AbstractSocketRule<ServerRSocket> {
 
-        private ReactiveSocket acceptingSocket;
+        private RSocket acceptingSocket;
 
         @Override
         protected void init() {
-            acceptingSocket = new AbstractReactiveSocket() {
+            acceptingSocket = new AbstractRSocket() {
                 @Override
                 public Mono<Payload> requestResponse(Payload payload) {
                     return Mono.just(payload);
@@ -110,7 +110,7 @@ public class ServerReactiveSocketTest {
             socket.start();
         }
 
-        public void setAcceptingSocket(ReactiveSocket acceptingSocket) {
+        public void setAcceptingSocket(RSocket acceptingSocket) {
             this.acceptingSocket = acceptingSocket;
             connection = new TestDuplexConnection();
             connectSub = TestSubscriber.create();
@@ -120,8 +120,8 @@ public class ServerReactiveSocketTest {
         }
 
         @Override
-        protected ServerReactiveSocket newReactiveSocket() {
-            return new ServerReactiveSocket(connection, acceptingSocket, throwable -> errors.add(throwable));
+        protected ServerRSocket newRSocket() {
+            return new ServerRSocket(connection, acceptingSocket, throwable -> errors.add(throwable));
         }
 
         private void sendRequest(int streamId, FrameType frameType) {

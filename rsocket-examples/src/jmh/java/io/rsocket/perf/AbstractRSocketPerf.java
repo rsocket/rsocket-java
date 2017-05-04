@@ -14,7 +14,7 @@
 package io.rsocket.perf;
 
 import io.rsocket.Payload;
-import io.rsocket.ReactiveSocket;
+import io.rsocket.RSocket;
 import io.rsocket.perf.util.AbstractMicrobenchmarkBase;
 import io.rsocket.perf.util.BlackholeSubscriber;
 import io.rsocket.perf.util.ClientServerHolder;
@@ -33,7 +33,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Supplier;
 
-public class AbstractReactiveSocketPerf extends AbstractMicrobenchmarkBase {
+public class AbstractRSocketPerf extends AbstractMicrobenchmarkBase {
 
     public static final String TRANSPORT_TCP_MULTI_CONNECTIONS = "tcp_multi_connections";
     public static final String TRANSPORT_TCP = "tcp";
@@ -43,9 +43,9 @@ public class AbstractReactiveSocketPerf extends AbstractMicrobenchmarkBase {
     public String transport;
 
     protected Blackhole bh;
-    protected Supplier<ReactiveSocket> localHolder;
-    protected Supplier<ReactiveSocket> tcpHolder;
-    protected Supplier<ReactiveSocket> multiClientTcpHolders;
+    protected Supplier<RSocket> localHolder;
+    protected Supplier<RSocket> tcpHolder;
+    protected Supplier<RSocket> multiClientTcpHolders;
 
     protected void _setup(Blackhole bh) {
         tcpHolder = ClientServerHolder.create(TcpTransportServer.create(TcpServer.create()), socketAddress ->
@@ -58,8 +58,8 @@ public class AbstractReactiveSocketPerf extends AbstractMicrobenchmarkBase {
         this.bh = bh;
     }
 
-    protected Supplier<ReactiveSocket> getSocketSupplier() {
-        Supplier<ReactiveSocket> socketSupplier;
+    protected Supplier<RSocket> getSocketSupplier() {
+        Supplier<RSocket> socketSupplier;
         switch (transport) {
         case TRANSPORT_LOCAL:
             socketSupplier = localHolder;
@@ -76,7 +76,7 @@ public class AbstractReactiveSocketPerf extends AbstractMicrobenchmarkBase {
         return socketSupplier;
     }
 
-    protected void requestResponse(Supplier<ReactiveSocket> socketSupplier, Supplier<Payload> payloadSupplier,
+    protected void requestResponse(Supplier<RSocket> socketSupplier, Supplier<Payload> payloadSupplier,
                                    int requestCount)
             throws InterruptedException {
         CountDownLatch latch = new CountDownLatch(requestCount);
@@ -88,7 +88,7 @@ public class AbstractReactiveSocketPerf extends AbstractMicrobenchmarkBase {
         latch.await();
     }
 
-    protected void requestStream(Supplier<ReactiveSocket> socketSupplier, Supplier<Payload> payloadSupplier,
+    protected void requestStream(Supplier<RSocket> socketSupplier, Supplier<Payload> payloadSupplier,
                                  int requestCount, int itemCount)
             throws InterruptedException {
         CountDownLatch latch = new CountDownLatch(requestCount);

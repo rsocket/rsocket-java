@@ -13,7 +13,7 @@
 
 package io.rsocket.perf;
 
-import io.rsocket.ReactiveSocket;
+import io.rsocket.RSocket;
 import io.rsocket.util.PayloadImpl;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -33,7 +33,7 @@ import java.util.function.Supplier;
 @BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(TimeUnit.SECONDS)
 @State(Scope.Benchmark)
-public class RequestResponseLargePayloadPerf extends AbstractReactiveSocketPerf {
+public class RequestResponseLargePayloadPerf extends AbstractRSocketPerf {
 
     @Param({"16", "1024"})
     public int payloadSizeKb;
@@ -49,7 +49,7 @@ public class RequestResponseLargePayloadPerf extends AbstractReactiveSocketPerf 
 
     @Benchmark
     public void requestResponseLargePayload() throws InterruptedException {
-        Supplier<ReactiveSocket> socketSupplier = getSocketSupplier();
+        Supplier<RSocket> socketSupplier = getSocketSupplier();
         requestResponse(socketSupplier, () -> new PayloadImpl(payloadBytes), 1);
     }
 }

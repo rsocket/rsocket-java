@@ -31,7 +31,7 @@ import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
 import io.rsocket.Payload;
-import io.rsocket.ReactiveSocket;
+import io.rsocket.RSocket;
 import io.rsocket.tckdrivers.common.ConsoleUtils;
 import io.rsocket.tckdrivers.common.EchoSubscription;
 import io.rsocket.tckdrivers.common.MySubscriber;
@@ -42,8 +42,8 @@ import io.rsocket.tckdrivers.common.Tuple;
 import io.rsocket.util.PayloadImpl;
 
 /**
- * This class is the driver for the Java ReactiveSocket client. To use with class with the current Java impl of
- * ReactiveSocket, one should supply both a test file as well as a function that can generate ReactiveSockets on demand.
+ * This class is the driver for the Java RSocket client. To use with class with the current Java impl of
+ * RSocket, one should supply both a test file as well as a function that can generate RSockets on demand.
  * This driver will then parse through the test file, and for each test, it will run them on their own thread and print
  * out the results.
  */
@@ -53,12 +53,12 @@ public class JavaClientDriver {
     private final Map<String, MySubscriber<Payload>> payloadSubscribers;
     private final Map<String, MySubscriber<Void>> fnfSubscribers;
     private final Map<String, String> idToType;
-    private final Supplier<ReactiveSocket> createClient;
+    private final Supplier<RSocket> createClient;
     private final List<String> testList;
     private final String AGENT = "[CLIENT]";
     private ConsoleUtils consoleUtils = new ConsoleUtils(AGENT);
 
-    public JavaClientDriver(String path, Supplier<ReactiveSocket> createClient, List<String> tests)
+    public JavaClientDriver(String path, Supplier<RSocket> createClient, List<String> tests)
             throws FileNotFoundException {
         this.reader = new BufferedReader(new FileReader(path));
         this.payloadSubscribers = new HashMap<>();
@@ -215,7 +215,7 @@ public class JavaClientDriver {
                 MySubscriber<Payload> rrsub = new MySubscriber<>(0L, AGENT);
                 payloadSubscribers.put(args[2], rrsub);
                 idToType.put(args[2], args[1]);
-                ReactiveSocket rrclient = createClient.get();
+                RSocket rrclient = createClient.get();
                 consoleUtils.info("Sending RR with " + args[3] + " " + args[4]);
                 Publisher<Payload> rrpub = rrclient.requestResponse(new PayloadImpl(args[3], args[4]));
                 rrpub.subscribe(rrsub);
@@ -224,7 +224,7 @@ public class JavaClientDriver {
                 MySubscriber<Payload> rssub = new MySubscriber<>(0L, AGENT);
                 payloadSubscribers.put(args[2], rssub);
                 idToType.put(args[2], args[1]);
-                ReactiveSocket rsclient = createClient.get();
+                RSocket rsclient = createClient.get();
                 consoleUtils.info("Sending RS with " + args[3] + " " + args[4]);
                 Publisher<Payload> rspub = rsclient.requestStream(new PayloadImpl(args[3], args[4]));
                 rspub.subscribe(rssub);
@@ -233,7 +233,7 @@ public class JavaClientDriver {
                 MySubscriber<Void> fnfsub = new MySubscriber<>(0L, AGENT);
                 fnfSubscribers.put(args[2], fnfsub);
                 idToType.put(args[2], args[1]);
-                ReactiveSocket fnfclient = createClient.get();
+                RSocket fnfclient = createClient.get();
                 consoleUtils.info("Sending fnf with " + args[3] + " " + args[4]);
                 Publisher<Void> fnfpub = fnfclient.fireAndForget(new PayloadImpl(args[3], args[4]));
                 fnfpub.subscribe(fnfsub);
@@ -267,7 +267,7 @@ public class JavaClientDriver {
 
         // we now create the publisher that the server will subscribe to with its own subscriber
         // we want to give that subscriber a subscription that the client will use to send data to the server
-        ReactiveSocket client = createClient.get();
+        RSocket client = createClient.get();
         AtomicReference<ParseChannelThread> mypct = new AtomicReference<>();
         Publisher<Payload> pub = client.requestChannel(new Publisher<Payload>() {
             @Override
@@ -299,7 +299,7 @@ public class JavaClientDriver {
     private void handleEchoChannel(String[] args) {
         Payload initPayload = new PayloadImpl(args[1], args[2]);
         MySubscriber<Payload> testsub = new MySubscriber<>(1L, AGENT);
-        ReactiveSocket client = createClient.get();
+        RSocket client = createClient.get();
         Publisher<Payload> pub = client.requestChannel(new Publisher<Payload>() {
             @Override
             public void subscribe(Subscriber<? super Payload> s) {
@@ -519,7 +519,7 @@ public class JavaClientDriver {
 
     private void handleEOF() {
         MySubscriber<Void> fnfsub = new MySubscriber<>(0L, AGENT);
-        ReactiveSocket fnfclient = createClient.get();
+        RSocket fnfclient = createClient.get();
         Publisher<Void> fnfpub = fnfclient.fireAndForget(new PayloadImpl("shutdown", "shutdown"));
         fnfpub.subscribe(fnfsub);
         fnfsub.request(1);

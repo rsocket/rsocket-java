@@ -16,10 +16,10 @@
 
 package io.rsocket.lease;
 
-import io.rsocket.ReactiveSocket;
+import io.rsocket.RSocket;
 import io.rsocket.exceptions.RejectedException;
 import io.rsocket.lease.DefaultLeaseHonoringSocketTest.SocketHolder;
-import io.rsocket.test.util.MockReactiveSocket;
+import io.rsocket.test.util.MockRSocket;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
@@ -51,30 +51,30 @@ public class DefaultLeaseHonoringSocketTest extends DefaultLeaseTest<SocketHolde
     }
 
     @Override
-    protected ReactiveSocket getReactiveSocket(SocketHolder state) {
-        return state.getReactiveSocket();
+    protected RSocket getRSocket(SocketHolder state) {
+        return state.getRSocket();
     }
 
     @Override
-    protected MockReactiveSocket getMockSocket(SocketHolder state) {
+    protected MockRSocket getMockSocket(SocketHolder state) {
         return state.getMockSocket();
     }
 
     public static class SocketHolder {
 
-        private final MockReactiveSocket mockSocket;
+        private final MockRSocket mockSocket;
         private final DefaultLeaseHonoringSocket reactiveSocket;
 
-        public SocketHolder(MockReactiveSocket mockSocket, DefaultLeaseHonoringSocket reactiveSocket) {
+        public SocketHolder(MockRSocket mockSocket, DefaultLeaseHonoringSocket reactiveSocket) {
             this.mockSocket = mockSocket;
             this.reactiveSocket = reactiveSocket;
         }
 
-        public MockReactiveSocket getMockSocket() {
+        public MockRSocket getMockSocket() {
             return mockSocket;
         }
 
-        public DefaultLeaseHonoringSocket getReactiveSocket() {
+        public DefaultLeaseHonoringSocket getRSocket() {
             return reactiveSocket;
         }
 
@@ -82,12 +82,12 @@ public class DefaultLeaseHonoringSocketTest extends DefaultLeaseTest<SocketHolde
             LongSupplier _currentTimeSupplier = null == currentTimeSupplier? () -> -1 : currentTimeSupplier;
             AbstractSocketRule<DefaultLeaseHonoringSocket> rule = new AbstractSocketRule<DefaultLeaseHonoringSocket>() {
                 @Override
-                protected DefaultLeaseHonoringSocket newSocket(ReactiveSocket delegate) {
+                protected DefaultLeaseHonoringSocket newSocket(RSocket delegate) {
                     return new DefaultLeaseHonoringSocket(delegate, _currentTimeSupplier);
                 }
             };
             rule.init();
-            return new SocketHolder(rule.getMockSocket(), rule.getReactiveSocket());
+            return new SocketHolder(rule.getMockSocket(), rule.getRSocket());
         }
 
         public SocketHolder sendLease(int permits, int ttl) {

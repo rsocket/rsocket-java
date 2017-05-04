@@ -13,10 +13,10 @@
 
 package io.rsocket.tckdrivers.client;
 
-import io.rsocket.ReactiveSocket;
+import io.rsocket.RSocket;
 import io.rsocket.transport.netty.client.TcpTransportClient;
 
-import io.rsocket.client.ReactiveSocketClient;
+import io.rsocket.client.RSocketClient;
 import io.reactivex.Flowable;
 import io.rsocket.client.KeepAliveProvider;
 import io.rsocket.client.SetupProvider;
@@ -28,7 +28,7 @@ import java.util.List;
 
 
 /**
- * A client that implements a method to create ReactiveSockets, and runs the tests.
+ * A client that implements a method to create RSockets, and runs the tests.
  */
 public class JavaTCPClient {
 
@@ -54,16 +54,16 @@ public class JavaTCPClient {
     }
 
     /**
-     * A function that creates a ReactiveSocket on a new TCP connection.
-     * @return a ReactiveSocket
+     * A function that creates a RSocket on a new TCP connection.
+     * @return a RSocket
      */
-    public static ReactiveSocket createClient() {
+    public static RSocket createClient() {
         if ("tcp".equals(uri.getScheme())) {
             SocketAddress address = new InetSocketAddress(uri.getHost(), uri.getPort());
-            ReactiveSocketClient client = ReactiveSocketClient.create(TcpTransportClient.create(TcpClient.create(options ->
+            RSocketClient client = RSocketClient.create(TcpTransportClient.create(TcpClient.create(options ->
             options.connect((InetSocketAddress)address))),
                     SetupProvider.keepAlive(KeepAliveProvider.never()).disableLease());
-            ReactiveSocket socket = Flowable.fromPublisher(client.connect()).singleOrError().blockingGet();
+            RSocket socket = Flowable.fromPublisher(client.connect()).singleOrError().blockingGet();
             return socket;
         }
         else {

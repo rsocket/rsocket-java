@@ -24,7 +24,7 @@ import io.rsocket.aeron.internal.SingleThreadedEventLoop;
 import io.rsocket.aeron.internal.reactivestreams.AeronClientChannelConnector;
 import io.rsocket.aeron.internal.reactivestreams.AeronSocketAddress;
 import io.rsocket.client.KeepAliveProvider;
-import io.rsocket.client.ReactiveSocketClient;
+import io.rsocket.client.RSocketClient;
 import io.rsocket.client.SetupProvider;
 import io.rsocket.test.PingClient;
 import org.HdrHistogram.Recorder;
@@ -60,8 +60,8 @@ public final class AeronPing {
 
         AeronTransportClient aeronTransportClient = new AeronTransportClient(connector, config);
 
-        ReactiveSocketClient client =
-                ReactiveSocketClient.create(aeronTransportClient, setup);
+        RSocketClient client =
+                RSocketClient.create(aeronTransportClient, setup);
         PingClient pingClient = new PingClient(client);
         Recorder recorder = pingClient.startTracker(Duration.ofSeconds(1));
         final int count = 1_000_000_000;

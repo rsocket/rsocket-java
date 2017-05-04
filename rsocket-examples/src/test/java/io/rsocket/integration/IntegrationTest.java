@@ -16,20 +16,20 @@
 
 package io.rsocket.integration;
 
-import io.rsocket.AbstractReactiveSocket;
+import io.rsocket.AbstractRSocket;
 import io.rsocket.Payload;
 import io.rsocket.Plugins;
-import io.rsocket.ReactiveSocket;
+import io.rsocket.RSocket;
 import io.rsocket.client.KeepAliveProvider;
-import io.rsocket.client.ReactiveSocketClient;
+import io.rsocket.client.RSocketClient;
 import io.rsocket.client.SetupProvider;
 import io.rsocket.lease.DisabledLeaseAcceptingSocket;
-import io.rsocket.server.ReactiveSocketServer;
+import io.rsocket.server.RSocketServer;
 import io.rsocket.transport.TransportServer.StartedServer;
 import io.rsocket.transport.netty.client.TcpTransportClient;
 import io.rsocket.transport.netty.server.TcpTransportServer;
 import io.rsocket.util.PayloadImpl;
-import io.rsocket.util.ReactiveSocketProxy;
+import io.rsocket.util.RSocketProxy;
 import io.reactivex.subscribers.TestSubscriber;
 import org.junit.Rule;
 import org.junit.Test;
@@ -88,7 +88,7 @@ public class IntegrationTest {
     public static class ClientServerRule extends ExternalResource {
 
         private StartedServer server;
-        private ReactiveSocket client;
+        private RSocket client;
         private AtomicInteger requestCount;
         private CountDownLatch disconnectionCounter;
         public static volatile boolean calledClient = false;
@@ -97,7 +97,7 @@ public class IntegrationTest {
 
         static {
             Plugins.CLIENT_REACTIVE_SOCKET_INTERCEPTOR = reactiveSocket ->
-                Mono.just(new ReactiveSocketProxy(reactiveSocket) {
+                Mono.just(new RSocketProxy(reactiveSocket) {
                     @Override
                     public Mono<Payload> requestResponse(Payload payload) {
                         calledClient = true;
@@ -106,7 +106,7 @@ public class IntegrationTest {
                 });
 
             Plugins.SERVER_REACTIVE_SOCKET_INTERCEPTOR = reactiveSocket ->
-                Mono.just(new ReactiveSocketProxy(reactiveSocket) {
+                Mono.just(new RSocketProxy(reactiveSocket) {
                     @Override
                     public Mono<Payload> requestResponse(Payload payload) {
                         calledServer = true;
@@ -127,13 +127,13 @@ public class IntegrationTest {
                 public void evaluate() throws Throwable {
                     requestCount = new AtomicInteger();
                     disconnectionCounter = new CountDownLatch(1);
-                    server = ReactiveSocketServer.create(TcpTransportServer.create(TcpServer.create()))
+                    server = RSocketServer.create(TcpTransportServer.create(TcpServer.create()))
                         .start((setup, sendingSocket) -> {
                             sendingSocket.onClose()
                                 .doFinally(signalType -> disconnectionCounter.countDown())
                                 .subscribe();
 
-                            return new DisabledLeaseAcceptingSocket(new AbstractReactiveSocket() {
+                            return new DisabledLeaseAcceptingSocket(new AbstractRSocket() {
                                 @Override
                                 public Mono<Payload> requestResponse(Payload payload) {
                                     return Mono.<Payload>just(new PayloadImpl("RESPONSE", "METADATA"))
@@ -148,7 +148,7 @@ public class IntegrationTest {
                                 }
                             });
                         });
-                    client = ReactiveSocketClient.create(TcpTransportClient.create(TcpClient.create(options ->
+                    client = RSocketClient.create(TcpTransportClient.create(TcpClient.create(options ->
                             options.connect((InetSocketAddress) server.getServerAddress()))),
                         SetupProvider.keepAlive(KeepAliveProvider.never())
                             .disableLease())

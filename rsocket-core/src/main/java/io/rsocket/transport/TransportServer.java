@@ -25,7 +25,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 /**
- * A server contract for writing transports of ReactiveSocket.
+ * A server contract for writing transports of RSocket.
  */
 public interface TransportServer {
 

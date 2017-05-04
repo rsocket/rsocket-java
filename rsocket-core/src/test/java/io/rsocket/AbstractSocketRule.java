@@ -24,7 +24,7 @@ import org.junit.runners.model.Statement;
 
 import java.util.concurrent.ConcurrentLinkedQueue;
 
-public abstract class AbstractSocketRule<T extends ReactiveSocket> extends ExternalResource {
+public abstract class AbstractSocketRule<T extends RSocket> extends ExternalResource {
 
     protected TestDuplexConnection connection;
     protected TestSubscriber<Void> connectSub;
@@ -46,8 +46,8 @@ public abstract class AbstractSocketRule<T extends ReactiveSocket> extends Exter
     }
 
     protected void init() {
-        socket = newReactiveSocket();
+        socket = newRSocket();
     }
 
-    protected abstract T newReactiveSocket();
+    protected abstract T newRSocket();
 }

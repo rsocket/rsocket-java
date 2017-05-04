@@ -16,11 +16,11 @@
 
 package io.rsocket.lease;
 
-import io.rsocket.ReactiveSocket;
+import io.rsocket.RSocket;
 
 import java.util.function.Consumer;
 
-public interface LeaseEnforcingSocket extends ReactiveSocket {
+public interface LeaseEnforcingSocket extends RSocket {
 
     void acceptLeaseSender(Consumer<Lease> leaseSender);
 

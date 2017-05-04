@@ -17,9 +17,9 @@
 package io.rsocket.test;
 
 import io.rsocket.Payload;
-import io.rsocket.ReactiveSocket;
+import io.rsocket.RSocket;
 import io.rsocket.client.KeepAliveProvider;
-import io.rsocket.client.ReactiveSocketClient;
+import io.rsocket.client.RSocketClient;
 import io.rsocket.client.SetupProvider;
 import io.rsocket.transport.TransportClient;
 import io.rsocket.util.PayloadImpl;
@@ -43,8 +43,8 @@ public class ClientSetupRule extends ExternalResource {
     private final Callable<SocketAddress> serverStarter;
     private final Function<SocketAddress, TransportClient> clientFactory;
     private SocketAddress serverAddress;
-    private ReactiveSocket reactiveSocket;
-    private ReactiveSocketClient reactiveSocketClient;
+    private RSocket reactiveSocket;
+    private RSocketClient reactiveSocketClient;
 
     public ClientSetupRule(Function<SocketAddress, TransportClient> clientFactory, Callable<SocketAddress> serverStarter) {
         this.clientFactory = clientFactory;
@@ -59,13 +59,13 @@ public class ClientSetupRule extends ExternalResource {
                 serverAddress = serverStarter.call();
                 TransportClient client = clientFactory.apply(serverAddress);
                 SetupProvider setup = SetupProvider.keepAlive(KeepAliveProvider.never()).disableLease();
-                reactiveSocketClient = ReactiveSocketClient.create(client, setup);
+                reactiveSocketClient = RSocketClient.create(client, setup);
                 base.evaluate();
             }
         };
     }
 
-    public ReactiveSocketClient getClient() {
+    public RSocketClient getClient() {
         return reactiveSocketClient;
     }
 
@@ -73,7 +73,7 @@ public class ClientSetupRule extends ExternalResource {
         return serverAddress;
     }
 
-    public ReactiveSocket getReactiveSocket() {
+    public RSocket getRSocket() {
         if (null == reactiveSocket) {
             reactiveSocket = reactiveSocketClient.connect().block();
         }
@@ -84,7 +84,7 @@ public class ClientSetupRule extends ExternalResource {
         TestSubscriber<Void> ts = TestSubscriber.create();
         Flux.range(1, count)
             .flatMap(i ->
-                getReactiveSocket()
+                getRSocket()
                     .fireAndForget(new PayloadImpl("hello", "metadata"))
             )
             .doOnError(Throwable::printStackTrace)
@@ -100,7 +100,7 @@ public class ClientSetupRule extends ExternalResource {
         TestSubscriber<Void> ts = TestSubscriber.create();
         Flux.range(1, count)
             .flatMap(i ->
-                getReactiveSocket()
+                getRSocket()
                     .metadataPush(new PayloadImpl("", "metadata"))
             )
             .doOnError(Throwable::printStackTrace)
@@ -116,7 +116,7 @@ public class ClientSetupRule extends ExternalResource {
         TestSubscriber<String> ts = TestSubscriber.create();
         Flux.range(1, count)
             .flatMap(i ->
-                getReactiveSocket()
+                getRSocket()
                 .requestResponse(new PayloadImpl("hello", "metadata"))
                 .map(payload -> StandardCharsets.UTF_8.decode(payload.getData()).toString())
             )
@@ -139,11 +139,11 @@ public class ClientSetupRule extends ExternalResource {
     }
 
 
-    private void testStreamRequestN(Function<ReactiveSocket, Flux<Payload>> invoker) {
+    private void testStreamRequestN(Function<RSocket, Flux<Payload>> invoker) {
         int count = 10;
         CountDownLatch latch = new CountDownLatch(count);
         TestSubscriber<Payload> ts = TestSubscriber.create(count / 2);
-        Flux<Payload> publisher = invoker.apply(getReactiveSocket());
+        Flux<Payload> publisher = invoker.apply(getRSocket());
         publisher
             .doOnNext(s -> latch.countDown())
             .subscribe(ts);
@@ -161,9 +161,9 @@ public class ClientSetupRule extends ExternalResource {
         ts.assertNotTerminated();
     }
 
-    private void testStream(Function<ReactiveSocket, Flux<Payload>> invoker) {
+    private void testStream(Function<RSocket, Flux<Payload>> invoker) {
         TestSubscriber<Payload> ts = TestSubscriber.create();
-        Flux<Payload> publisher = invoker.apply(getReactiveSocket());
+        Flux<Payload> publisher = invoker.apply(getRSocket());
         publisher
             .take(5)
             .subscribe(ts);

@@ -16,7 +16,7 @@
 package io.rsocket.transport.netty;
 
 import io.rsocket.client.KeepAliveProvider;
-import io.rsocket.client.ReactiveSocketClient;
+import io.rsocket.client.RSocketClient;
 import io.rsocket.client.SetupProvider;
 import io.rsocket.test.PingClient;
 import io.rsocket.transport.netty.client.TcpTransportClient;
@@ -29,8 +29,8 @@ public final class TcpPing {
 
     public static void main(String... args) throws Exception {
         SetupProvider setup = SetupProvider.keepAlive(KeepAliveProvider.never()).disableLease();
-        ReactiveSocketClient client =
-                ReactiveSocketClient.create(TcpTransportClient.create(TcpClient.create(7878)), setup);
+        RSocketClient client =
+                RSocketClient.create(TcpTransportClient.create(TcpClient.create(7878)), setup);
         PingClient pingClient = new PingClient(client);
         Recorder recorder = pingClient.startTracker(Duration.ofSeconds(1));
         final int count = 1_000_000_000;

@@ -21,9 +21,9 @@ import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 import static io.rsocket.frame.FrameHeaderFlyweight.FRAME_LENGTH_MASK;
 import static io.rsocket.frame.FrameHeaderFlyweight.FRAME_LENGTH_SIZE;
 
-public class ReactiveSocketLengthCodec extends LengthFieldBasedFrameDecoder {
+public class RSocketLengthCodec extends LengthFieldBasedFrameDecoder {
 
-    public ReactiveSocketLengthCodec() {
+    public RSocketLengthCodec() {
         super(FRAME_LENGTH_MASK, 0, FRAME_LENGTH_SIZE, 0, 0);
     }
 }

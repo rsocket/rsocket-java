@@ -20,7 +20,7 @@ import io.rsocket.DuplexConnection;
 import reactor.core.publisher.Mono;
 
 /**
- * A client contract for writing transports of ReactiveSocket.
+ * A client contract for writing transports of RSocket.
  */
 public interface TransportClient {
 

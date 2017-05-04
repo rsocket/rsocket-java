@@ -16,7 +16,7 @@
 
 package io.rsocket.lease;
 
-import io.rsocket.ReactiveSocket;
+import io.rsocket.RSocket;
 import org.reactivestreams.Subscription;
 import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
@@ -26,7 +26,7 @@ import java.util.function.Consumer;
 import java.util.function.IntSupplier;
 
 /**
- * A distributor of leases to multiple {@link ReactiveSocket} instances based on the capacity as provided by the
+ * A distributor of leases to multiple {@link RSocket} instances based on the capacity as provided by the
  * supplied {@code IntSupplier}, regularly on every tick as provided by the supplied {@code Publisher}
  */
 public final class FairLeaseDistributor implements DefaultLeaseEnforcingSocket.LeaseDistributor {

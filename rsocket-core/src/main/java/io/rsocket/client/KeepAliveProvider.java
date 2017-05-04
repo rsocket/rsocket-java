@@ -22,7 +22,7 @@ import reactor.core.publisher.Flux;
 import java.util.function.LongSupplier;
 
 /**
- * A provider of keep-alive ticks that are sent from a client to a server over a ReactiveSocket connection.
+ * A provider of keep-alive ticks that are sent from a client to a server over a RSocket connection.
  * {@link #ticks()} provides a source that emits an item whenever a keep-alive frame is to be sent. This expects to
  * receive an acknowledgment from the peer for every keep-alive frame sent, in absence of a configurable number of
  * consecutive missed acknowledgments, it will generate an error from the {@link #ticks()} source.

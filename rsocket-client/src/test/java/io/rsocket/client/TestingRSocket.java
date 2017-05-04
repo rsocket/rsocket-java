@@ -17,7 +17,7 @@
 package io.rsocket.client;
 
 import io.rsocket.Payload;
-import io.rsocket.ReactiveSocket;
+import io.rsocket.RSocket;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
@@ -30,20 +30,20 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
-public class TestingReactiveSocket implements ReactiveSocket {
+public class TestingRSocket implements RSocket {
 
     private final AtomicInteger count;
     private final MonoProcessor<Void> closeSubject = MonoProcessor.create();
     private final BiFunction<Subscriber<? super Payload>, Payload, Boolean> eachPayloadHandler;
 
-    public TestingReactiveSocket(Function<Payload, Payload> responder) {
+    public TestingRSocket(Function<Payload, Payload> responder) {
         this((subscriber, payload) -> {
             subscriber.onNext(responder.apply(payload));
             return true;
         });
     }
 
-    public TestingReactiveSocket(BiFunction<Subscriber<? super Payload>, Payload, Boolean> eachPayloadHandler) {
+    public TestingRSocket(BiFunction<Subscriber<? super Payload>, Payload, Boolean> eachPayloadHandler) {
         this.eachPayloadHandler = eachPayloadHandler;
         this.count = new AtomicInteger(0);
     }

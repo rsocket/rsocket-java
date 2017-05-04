@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.fail;
 
-public class ReactiveSocketTest {
+public class RSocketTest {
 
     @Rule
     public final SocketRule rule = new SocketRule();
@@ -54,7 +54,7 @@ public class ReactiveSocketTest {
     @Test(timeout = 2000)
     @Ignore
     public void testHandlerEmitsError() {
-        rule.setRequestAcceptor(new AbstractReactiveSocket() {
+        rule.setRequestAcceptor(new AbstractRSocket() {
             @Override
             public Mono<Payload> requestResponse(Payload payload) {
                 return Mono.error(new NullPointerException("Deliberate exception."));
@@ -79,9 +79,9 @@ public class ReactiveSocketTest {
 
     public static class SocketRule extends ExternalResource {
 
-        private ClientReactiveSocket crs;
-        private ServerReactiveSocket srs;
-        private ReactiveSocket requestAcceptor;
+        private ClientRSocket crs;
+        private ServerRSocket srs;
+        private RSocket requestAcceptor;
         DirectProcessor<Frame> serverProcessor;
         DirectProcessor<Frame> clientProcessor;
         private ArrayList<Throwable> clientErrors = new ArrayList<>();
@@ -105,24 +105,24 @@ public class ReactiveSocketTest {
             LocalDuplexConnection serverConnection = new LocalDuplexConnection("server", clientProcessor, serverProcessor);
             LocalDuplexConnection clientConnection = new LocalDuplexConnection("client", serverProcessor, clientProcessor);
 
-            requestAcceptor = null != requestAcceptor? requestAcceptor : new AbstractReactiveSocket() {
+            requestAcceptor = null != requestAcceptor? requestAcceptor : new AbstractRSocket() {
                 @Override
                 public Mono<Payload> requestResponse(Payload payload) {
                     return Mono.just(payload);
                 }
             };
 
-            srs = new ServerReactiveSocket(serverConnection, requestAcceptor,
+            srs = new ServerRSocket(serverConnection, requestAcceptor,
                 throwable -> serverErrors.add(throwable));
             srs.start();
 
-            crs = new ClientReactiveSocket(clientConnection,
+            crs = new ClientRSocket(clientConnection,
                                            throwable -> clientErrors.add(throwable), StreamIdSupplier.clientSupplier(),
                                            KeepAliveProvider.never());
             crs.start(lease -> {});
         }
 
-        public void setRequestAcceptor(ReactiveSocket requestAcceptor) {
+        public void setRequestAcceptor(RSocket requestAcceptor) {
             this.requestAcceptor = requestAcceptor;
             init();
         }

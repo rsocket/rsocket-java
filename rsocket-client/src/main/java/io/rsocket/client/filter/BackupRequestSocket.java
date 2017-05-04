@@ -16,7 +16,7 @@
 package io.rsocket.client.filter;
 
 import io.rsocket.Payload;
-import io.rsocket.ReactiveSocket;
+import io.rsocket.RSocket;
 import io.rsocket.stat.FrugalQuantile;
 import io.rsocket.stat.Quantile;
 import io.rsocket.util.Clock;
@@ -34,22 +34,22 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
-public class BackupRequestSocket implements ReactiveSocket {
+public class BackupRequestSocket implements RSocket {
     private final ScheduledExecutorService executor;
-    private final ReactiveSocket child;
+    private final RSocket child;
     private final Quantile q;
 
-    public BackupRequestSocket(ReactiveSocket child, double quantile, ScheduledExecutorService executor) {
+    public BackupRequestSocket(RSocket child, double quantile, ScheduledExecutorService executor) {
         this.child = child;
         this.executor = executor;
         q = new FrugalQuantile(quantile);
     }
 
-    public BackupRequestSocket(ReactiveSocket child, double quantile) {
+    public BackupRequestSocket(RSocket child, double quantile) {
         this(child, quantile, Executors.newScheduledThreadPool(2));
     }
 
-    public BackupRequestSocket(ReactiveSocket child) {
+    public BackupRequestSocket(RSocket child) {
         this(child, 0.99);
     }
 

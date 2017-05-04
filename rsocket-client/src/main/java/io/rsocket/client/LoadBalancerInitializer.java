@@ -16,7 +16,7 @@
 
 package io.rsocket.client;
 
-import io.rsocket.ReactiveSocket;
+import io.rsocket.RSocket;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
@@ -27,20 +27,20 @@ import java.util.Collection;
  * This is a temporary class to provide a {@link LoadBalancingClient#connect()} implementation when {@link LoadBalancer}
  * does not support it.
  */
-final class LoadBalancerInitializer implements ReactiveSocketClient, Runnable {
+final class LoadBalancerInitializer implements RSocketClient, Runnable {
 
     private final LoadBalancer loadBalancer;
-    private final MonoProcessor<ReactiveSocket> emitSource = MonoProcessor.create();
+    private final MonoProcessor<RSocket> emitSource = MonoProcessor.create();
 
-    private LoadBalancerInitializer(Publisher<? extends Collection<ReactiveSocketClient>> factories) {
+    private LoadBalancerInitializer(Publisher<? extends Collection<RSocketClient>> factories) {
         loadBalancer = new LoadBalancer(factories, this);
     }
 
-    static LoadBalancerInitializer create(Publisher<? extends Collection<ReactiveSocketClient>> factories) {
+    static LoadBalancerInitializer create(Publisher<? extends Collection<RSocketClient>> factories) {
         return new LoadBalancerInitializer(factories);
     }
 
-    public Mono<ReactiveSocket> connect() {
+    public Mono<RSocket> connect() {
         return emitSource;
     }
 

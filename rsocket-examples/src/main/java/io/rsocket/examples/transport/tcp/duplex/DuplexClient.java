@@ -13,14 +13,14 @@
 
 package io.rsocket.examples.transport.tcp.duplex;
 
-import io.rsocket.AbstractReactiveSocket;
+import io.rsocket.AbstractRSocket;
 import io.rsocket.Payload;
-import io.rsocket.ReactiveSocket;
-import io.rsocket.client.ReactiveSocketClient;
-import io.rsocket.client.ReactiveSocketClient.SocketAcceptor;
+import io.rsocket.RSocket;
+import io.rsocket.client.RSocketClient;
+import io.rsocket.client.RSocketClient.SocketAcceptor;
 import io.rsocket.lease.DisabledLeaseAcceptingSocket;
 import io.rsocket.lease.LeaseEnforcingSocket;
-import io.rsocket.server.ReactiveSocketServer;
+import io.rsocket.server.RSocketServer;
 import io.rsocket.transport.TransportServer.StartedServer;
 import io.rsocket.transport.netty.client.TcpTransportClient;
 import io.rsocket.transport.netty.server.TcpTransportServer;
@@ -40,22 +40,22 @@ import static io.rsocket.client.SetupProvider.*;
 public final class DuplexClient {
 
     public static void main(String[] args) {
-        StartedServer server = ReactiveSocketServer.create(TcpTransportServer.create(TcpServer.create()))
+        StartedServer server = RSocketServer.create(TcpTransportServer.create(TcpServer.create()))
                                                   .start((setupPayload, reactiveSocket) -> {
                                                       reactiveSocket.requestStream(new PayloadImpl("Hello-Bidi"))
                                                               .map(payload -> StandardCharsets.UTF_8.decode(payload.getData()).toString())
                                                               .log()
                                                               .subscribe();
-                                                      return new DisabledLeaseAcceptingSocket(new AbstractReactiveSocket() { });
+                                                      return new DisabledLeaseAcceptingSocket(new AbstractRSocket() { });
                                                   });
 
         SocketAddress address = server.getServerAddress();
 
-        ReactiveSocketClient rsclient = ReactiveSocketClient.createDuplex(TcpTransportClient.create(TcpClient.create(options ->
+        RSocketClient rsclient = RSocketClient.createDuplex(TcpTransportClient.create(TcpClient.create(options ->
                 options.connect((InetSocketAddress)address))), new SocketAcceptor() {
             @Override
-            public LeaseEnforcingSocket accept(ReactiveSocket reactiveSocket) {
-                return new DisabledLeaseAcceptingSocket(new AbstractReactiveSocket() {
+            public LeaseEnforcingSocket accept(RSocket reactiveSocket) {
+                return new DisabledLeaseAcceptingSocket(new AbstractRSocket() {
                     @Override
                     public Flux<Payload> requestStream(Payload payload) {
                         return Flux.interval(Duration.ofSeconds(1)).map(aLong -> new PayloadImpl("Bi-di Response => " + aLong));
@@ -64,7 +64,7 @@ public final class DuplexClient {
             }
         }, keepAlive(never()).disableLease());
 
-        ReactiveSocket socket = rsclient.connect().block();
+        RSocket socket = rsclient.connect().block();
 
         socket.onClose().block();
     }

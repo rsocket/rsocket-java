@@ -16,9 +16,9 @@
 package io.rsocket.transport.local;
 
 import io.rsocket.client.KeepAliveProvider;
-import io.rsocket.client.ReactiveSocketClient;
+import io.rsocket.client.RSocketClient;
 import io.rsocket.client.SetupProvider;
-import io.rsocket.server.ReactiveSocketServer;
+import io.rsocket.server.RSocketServer;
 import io.rsocket.test.PingClient;
 import io.rsocket.test.PingHandler;
 import org.HdrHistogram.Recorder;
@@ -28,12 +28,12 @@ import java.time.Duration;
 public final class LocalPingPong {
 
     public static void main(String... args) throws Exception {
-        ReactiveSocketServer.create(LocalServer.create("test-local-server"))
+        RSocketServer.create(LocalServer.create("test-local-server"))
                 .start(new PingHandler());
 
         SetupProvider setup = SetupProvider.keepAlive(KeepAliveProvider.never()).disableLease();
-        ReactiveSocketClient client =
-                ReactiveSocketClient.create(LocalClient.create("test-local-server"), setup);
+        RSocketClient client =
+                RSocketClient.create(LocalClient.create("test-local-server"), setup);
         PingClient pingClient = new PingClient(client);
         Recorder recorder = pingClient.startTracker(Duration.ofSeconds(1));
         final int count = 1_000_000_000;

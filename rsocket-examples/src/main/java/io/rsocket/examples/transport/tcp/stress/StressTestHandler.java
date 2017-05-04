@@ -13,16 +13,16 @@
 
 package io.rsocket.examples.transport.tcp.stress;
 
-import io.rsocket.AbstractReactiveSocket;
+import io.rsocket.AbstractRSocket;
 import io.rsocket.Payload;
-import io.rsocket.ReactiveSocket;
+import io.rsocket.RSocket;
 import io.rsocket.util.PayloadImpl;
 import reactor.core.publisher.Mono;
 
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Supplier;
 
-class StressTestHandler extends AbstractReactiveSocket {
+class StressTestHandler extends AbstractRSocket {
 
     private final Supplier<Result> failureSelector;
 
@@ -45,11 +45,11 @@ class StressTestHandler extends AbstractReactiveSocket {
         });
     }
 
-    public static ReactiveSocket alwaysPass() {
+    public static RSocket alwaysPass() {
         return new StressTestHandler(() -> Result.Pass);
     }
 
-    public static ReactiveSocket randomFailuresAndDelays() {
+    public static RSocket randomFailuresAndDelays() {
         return new StressTestHandler(() -> {
             if (ThreadLocalRandom.current().nextInt(2) == 0) {
                 return Result.Fail;

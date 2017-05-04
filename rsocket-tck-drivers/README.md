@@ -1,14 +1,14 @@
-# ReactiveSocket TCK Drivers
+# RSocket TCK Drivers
 
-This is meant to be used in conjunction with the TCK at [reactivesocket-tck](https://github.com/ReactiveSocket/reactivesocket-tck)
+This is meant to be used in conjunction with the TCK at [reactivesocket-tck](https://github.com/RSocket/reactivesocket-tck)
 
 ## Basic Idea and Organization
 
-The philosophy behind the TCK is that it should allow any implementation of ReactiveSocket to verify itself against any other
+The philosophy behind the TCK is that it should allow any implementation of RSocket to verify itself against any other
 implementation. In order to provide a truly polyglot solution, we determined that the best way to do so was to provide a central
 TCK repository with only the code that generates the intermediate script, and then leave it up to implementers to create the
 drivers for their own implementation. The script was created specifically to be easy to parse and implement drivers for,
-and this Java driver is the first driver to be created as the Java implementation of ReactiveSockets is the most mature at
+and this Java driver is the first driver to be created as the Java implementation of RSockets is the most mature at
 the time.
 
 The driver is organized with a simple structure. On both the client and server drivers, we have the main driver class that

@@ -17,8 +17,8 @@
 package io.rsocket.client;
 
 import io.rsocket.Payload;
-import io.rsocket.ReactiveSocket;
-import io.rsocket.client.filter.ReactiveSockets;
+import io.rsocket.RSocket;
+import io.rsocket.client.filter.RSockets;
 import io.rsocket.exceptions.TimeoutException;
 import io.rsocket.util.PayloadImpl;
 import org.hamcrest.MatcherAssert;
@@ -33,8 +33,8 @@ import static org.hamcrest.Matchers.instanceOf;
 public class TimeoutClientTest {
     @Test
     public void testTimeoutSocket() {
-        TestingReactiveSocket socket = new TestingReactiveSocket((subscriber, payload) -> {return false;});
-        ReactiveSocket timeout = ReactiveSockets.timeout(Duration.ofMillis(50)).apply(socket);
+        TestingRSocket socket = new TestingRSocket((subscriber, payload) -> {return false;});
+        RSocket timeout = RSockets.timeout(Duration.ofMillis(50)).apply(socket);
 
         timeout.requestResponse(PayloadImpl.EMPTY).subscribe(new Subscriber<Payload>() {
             @Override

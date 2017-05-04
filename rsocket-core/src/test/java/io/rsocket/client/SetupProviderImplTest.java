@@ -19,7 +19,7 @@ package io.rsocket.client;
 import io.rsocket.Frame;
 import io.rsocket.Frame.Setup;
 import io.rsocket.FrameType;
-import io.rsocket.ReactiveSocket;
+import io.rsocket.RSocket;
 import io.rsocket.TestUtil;
 import io.rsocket.lease.DefaultLeaseEnforcingSocket;
 import io.rsocket.lease.DefaultLeaseHonoringSocket;
@@ -51,7 +51,7 @@ public class SetupProviderImplTest {
         setupProvider = setupProvider.setupPayload(setupPayload);
         TestDuplexConnection connection = new TestDuplexConnection();
         FairLeaseDistributor distributor = new FairLeaseDistributor(() -> 0, 0, Flux.never());
-        ReactiveSocket socket = setupProvider
+        RSocket socket = setupProvider
             .accept(connection, reactiveSocket -> new DefaultLeaseEnforcingSocket(reactiveSocket, distributor))
             .otherwiseIfEmpty(Mono.error(new IllegalStateException("No socket returned.")))
             .block();

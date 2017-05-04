@@ -17,8 +17,8 @@
 package io.rsocket.client.filter;
 
 import io.rsocket.Payload;
-import io.rsocket.ReactiveSocket;
-import io.rsocket.util.ReactiveSocketProxy;
+import io.rsocket.RSocket;
+import io.rsocket.util.RSocketProxy;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -28,22 +28,22 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
-public final class ReactiveSockets {
+public final class RSockets {
 
-    private ReactiveSockets() {
+    private RSockets() {
         // No Instances.
     }
 
     /**
-     * Provides a mapping function to wrap a {@code ReactiveSocket} such that all requests will timeout, if not
+     * Provides a mapping function to wrap a {@code RSocket} such that all requests will timeout, if not
      * completed after the specified {@code timeout}.
      *
      * @param timeout timeout duration.
      *
      * @return Function to transform any socket into a timeout socket.
      */
-    public static Function<ReactiveSocket, ReactiveSocket> timeout(Duration timeout) {
-        return source -> new ReactiveSocketProxy(source) {
+    public static Function<RSocket, RSocket> timeout(Duration timeout) {
+        return source -> new RSocketProxy(source) {
             @Override
             public Mono<Void> fireAndForget(Payload payload) {
                 return source.fireAndForget(payload).timeout(timeout);
@@ -72,14 +72,14 @@ public final class ReactiveSockets {
     }
 
     /**
-     * Provides a mapping function to wrap a {@code ReactiveSocket} such that a call to {@link ReactiveSocket#close()}
+     * Provides a mapping function to wrap a {@code RSocket} such that a call to {@link RSocket#close()}
      * does not cancel all pending requests. Instead, it will wait for all pending requests to finish and then close
      * the socket.
      *
      * @return Function to transform any socket into a safe closing socket.
      */
-    public static Function<ReactiveSocket, ReactiveSocket> safeClose() {
-        return source -> new ReactiveSocketProxy(source) {
+    public static Function<RSocket, RSocket> safeClose() {
+        return source -> new RSocketProxy(source) {
             final AtomicInteger count = new AtomicInteger();
             final AtomicBoolean closed = new AtomicBoolean();
 

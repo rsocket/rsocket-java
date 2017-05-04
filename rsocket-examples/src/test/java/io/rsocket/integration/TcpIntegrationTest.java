@@ -1,18 +1,18 @@
 package io.rsocket.integration;
 
-import io.rsocket.AbstractReactiveSocket;
+import io.rsocket.AbstractRSocket;
 import io.rsocket.Payload;
-import io.rsocket.ReactiveSocket;
+import io.rsocket.RSocket;
 import io.rsocket.client.KeepAliveProvider;
-import io.rsocket.client.ReactiveSocketClient;
+import io.rsocket.client.RSocketClient;
 import io.rsocket.client.SetupProvider;
 import io.rsocket.lease.DisabledLeaseAcceptingSocket;
-import io.rsocket.server.ReactiveSocketServer;
+import io.rsocket.server.RSocketServer;
 import io.rsocket.transport.TransportServer;
 import io.rsocket.transport.netty.client.TcpTransportClient;
 import io.rsocket.transport.netty.server.TcpTransportServer;
 import io.rsocket.util.PayloadImpl;
-import io.rsocket.util.ReactiveSocketProxy;
+import io.rsocket.util.RSocketProxy;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -27,20 +27,20 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 
 public class TcpIntegrationTest {
-    private AbstractReactiveSocket handler = new AbstractReactiveSocket() {
+    private AbstractRSocket handler = new AbstractRSocket() {
     };
 
     private TransportServer.StartedServer server;
 
     @Before
     public void startup() {
-        server = ReactiveSocketServer.create(
+        server = RSocketServer.create(
                 TcpTransportServer.create(TcpServer.create()))
-                .start((setup, sendingSocket) -> new DisabledLeaseAcceptingSocket(new ReactiveSocketProxy(handler)));
+                .start((setup, sendingSocket) -> new DisabledLeaseAcceptingSocket(new RSocketProxy(handler)));
     }
 
-    private ReactiveSocket buildClient() {
-        return ReactiveSocketClient.create(
+    private RSocket buildClient() {
+        return RSocketClient.create(
                 TcpTransportClient.create(TcpClient.create(server.getServerPort())),
                 SetupProvider.keepAlive(KeepAliveProvider.never()).disableLease())
                 .connect().block();
@@ -53,14 +53,14 @@ public class TcpIntegrationTest {
 
     @Test(timeout = 2_000L)
     public void testCompleteWithoutNext() throws InterruptedException {
-        handler = new AbstractReactiveSocket() {
+        handler = new AbstractRSocket() {
             @Override
             public Flux<Payload> requestStream(Payload payload) {
                 return Flux.empty();
             }
         };
 
-        ReactiveSocket client = buildClient();
+        RSocket client = buildClient();
 
         Boolean hasElements = client.requestStream(new PayloadImpl("REQUEST", "META")).hasElements().block();
 
@@ -69,14 +69,14 @@ public class TcpIntegrationTest {
 
     @Test(timeout = 2_000L)
     public void testSingleStream() throws InterruptedException {
-        handler = new AbstractReactiveSocket() {
+        handler = new AbstractRSocket() {
             @Override
             public Flux<Payload> requestStream(Payload payload) {
                 return Flux.just(new PayloadImpl("RESPONSE", "METADATA"));
             }
         };
 
-        ReactiveSocket client = buildClient();
+        RSocket client = buildClient();
 
         Payload result = client.requestStream(new PayloadImpl("REQUEST", "META")).blockLast();
 
@@ -85,14 +85,14 @@ public class TcpIntegrationTest {
 
     @Test(timeout = 2_000L)
     public void testZeroPayload() throws InterruptedException {
-        handler = new AbstractReactiveSocket() {
+        handler = new AbstractRSocket() {
             @Override
             public Flux<Payload> requestStream(Payload payload) {
                 return Flux.just(PayloadImpl.EMPTY);
             }
         };
 
-        ReactiveSocket client = buildClient();
+        RSocket client = buildClient();
 
         Payload result = client.requestStream(new PayloadImpl("REQUEST", "META")).blockFirst();
 
@@ -101,7 +101,7 @@ public class TcpIntegrationTest {
 
     @Test(timeout = 2_000L)
     public void testRequestResponseErrors() throws InterruptedException {
-        handler = new AbstractReactiveSocket() {
+        handler = new AbstractRSocket() {
             boolean first = true;
 
             @Override
@@ -115,7 +115,7 @@ public class TcpIntegrationTest {
             }
         };
 
-        ReactiveSocket client = buildClient();
+        RSocket client = buildClient();
 
         Payload response1 = client.requestResponse(new PayloadImpl("REQUEST", "META")).onErrorReturn(new PayloadImpl("ERROR")).block();
         Payload response2 = client.requestResponse(new PayloadImpl("REQUEST", "META")).onErrorReturn(new PayloadImpl("ERROR")).block();

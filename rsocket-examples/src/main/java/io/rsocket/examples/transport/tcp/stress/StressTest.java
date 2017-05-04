@@ -13,10 +13,10 @@
 
 package io.rsocket.examples.transport.tcp.stress;
 
-import io.rsocket.ReactiveSocket;
+import io.rsocket.RSocket;
 import io.rsocket.client.LoadBalancingClient;
 import io.rsocket.exceptions.RejectedException;
-import io.rsocket.server.ReactiveSocketServer;
+import io.rsocket.server.RSocketServer;
 import io.rsocket.transport.netty.server.TcpTransportServer;
 import org.HdrHistogram.Recorder;
 import org.reactivestreams.Publisher;
@@ -46,7 +46,7 @@ class StressTest {
     private final AtomicInteger outstandings = new AtomicInteger();
     private final Recorder histogram;
     private volatile long testStartTime;
-    private ReactiveSocket clientSocket;
+    private RSocket clientSocket;
     private Disposable printDisposable;
 
     StressTest(TestConfig config) {
@@ -114,7 +114,7 @@ class StressTest {
                      });
     }
 
-    public void startTest(Function<ReactiveSocket, Publisher<?>> testFunction) {
+    public void startTest(Function<RSocket, Publisher<?>> testFunction) {
         if (clientSocket == null) {
             System.err.println("Client not connected. Call startClient() first.");
             System.exit(-1);
@@ -169,7 +169,7 @@ class StressTest {
     }
 
     private SocketAddress startServer() {
-        return ReactiveSocketServer.create(TcpTransportServer.create(TcpServer.create()))
+        return RSocketServer.create(TcpTransportServer.create(TcpServer.create()))
                                    .start((setup, sendingSocket) -> {
                                        return config.nextServerHandler(serverCount.incrementAndGet());
                                    })

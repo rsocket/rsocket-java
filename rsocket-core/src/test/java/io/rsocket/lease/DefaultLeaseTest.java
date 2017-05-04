@@ -17,8 +17,8 @@
 package io.rsocket.lease;
 
 import io.rsocket.Payload;
-import io.rsocket.ReactiveSocket;
-import io.rsocket.test.util.MockReactiveSocket;
+import io.rsocket.RSocket;
+import io.rsocket.test.util.MockRSocket;
 import io.rsocket.util.PayloadImpl;
 import org.junit.Test;
 import org.junit.runners.Parameterized.Parameter;
@@ -44,7 +44,7 @@ public abstract class DefaultLeaseTest<T> {
     public void testFireAndForget() throws Exception {
         T state = init();
         TestSubscriber<Void> subscriber = TestSubscriber.create();
-        getReactiveSocket(state).fireAndForget(PayloadImpl.EMPTY).subscribe(subscriber);
+        getRSocket(state).fireAndForget(PayloadImpl.EMPTY).subscribe(subscriber);
         subscriber.assertError(expectedException);
         getMockSocket(state).assertFireAndForgetCount(expectedInvocations);
     }
@@ -53,7 +53,7 @@ public abstract class DefaultLeaseTest<T> {
     public void testRequestResponse() throws Exception {
         T state = init();
         TestSubscriber<Payload> subscriber = TestSubscriber.create();
-        getReactiveSocket(state).requestResponse(PayloadImpl.EMPTY).subscribe(subscriber);
+        getRSocket(state).requestResponse(PayloadImpl.EMPTY).subscribe(subscriber);
         subscriber.assertError(expectedException);
         getMockSocket(state).assertRequestResponseCount(expectedInvocations);
     }
@@ -62,7 +62,7 @@ public abstract class DefaultLeaseTest<T> {
     public void testRequestStream() throws Exception {
         T state = init();
         TestSubscriber<Payload> subscriber = TestSubscriber.create();
-        getReactiveSocket(state).requestStream(PayloadImpl.EMPTY).subscribe(subscriber);
+        getRSocket(state).requestStream(PayloadImpl.EMPTY).subscribe(subscriber);
         subscriber.assertError(expectedException);
         getMockSocket(state).assertRequestStreamCount(expectedInvocations);
     }
@@ -71,7 +71,7 @@ public abstract class DefaultLeaseTest<T> {
     public void testRequestChannel() throws Exception {
         T state = init();
         TestSubscriber<Payload> subscriber = TestSubscriber.create();
-        getReactiveSocket(state).requestChannel(Flux.just(PayloadImpl.EMPTY)).subscribe(subscriber);
+        getRSocket(state).requestChannel(Flux.just(PayloadImpl.EMPTY)).subscribe(subscriber);
         subscriber.assertError(expectedException);
         getMockSocket(state).assertRequestChannelCount(expectedInvocations);
     }
@@ -80,14 +80,14 @@ public abstract class DefaultLeaseTest<T> {
     public void testMetadataPush() throws Exception {
         T state = init();
         TestSubscriber<Void> subscriber = TestSubscriber.create();
-        getReactiveSocket(state).metadataPush(PayloadImpl.EMPTY).subscribe(subscriber);
+        getRSocket(state).metadataPush(PayloadImpl.EMPTY).subscribe(subscriber);
         subscriber.assertError(expectedException);
         getMockSocket(state).assertMetadataPushCount(expectedInvocations);
     }
 
     protected abstract T init();
 
-    protected abstract ReactiveSocket getReactiveSocket(T state);
+    protected abstract RSocket getRSocket(T state);
 
-    protected abstract MockReactiveSocket getMockSocket(T state);
+    protected abstract MockRSocket getMockSocket(T state);
 }

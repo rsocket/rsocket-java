@@ -16,13 +16,13 @@
 
 package io.rsocket.examples.transport.tcp.requestresponse;
 
-import io.rsocket.AbstractReactiveSocket;
+import io.rsocket.AbstractRSocket;
 import io.rsocket.Payload;
-import io.rsocket.ReactiveSocket;
-import io.rsocket.client.ReactiveSocketClient;
+import io.rsocket.RSocket;
+import io.rsocket.client.RSocketClient;
 import io.rsocket.client.SetupProvider;
 import io.rsocket.lease.DisabledLeaseAcceptingSocket;
-import io.rsocket.server.ReactiveSocketServer;
+import io.rsocket.server.RSocketServer;
 import io.rsocket.transport.TransportServer.StartedServer;
 import io.rsocket.transport.netty.client.TcpTransportClient;
 import io.rsocket.transport.netty.server.TcpTransportServer;
@@ -40,7 +40,7 @@ import static io.rsocket.client.SetupProvider.keepAlive;
 public final class HelloWorldClient {
 
     public static void main(String[] args) {
-        ReactiveSocketServer s = ReactiveSocketServer.create(
+        RSocketServer s = RSocketServer.create(
             TcpTransportServer.create(TcpServer.create()),
             e -> {
                 System.err.println("Server received error");
@@ -48,7 +48,7 @@ public final class HelloWorldClient {
             });
 
         StartedServer server = s.start((setupPayload, reactiveSocket) -> {
-            return new DisabledLeaseAcceptingSocket(new AbstractReactiveSocket() {
+            return new DisabledLeaseAcceptingSocket(new AbstractRSocket() {
                 boolean fail = true;
                 @Override
                 public Mono<Payload> requestResponse(Payload p) {
@@ -67,11 +67,11 @@ public final class HelloWorldClient {
             System.err.println("Client received error");
             e.printStackTrace();
         });
-        ReactiveSocketClient client =
-            ReactiveSocketClient.create(TcpTransportClient.create(TcpClient.create(options ->
+        RSocketClient client =
+            RSocketClient.create(TcpTransportClient.create(TcpClient.create(options ->
                     options.connect((InetSocketAddress) address))),
                 setupProvider);
-        ReactiveSocket socket = client.connect().block();
+        RSocket socket = client.connect().block();
 
         socket.requestResponse(new PayloadImpl("Hello"))
                 .map(payload -> StandardCharsets.UTF_8.decode(payload.getData()).toString())

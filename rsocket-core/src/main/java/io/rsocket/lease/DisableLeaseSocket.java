@@ -16,19 +16,19 @@
 
 package io.rsocket.lease;
 
-import io.rsocket.ReactiveSocket;
-import io.rsocket.util.ReactiveSocketProxy;
+import io.rsocket.RSocket;
+import io.rsocket.util.RSocketProxy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
  * {@link LeaseHonoringSocket} that does not expect to receive any leases and {@link #accept(Lease)} throws an error.
  */
-public class DisableLeaseSocket extends ReactiveSocketProxy implements LeaseHonoringSocket {
+public class DisableLeaseSocket extends RSocketProxy implements LeaseHonoringSocket {
 
     private static final Logger logger = LoggerFactory.getLogger(DisableLeaseSocket.class);
 
-    public DisableLeaseSocket(ReactiveSocket source) {
+    public DisableLeaseSocket(RSocket source) {
         super(source);
     }
 

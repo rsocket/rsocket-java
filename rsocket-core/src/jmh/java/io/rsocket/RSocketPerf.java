@@ -17,12 +17,12 @@
 package io.rsocket;
 
 import io.rsocket.client.KeepAliveProvider;
-import io.rsocket.client.ReactiveSocketClient;
+import io.rsocket.client.RSocketClient;
 import io.rsocket.client.SetupProvider;
 import io.rsocket.lease.DisabledLeaseAcceptingSocket;
 import io.rsocket.lease.LeaseEnforcingSocket;
 import io.rsocket.perfutil.TestDuplexConnection;
-import io.rsocket.server.ReactiveSocketServer;
+import io.rsocket.server.RSocketServer;
 import io.rsocket.transport.TransportServer;
 import io.rsocket.util.PayloadImpl;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -55,7 +55,7 @@ import java.util.concurrent.TimeUnit;
 @Warmup(iterations = 10)
 @Measurement(iterations = 10)
 @State(Scope.Thread)
-public class ReactiveSocketPerf {
+public class RSocketPerf {
 
     @Benchmark
     public void requestResponseHello(Input input) {
@@ -98,7 +98,7 @@ public class ReactiveSocketPerf {
         static final TestDuplexConnection clientConnection = new TestDuplexConnection(serverReceive, clientReceive);
         static final TestDuplexConnection serverConnection = new TestDuplexConnection(clientReceive, serverReceive);
 
-        static final Object server = ReactiveSocketServer.create(new TransportServer() {
+        static final Object server = RSocketServer.create(new TransportServer() {
             @Override
             public StartedServer start(ConnectionAcceptor acceptor) {
                 acceptor.apply(serverConnection).subscribe();
@@ -130,11 +130,11 @@ public class ReactiveSocketPerf {
                 };
             }
         })
-            .start(new ReactiveSocketServer.SocketAcceptor() {
+            .start(new RSocketServer.SocketAcceptor() {
             @Override
-            public LeaseEnforcingSocket accept(ConnectionSetupPayload setup, ReactiveSocket sendingSocket) {
+            public LeaseEnforcingSocket accept(ConnectionSetupPayload setup, RSocket sendingSocket) {
 
-                return new DisabledLeaseAcceptingSocket(new ReactiveSocket() {
+                return new DisabledLeaseAcceptingSocket(new RSocket() {
                     @Override
                     public Mono<Void> fireAndForget(Payload payload) {
                         return Mono.empty();
@@ -175,7 +175,7 @@ public class ReactiveSocketPerf {
 
         Subscriber blackHoleSubscriber;
 
-        ReactiveSocket client;
+        RSocket client;
 
         @Setup
         public void setup(Blackhole bh) {
@@ -202,7 +202,7 @@ public class ReactiveSocketPerf {
             };
 
             SetupProvider setupProvider = SetupProvider.keepAlive(KeepAliveProvider.never()).disableLease();
-            ReactiveSocketClient reactiveSocketClient = ReactiveSocketClient.create(() -> Mono.just(clientConnection), setupProvider);
+            RSocketClient reactiveSocketClient = RSocketClient.create(() -> Mono.just(clientConnection), setupProvider);
 
             CountDownLatch latch = new CountDownLatch(1);
             reactiveSocketClient.connect()

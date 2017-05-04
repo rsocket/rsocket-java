@@ -16,11 +16,11 @@
 package io.rsocket.client.filter;
 
 import io.rsocket.Payload;
-import io.rsocket.ReactiveSocket;
-import io.rsocket.client.ReactiveSocketClient;
+import io.rsocket.RSocket;
+import io.rsocket.client.RSocketClient;
 import io.rsocket.stat.Ewma;
 import io.rsocket.util.Clock;
-import io.rsocket.util.ReactiveSocketProxy;
+import io.rsocket.util.RSocketProxy;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -29,38 +29,38 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * This child compute the error rate of a particular remote location and adapt the availability
- * of the ReactiveSocketFactory but also of the ReactiveSocket.
+ * of the RSocketFactory but also of the RSocket.
  *
  * It means that if a remote host doesn't generate lots of errors when connecting to it, but a
  * lot of them when sending messages, we will still decrease the availability of the child
  * reducing the probability of connecting to it.
  */
-public class FailureAwareClient implements ReactiveSocketClient {
+public class FailureAwareClient implements RSocketClient {
 
     private static final double EPSILON = 1e-4;
 
-    private final ReactiveSocketClient delegate;
+    private final RSocketClient delegate;
     private final long tau;
     private long stamp;
     private final Ewma errorPercentage;
 
-    public FailureAwareClient(ReactiveSocketClient delegate, long halfLife, TimeUnit unit) {
+    public FailureAwareClient(RSocketClient delegate, long halfLife, TimeUnit unit) {
         this.delegate = delegate;
         this.tau = Clock.unit().convert((long)(halfLife / Math.log(2)), unit);
         this.stamp = Clock.now();
         errorPercentage = new Ewma(halfLife, unit, 1.0);
     }
 
-    public FailureAwareClient(ReactiveSocketClient delegate) {
+    public FailureAwareClient(RSocketClient delegate) {
         this(delegate, 5, TimeUnit.SECONDS);
     }
 
     @Override
-    public Mono<? extends ReactiveSocket> connect() {
+    public Mono<? extends RSocket> connect() {
         return delegate.connect()
             .doOnNext(o -> updateErrorPercentage(1.0))
             .doOnError(t ->  updateErrorPercentage(0.0))
-            .map(socket -> new ReactiveSocketProxy(socket) {
+            .map(socket -> new RSocketProxy(socket) {
                 @Override
                 public Mono<Void> fireAndForget(Payload payload) {
                     return source.fireAndForget(payload)

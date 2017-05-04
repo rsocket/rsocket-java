@@ -16,18 +16,18 @@
 
 package io.rsocket.lease;
 
-import io.rsocket.AbstractReactiveSocket;
-import io.rsocket.ReactiveSocket;
-import io.rsocket.test.util.MockReactiveSocket;
+import io.rsocket.AbstractRSocket;
+import io.rsocket.RSocket;
+import io.rsocket.test.util.MockRSocket;
 import org.junit.rules.ExternalResource;
 import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
 
-public abstract class AbstractSocketRule<T extends ReactiveSocket> extends ExternalResource {
+public abstract class AbstractSocketRule<T extends RSocket> extends ExternalResource {
 
     private T socket;
-    private MockReactiveSocket mockSocket;
-    private ReactiveSocket requestHandler;
+    private MockRSocket mockSocket;
+    private RSocket requestHandler;
 
     @Override
     public Statement apply(final Statement base, Description description) {
@@ -42,23 +42,23 @@ public abstract class AbstractSocketRule<T extends ReactiveSocket> extends Exter
 
     protected void init() {
         if (null == requestHandler) {
-            requestHandler = new AbstractReactiveSocket() { };
+            requestHandler = new AbstractRSocket() { };
         }
-        mockSocket = new MockReactiveSocket(requestHandler);
+        mockSocket = new MockRSocket(requestHandler);
         socket = newSocket(mockSocket);
     }
 
-    public MockReactiveSocket getMockSocket() {
+    public MockRSocket getMockSocket() {
         return mockSocket;
     }
 
-    public T getReactiveSocket() {
+    public T getRSocket() {
         return socket;
     }
 
-    protected abstract T newSocket(ReactiveSocket delegate);
+    protected abstract T newSocket(RSocket delegate);
 
-    protected void setRequestHandler(ReactiveSocket socket) {
+    protected void setRequestHandler(RSocket socket) {
         requestHandler = socket;
     }
 }

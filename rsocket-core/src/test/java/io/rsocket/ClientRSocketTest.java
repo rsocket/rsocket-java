@@ -34,7 +34,7 @@ import static io.rsocket.FrameType.*;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
-public class ClientReactiveSocketTest {
+public class ClientRSocketTest {
 
     @Rule
     public final ClientSocketRule rule = new ClientSocketRule();
@@ -128,13 +128,13 @@ public class ClientReactiveSocketTest {
         return streamId;
     }
 
-    public static class ClientSocketRule extends AbstractSocketRule<ClientReactiveSocket> {
+    public static class ClientSocketRule extends AbstractSocketRule<ClientRSocket> {
 
         private final DirectProcessor<Long> keepAliveTicks = DirectProcessor.create();
 
         @Override
-        protected ClientReactiveSocket newReactiveSocket() {
-            return new ClientReactiveSocket(connection,
+        protected ClientRSocket newRSocket() {
+            return new ClientRSocket(connection,
                                             throwable -> errors.add(throwable), StreamIdSupplier.clientSupplier(),
                                             KeepAliveProvider.from(1, keepAliveTicks)).start(lease -> {});
         }

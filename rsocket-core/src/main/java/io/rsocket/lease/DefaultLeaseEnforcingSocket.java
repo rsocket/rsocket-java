@@ -16,7 +16,7 @@
 
 package io.rsocket.lease;
 
-import io.rsocket.ReactiveSocket;
+import io.rsocket.RSocket;
 import io.rsocket.exceptions.RejectedException;
 import reactor.core.Disposable;
 import reactor.core.publisher.Mono;
@@ -31,7 +31,7 @@ public class DefaultLeaseEnforcingSocket extends DefaultLeaseHonoringSocket impl
     private Disposable distributorCancellation;
     private final Mono<?> rejectError;
 
-    public DefaultLeaseEnforcingSocket(ReactiveSocket delegate, LeaseDistributor leaseDistributor,
+    public DefaultLeaseEnforcingSocket(RSocket delegate, LeaseDistributor leaseDistributor,
                                        LongSupplier currentTimeSupplier, boolean clientHonorsLeases) {
         super(delegate, currentTimeSupplier);
         this.leaseDistributor = leaseDistributor;
@@ -42,12 +42,12 @@ public class DefaultLeaseEnforcingSocket extends DefaultLeaseHonoringSocket impl
         }
     }
 
-    public DefaultLeaseEnforcingSocket(ReactiveSocket delegate, LeaseDistributor leaseDistributor,
+    public DefaultLeaseEnforcingSocket(RSocket delegate, LeaseDistributor leaseDistributor,
                                        LongSupplier currentTimeSupplier) {
         this(delegate, leaseDistributor, currentTimeSupplier, true);
     }
 
-    public DefaultLeaseEnforcingSocket(ReactiveSocket delegate, LeaseDistributor leaseDistributor) {
+    public DefaultLeaseEnforcingSocket(RSocket delegate, LeaseDistributor leaseDistributor) {
         this(delegate, leaseDistributor, System::currentTimeMillis);
     }
 

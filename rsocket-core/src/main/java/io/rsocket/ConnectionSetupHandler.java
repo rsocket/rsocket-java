@@ -17,6 +17,6 @@ package io.rsocket;
 
 public interface ConnectionSetupHandler {
 
-    ReactiveSocket apply(ConnectionSetupPayload setupPayload, ReactiveSocket reactiveSocket);
+    RSocket apply(ConnectionSetupPayload setupPayload, RSocket reactiveSocket);
 
 }

@@ -13,15 +13,15 @@
 
 package io.rsocket.examples.transport.tcp.stream;
 
-import io.rsocket.AbstractReactiveSocket;
+import io.rsocket.AbstractRSocket;
 import io.rsocket.ConnectionSetupPayload;
 import io.rsocket.Payload;
-import io.rsocket.ReactiveSocket;
-import io.rsocket.client.ReactiveSocketClient;
+import io.rsocket.RSocket;
+import io.rsocket.client.RSocketClient;
 import io.rsocket.lease.DisabledLeaseAcceptingSocket;
 import io.rsocket.lease.LeaseEnforcingSocket;
-import io.rsocket.server.ReactiveSocketServer;
-import io.rsocket.server.ReactiveSocketServer.SocketAcceptor;
+import io.rsocket.server.RSocketServer;
+import io.rsocket.server.RSocketServer.SocketAcceptor;
 import io.rsocket.transport.TransportServer.StartedServer;
 import io.rsocket.transport.netty.client.TcpTransportClient;
 import io.rsocket.transport.netty.server.TcpTransportServer;
@@ -41,11 +41,11 @@ import static io.rsocket.client.SetupProvider.*;
 public final class StreamingClient {
 
     public static void main(String[] args) {
-        StartedServer server = ReactiveSocketServer.create(TcpTransportServer.create(TcpServer.create()))
+        StartedServer server = RSocketServer.create(TcpTransportServer.create(TcpServer.create()))
                                                    .start(new SocketAcceptorImpl());
 
         SocketAddress address = server.getServerAddress();
-        ReactiveSocket socket = ReactiveSocketClient.create(TcpTransportClient.create(TcpClient.create(options ->
+        RSocket socket = RSocketClient.create(TcpTransportClient.create(TcpClient.create(options ->
                         options.connect((InetSocketAddress)address))),
                                                                                    keepAlive(never()).disableLease())
                                                                            .connect()
@@ -61,8 +61,8 @@ public final class StreamingClient {
 
     private static class SocketAcceptorImpl implements SocketAcceptor {
         @Override
-        public LeaseEnforcingSocket accept(ConnectionSetupPayload setupPayload, ReactiveSocket reactiveSocket) {
-            return new DisabledLeaseAcceptingSocket(new AbstractReactiveSocket() {
+        public LeaseEnforcingSocket accept(ConnectionSetupPayload setupPayload, RSocket reactiveSocket) {
+            return new DisabledLeaseAcceptingSocket(new AbstractRSocket() {
                 @Override
                 public Flux<Payload> requestStream(Payload payload) {
                     return Flux.interval(Duration.ofMillis(100))

@@ -16,10 +16,10 @@
 
 package io.rsocket.lease;
 
-import io.rsocket.ReactiveSocket;
+import io.rsocket.RSocket;
 import io.rsocket.exceptions.RejectedException;
 import io.rsocket.lease.DefaultLeaseEnforcingSocketTest.SocketHolder;
-import io.rsocket.test.util.MockReactiveSocket;
+import io.rsocket.test.util.MockRSocket;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
@@ -52,22 +52,22 @@ public class DefaultLeaseEnforcingSocketTest extends DefaultLeaseTest<SocketHold
     }
 
     @Override
-    protected ReactiveSocket getReactiveSocket(SocketHolder holder) {
-        return holder.getReactiveSocket();
+    protected RSocket getRSocket(SocketHolder holder) {
+        return holder.getRSocket();
     }
 
     @Override
-    protected MockReactiveSocket getMockSocket(SocketHolder holder) {
+    protected MockRSocket getMockSocket(SocketHolder holder) {
         return holder.getMockSocket();
     }
 
     public static class SocketHolder {
 
-        private final MockReactiveSocket mockSocket;
+        private final MockRSocket mockSocket;
         private final DefaultLeaseEnforcingSocket reactiveSocket;
         private final DirectProcessor<Long> leaseTicks;
 
-        public SocketHolder(MockReactiveSocket mockSocket, DefaultLeaseEnforcingSocket reactiveSocket,
+        public SocketHolder(MockRSocket mockSocket, DefaultLeaseEnforcingSocket reactiveSocket,
                             DirectProcessor<Long> leaseTicks) {
             this.mockSocket = mockSocket;
             this.reactiveSocket = reactiveSocket;
@@ -75,11 +75,11 @@ public class DefaultLeaseEnforcingSocketTest extends DefaultLeaseTest<SocketHold
             this.leaseTicks = leaseTicks;
         }
 
-        public MockReactiveSocket getMockSocket() {
+        public MockRSocket getMockSocket() {
             return mockSocket;
         }
 
-        public DefaultLeaseHonoringSocket getReactiveSocket() {
+        public DefaultLeaseHonoringSocket getRSocket() {
             return reactiveSocket;
         }
 
@@ -89,12 +89,12 @@ public class DefaultLeaseEnforcingSocketTest extends DefaultLeaseTest<SocketHold
             FairLeaseDistributor distributor = new FairLeaseDistributor(() -> permits, ttl, leaseTicks);
             AbstractSocketRule<DefaultLeaseEnforcingSocket> rule = new AbstractSocketRule<DefaultLeaseEnforcingSocket>() {
                 @Override
-                protected DefaultLeaseEnforcingSocket newSocket(ReactiveSocket delegate) {
+                protected DefaultLeaseEnforcingSocket newSocket(RSocket delegate) {
                     return new DefaultLeaseEnforcingSocket(delegate, distributor, _currentTimeSupplier);
                 }
             };
             rule.init();
-            return new SocketHolder(rule.getMockSocket(), rule.getReactiveSocket(), leaseTicks);
+            return new SocketHolder(rule.getMockSocket(), rule.getRSocket(), leaseTicks);
         }
 
         public SocketHolder sendLeaseTick() {

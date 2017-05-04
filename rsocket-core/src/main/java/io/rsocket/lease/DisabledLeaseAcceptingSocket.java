@@ -16,14 +16,14 @@
 
 package io.rsocket.lease;
 
-import io.rsocket.ReactiveSocket;
-import io.rsocket.util.ReactiveSocketProxy;
+import io.rsocket.RSocket;
+import io.rsocket.util.RSocketProxy;
 
 import java.util.function.Consumer;
 
-public final class DisabledLeaseAcceptingSocket extends ReactiveSocketProxy implements LeaseEnforcingSocket {
+public final class DisabledLeaseAcceptingSocket extends RSocketProxy implements LeaseEnforcingSocket {
 
-    public DisabledLeaseAcceptingSocket(ReactiveSocket source) {
+    public DisabledLeaseAcceptingSocket(RSocket source) {
         super(source);
     }
 
