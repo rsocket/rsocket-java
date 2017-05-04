@@ -21,7 +21,6 @@ import io.reactivesocket.Frame;
 import io.reactivesocket.FrameType;
 import io.reactivesocket.Plugins;
 import io.reactivesocket.Plugins.DuplexConnectionInterceptor.Type;
-import io.reactivesocket.util.BitUtil;
 import org.reactivestreams.Publisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -51,6 +50,7 @@ public class ClientServerInputMultiplexer {
         final MonoProcessor<Flux<Frame>> server = MonoProcessor.create();
         final MonoProcessor<Flux<Frame>> client = MonoProcessor.create();
 
+        source = Plugins.DUPLEX_CONNECTION_INTERCEPTOR.apply(Type.SOURCE, source);
         streamZeroConnection = Plugins.DUPLEX_CONNECTION_INTERCEPTOR.apply(Type.STREAM_ZERO, new InternalDuplexConnection(source, streamZero));
         serverConnection = Plugins.DUPLEX_CONNECTION_INTERCEPTOR.apply(Type.SERVER, new InternalDuplexConnection(source, server));
         clientConnection = Plugins.DUPLEX_CONNECTION_INTERCEPTOR.apply(Type.CLIENT, new InternalDuplexConnection(source, client));
@@ -64,7 +64,7 @@ public class ClientServerInputMultiplexer {
                     } else {
                         type = Type.CLIENT;
                     }
-                } else if (BitUtil.isEven(streamId)) {
+                } else if ((streamId & 0b1) == 0) {
                     type = Type.SERVER;
                 } else {
                     type = Type.CLIENT;

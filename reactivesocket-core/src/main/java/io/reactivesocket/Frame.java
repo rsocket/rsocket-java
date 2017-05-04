@@ -443,7 +443,6 @@ public class Frame implements ByteBufHolder {
             if (initialRequestN < 1) {
                 throw new IllegalStateException("initial request n must be greater than 0");
             }
-
             final ByteBuf metadata = payload.getMetadata() != null ? Unpooled.wrappedBuffer(payload.getMetadata()) : Unpooled.EMPTY_BUFFER;
             final ByteBuf data = payload.getData() != null ? Unpooled.wrappedBuffer(payload.getData()) : Unpooled.EMPTY_BUFFER;
 

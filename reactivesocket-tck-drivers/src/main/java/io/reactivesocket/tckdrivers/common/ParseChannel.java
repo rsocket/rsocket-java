@@ -137,7 +137,7 @@ public class ParseChannel {
 
     /**
      * On handling a command to respond with something, we create an AddThread and pass in latches to make sure
-     * that we don't let this thread request to add something before the previous thread has added something.
+     * that we don't let this thread request to append something before the previous thread has added something.
      * @param args
      */
     private void handleResponse(String[] args) {

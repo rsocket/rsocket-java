@@ -34,7 +34,7 @@ public class TcpClientServerTest {
         setup.testMetadata(10);
     }
 
-    @Test(timeout = 10000)
+    @Test//(timeout = 10000)
     public void testRequestResponse1() {
         setup.testRequestResponseN(1);
     }

@@ -17,11 +17,7 @@ package io.reactivesocket.frame;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
-import io.reactivesocket.Frame;
 import io.reactivesocket.FrameType;
-import io.reactivesocket.util.BitUtil;
-
-import java.nio.ByteBuffer;
 
 /**
  * Per connection frame flyweight.
@@ -61,8 +57,8 @@ public class FrameHeaderFlyweight {
     static {
         FRAME_LENGTH_FIELD_OFFSET = 0;
         STREAM_ID_FIELD_OFFSET = FRAME_LENGTH_FIELD_OFFSET + FRAME_LENGTH_SIZE;
-        FRAME_TYPE_AND_FLAGS_FIELD_OFFSET = STREAM_ID_FIELD_OFFSET + BitUtil.SIZE_OF_INT;
-        PAYLOAD_OFFSET = FRAME_TYPE_AND_FLAGS_FIELD_OFFSET + BitUtil.SIZE_OF_SHORT;
+        FRAME_TYPE_AND_FLAGS_FIELD_OFFSET = STREAM_ID_FIELD_OFFSET + Integer.BYTES;
+        PAYLOAD_OFFSET = FRAME_TYPE_AND_FLAGS_FIELD_OFFSET + Short.BYTES;
         FRAME_HEADER_LENGTH = PAYLOAD_OFFSET;
     }
 
@@ -235,7 +231,7 @@ public class FrameHeaderFlyweight {
         return result;
     }
 
-    static int frameLength(final ByteBuf byteBuf) {
+    public static int frameLength(final ByteBuf byteBuf) {
         // frame length field was excluded from the length so we will add it to represent
         // the entire block
         return decodeLength(byteBuf, FRAME_LENGTH_FIELD_OFFSET) + FRAME_LENGTH_SIZE;
@@ -245,7 +241,7 @@ public class FrameHeaderFlyweight {
         return computeMetadataLength(frameType, metadataLength(byteBuf, frameType, frameLength));
     }
 
-    private static int metadataLength(ByteBuf byteBuf, FrameType frameType, int frameLength) {
+    public static int metadataLength(ByteBuf byteBuf, FrameType frameType, int frameLength) {
         int metadataOffset = metadataOffset(byteBuf);
         if (!hasMetadataLengthField(frameType)) {
             return frameLength - metadataOffset;
@@ -274,7 +270,7 @@ public class FrameHeaderFlyweight {
         }
     }
 
-    static boolean hasMetadataLengthField(FrameType frameType) {
+    public static boolean hasMetadataLengthField(FrameType frameType) {
         return frameType.canHaveData();
     }
 
@@ -299,7 +295,7 @@ public class FrameHeaderFlyweight {
         return length;
     }
 
-    private static int dataLength(final ByteBuf byteBuf, final FrameType frameType) {
+    public static int dataLength(final ByteBuf byteBuf, final FrameType frameType) {
         return dataLength(byteBuf, frameType, payloadOffset(byteBuf));
     }
 
@@ -312,6 +308,13 @@ public class FrameHeaderFlyweight {
         final int metadataLength = metadataFieldLength(byteBuf, frameType, frameLength);
 
         return frameLength - metadataLength - payloadOffset;
+    }
+
+    public static int payloadLength(final ByteBuf byteBuf) {
+        final int frameLength = frameLength(byteBuf);
+        final int payloadOffset = payloadOffset(byteBuf);
+
+        return frameLength - payloadOffset;
     }
 
     private static int payloadOffset(final ByteBuf byteBuf) {
@@ -346,11 +349,11 @@ public class FrameHeaderFlyweight {
         return result;
     }
 
-    private static int metadataOffset(final ByteBuf byteBuf) {
+    public static int metadataOffset(final ByteBuf byteBuf) {
         return payloadOffset(byteBuf);
     }
 
-    private static int dataOffset(ByteBuf byteBuf, FrameType frameType, int frameLength) {
+    public static int dataOffset(ByteBuf byteBuf, FrameType frameType, int frameLength) {
         return payloadOffset(byteBuf) + metadataFieldLength(byteBuf, frameType, frameLength);
     }
 }

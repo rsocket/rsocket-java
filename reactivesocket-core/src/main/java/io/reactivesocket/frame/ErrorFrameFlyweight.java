@@ -25,7 +25,6 @@ import io.reactivesocket.exceptions.InvalidSetupException;
 import io.reactivesocket.exceptions.RejectedException;
 import io.reactivesocket.exceptions.RejectedSetupException;
 import io.reactivesocket.exceptions.UnsupportedSetupException;
-import io.reactivesocket.util.BitUtil;
 
 public class ErrorFrameFlyweight {
 
@@ -45,7 +44,7 @@ public class ErrorFrameFlyweight {
 
     // relative to start of passed offset
     private static final int ERROR_CODE_FIELD_OFFSET = FrameHeaderFlyweight.FRAME_HEADER_LENGTH;
-    private static final int PAYLOAD_OFFSET = ERROR_CODE_FIELD_OFFSET + BitUtil.SIZE_OF_INT;
+    private static final int PAYLOAD_OFFSET = ERROR_CODE_FIELD_OFFSET + Integer.BYTES;
 
     public static int computeFrameLength(
         final int metadataLength,
@@ -53,7 +52,7 @@ public class ErrorFrameFlyweight {
     ) {
         int length = FrameHeaderFlyweight.computeFrameHeaderLength(
             FrameType.ERROR, metadataLength, dataLength);
-        return length + BitUtil.SIZE_OF_INT;
+        return length + Integer.BYTES;
     }
 
     public static int encode(
@@ -69,7 +68,7 @@ public class ErrorFrameFlyweight {
                 byteBuf, frameLength, 0, FrameType.ERROR, streamId);
 
         byteBuf.setInt(ERROR_CODE_FIELD_OFFSET, errorCode);
-        length += BitUtil.SIZE_OF_INT;
+        length += Integer.BYTES;
 
         length += FrameHeaderFlyweight.encodeMetadata(
                 byteBuf, FrameType.ERROR, length, metadata);
@@ -104,6 +103,6 @@ public class ErrorFrameFlyweight {
     }
 
     public static int payloadOffset(final ByteBuf byteBuf) {
-        return FrameHeaderFlyweight.FRAME_HEADER_LENGTH + BitUtil.SIZE_OF_INT;
+        return FrameHeaderFlyweight.FRAME_HEADER_LENGTH + Integer.BYTES;
     }
 }

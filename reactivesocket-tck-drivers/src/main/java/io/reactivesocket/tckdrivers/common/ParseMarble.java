@@ -25,8 +25,8 @@ import java.util.concurrent.CountDownLatch;
 
 /**
  * This class parses through a marble diagram, but also implements a backpressure buffer so that the rate at
- * which producers add values can be much faster than the rate at which consumers consume values.
- * The backpressure buffer is the marble queue. The add function synchronously grows the marble queue, and the
+ * which producers append values can be much faster than the rate at which consumers consume values.
+ * The backpressure buffer is the marble queue. The append function synchronously grows the marble queue, and the
  * request function synchronously increments the data requested as well as unblocks the latches that are basically
  * preventing the parse() method from emitting data in the backpressure buffer that it should not.
  */
@@ -43,7 +43,7 @@ public class ParseMarble {
     private ConsoleUtils consoleUtils;
 
     /**
-     * This constructor is useful if one already has the entire marble diagram before hand, so add() does not need to
+     * This constructor is useful if one already has the entire marble diagram before hand, so append() does not need to
      * be called.
      * @param marble the whole marble diagram
      * @param s the subscriber
@@ -84,7 +84,7 @@ public class ParseMarble {
     }
 
     /**
-     * This method is synchronized because we don't want two threads to try to add to the string at once.
+     * This method is synchronized because we don't want two threads to try to append to the string at once.
      * Calling this method also unblocks the parseLatch, which allows non-emittable symbols to be sent. In other words,
      * it allows onNext and onComplete to be sent even if we've sent all the values we've been requested of.
      * @param m

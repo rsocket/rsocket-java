@@ -307,7 +307,7 @@ public class LoadBalancer implements ReactiveSocket {
      * Responsible for:
      * - refreshing the aperture
      * - asynchronously adding/removing reactive sockets to match targetAperture
-     * - periodically add a new connection
+     * - periodically append a new connection
      */
     private synchronized void refreshSockets() {
         refreshAperture();

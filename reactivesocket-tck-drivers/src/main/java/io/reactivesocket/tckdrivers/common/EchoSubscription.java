@@ -30,7 +30,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
  * This class should be passed inside of MySubscriber when one wants to do an echo test, so that all the values
  * that the MySubscriber receives immediately gets buffered here and prepared to be sent. This implementation is
  * needed because we want to send both the exact same data and metadata. If we used our ParseMarble class, we could
- * add a function to allow dynamic changing of our argMap object, but even then, there are only small finite number
+ * append a function to allow dynamic changing of our argMap object, but even then, there are only small finite number
  * of characters we can use in the marble diagram.
  */
 public class EchoSubscription implements Subscription {

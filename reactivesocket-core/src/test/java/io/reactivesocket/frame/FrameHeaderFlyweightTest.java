@@ -4,7 +4,6 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
 import io.reactivesocket.FrameType;
-import io.reactivesocket.util.BitUtil;
 import org.junit.Test;
 
 import static io.reactivesocket.frame.FrameHeaderFlyweight.FRAME_HEADER_LENGTH;
@@ -134,10 +133,10 @@ public class FrameHeaderFlyweightTest {
         currentIndex += 3;
         // stream id
         expectedBuffer.setInt(currentIndex, 5);
-        currentIndex += BitUtil.SIZE_OF_INT;
+        currentIndex += Integer.BYTES;
         // flags and frame type
         expectedBuffer.setShort(currentIndex, (short) 0b001010_0001100000);
-        currentIndex += BitUtil.SIZE_OF_SHORT;
+        currentIndex += Short.BYTES;
 
         FrameType frameType = FrameType.NEXT_COMPLETE;
         FrameHeaderFlyweight.encode(byteBuf,  5, 0, frameType, Unpooled.EMPTY_BUFFER, Unpooled.EMPTY_BUFFER);

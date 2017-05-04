@@ -16,8 +16,8 @@ package io.reactivesocket.tckdrivers.common;
 import java.util.concurrent.CountDownLatch;
 
 /**
- * A thread that is created to wait to be able to add a marble string. We wait for the previous thread to have finished
- * adding before allowing this thread to add, and after adding, we call countDown() to allow whatever thread waiting
+ * A thread that is created to wait to be able to append a marble string. We wait for the previous thread to have finished
+ * adding before allowing this thread to append, and after adding, we call countDown() to allow whatever thread waiting
  * on this one to begin adding
  */
 public class AddThread implements Runnable {
@@ -41,7 +41,7 @@ public class AddThread implements Runnable {
             // await for the previous latch to have counted down, if it exists
             if (prev != null) prev.await();
             parseMarble.add(marble);
-            curr.countDown(); // count down on the current to unblock the next add
+            curr.countDown(); // count down on the current to unblock the next append
         } catch (InterruptedException e) {
             System.out.println("Interrupted in AddThread");
         }
