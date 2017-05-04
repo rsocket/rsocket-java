@@ -26,15 +26,19 @@ import io.reactivesocket.lease.DefaultLeaseHonoringSocket;
 import io.reactivesocket.lease.LeaseHonoringSocket;
 import io.reactivesocket.transport.TransportServer;
 import io.reactivesocket.transport.TransportServer.StartedServer;
+import java.util.function.Consumer;
 import reactor.core.publisher.Mono;
 
 public final class DefaultReactiveSocketServer
         implements ReactiveSocketServer {
 
     private final TransportServer transportServer;
+    private Consumer<Throwable> errorConsumer;
 
-    public DefaultReactiveSocketServer(TransportServer transportServer) {
+    public DefaultReactiveSocketServer(TransportServer transportServer,
+          Consumer<Throwable> errorConsumer) {
         this.transportServer = transportServer;
+        this.errorConsumer = errorConsumer;
     }
 
     @Override
@@ -72,7 +76,7 @@ public final class DefaultReactiveSocketServer
                                 ServerReactiveSocket receiver = new ServerReactiveSocket(multiplexer.asClientConnection(),
                                     handler,
                                     setup.willClientHonorLease(),
-                                    Throwable::printStackTrace);
+                                    errorConsumer);
                                 receiver.start();
                                 setupFrame.release();
                                 return connection.onClose();

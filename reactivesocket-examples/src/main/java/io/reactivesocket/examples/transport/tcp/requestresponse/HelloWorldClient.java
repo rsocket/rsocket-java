@@ -20,28 +20,33 @@ import io.reactivesocket.AbstractReactiveSocket;
 import io.reactivesocket.Payload;
 import io.reactivesocket.ReactiveSocket;
 import io.reactivesocket.client.ReactiveSocketClient;
+import io.reactivesocket.client.SetupProvider;
 import io.reactivesocket.lease.DisabledLeaseAcceptingSocket;
 import io.reactivesocket.server.ReactiveSocketServer;
 import io.reactivesocket.transport.TransportServer.StartedServer;
 import io.reactivesocket.transport.netty.client.TcpTransportClient;
 import io.reactivesocket.transport.netty.server.TcpTransportServer;
 import io.reactivesocket.util.PayloadImpl;
+import java.net.InetSocketAddress;
+import java.net.SocketAddress;
+import java.nio.charset.StandardCharsets;
 import reactor.core.publisher.Mono;
 import reactor.ipc.netty.tcp.TcpClient;
 import reactor.ipc.netty.tcp.TcpServer;
 
-import java.net.InetSocketAddress;
-import java.net.SocketAddress;
-import java.nio.charset.StandardCharsets;
-
-import static io.reactivesocket.client.KeepAliveProvider.*;
-import static io.reactivesocket.client.SetupProvider.*;
+import static io.reactivesocket.client.KeepAliveProvider.never;
+import static io.reactivesocket.client.SetupProvider.keepAlive;
 
 public final class HelloWorldClient {
 
     public static void main(String[] args) {
+        ReactiveSocketServer s = ReactiveSocketServer.create(
+            TcpTransportServer.create(TcpServer.create()),
+            e -> {
+                System.err.println("Server received error");
+                e.printStackTrace();
+            });
 
-        ReactiveSocketServer s = ReactiveSocketServer.create(TcpTransportServer.create(TcpServer.create()));
         StartedServer server = s.start((setupPayload, reactiveSocket) -> {
             return new DisabledLeaseAcceptingSocket(new AbstractReactiveSocket() {
                 boolean fail = true;
@@ -58,9 +63,14 @@ public final class HelloWorldClient {
         });
 
         SocketAddress address = server.getServerAddress();
-        ReactiveSocketClient client = ReactiveSocketClient.create(TcpTransportClient.create(TcpClient.create(options ->
-                        options.connect((InetSocketAddress)address))),
-                                                                  keepAlive(never()).disableLease());
+        SetupProvider setupProvider = keepAlive(never()).disableLease().errorConsumer(e -> {
+            System.err.println("Client received error");
+            e.printStackTrace();
+        });
+        ReactiveSocketClient client =
+            ReactiveSocketClient.create(TcpTransportClient.create(TcpClient.create(options ->
+                    options.connect((InetSocketAddress) address))),
+                setupProvider);
         ReactiveSocket socket = client.connect().block();
 
         socket.requestResponse(new PayloadImpl("Hello"))

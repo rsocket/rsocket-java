@@ -27,6 +27,7 @@ import io.reactivesocket.lease.DefaultLeaseHonoringSocket;
 import io.reactivesocket.lease.DisableLeaseSocket;
 import io.reactivesocket.lease.LeaseHonoringSocket;
 import io.reactivesocket.util.PayloadImpl;
+import java.util.function.Consumer;
 import reactor.core.publisher.Mono;
 
 import java.util.function.Function;
@@ -93,6 +94,8 @@ public interface SetupProvider {
      * @return A new {@code SetupProvider} instance.
      */
     SetupProvider disableLease(Function<ReactiveSocket, DisableLeaseSocket> socketFactory);
+
+    SetupProvider errorConsumer(Consumer<Throwable> errorConsumer);
 
     /**
      * Creates a new {@code SetupProvider} that uses the passed {@code setupPayload} as the payload for the setup frame.

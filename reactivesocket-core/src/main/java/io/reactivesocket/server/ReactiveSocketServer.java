@@ -22,6 +22,7 @@ import io.reactivesocket.exceptions.SetupException;
 import io.reactivesocket.lease.LeaseEnforcingSocket;
 import io.reactivesocket.transport.TransportServer;
 import io.reactivesocket.transport.TransportServer.StartedServer;
+import java.util.function.Consumer;
 
 public interface ReactiveSocketServer {
 
@@ -35,7 +36,12 @@ public interface ReactiveSocketServer {
     StartedServer start(SocketAcceptor acceptor);
 
     static ReactiveSocketServer create(TransportServer transportServer) {
-        return new DefaultReactiveSocketServer(transportServer);
+        return create(transportServer, Throwable::printStackTrace);
+    }
+
+    static ReactiveSocketServer create(TransportServer transportServer,
+        Consumer<Throwable> errorConsumer) {
+        return new DefaultReactiveSocketServer(transportServer, errorConsumer);
     }
 
     /**
