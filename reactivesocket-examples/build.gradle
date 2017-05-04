@@ -29,14 +29,14 @@ jmh {
 }
 
 dependencies {
-    compile project(':reactivesocket-core')
-    compile project(':reactivesocket-client')
-    compile project(':reactivesocket-discovery-eureka')
-    compile project(':reactivesocket-spectator')
-    compile project(':reactivesocket-transport-netty')
-    compile project(':reactivesocket-transport-local')
+    compile project(':rsocket-core')
+    compile project(':rsocket-client')
+    compile project(':rsocket-discovery-eureka')
+    compile project(':rsocket-spectator')
+    compile project(':rsocket-transport-netty')
+    compile project(':rsocket-transport-local')
 
-    compile project(':reactivesocket-test')
+    compile project(':rsocket-test')
 
     compile 'org.slf4j:slf4j-log4j12:1.7.21'
 

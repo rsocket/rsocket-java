@@ -15,6 +15,6 @@
  */
 
 dependencies {
-    compile project(':reactivesocket-core')
-    testCompile project(':reactivesocket-test')
+    compile project(':rsocket-core')
+    testCompile project(':rsocket-test')
 }

@@ -4,4 +4,4 @@ LATEST_VERSION=$(ls build/libs/reactivesocket-tck-drivers-*-SNAPSHOT.jar | sort 
 
 echo "running latest version $LATEST_VERSION"
 
-java -cp "$LATEST_VERSION" io.reactivesocket.tckdrivers.main.Main "$@"
+java -cp "$LATEST_VERSION" io.rsocket.tckdrivers.main.Main "$@"

@@ -17,7 +17,7 @@
 apply plugin: 'java'
 
 dependencies {
-    compile project(':reactivesocket-core')
-    compile project(':reactivesocket-test')
+    compile project(':rsocket-core')
+    compile project(':rsocket-test')
     compile 'io.aeron:aeron-all:1.0.1'
 }

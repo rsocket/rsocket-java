@@ -15,8 +15,8 @@
  */
 
 dependencies {
-    compile project(':reactivesocket-core')
+    compile project(':rsocket-core')
     compile 'io.projectreactor.ipc:reactor-netty:0.6.2.RELEASE'
 
-    testCompile project(':reactivesocket-test')
+    testCompile project(':rsocket-test')
 }

@@ -27,7 +27,7 @@ repositories {
 }
 
 dependencies {
-    compile 'io.reactivesocket:reactivesocket:0.9-SNAPSHOT'
+    compile 'io.rsocket:reactivesocket:0.9-SNAPSHOT'
 }
 ```
 
@@ -35,7 +35,7 @@ No releases to Maven Central or JCenter have occurred yet.
 
 
 ## Debugging
-Frames can be printed out to help debugging. Set the logger `io.reactivesocket.FrameLogger` to debug to print the frames.
+Frames can be printed out to help debugging. Set the logger `io.rsocket.FrameLogger` to debug to print the frames.
 
 ## Bugs and Feedback
 

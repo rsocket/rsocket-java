@@ -1,7 +1,7 @@
 apply plugin: 'application'
 apply plugin: 'java'
 
-mainClassName = "io.reactivesocket.tckdrivers.main.Main"
+mainClassName = "io.rsocket.tckdrivers.main.Main"
 
 jar {
     manifest {
@@ -15,10 +15,10 @@ jar {
 
 dependencies {
 
-    compile project(':reactivesocket-core')
-    compile project(':reactivesocket-client')
-    compile project(':reactivesocket-transport-netty')
-    testCompile project(':reactivesocket-test')
+    compile project(':rsocket-core')
+    compile project(':rsocket-client')
+    compile project(':rsocket-transport-netty')
+    testCompile project(':rsocket-test')
     compile 'com.fasterxml.jackson.core:jackson-core:2.8.8'
     compile 'com.fasterxml.jackson.core:jackson-databind:2.8.8'
     compile 'org.apache.commons:commons-lang3:3.4'

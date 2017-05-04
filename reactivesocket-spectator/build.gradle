@@ -15,10 +15,10 @@
  */
 
 dependencies {
-    compile project(':reactivesocket-core')
-    compile project(':reactivesocket-client')
+    compile project(':rsocket-core')
+    compile project(':rsocket-client')
     compile 'com.netflix.spectator:spectator-api:0.45.0'
     compile 'org.hdrhistogram:HdrHistogram:latest.release'
 
-    testCompile project(':reactivesocket-test')
+    testCompile project(':rsocket-test')
 }
