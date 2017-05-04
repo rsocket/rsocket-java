@@ -143,7 +143,7 @@ public class IntegrationTest {
                                 @Override
                                 public Flux<Payload> requestStream(Payload payload) {
                                     return Flux
-                                        .range(1, 1_000_000)
+                                        .range(1, 10_000)
                                         .map(i -> new PayloadImpl("data -> " + i));
                                 }
                             });
