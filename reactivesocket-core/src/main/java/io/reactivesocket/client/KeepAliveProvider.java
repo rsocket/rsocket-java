@@ -19,6 +19,7 @@ package io.reactivesocket.client;
 import io.reactivesocket.exceptions.ConnectionException;
 import reactor.core.publisher.Flux;
 
+import java.time.Duration;
 import java.util.function.LongSupplier;
 
 /**
@@ -96,7 +97,7 @@ public final class KeepAliveProvider {
      * @return A new {@link KeepAliveProvider} that never sends a keep-alive frame.
      */
     public static KeepAliveProvider never() {
-        return from(Integer.MAX_VALUE, Flux.never());
+        return from(Integer.MAX_VALUE, Integer.MAX_VALUE, Flux.never());
     }
 
     /**
@@ -104,12 +105,12 @@ public final class KeepAliveProvider {
      * milliseconds.
      *
      * @param keepAlivePeriodMillis Duration in milliseconds after which a keep-alive frame is sent.
-     * @param keepAliveTicks A source which emits an item whenever a keepa-live frame is to be sent.
      *
-     * @return A new {@link KeepAliveProvider} that never sends a keep-alive frame.
+     * @return A new {@link KeepAliveProvider} that sends periodic keep-alive frames.
      */
-    public static KeepAliveProvider from(int keepAlivePeriodMillis, Flux<Long> keepAliveTicks) {
-        return from(keepAlivePeriodMillis, SetupProvider.DEFAULT_MAX_KEEP_ALIVE_MISSING_ACK, keepAliveTicks);
+    public static KeepAliveProvider from(int keepAlivePeriodMillis) {
+        return from(keepAlivePeriodMillis, SetupProvider.DEFAULT_MAX_KEEP_ALIVE_MISSING_ACK,
+                Flux.interval(Duration.ofMillis(keepAlivePeriodMillis)));
     }
 
     /**
@@ -121,7 +122,7 @@ public final class KeepAliveProvider {
      * @param missedKeepAliveThreshold Maximum concurrent missed acknowledgements for keep-alives from the peer.
      * @param keepAliveTicks A source which emits an item whenever a keepa-live frame is to be sent.
      *
-     * @return A new {@link KeepAliveProvider} that never sends a keep-alive frame.
+     * @return A new {@link KeepAliveProvider} that sends periodic keep-alive frames.
      */
     public static KeepAliveProvider from(int keepAlivePeriodMillis, int missedKeepAliveThreshold,
                                          Flux<Long> keepAliveTicks) {
@@ -138,9 +139,9 @@ public final class KeepAliveProvider {
      * @param keepAliveTicks A source which emits an item whenever a keepa-live frame is to be sent.
      * @param currentTimeSupplier Supplier for the current system time.
      *
-     * @return A new {@link KeepAliveProvider} that never sends a keep-alive frame.
+     * @return A new {@link KeepAliveProvider} that sends periodic keep-alive frames.
      */
-    public static KeepAliveProvider from(int keepAlivePeriodMillis, int missedKeepAliveThreshold,
+    static KeepAliveProvider from(int keepAlivePeriodMillis, int missedKeepAliveThreshold,
                                          Flux<Long> keepAliveTicks, LongSupplier currentTimeSupplier) {
         return new KeepAliveProvider(keepAliveTicks, keepAlivePeriodMillis, missedKeepAliveThreshold,
                                      currentTimeSupplier);
