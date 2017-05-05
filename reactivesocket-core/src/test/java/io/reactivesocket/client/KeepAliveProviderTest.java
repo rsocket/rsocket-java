@@ -24,7 +24,6 @@ import reactor.core.publisher.Flux;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class KeepAliveProviderTest {
-
     @Test
     public void testEmptyTicks() {
         KeepAliveProvider provider = KeepAliveProvider.from(10, 1, Flux.empty(), () -> 1);
@@ -35,7 +34,7 @@ public class KeepAliveProviderTest {
 
     @Test
     public void testTicksWithAck() {
-        AtomicLong time = new AtomicLong();
+        AtomicLong time = new AtomicLong(1000L);
         KeepAliveProvider provider = KeepAliveProvider.from(10, 1, Flux.just(1L, 2L), time::longValue);
         TestSubscriber<Object> subscriber = TestSubscriber.create();
         provider.ticks().doOnNext(aLong -> provider.ack()).subscribe(subscriber);
@@ -43,8 +42,17 @@ public class KeepAliveProviderTest {
     }
 
     @Test
+    public void testTicksWithOneMissingAck() {
+        AtomicLong time = new AtomicLong(1000L);
+        KeepAliveProvider provider = KeepAliveProvider.from(10, 2, Flux.just(1L, 2L, 3L), time::longValue);
+        TestSubscriber<Object> subscriber = TestSubscriber.create();
+        provider.ticks().skip(1).doOnNext(aLong -> provider.ack()).subscribe(subscriber);
+        subscriber.assertNoErrors().assertComplete().assertValues(2L, 3L);
+    }
+
+    @Test
     public void testMissingAck() {
-        AtomicLong time = new AtomicLong();
+        AtomicLong time = new AtomicLong(1000L);
         KeepAliveProvider provider = KeepAliveProvider.from(10, 1, Flux.just(1L, 2L), () -> time.addAndGet(100));
         TestSubscriber<Object> subscriber = TestSubscriber.create();
         provider.ticks().subscribe(subscriber);
