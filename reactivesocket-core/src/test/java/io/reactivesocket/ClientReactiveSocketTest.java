@@ -17,6 +17,7 @@
 package io.reactivesocket;
 
 import io.reactivesocket.client.KeepAliveProvider;
+import io.reactivesocket.client.SetupProvider;
 import io.reactivesocket.exceptions.ApplicationException;
 import io.reactivesocket.exceptions.RejectedSetupException;
 import io.reactivesocket.util.PayloadImpl;
@@ -136,7 +137,8 @@ public class ClientReactiveSocketTest {
         protected ClientReactiveSocket newReactiveSocket() {
             return new ClientReactiveSocket(connection,
                                             throwable -> errors.add(throwable), StreamIdSupplier.clientSupplier(),
-                                            KeepAliveProvider.from(1, keepAliveTicks)).start(lease -> {});
+                                            KeepAliveProvider.from(1, SetupProvider.DEFAULT_MAX_KEEP_ALIVE_MISSING_ACK,
+                                                    keepAliveTicks)).start(lease -> {});
         }
 
         public int getStreamIdForRequestType(FrameType expectedFrameType) {
