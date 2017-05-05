@@ -26,3 +26,9 @@ dependencies {
     compile 'io.reactivex.rxjava2:rxjava:2.1.0'
     compile 'io.airlift:airline:0.7'
 }
+
+task runTests(type: JavaExec) {
+    classpath = sourceSets.main.runtimeClasspath
+    main = 'io.rsocket.tckdrivers.main.TestMain'
+    args '--port',  '4567', '--serverfile',  'src/test/resources/servertest.txt',  '--clientfile',  'src/test/resources/clienttest.txt'
+}
