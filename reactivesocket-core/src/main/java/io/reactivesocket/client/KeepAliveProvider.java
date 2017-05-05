@@ -101,6 +101,18 @@ public final class KeepAliveProvider {
     }
 
     /**
+     * Creates a new {@link KeepAliveProvider} that sends a keep alive frame every {@code keepAlivePeriod}.
+     *
+     * @param keepAlivePeriod Duration after which a keep-alive frame is sent.
+     *
+     * @return A new {@link KeepAliveProvider} that sends periodic keep-alive frames.
+     */
+    public static KeepAliveProvider from(Duration keepAlivePeriod) {
+        return from((int) Math.min(Integer.MAX_VALUE, keepAlivePeriod.toMillis()),
+                SetupProvider.DEFAULT_MAX_KEEP_ALIVE_MISSING_ACK, Flux.interval(keepAlivePeriod));
+    }
+
+    /**
      * Creates a new {@link KeepAliveProvider} that sends a keep alive frame every {@code keepAlivePeriodMillis}
      * milliseconds.
      *
