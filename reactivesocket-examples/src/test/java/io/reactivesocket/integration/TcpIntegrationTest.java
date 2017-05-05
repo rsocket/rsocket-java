@@ -1,5 +1,6 @@
 package io.reactivesocket.integration;
 
+import com.google.common.collect.Lists;
 import io.reactivesocket.AbstractReactiveSocket;
 import io.reactivesocket.Payload;
 import io.reactivesocket.ReactiveSocket;
@@ -16,12 +17,16 @@ import io.reactivesocket.util.ReactiveSocketProxy;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import reactor.core.publisher.DirectProcessor;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.ipc.netty.tcp.TcpClient;
 import reactor.ipc.netty.tcp.TcpServer;
 
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Queue;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -122,5 +127,41 @@ public class TcpIntegrationTest {
 
         assertEquals("ERROR", StandardCharsets.UTF_8.decode(response1.getData()).toString());
         assertEquals("SUCCESS", StandardCharsets.UTF_8.decode(response2.getData()).toString());
+    }
+
+
+    @Test(timeout = 2_000L)
+    public void testTwoConcurrentStreams() throws InterruptedException {
+        // Two concurrent streams
+        // Stream 1 is a single response
+        // Stream 2 is a single response, then completed by the server
+        // Stream 1 is then cancelled by the client
+
+        Queue<DirectProcessor<Payload>> streamResults = Lists.newLinkedList();
+        DirectProcessor<Payload> processor1 = DirectProcessor.create();
+        streamResults.add(processor1);
+        DirectProcessor<Payload> processor2 = DirectProcessor.create();
+        streamResults.add(processor2);
+
+        handler = new AbstractReactiveSocket() {
+            @Override
+            public Flux<Payload> requestStream(Payload payload) {
+                return streamResults.remove();
+            }
+        };
+
+        ReactiveSocket client = buildClient();
+
+        Flux<Payload> response1 = client.requestStream(new PayloadImpl("REQUEST1"));
+        Flux<Payload> response2 = client.requestStream(new PayloadImpl("REQUEST2"));
+
+        processor1.onNext(new PayloadImpl("RESPONSE1A"));
+        // TODO comment out this line
+        processor1.onComplete();
+        processor2.onNext(new PayloadImpl("RESPONSE2A"));
+        processor2.onComplete();
+
+        Payload r2a = response2.blockFirst();
+        Payload r1a = response1.blockFirst();
     }
 }
