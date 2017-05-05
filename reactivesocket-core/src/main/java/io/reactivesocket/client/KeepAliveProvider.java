@@ -33,12 +33,12 @@ public final class KeepAliveProvider {
     private volatile boolean ackThresholdBreached;
     private volatile long lastKeepAliveMillis;
     private volatile long lastAckMillis;
-    private final Flux<Long> ticks;
+    private final Flux<Object> ticks;
     private final int keepAlivePeriodMillis;
     private final int missedKeepAliveThreshold;
     private final LongSupplier currentTimeSupplier;
 
-    private KeepAliveProvider(Flux<Long> ticks, int keepAlivePeriodMillis, int missedKeepAliveThreshold,
+    private KeepAliveProvider(Flux<?> ticks, int keepAlivePeriodMillis, int missedKeepAliveThreshold,
                               LongSupplier currentTimeSupplier) {
         this.ticks = ticks.map(tick -> {
             updateAckBreachThreshold();
@@ -61,7 +61,7 @@ public final class KeepAliveProvider {
      *
      * @return Source of keep-alive ticks.
      */
-    public Flux<Long> ticks() {
+    public Flux<Object> ticks() {
         return ticks;
     }
 
@@ -125,7 +125,7 @@ public final class KeepAliveProvider {
      * @return A new {@link KeepAliveProvider} that sends periodic keep-alive frames.
      */
     public static KeepAliveProvider from(int keepAlivePeriodMillis, int missedKeepAliveThreshold,
-                                         Flux<Long> keepAliveTicks) {
+                                         Flux<?> keepAliveTicks) {
         return from(keepAlivePeriodMillis, missedKeepAliveThreshold, keepAliveTicks, System::currentTimeMillis);
     }
 
@@ -142,7 +142,7 @@ public final class KeepAliveProvider {
      * @return A new {@link KeepAliveProvider} that sends periodic keep-alive frames.
      */
     static KeepAliveProvider from(int keepAlivePeriodMillis, int missedKeepAliveThreshold,
-                                         Flux<Long> keepAliveTicks, LongSupplier currentTimeSupplier) {
+                                         Flux<?> keepAliveTicks, LongSupplier currentTimeSupplier) {
         return new KeepAliveProvider(keepAliveTicks, keepAlivePeriodMillis, missedKeepAliveThreshold,
                                      currentTimeSupplier);
     }

@@ -28,7 +28,7 @@ public class KeepAliveProviderTest {
     @Test
     public void testEmptyTicks() throws Exception {
         KeepAliveProvider provider = KeepAliveProvider.from(10, 1, Flux.empty(), () -> 1);
-        TestSubscriber<Long> subscriber = TestSubscriber.create();
+        TestSubscriber<Object> subscriber = TestSubscriber.create();
         provider.ticks().subscribe(subscriber);
         subscriber.assertComplete().assertNoErrors().assertNoValues();
     }
@@ -37,7 +37,7 @@ public class KeepAliveProviderTest {
     public void testTicksWithAck() throws Exception {
         AtomicLong time = new AtomicLong();
         KeepAliveProvider provider = KeepAliveProvider.from(10, 1, Flux.just(1L, 2L), time::longValue);
-        TestSubscriber<Long> subscriber = TestSubscriber.create();
+        TestSubscriber<Object> subscriber = TestSubscriber.create();
         provider.ticks().doOnNext(aLong -> provider.ack()).subscribe(subscriber);
         subscriber.assertNoErrors().assertComplete().assertValues(1L, 2L);
     }
@@ -46,7 +46,7 @@ public class KeepAliveProviderTest {
     public void testMissingAck() throws Exception {
         AtomicLong time = new AtomicLong();
         KeepAliveProvider provider = KeepAliveProvider.from(10, 1, Flux.just(1L, 2L), () -> time.addAndGet(100));
-        TestSubscriber<Long> subscriber = TestSubscriber.create();
+        TestSubscriber<Object> subscriber = TestSubscriber.create();
         provider.ticks().subscribe(subscriber);
         subscriber.assertError(ConnectionException.class).assertValues(1L);
     }
