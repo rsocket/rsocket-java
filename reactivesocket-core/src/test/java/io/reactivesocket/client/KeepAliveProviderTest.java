@@ -26,7 +26,7 @@ import java.util.concurrent.atomic.AtomicLong;
 public class KeepAliveProviderTest {
 
     @Test
-    public void testEmptyTicks() throws Exception {
+    public void testEmptyTicks() {
         KeepAliveProvider provider = KeepAliveProvider.from(10, 1, Flux.empty(), () -> 1);
         TestSubscriber<Object> subscriber = TestSubscriber.create();
         provider.ticks().subscribe(subscriber);
@@ -34,7 +34,7 @@ public class KeepAliveProviderTest {
     }
 
     @Test
-    public void testTicksWithAck() throws Exception {
+    public void testTicksWithAck() {
         AtomicLong time = new AtomicLong();
         KeepAliveProvider provider = KeepAliveProvider.from(10, 1, Flux.just(1L, 2L), time::longValue);
         TestSubscriber<Object> subscriber = TestSubscriber.create();
@@ -43,7 +43,7 @@ public class KeepAliveProviderTest {
     }
 
     @Test
-    public void testMissingAck() throws Exception {
+    public void testMissingAck() {
         AtomicLong time = new AtomicLong();
         KeepAliveProvider provider = KeepAliveProvider.from(10, 1, Flux.just(1L, 2L), () -> time.addAndGet(100));
         TestSubscriber<Object> subscriber = TestSubscriber.create();

@@ -30,7 +30,7 @@ import java.util.function.LongSupplier;
  */
 public final class KeepAliveProvider {
 
-    private volatile boolean ackThresholdBreached;
+    private volatile ConnectionException ackThresholdBreached;
     private volatile long lastKeepAliveMillis;
     private volatile long lastAckMillis;
     private final Flux<Object> ticks;
@@ -42,8 +42,8 @@ public final class KeepAliveProvider {
                               LongSupplier currentTimeSupplier) {
         this.ticks = ticks.map(tick -> {
             updateAckBreachThreshold();
-            if (ackThresholdBreached) {
-                throw new ConnectionException("Missing keep alive from the peer.");
+            if (ackThresholdBreached != null) {
+                throw ackThresholdBreached;
             } else {
                 lastKeepAliveMillis = currentTimeSupplier.getAsLong();
                 return tick;
@@ -52,6 +52,10 @@ public final class KeepAliveProvider {
         this.keepAlivePeriodMillis = keepAlivePeriodMillis;
         this.missedKeepAliveThreshold = missedKeepAliveThreshold;
         this.currentTimeSupplier = currentTimeSupplier;
+
+        // clean start, assume we start correctly acked as of now
+        this.lastKeepAliveMillis = currentTimeSupplier.getAsLong();
+        this.lastAckMillis = lastKeepAliveMillis;
     }
 
     /**
@@ -160,9 +164,13 @@ public final class KeepAliveProvider {
     }
 
     private void updateAckBreachThreshold() {
-        long missedAcks = (lastAckMillis - lastKeepAliveMillis) / keepAlivePeriodMillis;
-        if (missedAcks < 0 || missedAcks > missedKeepAliveThreshold) {
-            ackThresholdBreached = true;
+        long keepAliveMillis = this.lastKeepAliveMillis;
+        long ackMillis = this.lastAckMillis;
+        long missedAcks = (keepAliveMillis - ackMillis) / keepAlivePeriodMillis;
+
+        if (missedAcks > missedKeepAliveThreshold) {
+            ackThresholdBreached = new ConnectionException("Missed " + missedAcks +
+                    " keepalive(s) from the peer, last keepalive " + keepAliveMillis + " last ack " + ackMillis);
         }
     }
 }
