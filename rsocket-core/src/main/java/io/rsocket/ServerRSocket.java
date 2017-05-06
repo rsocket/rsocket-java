@@ -27,16 +27,14 @@ import io.rsocket.internal.KnownErrorFilter;
 import io.rsocket.internal.LimitableRequestPublisher;
 import io.rsocket.lease.LeaseEnforcingSocket;
 import io.rsocket.util.PayloadImpl;
+import java.util.Collection;
+import java.util.function.Consumer;
 import org.reactivestreams.Publisher;
-import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.UnicastProcessor;
-
-import java.util.Collection;
-import java.util.function.Consumer;
 
 /**
  * Server side RSocket. Receives {@link Frame}s from a
@@ -147,11 +145,19 @@ public class ServerRSocket implements RSocket {
     public ServerRSocket start() {
         subscribe = connection
             .receive()
+            // TODO this does not appear to be concurrent
+            // but also many handle methods appear to assume sequential ordering
+            // e.g. inserting into sending subscriptions
             .flatMap(frame -> {
                 try {
                     int streamId = frame.getStreamId();
-                    return handleFrame(frame, streamId);
+                    return handleFrame(frame, streamId)
+                        .doOnError(t -> {
+                            errorConsumer.accept(t);
 
+                            // TODO should this be terminal, protocol suggests to be tolerant
+                            cleanUpSendingSubscriptions();
+                        });
                 } finally {
                     frame.release();
                 }
