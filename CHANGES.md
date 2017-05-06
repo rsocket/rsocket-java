@@ -1,3 +1,3 @@
-# ReactiveSocket Releases #
+# RSocket Releases #
 
 No releases yet.

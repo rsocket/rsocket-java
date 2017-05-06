@@ -1,6 +1,6 @@
-# ReactiveSocket
+# RSocket
 
-[![Join the chat at https://gitter.im/ReactiveSocket/reactivesocket-java](https://badges.gitter.im/ReactiveSocket/reactivesocket-java.svg)](https://gitter.im/ReactiveSocket/reactivesocket-java?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+[![Join the chat at https://gitter.im/RSocket/reactivesocket-java](https://badges.gitter.im/RSocket/reactivesocket-java.svg)](https://gitter.im/RSocket/reactivesocket-java?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
 RSocket is a binary protocol for use on byte stream transports such as TCP, WebSockets, and Aeron.
 
@@ -15,7 +15,7 @@ Learn more at http://rsocket.io
 
 ## Build and Binaries
 
-<a href='https://travis-ci.org/ReactiveSocket/reactivesocket-java/builds'><img src='https://travis-ci.org/ReactiveSocket/reactivesocket-java.svg?branch=1.0.x'></a>
+<a href='https://travis-ci.org/RSocket/reactivesocket-java/builds'><img src='https://travis-ci.org/RSocket/reactivesocket-java.svg?branch=1.0.x'></a>
 
 Snapshots are available via JFrog.
 
@@ -27,7 +27,7 @@ repositories {
 }
 
 dependencies {
-    compile 'io.reactivesocket:reactivesocket:0.9-SNAPSHOT'
+    compile 'io.rsocket:reactivesocket:0.9-SNAPSHOT'
 }
 ```
 
@@ -35,11 +35,11 @@ No releases to Maven Central or JCenter have occurred yet.
 
 
 ## Debugging
-Frames can be printed out to help debugging. Set the logger `io.reactivesocket.FrameLogger` to debug to print the frames.
+Frames can be printed out to help debugging. Set the logger `io.rsocket.FrameLogger` to debug to print the frames.
 
 ## Bugs and Feedback
 
-For bugs, questions and discussions please use the [Github Issues](https://github.com/ReactiveSocket/reactivesocket-java/issues).
+For bugs, questions and discussions please use the [Github Issues](https://github.com/RSocket/reactivesocket-java/issues).
 
 ## LICENSE
 
