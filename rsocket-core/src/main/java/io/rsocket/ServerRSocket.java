@@ -145,9 +145,6 @@ public class ServerRSocket implements RSocket {
     public ServerRSocket start() {
         subscribe = connection
             .receive()
-            // TODO this does not appear to be concurrent
-            // but also many handle methods appear to assume sequential ordering
-            // e.g. inserting into sending subscriptions
             .flatMap(frame -> {
                 try {
                     int streamId = frame.getStreamId();
