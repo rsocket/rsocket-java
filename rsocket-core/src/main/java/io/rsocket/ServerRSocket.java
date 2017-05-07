@@ -322,7 +322,8 @@ public class ServerRSocket implements RSocket {
 
     private Mono<Void> handleKeepAliveFrame(Frame frame) {
         if (Frame.Keepalive.hasRespondFlag(frame)) {
-            return connection.sendOne(Frame.Keepalive.from(Unpooled.EMPTY_BUFFER, false))
+            ByteBuf data = Unpooled.wrappedBuffer(frame.getData());
+            return connection.sendOne(Frame.Keepalive.from(data, false))
                 .doOnError(errorConsumer);
         }
         return Mono.empty();
