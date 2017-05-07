@@ -136,11 +136,6 @@ public class TcpIntegrationTest {
 
     @Test(timeout = 2_000L)
     public void testTwoConcurrentStreams() throws InterruptedException {
-        // Two concurrent streams
-        // Stream 1 is a single response
-        // Stream 2 is a single response, then completed by the server
-        // Stream 1 is then cancelled by the client
-
         ConcurrentHashMap<String, UnicastProcessor<Payload>> map = new ConcurrentHashMap<>();
         UnicastProcessor<Payload> processor1 = UnicastProcessor.create();
         map.put("REQUEST1", processor1);
