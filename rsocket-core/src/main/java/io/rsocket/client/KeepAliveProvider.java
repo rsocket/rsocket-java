@@ -63,6 +63,8 @@ public final class KeepAliveProvider {
      * an acknowledgment for each keep-alive frame is received from the peer. In absence of
      * {@link #getMissedKeepAliveThreshold()} consecutive failures to receive an ack, this source will emit an error.
      *
+     * n.b. The values are irrelevant, the time spacing of ticks is used to emit events on a schedule. 
+     *
      * @return Source of keep-alive ticks.
      */
     public Flux<Object> ticks() {
@@ -136,7 +138,7 @@ public final class KeepAliveProvider {
      *
      * @param keepAlivePeriodMillis Duration in milliseconds after which a keep-alive frame is sent.
      * @param missedKeepAliveThreshold Maximum concurrent missed acknowledgements for keep-alives from the peer.
-     * @param keepAliveTicks A source which emits an item whenever a keepa-live frame is to be sent.
+     * @param keepAliveTicks A source which emits an item whenever a keep-alive frame is to be sent.
      *
      * @return A new {@link KeepAliveProvider} that sends periodic keep-alive frames.
      */
@@ -152,7 +154,7 @@ public final class KeepAliveProvider {
      *
      * @param keepAlivePeriodMillis Duration in milliseconds after which a keep-alive frame is sent.
      * @param missedKeepAliveThreshold Maximum concurrent missed acknowledgements for keep-alives from the peer.
-     * @param keepAliveTicks A source which emits an item whenever a keepa-live frame is to be sent.
+     * @param keepAliveTicks A source which emits an item whenever a keep-alive frame is to be sent.
      * @param currentTimeSupplier Supplier for the current system time.
      *
      * @return A new {@link KeepAliveProvider} that sends periodic keep-alive frames.
