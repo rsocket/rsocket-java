@@ -64,8 +64,7 @@ public class TestConfig {
         this.maxConcurrency = maxConcurrency;
         this.serverCapacitySupplier = serverCapacitySupplier;
         this.leaseTtlMillis = leaseTtlMillis;
-        KeepAliveProvider keepAliveProvider = KeepAliveProvider.from(30_000, Flux.interval(Duration.ofSeconds(30)));
-        SetupProvider setup = SetupProvider.keepAlive(keepAliveProvider);
+        SetupProvider setup = SetupProvider.keepAlive(KeepAliveProvider.from(30_000));
         setupProvider = serverCapacitySupplier == null? setup.disableLease() : setup;
     }
 

@@ -17,6 +17,7 @@
 package io.rsocket;
 
 import io.rsocket.client.KeepAliveProvider;
+import io.rsocket.client.SetupProvider;
 import io.rsocket.exceptions.ApplicationException;
 import io.rsocket.exceptions.RejectedSetupException;
 import io.rsocket.util.PayloadImpl;
@@ -136,7 +137,8 @@ public class ClientRSocketTest {
         protected ClientRSocket newRSocket() {
             return new ClientRSocket(connection,
                                             throwable -> errors.add(throwable), StreamIdSupplier.clientSupplier(),
-                                            KeepAliveProvider.from(1, keepAliveTicks)).start(lease -> {});
+                                            KeepAliveProvider.from(1, SetupProvider.DEFAULT_MAX_KEEP_ALIVE_MISSING_ACK,
+                                                    keepAliveTicks)).start(lease -> {});
         }
 
         public int getStreamIdForRequestType(FrameType expectedFrameType) {

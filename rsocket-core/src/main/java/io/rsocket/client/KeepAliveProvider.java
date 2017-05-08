@@ -19,6 +19,7 @@ package io.rsocket.client;
 import io.rsocket.exceptions.ConnectionException;
 import reactor.core.publisher.Flux;
 
+import java.time.Duration;
 import java.util.function.LongSupplier;
 
 /**
@@ -29,20 +30,20 @@ import java.util.function.LongSupplier;
  */
 public final class KeepAliveProvider {
 
-    private volatile boolean ackThresholdBreached;
+    private volatile ConnectionException ackThresholdBreached;
     private volatile long lastKeepAliveMillis;
     private volatile long lastAckMillis;
-    private final Flux<Long> ticks;
+    private final Flux<Object> ticks;
     private final int keepAlivePeriodMillis;
     private final int missedKeepAliveThreshold;
     private final LongSupplier currentTimeSupplier;
 
-    private KeepAliveProvider(Flux<Long> ticks, int keepAlivePeriodMillis, int missedKeepAliveThreshold,
+    private KeepAliveProvider(Flux<?> ticks, int keepAlivePeriodMillis, int missedKeepAliveThreshold,
                               LongSupplier currentTimeSupplier) {
         this.ticks = ticks.map(tick -> {
             updateAckBreachThreshold();
-            if (ackThresholdBreached) {
-                throw new ConnectionException("Missing keep alive from the peer.");
+            if (ackThresholdBreached != null) {
+                throw ackThresholdBreached;
             } else {
                 lastKeepAliveMillis = currentTimeSupplier.getAsLong();
                 return tick;
@@ -51,6 +52,10 @@ public final class KeepAliveProvider {
         this.keepAlivePeriodMillis = keepAlivePeriodMillis;
         this.missedKeepAliveThreshold = missedKeepAliveThreshold;
         this.currentTimeSupplier = currentTimeSupplier;
+
+        // clean start, assume we start correctly acked as of now
+        this.lastKeepAliveMillis = currentTimeSupplier.getAsLong();
+        this.lastAckMillis = lastKeepAliveMillis;
     }
 
     /**
@@ -58,9 +63,11 @@ public final class KeepAliveProvider {
      * an acknowledgment for each keep-alive frame is received from the peer. In absence of
      * {@link #getMissedKeepAliveThreshold()} consecutive failures to receive an ack, this source will emit an error.
      *
+     * n.b. The values are irrelevant, the time spacing of ticks is used to emit events on a schedule. 
+     *
      * @return Source of keep-alive ticks.
      */
-    public Flux<Long> ticks() {
+    public Flux<Object> ticks() {
         return ticks;
     }
 
@@ -96,7 +103,19 @@ public final class KeepAliveProvider {
      * @return A new {@link KeepAliveProvider} that never sends a keep-alive frame.
      */
     public static KeepAliveProvider never() {
-        return from(Integer.MAX_VALUE, Flux.never());
+        return from(Integer.MAX_VALUE, Integer.MAX_VALUE, Flux.never());
+    }
+
+    /**
+     * Creates a new {@link KeepAliveProvider} that sends a keep alive frame every {@code keepAlivePeriod}.
+     *
+     * @param keepAlivePeriod Duration after which a keep-alive frame is sent.
+     *
+     * @return A new {@link KeepAliveProvider} that sends periodic keep-alive frames.
+     */
+    public static KeepAliveProvider from(Duration keepAlivePeriod) {
+        return from((int) Math.min(Integer.MAX_VALUE, keepAlivePeriod.toMillis()),
+                SetupProvider.DEFAULT_MAX_KEEP_ALIVE_MISSING_ACK, Flux.interval(keepAlivePeriod));
     }
 
     /**
@@ -104,12 +123,12 @@ public final class KeepAliveProvider {
      * milliseconds.
      *
      * @param keepAlivePeriodMillis Duration in milliseconds after which a keep-alive frame is sent.
-     * @param keepAliveTicks A source which emits an item whenever a keepa-live frame is to be sent.
      *
-     * @return A new {@link KeepAliveProvider} that never sends a keep-alive frame.
+     * @return A new {@link KeepAliveProvider} that sends periodic keep-alive frames.
      */
-    public static KeepAliveProvider from(int keepAlivePeriodMillis, Flux<Long> keepAliveTicks) {
-        return from(keepAlivePeriodMillis, SetupProvider.DEFAULT_MAX_KEEP_ALIVE_MISSING_ACK, keepAliveTicks);
+    public static KeepAliveProvider from(int keepAlivePeriodMillis) {
+        return from(keepAlivePeriodMillis, SetupProvider.DEFAULT_MAX_KEEP_ALIVE_MISSING_ACK,
+                Flux.interval(Duration.ofMillis(keepAlivePeriodMillis)));
     }
 
     /**
@@ -119,12 +138,12 @@ public final class KeepAliveProvider {
      *
      * @param keepAlivePeriodMillis Duration in milliseconds after which a keep-alive frame is sent.
      * @param missedKeepAliveThreshold Maximum concurrent missed acknowledgements for keep-alives from the peer.
-     * @param keepAliveTicks A source which emits an item whenever a keepa-live frame is to be sent.
+     * @param keepAliveTicks A source which emits an item whenever a keep-alive frame is to be sent.
      *
-     * @return A new {@link KeepAliveProvider} that never sends a keep-alive frame.
+     * @return A new {@link KeepAliveProvider} that sends periodic keep-alive frames.
      */
     public static KeepAliveProvider from(int keepAlivePeriodMillis, int missedKeepAliveThreshold,
-                                         Flux<Long> keepAliveTicks) {
+                                         Flux<?> keepAliveTicks) {
         return from(keepAlivePeriodMillis, missedKeepAliveThreshold, keepAliveTicks, System::currentTimeMillis);
     }
 
@@ -135,21 +154,25 @@ public final class KeepAliveProvider {
      *
      * @param keepAlivePeriodMillis Duration in milliseconds after which a keep-alive frame is sent.
      * @param missedKeepAliveThreshold Maximum concurrent missed acknowledgements for keep-alives from the peer.
-     * @param keepAliveTicks A source which emits an item whenever a keepa-live frame is to be sent.
+     * @param keepAliveTicks A source which emits an item whenever a keep-alive frame is to be sent.
      * @param currentTimeSupplier Supplier for the current system time.
      *
-     * @return A new {@link KeepAliveProvider} that never sends a keep-alive frame.
+     * @return A new {@link KeepAliveProvider} that sends periodic keep-alive frames.
      */
-    public static KeepAliveProvider from(int keepAlivePeriodMillis, int missedKeepAliveThreshold,
-                                         Flux<Long> keepAliveTicks, LongSupplier currentTimeSupplier) {
+    static KeepAliveProvider from(int keepAlivePeriodMillis, int missedKeepAliveThreshold,
+                                         Flux<?> keepAliveTicks, LongSupplier currentTimeSupplier) {
         return new KeepAliveProvider(keepAliveTicks, keepAlivePeriodMillis, missedKeepAliveThreshold,
                                      currentTimeSupplier);
     }
 
     private void updateAckBreachThreshold() {
-        long missedAcks = (lastAckMillis - lastKeepAliveMillis) / keepAlivePeriodMillis;
-        if (missedAcks < 0 || missedAcks > missedKeepAliveThreshold) {
-            ackThresholdBreached = true;
+        long keepAliveMillis = this.lastKeepAliveMillis;
+        long ackMillis = this.lastAckMillis;
+        long missedAcks = (keepAliveMillis - ackMillis) / keepAlivePeriodMillis;
+
+        if (missedAcks > missedKeepAliveThreshold) {
+            ackThresholdBreached = new ConnectionException("Missed " + missedAcks +
+                    " keepalive(s) from the peer, last keepalive " + keepAliveMillis + " last ack " + ackMillis);
         }
     }
 }

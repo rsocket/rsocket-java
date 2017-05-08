@@ -24,29 +24,37 @@ import reactor.core.publisher.Flux;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class KeepAliveProviderTest {
-
     @Test
-    public void testEmptyTicks() throws Exception {
+    public void testEmptyTicks() {
         KeepAliveProvider provider = KeepAliveProvider.from(10, 1, Flux.empty(), () -> 1);
-        TestSubscriber<Long> subscriber = TestSubscriber.create();
+        TestSubscriber<Object> subscriber = TestSubscriber.create();
         provider.ticks().subscribe(subscriber);
         subscriber.assertComplete().assertNoErrors().assertNoValues();
     }
 
     @Test
-    public void testTicksWithAck() throws Exception {
-        AtomicLong time = new AtomicLong();
+    public void testTicksWithAck() {
+        AtomicLong time = new AtomicLong(1000L);
         KeepAliveProvider provider = KeepAliveProvider.from(10, 1, Flux.just(1L, 2L), time::longValue);
-        TestSubscriber<Long> subscriber = TestSubscriber.create();
+        TestSubscriber<Object> subscriber = TestSubscriber.create();
         provider.ticks().doOnNext(aLong -> provider.ack()).subscribe(subscriber);
         subscriber.assertNoErrors().assertComplete().assertValues(1L, 2L);
     }
 
     @Test
-    public void testMissingAck() throws Exception {
-        AtomicLong time = new AtomicLong();
+    public void testTicksWithOneMissingAck() {
+        AtomicLong time = new AtomicLong(1000L);
+        KeepAliveProvider provider = KeepAliveProvider.from(10, 2, Flux.just(1L, 2L, 3L), time::longValue);
+        TestSubscriber<Object> subscriber = TestSubscriber.create();
+        provider.ticks().skip(1).doOnNext(aLong -> provider.ack()).subscribe(subscriber);
+        subscriber.assertNoErrors().assertComplete().assertValues(2L, 3L);
+    }
+
+    @Test
+    public void testMissingAck() {
+        AtomicLong time = new AtomicLong(1000L);
         KeepAliveProvider provider = KeepAliveProvider.from(10, 1, Flux.just(1L, 2L), () -> time.addAndGet(100));
-        TestSubscriber<Long> subscriber = TestSubscriber.create();
+        TestSubscriber<Object> subscriber = TestSubscriber.create();
         provider.ticks().subscribe(subscriber);
         subscriber.assertError(ConnectionException.class).assertValues(1L);
     }
