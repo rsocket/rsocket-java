@@ -21,11 +21,10 @@ import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.client.RSocketClient;
 import io.rsocket.client.SetupProvider;
-import io.rsocket.lease.DisabledLeaseAcceptingSocket;
 import io.rsocket.server.RSocketServer;
-import io.rsocket.transport.TransportServer.StartedServer;
-import io.rsocket.transport.netty.client.TcpTransportClient;
-import io.rsocket.transport.netty.server.TcpTransportServer;
+import io.rsocket.transport.ServerTransport.StartedServer;
+import io.rsocket.transport.netty.client.TcpClientTransport;
+import io.rsocket.transport.netty.server.TcpServerTransport;
 import io.rsocket.util.PayloadImpl;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
@@ -41,7 +40,7 @@ public final class HelloWorldClient {
 
     public static void main(String[] args) {
         RSocketServer s = RSocketServer.create(
-            TcpTransportServer.create(TcpServer.create()),
+            TcpServerTransport.create(TcpServer.create()),
             e -> {
                 System.err.println("Server received error");
                 e.printStackTrace();
@@ -68,7 +67,7 @@ public final class HelloWorldClient {
             e.printStackTrace();
         });
         RSocketClient client =
-            RSocketClient.create(TcpTransportClient.create(TcpClient.create(options ->
+            RSocketClient.create(TcpClientTransport.create(TcpClient.create(options ->
                     options.connect((InetSocketAddress) address))),
                 setupProvider);
         RSocket socket = client.connect().block();

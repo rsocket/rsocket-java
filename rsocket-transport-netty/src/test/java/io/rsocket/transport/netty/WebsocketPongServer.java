@@ -15,16 +15,20 @@
  */
 package io.rsocket.transport.netty;
 
-import io.rsocket.server.RSocketServer;
+import io.rsocket.RSocketFactory;
 import io.rsocket.test.PingHandler;
-import io.rsocket.transport.netty.server.WebsocketTransportServer;
-import reactor.ipc.netty.http.server.HttpServer;
+import io.rsocket.transport.netty.server.WebsocketServerTransport;
 
 public final class WebsocketPongServer {
 
     public static void main(String... args) throws Exception {
-        RSocketServer.create(WebsocketTransportServer.create(HttpServer.create(7878)))
-                               .start(new PingHandler())
-                               .awaitShutdown();
+        RSocketFactory
+            .receive()
+            .acceptor(new PingHandler())
+            .transport(WebsocketServerTransport.create(7878))
+            .start()
+            .block()
+            .onClose()
+            .block();
     }
 }

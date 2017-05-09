@@ -18,13 +18,11 @@ import io.rsocket.ConnectionSetupPayload;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.client.RSocketClient;
-import io.rsocket.lease.DisabledLeaseAcceptingSocket;
-import io.rsocket.lease.LeaseEnforcingSocket;
 import io.rsocket.server.RSocketServer;
-import io.rsocket.server.RSocketServer.SocketAcceptor;
-import io.rsocket.transport.TransportServer.StartedServer;
-import io.rsocket.transport.netty.client.TcpTransportClient;
-import io.rsocket.transport.netty.server.TcpTransportServer;
+import io.rsocket.SocketAcceptor;
+import io.rsocket.transport.ServerTransport.StartedServer;
+import io.rsocket.transport.netty.client.TcpClientTransport;
+import io.rsocket.transport.netty.server.TcpServerTransport;
 import io.rsocket.util.PayloadImpl;
 import reactor.core.publisher.Flux;
 import reactor.ipc.netty.tcp.TcpClient;
@@ -41,11 +39,11 @@ import static io.rsocket.client.SetupProvider.*;
 public final class StreamingClient {
 
     public static void main(String[] args) {
-        StartedServer server = RSocketServer.create(TcpTransportServer.create(TcpServer.create()))
+        StartedServer server = RSocketServer.create(TcpServerTransport.create(TcpServer.create()))
                                                    .start(new SocketAcceptorImpl());
 
         SocketAddress address = server.getServerAddress();
-        RSocket socket = RSocketClient.create(TcpTransportClient.create(TcpClient.create(options ->
+        RSocket socket = RSocketClient.create(TcpClientTransport.create(TcpClient.create(options ->
                         options.connect((InetSocketAddress)address))),
                                                                                    keepAlive(never()).disableLease())
                                                                            .connect()

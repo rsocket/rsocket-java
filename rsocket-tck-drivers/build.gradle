@@ -16,7 +16,6 @@ jar {
 dependencies {
 
     compile project(':rsocket-core')
-    compile project(':rsocket-client')
     compile project(':rsocket-transport-netty')
     testCompile project(':rsocket-test')
     compile 'com.fasterxml.jackson.core:jackson-core:2.8.8'

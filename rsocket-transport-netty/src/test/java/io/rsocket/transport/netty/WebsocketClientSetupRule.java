@@ -16,27 +16,33 @@
 
 package io.rsocket.transport.netty;
 
-import io.rsocket.lease.DisabledLeaseAcceptingSocket;
-import io.rsocket.server.RSocketServer;
+import io.rsocket.RSocketFactory;
 import io.rsocket.test.ClientSetupRule;
 import io.rsocket.test.TestRSocket;
-import io.rsocket.transport.netty.client.WebsocketTransportClient;
-import io.rsocket.transport.netty.server.WebsocketTransportServer;
-import reactor.ipc.netty.http.client.HttpClient;
-import reactor.ipc.netty.http.server.HttpServer;
+import io.rsocket.transport.netty.client.WebsocketClientTransport;
+import io.rsocket.transport.netty.server.WebsocketServerTransport;
+import reactor.core.publisher.Mono;
 
 import java.net.InetSocketAddress;
 
-public class WebsocketClientSetupRule extends ClientSetupRule {
+public class WebsocketClientSetupRule extends ClientSetupRule<InetSocketAddress> {
 
     public WebsocketClientSetupRule() {
-        super(address -> WebsocketTransportClient.create(HttpClient.create(((InetSocketAddress)address).getPort())), () -> {
-            return RSocketServer.create(WebsocketTransportServer.create(HttpServer.create(0)))
-                .start((setup, sendingSocket) -> {
-                    return new DisabledLeaseAcceptingSocket(new TestRSocket());
-                })
-                .getServerAddress();
-        });
+        super(() -> InetSocketAddress.createUnresolved("localhost", 8989),
+            (address) ->
+                RSocketFactory
+                    .connect()
+                    .transport(WebsocketClientTransport.create(address.getHostName(), address.getPort()))
+                    .start()
+                    .block(),
+            (address) ->
+                RSocketFactory
+                    .receive()
+                    .acceptor((setup, sendingSocket) -> Mono.just(new TestRSocket()))
+                    .transport(WebsocketServerTransport.create(address.getHostName(), address.getPort()))
+                    .start()
+                    .block()
+        );
     }
 
 }

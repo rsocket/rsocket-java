@@ -16,7 +16,7 @@
 
 package io.rsocket;
 
-import io.rsocket.client.KeepAliveProvider;
+import io.reactivex.subscribers.TestSubscriber;
 import io.rsocket.exceptions.InvalidRequestException;
 import io.rsocket.test.util.LocalDuplexConnection;
 import io.rsocket.util.PayloadImpl;
@@ -27,7 +27,6 @@ import org.junit.Test;
 import org.junit.rules.ExternalResource;
 import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
-import io.reactivex.subscribers.TestSubscriber;
 import reactor.core.publisher.DirectProcessor;
 import reactor.core.publisher.Mono;
 
@@ -79,8 +78,8 @@ public class RSocketTest {
 
     public static class SocketRule extends ExternalResource {
 
-        private ClientRSocket crs;
-        private ServerRSocket srs;
+        private RSocketClient crs;
+        private RSocketServer srs;
         private RSocket requestAcceptor;
         DirectProcessor<Frame> serverProcessor;
         DirectProcessor<Frame> clientProcessor;
@@ -112,14 +111,11 @@ public class RSocketTest {
                 }
             };
 
-            srs = new ServerRSocket(serverConnection, requestAcceptor,
+            srs = new RSocketServer(serverConnection, requestAcceptor,
                 throwable -> serverErrors.add(throwable));
-            srs.start();
 
-            crs = new ClientRSocket(clientConnection,
-                                           throwable -> clientErrors.add(throwable), StreamIdSupplier.clientSupplier(),
-                                           KeepAliveProvider.never());
-            crs.start(lease -> {});
+            crs = new RSocketClient(clientConnection,
+                                           throwable -> clientErrors.add(throwable), StreamIdSupplier.clientSupplier());
         }
 
         public void setRequestAcceptor(RSocket requestAcceptor) {

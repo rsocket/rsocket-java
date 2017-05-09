@@ -1,7 +1,7 @@
 package io.rsocket.transport.local;
 
 import io.rsocket.DuplexConnection;
-import io.rsocket.transport.TransportServer;
+import io.rsocket.transport.ServerTransport;
 import reactor.core.publisher.MonoProcessor;
 
 import java.net.SocketAddress;
@@ -10,7 +10,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
-public class LocalServer implements TransportServer {
+public class LocalServerTransport implements ServerTransport {
     private static final ConcurrentMap<String, StartServerImpl> registry = new ConcurrentHashMap<>();
 
     static StartServerImpl findServer(String name) {
@@ -19,12 +19,12 @@ public class LocalServer implements TransportServer {
 
     private final String name;
 
-    private LocalServer(String name) {
+    private LocalServerTransport(String name) {
         this.name = name;
     }
 
-    public static LocalServer create(String name) {
-        return new LocalServer(name);
+    public static LocalServerTransport create(String name) {
+        return new LocalServerTransport(name);
     }
 
     @Override

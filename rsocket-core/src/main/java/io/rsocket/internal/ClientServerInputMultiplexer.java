@@ -31,10 +31,10 @@ import reactor.core.publisher.MonoProcessor;
 /**
  * {@link DuplexConnection#receive()} is a single stream on which the following type of frames arrive:
  * <ul>
- <li>Frames for streams initiated by the initiator of the connection (client).</li>
- <li>Frames for streams initiated by the acceptor of the connection (server).</li>
- </ul>
- *
+ * <li>Frames for streams initiated by the initiator of the connection (client).</li>
+ * <li>Frames for streams initiated by the acceptor of the connection (server).</li>
+ * </ul>
+ * <p>
  * The only way to differentiate these two frames is determining whether the stream Id is odd or even. Even IDs are
  * for the streams initiated by server and odds are for streams initiated by the client. <p>
  */
@@ -55,7 +55,9 @@ public class ClientServerInputMultiplexer {
         serverConnection = Plugins.DUPLEX_CONNECTION_INTERCEPTOR.apply(Type.SERVER, new InternalDuplexConnection(source, server));
         clientConnection = Plugins.DUPLEX_CONNECTION_INTERCEPTOR.apply(Type.CLIENT, new InternalDuplexConnection(source, client));
 
-        source.receive().groupBy(frame -> {
+        source
+            .receive()
+            .groupBy(frame -> {
                 int streamId = frame.getStreamId();
                 final Type type;
                 if (streamId == 0) {
@@ -131,7 +133,7 @@ public class ClientServerInputMultiplexer {
 
         @Override
         public Flux<Frame> receive() {
-            return processor.flatMap(f -> {
+            return processor.flatMapMany(f -> {
                 if (debugEnabled) {
                     return f.doOnNext(frame -> LOGGER.debug("receiving -> " + frame.toString()));
                 } else {

@@ -19,11 +19,9 @@ package io.rsocket;
 import io.rsocket.client.KeepAliveProvider;
 import io.rsocket.client.RSocketClient;
 import io.rsocket.client.SetupProvider;
-import io.rsocket.lease.DisabledLeaseAcceptingSocket;
-import io.rsocket.lease.LeaseEnforcingSocket;
 import io.rsocket.perfutil.TestDuplexConnection;
 import io.rsocket.server.RSocketServer;
-import io.rsocket.transport.TransportServer;
+import io.rsocket.transport.ServerTransport;
 import io.rsocket.util.PayloadImpl;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -98,7 +96,7 @@ public class RSocketPerf {
         static final TestDuplexConnection clientConnection = new TestDuplexConnection(serverReceive, clientReceive);
         static final TestDuplexConnection serverConnection = new TestDuplexConnection(clientReceive, serverReceive);
 
-        static final Object server = RSocketServer.create(new TransportServer() {
+        static final Object server = RSocketServer.create(new ServerTransport() {
             @Override
             public StartedServer start(ConnectionAcceptor acceptor) {
                 acceptor.apply(serverConnection).subscribe();
@@ -130,7 +128,7 @@ public class RSocketPerf {
                 };
             }
         })
-            .start(new RSocketServer.SocketAcceptor() {
+            .start(new SocketAcceptor() {
             @Override
             public LeaseEnforcingSocket accept(ConnectionSetupPayload setup, RSocket sendingSocket) {
 

@@ -16,27 +16,39 @@
 
 package io.rsocket.transport.netty;
 
-import io.rsocket.lease.DisabledLeaseAcceptingSocket;
-import io.rsocket.server.RSocketServer;
+import io.rsocket.RSocket;
+import io.rsocket.RSocketFactory;
 import io.rsocket.test.ClientSetupRule;
 import io.rsocket.test.TestRSocket;
-import io.rsocket.transport.netty.client.TcpTransportClient;
-import io.rsocket.transport.netty.server.TcpTransportServer;
-import reactor.ipc.netty.tcp.TcpClient;
-import reactor.ipc.netty.tcp.TcpServer;
+import io.rsocket.transport.netty.client.TcpClientTransport;
+import io.rsocket.transport.netty.server.TcpServerTransport;
+import reactor.core.publisher.Mono;
 
 import java.net.InetSocketAddress;
 
-public class TcpClientSetupRule extends ClientSetupRule {
+public class TcpClientSetupRule extends ClientSetupRule<InetSocketAddress> {
 
     public TcpClientSetupRule() {
-        super(address -> TcpTransportClient.create(TcpClient.create(((InetSocketAddress)address).getPort())), () -> {
-            return RSocketServer.create(TcpTransportServer.create(TcpServer.create(0)))
-                .start((setup, sendingSocket) -> {
-                    return new DisabledLeaseAcceptingSocket(new TestRSocket());
-                })
-                .getServerAddress();
-        });
+        super(() -> InetSocketAddress.createUnresolved("localhost", 8989),
+            (address) ->
+            {
+                RSocket block = RSocketFactory
+                    .connect()
+                    .transport(TcpClientTransport.create(address.getHostName(), address.getPort()))
+                    .start()
+                    .doOnError(t -> t.printStackTrace())
+                    .block();
+
+                return block;
+            },
+            (address) ->
+                RSocketFactory
+                    .receive()
+                    .acceptor((setup, sendingSocket) -> Mono.just(new TestRSocket()))
+                    .transport(TcpServerTransport.create(address.getHostName(), address.getPort()))
+                    .start()
+                    .subscribe()
+        );
     }
 
 }

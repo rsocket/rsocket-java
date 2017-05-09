@@ -23,7 +23,7 @@ import io.rsocket.aeron.internal.EventLoop;
 import io.rsocket.aeron.internal.reactivestreams.AeronChannelServer;
 import io.rsocket.aeron.internal.reactivestreams.AeronSocketAddress;
 import io.rsocket.aeron.internal.reactivestreams.ReactiveStreamsRemote;
-import io.rsocket.transport.TransportServer;
+import io.rsocket.transport.ServerTransport;
 
 import java.net.SocketAddress;
 import java.util.concurrent.TimeUnit;
@@ -31,14 +31,14 @@ import java.util.concurrent.TimeUnit;
 /**
  *
  */
-public class AeronTransportServer implements TransportServer {
+public class AeronServerTransport implements ServerTransport {
     private final AeronWrapper aeronWrapper;
     private final AeronSocketAddress managementSubscriptionSocket;
     private final EventLoop eventLoop;
 
     private AeronChannelServer aeronChannelServer;
 
-    public AeronTransportServer(AeronWrapper aeronWrapper, AeronSocketAddress managementSubscriptionSocket, EventLoop eventLoop) {
+    public AeronServerTransport(AeronWrapper aeronWrapper, AeronSocketAddress managementSubscriptionSocket, EventLoop eventLoop) {
         this.aeronWrapper = aeronWrapper;
         this.managementSubscriptionSocket = managementSubscriptionSocket;
         this.eventLoop = eventLoop;

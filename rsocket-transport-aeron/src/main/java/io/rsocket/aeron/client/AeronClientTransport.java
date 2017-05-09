@@ -20,20 +20,20 @@ import io.rsocket.DuplexConnection;
 import io.rsocket.aeron.AeronDuplexConnection;
 import io.rsocket.aeron.internal.reactivestreams.AeronChannel;
 import io.rsocket.aeron.internal.reactivestreams.AeronClientChannelConnector;
-import io.rsocket.transport.TransportClient;
+import io.rsocket.transport.ClientTransport;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Mono;
 
 import java.util.Objects;
 
 /**
- * {@link TransportClient} implementation that uses Aeron as a transport
+ * {@link ClientTransport} implementation that uses Aeron as a transport
  */
-public class AeronTransportClient implements TransportClient {
+public class AeronClientTransport implements ClientTransport {
     private final AeronClientChannelConnector connector;
     private final AeronClientChannelConnector.AeronClientConfig config;
 
-    public AeronTransportClient(AeronClientChannelConnector connector, AeronClientChannelConnector.AeronClientConfig config) {
+    public AeronClientTransport(AeronClientChannelConnector connector, AeronClientChannelConnector.AeronClientConfig config) {
         Objects.requireNonNull(config);
         Objects.requireNonNull(connector);
         this.connector = connector;

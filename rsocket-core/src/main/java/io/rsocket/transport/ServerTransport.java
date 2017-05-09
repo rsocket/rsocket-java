@@ -20,14 +20,12 @@ import io.rsocket.DuplexConnection;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Mono;
 
-import java.net.SocketAddress;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 /**
  * A server contract for writing transports of RSocket.
  */
-public interface TransportServer {
+public interface ServerTransport extends Transport {
 
     /**
      * Starts this server.
@@ -36,7 +34,7 @@ public interface TransportServer {
      *
      * @return A handle to retrieve information about a started server.
      */
-    StartedServer start(ConnectionAcceptor acceptor);
+    Mono<Void> start(ConnectionAcceptor acceptor);
 
     /**
      * A contract to accept a new {@code DuplexConnection}.
@@ -53,42 +51,5 @@ public interface TransportServer {
          */
         @Override
         Mono<Void> apply(DuplexConnection duplexConnection);
-    }
-
-    /**
-     * A contract that represents a server that is started via {@link #start(ConnectionAcceptor)} method.
-     */
-    interface StartedServer {
-
-        /**
-         * Address for this server.
-         *
-         * @return Address for this server.
-         */
-        SocketAddress getServerAddress();
-
-        /**
-         * Port for this server.
-         *
-         * @return Port for this server.
-         */
-        int getServerPort();
-
-        /**
-         * Blocks till this server shutsdown. <p>
-         *     <em>This does not shutdown the server.</em>
-         */
-        void awaitShutdown();
-
-        /**
-         * Blocks till this server shutsdown till the passed duration. <p>
-         *     <em>This does not shutdown the server.</em>
-         */
-        void awaitShutdown(long duration, TimeUnit durationUnit);
-
-        /**
-         * Initiates the shutdown of this server.
-         */
-        void shutdown();
     }
 }

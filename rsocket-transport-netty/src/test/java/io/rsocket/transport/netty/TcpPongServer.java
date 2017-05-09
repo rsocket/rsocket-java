@@ -15,16 +15,20 @@
  */
 package io.rsocket.transport.netty;
 
-import io.rsocket.server.RSocketServer;
+import io.rsocket.RSocketFactory;
 import io.rsocket.test.PingHandler;
-import io.rsocket.transport.netty.server.TcpTransportServer;
-import reactor.ipc.netty.tcp.TcpServer;
+import io.rsocket.transport.netty.server.TcpServerTransport;
 
 public final class TcpPongServer {
 
     public static void main(String... args) throws Exception {
-        RSocketServer.create(TcpTransportServer.create(TcpServer.create(7878)))
-           .start(new PingHandler())
-           .awaitShutdown();
+        RSocketFactory
+            .receive()
+            .acceptor(new PingHandler())
+            .transport(TcpServerTransport.create(7878))
+            .start()
+            .block()
+            .onClose()
+            .block();
     }
 }

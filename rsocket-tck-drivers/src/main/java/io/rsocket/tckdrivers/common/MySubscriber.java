@@ -14,6 +14,8 @@ import io.rsocket.Payload;
 import io.reactivex.subscribers.TestSubscriber;
 
 
+// TODO Remove RXJava2 TestSubscriber and replace with Reactor-core StepVerifier
+@Deprecated
 public class MySubscriber<T> extends TestSubscriber<T> {
 
     private ConsoleUtils consoleUtils;

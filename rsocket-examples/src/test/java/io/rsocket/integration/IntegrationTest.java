@@ -23,11 +23,10 @@ import io.rsocket.RSocket;
 import io.rsocket.client.KeepAliveProvider;
 import io.rsocket.client.RSocketClient;
 import io.rsocket.client.SetupProvider;
-import io.rsocket.lease.DisabledLeaseAcceptingSocket;
 import io.rsocket.server.RSocketServer;
-import io.rsocket.transport.TransportServer.StartedServer;
-import io.rsocket.transport.netty.client.TcpTransportClient;
-import io.rsocket.transport.netty.server.TcpTransportServer;
+import io.rsocket.transport.ServerTransport.StartedServer;
+import io.rsocket.transport.netty.client.TcpClientTransport;
+import io.rsocket.transport.netty.server.TcpServerTransport;
 import io.rsocket.util.PayloadImpl;
 import io.rsocket.util.RSocketProxy;
 import io.reactivex.subscribers.TestSubscriber;
@@ -127,7 +126,7 @@ public class IntegrationTest {
                 public void evaluate() throws Throwable {
                     requestCount = new AtomicInteger();
                     disconnectionCounter = new CountDownLatch(1);
-                    server = RSocketServer.create(TcpTransportServer.create(TcpServer.create()))
+                    server = RSocketServer.create(TcpServerTransport.create(TcpServer.create()))
                         .start((setup, sendingSocket) -> {
                             sendingSocket.onClose()
                                 .doFinally(signalType -> disconnectionCounter.countDown())
@@ -148,7 +147,7 @@ public class IntegrationTest {
                                 }
                             });
                         });
-                    client = RSocketClient.create(TcpTransportClient.create(TcpClient.create(options ->
+                    client = RSocketClient.create(TcpClientTransport.create(TcpClient.create(options ->
                             options.connect((InetSocketAddress) server.getServerAddress()))),
                         SetupProvider.keepAlive(KeepAliveProvider.never())
                             .disableLease())

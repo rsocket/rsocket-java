@@ -17,7 +17,7 @@ import io.rsocket.RSocket;
 import io.rsocket.client.LoadBalancingClient;
 import io.rsocket.exceptions.RejectedException;
 import io.rsocket.server.RSocketServer;
-import io.rsocket.transport.netty.server.TcpTransportServer;
+import io.rsocket.transport.netty.server.TcpServerTransport;
 import org.HdrHistogram.Recorder;
 import org.reactivestreams.Publisher;
 import reactor.core.Disposable;
@@ -169,7 +169,7 @@ class StressTest {
     }
 
     private SocketAddress startServer() {
-        return RSocketServer.create(TcpTransportServer.create(TcpServer.create()))
+        return RSocketServer.create(TcpServerTransport.create(TcpServer.create()))
                                    .start((setup, sendingSocket) -> {
                                        return config.nextServerHandler(serverCount.incrementAndGet());
                                    })

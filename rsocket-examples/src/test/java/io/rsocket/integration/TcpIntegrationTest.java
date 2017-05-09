@@ -6,11 +6,10 @@ import io.rsocket.RSocket;
 import io.rsocket.client.KeepAliveProvider;
 import io.rsocket.client.RSocketClient;
 import io.rsocket.client.SetupProvider;
-import io.rsocket.lease.DisabledLeaseAcceptingSocket;
 import io.rsocket.server.RSocketServer;
-import io.rsocket.transport.TransportServer;
-import io.rsocket.transport.netty.client.TcpTransportClient;
-import io.rsocket.transport.netty.server.TcpTransportServer;
+import io.rsocket.transport.ServerTransport;
+import io.rsocket.transport.netty.client.TcpClientTransport;
+import io.rsocket.transport.netty.server.TcpServerTransport;
 import io.rsocket.util.PayloadImpl;
 import io.rsocket.util.RSocketProxy;
 import org.junit.After;
@@ -30,18 +29,18 @@ public class TcpIntegrationTest {
     private AbstractRSocket handler = new AbstractRSocket() {
     };
 
-    private TransportServer.StartedServer server;
+    private ServerTransport.StartedServer server;
 
     @Before
     public void startup() {
         server = RSocketServer.create(
-                TcpTransportServer.create(TcpServer.create()))
+                TcpServerTransport.create(TcpServer.create()))
                 .start((setup, sendingSocket) -> new DisabledLeaseAcceptingSocket(new RSocketProxy(handler)));
     }
 
     private RSocket buildClient() {
         return RSocketClient.create(
-                TcpTransportClient.create(TcpClient.create(server.getServerPort())),
+                TcpClientTransport.create(TcpClient.create(server.getServerPort())),
                 SetupProvider.keepAlive(KeepAliveProvider.never()).disableLease())
                 .connect().block();
     }

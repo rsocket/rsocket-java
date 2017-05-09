@@ -20,9 +20,7 @@ import io.rsocket.AbstractRSocket;
 import io.rsocket.ConnectionSetupPayload;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
-import io.rsocket.lease.DisabledLeaseAcceptingSocket;
-import io.rsocket.lease.LeaseEnforcingSocket;
-import io.rsocket.server.RSocketServer.SocketAcceptor;
+import io.rsocket.SocketAcceptor;
 import io.rsocket.util.PayloadImpl;
 import reactor.core.publisher.Mono;
 
@@ -43,8 +41,8 @@ public class PingHandler implements SocketAcceptor {
     }
 
     @Override
-    public LeaseEnforcingSocket accept(ConnectionSetupPayload setupPayload, RSocket reactiveSocket) {
-        return new DisabledLeaseAcceptingSocket(new AbstractRSocket() {
+    public Mono<RSocket> accept(ConnectionSetupPayload setup, RSocket sendingSocket) {
+        return Mono.just(new AbstractRSocket() {
             @Override
             public Mono<Payload> requestResponse(Payload payload) {
                 return Mono.just(pong);

@@ -2,27 +2,27 @@ package io.rsocket.transport.local;
 
 import io.rsocket.DuplexConnection;
 import io.rsocket.Frame;
-import io.rsocket.transport.TransportClient;
-import io.rsocket.transport.local.LocalServer.StartServerImpl;
+import io.rsocket.transport.ClientTransport;
+import io.rsocket.transport.local.LocalServerTransport.StartServerImpl;
 import reactor.core.publisher.UnicastProcessor;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
 
-public class LocalClient implements TransportClient {
+public class LocalClientTransport implements ClientTransport {
     private final String name;
 
-    private LocalClient(String name) {
+    private LocalClientTransport(String name) {
         this.name = name;
     }
 
-    public static LocalClient create(String name) {
-        return new LocalClient(name);
+    public static LocalClientTransport create(String name) {
+        return new LocalClientTransport(name);
     }
 
     @Override
     public Mono<DuplexConnection> connect() {
         return Mono.defer(() -> {
-            StartServerImpl server = LocalServer.findServer(name);
+            StartServerImpl server = LocalServerTransport.findServer(name);
             if (server != null) {
                 final UnicastProcessor<Frame> in = UnicastProcessor.create();
                 final UnicastProcessor<Frame> out = UnicastProcessor.create();

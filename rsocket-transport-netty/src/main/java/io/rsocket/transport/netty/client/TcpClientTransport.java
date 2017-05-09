@@ -17,7 +17,7 @@
 package io.rsocket.transport.netty.client;
 
 import io.rsocket.DuplexConnection;
-import io.rsocket.transport.TransportClient;
+import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.netty.RSocketLengthCodec;
 import io.rsocket.transport.netty.NettyDuplexConnection;
 import org.slf4j.Logger;
@@ -25,16 +25,27 @@ import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Mono;
 import reactor.ipc.netty.tcp.TcpClient;
 
-public class TcpTransportClient implements TransportClient {
-    private final Logger logger = LoggerFactory.getLogger(TcpTransportClient.class);
+public class TcpClientTransport implements ClientTransport {
+    private final Logger logger = LoggerFactory.getLogger(TcpClientTransport.class);
     private final TcpClient client;
 
-    private TcpTransportClient(TcpClient client) {
+    private TcpClientTransport(TcpClient client) {
         this.client = client;
     }
 
-    public static TcpTransportClient create(TcpClient client) {
-        return new TcpTransportClient(client);
+    public static TcpClientTransport create(int port) {
+        TcpClient tcpClient = TcpClient.create(port);
+        return create(tcpClient);
+
+    }
+
+    public static TcpClientTransport create(String  bindAddress, int port) {
+        TcpClient tcpClient = TcpClient.create(bindAddress, port);
+        return create(tcpClient);
+    }
+
+    public static TcpClientTransport create(TcpClient client) {
+        return new TcpClientTransport(client);
     }
 
     @Override

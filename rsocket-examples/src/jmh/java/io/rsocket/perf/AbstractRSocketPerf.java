@@ -18,10 +18,10 @@ import io.rsocket.RSocket;
 import io.rsocket.perf.util.AbstractMicrobenchmarkBase;
 import io.rsocket.perf.util.BlackholeSubscriber;
 import io.rsocket.perf.util.ClientServerHolder;
-import io.rsocket.transport.local.LocalClient;
-import io.rsocket.transport.local.LocalServer;
-import io.rsocket.transport.netty.client.TcpTransportClient;
-import io.rsocket.transport.netty.server.TcpTransportServer;
+import io.rsocket.transport.local.LocalClientTransport;
+import io.rsocket.transport.local.LocalServerTransport;
+import io.rsocket.transport.netty.client.TcpClientTransport;
+import io.rsocket.transport.netty.server.TcpServerTransport;
 import io.reactivex.Flowable;
 import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.infra.Blackhole;
@@ -48,12 +48,12 @@ public class AbstractRSocketPerf extends AbstractMicrobenchmarkBase {
     protected Supplier<RSocket> multiClientTcpHolders;
 
     protected void _setup(Blackhole bh) {
-        tcpHolder = ClientServerHolder.create(TcpTransportServer.create(TcpServer.create()), socketAddress ->
-            TcpTransportClient.create(TcpClient.create(options -> options.connect((InetSocketAddress)socketAddress)))
+        tcpHolder = ClientServerHolder.create(TcpServerTransport.create(TcpServer.create()), socketAddress ->
+            TcpClientTransport.create(TcpClient.create(options -> options.connect((InetSocketAddress)socketAddress)))
         );
         String clientName = "local-" + ThreadLocalRandom.current().nextInt();
-        localHolder = ClientServerHolder.create(LocalServer.create(clientName),
-                                                         socketAddress -> LocalClient.create(clientName));
+        localHolder = ClientServerHolder.create(LocalServerTransport.create(clientName),
+                                                         socketAddress -> LocalClientTransport.create(clientName));
         multiClientTcpHolders = ClientServerHolder.requestResponseMultiTcp(Runtime.getRuntime().availableProcessors());
         this.bh = bh;
     }

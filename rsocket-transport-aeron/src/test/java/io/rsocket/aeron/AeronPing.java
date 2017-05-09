@@ -15,7 +15,7 @@
  */
 package io.rsocket.aeron;
 
-import io.rsocket.aeron.client.AeronTransportClient;
+import io.rsocket.aeron.client.AeronClientTransport;
 import io.rsocket.aeron.internal.AeronWrapper;
 import io.rsocket.aeron.internal.Constants;
 import io.rsocket.aeron.internal.DefaultAeronWrapper;
@@ -58,7 +58,7 @@ public final class AeronPing {
                 clientManagementSocketAddress,
                 clientEventLoop);
 
-        AeronTransportClient aeronTransportClient = new AeronTransportClient(connector, config);
+        AeronClientTransport aeronTransportClient = new AeronClientTransport(connector, config);
 
         RSocketClient client =
                 RSocketClient.create(aeronTransportClient, setup);

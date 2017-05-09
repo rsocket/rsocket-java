@@ -16,7 +16,6 @@
 
 package io.rsocket.transport.local;
 
-import io.rsocket.lease.DisabledLeaseAcceptingSocket;
 import io.rsocket.server.RSocketServer;
 import io.rsocket.test.ClientSetupRule;
 import io.rsocket.test.TestRSocket;
@@ -27,8 +26,8 @@ public class LocalClientSetupRule extends ClientSetupRule {
     private static final AtomicInteger uniqueNameGenerator = new AtomicInteger();
 
     public LocalClientSetupRule() {
-        super(address -> LocalClient.create(((LocalSocketAddress)address).getName()), () -> {
-            return RSocketServer.create(LocalServer.create("test-local-server"
+        super(address -> LocalClientTransport.create(((LocalSocketAddress)address).getName()), () -> {
+            return RSocketServer.create(LocalServerTransport.create("test-local-server"
                     + uniqueNameGenerator.incrementAndGet()))
                 .start((setup, sendingSocket) -> {
                     return new DisabledLeaseAcceptingSocket(new TestRSocket());

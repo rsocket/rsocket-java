@@ -18,12 +18,10 @@ import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.client.RSocketClient;
 import io.rsocket.client.RSocketClient.SocketAcceptor;
-import io.rsocket.lease.DisabledLeaseAcceptingSocket;
-import io.rsocket.lease.LeaseEnforcingSocket;
 import io.rsocket.server.RSocketServer;
-import io.rsocket.transport.TransportServer.StartedServer;
-import io.rsocket.transport.netty.client.TcpTransportClient;
-import io.rsocket.transport.netty.server.TcpTransportServer;
+import io.rsocket.transport.ServerTransport.StartedServer;
+import io.rsocket.transport.netty.client.TcpClientTransport;
+import io.rsocket.transport.netty.server.TcpServerTransport;
 import io.rsocket.util.PayloadImpl;
 import reactor.core.publisher.Flux;
 import reactor.ipc.netty.tcp.TcpClient;
@@ -40,7 +38,7 @@ import static io.rsocket.client.SetupProvider.*;
 public final class DuplexClient {
 
     public static void main(String[] args) {
-        StartedServer server = RSocketServer.create(TcpTransportServer.create(TcpServer.create()))
+        StartedServer server = RSocketServer.create(TcpServerTransport.create(TcpServer.create()))
                                                   .start((setupPayload, reactiveSocket) -> {
                                                       reactiveSocket.requestStream(new PayloadImpl("Hello-Bidi"))
                                                               .map(payload -> StandardCharsets.UTF_8.decode(payload.getData()).toString())
@@ -51,7 +49,7 @@ public final class DuplexClient {
 
         SocketAddress address = server.getServerAddress();
 
-        RSocketClient rsclient = RSocketClient.createDuplex(TcpTransportClient.create(TcpClient.create(options ->
+        RSocketClient rsclient = RSocketClient.createDuplex(TcpClientTransport.create(TcpClient.create(options ->
                 options.connect((InetSocketAddress)address))), new SocketAcceptor() {
             @Override
             public LeaseEnforcingSocket accept(RSocket reactiveSocket) {

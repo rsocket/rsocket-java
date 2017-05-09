@@ -17,23 +17,32 @@
 package io.rsocket.transport.netty.client;
 
 import io.rsocket.DuplexConnection;
-import io.rsocket.transport.TransportClient;
+import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.netty.WebsocketDuplexConnection;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Mono;
 import reactor.ipc.netty.http.client.HttpClient;
 
-public class WebsocketTransportClient implements TransportClient {
-    private final Logger logger = LoggerFactory.getLogger(WebsocketTransportClient.class);
+public class WebsocketClientTransport implements ClientTransport {
+    private final Logger logger = LoggerFactory.getLogger(WebsocketClientTransport.class);
     private final HttpClient client;
 
-    private WebsocketTransportClient(HttpClient client) {
+    private WebsocketClientTransport(HttpClient client) {
         this.client = client;
     }
 
-    public static WebsocketTransportClient create(HttpClient client) {
-        return new WebsocketTransportClient(client);
+    public static WebsocketClientTransport create(int port) {
+        HttpClient httpClient = HttpClient.create(port);
+        return create(httpClient);
+    }
+    public static WebsocketClientTransport create(String bindAddress, int port) {
+        HttpClient httpClient = HttpClient.create(bindAddress, port);
+        return create(httpClient);
+    }
+
+    public static WebsocketClientTransport create(HttpClient client) {
+        return new WebsocketClientTransport(client);
     }
 
     @Override

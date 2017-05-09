@@ -14,21 +14,21 @@
  * limitations under the License.
  */
 
-package io.rsocket.lease;
+package io.rsocket.transport;
 
-import io.rsocket.RSocket;
-import io.rsocket.util.RSocketProxy;
+import io.rsocket.DuplexConnection;
+import reactor.core.publisher.Mono;
 
-import java.util.function.Consumer;
+/**
+ * A client contract for writing transports of RSocket.
+ */
+public interface ClientTransport extends Transport {
 
-public final class DisabledLeaseAcceptingSocket extends RSocketProxy implements LeaseEnforcingSocket {
+    /**
+     * Returns a {@code Publisher}, every subscription to which returns a single {@code DuplexConnection}.
+     *
+     * @return {@code Publisher}, every subscription returns a single {@code DuplexConnection}.
+     */
+    Mono<DuplexConnection> connect();
 
-    public DisabledLeaseAcceptingSocket(RSocket source) {
-        super(source);
-    }
-
-    @Override
-    public void acceptLeaseSender(Consumer<Lease> leaseSender) {
-        // No Op, shouldn't be used when leases are required.
-    }
 }

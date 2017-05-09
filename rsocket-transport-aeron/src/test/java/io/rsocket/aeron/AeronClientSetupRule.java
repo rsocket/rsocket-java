@@ -16,7 +16,7 @@
 
 package io.rsocket.aeron;
 
-import io.rsocket.aeron.client.AeronTransportClient;
+import io.rsocket.aeron.client.AeronClientTransport;
 import io.rsocket.aeron.internal.AeronWrapper;
 import io.rsocket.aeron.internal.Constants;
 import io.rsocket.aeron.internal.DefaultAeronWrapper;
@@ -24,8 +24,7 @@ import io.rsocket.aeron.internal.EventLoop;
 import io.rsocket.aeron.internal.SingleThreadedEventLoop;
 import io.rsocket.aeron.internal.reactivestreams.AeronClientChannelConnector;
 import io.rsocket.aeron.internal.reactivestreams.AeronSocketAddress;
-import io.rsocket.aeron.server.AeronTransportServer;
-import io.rsocket.lease.DisabledLeaseAcceptingSocket;
+import io.rsocket.aeron.server.AeronServerTransport;
 import io.rsocket.server.RSocketServer;
 import io.rsocket.test.ClientSetupRule;
 import io.rsocket.test.TestRSocket;
@@ -44,7 +43,7 @@ class AeronClientSetupRule extends ClientSetupRule {
 
         AeronSocketAddress serverManagementSocketAddress = AeronSocketAddress.create("aeron:udp", "127.0.0.1", 39790);
         EventLoop serverEventLoop = new SingleThreadedEventLoop("server");
-        server = new AeronTransportServer(aeronWrapper, serverManagementSocketAddress, serverEventLoop);
+        server = new AeronServerTransport(aeronWrapper, serverManagementSocketAddress, serverEventLoop);
 
         // Create Client Connector
         AeronSocketAddress clientManagementSocketAddress = AeronSocketAddress.create("aeron:udp", "127.0.0.1", 39790);
@@ -64,12 +63,12 @@ class AeronClientSetupRule extends ClientSetupRule {
         AeronClientChannelConnector connector = AeronClientChannelConnector.create(aeronWrapper, clientManagementSocketAddress, clientEventLoop);
 
 
-        client = new AeronTransportClient(connector, config);
+        client = new AeronClientTransport(connector, config);
     }
 
 
-    private static final AeronTransportServer server;
-    private static final AeronTransportClient client;
+    private static final AeronServerTransport server;
+    private static final AeronClientTransport client;
 
     AeronClientSetupRule() {
         super(

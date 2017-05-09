@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
-public class ServerRSocketTest {
+public class RSocketServerTest {
 
     @Rule
     public final ServerSocketRule rule = new ServerSocketRule();
@@ -94,7 +94,7 @@ public class ServerRSocketTest {
         assertThat("Subscription not cancelled.", cancelled.get(), is(true));
     }
 
-    public static class ServerSocketRule extends AbstractSocketRule<ServerRSocket> {
+    public static class ServerSocketRule extends AbstractSocketRule<RSocketServer> {
 
         private RSocket acceptingSocket;
 
@@ -107,7 +107,6 @@ public class ServerRSocketTest {
                 }
             };
             super.init();
-            socket.start();
         }
 
         public void setAcceptingSocket(RSocket acceptingSocket) {
@@ -116,12 +115,11 @@ public class ServerRSocketTest {
             connectSub = TestSubscriber.create();
             errors = new ConcurrentLinkedQueue<>();
             super.init();
-            socket.start();
         }
 
         @Override
-        protected ServerRSocket newRSocket() {
-            return new ServerRSocket(connection, acceptingSocket, throwable -> errors.add(throwable));
+        protected RSocketServer newRSocket() {
+            return new RSocketServer(connection, acceptingSocket, throwable -> errors.add(throwable));
         }
 
         private void sendRequest(int streamId, FrameType frameType) {

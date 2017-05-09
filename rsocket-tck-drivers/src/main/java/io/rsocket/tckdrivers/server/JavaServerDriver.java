@@ -14,28 +14,36 @@
 package io.rsocket.tckdrivers.server;
 
 import io.rsocket.AbstractRSocket;
+import io.rsocket.Closesable;
 import io.rsocket.ConnectionSetupPayload;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
-import io.rsocket.lease.DisabledLeaseAcceptingSocket;
-import io.rsocket.lease.LeaseEnforcingSocket;
-import io.rsocket.tckdrivers.common.*;
-import io.rsocket.transport.netty.server.TcpTransportServer;
-
-import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
-
+import io.rsocket.RSocketFactory;
+import io.rsocket.SocketAcceptor;
+import io.rsocket.tckdrivers.common.ConsoleUtils;
+import io.rsocket.tckdrivers.common.EchoSubscription;
+import io.rsocket.tckdrivers.common.MySubscriber;
+import io.rsocket.tckdrivers.common.ParseChannel;
+import io.rsocket.tckdrivers.common.ParseChannelThread;
+import io.rsocket.tckdrivers.common.ParseMarble;
+import io.rsocket.tckdrivers.common.ParseThread;
+import io.rsocket.tckdrivers.common.Tuple;
+import io.rsocket.transport.netty.server.TcpServerTransport;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscription;
-
-import io.rsocket.server.RSocketServer;
-import io.rsocket.server.RSocketServer.SocketAcceptor;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 
 /**
@@ -54,8 +62,8 @@ public class JavaServerDriver {
     // first try to implement single channel subscriber
     private BufferedReader reader;
     // the instance of the server so we can shut it down
-    private TcpTransportServer server;
-    private TcpTransportServer.StartedServer startedServer;
+    private TcpServerTransport server;
+    private Closesable serverCloseable;
     private CountDownLatch waitStart;
     private ConsoleUtils consoleUtils = new ConsoleUtils("[SERVER]");
 
@@ -74,7 +82,7 @@ public class JavaServerDriver {
     }
 
     // should be used if we want the server to be shutdown upon receiving some EOF packet
-    public JavaServerDriver(String path, TcpTransportServer server, CountDownLatch waitStart) {
+    public JavaServerDriver(String path, TcpServerTransport server, CountDownLatch waitStart) {
         this(path);
         this.server = server;
         this.waitStart = waitStart;
@@ -86,16 +94,23 @@ public class JavaServerDriver {
      */
     public void run() {
         this.parse();
-        RSocketServer s = RSocketServer.create(this.server);
-        this.startedServer = s.start(new SocketAcceptorImpl());
-        waitStart.countDown(); // notify that this server has started
-        startedServer.awaitShutdown();
+        this.serverCloseable
+            = RSocketFactory
+            .receive()
+            .acceptor(new SocketAcceptorImpl())
+            .transport(this.server)
+            .start()
+            .block();
+
+        serverCloseable
+            .onClose()
+            .block();
     }
 
     class SocketAcceptorImpl implements SocketAcceptor {
         @Override
-        public LeaseEnforcingSocket accept(ConnectionSetupPayload setupPayload, RSocket reactiveSocket) {
-            return new DisabledLeaseAcceptingSocket(new AbstractRSocket() {
+        public Mono<RSocket> accept(ConnectionSetupPayload setupPayload, RSocket reactiveSocket) {
+            AbstractRSocket abstractRSocket = new AbstractRSocket() {
                 @Override
                 public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
                     return Flux.from(s -> {
@@ -125,7 +140,7 @@ public class JavaServerDriver {
                                 sub.request(10000); // request a large number, which basically means the client can send whatever
                             } else {
                                 consoleUtils.error("Request channel payload " + initpayload.getK() + " " + initpayload.getV()
-                                        + "has no handler");
+                                    + "has no handler");
                             }
 
                         } catch (Exception e) {
@@ -138,12 +153,12 @@ public class JavaServerDriver {
                 public final Mono<Void> fireAndForget(Payload payload) {
                     return Mono.from(s -> {
                         Tuple<String, String> initialPayload = new Tuple<>(StandardCharsets.UTF_8.decode(payload.getData()).toString(),
-                                StandardCharsets.UTF_8.decode(payload.getMetadata()).toString());
+                            StandardCharsets.UTF_8.decode(payload.getMetadata()).toString());
                         consoleUtils.initialPayload("Received firenforget " + initialPayload.getK() + " " + initialPayload.getV());
                         if (initialPayload.getK().equals("shutdown") && initialPayload.getV().equals("shutdown")) {
                             try {
                                 Thread.sleep(2000);
-                                startedServer.shutdown();
+                                serverCloseable.close().subscribe();
                             } catch (Exception e) {
                                 e.printStackTrace();
                             }
@@ -155,10 +170,10 @@ public class JavaServerDriver {
                 public Mono<Payload> requestResponse(Payload payload) {
                     return Mono.from(s -> {
                         Tuple<String, String> initialPayload = new Tuple<>(StandardCharsets.UTF_8.decode(payload.getData()).toString(),
-                                StandardCharsets.UTF_8.decode(payload.getMetadata()).toString());
+                            StandardCharsets.UTF_8.decode(payload.getMetadata()).toString());
                         String marble = requestResponseMarbles.get(initialPayload);
                         consoleUtils.initialPayload("Received requestresponse " + initialPayload.getK()
-                                + " " + initialPayload.getV());
+                            + " " + initialPayload.getV());
                         if (marble != null) {
                             ParseMarble pm = new ParseMarble(marble, s, "[SERVER]");
                             s.onSubscribe(new TestSubscription(pm));
@@ -174,7 +189,7 @@ public class JavaServerDriver {
                 public Flux<Payload> requestStream(Payload payload) {
                     return Flux.from(s -> {
                         Tuple<String, String> initialPayload = new Tuple<>(StandardCharsets.UTF_8.decode(payload.getData()).toString(),
-                                StandardCharsets.UTF_8.decode(payload.getMetadata()).toString());
+                            StandardCharsets.UTF_8.decode(payload.getMetadata()).toString());
                         String marble = requestStreamMarbles.get(initialPayload);
                         consoleUtils.initialPayload("Received Stream " + initialPayload.getK() + " " + initialPayload.getV());
                         if (marble != null) {
@@ -183,11 +198,13 @@ public class JavaServerDriver {
                             new ParseThread(pm).start();
                         } else {
                             consoleUtils.failure("Request stream payload " + initialPayload.getK() + " " + initialPayload.getV()
-                                    + "has no handler");
+                                + "has no handler");
                         }
                     });
                 }
-            });
+            };
+
+            return Mono.just(abstractRSocket);
         }
     }
 
@@ -198,6 +215,7 @@ public class JavaServerDriver {
      * how to handle each type of request. The code inside the RequestHandler is lazily evaluated, and only does so
      * before the first request. This may lead to a sort of bug, where getting concurrent requests as an initial request
      * will nondeterministically lead to some data structures to not be initialized.
+     *
      * @return a RequestHandler that details how to handle each type of request.
      */
     public void parse() {
@@ -237,6 +255,7 @@ public class JavaServerDriver {
     /**
      * This handles the creation of a channel handler, it basically groups together all the lines of the channel
      * script and put it in a map for later access
+     *
      * @param args
      * @param reader
      * @throws IOException
@@ -261,6 +280,7 @@ public class JavaServerDriver {
      */
     private class TestSubscription implements Subscription {
         private ParseMarble pm;
+
         public TestSubscription(ParseMarble pm) {
             this.pm = pm;
         }
@@ -272,7 +292,7 @@ public class JavaServerDriver {
 
         @Override
         public void request(long n) {
-			consoleUtils.info("TestSubscription: request received for " + n);
+            consoleUtils.info("TestSubscription: request received for " + n);
             pm.request(n);
         }
     }

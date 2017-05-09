@@ -19,13 +19,12 @@ import io.rsocket.RSocket;
 import io.rsocket.client.KeepAliveProvider;
 import io.rsocket.client.RSocketClient;
 import io.rsocket.client.SetupProvider;
-import io.rsocket.lease.DisabledLeaseAcceptingSocket;
 import io.rsocket.server.RSocketServer;
-import io.rsocket.transport.TransportClient;
-import io.rsocket.transport.TransportServer;
-import io.rsocket.transport.TransportServer.StartedServer;
-import io.rsocket.transport.netty.client.TcpTransportClient;
-import io.rsocket.transport.netty.server.TcpTransportServer;
+import io.rsocket.transport.ClientTransport;
+import io.rsocket.transport.ServerTransport;
+import io.rsocket.transport.ServerTransport.StartedServer;
+import io.rsocket.transport.netty.client.TcpClientTransport;
+import io.rsocket.transport.netty.server.TcpServerTransport;
 import io.rsocket.util.PayloadImpl;
 import io.reactivex.Flowable;
 import reactor.core.publisher.Flux;
@@ -47,9 +46,9 @@ public class ClientServerHolder implements Supplier<RSocket> {
     private final StartedServer server;
     private final RSocket client;
 
-    public ClientServerHolder(TransportServer transportServer, Function<SocketAddress, TransportClient> clientFactory,
+    public ClientServerHolder(ServerTransport serverTransport, Function<SocketAddress, ClientTransport> clientFactory,
                               RSocket handler) {
-        server = startServer(transportServer, handler);
+        server = startServer(serverTransport, handler);
         client = newClient(server.getServerAddress(), clientFactory);
     }
 
@@ -58,17 +57,17 @@ public class ClientServerHolder implements Supplier<RSocket> {
         return client;
     }
 
-    public static ClientServerHolder create(TransportServer transportServer,
-                                            Function<SocketAddress, TransportClient> clientFactory) {
-        return new ClientServerHolder(transportServer, clientFactory, new Handler());
+    public static ClientServerHolder create(ServerTransport serverTransport,
+                                            Function<SocketAddress, ClientTransport> clientFactory) {
+        return new ClientServerHolder(serverTransport, clientFactory, new Handler());
     }
 
     public static Supplier<RSocket> requestResponseMultiTcp(int clientCount) {
-        StartedServer server = startServer(TcpTransportServer.create(TcpServer.create()), new Handler());
+        StartedServer server = startServer(TcpServerTransport.create(TcpServer.create()), new Handler());
         final RSocket[] sockets = new RSocket[clientCount];
         for (int i = 0; i < clientCount; i++) {
             sockets[i] = newClient(server.getServerAddress(), sock ->
-                TcpTransportClient.create(TcpClient.create(options -> options.connect((InetSocketAddress)sock)))
+                TcpClientTransport.create(TcpClient.create(options -> options.connect((InetSocketAddress)sock)))
             );
         }
         return new Supplier<RSocket>() {
@@ -83,15 +82,15 @@ public class ClientServerHolder implements Supplier<RSocket> {
         };
     }
 
-    private static StartedServer startServer(TransportServer transportServer, RSocket handler) {
-        return RSocketServer.create(transportServer)
+    private static StartedServer startServer(ServerTransport serverTransport, RSocket handler) {
+        return RSocketServer.create(serverTransport)
                                    .start((setup, sendingSocket) -> {
                                        return new DisabledLeaseAcceptingSocket(handler);
                                    });
     }
 
     private static RSocket newClient(SocketAddress serverAddress,
-                                            Function<SocketAddress, TransportClient> clientFactory) {
+                                            Function<SocketAddress, ClientTransport> clientFactory) {
         SetupProvider setupProvider = SetupProvider.keepAlive(KeepAliveProvider.never()).disableLease();
         RSocketClient client =
                 RSocketClient.create(clientFactory.apply(serverAddress), setupProvider);

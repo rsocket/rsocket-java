@@ -17,11 +17,7 @@ import io.rsocket.RSocket;
 import io.rsocket.client.KeepAliveProvider;
 import io.rsocket.client.RSocketClient;
 import io.rsocket.client.SetupProvider;
-import io.rsocket.lease.DefaultLeaseEnforcingSocket;
-import io.rsocket.lease.DisabledLeaseAcceptingSocket;
-import io.rsocket.lease.FairLeaseDistributor;
-import io.rsocket.lease.LeaseEnforcingSocket;
-import io.rsocket.transport.netty.client.TcpTransportClient;
+import io.rsocket.transport.netty.client.TcpClientTransport;
 import reactor.core.publisher.Flux;
 import reactor.ipc.netty.tcp.TcpClient;
 
@@ -82,7 +78,7 @@ public class TestConfig {
     }
 
     public final RSocketClient newClientForServer(SocketAddress server) {
-        TcpTransportClient transport = TcpTransportClient.create(TcpClient.create(options ->
+        TcpClientTransport transport = TcpClientTransport.create(TcpClient.create(options ->
                 options.connect((InetSocketAddress)server)));
         RSocketClient raw = RSocketClient.create(transport, setupProvider);
         return wrap(detectFailures(connectTimeout(raw, Duration.ofSeconds(1))),

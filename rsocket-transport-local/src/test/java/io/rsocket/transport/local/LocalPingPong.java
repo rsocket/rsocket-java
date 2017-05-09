@@ -28,12 +28,12 @@ import java.time.Duration;
 public final class LocalPingPong {
 
     public static void main(String... args) throws Exception {
-        RSocketServer.create(LocalServer.create("test-local-server"))
+        RSocketServer.create(LocalServerTransport.create("test-local-server"))
                 .start(new PingHandler());
 
         SetupProvider setup = SetupProvider.keepAlive(KeepAliveProvider.never()).disableLease();
         RSocketClient client =
-                RSocketClient.create(LocalClient.create("test-local-server"), setup);
+                RSocketClient.create(LocalClientTransport.create("test-local-server"), setup);
         PingClient pingClient = new PingClient(client);
         Recorder recorder = pingClient.startTracker(Duration.ofSeconds(1));
         final int count = 1_000_000_000;
