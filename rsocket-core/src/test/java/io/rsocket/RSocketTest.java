@@ -21,7 +21,6 @@ import io.rsocket.exceptions.InvalidRequestException;
 import io.rsocket.test.util.LocalDuplexConnection;
 import io.rsocket.util.PayloadImpl;
 import org.hamcrest.MatcherAssert;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExternalResource;
@@ -51,7 +50,6 @@ public class RSocketTest {
     }
 
     @Test(timeout = 2000)
-    @Ignore
     public void testHandlerEmitsError() {
         rule.setRequestAcceptor(new AbstractRSocket() {
             @Override

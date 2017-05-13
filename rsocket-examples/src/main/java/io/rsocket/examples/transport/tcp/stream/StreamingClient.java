@@ -34,13 +34,13 @@ public final class StreamingClient {
         RSocketFactory
             .receive()
             .acceptor(new SocketAcceptorImpl())
-            .transport(TcpServerTransport.create(8080))
+            .transport(TcpServerTransport.create("localhost", 7000))
             .start()
             .subscribe();
 
         RSocket socket = RSocketFactory
             .connect()
-            .transport(TcpClientTransport.create(8080))
+            .transport(TcpClientTransport.create("localhost", 7000))
             .start()
             .block();
 
