@@ -26,10 +26,13 @@ import org.junit.Test;
 import org.junit.rules.ExternalResource;
 import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
+import org.reactivestreams.Publisher;
 import reactor.core.publisher.DirectProcessor;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.util.ArrayList;
+import java.util.concurrent.CountDownLatch;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
@@ -63,6 +66,22 @@ public class RSocketTest {
         await(subscriber).assertNotComplete().assertNoValues()
                          .assertError(InvalidRequestException.class);
         rule.assertNoErrors();
+    }
+
+    @Test
+    public void testChannel() throws Exception {
+        CountDownLatch latch = new CountDownLatch(10);
+        Flux<Payload> requests = Flux
+            .range(0, 10)
+            .map(i -> new PayloadImpl("streaming in -> " + i));
+
+        Flux<Payload> responses = rule.crs.requestChannel(requests);
+
+        responses
+            .doOnNext(p -> latch.countDown())
+            .subscribe();
+
+        latch.await();
     }
 
     private static TestSubscriber<Payload> await(TestSubscriber<Payload> subscriber) {
@@ -106,6 +125,16 @@ public class RSocketTest {
                 @Override
                 public Mono<Payload> requestResponse(Payload payload) {
                     return Mono.just(payload);
+                }
+
+                @Override
+                public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
+                    Flux
+                        .from(payloads)
+                        .map(payload -> new PayloadImpl("server got -> [" + payload.toString() + "]"))
+                        .subscribe();
+
+                    return Flux.range(1, 10).map(payload -> new PayloadImpl("server got -> [" + payload.toString() + "]"));
                 }
             };
 

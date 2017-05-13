@@ -251,6 +251,8 @@ class RSocketClient implements RSocket {
                                 request
                                     .transform(f -> {
                                         LimitableRequestPublisher<Payload> wrapped = LimitableRequestPublisher.wrap(f);
+                                        // Need to set this to one for first the frame
+                                        wrapped.increaseRequestLimit(1);
                                         synchronized (RSocketClient.this) {
                                             senders.put(streamId, wrapped);
                                             receivers.put(streamId, receiver);

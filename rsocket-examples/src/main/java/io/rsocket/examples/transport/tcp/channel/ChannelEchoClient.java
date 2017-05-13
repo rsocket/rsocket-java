@@ -27,6 +27,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 
 public final class ChannelEchoClient {
 
@@ -45,15 +46,13 @@ public final class ChannelEchoClient {
             .block();
 
 
-        socket.requestChannel(Flux.range(0, 10)
-            .map(i -> "Hello - " + i)
-            .<Payload>map(PayloadImpl::new)
-            .repeat())
+        socket.requestChannel(
+            Flux.interval(Duration.ofMillis(1000)).map(i -> new PayloadImpl("Hello")))
             .map(payload -> StandardCharsets.UTF_8.decode(payload.getData()).toString())
             .doOnNext(System.out::println)
             .take(10)
-            .concatWith(socket.close().cast(String.class))
-            .blockLast();
+            .thenEmpty(socket.close())
+            .block();
     }
 
     private static class SocketAcceptorImpl implements SocketAcceptor {

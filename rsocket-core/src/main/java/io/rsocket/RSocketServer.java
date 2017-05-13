@@ -251,10 +251,9 @@ class RSocketServer implements RSocket {
                 .transform(frameFlux -> {
                     LimitableRequestPublisher<Frame> frames = LimitableRequestPublisher.wrap(frameFlux);
                     synchronized (this) {
-                        frames.increaseRequestLimit(initialRequestN);
                         sendingSubscriptions.put(streamId, frames);
                     }
-
+                    frames.increaseRequestLimit(initialRequestN);
                     return frames;
                 })
                 .concatWith(Mono.just(Frame.PayloadFrame.from(streamId, FrameType.COMPLETE)))
