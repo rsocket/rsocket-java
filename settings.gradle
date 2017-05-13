@@ -17,7 +17,6 @@
 rootProject.name='rsocket'
 include 'rsocket-load-balancer'
 include 'rsocket-core'
-include 'rsocket-discovery-eureka'
 include 'rsocket-examples'
 include 'rsocket-spectator'
 include 'rsocket-test'

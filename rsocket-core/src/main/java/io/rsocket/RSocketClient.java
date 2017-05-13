@@ -58,13 +58,13 @@ class RSocketClient implements RSocket {
 
     private volatile long timeLastTickSentMs;
 
-    public RSocketClient(DuplexConnection connection,
+    RSocketClient(DuplexConnection connection,
                          Consumer<Throwable> errorConsumer,
                          StreamIdSupplier streamIdSupplier) {
         this(connection, errorConsumer, streamIdSupplier, Duration.ZERO, Duration.ZERO, 0);
     }
 
-    public RSocketClient(DuplexConnection connection,
+    RSocketClient(DuplexConnection connection,
                          Consumer<Throwable> errorConsumer,
                          StreamIdSupplier streamIdSupplier,
                          Duration tickPeriod,

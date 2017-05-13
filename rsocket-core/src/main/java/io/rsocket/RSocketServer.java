@@ -49,7 +49,7 @@ class RSocketServer implements RSocket {
 
     private Disposable receiveDisposable;
 
-    public RSocketServer(DuplexConnection connection,
+    RSocketServer(DuplexConnection connection,
                          RSocket requestHandler,
                          Consumer<Throwable> errorConsumer) {
         this.connection = connection;
