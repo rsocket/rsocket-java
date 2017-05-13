@@ -5,7 +5,7 @@ import reactor.core.publisher.Mono;
 /**
  *
  */
-public interface Closesable {
+public interface Closeable {
     /**
      * Close this {@code RSocket} upon subscribing to the returned {@code Publisher}
      *

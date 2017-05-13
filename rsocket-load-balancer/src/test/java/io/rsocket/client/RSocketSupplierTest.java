@@ -15,12 +15,13 @@
  */
 package io.rsocket.client;
 
+import io.reactivex.subscribers.TestSubscriber;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
-import io.rsocket.client.filter.FailureAwareClient;
+import io.rsocket.client.filter.RSocketSupplier;
 import io.rsocket.util.PayloadImpl;
-import io.reactivex.subscribers.TestSubscriber;
 import org.junit.Test;
+import org.mockito.Mockito;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
@@ -31,9 +32,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
-public class FailureRSocketTest {
+public class RSocketSupplierTest {
 
     @Test
     public void testError() throws InterruptedException {
@@ -103,23 +106,16 @@ public class FailureRSocketTest {
                 throw new RuntimeException();
             }
         });
-        RSocketClient factory = new RSocketClient() {
-            @Override
-            public Mono<RSocket> connect() {
-                return Mono.just(socket);
-            }
 
-            @Override
-            public double availability() {
-                return 1.0;
-            }
+        RSocketSupplier factory = Mockito.mock(RSocketSupplier.class);
 
-        };
+        Mockito.when(factory.availability()).thenReturn(1.0);
+        Mockito.when(factory.get()).thenReturn(Mono.just(socket));
 
-        FailureAwareClient failureFactory = new FailureAwareClient(factory, 100, TimeUnit.MILLISECONDS);
+        RSocketSupplier failureFactory = new RSocketSupplier(factory, 100, TimeUnit.MILLISECONDS);
 
         CountDownLatch latch = new CountDownLatch(1);
-        failureFactory.connect().subscribe(new Subscriber<RSocket>() {
+        failureFactory.get().subscribe(new Subscriber<RSocket>() {
             @Override
             public void onSubscribe(Subscription s) {
                 s.request(1);

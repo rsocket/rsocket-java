@@ -16,8 +16,10 @@
 package io.rsocket.client;
 
 import io.rsocket.Availability;
+import io.rsocket.Closeable;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
+import io.rsocket.client.filter.RSocketSupplier;
 import io.rsocket.exceptions.NoAvailableRSocketException;
 import io.rsocket.exceptions.TimeoutException;
 import io.rsocket.exceptions.TransportException;
@@ -53,13 +55,14 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * This {@link RSocket} implementation will load balance the request across a
- * pool of children RSockets.
+ * An implementation of {@link Mono} that load balances across a pool of RSockets and emits one when it is subscribed
+ * to
+ *
  * It estimates the load of each RSocket based on statistics collected.
  */
-public class LoadBalancer implements RSocket {
+public abstract class LoadBalancedRSocketMono extends Mono<RSocket> implements Availability, Closeable {
 
-    private static final Logger logger = LoggerFactory.getLogger(LoadBalancer .class);
+    private static final Logger logger = LoggerFactory.getLogger(LoadBalancedRSocketMono.class);
 
     public static final double DEFAULT_EXP_FACTOR = 4.0;
     public static final double DEFAULT_LOWER_QUANTILE = 0.2;
@@ -84,11 +87,10 @@ public class LoadBalancer implements RSocket {
     private final double expFactor;
     private final Quantile lowerQuantile;
     private final Quantile higherQuantile;
-    private Runnable readyCallback;
 
     private int pendingSockets;
     private final ArrayList<WeightedSocket> activeSockets;
-    private final ArrayList<RSocketClient> activeFactories;
+    private final ArrayList<RSocketSupplier> activeFactories;
     private final FactoriesRefresher factoryRefresher;
     private final Mono<RSocket> selectSocket;
 
@@ -97,7 +99,11 @@ public class LoadBalancer implements RSocket {
     private long lastApertureRefresh;
     private long refreshPeriod;
     private volatile long lastRefresh;
-    private final MonoProcessor<Void> closeSubject = MonoProcessor.create();
+
+    private final MonoProcessor<Void> onClose = MonoProcessor.create();
+    protected final MonoProcessor<Void> started = MonoProcessor.create();
+    protected final Mono<RSocket> rSocketMono;
+
     /**
      *
      * @param factories the source (factories) of RSocket
@@ -118,8 +124,8 @@ public class LoadBalancer implements RSocket {
      *                           RSocket. This is at that time that the slowest
      *                           RSocket is closed. (unit is millisecond)
      */
-    public LoadBalancer(
-        Publisher<? extends Collection<RSocketClient>> factories,
+    private LoadBalancedRSocketMono(
+        Publisher<? extends Collection<RSocketSupplier>> factories,
         double expFactor,
         double lowQuantile,
         double highQuantile,
@@ -151,53 +157,56 @@ public class LoadBalancer implements RSocket {
         this.lastApertureRefresh = Clock.now();
         this.refreshPeriod = Clock.unit().convert(15L, TimeUnit.SECONDS);
         this.lastRefresh = Clock.now();
+
         factories.subscribe(factoryRefresher);
+
+        rSocketMono
+            = Mono
+            .create(sink -> {
+                RSocket rSocket = select();
+                sink.success(rSocket);
+            });
+
     }
 
-    public LoadBalancer(Publisher<? extends Collection<RSocketClient>> factories) {
-        this(factories,
+    public static LoadBalancedRSocketMono create(
+        Publisher<? extends Collection<RSocketSupplier>> factories
+    ) {
+        return create(factories,
             DEFAULT_EXP_FACTOR,
             DEFAULT_LOWER_QUANTILE, DEFAULT_HIGHER_QUANTILE,
             DEFAULT_MIN_PENDING, DEFAULT_MAX_PENDING,
             DEFAULT_MIN_APERTURE, DEFAULT_MAX_APERTURE,
-            DEFAULT_MAX_REFRESH_PERIOD_MS
-        );
+            DEFAULT_MAX_REFRESH_PERIOD_MS);
     }
 
-    LoadBalancer(Publisher<? extends Collection<RSocketClient>> factories, Runnable readyCallback) {
-        this(factories,
-            DEFAULT_EXP_FACTOR,
-            DEFAULT_LOWER_QUANTILE, DEFAULT_HIGHER_QUANTILE,
-            DEFAULT_MIN_PENDING, DEFAULT_MAX_PENDING,
-            DEFAULT_MIN_APERTURE, DEFAULT_MAX_APERTURE,
-            DEFAULT_MAX_REFRESH_PERIOD_MS
-        );
-        this.readyCallback = readyCallback;
-    }
-
-    @Override
-    public Mono<Void> fireAndForget(Payload payload) {
-        return selectSocket.then(socket -> socket.fireAndForget(payload));
-    }
-
-    @Override
-    public Mono<Payload> requestResponse(Payload payload) {
-        return selectSocket.then(socket -> socket.requestResponse(payload));
-    }
-
-    @Override
-    public Flux<Payload> requestStream(Payload payload) {
-        return selectSocket.flatMap(socket -> socket.requestStream(payload));
-    }
-
-    @Override
-    public Mono<Void> metadataPush(Payload payload) {
-        return selectSocket.then(socket -> socket.metadataPush(payload));
-    }
-
-    @Override
-    public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
-        return selectSocket.flatMap(socket -> socket.requestChannel(payloads));
+    public static LoadBalancedRSocketMono create(
+        Publisher<? extends Collection<RSocketSupplier>> factories,
+        double expFactor,
+        double lowQuantile,
+        double highQuantile,
+        double minPendings,
+        double maxPendings,
+        int minAperture,
+        int maxAperture,
+        long maxRefreshPeriodMs
+    ) {
+        return new LoadBalancedRSocketMono(
+            factories,
+            expFactor,
+            lowQuantile,
+            highQuantile,
+            minPendings,
+            maxPendings,
+            minAperture,
+            maxAperture,
+            maxRefreshPeriodMs
+        ) {
+            @Override
+            public void subscribe(Subscriber<? super RSocket> s) {
+                started.thenMany(rSocketMono).subscribe(s);
+            }
+        };
     }
 
     private synchronized void addSockets(int numberOfNewSocket) {
@@ -212,16 +221,16 @@ public class LoadBalancer implements RSocket {
         while (n > 0) {
             int size = activeFactories.size();
             if (size == 1) {
-                RSocketClient factory = activeFactories.get(0);
+                RSocketSupplier factory = activeFactories.get(0);
                 if (factory.availability() > 0.0) {
                     activeFactories.remove(0);
                     pendingSockets++;
-                    factory.connect().subscribe(new SocketAdder(factory));
+                    factory.get().subscribe(new SocketAdder(factory));
                 }
                 break;
             }
-            RSocketClient factory0 = null;
-            RSocketClient factory1 = null;
+            RSocketSupplier factory0 = null;
+            RSocketSupplier factory1 = null;
             int i0 = 0;
             int i1 = 0;
             for (int i = 0; i < EFFORT; i++) {
@@ -246,7 +255,7 @@ public class LoadBalancer implements RSocket {
                     activeFactories.set(i1, activeFactories.get(size - 1));
                 }
                 activeFactories.remove(size - 1);
-                factory1.connect().subscribe(new SocketAdder(factory1));
+                factory1.get().subscribe(new SocketAdder(factory1));
             } else {
                 n--;
                 pendingSockets++;
@@ -255,7 +264,7 @@ public class LoadBalancer implements RSocket {
                     activeFactories.set(i0, activeFactories.get(size - 1));
                 }
                 activeFactories.remove(size - 1);
-                factory0.connect().subscribe(new SocketAdder(factory0));
+                factory0.get().subscribe(new SocketAdder(factory0));
             }
         }
     }
@@ -463,6 +472,11 @@ public class LoadBalancer implements RSocket {
     }
 
     @Override
+    public Mono<Void> onClose() {
+        return onClose;
+    }
+
+    @Override
     public Mono<Void> close() {
         return MonoSource.wrap(subscriber -> {
             subscriber.onSubscribe(Operators.emptySubscription());
@@ -492,7 +506,7 @@ public class LoadBalancer implements RSocket {
                         public void onComplete() {
                             if (n.decrementAndGet() == 0) {
                                 subscriber.onComplete();
-                                closeSubject.onComplete();
+                                onClose.onComplete();
                             }
                         }
                     });
@@ -501,16 +515,11 @@ public class LoadBalancer implements RSocket {
         });
     }
 
-    @Override
-    public Mono<Void> onClose() {
-        return closeSubject;
-    }
-
     /**
      * This subscriber role is to subscribe to the list of server identifier, and update the
      * factory list.
      */
-    private class FactoriesRefresher implements Subscriber<Collection<RSocketClient>> {
+    private class FactoriesRefresher implements Subscriber<Collection<RSocketSupplier>> {
         private Subscription subscription;
 
         @Override
@@ -520,21 +529,21 @@ public class LoadBalancer implements RSocket {
         }
 
         @Override
-        public void onNext(Collection<RSocketClient> newFactories) {
-            synchronized (LoadBalancer.this) {
+        public void onNext(Collection<RSocketSupplier> newFactories) {
+            synchronized (LoadBalancedRSocketMono.this) {
 
-                Set<RSocketClient> current =
+                Set<RSocketSupplier> current =
                     new HashSet<>(activeFactories.size() + activeSockets.size());
                 current.addAll(activeFactories);
                 for (WeightedSocket socket: activeSockets) {
-                    RSocketClient factory = socket.getFactory();
+                    RSocketSupplier factory = socket.getFactory();
                     current.add(factory);
                 }
 
-                Set<RSocketClient> removed = new HashSet<>(current);
+                Set<RSocketSupplier> removed = new HashSet<>(current);
                 removed.removeAll(newFactories);
 
-                Set<RSocketClient> added = new HashSet<>(newFactories);
+                Set<RSocketSupplier> added = new HashSet<>(newFactories);
                 added.removeAll(current);
 
                 boolean changed = false;
@@ -551,9 +560,9 @@ public class LoadBalancer implements RSocket {
                         }
                     }
                 }
-                Iterator<RSocketClient> it1 = activeFactories.iterator();
+                Iterator<RSocketSupplier> it1 = activeFactories.iterator();
                 while (it1.hasNext()) {
-                    RSocketClient factory = it1.next();
+                    RSocketSupplier factory = it1.next();
                     if (removed.contains(factory)) {
                         it1.remove();
                         changed = true;
@@ -565,7 +574,7 @@ public class LoadBalancer implements RSocket {
                 if (changed && logger.isDebugEnabled()) {
                     StringBuilder msgBuilder = new StringBuilder();
                     msgBuilder.append("\nUpdated active factories (size: " + activeFactories.size() + ")\n");
-                    for (RSocketClient f : activeFactories) {
+                    for (RSocketSupplier f : activeFactories) {
                         msgBuilder.append(" + ").append(f).append('\n');
                     }
                     msgBuilder.append("Active sockets:\n");
@@ -596,11 +605,11 @@ public class LoadBalancer implements RSocket {
     }
 
     private class SocketAdder implements Subscriber<RSocket> {
-        private final RSocketClient factory;
+        private final RSocketSupplier factory;
 
         private int errors;
 
-        private SocketAdder(RSocketClient factory) {
+        private SocketAdder(RSocketSupplier factory) {
             this.factory = factory;
         }
 
@@ -611,7 +620,7 @@ public class LoadBalancer implements RSocket {
 
         @Override
         public void onNext(RSocket rs) {
-            synchronized (LoadBalancer.this) {
+            synchronized (LoadBalancedRSocketMono.this) {
                 if (activeSockets.size() >= targetAperture) {
                     quickSlowestRS();
                 }
@@ -620,9 +629,7 @@ public class LoadBalancer implements RSocket {
                 logger.debug("Adding new WeightedSocket {}", weightedSocket);
 
                 activeSockets.add(weightedSocket);
-                if (readyCallback != null) {
-                    readyCallback.run();
-                }
+                started.onComplete();
                 pendingSockets -= 1;
             }
         }
@@ -630,7 +637,7 @@ public class LoadBalancer implements RSocket {
         @Override
         public void onError(Throwable t) {
             logger.warn("Exception while subscribing to the RSocket source", t);
-            synchronized (LoadBalancer.this) {
+            synchronized (LoadBalancedRSocketMono.this) {
                 pendingSockets -= 1;
                 if (++errors < 5) {
                     activeFactories.add(factory);
@@ -709,7 +716,7 @@ public class LoadBalancer implements RSocket {
 
         private static final double STARTUP_PENALTY = Long.MAX_VALUE >> 12;
 
-        private RSocketClient factory;
+        private RSocketSupplier factory;
         private final Quantile lowerQuantile;
         private final Quantile higherQuantile;
         private final long inactivityFactor;
@@ -726,7 +733,7 @@ public class LoadBalancer implements RSocket {
 
         WeightedSocket(
             RSocket child,
-            RSocketClient factory,
+            RSocketSupplier factory,
             Quantile lowerQuantile,
             Quantile higherQuantile,
             int inactivityFactor
@@ -751,7 +758,7 @@ public class LoadBalancer implements RSocket {
 
         WeightedSocket(
             RSocket child,
-            RSocketClient factory,
+            RSocketSupplier factory,
             Quantile lowerQuantile,
             Quantile higherQuantile
         ) {
@@ -788,7 +795,7 @@ public class LoadBalancer implements RSocket {
                 source.requestChannel(payloads).subscribe(new CountingSubscriber<>(subscriber, this)));
         }
 
-        RSocketClient getFactory() {
+        RSocketSupplier getFactory() {
             return factory;
         }
 
@@ -1008,48 +1015,5 @@ public class LoadBalancer implements RSocket {
                 child.onComplete();
             }
         }
-    }
-
-    private class ActiveList<T extends Availability> {
-
-        private final ArrayList<T> holder;
-        private final boolean server;
-
-        public ActiveList(boolean server) {
-            this.server = server;
-            holder = new ArrayList<>(128);
-        }
-
-        public void add(T item) {
-            holder.add(item);
-        }
-
-        public T remove(int index) {
-            T item = holder.remove(index);
-            return item;
-        }
-
-        public boolean remove(T item) {
-            boolean removed = holder.remove(item);
-            return removed;
-        }
-
-        public T set(int index, T item) {
-            T prev = holder.set(index, item);
-            return prev;
-        }
-
-        public void addAll(Collection<? extends T> toAdd) {
-            holder.addAll(toAdd);
-        }
-
-        public void clear() {
-            holder.clear();
-        }
-
-        public int size() {
-            return holder.size();
-        }
-
     }
 }

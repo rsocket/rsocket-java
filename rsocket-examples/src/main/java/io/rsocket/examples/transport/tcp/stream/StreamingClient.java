@@ -17,37 +17,32 @@ import io.rsocket.AbstractRSocket;
 import io.rsocket.ConnectionSetupPayload;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
-import io.rsocket.client.RSocketClient;
-import io.rsocket.server.RSocketServer;
+import io.rsocket.RSocketFactory;
 import io.rsocket.SocketAcceptor;
-import io.rsocket.transport.ServerTransport.StartedServer;
 import io.rsocket.transport.netty.client.TcpClientTransport;
 import io.rsocket.transport.netty.server.TcpServerTransport;
 import io.rsocket.util.PayloadImpl;
 import reactor.core.publisher.Flux;
-import reactor.ipc.netty.tcp.TcpClient;
-import reactor.ipc.netty.tcp.TcpServer;
+import reactor.core.publisher.Mono;
 
-import java.net.InetSocketAddress;
-import java.net.SocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-
-import static io.rsocket.client.KeepAliveProvider.*;
-import static io.rsocket.client.SetupProvider.*;
 
 public final class StreamingClient {
 
     public static void main(String[] args) {
-        StartedServer server = RSocketServer.create(TcpServerTransport.create(TcpServer.create()))
-                                                   .start(new SocketAcceptorImpl());
+        RSocketFactory
+            .receive()
+            .acceptor(new SocketAcceptorImpl())
+            .transport(TcpServerTransport.create(8080))
+            .start()
+            .subscribe();
 
-        SocketAddress address = server.getServerAddress();
-        RSocket socket = RSocketClient.create(TcpClientTransport.create(TcpClient.create(options ->
-                        options.connect((InetSocketAddress)address))),
-                                                                                   keepAlive(never()).disableLease())
-                                                                           .connect()
-                                        .block();
+        RSocket socket = RSocketFactory
+            .connect()
+            .transport(TcpClientTransport.create(8080))
+            .start()
+            .block();
 
         socket.requestStream(new PayloadImpl("Hello"))
                 .map(payload -> StandardCharsets.UTF_8.decode(payload.getData()).toString())
@@ -59,8 +54,8 @@ public final class StreamingClient {
 
     private static class SocketAcceptorImpl implements SocketAcceptor {
         @Override
-        public LeaseEnforcingSocket accept(ConnectionSetupPayload setupPayload, RSocket reactiveSocket) {
-            return new DisabledLeaseAcceptingSocket(new AbstractRSocket() {
+        public Mono<RSocket> accept(ConnectionSetupPayload setupPayload, RSocket reactiveSocket) {
+            return Mono.just(new AbstractRSocket() {
                 @Override
                 public Flux<Payload> requestStream(Payload payload) {
                     return Flux.interval(Duration.ofMillis(100))

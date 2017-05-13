@@ -3,7 +3,7 @@ package io.rsocket.transport.local;
 import io.rsocket.DuplexConnection;
 import io.rsocket.Frame;
 import io.rsocket.transport.ClientTransport;
-import io.rsocket.transport.local.LocalServerTransport.StartServerImpl;
+import io.rsocket.transport.local.LocalServerTransport.ServerDuplexConnectionAcceptor;
 import reactor.core.publisher.UnicastProcessor;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
@@ -22,7 +22,7 @@ public class LocalClientTransport implements ClientTransport {
     @Override
     public Mono<DuplexConnection> connect() {
         return Mono.defer(() -> {
-            StartServerImpl server = LocalServerTransport.findServer(name);
+            ServerDuplexConnectionAcceptor server = LocalServerTransport.findServer(name);
             if (server != null) {
                 final UnicastProcessor<Frame> in = UnicastProcessor.create();
                 final UnicastProcessor<Frame> out = UnicastProcessor.create();

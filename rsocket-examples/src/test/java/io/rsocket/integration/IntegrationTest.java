@@ -16,20 +16,17 @@
 
 package io.rsocket.integration;
 
+import io.reactivex.subscribers.TestSubscriber;
 import io.rsocket.AbstractRSocket;
+import io.rsocket.Closeable;
 import io.rsocket.Payload;
 import io.rsocket.Plugins;
 import io.rsocket.RSocket;
-import io.rsocket.client.KeepAliveProvider;
-import io.rsocket.client.RSocketClient;
-import io.rsocket.client.SetupProvider;
-import io.rsocket.server.RSocketServer;
-import io.rsocket.transport.ServerTransport.StartedServer;
+import io.rsocket.RSocketFactory;
 import io.rsocket.transport.netty.client.TcpClientTransport;
 import io.rsocket.transport.netty.server.TcpServerTransport;
 import io.rsocket.util.PayloadImpl;
 import io.rsocket.util.RSocketProxy;
-import io.reactivex.subscribers.TestSubscriber;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExternalResource;
@@ -37,10 +34,7 @@ import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import reactor.ipc.netty.tcp.TcpClient;
-import reactor.ipc.netty.tcp.TcpServer;
 
-import java.net.InetSocketAddress;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
@@ -79,14 +73,13 @@ public class IntegrationTest {
 
     @Test(timeout = 3_000L)
     public void testClose() throws ExecutionException, InterruptedException, TimeoutException {
-
         rule.client.close().block();
         rule.disconnectionCounter.await();
     }
 
     public static class ClientServerRule extends ExternalResource {
 
-        private StartedServer server;
+        private Closeable server;
         private RSocket client;
         private AtomicInteger requestCount;
         private CountDownLatch disconnectionCounter;
@@ -126,13 +119,14 @@ public class IntegrationTest {
                 public void evaluate() throws Throwable {
                     requestCount = new AtomicInteger();
                     disconnectionCounter = new CountDownLatch(1);
-                    server = RSocketServer.create(TcpServerTransport.create(TcpServer.create()))
-                        .start((setup, sendingSocket) -> {
+                    server = RSocketFactory
+                        .receive()
+                        .acceptor((setup, sendingSocket) -> {
                             sendingSocket.onClose()
                                 .doFinally(signalType -> disconnectionCounter.countDown())
                                 .subscribe();
 
-                            return new DisabledLeaseAcceptingSocket(new AbstractRSocket() {
+                            return Mono.just(new AbstractRSocket() {
                                 @Override
                                 public Mono<Payload> requestResponse(Payload payload) {
                                     return Mono.<Payload>just(new PayloadImpl("RESPONSE", "METADATA"))
@@ -146,13 +140,17 @@ public class IntegrationTest {
                                         .map(i -> new PayloadImpl("data -> " + i));
                                 }
                             });
-                        });
-                    client = RSocketClient.create(TcpClientTransport.create(TcpClient.create(options ->
-                            options.connect((InetSocketAddress) server.getServerAddress()))),
-                        SetupProvider.keepAlive(KeepAliveProvider.never())
-                            .disableLease())
-                        .connect()
+                        })
+                        .transport(TcpServerTransport.create("localhost", 8000))
+                        .start()
                         .block();
+
+                    client = RSocketFactory
+                        .connect()
+                        .transport(TcpClientTransport.create("localhost", 8000))
+                        .start()
+                        .block();
+
                     base.evaluate();
                 }
             };

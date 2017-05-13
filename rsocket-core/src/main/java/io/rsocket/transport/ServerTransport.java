@@ -16,6 +16,7 @@
 
 package io.rsocket.transport;
 
+import io.rsocket.Closeable;
 import io.rsocket.DuplexConnection;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Mono;
@@ -34,7 +35,7 @@ public interface ServerTransport extends Transport {
      *
      * @return A handle to retrieve information about a started server.
      */
-    Mono<Void> start(ConnectionAcceptor acceptor);
+    Mono<Closeable> start(ConnectionAcceptor acceptor);
 
     /**
      * A contract to accept a new {@code DuplexConnection}.

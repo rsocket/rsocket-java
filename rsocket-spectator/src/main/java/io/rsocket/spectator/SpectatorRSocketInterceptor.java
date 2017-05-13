@@ -1,10 +1,8 @@
 package io.rsocket.spectator;
 
 import com.netflix.spectator.api.Registry;
-import io.rsocket.RSocketClient;
 import io.rsocket.Plugins;
 import io.rsocket.RSocket;
-import io.rsocket.RSocketServer;
 import reactor.core.publisher.Mono;
 
 /**
@@ -26,14 +24,8 @@ public class SpectatorRSocketInterceptor implements Plugins.RSocketInterceptor {
 
     @Override
     public Mono<RSocket> apply(RSocket reactiveSocket) {
-        String[] t = tags;
-        if (reactiveSocket instanceof RSocketClient) {
-            t = SpectatorRSocket.concatenate(t, "client");
-        } else if (reactiveSocket instanceof RSocketServer) {
-            t = SpectatorRSocket.concatenate(t, "server");
-        }
 
-        return Mono.just(new SpectatorRSocket(registry, reactiveSocket, t));
+        return Mono.just(new SpectatorRSocket(registry, reactiveSocket, tags));
 
 
     }

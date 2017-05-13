@@ -14,7 +14,7 @@
 package io.rsocket.tckdrivers.server;
 
 import io.rsocket.AbstractRSocket;
-import io.rsocket.Closesable;
+import io.rsocket.Closeable;
 import io.rsocket.ConnectionSetupPayload;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
@@ -63,7 +63,7 @@ public class JavaServerDriver {
     private BufferedReader reader;
     // the instance of the server so we can shut it down
     private TcpServerTransport server;
-    private Closesable serverCloseable;
+    private Closeable serverCloseable;
     private CountDownLatch waitStart;
     private ConsoleUtils consoleUtils = new ConsoleUtils("[SERVER]");
 

@@ -15,13 +15,13 @@
  */
 
 rootProject.name='rsocket'
-//include 'rsocket-client'
+include 'rsocket-load-balancer'
 include 'rsocket-core'
 include 'rsocket-discovery-eureka'
-//include 'rsocket-examples'
-//include 'rsocket-spectator'
+include 'rsocket-examples'
+include 'rsocket-spectator'
 include 'rsocket-test'
 //include 'rsocket-transport-aeron'
-//include 'rsocket-transport-local'
+include 'rsocket-transport-local'
 include 'rsocket-transport-netty'
 include 'rsocket-tck-drivers'

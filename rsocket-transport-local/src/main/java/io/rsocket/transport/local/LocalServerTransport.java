@@ -1,19 +1,19 @@
 package io.rsocket.transport.local;
 
+import io.rsocket.Closeable;
 import io.rsocket.DuplexConnection;
 import io.rsocket.transport.ServerTransport;
+import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
 
-import java.net.SocketAddress;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 public class LocalServerTransport implements ServerTransport {
-    private static final ConcurrentMap<String, StartServerImpl> registry = new ConcurrentHashMap<>();
+    private static final ConcurrentMap<String, ServerDuplexConnectionAcceptor> registry = new ConcurrentHashMap<>();
 
-    static StartServerImpl findServer(String name) {
+    static ServerDuplexConnectionAcceptor findServer(String name) {
         return registry.get(name);
     }
 
@@ -28,20 +28,23 @@ public class LocalServerTransport implements ServerTransport {
     }
 
     @Override
-    public StartedServer start(ConnectionAcceptor acceptor) {
-        StartServerImpl startedServer = new StartServerImpl(name, acceptor);
-        if (registry.putIfAbsent(name, startedServer) != null) {
-            throw new IllegalStateException("name already registered: " + name);
-        }
-        return startedServer;
+    public Mono<Closeable> start(ConnectionAcceptor acceptor) {
+        return Mono
+            .create(sink -> {
+                ServerDuplexConnectionAcceptor serverDuplexConnectionAcceptor = new ServerDuplexConnectionAcceptor(name, acceptor);
+                if (registry.putIfAbsent(name, serverDuplexConnectionAcceptor) != null) {
+                    throw new IllegalStateException("name already registered: " + name);
+                }
+                sink.success(serverDuplexConnectionAcceptor);
+            });
     }
 
-    static class StartServerImpl implements StartedServer, Consumer<DuplexConnection> {
+    static class ServerDuplexConnectionAcceptor implements Consumer<DuplexConnection>, Closeable {
         private final LocalSocketAddress address;
         private final ConnectionAcceptor acceptor;
         private final MonoProcessor<Void> closeNotifier = MonoProcessor.create();
 
-        public StartServerImpl(String name, ConnectionAcceptor acceptor) {
+        public ServerDuplexConnectionAcceptor(String name, ConnectionAcceptor acceptor) {
             this.address = new LocalSocketAddress(name);
             this.acceptor = acceptor;
         }
@@ -52,31 +55,22 @@ public class LocalServerTransport implements ServerTransport {
         }
 
         @Override
-        public SocketAddress getServerAddress() {
-            return address;
+        public Mono<Void> close() {
+            return Mono
+                .defer(() -> {
+                    if (!registry.remove(address.getName(), this)) {
+                        throw new AssertionError();
+                    }
+
+                    closeNotifier.onComplete();
+                    return Mono.empty();
+                });
         }
 
         @Override
-        public int getServerPort() {
-            return 0;
-        }
-
-        @Override
-        public void awaitShutdown() {
-            closeNotifier.block();
-        }
-
-        @Override
-        public void awaitShutdown(long duration, TimeUnit durationUnit) {
-            closeNotifier.blockMillis(TimeUnit.MILLISECONDS.convert(duration, durationUnit));
-        }
-
-        @Override
-        public void shutdown() {
-            if (!registry.remove(address.getName(), this)) {
-              throw new AssertionError();
-            }
-            closeNotifier.onComplete();
+        public Mono<Void> onClose() {
+            return closeNotifier;
         }
     }
+
 }

@@ -16,6 +16,7 @@
 
 package io.rsocket.transport.netty.server;
 
+import io.rsocket.Closeable;
 import io.rsocket.transport.ServerTransport;
 import io.rsocket.transport.netty.WebsocketDuplexConnection;
 import reactor.core.publisher.Mono;
@@ -43,15 +44,17 @@ public class WebsocketServerTransport implements ServerTransport {
     }
 
     @Override
-    public Mono<Void> start(ServerTransport.ConnectionAcceptor acceptor) {
-        return server.newHandler((request, response) ->
-            response.sendWebsocket((in, out) -> {
-                WebsocketDuplexConnection connection = new WebsocketDuplexConnection(in, out, in.context());
-                acceptor.apply(connection).subscribe();
+    public Mono<Closeable> start(ServerTransport.ConnectionAcceptor acceptor) {
+        return server
+            .newHandler((request, response) ->
+                response.sendWebsocket((in, out) -> {
+                    WebsocketDuplexConnection connection = new WebsocketDuplexConnection(in, out, in.context());
+                    acceptor.apply(connection).subscribe();
 
-                return out.neverComplete();
-            })
-        ).then();
+                    return out.neverComplete();
+                })
+            )
+            .map(NettyContextClosable::new);
     }
 
 }

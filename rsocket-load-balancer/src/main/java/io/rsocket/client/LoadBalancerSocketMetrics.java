@@ -16,7 +16,7 @@ package io.rsocket.client;
 import io.rsocket.Availability;
 
 /**
- * A contract for the metrics managed by {@link LoadBalancer} per socket.
+ * A contract for the metrics managed by {@link LoadBalancedRSocketMono} per socket.
  */
 public interface LoadBalancerSocketMetrics extends Availability {
 

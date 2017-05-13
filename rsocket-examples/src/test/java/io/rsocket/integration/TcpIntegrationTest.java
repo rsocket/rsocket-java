@@ -1,13 +1,10 @@
 package io.rsocket.integration;
 
 import io.rsocket.AbstractRSocket;
+import io.rsocket.Closeable;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
-import io.rsocket.client.KeepAliveProvider;
-import io.rsocket.client.RSocketClient;
-import io.rsocket.client.SetupProvider;
-import io.rsocket.server.RSocketServer;
-import io.rsocket.transport.ServerTransport;
+import io.rsocket.RSocketFactory;
 import io.rsocket.transport.netty.client.TcpClientTransport;
 import io.rsocket.transport.netty.server.TcpServerTransport;
 import io.rsocket.util.PayloadImpl;
@@ -17,8 +14,6 @@ import org.junit.Before;
 import org.junit.Test;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import reactor.ipc.netty.tcp.TcpClient;
-import reactor.ipc.netty.tcp.TcpServer;
 
 import java.nio.charset.StandardCharsets;
 
@@ -26,28 +21,31 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 
 public class TcpIntegrationTest {
-    private AbstractRSocket handler = new AbstractRSocket() {
-    };
+    private AbstractRSocket handler;
 
-    private ServerTransport.StartedServer server;
+    private Closeable server;
 
     @Before
     public void startup() {
-        server = RSocketServer.create(
-                TcpServerTransport.create(TcpServer.create()))
-                .start((setup, sendingSocket) -> new DisabledLeaseAcceptingSocket(new RSocketProxy(handler)));
+        server = RSocketFactory
+            .receive()
+            .acceptor((setup, sendingSocket) -> Mono.just(new RSocketProxy(handler)))
+            .transport(TcpServerTransport.create("localhost", 8000))
+            .start()
+            .block();
     }
 
     private RSocket buildClient() {
-        return RSocketClient.create(
-                TcpClientTransport.create(TcpClient.create(server.getServerPort())),
-                SetupProvider.keepAlive(KeepAliveProvider.never()).disableLease())
-                .connect().block();
+        return RSocketFactory
+            .connect()
+            .transport(TcpClientTransport.create("localhost", 8000))
+            .start()
+            .block();
     }
 
     @After
     public void cleanup() {
-        server.shutdown();
+        server.close().block();
     }
 
     @Test(timeout = 2_000L)
@@ -58,10 +56,9 @@ public class TcpIntegrationTest {
                 return Flux.empty();
             }
         };
-
         RSocket client = buildClient();
 
-        Boolean hasElements = client.requestStream(new PayloadImpl("REQUEST", "META")).hasElements().block();
+        Boolean hasElements = client.requestStream(new PayloadImpl("REQUEST", "META")).log().hasElements().block();
 
         assertFalse(hasElements);
     }

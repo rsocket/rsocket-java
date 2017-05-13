@@ -16,6 +16,7 @@
 
 package io.rsocket.transport.netty.server;
 
+import io.rsocket.Closeable;
 import io.rsocket.transport.ServerTransport;
 import io.rsocket.transport.netty.NettyDuplexConnection;
 import io.rsocket.transport.netty.RSocketLengthCodec;
@@ -24,7 +25,7 @@ import reactor.ipc.netty.tcp.TcpServer;
 
 public class TcpServerTransport implements ServerTransport {
     TcpServer server;
-    
+
     private TcpServerTransport(TcpServer server) {
         this.server = server;
     }
@@ -45,14 +46,16 @@ public class TcpServerTransport implements ServerTransport {
     }
 
     @Override
-    public Mono<Void> start(ConnectionAcceptor acceptor) {
-        return server.newHandler((in, out) -> {
-            in.context().addHandler("server-length-codec", new RSocketLengthCodec());
-            NettyDuplexConnection connection = new NettyDuplexConnection(in, out, in.context());
-            acceptor.apply(connection).subscribe();
+    public Mono<Closeable> start(ConnectionAcceptor acceptor) {
+        return server
+            .newHandler((in, out) -> {
+                in.context().addHandler("server-length-codec", new RSocketLengthCodec());
+                NettyDuplexConnection connection = new NettyDuplexConnection(in, out, in.context());
+                acceptor.apply(connection).subscribe();
 
-            return out.neverComplete();
-        })
-        .then();
+                return out.neverComplete();
+            })
+            .map(NettyContextClosable::new);
     }
+
 }

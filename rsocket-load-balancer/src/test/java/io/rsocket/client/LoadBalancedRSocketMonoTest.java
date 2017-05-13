@@ -18,12 +18,15 @@ package io.rsocket.client;
 
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
+import io.rsocket.client.filter.RSocketSupplier;
 import io.rsocket.util.PayloadImpl;
 import org.junit.Assert;
 import org.junit.Test;
+import org.mockito.Mockito;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.net.InetSocketAddress;
@@ -33,7 +36,7 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.Function;
 
-public class LoadBalancerTest {
+public class LoadBalancedRSocketMonoTest {
 
     @Test(timeout = 10_000L)
     public void testNeverSelectFailingFactories() throws InterruptedException {
@@ -41,9 +44,9 @@ public class LoadBalancerTest {
         InetSocketAddress local1 = InetSocketAddress.createUnresolved("localhost", 7001);
 
         TestingRSocket socket = new TestingRSocket(Function.identity());
-        RSocketClient failing = failingClient(local0);
-        RSocketClient succeeding = succeedingFactory(socket);
-        List<RSocketClient> factories = Arrays.asList(failing, succeeding);
+        RSocketSupplier failing = failingClient(local0);
+        RSocketSupplier succeeding = succeedingFactory(socket);
+        List<RSocketSupplier> factories = Arrays.asList(failing, succeeding);
 
         testBalancer(factories);
     }
@@ -66,28 +69,29 @@ public class LoadBalancerTest {
             }
         };
 
-        RSocketClient failing = succeedingFactory(failingSocket);
-        RSocketClient succeeding = succeedingFactory(socket);
-        List<RSocketClient> clients = Arrays.asList(failing, succeeding);
+        RSocketSupplier failing = succeedingFactory(failingSocket);
+        RSocketSupplier succeeding = succeedingFactory(socket);
+        List<RSocketSupplier> clients = Arrays.asList(failing, succeeding);
 
         testBalancer(clients);
     }
 
-    private void testBalancer(List<RSocketClient> factories) throws InterruptedException {
-        Publisher<List<RSocketClient>> src = s -> {
+    private void testBalancer(List<RSocketSupplier> factories) throws InterruptedException {
+        Publisher<List<RSocketSupplier>> src = s -> {
             s.onNext(factories);
             s.onComplete();
         };
 
-        LoadBalancer balancer = new LoadBalancer(src);
+        LoadBalancedRSocketMono balancer = LoadBalancedRSocketMono.create(src);
 
         while (balancer.availability() == 0.0) {
             Thread.sleep(1);
         }
 
-        for (int i = 0; i < 100; i++) {
-            makeAcall(balancer);
-        }
+        Flux
+            .range(0, 100)
+            .flatMap(i -> balancer)
+            .blockLast();
     }
 
     private void makeAcall(RSocket balancer) throws InterruptedException {
@@ -120,33 +124,25 @@ public class LoadBalancerTest {
         latch.await();
     }
 
-    private static RSocketClient succeedingFactory(RSocket socket) {
-        return new RSocketClient() {
-            @Override
-            public Mono<RSocket> connect() {
-                return Mono.just(socket);
-            }
-
-            @Override
-            public double availability() {
-                return 1.0;
-            }
-
-        };
+    private static RSocketSupplier succeedingFactory(RSocket socket) {
+        RSocketSupplier mock = Mockito.mock(RSocketSupplier.class);
+        
+        Mockito.when(mock.availability()).thenReturn(1.0);
+        Mockito.when(mock.get()).thenReturn(Mono.just(socket));
+        
+        return mock;
     }
 
-    private static RSocketClient failingClient(SocketAddress sa) {
-        return new RSocketClient() {
-            @Override
-            public Mono<RSocket> connect() {
-                Assert.fail();
-                return null;
-            }
+    private static RSocketSupplier failingClient(SocketAddress sa) {
+        RSocketSupplier mock = Mockito.mock(RSocketSupplier.class);
 
-            @Override
-            public double availability() {
-                return 0.0;
-            }
-        };
+        Mockito.when(mock.availability()).thenReturn(0.0);
+        Mockito.when(mock.get()).thenAnswer(a -> {
+            Assert.fail();
+            return null;
+        });
+
+        return mock;
     }
+    
 }

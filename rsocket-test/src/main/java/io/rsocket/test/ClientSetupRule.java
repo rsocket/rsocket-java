@@ -21,9 +21,10 @@ import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.util.PayloadImpl;
 import org.junit.rules.ExternalResource;
+import org.junit.runner.Description;
+import org.junit.runners.model.Statement;
 import reactor.core.publisher.Flux;
 
-import java.net.SocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.Consumer;
@@ -33,7 +34,7 @@ import java.util.function.Supplier;
 import static org.junit.Assert.fail;
 
 
-public class ClientSetupRule<T extends SocketAddress> extends ExternalResource {
+public class ClientSetupRule<T> extends ExternalResource {
 
     private Supplier<T> address;
     private Function<T, RSocket> rSocketClient;
@@ -47,9 +48,16 @@ public class ClientSetupRule<T extends SocketAddress> extends ExternalResource {
         this.rSocketServer = rSocketServer;
     }
 
-    protected void before() throws InterruptedException {
-        rSocketServer.accept(address.get());
-        client = rSocketClient.apply(address.get());
+    @Override
+    public Statement apply(Statement base, Description description) {
+        return new Statement() {
+            @Override
+            public void evaluate() throws Throwable {
+                rSocketServer.accept(address.get());
+                client = rSocketClient.apply(address.get());
+                base.evaluate();
+            }
+        };
     }
 
     private RSocket getRSocket() {
@@ -93,11 +101,11 @@ public class ClientSetupRule<T extends SocketAddress> extends ExternalResource {
         Flux.range(1, count)
             .flatMap(i ->
                 getRSocket()
-                .requestResponse(new PayloadImpl("hello", "metadata"))
-                .map(payload -> StandardCharsets.UTF_8.decode(payload.getData()).toString())
+                    .requestResponse(new PayloadImpl("hello", "metadata"))
+                    .map(payload -> StandardCharsets.UTF_8.decode(payload.getData()).toString())
             )
-                .doOnError(Throwable::printStackTrace)
-                .subscribe(ts);
+            .doOnError(Throwable::printStackTrace)
+            .subscribe(ts);
 
         await(ts);
         ts.assertTerminated();
