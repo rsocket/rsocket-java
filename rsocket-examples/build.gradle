@@ -30,7 +30,6 @@ jmh {
 
 dependencies {
     compile project(':rsocket-core')
-    compile project(':rsocket-discovery-eureka')
     compile project(':rsocket-spectator')
     compile project(':rsocket-transport-netty')
     compile project(':rsocket-transport-local')

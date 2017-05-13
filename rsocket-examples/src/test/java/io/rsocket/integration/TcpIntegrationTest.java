@@ -48,7 +48,7 @@ public class TcpIntegrationTest {
         server.close().block();
     }
 
-    @Test(timeout = 2_000L)
+    @Test(timeout = 5_000L)
     public void testCompleteWithoutNext() throws InterruptedException {
         handler = new AbstractRSocket() {
             @Override
@@ -63,7 +63,7 @@ public class TcpIntegrationTest {
         assertFalse(hasElements);
     }
 
-    @Test(timeout = 2_000L)
+    @Test(timeout = 5_000L)
     public void testSingleStream() throws InterruptedException {
         handler = new AbstractRSocket() {
             @Override
@@ -79,7 +79,7 @@ public class TcpIntegrationTest {
         assertEquals("RESPONSE", StandardCharsets.UTF_8.decode(result.getData()).toString());
     }
 
-    @Test(timeout = 2_000L)
+    @Test(timeout = 5_000L)
     public void testZeroPayload() throws InterruptedException {
         handler = new AbstractRSocket() {
             @Override
@@ -95,7 +95,7 @@ public class TcpIntegrationTest {
         assertEquals("", StandardCharsets.UTF_8.decode(result.getData()).toString());
     }
 
-    @Test(timeout = 2_000L)
+    @Test(timeout = 5_000L)
     public void testRequestResponseErrors() throws InterruptedException {
         handler = new AbstractRSocket() {
             boolean first = true;

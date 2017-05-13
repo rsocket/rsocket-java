@@ -16,6 +16,7 @@
 
 package io.rsocket.transport.netty;
 
+import io.rsocket.RSocket;
 import io.rsocket.RSocketFactory;
 import io.rsocket.test.ClientSetupRule;
 import io.rsocket.test.TestRSocket;
@@ -30,11 +31,16 @@ public class WebsocketClientSetupRule extends ClientSetupRule<InetSocketAddress>
     public WebsocketClientSetupRule() {
         super(() -> InetSocketAddress.createUnresolved("localhost", 8989),
             (address) ->
-                RSocketFactory
+            {
+                RSocket block = RSocketFactory
                     .connect()
                     .transport(WebsocketClientTransport.create(address.getHostName(), address.getPort()))
                     .start()
-                    .block(),
+                    .doOnError(t -> t.printStackTrace())
+                    .block();
+
+                return block;
+            },
             (address) ->
                 RSocketFactory
                     .receive()

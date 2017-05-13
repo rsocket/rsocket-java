@@ -27,11 +27,9 @@ import io.rsocket.transport.netty.client.TcpClientTransport;
 import io.rsocket.transport.netty.server.TcpServerTransport;
 import io.rsocket.util.PayloadImpl;
 import io.rsocket.util.RSocketProxy;
-import org.junit.Rule;
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
-import org.junit.rules.ExternalResource;
-import org.junit.runner.Description;
-import org.junit.runners.model.Statement;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -46,23 +44,95 @@ import static org.junit.Assert.assertTrue;
 
 public class IntegrationTest {
 
-    @Rule
-    public final ClientServerRule rule = new ClientServerRule();
+    private Closeable server;
+    private RSocket client;
+    private AtomicInteger requestCount;
+    private CountDownLatch disconnectionCounter;
+    public static volatile boolean calledClient = false;
+    public static volatile boolean calledServer = false;
+    public static volatile boolean calledFrame = false;
 
-    @Test(timeout = 2_000L)
+    static {
+        Plugins.CLIENT_REACTIVE_SOCKET_INTERCEPTOR = reactiveSocket ->
+            Mono.just(new RSocketProxy(reactiveSocket) {
+                @Override
+                public Mono<Payload> requestResponse(Payload payload) {
+                    calledClient = true;
+                    return reactiveSocket.requestResponse(payload);
+                }
+            });
+
+        Plugins.SERVER_REACTIVE_SOCKET_INTERCEPTOR = reactiveSocket ->
+            Mono.just(new RSocketProxy(reactiveSocket) {
+                @Override
+                public Mono<Payload> requestResponse(Payload payload) {
+                    calledServer = true;
+                    return reactiveSocket.requestResponse(payload);
+                }
+            });
+
+        Plugins.DUPLEX_CONNECTION_INTERCEPTOR = (type, connection) -> {
+            calledFrame = true;
+            return connection;
+        };
+    }
+    
+    @Before
+    public void startup() {
+        requestCount = new AtomicInteger();
+        disconnectionCounter = new CountDownLatch(1);
+
+        server = RSocketFactory
+            .receive()
+            .acceptor((setup, sendingSocket) -> {
+                sendingSocket.onClose()
+                    .doFinally(signalType -> disconnectionCounter.countDown())
+                    .subscribe();
+
+                return Mono.just(new AbstractRSocket() {
+                    @Override
+                    public Mono<Payload> requestResponse(Payload payload) {
+                        return Mono.<Payload>just(new PayloadImpl("RESPONSE", "METADATA"))
+                            .doOnSubscribe(s -> requestCount.incrementAndGet());
+                    }
+
+                    @Override
+                    public Flux<Payload> requestStream(Payload payload) {
+                        return Flux
+                            .range(1, 10_000)
+                            .map(i -> new PayloadImpl("data -> " + i));
+                    }
+                });
+            })
+            .transport(TcpServerTransport.create("localhost", 8000))
+            .start()
+            .block();
+
+        client = RSocketFactory
+            .connect()
+            .transport(TcpClientTransport.create("localhost", 8000))
+            .start()
+            .block();
+    }
+
+    @After
+    public void teardown() {
+        server.close().block();
+    }
+
+    @Test(timeout = 5_000L)
     public void testRequest() {
-        rule.client.requestResponse(new PayloadImpl("REQUEST", "META")).block();
-        assertThat("Server did not see the request.", rule.requestCount.get(), is(1));
-        assertTrue(ClientServerRule.calledClient);
-        assertTrue(ClientServerRule.calledServer);
-        assertTrue(ClientServerRule.calledFrame);
+        client.requestResponse(new PayloadImpl("REQUEST", "META")).block();
+        assertThat("Server did not see the request.", requestCount.get(), is(1));
+        assertTrue(calledClient);
+        assertTrue(calledServer);
+        assertTrue(calledFrame);
     }
 
     @Test
     public void testStream() throws Exception {
         TestSubscriber subscriber = TestSubscriber.create();
-        rule
-            .client
+        client
             .requestStream(new PayloadImpl("start"))
             .subscribe(subscriber);
 
@@ -71,90 +141,10 @@ public class IntegrationTest {
         subscriber.assertNotComplete();
     }
 
-    @Test(timeout = 3_000L)
+    @Test(timeout = 5_000L)
     public void testClose() throws ExecutionException, InterruptedException, TimeoutException {
-        rule.client.close().block();
-        rule.disconnectionCounter.await();
-    }
-
-    public static class ClientServerRule extends ExternalResource {
-
-        private Closeable server;
-        private RSocket client;
-        private AtomicInteger requestCount;
-        private CountDownLatch disconnectionCounter;
-        public static volatile boolean calledClient = false;
-        public static volatile boolean calledServer = false;
-        public static volatile boolean calledFrame = false;
-
-        static {
-            Plugins.CLIENT_REACTIVE_SOCKET_INTERCEPTOR = reactiveSocket ->
-                Mono.just(new RSocketProxy(reactiveSocket) {
-                    @Override
-                    public Mono<Payload> requestResponse(Payload payload) {
-                        calledClient = true;
-                        return reactiveSocket.requestResponse(payload);
-                    }
-                });
-
-            Plugins.SERVER_REACTIVE_SOCKET_INTERCEPTOR = reactiveSocket ->
-                Mono.just(new RSocketProxy(reactiveSocket) {
-                    @Override
-                    public Mono<Payload> requestResponse(Payload payload) {
-                        calledServer = true;
-                        return reactiveSocket.requestResponse(payload);
-                    }
-                });
-
-            Plugins.DUPLEX_CONNECTION_INTERCEPTOR = (type, connection) -> {
-                calledFrame = true;
-                return connection;
-            };
-        }
-
-        @Override
-        public Statement apply(final Statement base, Description description) {
-            return new Statement() {
-                @Override
-                public void evaluate() throws Throwable {
-                    requestCount = new AtomicInteger();
-                    disconnectionCounter = new CountDownLatch(1);
-                    server = RSocketFactory
-                        .receive()
-                        .acceptor((setup, sendingSocket) -> {
-                            sendingSocket.onClose()
-                                .doFinally(signalType -> disconnectionCounter.countDown())
-                                .subscribe();
-
-                            return Mono.just(new AbstractRSocket() {
-                                @Override
-                                public Mono<Payload> requestResponse(Payload payload) {
-                                    return Mono.<Payload>just(new PayloadImpl("RESPONSE", "METADATA"))
-                                        .doOnSubscribe(s -> requestCount.incrementAndGet());
-                                }
-
-                                @Override
-                                public Flux<Payload> requestStream(Payload payload) {
-                                    return Flux
-                                        .range(1, 10_000)
-                                        .map(i -> new PayloadImpl("data -> " + i));
-                                }
-                            });
-                        })
-                        .transport(TcpServerTransport.create("localhost", 8000))
-                        .start()
-                        .block();
-
-                    client = RSocketFactory
-                        .connect()
-                        .transport(TcpClientTransport.create("localhost", 8000))
-                        .start()
-                        .block();
-
-                    base.evaluate();
-                }
-            };
-        }
+        client.close().block();
+        disconnectionCounter.await();
     }
 
 }
