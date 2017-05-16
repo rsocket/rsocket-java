@@ -31,7 +31,6 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.UnicastProcessor;
 
-import java.util.Collection;
 import java.util.function.Consumer;
 
 /**
@@ -50,28 +49,20 @@ class RSocketServer implements RSocket {
     private Disposable receiveDisposable;
 
     RSocketServer(DuplexConnection connection,
-                         RSocket requestHandler,
-                         Consumer<Throwable> errorConsumer) {
+                  RSocket requestHandler,
+                  Consumer<Throwable> errorConsumer) {
         this.connection = connection;
         this.requestHandler = requestHandler;
         this.errorConsumer = errorConsumer;
         this.sendingSubscriptions = new IntObjectHashMap<>();
         this.channelProcessors = new IntObjectHashMap<>();
-        this.receiveDisposable = connection
-            .receive()
-            .flatMap(this::handleFrame)
-            .doOnError(t -> {
-                errorConsumer.accept(t);
-
-                Collection<Subscription> values;
-                synchronized (this) {
-                    values = sendingSubscriptions.values();
-                }
-                values
-                    .forEach(Subscription::cancel);
-            })
-            .then()
-            .subscribe();
+        this.receiveDisposable =
+            connection
+                .receive()
+                .flatMap(this::handleFrame)
+                .doOnError(errorConsumer::accept)
+                .then()
+                .subscribe();
 
         this.connection
             .onClose()
@@ -250,7 +241,7 @@ class RSocketServer implements RSocket {
                 .map(payload -> Frame.PayloadFrame.from(streamId, FrameType.NEXT, payload))
                 .transform(frameFlux -> {
                     LimitableRequestPublisher<Frame> frames = LimitableRequestPublisher.wrap(frameFlux);
-                    synchronized (this) {
+                    synchronized (RSocketServer.this) {
                         sendingSubscriptions.put(streamId, frames);
                     }
                     frames.increaseRequestLimit(initialRequestN);

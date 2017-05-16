@@ -98,7 +98,7 @@ public interface RSocketFactory {
         private Supplier<io.rsocket.transport.ClientTransport> transportClient;
         private Consumer<Throwable> errorConsumer = Throwable::printStackTrace;
         private int mtu = 0;
-        private int flags = SetupFrameFlyweight.VALID_FLAGS - SetupFrameFlyweight.FLAGS_RESUME_ENABLE;
+        private int flags = SetupFrameFlyweight.FLAGS_STRICT_INTERPRETATION;
 
         private Payload setupPayload = PayloadImpl.EMPTY;
 

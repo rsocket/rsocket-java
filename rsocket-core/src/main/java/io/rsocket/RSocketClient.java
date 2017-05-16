@@ -78,7 +78,7 @@ class RSocketClient implements RSocket {
         this.receivers = new IntObjectHashMap<>(256, 0.9f);
         this.missedAckCounter = new AtomicInteger();
 
-        if (tickPeriod != Duration.ZERO) {
+        if (!Duration.ZERO.equals(tickPeriod)) {
             long ackTimeoutMs = ackTimeout.toMillis();
 
             this.keepAliveSendSub
