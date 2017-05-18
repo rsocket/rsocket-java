@@ -125,21 +125,12 @@ public class ClientSetupRule<T> extends ExternalResource {
 
     private void testStreamRequestN(Function<RSocket, Flux<Payload>> invoker) {
         int count = 10;
-        CountDownLatch latch = new CountDownLatch(count);
         TestSubscriber<Payload> ts = TestSubscriber.create(count / 2);
         Flux<Payload> publisher = invoker.apply(getRSocket());
-        publisher
-            .doOnNext(s -> latch.countDown())
-            .subscribe(ts);
+        publisher.subscribe(ts);
 
         ts.request(count / 2);
-
-        try {
-            latch.await();
-        } catch (InterruptedException e) {
-            fail(e.getMessage());
-        }
-
+        ts.awaitCount(count);
         ts.assertNoErrors();
         ts.assertValueCount(count);
         ts.assertNotTerminated();

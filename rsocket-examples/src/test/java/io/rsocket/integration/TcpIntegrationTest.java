@@ -14,8 +14,12 @@ import org.junit.Before;
 import org.junit.Test;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.publisher.UnicastProcessor;
+import reactor.core.scheduler.Schedulers;
 
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -57,7 +61,6 @@ public class TcpIntegrationTest {
             }
         };
         RSocket client = buildClient();
-
         Boolean hasElements = client.requestStream(new PayloadImpl("REQUEST", "META")).log().hasElements().block();
 
         assertFalse(hasElements);
@@ -113,10 +116,59 @@ public class TcpIntegrationTest {
 
         RSocket client = buildClient();
 
-        Payload response1 = client.requestResponse(new PayloadImpl("REQUEST", "META")).onErrorReturn(new PayloadImpl("ERROR")).block();
-        Payload response2 = client.requestResponse(new PayloadImpl("REQUEST", "META")).onErrorReturn(new PayloadImpl("ERROR")).block();
+        Payload response1 = client.requestResponse(new PayloadImpl("REQUEST", "META"))
+                .onErrorReturn(new PayloadImpl("ERROR"))
+                .block();
+        Payload response2 = client.requestResponse(new PayloadImpl("REQUEST", "META"))
+                .onErrorReturn(new PayloadImpl("ERROR"))
+                .block();
 
         assertEquals("ERROR", StandardCharsets.UTF_8.decode(response1.getData()).toString());
         assertEquals("SUCCESS", StandardCharsets.UTF_8.decode(response2.getData()).toString());
+    }
+
+    @Test(timeout = 5_000L)
+    public void testTwoConcurrentStreams() throws InterruptedException {
+        ConcurrentHashMap<String, UnicastProcessor<Payload>> map = new ConcurrentHashMap<>();
+        UnicastProcessor<Payload> processor1 = UnicastProcessor.create();
+        map.put("REQUEST1", processor1);
+        UnicastProcessor<Payload> processor2 = UnicastProcessor.create();
+        map.put("REQUEST2", processor2);
+
+        handler = new AbstractRSocket() {
+            @Override
+            public Flux<Payload> requestStream(Payload payload) {
+                String s = StandardCharsets.UTF_8.decode(payload.getData()).toString();
+                return map.get(s);
+            }
+        };
+
+        RSocket client = buildClient();
+
+        Flux<Payload> response1 = client.requestStream(new PayloadImpl("REQUEST1"));
+        Flux<Payload> response2 = client.requestStream(new PayloadImpl("REQUEST2"));
+
+        CountDownLatch nextCountdown = new CountDownLatch(2);
+        CountDownLatch completeCountdown = new CountDownLatch(2);
+
+        response1
+                .subscribeOn(Schedulers.newSingle("1"))
+                .subscribe(c -> nextCountdown.countDown(), t -> {
+                }, completeCountdown::countDown);
+
+        response2
+                .subscribeOn(Schedulers.newSingle("2"))
+                .subscribe(c -> nextCountdown.countDown(), t -> {
+                }, completeCountdown::countDown);
+
+        processor1.onNext(new PayloadImpl("RESPONSE1A"));
+        processor2.onNext(new PayloadImpl("RESPONSE2A"));
+
+        nextCountdown.await();
+
+        processor1.onComplete();
+        processor2.onComplete();
+
+        completeCountdown.await();
     }
 }

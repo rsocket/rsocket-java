@@ -16,6 +16,7 @@
 
 package io.rsocket;
 
+import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.util.collection.IntObjectHashMap;
 import io.rsocket.Frame.Request;
@@ -285,7 +286,8 @@ class RSocketServer implements RSocket {
 
     private Mono<Void> handleKeepAliveFrame(Frame frame) {
         if (Frame.Keepalive.hasRespondFlag(frame)) {
-            return connection.sendOne(Frame.Keepalive.from(Unpooled.EMPTY_BUFFER, false))
+            ByteBuf data = Unpooled.wrappedBuffer(frame.getData());
+            return connection.sendOne(Frame.Keepalive.from(data, false))
                 .doOnError(errorConsumer);
         }
         return Mono.empty();
