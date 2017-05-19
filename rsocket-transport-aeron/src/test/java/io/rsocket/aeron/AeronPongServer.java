@@ -22,7 +22,7 @@ import io.rsocket.aeron.internal.DefaultAeronWrapper;
 import io.rsocket.aeron.internal.EventLoop;
 import io.rsocket.aeron.internal.SingleThreadedEventLoop;
 import io.rsocket.aeron.internal.reactivestreams.AeronSocketAddress;
-import io.rsocket.aeron.server.AeronTransportServer;
+import io.rsocket.aeron.server.AeronServerTransport;
 import io.rsocket.server.RSocketServer;
 import io.rsocket.test.PingHandler;
 
@@ -40,7 +40,7 @@ public final class AeronPongServer {
 
         AeronSocketAddress serverManagementSocketAddress = AeronSocketAddress.create("aeron:udp", "127.0.0.1", 39790);
         EventLoop serverEventLoop = new SingleThreadedEventLoop("server");
-        AeronTransportServer server = new AeronTransportServer(aeronWrapper, serverManagementSocketAddress, serverEventLoop);
+        AeronServerTransport server = new AeronServerTransport(aeronWrapper, serverManagementSocketAddress, serverEventLoop);
 
         RSocketServer.create(server)
                                .start(new PingHandler())

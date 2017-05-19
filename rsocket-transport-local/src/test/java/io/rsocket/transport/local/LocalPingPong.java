@@ -15,33 +15,39 @@
  */
 package io.rsocket.transport.local;
 
-import io.rsocket.client.KeepAliveProvider;
-import io.rsocket.client.RSocketClient;
-import io.rsocket.client.SetupProvider;
-import io.rsocket.server.RSocketServer;
+import io.rsocket.RSocket;
+import io.rsocket.RSocketFactory;
 import io.rsocket.test.PingClient;
 import io.rsocket.test.PingHandler;
 import org.HdrHistogram.Recorder;
+import reactor.core.publisher.Mono;
 
 import java.time.Duration;
 
 public final class LocalPingPong {
 
     public static void main(String... args) throws Exception {
-        RSocketServer.create(LocalServer.create("test-local-server"))
-                .start(new PingHandler());
+        RSocketFactory
+            .receive()
+            .acceptor(new PingHandler())
+            .transport(LocalServerTransport.create("test-local-server"))
+            .start()
+            .block();
 
-        SetupProvider setup = SetupProvider.keepAlive(KeepAliveProvider.never()).disableLease();
-        RSocketClient client =
-                RSocketClient.create(LocalClient.create("test-local-server"), setup);
-        PingClient pingClient = new PingClient(client);
+        Mono<RSocket> rSocketMono = RSocketFactory
+            .connect()
+            .transport(LocalClientTransport.create("test-local-server"))
+            .start();
+
+        PingClient pingClient = new PingClient(rSocketMono);
+
         Recorder recorder = pingClient.startTracker(Duration.ofSeconds(1));
         final int count = 1_000_000_000;
-        pingClient.connect()
-                  .startPingPong(count, recorder)
-                  .doOnTerminate(() -> {
-                      System.out.println("Sent " + count + " messages.");
-                  })
-                  .blockLast();
+        pingClient
+            .startPingPong(count, recorder)
+            .doOnTerminate(() -> {
+                System.out.println("Sent " + count + " messages.");
+            })
+            .blockLast();
     }
 }

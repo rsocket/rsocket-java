@@ -20,11 +20,8 @@ plugins {
 
 jmh {
     jmhVersion = '1.15'
-    jvmArgs = '-XX:+UseG1GC -Xmx16g -Xms16g -XX:+UnlockCommercialFeatures -XX:+FlightRecorder'
     profilers = ['gc']
     zip64 = true
-    warmupBatchSize = 10
-    iterations = 500
     duplicateClassesStrategy = 'warn'
 }
 

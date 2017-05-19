@@ -3,7 +3,6 @@ package io.rsocket.internal;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
-import reactor.core.Fuseable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Operators;
 
@@ -46,17 +45,6 @@ public class LimitableRequestPublisher<T> extends Flux<T> implements Subscriptio
 
         destination.onSubscribe(new InnerSubscription());
         source.subscribe(new InnerSubscriber<>(destination));
-
-        if (source instanceof Fuseable.ScalarCallable) {
-            try {
-                Fuseable.ScalarCallable source = (Fuseable.ScalarCallable) this.source;
-                Object call = source.call();
-                destination.onNext((T) call);
-                destination.onComplete();
-            } catch (Throwable t) {
-                destination.onError(t);
-            }
-        }
     }
 
     public void increaseRequestLimit(long n) {
@@ -140,7 +128,6 @@ public class LimitableRequestPublisher<T> extends Flux<T> implements Subscriptio
     }
 
     private class InnerSubscription implements Subscription {
-
         @Override
         public void request(long n) {
             synchronized (LimitableRequestPublisher.this) {

@@ -1,16 +1,12 @@
 package io.rsocket.integration;
 
 import io.rsocket.AbstractRSocket;
+import io.rsocket.Closeable;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
-import io.rsocket.client.KeepAliveProvider;
-import io.rsocket.client.RSocketClient;
-import io.rsocket.client.SetupProvider;
-import io.rsocket.lease.DisabledLeaseAcceptingSocket;
-import io.rsocket.server.RSocketServer;
-import io.rsocket.transport.TransportServer;
-import io.rsocket.transport.netty.client.TcpTransportClient;
-import io.rsocket.transport.netty.server.TcpTransportServer;
+import io.rsocket.RSocketFactory;
+import io.rsocket.transport.netty.client.TcpClientTransport;
+import io.rsocket.transport.netty.server.TcpServerTransport;
 import io.rsocket.util.PayloadImpl;
 import io.rsocket.util.RSocketProxy;
 import org.junit.After;
@@ -20,8 +16,6 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.UnicastProcessor;
 import reactor.core.scheduler.Schedulers;
-import reactor.ipc.netty.tcp.TcpClient;
-import reactor.ipc.netty.tcp.TcpServer;
 
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.ConcurrentHashMap;
@@ -31,32 +25,34 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 
 public class TcpIntegrationTest {
-    private AbstractRSocket handler = new AbstractRSocket() {
-    };
+    private AbstractRSocket handler;
 
-    private TransportServer.StartedServer server;
+    private Closeable server;
 
     @Before
     public void startup() {
-        server = RSocketServer.create(
-                TcpTransportServer.create(TcpServer.create()))
-                .start(
-                        (setup, sendingSocket) -> new DisabledLeaseAcceptingSocket(new RSocketProxy(handler)));
+        server = RSocketFactory
+            .receive()
+            .acceptor((setup, sendingSocket) -> Mono.just(new RSocketProxy(handler)))
+            .transport(TcpServerTransport.create("localhost", 8000))
+            .start()
+            .block();
     }
 
     private RSocket buildClient() {
-        return RSocketClient.create(
-                TcpTransportClient.create(TcpClient.create(server.getServerPort())),
-                SetupProvider.keepAlive(KeepAliveProvider.never()).disableLease())
-                .connect().block();
+        return RSocketFactory
+            .connect()
+            .transport(TcpClientTransport.create("localhost", 8000))
+            .start()
+            .block();
     }
 
     @After
     public void cleanup() {
-        server.shutdown();
+        server.close().block();
     }
 
-    @Test(timeout = 2_000L)
+    @Test(timeout = 5_000L)
     public void testCompleteWithoutNext() throws InterruptedException {
         handler = new AbstractRSocket() {
             @Override
@@ -64,16 +60,13 @@ public class TcpIntegrationTest {
                 return Flux.empty();
             }
         };
-
         RSocket client = buildClient();
-
-        Boolean hasElements =
-                client.requestStream(new PayloadImpl("REQUEST", "META")).hasElements().block();
+        Boolean hasElements = client.requestStream(new PayloadImpl("REQUEST", "META")).log().hasElements().block();
 
         assertFalse(hasElements);
     }
 
-    @Test(timeout = 2_000L)
+    @Test(timeout = 5_000L)
     public void testSingleStream() throws InterruptedException {
         handler = new AbstractRSocket() {
             @Override
@@ -89,7 +82,7 @@ public class TcpIntegrationTest {
         assertEquals("RESPONSE", StandardCharsets.UTF_8.decode(result.getData()).toString());
     }
 
-    @Test(timeout = 2_000L)
+    @Test(timeout = 5_000L)
     public void testZeroPayload() throws InterruptedException {
         handler = new AbstractRSocket() {
             @Override
@@ -105,7 +98,7 @@ public class TcpIntegrationTest {
         assertEquals("", StandardCharsets.UTF_8.decode(result.getData()).toString());
     }
 
-    @Test(timeout = 2_000L)
+    @Test(timeout = 5_000L)
     public void testRequestResponseErrors() throws InterruptedException {
         handler = new AbstractRSocket() {
             boolean first = true;
@@ -134,7 +127,7 @@ public class TcpIntegrationTest {
         assertEquals("SUCCESS", StandardCharsets.UTF_8.decode(response2.getData()).toString());
     }
 
-    @Test(timeout = 2_000L)
+    @Test(timeout = 5_000L)
     public void testTwoConcurrentStreams() throws InterruptedException {
         ConcurrentHashMap<String, UnicastProcessor<Payload>> map = new ConcurrentHashMap<>();
         UnicastProcessor<Payload> processor1 = UnicastProcessor.create();

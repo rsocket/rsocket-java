@@ -16,25 +16,47 @@
 
 package io.rsocket.transport.local;
 
-import io.rsocket.lease.DisabledLeaseAcceptingSocket;
-import io.rsocket.server.RSocketServer;
+import io.rsocket.RSocketFactory;
 import io.rsocket.test.ClientSetupRule;
 import io.rsocket.test.TestRSocket;
+import reactor.core.publisher.Mono;
 
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 
-public class LocalClientSetupRule extends ClientSetupRule {
+public class LocalClientSetupRule extends ClientSetupRule<String> {
     private static final AtomicInteger uniqueNameGenerator = new AtomicInteger();
 
     public LocalClientSetupRule() {
-        super(address -> LocalClient.create(((LocalSocketAddress)address).getName()), () -> {
-            return RSocketServer.create(LocalServer.create("test-local-server"
-                    + uniqueNameGenerator.incrementAndGet()))
-                .start((setup, sendingSocket) -> {
-                    return new DisabledLeaseAcceptingSocket(new TestRSocket());
-                })
-                .getServerAddress();
-        });
+        super(
+            // This needs to be called twice before it increments
+            // - once for the client and once for the server
+            new Supplier<String>() {
+                boolean increment = true;
+                @Override
+                public String get() {
+                    if (increment) {
+                        increment = false;
+                        return "test" + uniqueNameGenerator.incrementAndGet();
+                    } else {
+                        increment = true;
+                        return "test" + uniqueNameGenerator.get();
+                    }
+                }
+            },
+            address ->
+                RSocketFactory
+                    .connect()
+                    .transport(LocalClientTransport.create(address))
+                    .start()
+                    .block(),
+            address ->
+                RSocketFactory
+                    .receive()
+                    .acceptor((setup, sendingSocket) -> Mono.just(new TestRSocket()))
+                    .transport(LocalServerTransport.create(address))
+                    .start()
+                    .block()
+        );
     }
-
 }

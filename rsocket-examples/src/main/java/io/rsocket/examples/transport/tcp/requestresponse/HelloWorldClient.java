@@ -19,77 +19,62 @@ package io.rsocket.examples.transport.tcp.requestresponse;
 import io.rsocket.AbstractRSocket;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
-import io.rsocket.client.RSocketClient;
-import io.rsocket.client.SetupProvider;
-import io.rsocket.lease.DisabledLeaseAcceptingSocket;
-import io.rsocket.server.RSocketServer;
-import io.rsocket.transport.TransportServer.StartedServer;
-import io.rsocket.transport.netty.client.TcpTransportClient;
-import io.rsocket.transport.netty.server.TcpTransportServer;
+import io.rsocket.RSocketFactory;
+import io.rsocket.transport.netty.client.TcpClientTransport;
+import io.rsocket.transport.netty.server.TcpServerTransport;
 import io.rsocket.util.PayloadImpl;
-import java.net.InetSocketAddress;
-import java.net.SocketAddress;
-import java.nio.charset.StandardCharsets;
 import reactor.core.publisher.Mono;
-import reactor.ipc.netty.tcp.TcpClient;
-import reactor.ipc.netty.tcp.TcpServer;
 
-import static io.rsocket.client.KeepAliveProvider.never;
-import static io.rsocket.client.SetupProvider.keepAlive;
+import java.nio.charset.StandardCharsets;
 
 public final class HelloWorldClient {
 
     public static void main(String[] args) {
-        RSocketServer s = RSocketServer.create(
-            TcpTransportServer.create(TcpServer.create()),
-            e -> {
-                System.err.println("Server received error");
-                e.printStackTrace();
-            });
+        RSocketFactory
+            .receive()
+            .acceptor((setupPayload, reactiveSocket) ->
+                Mono.just(new AbstractRSocket() {
+                    boolean fail = true;
 
-        StartedServer server = s.start((setupPayload, reactiveSocket) -> {
-            return new DisabledLeaseAcceptingSocket(new AbstractRSocket() {
-                boolean fail = true;
-                @Override
-                public Mono<Payload> requestResponse(Payload p) {
-                    if (fail) {
-                        fail = false;
-                        return Mono.error(new Throwable());
-                    } else {
-                        return Mono.just(p);
+                    @Override
+                    public Mono<Payload> requestResponse(Payload p) {
+                        if (fail) {
+                            fail = false;
+                            return Mono.error(new Throwable());
+                        } else {
+                            return Mono.just(p);
+                        }
                     }
-                }
-            });
-        });
+                })
+            )
+            .transport(TcpServerTransport.create("localhost", 7000))
+            .start()
+            .subscribe();
 
-        SocketAddress address = server.getServerAddress();
-        SetupProvider setupProvider = keepAlive(never()).disableLease().errorConsumer(e -> {
-            System.err.println("Client received error");
-            e.printStackTrace();
-        });
-        RSocketClient client =
-            RSocketClient.create(TcpTransportClient.create(TcpClient.create(options ->
-                    options.connect((InetSocketAddress) address))),
-                setupProvider);
-        RSocket socket = client.connect().block();
-
-        socket.requestResponse(new PayloadImpl("Hello"))
-                .map(payload -> StandardCharsets.UTF_8.decode(payload.getData()).toString())
-                .onErrorReturn("error")
-                .doOnNext(System.out::println)
+        RSocket socket =
+            RSocketFactory
+                .connect()
+                .transport(TcpClientTransport.create("localhost", 7000))
+                .start()
                 .block();
 
         socket.requestResponse(new PayloadImpl("Hello"))
-                .map(payload -> StandardCharsets.UTF_8.decode(payload.getData()).toString())
-                .onErrorReturn("error")
-                .doOnNext(System.out::println)
-                .block();
+            .map(payload -> StandardCharsets.UTF_8.decode(payload.getData()).toString())
+            .onErrorReturn("error")
+            .doOnNext(System.out::println)
+            .block();
 
         socket.requestResponse(new PayloadImpl("Hello"))
-                .map(payload -> StandardCharsets.UTF_8.decode(payload.getData()).toString())
-                .onErrorReturn("error")
-                .doOnNext(System.out::println)
-                .block();
+            .map(payload -> StandardCharsets.UTF_8.decode(payload.getData()).toString())
+            .onErrorReturn("error")
+            .doOnNext(System.out::println)
+            .block();
+
+        socket.requestResponse(new PayloadImpl("Hello"))
+            .map(payload -> StandardCharsets.UTF_8.decode(payload.getData()).toString())
+            .onErrorReturn("error")
+            .doOnNext(System.out::println)
+            .block();
 
         socket.close().block();
     }

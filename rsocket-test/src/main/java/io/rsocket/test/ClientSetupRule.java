@@ -16,68 +16,52 @@
 
 package io.rsocket.test;
 
+import io.reactivex.subscribers.TestSubscriber;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
-import io.rsocket.client.KeepAliveProvider;
-import io.rsocket.client.RSocketClient;
-import io.rsocket.client.SetupProvider;
-import io.rsocket.transport.TransportClient;
 import io.rsocket.util.PayloadImpl;
-import io.reactivex.subscribers.TestSubscriber;
 import org.junit.rules.ExternalResource;
 import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
 import reactor.core.publisher.Flux;
 
-import java.net.SocketAddress;
 import java.nio.charset.StandardCharsets;
-import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
+import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static org.junit.Assert.fail;
 
 
-public class ClientSetupRule extends ExternalResource {
+public class ClientSetupRule<T> extends ExternalResource {
 
-    private final Callable<SocketAddress> serverStarter;
-    private final Function<SocketAddress, TransportClient> clientFactory;
-    private SocketAddress serverAddress;
-    private RSocket reactiveSocket;
-    private RSocketClient reactiveSocketClient;
+    private Supplier<T> address;
+    private Function<T, RSocket> rSocketClient;
+    private Consumer<T> rSocketServer;
 
-    public ClientSetupRule(Function<SocketAddress, TransportClient> clientFactory, Callable<SocketAddress> serverStarter) {
-        this.clientFactory = clientFactory;
-        this.serverStarter = serverStarter;
+    private RSocket client;
+
+    public ClientSetupRule(Supplier<T> address, Function<T, RSocket> rSocketClient, Consumer<T> rSocketServer) {
+        this.address = address;
+        this.rSocketClient = rSocketClient;
+        this.rSocketServer = rSocketServer;
     }
 
     @Override
-    public Statement apply(final Statement base, Description description) {
+    public Statement apply(Statement base, Description description) {
         return new Statement() {
             @Override
             public void evaluate() throws Throwable {
-                serverAddress = serverStarter.call();
-                TransportClient client = clientFactory.apply(serverAddress);
-                SetupProvider setup = SetupProvider.keepAlive(KeepAliveProvider.never()).disableLease();
-                reactiveSocketClient = RSocketClient.create(client, setup);
+                rSocketServer.accept(address.get());
+                client = rSocketClient.apply(address.get());
                 base.evaluate();
             }
         };
     }
 
-    public RSocketClient getClient() {
-        return reactiveSocketClient;
-    }
-
-    public SocketAddress getServerAddress() {
-        return serverAddress;
-    }
-
-    public RSocket getRSocket() {
-        if (null == reactiveSocket) {
-            reactiveSocket = reactiveSocketClient.connect().block();
-        }
-        return reactiveSocket;
+    private RSocket getRSocket() {
+        return client;
     }
 
     public void testFireAndForget(int count) {
@@ -117,11 +101,11 @@ public class ClientSetupRule extends ExternalResource {
         Flux.range(1, count)
             .flatMap(i ->
                 getRSocket()
-                .requestResponse(new PayloadImpl("hello", "metadata"))
-                .map(payload -> StandardCharsets.UTF_8.decode(payload.getData()).toString())
+                    .requestResponse(new PayloadImpl("hello", "metadata"))
+                    .map(payload -> StandardCharsets.UTF_8.decode(payload.getData()).toString())
             )
-                .doOnError(Throwable::printStackTrace)
-                .subscribe(ts);
+            .doOnError(Throwable::printStackTrace)
+            .subscribe(ts);
 
         await(ts);
         ts.assertTerminated();

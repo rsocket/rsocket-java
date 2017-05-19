@@ -14,16 +14,12 @@
 package io.rsocket.tckdrivers.client;
 
 import io.rsocket.RSocket;
-import io.rsocket.transport.netty.client.TcpTransportClient;
+import io.rsocket.RSocketFactory;
+import io.rsocket.transport.netty.client.TcpClientTransport;
 
-import io.rsocket.client.RSocketClient;
-import io.reactivex.Flowable;
-import io.rsocket.client.KeepAliveProvider;
-import io.rsocket.client.SetupProvider;
-
-import reactor.ipc.netty.tcp.TcpClient;
-
-import java.net.*;
+import java.net.MalformedURLException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.List;
 
 
@@ -59,12 +55,11 @@ public class JavaTCPClient {
      */
     public static RSocket createClient() {
         if ("tcp".equals(uri.getScheme())) {
-            SocketAddress address = new InetSocketAddress(uri.getHost(), uri.getPort());
-            RSocketClient client = RSocketClient.create(TcpTransportClient.create(TcpClient.create(options ->
-            options.connect((InetSocketAddress)address))),
-                    SetupProvider.keepAlive(KeepAliveProvider.never()).disableLease());
-            RSocket socket = Flowable.fromPublisher(client.connect()).singleOrError().blockingGet();
-            return socket;
+            return RSocketFactory
+                .connect()
+                .transport(TcpClientTransport.create(uri.getHost(), uri.getPort()))
+                .start()
+                .block();
         }
         else {
             throw new UnsupportedOperationException("uri unsupported: " + uri);
