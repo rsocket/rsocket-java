@@ -16,7 +16,7 @@
 
 package io.rsocket;
 
-public class StreamIdSupplier {
+final class StreamIdSupplier {
 
     private int streamId;
 
@@ -24,20 +24,20 @@ public class StreamIdSupplier {
         this.streamId = streamId;
     }
 
-    public synchronized int nextStreamId() {
+    synchronized int nextStreamId() {
         streamId += 2;
         return streamId;
     }
 
-    public synchronized boolean isBeforeOrCurrent(int streamId) {
+    synchronized boolean isBeforeOrCurrent(int streamId) {
         return this.streamId >= streamId && streamId > 0;
     }
 
-    public static StreamIdSupplier clientSupplier() {
+    static StreamIdSupplier clientSupplier() {
         return new StreamIdSupplier(-1);
     }
 
-    public static StreamIdSupplier serverSupplier() {
+    static StreamIdSupplier serverSupplier() {
         return new StreamIdSupplier(0);
     }
 }

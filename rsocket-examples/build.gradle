@@ -20,7 +20,7 @@ plugins {
 
 jmh {
     jmhVersion = '1.15'
-    jvmArgs = '-XX:+UseG1GC -Xmx16g -Xms16g -XX:+UnlockCommercialFeatures -XX:+FlightRecorder'
+    jvmArgs = '-XX:+UseG1GC -Xmx4g -Xms4g -XX:+UnlockCommercialFeatures -XX:+FlightRecorder'
     profilers = ['gc']
     zip64 = true
     warmupBatchSize = 10
@@ -30,13 +30,9 @@ jmh {
 
 dependencies {
     compile project(':rsocket-core')
-    compile project(':rsocket-client')
-    compile project(':rsocket-discovery-eureka')
     compile project(':rsocket-spectator')
     compile project(':rsocket-transport-netty')
     compile project(':rsocket-transport-local')
-
-    compile project(':rsocket-test')
 
     compile 'org.slf4j:slf4j-log4j12:1.7.21'
 

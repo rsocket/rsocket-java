@@ -16,22 +16,23 @@
 
 package io.rsocket;
 
-import io.rsocket.client.KeepAliveProvider;
+import io.reactivex.subscribers.TestSubscriber;
 import io.rsocket.exceptions.InvalidRequestException;
 import io.rsocket.test.util.LocalDuplexConnection;
 import io.rsocket.util.PayloadImpl;
 import org.hamcrest.MatcherAssert;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExternalResource;
 import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
-import io.reactivex.subscribers.TestSubscriber;
+import org.reactivestreams.Publisher;
 import reactor.core.publisher.DirectProcessor;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.util.ArrayList;
+import java.util.concurrent.CountDownLatch;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
@@ -52,7 +53,6 @@ public class RSocketTest {
     }
 
     @Test(timeout = 2000)
-    @Ignore
     public void testHandlerEmitsError() {
         rule.setRequestAcceptor(new AbstractRSocket() {
             @Override
@@ -68,6 +68,22 @@ public class RSocketTest {
         rule.assertNoErrors();
     }
 
+    @Test
+    public void testChannel() throws Exception {
+        CountDownLatch latch = new CountDownLatch(10);
+        Flux<Payload> requests = Flux
+            .range(0, 10)
+            .map(i -> new PayloadImpl("streaming in -> " + i));
+
+        Flux<Payload> responses = rule.crs.requestChannel(requests);
+
+        responses
+            .doOnNext(p -> latch.countDown())
+            .subscribe();
+
+        latch.await();
+    }
+
     private static TestSubscriber<Payload> await(TestSubscriber<Payload> subscriber) {
         try {
             return subscriber.await();
@@ -79,8 +95,8 @@ public class RSocketTest {
 
     public static class SocketRule extends ExternalResource {
 
-        private ClientRSocket crs;
-        private ServerRSocket srs;
+        private RSocketClient crs;
+        private RSocketServer srs;
         private RSocket requestAcceptor;
         DirectProcessor<Frame> serverProcessor;
         DirectProcessor<Frame> clientProcessor;
@@ -110,16 +126,23 @@ public class RSocketTest {
                 public Mono<Payload> requestResponse(Payload payload) {
                     return Mono.just(payload);
                 }
+
+                @Override
+                public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
+                    Flux
+                        .from(payloads)
+                        .map(payload -> new PayloadImpl("server got -> [" + payload.toString() + "]"))
+                        .subscribe();
+
+                    return Flux.range(1, 10).map(payload -> new PayloadImpl("server got -> [" + payload.toString() + "]"));
+                }
             };
 
-            srs = new ServerRSocket(serverConnection, requestAcceptor,
+            srs = new RSocketServer(serverConnection, requestAcceptor,
                 throwable -> serverErrors.add(throwable));
-            srs.start();
 
-            crs = new ClientRSocket(clientConnection,
-                                           throwable -> clientErrors.add(throwable), StreamIdSupplier.clientSupplier(),
-                                           KeepAliveProvider.never());
-            crs.start(lease -> {});
+            crs = new RSocketClient(clientConnection,
+                                           throwable -> clientErrors.add(throwable), StreamIdSupplier.clientSupplier());
         }
 
         public void setRequestAcceptor(RSocket requestAcceptor) {

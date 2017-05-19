@@ -17,61 +17,54 @@ import io.rsocket.AbstractRSocket;
 import io.rsocket.ConnectionSetupPayload;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
-import io.rsocket.client.RSocketClient;
-import io.rsocket.lease.DisabledLeaseAcceptingSocket;
-import io.rsocket.lease.LeaseEnforcingSocket;
-import io.rsocket.server.RSocketServer;
-import io.rsocket.server.RSocketServer.SocketAcceptor;
-import io.rsocket.transport.TransportServer.StartedServer;
-import io.rsocket.transport.netty.client.TcpTransportClient;
-import io.rsocket.transport.netty.server.TcpTransportServer;
+import io.rsocket.RSocketFactory;
+import io.rsocket.SocketAcceptor;
+import io.rsocket.transport.netty.client.TcpClientTransport;
+import io.rsocket.transport.netty.server.TcpServerTransport;
 import io.rsocket.util.PayloadImpl;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
-import reactor.ipc.netty.tcp.TcpClient;
-import reactor.ipc.netty.tcp.TcpServer;
+import reactor.core.publisher.Mono;
 
-import java.net.InetSocketAddress;
-import java.net.SocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-
-import static io.rsocket.client.KeepAliveProvider.*;
-import static io.rsocket.client.SetupProvider.*;
 
 public final class ChannelEchoClient {
 
     public static void main(String[] args) {
-        StartedServer server = RSocketServer.create(TcpTransportServer.create(TcpServer.create()))
-                                                   .start(new SocketAcceptorImpl());
+        RSocketFactory
+            .receive()
+            .acceptor(new SocketAcceptorImpl())
+            .transport(TcpServerTransport.create("localhost", 7000))
+            .start()
+            .subscribe();
 
-        SocketAddress address = server.getServerAddress();
-        RSocket socket = RSocketClient.create(
-                TcpTransportClient.create(TcpClient.create(options -> options.connect((InetSocketAddress)address))),
-                keepAlive(never()).disableLease()
-        ).connect().block();
+        RSocket socket = RSocketFactory
+            .connect()
+            .transport(TcpClientTransport.create("localhost", 7000))
+            .start()
+            .block();
 
-        socket.requestChannel(Flux.interval(Duration.ofMillis(100))
-                                                             .map(i -> "Hello - " + i)
-                                                             .<Payload>map(PayloadImpl::new)
-                                                             .repeat())
-                .map(payload -> StandardCharsets.UTF_8.decode(payload.getData()).toString())
-                .doOnNext(System.out::println)
-                .take(10)
-                .concatWith(socket.close().cast(String.class))
-                .blockLast();
+
+        socket.requestChannel(
+            Flux.interval(Duration.ofMillis(1000)).map(i -> new PayloadImpl("Hello")))
+            .map(payload -> StandardCharsets.UTF_8.decode(payload.getData()).toString())
+            .doOnNext(System.out::println)
+            .take(10)
+            .thenEmpty(socket.close())
+            .block();
     }
 
     private static class SocketAcceptorImpl implements SocketAcceptor {
         @Override
-        public LeaseEnforcingSocket accept(ConnectionSetupPayload setupPayload, RSocket reactiveSocket) {
-            return new DisabledLeaseAcceptingSocket(new AbstractRSocket() {
+        public Mono<RSocket> accept(ConnectionSetupPayload setupPayload, RSocket reactiveSocket) {
+            return Mono.just(new AbstractRSocket() {
                 @Override
                 public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
                     return Flux.from(payloads)
-                                   .map(payload -> StandardCharsets.UTF_8.decode(payload.getData()).toString())
-                                   .map(s -> "Echo: " + s)
-                                   .map(PayloadImpl::new);
+                        .map(payload -> StandardCharsets.UTF_8.decode(payload.getData()).toString())
+                        .map(s -> "Echo: " + s)
+                        .map(PayloadImpl::new);
                 }
             });
         }

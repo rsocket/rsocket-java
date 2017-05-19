@@ -18,29 +18,21 @@ package io.rsocket.test;
 
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
-import io.rsocket.client.RSocketClient;
 import io.rsocket.util.PayloadImpl;
 import org.HdrHistogram.Recorder;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 import java.time.Duration;
 
 public class PingClient {
 
     private final Payload payload;
-    private final RSocketClient client;
-    private RSocket reactiveSocket;
+    private final Mono<RSocket> client;
 
-    public PingClient(RSocketClient client) {
+    public PingClient(Mono<RSocket> client) {
         this.client = client;
         this.payload = new PayloadImpl("hello");
-    }
-
-    public PingClient connect() {
-        if (null == reactiveSocket) {
-            reactiveSocket = client.connect().block();
-        }
-        return this;
     }
 
     public Recorder startTracker(Duration interval) {
@@ -57,16 +49,17 @@ public class PingClient {
     }
 
     public Flux<Payload> startPingPong(int count, final Recorder histogram) {
-        connect();
-        return Flux.range(1, count)
+        return client
+            .flatMapMany(rsocket -> Flux.range(1, count)
                 .flatMap(i -> {
                     long start = System.nanoTime();
-                    return reactiveSocket.requestResponse(payload)
+                    return rsocket
+                        .requestResponse(payload)
                         .doFinally(signalType -> {
                             long diff = System.nanoTime() - start;
                             histogram.recordValue(diff);
                         });
-                }, 16)
+                }, 16) )
                 .doOnError(Throwable::printStackTrace);
     }
 }

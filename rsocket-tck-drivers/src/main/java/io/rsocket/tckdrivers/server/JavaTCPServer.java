@@ -13,7 +13,7 @@
 
 package io.rsocket.tckdrivers.server;
 
-import io.rsocket.transport.netty.server.TcpTransportServer;
+import io.rsocket.transport.netty.server.TcpServerTransport;
 
 import reactor.ipc.netty.tcp.TcpServer;
 
@@ -38,7 +38,7 @@ public class JavaTCPServer {
             file = realfile;
         }
 
-        TcpTransportServer server = TcpTransportServer.create(TcpServer.create(port));
+        TcpServerTransport server = TcpServerTransport.create(TcpServer.create(port));
 
         JavaServerDriver jsd =
                 new JavaServerDriver(file, server, mutex);

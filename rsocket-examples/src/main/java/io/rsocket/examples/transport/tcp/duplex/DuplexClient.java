@@ -16,55 +16,44 @@ package io.rsocket.examples.transport.tcp.duplex;
 import io.rsocket.AbstractRSocket;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
-import io.rsocket.client.RSocketClient;
-import io.rsocket.client.RSocketClient.SocketAcceptor;
-import io.rsocket.lease.DisabledLeaseAcceptingSocket;
-import io.rsocket.lease.LeaseEnforcingSocket;
-import io.rsocket.server.RSocketServer;
-import io.rsocket.transport.TransportServer.StartedServer;
-import io.rsocket.transport.netty.client.TcpTransportClient;
-import io.rsocket.transport.netty.server.TcpTransportServer;
+import io.rsocket.RSocketFactory;
+import io.rsocket.transport.netty.client.TcpClientTransport;
+import io.rsocket.transport.netty.server.TcpServerTransport;
 import io.rsocket.util.PayloadImpl;
 import reactor.core.publisher.Flux;
-import reactor.ipc.netty.tcp.TcpClient;
-import reactor.ipc.netty.tcp.TcpServer;
+import reactor.core.publisher.Mono;
 
-import java.net.InetSocketAddress;
-import java.net.SocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-
-import static io.rsocket.client.KeepAliveProvider.*;
-import static io.rsocket.client.SetupProvider.*;
 
 public final class DuplexClient {
 
     public static void main(String[] args) {
-        StartedServer server = RSocketServer.create(TcpTransportServer.create(TcpServer.create()))
-                                                  .start((setupPayload, reactiveSocket) -> {
-                                                      reactiveSocket.requestStream(new PayloadImpl("Hello-Bidi"))
-                                                              .map(payload -> StandardCharsets.UTF_8.decode(payload.getData()).toString())
-                                                              .log()
-                                                              .subscribe();
-                                                      return new DisabledLeaseAcceptingSocket(new AbstractRSocket() { });
-                                                  });
+        RSocketFactory
+            .receive()
+            .acceptor((setup, reactiveSocket) -> {
+                reactiveSocket.requestStream(new PayloadImpl("Hello-Bidi"))
+                    .map(payload -> StandardCharsets.UTF_8.decode(payload.getData()).toString())
+                    .log()
+                    .subscribe();
 
-        SocketAddress address = server.getServerAddress();
+                return Mono.just(new AbstractRSocket() {});
+            })
+            .transport(TcpServerTransport.create("localhost", 7000))
+            .start()
+            .subscribe();
 
-        RSocketClient rsclient = RSocketClient.createDuplex(TcpTransportClient.create(TcpClient.create(options ->
-                options.connect((InetSocketAddress)address))), new SocketAcceptor() {
-            @Override
-            public LeaseEnforcingSocket accept(RSocket reactiveSocket) {
-                return new DisabledLeaseAcceptingSocket(new AbstractRSocket() {
-                    @Override
-                    public Flux<Payload> requestStream(Payload payload) {
-                        return Flux.interval(Duration.ofSeconds(1)).map(aLong -> new PayloadImpl("Bi-di Response => " + aLong));
-                    }
-                });
-            }
-        }, keepAlive(never()).disableLease());
-
-        RSocket socket = rsclient.connect().block();
+        RSocket socket = RSocketFactory
+            .connect()
+            .acceptor(new AbstractRSocket() {
+                @Override
+                public Flux<Payload> requestStream(Payload payload) {
+                    return Flux.interval(Duration.ofSeconds(1)).map(aLong -> new PayloadImpl("Bi-di Response => " + aLong));
+                }
+            })
+            .transport(TcpClientTransport.create("localhost", 7000))
+            .start()
+            .block();
 
         socket.onClose().block();
     }

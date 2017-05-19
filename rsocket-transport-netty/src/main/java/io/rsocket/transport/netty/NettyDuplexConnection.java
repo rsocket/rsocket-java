@@ -58,9 +58,8 @@ public class NettyDuplexConnection implements DuplexConnection {
     @Override
     public Mono<Void> close() {
         return Mono.fromRunnable(() -> {
-            if (!context.isDisposed()) {
-                context.channel().close();
-            }
+            context.dispose();
+            context.channel().close();
         });
     }
 
