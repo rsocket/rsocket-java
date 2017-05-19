@@ -15,14 +15,14 @@
  */
 package io.rsocket;
 
+import javax.annotation.Nullable;
 import java.nio.ByteBuffer;
 
 /**
  * Payload of a {@link Frame}.
  */
 public interface Payload {
+    @Nullable ByteBuffer getMetadata();
 
-    ByteBuffer getMetadata();
-
-    ByteBuffer getData();
+    @Nullable ByteBuffer getData();
 }

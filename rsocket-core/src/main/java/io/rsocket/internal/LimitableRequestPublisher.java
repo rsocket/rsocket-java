@@ -6,6 +6,7 @@ import org.reactivestreams.Subscription;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Operators;
 
+import javax.annotation.Nullable;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -22,7 +23,7 @@ public class LimitableRequestPublisher<T> extends Flux<T> implements Subscriptio
 
     private volatile boolean subscribed;
 
-    private volatile Subscription internalSubscription;
+    private volatile @Nullable Subscription internalSubscription;
 
     private LimitableRequestPublisher(Publisher<T> source) {
         this.source = source;

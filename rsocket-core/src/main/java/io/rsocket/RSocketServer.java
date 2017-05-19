@@ -32,6 +32,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.UnicastProcessor;
 
+import javax.annotation.Nullable;
 import java.util.function.Consumer;
 
 /**
@@ -326,7 +327,7 @@ class RSocketServer implements RSocket {
         sendingSubscriptions.put(streamId, subscription);
     }
 
-    private synchronized Subscription getSubscription(int streamId) {
+    private synchronized @Nullable Subscription getSubscription(int streamId) {
         return sendingSubscriptions.get(streamId);
     }
 
@@ -338,7 +339,7 @@ class RSocketServer implements RSocket {
         channelProcessors.put(streamId, processor);
     }
 
-    private synchronized UnicastProcessor<Payload> getChannelProcessor(int streamId) {
+    private synchronized @Nullable UnicastProcessor<Payload> getChannelProcessor(int streamId) {
         return channelProcessors.get(streamId);
     }
 

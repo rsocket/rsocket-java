@@ -30,6 +30,7 @@ import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
 import reactor.core.publisher.UnicastProcessor;
 
+import javax.annotation.Nullable;
 import java.nio.channels.ClosedChannelException;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -54,7 +55,7 @@ class RSocketClient implements RSocket {
     private final IntObjectHashMap<Subscriber<Payload>> receivers;
     private final AtomicInteger missedAckCounter;
 
-    private Disposable keepAliveSendSub;
+    private @Nullable Disposable keepAliveSendSub;
 
     private volatile long timeLastTickSentMs;
 
@@ -218,7 +219,7 @@ class RSocketClient implements RSocket {
         return started.thenMany(new Supplier<Publisher<Payload>>() {
             final UnicastProcessor<Payload> receiver = UnicastProcessor.create();
             final int streamId = streamIdSupplier.nextStreamId();
-            volatile MonoProcessor<Void> subscribedRequests;
+            volatile @Nullable MonoProcessor<Void> subscribedRequests;
             boolean firstRequest = true;
 
             boolean isValidToSendFrame() {

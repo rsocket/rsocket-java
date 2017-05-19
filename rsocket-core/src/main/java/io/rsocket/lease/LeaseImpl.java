@@ -18,6 +18,7 @@ package io.rsocket.lease;
 
 import io.rsocket.Frame;
 
+import javax.annotation.Nullable;
 import java.nio.ByteBuffer;
 
 public final class LeaseImpl implements Lease {
@@ -25,7 +26,7 @@ public final class LeaseImpl implements Lease {
     private final int allowedRequests;
     private final int ttl;
     private final long expiry;
-    private final ByteBuffer metadata;
+    private final @Nullable ByteBuffer metadata;
 
     public LeaseImpl(int allowedRequests, int ttl) {
         this(allowedRequests, ttl, null);

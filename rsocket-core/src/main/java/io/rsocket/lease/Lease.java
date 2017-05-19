@@ -16,6 +16,7 @@
 
 package io.rsocket.lease;
 
+import javax.annotation.Nullable;
 import java.nio.ByteBuffer;
 
 /**
@@ -49,7 +50,7 @@ public interface Lease {
      *
      * @return Metadata for the lease.
      */
-    ByteBuffer getMetadata();
+    @Nullable ByteBuffer getMetadata();
 
     /**
      * Checks if the lease is expired now.
