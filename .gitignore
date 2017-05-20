@@ -69,3 +69,10 @@ atlassian-ide-plugin.xml
 
 #.gitignore in subdirectory
 .gitignore
+
+### infer ###
+# infer- http://fbinfer.com/
+infer-out
+*/infer-out
+.inferConfig
+*/.inferConfig
