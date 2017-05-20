@@ -17,7 +17,6 @@ buildscript {
     repositories { jcenter() }
     dependencies {
         classpath 'io.reactivesocket:gradle-nebula-plugin-reactivesocket:1.0.6'
-        classpath "com.uber:infer-plugin:0.7.4"
     }
 }
 
@@ -28,7 +27,6 @@ apply plugin: 'reactivesocket-project'
 subprojects {
     apply plugin: 'reactivesocket-project'
     apply plugin: 'java'
-    apply plugin: 'com.uber.infer.java'
 
     project.group = 'io.rsocket'
 
