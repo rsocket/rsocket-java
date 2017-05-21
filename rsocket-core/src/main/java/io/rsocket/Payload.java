@@ -21,7 +21,6 @@ import java.nio.ByteBuffer;
  * Payload of a {@link Frame}.
  */
 public interface Payload {
-
     ByteBuffer getMetadata();
 
     ByteBuffer getData();

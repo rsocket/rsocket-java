@@ -34,6 +34,7 @@ import io.rsocket.frame.VersionFlyweight;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.annotation.Nullable;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 
@@ -57,7 +58,7 @@ public class Frame implements ByteBufHolder {
     };
 
     private final Handle<Frame> handle;
-    private ByteBuf content;
+    private @Nullable ByteBuf content;
 
     private Frame(final Handle<Frame> handle) {
         this.handle = handle;
@@ -159,7 +160,7 @@ public class Frame implements ByteBufHolder {
      * provided to you via {@link ResourceLeakDetector}.
      */
     @Override
-    public Frame touch(Object hint) {
+    public Frame touch(@Nullable Object hint) {
         content.touch(hint);
         return this;
     }
