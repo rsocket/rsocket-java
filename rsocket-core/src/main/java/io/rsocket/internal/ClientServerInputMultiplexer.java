@@ -44,8 +44,10 @@ public class ClientServerInputMultiplexer {
     private final DuplexConnection streamZeroConnection;
     private final DuplexConnection serverConnection;
     private final DuplexConnection clientConnection;
+    private final DuplexConnection source;
 
     public ClientServerInputMultiplexer(DuplexConnection source) {
+        this.source = source;
         final MonoProcessor<Flux<Frame>> streamZero = MonoProcessor.create();
         final MonoProcessor<Flux<Frame>> server = MonoProcessor.create();
         final MonoProcessor<Flux<Frame>> client = MonoProcessor.create();
@@ -100,6 +102,10 @@ public class ClientServerInputMultiplexer {
 
     public DuplexConnection asStreamZeroConnection() {
         return streamZeroConnection;
+    }
+
+    public Mono<Void> close() {
+        return source.close();
     }
 
     private static class InternalDuplexConnection implements DuplexConnection {
