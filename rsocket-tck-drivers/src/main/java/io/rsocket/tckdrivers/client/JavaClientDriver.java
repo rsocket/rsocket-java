@@ -53,18 +53,18 @@ public class JavaClientDriver {
     private final Map<String, MySubscriber<Payload>> payloadSubscribers;
     private final Map<String, MySubscriber<Void>> fnfSubscribers;
     private final Map<String, String> idToType;
-    private final Supplier<RSocket> rsocketClient;
+    private final Supplier<RSocket> createClient;
     private final List<String> testList;
     private final String AGENT = "[CLIENT]";
     private ConsoleUtils consoleUtils = new ConsoleUtils(AGENT);
 
-    public JavaClientDriver(String path, RSocket client, List<String> tests)
+    public JavaClientDriver(String path, Supplier<RSocket> createClient, List<String> tests)
             throws FileNotFoundException {
         this.reader = new BufferedReader(new FileReader(path));
         this.payloadSubscribers = new HashMap<>();
         this.fnfSubscribers = new HashMap<>();
         this.idToType = new HashMap<>();
-        this.rsocketClient = ()->client;
+        this.createClient = createClient;
         this.testList = tests;
     }
 
@@ -215,7 +215,7 @@ public class JavaClientDriver {
                 MySubscriber<Payload> rrsub = new MySubscriber<>(0L, AGENT);
                 payloadSubscribers.put(args[2], rrsub);
                 idToType.put(args[2], args[1]);
-                RSocket rrclient = rsocketClient.get();
+                RSocket rrclient = createClient.get();
                 consoleUtils.info("Sending RR with " + args[3] + " " + args[4]);
                 Publisher<Payload> rrpub = rrclient.requestResponse(new PayloadImpl(args[3], args[4]));
                 rrpub.subscribe(rrsub);
@@ -224,7 +224,7 @@ public class JavaClientDriver {
                 MySubscriber<Payload> rssub = new MySubscriber<>(0L, AGENT);
                 payloadSubscribers.put(args[2], rssub);
                 idToType.put(args[2], args[1]);
-                RSocket rsclient = rsocketClient.get();
+                RSocket rsclient = createClient.get();
                 consoleUtils.info("Sending RS with " + args[3] + " " + args[4]);
                 Publisher<Payload> rspub = rsclient.requestStream(new PayloadImpl(args[3], args[4]));
                 rspub.subscribe(rssub);
@@ -233,7 +233,7 @@ public class JavaClientDriver {
                 MySubscriber<Void> fnfsub = new MySubscriber<>(0L, AGENT);
                 fnfSubscribers.put(args[2], fnfsub);
                 idToType.put(args[2], args[1]);
-                RSocket fnfclient = rsocketClient.get();
+                RSocket fnfclient = createClient.get();
                 consoleUtils.info("Sending fnf with " + args[3] + " " + args[4]);
                 Publisher<Void> fnfpub = fnfclient.fireAndForget(new PayloadImpl(args[3], args[4]));
                 fnfpub.subscribe(fnfsub);
@@ -267,7 +267,7 @@ public class JavaClientDriver {
 
         // we now create the publisher that the server will subscribe to with its own subscriber
         // we want to give that subscriber a subscription that the client will use to send data to the server
-        RSocket client = rsocketClient.get();
+        RSocket client = createClient.get();
         AtomicReference<ParseChannelThread> mypct = new AtomicReference<>();
         Publisher<Payload> pub = client.requestChannel(new Publisher<Payload>() {
             @Override
@@ -299,7 +299,7 @@ public class JavaClientDriver {
     private void handleEchoChannel(String[] args) {
         Payload initPayload = new PayloadImpl(args[1], args[2]);
         MySubscriber<Payload> testsub = new MySubscriber<>(1L, AGENT);
-        RSocket client = rsocketClient.get();
+        RSocket client = createClient.get();
         Publisher<Payload> pub = client.requestChannel(new Publisher<Payload>() {
             @Override
             public void subscribe(Subscriber<? super Payload> s) {
@@ -519,7 +519,7 @@ public class JavaClientDriver {
 
     private void handleEOF() {
         MySubscriber<Void> fnfsub = new MySubscriber<>(0L, AGENT);
-        RSocket fnfclient = rsocketClient.get();
+        RSocket fnfclient = createClient.get();
         Publisher<Void> fnfpub = fnfclient.fireAndForget(new PayloadImpl("shutdown", "shutdown"));
         fnfpub.subscribe(fnfsub);
         fnfsub.request(1);
