@@ -37,7 +37,8 @@ public class JavaTCPClient {
         if (realfile != null) file = realfile;
         try {
             setURI(new URI("tcp://" + host + ":" + port + "/rs"));
-            JavaClientDriver jd = new JavaClientDriver(file, JavaTCPClient::createClient, tests);
+            RSocket client = createClient();
+            JavaClientDriver jd = new JavaClientDriver(file, ()->client, tests);
             return jd.runTests();
         } catch (Exception e) {
             e.printStackTrace();
