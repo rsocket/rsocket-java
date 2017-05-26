@@ -33,7 +33,7 @@ public class TcpIntegrationTest {
 
     @Before
     public void startup() {
-        TcpServerTransport serverTransport = TcpServerTransport.create("localhost", 0);
+        TcpServerTransport serverTransport = TcpServerTransport.create(0);
         server = RSocketFactory
             .receive()
             .acceptor((setup, sendingSocket) -> Mono.just(new RSocketProxy(handler)))
@@ -41,7 +41,7 @@ public class TcpIntegrationTest {
             .start()
             .block();
 
-        address = serverTransport.address();
+        address = serverTransport.address().block();
     }
 
     private RSocket buildClient() {

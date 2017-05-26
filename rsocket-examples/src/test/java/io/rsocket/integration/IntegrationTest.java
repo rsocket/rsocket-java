@@ -33,6 +33,7 @@ import org.junit.Test;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.net.InetSocketAddress;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
@@ -82,6 +83,8 @@ public class IntegrationTest {
         requestCount = new AtomicInteger();
         disconnectionCounter = new CountDownLatch(1);
 
+        TcpServerTransport serverTransport = TcpServerTransport.create(0);
+
         server = RSocketFactory
             .receive()
             .acceptor((setup, sendingSocket) -> {
@@ -104,13 +107,15 @@ public class IntegrationTest {
                     }
                 });
             })
-            .transport(TcpServerTransport.create("localhost", 8000))
+            .transport(serverTransport)
             .start()
             .block();
 
+        InetSocketAddress address = serverTransport.address().block();
+
         client = RSocketFactory
             .connect()
-            .transport(TcpClientTransport.create("localhost", 8000))
+            .transport(TcpClientTransport.create(address.getHostString(), address.getPort()))
             .start()
             .block();
     }

@@ -21,6 +21,8 @@ import io.rsocket.transport.ServerTransport;
 import io.rsocket.transport.netty.NettyDuplexConnection;
 import io.rsocket.transport.netty.RSocketLengthCodec;
 import reactor.core.publisher.Mono;
+import reactor.core.publisher.MonoProcessor;
+import reactor.ipc.netty.NettyContext;
 import reactor.ipc.netty.tcp.TcpServer;
 
 import javax.annotation.Nullable;
@@ -28,7 +30,8 @@ import java.net.InetSocketAddress;
 
 public class TcpServerTransport implements ServerTransport {
     TcpServer server;
-    private @Nullable InetSocketAddress address;
+
+    private final MonoProcessor<InetSocketAddress> address = MonoProcessor.create();
 
     private TcpServerTransport(TcpServer server) {
         this.server = server;
@@ -51,21 +54,21 @@ public class TcpServerTransport implements ServerTransport {
 
     @Override
     public Mono<Closeable> start(ConnectionAcceptor acceptor) {
-        return server
-            .newHandler((in, out) -> {
-                in.context().addHandler("server-length-codec", new RSocketLengthCodec());
-                NettyDuplexConnection connection = new NettyDuplexConnection(in, out, in.context());
-                acceptor.apply(connection).subscribe();
+        Mono<? extends NettyContext> serverMono = server
+                .newHandler((in, out) -> {
+                    in.context().addHandler("server-length-codec", new RSocketLengthCodec());
+                    NettyDuplexConnection connection = new NettyDuplexConnection(in, out, in.context());
+                    acceptor.apply(connection).subscribe();
 
-                return out.neverComplete();
-            })
-            .doOnNext(nc -> {
-                address = nc.address();
-            })
-            .map(NettyContextClosable::new);
+                    return out.neverComplete();
+                });
+
+        serverMono.map(s -> s.address()).subscribe(address);
+
+        return serverMono.map(NettyContextClosable::new);
     }
 
-    public @Nullable InetSocketAddress address() {
+    public Mono<InetSocketAddress> address() {
         return address;
     }
 }
