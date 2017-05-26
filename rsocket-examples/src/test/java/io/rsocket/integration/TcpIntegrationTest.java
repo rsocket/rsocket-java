@@ -82,9 +82,6 @@ public class TcpIntegrationTest {
 
         RSocket client = buildClient();
 
-        // TODO without this failure is always a timeout
-        Thread.sleep(1000);
-
         Payload result = client.requestStream(new PayloadImpl("REQUEST", "META")).blockLast();
 
         assertEquals("RESPONSE", StandardCharsets.UTF_8.decode(result.getData()).toString());
