@@ -17,6 +17,7 @@ import reactor.core.publisher.Mono;
 import reactor.core.publisher.UnicastProcessor;
 import reactor.core.scheduler.Schedulers;
 
+import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
@@ -28,21 +29,25 @@ public class TcpIntegrationTest {
     private AbstractRSocket handler;
 
     private Closeable server;
+    private InetSocketAddress address;
 
     @Before
     public void startup() {
+        TcpServerTransport serverTransport = TcpServerTransport.create("localhost", 0);
         server = RSocketFactory
             .receive()
             .acceptor((setup, sendingSocket) -> Mono.just(new RSocketProxy(handler)))
-            .transport(TcpServerTransport.create("localhost", 8000))
+            .transport(serverTransport)
             .start()
             .block();
+
+        address = serverTransport.address();
     }
 
     private RSocket buildClient() {
         return RSocketFactory
             .connect()
-            .transport(TcpClientTransport.create("localhost", 8000))
+            .transport(TcpClientTransport.create(address.getHostString(), address.getPort()))
             .start()
             .block();
     }
@@ -76,6 +81,9 @@ public class TcpIntegrationTest {
         };
 
         RSocket client = buildClient();
+
+        // TODO without this failure is always a timeout
+        Thread.sleep(1000);
 
         Payload result = client.requestStream(new PayloadImpl("REQUEST", "META")).blockLast();
 

@@ -23,8 +23,12 @@ import io.rsocket.transport.netty.RSocketLengthCodec;
 import reactor.core.publisher.Mono;
 import reactor.ipc.netty.tcp.TcpServer;
 
+import javax.annotation.Nullable;
+import java.net.InetSocketAddress;
+
 public class TcpServerTransport implements ServerTransport {
     TcpServer server;
+    private @Nullable InetSocketAddress address;
 
     private TcpServerTransport(TcpServer server) {
         this.server = server;
@@ -55,7 +59,13 @@ public class TcpServerTransport implements ServerTransport {
 
                 return out.neverComplete();
             })
+            .doOnNext(nc -> {
+                address = nc.address();
+            })
             .map(NettyContextClosable::new);
     }
 
+    public @Nullable InetSocketAddress address() {
+        return address;
+    }
 }
