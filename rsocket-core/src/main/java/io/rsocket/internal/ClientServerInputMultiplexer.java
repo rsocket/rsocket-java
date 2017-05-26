@@ -21,12 +21,15 @@ import io.rsocket.Frame;
 import io.rsocket.FrameType;
 import io.rsocket.Plugins;
 import io.rsocket.Plugins.DuplexConnectionInterceptor.Type;
+import io.rsocket.stat.RSocketStats;
 import org.reactivestreams.Publisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
+
+import javax.annotation.Nullable;
 
 /**
  * {@link DuplexConnection#receive()} is a single stream on which the following type of frames arrive:
@@ -45,15 +48,17 @@ public class ClientServerInputMultiplexer {
     private final DuplexConnection serverConnection;
     private final DuplexConnection clientConnection;
 
-    public ClientServerInputMultiplexer(DuplexConnection source) {
+    private @Nullable RSocketStats stats;
+
+    public ClientServerInputMultiplexer(DuplexConnection source, RSocketStats stats) {
         final MonoProcessor<Flux<Frame>> streamZero = MonoProcessor.create();
         final MonoProcessor<Flux<Frame>> server = MonoProcessor.create();
         final MonoProcessor<Flux<Frame>> client = MonoProcessor.create();
 
         source = Plugins.DUPLEX_CONNECTION_INTERCEPTOR.apply(Type.SOURCE, source);
-        streamZeroConnection = Plugins.DUPLEX_CONNECTION_INTERCEPTOR.apply(Type.STREAM_ZERO, new InternalDuplexConnection(source, streamZero));
-        serverConnection = Plugins.DUPLEX_CONNECTION_INTERCEPTOR.apply(Type.SERVER, new InternalDuplexConnection(source, server));
-        clientConnection = Plugins.DUPLEX_CONNECTION_INTERCEPTOR.apply(Type.CLIENT, new InternalDuplexConnection(source, client));
+        streamZeroConnection = Plugins.DUPLEX_CONNECTION_INTERCEPTOR.apply(Type.STREAM_ZERO, new InternalDuplexConnection(source, streamZero, stats));
+        serverConnection = Plugins.DUPLEX_CONNECTION_INTERCEPTOR.apply(Type.SERVER, new InternalDuplexConnection(source, server, stats));
+        clientConnection = Plugins.DUPLEX_CONNECTION_INTERCEPTOR.apply(Type.CLIENT, new InternalDuplexConnection(source, client, stats));
 
         source
             .receive()
@@ -106,10 +111,12 @@ public class ClientServerInputMultiplexer {
         private final DuplexConnection source;
         private final MonoProcessor<Flux<Frame>> processor;
         private final boolean debugEnabled;
+        private final @Nullable RSocketStats stats;
 
-        public InternalDuplexConnection(DuplexConnection source, MonoProcessor<Flux<Frame>> processor) {
+        public InternalDuplexConnection(DuplexConnection source, MonoProcessor<Flux<Frame>> processor, RSocketStats stats) {
             this.source = source;
             this.processor = processor;
+            this.stats = stats;
             this.debugEnabled = LOGGER.isDebugEnabled();
         }
 
@@ -117,6 +124,10 @@ public class ClientServerInputMultiplexer {
         public Mono<Void> send(Publisher<Frame> frame) {
             if (debugEnabled) {
                 frame = Flux.from(frame).doOnNext(f -> LOGGER.debug("sending -> " + f.toString()));
+            }
+
+            if (stats != null) {
+                frame = Flux.from(frame).doOnNext(f -> stats.frameWritten(f));
             }
 
             return source.send(frame);
@@ -128,12 +139,20 @@ public class ClientServerInputMultiplexer {
                 LOGGER.debug("sending -> " + frame.toString());
             }
 
+            if (stats != null) {
+                stats.frameWritten(frame);
+            }
+
             return source.sendOne(frame);
         }
 
         @Override
         public Flux<Frame> receive() {
             return processor.flatMapMany(f -> {
+                if (stats != null) {
+                    f = f.doOnNext(frame -> stats.frameRead(frame));
+                }
+
                 if (debugEnabled) {
                     return f.doOnNext(frame -> LOGGER.debug("receiving -> " + frame.toString()));
                 } else {

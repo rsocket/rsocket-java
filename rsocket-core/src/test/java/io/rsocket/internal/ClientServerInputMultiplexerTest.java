@@ -1,6 +1,7 @@
 package io.rsocket.internal;
 
 import io.rsocket.Frame;
+import io.rsocket.stat.BaseStats;
 import io.rsocket.test.util.TestDuplexConnection;
 import org.junit.Before;
 import org.junit.Test;
@@ -16,7 +17,7 @@ public class ClientServerInputMultiplexerTest {
     @Before
     public void setup() {
         source = new TestDuplexConnection();
-        multiplexer = new ClientServerInputMultiplexer(source);
+        multiplexer = new ClientServerInputMultiplexer(source, new BaseStats());
     }
 
     @Test
