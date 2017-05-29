@@ -16,19 +16,13 @@
 
 package io.rsocket.transport.netty.server;
 
-import io.rsocket.Closeable;
 import io.rsocket.transport.ServerTransport;
 import io.rsocket.transport.netty.NettyDuplexConnection;
 import io.rsocket.transport.netty.RSocketLengthCodec;
 import reactor.core.publisher.Mono;
-import reactor.core.publisher.MonoProcessor;
-import reactor.ipc.netty.NettyContext;
 import reactor.ipc.netty.tcp.TcpServer;
 
-import javax.annotation.Nullable;
-import java.net.InetSocketAddress;
-
-public class TcpServerTransport implements ServerTransport<NettyContextClosable> {
+public class TcpServerTransport implements ServerTransport<NettyContextCloseable> {
     TcpServer server;
 
     private TcpServerTransport(TcpServer server) {
@@ -51,7 +45,7 @@ public class TcpServerTransport implements ServerTransport<NettyContextClosable>
     }
 
     @Override
-    public Mono<NettyContextClosable> start(ConnectionAcceptor acceptor) {
+    public Mono<NettyContextCloseable> start(ConnectionAcceptor acceptor) {
         return server
                 .newHandler((in, out) -> {
                     in.context().addHandler("server-length-codec", new RSocketLengthCodec());
@@ -59,6 +53,6 @@ public class TcpServerTransport implements ServerTransport<NettyContextClosable>
                     acceptor.apply(connection).subscribe();
 
                     return out.neverComplete();
-                }).map(NettyContextClosable::new);
+                }).map(NettyContextCloseable::new);
     }
 }

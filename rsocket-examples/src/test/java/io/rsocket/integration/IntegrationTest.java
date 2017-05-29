@@ -18,13 +18,12 @@ package io.rsocket.integration;
 
 import io.reactivex.subscribers.TestSubscriber;
 import io.rsocket.AbstractRSocket;
-import io.rsocket.Closeable;
 import io.rsocket.Payload;
 import io.rsocket.Plugins;
 import io.rsocket.RSocket;
 import io.rsocket.RSocketFactory;
 import io.rsocket.transport.netty.client.TcpClientTransport;
-import io.rsocket.transport.netty.server.NettyContextClosable;
+import io.rsocket.transport.netty.server.NettyContextCloseable;
 import io.rsocket.transport.netty.server.TcpServerTransport;
 import io.rsocket.util.PayloadImpl;
 import io.rsocket.util.RSocketProxy;
@@ -34,7 +33,6 @@ import org.junit.Test;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-import java.net.InetSocketAddress;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
@@ -46,7 +44,7 @@ import static org.junit.Assert.assertTrue;
 
 public class IntegrationTest {
 
-    private NettyContextClosable server;
+    private NettyContextCloseable server;
     private RSocket client;
     private AtomicInteger requestCount;
     private CountDownLatch disconnectionCounter;
@@ -111,7 +109,7 @@ public class IntegrationTest {
             .transport(serverTransport)
             .start()
             // TODO fix the Types through RSocketFactory.Start
-            .cast(NettyContextClosable.class)
+            .cast(NettyContextCloseable.class)
             .block();
 
         client = RSocketFactory

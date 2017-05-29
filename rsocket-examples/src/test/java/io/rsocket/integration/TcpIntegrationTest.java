@@ -6,7 +6,7 @@ import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.RSocketFactory;
 import io.rsocket.transport.netty.client.TcpClientTransport;
-import io.rsocket.transport.netty.server.NettyContextClosable;
+import io.rsocket.transport.netty.server.NettyContextCloseable;
 import io.rsocket.transport.netty.server.TcpServerTransport;
 import io.rsocket.util.PayloadImpl;
 import io.rsocket.util.RSocketProxy;
@@ -28,7 +28,7 @@ import static org.junit.Assert.assertFalse;
 public class TcpIntegrationTest {
     private AbstractRSocket handler;
 
-    private NettyContextClosable server;
+    private NettyContextCloseable server;
 
     @Before
     public void startup() {
@@ -40,7 +40,7 @@ public class TcpIntegrationTest {
         server = transport
             .start()
             // TODO fix the Types through RSocketFactory.Start
-            .cast(NettyContextClosable.class)
+            .cast(NettyContextCloseable.class)
             .block();
     }
 
