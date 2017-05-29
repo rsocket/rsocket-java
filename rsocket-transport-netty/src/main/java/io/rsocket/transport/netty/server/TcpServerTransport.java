@@ -52,15 +52,13 @@ public class TcpServerTransport implements ServerTransport<NettyContextClosable>
 
     @Override
     public Mono<NettyContextClosable> start(ConnectionAcceptor acceptor) {
-        Mono<? extends NettyContext> serverMono = server
+        return server
                 .newHandler((in, out) -> {
                     in.context().addHandler("server-length-codec", new RSocketLengthCodec());
                     NettyDuplexConnection connection = new NettyDuplexConnection(in, out, in.context());
                     acceptor.apply(connection).subscribe();
 
                     return out.neverComplete();
-                });
-
-        return serverMono.map(NettyContextClosable::new);
+                }).map(NettyContextClosable::new);
     }
 }

@@ -22,7 +22,7 @@ import io.rsocket.transport.netty.WebsocketDuplexConnection;
 import reactor.core.publisher.Mono;
 import reactor.ipc.netty.http.server.HttpServer;
 
-public class WebsocketServerTransport implements ServerTransport {
+public class WebsocketServerTransport implements ServerTransport<NettyContextClosable> {
     HttpServer server;
 
     private WebsocketServerTransport(HttpServer server) {
@@ -44,7 +44,7 @@ public class WebsocketServerTransport implements ServerTransport {
     }
 
     @Override
-    public Mono<Closeable> start(ServerTransport.ConnectionAcceptor acceptor) {
+    public Mono<NettyContextClosable> start(ServerTransport.ConnectionAcceptor acceptor) {
         return server
             .newHandler((request, response) ->
                 response.sendWebsocket((in, out) -> {

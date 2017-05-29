@@ -10,7 +10,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.Consumer;
 
-public class LocalServerTransport implements ServerTransport {
+public class LocalServerTransport implements ServerTransport<Closeable> {
     private static final ConcurrentMap<String, ServerDuplexConnectionAcceptor> registry = new ConcurrentHashMap<>();
 
     static ServerDuplexConnectionAcceptor findServer(String name) {
