@@ -6,6 +6,7 @@ import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.RSocketFactory;
 import io.rsocket.transport.netty.client.TcpClientTransport;
+import io.rsocket.transport.netty.server.NettyContextClosable;
 import io.rsocket.transport.netty.server.TcpServerTransport;
 import io.rsocket.util.PayloadImpl;
 import io.rsocket.util.RSocketProxy;
@@ -17,7 +18,6 @@ import reactor.core.publisher.Mono;
 import reactor.core.publisher.UnicastProcessor;
 import reactor.core.scheduler.Schedulers;
 
-import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
@@ -28,26 +28,26 @@ import static org.junit.Assert.assertFalse;
 public class TcpIntegrationTest {
     private AbstractRSocket handler;
 
-    private Closeable server;
-    private InetSocketAddress address;
+    private NettyContextClosable server;
 
     @Before
     public void startup() {
         TcpServerTransport serverTransport = TcpServerTransport.create(0);
-        server = RSocketFactory
+        RSocketFactory.Start<Closeable> transport = RSocketFactory
             .receive()
             .acceptor((setup, sendingSocket) -> Mono.just(new RSocketProxy(handler)))
-            .transport(serverTransport)
+            .transport(serverTransport);
+        server = transport
             .start()
+            // TODO fix the Types through RSocketFactory.Start
+            .cast(NettyContextClosable.class)
             .block();
-
-        address = serverTransport.address().block();
     }
 
     private RSocket buildClient() {
         return RSocketFactory
             .connect()
-            .transport(TcpClientTransport.create(address.getHostString(), address.getPort()))
+            .transport(TcpClientTransport.create(server.address()))
             .start()
             .block();
     }

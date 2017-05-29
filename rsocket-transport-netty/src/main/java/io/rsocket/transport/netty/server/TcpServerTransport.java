@@ -28,10 +28,8 @@ import reactor.ipc.netty.tcp.TcpServer;
 import javax.annotation.Nullable;
 import java.net.InetSocketAddress;
 
-public class TcpServerTransport implements ServerTransport {
+public class TcpServerTransport implements ServerTransport<NettyContextClosable> {
     TcpServer server;
-
-    private final MonoProcessor<InetSocketAddress> address = MonoProcessor.create();
 
     private TcpServerTransport(TcpServer server) {
         this.server = server;
@@ -53,7 +51,7 @@ public class TcpServerTransport implements ServerTransport {
     }
 
     @Override
-    public Mono<Closeable> start(ConnectionAcceptor acceptor) {
+    public Mono<NettyContextClosable> start(ConnectionAcceptor acceptor) {
         Mono<? extends NettyContext> serverMono = server
                 .newHandler((in, out) -> {
                     in.context().addHandler("server-length-codec", new RSocketLengthCodec());
@@ -63,12 +61,6 @@ public class TcpServerTransport implements ServerTransport {
                     return out.neverComplete();
                 });
 
-        serverMono.map(s -> s.address()).subscribe(address);
-
         return serverMono.map(NettyContextClosable::new);
-    }
-
-    public Mono<InetSocketAddress> address() {
-        return address;
     }
 }

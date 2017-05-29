@@ -26,7 +26,7 @@ import java.util.function.Function;
 /**
  * A server contract for writing transports of RSocket.
  */
-public interface ServerTransport extends Transport {
+public interface ServerTransport<T extends Closeable> extends Transport {
 
     /**
      * Starts this server.
@@ -35,7 +35,7 @@ public interface ServerTransport extends Transport {
      *
      * @return A handle to retrieve information about a started server.
      */
-    Mono<Closeable> start(ConnectionAcceptor acceptor);
+    Mono<T> start(ConnectionAcceptor acceptor);
 
     /**
      * A contract to accept a new {@code DuplexConnection}.

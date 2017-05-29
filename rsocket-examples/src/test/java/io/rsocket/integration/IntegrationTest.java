@@ -24,6 +24,7 @@ import io.rsocket.Plugins;
 import io.rsocket.RSocket;
 import io.rsocket.RSocketFactory;
 import io.rsocket.transport.netty.client.TcpClientTransport;
+import io.rsocket.transport.netty.server.NettyContextClosable;
 import io.rsocket.transport.netty.server.TcpServerTransport;
 import io.rsocket.util.PayloadImpl;
 import io.rsocket.util.RSocketProxy;
@@ -45,7 +46,7 @@ import static org.junit.Assert.assertTrue;
 
 public class IntegrationTest {
 
-    private Closeable server;
+    private NettyContextClosable server;
     private RSocket client;
     private AtomicInteger requestCount;
     private CountDownLatch disconnectionCounter;
@@ -109,13 +110,13 @@ public class IntegrationTest {
             })
             .transport(serverTransport)
             .start()
+            // TODO fix the Types through RSocketFactory.Start
+            .cast(NettyContextClosable.class)
             .block();
-
-        InetSocketAddress address = serverTransport.address().block();
 
         client = RSocketFactory
             .connect()
-            .transport(TcpClientTransport.create(address.getHostString(), address.getPort()))
+            .transport(TcpClientTransport.create(server.address()))
             .start()
             .block();
     }
