@@ -20,6 +20,7 @@ import io.rsocket.DuplexConnection;
 import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.netty.RSocketLengthCodec;
 import io.rsocket.transport.netty.NettyDuplexConnection;
+import java.net.InetSocketAddress;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Mono;
@@ -39,8 +40,13 @@ public class TcpClientTransport implements ClientTransport {
 
     }
 
-    public static TcpClientTransport create(String  bindAddress, int port) {
+    public static TcpClientTransport create(String bindAddress, int port) {
         TcpClient tcpClient = TcpClient.create(bindAddress, port);
+        return create(tcpClient);
+    }
+
+    public static TcpClientTransport create(InetSocketAddress address) {
+        TcpClient tcpClient = TcpClient.create(address.getHostString(), address.getPort());
         return create(tcpClient);
     }
 

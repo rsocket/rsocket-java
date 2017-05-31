@@ -16,13 +16,12 @@
 
 package io.rsocket.transport.netty.server;
 
-import io.rsocket.Closeable;
 import io.rsocket.transport.ServerTransport;
 import io.rsocket.transport.netty.WebsocketDuplexConnection;
 import reactor.core.publisher.Mono;
 import reactor.ipc.netty.http.server.HttpServer;
 
-public class WebsocketServerTransport implements ServerTransport {
+public class WebsocketServerTransport implements ServerTransport<NettyContextCloseable> {
     HttpServer server;
 
     private WebsocketServerTransport(HttpServer server) {
@@ -44,7 +43,7 @@ public class WebsocketServerTransport implements ServerTransport {
     }
 
     @Override
-    public Mono<Closeable> start(ServerTransport.ConnectionAcceptor acceptor) {
+    public Mono<NettyContextCloseable> start(ServerTransport.ConnectionAcceptor acceptor) {
         return server
             .newHandler((request, response) ->
                 response.sendWebsocket((in, out) -> {
@@ -54,7 +53,7 @@ public class WebsocketServerTransport implements ServerTransport {
                     return out.neverComplete();
                 })
             )
-            .map(NettyContextClosable::new);
+            .map(NettyContextCloseable::new);
     }
 
 }

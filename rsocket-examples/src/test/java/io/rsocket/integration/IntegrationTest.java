@@ -18,12 +18,12 @@ package io.rsocket.integration;
 
 import io.reactivex.subscribers.TestSubscriber;
 import io.rsocket.AbstractRSocket;
-import io.rsocket.Closeable;
 import io.rsocket.Payload;
 import io.rsocket.Plugins;
 import io.rsocket.RSocket;
 import io.rsocket.RSocketFactory;
 import io.rsocket.transport.netty.client.TcpClientTransport;
+import io.rsocket.transport.netty.server.NettyContextCloseable;
 import io.rsocket.transport.netty.server.TcpServerTransport;
 import io.rsocket.util.PayloadImpl;
 import io.rsocket.util.RSocketProxy;
@@ -44,7 +44,7 @@ import static org.junit.Assert.assertTrue;
 
 public class IntegrationTest {
 
-    private Closeable server;
+    private NettyContextCloseable server;
     private RSocket client;
     private AtomicInteger requestCount;
     private CountDownLatch disconnectionCounter;
@@ -82,6 +82,8 @@ public class IntegrationTest {
         requestCount = new AtomicInteger();
         disconnectionCounter = new CountDownLatch(1);
 
+        TcpServerTransport serverTransport = TcpServerTransport.create(0);
+
         server = RSocketFactory
             .receive()
             .acceptor((setup, sendingSocket) -> {
@@ -104,13 +106,15 @@ public class IntegrationTest {
                     }
                 });
             })
-            .transport(TcpServerTransport.create("localhost", 8000))
+            .transport(serverTransport)
             .start()
+            // TODO fix the Types through RSocketFactory.Start
+            .cast(NettyContextCloseable.class)
             .block();
 
         client = RSocketFactory
             .connect()
-            .transport(TcpClientTransport.create("localhost", 8000))
+            .transport(TcpClientTransport.create(server.address()))
             .start()
             .block();
     }

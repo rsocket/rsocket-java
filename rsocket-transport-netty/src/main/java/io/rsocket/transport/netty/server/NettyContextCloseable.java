@@ -1,19 +1,21 @@
 package io.rsocket.transport.netty.server;
 
 import io.rsocket.Closeable;
+import java.net.InetSocketAddress;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
 import reactor.ipc.netty.NettyContext;
 
 /**
- *
+ * A {@link Closeable} wrapping a {@link NettyContext}, allowing for close and
+ * aware of its address.
  */
-class NettyContextClosable implements Closeable {
+public class NettyContextCloseable implements Closeable {
     private NettyContext context;
 
     private MonoProcessor<Void> onClose;
 
-    NettyContextClosable(NettyContext context) {
+    NettyContextCloseable(NettyContext context) {
         this.onClose = MonoProcessor.create();
         this.context = context;
     }
@@ -32,5 +34,12 @@ class NettyContextClosable implements Closeable {
     @Override
     public Mono<Void> onClose() {
         return onClose;
+    }
+
+    /**
+     * @see NettyContext#address()
+     */
+    public InetSocketAddress address() {
+        return context.address();
     }
 }
