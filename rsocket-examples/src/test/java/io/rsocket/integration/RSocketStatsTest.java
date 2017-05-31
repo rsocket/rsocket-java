@@ -8,6 +8,7 @@ import io.rsocket.util.PayloadImpl;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import org.junit.Test;
+import reactor.core.publisher.MonoProcessor;
 import reactor.core.publisher.SignalType;
 
 import javax.annotation.Nullable;
@@ -55,9 +56,11 @@ public class RSocketStatsTest {
 
         public SignalType expectedSocketClosedSignalType = SignalType.ON_COMPLETE;
         public List<FrameInfo> expectedFrameReads = null;
-        private int currentReadFrameIndex = 0;
+        public int currentReadFrameIndex = 0;
         public List<FrameInfo> expectedFrameWrites = null;
-        private int currentWriteFrameIndex = 0;
+        public int currentWriteFrameIndex = 0;
+        public int expectedSocketCloseCount = -1;
+        public MonoProcessor<Void> onAllSocketsClosed;
 
         public int createdSocketCount;
         public int closedSocketCount;
@@ -76,6 +79,11 @@ public class RSocketStatsTest {
         public void socketClosed(SignalType signalType) {
             assertThat("Socket close signal type", signalType, is(expectedSocketClosedSignalType));
             ++closedSocketCount;
+            if (closedSocketCount == expectedSocketCloseCount) {
+                if (onAllSocketsClosed != null) {
+                    onAllSocketsClosed.onComplete();
+                }
+            }
         }
 
         @Override
@@ -132,6 +140,9 @@ public class RSocketStatsTest {
         stats.expectedFrameWrites.add(new TestStats.FrameInfo(1, FrameType.NEXT, "RESPONSE", "METADATA"));
         stats.expectedFrameWrites.add(new TestStats.FrameInfo(1, FrameType.COMPLETE, "", ""));
 
+        stats.expectedSocketCloseCount = 2;
+        stats.onAllSocketsClosed = MonoProcessor.create();
+
         RSocketFactory
                 .receive()
                 .stats(stats)
@@ -154,14 +165,17 @@ public class RSocketStatsTest {
                 .thenEmpty(socket.close())
                 .block();
 
-        // TODO How can I force the code to wait the duplex connections to be closed.
-        Thread.sleep(100);
+        // if both client & server sockets are closed, then unblocks quickly
+        // otherwise it will cause timeout
+        stats.onAllSocketsClosed.block();
 
         assertThat("Number of opened socket should be 2", stats.createdSocketCount, is(2));
         assertThat("Number of created duplex connections should be 2", stats.createdDuplexConnectionCount, is(2));
         assertThat("Number of closed duplex connections should be 2", stats.closedDuplexConnectionCount, is(2));
-        assertThat("Number of closed socket should be 0", stats.closedSocketCount, is(0));
+        assertThat("Number of closed socket should be 2", stats.closedSocketCount, is(2));
         assertThat("Number of disconnected connections should be 0", stats.disconnectedSocketCount, is(0));
+        assertThat("Number of read frames mismatches with the expectation", stats.currentReadFrameIndex, is(stats.expectedFrameReads.size()));
+        assertThat("Number of written frames mismatches with the expectation", stats.currentWriteFrameIndex, is(stats.expectedFrameWrites.size()));
     }
 
     private static class SocketAcceptorImpl implements SocketAcceptor {

@@ -48,8 +48,6 @@ public class ClientServerInputMultiplexer {
     private final DuplexConnection serverConnection;
     private final DuplexConnection clientConnection;
 
-    private @Nullable RSocketStats stats;
-
     public ClientServerInputMultiplexer(DuplexConnection source, RSocketStats stats) {
         final MonoProcessor<Flux<Frame>> streamZero = MonoProcessor.create();
         final MonoProcessor<Flux<Frame>> server = MonoProcessor.create();

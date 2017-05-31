@@ -2,7 +2,6 @@ package io.rsocket.stat;
 
 import io.rsocket.DuplexConnection;
 import io.rsocket.Frame;
-import io.rsocket.FrameType;
 import reactor.core.publisher.SignalType;
 
 /**

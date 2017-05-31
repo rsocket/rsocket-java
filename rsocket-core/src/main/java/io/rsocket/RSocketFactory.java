@@ -113,13 +113,8 @@ public interface RSocketFactory {
 
         private @Nullable RSocketStats stats;
 
-        public ClientRSocketFactory stats(RSocketStats stats) {
+        public ClientRSocketFactory stats(@Nullable RSocketStats stats) {
             this.stats = stats;
-
-            if (stats != null) {
-                stats.socketCreated();
-            }
-
             return this;
         }
 
@@ -225,11 +220,13 @@ public interface RSocketFactory {
                     .connect()
                     .then(connection -> {
                         if (stats != null) {
+                            stats.socketCreated();
                             stats.duplexConnectionCreated(connection);
                             connection
                                 .onClose()
                                 .doFinally(signalType -> {
                                     stats.duplexConnectionClosed(connection);
+                                    stats.socketClosed(signalType);
                                 })
                                 .subscribe();
                         }
@@ -294,11 +291,8 @@ public interface RSocketFactory {
             return new ServerTransport();
         }
 
-        public ServerRSocketFactory stats(RSocketStats stats) {
+        public ServerRSocketFactory stats(@Nullable RSocketStats stats) {
             this.stats = stats;
-            if (stats != null) {
-                stats.socketCreated();
-            }
             return this;
         }
 
@@ -329,11 +323,13 @@ public interface RSocketFactory {
                     .get()
                     .start(connection -> {
                         if (stats != null) {
+                            stats.socketCreated();
                             stats.duplexConnectionCreated(connection);
                             connection
                                 .onClose()
                                 .doFinally( signalType -> {
                                     stats.duplexConnectionClosed(connection);
+                                    stats.socketClosed(signalType);
                                 })
                                 .subscribe();
                         }
@@ -344,8 +340,7 @@ public interface RSocketFactory {
                                 new FragmentationDuplexConnection(connection, mtu),
                                 stats);
                         } else {
-                            multiplexer = new ClientServerInputMultiplexer(connection,
-                                stats);
+                            multiplexer = new ClientServerInputMultiplexer(connection, stats);
                         }
 
                         return multiplexer
