@@ -3,11 +3,13 @@ package io.rsocket;
 import io.rsocket.fragmentation.FragmentationDuplexConnection;
 import io.rsocket.frame.SetupFrameFlyweight;
 import io.rsocket.internal.ClientServerInputMultiplexer;
+import io.rsocket.stat.RSocketStats;
 import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.ServerTransport;
 import io.rsocket.util.PayloadImpl;
 import reactor.core.publisher.Mono;
 
+import javax.annotation.Nullable;
 import java.time.Duration;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -109,6 +111,13 @@ public interface RSocketFactory {
         private String dataMineType = "application/binary";
         private String metadataMimeType = "application/binary";
 
+        private @Nullable RSocketStats stats;
+
+        public ClientRSocketFactory stats(@Nullable RSocketStats stats) {
+            this.stats = stats;
+            return this;
+        }
+
         @Override
         public ClientRSocketFactory keepAlive() {
             tickPeriod = Duration.ofSeconds(20);
@@ -169,7 +178,7 @@ public interface RSocketFactory {
             @Override
             public Start<RSocket> transport(Supplier<io.rsocket.transport.ClientTransport> transportClient) {
                 ClientRSocketFactory.this.transportClient = transportClient;
-                return new StartClient();
+                return new StartClient(ClientRSocketFactory.this.stats);
             }
         }
 
@@ -198,12 +207,30 @@ public interface RSocketFactory {
         }
 
         protected class StartClient implements Start<RSocket> {
+            private RSocketStats stats;
+
+            public StartClient(RSocketStats stats) {
+                this.stats = stats;
+            }
+
             @Override
             public Mono<RSocket> start() {
                 return transportClient
                     .get()
                     .connect()
                     .then(connection -> {
+                        if (stats != null) {
+                            stats.socketCreated();
+                            stats.duplexConnectionCreated(connection);
+                            connection
+                                .onClose()
+                                .doFinally(signalType -> {
+                                    stats.duplexConnectionClosed(connection);
+                                    stats.socketClosed(signalType);
+                                })
+                                .subscribe();
+                        }
+
                         Frame setupFrame = Frame.Setup
                             .from(
                                 flags,
@@ -213,12 +240,11 @@ public interface RSocketFactory {
                                 metadataMimeType,
                                 setupPayload);
 
-
                         ClientServerInputMultiplexer multiplexer;
                         if (mtu > 0) {
-                            multiplexer = new ClientServerInputMultiplexer(new FragmentationDuplexConnection(connection, mtu));
+                            multiplexer = new ClientServerInputMultiplexer(new FragmentationDuplexConnection(connection, mtu), stats);
                         } else {
-                            multiplexer = new ClientServerInputMultiplexer(connection);
+                            multiplexer = new ClientServerInputMultiplexer(connection, stats);
                         }
 
                         RSocketClient rSocketClient
@@ -257,13 +283,17 @@ public interface RSocketFactory {
         private Consumer<Throwable> errorConsumer = Throwable::printStackTrace;
         private int mtu = 0;
 
-        private ServerRSocketFactory() {
-        }
+        private @Nullable RSocketStats stats;
 
         @Override
         public Transport<io.rsocket.transport.ServerTransport, Closeable> acceptor(Supplier<SocketAcceptor> acceptor) {
             this.acceptor = acceptor;
             return new ServerTransport();
+        }
+
+        public ServerRSocketFactory stats(@Nullable RSocketStats stats) {
+            this.stats = stats;
+            return this;
         }
 
         @Override
@@ -292,11 +322,25 @@ public interface RSocketFactory {
                 return transportServer
                     .get()
                     .start(connection -> {
+                        if (stats != null) {
+                            stats.socketCreated();
+                            stats.duplexConnectionCreated(connection);
+                            connection
+                                .onClose()
+                                .doFinally( signalType -> {
+                                    stats.duplexConnectionClosed(connection);
+                                    stats.socketClosed(signalType);
+                                })
+                                .subscribe();
+                        }
+
                         ClientServerInputMultiplexer multiplexer;
                         if (mtu > 0) {
-                            multiplexer = new ClientServerInputMultiplexer(new FragmentationDuplexConnection(connection, mtu));
+                            multiplexer = new ClientServerInputMultiplexer(
+                                new FragmentationDuplexConnection(connection, mtu),
+                                stats);
                         } else {
-                            multiplexer = new ClientServerInputMultiplexer(connection);
+                            multiplexer = new ClientServerInputMultiplexer(connection, stats);
                         }
 
                         return multiplexer

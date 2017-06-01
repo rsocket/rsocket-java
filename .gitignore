@@ -67,6 +67,9 @@ atlassian-ide-plugin.xml
 .nbattrs
 /bin
 
+# classes folder
+/classes
+
 #.gitignore in subdirectory
 .gitignore
 
