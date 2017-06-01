@@ -101,7 +101,7 @@ public class JavaServerDriver {
             .transport(this.server)
             .start()
             .block();
-
+        this.waitStart.countDown();
         serverCloseable
             .onClose()
             .block();
