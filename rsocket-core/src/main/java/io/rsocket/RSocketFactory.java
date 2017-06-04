@@ -10,6 +10,7 @@ import reactor.core.publisher.Mono;
 
 import java.time.Duration;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -85,16 +86,19 @@ public interface RSocketFactory {
     }
 
     class ClientRSocketFactory implements
-        KeepAlive<ClientRSocketFactory>,
-        MimeType<ClientRSocketFactory>,
-        Acceptor<ClientTransport, RSocket, RSocket>,
-        Transport<ClientTransport, RSocket>,
-        Fragmentation<ClientRSocketFactory, ClientTransport, RSocket, RSocket>,
-        ErrorConsumer<ClientRSocketFactory, ClientTransport, RSocket, RSocket>,
-        SetupPayload<ClientRSocketFactory> {
+            KeepAlive<ClientRSocketFactory>,
+            MimeType<ClientRSocketFactory>,
+            Acceptor<ClientTransport, Function<RSocket, RSocket>, RSocket>,
+            Transport<ClientTransport, RSocket>,
+            Fragmentation<ClientRSocketFactory, ClientTransport, Function<RSocket, RSocket>, RSocket>,
+            ErrorConsumer<ClientRSocketFactory, ClientTransport, Function<RSocket, RSocket>, RSocket>,
+            SetupPayload<ClientRSocketFactory> {
 
-        private Supplier<RSocket> acceptor = () -> new AbstractRSocket() {
-        };
+        private Supplier<Function<RSocket, RSocket>> acceptor =
+                ()
+                        -> rSocket
+                        -> new AbstractRSocket() {};
+
         private Supplier<io.rsocket.transport.ClientTransport> transportClient;
         private Consumer<Throwable> errorConsumer = Throwable::printStackTrace;
         private int mtu = 0;
@@ -174,7 +178,7 @@ public interface RSocketFactory {
         }
 
         @Override
-        public Transport<io.rsocket.transport.ClientTransport, RSocket> acceptor(Supplier<RSocket> acceptor) {
+        public Transport<io.rsocket.transport.ClientTransport, RSocket> acceptor(Supplier<Function<RSocket, RSocket>> acceptor) {
             this.acceptor = acceptor;
             return new ClientTransport();
         }
@@ -201,56 +205,61 @@ public interface RSocketFactory {
             @Override
             public Mono<RSocket> start() {
                 return transportClient
-                    .get()
-                    .connect()
-                    .then(connection -> {
-                        Frame setupFrame = Frame.Setup
-                            .from(
-                                flags,
-                                (int) ackTimeout.toMillis(),
-                                (int) ackTimeout.toMillis() * missedAcks,
-                                dataMineType,
-                                metadataMimeType,
-                                setupPayload);
+                        .get()
+                        .connect()
+                        .then(connection -> {
+                            Frame setupFrame = Frame.Setup
+                                    .from(
+                                            flags,
+                                            (int) ackTimeout.toMillis(),
+                                            (int) ackTimeout.toMillis() * missedAcks,
+                                            dataMineType,
+                                            metadataMimeType,
+                                            setupPayload);
 
 
-                        ClientServerInputMultiplexer multiplexer;
-                        if (mtu > 0) {
-                            multiplexer = new ClientServerInputMultiplexer(new FragmentationDuplexConnection(connection, mtu));
-                        } else {
-                            multiplexer = new ClientServerInputMultiplexer(connection);
-                        }
+                            ClientServerInputMultiplexer multiplexer;
+                            if (mtu > 0) {
+                                multiplexer = new ClientServerInputMultiplexer(new FragmentationDuplexConnection(connection, mtu));
+                            } else {
+                                multiplexer = new ClientServerInputMultiplexer(connection);
+                            }
 
-                        RSocketClient rSocketClient
-                            = new RSocketClient(
-                            multiplexer.asClientConnection(),
-                            errorConsumer,
-                            StreamIdSupplier.clientSupplier(),
-                            tickPeriod,
-                            ackTimeout,
-                            missedAcks);
+                            RSocketClient rSocketClient
+                                    = new RSocketClient(
+                                    multiplexer.asClientConnection(),
+                                    errorConsumer,
+                                    StreamIdSupplier.clientSupplier(),
+                                    tickPeriod,
+                                    ackTimeout,
+                                    missedAcks);
 
-                        return Plugins
-                            .SERVER_REACTIVE_SOCKET_INTERCEPTOR
-                            .apply(acceptor.get())
-                            .doOnNext(rSocket ->
-                                new RSocketServer(
-                                    multiplexer.asServerConnection(),
-                                    rSocket,
-                                    errorConsumer)
-                            )
-                            .then(connection
-                                .sendOne(setupFrame)
-                                .then(Plugins.CLIENT_REACTIVE_SOCKET_INTERCEPTOR.apply(rSocketClient)));
-                    });
+                            return Plugins
+                                    .CLIENT_REACTIVE_SOCKET_INTERCEPTOR
+                                    .apply(rSocketClient)
+                                    .then(wrappedClientRSocket -> {
+                                        RSocket unwrappedServerSocket = acceptor.get().apply(wrappedClientRSocket);
+                                        return Plugins
+                                                .SERVER_REACTIVE_SOCKET_INTERCEPTOR
+                                                .apply(unwrappedServerSocket)
+                                                .doOnNext(rSocket ->
+                                                        new RSocketServer(
+                                                                multiplexer.asServerConnection(),
+                                                                rSocket,
+                                                                errorConsumer)
+                                                )
+                                                .then(connection.sendOne(setupFrame))
+                                                .then(Mono.just(wrappedClientRSocket));
+                                    });
+                        });
             }
         }
     }
 
     class ServerRSocketFactory implements
-        Acceptor<ServerTransport, SocketAcceptor, Closeable>,
-        Fragmentation<ServerRSocketFactory, ServerTransport, SocketAcceptor, Closeable>,
-        ErrorConsumer<ServerRSocketFactory, ServerTransport, SocketAcceptor, Closeable> {
+            Acceptor<ServerTransport, SocketAcceptor, Closeable>,
+            Fragmentation<ServerRSocketFactory, ServerTransport, SocketAcceptor, Closeable>,
+            ErrorConsumer<ServerRSocketFactory, ServerTransport, SocketAcceptor, Closeable> {
 
         private Supplier<SocketAcceptor> acceptor;
         private Supplier<io.rsocket.transport.ServerTransport> transportServer;
@@ -290,48 +299,48 @@ public interface RSocketFactory {
             @Override
             public Mono<Closeable> start() {
                 return transportServer
-                    .get()
-                    .start(connection -> {
-                        ClientServerInputMultiplexer multiplexer;
-                        if (mtu > 0) {
-                            multiplexer = new ClientServerInputMultiplexer(new FragmentationDuplexConnection(connection, mtu));
-                        } else {
-                            multiplexer = new ClientServerInputMultiplexer(connection);
-                        }
+                        .get()
+                        .start(connection -> {
+                            ClientServerInputMultiplexer multiplexer;
+                            if (mtu > 0) {
+                                multiplexer = new ClientServerInputMultiplexer(new FragmentationDuplexConnection(connection, mtu));
+                            } else {
+                                multiplexer = new ClientServerInputMultiplexer(connection);
+                            }
 
-                        return multiplexer
-                            .asStreamZeroConnection()
-                            .receive()
-                            .next()
-                            .then(setupFrame -> {
-                                ConnectionSetupPayload setupPayload = ConnectionSetupPayload.create(setupFrame);
+                            return multiplexer
+                                    .asStreamZeroConnection()
+                                    .receive()
+                                    .next()
+                                    .then(setupFrame -> {
+                                        ConnectionSetupPayload setupPayload = ConnectionSetupPayload.create(setupFrame);
 
-                                RSocketClient rSocketClient
-                                    = new RSocketClient(
-                                    multiplexer.asServerConnection(),
-                                    errorConsumer,
-                                    StreamIdSupplier.serverSupplier());
+                                        RSocketClient rSocketClient
+                                                = new RSocketClient(
+                                                multiplexer.asServerConnection(),
+                                                errorConsumer,
+                                                StreamIdSupplier.serverSupplier());
 
-                                Mono<RSocket> wrappedRSocketClient
-                                    = Plugins
-                                    .CLIENT_REACTIVE_SOCKET_INTERCEPTOR
-                                    .apply(rSocketClient);
+                                        Mono<RSocket> wrappedRSocketClient
+                                                = Plugins
+                                                .CLIENT_REACTIVE_SOCKET_INTERCEPTOR
+                                                .apply(rSocketClient);
 
-                                return wrappedRSocketClient
-                                    .then(sender ->
-                                        acceptor
-                                            .get()
-                                            .accept(setupPayload, sender)
-                                            .then(Plugins.SERVER_REACTIVE_SOCKET_INTERCEPTOR::apply)
-                                    )
-                                    .map(handler ->
-                                        new RSocketServer(
-                                            multiplexer.asClientConnection(),
-                                            handler,
-                                            errorConsumer))
-                                    .then();
-                            });
-                    });
+                                        return wrappedRSocketClient
+                                                .then(sender ->
+                                                        acceptor
+                                                                .get()
+                                                                .accept(setupPayload, sender)
+                                                                .then(Plugins.SERVER_REACTIVE_SOCKET_INTERCEPTOR::apply)
+                                                )
+                                                .map(handler ->
+                                                        new RSocketServer(
+                                                                multiplexer.asClientConnection(),
+                                                                handler,
+                                                                errorConsumer))
+                                                .then();
+                                    });
+                        });
 
             }
         }
