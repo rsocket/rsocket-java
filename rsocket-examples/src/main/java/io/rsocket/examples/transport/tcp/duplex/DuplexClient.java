@@ -30,30 +30,30 @@ public final class DuplexClient {
 
     public static void main(String[] args) {
         RSocketFactory
-            .receive()
-            .acceptor((setup, reactiveSocket) -> {
-                reactiveSocket.requestStream(new PayloadImpl("Hello-Bidi"))
-                    .map(payload -> StandardCharsets.UTF_8.decode(payload.getData()).toString())
-                    .log()
-                    .subscribe();
+                .receive()
+                .acceptor((setup, reactiveSocket) -> {
+                    reactiveSocket.requestStream(new PayloadImpl("Hello-Bidi"))
+                            .map(payload -> StandardCharsets.UTF_8.decode(payload.getData()).toString())
+                            .log()
+                            .subscribe();
 
-                return Mono.just(new AbstractRSocket() {});
-            })
-            .transport(TcpServerTransport.create("localhost", 7000))
-            .start()
-            .subscribe();
+                    return Mono.just(new AbstractRSocket() {});
+                })
+                .transport(TcpServerTransport.create("localhost", 7000))
+                .start()
+                .subscribe();
 
         RSocket socket = RSocketFactory
-            .connect()
-            .acceptor(new AbstractRSocket() {
-                @Override
-                public Flux<Payload> requestStream(Payload payload) {
-                    return Flux.interval(Duration.ofSeconds(1)).map(aLong -> new PayloadImpl("Bi-di Response => " + aLong));
-                }
-            })
-            .transport(TcpClientTransport.create("localhost", 7000))
-            .start()
-            .block();
+                .connect()
+                .acceptor(rSocket -> new AbstractRSocket() {
+                    @Override
+                    public Flux<Payload> requestStream(Payload payload) {
+                        return Flux.interval(Duration.ofSeconds(1)).map(aLong -> new PayloadImpl("Bi-di Response => " + aLong));
+                    }
+                })
+                .transport(TcpClientTransport.create("localhost", 7000))
+                .start()
+                .block();
 
         socket.onClose().block();
     }
