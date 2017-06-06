@@ -5,11 +5,12 @@ import com.netflix.spectator.api.Registry;
 import com.netflix.spectator.api.Timer;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
-import java.lang.reflect.Array;
-import java.util.concurrent.TimeUnit;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+
+import java.lang.reflect.Array;
+import java.util.concurrent.TimeUnit;
 
 /** Wraps a {@link RSocket} with counters */
 public class SpectatorRSocket implements RSocket {
