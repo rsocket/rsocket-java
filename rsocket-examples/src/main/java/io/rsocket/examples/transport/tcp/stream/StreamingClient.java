@@ -13,12 +13,7 @@
 
 package io.rsocket.examples.transport.tcp.stream;
 
-import io.rsocket.AbstractRSocket;
-import io.rsocket.ConnectionSetupPayload;
-import io.rsocket.Payload;
-import io.rsocket.RSocket;
-import io.rsocket.RSocketFactory;
-import io.rsocket.SocketAcceptor;
+import io.rsocket.*;
 import io.rsocket.transport.netty.client.TcpClientTransport;
 import io.rsocket.transport.netty.server.TcpServerTransport;
 import io.rsocket.util.PayloadImpl;
@@ -30,38 +25,39 @@ import java.time.Duration;
 
 public final class StreamingClient {
 
-    public static void main(String[] args) {
-        RSocketFactory
-            .receive()
-            .acceptor(new SocketAcceptorImpl())
-            .transport(TcpServerTransport.create("localhost", 7000))
-            .start()
-            .subscribe();
+  public static void main(String[] args) {
+    RSocketFactory.receive()
+        .acceptor(new SocketAcceptorImpl())
+        .transport(TcpServerTransport.create("localhost", 7000))
+        .start()
+        .subscribe();
 
-        RSocket socket = RSocketFactory
-            .connect()
+    RSocket socket =
+        RSocketFactory.connect()
             .transport(TcpClientTransport.create("localhost", 7000))
             .start()
             .block();
 
-        socket.requestStream(new PayloadImpl("Hello"))
-                .map(payload -> StandardCharsets.UTF_8.decode(payload.getData()).toString())
-                .doOnNext(System.out::println)
-                .take(10)
-                .thenEmpty(socket.close())
-                .block();
-    }
+    socket
+        .requestStream(new PayloadImpl("Hello"))
+        .map(payload -> StandardCharsets.UTF_8.decode(payload.getData()).toString())
+        .doOnNext(System.out::println)
+        .take(10)
+        .thenEmpty(socket.close())
+        .block();
+  }
 
-    private static class SocketAcceptorImpl implements SocketAcceptor {
-        @Override
-        public Mono<RSocket> accept(ConnectionSetupPayload setupPayload, RSocket reactiveSocket) {
-            return Mono.just(new AbstractRSocket() {
-                @Override
-                public Flux<Payload> requestStream(Payload payload) {
-                    return Flux.interval(Duration.ofMillis(100))
-                                   .map(aLong -> new PayloadImpl("Interval: " + aLong));
-                }
-            });
-        }
+  private static class SocketAcceptorImpl implements SocketAcceptor {
+    @Override
+    public Mono<RSocket> accept(ConnectionSetupPayload setupPayload, RSocket reactiveSocket) {
+      return Mono.just(
+          new AbstractRSocket() {
+            @Override
+            public Flux<Payload> requestStream(Payload payload) {
+              return Flux.interval(Duration.ofMillis(100))
+                  .map(aLong -> new PayloadImpl("Interval: " + aLong));
+            }
+          });
     }
+  }
 }
