@@ -20,75 +20,79 @@ import io.rsocket.FrameType;
 
 public class RequestFrameFlyweight {
 
-    private RequestFrameFlyweight() {}
+  private RequestFrameFlyweight() {}
 
-    // relative to start of passed offset
-    private static final int INITIAL_REQUEST_N_FIELD_OFFSET = FrameHeaderFlyweight.FRAME_HEADER_LENGTH;
+  // relative to start of passed offset
+  private static final int INITIAL_REQUEST_N_FIELD_OFFSET =
+      FrameHeaderFlyweight.FRAME_HEADER_LENGTH;
 
-    public static int computeFrameLength(final FrameType type, final int metadataLength, final int dataLength) {
-        int length = FrameHeaderFlyweight.computeFrameHeaderLength(type, metadataLength, dataLength);
+  public static int computeFrameLength(
+      final FrameType type, final int metadataLength, final int dataLength) {
+    int length = FrameHeaderFlyweight.computeFrameHeaderLength(type, metadataLength, dataLength);
 
-        if (type.hasInitialRequestN()) {
-            length += Integer.BYTES;
-        }
-
-        return length;
+    if (type.hasInitialRequestN()) {
+      length += Integer.BYTES;
     }
 
-    public static int encode(
-        final ByteBuf byteBuf,
-        final int streamId,
-        int flags,
-        final FrameType type,
-        final int initialRequestN,
-        final ByteBuf metadata,
-        final ByteBuf data
-    ) {
-        final int frameLength = computeFrameLength(type, metadata.readableBytes(), data.readableBytes());
+    return length;
+  }
 
-        int length = FrameHeaderFlyweight.encodeFrameHeader(byteBuf, frameLength, flags, type, streamId);
+  public static int encode(
+      final ByteBuf byteBuf,
+      final int streamId,
+      int flags,
+      final FrameType type,
+      final int initialRequestN,
+      final ByteBuf metadata,
+      final ByteBuf data) {
+    final int frameLength =
+        computeFrameLength(type, metadata.readableBytes(), data.readableBytes());
 
-        byteBuf.setInt(INITIAL_REQUEST_N_FIELD_OFFSET, initialRequestN);
-        length += Integer.BYTES;
+    int length =
+        FrameHeaderFlyweight.encodeFrameHeader(byteBuf, frameLength, flags, type, streamId);
 
-        length += FrameHeaderFlyweight.encodeMetadata(byteBuf, type, length, metadata);
-        length += FrameHeaderFlyweight.encodeData(byteBuf, length, data);
+    byteBuf.setInt(INITIAL_REQUEST_N_FIELD_OFFSET, initialRequestN);
+    length += Integer.BYTES;
 
-        return length;
+    length += FrameHeaderFlyweight.encodeMetadata(byteBuf, type, length, metadata);
+    length += FrameHeaderFlyweight.encodeData(byteBuf, length, data);
+
+    return length;
+  }
+
+  public static int encode(
+      final ByteBuf byteBuf,
+      final int streamId,
+      final int flags,
+      final FrameType type,
+      final ByteBuf metadata,
+      final ByteBuf data) {
+    if (type.hasInitialRequestN()) {
+      throw new AssertionError(type + " must not be encoded without initial request N");
+    }
+    final int frameLength =
+        computeFrameLength(type, metadata.readableBytes(), data.readableBytes());
+
+    int length =
+        FrameHeaderFlyweight.encodeFrameHeader(byteBuf, frameLength, flags, type, streamId);
+
+    length += FrameHeaderFlyweight.encodeMetadata(byteBuf, type, length, metadata);
+    length += FrameHeaderFlyweight.encodeData(byteBuf, length, data);
+
+    return length;
+  }
+
+  public static int initialRequestN(final ByteBuf byteBuf) {
+    return byteBuf.getInt(INITIAL_REQUEST_N_FIELD_OFFSET);
+  }
+
+  public static int payloadOffset(final FrameType type, final ByteBuf byteBuf) {
+    int result = FrameHeaderFlyweight.FRAME_HEADER_LENGTH;
+
+    if (type.hasInitialRequestN()) {
+      result += Integer.BYTES;
     }
 
-    public static int encode(
-        final ByteBuf byteBuf,
-        final int streamId,
-        final int flags,
-        final FrameType type,
-        final ByteBuf metadata,
-        final ByteBuf data
-    ) {
-        if (type.hasInitialRequestN()) {
-            throw new AssertionError(type + " must not be encoded without initial request N");
-        }
-        final int frameLength = computeFrameLength(type, metadata.readableBytes(), data.readableBytes());
-
-        int length = FrameHeaderFlyweight.encodeFrameHeader(byteBuf, frameLength, flags, type, streamId);
-
-        length += FrameHeaderFlyweight.encodeMetadata(byteBuf, type, length, metadata);
-        length += FrameHeaderFlyweight.encodeData(byteBuf, length, data);
-
-        return length;
-    }
-
-    public static int initialRequestN(final ByteBuf byteBuf) {
-        return byteBuf.getInt(INITIAL_REQUEST_N_FIELD_OFFSET);
-    }
-
-    public static int payloadOffset(final FrameType type, final ByteBuf byteBuf) {
-        int result = FrameHeaderFlyweight.FRAME_HEADER_LENGTH;
-
-        if (type.hasInitialRequestN()) {
-            result += Integer.BYTES;
-        }
-
-        return result;
-    }
+    return result;
+  }
 }

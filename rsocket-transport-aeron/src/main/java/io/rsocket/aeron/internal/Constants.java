@@ -15,35 +15,32 @@
  */
 package io.rsocket.aeron.internal;
 
-
+import java.util.concurrent.TimeUnit;
 import org.agrona.concurrent.BackoffIdleStrategy;
 import org.agrona.concurrent.IdleStrategy;
 import org.agrona.concurrent.NoOpIdleStrategy;
 import org.agrona.concurrent.SleepingIdleStrategy;
 
-import java.util.concurrent.TimeUnit;
-
 public final class Constants {
 
-    public static final int SERVER_STREAM_ID = 0;
-    public static final int CLIENT_STREAM_ID = 1;
-    public static final int SERVER_MANAGEMENT_STREAM_ID = 10;
-    public static final int CLIENT_MANAGEMENT_STREAM_ID = 11;
-    public static final IdleStrategy EVENT_LOOP_IDLE_STRATEGY;
-    public static final int AERON_MTU_SIZE = Integer.getInteger("aeron.mtu.length", 4096);
+  public static final int SERVER_STREAM_ID = 0;
+  public static final int CLIENT_STREAM_ID = 1;
+  public static final int SERVER_MANAGEMENT_STREAM_ID = 10;
+  public static final int CLIENT_MANAGEMENT_STREAM_ID = 11;
+  public static final IdleStrategy EVENT_LOOP_IDLE_STRATEGY;
+  public static final int AERON_MTU_SIZE = Integer.getInteger("aeron.mtu.length", 4096);
 
-    static {
-        String idlStrategy = System.getProperty("idleStrategy");
+  static {
+    String idlStrategy = System.getProperty("idleStrategy");
 
-        if (NoOpIdleStrategy.class.getName().equalsIgnoreCase(idlStrategy)) {
-            EVENT_LOOP_IDLE_STRATEGY = new NoOpIdleStrategy();
-        } else if (SleepingIdleStrategy.class.getName().equalsIgnoreCase(idlStrategy)) {
-            EVENT_LOOP_IDLE_STRATEGY = new SleepingIdleStrategy(TimeUnit.MILLISECONDS.toNanos(10));
-        } else {
-            EVENT_LOOP_IDLE_STRATEGY = new BackoffIdleStrategy(1, 10, 1_000, 100_000);
-        }
+    if (NoOpIdleStrategy.class.getName().equalsIgnoreCase(idlStrategy)) {
+      EVENT_LOOP_IDLE_STRATEGY = new NoOpIdleStrategy();
+    } else if (SleepingIdleStrategy.class.getName().equalsIgnoreCase(idlStrategy)) {
+      EVENT_LOOP_IDLE_STRATEGY = new SleepingIdleStrategy(TimeUnit.MILLISECONDS.toNanos(10));
+    } else {
+      EVENT_LOOP_IDLE_STRATEGY = new BackoffIdleStrategy(1, 10, 1_000, 100_000);
     }
+  }
 
-    private Constants() {
-    }
+  private Constants() {}
 }

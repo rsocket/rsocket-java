@@ -18,19 +18,19 @@ package io.rsocket.frame;
 
 public class VersionFlyweight {
 
-    public static int encode(int major, int minor) {
-        return (major << 16) | (minor & 0xFFFF);
-    }
+  public static int encode(int major, int minor) {
+    return (major << 16) | (minor & 0xFFFF);
+  }
 
-    public static int major(int version) {
-        return version >> 16;
-    }
+  public static int major(int version) {
+    return version >> 16;
+  }
 
-    public static int minor(int version) {
-        return version & 0xFFFF;
-    }
+  public static int minor(int version) {
+    return version & 0xFFFF;
+  }
 
-    public static String toString(int version) {
-        return major(version) + "." + minor(version);
-    }
+  public static String toString(int version) {
+    return major(version) + "." + minor(version);
+  }
 }

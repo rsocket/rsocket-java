@@ -19,16 +19,14 @@ package io.rsocket.transport;
 import io.rsocket.DuplexConnection;
 import reactor.core.publisher.Mono;
 
-/**
- * A client contract for writing transports of RSocket.
- */
+/** A client contract for writing transports of RSocket. */
 public interface ClientTransport extends Transport {
 
-    /**
-     * Returns a {@code Publisher}, every subscription to which returns a single {@code DuplexConnection}.
-     *
-     * @return {@code Publisher}, every subscription returns a single {@code DuplexConnection}.
-     */
-    Mono<DuplexConnection> connect();
-
+  /**
+   * Returns a {@code Publisher}, every subscription to which returns a single {@code
+   * DuplexConnection}.
+   *
+   * @return {@code Publisher}, every subscription returns a single {@code DuplexConnection}.
+   */
+  Mono<DuplexConnection> connect();
 }

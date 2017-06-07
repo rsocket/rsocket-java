@@ -16,14 +16,14 @@
 
 package io.rsocket.transport.netty;
 
-import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
-
 import static io.rsocket.frame.FrameHeaderFlyweight.FRAME_LENGTH_MASK;
 import static io.rsocket.frame.FrameHeaderFlyweight.FRAME_LENGTH_SIZE;
 
+import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
+
 public class RSocketLengthCodec extends LengthFieldBasedFrameDecoder {
 
-    public RSocketLengthCodec() {
-        super(FRAME_LENGTH_MASK, 0, FRAME_LENGTH_SIZE, 0, 0);
-    }
+  public RSocketLengthCodec() {
+    super(FRAME_LENGTH_MASK, 0, FRAME_LENGTH_SIZE, 0, 0);
+  }
 }

@@ -26,52 +26,48 @@ import reactor.ipc.netty.NettyInbound;
 import reactor.ipc.netty.NettyOutbound;
 
 public class WebsocketDuplexConnection implements DuplexConnection {
-    private final NettyInbound in;
-    private final NettyOutbound out;
-    private final NettyContext context;
+  private final NettyInbound in;
+  private final NettyOutbound out;
+  private final NettyContext context;
 
-    public WebsocketDuplexConnection(NettyInbound in, NettyOutbound out, NettyContext context) {
-        this.in = in;
-        this.out = out;
-        this.context = context;
-    }
+  public WebsocketDuplexConnection(NettyInbound in, NettyOutbound out, NettyContext context) {
+    this.in = in;
+    this.out = out;
+    this.context = context;
+  }
 
-    @Override
-    public Mono<Void> send(Publisher<Frame> frames) {
-        return Flux.from(frames)
-            .concatMap(this::sendOne)
-            .then();
-    }
+  @Override
+  public Mono<Void> send(Publisher<Frame> frames) {
+    return Flux.from(frames).concatMap(this::sendOne).then();
+  }
 
-    @Override
-    public Mono<Void> sendOne(Frame frame) {
-        return out.sendObject(new BinaryWebSocketFrame(frame.content()))
-            .then();
-    }
+  @Override
+  public Mono<Void> sendOne(Frame frame) {
+    return out.sendObject(new BinaryWebSocketFrame(frame.content())).then();
+  }
 
-    @Override
-    public Flux<Frame> receive() {
-        return in
-            .receive()
-            .map(buf -> Frame.from(buf.retain()));
-    }
+  @Override
+  public Flux<Frame> receive() {
+    return in.receive().map(buf -> Frame.from(buf.retain()));
+  }
 
-    @Override
-    public Mono<Void> close() {
-        return Mono.fromRunnable(() -> {
-            if (!context.isDisposed()) {
-                context.channel().close();
-            }
+  @Override
+  public Mono<Void> close() {
+    return Mono.fromRunnable(
+        () -> {
+          if (!context.isDisposed()) {
+            context.channel().close();
+          }
         });
-    }
+  }
 
-    @Override
-    public Mono<Void> onClose() {
-        return context.onClose();
-    }
+  @Override
+  public Mono<Void> onClose() {
+    return context.onClose();
+  }
 
-    @Override
-    public double availability() {
-        return context.isDisposed() ? 0.0 : 1.0;
-    }
+  @Override
+  public double availability() {
+    return context.isDisposed() ? 0.0 : 1.0;
+  }
 }

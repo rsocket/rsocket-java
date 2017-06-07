@@ -15,7 +15,5 @@
  */
 package io.rsocket.exceptions;
 
-/**
- * Marker interface only
- */
+/** Marker interface only */
 public interface Retryable {}

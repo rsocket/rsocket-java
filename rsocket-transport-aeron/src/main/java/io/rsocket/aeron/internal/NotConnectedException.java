@@ -16,11 +16,11 @@
 package io.rsocket.aeron.internal;
 
 public class NotConnectedException extends RuntimeException {
-    public NotConnectedException() {
-        super();
-    }
+  public NotConnectedException() {
+    super();
+  }
 
-    public NotConnectedException(String message) {
-        super(message);
-    }
+  public NotConnectedException(String message) {
+    super(message);
+  }
 }

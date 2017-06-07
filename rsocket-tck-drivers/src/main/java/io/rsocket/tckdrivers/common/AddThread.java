@@ -16,38 +16,39 @@ package io.rsocket.tckdrivers.common;
 import java.util.concurrent.CountDownLatch;
 
 /**
- * A thread that is created to wait to be able to append a marble string. We wait for the previous thread to have finished
- * adding before allowing this thread to append, and after adding, we call countDown() to allow whatever thread waiting
- * on this one to begin adding
+ * A thread that is created to wait to be able to append a marble string. We wait for the previous
+ * thread to have finished adding before allowing this thread to append, and after adding, we call
+ * countDown() to allow whatever thread waiting on this one to begin adding
  */
 public class AddThread implements Runnable {
 
-    private String marble;
-    private ParseMarble parseMarble;
-    private Thread t;
-    private CountDownLatch prev, curr;
+  private String marble;
+  private ParseMarble parseMarble;
+  private Thread t;
+  private CountDownLatch prev, curr;
 
-    public AddThread(String marble, ParseMarble parseMarble, CountDownLatch prev, CountDownLatch curr) {
-        this.marble = marble;
-        this.parseMarble = parseMarble;
-        this.t = new Thread(this);
-        this.prev = prev;
-        this.curr = curr;
-    }
+  public AddThread(
+      String marble, ParseMarble parseMarble, CountDownLatch prev, CountDownLatch curr) {
+    this.marble = marble;
+    this.parseMarble = parseMarble;
+    this.t = new Thread(this);
+    this.prev = prev;
+    this.curr = curr;
+  }
 
-    @Override
-    public void run() {
-        try {
-            // await for the previous latch to have counted down, if it exists
-            if (prev != null) prev.await();
-            parseMarble.add(marble);
-            curr.countDown(); // count down on the current to unblock the next append
-        } catch (InterruptedException e) {
-            System.out.println("Interrupted in AddThread");
-        }
+  @Override
+  public void run() {
+    try {
+      // await for the previous latch to have counted down, if it exists
+      if (prev != null) prev.await();
+      parseMarble.add(marble);
+      curr.countDown(); // count down on the current to unblock the next append
+    } catch (InterruptedException e) {
+      System.out.println("Interrupted in AddThread");
     }
+  }
 
-    public void start() {
-        t.start();
-    }
+  public void start() {
+    t.start();
+  }
 }

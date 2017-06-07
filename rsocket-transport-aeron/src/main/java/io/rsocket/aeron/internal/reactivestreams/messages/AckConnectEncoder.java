@@ -19,129 +19,109 @@ package io.rsocket.aeron.internal.reactivestreams.messages;
 
 import org.agrona.MutableDirectBuffer;
 
-@javax.annotation.Generated(value = {"io.rsocket.aeron.internal.reactivestreams.messages.AckConnectEncoder"})
+@javax.annotation.Generated(
+  value = {"io.rsocket.aeron.internal.reactivestreams.messages.AckConnectEncoder"}
+)
 @SuppressWarnings("all")
-public class AckConnectEncoder
-{
-    public static final int BLOCK_LENGTH = 12;
-    public static final int TEMPLATE_ID = 2;
-    public static final int SCHEMA_ID = 1;
-    public static final int SCHEMA_VERSION = 0;
+public class AckConnectEncoder {
+  public static final int BLOCK_LENGTH = 12;
+  public static final int TEMPLATE_ID = 2;
+  public static final int SCHEMA_ID = 1;
+  public static final int SCHEMA_VERSION = 0;
 
-    private final AckConnectEncoder parentMessage = this;
-    private MutableDirectBuffer buffer;
-    protected int offset;
-    protected int limit;
-    protected int actingBlockLength;
-    protected int actingVersion;
+  private final AckConnectEncoder parentMessage = this;
+  private MutableDirectBuffer buffer;
+  protected int offset;
+  protected int limit;
+  protected int actingBlockLength;
+  protected int actingVersion;
 
-    public int sbeBlockLength()
-    {
-        return BLOCK_LENGTH;
-    }
+  public int sbeBlockLength() {
+    return BLOCK_LENGTH;
+  }
 
-    public int sbeTemplateId()
-    {
-        return TEMPLATE_ID;
-    }
+  public int sbeTemplateId() {
+    return TEMPLATE_ID;
+  }
 
-    public int sbeSchemaId()
-    {
-        return SCHEMA_ID;
-    }
+  public int sbeSchemaId() {
+    return SCHEMA_ID;
+  }
 
-    public int sbeSchemaVersion()
-    {
-        return SCHEMA_VERSION;
-    }
+  public int sbeSchemaVersion() {
+    return SCHEMA_VERSION;
+  }
 
-    public String sbeSemanticType()
-    {
-        return "";
-    }
+  public String sbeSemanticType() {
+    return "";
+  }
 
-    public int offset()
-    {
-        return offset;
-    }
+  public int offset() {
+    return offset;
+  }
 
-    public AckConnectEncoder wrap(final MutableDirectBuffer buffer, final int offset)
-    {
-        this.buffer = buffer;
-        this.offset = offset;
-        limit(offset + BLOCK_LENGTH);
+  public AckConnectEncoder wrap(final MutableDirectBuffer buffer, final int offset) {
+    this.buffer = buffer;
+    this.offset = offset;
+    limit(offset + BLOCK_LENGTH);
 
-        return this;
-    }
+    return this;
+  }
 
-    public int encodedLength()
-    {
-        return limit - offset;
-    }
+  public int encodedLength() {
+    return limit - offset;
+  }
 
-    public int limit()
-    {
-        return limit;
-    }
+  public int limit() {
+    return limit;
+  }
 
-    public void limit(final int limit)
-    {
-        this.limit = limit;
-    }
+  public void limit(final int limit) {
+    this.limit = limit;
+  }
 
-    public static long channelIdNullValue()
-    {
-        return -9223372036854775808L;
-    }
+  public static long channelIdNullValue() {
+    return -9223372036854775808L;
+  }
 
-    public static long channelIdMinValue()
-    {
-        return -9223372036854775807L;
-    }
+  public static long channelIdMinValue() {
+    return -9223372036854775807L;
+  }
 
-    public static long channelIdMaxValue()
-    {
-        return 9223372036854775807L;
-    }
+  public static long channelIdMaxValue() {
+    return 9223372036854775807L;
+  }
 
-    public AckConnectEncoder channelId(final long value)
-    {
-        buffer.putLong(offset + 0, value, java.nio.ByteOrder.LITTLE_ENDIAN);
-        return this;
-    }
+  public AckConnectEncoder channelId(final long value) {
+    buffer.putLong(offset + 0, value, java.nio.ByteOrder.LITTLE_ENDIAN);
+    return this;
+  }
 
+  public static int serverSessionIdNullValue() {
+    return -2147483648;
+  }
 
-    public static int serverSessionIdNullValue()
-    {
-        return -2147483648;
-    }
+  public static int serverSessionIdMinValue() {
+    return -2147483647;
+  }
 
-    public static int serverSessionIdMinValue()
-    {
-        return -2147483647;
-    }
+  public static int serverSessionIdMaxValue() {
+    return 2147483647;
+  }
 
-    public static int serverSessionIdMaxValue()
-    {
-        return 2147483647;
-    }
+  public AckConnectEncoder serverSessionId(final int value) {
+    buffer.putInt(offset + 8, value, java.nio.ByteOrder.LITTLE_ENDIAN);
+    return this;
+  }
 
-    public AckConnectEncoder serverSessionId(final int value)
-    {
-        buffer.putInt(offset + 8, value, java.nio.ByteOrder.LITTLE_ENDIAN);
-        return this;
-    }
+  public String toString() {
+    return appendTo(new StringBuilder(100)).toString();
+  }
 
-    public String toString()
-    {
-        return appendTo(new StringBuilder(100)).toString();
-    }
+  public StringBuilder appendTo(final StringBuilder builder) {
+    AckConnectDecoder writer = new AckConnectDecoder();
+    writer.wrap(buffer, offset, BLOCK_LENGTH, SCHEMA_VERSION);
 
-    public StringBuilder appendTo(final StringBuilder builder)
-    {
-        AckConnectDecoder writer = new AckConnectDecoder();
-        writer.wrap(buffer, offset, BLOCK_LENGTH, SCHEMA_VERSION);
-
-        return writer.appendTo(builder);
-    }
+    return writer.appendTo(builder);
+  }
 }

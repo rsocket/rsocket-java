@@ -1,7 +1,4 @@
 package io.rsocket.transport;
 
-/**
- *
- */
-public interface Transport {
-}
+/** */
+public interface Transport {}

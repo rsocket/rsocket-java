@@ -17,15 +17,13 @@ package io.rsocket.aeron.internal;
 
 import java.util.function.IntSupplier;
 
-/**
- * Interface for an EventLoop used by Aeron
- */
+/** Interface for an EventLoop used by Aeron */
 public interface EventLoop {
-    /**
-     * Executes an IntSupplier that returns a number greater than 0 if it wants the the event loop
-     * to keep processing items, and zero its okay for the eventloop to execute an idle strategy
-     * @param r
-     */
-    boolean execute(IntSupplier r);
-
+  /**
+   * Executes an IntSupplier that returns a number greater than 0 if it wants the the event loop to
+   * keep processing items, and zero its okay for the eventloop to execute an idle strategy
+   *
+   * @param r
+   */
+  boolean execute(IntSupplier r);
 }

@@ -16,8 +16,7 @@
 package io.rsocket.exceptions;
 
 public class TransportException extends Throwable {
-    public TransportException(Throwable t) {
-        super(t);
-    }
-
+  public TransportException(Throwable t) {
+    super(t);
+  }
 }

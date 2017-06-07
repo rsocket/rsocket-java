@@ -25,48 +25,49 @@ import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
 
 public class LocalDuplexConnection implements DuplexConnection {
-    private final DirectProcessor<Frame> send;
-    private final DirectProcessor<Frame> receive;
-    private final MonoProcessor<Void> closeNotifier;
-    private final String name;
+  private final DirectProcessor<Frame> send;
+  private final DirectProcessor<Frame> receive;
+  private final MonoProcessor<Void> closeNotifier;
+  private final String name;
 
-    public LocalDuplexConnection(String name, DirectProcessor<Frame> send, DirectProcessor<Frame> receive) {
-        this.name = name;
-        this.send = send;
-        this.receive = receive;
-        closeNotifier = MonoProcessor.create();
-    }
+  public LocalDuplexConnection(
+      String name, DirectProcessor<Frame> send, DirectProcessor<Frame> receive) {
+    this.name = name;
+    this.send = send;
+    this.receive = receive;
+    closeNotifier = MonoProcessor.create();
+  }
 
-    @Override
-    public Mono<Void> send(Publisher<Frame> frame) {
-        return Flux
-            .from(frame)
-            .doOnNext(f -> System.out.println(name + " - " + f.toString()))
-            .doOnNext(send::onNext)
-            .doOnError(send::onError)
-            .then();
-    }
+  @Override
+  public Mono<Void> send(Publisher<Frame> frame) {
+    return Flux.from(frame)
+        .doOnNext(f -> System.out.println(name + " - " + f.toString()))
+        .doOnNext(send::onNext)
+        .doOnError(send::onError)
+        .then();
+  }
 
-    @Override
-    public Flux<Frame> receive() {
-        return receive.doOnNext(f -> System.out.println(name + " - " + f.toString()));
-    }
+  @Override
+  public Flux<Frame> receive() {
+    return receive.doOnNext(f -> System.out.println(name + " - " + f.toString()));
+  }
 
-    @Override
-    public double availability() {
-        return 1;
-    }
+  @Override
+  public double availability() {
+    return 1;
+  }
 
-    @Override
-    public Mono<Void> close() {
-        return Mono.defer(() -> {
-            closeNotifier.onComplete();
-            return Mono.empty();
+  @Override
+  public Mono<Void> close() {
+    return Mono.defer(
+        () -> {
+          closeNotifier.onComplete();
+          return Mono.empty();
         });
-    }
+  }
 
-    @Override
-    public Mono<Void> onClose() {
-        return closeNotifier;
-    }
+  @Override
+  public Mono<Void> onClose() {
+    return closeNotifier;
+  }
 }

@@ -24,25 +24,23 @@ import reactor.core.publisher.Mono;
 
 public class TestRSocket extends AbstractRSocket {
 
-    @Override
-    public Mono<Payload> requestResponse(Payload payload) {
-        return Mono.just(new PayloadImpl("hello world", "metadata"));
-    }
+  @Override
+  public Mono<Payload> requestResponse(Payload payload) {
+    return Mono.just(new PayloadImpl("hello world", "metadata"));
+  }
 
-    @Override
-    public Flux<Payload> requestStream(Payload payload) {
-        return Flux
-            .range(1, 10_000)
-            .flatMap(l -> requestResponse(payload));
-    }
+  @Override
+  public Flux<Payload> requestStream(Payload payload) {
+    return Flux.range(1, 10_000).flatMap(l -> requestResponse(payload));
+  }
 
-    @Override
-    public Mono<Void> metadataPush(Payload payload) {
-        return Mono.empty();
-    }
+  @Override
+  public Mono<Void> metadataPush(Payload payload) {
+    return Mono.empty();
+  }
 
-    @Override
-    public Mono<Void> fireAndForget(Payload payload) {
-        return Mono.empty();
-    }
+  @Override
+  public Mono<Void> fireAndForget(Payload payload) {
+    return Mono.empty();
+  }
 }

@@ -16,7 +16,7 @@
 package io.rsocket.exceptions;
 
 public class UnsupportedSetupException extends SetupException {
-    public UnsupportedSetupException(String message) {
-        super(message);
-    }
+  public UnsupportedSetupException(String message) {
+    super(message);
+  }
 }

@@ -16,15 +16,13 @@
 package io.rsocket.stat;
 
 public interface Quantile {
-    /**
-     *
-     * @return the estimation of the current value of the quantile
-     */
-    public double estimation();
+  /** @return the estimation of the current value of the quantile */
+  public double estimation();
 
-    /**
-     * Insert a data point `x` in the quantile estimator.
-     * @param x
-     */
-    public void insert(double x);
+  /**
+   * Insert a data point `x` in the quantile estimator.
+   *
+   * @param x
+   */
+  public void insert(double x);
 }

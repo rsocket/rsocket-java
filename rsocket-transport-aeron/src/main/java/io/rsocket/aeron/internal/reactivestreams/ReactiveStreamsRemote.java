@@ -15,77 +15,75 @@
  */
 package io.rsocket.aeron.internal.reactivestreams;
 
-import org.reactivestreams.Publisher;
-import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
-
 import java.net.SocketAddress;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import org.reactivestreams.Publisher;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
-/**
- * Interfaces to define a ReactiveStream over a remote channel
- */
+/** Interfaces to define a ReactiveStream over a remote channel */
 public interface ReactiveStreamsRemote {
-    interface Channel<T> {
-        Mono<Void> send(Flux<? extends T> in);
+  interface Channel<T> {
+    Mono<Void> send(Flux<? extends T> in);
 
-        default Mono<Void> send(T t) {
-            return send(Flux.just(t));
-        }
-
-        Flux<? extends T> receive();
-        boolean isActive();
+    default Mono<Void> send(T t) {
+      return send(Flux.just(t));
     }
 
-    interface ClientChannelConnector<T extends ClientChannelConfig, R extends Channel<?>> extends Function<T, Publisher<R>> {}
+    Flux<? extends T> receive();
 
-    interface ClientChannelConfig {}
+    boolean isActive();
+  }
 
-    interface ChannelConsumer<C extends Channel<?>> extends Consumer<C> {}
+  interface ClientChannelConnector<T extends ClientChannelConfig, R extends Channel<?>>
+      extends Function<T, Publisher<R>> {}
 
-    abstract class ChannelServer<C extends ChannelConsumer<?>> {
-        protected final C channelConsumer;
+  interface ClientChannelConfig {}
 
-        public ChannelServer(C channelConsumer) {
-            this.channelConsumer = channelConsumer;
-        }
+  interface ChannelConsumer<C extends Channel<?>> extends Consumer<C> {}
 
-        public abstract StartedServer start();
+  abstract class ChannelServer<C extends ChannelConsumer<?>> {
+    protected final C channelConsumer;
+
+    public ChannelServer(C channelConsumer) {
+      this.channelConsumer = channelConsumer;
     }
 
-    interface StartedServer {
-        /**
-         * Address for this server.
-         *
-         * @return Address for this server.
-         */
-        SocketAddress getServerAddress();
+    public abstract StartedServer start();
+  }
 
-        /**
-         * Port for this server.
-         *
-         * @return Port for this server.
-         */
-        int getServerPort();
+  interface StartedServer {
+    /**
+     * Address for this server.
+     *
+     * @return Address for this server.
+     */
+    SocketAddress getServerAddress();
 
-        /**
-         * Blocks till this server shutsdown. <p>
-         *     <em>This does not shutdown the server.</em>
-         */
-        void awaitShutdown();
+    /**
+     * Port for this server.
+     *
+     * @return Port for this server.
+     */
+    int getServerPort();
 
-        /**
-         * Blocks till this server shutsdown till the passed duration. <p>
-         *     <em>This does not shutdown the server.</em>
-         */
-        void awaitShutdown(long duration, TimeUnit durationUnit);
+    /**
+     * Blocks till this server shutsdown.
+     *
+     * <p><em>This does not shutdown the server.</em>
+     */
+    void awaitShutdown();
 
-        /**
-         * Initiates the shutdown of this server.
-         */
-        void shutdown();
-    }
+    /**
+     * Blocks till this server shutsdown till the passed duration.
+     *
+     * <p><em>This does not shutdown the server.</em>
+     */
+    void awaitShutdown(long duration, TimeUnit durationUnit);
 
+    /** Initiates the shutdown of this server. */
+    void shutdown();
+  }
 }

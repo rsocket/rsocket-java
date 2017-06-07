@@ -21,31 +21,28 @@ import io.rsocket.aeron.AeronDuplexConnection;
 import io.rsocket.aeron.internal.reactivestreams.AeronChannel;
 import io.rsocket.aeron.internal.reactivestreams.AeronClientChannelConnector;
 import io.rsocket.transport.ClientTransport;
+import java.util.Objects;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Mono;
 
-import java.util.Objects;
-
-/**
- * {@link ClientTransport} implementation that uses Aeron as a transport
- */
+/** {@link ClientTransport} implementation that uses Aeron as a transport */
 public class AeronClientTransport implements ClientTransport {
-    private final AeronClientChannelConnector connector;
-    private final AeronClientChannelConnector.AeronClientConfig config;
+  private final AeronClientChannelConnector connector;
+  private final AeronClientChannelConnector.AeronClientConfig config;
 
-    public AeronClientTransport(AeronClientChannelConnector connector, AeronClientChannelConnector.AeronClientConfig config) {
-        Objects.requireNonNull(config);
-        Objects.requireNonNull(connector);
-        this.connector = connector;
-        this.config = config;
-    }
+  public AeronClientTransport(
+      AeronClientChannelConnector connector, AeronClientChannelConnector.AeronClientConfig config) {
+    Objects.requireNonNull(config);
+    Objects.requireNonNull(connector);
+    this.connector = connector;
+    this.config = config;
+  }
 
-    @Override
-    public Mono<DuplexConnection> connect() {
-        Publisher<AeronChannel> channelPublisher = connector.apply(config);
+  @Override
+  public Mono<DuplexConnection> connect() {
+    Publisher<AeronChannel> channelPublisher = connector.apply(config);
 
-        return Mono
-            .from(channelPublisher)
-            .map(aeronChannel -> new AeronDuplexConnection("client", aeronChannel));
-    }
+    return Mono.from(channelPublisher)
+        .map(aeronChannel -> new AeronDuplexConnection("client", aeronChannel));
+  }
 }

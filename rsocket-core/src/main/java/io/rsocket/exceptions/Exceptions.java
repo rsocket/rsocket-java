@@ -15,46 +15,47 @@
  */
 package io.rsocket.exceptions;
 
+import static io.rsocket.frame.ErrorFrameFlyweight.*;
+
 import io.rsocket.Frame;
 import io.rsocket.util.PayloadImpl;
-
 import java.nio.charset.StandardCharsets;
-
-import static io.rsocket.frame.ErrorFrameFlyweight.*;
 
 public class Exceptions {
 
-    private Exceptions() {}
+  private Exceptions() {}
 
-    public static RuntimeException from(Frame frame) {
-        final int errorCode = Frame.Error.errorCode(frame);
+  public static RuntimeException from(Frame frame) {
+    final int errorCode = Frame.Error.errorCode(frame);
 
-        RuntimeException ex;
-        switch (errorCode) {
-            case APPLICATION_ERROR:
-                ex = new ApplicationException(new PayloadImpl(frame));
-                break;
-            case CONNECTION_ERROR:
-                ex = new ConnectionException(StandardCharsets.UTF_8.decode(frame.getData()).toString());
-                break;
-            case INVALID:
-                ex = new InvalidRequestException(StandardCharsets.UTF_8.decode(frame.getData()).toString());
-                break;
-            case INVALID_SETUP:
-                ex = new InvalidSetupException(StandardCharsets.UTF_8.decode(frame.getData()).toString());
-                break;
-            case REJECTED:
-                ex = new RejectedException(StandardCharsets.UTF_8.decode(frame.getData()).toString());
-                break;
-            case REJECTED_SETUP:
-                ex = new RejectedSetupException(StandardCharsets.UTF_8.decode(frame.getData()).toString());
-                break;
-            case UNSUPPORTED_SETUP:
-                ex = new UnsupportedSetupException(StandardCharsets.UTF_8.decode(frame.getData()).toString());
-                break;
-            default:
-                ex = new InvalidRequestException("Invalid Error frame");
-        }
-        return ex;
+    RuntimeException ex;
+    switch (errorCode) {
+      case APPLICATION_ERROR:
+        ex = new ApplicationException(new PayloadImpl(frame));
+        break;
+      case CONNECTION_ERROR:
+        ex = new ConnectionException(StandardCharsets.UTF_8.decode(frame.getData()).toString());
+        break;
+      case INVALID:
+        ex = new InvalidRequestException(StandardCharsets.UTF_8.decode(frame.getData()).toString());
+        break;
+      case INVALID_SETUP:
+        ex = new InvalidSetupException(StandardCharsets.UTF_8.decode(frame.getData()).toString());
+        break;
+      case REJECTED:
+        ex = new RejectedException(StandardCharsets.UTF_8.decode(frame.getData()).toString());
+        break;
+      case REJECTED_SETUP:
+        ex = new RejectedSetupException(StandardCharsets.UTF_8.decode(frame.getData()).toString());
+        break;
+      case UNSUPPORTED_SETUP:
+        ex =
+            new UnsupportedSetupException(
+                StandardCharsets.UTF_8.decode(frame.getData()).toString());
+        break;
+      default:
+        ex = new InvalidRequestException("Invalid Error frame");
     }
+    return ex;
+  }
 }

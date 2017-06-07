@@ -16,55 +16,49 @@ package io.rsocket.tckdrivers.client;
 import io.rsocket.RSocket;
 import io.rsocket.RSocketFactory;
 import io.rsocket.transport.netty.client.TcpClientTransport;
-
 import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.List;
 
-
-/**
- * A client that implements a method to create RSockets, and runs the tests.
- */
+/** A client that implements a method to create RSockets, and runs the tests. */
 public class JavaTCPClient {
 
-    private static URI uri;
+  private static URI uri;
 
-    public boolean run(String realfile, String host, int port, boolean debug2, List<String> tests)
-            throws MalformedURLException, URISyntaxException {
-        // we pass in our reactive socket here to the test suite
-        String file = "rsocket-tck-drivers/src/test/resources/clienttest.txt";
-        if (realfile != null) file = realfile;
-        try {
-            setURI(new URI("tcp://" + host + ":" + port + "/rs"));
-            RSocket client = createClient();
-            JavaClientDriver jd = new JavaClientDriver(file, ()->client, tests);
-            return jd.runTests();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        return false;
+  public boolean run(String realfile, String host, int port, boolean debug2, List<String> tests)
+      throws MalformedURLException, URISyntaxException {
+    // we pass in our reactive socket here to the test suite
+    String file = "rsocket-tck-drivers/src/test/resources/clienttest.txt";
+    if (realfile != null) file = realfile;
+    try {
+      setURI(new URI("tcp://" + host + ":" + port + "/rs"));
+      RSocket client = createClient();
+      JavaClientDriver jd = new JavaClientDriver(file, () -> client, tests);
+      return jd.runTests();
+    } catch (Exception e) {
+      e.printStackTrace();
     }
+    return false;
+  }
 
-    public static void setURI(URI uri2) {
-        uri = uri2;
+  public static void setURI(URI uri2) {
+    uri = uri2;
+  }
+
+  /**
+   * A function that creates a RSocket on a new TCP connection.
+   *
+   * @return a RSocket
+   */
+  public static RSocket createClient() {
+    if ("tcp".equals(uri.getScheme())) {
+      return RSocketFactory.connect()
+          .transport(TcpClientTransport.create(uri.getHost(), uri.getPort()))
+          .start()
+          .block();
+    } else {
+      throw new UnsupportedOperationException("uri unsupported: " + uri);
     }
-
-    /**
-     * A function that creates a RSocket on a new TCP connection.
-     * @return a RSocket
-     */
-    public static RSocket createClient() {
-        if ("tcp".equals(uri.getScheme())) {
-            return RSocketFactory
-                .connect()
-                .transport(TcpClientTransport.create(uri.getHost(), uri.getPort()))
-                .start()
-                .block();
-        }
-        else {
-            throw new UnsupportedOperationException("uri unsupported: " + uri);
-        }
-    }
-
+  }
 }

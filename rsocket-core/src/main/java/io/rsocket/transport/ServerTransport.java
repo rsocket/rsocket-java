@@ -18,39 +18,32 @@ package io.rsocket.transport;
 
 import io.rsocket.Closeable;
 import io.rsocket.DuplexConnection;
+import java.util.function.Function;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Mono;
 
-import java.util.function.Function;
-
-/**
- * A server contract for writing transports of RSocket.
- */
+/** A server contract for writing transports of RSocket. */
 public interface ServerTransport<T extends Closeable> extends Transport {
 
-    /**
-     * Starts this server.
-     *
-     * @param acceptor An acceptor to process a newly accepted {@code DuplexConnection}
-     *
-     * @return A handle to retrieve information about a started server.
-     */
-    Mono<T> start(ConnectionAcceptor acceptor);
+  /**
+   * Starts this server.
+   *
+   * @param acceptor An acceptor to process a newly accepted {@code DuplexConnection}
+   * @return A handle to retrieve information about a started server.
+   */
+  Mono<T> start(ConnectionAcceptor acceptor);
+
+  /** A contract to accept a new {@code DuplexConnection}. */
+  interface ConnectionAcceptor extends Function<DuplexConnection, Publisher<Void>> {
 
     /**
-     * A contract to accept a new {@code DuplexConnection}.
+     * Accept a new {@code DuplexConnection} and returns {@code Publisher} signifying the end of
+     * processing of the connection.
+     *
+     * @param duplexConnection New {@code DuplexConnection} to be processed.
+     * @return A {@code Publisher} which terminates when the processing of the connection finishes.
      */
-    interface ConnectionAcceptor extends Function<DuplexConnection, Publisher<Void>> {
-
-        /**
-         * Accept a new {@code DuplexConnection} and returns {@code Publisher} signifying the end of processing of the
-         * connection.
-         *
-         * @param duplexConnection New {@code DuplexConnection} to be processed.
-         *
-         * @return A {@code Publisher} which terminates when the processing of the connection finishes.
-         */
-        @Override
-        Mono<Void> apply(DuplexConnection duplexConnection);
-    }
+    @Override
+    Mono<Void> apply(DuplexConnection duplexConnection);
+  }
 }

@@ -13,25 +13,23 @@
 
 package io.rsocket.tckdrivers.common;
 
-/**
- * This thread calls parse on the parseMarble object.
- */
+/** This thread calls parse on the parseMarble object. */
 public class ParseThread implements Runnable {
 
-    private ParseMarble pm;
-    private Thread t;
+  private ParseMarble pm;
+  private Thread t;
 
-    public ParseThread(ParseMarble pm) {
-        this.pm = pm;
-        this.t = new Thread(this);
-    }
+  public ParseThread(ParseMarble pm) {
+    this.pm = pm;
+    this.t = new Thread(this);
+  }
 
-    @Override
-    public void run() {
-        pm.parse();
-    }
+  @Override
+  public void run() {
+    pm.parse();
+  }
 
-    public void start() {
-        t.start();
-    }
+  public void start() {
+    t.start();
+  }
 }

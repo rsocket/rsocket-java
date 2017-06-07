@@ -13,33 +13,31 @@
 
 package io.rsocket.tckdrivers.common;
 
-/**
- * This thread parses through channel tests
- */
+/** This thread parses through channel tests */
 public class ParseChannelThread implements Runnable {
 
-    private ParseChannel pc;
-    private Thread t;
+  private ParseChannel pc;
+  private Thread t;
 
-    public ParseChannelThread(ParseChannel pc) {
-        this.pc = pc;
-        this.t = new Thread(this);
-    }
+  public ParseChannelThread(ParseChannel pc) {
+    this.pc = pc;
+    this.t = new Thread(this);
+  }
 
-    @Override
-    public void run() {
-        pc.parse();
-    }
+  @Override
+  public void run() {
+    pc.parse();
+  }
 
-    public void start() {
-        t.start();
-    }
+  public void start() {
+    t.start();
+  }
 
-    public void join() {
-        try {
-            t.join();
-        } catch (InterruptedException e) {
-            this.pc.consoleUtils.error("interrupted");
-        }
+  public void join() {
+    try {
+      t.join();
+    } catch (InterruptedException e) {
+      this.pc.consoleUtils.error("interrupted");
     }
+  }
 }

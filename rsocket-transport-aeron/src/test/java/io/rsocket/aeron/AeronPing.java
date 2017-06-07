@@ -27,51 +27,52 @@ import io.rsocket.client.KeepAliveProvider;
 import io.rsocket.client.RSocketClient;
 import io.rsocket.client.SetupProvider;
 import io.rsocket.test.PingClient;
-import org.HdrHistogram.Recorder;
-
 import java.time.Duration;
+import org.HdrHistogram.Recorder;
 
 public final class AeronPing {
 
-    public static void main(String... args) throws Exception {
-        SetupProvider setup = SetupProvider.keepAlive(KeepAliveProvider.never()).disableLease();
+  public static void main(String... args) throws Exception {
+    SetupProvider setup = SetupProvider.keepAlive(KeepAliveProvider.never()).disableLease();
 
-        // Create Client Connector
-        AeronWrapper aeronWrapper = new DefaultAeronWrapper();
+    // Create Client Connector
+    AeronWrapper aeronWrapper = new DefaultAeronWrapper();
 
-        AeronSocketAddress clientManagementSocketAddress = AeronSocketAddress.create("aeron:udp", "127.0.0.1", 39790);
-        EventLoop clientEventLoop = new SingleThreadedEventLoop("client");
+    AeronSocketAddress clientManagementSocketAddress =
+        AeronSocketAddress.create("aeron:udp", "127.0.0.1", 39790);
+    EventLoop clientEventLoop = new SingleThreadedEventLoop("client");
 
-        AeronSocketAddress receiveAddress = AeronSocketAddress.create("aeron:udp", "127.0.0.1", 39790);
-        AeronSocketAddress sendAddress = AeronSocketAddress.create("aeron:udp", "127.0.0.1", 39790);
+    AeronSocketAddress receiveAddress = AeronSocketAddress.create("aeron:udp", "127.0.0.1", 39790);
+    AeronSocketAddress sendAddress = AeronSocketAddress.create("aeron:udp", "127.0.0.1", 39790);
 
-        AeronClientChannelConnector.AeronClientConfig config = AeronClientChannelConnector
-            .AeronClientConfig.create(
-                receiveAddress,
-                sendAddress,
-                Constants.CLIENT_STREAM_ID,
-                Constants.SERVER_STREAM_ID,
-                clientEventLoop);
+    AeronClientChannelConnector.AeronClientConfig config =
+        AeronClientChannelConnector.AeronClientConfig.create(
+            receiveAddress,
+            sendAddress,
+            Constants.CLIENT_STREAM_ID,
+            Constants.SERVER_STREAM_ID,
+            clientEventLoop);
 
-        AeronClientChannelConnector connector = AeronClientChannelConnector
-            .create(aeronWrapper,
-                clientManagementSocketAddress,
-                clientEventLoop);
+    AeronClientChannelConnector connector =
+        AeronClientChannelConnector.create(
+            aeronWrapper, clientManagementSocketAddress, clientEventLoop);
 
-        AeronClientTransport aeronTransportClient = new AeronClientTransport(connector, config);
+    AeronClientTransport aeronTransportClient = new AeronClientTransport(connector, config);
 
-        RSocketClient client =
-                RSocketClient.create(aeronTransportClient, setup);
-        PingClient pingClient = new PingClient(client);
-        Recorder recorder = pingClient.startTracker(Duration.ofSeconds(1));
-        final int count = 1_000_000_000;
-        pingClient.connect()
-                  .startPingPong(count, recorder)
-                  .doOnTerminate(() -> {
-                      System.out.println("Sent " + count + " messages.");
-                  })
-                  .last(null).block();
+    RSocketClient client = RSocketClient.create(aeronTransportClient, setup);
+    PingClient pingClient = new PingClient(client);
+    Recorder recorder = pingClient.startTracker(Duration.ofSeconds(1));
+    final int count = 1_000_000_000;
+    pingClient
+        .connect()
+        .startPingPong(count, recorder)
+        .doOnTerminate(
+            () -> {
+              System.out.println("Sent " + count + " messages.");
+            })
+        .last(null)
+        .block();
 
-        System.exit(0);
-    }
+    System.exit(0);
+  }
 }
