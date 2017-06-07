@@ -18,71 +18,65 @@ package io.rsocket.aeron.internal;
 
 import io.aeron.Aeron;
 import io.aeron.Image;
-
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.function.Function;
 
-/**
- *
- */
+/** */
 public class DefaultAeronWrapper implements AeronWrapper {
-    private Set<Function<Image, Boolean>> availableImageHandlers;
-    private Set<Function<Image, Boolean>> unavailableImageHandlers;
+  private Set<Function<Image, Boolean>> availableImageHandlers;
+  private Set<Function<Image, Boolean>> unavailableImageHandlers;
 
-    private Aeron aeron;
+  private Aeron aeron;
 
-    public DefaultAeronWrapper() {
-        this.availableImageHandlers = new CopyOnWriteArraySet<>();
-        this.unavailableImageHandlers = new CopyOnWriteArraySet<>();
+  public DefaultAeronWrapper() {
+    this.availableImageHandlers = new CopyOnWriteArraySet<>();
+    this.unavailableImageHandlers = new CopyOnWriteArraySet<>();
 
-        Aeron.Context ctx = new Aeron.Context();
+    Aeron.Context ctx = new Aeron.Context();
 
-        ctx.availableImageHandler(this::availableImageHandler);
-        ctx.unavailableImageHandler(this::unavailableImageHandler);
+    ctx.availableImageHandler(this::availableImageHandler);
+    ctx.unavailableImageHandler(this::unavailableImageHandler);
 
-        this.aeron = Aeron.connect(ctx);
+    this.aeron = Aeron.connect(ctx);
+  }
+
+  public Aeron getAeron() {
+    return aeron;
+  }
+
+  public void availableImageHandler(Function<Image, Boolean> handler) {
+    availableImageHandlers.add(handler);
+  }
+
+  public void unavailableImageHandlers(Function<Image, Boolean> handler) {
+    unavailableImageHandlers.add(handler);
+  }
+
+  private void availableImageHandler(Image image) {
+    Iterator<Function<Image, Boolean>> iterator = availableImageHandlers.iterator();
+
+    Set<Function<Image, Boolean>> itemsToRemove = new HashSet<>();
+    while (iterator.hasNext()) {
+      Function<Image, Boolean> handler = iterator.next();
+      if (handler.apply(image)) {
+        itemsToRemove.add(handler);
+      }
     }
 
-    public Aeron getAeron() {
-        return aeron;
+    availableImageHandlers.removeAll(itemsToRemove);
+  }
+
+  private void unavailableImageHandler(Image image) {
+    Iterator<Function<Image, Boolean>> iterator = unavailableImageHandlers.iterator();
+
+    while (iterator.hasNext()) {
+      Function<Image, Boolean> handler = iterator.next();
+      if (handler.apply(image)) {
+        iterator.remove();
+      }
     }
-
-    public void availableImageHandler(Function<Image, Boolean> handler) {
-        availableImageHandlers.add(handler);
-    }
-
-    public void unavailableImageHandlers(Function<Image, Boolean> handler) {
-        unavailableImageHandlers.add(handler);
-    }
-
-
-    private void availableImageHandler(Image image) {
-        Iterator<Function<Image, Boolean>> iterator = availableImageHandlers
-            .iterator();
-
-        Set<Function<Image, Boolean>> itemsToRemove = new HashSet<>();
-        while (iterator.hasNext()) {
-            Function<Image, Boolean> handler = iterator.next();
-            if (handler.apply(image)) {
-                itemsToRemove.add(handler);
-            }
-        }
-
-        availableImageHandlers.removeAll(itemsToRemove);
-    }
-
-    private void unavailableImageHandler(Image image) {
-        Iterator<Function<Image, Boolean>> iterator = unavailableImageHandlers
-            .iterator();
-
-        while (iterator.hasNext()) {
-            Function<Image, Boolean> handler = iterator.next();
-            if (handler.apply(image)) {
-                iterator.remove();
-            }
-        }
-    }
+  }
 }

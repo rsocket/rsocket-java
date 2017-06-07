@@ -13,33 +13,34 @@
 
 package io.rsocket.util;
 
-import io.rsocket.TestUtil;
-import org.junit.Test;
-
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
+import io.rsocket.TestUtil;
+import org.junit.Test;
+
 public class PayloadImplTest {
-    public static final String DATA_VAL = "data";
-    public static final String METADATA_VAL = "metadata";
+  public static final String DATA_VAL = "data";
+  public static final String METADATA_VAL = "metadata";
 
-    @Test
-    public void testReuse() throws Exception {
-        PayloadImpl p = new PayloadImpl(DATA_VAL, METADATA_VAL);
-        assertDataAndMetadata(p);
-        assertDataAndMetadata(p);
-    }
+  @Test
+  public void testReuse() throws Exception {
+    PayloadImpl p = new PayloadImpl(DATA_VAL, METADATA_VAL);
+    assertDataAndMetadata(p);
+    assertDataAndMetadata(p);
+  }
 
-    @Test
-    public void testReuseWithExternalMark() throws Exception {
-        PayloadImpl p = new PayloadImpl(DATA_VAL, METADATA_VAL);
-        assertDataAndMetadata(p);
-        p.getData().position(2).mark();
-        assertDataAndMetadata(p);
-    }
+  @Test
+  public void testReuseWithExternalMark() throws Exception {
+    PayloadImpl p = new PayloadImpl(DATA_VAL, METADATA_VAL);
+    assertDataAndMetadata(p);
+    p.getData().position(2).mark();
+    assertDataAndMetadata(p);
+  }
 
-    public void assertDataAndMetadata(PayloadImpl p) {
-        assertThat("Unexpected data.", TestUtil.byteToString(p.getData()), equalTo(DATA_VAL));
-        assertThat("Unexpected metadata.", TestUtil.byteToString(p.getMetadata()), equalTo(METADATA_VAL));
-    }
+  public void assertDataAndMetadata(PayloadImpl p) {
+    assertThat("Unexpected data.", TestUtil.byteToString(p.getData()), equalTo(DATA_VAL));
+    assertThat(
+        "Unexpected metadata.", TestUtil.byteToString(p.getMetadata()), equalTo(METADATA_VAL));
+  }
 }

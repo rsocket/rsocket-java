@@ -17,10 +17,11 @@
 /* Generated SBE (Simple Binary Encoding) message codec */
 package io.rsocket.aeron.internal.reactivestreams.messages;
 
-@javax.annotation.Generated(value = {"io.rsocket.aeron.internal.reactivestreams.messages.MetaAttribute"})
-public enum MetaAttribute
-{
-    EPOCH,
-    TIME_UNIT,
-    SEMANTIC_TYPE
+@javax.annotation.Generated(
+  value = {"io.rsocket.aeron.internal.reactivestreams.messages.MetaAttribute"}
+)
+public enum MetaAttribute {
+  EPOCH,
+  TIME_UNIT,
+  SEMANTIC_TYPE
 }

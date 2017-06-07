@@ -26,64 +26,70 @@ import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
 
 /**
- * Implementation of {@link DuplexConnection} over Aeron using an {@link io.rsocket.aeron.internal.reactivestreams.AeronChannel}
+ * Implementation of {@link DuplexConnection} over Aeron using an {@link
+ * io.rsocket.aeron.internal.reactivestreams.AeronChannel}
  */
 public class AeronDuplexConnection implements DuplexConnection {
-    private final String name;
-    private final AeronChannel channel;
-    private final MonoProcessor<Void> emptySubject;
+  private final String name;
+  private final AeronChannel channel;
+  private final MonoProcessor<Void> emptySubject;
 
-    public AeronDuplexConnection(String name, AeronChannel channel) {
-        this.name = name;
-        this.channel = channel;
-        this.emptySubject = MonoProcessor.create();
-    }
+  public AeronDuplexConnection(String name, AeronChannel channel) {
+    this.name = name;
+    this.channel = channel;
+    this.emptySubject = MonoProcessor.create();
+  }
 
-    @Override
-    public Mono<Void> send(Publisher<Frame> frame) {
-        Flux<UnsafeBuffer> buffers = Flux.from(frame)
-            .map(f -> new UnsafeBuffer(f.content().nioBuffer()));
+  @Override
+  public Mono<Void> send(Publisher<Frame> frame) {
+    Flux<UnsafeBuffer> buffers =
+        Flux.from(frame).map(f -> new UnsafeBuffer(f.content().nioBuffer()));
 
-        return channel.send(buffers);
-    }
+    return channel.send(buffers);
+  }
 
-    @Override
-    public Flux<Frame> receive() {
-        return channel
-            .receive()
-            .map(b -> Frame.from(Unpooled.wrappedBuffer(b.byteBuffer())))
-            .doOnError(throwable -> throwable.printStackTrace());
-    }
+  @Override
+  public Flux<Frame> receive() {
+    return channel
+        .receive()
+        .map(b -> Frame.from(Unpooled.wrappedBuffer(b.byteBuffer())))
+        .doOnError(throwable -> throwable.printStackTrace());
+  }
 
-    @Override
-    public double availability() {
-        return channel.isActive() ? 1.0 : 0.0;
-    }
+  @Override
+  public double availability() {
+    return channel.isActive() ? 1.0 : 0.0;
+  }
 
-    @Override
-    public Mono<Void> close() {
-        return Mono.defer(() -> {
-            try {
-                channel.close();
-                emptySubject.onComplete();
-            } catch (Exception e) {
-                emptySubject.onError(e);
-            }
-            return emptySubject;
+  @Override
+  public Mono<Void> close() {
+    return Mono.defer(
+        () -> {
+          try {
+            channel.close();
+            emptySubject.onComplete();
+          } catch (Exception e) {
+            emptySubject.onError(e);
+          }
+          return emptySubject;
         });
-    }
+  }
 
-    @Override
-    public Mono<Void> onClose() {
-        return emptySubject;
-    }
+  @Override
+  public Mono<Void> onClose() {
+    return emptySubject;
+  }
 
-    @Override
-    public String toString() {
-        return "AeronDuplexConnection{" +
-            "name='" + name + '\'' +
-            ", channel=" + channel +
-            ", emptySubject=" + emptySubject +
-            '}';
-    }
+  @Override
+  public String toString() {
+    return "AeronDuplexConnection{"
+        + "name='"
+        + name
+        + '\''
+        + ", channel="
+        + channel
+        + ", emptySubject="
+        + emptySubject
+        + '}';
+  }
 }

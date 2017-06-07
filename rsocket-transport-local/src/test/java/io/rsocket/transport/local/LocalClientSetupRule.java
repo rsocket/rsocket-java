@@ -19,44 +19,41 @@ package io.rsocket.transport.local;
 import io.rsocket.RSocketFactory;
 import io.rsocket.test.ClientSetupRule;
 import io.rsocket.test.TestRSocket;
-import reactor.core.publisher.Mono;
-
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
+import reactor.core.publisher.Mono;
 
 public class LocalClientSetupRule extends ClientSetupRule<String> {
-    private static final AtomicInteger uniqueNameGenerator = new AtomicInteger();
+  private static final AtomicInteger uniqueNameGenerator = new AtomicInteger();
 
-    public LocalClientSetupRule() {
-        super(
-            // This needs to be called twice before it increments
-            // - once for the client and once for the server
-            new Supplier<String>() {
-                boolean increment = true;
-                @Override
-                public String get() {
-                    if (increment) {
-                        increment = false;
-                        return "test" + uniqueNameGenerator.incrementAndGet();
-                    } else {
-                        increment = true;
-                        return "test" + uniqueNameGenerator.get();
-                    }
-                }
-            },
-            address ->
-                RSocketFactory
-                    .connect()
-                    .transport(LocalClientTransport.create(address))
-                    .start()
-                    .block(),
-            address ->
-                RSocketFactory
-                    .receive()
-                    .acceptor((setup, sendingSocket) -> Mono.just(new TestRSocket()))
-                    .transport(LocalServerTransport.create(address))
-                    .start()
-                    .block()
-        );
-    }
+  public LocalClientSetupRule() {
+    super(
+        // This needs to be called twice before it increments
+        // - once for the client and once for the server
+        new Supplier<String>() {
+          boolean increment = true;
+
+          @Override
+          public String get() {
+            if (increment) {
+              increment = false;
+              return "test" + uniqueNameGenerator.incrementAndGet();
+            } else {
+              increment = true;
+              return "test" + uniqueNameGenerator.get();
+            }
+          }
+        },
+        address ->
+            RSocketFactory.connect()
+                .transport(LocalClientTransport.create(address))
+                .start()
+                .block(),
+        address ->
+            RSocketFactory.receive()
+                .acceptor((setup, sendingSocket) -> Mono.just(new TestRSocket()))
+                .transport(LocalServerTransport.create(address))
+                .start()
+                .block());
+  }
 }

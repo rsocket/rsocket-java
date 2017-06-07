@@ -15,11 +15,19 @@
  */
 package io.rsocket.client;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+
 import io.reactivex.subscribers.TestSubscriber;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.client.filter.RSocketSupplier;
 import io.rsocket.util.PayloadImpl;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
 import org.junit.Test;
 import org.mockito.Mockito;
 import org.reactivestreams.Publisher;
@@ -27,114 +35,112 @@ import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 import reactor.core.publisher.Mono;
 
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.BiConsumer;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
-
 public class RSocketSupplierTest {
 
-    @Test
-    public void testError() throws InterruptedException {
-        testRSocket((latch, socket) -> {
-            assertEquals(1.0, socket.availability(), 0.0);
-            Publisher<Payload> payloadPublisher = socket.requestResponse(PayloadImpl.EMPTY);
+  @Test
+  public void testError() throws InterruptedException {
+    testRSocket(
+        (latch, socket) -> {
+          assertEquals(1.0, socket.availability(), 0.0);
+          Publisher<Payload> payloadPublisher = socket.requestResponse(PayloadImpl.EMPTY);
 
-            TestSubscriber<Payload> subscriber = new TestSubscriber<>();
-            payloadPublisher.subscribe(subscriber);
-            subscriber.awaitTerminalEvent();
-            subscriber.assertComplete();
-            double good = socket.availability();
+          TestSubscriber<Payload> subscriber = new TestSubscriber<>();
+          payloadPublisher.subscribe(subscriber);
+          subscriber.awaitTerminalEvent();
+          subscriber.assertComplete();
+          double good = socket.availability();
 
-            try {
-                Thread.sleep(100);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
+          try {
+            Thread.sleep(100);
+          } catch (InterruptedException e) {
+            e.printStackTrace();
+          }
 
-            subscriber = new TestSubscriber<>();
-            payloadPublisher.subscribe(subscriber);
-            subscriber.awaitTerminalEvent();
-            subscriber.assertError(RuntimeException.class);
-            double bad = socket.availability();
-            assertTrue(good > bad);
-            latch.countDown();
+          subscriber = new TestSubscriber<>();
+          payloadPublisher.subscribe(subscriber);
+          subscriber.awaitTerminalEvent();
+          subscriber.assertError(RuntimeException.class);
+          double bad = socket.availability();
+          assertTrue(good > bad);
+          latch.countDown();
         });
-    }
+  }
 
-    @Test
-    public void testWidowReset() throws InterruptedException {
-        testRSocket((latch, socket) -> {
-            assertEquals(1.0, socket.availability(), 0.0);
-            Publisher<Payload> payloadPublisher = socket.requestResponse(PayloadImpl.EMPTY);
+  @Test
+  public void testWidowReset() throws InterruptedException {
+    testRSocket(
+        (latch, socket) -> {
+          assertEquals(1.0, socket.availability(), 0.0);
+          Publisher<Payload> payloadPublisher = socket.requestResponse(PayloadImpl.EMPTY);
 
-            TestSubscriber<Payload> subscriber = new TestSubscriber<>();
-            payloadPublisher.subscribe(subscriber);
-            subscriber.awaitTerminalEvent();
-            subscriber.assertComplete();
-            double good = socket.availability();
+          TestSubscriber<Payload> subscriber = new TestSubscriber<>();
+          payloadPublisher.subscribe(subscriber);
+          subscriber.awaitTerminalEvent();
+          subscriber.assertComplete();
+          double good = socket.availability();
 
-            subscriber = new TestSubscriber<>();
-            payloadPublisher.subscribe(subscriber);
-            subscriber.awaitTerminalEvent();
-            subscriber.assertError(RuntimeException.class);
-            double bad = socket.availability();
-            assertTrue(good > bad);
+          subscriber = new TestSubscriber<>();
+          payloadPublisher.subscribe(subscriber);
+          subscriber.awaitTerminalEvent();
+          subscriber.assertError(RuntimeException.class);
+          double bad = socket.availability();
+          assertTrue(good > bad);
 
-            try {
-                Thread.sleep(200);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
+          try {
+            Thread.sleep(200);
+          } catch (InterruptedException e) {
+            e.printStackTrace();
+          }
 
-            double reset = socket.availability();
-            assertTrue(reset > bad);
-            latch.countDown();
+          double reset = socket.availability();
+          assertTrue(reset > bad);
+          latch.countDown();
         });
-    }
+  }
 
-    private void testRSocket(BiConsumer<CountDownLatch, RSocket> f) throws InterruptedException {
-        AtomicInteger count = new AtomicInteger(0);
-        TestingRSocket socket = new TestingRSocket(input -> {
-            if (count.getAndIncrement() < 1) {
+  private void testRSocket(BiConsumer<CountDownLatch, RSocket> f) throws InterruptedException {
+    AtomicInteger count = new AtomicInteger(0);
+    TestingRSocket socket =
+        new TestingRSocket(
+            input -> {
+              if (count.getAndIncrement() < 1) {
                 return PayloadImpl.EMPTY;
-            } else {
+              } else {
                 throw new RuntimeException();
-            }
-        });
+              }
+            });
 
-        RSocketSupplier factory = Mockito.mock(RSocketSupplier.class);
+    RSocketSupplier factory = Mockito.mock(RSocketSupplier.class);
 
-        Mockito.when(factory.availability()).thenReturn(1.0);
-        Mockito.when(factory.get()).thenReturn(Mono.just(socket));
+    Mockito.when(factory.availability()).thenReturn(1.0);
+    Mockito.when(factory.get()).thenReturn(Mono.just(socket));
 
-        RSocketSupplier failureFactory = new RSocketSupplier(factory, 100, TimeUnit.MILLISECONDS);
+    RSocketSupplier failureFactory = new RSocketSupplier(factory, 100, TimeUnit.MILLISECONDS);
 
-        CountDownLatch latch = new CountDownLatch(1);
-        failureFactory.get().subscribe(new Subscriber<RSocket>() {
-            @Override
-            public void onSubscribe(Subscription s) {
+    CountDownLatch latch = new CountDownLatch(1);
+    failureFactory
+        .get()
+        .subscribe(
+            new Subscriber<RSocket>() {
+              @Override
+              public void onSubscribe(Subscription s) {
                 s.request(1);
-            }
+              }
 
-            @Override
-            public void onNext(RSocket socket) {
+              @Override
+              public void onNext(RSocket socket) {
                 f.accept(latch, socket);
-            }
+              }
 
-            @Override
-            public void onError(Throwable t) {
+              @Override
+              public void onError(Throwable t) {
                 fail();
-            }
+              }
 
-            @Override
-            public void onComplete() {}
-        });
+              @Override
+              public void onComplete() {}
+            });
 
-        latch.await(30, TimeUnit.SECONDS);
-    }
+    latch.await(30, TimeUnit.SECONDS);
+  }
 }

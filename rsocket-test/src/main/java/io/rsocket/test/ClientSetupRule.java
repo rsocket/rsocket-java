@@ -16,144 +16,133 @@
 
 package io.rsocket.test;
 
+import static org.junit.Assert.fail;
+
 import io.reactivex.subscribers.TestSubscriber;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.util.PayloadImpl;
+import java.nio.charset.StandardCharsets;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.Supplier;
 import org.junit.rules.ExternalResource;
 import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
 import reactor.core.publisher.Flux;
 
-import java.nio.charset.StandardCharsets;
-import java.util.concurrent.CountDownLatch;
-import java.util.function.Consumer;
-import java.util.function.Function;
-import java.util.function.Supplier;
-
-import static org.junit.Assert.fail;
-
-
 public class ClientSetupRule<T> extends ExternalResource {
 
-    private Supplier<T> address;
-    private Function<T, RSocket> rSocketClient;
-    private Consumer<T> rSocketServer;
+  private Supplier<T> address;
+  private Function<T, RSocket> rSocketClient;
+  private Consumer<T> rSocketServer;
 
-    private RSocket client;
+  private RSocket client;
 
-    public ClientSetupRule(Supplier<T> address, Function<T, RSocket> rSocketClient, Consumer<T> rSocketServer) {
-        this.address = address;
-        this.rSocketClient = rSocketClient;
-        this.rSocketServer = rSocketServer;
-    }
+  public ClientSetupRule(
+      Supplier<T> address, Function<T, RSocket> rSocketClient, Consumer<T> rSocketServer) {
+    this.address = address;
+    this.rSocketClient = rSocketClient;
+    this.rSocketServer = rSocketServer;
+  }
 
-    @Override
-    public Statement apply(Statement base, Description description) {
-        return new Statement() {
-            @Override
-            public void evaluate() throws Throwable {
-                rSocketServer.accept(address.get());
-                client = rSocketClient.apply(address.get());
-                base.evaluate();
-            }
-        };
-    }
+  @Override
+  public Statement apply(Statement base, Description description) {
+    return new Statement() {
+      @Override
+      public void evaluate() throws Throwable {
+        rSocketServer.accept(address.get());
+        client = rSocketClient.apply(address.get());
+        base.evaluate();
+      }
+    };
+  }
 
-    private RSocket getRSocket() {
-        return client;
-    }
+  private RSocket getRSocket() {
+    return client;
+  }
 
-    public void testFireAndForget(int count) {
-        TestSubscriber<Void> ts = TestSubscriber.create();
-        Flux.range(1, count)
-            .flatMap(i ->
-                getRSocket()
-                    .fireAndForget(new PayloadImpl("hello", "metadata"))
-            )
-            .doOnError(Throwable::printStackTrace)
-            .subscribe(ts);
+  public void testFireAndForget(int count) {
+    TestSubscriber<Void> ts = TestSubscriber.create();
+    Flux.range(1, count)
+        .flatMap(i -> getRSocket().fireAndForget(new PayloadImpl("hello", "metadata")))
+        .doOnError(Throwable::printStackTrace)
+        .subscribe(ts);
 
-        await(ts);
-        ts.assertTerminated();
-        ts.assertNoErrors();
-        ts.assertTerminated();
-    }
+    await(ts);
+    ts.assertTerminated();
+    ts.assertNoErrors();
+    ts.assertTerminated();
+  }
 
-    public void testMetadata(int count) {
-        TestSubscriber<Void> ts = TestSubscriber.create();
-        Flux.range(1, count)
-            .flatMap(i ->
-                getRSocket()
-                    .metadataPush(new PayloadImpl("", "metadata"))
-            )
-            .doOnError(Throwable::printStackTrace)
-            .subscribe(ts);
+  public void testMetadata(int count) {
+    TestSubscriber<Void> ts = TestSubscriber.create();
+    Flux.range(1, count)
+        .flatMap(i -> getRSocket().metadataPush(new PayloadImpl("", "metadata")))
+        .doOnError(Throwable::printStackTrace)
+        .subscribe(ts);
 
-        await(ts);
-        ts.assertTerminated();
-        ts.assertNoErrors();
-        ts.assertTerminated();
-    }
+    await(ts);
+    ts.assertTerminated();
+    ts.assertNoErrors();
+    ts.assertTerminated();
+  }
 
-    public void testRequestResponseN(int count) {
-        TestSubscriber<String> ts = TestSubscriber.create();
-        Flux.range(1, count)
-            .flatMap(i ->
+  public void testRequestResponseN(int count) {
+    TestSubscriber<String> ts = TestSubscriber.create();
+    Flux.range(1, count)
+        .flatMap(
+            i ->
                 getRSocket()
                     .requestResponse(new PayloadImpl("hello", "metadata"))
-                    .map(payload -> StandardCharsets.UTF_8.decode(payload.getData()).toString())
-            )
-            .doOnError(Throwable::printStackTrace)
-            .subscribe(ts);
+                    .map(payload -> StandardCharsets.UTF_8.decode(payload.getData()).toString()))
+        .doOnError(Throwable::printStackTrace)
+        .subscribe(ts);
 
-        await(ts);
-        ts.assertTerminated();
-        ts.assertValueCount(count);
-        ts.assertNoErrors();
-        ts.assertTerminated();
+    await(ts);
+    ts.assertTerminated();
+    ts.assertValueCount(count);
+    ts.assertNoErrors();
+    ts.assertTerminated();
+  }
+
+  public void testRequestStream() {
+    testStream(socket -> socket.requestStream(new PayloadImpl("hello", "metadata")));
+  }
+
+  public void testRequestStreamWithRequestN() {
+    testStreamRequestN(socket -> socket.requestStream(new PayloadImpl("hello", "metadata")));
+  }
+
+  private void testStreamRequestN(Function<RSocket, Flux<Payload>> invoker) {
+    int count = 10;
+    TestSubscriber<Payload> ts = TestSubscriber.create(count / 2);
+    Flux<Payload> publisher = invoker.apply(getRSocket());
+    publisher.subscribe(ts);
+
+    ts.request(count / 2);
+    ts.awaitCount(count);
+    ts.assertNoErrors();
+    ts.assertValueCount(count);
+    ts.assertNotTerminated();
+  }
+
+  private void testStream(Function<RSocket, Flux<Payload>> invoker) {
+    TestSubscriber<Payload> ts = TestSubscriber.create();
+    Flux<Payload> publisher = invoker.apply(getRSocket());
+    publisher.take(5).subscribe(ts);
+    await(ts);
+    ts.assertTerminated();
+    ts.assertNoErrors();
+    ts.assertValueCount(5);
+    ts.assertTerminated();
+  }
+
+  private static void await(TestSubscriber<?> ts) {
+    try {
+      ts.await();
+    } catch (InterruptedException e) {
+      fail("Interrupted while waiting for completion.");
     }
-
-    public void testRequestStream() {
-        testStream(socket -> socket.requestStream(new PayloadImpl("hello", "metadata")));
-    }
-
-    public void testRequestStreamWithRequestN() {
-        testStreamRequestN(socket -> socket.requestStream(new PayloadImpl("hello", "metadata")));
-    }
-
-
-    private void testStreamRequestN(Function<RSocket, Flux<Payload>> invoker) {
-        int count = 10;
-        TestSubscriber<Payload> ts = TestSubscriber.create(count / 2);
-        Flux<Payload> publisher = invoker.apply(getRSocket());
-        publisher.subscribe(ts);
-
-        ts.request(count / 2);
-        ts.awaitCount(count);
-        ts.assertNoErrors();
-        ts.assertValueCount(count);
-        ts.assertNotTerminated();
-    }
-
-    private void testStream(Function<RSocket, Flux<Payload>> invoker) {
-        TestSubscriber<Payload> ts = TestSubscriber.create();
-        Flux<Payload> publisher = invoker.apply(getRSocket());
-        publisher
-            .take(5)
-            .subscribe(ts);
-        await(ts);
-        ts.assertTerminated();
-        ts.assertNoErrors();
-        ts.assertValueCount(5);
-        ts.assertTerminated();
-    }
-
-    private static void await(TestSubscriber<?> ts) {
-        try {
-            ts.await();
-        } catch (InterruptedException e) {
-            fail("Interrupted while waiting for completion.");
-        }
-    }
+  }
 }

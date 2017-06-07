@@ -15,5 +15,4 @@
  */
 package io.rsocket.exceptions;
 
-public class NoAvailableRSocketException extends Exception {
-}
+public class NoAvailableRSocketException extends Exception {}

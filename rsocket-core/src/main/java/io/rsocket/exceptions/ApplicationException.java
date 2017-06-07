@@ -16,28 +16,27 @@
 package io.rsocket.exceptions;
 
 import io.rsocket.Payload;
-
 import java.nio.ByteBuffer;
 
 public class ApplicationException extends RuntimeException {
 
-    private static final long serialVersionUID = -8801579369150844447L;
-    private final Payload payload;
+  private static final long serialVersionUID = -8801579369150844447L;
+  private final Payload payload;
 
-    public ApplicationException(Payload payload) {
-        this.payload = payload;
-    }
+  public ApplicationException(Payload payload) {
+    this.payload = payload;
+  }
 
-    public ByteBuffer getErrorMetadata() {
-        return payload.getMetadata();
-    }
+  public ByteBuffer getErrorMetadata() {
+    return payload.getMetadata();
+  }
 
-    public ByteBuffer getErrorData() {
-        return payload.getData();
-    }
+  public ByteBuffer getErrorData() {
+    return payload.getData();
+  }
 
-    //@Override
-    //public synchronized Throwable fillInStackTrace() {
-    //    return this;
-    //}
+  //@Override
+  //public synchronized Throwable fillInStackTrace() {
+  //    return this;
+  //}
 }

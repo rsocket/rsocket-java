@@ -16,31 +16,30 @@
 
 package io.rsocket.aeron;
 
-
 import io.aeron.driver.MediaDriver;
 import io.aeron.driver.ThreadingMode;
+import java.util.concurrent.TimeUnit;
 import org.agrona.concurrent.SleepingIdleStrategy;
 
-import java.util.concurrent.TimeUnit;
-
 public class MediaDriverHolder {
-    private static final MediaDriverHolder INSTANCE = new MediaDriverHolder();
+  private static final MediaDriverHolder INSTANCE = new MediaDriverHolder();
 
-    static {
-        final io.aeron.driver.MediaDriver.Context ctx = new io.aeron.driver.MediaDriver.Context()
+  static {
+    final io.aeron.driver.MediaDriver.Context ctx =
+        new io.aeron.driver.MediaDriver.Context()
             .threadingMode(ThreadingMode.SHARED)
             .dirsDeleteOnStart(true)
             .conductorIdleStrategy(new SleepingIdleStrategy(TimeUnit.MILLISECONDS.toNanos(1)))
             .receiverIdleStrategy(new SleepingIdleStrategy(TimeUnit.MILLISECONDS.toNanos(1)))
             .senderIdleStrategy(new SleepingIdleStrategy(TimeUnit.MILLISECONDS.toNanos(1)));
 
-        ctx.driverTimeoutMs(TimeUnit.MINUTES.toMillis(10));
-        MediaDriver.launch(ctx);
-    }
+    ctx.driverTimeoutMs(TimeUnit.MINUTES.toMillis(10));
+    MediaDriver.launch(ctx);
+  }
 
-    private MediaDriverHolder() {}
+  private MediaDriverHolder() {}
 
-    public static MediaDriverHolder getInstance() {
-        return INSTANCE;
-    }
+  public static MediaDriverHolder getInstance() {
+    return INSTANCE;
+  }
 }

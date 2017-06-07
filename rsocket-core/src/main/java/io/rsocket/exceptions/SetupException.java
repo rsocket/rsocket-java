@@ -16,8 +16,7 @@
 package io.rsocket.exceptions;
 
 public abstract class SetupException extends RuntimeException {
-	public SetupException(String message) {
-		super(message);
-	}
-
+  public SetupException(String message) {
+    super(message);
+  }
 }

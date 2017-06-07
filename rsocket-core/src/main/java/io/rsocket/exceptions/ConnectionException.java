@@ -16,7 +16,7 @@
 package io.rsocket.exceptions;
 
 public class ConnectionException extends RuntimeException implements Retryable {
-    public ConnectionException(String message) {
-        super(message);
-    }
+  public ConnectionException(String message) {
+    super(message);
+  }
 }

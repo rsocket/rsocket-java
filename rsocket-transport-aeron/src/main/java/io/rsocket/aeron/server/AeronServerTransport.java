@@ -24,71 +24,71 @@ import io.rsocket.aeron.internal.reactivestreams.AeronChannelServer;
 import io.rsocket.aeron.internal.reactivestreams.AeronSocketAddress;
 import io.rsocket.aeron.internal.reactivestreams.ReactiveStreamsRemote;
 import io.rsocket.transport.ServerTransport;
-
 import java.net.SocketAddress;
 import java.util.concurrent.TimeUnit;
 
-/**
- *
- */
+/** */
 public class AeronServerTransport implements ServerTransport {
-    private final AeronWrapper aeronWrapper;
-    private final AeronSocketAddress managementSubscriptionSocket;
-    private final EventLoop eventLoop;
+  private final AeronWrapper aeronWrapper;
+  private final AeronSocketAddress managementSubscriptionSocket;
+  private final EventLoop eventLoop;
 
-    private AeronChannelServer aeronChannelServer;
+  private AeronChannelServer aeronChannelServer;
 
-    public AeronServerTransport(AeronWrapper aeronWrapper, AeronSocketAddress managementSubscriptionSocket, EventLoop eventLoop) {
-        this.aeronWrapper = aeronWrapper;
-        this.managementSubscriptionSocket = managementSubscriptionSocket;
-        this.eventLoop = eventLoop;
+  public AeronServerTransport(
+      AeronWrapper aeronWrapper,
+      AeronSocketAddress managementSubscriptionSocket,
+      EventLoop eventLoop) {
+    this.aeronWrapper = aeronWrapper;
+    this.managementSubscriptionSocket = managementSubscriptionSocket;
+    this.eventLoop = eventLoop;
+  }
+
+  @Override
+  public StartedServer start(ConnectionAcceptor acceptor) {
+    synchronized (this) {
+      if (aeronChannelServer != null) {
+        throw new IllegalStateException("server already ready started");
+      }
+
+      aeronChannelServer =
+          AeronChannelServer.create(
+              aeronChannel -> {
+                DuplexConnection connection = new AeronDuplexConnection("server", aeronChannel);
+                acceptor.apply(connection).subscribe();
+              },
+              aeronWrapper,
+              managementSubscriptionSocket,
+              eventLoop);
     }
 
-    @Override
-    public StartedServer start(ConnectionAcceptor acceptor) {
-        synchronized (this) {
-            if (aeronChannelServer != null) {
-                throw new IllegalStateException("server already ready started");
-            }
+    final ReactiveStreamsRemote.StartedServer startedServer = aeronChannelServer.start();
 
-            aeronChannelServer = AeronChannelServer.create(
-                aeronChannel -> {
-                    DuplexConnection connection = new AeronDuplexConnection("server", aeronChannel);
-                    acceptor.apply(connection).subscribe();
-                },
-                aeronWrapper,
-                managementSubscriptionSocket,
-                eventLoop);
-        }
+    return new StartedServer() {
+      @Override
+      public SocketAddress getServerAddress() {
+        return startedServer.getServerAddress();
+      }
 
-        final ReactiveStreamsRemote.StartedServer startedServer = aeronChannelServer.start();
+      @Override
+      public int getServerPort() {
+        return startedServer.getServerPort();
+      }
 
-        return new StartedServer() {
-            @Override
-            public SocketAddress getServerAddress() {
-                return startedServer.getServerAddress();
-            }
+      @Override
+      public void awaitShutdown() {
+        startedServer.awaitShutdown();
+      }
 
-            @Override
-            public int getServerPort() {
-                return startedServer.getServerPort();
-            }
+      @Override
+      public void awaitShutdown(long duration, TimeUnit durationUnit) {
+        startedServer.awaitShutdown(duration, durationUnit);
+      }
 
-            @Override
-            public void awaitShutdown() {
-                startedServer.awaitShutdown();
-            }
-
-            @Override
-            public void awaitShutdown(long duration, TimeUnit durationUnit) {
-                startedServer.awaitShutdown(duration, durationUnit);
-            }
-
-            @Override
-            public void shutdown() {
-                startedServer.shutdown();
-            }
-        };
-    }
-
+      @Override
+      public void shutdown() {
+        startedServer.shutdown();
+      }
+    };
+  }
 }

@@ -19,27 +19,25 @@ import io.rsocket.RSocket;
 import io.rsocket.RSocketFactory;
 import io.rsocket.test.PingClient;
 import io.rsocket.transport.netty.client.TcpClientTransport;
+import java.time.Duration;
 import org.HdrHistogram.Recorder;
 import reactor.core.publisher.Mono;
 
-import java.time.Duration;
-
 public final class TcpPing {
 
-    public static void main(String... args) throws Exception {
-        Mono<RSocket> client = RSocketFactory
-            .connect()
-            .transport(TcpClientTransport.create(7878))
-            .start();
+  public static void main(String... args) throws Exception {
+    Mono<RSocket> client =
+        RSocketFactory.connect().transport(TcpClientTransport.create(7878)).start();
 
-        PingClient pingClient = new PingClient(client);
-        Recorder recorder = pingClient.startTracker(Duration.ofSeconds(1));
-        final int count = 1_000_000_000;
-        pingClient
-            .startPingPong(count, recorder)
-            .doOnTerminate(() -> {
-                System.out.println("Sent " + count + " messages.");
+    PingClient pingClient = new PingClient(client);
+    Recorder recorder = pingClient.startTracker(Duration.ofSeconds(1));
+    final int count = 1_000_000_000;
+    pingClient
+        .startPingPong(count, recorder)
+        .doOnTerminate(
+            () -> {
+              System.out.println("Sent " + count + " messages.");
             })
-            .blockLast();
-    }
+        .blockLast();
+  }
 }

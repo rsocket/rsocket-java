@@ -15,50 +15,49 @@ package io.rsocket.client;
 
 import io.rsocket.Availability;
 
-/**
- * A contract for the metrics managed by {@link LoadBalancedRSocketMono} per socket.
- */
+/** A contract for the metrics managed by {@link LoadBalancedRSocketMono} per socket. */
 public interface LoadBalancerSocketMetrics extends Availability {
 
-    /**
-     * Median value of latency as per last calculation. This is not calculated per invocation.
-     *
-     * @return Median latency.
-     */
-    double medianLatency();
+  /**
+   * Median value of latency as per last calculation. This is not calculated per invocation.
+   *
+   * @return Median latency.
+   */
+  double medianLatency();
 
-    /**
-     * Lower quantile of latency as per last calculation. This is not calculated per invocation.
-     *
-     * @return Median latency.
-     */
-    double lowerQuantileLatency();
+  /**
+   * Lower quantile of latency as per last calculation. This is not calculated per invocation.
+   *
+   * @return Median latency.
+   */
+  double lowerQuantileLatency();
 
-    /**
-     * Higher quantile value of latency as per last calculation. This is not calculated per invocation.
-     *
-     * @return Median latency.
-     */
-    double higherQuantileLatency();
+  /**
+   * Higher quantile value of latency as per last calculation. This is not calculated per
+   * invocation.
+   *
+   * @return Median latency.
+   */
+  double higherQuantileLatency();
 
-    /**
-     * An exponentially weighted moving average value of the time between two requests.
-     *
-     * @return Inter arrival time.
-     */
-    double interArrivalTime();
+  /**
+   * An exponentially weighted moving average value of the time between two requests.
+   *
+   * @return Inter arrival time.
+   */
+  double interArrivalTime();
 
-    /**
-     * Number of pending requests at this moment.
-     *
-     * @return Number of pending requests at this moment.
-     */
-    int pending();
+  /**
+   * Number of pending requests at this moment.
+   *
+   * @return Number of pending requests at this moment.
+   */
+  int pending();
 
-    /**
-     * Last time this socket was used i.e. either a request was sent or a response was received.
-     *
-     * @return Last time used in millis since epoch.
-     */
-    long lastTimeUsedMillis();
+  /**
+   * Last time this socket was used i.e. either a request was sent or a response was received.
+   *
+   * @return Last time used in millis since epoch.
+   */
+  long lastTimeUsedMillis();
 }

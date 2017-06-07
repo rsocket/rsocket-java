@@ -16,6 +16,10 @@
 
 package io.rsocket.integration;
 
+import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
+
 import io.reactivex.subscribers.TestSubscriber;
 import io.rsocket.AbstractRSocket;
 import io.rsocket.Payload;
@@ -27,128 +31,126 @@ import io.rsocket.transport.netty.server.NettyContextCloseable;
 import io.rsocket.transport.netty.server.TcpServerTransport;
 import io.rsocket.util.PayloadImpl;
 import io.rsocket.util.RSocketProxy;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicInteger;
-
-import static org.hamcrest.Matchers.is;
-import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertTrue;
-
 public class IntegrationTest {
 
-    private NettyContextCloseable server;
-    private RSocket client;
-    private AtomicInteger requestCount;
-    private CountDownLatch disconnectionCounter;
-    public static volatile boolean calledClient = false;
-    public static volatile boolean calledServer = false;
-    public static volatile boolean calledFrame = false;
+  private NettyContextCloseable server;
+  private RSocket client;
+  private AtomicInteger requestCount;
+  private CountDownLatch disconnectionCounter;
+  public static volatile boolean calledClient = false;
+  public static volatile boolean calledServer = false;
+  public static volatile boolean calledFrame = false;
 
-    static {
-        Plugins.CLIENT_REACTIVE_SOCKET_INTERCEPTOR = reactiveSocket ->
-            Mono.just(new RSocketProxy(reactiveSocket) {
-                @Override
-                public Mono<Payload> requestResponse(Payload payload) {
+  static {
+    Plugins.CLIENT_REACTIVE_SOCKET_INTERCEPTOR =
+        reactiveSocket ->
+            Mono.just(
+                new RSocketProxy(reactiveSocket) {
+                  @Override
+                  public Mono<Payload> requestResponse(Payload payload) {
                     calledClient = true;
                     return reactiveSocket.requestResponse(payload);
-                }
-            });
+                  }
+                });
 
-        Plugins.SERVER_REACTIVE_SOCKET_INTERCEPTOR = reactiveSocket ->
-            Mono.just(new RSocketProxy(reactiveSocket) {
-                @Override
-                public Mono<Payload> requestResponse(Payload payload) {
+    Plugins.SERVER_REACTIVE_SOCKET_INTERCEPTOR =
+        reactiveSocket ->
+            Mono.just(
+                new RSocketProxy(reactiveSocket) {
+                  @Override
+                  public Mono<Payload> requestResponse(Payload payload) {
                     calledServer = true;
                     return reactiveSocket.requestResponse(payload);
-                }
-            });
-
-        Plugins.DUPLEX_CONNECTION_INTERCEPTOR = (type, connection) -> {
-            calledFrame = true;
-            return connection;
-        };
-    }
-    
-    @Before
-    public void startup() {
-        requestCount = new AtomicInteger();
-        disconnectionCounter = new CountDownLatch(1);
-
-        TcpServerTransport serverTransport = TcpServerTransport.create(0);
-
-        server = RSocketFactory
-            .receive()
-            .acceptor((setup, sendingSocket) -> {
-                sendingSocket.onClose()
-                    .doFinally(signalType -> disconnectionCounter.countDown())
-                    .subscribe();
-
-                return Mono.just(new AbstractRSocket() {
-                    @Override
-                    public Mono<Payload> requestResponse(Payload payload) {
-                        return Mono.<Payload>just(new PayloadImpl("RESPONSE", "METADATA"))
-                            .doOnSubscribe(s -> requestCount.incrementAndGet());
-                    }
-
-                    @Override
-                    public Flux<Payload> requestStream(Payload payload) {
-                        return Flux
-                            .range(1, 10_000)
-                            .map(i -> new PayloadImpl("data -> " + i));
-                    }
+                  }
                 });
-            })
+
+    Plugins.DUPLEX_CONNECTION_INTERCEPTOR =
+        (type, connection) -> {
+          calledFrame = true;
+          return connection;
+        };
+  }
+
+  @Before
+  public void startup() {
+    requestCount = new AtomicInteger();
+    disconnectionCounter = new CountDownLatch(1);
+
+    TcpServerTransport serverTransport = TcpServerTransport.create(0);
+
+    server =
+        RSocketFactory.receive()
+            .acceptor(
+                (setup, sendingSocket) -> {
+                  sendingSocket
+                      .onClose()
+                      .doFinally(signalType -> disconnectionCounter.countDown())
+                      .subscribe();
+
+                  return Mono.just(
+                      new AbstractRSocket() {
+                        @Override
+                        public Mono<Payload> requestResponse(Payload payload) {
+                          return Mono.<Payload>just(new PayloadImpl("RESPONSE", "METADATA"))
+                              .doOnSubscribe(s -> requestCount.incrementAndGet());
+                        }
+
+                        @Override
+                        public Flux<Payload> requestStream(Payload payload) {
+                          return Flux.range(1, 10_000).map(i -> new PayloadImpl("data -> " + i));
+                        }
+                      });
+                })
             .transport(serverTransport)
             .start()
             // TODO fix the Types through RSocketFactory.Start
             .cast(NettyContextCloseable.class)
             .block();
 
-        client = RSocketFactory
-            .connect()
+    client =
+        RSocketFactory.connect()
             .transport(TcpClientTransport.create(server.address()))
             .start()
             .block();
-    }
+  }
 
-    @After
-    public void teardown() {
-        server.close().block();
-    }
+  @After
+  public void teardown() {
+    server.close().block();
+  }
 
-    @Test(timeout = 5_000L)
-    public void testRequest() {
-        client.requestResponse(new PayloadImpl("REQUEST", "META")).block();
-        assertThat("Server did not see the request.", requestCount.get(), is(1));
-        assertTrue(calledClient);
-        assertTrue(calledServer);
-        assertTrue(calledFrame);
-    }
+  @Test(timeout = 5_000L)
+  public void testRequest() {
+    client.requestResponse(new PayloadImpl("REQUEST", "META")).block();
+    assertThat("Server did not see the request.", requestCount.get(), is(1));
+    assertTrue(calledClient);
+    assertTrue(calledServer);
+    assertTrue(calledFrame);
+  }
 
-    @Test
-    public void testStream() throws Exception {
-        TestSubscriber subscriber = TestSubscriber.create();
-        client
-            .requestStream(new PayloadImpl("start"))
-            .subscribe(subscriber);
+  @Test
+  public void testStream() throws Exception {
+    TestSubscriber subscriber = TestSubscriber.create();
+    client.requestStream(new PayloadImpl("start")).subscribe(subscriber);
 
-        subscriber.cancel();
-        subscriber.isCancelled();
-        subscriber.assertNotComplete();
-    }
+    subscriber.cancel();
+    subscriber.isCancelled();
+    subscriber.assertNotComplete();
+  }
 
-    @Test(timeout = 5_000L)
-    public void testClose() throws ExecutionException, InterruptedException, TimeoutException {
-        client.close().block();
-        disconnectionCounter.await();
-    }
-
+  @Test(timeout = 5_000L)
+  public void testClose() throws ExecutionException, InterruptedException, TimeoutException {
+    client.close().block();
+    disconnectionCounter.await();
+  }
 }

@@ -16,8 +16,7 @@
 package io.rsocket.exceptions;
 
 public class RejectedException extends RuntimeException implements Retryable {
-    public RejectedException (String message) {
-        super(message);
-    }
-
+  public RejectedException(String message) {
+    super(message);
+  }
 }

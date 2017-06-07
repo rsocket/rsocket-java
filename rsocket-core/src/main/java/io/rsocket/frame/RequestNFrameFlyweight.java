@@ -19,36 +19,34 @@ import io.netty.buffer.ByteBuf;
 import io.rsocket.FrameType;
 
 public class RequestNFrameFlyweight {
-    private RequestNFrameFlyweight() {}
+  private RequestNFrameFlyweight() {}
 
-    // relative to start of passed offset
-    private static final int REQUEST_N_FIELD_OFFSET = FrameHeaderFlyweight.FRAME_HEADER_LENGTH;
+  // relative to start of passed offset
+  private static final int REQUEST_N_FIELD_OFFSET = FrameHeaderFlyweight.FRAME_HEADER_LENGTH;
 
-    public static int computeFrameLength() {
-        int length = FrameHeaderFlyweight.computeFrameHeaderLength(FrameType.REQUEST_N, 0, 0);
+  public static int computeFrameLength() {
+    int length = FrameHeaderFlyweight.computeFrameHeaderLength(FrameType.REQUEST_N, 0, 0);
 
-        return length + Integer.BYTES;
-    }
+    return length + Integer.BYTES;
+  }
 
-    public static int encode(
-        final ByteBuf byteBuf,
-        final int streamId,
-        final int requestN
-    ) {
-        final int frameLength = computeFrameLength();
+  public static int encode(final ByteBuf byteBuf, final int streamId, final int requestN) {
+    final int frameLength = computeFrameLength();
 
-        int length = FrameHeaderFlyweight.encodeFrameHeader(byteBuf, frameLength, 0, FrameType.REQUEST_N, streamId);
+    int length =
+        FrameHeaderFlyweight.encodeFrameHeader(
+            byteBuf, frameLength, 0, FrameType.REQUEST_N, streamId);
 
-        byteBuf.setInt(REQUEST_N_FIELD_OFFSET, requestN);
+    byteBuf.setInt(REQUEST_N_FIELD_OFFSET, requestN);
 
-        return length + Integer.BYTES;
-    }
+    return length + Integer.BYTES;
+  }
 
-    public static int requestN(final ByteBuf byteBuf) {
-        return byteBuf.getInt(REQUEST_N_FIELD_OFFSET);
-    }
+  public static int requestN(final ByteBuf byteBuf) {
+    return byteBuf.getInt(REQUEST_N_FIELD_OFFSET);
+  }
 
-    public static int payloadOffset(final ByteBuf byteBuf) {
-        return FrameHeaderFlyweight.FRAME_HEADER_LENGTH + Integer.BYTES;
-    }
+  public static int payloadOffset(final ByteBuf byteBuf) {
+    return FrameHeaderFlyweight.FRAME_HEADER_LENGTH + Integer.BYTES;
+  }
 }

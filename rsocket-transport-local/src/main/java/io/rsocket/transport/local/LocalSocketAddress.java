@@ -20,19 +20,19 @@ import java.net.SocketAddress;
 
 public class LocalSocketAddress extends SocketAddress {
 
-    private static final long serialVersionUID = -5974652906020342524L;
-    private final String name;
+  private static final long serialVersionUID = -5974652906020342524L;
+  private final String name;
 
-    public LocalSocketAddress(String name) {
-        this.name = name;
-    }
+  public LocalSocketAddress(String name) {
+    this.name = name;
+  }
 
-    public String getName() {
-        return name;
-    }
+  public String getName() {
+    return name;
+  }
 
-    @Override
-    public String toString() {
-        return "[local server] " + name;
-    }
+  @Override
+  public String toString() {
+    return "[local server] " + name;
+  }
 }

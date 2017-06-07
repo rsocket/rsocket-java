@@ -18,82 +18,82 @@ package io.rsocket.util;
 
 import io.rsocket.Frame;
 import io.rsocket.Payload;
-
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 
 /**
- * An implementation of {@link Payload}. This implementation is <b>not</b> thread-safe, and hence any method can not be
- * invoked concurrently.
+ * An implementation of {@link Payload}. This implementation is <b>not</b> thread-safe, and hence
+ * any method can not be invoked concurrently.
  */
 public class PayloadImpl implements Payload {
 
-    public static final PayloadImpl EMPTY = new PayloadImpl(Frame.NULL_BYTEBUFFER, Frame.NULL_BYTEBUFFER, false);
+  public static final PayloadImpl EMPTY =
+      new PayloadImpl(Frame.NULL_BYTEBUFFER, Frame.NULL_BYTEBUFFER, false);
 
-    private final ByteBuffer data;
-    private final ByteBuffer metadata;
-    private final int dataStartPosition;
-    private final int metadataStartPosition;
-    private final boolean reusable;
+  private final ByteBuffer data;
+  private final ByteBuffer metadata;
+  private final int dataStartPosition;
+  private final int metadataStartPosition;
+  private final boolean reusable;
 
-    public PayloadImpl(Frame frame) {
-        this(frame.getData(), frame.getMetadata());
+  public PayloadImpl(Frame frame) {
+    this(frame.getData(), frame.getMetadata());
+  }
+
+  public PayloadImpl(String data) {
+    this(data, Charset.defaultCharset());
+  }
+
+  public PayloadImpl(String data, String metadata) {
+    this(data, StandardCharsets.UTF_8, metadata, StandardCharsets.UTF_8);
+  }
+
+  public PayloadImpl(String data, Charset dataCharset) {
+    this(dataCharset.encode(data), Frame.NULL_BYTEBUFFER);
+  }
+
+  public PayloadImpl(String data, Charset dataCharset, String metadata, Charset metaDataCharset) {
+    this(dataCharset.encode(data), metaDataCharset.encode(metadata));
+  }
+
+  public PayloadImpl(byte[] data) {
+    this(ByteBuffer.wrap(data), Frame.NULL_BYTEBUFFER);
+  }
+
+  public PayloadImpl(byte[] data, byte[] metadata) {
+    this(ByteBuffer.wrap(data), ByteBuffer.wrap(metadata));
+  }
+
+  public PayloadImpl(ByteBuffer data) {
+    this(data, Frame.NULL_BYTEBUFFER);
+  }
+
+  public PayloadImpl(ByteBuffer data, ByteBuffer metadata) {
+    this(data, metadata, true);
+  }
+
+  public PayloadImpl(ByteBuffer data, ByteBuffer metadata, boolean reusable) {
+    this.data = data;
+    this.metadata = metadata;
+    this.reusable = reusable;
+    this.dataStartPosition = reusable ? this.data.position() : 0;
+    this.metadataStartPosition = reusable ? this.metadata.position() : 0;
+  }
+
+  @Override
+  public ByteBuffer getData() {
+    if (reusable) {
+      data.position(dataStartPosition);
     }
+    return data;
+  }
 
-    public PayloadImpl(String data) {
-        this(data, Charset.defaultCharset());
+  @Override
+  public ByteBuffer getMetadata() {
+    if (reusable) {
+      metadata.position(metadataStartPosition);
     }
-
-    public PayloadImpl(String data, String metadata) {
-        this(data, StandardCharsets.UTF_8, metadata, StandardCharsets.UTF_8);
-    }
-
-    public PayloadImpl(String data, Charset dataCharset) {
-        this(dataCharset.encode(data), Frame.NULL_BYTEBUFFER);
-    }
-
-    public PayloadImpl(String data, Charset dataCharset, String metadata, Charset metaDataCharset) {
-        this(dataCharset.encode(data), metaDataCharset.encode(metadata));
-    }
-
-    public PayloadImpl(byte[] data) {
-        this(ByteBuffer.wrap(data), Frame.NULL_BYTEBUFFER);
-    }
-
-    public PayloadImpl(byte[] data, byte[] metadata) {
-        this(ByteBuffer.wrap(data), ByteBuffer.wrap(metadata));
-    }
-
-    public PayloadImpl(ByteBuffer data) {
-        this(data, Frame.NULL_BYTEBUFFER);
-    }
-
-    public PayloadImpl(ByteBuffer data, ByteBuffer metadata) {
-        this(data, metadata, true);
-    }
-
-    public PayloadImpl(ByteBuffer data, ByteBuffer metadata, boolean reusable) {
-        this.data = data;
-        this.metadata = metadata;
-        this.reusable = reusable;
-        this.dataStartPosition = reusable ? this.data.position() : 0;
-        this.metadataStartPosition = reusable ? this.metadata.position() : 0;
-    }
-
-    @Override
-    public ByteBuffer getData() {
-        if (reusable) {
-            data.position(dataStartPosition);
-        }
-        return data;
-    }
-
-    @Override
-    public ByteBuffer getMetadata() {
-        if (reusable) {
-            metadata.position(metadataStartPosition);
-        }
-        return metadata;
-    }
+    return metadata;
+  }
 }

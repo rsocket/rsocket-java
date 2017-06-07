@@ -23,35 +23,37 @@ import reactor.core.publisher.Mono;
 import reactor.ipc.netty.tcp.TcpServer;
 
 public class TcpServerTransport implements ServerTransport<NettyContextCloseable> {
-    TcpServer server;
+  TcpServer server;
 
-    private TcpServerTransport(TcpServer server) {
-        this.server = server;
-    }
+  private TcpServerTransport(TcpServer server) {
+    this.server = server;
+  }
 
-    public static TcpServerTransport create(String bindAddress, int port) {
-        TcpServer server = TcpServer.create(bindAddress, port);
-        return create(server);
-    }
+  public static TcpServerTransport create(String bindAddress, int port) {
+    TcpServer server = TcpServer.create(bindAddress, port);
+    return create(server);
+  }
 
-    public static TcpServerTransport create(int port) {
-        TcpServer server = TcpServer.create(port);
-        return create(server);
-    }
+  public static TcpServerTransport create(int port) {
+    TcpServer server = TcpServer.create(port);
+    return create(server);
+  }
 
+  public static TcpServerTransport create(TcpServer server) {
+    return new TcpServerTransport(server);
+  }
 
-    public static TcpServerTransport create(TcpServer server) {
-        return new TcpServerTransport(server);
-    }
+  @Override
+  public Mono<NettyContextCloseable> start(ConnectionAcceptor acceptor) {
+    return server
+        .newHandler(
+            (in, out) -> {
+              in.context().addHandler("server-length-codec", new RSocketLengthCodec());
+              NettyDuplexConnection connection = new NettyDuplexConnection(in, out, in.context());
+              acceptor.apply(connection).subscribe();
 
-    @Override
-    public Mono<NettyContextCloseable> start(ConnectionAcceptor acceptor) {
-        return server.newHandler((in, out) -> {
-            in.context().addHandler("server-length-codec", new RSocketLengthCodec());
-            NettyDuplexConnection connection = new NettyDuplexConnection(in, out, in.context());
-            acceptor.apply(connection).subscribe();
-
-            return out.neverComplete();
-        }).map(NettyContextCloseable::new);
-    }
+              return out.neverComplete();
+            })
+        .map(NettyContextCloseable::new);
+  }
 }

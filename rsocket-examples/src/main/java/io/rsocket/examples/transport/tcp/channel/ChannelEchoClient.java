@@ -22,51 +22,49 @@ import io.rsocket.SocketAcceptor;
 import io.rsocket.transport.netty.client.TcpClientTransport;
 import io.rsocket.transport.netty.server.TcpServerTransport;
 import io.rsocket.util.PayloadImpl;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-import java.nio.charset.StandardCharsets;
-import java.time.Duration;
-
 public final class ChannelEchoClient {
 
-    public static void main(String[] args) {
-        RSocketFactory
-            .receive()
-            .acceptor(new SocketAcceptorImpl())
-            .transport(TcpServerTransport.create("localhost", 7000))
-            .start()
-            .subscribe();
+  public static void main(String[] args) {
+    RSocketFactory.receive()
+        .acceptor(new SocketAcceptorImpl())
+        .transport(TcpServerTransport.create("localhost", 7000))
+        .start()
+        .subscribe();
 
-        RSocket socket = RSocketFactory
-            .connect()
+    RSocket socket =
+        RSocketFactory.connect()
             .transport(TcpClientTransport.create("localhost", 7000))
             .start()
             .block();
 
+    socket
+        .requestChannel(Flux.interval(Duration.ofMillis(1000)).map(i -> new PayloadImpl("Hello")))
+        .map(payload -> StandardCharsets.UTF_8.decode(payload.getData()).toString())
+        .doOnNext(System.out::println)
+        .take(10)
+        .thenEmpty(socket.close())
+        .block();
+  }
 
-        socket.requestChannel(
-            Flux.interval(Duration.ofMillis(1000)).map(i -> new PayloadImpl("Hello")))
-            .map(payload -> StandardCharsets.UTF_8.decode(payload.getData()).toString())
-            .doOnNext(System.out::println)
-            .take(10)
-            .thenEmpty(socket.close())
-            .block();
+  private static class SocketAcceptorImpl implements SocketAcceptor {
+    @Override
+    public Mono<RSocket> accept(ConnectionSetupPayload setupPayload, RSocket reactiveSocket) {
+      return Mono.just(
+          new AbstractRSocket() {
+            @Override
+            public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
+              return Flux.from(payloads)
+                  .map(payload -> StandardCharsets.UTF_8.decode(payload.getData()).toString())
+                  .map(s -> "Echo: " + s)
+                  .map(PayloadImpl::new);
+            }
+          });
     }
-
-    private static class SocketAcceptorImpl implements SocketAcceptor {
-        @Override
-        public Mono<RSocket> accept(ConnectionSetupPayload setupPayload, RSocket reactiveSocket) {
-            return Mono.just(new AbstractRSocket() {
-                @Override
-                public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
-                    return Flux.from(payloads)
-                        .map(payload -> StandardCharsets.UTF_8.decode(payload.getData()).toString())
-                        .map(s -> "Echo: " + s)
-                        .map(PayloadImpl::new);
-                }
-            });
-        }
-    }
+  }
 }

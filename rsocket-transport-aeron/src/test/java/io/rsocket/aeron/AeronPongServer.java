@@ -27,23 +27,24 @@ import io.rsocket.server.RSocketServer;
 import io.rsocket.test.PingHandler;
 
 public final class AeronPongServer {
-    static {
-        final io.aeron.driver.MediaDriver.Context ctx = new io.aeron.driver.MediaDriver.Context()
+  static {
+    final io.aeron.driver.MediaDriver.Context ctx =
+        new io.aeron.driver.MediaDriver.Context()
             .threadingMode(ThreadingMode.SHARED_NETWORK)
             .dirsDeleteOnStart(true);
-        MediaDriver.launch(ctx);
-    }
+    MediaDriver.launch(ctx);
+  }
 
-    public static void main(String... args) throws Exception {
-        MediaDriverHolder.getInstance();
-        AeronWrapper aeronWrapper = new DefaultAeronWrapper();
+  public static void main(String... args) throws Exception {
+    MediaDriverHolder.getInstance();
+    AeronWrapper aeronWrapper = new DefaultAeronWrapper();
 
-        AeronSocketAddress serverManagementSocketAddress = AeronSocketAddress.create("aeron:udp", "127.0.0.1", 39790);
-        EventLoop serverEventLoop = new SingleThreadedEventLoop("server");
-        AeronServerTransport server = new AeronServerTransport(aeronWrapper, serverManagementSocketAddress, serverEventLoop);
+    AeronSocketAddress serverManagementSocketAddress =
+        AeronSocketAddress.create("aeron:udp", "127.0.0.1", 39790);
+    EventLoop serverEventLoop = new SingleThreadedEventLoop("server");
+    AeronServerTransport server =
+        new AeronServerTransport(aeronWrapper, serverManagementSocketAddress, serverEventLoop);
 
-        RSocketServer.create(server)
-                               .start(new PingHandler())
-                               .awaitShutdown();
-    }
+    RSocketServer.create(server).start(new PingHandler()).awaitShutdown();
+  }
 }

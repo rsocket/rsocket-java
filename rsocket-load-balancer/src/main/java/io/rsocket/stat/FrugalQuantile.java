@@ -18,90 +18,89 @@ package io.rsocket.stat;
 import java.util.Random;
 
 /**
- * Reference:
- *  Ma, Qiang, S. Muthukrishnan, and Mark Sandler. "Frugal Streaming for
- *    Estimating Quantiles." Space-Efficient Data Structures, Streams, and
- *    Algorithms. Springer Berlin Heidelberg, 2013. 77-96.
+ * Reference: Ma, Qiang, S. Muthukrishnan, and Mark Sandler. "Frugal Streaming for Estimating
+ * Quantiles." Space-Efficient Data Structures, Streams, and Algorithms. Springer Berlin Heidelberg,
+ * 2013. 77-96.
  *
- * More info: http://blog.aggregateknowledge.com/2013/09/16/sketch-of-the-day-frugal-streaming/
+ * <p>More info: http://blog.aggregateknowledge.com/2013/09/16/sketch-of-the-day-frugal-streaming/
  */
 public class FrugalQuantile implements Quantile {
-    private final double increment;
-    private double quantile;
-    private Random rng;
+  private final double increment;
+  private double quantile;
+  private Random rng;
 
-    volatile double estimate;
-    int step;
-    int sign;
+  volatile double estimate;
+  int step;
+  int sign;
 
-    public FrugalQuantile(double quantile, double increment, Random rng) {
-        this.increment = increment;
-        this.quantile = quantile;
-        this.estimate = 0.0;
-        this.step = 1;
-        this.sign = 0;
-        this.rng = rng;
+  public FrugalQuantile(double quantile, double increment, Random rng) {
+    this.increment = increment;
+    this.quantile = quantile;
+    this.estimate = 0.0;
+    this.step = 1;
+    this.sign = 0;
+    this.rng = rng;
+  }
+
+  public FrugalQuantile(double quantile) {
+    this(quantile, 1.0, new Random());
+  }
+
+  public double estimation() {
+    return estimate;
+  }
+
+  @Override
+  public synchronized void insert(double x) {
+    if (sign == 0) {
+      estimate = x;
+      sign = 1;
+      return;
     }
 
-    public FrugalQuantile(double quantile) {
-        this(quantile, 1.0, new Random());
+    if (x > estimate && rng.nextDouble() > (1 - quantile)) {
+      step += sign * increment;
+
+      if (step > 0) {
+        estimate += step;
+      } else {
+        estimate += 1;
+      }
+
+      if (estimate > x) {
+        step += (x - estimate);
+        estimate = x;
+      }
+
+      if (sign < 0) {
+        step = 1;
+      }
+
+      sign = 1;
+    } else if (x < estimate && rng.nextDouble() > quantile) {
+      step -= sign * increment;
+
+      if (step > 0) {
+        estimate -= step;
+      } else {
+        estimate--;
+      }
+
+      if (estimate < x) {
+        step += (estimate - x);
+        estimate = x;
+      }
+
+      if (sign > 0) {
+        step = 1;
+      }
+
+      sign = -1;
     }
+  }
 
-    public double estimation() {
-        return estimate;
-    }
-
-    @Override
-    public synchronized void insert(double x) {
-       if (sign == 0) {
-            estimate = x;
-            sign = 1;
-            return;
-        }
-
-        if (x > estimate && rng.nextDouble() > (1 - quantile)) {
-            step += sign * increment;
-
-            if (step > 0) {
-                estimate += step;
-            } else {
-                estimate += 1;
-            }
-
-            if (estimate > x) {
-                step += (x - estimate);
-                estimate = x;
-            }
-
-            if (sign < 0) {
-                step = 1;
-            }
-
-            sign = 1;
-        } else if (x < estimate && rng.nextDouble() > quantile) {
-            step -= sign * increment;
-
-            if (step > 0) {
-                estimate -= step;
-            } else {
-                estimate--;
-            }
-
-            if (estimate < x) {
-                step += (estimate - x);
-                estimate = x;
-            }
-
-            if (sign > 0) {
-                step = 1;
-            }
-
-            sign = -1;
-        }
-    }
-
-    @Override
-    public String toString() {
-        return "FrugalQuantile(q=" + quantile + ", v=" + estimate + ")";
-    }
+  @Override
+  public String toString() {
+    return "FrugalQuantile(q=" + quantile + ", v=" + estimate + ")";
+  }
 }

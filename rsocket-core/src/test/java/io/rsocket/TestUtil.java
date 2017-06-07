@@ -16,43 +16,37 @@
 package io.rsocket;
 
 import io.rsocket.util.PayloadImpl;
-
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 
-public class TestUtil
-{
-    private static final char[] hexArray = "0123456789ABCDEF".toCharArray();
+public class TestUtil {
+  private static final char[] hexArray = "0123456789ABCDEF".toCharArray();
 
-    private TestUtil() {}
+  private TestUtil() {}
 
-    public static Frame utf8EncodedRequestFrame(final int streamId, final FrameType type, final String data, final int initialRequestN)
-    {
-        return Frame.Request.from(streamId, type, new PayloadImpl(data), initialRequestN);
-    }
+  public static Frame utf8EncodedRequestFrame(
+      final int streamId, final FrameType type, final String data, final int initialRequestN) {
+    return Frame.Request.from(streamId, type, new PayloadImpl(data), initialRequestN);
+  }
 
-    public static Frame utf8EncodedResponseFrame(final int streamId, final FrameType type, final String data)
-    {
-        return Frame.PayloadFrame.from(streamId, type, new PayloadImpl(data));
-    }
+  public static Frame utf8EncodedResponseFrame(
+      final int streamId, final FrameType type, final String data) {
+    return Frame.PayloadFrame.from(streamId, type, new PayloadImpl(data));
+  }
 
-    public static Frame utf8EncodedErrorFrame(final int streamId, final String data)
-    {
-        return Frame.Error.from(streamId, new Exception(data));
-    }
+  public static Frame utf8EncodedErrorFrame(final int streamId, final String data) {
+    return Frame.Error.from(streamId, new Exception(data));
+  }
 
-    public static Payload utf8EncodedPayload(final String data, final String metadata)
-    {
-        return new PayloadImpl(data, metadata);
-    }
+  public static Payload utf8EncodedPayload(final String data, final String metadata) {
+    return new PayloadImpl(data, metadata);
+  }
 
-    public static String byteToString(final ByteBuffer byteBuffer)
-    {
-        return StandardCharsets.UTF_8.decode(byteBuffer).toString();
-    }
+  public static String byteToString(final ByteBuffer byteBuffer) {
+    return StandardCharsets.UTF_8.decode(byteBuffer).toString();
+  }
 
-    public static ByteBuffer byteBufferFromUtf8String(final String data)
-    {
-        return StandardCharsets.UTF_8.encode(data);
-    }
+  public static ByteBuffer byteBufferFromUtf8String(final String data) {
+    return StandardCharsets.UTF_8.encode(data);
+  }
 }

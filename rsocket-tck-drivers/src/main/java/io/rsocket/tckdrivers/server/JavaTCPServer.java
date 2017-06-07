@@ -14,46 +14,38 @@
 package io.rsocket.tckdrivers.server;
 
 import io.rsocket.transport.netty.server.TcpServerTransport;
-
+import java.util.concurrent.CountDownLatch;
 import reactor.ipc.netty.tcp.TcpServer;
 
-import java.util.concurrent.CountDownLatch;
-
-/**
- * An example of how to run the JavaServerDriver using the RSocket server creation tool in Java.
- */
+/** An example of how to run the JavaServerDriver using the RSocket server creation tool in Java. */
 public class JavaTCPServer {
 
-    private CountDownLatch mutex;
+  private CountDownLatch mutex;
 
-    public JavaTCPServer() {
-        mutex = new CountDownLatch(1);
+  public JavaTCPServer() {
+    mutex = new CountDownLatch(1);
+  }
+
+  public void run(String realfile, int port) {
+
+    String file = "rsocket-tck-drivers/src/test/resources/servertest.txt";
+
+    if (realfile != null) {
+      file = realfile;
     }
 
-    public void run(String realfile, int port) {
+    TcpServerTransport server = TcpServerTransport.create(TcpServer.create(port));
 
-        String file = "rsocket-tck-drivers/src/test/resources/servertest.txt";
+    JavaServerDriver jsd = new JavaServerDriver(file, server, mutex);
+    jsd.run();
+  }
 
-        if (realfile != null) {
-            file = realfile;
-        }
-
-        TcpServerTransport server = TcpServerTransport.create(TcpServer.create(port));
-
-        JavaServerDriver jsd =
-                new JavaServerDriver(file, server, mutex);
-        jsd.run();
+  /** Blocks until the server has started */
+  public void awaitStart() {
+    try {
+      mutex.await();
+    } catch (InterruptedException e) {
+      e.printStackTrace();
     }
-
-    /**
-     * Blocks until the server has started
-     */
-    public void awaitStart() {
-        try {
-            mutex.await();
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-    }
-
+  }
 }

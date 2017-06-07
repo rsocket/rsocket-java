@@ -16,7 +16,7 @@
 package io.rsocket.exceptions;
 
 public class InvalidSetupException extends SetupException {
-    public InvalidSetupException(String message) {
-        super(message);
-    }
+  public InvalidSetupException(String message) {
+    super(message);
+  }
 }

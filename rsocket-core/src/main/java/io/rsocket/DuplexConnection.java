@@ -15,66 +15,63 @@
  */
 package io.rsocket;
 
+import java.nio.channels.ClosedChannelException;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-import java.nio.channels.ClosedChannelException;
-
-/**
- * Represents a connection with input/output that the protocol uses. 
- */
+/** Represents a connection with input/output that the protocol uses. */
 public interface DuplexConnection extends Availability, Closeable {
 
-    /**
-     * Sends the source of {@link Frame}s on this connection and returns the {@code Publisher} representing the result
-     * of this send.
-     *
-     * <h2>Flow control</h2>
-     *
-     * The passed {@code Publisher} must
-     *
-     * @param frame Stream of {@code Frame}s to send on the connection.
-     *
-     * @return {@code Publisher} that completes when all the frames are written on the connection successfully and
-     * errors when it fails.
-     */
-    Mono<Void> send(Publisher<Frame> frame);
+  /**
+   * Sends the source of {@link Frame}s on this connection and returns the {@code Publisher}
+   * representing the result of this send.
+   *
+   * <h2>Flow control</h2>
+   *
+   * The passed {@code Publisher} must
+   *
+   * @param frame Stream of {@code Frame}s to send on the connection.
+   * @return {@code Publisher} that completes when all the frames are written on the connection
+   *     successfully and errors when it fails.
+   */
+  Mono<Void> send(Publisher<Frame> frame);
 
-    /**
-     * Sends a single {@code Frame} on this connection and returns the {@code Publisher} representing the result
-     * of this send.
-     *
-     * @param frame {@code Frame} to send.
-     *
-     * @return {@code Publisher} that completes when the frame is written on the connection successfully and errors
-     * when it fails.
-     */
-    default Mono<Void> sendOne(Frame frame) {
-        return send(Mono.just(frame));
-    }
+  /**
+   * Sends a single {@code Frame} on this connection and returns the {@code Publisher} representing
+   * the result of this send.
+   *
+   * @param frame {@code Frame} to send.
+   * @return {@code Publisher} that completes when the frame is written on the connection
+   *     successfully and errors when it fails.
+   */
+  default Mono<Void> sendOne(Frame frame) {
+    return send(Mono.just(frame));
+  }
 
-    /**
-     * Returns a stream of all {@code Frame}s received on this connection.
-     *
-     * <h2>Completion</h2>
-     *
-     * Returned {@code Publisher} <em>MUST</em> never emit a completion event ({@link Subscriber#onComplete()}.
-     *
-     * <h2>Error</h2>
-     *
-     * Returned {@code Publisher} can error with various transport errors. If the underlying physical connection is
-     * closed by the peer, then the returned stream from here <em>MUST</em> emit an {@link ClosedChannelException}.
-     *
-     * <h2>Multiple Subscriptions</h2>
-     *
-     * Returned {@code Publisher} is not required to support multiple concurrent subscriptions. RSocket will
-     * never have multiple subscriptions to this source. Implementations <em>MUST</em> emit an
-     * {@link IllegalStateException} for subsequent concurrent subscriptions, if they do not support multiple
-     * concurrent subscriptions.
-     *
-     * @return Stream of all {@code Frame}s received.
-     */
-    Flux<Frame> receive();
+  /**
+   * Returns a stream of all {@code Frame}s received on this connection.
+   *
+   * <h2>Completion</h2>
+   *
+   * Returned {@code Publisher} <em>MUST</em> never emit a completion event ({@link
+   * Subscriber#onComplete()}.
+   *
+   * <h2>Error</h2>
+   *
+   * Returned {@code Publisher} can error with various transport errors. If the underlying physical
+   * connection is closed by the peer, then the returned stream from here <em>MUST</em> emit an
+   * {@link ClosedChannelException}.
+   *
+   * <h2>Multiple Subscriptions</h2>
+   *
+   * Returned {@code Publisher} is not required to support multiple concurrent subscriptions.
+   * RSocket will never have multiple subscriptions to this source. Implementations <em>MUST</em>
+   * emit an {@link IllegalStateException} for subsequent concurrent subscriptions, if they do not
+   * support multiple concurrent subscriptions.
+   *
+   * @return Stream of all {@code Frame}s received.
+   */
+  Flux<Frame> receive();
 }

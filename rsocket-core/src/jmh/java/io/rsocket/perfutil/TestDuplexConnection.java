@@ -24,55 +24,56 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 /**
- * An implementation of {@link DuplexConnection} that provides functionality to modify the behavior dynamically.
+ * An implementation of {@link DuplexConnection} that provides functionality to modify the behavior
+ * dynamically.
  */
 public class TestDuplexConnection implements DuplexConnection {
 
-    private final DirectProcessor<Frame> send;
-    private final DirectProcessor<Frame> receive;
+  private final DirectProcessor<Frame> send;
+  private final DirectProcessor<Frame> receive;
 
-    public TestDuplexConnection(DirectProcessor<Frame> send, DirectProcessor<Frame> receive) {
-        this.send = send;
-        this.receive = receive;
-    }
+  public TestDuplexConnection(DirectProcessor<Frame> send, DirectProcessor<Frame> receive) {
+    this.send = send;
+    this.receive = receive;
+  }
 
-    @Override
-    public Mono<Void> send(Publisher<Frame> frame) {
-        return Flux
-            .from(frame)
-            .doOnNext(f -> {
-                try {
-                    send.onNext(f);
-                } finally {
-                    f.release();
-                }
+  @Override
+  public Mono<Void> send(Publisher<Frame> frame) {
+    return Flux.from(frame)
+        .doOnNext(
+            f -> {
+              try {
+                send.onNext(f);
+              } finally {
+                f.release();
+              }
             })
-            .then();
-    }
+        .then();
+  }
 
-    @Override
-    public Mono<Void> sendOne(Frame frame) {
-        send.onNext(frame);
-        return Mono.empty();
-    }
+  @Override
+  public Mono<Void> sendOne(Frame frame) {
+    send.onNext(frame);
+    return Mono.empty();
+  }
 
-    @Override
-    public Flux<Frame> receive() {
-        return receive;
-    }
+  @Override
+  public Flux<Frame> receive() {
+    return receive;
+  }
 
-    @Override
-    public double availability() {
-        return 1.0;
-    }
+  @Override
+  public double availability() {
+    return 1.0;
+  }
 
-    @Override
-    public Mono<Void> close() {
-        return Mono.empty();
-    }
+  @Override
+  public Mono<Void> close() {
+    return Mono.empty();
+  }
 
-    @Override
-    public Mono<Void> onClose() {
-        return Mono.empty();
-    }
+  @Override
+  public Mono<Void> onClose() {
+    return Mono.empty();
+  }
 }

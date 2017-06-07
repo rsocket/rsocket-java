@@ -17,434 +17,376 @@
 /* Generated SBE (Simple Binary Encoding) message codec */
 package io.rsocket.aeron.internal.reactivestreams.messages;
 
-import org.agrona.MutableDirectBuffer;
 import org.agrona.DirectBuffer;
+import org.agrona.MutableDirectBuffer;
 
-@javax.annotation.Generated(value = {"io.rsocket.aeron.internal.reactivestreams.messages.ConnectEncoder"})
+@javax.annotation.Generated(
+  value = {"io.rsocket.aeron.internal.reactivestreams.messages.ConnectEncoder"}
+)
 @SuppressWarnings("all")
-public class ConnectEncoder
-{
-    public static final int BLOCK_LENGTH = 20;
-    public static final int TEMPLATE_ID = 1;
-    public static final int SCHEMA_ID = 1;
-    public static final int SCHEMA_VERSION = 0;
+public class ConnectEncoder {
+  public static final int BLOCK_LENGTH = 20;
+  public static final int TEMPLATE_ID = 1;
+  public static final int SCHEMA_ID = 1;
+  public static final int SCHEMA_VERSION = 0;
 
-    private final ConnectEncoder parentMessage = this;
-    private MutableDirectBuffer buffer;
-    protected int offset;
-    protected int limit;
-    protected int actingBlockLength;
-    protected int actingVersion;
+  private final ConnectEncoder parentMessage = this;
+  private MutableDirectBuffer buffer;
+  protected int offset;
+  protected int limit;
+  protected int actingBlockLength;
+  protected int actingVersion;
 
-    public int sbeBlockLength()
-    {
-        return BLOCK_LENGTH;
-    }
+  public int sbeBlockLength() {
+    return BLOCK_LENGTH;
+  }
 
-    public int sbeTemplateId()
-    {
-        return TEMPLATE_ID;
-    }
+  public int sbeTemplateId() {
+    return TEMPLATE_ID;
+  }
 
-    public int sbeSchemaId()
-    {
-        return SCHEMA_ID;
-    }
+  public int sbeSchemaId() {
+    return SCHEMA_ID;
+  }
 
-    public int sbeSchemaVersion()
-    {
-        return SCHEMA_VERSION;
-    }
+  public int sbeSchemaVersion() {
+    return SCHEMA_VERSION;
+  }
 
-    public String sbeSemanticType()
-    {
+  public String sbeSemanticType() {
+    return "";
+  }
+
+  public int offset() {
+    return offset;
+  }
+
+  public ConnectEncoder wrap(final MutableDirectBuffer buffer, final int offset) {
+    this.buffer = buffer;
+    this.offset = offset;
+    limit(offset + BLOCK_LENGTH);
+
+    return this;
+  }
+
+  public int encodedLength() {
+    return limit - offset;
+  }
+
+  public int limit() {
+    return limit;
+  }
+
+  public void limit(final int limit) {
+    this.limit = limit;
+  }
+
+  public static long channelIdNullValue() {
+    return -9223372036854775808L;
+  }
+
+  public static long channelIdMinValue() {
+    return -9223372036854775807L;
+  }
+
+  public static long channelIdMaxValue() {
+    return 9223372036854775807L;
+  }
+
+  public ConnectEncoder channelId(final long value) {
+    buffer.putLong(offset + 0, value, java.nio.ByteOrder.LITTLE_ENDIAN);
+    return this;
+  }
+
+  public static int sendingStreamIdNullValue() {
+    return -2147483648;
+  }
+
+  public static int sendingStreamIdMinValue() {
+    return -2147483647;
+  }
+
+  public static int sendingStreamIdMaxValue() {
+    return 2147483647;
+  }
+
+  public ConnectEncoder sendingStreamId(final int value) {
+    buffer.putInt(offset + 8, value, java.nio.ByteOrder.LITTLE_ENDIAN);
+    return this;
+  }
+
+  public static int receivingStreamIdNullValue() {
+    return -2147483648;
+  }
+
+  public static int receivingStreamIdMinValue() {
+    return -2147483647;
+  }
+
+  public static int receivingStreamIdMaxValue() {
+    return 2147483647;
+  }
+
+  public ConnectEncoder receivingStreamId(final int value) {
+    buffer.putInt(offset + 12, value, java.nio.ByteOrder.LITTLE_ENDIAN);
+    return this;
+  }
+
+  public static int clientSessionIdNullValue() {
+    return -2147483648;
+  }
+
+  public static int clientSessionIdMinValue() {
+    return -2147483647;
+  }
+
+  public static int clientSessionIdMaxValue() {
+    return 2147483647;
+  }
+
+  public ConnectEncoder clientSessionId(final int value) {
+    buffer.putInt(offset + 16, value, java.nio.ByteOrder.LITTLE_ENDIAN);
+    return this;
+  }
+
+  public static int sendingChannelId() {
+    return 5;
+  }
+
+  public static String sendingChannelCharacterEncoding() {
+    return "UTF-8";
+  }
+
+  public static String sendingChannelMetaAttribute(final MetaAttribute metaAttribute) {
+    switch (metaAttribute) {
+      case EPOCH:
+        return "unix";
+      case TIME_UNIT:
+        return "nanosecond";
+      case SEMANTIC_TYPE:
         return "";
     }
 
-    public int offset()
-    {
-        return offset;
+    return "";
+  }
+
+  public static int sendingChannelHeaderLength() {
+    return 4;
+  }
+
+  public ConnectEncoder putSendingChannel(
+      final DirectBuffer src, final int srcOffset, final int length) {
+    if (length > 1073741824) {
+      throw new IllegalArgumentException("length > max value for type: " + length);
     }
 
-    public ConnectEncoder wrap(final MutableDirectBuffer buffer, final int offset)
-    {
-        this.buffer = buffer;
-        this.offset = offset;
-        limit(offset + BLOCK_LENGTH);
+    final int headerLength = 4;
+    final int limit = parentMessage.limit();
+    parentMessage.limit(limit + headerLength + length);
+    buffer.putInt(limit, (int) length, java.nio.ByteOrder.LITTLE_ENDIAN);
+    buffer.putBytes(limit + headerLength, src, srcOffset, length);
 
-        return this;
+    return this;
+  }
+
+  public ConnectEncoder putSendingChannel(final byte[] src, final int srcOffset, final int length) {
+    if (length > 1073741824) {
+      throw new IllegalArgumentException("length > max value for type: " + length);
     }
 
-    public int encodedLength()
-    {
-        return limit - offset;
+    final int headerLength = 4;
+    final int limit = parentMessage.limit();
+    parentMessage.limit(limit + headerLength + length);
+    buffer.putInt(limit, (int) length, java.nio.ByteOrder.LITTLE_ENDIAN);
+    buffer.putBytes(limit + headerLength, src, srcOffset, length);
+
+    return this;
+  }
+
+  public ConnectEncoder sendingChannel(final String value) {
+    final byte[] bytes;
+    try {
+      bytes = value.getBytes("UTF-8");
+    } catch (final java.io.UnsupportedEncodingException ex) {
+      throw new RuntimeException(ex);
     }
 
-    public int limit()
-    {
-        return limit;
+    final int length = bytes.length;
+    if (length > 1073741824) {
+      throw new IllegalArgumentException("length > max value for type: " + length);
     }
 
-    public void limit(final int limit)
-    {
-        this.limit = limit;
-    }
+    final int headerLength = 4;
+    final int limit = parentMessage.limit();
+    parentMessage.limit(limit + headerLength + length);
+    buffer.putInt(limit, (int) length, java.nio.ByteOrder.LITTLE_ENDIAN);
+    buffer.putBytes(limit + headerLength, bytes, 0, length);
 
-    public static long channelIdNullValue()
-    {
-        return -9223372036854775808L;
-    }
+    return this;
+  }
 
-    public static long channelIdMinValue()
-    {
-        return -9223372036854775807L;
-    }
+  public static int receivingChannelId() {
+    return 6;
+  }
 
-    public static long channelIdMaxValue()
-    {
-        return 9223372036854775807L;
-    }
+  public static String receivingChannelCharacterEncoding() {
+    return "UTF-8";
+  }
 
-    public ConnectEncoder channelId(final long value)
-    {
-        buffer.putLong(offset + 0, value, java.nio.ByteOrder.LITTLE_ENDIAN);
-        return this;
-    }
-
-
-    public static int sendingStreamIdNullValue()
-    {
-        return -2147483648;
-    }
-
-    public static int sendingStreamIdMinValue()
-    {
-        return -2147483647;
-    }
-
-    public static int sendingStreamIdMaxValue()
-    {
-        return 2147483647;
-    }
-
-    public ConnectEncoder sendingStreamId(final int value)
-    {
-        buffer.putInt(offset + 8, value, java.nio.ByteOrder.LITTLE_ENDIAN);
-        return this;
-    }
-
-
-    public static int receivingStreamIdNullValue()
-    {
-        return -2147483648;
-    }
-
-    public static int receivingStreamIdMinValue()
-    {
-        return -2147483647;
-    }
-
-    public static int receivingStreamIdMaxValue()
-    {
-        return 2147483647;
-    }
-
-    public ConnectEncoder receivingStreamId(final int value)
-    {
-        buffer.putInt(offset + 12, value, java.nio.ByteOrder.LITTLE_ENDIAN);
-        return this;
-    }
-
-
-    public static int clientSessionIdNullValue()
-    {
-        return -2147483648;
-    }
-
-    public static int clientSessionIdMinValue()
-    {
-        return -2147483647;
-    }
-
-    public static int clientSessionIdMaxValue()
-    {
-        return 2147483647;
-    }
-
-    public ConnectEncoder clientSessionId(final int value)
-    {
-        buffer.putInt(offset + 16, value, java.nio.ByteOrder.LITTLE_ENDIAN);
-        return this;
-    }
-
-
-    public static int sendingChannelId()
-    {
-        return 5;
-    }
-
-    public static String sendingChannelCharacterEncoding()
-    {
-        return "UTF-8";
-    }
-
-    public static String sendingChannelMetaAttribute(final MetaAttribute metaAttribute)
-    {
-        switch (metaAttribute)
-        {
-            case EPOCH: return "unix";
-            case TIME_UNIT: return "nanosecond";
-            case SEMANTIC_TYPE: return "";
-        }
-
+  public static String receivingChannelMetaAttribute(final MetaAttribute metaAttribute) {
+    switch (metaAttribute) {
+      case EPOCH:
+        return "unix";
+      case TIME_UNIT:
+        return "nanosecond";
+      case SEMANTIC_TYPE:
         return "";
     }
 
-    public static int sendingChannelHeaderLength()
-    {
-        return 4;
+    return "";
+  }
+
+  public static int receivingChannelHeaderLength() {
+    return 4;
+  }
+
+  public ConnectEncoder putReceivingChannel(
+      final DirectBuffer src, final int srcOffset, final int length) {
+    if (length > 1073741824) {
+      throw new IllegalArgumentException("length > max value for type: " + length);
     }
 
-    public ConnectEncoder putSendingChannel(final DirectBuffer src, final int srcOffset, final int length)
-    {
-        if (length > 1073741824)
-        {
-            throw new IllegalArgumentException("length > max value for type: " + length);
-        }
+    final int headerLength = 4;
+    final int limit = parentMessage.limit();
+    parentMessage.limit(limit + headerLength + length);
+    buffer.putInt(limit, (int) length, java.nio.ByteOrder.LITTLE_ENDIAN);
+    buffer.putBytes(limit + headerLength, src, srcOffset, length);
 
-        final int headerLength = 4;
-        final int limit = parentMessage.limit();
-        parentMessage.limit(limit + headerLength + length);
-        buffer.putInt(limit, (int)length, java.nio.ByteOrder.LITTLE_ENDIAN);
-        buffer.putBytes(limit + headerLength, src, srcOffset, length);
+    return this;
+  }
 
-        return this;
+  public ConnectEncoder putReceivingChannel(
+      final byte[] src, final int srcOffset, final int length) {
+    if (length > 1073741824) {
+      throw new IllegalArgumentException("length > max value for type: " + length);
     }
 
-    public ConnectEncoder putSendingChannel(final byte[] src, final int srcOffset, final int length)
-    {
-        if (length > 1073741824)
-        {
-            throw new IllegalArgumentException("length > max value for type: " + length);
-        }
+    final int headerLength = 4;
+    final int limit = parentMessage.limit();
+    parentMessage.limit(limit + headerLength + length);
+    buffer.putInt(limit, (int) length, java.nio.ByteOrder.LITTLE_ENDIAN);
+    buffer.putBytes(limit + headerLength, src, srcOffset, length);
 
-        final int headerLength = 4;
-        final int limit = parentMessage.limit();
-        parentMessage.limit(limit + headerLength + length);
-        buffer.putInt(limit, (int)length, java.nio.ByteOrder.LITTLE_ENDIAN);
-        buffer.putBytes(limit + headerLength, src, srcOffset, length);
+    return this;
+  }
 
-        return this;
+  public ConnectEncoder receivingChannel(final String value) {
+    final byte[] bytes;
+    try {
+      bytes = value.getBytes("UTF-8");
+    } catch (final java.io.UnsupportedEncodingException ex) {
+      throw new RuntimeException(ex);
     }
 
-    public ConnectEncoder sendingChannel(final String value)
-    {
-        final byte[] bytes;
-        try
-        {
-            bytes = value.getBytes("UTF-8");
-        }
-        catch (final java.io.UnsupportedEncodingException ex)
-        {
-            throw new RuntimeException(ex);
-        }
-
-        final int length = bytes.length;
-        if (length > 1073741824)
-        {
-            throw new IllegalArgumentException("length > max value for type: " + length);
-        }
-
-        final int headerLength = 4;
-        final int limit = parentMessage.limit();
-        parentMessage.limit(limit + headerLength + length);
-        buffer.putInt(limit, (int)length, java.nio.ByteOrder.LITTLE_ENDIAN);
-        buffer.putBytes(limit + headerLength, bytes, 0, length);
-
-        return this;
+    final int length = bytes.length;
+    if (length > 1073741824) {
+      throw new IllegalArgumentException("length > max value for type: " + length);
     }
 
-    public static int receivingChannelId()
-    {
-        return 6;
-    }
+    final int headerLength = 4;
+    final int limit = parentMessage.limit();
+    parentMessage.limit(limit + headerLength + length);
+    buffer.putInt(limit, (int) length, java.nio.ByteOrder.LITTLE_ENDIAN);
+    buffer.putBytes(limit + headerLength, bytes, 0, length);
 
-    public static String receivingChannelCharacterEncoding()
-    {
-        return "UTF-8";
-    }
+    return this;
+  }
 
-    public static String receivingChannelMetaAttribute(final MetaAttribute metaAttribute)
-    {
-        switch (metaAttribute)
-        {
-            case EPOCH: return "unix";
-            case TIME_UNIT: return "nanosecond";
-            case SEMANTIC_TYPE: return "";
-        }
+  public static int clientManagementChannelId() {
+    return 6;
+  }
 
+  public static String clientManagementChannelCharacterEncoding() {
+    return "UTF-8";
+  }
+
+  public static String clientManagementChannelMetaAttribute(final MetaAttribute metaAttribute) {
+    switch (metaAttribute) {
+      case EPOCH:
+        return "unix";
+      case TIME_UNIT:
+        return "nanosecond";
+      case SEMANTIC_TYPE:
         return "";
     }
 
-    public static int receivingChannelHeaderLength()
-    {
-        return 4;
+    return "";
+  }
+
+  public static int clientManagementChannelHeaderLength() {
+    return 4;
+  }
+
+  public ConnectEncoder putClientManagementChannel(
+      final DirectBuffer src, final int srcOffset, final int length) {
+    if (length > 1073741824) {
+      throw new IllegalArgumentException("length > max value for type: " + length);
     }
 
-    public ConnectEncoder putReceivingChannel(final DirectBuffer src, final int srcOffset, final int length)
-    {
-        if (length > 1073741824)
-        {
-            throw new IllegalArgumentException("length > max value for type: " + length);
-        }
+    final int headerLength = 4;
+    final int limit = parentMessage.limit();
+    parentMessage.limit(limit + headerLength + length);
+    buffer.putInt(limit, (int) length, java.nio.ByteOrder.LITTLE_ENDIAN);
+    buffer.putBytes(limit + headerLength, src, srcOffset, length);
 
-        final int headerLength = 4;
-        final int limit = parentMessage.limit();
-        parentMessage.limit(limit + headerLength + length);
-        buffer.putInt(limit, (int)length, java.nio.ByteOrder.LITTLE_ENDIAN);
-        buffer.putBytes(limit + headerLength, src, srcOffset, length);
+    return this;
+  }
 
-        return this;
+  public ConnectEncoder putClientManagementChannel(
+      final byte[] src, final int srcOffset, final int length) {
+    if (length > 1073741824) {
+      throw new IllegalArgumentException("length > max value for type: " + length);
     }
 
-    public ConnectEncoder putReceivingChannel(final byte[] src, final int srcOffset, final int length)
-    {
-        if (length > 1073741824)
-        {
-            throw new IllegalArgumentException("length > max value for type: " + length);
-        }
+    final int headerLength = 4;
+    final int limit = parentMessage.limit();
+    parentMessage.limit(limit + headerLength + length);
+    buffer.putInt(limit, (int) length, java.nio.ByteOrder.LITTLE_ENDIAN);
+    buffer.putBytes(limit + headerLength, src, srcOffset, length);
 
-        final int headerLength = 4;
-        final int limit = parentMessage.limit();
-        parentMessage.limit(limit + headerLength + length);
-        buffer.putInt(limit, (int)length, java.nio.ByteOrder.LITTLE_ENDIAN);
-        buffer.putBytes(limit + headerLength, src, srcOffset, length);
+    return this;
+  }
 
-        return this;
+  public ConnectEncoder clientManagementChannel(final String value) {
+    final byte[] bytes;
+    try {
+      bytes = value.getBytes("UTF-8");
+    } catch (final java.io.UnsupportedEncodingException ex) {
+      throw new RuntimeException(ex);
     }
 
-    public ConnectEncoder receivingChannel(final String value)
-    {
-        final byte[] bytes;
-        try
-        {
-            bytes = value.getBytes("UTF-8");
-        }
-        catch (final java.io.UnsupportedEncodingException ex)
-        {
-            throw new RuntimeException(ex);
-        }
-
-        final int length = bytes.length;
-        if (length > 1073741824)
-        {
-            throw new IllegalArgumentException("length > max value for type: " + length);
-        }
-
-        final int headerLength = 4;
-        final int limit = parentMessage.limit();
-        parentMessage.limit(limit + headerLength + length);
-        buffer.putInt(limit, (int)length, java.nio.ByteOrder.LITTLE_ENDIAN);
-        buffer.putBytes(limit + headerLength, bytes, 0, length);
-
-        return this;
+    final int length = bytes.length;
+    if (length > 1073741824) {
+      throw new IllegalArgumentException("length > max value for type: " + length);
     }
 
-    public static int clientManagementChannelId()
-    {
-        return 6;
-    }
+    final int headerLength = 4;
+    final int limit = parentMessage.limit();
+    parentMessage.limit(limit + headerLength + length);
+    buffer.putInt(limit, (int) length, java.nio.ByteOrder.LITTLE_ENDIAN);
+    buffer.putBytes(limit + headerLength, bytes, 0, length);
 
-    public static String clientManagementChannelCharacterEncoding()
-    {
-        return "UTF-8";
-    }
+    return this;
+  }
 
-    public static String clientManagementChannelMetaAttribute(final MetaAttribute metaAttribute)
-    {
-        switch (metaAttribute)
-        {
-            case EPOCH: return "unix";
-            case TIME_UNIT: return "nanosecond";
-            case SEMANTIC_TYPE: return "";
-        }
+  public String toString() {
+    return appendTo(new StringBuilder(100)).toString();
+  }
 
-        return "";
-    }
+  public StringBuilder appendTo(final StringBuilder builder) {
+    ConnectDecoder writer = new ConnectDecoder();
+    writer.wrap(buffer, offset, BLOCK_LENGTH, SCHEMA_VERSION);
 
-    public static int clientManagementChannelHeaderLength()
-    {
-        return 4;
-    }
-
-    public ConnectEncoder putClientManagementChannel(final DirectBuffer src, final int srcOffset, final int length)
-    {
-        if (length > 1073741824)
-        {
-            throw new IllegalArgumentException("length > max value for type: " + length);
-        }
-
-        final int headerLength = 4;
-        final int limit = parentMessage.limit();
-        parentMessage.limit(limit + headerLength + length);
-        buffer.putInt(limit, (int)length, java.nio.ByteOrder.LITTLE_ENDIAN);
-        buffer.putBytes(limit + headerLength, src, srcOffset, length);
-
-        return this;
-    }
-
-    public ConnectEncoder putClientManagementChannel(final byte[] src, final int srcOffset, final int length)
-    {
-        if (length > 1073741824)
-        {
-            throw new IllegalArgumentException("length > max value for type: " + length);
-        }
-
-        final int headerLength = 4;
-        final int limit = parentMessage.limit();
-        parentMessage.limit(limit + headerLength + length);
-        buffer.putInt(limit, (int)length, java.nio.ByteOrder.LITTLE_ENDIAN);
-        buffer.putBytes(limit + headerLength, src, srcOffset, length);
-
-        return this;
-    }
-
-    public ConnectEncoder clientManagementChannel(final String value)
-    {
-        final byte[] bytes;
-        try
-        {
-            bytes = value.getBytes("UTF-8");
-        }
-        catch (final java.io.UnsupportedEncodingException ex)
-        {
-            throw new RuntimeException(ex);
-        }
-
-        final int length = bytes.length;
-        if (length > 1073741824)
-        {
-            throw new IllegalArgumentException("length > max value for type: " + length);
-        }
-
-        final int headerLength = 4;
-        final int limit = parentMessage.limit();
-        parentMessage.limit(limit + headerLength + length);
-        buffer.putInt(limit, (int)length, java.nio.ByteOrder.LITTLE_ENDIAN);
-        buffer.putBytes(limit + headerLength, bytes, 0, length);
-
-        return this;
-    }
-    public String toString()
-    {
-        return appendTo(new StringBuilder(100)).toString();
-    }
-
-    public StringBuilder appendTo(final StringBuilder builder)
-    {
-        ConnectDecoder writer = new ConnectDecoder();
-        writer.wrap(buffer, offset, BLOCK_LENGTH, SCHEMA_VERSION);
-
-        return writer.appendTo(builder);
-    }
+    return writer.appendTo(builder);
+  }
 }

@@ -15,65 +15,63 @@
  */
 package io.rsocket.stat;
 
-/**
- * This implementation gives better results because it considers more data-point.
- */
+/** This implementation gives better results because it considers more data-point. */
 public class Median extends FrugalQuantile {
-    public Median() {
-        super(0.5, 1.0, null);
+  public Median() {
+    super(0.5, 1.0, null);
+  }
+
+  @Override
+  public synchronized void insert(double x) {
+    if (sign == 0) {
+      estimate = x;
+      sign = 1;
+      return;
     }
 
-    @Override
-    public synchronized void insert(double x) {
-        if (sign == 0) {
-            estimate = x;
-            sign = 1;
-            return;
-        }
+    if (x > estimate) {
+      step += sign;
 
-        if (x > estimate) {
-            step += sign;
+      if (step > 0) {
+        estimate += step;
+      } else {
+        estimate += 1;
+      }
 
-            if (step > 0) {
-                estimate += step;
-            } else {
-                estimate += 1;
-            }
+      if (estimate > x) {
+        step += (x - estimate);
+        estimate = x;
+      }
 
-            if (estimate > x) {
-                step += (x - estimate);
-                estimate = x;
-            }
+      if (sign < 0) {
+        step = 1;
+      }
 
-            if (sign < 0) {
-                step = 1;
-            }
+      sign = 1;
+    } else if (x < estimate) {
+      step -= sign;
 
-            sign = 1;
-        } else if (x < estimate) {
-            step -= sign;
+      if (step > 0) {
+        estimate -= step;
+      } else {
+        estimate--;
+      }
 
-            if (step > 0) {
-                estimate -= step;
-            } else {
-                estimate--;
-            }
+      if (estimate < x) {
+        step += (estimate - x);
+        estimate = x;
+      }
 
-            if (estimate < x) {
-                step += (estimate - x);
-                estimate = x;
-            }
+      if (sign > 0) {
+        step = 1;
+      }
 
-            if (sign > 0) {
-                step = 1;
-            }
-
-            sign = -1;
-        }
+      sign = -1;
     }
+  }
 
-    @Override
-    public String toString() {
-        return "Median(v=" + estimate + ")";
-    }
+  @Override
+  public String toString() {
+    return "Median(v=" + estimate + ")";
+  }
 }

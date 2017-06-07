@@ -22,50 +22,51 @@ import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
 
 /**
- * An abstract implementation of {@link RSocket}. All request handling methods emit
- * {@link UnsupportedOperationException} and hence must be overridden to provide a valid implementation.<p>
+ * An abstract implementation of {@link RSocket}. All request handling methods emit {@link
+ * UnsupportedOperationException} and hence must be overridden to provide a valid implementation.
  *
- * {@link #close()} and {@link #onClose()} returns a {@code Publisher} that never terminates.
+ * <p>{@link #close()} and {@link #onClose()} returns a {@code Publisher} that never terminates.
  */
 public abstract class AbstractRSocket implements RSocket {
 
-    private final MonoProcessor<Void> onClose = MonoProcessor.create();
+  private final MonoProcessor<Void> onClose = MonoProcessor.create();
 
-    @Override
-    public Mono<Void> fireAndForget(Payload payload) {
-        return Mono.error(new UnsupportedOperationException("Fire and forget not implemented."));
-    }
+  @Override
+  public Mono<Void> fireAndForget(Payload payload) {
+    return Mono.error(new UnsupportedOperationException("Fire and forget not implemented."));
+  }
 
-    @Override
-    public Mono<Payload> requestResponse(Payload payload) {
-        return Mono.error(new UnsupportedOperationException("Request-Response not implemented."));
-    }
+  @Override
+  public Mono<Payload> requestResponse(Payload payload) {
+    return Mono.error(new UnsupportedOperationException("Request-Response not implemented."));
+  }
 
-    @Override
-    public Flux<Payload> requestStream(Payload payload) {
-        return Flux.error(new UnsupportedOperationException("Request-Stream not implemented."));
-    }
+  @Override
+  public Flux<Payload> requestStream(Payload payload) {
+    return Flux.error(new UnsupportedOperationException("Request-Stream not implemented."));
+  }
 
-    @Override
-    public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
-        return Flux.error(new UnsupportedOperationException("Request-Channel not implemented."));
-    }
+  @Override
+  public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
+    return Flux.error(new UnsupportedOperationException("Request-Channel not implemented."));
+  }
 
-    @Override
-    public Mono<Void> metadataPush(Payload payload) {
-        return Mono.error(new UnsupportedOperationException("Metadata-Push not implemented."));
-    }
+  @Override
+  public Mono<Void> metadataPush(Payload payload) {
+    return Mono.error(new UnsupportedOperationException("Metadata-Push not implemented."));
+  }
 
-    @Override
-    public Mono<Void> close() {
-        return Mono.defer(() -> {
-            onClose.onComplete();
-            return onClose;
+  @Override
+  public Mono<Void> close() {
+    return Mono.defer(
+        () -> {
+          onClose.onComplete();
+          return onClose;
         });
-    }
+  }
 
-    @Override
-    public Mono<Void> onClose() {
-        return onClose;
-    }
+  @Override
+  public Mono<Void> onClose() {
+    return onClose;
+  }
 }

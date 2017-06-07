@@ -18,189 +18,194 @@ package io.rsocket.frame;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.rsocket.FrameType;
-
 import java.nio.charset.StandardCharsets;
 
 public class SetupFrameFlyweight {
-    private SetupFrameFlyweight() {}
+  private SetupFrameFlyweight() {}
 
-    public static final int FLAGS_RESUME_ENABLE =         0b00_1000_0000;
-    public static final int FLAGS_WILL_HONOR_LEASE =      0b00_0100_0000;
-    public static final int FLAGS_STRICT_INTERPRETATION = 0b00_0010_0000;
+  public static final int FLAGS_RESUME_ENABLE = 0b00_1000_0000;
+  public static final int FLAGS_WILL_HONOR_LEASE = 0b00_0100_0000;
+  public static final int FLAGS_STRICT_INTERPRETATION = 0b00_0010_0000;
 
-    public static final int VALID_FLAGS = FLAGS_RESUME_ENABLE | FLAGS_WILL_HONOR_LEASE | FLAGS_STRICT_INTERPRETATION;
+  public static final int VALID_FLAGS =
+      FLAGS_RESUME_ENABLE | FLAGS_WILL_HONOR_LEASE | FLAGS_STRICT_INTERPRETATION;
 
-    public static final int CURRENT_VERSION = VersionFlyweight.encode(1, 0);
+  public static final int CURRENT_VERSION = VersionFlyweight.encode(1, 0);
 
-    // relative to start of passed offset
-    private static final int VERSION_FIELD_OFFSET = FrameHeaderFlyweight.FRAME_HEADER_LENGTH;
-    private static final int KEEPALIVE_INTERVAL_FIELD_OFFSET = VERSION_FIELD_OFFSET + Integer.BYTES;
-    private static final int MAX_LIFETIME_FIELD_OFFSET = KEEPALIVE_INTERVAL_FIELD_OFFSET + Integer.BYTES;
-    private static final int VARIABLE_DATA_OFFSET = MAX_LIFETIME_FIELD_OFFSET + Integer.BYTES;
+  // relative to start of passed offset
+  private static final int VERSION_FIELD_OFFSET = FrameHeaderFlyweight.FRAME_HEADER_LENGTH;
+  private static final int KEEPALIVE_INTERVAL_FIELD_OFFSET = VERSION_FIELD_OFFSET + Integer.BYTES;
+  private static final int MAX_LIFETIME_FIELD_OFFSET =
+      KEEPALIVE_INTERVAL_FIELD_OFFSET + Integer.BYTES;
+  private static final int VARIABLE_DATA_OFFSET = MAX_LIFETIME_FIELD_OFFSET + Integer.BYTES;
 
-    public static int computeFrameLength(
-        final int flags,
-        final String metadataMimeType,
-        final String dataMimeType,
-        final int metadataLength,
-        final int dataLength
-    ) {
-        return computeFrameLength(flags, 0, metadataMimeType, dataMimeType, metadataLength, dataLength);
+  public static int computeFrameLength(
+      final int flags,
+      final String metadataMimeType,
+      final String dataMimeType,
+      final int metadataLength,
+      final int dataLength) {
+    return computeFrameLength(flags, 0, metadataMimeType, dataMimeType, metadataLength, dataLength);
+  }
+
+  private static int computeFrameLength(
+      final int flags,
+      final int resumeTokenLength,
+      final String metadataMimeType,
+      final String dataMimeType,
+      final int metadataLength,
+      final int dataLength) {
+    int length =
+        FrameHeaderFlyweight.computeFrameHeaderLength(FrameType.SETUP, metadataLength, dataLength);
+
+    length += Integer.BYTES * 3;
+
+    if ((flags & FLAGS_RESUME_ENABLE) != 0) {
+      length += Short.BYTES + resumeTokenLength;
     }
 
-    private static int computeFrameLength(
-        final int flags,
-        final int resumeTokenLength,
-        final String metadataMimeType,
-        final String dataMimeType,
-        final int metadataLength,
-        final int dataLength
-    ) {
-        int length = FrameHeaderFlyweight.computeFrameHeaderLength(FrameType.SETUP, metadataLength, dataLength);
+    length += 1 + metadataMimeType.getBytes(StandardCharsets.UTF_8).length;
+    length += 1 + dataMimeType.getBytes(StandardCharsets.UTF_8).length;
 
-        length += Integer.BYTES * 3;
+    return length;
+  }
 
-        if ((flags & FLAGS_RESUME_ENABLE) != 0) {
-            length += Short.BYTES + resumeTokenLength;
-        }
-
-        length += 1 + metadataMimeType.getBytes(StandardCharsets.UTF_8).length;
-        length += 1 + dataMimeType.getBytes(StandardCharsets.UTF_8).length;
-
-        return length;
+  public static int encode(
+      final ByteBuf byteBuf,
+      int flags,
+      final int keepaliveInterval,
+      final int maxLifetime,
+      final String metadataMimeType,
+      final String dataMimeType,
+      final ByteBuf metadata,
+      final ByteBuf data) {
+    if ((flags & FLAGS_RESUME_ENABLE) != 0) {
+      throw new IllegalArgumentException("RESUME_ENABLE not supported");
     }
 
-    public static int encode(
-        final ByteBuf byteBuf,
-        int flags,
-        final int keepaliveInterval,
-        final int maxLifetime,
-        final String metadataMimeType,
-        final String dataMimeType,
-        final ByteBuf metadata,
-        final ByteBuf data
-    ) {
-        if ((flags & FLAGS_RESUME_ENABLE) != 0) {
-            throw new IllegalArgumentException("RESUME_ENABLE not supported");
-        }
+    return encode(
+        byteBuf,
+        flags,
+        keepaliveInterval,
+        maxLifetime,
+        Unpooled.EMPTY_BUFFER,
+        metadataMimeType,
+        dataMimeType,
+        metadata,
+        data);
+  }
 
-        return encode(
-                byteBuf,
-                flags,
-                keepaliveInterval,
-                maxLifetime,
-                Unpooled.EMPTY_BUFFER,
-                metadataMimeType,
-                dataMimeType,
-                metadata,
-                data);
+  // Only exposed for testing, other code shouldn't create frames with resumption tokens for now
+  static int encode(
+      final ByteBuf byteBuf,
+      int flags,
+      final int keepaliveInterval,
+      final int maxLifetime,
+      final ByteBuf resumeToken,
+      final String metadataMimeType,
+      final String dataMimeType,
+      final ByteBuf metadata,
+      final ByteBuf data) {
+    final int frameLength =
+        computeFrameLength(
+            flags,
+            resumeToken.readableBytes(),
+            metadataMimeType,
+            dataMimeType,
+            metadata.readableBytes(),
+            data.readableBytes());
+
+    int length =
+        FrameHeaderFlyweight.encodeFrameHeader(byteBuf, frameLength, flags, FrameType.SETUP, 0);
+
+    byteBuf.setInt(VERSION_FIELD_OFFSET, CURRENT_VERSION);
+    byteBuf.setInt(KEEPALIVE_INTERVAL_FIELD_OFFSET, keepaliveInterval);
+    byteBuf.setInt(MAX_LIFETIME_FIELD_OFFSET, maxLifetime);
+
+    length += Integer.BYTES * 3;
+
+    if ((flags & FLAGS_RESUME_ENABLE) != 0) {
+      byteBuf.setShort(length, resumeToken.readableBytes());
+      length += Short.BYTES;
+      int resumeTokenLength = resumeToken.readableBytes();
+      byteBuf.setBytes(length, resumeToken, resumeTokenLength);
+      length += resumeTokenLength;
     }
 
-    // Only exposed for testing, other code shouldn't create frames with resumption tokens for now
-    static int encode(
-        final ByteBuf byteBuf,
-        int flags,
-        final int keepaliveInterval,
-        final int maxLifetime,
-        final ByteBuf resumeToken,
-        final String metadataMimeType,
-        final String dataMimeType,
-        final ByteBuf metadata,
-        final ByteBuf data
-    ) {
-        final int frameLength = computeFrameLength(flags, resumeToken.readableBytes(), metadataMimeType, dataMimeType, metadata.readableBytes(), data.readableBytes());
+    length += putMimeType(byteBuf, length, metadataMimeType);
+    length += putMimeType(byteBuf, length, dataMimeType);
 
-        int length = FrameHeaderFlyweight.encodeFrameHeader(byteBuf, frameLength, flags, FrameType.SETUP, 0);
+    length += FrameHeaderFlyweight.encodeMetadata(byteBuf, FrameType.SETUP, length, metadata);
+    length += FrameHeaderFlyweight.encodeData(byteBuf, length, data);
 
-        byteBuf.setInt(VERSION_FIELD_OFFSET, CURRENT_VERSION);
-        byteBuf.setInt(KEEPALIVE_INTERVAL_FIELD_OFFSET, keepaliveInterval);
-        byteBuf.setInt(MAX_LIFETIME_FIELD_OFFSET, maxLifetime);
+    return length;
+  }
 
-        length += Integer.BYTES * 3;
+  public static int version(final ByteBuf byteBuf) {
+    return byteBuf.getInt(VERSION_FIELD_OFFSET);
+  }
 
-        if ((flags & FLAGS_RESUME_ENABLE) != 0) {
-            byteBuf.setShort(length, resumeToken.readableBytes());
-            length += Short.BYTES;
-            int resumeTokenLength = resumeToken.readableBytes();
-            byteBuf.setBytes(length, resumeToken, resumeTokenLength);
-            length += resumeTokenLength;
-        }
+  public static int keepaliveInterval(final ByteBuf byteBuf) {
+    return byteBuf.getInt(KEEPALIVE_INTERVAL_FIELD_OFFSET);
+  }
 
-        length += putMimeType(byteBuf, length, metadataMimeType);
-        length += putMimeType(byteBuf, length, dataMimeType);
+  public static int maxLifetime(final ByteBuf byteBuf) {
+    return byteBuf.getInt(MAX_LIFETIME_FIELD_OFFSET);
+  }
 
-        length += FrameHeaderFlyweight.encodeMetadata(
-                byteBuf, FrameType.SETUP, length, metadata);
-        length += FrameHeaderFlyweight.encodeData(byteBuf, length, data);
+  public static String metadataMimeType(final ByteBuf byteBuf) {
+    final byte[] bytes = getMimeType(byteBuf, metadataMimetypeOffset(byteBuf));
+    return new String(bytes, StandardCharsets.UTF_8);
+  }
 
-        return length;
+  public static String dataMimeType(final ByteBuf byteBuf) {
+    int fieldOffset = metadataMimetypeOffset(byteBuf);
+
+    fieldOffset += 1 + byteBuf.getByte(fieldOffset);
+
+    final byte[] bytes = getMimeType(byteBuf, fieldOffset);
+    return new String(bytes, StandardCharsets.UTF_8);
+  }
+
+  public static int payloadOffset(final ByteBuf byteBuf) {
+    int fieldOffset = metadataMimetypeOffset(byteBuf);
+
+    final int metadataMimeTypeLength = byteBuf.getByte(fieldOffset);
+    fieldOffset += 1 + metadataMimeTypeLength;
+
+    final int dataMimeTypeLength = byteBuf.getByte(fieldOffset);
+    fieldOffset += 1 + dataMimeTypeLength;
+
+    return fieldOffset;
+  }
+
+  private static int metadataMimetypeOffset(final ByteBuf byteBuf) {
+    return VARIABLE_DATA_OFFSET + resumeTokenTotalLength(byteBuf);
+  }
+
+  private static int resumeTokenTotalLength(final ByteBuf byteBuf) {
+    if ((FrameHeaderFlyweight.flags(byteBuf) & FLAGS_RESUME_ENABLE) == 0) {
+      return 0;
+    } else {
+      return Short.BYTES + byteBuf.getShort(VARIABLE_DATA_OFFSET);
     }
+  }
 
-    public static int version(final ByteBuf byteBuf) {
-        return byteBuf.getInt(VERSION_FIELD_OFFSET);
-    }
+  private static int putMimeType(
+      final ByteBuf byteBuf, final int fieldOffset, final String mimeType) {
+    byte[] bytes = mimeType.getBytes(StandardCharsets.UTF_8);
 
-    public static int keepaliveInterval(final ByteBuf byteBuf) {
-        return byteBuf.getInt(KEEPALIVE_INTERVAL_FIELD_OFFSET);
-    }
+    byteBuf.setByte(fieldOffset, (byte) bytes.length);
+    byteBuf.setBytes(fieldOffset + 1, bytes);
 
-    public static int maxLifetime(final ByteBuf byteBuf) {
-        return byteBuf.getInt(MAX_LIFETIME_FIELD_OFFSET);
-    }
+    return 1 + bytes.length;
+  }
 
-    public static String metadataMimeType(final ByteBuf byteBuf) {
-        final byte[] bytes = getMimeType(byteBuf, metadataMimetypeOffset(byteBuf));
-        return new String(bytes, StandardCharsets.UTF_8);
-    }
+  private static byte[] getMimeType(final ByteBuf byteBuf, final int fieldOffset) {
+    final int length = byteBuf.getByte(fieldOffset);
+    final byte[] bytes = new byte[length];
 
-    public static String dataMimeType(final ByteBuf byteBuf) {
-        int fieldOffset = metadataMimetypeOffset(byteBuf);
-
-        fieldOffset += 1 + byteBuf.getByte(fieldOffset);
-
-        final byte[] bytes = getMimeType(byteBuf, fieldOffset);
-        return new String(bytes, StandardCharsets.UTF_8);
-    }
-
-    public static int payloadOffset(final ByteBuf byteBuf) {
-        int fieldOffset = metadataMimetypeOffset(byteBuf);
-
-        final int metadataMimeTypeLength = byteBuf.getByte(fieldOffset);
-        fieldOffset += 1 + metadataMimeTypeLength;
-
-        final int dataMimeTypeLength = byteBuf.getByte(fieldOffset);
-        fieldOffset += 1 + dataMimeTypeLength;
-
-        return fieldOffset;
-    }
-
-    private static int metadataMimetypeOffset(final ByteBuf byteBuf) {
-        return VARIABLE_DATA_OFFSET + resumeTokenTotalLength(byteBuf);
-    }
-
-    private static int resumeTokenTotalLength(final ByteBuf byteBuf) {
-        if ((FrameHeaderFlyweight.flags(byteBuf) & FLAGS_RESUME_ENABLE) == 0) {
-            return 0;
-        } else {
-            return Short.BYTES + byteBuf.getShort(VARIABLE_DATA_OFFSET);
-        }
-    }
-
-    private static int putMimeType(
-        final ByteBuf byteBuf, final int fieldOffset, final String mimeType) {
-        byte[] bytes = mimeType.getBytes(StandardCharsets.UTF_8);
-
-        byteBuf.setByte(fieldOffset, (byte) bytes.length);
-        byteBuf.setBytes(fieldOffset + 1, bytes);
-
-        return 1 + bytes.length;
-    }
-
-    private static byte[] getMimeType(final ByteBuf byteBuf, final int fieldOffset) {
-        final int length = byteBuf.getByte(fieldOffset);
-        final byte[] bytes = new byte[length];
-
-        byteBuf.getBytes(fieldOffset + 1, bytes);
-        return bytes;
-    }
+    byteBuf.getBytes(fieldOffset + 1, bytes);
+    return bytes;
+  }
 }
