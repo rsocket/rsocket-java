@@ -33,6 +33,16 @@ dependencies {
 
 No releases to Maven Central or JCenter have occurred yet.
 
+## Development
+
+Install the google-java-format in Intellij, from Plugins preferences.
+Enable under Preferences -> Other Settings -> google-java-format Settings
+
+Format automatically with
+
+```
+$./gradlew goJF
+```
 
 ## Debugging
 Frames can be printed out to help debugging. Set the logger `io.rsocket.FrameLogger` to debug to print the frames.
