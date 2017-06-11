@@ -3,6 +3,10 @@ package io.rsocket;
 import io.rsocket.fragmentation.FragmentationDuplexConnection;
 import io.rsocket.frame.SetupFrameFlyweight;
 import io.rsocket.internal.ClientServerInputMultiplexer;
+import io.rsocket.plugins.DuplexConnectionInterceptor;
+import io.rsocket.plugins.PluginX;
+import io.rsocket.plugins.Plugins;
+import io.rsocket.plugins.RSocketInterceptor;
 import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.ServerTransport;
 import io.rsocket.util.PayloadImpl;
@@ -103,6 +107,7 @@ public interface RSocketFactory {
     private Supplier<io.rsocket.transport.ClientTransport> transportClient;
     private Consumer<Throwable> errorConsumer = Throwable::printStackTrace;
     private int mtu = 0;
+    private PluginX plugins = Plugins.defaultPlugins();
     private int flags = SetupFrameFlyweight.FLAGS_STRICT_INTERPRETATION;
 
     private Payload setupPayload = PayloadImpl.EMPTY;
@@ -113,6 +118,21 @@ public interface RSocketFactory {
 
     private String dataMineType = "application/binary";
     private String metadataMimeType = "application/binary";
+
+    public ClientRSocketFactory addConnectionPlugin(DuplexConnectionInterceptor interceptor) {
+      plugins.addConnectionPlugin(interceptor);
+      return this;
+    }
+
+    public ClientRSocketFactory addClientPlugin(RSocketInterceptor interceptor) {
+      plugins.addClientPlugin(interceptor);
+      return this;
+    }
+
+    public ClientRSocketFactory addServerPlugin(RSocketInterceptor interceptor) {
+      plugins.addServerPlugin(interceptor);
+      return this;
+    }
 
     @Override
     public ClientRSocketFactory keepAlive() {
@@ -223,14 +243,12 @@ public interface RSocketFactory {
                           metadataMimeType,
                           setupPayload);
 
-                  ClientServerInputMultiplexer multiplexer;
                   if (mtu > 0) {
-                    multiplexer =
-                        new ClientServerInputMultiplexer(
-                            new FragmentationDuplexConnection(connection, mtu));
-                  } else {
-                    multiplexer = new ClientServerInputMultiplexer(connection);
+                    connection = new FragmentationDuplexConnection(connection, mtu);
                   }
+
+                  ClientServerInputMultiplexer multiplexer =
+                      new ClientServerInputMultiplexer(connection, plugins);
 
                   RSocketClient rSocketClient =
                       new RSocketClient(
@@ -241,23 +259,25 @@ public interface RSocketFactory {
                           ackTimeout,
                           missedAcks);
 
-                  return Plugins.CLIENT_REACTIVE_SOCKET_INTERCEPTOR
-                      .apply(rSocketClient)
-                      .then(
-                          wrappedClientRSocket -> {
-                            RSocket unwrappedServerSocket =
-                                acceptor.get().apply(wrappedClientRSocket);
-                            return Plugins.SERVER_REACTIVE_SOCKET_INTERCEPTOR
-                                .apply(unwrappedServerSocket)
-                                .doOnNext(
-                                    rSocket ->
-                                        new RSocketServer(
-                                            multiplexer.asServerConnection(),
-                                            rSocket,
-                                            errorConsumer))
-                                .then(connection.sendOne(setupFrame))
-                                .then(Mono.just(wrappedClientRSocket));
-                          });
+                  Mono<RSocket> wrappedRSocketClient =
+                      Mono.just(rSocketClient).map(plugins::applyClient);
+
+                  DuplexConnection finalConnection = connection;
+                  return wrappedRSocketClient.then(
+                      wrappedClientRSocket -> {
+                        RSocket unwrappedServerSocket = acceptor.get().apply(wrappedClientRSocket);
+
+                        Mono<RSocket> wrappedRSocketServer =
+                            Mono.just(unwrappedServerSocket).map(plugins::applyServer);
+
+                        return wrappedRSocketServer
+                            .doOnNext(
+                                rSocket ->
+                                    new RSocketServer(
+                                        multiplexer.asServerConnection(), rSocket, errorConsumer))
+                            .then(finalConnection.sendOne(setupFrame))
+                            .then(Mono.just(wrappedClientRSocket));
+                      });
                 });
       }
     }
@@ -272,8 +292,24 @@ public interface RSocketFactory {
     private Supplier<io.rsocket.transport.ServerTransport> transportServer;
     private Consumer<Throwable> errorConsumer = Throwable::printStackTrace;
     private int mtu = 0;
+    private PluginX plugins = Plugins.defaultPlugins();
 
     private ServerRSocketFactory() {}
+
+    public ServerRSocketFactory addConnectionPlugin(DuplexConnectionInterceptor interceptor) {
+      plugins.addConnectionPlugin(interceptor);
+      return this;
+    }
+
+    public ServerRSocketFactory addClientPlugin(RSocketInterceptor interceptor) {
+      plugins.addClientPlugin(interceptor);
+      return this;
+    }
+
+    public ServerRSocketFactory addServerPlugin(RSocketInterceptor interceptor) {
+      plugins.addServerPlugin(interceptor);
+      return this;
+    }
 
     @Override
     public Transport<io.rsocket.transport.ServerTransport, Closeable> acceptor(
@@ -310,14 +346,12 @@ public interface RSocketFactory {
             .get()
             .start(
                 connection -> {
-                  ClientServerInputMultiplexer multiplexer;
                   if (mtu > 0) {
-                    multiplexer =
-                        new ClientServerInputMultiplexer(
-                            new FragmentationDuplexConnection(connection, mtu));
-                  } else {
-                    multiplexer = new ClientServerInputMultiplexer(connection);
+                    connection = new FragmentationDuplexConnection(connection, mtu);
                   }
+
+                  ClientServerInputMultiplexer multiplexer =
+                      new ClientServerInputMultiplexer(connection, plugins);
 
                   return multiplexer
                       .asStreamZeroConnection()
@@ -335,7 +369,7 @@ public interface RSocketFactory {
                                     StreamIdSupplier.serverSupplier());
 
                             Mono<RSocket> wrappedRSocketClient =
-                                Plugins.CLIENT_REACTIVE_SOCKET_INTERCEPTOR.apply(rSocketClient);
+                                Mono.just(rSocketClient).map(plugins::applyClient);
 
                             return wrappedRSocketClient
                                 .then(
@@ -343,8 +377,7 @@ public interface RSocketFactory {
                                         acceptor
                                             .get()
                                             .accept(setupPayload, sender)
-                                            .then(
-                                                Plugins.SERVER_REACTIVE_SOCKET_INTERCEPTOR::apply))
+                                            .map(plugins::applyServer))
                                 .map(
                                     handler ->
                                         new RSocketServer(

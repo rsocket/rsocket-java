@@ -5,13 +5,13 @@ import com.netflix.spectator.api.Registry;
 import io.rsocket.DuplexConnection;
 import io.rsocket.Frame;
 import io.rsocket.FrameType;
-import io.rsocket.Plugins;
+import io.rsocket.plugins.DuplexConnectionInterceptor;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-/** An implementation of {@link Plugins.DuplexConnectionInterceptor} that uses Spectator */
-public class SpectatorFrameInterceptor implements Plugins.DuplexConnectionInterceptor {
+/** An implementation of {@link DuplexConnectionInterceptor} that uses Spectator */
+public class SpectatorFrameInterceptor implements DuplexConnectionInterceptor {
   private final Registry registry;
 
   public SpectatorFrameInterceptor(Registry registry) {

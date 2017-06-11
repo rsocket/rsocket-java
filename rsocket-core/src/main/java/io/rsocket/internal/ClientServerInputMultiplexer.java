@@ -19,8 +19,8 @@ package io.rsocket.internal;
 import io.rsocket.DuplexConnection;
 import io.rsocket.Frame;
 import io.rsocket.FrameType;
-import io.rsocket.Plugins;
-import io.rsocket.Plugins.DuplexConnectionInterceptor.Type;
+import io.rsocket.plugins.DuplexConnectionInterceptor.Type;
+import io.rsocket.plugins.PluginX;
 import org.reactivestreams.Publisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -50,21 +50,18 @@ public class ClientServerInputMultiplexer {
   private final DuplexConnection serverConnection;
   private final DuplexConnection clientConnection;
 
-  public ClientServerInputMultiplexer(DuplexConnection source) {
+  public ClientServerInputMultiplexer(DuplexConnection source, PluginX plugins) {
     final MonoProcessor<Flux<Frame>> streamZero = MonoProcessor.create();
     final MonoProcessor<Flux<Frame>> server = MonoProcessor.create();
     final MonoProcessor<Flux<Frame>> client = MonoProcessor.create();
 
-    source = Plugins.DUPLEX_CONNECTION_INTERCEPTOR.apply(Type.SOURCE, source);
+    source = plugins.applyConnection(Type.SOURCE, source);
     streamZeroConnection =
-        Plugins.DUPLEX_CONNECTION_INTERCEPTOR.apply(
-            Type.STREAM_ZERO, new InternalDuplexConnection(source, streamZero));
+        plugins.applyConnection(Type.STREAM_ZERO, new InternalDuplexConnection(source, streamZero));
     serverConnection =
-        Plugins.DUPLEX_CONNECTION_INTERCEPTOR.apply(
-            Type.SERVER, new InternalDuplexConnection(source, server));
+        plugins.applyConnection(Type.SERVER, new InternalDuplexConnection(source, server));
     clientConnection =
-        Plugins.DUPLEX_CONNECTION_INTERCEPTOR.apply(
-            Type.CLIENT, new InternalDuplexConnection(source, client));
+        plugins.applyConnection(Type.CLIENT, new InternalDuplexConnection(source, client));
 
     source
         .receive()
