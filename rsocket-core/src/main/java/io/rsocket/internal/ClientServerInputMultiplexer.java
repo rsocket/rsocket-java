@@ -20,7 +20,7 @@ import io.rsocket.DuplexConnection;
 import io.rsocket.Frame;
 import io.rsocket.FrameType;
 import io.rsocket.plugins.DuplexConnectionInterceptor.Type;
-import io.rsocket.plugins.PluginX;
+import io.rsocket.plugins.PluginRegistry;
 import org.reactivestreams.Publisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -50,7 +50,7 @@ public class ClientServerInputMultiplexer {
   private final DuplexConnection serverConnection;
   private final DuplexConnection clientConnection;
 
-  public ClientServerInputMultiplexer(DuplexConnection source, PluginX plugins) {
+  public ClientServerInputMultiplexer(DuplexConnection source, PluginRegistry plugins) {
     final MonoProcessor<Flux<Frame>> streamZero = MonoProcessor.create();
     final MonoProcessor<Flux<Frame>> server = MonoProcessor.create();
     final MonoProcessor<Flux<Frame>> client = MonoProcessor.create();

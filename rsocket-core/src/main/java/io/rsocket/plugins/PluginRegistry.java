@@ -5,14 +5,14 @@ import io.rsocket.RSocket;
 import java.util.ArrayList;
 import java.util.List;
 
-public class PluginX {
+public class PluginRegistry {
   private List<DuplexConnectionInterceptor> connections = new ArrayList<>();
   private List<RSocketInterceptor> clients = new ArrayList<>();
   private List<RSocketInterceptor> servers = new ArrayList<>();
 
-  public PluginX() {}
+  public PluginRegistry() {}
 
-  public PluginX(PluginX defaults) {
+  public PluginRegistry(PluginRegistry defaults) {
     this.connections.addAll(defaults.connections);
     this.clients.addAll(defaults.clients);
     this.servers.addAll(defaults.servers);

@@ -2,7 +2,7 @@ package io.rsocket.plugins;
 
 /** JVM wide plugins for RSocket */
 public class Plugins {
-  private static PluginX DEFAULT = new PluginX();
+  private static PluginRegistry DEFAULT = new PluginRegistry();
 
   private Plugins() {}
 
@@ -18,7 +18,7 @@ public class Plugins {
     DEFAULT.addServerPlugin(interceptor);
   }
 
-  public static PluginX defaultPlugins() {
-    return new PluginX(DEFAULT);
+  public static PluginRegistry defaultPlugins() {
+    return new PluginRegistry(DEFAULT);
   }
 }

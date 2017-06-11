@@ -4,7 +4,7 @@ import io.rsocket.fragmentation.FragmentationDuplexConnection;
 import io.rsocket.frame.SetupFrameFlyweight;
 import io.rsocket.internal.ClientServerInputMultiplexer;
 import io.rsocket.plugins.DuplexConnectionInterceptor;
-import io.rsocket.plugins.PluginX;
+import io.rsocket.plugins.PluginRegistry;
 import io.rsocket.plugins.Plugins;
 import io.rsocket.plugins.RSocketInterceptor;
 import io.rsocket.transport.ClientTransport;
@@ -107,7 +107,7 @@ public interface RSocketFactory {
     private Supplier<io.rsocket.transport.ClientTransport> transportClient;
     private Consumer<Throwable> errorConsumer = Throwable::printStackTrace;
     private int mtu = 0;
-    private PluginX plugins = Plugins.defaultPlugins();
+    private PluginRegistry plugins = Plugins.defaultPlugins();
     private int flags = SetupFrameFlyweight.FLAGS_STRICT_INTERPRETATION;
 
     private Payload setupPayload = PayloadImpl.EMPTY;
@@ -292,7 +292,7 @@ public interface RSocketFactory {
     private Supplier<io.rsocket.transport.ServerTransport> transportServer;
     private Consumer<Throwable> errorConsumer = Throwable::printStackTrace;
     private int mtu = 0;
-    private PluginX plugins = Plugins.defaultPlugins();
+    private PluginRegistry plugins = Plugins.defaultPlugins();
 
     private ServerRSocketFactory() {}
 
