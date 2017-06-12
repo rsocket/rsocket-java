@@ -24,26 +24,38 @@ import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Mono;
 import reactor.ipc.netty.http.client.HttpClient;
 
+import java.net.URI;
+
 public class WebsocketClientTransport implements ClientTransport {
   private final Logger logger = LoggerFactory.getLogger(WebsocketClientTransport.class);
   private final HttpClient client;
+  private String path;
 
-  private WebsocketClientTransport(HttpClient client) {
+  private WebsocketClientTransport(HttpClient client, String path) {
     this.client = client;
+    this.path = path;
   }
 
   public static WebsocketClientTransport create(int port) {
     HttpClient httpClient = HttpClient.create(port);
-    return create(httpClient);
+    return create(httpClient, "/");
   }
 
   public static WebsocketClientTransport create(String bindAddress, int port) {
     HttpClient httpClient = HttpClient.create(bindAddress, port);
-    return create(httpClient);
+    return create(httpClient, "/");
   }
 
-  public static WebsocketClientTransport create(HttpClient client) {
-    return new WebsocketClientTransport(client);
+  public static WebsocketClientTransport create(URI uri) {
+    if (uri)
+
+    int port = uri.getPort() == -1 ? 80 : uri.getPort();
+    HttpClient httpClient = HttpClient.create(uri.getHost(), port);
+    return create(httpClient, uri.getPath());
+  }
+
+  public static WebsocketClientTransport create(HttpClient client, String path) {
+    return new WebsocketClientTransport(client, path);
   }
 
   @Override
@@ -51,7 +63,7 @@ public class WebsocketClientTransport implements ClientTransport {
     return Mono.create(
         sink ->
             client
-                .ws("/")
+                .ws(path)
                 .then(
                     response ->
                         response.receiveWebsocket(
