@@ -107,7 +107,7 @@ public interface RSocketFactory {
     private Supplier<io.rsocket.transport.ClientTransport> transportClient;
     private Consumer<Throwable> errorConsumer = Throwable::printStackTrace;
     private int mtu = 0;
-    private PluginRegistry plugins = Plugins.defaultPlugins();
+    private PluginRegistry plugins = new PluginRegistry(Plugins.defaultPlugins());
     private int flags = SetupFrameFlyweight.FLAGS_STRICT_INTERPRETATION;
 
     private Payload setupPayload = PayloadImpl.EMPTY;
@@ -292,7 +292,7 @@ public interface RSocketFactory {
     private Supplier<io.rsocket.transport.ServerTransport> transportServer;
     private Consumer<Throwable> errorConsumer = Throwable::printStackTrace;
     private int mtu = 0;
-    private PluginRegistry plugins = Plugins.defaultPlugins();
+    private PluginRegistry plugins = new PluginRegistry(Plugins.defaultPlugins());
 
     private ServerRSocketFactory() {}
 

@@ -19,6 +19,6 @@ public class Plugins {
   }
 
   public static PluginRegistry defaultPlugins() {
-    return new PluginRegistry(DEFAULT);
+    return DEFAULT;
   }
 }
