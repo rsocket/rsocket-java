@@ -19,15 +19,11 @@ package io.rsocket.transport.netty.client;
 import io.rsocket.DuplexConnection;
 import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.netty.WebsocketDuplexConnection;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import java.net.URI;
 import reactor.core.publisher.Mono;
 import reactor.ipc.netty.http.client.HttpClient;
 
-import java.net.URI;
-
 public class WebsocketClientTransport implements ClientTransport {
-  private final Logger logger = LoggerFactory.getLogger(WebsocketClientTransport.class);
   private final HttpClient client;
   private String path;
 
@@ -47,11 +43,25 @@ public class WebsocketClientTransport implements ClientTransport {
   }
 
   public static WebsocketClientTransport create(URI uri) {
-    if (uri)
-
-    int port = uri.getPort() == -1 ? 80 : uri.getPort();
-    HttpClient httpClient = HttpClient.create(uri.getHost(), port);
+    HttpClient httpClient = createClient(uri);
     return create(httpClient, uri.getPath());
+  }
+
+  private static HttpClient createClient(URI uri) {
+    if (isSecure(uri)) {
+      return HttpClient.create(
+          options -> options.sslSupport().connect(uri.getHost(), getPort(uri, 443)));
+    } else {
+      return HttpClient.create(uri.getHost(), getPort(uri, 80));
+    }
+  }
+
+  private static int getPort(URI uri, int defaultPort) {
+    return uri.getPort() == -1 ? defaultPort : uri.getPort();
+  }
+
+  private static boolean isSecure(URI uri) {
+    return uri.getScheme().equals("wss") || uri.getScheme().equals("https");
   }
 
   public static WebsocketClientTransport create(HttpClient client, String path) {
