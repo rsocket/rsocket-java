@@ -16,7 +16,6 @@
 package io.rsocket.transport.netty;
 
 import io.rsocket.test.ClientSetupRule;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 

@@ -22,10 +22,9 @@ import io.rsocket.aeron.internal.*;
 import io.rsocket.aeron.internal.reactivestreams.AeronClientChannelConnector;
 import io.rsocket.aeron.internal.reactivestreams.AeronSocketAddress;
 import io.rsocket.test.PingClient;
+import java.time.Duration;
 import org.HdrHistogram.Recorder;
 import reactor.core.publisher.Mono;
-
-import java.time.Duration;
 
 public final class AeronPing {
 
@@ -60,8 +59,7 @@ public final class AeronPing {
     final int count = 1_000_000_000;
     pingClient
         .startPingPong(count, recorder)
-        .doOnTerminate(
-            () -> System.out.println("Sent " + count + " messages."))
+        .doOnTerminate(() -> System.out.println("Sent " + count + " messages."))
         .blockLast();
 
     System.exit(0);

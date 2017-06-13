@@ -20,6 +20,7 @@ import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 
+@Ignore
 public class ClientServerTest {
 
   @Rule public final ClientSetupRule setup = new AeronClientSetupRule();
