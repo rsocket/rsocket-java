@@ -19,31 +19,53 @@ package io.rsocket.transport.netty.client;
 import io.rsocket.DuplexConnection;
 import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.netty.WebsocketDuplexConnection;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import java.net.URI;
 import reactor.core.publisher.Mono;
 import reactor.ipc.netty.http.client.HttpClient;
 
 public class WebsocketClientTransport implements ClientTransport {
-  private final Logger logger = LoggerFactory.getLogger(WebsocketClientTransport.class);
   private final HttpClient client;
+  private String path;
 
-  private WebsocketClientTransport(HttpClient client) {
+  private WebsocketClientTransport(HttpClient client, String path) {
     this.client = client;
+    this.path = path;
   }
 
   public static WebsocketClientTransport create(int port) {
     HttpClient httpClient = HttpClient.create(port);
-    return create(httpClient);
+    return create(httpClient, "/");
   }
 
   public static WebsocketClientTransport create(String bindAddress, int port) {
     HttpClient httpClient = HttpClient.create(bindAddress, port);
-    return create(httpClient);
+    return create(httpClient, "/");
   }
 
-  public static WebsocketClientTransport create(HttpClient client) {
-    return new WebsocketClientTransport(client);
+  public static WebsocketClientTransport create(URI uri) {
+    HttpClient httpClient = createClient(uri);
+    return create(httpClient, uri.getPath());
+  }
+
+  private static HttpClient createClient(URI uri) {
+    if (isSecure(uri)) {
+      return HttpClient.create(
+          options -> options.sslSupport().connect(uri.getHost(), getPort(uri, 443)));
+    } else {
+      return HttpClient.create(uri.getHost(), getPort(uri, 80));
+    }
+  }
+
+  private static int getPort(URI uri, int defaultPort) {
+    return uri.getPort() == -1 ? defaultPort : uri.getPort();
+  }
+
+  private static boolean isSecure(URI uri) {
+    return uri.getScheme().equals("wss") || uri.getScheme().equals("https");
+  }
+
+  public static WebsocketClientTransport create(HttpClient client, String path) {
+    return new WebsocketClientTransport(client, path);
   }
 
   @Override
@@ -51,7 +73,7 @@ public class WebsocketClientTransport implements ClientTransport {
     return Mono.create(
         sink ->
             client
-                .ws("/")
+                .ws(path)
                 .then(
                     response ->
                         response.receiveWebsocket(
