@@ -16,37 +16,17 @@
 
 package io.rsocket.transport.netty;
 
-import io.rsocket.RSocket;
-import io.rsocket.RSocketFactory;
 import io.rsocket.test.ClientSetupRule;
-import io.rsocket.test.TestRSocket;
 import io.rsocket.transport.netty.client.WebsocketClientTransport;
 import io.rsocket.transport.netty.server.WebsocketServerTransport;
 import java.net.InetSocketAddress;
-import reactor.core.publisher.Mono;
 
 public class WebsocketClientSetupRule extends ClientSetupRule<InetSocketAddress> {
 
   public WebsocketClientSetupRule() {
     super(
         () -> InetSocketAddress.createUnresolved("localhost", 8989),
-        (address) -> {
-          RSocket block =
-              RSocketFactory.connect()
-                  .transport(
-                      WebsocketClientTransport.create(address.getHostName(), address.getPort()))
-                  .start()
-                  .doOnError(t -> t.printStackTrace())
-                  .block();
-
-          return block;
-        },
-        (address) ->
-            RSocketFactory.receive()
-                .acceptor((setup, sendingSocket) -> Mono.just(new TestRSocket()))
-                .transport(
-                    WebsocketServerTransport.create(address.getHostName(), address.getPort()))
-                .start()
-                .block());
+        address -> WebsocketClientTransport.create(address.getHostName(), address.getPort()),
+        address -> WebsocketServerTransport.create(address.getHostName(), address.getPort()));
   }
 }

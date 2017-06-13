@@ -30,13 +30,6 @@ import io.rsocket.aeron.internal.reactivestreams.messages.AckConnectEncoder;
 import io.rsocket.aeron.internal.reactivestreams.messages.ConnectDecoder;
 import io.rsocket.aeron.internal.reactivestreams.messages.MessageHeaderDecoder;
 import io.rsocket.aeron.internal.reactivestreams.messages.MessageHeaderEncoder;
-import org.agrona.DirectBuffer;
-import org.agrona.concurrent.UnsafeBuffer;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import reactor.core.publisher.Mono;
-import reactor.core.publisher.MonoProcessor;
-
 import java.net.SocketAddress;
 import java.nio.ByteBuffer;
 import java.time.Duration;
@@ -44,6 +37,12 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.agrona.DirectBuffer;
+import org.agrona.concurrent.UnsafeBuffer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import reactor.core.publisher.Mono;
+import reactor.core.publisher.MonoProcessor;
 
 /**
  * Implementation of {@link
@@ -274,7 +273,7 @@ public class AeronChannelServer
           () -> {
             running = false;
             managementSubscription.close();
-            return null;
+            return onClose;
           });
     }
 

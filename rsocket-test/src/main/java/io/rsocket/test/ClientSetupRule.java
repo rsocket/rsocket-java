@@ -19,8 +19,12 @@ package io.rsocket.test;
 import static org.junit.Assert.fail;
 
 import io.reactivex.subscribers.TestSubscriber;
+import io.rsocket.Closeable;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
+import io.rsocket.RSocketFactory;
+import io.rsocket.transport.ClientTransport;
+import io.rsocket.transport.ServerTransport;
 import io.rsocket.util.PayloadImpl;
 import java.nio.charset.StandardCharsets;
 import java.util.function.Consumer;
@@ -30,20 +34,37 @@ import org.junit.rules.ExternalResource;
 import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 public class ClientSetupRule<T> extends ExternalResource {
 
-  private Supplier<T> address;
-  private Function<T, RSocket> rSocketClient;
-  private Consumer<T> rSocketServer;
+  private Supplier<T> addressSupplier;
+  private Function<T, RSocket> clientConnector;
+  private Function<T, Closeable> serverInit;
 
   private RSocket client;
 
   public ClientSetupRule(
-      Supplier<T> address, Function<T, RSocket> rSocketClient, Consumer<T> rSocketServer) {
-    this.address = address;
-    this.rSocketClient = rSocketClient;
-    this.rSocketServer = rSocketServer;
+      Supplier<T> addressSupplier,
+      Function<T, ClientTransport> clientTransportSupplier,
+      Function<T, ServerTransport<? extends Closeable>> serverTransportSupplier) {
+    this.addressSupplier = addressSupplier;
+
+    this.clientConnector =
+        address ->
+            RSocketFactory.connect()
+                .transport(clientTransportSupplier.apply(address))
+                .start()
+                .doOnError(t -> t.printStackTrace())
+                .block();
+
+    this.serverInit =
+        address ->
+            RSocketFactory.receive()
+                .acceptor((setup, sendingSocket) -> Mono.just(new TestRSocket()))
+                .transport(serverTransportSupplier.apply(address))
+                .start()
+                .block();
   }
 
   @Override
@@ -51,9 +72,11 @@ public class ClientSetupRule<T> extends ExternalResource {
     return new Statement() {
       @Override
       public void evaluate() throws Throwable {
-        rSocketServer.accept(address.get());
-        client = rSocketClient.apply(address.get());
+        T address = addressSupplier.get();
+        Closeable server = serverInit.apply(address);
+        client = clientConnector.apply(address);
         base.evaluate();
+        server.close().block();
       }
     };
   }
