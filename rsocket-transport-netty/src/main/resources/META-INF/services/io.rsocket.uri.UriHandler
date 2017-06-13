@@ -1,1 +1,2 @@
 io.rsocket.transport.netty.TcpUriHandler
+io.rsocket.transport.netty.WebsocketUriHandler
