@@ -16,6 +16,7 @@
 
 package io.rsocket.aeron;
 
+import io.rsocket.RSocketFactory;
 import io.rsocket.aeron.client.AeronClientTransport;
 import io.rsocket.aeron.internal.AeronWrapper;
 import io.rsocket.aeron.internal.Constants;
@@ -25,7 +26,6 @@ import io.rsocket.aeron.internal.SingleThreadedEventLoop;
 import io.rsocket.aeron.internal.reactivestreams.AeronClientChannelConnector;
 import io.rsocket.aeron.internal.reactivestreams.AeronSocketAddress;
 import io.rsocket.aeron.server.AeronServerTransport;
-import io.rsocket.server.RSocketServer;
 import io.rsocket.test.ClientSetupRule;
 import io.rsocket.test.TestRSocket;
 import java.net.Inet4Address;
@@ -34,35 +34,30 @@ import java.net.NetworkInterface;
 import java.util.Enumeration;
 import org.agrona.LangUtil;
 
-class AeronClientSetupRule extends ClientSetupRule {
+class AeronClientSetupRule extends ClientSetupRule<AeronSocketAddress> {
   static {
     MediaDriverHolder.getInstance();
     AeronWrapper aeronWrapper = new DefaultAeronWrapper();
 
-    AeronSocketAddress serverManagementSocketAddress =
+    AeronSocketAddress address =
         AeronSocketAddress.create("aeron:udp", "127.0.0.1", 39790);
     EventLoop serverEventLoop = new SingleThreadedEventLoop("server");
-    server = new AeronServerTransport(aeronWrapper, serverManagementSocketAddress, serverEventLoop);
+    server = new AeronServerTransport(aeronWrapper, address, serverEventLoop);
 
     // Create Client Connector
-    AeronSocketAddress clientManagementSocketAddress =
-        AeronSocketAddress.create("aeron:udp", "127.0.0.1", 39790);
     EventLoop clientEventLoop = new SingleThreadedEventLoop("client");
-
-    AeronSocketAddress receiveAddress = AeronSocketAddress.create("aeron:udp", "127.0.0.1", 39790);
-    AeronSocketAddress sendAddress = AeronSocketAddress.create("aeron:udp", "127.0.0.1", 39790);
 
     AeronClientChannelConnector.AeronClientConfig config =
         AeronClientChannelConnector.AeronClientConfig.create(
-            receiveAddress,
-            sendAddress,
+                address,
+                address,
             Constants.CLIENT_STREAM_ID,
             Constants.SERVER_STREAM_ID,
             clientEventLoop);
 
     AeronClientChannelConnector connector =
         AeronClientChannelConnector.create(
-            aeronWrapper, clientManagementSocketAddress, clientEventLoop);
+            aeronWrapper, address, clientEventLoop);
 
     client = new AeronClientTransport(connector, config);
   }
@@ -72,9 +67,10 @@ class AeronClientSetupRule extends ClientSetupRule {
 
   AeronClientSetupRule() {
     super(
+            () -> address,
         socketAddress -> client,
         () ->
-            RSocketServer.create(server)
+            RSocketFactory.receive()create(server)
                 .start(
                     (setup, sendingSocket) -> new DisabledLeaseAcceptingSocket(new TestRSocket()))
                 .getServerAddress());

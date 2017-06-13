@@ -16,6 +16,7 @@
 
 package io.rsocket.aeron.server;
 
+import io.rsocket.Closeable;
 import io.rsocket.DuplexConnection;
 import io.rsocket.aeron.AeronDuplexConnection;
 import io.rsocket.aeron.internal.AeronWrapper;
@@ -24,6 +25,8 @@ import io.rsocket.aeron.internal.reactivestreams.AeronChannelServer;
 import io.rsocket.aeron.internal.reactivestreams.AeronSocketAddress;
 import io.rsocket.aeron.internal.reactivestreams.ReactiveStreamsRemote;
 import io.rsocket.transport.ServerTransport;
+import reactor.core.publisher.Mono;
+
 import java.net.SocketAddress;
 import java.util.concurrent.TimeUnit;
 
@@ -45,7 +48,7 @@ public class AeronServerTransport implements ServerTransport {
   }
 
   @Override
-  public StartedServer start(ConnectionAcceptor acceptor) {
+  public Mono<Closeable> start(ConnectionAcceptor acceptor) {
     synchronized (this) {
       if (aeronChannelServer != null) {
         throw new IllegalStateException("server already ready started");
@@ -62,33 +65,6 @@ public class AeronServerTransport implements ServerTransport {
               eventLoop);
     }
 
-    final ReactiveStreamsRemote.StartedServer startedServer = aeronChannelServer.start();
-
-    return new StartedServer() {
-      @Override
-      public SocketAddress getServerAddress() {
-        return startedServer.getServerAddress();
-      }
-
-      @Override
-      public int getServerPort() {
-        return startedServer.getServerPort();
-      }
-
-      @Override
-      public void awaitShutdown() {
-        startedServer.awaitShutdown();
-      }
-
-      @Override
-      public void awaitShutdown(long duration, TimeUnit durationUnit) {
-        startedServer.awaitShutdown(duration, durationUnit);
-      }
-
-      @Override
-      public void shutdown() {
-        startedServer.shutdown();
-      }
-    };
+    return Mono.just(aeronChannelServer.start());
   }
 }

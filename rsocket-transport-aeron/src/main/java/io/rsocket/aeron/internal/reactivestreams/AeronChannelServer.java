@@ -21,6 +21,7 @@ import io.aeron.Publication;
 import io.aeron.Subscription;
 import io.aeron.logbuffer.FragmentHandler;
 import io.aeron.logbuffer.Header;
+import io.rsocket.Closeable;
 import io.rsocket.aeron.internal.AeronWrapper;
 import io.rsocket.aeron.internal.Constants;
 import io.rsocket.aeron.internal.EventLoop;
@@ -29,17 +30,20 @@ import io.rsocket.aeron.internal.reactivestreams.messages.AckConnectEncoder;
 import io.rsocket.aeron.internal.reactivestreams.messages.ConnectDecoder;
 import io.rsocket.aeron.internal.reactivestreams.messages.MessageHeaderDecoder;
 import io.rsocket.aeron.internal.reactivestreams.messages.MessageHeaderEncoder;
+import org.agrona.DirectBuffer;
+import org.agrona.concurrent.UnsafeBuffer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import reactor.core.publisher.Mono;
+import reactor.core.publisher.MonoProcessor;
+
 import java.net.SocketAddress;
 import java.nio.ByteBuffer;
+import java.time.Duration;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import org.agrona.DirectBuffer;
-import org.agrona.LangUtil;
-import org.agrona.concurrent.UnsafeBuffer;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Implementation of {@link
@@ -225,7 +229,9 @@ public class AeronChannelServer
   public interface AeronChannelConsumer
       extends ReactiveStreamsRemote.ChannelConsumer<AeronChannel> {}
 
-  public class AeronChannelStartedServer implements ReactiveStreamsRemote.StartedServer {
+  public class AeronChannelStartedServer implements ReactiveStreamsRemote.StartedServer, Closeable {
+    private final MonoProcessor<Void> onClose = MonoProcessor.create();
+
     private CountDownLatch latch = new CountDownLatch(1);
 
     public AeronWrapper getAeronWrapper() {
@@ -248,27 +254,33 @@ public class AeronChannelServer
 
     @Override
     public void awaitShutdown(long duration, TimeUnit durationUnit) {
-      try {
-        latch.await(duration, durationUnit);
-      } catch (InterruptedException e) {
-        LangUtil.rethrowUnchecked(e);
-      }
+      Duration d = Duration.ofMillis(durationUnit.toMillis(duration));
+      close().block(d);
     }
 
     @Override
     public void awaitShutdown() {
-      try {
-        latch.await();
-      } catch (InterruptedException e) {
-        LangUtil.rethrowUnchecked(e);
-      }
+      close().block();
     }
 
     @Override
     public void shutdown() {
-      running = false;
-      latch.countDown();
-      managementSubscription.close();
+      close().subscribe();
+    }
+
+    @Override
+    public Mono<Void> close() {
+      return Mono.defer(
+          () -> {
+            running = false;
+            managementSubscription.close();
+            return null;
+          });
+    }
+
+    @Override
+    public Mono<Void> onClose() {
+      return onClose;
     }
   }
 }

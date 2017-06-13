@@ -17,13 +17,13 @@ package io.rsocket.aeron;
 
 import io.aeron.driver.MediaDriver;
 import io.aeron.driver.ThreadingMode;
+import io.rsocket.RSocketFactory;
 import io.rsocket.aeron.internal.AeronWrapper;
 import io.rsocket.aeron.internal.DefaultAeronWrapper;
 import io.rsocket.aeron.internal.EventLoop;
 import io.rsocket.aeron.internal.SingleThreadedEventLoop;
 import io.rsocket.aeron.internal.reactivestreams.AeronSocketAddress;
 import io.rsocket.aeron.server.AeronServerTransport;
-import io.rsocket.server.RSocketServer;
 import io.rsocket.test.PingHandler;
 
 public final class AeronPongServer {
@@ -45,6 +45,8 @@ public final class AeronPongServer {
     AeronServerTransport server =
         new AeronServerTransport(aeronWrapper, serverManagementSocketAddress, serverEventLoop);
 
-    RSocketServer.create(server).start(new PingHandler()).awaitShutdown();
+    AeronServerTransport transport =
+        new AeronServerTransport(aeronWrapper, serverManagementSocketAddress, serverEventLoop);
+    RSocketFactory.receive().acceptor(new PingHandler()).transport(transport).start();
   }
 }
