@@ -28,81 +28,78 @@ import io.rsocket.aeron.server.AeronServerTransport;
 import io.rsocket.server.RSocketServer;
 import io.rsocket.test.ClientSetupRule;
 import io.rsocket.test.TestRSocket;
-import org.agrona.LangUtil;
-
 import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.util.Enumeration;
-
+import org.agrona.LangUtil;
 
 class AeronClientSetupRule extends ClientSetupRule {
-    static {
-        MediaDriverHolder.getInstance();
-        AeronWrapper aeronWrapper = new DefaultAeronWrapper();
+  static {
+    MediaDriverHolder.getInstance();
+    AeronWrapper aeronWrapper = new DefaultAeronWrapper();
 
-        AeronSocketAddress serverManagementSocketAddress = AeronSocketAddress.create("aeron:udp", "127.0.0.1", 39790);
-        EventLoop serverEventLoop = new SingleThreadedEventLoop("server");
-        server = new AeronServerTransport(aeronWrapper, serverManagementSocketAddress, serverEventLoop);
+    AeronSocketAddress serverManagementSocketAddress =
+        AeronSocketAddress.create("aeron:udp", "127.0.0.1", 39790);
+    EventLoop serverEventLoop = new SingleThreadedEventLoop("server");
+    server = new AeronServerTransport(aeronWrapper, serverManagementSocketAddress, serverEventLoop);
 
-        // Create Client Connector
-        AeronSocketAddress clientManagementSocketAddress = AeronSocketAddress.create("aeron:udp", "127.0.0.1", 39790);
-        EventLoop clientEventLoop = new SingleThreadedEventLoop("client");
+    // Create Client Connector
+    AeronSocketAddress clientManagementSocketAddress =
+        AeronSocketAddress.create("aeron:udp", "127.0.0.1", 39790);
+    EventLoop clientEventLoop = new SingleThreadedEventLoop("client");
 
-        AeronSocketAddress receiveAddress = AeronSocketAddress.create("aeron:udp", "127.0.0.1", 39790);
-        AeronSocketAddress sendAddress = AeronSocketAddress.create("aeron:udp", "127.0.0.1", 39790);
+    AeronSocketAddress receiveAddress = AeronSocketAddress.create("aeron:udp", "127.0.0.1", 39790);
+    AeronSocketAddress sendAddress = AeronSocketAddress.create("aeron:udp", "127.0.0.1", 39790);
 
-        AeronClientChannelConnector.AeronClientConfig config = AeronClientChannelConnector
-            .AeronClientConfig.create(
-                receiveAddress,
-                sendAddress,
-                Constants.CLIENT_STREAM_ID,
-                Constants.SERVER_STREAM_ID,
-                clientEventLoop);
+    AeronClientChannelConnector.AeronClientConfig config =
+        AeronClientChannelConnector.AeronClientConfig.create(
+            receiveAddress,
+            sendAddress,
+            Constants.CLIENT_STREAM_ID,
+            Constants.SERVER_STREAM_ID,
+            clientEventLoop);
 
-        AeronClientChannelConnector connector = AeronClientChannelConnector.create(aeronWrapper, clientManagementSocketAddress, clientEventLoop);
+    AeronClientChannelConnector connector =
+        AeronClientChannelConnector.create(
+            aeronWrapper, clientManagementSocketAddress, clientEventLoop);
 
+    client = new AeronClientTransport(connector, config);
+  }
 
-        client = new AeronClientTransport(connector, config);
+  private static final AeronServerTransport server;
+  private static final AeronClientTransport client;
+
+  AeronClientSetupRule() {
+    super(
+        socketAddress -> client,
+        () ->
+            RSocketServer.create(server)
+                .start(
+                    (setup, sendingSocket) -> new DisabledLeaseAcceptingSocket(new TestRSocket()))
+                .getServerAddress());
+  }
+
+  private static InetAddress getIPv4InetAddress() {
+    InetAddress iaddress = null;
+    try {
+      String os = System.getProperty("os.name").toLowerCase();
+
+      if (os.contains("nix") || os.contains("nux")) {
+        NetworkInterface ni = NetworkInterface.getByName("eth0");
+
+        Enumeration<InetAddress> ias = ni.getInetAddresses();
+
+        do {
+          iaddress = ias.nextElement();
+        } while (!(iaddress instanceof Inet4Address));
+      }
+
+      iaddress = InetAddress.getLocalHost(); // for Windows and OS X it should work well
+    } catch (Exception e) {
+      LangUtil.rethrowUnchecked(e);
     }
 
-
-    private static final AeronServerTransport server;
-    private static final AeronClientTransport client;
-
-    AeronClientSetupRule() {
-        super(
-            socketAddress -> client,
-            () ->
-                RSocketServer.create(server)
-                    .start((setup, sendingSocket) ->
-                        new DisabledLeaseAcceptingSocket(
-                            new TestRSocket()))
-            .getServerAddress()
-        );
-    }
-
-    private static InetAddress getIPv4InetAddress() {
-        InetAddress iaddress = null;
-        try {
-            String os = System.getProperty("os.name").toLowerCase();
-
-            if (os.contains("nix") || os.contains("nux")) {
-                NetworkInterface ni = NetworkInterface.getByName("eth0");
-
-                Enumeration<InetAddress> ias = ni.getInetAddresses();
-
-                do {
-                    iaddress = ias.nextElement();
-                } while (!(iaddress instanceof Inet4Address));
-
-            }
-
-            iaddress = InetAddress.getLocalHost();  // for Windows and OS X it should work well
-        } catch (Exception e) {
-            LangUtil.rethrowUnchecked(e);
-        }
-
-        return iaddress;
-    }
+    return iaddress;
+  }
 }

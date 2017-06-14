@@ -17,11 +17,9 @@ package io.rsocket;
 
 import java.nio.ByteBuffer;
 
-/**
- * Payload of a {@link Frame}.
- */
+/** Payload of a {@link Frame}. */
 public interface Payload {
-    ByteBuffer getMetadata();
+  ByteBuffer getMetadata();
 
-    ByteBuffer getData();
+  ByteBuffer getData();
 }

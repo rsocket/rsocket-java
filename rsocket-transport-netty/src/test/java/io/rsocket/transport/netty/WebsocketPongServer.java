@@ -21,14 +21,13 @@ import io.rsocket.transport.netty.server.WebsocketServerTransport;
 
 public final class WebsocketPongServer {
 
-    public static void main(String... args) throws Exception {
-        RSocketFactory
-            .receive()
-            .acceptor(new PingHandler())
-            .transport(WebsocketServerTransport.create(7878))
-            .start()
-            .block()
-            .onClose()
-            .block();
-    }
+  public static void main(String... args) throws Exception {
+    RSocketFactory.receive()
+        .acceptor(new PingHandler())
+        .transport(WebsocketServerTransport.create(7878))
+        .start()
+        .block()
+        .onClose()
+        .block();
+  }
 }

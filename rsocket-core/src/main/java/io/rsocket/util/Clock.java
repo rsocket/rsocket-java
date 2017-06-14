@@ -17,25 +17,23 @@ package io.rsocket.util;
 
 import java.util.concurrent.TimeUnit;
 
-/**
- * Abstraction to get current time and durations.
- */
+/** Abstraction to get current time and durations. */
 public final class Clock {
 
-    private Clock() {
-        // No Instances.
-    }
+  private Clock() {
+    // No Instances.
+  }
 
-    public static long now() {
-        return System.nanoTime() / 1000;
-    }
+  public static long now() {
+    return System.nanoTime() / 1000;
+  }
 
-    public static long elapsedSince(long timestamp) {
-        long t = now();
-        return Math.max(0L, t - timestamp);
-    }
+  public static long elapsedSince(long timestamp) {
+    long t = now();
+    return Math.max(0L, t - timestamp);
+  }
 
-    public static TimeUnit unit() {
-        return TimeUnit.MICROSECONDS;
-    }
+  public static TimeUnit unit() {
+    return TimeUnit.MICROSECONDS;
+  }
 }

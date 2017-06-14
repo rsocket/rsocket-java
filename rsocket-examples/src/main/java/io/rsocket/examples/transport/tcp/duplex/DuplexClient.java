@@ -20,41 +20,44 @@ import io.rsocket.RSocketFactory;
 import io.rsocket.transport.netty.client.TcpClientTransport;
 import io.rsocket.transport.netty.server.TcpServerTransport;
 import io.rsocket.util.PayloadImpl;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-import java.nio.charset.StandardCharsets;
-import java.time.Duration;
-
 public final class DuplexClient {
 
-    public static void main(String[] args) {
-        RSocketFactory
-            .receive()
-            .acceptor((setup, reactiveSocket) -> {
-                reactiveSocket.requestStream(new PayloadImpl("Hello-Bidi"))
-                    .map(payload -> StandardCharsets.UTF_8.decode(payload.getData()).toString())
-                    .log()
-                    .subscribe();
+  public static void main(String[] args) {
+    RSocketFactory.receive()
+        .acceptor(
+            (setup, reactiveSocket) -> {
+              reactiveSocket
+                  .requestStream(new PayloadImpl("Hello-Bidi"))
+                  .map(payload -> StandardCharsets.UTF_8.decode(payload.getData()).toString())
+                  .log()
+                  .subscribe();
 
-                return Mono.just(new AbstractRSocket() {});
+              return Mono.just(new AbstractRSocket() {});
             })
-            .transport(TcpServerTransport.create("localhost", 7000))
-            .start()
-            .subscribe();
+        .transport(TcpServerTransport.create("localhost", 7000))
+        .start()
+        .subscribe();
 
-        RSocket socket = RSocketFactory
-            .connect()
-            .acceptor(new AbstractRSocket() {
-                @Override
-                public Flux<Payload> requestStream(Payload payload) {
-                    return Flux.interval(Duration.ofSeconds(1)).map(aLong -> new PayloadImpl("Bi-di Response => " + aLong));
-                }
-            })
+    RSocket socket =
+        RSocketFactory.connect()
+            .acceptor(
+                rSocket ->
+                    new AbstractRSocket() {
+                      @Override
+                      public Flux<Payload> requestStream(Payload payload) {
+                        return Flux.interval(Duration.ofSeconds(1))
+                            .map(aLong -> new PayloadImpl("Bi-di Response => " + aLong));
+                      }
+                    })
             .transport(TcpClientTransport.create("localhost", 7000))
             .start()
             .block();
 
-        socket.onClose().block();
-    }
+    socket.onClose().block();
+  }
 }

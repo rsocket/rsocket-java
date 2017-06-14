@@ -16,7 +16,7 @@
 package io.rsocket.exceptions;
 
 public class RejectedSetupException extends SetupException implements Retryable {
-    public RejectedSetupException(String message) {
-        super(message);
-    }
+  public RejectedSetupException(String message) {
+    super(message);
+  }
 }

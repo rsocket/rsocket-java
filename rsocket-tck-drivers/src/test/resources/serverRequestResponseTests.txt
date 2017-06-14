@@ -1,0 +1,8 @@
+rr%%a%%b%%a-|
+rr%%c%%d%%#
+rr%%g%%h%%-
+rr%%i%%j%%x-|&&{"x":{"homer":"simpson"}}
+rr%%k%%l%%y-|&&{"y":{"bart":"simpson"}}
+rr%%m%%n%%z-|&&{"z":{"seymour":"skinner"}}
+rr%%aa%%bb%%a-|
+rr%%request%%cancel%%a-|

@@ -27,184 +27,183 @@ import org.reactivestreams.Subscription;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/**
- *
- */
+/** */
 public class AeronInSubscriber implements Subscriber<DirectBuffer> {
-    private static final Logger logger = LoggerFactory.getLogger(AeronInSubscriber.class);
-    private static final ThreadLocal<BufferClaim> bufferClaims = ThreadLocal.withInitial(BufferClaim::new);
-    private static final int BUFFER_SIZE = 128;
-    private static final int REFILL = BUFFER_SIZE / 3;
+  private static final Logger logger = LoggerFactory.getLogger(AeronInSubscriber.class);
+  private static final ThreadLocal<BufferClaim> bufferClaims =
+      ThreadLocal.withInitial(BufferClaim::new);
+  private static final int BUFFER_SIZE = 128;
+  private static final int REFILL = BUFFER_SIZE / 3;
 
+  private static final OneToOneConcurrentArrayQueue<OneToOneConcurrentArrayQueue<DirectBuffer>>
+      queues = new OneToOneConcurrentArrayQueue<>(BUFFER_SIZE);
 
-    private static final OneToOneConcurrentArrayQueue<OneToOneConcurrentArrayQueue<DirectBuffer>> queues = new OneToOneConcurrentArrayQueue<>(BUFFER_SIZE);
+  private final OneToOneConcurrentArrayQueue<DirectBuffer> buffers;
+  private final String name;
+  private final Publication destination;
 
-    private final OneToOneConcurrentArrayQueue<DirectBuffer> buffers;
-    private final String name;
-    private final Publication destination;
+  private Subscription subscription;
 
+  private volatile boolean complete;
+  private volatile boolean erred = false;
 
-    private Subscription subscription;
+  private volatile long requested;
 
-    private volatile boolean complete;
-    private volatile boolean erred = false;
+  public AeronInSubscriber(String name, Publication destination) {
+    this.name = name;
+    this.destination = destination;
+    OneToOneConcurrentArrayQueue<DirectBuffer> poll;
+    synchronized (queues) {
+      poll = queues.poll();
+    }
+    buffers = poll != null ? poll : new OneToOneConcurrentArrayQueue<>(BUFFER_SIZE);
+  }
 
-    private volatile long requested;
+  @Override
+  public synchronized void onSubscribe(Subscription subscription) {
+    this.subscription = subscription;
+    requested = BUFFER_SIZE;
+    subscription.request(BUFFER_SIZE);
+  }
 
-    public AeronInSubscriber(String name, Publication destination) {
-        this.name = name;
-        this.destination = destination;
-        OneToOneConcurrentArrayQueue<DirectBuffer> poll;
-        synchronized (queues) {
-            poll = queues.poll();
-        }
-        buffers = poll != null ? poll : new OneToOneConcurrentArrayQueue<>(BUFFER_SIZE);
+  @Override
+  public void onNext(DirectBuffer buffer) {
+    if (!erred) {
+      if (logger.isTraceEnabled()) {
+        logger.trace(
+            name
+                + " sending to destination => "
+                + destination.channel()
+                + " and aeron stream "
+                + destination.streamId()
+                + " and session id "
+                + destination.sessionId());
+      }
+      boolean offer;
+      synchronized (buffers) {
+        offer = buffers.offer(buffer);
+      }
+      if (!offer) {
+        onError(new IllegalStateException("missing back-pressure"));
+      }
+
+      tryEmit();
+    }
+  }
+
+  private boolean emitting = false;
+  private boolean missed = false;
+
+  void tryEmit() {
+    synchronized (this) {
+      if (emitting) {
+        missed = true;
+        return;
+      }
     }
 
-    @Override
-    public synchronized void onSubscribe(Subscription subscription) {
-        this.subscription = subscription;
-        requested = BUFFER_SIZE;
-        subscription.request(BUFFER_SIZE);
-    }
+    emit();
+  }
 
-    @Override
-    public void onNext(DirectBuffer buffer) {
-        if (!erred) {
-            if (logger.isTraceEnabled()) {
-                logger.trace(name
-                    + " sending to destination => " + destination.channel()
-                    + " and aeron stream " + destination.streamId()
-                    + " and session id " + destination.sessionId());
-            }
-            boolean offer;
-            synchronized (buffers) {
-                offer = buffers.offer(buffer);
-            }
-            if (!offer) {
-                onError(new IllegalStateException("missing back-pressure"));
-            }
-
-            tryEmit();
-        }
-    }
-
-    private boolean emitting = false;
-    private boolean missed = false;
-
-    void tryEmit() {
+  void emit() {
+    try {
+      for (; ; ) {
         synchronized (this) {
-            if (emitting) {
-                missed = true;
-                return;
+          missed = false;
+        }
+        while (!buffers.isEmpty()) {
+          DirectBuffer buffer = buffers.poll();
+          tryClaimOrOffer(buffer);
+          requested--;
+          if (requested < REFILL) {
+            synchronized (buffers) {
+              if (!complete) {
+                long diff = BUFFER_SIZE - requested;
+                requested = BUFFER_SIZE;
+                subscription.request(diff);
+              }
             }
+          }
         }
 
-        emit();
+        synchronized (this) {
+          if (!missed) {
+            emitting = false;
+            break;
+          }
+        }
+      }
+    } catch (Throwable t) {
+      onError(t);
     }
 
-    void emit() {
-        try {
-            for (; ; ) {
-                synchronized (this) {
-                    missed = false;
-                }
-                while (!buffers.isEmpty()) {
-                    DirectBuffer buffer = buffers.poll();
-                    tryClaimOrOffer(buffer);
-                    requested--;
-                    if (requested < REFILL) {
-                        synchronized (buffers) {
-                            if (!complete) {
-                                long diff = BUFFER_SIZE - requested;
-                                requested = BUFFER_SIZE;
-                                subscription.request(diff);
-                            }
-                        }
-                    }
-                }
-
-                synchronized (this) {
-                    if (!missed) {
-                        emitting = false;
-                        break;
-                    }
-                }
-            }
-        } catch (Throwable t) {
-            onError(t);
-        }
-
-        if (complete && buffers.isEmpty()) {
-            synchronized (queues) {
-                queues.offer(buffers);
-            }
-        }
+    if (complete && buffers.isEmpty()) {
+      synchronized (queues) {
+        queues.offer(buffers);
+      }
     }
+  }
 
-    private void tryClaimOrOffer(DirectBuffer buffer) {
-        boolean successful = false;
+  private void tryClaimOrOffer(DirectBuffer buffer) {
+    boolean successful = false;
 
-        int capacity = buffer.capacity();
-        if (capacity < Constants.AERON_MTU_SIZE) {
-            BufferClaim bufferClaim = bufferClaims.get();
+    int capacity = buffer.capacity();
+    if (capacity < Constants.AERON_MTU_SIZE) {
+      BufferClaim bufferClaim = bufferClaims.get();
 
-            while (!successful) {
-                long offer = destination.tryClaim(capacity, bufferClaim);
-                if (offer >= 0) {
-                    try {
-                        final MutableDirectBuffer b = bufferClaim.buffer();
-                        int offset = bufferClaim.offset();
-                        b.putBytes(offset, buffer, 0, capacity);
-                    } finally {
-                        bufferClaim.commit();
-                        successful = true;
-                    }
-                } else {
-                    if (offer == Publication.CLOSED) {
-                        onError(new NotConnectedException(name));
-                    }
-
-                    successful = false;
-                }
-            }
-
+      while (!successful) {
+        long offer = destination.tryClaim(capacity, bufferClaim);
+        if (offer >= 0) {
+          try {
+            final MutableDirectBuffer b = bufferClaim.buffer();
+            int offset = bufferClaim.offset();
+            b.putBytes(offset, buffer, 0, capacity);
+          } finally {
+            bufferClaim.commit();
+            successful = true;
+          }
         } else {
-            while (!successful) {
-                long offer = destination
-                    .offer(buffer);
+          if (offer == Publication.CLOSED) {
+            onError(new NotConnectedException(name));
+          }
 
-                if (offer < 0) {
-                    if (offer == Publication.CLOSED) {
-                        onError(new NotConnectedException(name));
-                    }
-                } else {
-                    successful = true;
-                }
-            }
+          successful = false;
         }
-    }
+      }
 
-    @Override
-    public synchronized void onError(Throwable t) {
-        if (!erred) {
-            erred = true;
-            subscription.cancel();
+    } else {
+      while (!successful) {
+        long offer = destination.offer(buffer);
+
+        if (offer < 0) {
+          if (offer == Publication.CLOSED) {
+            onError(new NotConnectedException(name));
+          }
+        } else {
+          successful = true;
         }
+      }
+    }
+  }
 
-        t.printStackTrace();
+  @Override
+  public synchronized void onError(Throwable t) {
+    if (!erred) {
+      erred = true;
+      subscription.cancel();
     }
 
-    @Override
-    public synchronized void onComplete() {
-        complete = true;
-        tryEmit();
-    }
+    t.printStackTrace();
+  }
 
-    @Override
-    public String toString() {
-        return "AeronInSubscriber{" +
-            "name='" + name + '\'' +
-            '}';
-    }
+  @Override
+  public synchronized void onComplete() {
+    complete = true;
+    tryEmit();
+  }
+
+  @Override
+  public String toString() {
+    return "AeronInSubscriber{" + "name='" + name + '\'' + '}';
+  }
 }

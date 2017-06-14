@@ -19,47 +19,53 @@ package io.rsocket.test;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.util.PayloadImpl;
+import java.time.Duration;
 import org.HdrHistogram.Recorder;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-import java.time.Duration;
-
 public class PingClient {
 
-    private final Payload payload;
-    private final Mono<RSocket> client;
+  private final Payload payload;
+  private final Mono<RSocket> client;
 
-    public PingClient(Mono<RSocket> client) {
-        this.client = client;
-        this.payload = new PayloadImpl("hello");
-    }
+  public PingClient(Mono<RSocket> client) {
+    this.client = client;
+    this.payload = new PayloadImpl("hello");
+  }
 
-    public Recorder startTracker(Duration interval) {
-        final Recorder histogram = new Recorder(3600000000000L, 3);
-        Flux.interval(interval)
-                .doOnNext(aLong -> {
-                System.out.println("---- PING/ PONG HISTO ----");
-                histogram.getIntervalHistogram()
-                    .outputPercentileDistribution(System.out, 5, 1000.0, false);
-                System.out.println("---- PING/ PONG HISTO ----");
+  public Recorder startTracker(Duration interval) {
+    final Recorder histogram = new Recorder(3600000000000L, 3);
+    Flux.interval(interval)
+        .doOnNext(
+            aLong -> {
+              System.out.println("---- PING/ PONG HISTO ----");
+              histogram
+                  .getIntervalHistogram()
+                  .outputPercentileDistribution(System.out, 5, 1000.0, false);
+              System.out.println("---- PING/ PONG HISTO ----");
             })
-                .subscribe();
-        return histogram;
-    }
+        .subscribe();
+    return histogram;
+  }
 
-    public Flux<Payload> startPingPong(int count, final Recorder histogram) {
-        return client
-            .flatMapMany(rsocket -> Flux.range(1, count)
-                .flatMap(i -> {
-                    long start = System.nanoTime();
-                    return rsocket
-                        .requestResponse(payload)
-                        .doFinally(signalType -> {
-                            long diff = System.nanoTime() - start;
-                            histogram.recordValue(diff);
-                        });
-                }, 16) )
-                .doOnError(Throwable::printStackTrace);
-    }
+  public Flux<Payload> startPingPong(int count, final Recorder histogram) {
+    return client
+        .flatMapMany(
+            rsocket ->
+                Flux.range(1, count)
+                    .flatMap(
+                        i -> {
+                          long start = System.nanoTime();
+                          return rsocket
+                              .requestResponse(payload)
+                              .doFinally(
+                                  signalType -> {
+                                    long diff = System.nanoTime() - start;
+                                    histogram.recordValue(diff);
+                                  });
+                        },
+                        16))
+        .doOnError(Throwable::printStackTrace);
+  }
 }

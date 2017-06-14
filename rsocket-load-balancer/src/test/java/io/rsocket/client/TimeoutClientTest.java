@@ -16,46 +16,53 @@
 
 package io.rsocket.client;
 
+import static org.hamcrest.Matchers.instanceOf;
+
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.client.filter.RSockets;
 import io.rsocket.exceptions.TimeoutException;
 import io.rsocket.util.PayloadImpl;
+import java.time.Duration;
 import org.hamcrest.MatcherAssert;
 import org.junit.Test;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
-import java.time.Duration;
-
-import static org.hamcrest.Matchers.instanceOf;
-
 public class TimeoutClientTest {
-    @Test
-    public void testTimeoutSocket() {
-        TestingRSocket socket = new TestingRSocket((subscriber, payload) -> {return false;});
-        RSocket timeout = RSockets.timeout(Duration.ofMillis(50)).apply(socket);
+  @Test
+  public void testTimeoutSocket() {
+    TestingRSocket socket =
+        new TestingRSocket(
+            (subscriber, payload) -> {
+              return false;
+            });
+    RSocket timeout = RSockets.timeout(Duration.ofMillis(50)).apply(socket);
 
-        timeout.requestResponse(PayloadImpl.EMPTY).subscribe(new Subscriber<Payload>() {
-            @Override
-            public void onSubscribe(Subscription s) {
+    timeout
+        .requestResponse(PayloadImpl.EMPTY)
+        .subscribe(
+            new Subscriber<Payload>() {
+              @Override
+              public void onSubscribe(Subscription s) {
                 s.request(1);
-            }
+              }
 
-            @Override
-            public void onNext(Payload payload) {
+              @Override
+              public void onNext(Payload payload) {
                 throw new AssertionError("onNext invoked when not expected.");
-            }
+              }
 
-            @Override
-            public void onError(Throwable t) {
-                MatcherAssert.assertThat("Unexpected exception in onError", t, instanceOf(TimeoutException.class));
-            }
+              @Override
+              public void onError(Throwable t) {
+                MatcherAssert.assertThat(
+                    "Unexpected exception in onError", t, instanceOf(TimeoutException.class));
+              }
 
-            @Override
-            public void onComplete() {
+              @Override
+              public void onComplete() {
                 throw new AssertionError("onComplete invoked when not expected.");
-            }
-        });
-    }
+              }
+            });
+  }
 }

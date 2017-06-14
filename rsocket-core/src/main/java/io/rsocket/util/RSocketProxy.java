@@ -21,54 +21,51 @@ import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-/**
- * Wrapper/Proxy for a RSocket.
- * This is useful when we want to override a specific method.
- */
+/** Wrapper/Proxy for a RSocket. This is useful when we want to override a specific method. */
 public class RSocketProxy implements RSocket {
-    protected final RSocket source;
+  protected final RSocket source;
 
-    public RSocketProxy(RSocket source) {
-        this.source = source;
-    }
+  public RSocketProxy(RSocket source) {
+    this.source = source;
+  }
 
-    @Override
-    public Mono<Void> fireAndForget(Payload payload) {
-        return source.fireAndForget(payload);
-    }
+  @Override
+  public Mono<Void> fireAndForget(Payload payload) {
+    return source.fireAndForget(payload);
+  }
 
-    @Override
-    public Mono<Payload> requestResponse(Payload payload) {
-        return source.requestResponse(payload);
-    }
+  @Override
+  public Mono<Payload> requestResponse(Payload payload) {
+    return source.requestResponse(payload);
+  }
 
-    @Override
-    public Flux<Payload> requestStream(Payload payload) {
-        return source.requestStream(payload);
-    }
+  @Override
+  public Flux<Payload> requestStream(Payload payload) {
+    return source.requestStream(payload);
+  }
 
-    @Override
-    public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
-        return source.requestChannel(payloads);
-    }
+  @Override
+  public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
+    return source.requestChannel(payloads);
+  }
 
-    @Override
-    public Mono<Void> metadataPush(Payload payload) {
-        return source.metadataPush(payload);
-    }
+  @Override
+  public Mono<Void> metadataPush(Payload payload) {
+    return source.metadataPush(payload);
+  }
 
-    @Override
-    public double availability() {
-        return source.availability();
-    }
+  @Override
+  public double availability() {
+    return source.availability();
+  }
 
-    @Override
-    public Mono<Void> close() {
-        return source.close();
-    }
+  @Override
+  public Mono<Void> close() {
+    return source.close();
+  }
 
-    @Override
-    public Mono<Void> onClose() {
-        return source.onClose();
-    }
+  @Override
+  public Mono<Void> onClose() {
+    return source.onClose();
+  }
 }

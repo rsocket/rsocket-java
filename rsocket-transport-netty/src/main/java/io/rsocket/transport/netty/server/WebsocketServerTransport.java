@@ -16,45 +16,45 @@
 
 package io.rsocket.transport.netty.server;
 
-import io.rsocket.Closeable;
 import io.rsocket.transport.ServerTransport;
 import io.rsocket.transport.netty.WebsocketDuplexConnection;
 import reactor.core.publisher.Mono;
 import reactor.ipc.netty.http.server.HttpServer;
 
-public class WebsocketServerTransport implements ServerTransport {
-    HttpServer server;
+public class WebsocketServerTransport implements ServerTransport<NettyContextCloseable> {
+  HttpServer server;
 
-    private WebsocketServerTransport(HttpServer server) {
-        this.server = server;
-    }
+  private WebsocketServerTransport(HttpServer server) {
+    this.server = server;
+  }
 
-    public static WebsocketServerTransport create(String bindAddress, int port) {
-        HttpServer httpServer = HttpServer.create(bindAddress, port);
-        return create(httpServer);
-    }
+  public static WebsocketServerTransport create(String bindAddress, int port) {
+    HttpServer httpServer = HttpServer.create(bindAddress, port);
+    return create(httpServer);
+  }
 
-    public static WebsocketServerTransport create(int port) {
-        HttpServer httpServer = HttpServer.create(port);
-        return create(httpServer);
-    }
+  public static WebsocketServerTransport create(int port) {
+    HttpServer httpServer = HttpServer.create(port);
+    return create(httpServer);
+  }
 
-    public static WebsocketServerTransport create(HttpServer server) {
-        return new WebsocketServerTransport(server);
-    }
+  public static WebsocketServerTransport create(HttpServer server) {
+    return new WebsocketServerTransport(server);
+  }
 
-    @Override
-    public Mono<Closeable> start(ServerTransport.ConnectionAcceptor acceptor) {
-        return server
-            .newHandler((request, response) ->
-                response.sendWebsocket((in, out) -> {
-                    WebsocketDuplexConnection connection = new WebsocketDuplexConnection(in, out, in.context());
-                    acceptor.apply(connection).subscribe();
+  @Override
+  public Mono<NettyContextCloseable> start(ServerTransport.ConnectionAcceptor acceptor) {
+    return server
+        .newHandler(
+            (request, response) ->
+                response.sendWebsocket(
+                    (in, out) -> {
+                      WebsocketDuplexConnection connection =
+                          new WebsocketDuplexConnection(in, out, in.context());
+                      acceptor.apply(connection).subscribe();
 
-                    return out.neverComplete();
-                })
-            )
-            .map(NettyContextClosable::new);
-    }
-
+                      return out.neverComplete();
+                    }))
+        .map(NettyContextCloseable::new);
+  }
 }

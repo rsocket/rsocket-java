@@ -19,46 +19,43 @@ import io.netty.buffer.ByteBuf;
 import io.rsocket.FrameType;
 
 public class LeaseFrameFlyweight {
-    private LeaseFrameFlyweight() {}
+  private LeaseFrameFlyweight() {}
 
-    // relative to start of passed offset
-    private static final int TTL_FIELD_OFFSET = FrameHeaderFlyweight.FRAME_HEADER_LENGTH;
-    private static final int NUM_REQUESTS_FIELD_OFFSET = TTL_FIELD_OFFSET + Integer.BYTES;
-    private static final int PAYLOAD_OFFSET = NUM_REQUESTS_FIELD_OFFSET + Integer.BYTES;
+  // relative to start of passed offset
+  private static final int TTL_FIELD_OFFSET = FrameHeaderFlyweight.FRAME_HEADER_LENGTH;
+  private static final int NUM_REQUESTS_FIELD_OFFSET = TTL_FIELD_OFFSET + Integer.BYTES;
+  private static final int PAYLOAD_OFFSET = NUM_REQUESTS_FIELD_OFFSET + Integer.BYTES;
 
-    public static int computeFrameLength(final int metadataLength) {
-        int length = FrameHeaderFlyweight.computeFrameHeaderLength(FrameType.LEASE, metadataLength, 0);
-        return length + Integer.BYTES * 2;
-    }
+  public static int computeFrameLength(final int metadataLength) {
+    int length = FrameHeaderFlyweight.computeFrameHeaderLength(FrameType.LEASE, metadataLength, 0);
+    return length + Integer.BYTES * 2;
+  }
 
-    public static int encode(
-        final ByteBuf byteBuf,
-        final int ttl,
-        final int numRequests,
-        final ByteBuf metadata
-    ) {
-        final int frameLength = computeFrameLength(metadata.readableBytes());
+  public static int encode(
+      final ByteBuf byteBuf, final int ttl, final int numRequests, final ByteBuf metadata) {
+    final int frameLength = computeFrameLength(metadata.readableBytes());
 
-        int length = FrameHeaderFlyweight.encodeFrameHeader(byteBuf, frameLength, 0, FrameType.LEASE, 0);
+    int length =
+        FrameHeaderFlyweight.encodeFrameHeader(byteBuf, frameLength, 0, FrameType.LEASE, 0);
 
-        byteBuf.setInt(TTL_FIELD_OFFSET, ttl);
-        byteBuf.setInt(NUM_REQUESTS_FIELD_OFFSET, numRequests);
+    byteBuf.setInt(TTL_FIELD_OFFSET, ttl);
+    byteBuf.setInt(NUM_REQUESTS_FIELD_OFFSET, numRequests);
 
-        length += Integer.BYTES * 2;
-        length += FrameHeaderFlyweight.encodeMetadata(byteBuf, FrameType.LEASE, length, metadata);
+    length += Integer.BYTES * 2;
+    length += FrameHeaderFlyweight.encodeMetadata(byteBuf, FrameType.LEASE, length, metadata);
 
-        return length;
-    }
+    return length;
+  }
 
-    public static int ttl(final ByteBuf byteBuf) {
-        return byteBuf.getInt(TTL_FIELD_OFFSET);
-    }
+  public static int ttl(final ByteBuf byteBuf) {
+    return byteBuf.getInt(TTL_FIELD_OFFSET);
+  }
 
-    public static int numRequests(final ByteBuf byteBuf) {
-        return byteBuf.getInt(NUM_REQUESTS_FIELD_OFFSET);
-    }
+  public static int numRequests(final ByteBuf byteBuf) {
+    return byteBuf.getInt(NUM_REQUESTS_FIELD_OFFSET);
+  }
 
-    public static int payloadOffset(final ByteBuf byteBuf) {
-        return PAYLOAD_OFFSET;
-    }
+  public static int payloadOffset(final ByteBuf byteBuf) {
+    return PAYLOAD_OFFSET;
+  }
 }

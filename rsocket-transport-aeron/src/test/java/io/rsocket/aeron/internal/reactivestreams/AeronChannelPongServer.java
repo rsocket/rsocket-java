@@ -23,32 +23,32 @@ import io.rsocket.aeron.internal.SingleThreadedEventLoop;
 import org.agrona.DirectBuffer;
 import reactor.core.publisher.Flux;
 
-/**
- *
- */
+/** */
 public class AeronChannelPongServer {
-    public static void main(String... args) {
-        MediaDriverHolder.getInstance();
-        AeronWrapper wrapper = new DefaultAeronWrapper();
-        AeronSocketAddress managementSubscription = AeronSocketAddress.create("aeron:udp", "127.0.0.1", 39790);
-        SingleThreadedEventLoop eventLoop = new SingleThreadedEventLoop("server");
+  public static void main(String... args) {
+    MediaDriverHolder.getInstance();
+    AeronWrapper wrapper = new DefaultAeronWrapper();
+    AeronSocketAddress managementSubscription =
+        AeronSocketAddress.create("aeron:udp", "127.0.0.1", 39790);
+    SingleThreadedEventLoop eventLoop = new SingleThreadedEventLoop("server");
 
-        AeronChannelServer.AeronChannelConsumer consumer = new AeronChannelServer.AeronChannelConsumer() {
-            @Override
-            public void accept(AeronChannel aeronChannel) {
-                Flux<? extends DirectBuffer> receive =
-                    aeronChannel
-                        .receive();
-                        //.doOnNext(b -> System.out.println("server got => " + b.getInt(0)));
+    AeronChannelServer.AeronChannelConsumer consumer =
+        new AeronChannelServer.AeronChannelConsumer() {
+          @Override
+          public void accept(AeronChannel aeronChannel) {
+            Flux<? extends DirectBuffer> receive = aeronChannel.receive();
+            //.doOnNext(b -> System.out.println("server got => " + b.getInt(0)));
 
-                aeronChannel.send(receive)
-                    .doOnError(throwable -> throwable.printStackTrace())
-                    .subscribe();
-            }
+            aeronChannel
+                .send(receive)
+                .doOnError(throwable -> throwable.printStackTrace())
+                .subscribe();
+          }
         };
 
-        AeronChannelServer server = AeronChannelServer.create(consumer, wrapper, managementSubscription, eventLoop);
-        AeronChannelServer.AeronChannelStartedServer start = server.start();
-        start.awaitShutdown();
-    }
+    AeronChannelServer server =
+        AeronChannelServer.create(consumer, wrapper, managementSubscription, eventLoop);
+    AeronChannelServer.AeronChannelStartedServer start = server.start();
+    start.awaitShutdown();
+  }
 }

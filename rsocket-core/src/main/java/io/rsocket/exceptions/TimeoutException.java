@@ -18,6 +18,5 @@ package io.rsocket.exceptions;
 
 public class TimeoutException extends Exception {
 
-    private static final long serialVersionUID = -6352901497935205059L;
-
+  private static final long serialVersionUID = -6352901497935205059L;
 }

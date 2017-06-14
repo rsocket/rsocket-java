@@ -20,6 +20,10 @@ buildscript {
     }
 }
 
+plugins {
+    id 'com.github.sherter.google-java-format' version '0.6'
+}
+
 description = 'RSocket: stream oriented messaging passing with Reactive Stream semantics.'
 
 apply plugin: 'reactivesocket-project'

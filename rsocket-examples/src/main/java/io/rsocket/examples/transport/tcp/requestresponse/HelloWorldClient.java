@@ -23,59 +23,60 @@ import io.rsocket.RSocketFactory;
 import io.rsocket.transport.netty.client.TcpClientTransport;
 import io.rsocket.transport.netty.server.TcpServerTransport;
 import io.rsocket.util.PayloadImpl;
-import reactor.core.publisher.Mono;
-
 import java.nio.charset.StandardCharsets;
+import reactor.core.publisher.Mono;
 
 public final class HelloWorldClient {
 
-    public static void main(String[] args) {
-        RSocketFactory
-            .receive()
-            .acceptor((setupPayload, reactiveSocket) ->
-                Mono.just(new AbstractRSocket() {
-                    boolean fail = true;
+  public static void main(String[] args) {
+    RSocketFactory.receive()
+        .acceptor(
+            (setupPayload, reactiveSocket) ->
+                Mono.just(
+                    new AbstractRSocket() {
+                      boolean fail = true;
 
-                    @Override
-                    public Mono<Payload> requestResponse(Payload p) {
+                      @Override
+                      public Mono<Payload> requestResponse(Payload p) {
                         if (fail) {
-                            fail = false;
-                            return Mono.error(new Throwable());
+                          fail = false;
+                          return Mono.error(new Throwable());
                         } else {
-                            return Mono.just(p);
+                          return Mono.just(p);
                         }
-                    }
-                })
-            )
-            .transport(TcpServerTransport.create("localhost", 7000))
+                      }
+                    }))
+        .transport(TcpServerTransport.create("localhost", 7000))
+        .start()
+        .subscribe();
+
+    RSocket socket =
+        RSocketFactory.connect()
+            .transport(TcpClientTransport.create("localhost", 7000))
             .start()
-            .subscribe();
-
-        RSocket socket =
-            RSocketFactory
-                .connect()
-                .transport(TcpClientTransport.create("localhost", 7000))
-                .start()
-                .block();
-
-        socket.requestResponse(new PayloadImpl("Hello"))
-            .map(payload -> StandardCharsets.UTF_8.decode(payload.getData()).toString())
-            .onErrorReturn("error")
-            .doOnNext(System.out::println)
             .block();
 
-        socket.requestResponse(new PayloadImpl("Hello"))
-            .map(payload -> StandardCharsets.UTF_8.decode(payload.getData()).toString())
-            .onErrorReturn("error")
-            .doOnNext(System.out::println)
-            .block();
+    socket
+        .requestResponse(new PayloadImpl("Hello"))
+        .map(payload -> StandardCharsets.UTF_8.decode(payload.getData()).toString())
+        .onErrorReturn("error")
+        .doOnNext(System.out::println)
+        .block();
 
-        socket.requestResponse(new PayloadImpl("Hello"))
-            .map(payload -> StandardCharsets.UTF_8.decode(payload.getData()).toString())
-            .onErrorReturn("error")
-            .doOnNext(System.out::println)
-            .block();
+    socket
+        .requestResponse(new PayloadImpl("Hello"))
+        .map(payload -> StandardCharsets.UTF_8.decode(payload.getData()).toString())
+        .onErrorReturn("error")
+        .doOnNext(System.out::println)
+        .block();
 
-        socket.close().block();
-    }
+    socket
+        .requestResponse(new PayloadImpl("Hello"))
+        .map(payload -> StandardCharsets.UTF_8.decode(payload.getData()).toString())
+        .onErrorReturn("error")
+        .doOnNext(System.out::println)
+        .block();
+
+    socket.close().block();
+  }
 }

@@ -18,82 +18,81 @@ package io.rsocket.aeron.internal.reactivestreams;
 import io.aeron.Publication;
 import io.aeron.Subscription;
 import io.rsocket.aeron.internal.EventLoop;
+import java.util.Objects;
 import org.agrona.DirectBuffer;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-import java.util.Objects;
-
-/**
- *
- */
+/** */
 public class AeronChannel implements ReactiveStreamsRemote.Channel<DirectBuffer>, AutoCloseable {
-    private final String name;
-    private final Publication destination;
-    private final Subscription source;
-    private final AeronOutPublisher outPublisher;
-    private final EventLoop eventLoop;
+  private final String name;
+  private final Publication destination;
+  private final Subscription source;
+  private final AeronOutPublisher outPublisher;
+  private final EventLoop eventLoop;
 
-    /**
-     * Creates on end of a bi-directional channel
-     * @param name name of the channel
-     * @param destination {@code Publication} to send data to
-     * @param source Aeron {@code Subscription} to listen to data on
-     * @param eventLoop {@link EventLoop} used to poll data on
-     * @param sessionId sessionId between the {@code Publication} and the remote {@code Subscription}
-     */
-    public AeronChannel(String name, Publication destination, Subscription source, EventLoop eventLoop, int sessionId) {
-        this.destination = destination;
-        this.source = source;
-        this.name = name;
-        this.eventLoop = eventLoop;
-        this.outPublisher = new AeronOutPublisher(name, sessionId, source, eventLoop);
-    }
+  /**
+   * Creates on end of a bi-directional channel
+   *
+   * @param name name of the channel
+   * @param destination {@code Publication} to send data to
+   * @param source Aeron {@code Subscription} to listen to data on
+   * @param eventLoop {@link EventLoop} used to poll data on
+   * @param sessionId sessionId between the {@code Publication} and the remote {@code Subscription}
+   */
+  public AeronChannel(
+      String name,
+      Publication destination,
+      Subscription source,
+      EventLoop eventLoop,
+      int sessionId) {
+    this.destination = destination;
+    this.source = source;
+    this.name = name;
+    this.eventLoop = eventLoop;
+    this.outPublisher = new AeronOutPublisher(name, sessionId, source, eventLoop);
+  }
 
-    /**
-     * Subscribes to a stream of DirectBuffers and sends the to an Aeron Publisher
-     * @param in
-     * @return
-     */
-    public Mono<Void> send(Flux<? extends DirectBuffer> in) {
-        AeronInSubscriber inSubscriber = new AeronInSubscriber(name, destination);
-        Objects.requireNonNull(in, "in must not be null");
-        return Mono.create(sink ->
-            in.doOnComplete(sink::success)
-                .doOnError(sink::error)
-                .subscribe(inSubscriber)
-        );
-    }
+  /**
+   * Subscribes to a stream of DirectBuffers and sends the to an Aeron Publisher
+   *
+   * @param in
+   * @return
+   */
+  public Mono<Void> send(Flux<? extends DirectBuffer> in) {
+    AeronInSubscriber inSubscriber = new AeronInSubscriber(name, destination);
+    Objects.requireNonNull(in, "in must not be null");
+    return Mono.create(
+        sink -> in.doOnComplete(sink::success).doOnError(sink::error).subscribe(inSubscriber));
+  }
 
-    /**
-     * Returns ReactiveStreamsRemote.Out of DirectBuffer that can only be
-     * subscribed to once per channel
-     *
-     * @return ReactiveStreamsRemote.Out of DirectBuffer
-     */
-    public Flux<? extends DirectBuffer> receive() {
-        return outPublisher;
-    }
+  /**
+   * Returns ReactiveStreamsRemote.Out of DirectBuffer that can only be subscribed to once per
+   * channel
+   *
+   * @return ReactiveStreamsRemote.Out of DirectBuffer
+   */
+  public Flux<? extends DirectBuffer> receive() {
+    return outPublisher;
+  }
 
-    @Override
-    public void close() throws Exception {
-        try {
-            destination.close();
-            source.close();
-        } catch (Throwable t) {
-            throw new Exception(t);
-        }
+  @Override
+  public void close() throws Exception {
+    try {
+      destination.close();
+      source.close();
+    } catch (Throwable t) {
+      throw new Exception(t);
     }
+  }
 
-    @Override
-    public String toString() {
-        return "AeronChannel{" +
-            "name='" + name + '\'' +
-            '}';
-    }
+  @Override
+  public String toString() {
+    return "AeronChannel{" + "name='" + name + '\'' + '}';
+  }
 
-    @Override
-    public boolean isActive() {
-        return !destination.isClosed() && !source.isClosed();
-    }
+  @Override
+  public boolean isActive() {
+    return !destination.isClosed() && !source.isClosed();
+  }
 }

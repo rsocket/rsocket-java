@@ -16,7 +16,7 @@
 package io.rsocket.exceptions;
 
 public class CancelException extends Throwable {
-    public CancelException(String message) {
-        super(message);
-    }
+  public CancelException(String message) {
+    super(message);
+  }
 }

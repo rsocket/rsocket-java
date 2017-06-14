@@ -18,47 +18,55 @@ package io.rsocket.transport.netty.client;
 
 import io.rsocket.DuplexConnection;
 import io.rsocket.transport.ClientTransport;
-import io.rsocket.transport.netty.RSocketLengthCodec;
 import io.rsocket.transport.netty.NettyDuplexConnection;
+import io.rsocket.transport.netty.RSocketLengthCodec;
+import java.net.InetSocketAddress;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Mono;
 import reactor.ipc.netty.tcp.TcpClient;
 
 public class TcpClientTransport implements ClientTransport {
-    private final Logger logger = LoggerFactory.getLogger(TcpClientTransport.class);
-    private final TcpClient client;
+  private final Logger logger = LoggerFactory.getLogger(TcpClientTransport.class);
+  private final TcpClient client;
 
-    private TcpClientTransport(TcpClient client) {
-        this.client = client;
-    }
+  private TcpClientTransport(TcpClient client) {
+    this.client = client;
+  }
 
-    public static TcpClientTransport create(int port) {
-        TcpClient tcpClient = TcpClient.create(port);
-        return create(tcpClient);
+  public static TcpClientTransport create(int port) {
+    TcpClient tcpClient = TcpClient.create(port);
+    return create(tcpClient);
+  }
 
-    }
+  public static TcpClientTransport create(String bindAddress, int port) {
+    TcpClient tcpClient = TcpClient.create(bindAddress, port);
+    return create(tcpClient);
+  }
 
-    public static TcpClientTransport create(String  bindAddress, int port) {
-        TcpClient tcpClient = TcpClient.create(bindAddress, port);
-        return create(tcpClient);
-    }
+  public static TcpClientTransport create(InetSocketAddress address) {
+    TcpClient tcpClient = TcpClient.create(address.getHostString(), address.getPort());
+    return create(tcpClient);
+  }
 
-    public static TcpClientTransport create(TcpClient client) {
-        return new TcpClientTransport(client);
-    }
+  public static TcpClientTransport create(TcpClient client) {
+    return new TcpClientTransport(client);
+  }
 
-    @Override
-    public Mono<DuplexConnection> connect() {
-        return Mono.create(sink ->
-            client.newHandler((in, out) -> {
-                in.context().addHandler("client-length-codec", new RSocketLengthCodec());
-                NettyDuplexConnection connection = new NettyDuplexConnection(in, out, in.context());
-                sink.success(connection);
-                return connection.onClose();
-            })
-            .doOnError(sink::error)
-            .subscribe()
-        );
-    }
+  @Override
+  public Mono<DuplexConnection> connect() {
+    return Mono.create(
+        sink ->
+            client
+                .newHandler(
+                    (in, out) -> {
+                      in.context().addHandler("client-length-codec", new RSocketLengthCodec());
+                      NettyDuplexConnection connection =
+                          new NettyDuplexConnection(in, out, in.context());
+                      sink.success(connection);
+                      return connection.onClose();
+                    })
+                .doOnError(sink::error)
+                .subscribe());
+  }
 }
