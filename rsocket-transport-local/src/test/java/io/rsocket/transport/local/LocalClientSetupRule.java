@@ -44,16 +44,7 @@ public class LocalClientSetupRule extends ClientSetupRule<String> {
             }
           }
         },
-        address ->
-            RSocketFactory.connect()
-                .transport(LocalClientTransport.create(address))
-                .start()
-                .block(),
-        address ->
-            RSocketFactory.receive()
-                .acceptor((setup, sendingSocket) -> Mono.just(new TestRSocket()))
-                .transport(LocalServerTransport.create(address))
-                .start()
-                .block());
+        address -> LocalClientTransport.create(address),
+        address -> LocalServerTransport.create(address));
   }
 }
