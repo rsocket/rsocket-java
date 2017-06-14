@@ -48,7 +48,7 @@ public class WebsocketClientTransport implements ClientTransport {
   }
 
   private static HttpClient createClient(URI uri) {
-    if (isSecure(uri)) {
+    if (isSecureWebsocket(uri)) {
       return HttpClient.create(
           options -> options.sslSupport().connect(uri.getHost(), getPort(uri, 443)));
     } else {
@@ -56,12 +56,16 @@ public class WebsocketClientTransport implements ClientTransport {
     }
   }
 
-  private static int getPort(URI uri, int defaultPort) {
+  public static int getPort(URI uri, int defaultPort) {
     return uri.getPort() == -1 ? defaultPort : uri.getPort();
   }
 
-  private static boolean isSecure(URI uri) {
+  public static boolean isSecureWebsocket(URI uri) {
     return uri.getScheme().equals("wss") || uri.getScheme().equals("https");
+  }
+
+  public static boolean isPlaintextWebsocket(URI uri) {
+    return uri.getScheme().equals("ws") || uri.getScheme().equals("http");
   }
 
   public static WebsocketClientTransport create(HttpClient client, String path) {
