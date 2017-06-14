@@ -1,7 +1,9 @@
 package io.rsocket;
 
+import io.rsocket.exceptions.InvalidSetupException;
 import io.rsocket.fragmentation.FragmentationDuplexConnection;
 import io.rsocket.frame.SetupFrameFlyweight;
+import io.rsocket.frame.VersionFlyweight;
 import io.rsocket.internal.ClientServerInputMultiplexer;
 import io.rsocket.plugins.DuplexConnectionInterceptor;
 import io.rsocket.plugins.PluginRegistry;
@@ -357,36 +359,37 @@ public interface RSocketFactory {
                       .asStreamZeroConnection()
                       .receive()
                       .next()
-                      .then(
-                          setupFrame -> {
-                            ConnectionSetupPayload setupPayload =
-                                ConnectionSetupPayload.create(setupFrame);
-
-                            RSocketClient rSocketClient =
-                                new RSocketClient(
-                                    multiplexer.asServerConnection(),
-                                    errorConsumer,
-                                    StreamIdSupplier.serverSupplier());
-
-                            Mono<RSocket> wrappedRSocketClient =
-                                Mono.just(rSocketClient).map(plugins::applyClient);
-
-                            return wrappedRSocketClient
-                                .then(
-                                    sender ->
-                                        acceptor
-                                            .get()
-                                            .accept(setupPayload, sender)
-                                            .map(plugins::applyServer))
-                                .map(
-                                    handler ->
-                                        new RSocketServer(
-                                            multiplexer.asClientConnection(),
-                                            handler,
-                                            errorConsumer))
-                                .then();
-                          });
+                      .then(setupFrame -> processSetupFrame(multiplexer, setupFrame));
                 });
+      }
+
+      private Mono<? extends Void> processSetupFrame(
+          ClientServerInputMultiplexer multiplexer, Frame setupFrame) {
+        int version = Frame.Setup.version(setupFrame);
+        if (version != SetupFrameFlyweight.CURRENT_VERSION) {
+          InvalidSetupException error =
+              new InvalidSetupException(
+                  "Unsupported version " + VersionFlyweight.toString(version));
+          return multiplexer
+              .asStreamZeroConnection()
+              .sendOne(Frame.Error.from(0, error))
+              .then(multiplexer.close());
+        }
+
+        ConnectionSetupPayload setupPayload = ConnectionSetupPayload.create(setupFrame);
+
+        RSocketClient rSocketClient =
+            new RSocketClient(
+                multiplexer.asServerConnection(), errorConsumer, StreamIdSupplier.serverSupplier());
+
+        Mono<RSocket> wrappedRSocketClient = Mono.just(rSocketClient).map(plugins::applyClient);
+
+        return wrappedRSocketClient
+            .then(sender -> acceptor.get().accept(setupPayload, sender).map(plugins::applyServer))
+            .map(
+                handler ->
+                    new RSocketServer(multiplexer.asClientConnection(), handler, errorConsumer))
+            .then();
       }
     }
   }
