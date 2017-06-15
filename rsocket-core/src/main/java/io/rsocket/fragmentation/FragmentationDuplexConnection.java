@@ -20,6 +20,14 @@ public class FragmentationDuplexConnection implements DuplexConnection {
     this.frameFragmenter = new FrameFragmenter(mtu);
   }
 
+  public static int getDefaultMTU() {
+    if (Boolean.getBoolean("io.rsocket.fragmentation.enable")) {
+      return Integer.getInteger("io.rsocket.fragmentation.mtu", 1024);
+    }
+
+    return 0;
+  }
+
   @Override
   public double availability() {
     return source.availability();
