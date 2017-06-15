@@ -18,15 +18,17 @@ package io.rsocket.transport.netty;
 
 import io.rsocket.test.ClientSetupRule;
 import io.rsocket.transport.netty.client.WebsocketClientTransport;
+import io.rsocket.transport.netty.server.NettyContextCloseable;
 import io.rsocket.transport.netty.server.WebsocketServerTransport;
 import java.net.InetSocketAddress;
 
-public class WebsocketClientSetupRule extends ClientSetupRule<InetSocketAddress> {
+public class WebsocketClientSetupRule
+    extends ClientSetupRule<InetSocketAddress, NettyContextCloseable> {
 
   public WebsocketClientSetupRule() {
     super(
-        () -> InetSocketAddress.createUnresolved("localhost", 8989),
-        address -> WebsocketClientTransport.create(address.getHostName(), address.getPort()),
+        () -> InetSocketAddress.createUnresolved("localhost", 0),
+        (address, server) -> WebsocketClientTransport.create(server.address()),
         address -> WebsocketServerTransport.create(address.getHostName(), address.getPort()));
   }
 }

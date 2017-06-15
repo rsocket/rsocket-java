@@ -1,11 +1,11 @@
 package io.rsocket.transport.local;
 
+import static org.junit.Assert.assertTrue;
+
 import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.ServerTransport;
 import io.rsocket.uri.UriTransportRegistry;
 import org.junit.Test;
-
-import static org.junit.Assert.assertTrue;
 
 public class LocalUriTransportRegistryTest {
   @Test

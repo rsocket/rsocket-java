@@ -38,7 +38,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-import org.junit.Ignore;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -130,7 +129,6 @@ public class IntegrationTest {
     server.close().block();
   }
 
-  @Ignore
   @Test(timeout = 5_000L)
   public void testRequest() {
     client.requestResponse(new PayloadImpl("REQUEST", "META")).block();
@@ -140,7 +138,6 @@ public class IntegrationTest {
     assertTrue(calledFrame);
   }
 
-  @Ignore
   @Test
   public void testStream() throws Exception {
     TestSubscriber subscriber = TestSubscriber.create();
@@ -151,7 +148,6 @@ public class IntegrationTest {
     subscriber.assertNotComplete();
   }
 
-  @Ignore
   @Test(timeout = 5_000L)
   public void testClose() throws ExecutionException, InterruptedException, TimeoutException {
     client.close().block();
