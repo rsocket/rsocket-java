@@ -15,26 +15,20 @@
  */
 package io.rsocket.aeron;
 
+import io.rsocket.RSocket;
+import io.rsocket.RSocketFactory;
 import io.rsocket.aeron.client.AeronClientTransport;
-import io.rsocket.aeron.internal.AeronWrapper;
-import io.rsocket.aeron.internal.Constants;
-import io.rsocket.aeron.internal.DefaultAeronWrapper;
-import io.rsocket.aeron.internal.EventLoop;
-import io.rsocket.aeron.internal.SingleThreadedEventLoop;
+import io.rsocket.aeron.internal.*;
 import io.rsocket.aeron.internal.reactivestreams.AeronClientChannelConnector;
 import io.rsocket.aeron.internal.reactivestreams.AeronSocketAddress;
-import io.rsocket.client.KeepAliveProvider;
-import io.rsocket.client.RSocketClient;
-import io.rsocket.client.SetupProvider;
 import io.rsocket.test.PingClient;
 import java.time.Duration;
 import org.HdrHistogram.Recorder;
+import reactor.core.publisher.Mono;
 
 public final class AeronPing {
 
   public static void main(String... args) throws Exception {
-    SetupProvider setup = SetupProvider.keepAlive(KeepAliveProvider.never()).disableLease();
-
     // Create Client Connector
     AeronWrapper aeronWrapper = new DefaultAeronWrapper();
 
@@ -59,19 +53,14 @@ public final class AeronPing {
 
     AeronClientTransport aeronTransportClient = new AeronClientTransport(connector, config);
 
-    RSocketClient client = RSocketClient.create(aeronTransportClient, setup);
+    Mono<RSocket> client = RSocketFactory.connect().transport(aeronTransportClient).start();
     PingClient pingClient = new PingClient(client);
     Recorder recorder = pingClient.startTracker(Duration.ofSeconds(1));
     final int count = 1_000_000_000;
     pingClient
-        .connect()
         .startPingPong(count, recorder)
-        .doOnTerminate(
-            () -> {
-              System.out.println("Sent " + count + " messages.");
-            })
-        .last(null)
-        .block();
+        .doOnTerminate(() -> System.out.println("Sent " + count + " messages."))
+        .blockLast();
 
     System.exit(0);
   }

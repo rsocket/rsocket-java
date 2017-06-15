@@ -16,11 +16,9 @@
 package io.rsocket.transport.netty;
 
 import io.rsocket.test.ClientSetupRule;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 
-@Ignore
 public class WebsocketClientServerTest {
 
   @Rule public final ClientSetupRule setup = new WebsocketClientSetupRule();
