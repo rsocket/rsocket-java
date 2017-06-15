@@ -16,6 +16,7 @@
 
 package io.rsocket.aeron;
 
+import io.rsocket.Closeable;
 import io.rsocket.aeron.client.AeronClientTransport;
 import io.rsocket.aeron.internal.*;
 import io.rsocket.aeron.internal.reactivestreams.AeronClientChannelConnector;
@@ -23,7 +24,7 @@ import io.rsocket.aeron.internal.reactivestreams.AeronSocketAddress;
 import io.rsocket.aeron.server.AeronServerTransport;
 import io.rsocket.test.ClientSetupRule;
 
-class AeronClientSetupRule extends ClientSetupRule<AeronSocketAddress> {
+class AeronClientSetupRule extends ClientSetupRule<AeronSocketAddress, Closeable> {
 
   public static final AeronSocketAddress ADDRESS =
       AeronSocketAddress.create("aeron:udp", "127.0.0.1", 39790);
@@ -56,6 +57,6 @@ class AeronClientSetupRule extends ClientSetupRule<AeronSocketAddress> {
   private static final AeronClientTransport client;
 
   AeronClientSetupRule() {
-    super(() -> ADDRESS, address -> client, address -> server);
+    super(() -> ADDRESS, (address, server) -> client, address -> server);
   }
 }

@@ -27,6 +27,7 @@ import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.ServerTransport;
 import io.rsocket.util.PayloadImpl;
 import java.nio.charset.StandardCharsets;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import org.junit.rules.ExternalResource;
@@ -35,27 +36,19 @@ import org.junit.runners.model.Statement;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-public class ClientSetupRule<T> extends ExternalResource {
+public class ClientSetupRule<T, S extends Closeable> extends ExternalResource {
 
   private Supplier<T> addressSupplier;
-  private Function<T, RSocket> clientConnector;
-  private Function<T, Closeable> serverInit;
+  private BiFunction<T, S, RSocket> clientConnector;
+  private Function<T, S> serverInit;
 
   private RSocket client;
 
   public ClientSetupRule(
       Supplier<T> addressSupplier,
-      Function<T, ClientTransport> clientTransportSupplier,
-      Function<T, ServerTransport<? extends Closeable>> serverTransportSupplier) {
+      BiFunction<T, S, ClientTransport> clientTransportSupplier,
+      Function<T, ServerTransport<S>> serverTransportSupplier) {
     this.addressSupplier = addressSupplier;
-
-    this.clientConnector =
-        address ->
-            RSocketFactory.connect()
-                .transport(clientTransportSupplier.apply(address))
-                .start()
-                .doOnError(t -> t.printStackTrace())
-                .block();
 
     this.serverInit =
         address ->
@@ -63,6 +56,15 @@ public class ClientSetupRule<T> extends ExternalResource {
                 .acceptor((setup, sendingSocket) -> Mono.just(new TestRSocket()))
                 .transport(serverTransportSupplier.apply(address))
                 .start()
+                .map(s -> (S) s) // TODO fix casting
+                .block();
+
+    this.clientConnector =
+        (address, server) ->
+            RSocketFactory.connect()
+                .transport(clientTransportSupplier.apply(address, server))
+                .start()
+                .doOnError(t -> t.printStackTrace())
                 .block();
   }
 
@@ -72,8 +74,8 @@ public class ClientSetupRule<T> extends ExternalResource {
       @Override
       public void evaluate() throws Throwable {
         T address = addressSupplier.get();
-        Closeable server = serverInit.apply(address);
-        client = clientConnector.apply(address);
+        S server = serverInit.apply(address);
+        client = clientConnector.apply(address, server);
         base.evaluate();
         server.close().block();
       }

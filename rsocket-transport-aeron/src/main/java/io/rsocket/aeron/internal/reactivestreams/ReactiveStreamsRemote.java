@@ -15,12 +15,11 @@
  */
 package io.rsocket.aeron.internal.reactivestreams;
 
+import io.rsocket.Closeable;
 import java.net.SocketAddress;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
-
-import io.rsocket.Closeable;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;

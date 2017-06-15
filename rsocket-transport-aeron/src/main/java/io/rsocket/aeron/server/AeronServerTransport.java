@@ -26,11 +26,8 @@ import io.rsocket.aeron.internal.reactivestreams.AeronSocketAddress;
 import io.rsocket.transport.ServerTransport;
 import reactor.core.publisher.Mono;
 
-import java.net.SocketAddress;
-import java.util.concurrent.TimeUnit;
-
 /** */
-public class AeronServerTransport implements ServerTransport {
+public class AeronServerTransport implements ServerTransport<Closeable> {
   private final AeronWrapper aeronWrapper;
   private final AeronSocketAddress managementSubscriptionSocket;
   private final EventLoop eventLoop;

@@ -19,7 +19,6 @@ import java.util.concurrent.CountDownLatch;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-import org.junit.Ignore;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.UnicastProcessor;
@@ -57,7 +56,6 @@ public class TcpIntegrationTest {
     server.close().block();
   }
 
-  @Ignore
   @Test(timeout = 5_000L)
   public void testCompleteWithoutNext() throws InterruptedException {
     handler =
@@ -74,7 +72,6 @@ public class TcpIntegrationTest {
     assertFalse(hasElements);
   }
 
-  @Ignore
   @Test(timeout = 5_000L)
   public void testSingleStream() throws InterruptedException {
     handler =
@@ -92,7 +89,6 @@ public class TcpIntegrationTest {
     assertEquals("RESPONSE", StandardCharsets.UTF_8.decode(result.getData()).toString());
   }
 
-  @Ignore
   @Test(timeout = 5_000L)
   public void testZeroPayload() throws InterruptedException {
     handler =
@@ -110,7 +106,6 @@ public class TcpIntegrationTest {
     assertEquals("", StandardCharsets.UTF_8.decode(result.getData()).toString());
   }
 
-  @Ignore
   @Test(timeout = 5_000L)
   public void testRequestResponseErrors() throws InterruptedException {
     handler =
@@ -145,7 +140,6 @@ public class TcpIntegrationTest {
     assertEquals("SUCCESS", StandardCharsets.UTF_8.decode(response2.getData()).toString());
   }
 
-  @Ignore
   @Test(timeout = 5_000L)
   public void testTwoConcurrentStreams() throws InterruptedException {
     ConcurrentHashMap<String, UnicastProcessor<Payload>> map = new ConcurrentHashMap<>();
