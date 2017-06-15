@@ -16,7 +16,7 @@
 buildscript {
     repositories { jcenter() }
     dependencies {
-        classpath 'io.reactivesocket:gradle-nebula-plugin-reactivesocket:1.0.6'
+        classpath 'io.rsocket:gradle-nebula-plugin-rsocket:1.0.0'
     }
 }
 
@@ -26,10 +26,10 @@ plugins {
 
 description = 'RSocket: stream oriented messaging passing with Reactive Stream semantics.'
 
-apply plugin: 'reactivesocket-project'
+apply plugin: 'rsocket-project'
 
 subprojects {
-    apply plugin: 'reactivesocket-project'
+    apply plugin: 'rsocket-project'
     apply plugin: 'java'
 
     project.group = 'io.rsocket'
