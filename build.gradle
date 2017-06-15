@@ -16,7 +16,7 @@
 buildscript {
     repositories { jcenter() }
     dependencies {
-        classpath 'io.rsocket:gradle-nebula-plugin-rsocket:1.0.0'
+        classpath 'io.reactivesocket:gradle-nebula-plugin-reactivesocket:1.0.6'
     }
 }
 
@@ -26,10 +26,10 @@ plugins {
 
 description = 'RSocket: stream oriented messaging passing with Reactive Stream semantics.'
 
-apply plugin: 'rsocket-project'
+apply plugin: 'reactivesocket-project'
 
 subprojects {
-    apply plugin: 'rsocket-project'
+    apply plugin: 'reactivesocket-project'
     apply plugin: 'java'
 
     project.group = 'io.rsocket'
@@ -43,6 +43,7 @@ subprojects {
         jcenter()
         maven { url 'https://oss.jfrog.org/libs-snapshot' }
         maven { url 'https://dl.bintray.com/rsocket/RSocket' }
+        maven { url 'https://dl.bintray.com/reactivesocket/ReactiveSocket' }
     }
 
     dependencies {
