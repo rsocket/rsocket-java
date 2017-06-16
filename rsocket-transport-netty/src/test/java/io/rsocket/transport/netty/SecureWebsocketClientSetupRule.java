@@ -36,10 +36,13 @@ public class SecureWebsocketClientSetupRule
                 HttpClient.create(
                     options ->
                         options
-                                .connect(server.address())
-                            .sslSupport(c -> c.trustManager(InsecureTrustManagerFactory.INSTANCE))
-                            ),
-                "https://" + server.address().getHostName() + ":" + server.address().getPort() + "/"),
+                            .connect(server.address())
+                            .sslSupport(c -> c.trustManager(InsecureTrustManagerFactory.INSTANCE))),
+                "https://"
+                    + server.address().getHostName()
+                    + ":"
+                    + server.address().getPort()
+                    + "/"),
         address ->
             WebsocketServerTransport.create(
                 HttpServer.create(options -> options.listen(address).sslSelfSigned())));
