@@ -25,6 +25,7 @@ import io.rsocket.util.PayloadImpl;
 import java.nio.channels.ClosedChannelException;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -104,7 +105,7 @@ class RSocketClient implements RSocket {
         .receive()
         .doOnSubscribe(subscription -> started.onComplete())
         .doOnNext(this::handleIncomingFrames)
-        .doOnError(errorConsumer)
+        .doOnError(this::handleConnectionError)
         .subscribe();
   }
 
@@ -482,6 +483,14 @@ class RSocketClient implements RSocket {
     }
     // receiving a frame after a given stream has been cancelled/completed,
     // so ignore (cancellation is async so there is a race condition)
+  }
+
+  private synchronized void handleConnectionError(Throwable throwable) {
+    errorConsumer.accept(throwable);
+    for (Map.Entry<Integer, Subscriber<Payload>> r : receivers.entrySet()) {
+      r.getValue().onError(throwable);
+    }
+    receivers.clear();
   }
 
   private synchronized void removeReceiver(int streamId) {

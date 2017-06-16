@@ -1,9 +1,9 @@
 package io.rsocket.integration;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.*;
 
 import io.rsocket.*;
+import io.rsocket.exceptions.InvalidSetupException;
 import io.rsocket.frame.FrameHeaderFlyweight;
 import io.rsocket.frame.VersionFlyweight;
 import io.rsocket.plugins.DuplexConnectionInterceptor;
@@ -13,9 +13,7 @@ import io.rsocket.transport.netty.server.TcpServerTransport;
 import io.rsocket.util.PayloadImpl;
 import io.rsocket.util.RSocketProxy;
 import org.junit.After;
-import org.junit.Before;
 import org.junit.Test;
-import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -31,31 +29,28 @@ public class VersionMismatchTest {
   public void testBadVersion() throws InterruptedException {
     TcpServerTransport serverTransport = TcpServerTransport.create(0);
     DuplexConnectionInterceptor x =
-        new DuplexConnectionInterceptor() {
-          @Override
-          public DuplexConnection apply(Type type, DuplexConnection duplexConnection) {
-            if (type == Type.SOURCE) {
-              return new DuplexConnectionDecorator(duplexConnection) {
-                @Override
-                public Flux<Frame> receive() {
-                  return delegate
-                      .receive()
-                      .map(
-                          frame -> {
-                            if (frame.getType() == FrameType.SETUP) {
-                              int badVersion = VersionFlyweight.encode(99, 34);
-                              frame
-                                  .content()
-                                  .setInt(FrameHeaderFlyweight.FRAME_HEADER_LENGTH, badVersion);
-                            }
-                            return frame;
-                          });
-                }
-              };
-            }
-
-            return duplexConnection;
+        (type, duplexConnection) -> {
+          if (type == DuplexConnectionInterceptor.Type.SOURCE) {
+            return new DuplexConnectionDecorator(duplexConnection) {
+              @Override
+              public Flux<Frame> receive() {
+                return delegate
+                    .receive()
+                    .map(
+                        frame -> {
+                          if (frame.getType() == FrameType.SETUP) {
+                            int badVersion = VersionFlyweight.encode(99, 34);
+                            frame
+                                .content()
+                                .setInt(FrameHeaderFlyweight.FRAME_HEADER_LENGTH, badVersion);
+                          }
+                          return frame;
+                        });
+              }
+            };
           }
+
+          return duplexConnection;
         };
 
     RSocketFactory.Start<Closeable> transport =
@@ -71,9 +66,13 @@ public class VersionMismatchTest {
             .transport(TcpClientTransport.create(server.address()))
             .start()
             .block();
-    Boolean hasElements =
-        client.requestStream(new PayloadImpl("REQUEST", "META")).log().hasElements().block();
 
-    assertFalse(hasElements);
+    try {
+      client.requestResponse(new PayloadImpl("REQUEST", "META")).block();
+      fail();
+    } catch (InvalidSetupException ise) {
+      // expected
+      assertEquals("Unsupported version 99.34", ise.getMessage());
+    }
   }
 }

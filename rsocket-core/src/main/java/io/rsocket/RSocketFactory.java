@@ -370,10 +370,7 @@ public interface RSocketFactory {
           InvalidSetupException error =
               new InvalidSetupException(
                   "Unsupported version " + VersionFlyweight.toString(version));
-          return multiplexer
-              .asStreamZeroConnection()
-              .sendOne(Frame.Error.from(0, error))
-              .then(multiplexer.close());
+          return multiplexer.asStreamZeroConnection().sendOne(Frame.Error.from(0, error));
         }
 
         ConnectionSetupPayload setupPayload = ConnectionSetupPayload.create(setupFrame);

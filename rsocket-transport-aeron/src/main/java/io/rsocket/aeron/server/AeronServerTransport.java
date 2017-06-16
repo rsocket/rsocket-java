@@ -25,10 +25,9 @@ import io.rsocket.aeron.internal.reactivestreams.AeronChannelServer;
 import io.rsocket.aeron.internal.reactivestreams.AeronSocketAddress;
 import io.rsocket.aeron.internal.reactivestreams.ReactiveStreamsRemote;
 import io.rsocket.transport.ServerTransport;
-import reactor.core.publisher.Mono;
-
 import java.net.SocketAddress;
 import java.util.concurrent.TimeUnit;
+import reactor.core.publisher.Mono;
 
 /** */
 public class AeronServerTransport implements ServerTransport {
