@@ -74,5 +74,7 @@ public class VersionMismatchTest {
       // expected
       assertEquals("Unsupported version 99.34", ise.getMessage());
     }
+
+    client.onClose().block();
   }
 }

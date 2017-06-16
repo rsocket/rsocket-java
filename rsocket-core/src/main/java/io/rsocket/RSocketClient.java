@@ -491,6 +491,8 @@ class RSocketClient implements RSocket {
       r.getValue().onError(throwable);
     }
     receivers.clear();
+
+    close().subscribe();
   }
 
   private synchronized void removeReceiver(int streamId) {
