@@ -19,6 +19,7 @@ package io.rsocket.transport.netty.server;
 import io.rsocket.transport.ServerTransport;
 import io.rsocket.transport.netty.NettyDuplexConnection;
 import io.rsocket.transport.netty.RSocketLengthCodec;
+import java.net.InetSocketAddress;
 import reactor.core.publisher.Mono;
 import reactor.ipc.netty.tcp.TcpServer;
 
@@ -27,6 +28,11 @@ public class TcpServerTransport implements ServerTransport<NettyContextCloseable
 
   private TcpServerTransport(TcpServer server) {
     this.server = server;
+  }
+
+  public static TcpServerTransport create(InetSocketAddress address) {
+    TcpServer server = TcpServer.create(address.getHostName(), address.getPort());
+    return create(server);
   }
 
   public static TcpServerTransport create(String bindAddress, int port) {

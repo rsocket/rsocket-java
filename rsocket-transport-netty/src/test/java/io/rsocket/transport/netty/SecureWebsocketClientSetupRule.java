@@ -16,19 +16,32 @@
 
 package io.rsocket.transport.netty;
 
+import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 import io.rsocket.test.ClientSetupRule;
 import io.rsocket.transport.netty.client.WebsocketClientTransport;
 import io.rsocket.transport.netty.server.NettyContextCloseable;
 import io.rsocket.transport.netty.server.WebsocketServerTransport;
 import java.net.InetSocketAddress;
+import reactor.ipc.netty.http.client.HttpClient;
+import reactor.ipc.netty.http.server.HttpServer;
 
-public class WebsocketClientSetupRule
+public class SecureWebsocketClientSetupRule
     extends ClientSetupRule<InetSocketAddress, NettyContextCloseable> {
 
-  public WebsocketClientSetupRule() {
+  public SecureWebsocketClientSetupRule() {
     super(
-        () -> InetSocketAddress.createUnresolved("localhost", 0),
-        (address, server) -> WebsocketClientTransport.create(server.address()),
-        address -> WebsocketServerTransport.create(address.getHostName(), address.getPort()));
+        () -> new InetSocketAddress("localhost", 0),
+        (address, server) ->
+            WebsocketClientTransport.create(
+                HttpClient.create(
+                    options ->
+                        options
+                                .connect(server.address())
+                            .sslSupport(c -> c.trustManager(InsecureTrustManagerFactory.INSTANCE))
+                            ),
+                "https://" + server.address().getHostName() + ":" + server.address().getPort() + "/"),
+        address ->
+            WebsocketServerTransport.create(
+                HttpServer.create(options -> options.listen(address).sslSelfSigned())));
   }
 }

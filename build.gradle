@@ -43,6 +43,7 @@ subprojects {
         jcenter()
         maven { url 'https://oss.jfrog.org/libs-snapshot' }
         maven { url 'https://dl.bintray.com/rsocket/RSocket' }
+        maven { url 'https://dl.bintray.com/reactivesocket/ReactiveSocket' }
     }
 
     dependencies {

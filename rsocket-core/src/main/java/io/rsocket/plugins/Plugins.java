@@ -6,15 +6,15 @@ public class Plugins {
 
   private Plugins() {}
 
-  public static void registerConnectionPlugin(DuplexConnectionInterceptor interceptor) {
+  public static void interceptConnection(DuplexConnectionInterceptor interceptor) {
     DEFAULT.addConnectionPlugin(interceptor);
   }
 
-  public static void registerClientPlugin(RSocketInterceptor interceptor) {
+  public static void interceptClient(RSocketInterceptor interceptor) {
     DEFAULT.addClientPlugin(interceptor);
   }
 
-  public static void registerServerPlugin(RSocketInterceptor interceptor) {
+  public static void interceptServer(RSocketInterceptor interceptor) {
     DEFAULT.addServerPlugin(interceptor);
   }
 

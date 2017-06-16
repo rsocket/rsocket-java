@@ -13,20 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package io.rsocket.transport.netty;
 
-package io.rsocket.transport.local;
-
-import io.rsocket.Closeable;
-import io.rsocket.test.ClientSetupRule;
-import java.util.concurrent.atomic.AtomicInteger;
-
-public class LocalClientSetupRule extends ClientSetupRule<String, Closeable> {
-  private static final AtomicInteger uniqueNameGenerator = new AtomicInteger();
-
-  public LocalClientSetupRule() {
-    super(
-        () -> "test" + uniqueNameGenerator.incrementAndGet(),
-        (address, server) -> LocalClientTransport.create(address),
-        address -> LocalServerTransport.create(address));
+public class SecureWebsocketClientServerTest
+    extends BaseClientServerTest<SecureWebsocketClientSetupRule> {
+  @Override
+  protected SecureWebsocketClientSetupRule createClientServer() {
+    return new SecureWebsocketClientSetupRule();
   }
 }

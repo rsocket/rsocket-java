@@ -23,14 +23,11 @@ import io.rsocket.aeron.internal.AeronWrapper;
 import io.rsocket.aeron.internal.EventLoop;
 import io.rsocket.aeron.internal.reactivestreams.AeronChannelServer;
 import io.rsocket.aeron.internal.reactivestreams.AeronSocketAddress;
-import io.rsocket.aeron.internal.reactivestreams.ReactiveStreamsRemote;
 import io.rsocket.transport.ServerTransport;
-import java.net.SocketAddress;
-import java.util.concurrent.TimeUnit;
 import reactor.core.publisher.Mono;
 
 /** */
-public class AeronServerTransport implements ServerTransport {
+public class AeronServerTransport implements ServerTransport<Closeable> {
   private final AeronWrapper aeronWrapper;
   private final AeronSocketAddress managementSubscriptionSocket;
   private final EventLoop eventLoop;
@@ -64,33 +61,6 @@ public class AeronServerTransport implements ServerTransport {
               eventLoop);
     }
 
-    final ReactiveStreamsRemote.StartedServer startedServer = aeronChannelServer.start();
-
-    return new StartedServer() {
-      @Override
-      public SocketAddress getServerAddress() {
-        return startedServer.getServerAddress();
-      }
-
-      @Override
-      public int getServerPort() {
-        return startedServer.getServerPort();
-      }
-
-      @Override
-      public void awaitShutdown() {
-        startedServer.awaitShutdown();
-      }
-
-      @Override
-      public void awaitShutdown(long duration, TimeUnit durationUnit) {
-        startedServer.awaitShutdown(duration, durationUnit);
-      }
-
-      @Override
-      public void shutdown() {
-        startedServer.shutdown();
-      }
-    };
+    return Mono.just(aeronChannelServer.start());
   }
 }

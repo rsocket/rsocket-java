@@ -19,6 +19,7 @@ package io.rsocket.transport.netty.client;
 import io.rsocket.DuplexConnection;
 import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.netty.WebsocketDuplexConnection;
+import java.net.InetSocketAddress;
 import java.net.URI;
 import reactor.core.publisher.Mono;
 import reactor.ipc.netty.http.client.HttpClient;
@@ -40,6 +41,10 @@ public class WebsocketClientTransport implements ClientTransport {
   public static WebsocketClientTransport create(String bindAddress, int port) {
     HttpClient httpClient = HttpClient.create(bindAddress, port);
     return create(httpClient, "/");
+  }
+
+  public static WebsocketClientTransport create(InetSocketAddress address) {
+    return create(address.getHostName(), address.getPort());
   }
 
   public static WebsocketClientTransport create(URI uri) {
