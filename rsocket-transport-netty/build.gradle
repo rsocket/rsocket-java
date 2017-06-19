@@ -16,7 +16,12 @@
 
 dependencies {
     compile project(':rsocket-core')
-    compile 'io.projectreactor.ipc:reactor-netty:0.6.3.RELEASE'
+    compile 'io.projectreactor.ipc:reactor-netty:0.6.4.RELEASE'
+    compile 'io.netty:netty-buffer:4.1.12.Final'
+    compile "io.netty:netty-handler:4.1.12.Final"
+    compile "io.netty:netty-handler-proxy:4.1.12.Final"
+    compile "io.netty:netty-codec-http:4.1.12.Final"
+    compile "io.netty:netty-transport-native-epoll:4.1.12.Final"
 
     testCompile project(':rsocket-test')
 }

@@ -27,7 +27,7 @@ jmh {
 
 dependencies {
     compile 'io.projectreactor:reactor-core:3.0.7.RELEASE'
-    compile 'io.netty:netty-buffer:4.1.9.Final'
+    compile 'io.netty:netty-buffer:4.1.12.Final'
 
     testCompile "io.projectreactor.addons:reactor-test:3.0.7.RELEASE"
 
