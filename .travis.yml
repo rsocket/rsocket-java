@@ -8,6 +8,8 @@ addons:
     packages:
       - oracle-java8-installer
 
+dist: trusty
+group: edge
 sudo: false
 # as per http://blog.travis-ci.com/2014-12-17-faster-builds-with-container-based-infrastructure/
 
