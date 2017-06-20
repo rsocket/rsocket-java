@@ -39,4 +39,6 @@ dependencies {
     jmh group: 'org.openjdk.jmh', name: 'jmh-generator-annprocess', version: '1.15'
 
     compile 'org.slf4j:slf4j-log4j12:1.7.21'
+
+    testCompile project(':rsocket-test')
 }

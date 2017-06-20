@@ -18,11 +18,13 @@ package io.rsocket.client;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.verify;
 
-import io.reactivex.subscribers.TestSubscriber;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.client.filter.RSocketSupplier;
+import io.rsocket.test.TestSubscriber;
 import io.rsocket.util.PayloadImpl;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -44,10 +46,11 @@ public class RSocketSupplierTest {
           assertEquals(1.0, socket.availability(), 0.0);
           Publisher<Payload> payloadPublisher = socket.requestResponse(PayloadImpl.EMPTY);
 
-          TestSubscriber<Payload> subscriber = new TestSubscriber<>();
+          Subscriber<Payload> subscriber = TestSubscriber.create();
           payloadPublisher.subscribe(subscriber);
-          subscriber.awaitTerminalEvent();
-          subscriber.assertComplete();
+
+          verify(subscriber).onComplete();
+
           double good = socket.availability();
 
           try {
@@ -56,10 +59,9 @@ public class RSocketSupplierTest {
             e.printStackTrace();
           }
 
-          subscriber = new TestSubscriber<>();
+          subscriber = TestSubscriber.create();
           payloadPublisher.subscribe(subscriber);
-          subscriber.awaitTerminalEvent();
-          subscriber.assertError(RuntimeException.class);
+          verify(subscriber).onError(any(RuntimeException.class));
           double bad = socket.availability();
           assertTrue(good > bad);
           latch.countDown();
@@ -73,16 +75,16 @@ public class RSocketSupplierTest {
           assertEquals(1.0, socket.availability(), 0.0);
           Publisher<Payload> payloadPublisher = socket.requestResponse(PayloadImpl.EMPTY);
 
-          TestSubscriber<Payload> subscriber = new TestSubscriber<>();
+          Subscriber<Payload> subscriber = TestSubscriber.create();
           payloadPublisher.subscribe(subscriber);
-          subscriber.awaitTerminalEvent();
-          subscriber.assertComplete();
+
+          verify(subscriber).onComplete();
           double good = socket.availability();
 
-          subscriber = new TestSubscriber<>();
+          subscriber = TestSubscriber.create();
           payloadPublisher.subscribe(subscriber);
-          subscriber.awaitTerminalEvent();
-          subscriber.assertError(RuntimeException.class);
+
+          verify(subscriber).onError(any(RuntimeException.class));
           double bad = socket.availability();
           assertTrue(good > bad);
 

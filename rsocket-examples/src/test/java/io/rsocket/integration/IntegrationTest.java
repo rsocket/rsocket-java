@@ -19,14 +19,17 @@ package io.rsocket.integration;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
-import io.reactivex.subscribers.TestSubscriber;
 import io.rsocket.AbstractRSocket;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.RSocketFactory;
 import io.rsocket.plugins.DuplexConnectionInterceptor;
 import io.rsocket.plugins.RSocketInterceptor;
+import io.rsocket.test.TestSubscriber;
 import io.rsocket.transport.netty.client.TcpClientTransport;
 import io.rsocket.transport.netty.server.NettyContextCloseable;
 import io.rsocket.transport.netty.server.TcpServerTransport;
@@ -39,6 +42,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.reactivestreams.Subscriber;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -147,12 +151,11 @@ public class IntegrationTest {
 
   @Test
   public void testStream() throws Exception {
-    TestSubscriber subscriber = TestSubscriber.create();
+    Subscriber subscriber = TestSubscriber.createCancelling();
     client.requestStream(new PayloadImpl("start")).subscribe(subscriber);
 
-    subscriber.cancel();
-    subscriber.isCancelled();
-    subscriber.assertNotComplete();
+    verify(subscriber).onSubscribe(any());
+    verifyNoMoreInteractions(subscriber);
   }
 
   @Test(timeout = 5_000L)

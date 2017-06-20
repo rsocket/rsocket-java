@@ -152,7 +152,7 @@ public class AeronClientServerChannelTest {
     CountDownLatch latch = new CountDownLatch(count);
 
     Mono.from(publisher)
-        .then(
+        .flatMap(
             aeronChannel ->
                 Mono.create(
                     callback -> {

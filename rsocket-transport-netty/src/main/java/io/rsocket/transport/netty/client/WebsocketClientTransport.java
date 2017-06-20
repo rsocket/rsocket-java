@@ -83,7 +83,7 @@ public class WebsocketClientTransport implements ClientTransport {
         sink ->
             client
                 .ws(path)
-                .then(
+                .flatMap(
                     response ->
                         response.receiveWebsocket(
                             (in, out) -> {

@@ -248,7 +248,7 @@ public interface RSocketFactory {
         return transportClient
             .get()
             .connect()
-            .then(
+            .flatMap(
                 connection -> {
                   Frame setupFrame =
                       Frame.Setup.from(
@@ -279,7 +279,7 @@ public interface RSocketFactory {
                       Mono.just(rSocketClient).map(plugins::applyClient);
 
                   DuplexConnection finalConnection = connection;
-                  return wrappedRSocketClient.then(
+                  return wrappedRSocketClient.flatMap(
                       wrappedClientRSocket -> {
                         RSocket unwrappedServerSocket = acceptor.get().apply(wrappedClientRSocket);
 
@@ -292,7 +292,7 @@ public interface RSocketFactory {
                                     new RSocketServer(
                                         multiplexer.asServerConnection(), rSocket, errorConsumer))
                             .then(finalConnection.sendOne(setupFrame))
-                            .then(Mono.just(wrappedClientRSocket));
+                            .then(wrappedRSocketClient);
                       });
                 });
       }
@@ -373,7 +373,7 @@ public interface RSocketFactory {
                       .asStreamZeroConnection()
                       .receive()
                       .next()
-                      .then(setupFrame -> processSetupFrame(multiplexer, setupFrame));
+                      .flatMap(setupFrame -> processSetupFrame(multiplexer, setupFrame));
                 });
       }
 
@@ -399,7 +399,8 @@ public interface RSocketFactory {
         Mono<RSocket> wrappedRSocketClient = Mono.just(rSocketClient).map(plugins::applyClient);
 
         return wrappedRSocketClient
-            .then(sender -> acceptor.get().accept(setupPayload, sender).map(plugins::applyServer))
+            .flatMap(
+                sender -> acceptor.get().accept(setupPayload, sender).map(plugins::applyServer))
             .map(
                 handler ->
                     new RSocketServer(multiplexer.asClientConnection(), handler, errorConsumer))

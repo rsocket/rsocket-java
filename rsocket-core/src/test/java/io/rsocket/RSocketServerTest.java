@@ -23,14 +23,15 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 import io.netty.buffer.Unpooled;
-import io.reactivex.subscribers.TestSubscriber;
 import io.rsocket.test.util.TestDuplexConnection;
+import io.rsocket.test.util.TestSubscriber;
 import io.rsocket.util.PayloadImpl;
 import java.util.Collection;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.Rule;
 import org.junit.Test;
+import org.reactivestreams.Subscriber;
 import reactor.core.publisher.Mono;
 
 public class RSocketServerTest {
@@ -56,11 +57,10 @@ public class RSocketServerTest {
 
     rule.sendRequest(streamId, FrameType.REQUEST_RESPONSE);
 
-    Collection<TestSubscriber<Frame>> sendSubscribers = rule.connection.getSendSubscribers();
+    Collection<Subscriber<Frame>> sendSubscribers = rule.connection.getSendSubscribers();
     assertThat("Request not sent.", sendSubscribers, hasSize(1));
     assertThat("Unexpected error.", rule.errors, is(empty()));
-    TestSubscriber<Frame> sendSub = sendSubscribers.iterator().next();
-    sendSub.request(2);
+    Subscriber<Frame> sendSub = sendSubscribers.iterator().next();
     assertThat(
         "Unexpected frame sent.",
         rule.connection.awaitSend().getType(),
