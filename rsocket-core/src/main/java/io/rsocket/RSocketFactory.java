@@ -35,17 +35,15 @@ import java.util.function.Supplier;
 import reactor.core.publisher.Mono;
 
 /**
- * Creates an RSocket.
- *
- * @author Robert Roeser
+ * Factory for creating RSocket clients and servers.
  */
 public interface RSocketFactory {
-  /** Creates a factory that creates RSockets that establish connections to other RSockets */
+  /** Creates a factory that establishes client connections to other RSockets */
   static ClientRSocketFactory connect() {
     return new ClientRSocketFactory();
   }
 
-  /** Creates a factory that creates RSockets that receive connections from other RSockets */
+  /** Creates a factory that receives server connections from client RSockets */
   static ServerRSocketFactory receive() {
     return new ServerRSocketFactory();
   }
