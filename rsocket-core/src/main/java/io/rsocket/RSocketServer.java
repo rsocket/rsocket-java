@@ -234,7 +234,7 @@ class RSocketServer implements RSocket {
                   removeSubscription(streamId);
                 });
 
-    return responseFrame.then(connection::sendOne);
+    return responseFrame.flatMap(connection::sendOne);
   }
 
   private Mono<Void> handleStream(int streamId, Flux<Payload> response, Frame firstFrame) {

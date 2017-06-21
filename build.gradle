@@ -14,7 +14,9 @@
  * limitations under the License.
  */
 buildscript {
-    repositories { jcenter() }
+    repositories {
+        jcenter()
+    }
     dependencies {
         classpath 'io.reactivesocket:gradle-nebula-plugin-reactivesocket:1.0.6'
     }
@@ -41,6 +43,7 @@ subprojects {
 
     repositories {
         jcenter()
+        maven { url 'http://repo.spring.io/milestone' }
         maven { url 'https://oss.jfrog.org/libs-snapshot' }
         maven { url 'https://dl.bintray.com/rsocket/RSocket' }
         maven { url 'https://dl.bintray.com/reactivesocket/ReactiveSocket' }

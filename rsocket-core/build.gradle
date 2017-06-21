@@ -26,10 +26,10 @@ jmh {
 }
 
 dependencies {
-    compile 'io.projectreactor:reactor-core:3.0.7.RELEASE'
+    compile 'io.projectreactor:reactor-core:3.1.0.M2'
     compile 'io.netty:netty-buffer:4.1.12.Final'
 
-    testCompile "io.projectreactor.addons:reactor-test:3.0.7.RELEASE"
+    testCompile "io.projectreactor:reactor-test:3.1.0.M2"
 
     jmh 'org.openjdk.jmh:jmh-core:1.15'
     jmh 'org.openjdk.jmh:jmh-generator-annprocess:1.15'

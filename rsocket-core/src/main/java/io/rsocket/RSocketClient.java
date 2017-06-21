@@ -176,163 +176,168 @@ class RSocketClient implements RSocket {
 
   private Mono<Payload> handleRequestResponse(final Payload payload) {
     return started.then(
-        () -> {
-          int streamId = streamIdSupplier.nextStreamId();
-          final Frame requestFrame =
-              Frame.Request.from(streamId, FrameType.REQUEST_RESPONSE, payload, 1);
+        Mono.defer(
+            () -> {
+              int streamId = streamIdSupplier.nextStreamId();
+              final Frame requestFrame =
+                  Frame.Request.from(streamId, FrameType.REQUEST_RESPONSE, payload, 1);
 
-          MonoProcessor<Payload> receiver = MonoProcessor.create();
+              MonoProcessor<Payload> receiver = MonoProcessor.create();
 
-          synchronized (this) {
-            receivers.put(streamId, receiver);
-          }
+              synchronized (this) {
+                receivers.put(streamId, receiver);
+              }
 
-          MonoProcessor<Void> subscribedRequest =
-              connection
-                  .sendOne(requestFrame)
+              MonoProcessor<Void> subscribedRequest =
+                  connection
+                      .sendOne(requestFrame)
+                      .doOnError(
+                          t -> {
+                            errorConsumer.accept(t);
+                            receiver.cancel();
+                          })
+                      .toProcessor();
+              subscribedRequest.subscribe();
+
+              return receiver
                   .doOnError(
                       t -> {
-                        errorConsumer.accept(t);
-                        receiver.cancel();
+                        if (contains(streamId)
+                            && connection.availability() > 0.0
+                            && !receiver.isTerminated()) {
+                          connection
+                              .sendOne(Frame.Error.from(streamId, t))
+                              .doOnError(errorConsumer::accept)
+                              .subscribe();
+                        }
                       })
-                  .subscribe();
-
-          return receiver
-              .doOnError(
-                  t -> {
-                    if (contains(streamId)
-                        && connection.availability() > 0.0
-                        && !receiver.isTerminated()) {
-                      connection
-                          .sendOne(Frame.Error.from(streamId, t))
-                          .doOnError(errorConsumer::accept)
-                          .subscribe();
-                    }
-                  })
-              .doOnCancel(
-                  () -> {
-                    if (contains(streamId)
-                        && connection.availability() > 0.0
-                        && !receiver.isTerminated()) {
-                      connection
-                          .sendOne(Frame.Cancel.from(streamId))
-                          .doOnError(errorConsumer::accept)
-                          .subscribe();
-                    }
-                    subscribedRequest.cancel();
-                  })
-              .doFinally(s -> removeReceiver(streamId));
-        });
+                  .doOnCancel(
+                      () -> {
+                        if (contains(streamId)
+                            && connection.availability() > 0.0
+                            && !receiver.isTerminated()) {
+                          connection
+                              .sendOne(Frame.Cancel.from(streamId))
+                              .doOnError(errorConsumer::accept)
+                              .subscribe();
+                        }
+                        subscribedRequest.cancel();
+                      })
+                  .doFinally(s -> removeReceiver(streamId));
+            }));
   }
 
   private Flux<Payload> handleStreamResponse(Flux<Payload> request, FrameType requestType) {
     return started.thenMany(
-        new Supplier<Publisher<Payload>>() {
-          final UnicastProcessor<Payload> receiver = UnicastProcessor.create();
-          final int streamId = streamIdSupplier.nextStreamId();
-          volatile @Nullable MonoProcessor<Void> subscribedRequests;
-          boolean firstRequest = true;
+        Flux.defer(
+            new Supplier<Flux<Payload>>() {
+              final UnicastProcessor<Payload> receiver = UnicastProcessor.create();
+              final int streamId = streamIdSupplier.nextStreamId();
+              volatile @Nullable MonoProcessor<Void> subscribedRequests;
+              boolean firstRequest = true;
 
-          boolean isValidToSendFrame() {
-            return contains(streamId)
-                && connection.availability() > 0.0
-                && !receiver.isTerminated();
-          }
+              boolean isValidToSendFrame() {
+                return contains(streamId)
+                    && connection.availability() > 0.0
+                    && !receiver.isTerminated();
+              }
 
-          void sendOneFrame(Frame frame) {
-            if (isValidToSendFrame()) {
-              connection.sendOne(frame).doOnError(errorConsumer::accept).subscribe();
-            }
-          }
+              void sendOneFrame(Frame frame) {
+                if (isValidToSendFrame()) {
+                  connection.sendOne(frame).doOnError(errorConsumer::accept).subscribe();
+                }
+              }
 
-          @Override
-          public Publisher<Payload> get() {
-            return receiver
-                .doOnRequest(
-                    l -> {
-                      boolean _firstRequest = false;
-                      synchronized (RSocketClient.this) {
-                        if (firstRequest) {
-                          _firstRequest = true;
-                          firstRequest = false;
-                        }
-                      }
+              @Override
+              public Flux<Payload> get() {
+                return receiver
+                    .doOnRequest(
+                        l -> {
+                          boolean _firstRequest = false;
+                          synchronized (RSocketClient.this) {
+                            if (firstRequest) {
+                              _firstRequest = true;
+                              firstRequest = false;
+                            }
+                          }
 
-                      if (_firstRequest) {
-                        Flux<Frame> requestFrames =
-                            request
-                                .transform(
-                                    f -> {
-                                      LimitableRequestPublisher<Payload> wrapped =
-                                          LimitableRequestPublisher.wrap(f);
-                                      // Need to set this to one for first the frame
-                                      wrapped.increaseRequestLimit(1);
-                                      synchronized (RSocketClient.this) {
-                                        senders.put(streamId, wrapped);
-                                        receivers.put(streamId, receiver);
-                                      }
-
-                                      return wrapped;
-                                    })
-                                .map(
-                                    new Function<Payload, Frame>() {
-                                      boolean firstPayload = true;
-
-                                      @Override
-                                      public Frame apply(Payload payload) {
-                                        boolean _firstPayload = false;
-                                        synchronized (this) {
-                                          if (firstPayload) {
-                                            firstPayload = false;
-                                            _firstPayload = true;
+                          if (_firstRequest) {
+                            Flux<Frame> requestFrames =
+                                request
+                                    .transform(
+                                        f -> {
+                                          LimitableRequestPublisher<Payload> wrapped =
+                                              LimitableRequestPublisher.wrap(f);
+                                          // Need to set this to one for first the frame
+                                          wrapped.increaseRequestLimit(1);
+                                          synchronized (RSocketClient.this) {
+                                            senders.put(streamId, wrapped);
+                                            receivers.put(streamId, receiver);
                                           }
-                                        }
 
-                                        if (_firstPayload) {
-                                          return Frame.Request.from(
-                                              streamId, requestType, payload, l);
-                                        } else {
-                                          return Frame.PayloadFrame.from(
-                                              streamId, FrameType.NEXT, payload);
-                                        }
-                                      }
-                                    })
-                                .doOnComplete(
-                                    () -> {
-                                      if (FrameType.REQUEST_CHANNEL == requestType) {
-                                        sendOneFrame(
-                                            Frame.PayloadFrame.from(streamId, FrameType.COMPLETE));
-                                      }
-                                    });
+                                          return wrapped;
+                                        })
+                                    .map(
+                                        new Function<Payload, Frame>() {
+                                          boolean firstPayload = true;
 
-                        subscribedRequests =
-                            connection
-                                .send(requestFrames)
-                                .doOnError(
-                                    t -> {
-                                      errorConsumer.accept(t);
-                                      receiver.cancel();
-                                    })
-                                .subscribe();
-                      } else {
-                        sendOneFrame(Frame.RequestN.from(streamId, l));
-                      }
-                    })
-                .doOnError(t -> sendOneFrame(Frame.Error.from(streamId, t)))
-                .doOnCancel(
-                    () -> {
-                      sendOneFrame(Frame.Cancel.from(streamId));
-                      if (subscribedRequests != null) {
-                        subscribedRequests.cancel();
-                      }
-                    })
-                .doFinally(
-                    s -> {
-                      removeReceiver(streamId);
-                      removeSender(streamId);
-                    });
-          }
-        });
+                                          @Override
+                                          public Frame apply(Payload payload) {
+                                            boolean _firstPayload = false;
+                                            synchronized (this) {
+                                              if (firstPayload) {
+                                                firstPayload = false;
+                                                _firstPayload = true;
+                                              }
+                                            }
+
+                                            if (_firstPayload) {
+                                              return Frame.Request.from(
+                                                  streamId, requestType, payload, l);
+                                            } else {
+                                              return Frame.PayloadFrame.from(
+                                                  streamId, FrameType.NEXT, payload);
+                                            }
+                                          }
+                                        })
+                                    .doOnComplete(
+                                        () -> {
+                                          if (FrameType.REQUEST_CHANNEL == requestType) {
+                                            sendOneFrame(
+                                                Frame.PayloadFrame.from(
+                                                    streamId, FrameType.COMPLETE));
+                                          }
+                                        });
+
+                            subscribedRequests =
+                                connection
+                                    .send(requestFrames)
+                                    .doOnError(
+                                        t -> {
+                                          errorConsumer.accept(t);
+                                          receiver.cancel();
+                                        })
+                                    .toProcessor();
+                            subscribedRequests.subscribe();
+                          } else {
+                            sendOneFrame(Frame.RequestN.from(streamId, l));
+                          }
+                        })
+                    .doOnError(t -> sendOneFrame(Frame.Error.from(streamId, t)))
+                    .doOnCancel(
+                        () -> {
+                          sendOneFrame(Frame.Cancel.from(streamId));
+                          if (subscribedRequests != null) {
+                            subscribedRequests.cancel();
+                          }
+                        })
+                    .doFinally(
+                        s -> {
+                          removeReceiver(streamId);
+                          removeSender(streamId);
+                        });
+              }
+            }));
   }
 
   private boolean contains(int streamId) {
