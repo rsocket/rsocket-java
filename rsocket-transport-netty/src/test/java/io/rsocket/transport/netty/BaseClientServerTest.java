@@ -50,7 +50,7 @@ public abstract class BaseClientServerTest<T extends ClientSetupRule<?, ?>> {
     setup.testRequestResponseN(100);
   }
 
-  @Test(timeout = 10000)
+  @Test(timeout = 20000)
   public void testRequestResponse10_000() {
     setup.testRequestResponseN(10_000);
   }
