@@ -18,11 +18,12 @@ package io.rsocket;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
-import static org.junit.Assert.fail;
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.verify;
 
-import io.reactivex.subscribers.TestSubscriber;
 import io.rsocket.exceptions.InvalidRequestException;
 import io.rsocket.test.util.LocalDuplexConnection;
+import io.rsocket.test.util.TestSubscriber;
 import io.rsocket.util.PayloadImpl;
 import java.util.ArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -33,6 +34,7 @@ import org.junit.rules.ExternalResource;
 import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
 import org.reactivestreams.Publisher;
+import org.reactivestreams.Subscriber;
 import reactor.core.publisher.DirectProcessor;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -43,9 +45,10 @@ public class RSocketTest {
 
   @Test(timeout = 2_000)
   public void testRequestReplyNoError() {
-    TestSubscriber<Payload> subscriber = TestSubscriber.create();
+    Subscriber<Payload> subscriber = TestSubscriber.create();
     rule.crs.requestResponse(new PayloadImpl("hello")).subscribe(subscriber);
-    await(subscriber).assertNoErrors().assertComplete().assertValueCount(1);
+    verify(subscriber).onNext(TestSubscriber.anyPayload());
+    verify(subscriber).onComplete();
     rule.assertNoErrors();
   }
 
@@ -58,12 +61,9 @@ public class RSocketTest {
             return Mono.error(new NullPointerException("Deliberate exception."));
           }
         });
-    TestSubscriber<Payload> subscriber = TestSubscriber.create();
+    Subscriber<Payload> subscriber = TestSubscriber.create();
     rule.crs.requestResponse(PayloadImpl.EMPTY).subscribe(subscriber);
-    await(subscriber)
-        .assertNotComplete()
-        .assertNoValues()
-        .assertError(InvalidRequestException.class);
+    verify(subscriber).onError(any(InvalidRequestException.class));
     rule.assertNoErrors();
   }
 
@@ -77,15 +77,6 @@ public class RSocketTest {
     responses.doOnNext(p -> latch.countDown()).subscribe();
 
     latch.await();
-  }
-
-  private static TestSubscriber<Payload> await(TestSubscriber<Payload> subscriber) {
-    try {
-      return subscriber.await();
-    } catch (InterruptedException e) {
-      fail("Interrupted while waiting for completion.");
-      return null;
-    }
   }
 
   public static class SocketRule extends ExternalResource {

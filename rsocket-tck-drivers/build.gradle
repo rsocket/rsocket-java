@@ -14,7 +14,6 @@ jar {
 }
 
 dependencies {
-
     compile project(':rsocket-core')
     compile project(':rsocket-transport-netty')
     compile project(':rsocket-test')
@@ -22,4 +21,5 @@ dependencies {
     compile 'com.fasterxml.jackson.core:jackson-databind:2.8.8'
     compile 'org.apache.commons:commons-lang3:3.4'
     compile 'io.airlift:airline:0.7'
+    compile 'io.reactivex.rxjava2:rxjava:2.1.0'
 }

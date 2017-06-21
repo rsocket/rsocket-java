@@ -16,13 +16,13 @@
 
 package io.rsocket.test.util;
 
-import io.reactivex.subscribers.TestSubscriber;
 import io.rsocket.DuplexConnection;
 import io.rsocket.Frame;
 import java.util.Collection;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import org.reactivestreams.Publisher;
+import org.reactivestreams.Subscriber;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.DirectProcessor;
@@ -42,7 +42,7 @@ public class TestDuplexConnection implements DuplexConnection {
   private final DirectProcessor<Frame> sentPublisher;
   private final DirectProcessor<Frame> received;
   private final MonoProcessor<Void> close;
-  private final ConcurrentLinkedQueue<TestSubscriber<Frame>> sendSubscribers;
+  private final ConcurrentLinkedQueue<Subscriber<Frame>> sendSubscribers;
   private volatile double availability = 1;
   private volatile int initialSendRequestN = Integer.MAX_VALUE;
 
@@ -60,7 +60,7 @@ public class TestDuplexConnection implements DuplexConnection {
       return Mono.error(
           new IllegalStateException("RSocket not available. Availability: " + availability));
     }
-    TestSubscriber<Frame> subscriber = TestSubscriber.create(initialSendRequestN);
+    Subscriber<Frame> subscriber = TestSubscriber.create(initialSendRequestN);
     Flux.from(frames)
         .doOnNext(
             frame -> {
@@ -127,7 +127,7 @@ public class TestDuplexConnection implements DuplexConnection {
     this.initialSendRequestN = initialSendRequestN;
   }
 
-  public Collection<TestSubscriber<Frame>> getSendSubscribers() {
+  public Collection<Subscriber<Frame>> getSendSubscribers() {
     return sendSubscribers;
   }
 }

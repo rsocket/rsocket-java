@@ -50,6 +50,8 @@ subprojects {
     }
 
     dependencies {
+        compile 'io.projectreactor:reactor-core:3.1.0.M2'
+        compile 'io.netty:netty-buffer:4.1.12.Final'
         compile 'org.reactivestreams:reactive-streams:1.0.0'
         compile 'org.slf4j:slf4j-api:1.7.25'
         compile 'com.google.code.findbugs:jsr305:3.0.0'
@@ -58,7 +60,7 @@ subprojects {
         testCompile 'org.mockito:mockito-core:1.10.19'
         testCompile 'org.hamcrest:hamcrest-library:1.3'
         testCompile 'org.slf4j:slf4j-log4j12:1.7.25'
-        testCompile 'io.reactivex.rxjava2:rxjava:2.1.0'
+        testCompile 'io.projectreactor:reactor-test:3.1.0.M2'
     }
 
     test {

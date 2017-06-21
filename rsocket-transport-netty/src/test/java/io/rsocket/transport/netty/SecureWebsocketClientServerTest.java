@@ -15,6 +15,8 @@
  */
 package io.rsocket.transport.netty;
 
+import io.rsocket.test.BaseClientServerTest;
+
 public class SecureWebsocketClientServerTest
     extends BaseClientServerTest<SecureWebsocketClientSetupRule> {
   @Override

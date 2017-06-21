@@ -16,9 +16,9 @@
 
 dependencies {
     compile project(':rsocket-core')
-    compile 'io.reactivex.rxjava2:rxjava:2.1.0'
     compile 'junit:junit:4.12'
     compile 'org.mockito:mockito-core:1.10.19'
     compile 'org.hamcrest:hamcrest-library:1.3'
     compile 'org.hdrhistogram:HdrHistogram:latest.release'
+    compile "io.projectreactor:reactor-test:3.1.0.M2"
 }
