@@ -55,11 +55,4 @@ public class NettyUriTransportRegistryTest {
 
     assertTrue(transport instanceof WebsocketServerTransport);
   }
-
-  @Test
-  public void testWsClientFailing() {
-    ClientTransport transport = UriTransportRegistry.clientForUri("ws://yschimke.sb.facebook.com:8090");
-
-    assertTrue(transport instanceof WebsocketClientTransport);
-  }
 }
