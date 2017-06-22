@@ -25,7 +25,7 @@ import java.util.Optional;
 public class LocalUriHandler implements UriHandler {
   @Override
   public Optional<ClientTransport> buildClient(URI uri) {
-    if (uri.getScheme().equals("local")) {
+    if ("local".equals(uri.getScheme())) {
       return Optional.of(LocalClientTransport.create(uri.getSchemeSpecificPart()));
     }
 
@@ -34,7 +34,7 @@ public class LocalUriHandler implements UriHandler {
 
   @Override
   public Optional<ServerTransport> buildServer(URI uri) {
-    if (uri.getScheme().equals("local")) {
+    if ("local".equals(uri.getScheme())) {
       return Optional.of(LocalServerTransport.create(uri.getSchemeSpecificPart()));
     }
 

@@ -25,7 +25,7 @@ import reactor.core.publisher.Mono;
 public class TestUriHandler implements UriHandler {
   @Override
   public Optional<ClientTransport> buildClient(URI uri) {
-    if (uri.getScheme().equals("test")) {
+    if ("test".equals(uri.getScheme())) {
       return Optional.of(() -> Mono.just(new TestDuplexConnection()));
     }
     return UriHandler.super.buildClient(uri);
