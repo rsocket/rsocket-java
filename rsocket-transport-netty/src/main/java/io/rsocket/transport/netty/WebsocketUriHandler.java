@@ -27,7 +27,7 @@ import java.util.Optional;
 public class WebsocketUriHandler implements UriHandler {
   @Override
   public Optional<ClientTransport> buildClient(URI uri) {
-    if (uri.getScheme().equals("ws") || uri.getScheme().equals("wss")) {
+    if ("ws".equals(uri.getScheme()) || "wss".equals(uri.getScheme())) {
       return Optional.of(WebsocketClientTransport.create(uri));
     }
 
@@ -36,7 +36,7 @@ public class WebsocketUriHandler implements UriHandler {
 
   @Override
   public Optional<ServerTransport> buildServer(URI uri) {
-    if (uri.getScheme().equals("ws")) {
+    if ("ws".equals(uri.getScheme())) {
       return Optional.of(
           WebsocketServerTransport.create(
               uri.getHost(), WebsocketClientTransport.getPort(uri, 80)));

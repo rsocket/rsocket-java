@@ -28,7 +28,7 @@ import reactor.ipc.netty.tcp.TcpServer;
 public class TcpUriHandler implements UriHandler {
   @Override
   public Optional<ClientTransport> buildClient(URI uri) {
-    if (uri.getScheme().equals("tcp")) {
+    if ("tcp".equals(uri.getScheme())) {
       return Optional.of(TcpClientTransport.create(uri.getHost(), uri.getPort()));
     }
 
@@ -37,7 +37,7 @@ public class TcpUriHandler implements UriHandler {
 
   @Override
   public Optional<ServerTransport> buildServer(URI uri) {
-    if (uri.getScheme().equals("tcp")) {
+    if ("tcp".equals(uri.getScheme())) {
       return Optional.of(TcpServerTransport.create(TcpServer.create(uri.getHost(), uri.getPort())));
     }
 
