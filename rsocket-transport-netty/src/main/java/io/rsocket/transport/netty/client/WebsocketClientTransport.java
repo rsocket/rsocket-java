@@ -49,7 +49,7 @@ public class WebsocketClientTransport implements ClientTransport {
 
   public static WebsocketClientTransport create(URI uri) {
     HttpClient httpClient = createClient(uri);
-    return create(httpClient, uri.getPath());
+    return create(httpClient, uri.toString());
   }
 
   private static HttpClient createClient(URI uri) {
