@@ -15,9 +15,13 @@
  */
 package io.rsocket.transport.netty;
 
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.CompositeByteBuf;
+import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.http.websocketx.BinaryWebSocketFrame;
 import io.rsocket.DuplexConnection;
 import io.rsocket.Frame;
+import io.rsocket.frame.FrameHeaderFlyweight;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -43,12 +47,20 @@ public class WebsocketDuplexConnection implements DuplexConnection {
 
   @Override
   public Mono<Void> sendOne(Frame frame) {
-    return out.sendObject(new BinaryWebSocketFrame(frame.content())).then();
+    ByteBuf content = frame.content().skipBytes(3);
+    return out.sendObject(new BinaryWebSocketFrame(content)).then();
   }
 
   @Override
   public Flux<Frame> receive() {
-    return in.receive().map(buf -> Frame.from(buf.retain()));
+    return in.receive().map(buf -> {
+      buf.retain();
+      CompositeByteBuf composite = context.channel().alloc().compositeBuffer();
+      ByteBuf length = Unpooled.wrappedBuffer(new byte[3]);
+      FrameHeaderFlyweight.encodeLength(length, 0, buf.readableBytes());
+      composite.addComponents(true, length, buf);
+      return Frame.from(composite);
+    });
   }
 
   @Override
