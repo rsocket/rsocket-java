@@ -16,34 +16,22 @@
 
 package io.rsocket.frame;
 
-import static org.junit.Assert.*;
-
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
+import io.rsocket.FrameType;
 import java.nio.charset.StandardCharsets;
 import org.junit.Test;
 
-public class KeepaliveFrameFlyweightTest {
+import static org.junit.Assert.assertEquals;
+
+public class RequestNFrameFlyweightTest {
   private final ByteBuf byteBuf = Unpooled.buffer(1024);
 
   @Test
-  public void canReadData() {
-    ByteBuf data = Unpooled.wrappedBuffer(new byte[] {5, 4, 3});
-    int length =
-        KeepaliveFrameFlyweight.encode(byteBuf, KeepaliveFrameFlyweight.FLAGS_KEEPALIVE_R, data);
-    data.resetReaderIndex();
-
-    assertEquals(
-        KeepaliveFrameFlyweight.FLAGS_KEEPALIVE_R,
-        FrameHeaderFlyweight.flags(byteBuf) & KeepaliveFrameFlyweight.FLAGS_KEEPALIVE_R);
-    assertEquals(data, FrameHeaderFlyweight.sliceFrameData(byteBuf));
-  }
-
-  @Test
   public void testEncoding() {
-    int encoded = KeepaliveFrameFlyweight.encode(byteBuf, KeepaliveFrameFlyweight.FLAGS_KEEPALIVE_R, Unpooled.copiedBuffer("d", StandardCharsets.UTF_8));
-    assertEquals("00000f000000000c80000000000000000064", ByteBufUtil
+    int encoded = RequestNFrameFlyweight.encode(byteBuf, 1, 5);
+    assertEquals("00000a00000001200000000005", ByteBufUtil
         .hexDump(byteBuf, 0, encoded));
   }
 }
