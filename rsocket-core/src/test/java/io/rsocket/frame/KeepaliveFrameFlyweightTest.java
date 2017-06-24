@@ -42,8 +42,11 @@ public class KeepaliveFrameFlyweightTest {
 
   @Test
   public void testEncoding() {
-    int encoded = KeepaliveFrameFlyweight.encode(byteBuf, KeepaliveFrameFlyweight.FLAGS_KEEPALIVE_R, Unpooled.copiedBuffer("d", StandardCharsets.UTF_8));
-    assertEquals("00000f000000000c80000000000000000064", ByteBufUtil
-        .hexDump(byteBuf, 0, encoded));
+    int encoded =
+        KeepaliveFrameFlyweight.encode(
+            byteBuf,
+            KeepaliveFrameFlyweight.FLAGS_KEEPALIVE_R,
+            Unpooled.copiedBuffer("d", StandardCharsets.UTF_8));
+    assertEquals("00000f000000000c80000000000000000064", ByteBufUtil.hexDump(byteBuf, 0, encoded));
   }
 }

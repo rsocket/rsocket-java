@@ -36,8 +36,10 @@ public class LeaseFrameFlyweightTest {
 
   @Test
   public void testEncoding() {
-    int encoded = LeaseFrameFlyweight.encode(byteBuf, 0, 0, Unpooled.copiedBuffer("md", StandardCharsets.UTF_8));
-    assertEquals("00001000000000090000000000000000006d64", ByteBufUtil
-        .hexDump(byteBuf, 0, encoded));
+    int encoded =
+        LeaseFrameFlyweight.encode(
+            byteBuf, 0, 0, Unpooled.copiedBuffer("md", StandardCharsets.UTF_8));
+    assertEquals(
+        "00001000000000090000000000000000006d64", ByteBufUtil.hexDump(byteBuf, 0, encoded));
   }
 }

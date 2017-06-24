@@ -89,9 +89,18 @@ public class SetupFrameFlyweightTest {
 
   @Test
   public void testEncoding() {
-    int encoded = SetupFrameFlyweight.encode(byteBuf, 0, 5000, 60000, "mdmt", "dmt",
-        Unpooled.copiedBuffer("md", StandardCharsets.UTF_8), Unpooled.copiedBuffer("d",
-            StandardCharsets.UTF_8));
-    assertEquals("00002100000000050000010000000013880000ea60046d646d7403646d740000026d6464", ByteBufUtil.hexDump(byteBuf, 0, encoded));
+    int encoded =
+        SetupFrameFlyweight.encode(
+            byteBuf,
+            0,
+            5000,
+            60000,
+            "mdmt",
+            "dmt",
+            Unpooled.copiedBuffer("md", StandardCharsets.UTF_8),
+            Unpooled.copiedBuffer("d", StandardCharsets.UTF_8));
+    assertEquals(
+        "00002100000000050000010000000013880000ea60046d646d7403646d740000026d6464",
+        ByteBufUtil.hexDump(byteBuf, 0, encoded));
   }
 }

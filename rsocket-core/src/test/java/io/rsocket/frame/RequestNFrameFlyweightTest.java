@@ -16,14 +16,12 @@
 
 package io.rsocket.frame;
 
+import static org.junit.Assert.assertEquals;
+
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
-import io.rsocket.FrameType;
-import java.nio.charset.StandardCharsets;
 import org.junit.Test;
-
-import static org.junit.Assert.assertEquals;
 
 public class RequestNFrameFlyweightTest {
   private final ByteBuf byteBuf = Unpooled.buffer(1024);
@@ -31,7 +29,6 @@ public class RequestNFrameFlyweightTest {
   @Test
   public void testEncoding() {
     int encoded = RequestNFrameFlyweight.encode(byteBuf, 1, 5);
-    assertEquals("00000a00000001200000000005", ByteBufUtil
-        .hexDump(byteBuf, 0, encoded));
+    assertEquals("00000a00000001200000000005", ByteBufUtil.hexDump(byteBuf, 0, encoded));
   }
 }

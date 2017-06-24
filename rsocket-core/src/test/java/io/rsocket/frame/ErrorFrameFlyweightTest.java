@@ -16,21 +16,27 @@
 
 package io.rsocket.frame;
 
+import static org.junit.Assert.assertEquals;
+
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
 import java.nio.charset.StandardCharsets;
 import org.junit.Test;
 
-import static org.junit.Assert.assertEquals;
-
 public class ErrorFrameFlyweightTest {
   private final ByteBuf byteBuf = Unpooled.buffer(1024);
 
   @Test
   public void testEncoding() {
-    int encoded = ErrorFrameFlyweight.encode(byteBuf, 1, ErrorFrameFlyweight.APPLICATION_ERROR, Unpooled.copiedBuffer("md", StandardCharsets.UTF_8), Unpooled.copiedBuffer("d", StandardCharsets.UTF_8));
-    assertEquals("000010000000012d00000002010000026d6464", ByteBufUtil
-        .hexDump(byteBuf, 0, encoded));
+    int encoded =
+        ErrorFrameFlyweight.encode(
+            byteBuf,
+            1,
+            ErrorFrameFlyweight.APPLICATION_ERROR,
+            Unpooled.copiedBuffer("md", StandardCharsets.UTF_8),
+            Unpooled.copiedBuffer("d", StandardCharsets.UTF_8));
+    assertEquals(
+        "000010000000012d00000002010000026d6464", ByteBufUtil.hexDump(byteBuf, 0, encoded));
   }
 }
