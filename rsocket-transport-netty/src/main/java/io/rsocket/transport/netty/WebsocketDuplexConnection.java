@@ -17,7 +17,6 @@ package io.rsocket.transport.netty;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.CompositeByteBuf;
-import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.http.websocketx.BinaryWebSocketFrame;
 import io.rsocket.DuplexConnection;
 import io.rsocket.Frame;
@@ -29,6 +28,14 @@ import reactor.ipc.netty.NettyContext;
 import reactor.ipc.netty.NettyInbound;
 import reactor.ipc.netty.NettyOutbound;
 
+import static io.netty.buffer.Unpooled.wrappedBuffer;
+
+/**
+ * Implementation of a DuplexConnection for Websocket.
+ *
+ * rsocket-java strongly assumes that each Frame is encoded with the length. This is not true for message oriented
+ * transports so this must be specifically dropped from Frames sent and stitched back on for frames received.
+ */
 public class WebsocketDuplexConnection implements DuplexConnection {
   private final NettyInbound in;
   private final NettyOutbound out;
@@ -47,18 +54,16 @@ public class WebsocketDuplexConnection implements DuplexConnection {
 
   @Override
   public Mono<Void> sendOne(Frame frame) {
-    ByteBuf content = frame.content().skipBytes(3);
-    return out.sendObject(new BinaryWebSocketFrame(content)).then();
+    return out.sendObject(new BinaryWebSocketFrame(frame.content().skipBytes(3))).then();
   }
 
   @Override
   public Flux<Frame> receive() {
     return in.receive().map(buf -> {
-      buf.retain();
       CompositeByteBuf composite = context.channel().alloc().compositeBuffer();
-      ByteBuf length = Unpooled.wrappedBuffer(new byte[3]);
+      ByteBuf length = wrappedBuffer(new byte[3]);
       FrameHeaderFlyweight.encodeLength(length, 0, buf.readableBytes());
-      composite.addComponents(true, length, buf);
+      composite.addComponents(true, length, buf.retain());
       return Frame.from(composite);
     });
   }
