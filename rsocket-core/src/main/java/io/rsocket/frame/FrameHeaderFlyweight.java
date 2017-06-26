@@ -268,7 +268,7 @@ public class FrameHeaderFlyweight {
     return frameType.canHaveData();
   }
 
-  private static void encodeLength(final ByteBuf byteBuf, final int offset, final int length) {
+  public static void encodeLength(final ByteBuf byteBuf, final int offset, final int length) {
     if ((length & ~FRAME_LENGTH_MASK) != 0) {
       throw new IllegalArgumentException("Length is larger than 24 bits");
     }
