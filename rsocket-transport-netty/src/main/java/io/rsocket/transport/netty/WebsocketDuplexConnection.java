@@ -55,7 +55,7 @@ public class WebsocketDuplexConnection implements DuplexConnection {
 
   @Override
   public Mono<Void> sendOne(Frame frame) {
-    return out.sendObject(new BinaryWebSocketFrame(frame.content().skipBytes(3))).then();
+    return out.sendObject(new BinaryWebSocketFrame(frame.content().skipBytes(FRAME_LENGTH_SIZE))).then();
   }
 
   @Override
