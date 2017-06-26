@@ -19,8 +19,10 @@ package io.rsocket.frame;
 import static org.junit.Assert.*;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
 import io.rsocket.FrameType;
+import java.nio.charset.StandardCharsets;
 import org.junit.Test;
 
 public class SetupFrameFlyweightTest {
@@ -83,5 +85,22 @@ public class SetupFrameFlyweightTest {
     assertEquals(
         SetupFrameFlyweight.FLAGS_RESUME_ENABLE,
         FrameHeaderFlyweight.flags(byteBuf) & SetupFrameFlyweight.FLAGS_RESUME_ENABLE);
+  }
+
+  @Test
+  public void testEncoding() {
+    int encoded =
+        SetupFrameFlyweight.encode(
+            byteBuf,
+            0,
+            5000,
+            60000,
+            "mdmt",
+            "dmt",
+            Unpooled.copiedBuffer("md", StandardCharsets.UTF_8),
+            Unpooled.copiedBuffer("d", StandardCharsets.UTF_8));
+    assertEquals(
+        "00002100000000050000010000000013880000ea60046d646d7403646d740000026d6464",
+        ByteBufUtil.hexDump(byteBuf, 0, encoded));
   }
 }

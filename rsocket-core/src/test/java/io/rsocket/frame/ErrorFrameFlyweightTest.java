@@ -16,7 +16,7 @@
 
 package io.rsocket.frame;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
@@ -24,22 +24,19 @@ import io.netty.buffer.Unpooled;
 import java.nio.charset.StandardCharsets;
 import org.junit.Test;
 
-public class LeaseFrameFlyweightTest {
+public class ErrorFrameFlyweightTest {
   private final ByteBuf byteBuf = Unpooled.buffer(1024);
-
-  @Test
-  public void size() {
-    ByteBuf metadata = Unpooled.wrappedBuffer(new byte[] {1, 2, 3, 4});
-    int length = LeaseFrameFlyweight.encode(byteBuf, 0, 0, metadata);
-    assertEquals(length, 9 + 4 * 2 + 4); // Frame header + ttl + #requests + 4 byte metadata
-  }
 
   @Test
   public void testEncoding() {
     int encoded =
-        LeaseFrameFlyweight.encode(
-            byteBuf, 0, 0, Unpooled.copiedBuffer("md", StandardCharsets.UTF_8));
+        ErrorFrameFlyweight.encode(
+            byteBuf,
+            1,
+            ErrorFrameFlyweight.APPLICATION_ERROR,
+            Unpooled.copiedBuffer("md", StandardCharsets.UTF_8),
+            Unpooled.copiedBuffer("d", StandardCharsets.UTF_8));
     assertEquals(
-        "00001000000000090000000000000000006d64", ByteBufUtil.hexDump(byteBuf, 0, encoded));
+        "000010000000012d00000002010000026d6464", ByteBufUtil.hexDump(byteBuf, 0, encoded));
   }
 }

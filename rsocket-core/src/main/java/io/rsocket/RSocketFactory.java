@@ -34,9 +34,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import reactor.core.publisher.Mono;
 
-/**
- * Factory for creating RSocket clients and servers.
- */
+/** Factory for creating RSocket clients and servers. */
 public interface RSocketFactory {
   /** Creates a factory that establishes client connections to other RSockets */
   static ClientRSocketFactory connect() {
