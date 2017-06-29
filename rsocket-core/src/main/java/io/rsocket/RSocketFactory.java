@@ -35,7 +35,8 @@ import java.util.function.Supplier;
 import reactor.core.publisher.Mono;
 
 /** Factory for creating RSocket clients and servers. */
-public interface RSocketFactory {
+public interface
+RSocketFactory {
   /** Creates a factory that establishes client connections to other RSockets */
   static ClientRSocketFactory connect() {
     return new ClientRSocketFactory();
@@ -99,9 +100,9 @@ public interface RSocketFactory {
   }
 
   interface MimeType<T> {
-    T mimeType(String dataMineType, String metadataMimeType);
+    T mimeType(String metadataMimeType, String dataMimeType);
 
-    T dataMineType(String dataMineType);
+    T dataMimeType(String dataMimeType);
 
     T metadataMimeType(String metadataMimeType);
   }
@@ -130,8 +131,8 @@ public interface RSocketFactory {
     private Duration ackTimeout = Duration.ofSeconds(30);
     private int missedAcks = 3;
 
-    private String dataMineType = "application/binary";
     private String metadataMimeType = "application/binary";
+    private String dataMimeType = "application/binary";
 
     public ClientRSocketFactory addConnectionPlugin(DuplexConnectionInterceptor interceptor) {
       plugins.addConnectionPlugin(interceptor);
@@ -182,15 +183,15 @@ public interface RSocketFactory {
     }
 
     @Override
-    public ClientRSocketFactory mimeType(String dataMineType, String metadataMimeType) {
-      this.dataMineType = dataMineType;
+    public ClientRSocketFactory mimeType(String dataMimeType, String metadataMimeType) {
+      this.dataMimeType = dataMimeType;
       this.metadataMimeType = metadataMimeType;
       return this;
     }
 
     @Override
-    public ClientRSocketFactory dataMineType(String dataMineType) {
-      this.dataMineType = dataMineType;
+    public ClientRSocketFactory dataMimeType(String dataMimeType) {
+      this.dataMimeType = dataMimeType;
       return this;
     }
 
@@ -253,8 +254,8 @@ public interface RSocketFactory {
                           flags,
                           (int) ackTimeout.toMillis(),
                           (int) ackTimeout.toMillis() * missedAcks,
-                          dataMineType,
                           metadataMimeType,
+                          dataMimeType,
                           setupPayload);
 
                   if (mtu > 0) {
