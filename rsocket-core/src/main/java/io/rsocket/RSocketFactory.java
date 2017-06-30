@@ -35,8 +35,7 @@ import java.util.function.Supplier;
 import reactor.core.publisher.Mono;
 
 /** Factory for creating RSocket clients and servers. */
-public interface
-RSocketFactory {
+public interface RSocketFactory {
   /** Creates a factory that establishes client connections to other RSockets */
   static ClientRSocketFactory connect() {
     return new ClientRSocketFactory();
@@ -183,7 +182,7 @@ RSocketFactory {
     }
 
     @Override
-    public ClientRSocketFactory mimeType(String dataMimeType, String metadataMimeType) {
+    public ClientRSocketFactory mimeType(String metadataMimeType, String dataMimeType) {
       this.dataMimeType = dataMimeType;
       this.metadataMimeType = metadataMimeType;
       return this;
