@@ -16,6 +16,20 @@
 
 package io.rsocket;
 
+import io.rsocket.exceptions.ApplicationException;
+import io.rsocket.exceptions.RejectedSetupException;
+import io.rsocket.test.util.TestSubscriber;
+import io.rsocket.util.PayloadImpl;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Collectors;
+import org.junit.Rule;
+import org.junit.Test;
+import org.reactivestreams.Publisher;
+import org.reactivestreams.Subscriber;
+import reactor.core.publisher.Mono;
+
 import static io.rsocket.FrameType.CANCEL;
 import static io.rsocket.FrameType.KEEPALIVE;
 import static io.rsocket.FrameType.NEXT_COMPLETE;
@@ -32,30 +46,13 @@ import static org.hamcrest.Matchers.not;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.verify;
 
-import io.rsocket.exceptions.ApplicationException;
-import io.rsocket.exceptions.RejectedSetupException;
-import io.rsocket.test.util.TestSubscriber;
-import io.rsocket.util.PayloadImpl;
-import java.util.ArrayList;
-import java.util.List;
-import org.junit.Ignore;
-import org.junit.Rule;
-import org.junit.Test;
-import org.reactivestreams.Publisher;
-import org.reactivestreams.Subscriber;
-import org.reactivestreams.Subscription;
-import reactor.core.publisher.DirectProcessor;
-import reactor.core.publisher.Mono;
-
 public class RSocketClientTest {
 
   @Rule public final ClientSocketRule rule = new ClientSocketRule();
 
-  /** TODO reenable */
   @Test(timeout = 2_000)
-  @Ignore
   public void testKeepAlive() throws Exception {
-    rule.keepAliveTicks.onNext(1L);
+    RSocketClient socket = rule.newRSocket();
     assertThat("Unexpected frame sent.", rule.connection.awaitSend().getType(), is(KEEPALIVE));
   }
 
@@ -107,28 +104,20 @@ public class RSocketClientTest {
     verify(sub).onComplete();
   }
 
-  /**
-   * TODO test case shows a bug where a 0 initial request, that was cancelled is causing a network
-   * call.
-   */
   @Test(timeout = 2_000)
-  @Ignore
   public void testRequestReplyWithCancel() throws Throwable {
-    rule.connection.clearSendReceiveBuffers(); // clear setup frame
-    Publisher<Payload> response = rule.socket.requestResponse(PayloadImpl.EMPTY);
-    Subscriber<Payload> sub = TestSubscriber.createCancelling();
-    response.subscribe(sub);
+    Mono<Payload> response = rule.socket.requestResponse(PayloadImpl.EMPTY);
 
-    verify(sub).onSubscribe(any(Subscription.class));
+    try {
+      response.block(Duration.ofMillis(100));
+    } catch (IllegalStateException ise) {}
 
-    assertThat(
-        "Unexpected frame sent on the connection.",
-        rule.connection.awaitSend().getType(),
-        is(REQUEST_RESPONSE));
-    assertThat(
-        "Unexpected frame sent on the connection.",
-        rule.connection.awaitSend().getType(),
-        is(CANCEL));
+    List<Frame> sent =
+        rule.connection.getSent().stream().filter(f -> f.getType() != KEEPALIVE).collect(
+            Collectors.toList());
+
+    assertThat("Unexpected frame sent on the connection.", sent.get(0).getType(), is(REQUEST_RESPONSE));
+    assertThat("Unexpected frame sent on the connection.", sent.get(1).getType(), is(CANCEL));
   }
 
   @Test(timeout = 2_000)
@@ -162,13 +151,11 @@ public class RSocketClientTest {
   }
 
   public static class ClientSocketRule extends AbstractSocketRule<RSocketClient> {
-
-    private final DirectProcessor<Long> keepAliveTicks = DirectProcessor.create();
-
     @Override
     protected RSocketClient newRSocket() {
       return new RSocketClient(
-          connection, throwable -> errors.add(throwable), StreamIdSupplier.clientSupplier());
+          connection, throwable -> errors.add(throwable), StreamIdSupplier.clientSupplier(),
+          Duration.ofMillis(100), Duration.ofMillis(100), 4);
     }
 
     public int getStreamIdForRequestType(FrameType expectedFrameType) {
