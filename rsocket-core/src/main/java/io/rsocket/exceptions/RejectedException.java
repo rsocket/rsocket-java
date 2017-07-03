@@ -15,8 +15,19 @@
  */
 package io.rsocket.exceptions;
 
-public class RejectedException extends RuntimeException implements Retryable {
+import io.rsocket.frame.ErrorFrameFlyweight;
+
+public class RejectedException extends RSocketException implements Retryable {
   public RejectedException(String message) {
     super(message);
+  }
+
+  public RejectedException(String message, Throwable cause) {
+    super(message, cause);
+  }
+
+  @Override
+  public int errorCode() {
+    return ErrorFrameFlyweight.REJECTED;
   }
 }

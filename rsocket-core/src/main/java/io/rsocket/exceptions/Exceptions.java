@@ -28,34 +28,30 @@ public class Exceptions {
   public static RuntimeException from(Frame frame) {
     final int errorCode = Frame.Error.errorCode(frame);
 
-    RuntimeException ex;
+    String message = StandardCharsets.UTF_8.decode(frame.getData()).toString();
     switch (errorCode) {
       case APPLICATION_ERROR:
-        ex = new ApplicationException(new PayloadImpl(frame));
-        break;
+        return new ApplicationException(message);
+      case CANCELED:
+        return new CancelException(message);
+      case CONNECTION_CLOSE:
+        return new ConnectionCloseException(message);
       case CONNECTION_ERROR:
-        ex = new ConnectionException(StandardCharsets.UTF_8.decode(frame.getData()).toString());
-        break;
+        return new ConnectionException(message);
       case INVALID:
-        ex = new InvalidRequestException(StandardCharsets.UTF_8.decode(frame.getData()).toString());
-        break;
+        return new InvalidRequestException(message);
       case INVALID_SETUP:
-        ex = new InvalidSetupException(StandardCharsets.UTF_8.decode(frame.getData()).toString());
-        break;
+        return new InvalidSetupException(message);
       case REJECTED:
-        ex = new RejectedException(StandardCharsets.UTF_8.decode(frame.getData()).toString());
-        break;
+        return new RejectedException(message);
+      case REJECTED_RESUME:
+        return new RejectedResumeException(message);
       case REJECTED_SETUP:
-        ex = new RejectedSetupException(StandardCharsets.UTF_8.decode(frame.getData()).toString());
-        break;
+        return new RejectedSetupException(message);
       case UNSUPPORTED_SETUP:
-        ex =
-            new UnsupportedSetupException(
-                StandardCharsets.UTF_8.decode(frame.getData()).toString());
-        break;
+        return new UnsupportedSetupException(message);
       default:
-        ex = new InvalidRequestException("Invalid Error frame");
+        return new InvalidRequestException("Invalid Error frame: " + errorCode + " '" + message + "'");
     }
-    return ex;
   }
 }

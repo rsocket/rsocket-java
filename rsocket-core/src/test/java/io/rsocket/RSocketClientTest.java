@@ -88,7 +88,7 @@ public class RSocketClientTest {
 
     int streamId = rule.getStreamIdForRequestType(REQUEST_RESPONSE);
     rule.connection.addToReceivedBuffer(
-        Frame.Error.from(streamId, new ApplicationException(PayloadImpl.EMPTY)));
+        Frame.Error.from(streamId, new ApplicationException("error")));
 
     verify(responseSub).onError(any(ApplicationException.class));
   }

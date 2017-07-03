@@ -15,8 +15,19 @@
  */
 package io.rsocket.exceptions;
 
+import io.rsocket.frame.ErrorFrameFlyweight;
+
 public class UnsupportedSetupException extends SetupException {
   public UnsupportedSetupException(String message) {
     super(message);
+  }
+
+  public UnsupportedSetupException(String message, Throwable cause) {
+    super(message, cause);
+  }
+
+  @Override
+  public int errorCode() {
+    return ErrorFrameFlyweight.UNSUPPORTED_SETUP;
   }
 }

@@ -15,8 +15,19 @@
  */
 package io.rsocket.exceptions;
 
-public class ConnectionException extends RuntimeException implements Retryable {
+import io.rsocket.frame.ErrorFrameFlyweight;
+
+public class ConnectionException extends RSocketException implements Retryable {
   public ConnectionException(String message) {
     super(message);
+  }
+
+  public ConnectionException(String message, Throwable cause) {
+    super(message, cause);
+  }
+
+  @Override
+  public int errorCode() {
+    return ErrorFrameFlyweight.CONNECTION_ERROR;
   }
 }

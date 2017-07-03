@@ -17,14 +17,9 @@ package io.rsocket.frame;
 
 import io.netty.buffer.ByteBuf;
 import io.rsocket.FrameType;
-import io.rsocket.exceptions.ApplicationException;
-import io.rsocket.exceptions.CancelException;
-import io.rsocket.exceptions.ConnectionException;
-import io.rsocket.exceptions.InvalidRequestException;
-import io.rsocket.exceptions.InvalidSetupException;
-import io.rsocket.exceptions.RejectedException;
-import io.rsocket.exceptions.RejectedSetupException;
-import io.rsocket.exceptions.UnsupportedSetupException;
+import io.rsocket.exceptions.*;
+
+import java.nio.charset.StandardCharsets;
 
 public class ErrorFrameFlyweight {
 
@@ -39,7 +34,7 @@ public class ErrorFrameFlyweight {
   public static final int CONNECTION_CLOSE = 0x00000102;
   public static final int APPLICATION_ERROR = 0x00000201;
   public static final int REJECTED = 0x00000202;
-  public static final int CANCEL = 0x00000203;
+  public static final int CANCELED = 0x00000203;
   public static final int INVALID = 0x00000204;
 
   // relative to start of passed offset
@@ -56,9 +51,8 @@ public class ErrorFrameFlyweight {
       final ByteBuf byteBuf,
       final int streamId,
       final int errorCode,
-      final ByteBuf metadata,
       final ByteBuf data) {
-    final int frameLength = computeFrameLength(metadata.readableBytes(), data.readableBytes());
+    final int frameLength = computeFrameLength(0, data.readableBytes());
 
     int length =
         FrameHeaderFlyweight.encodeFrameHeader(byteBuf, frameLength, 0, FrameType.ERROR, streamId);
@@ -66,31 +60,17 @@ public class ErrorFrameFlyweight {
     byteBuf.setInt(ERROR_CODE_FIELD_OFFSET, errorCode);
     length += Integer.BYTES;
 
-    length += FrameHeaderFlyweight.encodeMetadata(byteBuf, FrameType.ERROR, length, metadata);
     length += FrameHeaderFlyweight.encodeData(byteBuf, length, data);
 
     return length;
   }
 
   public static int errorCodeFromException(Throwable ex) {
-    if (ex instanceof InvalidSetupException) {
-      return INVALID_SETUP;
-    } else if (ex instanceof UnsupportedSetupException) {
-      return UNSUPPORTED_SETUP;
-    } else if (ex instanceof RejectedSetupException) {
-      return REJECTED_SETUP;
-    } else if (ex instanceof ConnectionException) {
-      return CONNECTION_ERROR;
-    } else if (ex instanceof InvalidRequestException) {
-      return INVALID;
-    } else if (ex instanceof ApplicationException) {
-      return APPLICATION_ERROR;
-    } else if (ex instanceof RejectedException) {
-      return REJECTED;
-    } else if (ex instanceof CancelException) {
-      return CANCEL;
+    if (ex instanceof RSocketException) {
+      return ((RSocketException) ex).errorCode();
     }
-    return INVALID;
+
+    return APPLICATION_ERROR;
   }
 
   public static int errorCode(final ByteBuf byteBuf) {
@@ -99,5 +79,9 @@ public class ErrorFrameFlyweight {
 
   public static int payloadOffset(final ByteBuf byteBuf) {
     return FrameHeaderFlyweight.FRAME_HEADER_LENGTH + Integer.BYTES;
+  }
+
+  public static String message(ByteBuf content) {
+    return FrameHeaderFlyweight.sliceFrameData(content).toString(StandardCharsets.UTF_8);
   }
 }

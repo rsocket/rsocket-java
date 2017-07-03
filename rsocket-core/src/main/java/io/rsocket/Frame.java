@@ -354,8 +354,7 @@ public class Frame implements ByteBufHolder {
 
     private Error() {}
 
-    public static Frame from(
-        int streamId, final Throwable throwable, ByteBuf metadata, ByteBuf data) {
+    public static Frame from(int streamId, final Throwable throwable, ByteBuf dataBuffer) {
       if (errorLogger.isDebugEnabled()) {
         errorLogger.debug("an error occurred, creating error frame", throwable);
       }
@@ -365,27 +364,27 @@ public class Frame implements ByteBufHolder {
       frame.content =
           ByteBufAllocator.DEFAULT.buffer(
               ErrorFrameFlyweight.computeFrameLength(
-                  metadata.readableBytes(), data.readableBytes()));
+                  0, dataBuffer.readableBytes()));
       frame.content.writerIndex(
-          ErrorFrameFlyweight.encode(frame.content, streamId, code, metadata, data));
+          ErrorFrameFlyweight.encode(frame.content, streamId, code, dataBuffer));
       return frame;
     }
 
-    public static Frame from(int streamId, final Throwable throwable, ByteBuf metadata) {
+    public static Frame from(int streamId, final Throwable throwable) {
       String data = throwable.getMessage() == null ? "" : throwable.getMessage();
       byte[] bytes = data.getBytes(StandardCharsets.UTF_8);
-      final ByteBuf dataBuffer = Unpooled.wrappedBuffer(bytes);
 
-      return from(streamId, throwable, metadata, dataBuffer);
-    }
-
-    public static Frame from(int streamId, final Throwable throwable) {
-      return from(streamId, throwable, Unpooled.EMPTY_BUFFER);
+      return from(streamId, throwable, Unpooled.wrappedBuffer(bytes));
     }
 
     public static int errorCode(final Frame frame) {
       ensureFrameType(FrameType.ERROR, frame);
       return ErrorFrameFlyweight.errorCode(frame.content);
+    }
+
+    public static String message(Frame frame) {
+      ensureFrameType(FrameType.ERROR, frame);
+      return ErrorFrameFlyweight.message(frame.content);
     }
   }
 
