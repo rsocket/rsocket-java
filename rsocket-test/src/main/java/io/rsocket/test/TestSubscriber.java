@@ -18,7 +18,9 @@ public class TestSubscriber {
 
     Mockito.doAnswer(
             invocation -> {
-              ((Subscription) invocation.getArguments()[0]).request(initialRequest);
+              if (initialRequest > 0) {
+                ((Subscription) invocation.getArguments()[0]).request(initialRequest);
+              }
               return null;
             })
         .when(mock)
