@@ -36,7 +36,6 @@ public class TestSubscriber {
 
     Mockito.doAnswer(
             invocation -> {
-              System.out.println("cancel");
               ((Subscription) invocation.getArguments()[0]).cancel();
               return null;
             })
