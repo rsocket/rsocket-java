@@ -18,7 +18,6 @@ package io.rsocket.frame;
 import io.netty.buffer.ByteBuf;
 import io.rsocket.FrameType;
 import io.rsocket.exceptions.*;
-
 import java.nio.charset.StandardCharsets;
 
 public class ErrorFrameFlyweight {
@@ -48,10 +47,7 @@ public class ErrorFrameFlyweight {
   }
 
   public static int encode(
-      final ByteBuf byteBuf,
-      final int streamId,
-      final int errorCode,
-      final ByteBuf data) {
+      final ByteBuf byteBuf, final int streamId, final int errorCode, final ByteBuf data) {
     final int frameLength = computeFrameLength(0, data.readableBytes());
 
     int length =

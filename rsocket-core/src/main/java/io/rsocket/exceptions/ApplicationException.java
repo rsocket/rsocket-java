@@ -15,25 +15,22 @@
  */
 package io.rsocket.exceptions;
 
-import io.rsocket.Payload;
 import io.rsocket.frame.ErrorFrameFlyweight;
-
-import java.nio.ByteBuffer;
 
 public class ApplicationException extends RSocketException {
 
-    private static final long serialVersionUID = -8801579369150844447L;
+  private static final long serialVersionUID = -8801579369150844447L;
 
-    public ApplicationException(String message) {
-        super(message);
-    }
+  public ApplicationException(String message) {
+    super(message);
+  }
 
-    public ApplicationException(String message, Throwable cause) {
-        super(message, cause);
-    }
+  public ApplicationException(String message, Throwable cause) {
+    super(message, cause);
+  }
 
-    @Override
-    public int errorCode() {
-        return ErrorFrameFlyweight.APPLICATION_ERROR;
-    }
+  @Override
+  public int errorCode() {
+    return ErrorFrameFlyweight.APPLICATION_ERROR;
+  }
 }
