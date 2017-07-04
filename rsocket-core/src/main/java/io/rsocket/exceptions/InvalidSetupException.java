@@ -15,8 +15,19 @@
  */
 package io.rsocket.exceptions;
 
+import io.rsocket.frame.ErrorFrameFlyweight;
+
 public class InvalidSetupException extends SetupException {
   public InvalidSetupException(String message) {
     super(message);
+  }
+
+  public InvalidSetupException(String message, Throwable cause) {
+    super(message, cause);
+  }
+
+  @Override
+  public int errorCode() {
+    return ErrorFrameFlyweight.INVALID_SETUP;
   }
 }

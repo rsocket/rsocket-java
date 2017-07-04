@@ -15,8 +15,19 @@
  */
 package io.rsocket.exceptions;
 
+import io.rsocket.frame.ErrorFrameFlyweight;
+
 public class RejectedSetupException extends SetupException implements Retryable {
   public RejectedSetupException(String message) {
     super(message);
+  }
+
+  public RejectedSetupException(String message, Throwable cause) {
+    super(message, cause);
+  }
+
+  @Override
+  public int errorCode() {
+    return ErrorFrameFlyweight.REJECTED_SETUP;
   }
 }

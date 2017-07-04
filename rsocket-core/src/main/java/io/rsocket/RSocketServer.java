@@ -21,6 +21,7 @@ import io.netty.buffer.Unpooled;
 import io.netty.util.collection.IntObjectHashMap;
 import io.rsocket.Frame.Request;
 import io.rsocket.exceptions.ApplicationException;
+import io.rsocket.frame.ErrorFrameFlyweight;
 import io.rsocket.frame.FrameHeaderFlyweight;
 import io.rsocket.internal.LimitableRequestPublisher;
 import io.rsocket.util.PayloadImpl;
@@ -186,7 +187,7 @@ class RSocketServer implements RSocket {
         case ERROR:
           receiver = getChannelProcessor(streamId);
           if (receiver != null) {
-            receiver.onError(new ApplicationException(new PayloadImpl(frame)));
+            receiver.onError(new ApplicationException(Frame.Error.message(frame)));
           }
           return Mono.empty();
         case NEXT_COMPLETE:

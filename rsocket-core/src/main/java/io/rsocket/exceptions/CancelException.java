@@ -15,8 +15,19 @@
  */
 package io.rsocket.exceptions;
 
-public class CancelException extends Throwable {
+import io.rsocket.frame.ErrorFrameFlyweight;
+
+public class CancelException extends RSocketException {
   public CancelException(String message) {
     super(message);
+  }
+
+  public CancelException(String message, Throwable cause) {
+    super(message, cause);
+  }
+
+  @Override
+  public int errorCode() {
+    return ErrorFrameFlyweight.CANCELED;
   }
 }

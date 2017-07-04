@@ -15,8 +15,19 @@
  */
 package io.rsocket.exceptions;
 
-public class InvalidRequestException extends RuntimeException {
+import io.rsocket.frame.ErrorFrameFlyweight;
+
+public class InvalidRequestException extends RSocketException {
   public InvalidRequestException(String message) {
     super(message);
+  }
+
+  public InvalidRequestException(String message, Throwable cause) {
+    super(message, cause);
+  }
+
+  @Override
+  public int errorCode() {
+    return ErrorFrameFlyweight.INVALID;
   }
 }
