@@ -13,7 +13,7 @@ public class ResumeCacheTest {
   private Frame STREAM =
       Frame.Request.from(1, FrameType.REQUEST_STREAM, new PayloadImpl("Test"), 100);
 
-  private ResumeCache cache = new ResumeCache(BufferStrategy.frames(), 2);
+  private ResumeCache cache = new ResumeCache(ResumePositionCounter.frames(), 2);
 
   @Test
   public void startsEmpty() {
@@ -77,7 +77,7 @@ public class ResumeCacheTest {
 
   @Test
   public void supportsZeroBuffer() {
-    cache = new ResumeCache(BufferStrategy.frames(),0);
+    cache = new ResumeCache(ResumePositionCounter.frames(),0);
 
     cache.sent(STREAM);
     cache.sent(STREAM);
@@ -92,7 +92,7 @@ public class ResumeCacheTest {
 
   @Test
   public void supportsFrameCountBuffers() {
-    cache = new ResumeCache(BufferStrategy.size(),100);
+    cache = new ResumeCache(ResumePositionCounter.size(),100);
 
     assertEquals(0, cache.getRemotePosition());
     assertEquals(0, cache.getCurrentPosition());

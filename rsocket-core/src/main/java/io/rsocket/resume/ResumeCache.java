@@ -9,15 +9,15 @@ import java.util.Map;
 import reactor.core.publisher.Flux;
 
 public class ResumeCache {
-  private final BufferStrategy strategy;
+  private final ResumePositionCounter strategy;
   private final int maxBufferSize;
 
-  private LinkedHashMap<Integer, Frame> frames = new LinkedHashMap<>();
+  private final LinkedHashMap<Integer, Frame> frames = new LinkedHashMap<>();
   private int lastRemotePosition = 0;
   private int currentPosition = 0;
   private int bufferSize;
 
-  public ResumeCache(BufferStrategy strategy, int maxBufferSize) {
+  public ResumeCache(ResumePositionCounter strategy, int maxBufferSize) {
     this.strategy = strategy;
     this.maxBufferSize = maxBufferSize;
   }
@@ -56,7 +56,7 @@ public class ResumeCache {
 
   public void sent(Frame frame) {
     if (ResumeUtil.isTracked(frame)) {
-      frames.put(currentPosition, frame.retain());
+      frames.put(currentPosition, frame.copy());
       bufferSize += strategy.cost(frame);
 
       currentPosition += ResumeUtil.offset(frame);
@@ -64,7 +64,6 @@ public class ResumeCache {
       if (frames.size() > maxBufferSize) {
         Frame f = frames.remove(first(frames));
         bufferSize -= strategy.cost(f);
-        f.release();
       }
     }
   }
@@ -88,7 +87,7 @@ public class ResumeCache {
       Map.Entry<Integer, Frame> cachePosition = positions.next();
 
       if (remotePosition < cachePosition.getKey()) {
-        resend.add(cachePosition.getValue().retain());
+        resend.add(cachePosition.getValue());
       }
 
       // TODO error handling

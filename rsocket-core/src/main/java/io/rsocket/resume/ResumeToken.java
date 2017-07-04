@@ -6,6 +6,7 @@ import java.util.Arrays;
 import java.util.UUID;
 
 public final class ResumeToken {
+  // TODO consider best format to store this
   private final byte[] resumeToken;
 
   protected ResumeToken(byte[] resumeToken) {
