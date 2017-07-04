@@ -18,22 +18,25 @@ package io.rsocket;
 
 import io.rsocket.exceptions.ApplicationException;
 import io.rsocket.exceptions.RejectedSetupException;
+import io.rsocket.frame.RequestFrameFlyweight;
 import io.rsocket.test.util.TestSubscriber;
 import io.rsocket.util.PayloadImpl;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
 import org.junit.Rule;
 import org.junit.Test;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
+import org.reactivestreams.Subscription;
+import reactor.core.publisher.BaseSubscriber;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-import static io.rsocket.FrameType.CANCEL;
-import static io.rsocket.FrameType.KEEPALIVE;
-import static io.rsocket.FrameType.NEXT_COMPLETE;
-import static io.rsocket.FrameType.REQUEST_RESPONSE;
+import static io.rsocket.FrameType.*;
 import static io.rsocket.test.util.TestSubscriber.anyPayload;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
@@ -52,7 +55,6 @@ public class RSocketClientTest {
 
   @Test(timeout = 2_000)
   public void testKeepAlive() throws Exception {
-    RSocketClient socket = rule.newRSocket();
     assertThat("Unexpected frame sent.", rule.connection.awaitSend().getType(), is(KEEPALIVE));
   }
 
@@ -64,6 +66,31 @@ public class RSocketClientTest {
         "Unexpected error received.",
         rule.errors,
         contains(instanceOf(IllegalStateException.class)));
+  }
+
+  @Test(timeout = 2_000)
+  public void testStreamInitialN() throws InterruptedException {
+    Flux<Payload> stream = rule.socket.requestStream(PayloadImpl.EMPTY);
+
+    BaseSubscriber<Payload> subscriber = new BaseSubscriber<Payload>() {
+      @Override
+      protected void hookOnSubscribe(Subscription subscription) {
+        // don't request here
+//        subscription.request(3);
+      }
+    };
+    stream.subscribe(subscriber);
+
+    subscriber.request(5);
+
+    List<Frame> sent = rule.connection.getSent().stream().filter(f -> f.getType() != KEEPALIVE).collect(Collectors.toList());
+
+    assertThat("sent frame count", sent.size(), is(1));
+
+    Frame f = sent.get(0);
+
+    assertThat("initial frame", f.getType(), is(REQUEST_STREAM));
+    assertThat("initial request n", RequestFrameFlyweight.initialRequestN(f.content()), is(5));
   }
 
   @Test(timeout = 2_000)
