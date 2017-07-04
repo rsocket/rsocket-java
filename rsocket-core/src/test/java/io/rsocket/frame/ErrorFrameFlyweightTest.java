@@ -23,13 +23,9 @@ import static org.junit.Assert.assertTrue;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
-
-import java.lang.reflect.Constructor;
-import java.lang.reflect.InvocationTargetException;
-import java.nio.charset.StandardCharsets;
-
 import io.rsocket.Frame;
 import io.rsocket.exceptions.*;
+import java.nio.charset.StandardCharsets;
 import org.junit.Test;
 
 public class ErrorFrameFlyweightTest {
@@ -43,15 +39,14 @@ public class ErrorFrameFlyweightTest {
             1,
             ErrorFrameFlyweight.APPLICATION_ERROR,
             Unpooled.copiedBuffer("d", StandardCharsets.UTF_8));
-    assertEquals(
-        "00000b000000012c000000020164", ByteBufUtil.hexDump(byteBuf, 0, encoded));
+    assertEquals("00000b000000012c000000020164", ByteBufUtil.hexDump(byteBuf, 0, encoded));
 
     assertEquals(ErrorFrameFlyweight.APPLICATION_ERROR, ErrorFrameFlyweight.errorCode(byteBuf));
     assertEquals("d", ErrorFrameFlyweight.message(byteBuf));
   }
 
   @Test
-  public void testExceptions() throws Exception{
+  public void testExceptions() throws Exception {
     assertExceptionMapping(INVALID_SETUP, InvalidSetupException.class);
     assertExceptionMapping(UNSUPPORTED_SETUP, UnsupportedSetupException.class);
     assertExceptionMapping(REJECTED_SETUP, RejectedSetupException.class);
@@ -64,7 +59,8 @@ public class ErrorFrameFlyweightTest {
     assertExceptionMapping(INVALID, InvalidRequestException.class);
   }
 
-  private <T extends Exception> void assertExceptionMapping(int errorCode, Class<T> exceptionClass) throws Exception {
+  private <T extends Exception> void assertExceptionMapping(int errorCode, Class<T> exceptionClass)
+      throws Exception {
     T ex = exceptionClass.getConstructor(String.class).newInstance("error data");
     Frame f = Frame.Error.from(0, ex);
 
@@ -75,6 +71,4 @@ public class ErrorFrameFlyweightTest {
     assertEquals(ex.getMessage(), ex2.getMessage());
     assertTrue(exceptionClass.isInstance(ex2));
   }
-
-
 }

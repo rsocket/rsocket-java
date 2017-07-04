@@ -363,8 +363,7 @@ public class Frame implements ByteBufHolder {
       final Frame frame = RECYCLER.get();
       frame.content =
           ByteBufAllocator.DEFAULT.buffer(
-              ErrorFrameFlyweight.computeFrameLength(
-                  0, dataBuffer.readableBytes()));
+              ErrorFrameFlyweight.computeFrameLength(0, dataBuffer.readableBytes()));
       frame.content.writerIndex(
           ErrorFrameFlyweight.encode(frame.content, streamId, code, dataBuffer));
       return frame;

@@ -18,7 +18,6 @@ package io.rsocket.exceptions;
 import static io.rsocket.frame.ErrorFrameFlyweight.*;
 
 import io.rsocket.Frame;
-import io.rsocket.util.PayloadImpl;
 import java.nio.charset.StandardCharsets;
 
 public class Exceptions {
@@ -51,7 +50,8 @@ public class Exceptions {
       case UNSUPPORTED_SETUP:
         return new UnsupportedSetupException(message);
       default:
-        return new InvalidRequestException("Invalid Error frame: " + errorCode + " '" + message + "'");
+        return new InvalidRequestException(
+            "Invalid Error frame: " + errorCode + " '" + message + "'");
     }
   }
 }

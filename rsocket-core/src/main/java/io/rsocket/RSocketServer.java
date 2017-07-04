@@ -21,7 +21,6 @@ import io.netty.buffer.Unpooled;
 import io.netty.util.collection.IntObjectHashMap;
 import io.rsocket.Frame.Request;
 import io.rsocket.exceptions.ApplicationException;
-import io.rsocket.frame.ErrorFrameFlyweight;
 import io.rsocket.frame.FrameHeaderFlyweight;
 import io.rsocket.internal.LimitableRequestPublisher;
 import io.rsocket.util.PayloadImpl;
