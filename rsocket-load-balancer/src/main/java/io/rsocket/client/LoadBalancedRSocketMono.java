@@ -53,6 +53,8 @@ import reactor.core.publisher.MonoProcessor;
 import reactor.core.publisher.MonoSource;
 import reactor.core.publisher.Operators;
 
+import static io.rsocket.util.ExceptionUtil.noStacktrace;
+
 /**
  * An implementation of {@link Mono} that load balances across a pool of RSockets and emits one when
  * it is subscribed to
@@ -678,7 +680,7 @@ public abstract class LoadBalancedRSocketMono extends Mono<RSocket>
 
     @SuppressWarnings("ThrowableInstanceNeverThrown")
     private static final NoAvailableRSocketException NO_AVAILABLE_RS_EXCEPTION =
-        new NoAvailableRSocketException();
+        noStacktrace(new NoAvailableRSocketException());
 
     private static final Mono<Void> errorVoid = Mono.error(NO_AVAILABLE_RS_EXCEPTION);
     private static final Mono<Payload> errorPayload = Mono.error(NO_AVAILABLE_RS_EXCEPTION);
