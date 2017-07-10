@@ -47,60 +47,25 @@ import org.reactivestreams.Subscription;
  */
 public class JavaClientDriver {
 
-  private final BufferedReader reader;
   private final Map<String, MySubscriber<Payload>> payloadSubscribers;
   private final Map<String, MySubscriber<Void>> fnfSubscribers;
   private final Map<String, String> idToType;
   private final Supplier<RSocket> createClient;
-  private final List<String> testList;
   private final String AGENT = "[CLIENT]";
   private ConsoleUtils consoleUtils = new ConsoleUtils(AGENT);
 
-  public JavaClientDriver(String path, Supplier<RSocket> createClient, List<String> tests)
+  public JavaClientDriver(Supplier<RSocket> createClient)
       throws FileNotFoundException {
-    this.reader = new BufferedReader(new FileReader(path));
     this.payloadSubscribers = new HashMap<>();
     this.fnfSubscribers = new HashMap<>();
     this.idToType = new HashMap<>();
     this.createClient = createClient;
-    this.testList = tests;
   }
 
-  private enum TestResult {
+  public enum TestResult {
     PASS,
     FAIL,
     CHANNEL
-  }
-
-  /**
-   * Splits the test file into individual tests, and then run each of them on their own thread.
-   *
-   * @throws IOException
-   */
-  public boolean runTests() throws IOException {
-    List<List<String>> tests = new ArrayList<>();
-    List<String> test = new ArrayList<>();
-    String line = reader.readLine();
-    while (line != null) {
-      switch (line) {
-        case "!":
-          tests.add(test);
-          test = new ArrayList<>();
-          break;
-        default:
-          test.add(line);
-          break;
-      }
-      line = reader.readLine();
-    }
-    tests.add(test);
-    tests = tests.subList(1, tests.size()); // remove the first list, which is empty
-    for (List<String> t : tests) {
-      TestThread thread = new TestThread(t);
-      thread.start();
-      thread.join();
-    }
-    return ConsoleUtils.allPassed();
   }
 
   /**
@@ -111,7 +76,7 @@ public class JavaClientDriver {
    * @return an option with either true if the test passed, false if it failed, or empty if no
    *     subscribers were found
    */
-  private TestResult parse(List<String> test, String name) throws Exception {
+  public TestResult parse(List<String> test, String name) throws Exception {
     List<String> id = new ArrayList<>();
     Iterator<String> iter = test.iterator();
     boolean channelTest = false; // tells whether this is a test for channel or not
@@ -533,54 +498,6 @@ public class JavaClientDriver {
     Publisher<Void> fnfpub = fnfclient.fireAndForget(new PayloadImpl("shutdown", "shutdown"));
     fnfpub.subscribe(fnfsub);
     fnfsub.request(1);
-  }
-
-  /** This thread class parses through a single test and prints whether it succeeded or not */
-  private class TestThread implements Runnable {
-    private Thread t;
-    private List<String> test;
-    private long startTime;
-    private long endTime;
-    private boolean isRun = true;
-
-    public TestThread(List<String> test) {
-      this.t = new Thread(this);
-      this.test = test;
-    }
-
-    @Override
-    public void run() {
-      String name = "";
-      name = test.get(0).split("%%")[1];
-      if (testList.size() > 0 && !testList.contains(name)) {
-        isRun = false;
-        return;
-      }
-      try {
-        consoleUtils.teststart(name);
-        TestResult result = parse(test.subList(1, test.size()), name);
-        if (result == TestResult.PASS) consoleUtils.success(name);
-        else if (result == TestResult.FAIL) consoleUtils.failure(name);
-      } catch (Exception e) {
-        e.printStackTrace();
-        consoleUtils.failure(name);
-      }
-    }
-
-    public void start() {
-      startTime = System.nanoTime();
-      t.start();
-    }
-
-    public void join() {
-      try {
-        t.join();
-        endTime = System.nanoTime();
-        if (isRun) consoleUtils.time((endTime - startTime) / 1000000.0 + " MILLISECONDS\n");
-      } catch (Exception e) {
-        consoleUtils.error("join exception");
-      }
-    }
   }
 
   /** A subscription for channel, it handles request(n) by sort of faking an initial payload. */
