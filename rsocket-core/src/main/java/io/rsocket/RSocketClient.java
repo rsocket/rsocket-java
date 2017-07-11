@@ -38,11 +38,13 @@ import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
 import reactor.core.publisher.UnicastProcessor;
 
+import static io.rsocket.util.ExceptionUtil.noStacktrace;
+
 /** Client Side of a RSocket socket. Sends {@link Frame}s to a {@link RSocketServer} */
 class RSocketClient implements RSocket {
 
   private static final ClosedChannelException CLOSED_CHANNEL_EXCEPTION =
-      new ClosedChannelException();
+      noStacktrace(new ClosedChannelException());
 
   private final DuplexConnection connection;
   private final Consumer<Throwable> errorConsumer;
