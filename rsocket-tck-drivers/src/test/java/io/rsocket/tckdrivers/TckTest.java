@@ -1,4 +1,6 @@
-package io.rsocket.tckdrivers.test;
+package io.rsocket.tckdrivers;
+
+import static org.junit.Assert.assertNotNull;
 
 import io.rsocket.RSocket;
 import io.rsocket.RSocketFactory;
@@ -33,23 +35,51 @@ public class TckTest {
 
   private static final String serverPrefix = "server";
   private static final String clientPrefix = "client";
+  private static HashMap<String, JavaClientDriver> clientDriverMap =
+      new HashMap<String, JavaClientDriver>();
 
   private String name; // Test name
-  private JavaClientDriver jd; // javaclientdriver object for running the given test
   private List<String> test; // test instructions/commands
+  private String testFile; // Test belong to this file. File name is without client/server prefix
 
-  public TckTest(String name, JavaClientDriver jd, List<String> test) {
+  public TckTest(String name, List<String> test, String testFile) {
     this.name = name;
-    this.jd = jd;
     this.test = test;
+    this.testFile = testFile;
   }
 
   /** Runs the test. */
-  @Test
+  @Test(timeout = 10000)
   public void TckTestRunner() {
 
+    JavaClientDriver jd =
+        this.clientDriverMap.get(
+            this.testFile); // javaclientdriver object for running the given test
+
+    if (null == jd) {
+
+      // starting a server
+      String serverFileName = serverPrefix + testFile;
+      ServerThread st = new ServerThread(currentPort, path + serverFileName);
+      st.start();
+      st.awaitStart();
+
+      // creating a client object to run the test
+      try {
+
+        RSocket client = createClient(new URI("tcp://" + hostname + ":" + currentPort + "/rs"));
+        jd = new JavaClientDriver(() -> client);
+        this.clientDriverMap.put(this.testFile, jd);
+        currentPort++;
+
+      } catch (Exception e) {
+        e.printStackTrace();
+      }
+    }
+
+    assertNotNull("JavaClientDriver not defined", jd);
     try {
-      this.jd.runTest(this.test.subList(1, this.test.size()), this.name);
+      jd.runTest(this.test.subList(1, this.test.size()), this.name);
     } catch (Exception e) {
       e.printStackTrace();
     }
@@ -61,7 +91,7 @@ public class TckTest {
    *
    * @return interatable tests
    */
-  @Parameters(name = "{index}: {0}")
+  @Parameters(name = "{index}: {0} ({2})")
   public static Iterable<Object[]> data() {
 
     File folder = new File(path);
@@ -71,19 +101,13 @@ public class TckTest {
     for (int i = 0; i < listOfFiles.length; i++) {
       File file = listOfFiles[i];
       if (file.isFile() && file.getName().startsWith(clientPrefix)) {
-        String serverFileName = serverPrefix + file.getName().replaceFirst(clientPrefix, "");
+        String testFile = file.getName().replaceFirst(clientPrefix, "");
+        String serverFileName = serverPrefix + testFile;
 
         File f = new File(path + serverFileName);
         if (f.exists() && !f.isDirectory()) {
 
-          //starting a server
-          ServerThread st = new ServerThread(currentPort, path + serverFileName);
-          st.start();
-          st.awaitStart();
-
           try {
-            RSocket client = createClient(new URI("tcp://" + hostname + ":" + currentPort + "/rs"));
-            JavaClientDriver jd = new JavaClientDriver(() -> client);
 
             BufferedReader reader = new BufferedReader(new FileReader(file));
             List<List<String>> tests = new ArrayList<>();
@@ -113,16 +137,13 @@ public class TckTest {
 
               Object[] testObject = new Object[3];
               testObject[0] = name;
-              testObject[1] = jd;
-              testObject[2] = t;
+              testObject[1] = t;
+              testObject[2] = testFile;
               testData.add(testObject);
             }
           } catch (Exception e) {
             e.printStackTrace();
           }
-
-          currentPort++;
-
         } else {
           System.out.println("SERVER file does not exists");
         }
