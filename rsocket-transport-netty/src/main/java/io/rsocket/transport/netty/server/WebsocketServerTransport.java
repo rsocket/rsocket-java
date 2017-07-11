@@ -17,9 +17,12 @@
 package io.rsocket.transport.netty.server;
 
 import io.rsocket.transport.ServerTransport;
-import io.rsocket.transport.netty.WebsocketDuplexConnection;
+import java.util.function.BiFunction;
+import org.reactivestreams.Publisher;
 import reactor.core.publisher.Mono;
 import reactor.ipc.netty.http.server.HttpServer;
+import reactor.ipc.netty.http.server.HttpServerRequest;
+import reactor.ipc.netty.http.server.HttpServerResponse;
 
 public class WebsocketServerTransport implements ServerTransport<NettyContextCloseable> {
   HttpServer server;
@@ -45,16 +48,13 @@ public class WebsocketServerTransport implements ServerTransport<NettyContextClo
   @Override
   public Mono<NettyContextCloseable> start(ServerTransport.ConnectionAcceptor acceptor) {
     return server
-        .newHandler(
-            (request, response) ->
-                response.sendWebsocket(
-                    (in, out) -> {
-                      WebsocketDuplexConnection connection =
-                          new WebsocketDuplexConnection(in, out, in.context());
-                      acceptor.apply(connection).subscribe();
-
-                      return out.neverComplete();
-                    }))
+        .newHandler(newHandler(acceptor))
         .map(NettyContextCloseable::new);
+  }
+
+  public static BiFunction<HttpServerRequest, HttpServerResponse, Publisher<Void>> newHandler(
+      ConnectionAcceptor acceptor) {
+    return (request, response) -> response.sendWebsocket(
+        WebsocketRouteTransport.newHandler(acceptor));
   }
 }
