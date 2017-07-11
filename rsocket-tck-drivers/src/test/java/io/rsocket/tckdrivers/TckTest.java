@@ -20,6 +20,18 @@ import org.junit.runners.Parameterized.Parameters;
 @RunWith(Parameterized.class)
 public class TckTest {
 
+  private static class TckIndividualTest {
+    String name; // Test name
+    List<String> test; // test instructions/commands
+    String testFile; // Test belong to this file. File name is without client/server prefix
+
+    public TckIndividualTest(String name, List<String> test, String testFile) {
+      this.name = name;
+      this.test = test;
+      this.testFile = testFile;
+    }
+  }
+
   /*
    * Start port. For every input test file a server instance will be launched.
    * For every server instance currentPort is incremented by 1
@@ -38,14 +50,10 @@ public class TckTest {
   private static HashMap<String, JavaClientDriver> clientDriverMap =
       new HashMap<String, JavaClientDriver>();
 
-  private String name; // Test name
-  private List<String> test; // test instructions/commands
-  private String testFile; // Test belong to this file. File name is without client/server prefix
+  private TckIndividualTest tckTest;
 
-  public TckTest(String name, List<String> test, String testFile) {
-    this.name = name;
-    this.test = test;
-    this.testFile = testFile;
+  public TckTest(String testname, TckIndividualTest tckTest) {
+    this.tckTest = tckTest;
   }
 
   /** Runs the test. */
@@ -54,12 +62,12 @@ public class TckTest {
 
     JavaClientDriver jd =
         this.clientDriverMap.get(
-            this.testFile); // javaclientdriver object for running the given test
+            this.tckTest.testFile); // javaclientdriver object for running the given test
 
     if (null == jd) {
 
       // starting a server
-      String serverFileName = serverPrefix + testFile;
+      String serverFileName = serverPrefix + this.tckTest.testFile;
       ServerThread st = new ServerThread(currentPort, path + serverFileName);
       st.start();
       st.awaitStart();
@@ -69,7 +77,7 @@ public class TckTest {
 
         RSocket client = createClient(new URI("tcp://" + hostname + ":" + currentPort + "/rs"));
         jd = new JavaClientDriver(() -> client);
-        this.clientDriverMap.put(this.testFile, jd);
+        this.clientDriverMap.put(this.tckTest.testFile, jd);
         currentPort++;
 
       } catch (Exception e) {
@@ -79,10 +87,41 @@ public class TckTest {
 
     assertNotNull("JavaClientDriver is not defined", jd);
     try {
-      jd.runTest(this.test.subList(1, this.test.size()), this.name);
+      jd.runTest(this.tckTest.test.subList(1, this.tckTest.test.size()), this.tckTest.name);
     } catch (Exception e) {
       e.printStackTrace();
     }
+  }
+
+  /**
+   * A function that parses the file and extract the individual tests
+   *
+   * @param file: file to read as input.
+   * @return a list of individual tests. Each individual test is also a list of String.
+   */
+  private static List<List<String>> ExtractTests(File file) throws Exception {
+
+    BufferedReader reader = new BufferedReader(new FileReader(file));
+    List<List<String>> tests = new ArrayList<>();
+    List<String> test = new ArrayList<>();
+    String line = reader.readLine();
+
+    //Parsing the input client file to read all the tests
+    while (line != null) {
+      switch (line) {
+        case "!":
+          tests.add(test);
+          test = new ArrayList<>();
+          break;
+        default:
+          test.add(line);
+          break;
+      }
+      line = reader.readLine();
+    }
+    tests.add(test);
+    tests = tests.subList(1, tests.size()); // remove the first list, which is empty
+    return tests;
   }
 
   /**
@@ -91,7 +130,7 @@ public class TckTest {
    *
    * @return interatable tests
    */
-  @Parameters(name = "{index}: {0} ({2})")
+  @Parameters(name = "{index}: {0}")
   public static Iterable<Object[]> data() {
 
     File folder = new File(path);
@@ -109,43 +148,21 @@ public class TckTest {
 
           try {
 
-            BufferedReader reader = new BufferedReader(new FileReader(file));
-            List<List<String>> tests = new ArrayList<>();
-            List<String> test = new ArrayList<>();
-            String line = reader.readLine();
-
-            //Parsing the input client file to read all the tests
-            while (line != null) {
-              switch (line) {
-                case "!":
-                  tests.add(test);
-                  test = new ArrayList<>();
-                  break;
-                default:
-                  test.add(line);
-                  break;
-              }
-              line = reader.readLine();
-            }
-            tests.add(test);
-            tests = tests.subList(1, tests.size()); // remove the first list, which is empty
-
-            for (List<String> t : tests) {
+            for (List<String> t : ExtractTests(file)) {
 
               String name = "";
               name = t.get(0).split("%%")[1];
 
-              Object[] testObject = new Object[3];
-              testObject[0] = name;
-              testObject[1] = t;
-              testObject[2] = testFile;
+              Object testObject[] = new Object[2];
+              testObject[0] = name + " (" + testFile + ")";
+              testObject[1] = new TckIndividualTest(name, t, testFile);
               testData.add(testObject);
             }
           } catch (Exception e) {
             e.printStackTrace();
           }
         } else {
-          System.out.println("SERVER file does not exists");
+          System.out.println("SERVER file does not exist");
         }
       }
     }
