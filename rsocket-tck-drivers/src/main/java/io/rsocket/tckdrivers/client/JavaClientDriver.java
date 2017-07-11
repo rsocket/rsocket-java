@@ -13,6 +13,8 @@
 
 package io.rsocket.tckdrivers.client;
 
+import static org.junit.Assert.*;
+
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.tckdrivers.common.ConsoleUtils;
@@ -23,10 +25,7 @@ import io.rsocket.tckdrivers.common.ParseChannelThread;
 import io.rsocket.tckdrivers.common.ParseMarble;
 import io.rsocket.tckdrivers.common.Tuple;
 import io.rsocket.util.PayloadImpl;
-import java.io.BufferedReader;
 import java.io.FileNotFoundException;
-import java.io.FileReader;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -54,8 +53,7 @@ public class JavaClientDriver {
   private final String AGENT = "[CLIENT]";
   private ConsoleUtils consoleUtils = new ConsoleUtils(AGENT);
 
-  public JavaClientDriver(Supplier<RSocket> createClient)
-      throws FileNotFoundException {
+  public JavaClientDriver(Supplier<RSocket> createClient) throws FileNotFoundException {
     this.payloadSubscribers = new HashMap<>();
     this.fnfSubscribers = new HashMap<>();
     this.idToType = new HashMap<>();
@@ -76,11 +74,10 @@ public class JavaClientDriver {
    * @return an option with either true if the test passed, false if it failed, or empty if no
    *     subscribers were found
    */
-  public TestResult parse(List<String> test, String name) throws Exception {
+  public void runTest(List<String> test, String name) throws Exception {
     List<String> id = new ArrayList<>();
     Iterator<String> iter = test.iterator();
     boolean channelTest = false; // tells whether this is a test for channel or not
-    boolean hasPassed = true;
     while (iter.hasNext()) {
       String line = iter.next();
       String[] args = line.split("%%");
@@ -99,13 +96,13 @@ public class JavaClientDriver {
         case "await":
           switch (args[1]) {
             case "terminal":
-              hasPassed &= handleAwaitTerminal(args);
+              handleAwaitTerminal(args);
               break;
             case "atLeast":
-              hasPassed &= handleAwaitAtLeast(args);
+              handleAwaitAtLeast(args);
               break;
             case "no_events":
-              hasPassed &= handleAwaitNoEvents(args);
+              handleAwaitNoEvents(args);
               break;
             default:
               break;
@@ -115,28 +112,28 @@ public class JavaClientDriver {
         case "assert":
           switch (args[1]) {
             case "no_error":
-              hasPassed &= assertNoError(args);
+              assertNoError(args);
               break;
             case "error":
-              hasPassed &= assertError(args);
+              assertError(args);
               break;
             case "received":
-              hasPassed &= assertReceived(args);
+              assertReceived(args);
               break;
             case "received_n":
-              hasPassed &= assertReceivedN(args);
+              assertReceivedN(args);
               break;
             case "received_at_least":
-              hasPassed &= assertReceivedAtLeast(args);
+              assertReceivedAtLeast(args);
               break;
             case "completed":
-              hasPassed &= assertCompleted(args);
+              assertCompleted(args);
               break;
             case "no_completed":
-              hasPassed &= assertNoCompleted(args);
+              assertNoCompleted(args);
               break;
             case "canceled":
-              hasPassed &= assertCancelled(args);
+              assertCancelled(args);
               break;
           }
           break;
@@ -158,16 +155,8 @@ public class JavaClientDriver {
       }
     }
     // this check each of the subscribers to see that they all passed their assertions
-    if (id.size() > 0) {
-      for (String str : id) {
-        if (payloadSubscribers.get(str) != null)
-          hasPassed = hasPassed && payloadSubscribers.get(str).hasPassed();
-        else hasPassed = hasPassed && fnfSubscribers.get(str).hasPassed();
-      }
-      if (hasPassed) return TestResult.PASS;
-      else return TestResult.FAIL;
-    } else if (channelTest) return TestResult.CHANNEL;
-    else throw new Exception("There is no subscriber in this test");
+
+    assertTrue("There is no subscriber in this test", (channelTest) || (id.size() > 0));
   }
 
   /**
@@ -287,91 +276,77 @@ public class JavaClientDriver {
     pub.subscribe(testsub);
   }
 
-  private boolean handleAwaitTerminal(String[] args) {
+  private void handleAwaitTerminal(String[] args) {
     consoleUtils.info("Awaiting at Terminal");
     String id = args[2];
-    if (idToType.get(id) == null) {
-      consoleUtils.failure("Could not find subscriber with given id");
-      return false;
+
+    assertNotEquals("Could not find subscriber with given id", idToType.get(id), null);
+
+    if (idToType.get(id).equals("fnf")) {
+      MySubscriber<Void> sub = fnfSubscribers.get(id);
+      assertTrue(sub.awaitTerminalEvent());
     } else {
-      if (idToType.get(id).equals("fnf")) {
-        MySubscriber<Void> sub = fnfSubscribers.get(id);
-        return sub.awaitTerminalEvent();
-      } else {
-        MySubscriber<Payload> sub = payloadSubscribers.get(id);
-        return sub.awaitTerminalEvent();
-      }
+      MySubscriber<Payload> sub = payloadSubscribers.get(id);
+      assertTrue(sub.awaitTerminalEvent());
     }
   }
 
-  private boolean handleAwaitAtLeast(String[] args) {
+  private void handleAwaitAtLeast(String[] args) {
     consoleUtils.info("Awaiting at Terminal for at least " + args[3]);
     try {
       String id = args[2];
       MySubscriber<Payload> sub = payloadSubscribers.get(id);
-      return sub.awaitAtLeast(Long.parseLong(args[3]));
+      sub.awaitAtLeast(Long.parseLong(args[3]));
     } catch (InterruptedException e) {
-      consoleUtils.error("interrupted");
-      return false;
+      assertNull("interrupted ", e.getMessage());
     }
   }
 
-  private boolean handleAwaitNoEvents(String[] args) {
+  private void handleAwaitNoEvents(String[] args) {
     try {
       String id = args[2];
       MySubscriber<Payload> sub = payloadSubscribers.get(id);
-      return sub.awaitNoEvents(Long.parseLong(args[3]));
+      sub.awaitNoEvents(Long.parseLong(args[3]));
     } catch (InterruptedException e) {
-      consoleUtils.error("Interrupted");
-      return false;
+      assertNull("interrupted ", e.getMessage());
     }
   }
 
-  private boolean assertNoError(String[] args) {
+  private void assertNoError(String[] args) {
     String id = args[2];
-    if (idToType.get(id) == null) {
-      consoleUtils.error("Could not find subscriber with given id");
-      return false;
-    } else {
-      if (idToType.get(id).equals("fnf")) {
-        MySubscriber<Void> sub = fnfSubscribers.get(id);
-        try {
-          sub.assertNoErrors();
-          return true;
-        } catch (Throwable ex) {
-          return false;
-        }
-      } else {
-        MySubscriber<Payload> sub = payloadSubscribers.get(id);
+
+    assertNotNull("Could not find subscriber with given id", idToType.get(id));
+    if (idToType.get(id).equals("fnf")) {
+      MySubscriber<Void> sub = fnfSubscribers.get(id);
+      try {
         sub.assertNoErrors();
-        try {
-          sub.assertNoErrors();
-          return true;
-        } catch (Throwable ex) {
-          return false;
-        }
+      } catch (Throwable ex) {
+        assertNull(ex.getMessage());
+      }
+    } else {
+      MySubscriber<Payload> sub = payloadSubscribers.get(id);
+      try {
+        sub.assertNoErrors();
+      } catch (Throwable ex) {
+        assertNull(ex.getMessage());
       }
     }
   }
 
-  private boolean assertError(String[] args) {
+  private void assertError(String[] args) {
     consoleUtils.info("Checking for error");
     String id = args[2];
-    if (idToType.get(id) == null) {
-      consoleUtils.error("Could not find subscriber with given id");
-      return false;
+    assertNotNull("Could not find subscriber with given id", idToType.get(id));
+    if (idToType.get(id).equals("fnf")) {
+      MySubscriber<Void> sub = fnfSubscribers.get(id);
+      sub.myAssertError(new Throwable());
     } else {
-      if (idToType.get(id).equals("fnf")) {
-        MySubscriber<Void> sub = fnfSubscribers.get(id);
-        return sub.myAssertError(new Throwable());
-      } else {
-        MySubscriber<Payload> sub = payloadSubscribers.get(id);
-        return sub.myAssertError(new Throwable());
-      }
+      MySubscriber<Payload> sub = payloadSubscribers.get(id);
+      sub.myAssertError(new Throwable());
     }
   }
 
-  private boolean assertReceived(String[] args) {
+  private void assertReceived(String[] args) {
     consoleUtils.info("Verify we received " + args[3]);
     String id = args[2];
     MySubscriber<Payload> sub = payloadSubscribers.get(id);
@@ -381,101 +356,88 @@ public class JavaClientDriver {
       String[] vals = v.split(",");
       assertList.add(new Tuple<>(vals[0], vals[1]));
     }
-    return sub.assertValues(assertList);
+    sub.assertValues(assertList);
   }
 
-  private boolean assertReceivedN(String[] args) {
+  private void assertReceivedN(String[] args) {
     String id = args[2];
     MySubscriber<Payload> sub = payloadSubscribers.get(id);
     try {
       sub.assertValueCount(Integer.parseInt(args[3]));
     } catch (Throwable ex) {
-      return false;
+      assertNull(ex.getMessage());
     }
-    return true;
   }
 
-  private boolean assertReceivedAtLeast(String[] args) {
+  private void assertReceivedAtLeast(String[] args) {
     String id = args[2];
     MySubscriber<Payload> sub = payloadSubscribers.get(id);
-    return sub.assertReceivedAtLeast(Integer.parseInt(args[3]));
+    sub.assertReceivedAtLeast(Integer.parseInt(args[3]));
   }
 
-  private boolean assertCompleted(String[] args) {
+  private void assertCompleted(String[] args) {
     consoleUtils.info("Handling onComplete");
     String id = args[2];
-    if (idToType.get(id) == null) {
-      consoleUtils.error("Could not find subscriber with given id");
-      return false;
+
+    assertNotNull("Could not find subscriber with given id", idToType.get(id));
+    if (idToType.get(id).equals("fnf")) {
+      MySubscriber<Void> sub = fnfSubscribers.get(id);
+      try {
+        sub.assertComplete();
+      } catch (Throwable ex) {
+        assertNull(ex.getMessage());
+      }
     } else {
-      if (idToType.get(id).equals("fnf")) {
-        MySubscriber<Void> sub = fnfSubscribers.get(id);
-        try {
-          sub.assertComplete();
-        } catch (Throwable ex) {
-          return false;
-        }
-        return true;
-      } else {
-        MySubscriber<Payload> sub = payloadSubscribers.get(id);
-        try {
-          sub.assertComplete();
-        } catch (Throwable ex) {
-          return false;
-        }
-        return true;
+      MySubscriber<Payload> sub = payloadSubscribers.get(id);
+      try {
+        sub.assertComplete();
+      } catch (Throwable ex) {
+        assertNull(ex.getMessage());
       }
     }
   }
 
-  private boolean assertNoCompleted(String[] args) {
+  private void assertNoCompleted(String[] args) {
     consoleUtils.info("Handling NO onComplete");
     String id = args[2];
-    if (idToType.get(id) == null) {
-      consoleUtils.error("Could not find subscriber with given id");
-      return false;
+
+    assertNotNull("Could not find subscriber with given id", idToType.get(id));
+    if (idToType.get(id).equals("fnf")) {
+      MySubscriber<Void> sub = fnfSubscribers.get(id);
+      try {
+        sub.assertNotComplete();
+      } catch (Throwable ex) {
+        assertNull(ex.getMessage());
+      }
     } else {
-      if (idToType.get(id).equals("fnf")) {
-        MySubscriber<Void> sub = fnfSubscribers.get(id);
-        try {
-          sub.assertNotComplete();
-        } catch (Throwable ex) {
-          return false;
-        }
-        return true;
-      } else {
-        MySubscriber<Payload> sub = payloadSubscribers.get(id);
-        try {
-          sub.assertNotComplete();
-        } catch (Throwable ex) {
-          return false;
-        }
-        return true;
+      MySubscriber<Payload> sub = payloadSubscribers.get(id);
+      try {
+        sub.assertNotComplete();
+      } catch (Throwable ex) {
+        assertNull(ex.getMessage());
       }
     }
   }
 
-  private boolean assertCancelled(String[] args) {
+  private void assertCancelled(String[] args) {
     String id = args[2];
     MySubscriber<Payload> sub = payloadSubscribers.get(id);
-    return sub.isCancelled();
+    assertTrue(sub.isCancelled());
   }
 
   private void handleRequest(String[] args) {
     Long num = Long.parseLong(args[1]);
     String id = args[2];
-    if (idToType.get(id) == null) {
-      consoleUtils.error("Could not find subscriber with given id");
+
+    assertNotNull("Could not find subscriber with given id", idToType.get(id));
+    if (idToType.get(id).equals("fnf")) {
+      MySubscriber<Void> sub = fnfSubscribers.get(id);
+      consoleUtils.info("ClientDriver: Sending request for " + num);
+      sub.request(num);
     } else {
-      if (idToType.get(id).equals("fnf")) {
-        MySubscriber<Void> sub = fnfSubscribers.get(id);
-        consoleUtils.info("ClientDriver: Sending request for " + num);
-        sub.request(num);
-      } else {
-        MySubscriber<Payload> sub = payloadSubscribers.get(id);
-        consoleUtils.info("ClientDriver: Sending request for " + num);
-        sub.request(num);
-      }
+      MySubscriber<Payload> sub = payloadSubscribers.get(id);
+      consoleUtils.info("ClientDriver: Sending request for " + num);
+      sub.request(num);
     }
   }
 

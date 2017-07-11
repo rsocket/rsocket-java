@@ -13,6 +13,8 @@
 
 package io.rsocket.tckdrivers.common;
 
+import static org.junit.Assert.assertNull;
+
 import io.rsocket.Payload;
 import java.util.ArrayList;
 import java.util.List;
@@ -27,7 +29,6 @@ public class ParseChannel {
   private String name = "";
   private CountDownLatch prevRespondLatch;
   private CountDownLatch currentRespondLatch;
-  private boolean pass = true;
   public ConsoleUtils consoleUtils;
 
   public ParseChannel(
@@ -53,7 +54,6 @@ public class ParseChannel {
     this.name = name;
     ParseThread parseThread = new ParseThread(parseMarble);
     parseThread.start();
-    this.pass = pass;
     consoleUtils = new ConsoleUtils(agent);
   }
 
@@ -78,14 +78,14 @@ public class ParseChannel {
               try {
                 sub.awaitAtLeast(Long.parseLong(args[3]));
               } catch (InterruptedException e) {
-                consoleUtils.error("interrupted");
+                assertNull("interrupted ", e.getMessage());
               }
               break;
             case "no_events":
               try {
                 sub.awaitNoEvents(Long.parseLong(args[3]));
               } catch (InterruptedException e) {
-                consoleUtils.error("interrupted");
+                assertNull("interrupted ", e.getMessage());
               }
               break;
           }
@@ -133,9 +133,7 @@ public class ParseChannel {
     if (name.equals("")) {
       name = "CHANNEL";
     }
-    if (sub.hasPassed() && this.pass) consoleUtils.success(name);
-    else if (!sub.hasPassed() && !this.pass) consoleUtils.success(name);
-    else consoleUtils.failure(name);
+    consoleUtils.success(name);
   }
 
   /**

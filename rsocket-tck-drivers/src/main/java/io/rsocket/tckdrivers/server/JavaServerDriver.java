@@ -13,6 +13,10 @@
 
 package io.rsocket.tckdrivers.server;
 
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+
 import io.rsocket.AbstractRSocket;
 import io.rsocket.Closeable;
 import io.rsocket.ConnectionSetupPayload;
@@ -73,7 +77,7 @@ public class JavaServerDriver {
     try {
       reader = new BufferedReader(new FileReader(path));
     } catch (Exception e) {
-      consoleUtils.error("File not found");
+      assertNull("File Not found ", e.getMessage());
     }
     requestChannelFail = new HashSet<>();
   }
@@ -118,6 +122,11 @@ public class JavaServerDriver {
                           new Tuple<>(sub.getElement(0).getK(), sub.getElement(0).getV());
                       consoleUtils.initialPayload(
                           "Received Channel " + initpayload.getK() + " " + initpayload.getV());
+                      String msg = "Request channel payload " + "%s " + "%s " + "has no handler";
+                      assertTrue(
+                          String.format(msg, initpayload.getK(), initpayload.getV()),
+                          (requestChannelCommands.containsKey(initpayload)
+                              || requestEchoChannel.contains(initpayload)));
                       // if this is a normal channel handler, then initiate the normal setup
                       if (requestChannelCommands.containsKey(initpayload)) {
                         ParseMarble pm = new ParseMarble(s, "[SERVER]");
@@ -144,17 +153,9 @@ public class JavaServerDriver {
                         sub.setEcho(echoSubscription);
                         sub.request(
                             10000); // request a large number, which basically means the client can send whatever
-                      } else {
-                        consoleUtils.error(
-                            "Request channel payload "
-                                + initpayload.getK()
-                                + " "
-                                + initpayload.getV()
-                                + "has no handler");
                       }
-
                     } catch (Exception e) {
-                      consoleUtils.failure("Interrupted");
+                      assertNull("interrupted ", e.getMessage());
                     }
                   });
             }
@@ -198,18 +199,12 @@ public class JavaServerDriver {
                             + initialPayload.getK()
                             + " "
                             + initialPayload.getV());
-                    if (marble != null) {
-                      ParseMarble pm = new ParseMarble(marble, s, "[SERVER]");
-                      s.onSubscribe(new TestSubscription(pm));
-                      new ParseThread(pm).start();
-                    } else {
-                      consoleUtils.failure(
-                          "Request response payload "
-                              + initialPayload.getK()
-                              + " "
-                              + initialPayload.getV()
-                              + "has no handler");
-                    }
+                    String msg = "Request stream payload " + " %s" + " %s" + " has no handler";
+                    assertNotNull(
+                        String.format(msg, initialPayload.getK(), initialPayload.getV()), marble);
+                    ParseMarble pm = new ParseMarble(marble, s, "[SERVER]");
+                    s.onSubscribe(new TestSubscription(pm));
+                    new ParseThread(pm).start();
                   });
             }
 
@@ -224,18 +219,12 @@ public class JavaServerDriver {
                     String marble = requestStreamMarbles.get(initialPayload);
                     consoleUtils.initialPayload(
                         "Received Stream " + initialPayload.getK() + " " + initialPayload.getV());
-                    if (marble != null) {
-                      ParseMarble pm = new ParseMarble(marble, s, "[SERVER]");
-                      s.onSubscribe(new TestSubscription(pm));
-                      new ParseThread(pm).start();
-                    } else {
-                      consoleUtils.failure(
-                          "Request stream payload "
-                              + initialPayload.getK()
-                              + " "
-                              + initialPayload.getV()
-                              + "has no handler");
-                    }
+                    String msg = "Request stream payload " + " %s" + " %s" + " has no handler";
+                    assertNotNull(
+                        String.format(msg, initialPayload.getK(), initialPayload.getV()), marble);
+                    ParseMarble pm = new ParseMarble(marble, s, "[SERVER]");
+                    s.onSubscribe(new TestSubscription(pm));
+                    new ParseThread(pm).start();
                   });
             }
           };

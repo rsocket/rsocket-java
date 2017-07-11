@@ -13,6 +13,8 @@
 
 package io.rsocket.tckdrivers.common;
 
+import static org.junit.Assert.assertNull;
+
 /** This thread parses through channel tests */
 public class ParseChannelThread implements Runnable {
 
@@ -37,7 +39,7 @@ public class ParseChannelThread implements Runnable {
     try {
       t.join();
     } catch (InterruptedException e) {
-      this.pc.consoleUtils.error("interrupted");
+      assertNull("interrupted ", e.getMessage());
     }
   }
 }

@@ -1,7 +1,5 @@
 package io.rsocket.tckdrivers.test;
 
-import static org.junit.Assert.assertEquals;
-
 import io.rsocket.RSocket;
 import io.rsocket.RSocketFactory;
 import io.rsocket.tckdrivers.client.JavaClientDriver;
@@ -19,7 +17,6 @@ import org.junit.runners.Parameterized.Parameters;
 
 @RunWith(Parameterized.class)
 public class TckTest {
-
 
   /*
    * Start port. For every input test file a server instance will be launched.
@@ -47,29 +44,23 @@ public class TckTest {
     this.test = test;
   }
 
-  /**
-   * Runs the test.
-   */
+  /** Runs the test. */
   @Test
   public void TckTestRunner() {
-    JavaClientDriver.TestResult result = JavaClientDriver.TestResult.FAIL;
+
     try {
-      result = this.jd.parse(this.test.subList(1, this.test.size()), this.name);
+      this.jd.runTest(this.test.subList(1, this.test.size()), this.name);
     } catch (Exception e) {
       e.printStackTrace();
     }
-
-    assertEquals(result, JavaClientDriver.TestResult.PASS);
   }
 
   /**
-   * A function that reads all the server/client test files from "path". For
-   * each server file, it starts a server. It parses each client file and
-   * create a parameterized test.
+   * A function that reads all the server/client test files from "path". For each server file, it
+   * starts a server. It parses each client file and create a parameterized test.
    *
    * @return interatable tests
    */
-
   @Parameters(name = "{index}: {0}")
   public static Iterable<Object[]> data() {
 
@@ -91,8 +82,7 @@ public class TckTest {
           st.awaitStart();
 
           try {
-            RSocket client =
-                createClient(new URI("tcp://" + hostname + ":" + currentPort + "/rs"));
+            RSocket client = createClient(new URI("tcp://" + hostname + ":" + currentPort + "/rs"));
             JavaClientDriver jd = new JavaClientDriver(() -> client);
 
             BufferedReader reader = new BufferedReader(new FileReader(file));
@@ -120,7 +110,6 @@ public class TckTest {
 
               String name = "";
               name = t.get(0).split("%%")[1];
-              System.out.println(name);
 
               Object[] testObject = new Object[3];
               testObject[0] = name;
