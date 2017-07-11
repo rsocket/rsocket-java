@@ -77,7 +77,7 @@ public class TckTest {
       }
     }
 
-    assertNotNull("JavaClientDriver not defined", jd);
+    assertNotNull("JavaClientDriver is not defined", jd);
     try {
       jd.runTest(this.test.subList(1, this.test.size()), this.name);
     } catch (Exception e) {
