@@ -13,6 +13,8 @@
 
 package io.rsocket.tckdrivers.common;
 
+import static org.junit.Assert.assertNull;
+
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.rsocket.Payload;
@@ -170,7 +172,7 @@ public class ParseMarble {
         }
       }
     } catch (InterruptedException e) {
-      consoleUtils.error("interrupted");
+      assertNull("interrupted ", e.getMessage());
     }
   }
 
