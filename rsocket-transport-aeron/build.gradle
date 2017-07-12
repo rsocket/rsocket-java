@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-apply plugin: 'java'
-
 dependencies {
     compile project(':rsocket-core')
     compile 'io.aeron:aeron-all:1.0.1'

@@ -13,14 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-buildscript {
-    repositories {
-        jcenter()
-    }
-    dependencies {
-        classpath 'io.reactivesocket:gradle-nebula-plugin-reactivesocket:1.0.6'
-    }
-}
 
 plugins {
     id 'com.github.sherter.google-java-format' version '0.6'
@@ -28,10 +20,7 @@ plugins {
 
 description = 'RSocket: stream oriented messaging passing with Reactive Stream semantics.'
 
-apply plugin: 'reactivesocket-project'
-
 subprojects {
-    apply plugin: 'reactivesocket-project'
     apply plugin: 'java'
 
     project.group = 'io.rsocket'
@@ -62,18 +51,4 @@ subprojects {
         testCompile 'org.slf4j:slf4j-log4j12:1.7.25'
         testCompile 'io.projectreactor:reactor-test:3.1.0.M2'
     }
-
-    test {
-        testLogging.showStandardStreams = true
-    }
-}
-
-// support for snapshot/final releases via versioned branch names like 1.x
-nebulaRelease {
-    addReleaseBranchPattern(/\d+\.\d+\.\d+/)
-    addReleaseBranchPattern('HEAD')
-}
-
-if (project.hasProperty('release.useLastTag')) {
-    tasks.prepare.enabled = false
 }

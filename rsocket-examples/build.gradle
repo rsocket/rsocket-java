@@ -15,7 +15,7 @@
  */
 
 plugins {
-    id "me.champeau.gradle.jmh" version "0.3.1"
+    id "me.champeau.gradle.jmh" version "0.4.4"
 }
 
 jmh {
@@ -34,11 +34,11 @@ dependencies {
     compile project(':rsocket-transport-netty')
     compile project(':rsocket-transport-local')
 
-    compile 'org.slf4j:slf4j-log4j12:1.7.21'
+    compile 'org.slf4j:slf4j-log4j12:1.7.25'
 
     jmh group: 'org.openjdk.jmh', name: 'jmh-generator-annprocess', version: '1.15'
 
-    compile 'org.slf4j:slf4j-log4j12:1.7.21'
+    compile 'org.slf4j:slf4j-log4j12:1.7.25'
 
     testCompile project(':rsocket-test')
 }
