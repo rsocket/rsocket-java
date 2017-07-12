@@ -96,10 +96,10 @@ public class TckTest {
   /**
    * A function that parses the file and extract the individual tests
    *
-   * @param file: file to read as input.
+   * @param file The file to read as input.
    * @return a list of individual tests. Each individual test is also a list of String.
    */
-  private static List<List<String>> ExtractTests(File file) throws Exception {
+  private static List<List<String>> extractTests(File file) throws Exception {
 
     BufferedReader reader = new BufferedReader(new FileReader(file));
     List<List<String>> tests = new ArrayList<>();
@@ -148,7 +148,7 @@ public class TckTest {
 
           try {
 
-            for (List<String> t : ExtractTests(file)) {
+            for (List<String> t : extractTests(file)) {
 
               String name = "";
               name = t.get(0).split("%%")[1];
