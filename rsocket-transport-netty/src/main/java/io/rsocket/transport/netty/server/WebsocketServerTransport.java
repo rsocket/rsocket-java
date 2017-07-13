@@ -17,12 +17,18 @@
 package io.rsocket.transport.netty.server;
 
 import io.rsocket.transport.ServerTransport;
+import io.rsocket.transport.TransportHeaderAware;
 import io.rsocket.transport.netty.WebsocketDuplexConnection;
 import reactor.core.publisher.Mono;
 import reactor.ipc.netty.http.server.HttpServer;
 
-public class WebsocketServerTransport implements ServerTransport<NettyContextCloseable> {
+import java.util.Collections;
+import java.util.Map;
+import java.util.function.Supplier;
+
+public class WebsocketServerTransport implements ServerTransport<NettyContextCloseable>, TransportHeaderAware {
   HttpServer server;
+  private Supplier<Map<String, String>> transportHeaders = () -> Collections.emptyMap();
 
   private WebsocketServerTransport(HttpServer server) {
     this.server = server;
@@ -46,15 +52,24 @@ public class WebsocketServerTransport implements ServerTransport<NettyContextClo
   public Mono<NettyContextCloseable> start(ServerTransport.ConnectionAcceptor acceptor) {
     return server
         .newHandler(
-            (request, response) ->
-                response.sendWebsocket(
+            (request, response) -> {
+                transportHeaders.get().forEach((k, v) -> {
+                  response.addHeader(k, v);
+                });
+                return response.sendWebsocket(
                     (in, out) -> {
                       WebsocketDuplexConnection connection =
                           new WebsocketDuplexConnection(in, out, in.context());
                       acceptor.apply(connection).subscribe();
 
                       return out.neverComplete();
-                    }))
+                    });
+            })
         .map(NettyContextCloseable::new);
+  }
+
+  @Override
+  public void setTransportHeaders(Supplier<Map<String, String>> transportHeaders) {
+    this.transportHeaders = transportHeaders;
   }
 }
