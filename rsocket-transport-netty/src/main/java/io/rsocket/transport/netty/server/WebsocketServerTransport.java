@@ -19,8 +19,12 @@ package io.rsocket.transport.netty.server;
 import io.rsocket.transport.ServerTransport;
 import io.rsocket.transport.TransportHeaderAware;
 import io.rsocket.transport.netty.WebsocketDuplexConnection;
+import java.util.function.BiFunction;
+import org.reactivestreams.Publisher;
 import reactor.core.publisher.Mono;
 import reactor.ipc.netty.http.server.HttpServer;
+import reactor.ipc.netty.http.server.HttpServerRequest;
+import reactor.ipc.netty.http.server.HttpServerResponse;
 
 import java.util.Collections;
 import java.util.Map;
@@ -57,13 +61,7 @@ public class WebsocketServerTransport implements ServerTransport<NettyContextClo
                   response.addHeader(k, v);
                 });
                 return response.sendWebsocket(
-                    (in, out) -> {
-                      WebsocketDuplexConnection connection =
-                          new WebsocketDuplexConnection(in, out, in.context());
-                      acceptor.apply(connection).subscribe();
-
-                      return out.neverComplete();
-                    });
+                      WebsocketRouteTransport.newHandler(acceptor));
             })
         .map(NettyContextCloseable::new);
   }
