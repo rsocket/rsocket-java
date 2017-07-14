@@ -67,7 +67,7 @@ public class RSocketTest {
     rule.assertNoErrors();
   }
 
-  @Test
+  @Test(timeout = 2000)
   public void testChannel() throws Exception {
     CountDownLatch latch = new CountDownLatch(10);
     Flux<Payload> requests = Flux.range(0, 10).map(i -> new PayloadImpl("streaming in -> " + i));

@@ -23,6 +23,8 @@ import io.rsocket.FrameType;
 import io.rsocket.frame.FrameHeaderFlyweight;
 import reactor.core.publisher.Flux;
 
+import javax.annotation.Nullable;
+
 public class FrameFragmenter {
   private final int mtu;
 
@@ -54,7 +56,7 @@ public class FrameFragmenter {
     final FrameType frameType = frame.getType();
     final int streamId = frame.getStreamId();
     final int flags = frame.flags() & ~FrameHeaderFlyweight.FLAGS_F & ~FrameHeaderFlyweight.FLAGS_M;
-    final ByteBuf metadata = FrameHeaderFlyweight.sliceFrameMetadata(frame.content());
+    final @Nullable ByteBuf metadata = FrameHeaderFlyweight.sliceFrameMetadata(frame.content());
     final ByteBuf data = FrameHeaderFlyweight.sliceFrameData(frame.content());
     frame.retain();
 

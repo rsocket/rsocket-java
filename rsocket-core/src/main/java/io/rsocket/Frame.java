@@ -15,10 +15,7 @@
  */
 package io.rsocket;
 
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.ByteBufAllocator;
-import io.netty.buffer.ByteBufHolder;
-import io.netty.buffer.Unpooled;
+import io.netty.buffer.*;
 import io.netty.util.IllegalReferenceCountException;
 import io.netty.util.Recycler;
 import io.netty.util.Recycler.Handle;
@@ -36,6 +33,8 @@ import java.nio.charset.StandardCharsets;
 import javax.annotation.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import static io.rsocket.frame.FrameHeaderFlyweight.FLAGS_M;
 
 /**
  * Represents a Frame sent over a {@link DuplexConnection}.
@@ -472,10 +471,10 @@ public class Frame implements ByteBufHolder {
       if (type.hasInitialRequestN()) {
         frame.content.writerIndex(
             RequestFrameFlyweight.encode(
-                frame.content, streamId, metadata != null ? FrameHeaderFlyweight.FLAGS_M : 0, type, initialRequestN, metadata, data));
+                frame.content, streamId, metadata != null ? FLAGS_M : 0, type, initialRequestN, metadata, data));
       } else {
         frame.content.writerIndex(
-            RequestFrameFlyweight.encode(frame.content, streamId, metadata != null ? FrameHeaderFlyweight.FLAGS_M : 0, type, metadata, data));
+            RequestFrameFlyweight.encode(frame.content, streamId, metadata != null ? FLAGS_M : 0, type, metadata, data));
       }
 
       return frame;
@@ -549,7 +548,7 @@ public class Frame implements ByteBufHolder {
     }
 
     public static Frame from(int streamId, FrameType type, Payload payload) {
-      return from(streamId, type, payload, 0);
+      return from(streamId, type, payload, payload.getMetadata() != null ? FLAGS_M : 0);
     }
 
     public static Frame from(int streamId, FrameType type, Payload payload, int flags) {
@@ -592,7 +591,7 @@ public class Frame implements ByteBufHolder {
               streamId,
               0,
               FrameType.CANCEL,
-              Unpooled.EMPTY_BUFFER,
+              null,
               Unpooled.EMPTY_BUFFER));
       return frame;
     }
@@ -638,13 +637,17 @@ public class Frame implements ByteBufHolder {
     long streamId = -1;
     String additionalFlags = "";
 
-    try {
+    // remove training wheels
+//    try {
       type = FrameHeaderFlyweight.frameType(content);
 
-      ByteBuf metadata = FrameHeaderFlyweight.sliceFrameMetadata(content);
-      if (0 < metadata.readableBytes()) {
-        payload.append(
-            String.format("metadata: \"%s\" ", metadata.toString(StandardCharsets.UTF_8)));
+      @Nullable ByteBuf metadata = FrameHeaderFlyweight.sliceFrameMetadata(content);
+
+      if (metadata != null) {
+        if (0 < metadata.readableBytes()) {
+          payload.append(
+                  String.format("metadata: \"%s\" ", metadata.toString(StandardCharsets.UTF_8)));
+        }
       }
 
       ByteBuf data = FrameHeaderFlyweight.sliceFrameData(content);
@@ -687,9 +690,9 @@ public class Frame implements ByteBufHolder {
                   + Setup.dataMimeType(this);
           break;
       }
-    } catch (Exception e) {
-      logger.error("Error generating toString, ignored.", e);
-    }
+//    } catch (Exception e) {
+//      logger.error("Error generating toString, ignored " + getType() + " " + ByteBufUtil.hexDump(content), e);
+//    }
     return "Frame => Stream ID: "
         + streamId
         + " Type: "

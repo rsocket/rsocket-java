@@ -17,6 +17,7 @@ package io.rsocket.frame;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
+import io.rsocket.Frame;
 import io.rsocket.FrameType;
 import javax.annotation.Nullable;
 
@@ -133,8 +134,12 @@ public class FrameHeaderFlyweight {
       final FrameType frameType,
       final @Nullable ByteBuf metadata,
       final ByteBuf data) {
+    if (Frame.isFlagSet(flags, FLAGS_M) != (metadata != null)) {
+      throw new IllegalStateException("bad value for metadata flag");
+    }
+
     final int frameLength =
-        computeFrameHeaderLength(frameType, metadata != null ? metadata.readableBytes() : 0, data.readableBytes());
+        computeFrameHeaderLength(frameType, metadata != null ? metadata.readableBytes() : null, data.readableBytes());
 
     final FrameType outFrameType;
     switch (frameType) {

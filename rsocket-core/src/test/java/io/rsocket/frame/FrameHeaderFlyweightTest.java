@@ -16,6 +16,7 @@
 
 package io.rsocket.frame;
 
+import static io.rsocket.frame.FrameHeaderFlyweight.FLAGS_M;
 import static io.rsocket.frame.FrameHeaderFlyweight.FRAME_HEADER_LENGTH;
 import static org.junit.Assert.*;
 
@@ -55,6 +56,14 @@ public class FrameHeaderFlyweightTest {
     int length =
         FrameHeaderFlyweight.encode(
             byteBuf, 0, 0, FrameType.SETUP, Unpooled.EMPTY_BUFFER, Unpooled.EMPTY_BUFFER);
+    assertEquals(length, 12); // 72 bits
+  }
+
+  @Test
+  public void frameLengthNullMetadata() {
+    int length =
+            FrameHeaderFlyweight.encode(
+                    byteBuf, 0, 0, FrameType.SETUP, null, Unpooled.EMPTY_BUFFER);
     assertEquals(length, 9); // 72 bits
   }
 
@@ -171,7 +180,7 @@ public class FrameHeaderFlyweightTest {
 
     FrameType frameType = FrameType.NEXT_COMPLETE;
     FrameHeaderFlyweight.encode(
-        byteBuf, 5, 0, frameType, Unpooled.EMPTY_BUFFER, Unpooled.EMPTY_BUFFER);
+        byteBuf, 5, 0, frameType, null, Unpooled.EMPTY_BUFFER);
 
     ByteBuf expected = expectedBuffer.slice(0, currentIndex);
     ByteBuf actual = byteBuf.slice(0, FRAME_HEADER_LENGTH);
