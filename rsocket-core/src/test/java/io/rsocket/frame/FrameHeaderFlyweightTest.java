@@ -65,7 +65,7 @@ public class FrameHeaderFlyweightTest {
     assertEquals(
         4,
         FrameHeaderFlyweight.decodeMetadataLength(
-            byteBuf, FrameHeaderFlyweight.FRAME_HEADER_LENGTH));
+            byteBuf, FrameHeaderFlyweight.FRAME_HEADER_LENGTH).longValue());
   }
 
   @Test

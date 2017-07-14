@@ -40,15 +40,15 @@ public class ErrorFrameFlyweight {
   private static final int ERROR_CODE_FIELD_OFFSET = FrameHeaderFlyweight.FRAME_HEADER_LENGTH;
   private static final int PAYLOAD_OFFSET = ERROR_CODE_FIELD_OFFSET + Integer.BYTES;
 
-  public static int computeFrameLength(final int metadataLength, final int dataLength) {
+  public static int computeFrameLength(final int dataLength) {
     int length =
-        FrameHeaderFlyweight.computeFrameHeaderLength(FrameType.ERROR, metadataLength, dataLength);
+        FrameHeaderFlyweight.computeFrameHeaderLength(FrameType.ERROR, null, dataLength);
     return length + Integer.BYTES;
   }
 
   public static int encode(
       final ByteBuf byteBuf, final int streamId, final int errorCode, final ByteBuf data) {
-    final int frameLength = computeFrameLength(0, data.readableBytes());
+    final int frameLength = computeFrameLength(data.readableBytes());
 
     int length =
         FrameHeaderFlyweight.encodeFrameHeader(byteBuf, frameLength, 0, FrameType.ERROR, streamId);

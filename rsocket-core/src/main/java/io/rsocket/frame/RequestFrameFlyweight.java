@@ -16,6 +16,7 @@
 package io.rsocket.frame;
 
 import io.netty.buffer.ByteBuf;
+import io.rsocket.Frame;
 import io.rsocket.FrameType;
 import javax.annotation.Nullable;
 
@@ -46,6 +47,10 @@ public class RequestFrameFlyweight {
       final int initialRequestN,
       final @Nullable ByteBuf metadata,
       final ByteBuf data) {
+    if (Frame.isFlagSet(flags, FrameHeaderFlyweight.FLAGS_M) != (metadata != null)) {
+      throw new IllegalArgumentException("metadata flag set incorrectly");
+    }
+
     final int frameLength =
         computeFrameLength(type, metadata != null ? metadata.readableBytes() : null,
             data.readableBytes());
@@ -69,6 +74,9 @@ public class RequestFrameFlyweight {
       final FrameType type,
       final @Nullable ByteBuf metadata,
       final ByteBuf data) {
+    if (Frame.isFlagSet(flags, FrameHeaderFlyweight.FLAGS_M) != (metadata != null)) {
+      throw new IllegalArgumentException("metadata flag set incorrectly");
+    }
     if (type.hasInitialRequestN()) {
       throw new AssertionError(type + " must not be encoded without initial request N");
     }

@@ -197,7 +197,9 @@ public class Frame implements ByteBufHolder {
    */
   public ByteBuffer getMetadata() {
     final ByteBuf metadata = FrameHeaderFlyweight.sliceFrameMetadata(content);
-    if (metadata.readableBytes() > 0) {
+    if (metadata == null) {
+      return null;
+    } else if (metadata.readableBytes() > 0) {
       final ByteBuffer buffer = ByteBuffer.allocateDirect(metadata.readableBytes());
       metadata.readBytes(buffer);
       buffer.flip();
@@ -264,6 +266,10 @@ public class Frame implements ByteBufHolder {
     frame.content = content;
 
     return frame;
+  }
+
+  public static boolean isFlagSet(int flags, int checkedFlag) {
+    return (flags & checkedFlag) != 0;
   }
 
   /* TODO:
@@ -363,7 +369,7 @@ public class Frame implements ByteBufHolder {
       final Frame frame = RECYCLER.get();
       frame.content =
           ByteBufAllocator.DEFAULT.buffer(
-              ErrorFrameFlyweight.computeFrameLength(0, dataBuffer.readableBytes()));
+              ErrorFrameFlyweight.computeFrameLength(dataBuffer.readableBytes()));
       frame.content.writerIndex(
           ErrorFrameFlyweight.encode(frame.content, streamId, code, dataBuffer));
       return frame;
@@ -448,28 +454,28 @@ public class Frame implements ByteBufHolder {
       if (initialRequestN < 1) {
         throw new IllegalStateException("initial request n must be greater than 0");
       }
-      final ByteBuf metadata =
+      final @Nullable ByteBuf metadata =
           payload.getMetadata() != null
               ? Unpooled.wrappedBuffer(payload.getMetadata())
-              : Unpooled.EMPTY_BUFFER;
+              : null;
       final ByteBuf data =
           payload.getData() != null
               ? Unpooled.wrappedBuffer(payload.getData())
-              : Unpooled.EMPTY_BUFFER;
+              : null;
 
       final Frame frame = RECYCLER.get();
       frame.content =
           ByteBufAllocator.DEFAULT.buffer(
               RequestFrameFlyweight.computeFrameLength(
-                  type, metadata.readableBytes(), data.readableBytes()));
+                  type, metadata != null ? metadata.readableBytes() : null, data.readableBytes()));
 
       if (type.hasInitialRequestN()) {
         frame.content.writerIndex(
             RequestFrameFlyweight.encode(
-                frame.content, streamId, 0, type, initialRequestN, metadata, data));
+                frame.content, streamId, metadata != null ? FrameHeaderFlyweight.FLAGS_M : 0, type, initialRequestN, metadata, data));
       } else {
         frame.content.writerIndex(
-            RequestFrameFlyweight.encode(frame.content, streamId, 0, type, metadata, data));
+            RequestFrameFlyweight.encode(frame.content, streamId, metadata != null ? FrameHeaderFlyweight.FLAGS_M : 0, type, metadata, data));
       }
 
       return frame;
@@ -478,7 +484,7 @@ public class Frame implements ByteBufHolder {
     public static Frame from(int streamId, FrameType type, int flags) {
       final Frame frame = RECYCLER.get();
       frame.content =
-          ByteBufAllocator.DEFAULT.buffer(RequestFrameFlyweight.computeFrameLength(type, 0, 0));
+          ByteBufAllocator.DEFAULT.buffer(RequestFrameFlyweight.computeFrameLength(type, null, 0));
       frame.content.writerIndex(
           RequestFrameFlyweight.encode(
               frame.content, streamId, flags, type, Unpooled.EMPTY_BUFFER, Unpooled.EMPTY_BUFFER));
@@ -539,7 +545,7 @@ public class Frame implements ByteBufHolder {
     private PayloadFrame() {}
 
     public static Frame from(int streamId, FrameType type) {
-      return from(streamId, type, Unpooled.EMPTY_BUFFER, Unpooled.EMPTY_BUFFER, 0);
+      return from(streamId, type, null, Unpooled.EMPTY_BUFFER, 0);
     }
 
     public static Frame from(int streamId, FrameType type, Payload payload) {
@@ -550,21 +556,21 @@ public class Frame implements ByteBufHolder {
       final ByteBuf metadata =
           payload.getMetadata() != null
               ? Unpooled.wrappedBuffer(payload.getMetadata())
-              : Unpooled.EMPTY_BUFFER;
+              : null;
       final ByteBuf data =
           payload.getData() != null
               ? Unpooled.wrappedBuffer(payload.getData())
-              : Unpooled.EMPTY_BUFFER;
+              : null;
       return from(streamId, type, metadata, data, flags);
     }
 
     public static Frame from(
-        int streamId, FrameType type, ByteBuf metadata, ByteBuf data, int flags) {
+        int streamId, FrameType type, @Nullable ByteBuf metadata, ByteBuf data, int flags) {
       final Frame frame = RECYCLER.get();
       frame.content =
           ByteBufAllocator.DEFAULT.buffer(
               FrameHeaderFlyweight.computeFrameHeaderLength(
-                  type, metadata.readableBytes(), data.readableBytes()));
+                  type, metadata != null ? metadata.readableBytes() : null, data.readableBytes()));
       frame.content.writerIndex(
           FrameHeaderFlyweight.encode(frame.content, streamId, flags, type, metadata, data));
       return frame;
@@ -579,7 +585,7 @@ public class Frame implements ByteBufHolder {
       final Frame frame = RECYCLER.get();
       frame.content =
           ByteBufAllocator.DEFAULT.buffer(
-              FrameHeaderFlyweight.computeFrameHeaderLength(FrameType.CANCEL, 0, 0));
+              FrameHeaderFlyweight.computeFrameHeaderLength(FrameType.CANCEL, null, 0));
       frame.content.writerIndex(
           FrameHeaderFlyweight.encode(
               frame.content,

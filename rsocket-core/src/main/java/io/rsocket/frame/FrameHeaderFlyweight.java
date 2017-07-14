@@ -20,6 +20,8 @@ import io.netty.buffer.Unpooled;
 import io.rsocket.FrameType;
 import javax.annotation.Nullable;
 
+import static io.rsocket.frame.FrameHeaderFlyweight.decodeMetadataLength;
+
 /**
  * Per connection frame flyweight.
  *
@@ -129,10 +131,10 @@ public class FrameHeaderFlyweight {
       final int streamId,
       int flags,
       final FrameType frameType,
-      final ByteBuf metadata,
+      final @Nullable ByteBuf metadata,
       final ByteBuf data) {
     final int frameLength =
-        computeFrameHeaderLength(frameType, metadata.readableBytes(), data.readableBytes());
+        computeFrameHeaderLength(frameType, metadata != null ? metadata.readableBytes() : 0, data.readableBytes());
 
     final FrameType outFrameType;
     switch (frameType) {
@@ -210,10 +212,15 @@ public class FrameHeaderFlyweight {
     return result;
   }
 
-  public static ByteBuf sliceFrameMetadata(final ByteBuf byteBuf) {
+  public static @Nullable ByteBuf sliceFrameMetadata(final ByteBuf byteBuf) {
     final FrameType frameType = frameType(byteBuf);
     final int frameLength = frameLength(byteBuf);
-    final int metadataLength = Math.max(0, metadataLength(byteBuf, frameType, frameLength));
+    final @Nullable Integer metadataLength = metadataLength(byteBuf, frameType, frameLength);
+
+    if (metadataLength == null) {
+      return null;
+    }
+
     int metadataOffset = metadataOffset(byteBuf);
     if (hasMetadataLengthField(frameType)) {
       metadataOffset += FRAME_LENGTH_SIZE;
@@ -237,30 +244,27 @@ public class FrameHeaderFlyweight {
     return computeMetadataLength(frameType, metadataLength(byteBuf, frameType, frameLength));
   }
 
-  public static int metadataLength(ByteBuf byteBuf, FrameType frameType, int frameLength) {
-    int metadataOffset = metadataOffset(byteBuf);
+  public static @Nullable Integer metadataLength(ByteBuf byteBuf, FrameType frameType, int frameLength) {
     if (!hasMetadataLengthField(frameType)) {
-      return frameLength - metadataOffset;
+      return frameLength - metadataOffset(byteBuf);
     } else {
-      return decodeMetadataLength(byteBuf, metadataOffset);
+      return decodeMetadataLength(byteBuf, metadataOffset(byteBuf));
     }
   }
 
-  static int decodeMetadataLength(final ByteBuf byteBuf, final int metadataOffset) {
-    int metadataLength = 0;
-
+  static @Nullable Integer decodeMetadataLength(final ByteBuf byteBuf, final int metadataOffset) {
     int flags = flags(byteBuf);
     if (FLAGS_M == (FLAGS_M & flags)) {
-      metadataLength = decodeLength(byteBuf, metadataOffset);
+      return decodeLength(byteBuf, metadataOffset);
+    } else {
+      return null;
     }
-
-    return metadataLength;
   }
 
   private static int computeMetadataLength(FrameType frameType, final @Nullable Integer length) {
     if (!hasMetadataLengthField(frameType)) {
       // Frames with only metadata does not need metadata length field
-      return length;
+      return length != null ? length : 0;
     } else {
       return length == null ? 0 : length + FRAME_LENGTH_SIZE;
     }
