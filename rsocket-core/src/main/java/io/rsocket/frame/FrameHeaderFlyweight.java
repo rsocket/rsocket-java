@@ -18,6 +18,7 @@ package io.rsocket.frame;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.rsocket.FrameType;
+import javax.annotation.Nullable;
 
 /**
  * Per connection frame flyweight.
@@ -61,7 +62,7 @@ public class FrameHeaderFlyweight {
   }
 
   public static int computeFrameHeaderLength(
-      final FrameType frameType, int metadataLength, final int dataLength) {
+      final FrameType frameType, @Nullable Integer metadataLength, final int dataLength) {
     return PAYLOAD_OFFSET + computeMetadataLength(frameType, metadataLength) + dataLength;
   }
 
@@ -89,16 +90,17 @@ public class FrameHeaderFlyweight {
       final ByteBuf byteBuf,
       final FrameType frameType,
       final int metadataOffset,
-      final ByteBuf metadata) {
+      final @Nullable ByteBuf metadata) {
     int length = 0;
-    final int metadataLength = metadata.readableBytes();
 
-    if (0 < metadataLength) {
+    if (metadata != null) {
+      final int metadataLength = metadata.readableBytes();
+
       int typeAndFlags = byteBuf.getShort(FRAME_TYPE_AND_FLAGS_FIELD_OFFSET);
       typeAndFlags |= FLAGS_M;
       byteBuf.setShort(FRAME_TYPE_AND_FLAGS_FIELD_OFFSET, (short) typeAndFlags);
 
-      if (hasMetadataLengthField(frameType)) {
+      if (hasMetadataLengthField(frameType) && metadata != null) {
         encodeLength(byteBuf, metadataOffset, metadataLength);
         length += FRAME_LENGTH_SIZE;
       }
@@ -255,12 +257,12 @@ public class FrameHeaderFlyweight {
     return metadataLength;
   }
 
-  private static int computeMetadataLength(FrameType frameType, final int length) {
+  private static int computeMetadataLength(FrameType frameType, final @Nullable Integer length) {
     if (!hasMetadataLengthField(frameType)) {
       // Frames with only metadata does not need metadata length field
       return length;
     } else {
-      return length == 0 ? 0 : length + FRAME_LENGTH_SIZE;
+      return length == null ? 0 : length + FRAME_LENGTH_SIZE;
     }
   }
 

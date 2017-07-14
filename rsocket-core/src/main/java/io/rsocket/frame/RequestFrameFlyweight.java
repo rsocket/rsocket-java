@@ -17,6 +17,7 @@ package io.rsocket.frame;
 
 import io.netty.buffer.ByteBuf;
 import io.rsocket.FrameType;
+import javax.annotation.Nullable;
 
 public class RequestFrameFlyweight {
 
@@ -27,7 +28,7 @@ public class RequestFrameFlyweight {
       FrameHeaderFlyweight.FRAME_HEADER_LENGTH;
 
   public static int computeFrameLength(
-      final FrameType type, final int metadataLength, final int dataLength) {
+      final FrameType type, final @Nullable Integer metadataLength, final int dataLength) {
     int length = FrameHeaderFlyweight.computeFrameHeaderLength(type, metadataLength, dataLength);
 
     if (type.hasInitialRequestN()) {
@@ -43,10 +44,11 @@ public class RequestFrameFlyweight {
       int flags,
       final FrameType type,
       final int initialRequestN,
-      final ByteBuf metadata,
+      final @Nullable ByteBuf metadata,
       final ByteBuf data) {
     final int frameLength =
-        computeFrameLength(type, metadata.readableBytes(), data.readableBytes());
+        computeFrameLength(type, metadata != null ? metadata.readableBytes() : null,
+            data.readableBytes());
 
     int length =
         FrameHeaderFlyweight.encodeFrameHeader(byteBuf, frameLength, flags, type, streamId);
@@ -65,13 +67,14 @@ public class RequestFrameFlyweight {
       final int streamId,
       final int flags,
       final FrameType type,
-      final ByteBuf metadata,
+      final @Nullable ByteBuf metadata,
       final ByteBuf data) {
     if (type.hasInitialRequestN()) {
       throw new AssertionError(type + " must not be encoded without initial request N");
     }
     final int frameLength =
-        computeFrameLength(type, metadata.readableBytes(), data.readableBytes());
+        computeFrameLength(type, metadata != null ? metadata.readableBytes() : null,
+            data.readableBytes());
 
     int length =
         FrameHeaderFlyweight.encodeFrameHeader(byteBuf, frameLength, flags, type, streamId);

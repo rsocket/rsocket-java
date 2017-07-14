@@ -42,4 +42,34 @@ public class RequestFrameFlyweightTest {
     assertEquals(
         "000010000000011900000000010000026d6464", ByteBufUtil.hexDump(byteBuf, 0, encoded));
   }
+
+  @Test
+  public void testEncodingWithEmptyMetadata() {
+    int encoded =
+        RequestFrameFlyweight.encode(
+            byteBuf,
+            1,
+            0,
+            FrameType.REQUEST_STREAM,
+            1,
+            Unpooled.copiedBuffer("", StandardCharsets.UTF_8),
+            Unpooled.copiedBuffer("d", StandardCharsets.UTF_8));
+    assertEquals(
+        "00000e0000000119000000000100000064", ByteBufUtil.hexDump(byteBuf, 0, encoded));
+  }
+
+  @Test
+  public void testEncodingWithNullMetadata() {
+    int encoded =
+        RequestFrameFlyweight.encode(
+            byteBuf,
+            1,
+            0,
+            FrameType.REQUEST_STREAM,
+            1,
+            null,
+            Unpooled.copiedBuffer("d", StandardCharsets.UTF_8));
+    assertEquals(
+        "00000b0000000118000000000164", ByteBufUtil.hexDump(byteBuf, 0, encoded));
+  }
 }
