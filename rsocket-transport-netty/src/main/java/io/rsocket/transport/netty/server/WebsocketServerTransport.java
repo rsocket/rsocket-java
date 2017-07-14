@@ -17,6 +17,8 @@
 package io.rsocket.transport.netty.server;
 
 import io.rsocket.transport.ServerTransport;
+import io.rsocket.transport.TransportHeaderAware;
+import io.rsocket.transport.netty.WebsocketDuplexConnection;
 import java.util.function.BiFunction;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Mono;
@@ -24,8 +26,13 @@ import reactor.ipc.netty.http.server.HttpServer;
 import reactor.ipc.netty.http.server.HttpServerRequest;
 import reactor.ipc.netty.http.server.HttpServerResponse;
 
-public class WebsocketServerTransport implements ServerTransport<NettyContextCloseable> {
+import java.util.Collections;
+import java.util.Map;
+import java.util.function.Supplier;
+
+public class WebsocketServerTransport implements ServerTransport<NettyContextCloseable>, TransportHeaderAware {
   HttpServer server;
+  private Supplier<Map<String, String>> transportHeaders = () -> Collections.emptyMap();
 
   private WebsocketServerTransport(HttpServer server) {
     this.server = server;
@@ -48,13 +55,19 @@ public class WebsocketServerTransport implements ServerTransport<NettyContextClo
   @Override
   public Mono<NettyContextCloseable> start(ServerTransport.ConnectionAcceptor acceptor) {
     return server
-        .newHandler(newHandler(acceptor))
+        .newHandler(
+            (request, response) -> {
+                transportHeaders.get().forEach((k, v) -> {
+                  response.addHeader(k, v);
+                });
+                return response.sendWebsocket(
+                      WebsocketRouteTransport.newHandler(acceptor));
+            })
         .map(NettyContextCloseable::new);
   }
 
-  public static BiFunction<HttpServerRequest, HttpServerResponse, Publisher<Void>> newHandler(
-      ConnectionAcceptor acceptor) {
-    return (request, response) -> response.sendWebsocket(
-        WebsocketRouteTransport.newHandler(acceptor));
+  @Override
+  public void setTransportHeaders(Supplier<Map<String, String>> transportHeaders) {
+    this.transportHeaders = transportHeaders;
   }
 }

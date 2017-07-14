@@ -19,11 +19,21 @@ package io.rsocket.transport.netty;
 import static io.rsocket.frame.FrameHeaderFlyweight.FRAME_LENGTH_MASK;
 import static io.rsocket.frame.FrameHeaderFlyweight.FRAME_LENGTH_SIZE;
 
+import io.netty.buffer.ByteBuf;
+import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 
 public class RSocketLengthCodec extends LengthFieldBasedFrameDecoder {
-
   public RSocketLengthCodec() {
     super(FRAME_LENGTH_MASK, 0, FRAME_LENGTH_SIZE, 0, 0);
+  }
+
+  /**
+   * Simplified non-netty focused decode usage.
+   *
+   * @see #decode(ChannelHandlerContext, ByteBuf)
+   */
+  public Object decode(ByteBuf in) throws Exception {
+    return decode(null, in);
   }
 }
