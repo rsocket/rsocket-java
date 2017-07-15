@@ -266,6 +266,10 @@ public class Frame implements ByteBufHolder {
     return frame;
   }
 
+  public String getDataUtf8() {
+    return StandardCharsets.UTF_8.decode(getData()).toString();
+  }
+
   /* TODO:
    *
    * fromRequest(type, id, payload)

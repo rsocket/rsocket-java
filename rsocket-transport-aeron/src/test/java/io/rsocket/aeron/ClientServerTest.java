@@ -64,8 +64,7 @@ public class ClientServerTest {
                     setup
                         .getRSocket()
                         .requestResponse(new PayloadImpl("hello", "metadata"))
-                        .map(
-                            payload -> StandardCharsets.UTF_8.decode(payload.getData()).toString()))
+                        .map(Payload::getDataUtf8))
             .doOnError(Throwable::printStackTrace)
             .count()
             .block();
@@ -82,8 +81,7 @@ public class ClientServerTest {
                     setup
                         .getRSocket()
                         .requestResponse(new PayloadImpl("hello", "metadata"))
-                        .map(
-                            payload -> StandardCharsets.UTF_8.decode(payload.getData()).toString()))
+                        .map(Payload::getDataUtf8))
             .doOnError(Throwable::printStackTrace)
             .count()
             .block();
@@ -100,8 +98,7 @@ public class ClientServerTest {
                     setup
                         .getRSocket()
                         .requestResponse(new PayloadImpl("hello", "metadata"))
-                        .map(
-                            payload -> StandardCharsets.UTF_8.decode(payload.getData()).toString()))
+                        .map(Payload::getDataUtf8))
             .doOnError(Throwable::printStackTrace)
             .count()
             .block();
@@ -118,8 +115,7 @@ public class ClientServerTest {
                     setup
                         .getRSocket()
                         .requestResponse(new PayloadImpl("hello", "metadata"))
-                        .map(
-                            payload -> StandardCharsets.UTF_8.decode(payload.getData()).toString()))
+                        .map(Payload::getDataUtf8))
             .doOnError(Throwable::printStackTrace)
             .count()
             .block();
