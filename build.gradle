@@ -24,6 +24,7 @@ description = 'RSocket: stream oriented messaging passing with Reactive Stream s
 subprojects {
     apply plugin: 'java'
     apply plugin: 'maven'
+    apply plugin: 'maven-publish'
     apply plugin: 'com.jfrog.bintray'
 
     group = 'io.rsocket'
@@ -32,6 +33,22 @@ subprojects {
     compileJava {
         sourceCompatibility = 1.8
         targetCompatibility = 1.8
+    }
+
+    // custom tasks for creating source/javadoc jars
+    task sourcesJar(type: Jar, dependsOn: classes) {
+        classifier = 'sources'
+        from sourceSets.main.allSource
+    }
+
+    task javadocJar(type: Jar, dependsOn: javadoc) {
+        classifier = 'javadoc'
+        from javadoc.destinationDir
+    }
+
+    // add javadoc/source jar tasks as artifacts
+    artifacts {
+        archives sourcesJar, javadocJar
     }
 
     repositories {
@@ -56,16 +73,27 @@ subprojects {
         testCompile 'io.projectreactor:reactor-test:3.1.0.M2'
     }
 
+    publishing {
+        publications {
+            mavenJava(MavenPublication) {
+                from components.java
+
+                artifact sourcesJar
+                artifact javadocJar
+            }
+        }
+    }
+
     bintray {
         if (project.hasProperty('bintrayUser')) {
             bintray.user = project.property('bintrayUser')
             bintray.key = project.property('bintrayKey')
         }
-        configurations = ['published', 'archives']
-        publish = true
-        publications = ['nebula']
+//        configurations = ['published', 'archives']
+        publications = ['mavenJava']
+        publish = false
         pkg {
-            repo = 'maven'
+            repo = 'RSocket'
 //            vcsTag = "v${project.getVersion()}"
 //            gpg {
 //                sign = true

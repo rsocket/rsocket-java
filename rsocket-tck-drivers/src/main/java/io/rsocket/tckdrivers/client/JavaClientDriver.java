@@ -71,8 +71,6 @@ public class JavaClientDriver {
    *
    * @param test the list of strings which makes up each test case
    * @param name the name of the test
-   * @return an option with either true if the test passed, false if it failed, or empty if no
-   *     subscribers were found
    */
   public void runTest(List<String> test, String name) throws Exception {
     List<String> id = new ArrayList<>();

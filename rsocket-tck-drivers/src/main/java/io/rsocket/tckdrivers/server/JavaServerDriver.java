@@ -240,8 +240,6 @@ public class JavaServerDriver {
    * lazily evaluated, and only does so before the first request. This may lead to a sort of bug,
    * where getting concurrent requests as an initial request will nondeterministically lead to some
    * data structures to not be initialized.
-   *
-   * @return a RequestHandler that details how to handle each type of request.
    */
   public void parse() {
     try {
