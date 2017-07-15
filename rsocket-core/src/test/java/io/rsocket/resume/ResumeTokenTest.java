@@ -1,9 +1,9 @@
 package io.rsocket.resume;
 
+import static org.junit.Assert.assertEquals;
+
 import java.util.UUID;
 import org.junit.Test;
-
-import static org.junit.Assert.assertEquals;
 
 public class ResumeTokenTest {
   @Test

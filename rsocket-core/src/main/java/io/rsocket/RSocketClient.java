@@ -16,6 +16,8 @@
 
 package io.rsocket;
 
+import static io.rsocket.util.ExceptionUtil.noStacktrace;
+
 import io.netty.buffer.Unpooled;
 import io.netty.util.collection.IntObjectHashMap;
 import io.rsocket.exceptions.ConnectionException;
@@ -37,8 +39,6 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
 import reactor.core.publisher.UnicastProcessor;
-
-import static io.rsocket.util.ExceptionUtil.noStacktrace;
 
 /** Client Side of a RSocket socket. Sends {@link Frame}s to a {@link RSocketServer} */
 class RSocketClient implements RSocket {

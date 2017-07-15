@@ -20,21 +20,24 @@ public class WebsocketRouteTransport implements ServerTransport<Closeable> {
     this.path = path;
   }
 
-  @Override public Mono<Closeable> start(ConnectionAcceptor acceptor) {
-    return Mono.defer(() -> {
-      routes.ws(path, newHandler(acceptor));
+  @Override
+  public Mono<Closeable> start(ConnectionAcceptor acceptor) {
+    return Mono.defer(
+        () -> {
+          routes.ws(path, newHandler(acceptor));
 
-      return Mono.just(new CloseableAdapter(() -> {
-        // TODO close route somehow
-      }));
-    });
+          return Mono.just(
+              new CloseableAdapter(
+                  () -> {
+                    // TODO close route somehow
+                  }));
+        });
   }
 
   public static BiFunction<WebsocketInbound, WebsocketOutbound, Publisher<Void>> newHandler(
       ConnectionAcceptor acceptor) {
     return (in, out) -> {
-      WebsocketDuplexConnection connection =
-          new WebsocketDuplexConnection(in, out, in.context());
+      WebsocketDuplexConnection connection = new WebsocketDuplexConnection(in, out, in.context());
       acceptor.apply(connection).subscribe();
 
       return out.neverComplete();

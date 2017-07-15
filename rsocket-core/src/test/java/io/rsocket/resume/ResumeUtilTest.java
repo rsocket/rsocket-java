@@ -1,13 +1,13 @@
 package io.rsocket.resume;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+
 import io.rsocket.Frame;
 import io.rsocket.FrameType;
 import io.rsocket.util.PayloadImpl;
 import org.junit.Test;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
 
 public class ResumeUtilTest {
   private Frame CANCEL = Frame.Cancel.from(1);
@@ -39,7 +39,6 @@ public class ResumeUtilTest {
   @Test
   public void testOffset() {
     assertEquals(6, ResumeUtil.offset(CANCEL));
-    assertEquals(14, ResumeUtil.offset(
-        STREAM));
+    assertEquals(14, ResumeUtil.offset(STREAM));
   }
 }
