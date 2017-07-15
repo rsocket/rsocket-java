@@ -20,13 +20,9 @@ import io.rsocket.transport.ServerTransport;
 import io.rsocket.transport.TransportHeaderAware;
 import java.util.Collections;
 import java.util.Map;
-import java.util.function.BiFunction;
 import java.util.function.Supplier;
-import org.reactivestreams.Publisher;
 import reactor.core.publisher.Mono;
 import reactor.ipc.netty.http.server.HttpServer;
-import reactor.ipc.netty.http.server.HttpServerRequest;
-import reactor.ipc.netty.http.server.HttpServerResponse;
 
 public class WebsocketServerTransport
     implements ServerTransport<NettyContextCloseable>, TransportHeaderAware {
@@ -53,13 +49,18 @@ public class WebsocketServerTransport
 
   @Override
   public Mono<NettyContextCloseable> start(ServerTransport.ConnectionAcceptor acceptor) {
-    return server.newHandler(newHandler(acceptor)).map(NettyContextCloseable::new);
-  }
-
-  public static BiFunction<HttpServerRequest, HttpServerResponse, Publisher<Void>> newHandler(
-      ConnectionAcceptor acceptor) {
-    return (request, response) ->
-        response.sendWebsocket(WebsocketRouteTransport.newHandler(acceptor));
+    return server
+        .newHandler(
+            (request, response) -> {
+              transportHeaders
+                  .get()
+                  .forEach(
+                      (k, v) -> {
+                        response.addHeader(k, v);
+                      });
+              return response.sendWebsocket(WebsocketRouteTransport.newHandler(acceptor));
+            })
+        .map(NettyContextCloseable::new);
   }
 
   @Override
