@@ -17,6 +17,7 @@
 plugins {
     id "com.jfrog.bintray" version "1.7.3"
     id 'com.github.sherter.google-java-format' version '0.6'
+    id "com.jfrog.artifactory" version "4.4.18"
 }
 
 description = 'RSocket: stream oriented messaging passing with Reactive Stream semantics.'
@@ -81,6 +82,24 @@ subprojects {
                 artifact sourcesJar
                 artifact javadocJar
             }
+        }
+    }
+
+    artifactory {
+        publish {
+            contextUrl = 'https://oss.jfrog.org'
+
+            repository {
+                repoKey = 'oss-snapshot-local' //The Artifactory repository key to publish to
+                //when using oss.jfrog.org the credentials are from Bintray. For local build we expect them to be found in
+                //~/.gradle/gradle.properties, otherwise to be set in the build server
+                // Conditionalize for the users who don't have bintray credentials setup
+                if (project.hasProperty('bintrayUser')) {
+                    username = project.property('bintrayUser')
+                    password = project.property('bintrayKey')
+                }
+            }
+            publications 'mavenJava'
         }
     }
 
