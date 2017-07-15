@@ -15,6 +15,8 @@
  */
 package io.rsocket;
 
+import static io.rsocket.frame.FrameHeaderFlyweight.FLAGS_M;
+
 import io.rsocket.frame.SetupFrameFlyweight;
 import java.nio.ByteBuffer;
 import javax.annotation.Nullable;
@@ -59,16 +61,19 @@ public abstract class ConnectionSetupPayload implements Payload {
 
   public abstract String dataMimeType();
 
-  public int getFlags() {
-    return HONOR_LEASE;
-  }
+  public abstract int getFlags();
 
   public boolean willClientHonorLease() {
-    return HONOR_LEASE == (getFlags() & HONOR_LEASE);
+    return Frame.isFlagSet(getFlags(), HONOR_LEASE);
   }
 
   public boolean doesClientRequestStrictInterpretation() {
     return STRICT_INTERPRETATION == (getFlags() & STRICT_INTERPRETATION);
+  }
+
+  @Override
+  public boolean hasMetadata() {
+    return Frame.isFlagSet(getFlags(), FLAGS_M);
   }
 
   private static final class ConnectionSetupPayloadImpl extends ConnectionSetupPayload {
@@ -90,6 +95,10 @@ public abstract class ConnectionSetupPayload implements Payload {
       this.data = data;
       this.metadata = metadata;
       this.flags = flags;
+
+      if (hasMetadata() != (metadata != null)) {
+        throw new IllegalArgumentException("metadata flag incorrect");
+      }
     }
 
     @Override

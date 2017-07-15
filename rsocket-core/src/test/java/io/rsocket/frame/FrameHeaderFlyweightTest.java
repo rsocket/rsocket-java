@@ -55,7 +55,7 @@ public class FrameHeaderFlyweightTest {
   public void frameLength() {
     int length =
         FrameHeaderFlyweight.encode(
-            byteBuf, 0, 0, FrameType.SETUP, Unpooled.EMPTY_BUFFER, Unpooled.EMPTY_BUFFER);
+            byteBuf, 0, FLAGS_M, FrameType.SETUP, Unpooled.EMPTY_BUFFER, Unpooled.EMPTY_BUFFER);
     assertEquals(length, 12); // 72 bits
   }
 
@@ -69,7 +69,8 @@ public class FrameHeaderFlyweightTest {
   @Test
   public void metadataLength() {
     ByteBuf metadata = Unpooled.wrappedBuffer(new byte[] {1, 2, 3, 4});
-    FrameHeaderFlyweight.encode(byteBuf, 0, 0, FrameType.SETUP, metadata, Unpooled.EMPTY_BUFFER);
+    FrameHeaderFlyweight.encode(
+        byteBuf, 0, FLAGS_M, FrameType.SETUP, metadata, Unpooled.EMPTY_BUFFER);
     assertEquals(
         4,
         FrameHeaderFlyweight.decodeMetadataLength(byteBuf, FrameHeaderFlyweight.FRAME_HEADER_LENGTH)
@@ -80,7 +81,8 @@ public class FrameHeaderFlyweightTest {
   public void dataLength() {
     ByteBuf data = Unpooled.wrappedBuffer(new byte[] {1, 2, 3, 4, 5});
     int length =
-        FrameHeaderFlyweight.encode(byteBuf, 0, 0, FrameType.SETUP, Unpooled.EMPTY_BUFFER, data);
+        FrameHeaderFlyweight.encode(
+            byteBuf, 0, FLAGS_M, FrameType.SETUP, Unpooled.EMPTY_BUFFER, data);
     assertEquals(
         5,
         FrameHeaderFlyweight.dataLength(

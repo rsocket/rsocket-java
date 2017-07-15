@@ -92,14 +92,18 @@ public class PayloadImpl implements Payload {
   }
 
   @Override
-  @Nullable
   public ByteBuffer getMetadata() {
     if (metadata == null) {
-      return null;
+      return Frame.NULL_BYTEBUFFER;
     }
     if (reusable) {
       metadata.position(metadataStartPosition);
     }
     return metadata;
+  }
+
+  @Override
+  public boolean hasMetadata() {
+    return metadata != null;
   }
 }

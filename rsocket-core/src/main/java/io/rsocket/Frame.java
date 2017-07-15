@@ -271,6 +271,10 @@ public class Frame implements ByteBufHolder {
     return (flags & checkedFlag) != 0;
   }
 
+  public static int setFlag(int current, int toSet) {
+    return current | toSet;
+  }
+
   /* TODO:
    *
    * fromRequest(type, id, payload)
