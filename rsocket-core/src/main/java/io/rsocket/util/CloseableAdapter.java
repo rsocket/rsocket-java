@@ -12,7 +12,8 @@ public class CloseableAdapter implements Closeable {
     this.closeFunction = closeFunction;
   }
 
-  @Override public Mono<Void> close() {
+  @Override
+  public Mono<Void> close() {
     return Mono.defer(
         () -> {
           closeFunction.run();
@@ -21,7 +22,8 @@ public class CloseableAdapter implements Closeable {
         });
   }
 
-  @Override public Mono<Void> onClose() {
+  @Override
+  public Mono<Void> onClose() {
     return onClose();
   }
 }

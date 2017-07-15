@@ -25,7 +25,6 @@ import java.net.URI;
 import java.util.Collections;
 import java.util.Map;
 import java.util.function.Supplier;
-
 import reactor.core.publisher.Mono;
 import reactor.ipc.netty.http.client.HttpClient;
 
@@ -88,9 +87,11 @@ public class WebsocketClientTransport implements ClientTransport, TransportHeade
     return Mono.create(
         sink ->
             client
-                .ws(path, hb -> {
-                  transportHeaders.get().forEach((k, v) -> hb.set(k, v));
-                })
+                .ws(
+                    path,
+                    hb -> {
+                      transportHeaders.get().forEach((k, v) -> hb.set(k, v));
+                    })
                 .flatMap(
                     response ->
                         response.receiveWebsocket(

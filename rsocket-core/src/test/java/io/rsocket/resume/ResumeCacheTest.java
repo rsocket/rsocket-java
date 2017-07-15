@@ -1,12 +1,12 @@
 package io.rsocket.resume;
 
+import static org.junit.Assert.assertEquals;
+
 import io.rsocket.Frame;
 import io.rsocket.FrameType;
 import io.rsocket.util.PayloadImpl;
 import org.junit.Test;
 import reactor.core.publisher.Flux;
-
-import static org.junit.Assert.assertEquals;
 
 public class ResumeCacheTest {
   private Frame CANCEL = Frame.Cancel.from(1);
@@ -22,12 +22,12 @@ public class ResumeCacheTest {
     cache.updateRemotePosition(0);
   }
 
-  @Test(expected=IllegalStateException.class)
+  @Test(expected = IllegalStateException.class)
   public void failsForFutureUpdatePosition() {
     cache.updateRemotePosition(1);
   }
 
-  @Test(expected=IllegalStateException.class)
+  @Test(expected = IllegalStateException.class)
   public void failsForFutureResend() {
     cache.resend(1);
   }
@@ -77,7 +77,7 @@ public class ResumeCacheTest {
 
   @Test
   public void supportsZeroBuffer() {
-    cache = new ResumeCache(ResumePositionCounter.frames(),0);
+    cache = new ResumeCache(ResumePositionCounter.frames(), 0);
 
     cache.sent(STREAM);
     cache.sent(STREAM);
@@ -89,10 +89,9 @@ public class ResumeCacheTest {
     assertEquals(0, cache.size());
   }
 
-
   @Test
   public void supportsFrameCountBuffers() {
-    cache = new ResumeCache(ResumePositionCounter.size(),100);
+    cache = new ResumeCache(ResumePositionCounter.size(), 100);
 
     assertEquals(0, cache.getRemotePosition());
     assertEquals(0, cache.getCurrentPosition());

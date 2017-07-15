@@ -29,11 +29,13 @@ public final class ResumeToken {
     return bb.array();
   }
 
-  @Override public int hashCode() {
+  @Override
+  public int hashCode() {
     return Arrays.hashCode(resumeToken);
   }
 
-  @Override public boolean equals(Object obj) {
+  @Override
+  public boolean equals(Object obj) {
     if (obj instanceof ResumeToken) {
       return Arrays.equals(resumeToken, ((ResumeToken) obj).resumeToken);
     }
@@ -41,7 +43,8 @@ public final class ResumeToken {
     return false;
   }
 
-  @Override public String toString() {
+  @Override
+  public String toString() {
     return ByteBufUtil.hexDump(resumeToken);
   }
 
