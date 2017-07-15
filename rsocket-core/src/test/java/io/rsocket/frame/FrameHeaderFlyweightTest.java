@@ -92,7 +92,7 @@ public class FrameHeaderFlyweightTest {
   public void metadataSlice() {
     ByteBuf metadata = Unpooled.wrappedBuffer(new byte[] {1, 2, 3, 4});
     FrameHeaderFlyweight.encode(
-        byteBuf, 0, 0, FrameType.REQUEST_RESPONSE, metadata, Unpooled.EMPTY_BUFFER);
+        byteBuf, 0, FLAGS_M, FrameType.REQUEST_RESPONSE, metadata, Unpooled.EMPTY_BUFFER);
     metadata.resetReaderIndex();
 
     assertEquals(metadata, FrameHeaderFlyweight.sliceFrameMetadata(byteBuf));
@@ -102,7 +102,7 @@ public class FrameHeaderFlyweightTest {
   public void dataSlice() {
     ByteBuf data = Unpooled.wrappedBuffer(new byte[] {1, 2, 3, 4, 5});
     FrameHeaderFlyweight.encode(
-        byteBuf, 0, 0, FrameType.REQUEST_RESPONSE, Unpooled.EMPTY_BUFFER, data);
+        byteBuf, 0, FLAGS_M, FrameType.REQUEST_RESPONSE, Unpooled.EMPTY_BUFFER, data);
     data.resetReaderIndex();
 
     assertEquals(data, FrameHeaderFlyweight.sliceFrameData(byteBuf));
@@ -112,7 +112,7 @@ public class FrameHeaderFlyweightTest {
   public void streamId() {
     int streamId = 1234;
     FrameHeaderFlyweight.encode(
-        byteBuf, streamId, 0, FrameType.SETUP, Unpooled.EMPTY_BUFFER, Unpooled.EMPTY_BUFFER);
+        byteBuf, streamId, FLAGS_M, FrameType.SETUP, Unpooled.EMPTY_BUFFER, Unpooled.EMPTY_BUFFER);
     assertEquals(streamId, FrameHeaderFlyweight.streamId(byteBuf));
   }
 
