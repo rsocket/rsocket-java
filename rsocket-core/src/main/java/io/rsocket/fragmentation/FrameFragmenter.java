@@ -21,8 +21,10 @@ import io.netty.buffer.Unpooled;
 import io.rsocket.Frame;
 import io.rsocket.FrameType;
 import io.rsocket.frame.FrameHeaderFlyweight;
+import java.util.function.Consumer;
 import javax.annotation.Nullable;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.SynchronousSink;
 
 public class FrameFragmenter {
   private final int mtu;
@@ -52,61 +54,82 @@ public class FrameFragmenter {
   }
 
   public Flux<Frame> fragment(Frame frame) {
-    final FrameType frameType = frame.getType();
-    final int streamId = frame.getStreamId();
-    final int flags = frame.flags() & ~FrameHeaderFlyweight.FLAGS_F & ~FrameHeaderFlyweight.FLAGS_M;
-    final @Nullable ByteBuf metadata = FrameHeaderFlyweight.sliceFrameMetadata(frame.content());
-    final ByteBuf data = FrameHeaderFlyweight.sliceFrameData(frame.content());
-    frame.retain();
 
-    return Flux.generate(
-        sink -> {
-          final int metadataLength = metadata.readableBytes();
-          final int dataLength = data.readableBytes();
+    return Flux.generate(new FragmentGenerator(frame));
+  }
 
-          if (metadataLength > mtu) {
+  private class FragmentGenerator implements Consumer<SynchronousSink<Frame>> {
+    private final Frame frame;
+    private final int streamId;
+    private final FrameType frameType;
+    private final int flags;
+
+    private ByteBuf data;
+    private @Nullable ByteBuf metadata;
+
+    public FragmentGenerator(Frame frame) {
+      this.frame = frame.retain();
+      this.streamId = frame.getStreamId();
+      this.frameType = frame.getType();
+      this.flags = frame.flags() & ~FrameHeaderFlyweight.FLAGS_M;
+      metadata =
+          frame.hasMetadata() ? FrameHeaderFlyweight.sliceFrameMetadata(frame.content()) : null;
+      data = FrameHeaderFlyweight.sliceFrameData(frame.content());
+    }
+
+    @Override
+    public void accept(SynchronousSink<Frame> sink) {
+      final int dataLength = data.readableBytes();
+
+      if (metadata != null) {
+        final int metadataLength = metadata.readableBytes();
+
+        if (metadataLength > mtu) {
+          sink.next(
+              Frame.PayloadFrame.from(
+                  streamId,
+                  frameType,
+                  metadata.readSlice(mtu),
+                  Unpooled.EMPTY_BUFFER,
+                  flags | FrameHeaderFlyweight.FLAGS_M | FrameHeaderFlyweight.FLAGS_F));
+        } else {
+          if (dataLength > mtu - metadataLength) {
             sink.next(
                 Frame.PayloadFrame.from(
                     streamId,
                     frameType,
-                    metadata.readSlice(mtu),
-                    Unpooled.EMPTY_BUFFER,
+                    metadata.readSlice(metadataLength),
+                    data.readSlice(mtu - metadataLength),
                     flags | FrameHeaderFlyweight.FLAGS_M | FrameHeaderFlyweight.FLAGS_F));
-          } else if (metadataLength > 0) {
-            if (dataLength > mtu - metadataLength) {
-              sink.next(
-                  Frame.PayloadFrame.from(
-                      streamId,
-                      frameType,
-                      metadata.readSlice(metadataLength),
-                      data.readSlice(mtu - metadataLength),
-                      flags | FrameHeaderFlyweight.FLAGS_M | FrameHeaderFlyweight.FLAGS_F));
-            } else {
-              sink.next(
-                  Frame.PayloadFrame.from(
-                      streamId,
-                      frameType,
-                      metadata.readSlice(metadataLength),
-                      data.readSlice(dataLength),
-                      flags | FrameHeaderFlyweight.FLAGS_M));
-              frame.release();
-              sink.complete();
-            }
-          } else if (dataLength > mtu) {
-            sink.next(
-                Frame.PayloadFrame.from(
-                    streamId,
-                    frameType,
-                    Unpooled.EMPTY_BUFFER,
-                    data.readSlice(mtu),
-                    flags | FrameHeaderFlyweight.FLAGS_F));
           } else {
             sink.next(
                 Frame.PayloadFrame.from(
-                    streamId, frameType, Unpooled.EMPTY_BUFFER, data.readSlice(dataLength), flags));
+                    streamId,
+                    frameType,
+                    metadata.readSlice(metadataLength),
+                    data.readSlice(dataLength),
+                    flags | FrameHeaderFlyweight.FLAGS_M));
             frame.release();
             sink.complete();
           }
-        });
+        }
+      } else {
+        if (dataLength > mtu) {
+          sink.next(
+              Frame.PayloadFrame.from(
+                  streamId,
+                  frameType,
+                  Unpooled.EMPTY_BUFFER,
+                  data.readSlice(mtu),
+                  flags | FrameHeaderFlyweight.FLAGS_F));
+        } else {
+          sink.next(
+              Frame.PayloadFrame.from(
+                  streamId, frameType, Unpooled.EMPTY_BUFFER, data.readSlice(dataLength), flags));
+          frame.release();
+          sink.complete();
+        }
+      }
+    }
   }
 }

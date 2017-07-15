@@ -194,7 +194,7 @@ public class Frame implements ByteBufHolder {
    *
    * @return ByteBuffer containing the content
    */
-  public ByteBuffer getMetadata() {
+  public @Nullable ByteBuffer getMetadata() {
     final ByteBuf metadata = FrameHeaderFlyweight.sliceFrameMetadata(content);
     if (metadata == null) {
       return null;
@@ -273,6 +273,10 @@ public class Frame implements ByteBufHolder {
 
   public static int setFlag(int current, int toSet) {
     return current | toSet;
+  }
+
+  public boolean hasMetadata() {
+    return Frame.isFlagSet(this.flags(), FLAGS_M);
   }
 
   /* TODO:
