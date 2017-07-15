@@ -17,15 +17,21 @@
 package io.rsocket.transport.netty.server;
 
 import io.rsocket.transport.ServerTransport;
+import io.rsocket.transport.TransportHeaderAware;
+import java.util.Collections;
+import java.util.Map;
 import java.util.function.BiFunction;
+import java.util.function.Supplier;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Mono;
 import reactor.ipc.netty.http.server.HttpServer;
 import reactor.ipc.netty.http.server.HttpServerRequest;
 import reactor.ipc.netty.http.server.HttpServerResponse;
 
-public class WebsocketServerTransport implements ServerTransport<NettyContextCloseable> {
+public class WebsocketServerTransport
+    implements ServerTransport<NettyContextCloseable>, TransportHeaderAware {
   HttpServer server;
+  private Supplier<Map<String, String>> transportHeaders = () -> Collections.emptyMap();
 
   private WebsocketServerTransport(HttpServer server) {
     this.server = server;
@@ -54,5 +60,10 @@ public class WebsocketServerTransport implements ServerTransport<NettyContextClo
       ConnectionAcceptor acceptor) {
     return (request, response) ->
         response.sendWebsocket(WebsocketRouteTransport.newHandler(acceptor));
+  }
+
+  @Override
+  public void setTransportHeaders(Supplier<Map<String, String>> transportHeaders) {
+    this.transportHeaders = transportHeaders;
   }
 }

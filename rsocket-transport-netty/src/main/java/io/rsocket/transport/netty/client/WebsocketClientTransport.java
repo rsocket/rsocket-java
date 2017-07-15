@@ -18,15 +18,20 @@ package io.rsocket.transport.netty.client;
 
 import io.rsocket.DuplexConnection;
 import io.rsocket.transport.ClientTransport;
+import io.rsocket.transport.TransportHeaderAware;
 import io.rsocket.transport.netty.WebsocketDuplexConnection;
 import java.net.InetSocketAddress;
 import java.net.URI;
+import java.util.Collections;
+import java.util.Map;
+import java.util.function.Supplier;
 import reactor.core.publisher.Mono;
 import reactor.ipc.netty.http.client.HttpClient;
 
-public class WebsocketClientTransport implements ClientTransport {
+public class WebsocketClientTransport implements ClientTransport, TransportHeaderAware {
   private final HttpClient client;
   private String path;
+  private Supplier<Map<String, String>> transportHeaders = () -> Collections.emptyMap();
 
   private WebsocketClientTransport(HttpClient client, String path) {
     this.client = client;
@@ -82,7 +87,11 @@ public class WebsocketClientTransport implements ClientTransport {
     return Mono.create(
         sink ->
             client
-                .ws(path)
+                .ws(
+                    path,
+                    hb -> {
+                      transportHeaders.get().forEach((k, v) -> hb.set(k, v));
+                    })
                 .flatMap(
                     response ->
                         response.receiveWebsocket(
@@ -94,5 +103,10 @@ public class WebsocketClientTransport implements ClientTransport {
                             }))
                 .doOnError(sink::error)
                 .subscribe());
+  }
+
+  @Override
+  public void setTransportHeaders(Supplier<Map<String, String>> transportHeaders) {
+    this.transportHeaders = transportHeaders;
   }
 }
