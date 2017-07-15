@@ -54,8 +54,8 @@ public class PayloadImpl implements Payload {
     this(dataCharset.encode(data), null);
   }
 
-  public PayloadImpl(String data, Charset dataCharset, @Nullable String metadata,
-      Charset metaDataCharset) {
+  public PayloadImpl(
+      String data, Charset dataCharset, @Nullable String metadata, Charset metaDataCharset) {
     this(dataCharset.encode(data), metadata == null ? null : metaDataCharset.encode(metadata));
   }
 
@@ -91,7 +91,8 @@ public class PayloadImpl implements Payload {
     return data;
   }
 
-  @Override @Nullable
+  @Override
+  @Nullable
   public ByteBuffer getMetadata() {
     if (metadata == null) {
       return null;

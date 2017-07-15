@@ -21,9 +21,8 @@ import io.netty.buffer.Unpooled;
 import io.rsocket.Frame;
 import io.rsocket.FrameType;
 import io.rsocket.frame.FrameHeaderFlyweight;
-import reactor.core.publisher.Flux;
-
 import javax.annotation.Nullable;
+import reactor.core.publisher.Flux;
 
 public class FrameFragmenter {
   private final int mtu;

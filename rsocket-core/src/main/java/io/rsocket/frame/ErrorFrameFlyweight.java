@@ -41,8 +41,7 @@ public class ErrorFrameFlyweight {
   private static final int PAYLOAD_OFFSET = ERROR_CODE_FIELD_OFFSET + Integer.BYTES;
 
   public static int computeFrameLength(final int dataLength) {
-    int length =
-        FrameHeaderFlyweight.computeFrameHeaderLength(FrameType.ERROR, null, dataLength);
+    int length = FrameHeaderFlyweight.computeFrameHeaderLength(FrameType.ERROR, null, dataLength);
     return length + Integer.BYTES;
   }
 

@@ -15,6 +15,8 @@
  */
 package io.rsocket.client;
 
+import static io.rsocket.util.ExceptionUtil.noStacktrace;
+
 import io.rsocket.Availability;
 import io.rsocket.Closeable;
 import io.rsocket.Payload;
@@ -52,8 +54,6 @@ import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
 import reactor.core.publisher.MonoSource;
 import reactor.core.publisher.Operators;
-
-import static io.rsocket.util.ExceptionUtil.noStacktrace;
 
 /**
  * An implementation of {@link Mono} that load balances across a pool of RSockets and emits one when

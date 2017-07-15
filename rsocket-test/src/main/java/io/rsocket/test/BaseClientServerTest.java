@@ -144,8 +144,7 @@ public abstract class BaseClientServerTest<T extends ClientSetupRule<?, ?>> {
 
   @Test(timeout = 10000)
   public void testRequestStream() {
-    Flux<Payload> publisher =
-        setup.getRSocket().requestStream(testPayload(3));
+    Flux<Payload> publisher = setup.getRSocket().requestStream(testPayload(3));
 
     long count = publisher.take(5).count().block();
 

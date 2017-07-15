@@ -62,8 +62,7 @@ public class FrameHeaderFlyweightTest {
   @Test
   public void frameLengthNullMetadata() {
     int length =
-            FrameHeaderFlyweight.encode(
-                    byteBuf, 0, 0, FrameType.SETUP, null, Unpooled.EMPTY_BUFFER);
+        FrameHeaderFlyweight.encode(byteBuf, 0, 0, FrameType.SETUP, null, Unpooled.EMPTY_BUFFER);
     assertEquals(length, 9); // 72 bits
   }
 
@@ -73,8 +72,8 @@ public class FrameHeaderFlyweightTest {
     FrameHeaderFlyweight.encode(byteBuf, 0, 0, FrameType.SETUP, metadata, Unpooled.EMPTY_BUFFER);
     assertEquals(
         4,
-        FrameHeaderFlyweight.decodeMetadataLength(
-            byteBuf, FrameHeaderFlyweight.FRAME_HEADER_LENGTH).longValue());
+        FrameHeaderFlyweight.decodeMetadataLength(byteBuf, FrameHeaderFlyweight.FRAME_HEADER_LENGTH)
+            .longValue());
   }
 
   @Test
@@ -179,8 +178,7 @@ public class FrameHeaderFlyweightTest {
     currentIndex += Short.BYTES;
 
     FrameType frameType = FrameType.NEXT_COMPLETE;
-    FrameHeaderFlyweight.encode(
-        byteBuf, 5, 0, frameType, null, Unpooled.EMPTY_BUFFER);
+    FrameHeaderFlyweight.encode(byteBuf, 5, 0, frameType, null, Unpooled.EMPTY_BUFFER);
 
     ByteBuf expected = expectedBuffer.slice(0, currentIndex);
     ByteBuf actual = byteBuf.slice(0, FRAME_HEADER_LENGTH);

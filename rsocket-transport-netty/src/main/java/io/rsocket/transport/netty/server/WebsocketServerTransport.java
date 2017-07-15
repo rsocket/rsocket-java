@@ -47,14 +47,12 @@ public class WebsocketServerTransport implements ServerTransport<NettyContextClo
 
   @Override
   public Mono<NettyContextCloseable> start(ServerTransport.ConnectionAcceptor acceptor) {
-    return server
-        .newHandler(newHandler(acceptor))
-        .map(NettyContextCloseable::new);
+    return server.newHandler(newHandler(acceptor)).map(NettyContextCloseable::new);
   }
 
   public static BiFunction<HttpServerRequest, HttpServerResponse, Publisher<Void>> newHandler(
       ConnectionAcceptor acceptor) {
-    return (request, response) -> response.sendWebsocket(
-        WebsocketRouteTransport.newHandler(acceptor));
+    return (request, response) ->
+        response.sendWebsocket(WebsocketRouteTransport.newHandler(acceptor));
   }
 }

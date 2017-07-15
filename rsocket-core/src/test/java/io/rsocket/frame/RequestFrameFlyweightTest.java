@@ -17,16 +17,15 @@
 package io.rsocket.frame;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertFalse;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
 import io.rsocket.Frame;
 import io.rsocket.FrameType;
-import java.nio.charset.StandardCharsets;
-
 import io.rsocket.util.PayloadImpl;
+import java.nio.charset.StandardCharsets;
 import org.junit.Test;
 
 public class RequestFrameFlyweightTest {
@@ -46,7 +45,8 @@ public class RequestFrameFlyweightTest {
     assertEquals(
         "000010000000011900000000010000026d6464", ByteBufUtil.hexDump(byteBuf, 0, encoded));
 
-    PayloadImpl payload = new PayloadImpl(Frame.from(stringToBuf("000010000000011900000000010000026d6464")));
+    PayloadImpl payload =
+        new PayloadImpl(Frame.from(stringToBuf("000010000000011900000000010000026d6464")));
 
     assertEquals("md", StandardCharsets.UTF_8.decode(payload.getMetadata()).toString());
   }
@@ -62,10 +62,10 @@ public class RequestFrameFlyweightTest {
             1,
             Unpooled.copiedBuffer("", StandardCharsets.UTF_8),
             Unpooled.copiedBuffer("d", StandardCharsets.UTF_8));
-    assertEquals(
-        "00000e0000000119000000000100000064", ByteBufUtil.hexDump(byteBuf, 0, encoded));
+    assertEquals("00000e0000000119000000000100000064", ByteBufUtil.hexDump(byteBuf, 0, encoded));
 
-    PayloadImpl payload = new PayloadImpl(Frame.from(stringToBuf("00000e0000000119000000000100000064")));
+    PayloadImpl payload =
+        new PayloadImpl(Frame.from(stringToBuf("00000e0000000119000000000100000064")));
 
     assertEquals("", StandardCharsets.UTF_8.decode(payload.getMetadata()).toString());
   }
@@ -81,12 +81,11 @@ public class RequestFrameFlyweightTest {
             1,
             null,
             Unpooled.copiedBuffer("d", StandardCharsets.UTF_8));
-    assertEquals(
-        "00000b0000000118000000000164", ByteBufUtil.hexDump(byteBuf, 0, encoded));
+    assertEquals("00000b0000000118000000000164", ByteBufUtil.hexDump(byteBuf, 0, encoded));
 
     PayloadImpl payload = new PayloadImpl(Frame.from(stringToBuf("00000b0000000118000000000164")));
 
-    assertNull(payload.getMetadata());
+    assertFalse(payload.hasMetadata());
   }
 
   private String bufToString(int encoded) {

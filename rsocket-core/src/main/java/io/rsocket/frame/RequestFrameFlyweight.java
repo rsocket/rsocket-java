@@ -52,8 +52,8 @@ public class RequestFrameFlyweight {
     }
 
     final int frameLength =
-        computeFrameLength(type, metadata != null ? metadata.readableBytes() : null,
-            data.readableBytes());
+        computeFrameLength(
+            type, metadata != null ? metadata.readableBytes() : null, data.readableBytes());
 
     int length =
         FrameHeaderFlyweight.encodeFrameHeader(byteBuf, frameLength, flags, type, streamId);
@@ -81,8 +81,8 @@ public class RequestFrameFlyweight {
       throw new AssertionError(type + " must not be encoded without initial request N");
     }
     final int frameLength =
-        computeFrameLength(type, metadata != null ? metadata.readableBytes() : null,
-            data.readableBytes());
+        computeFrameLength(
+            type, metadata != null ? metadata.readableBytes() : null, data.readableBytes());
 
     int length =
         FrameHeaderFlyweight.encodeFrameHeader(byteBuf, frameLength, flags, type, streamId);

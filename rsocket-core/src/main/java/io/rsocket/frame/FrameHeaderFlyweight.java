@@ -15,13 +15,13 @@
  */
 package io.rsocket.frame;
 
+import static io.rsocket.frame.FrameHeaderFlyweight.decodeMetadataLength;
+
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.rsocket.Frame;
 import io.rsocket.FrameType;
 import javax.annotation.Nullable;
-
-import static io.rsocket.frame.FrameHeaderFlyweight.decodeMetadataLength;
 
 /**
  * Per connection frame flyweight.
@@ -139,7 +139,8 @@ public class FrameHeaderFlyweight {
     }
 
     final int frameLength =
-        computeFrameHeaderLength(frameType, metadata != null ? metadata.readableBytes() : null, data.readableBytes());
+        computeFrameHeaderLength(
+            frameType, metadata != null ? metadata.readableBytes() : null, data.readableBytes());
 
     final FrameType outFrameType;
     switch (frameType) {
@@ -249,7 +250,8 @@ public class FrameHeaderFlyweight {
     return computeMetadataLength(frameType, metadataLength(byteBuf, frameType, frameLength));
   }
 
-  public static @Nullable Integer metadataLength(ByteBuf byteBuf, FrameType frameType, int frameLength) {
+  public static @Nullable Integer metadataLength(
+      ByteBuf byteBuf, FrameType frameType, int frameLength) {
     if (!hasMetadataLengthField(frameType)) {
       return frameLength - metadataOffset(byteBuf);
     } else {

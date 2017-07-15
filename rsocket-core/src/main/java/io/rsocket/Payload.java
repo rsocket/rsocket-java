@@ -16,9 +16,15 @@
 package io.rsocket;
 
 import java.nio.ByteBuffer;
+import javax.annotation.Nullable;
 
 /** Payload of a {@link Frame}. */
 public interface Payload {
+  default boolean hasMetadata() {
+    return getMetadata() != null;
+  }
+
+  @Nullable
   ByteBuffer getMetadata();
 
   ByteBuffer getData();

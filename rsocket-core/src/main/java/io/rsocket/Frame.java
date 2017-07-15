@@ -15,6 +15,8 @@
  */
 package io.rsocket;
 
+import static io.rsocket.frame.FrameHeaderFlyweight.FLAGS_M;
+
 import io.netty.buffer.*;
 import io.netty.util.IllegalReferenceCountException;
 import io.netty.util.Recycler;
@@ -33,8 +35,6 @@ import java.nio.charset.StandardCharsets;
 import javax.annotation.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import static io.rsocket.frame.FrameHeaderFlyweight.FLAGS_M;
 
 /**
  * Represents a Frame sent over a {@link DuplexConnection}.
@@ -291,7 +291,7 @@ public class Frame implements ByteBufHolder {
         String dataMimeType,
         Payload payload) {
       final ByteBuf metadata =
-          payload.getMetadata() != null
+          payload.hasMetadata()
               ? Unpooled.wrappedBuffer(payload.getMetadata())
               : Unpooled.EMPTY_BUFFER;
       final ByteBuf data =
@@ -454,13 +454,9 @@ public class Frame implements ByteBufHolder {
         throw new IllegalStateException("initial request n must be greater than 0");
       }
       final @Nullable ByteBuf metadata =
-          payload.getMetadata() != null
-              ? Unpooled.wrappedBuffer(payload.getMetadata())
-              : null;
+          payload.hasMetadata() ? Unpooled.wrappedBuffer(payload.getMetadata()) : null;
       final ByteBuf data =
-          payload.getData() != null
-              ? Unpooled.wrappedBuffer(payload.getData())
-              : null;
+          payload.getData() != null ? Unpooled.wrappedBuffer(payload.getData()) : null;
 
       final Frame frame = RECYCLER.get();
       frame.content =
@@ -471,10 +467,17 @@ public class Frame implements ByteBufHolder {
       if (type.hasInitialRequestN()) {
         frame.content.writerIndex(
             RequestFrameFlyweight.encode(
-                frame.content, streamId, metadata != null ? FLAGS_M : 0, type, initialRequestN, metadata, data));
+                frame.content,
+                streamId,
+                metadata != null ? FLAGS_M : 0,
+                type,
+                initialRequestN,
+                metadata,
+                data));
       } else {
         frame.content.writerIndex(
-            RequestFrameFlyweight.encode(frame.content, streamId, metadata != null ? FLAGS_M : 0, type, metadata, data));
+            RequestFrameFlyweight.encode(
+                frame.content, streamId, metadata != null ? FLAGS_M : 0, type, metadata, data));
       }
 
       return frame;
@@ -548,18 +551,14 @@ public class Frame implements ByteBufHolder {
     }
 
     public static Frame from(int streamId, FrameType type, Payload payload) {
-      return from(streamId, type, payload, payload.getMetadata() != null ? FLAGS_M : 0);
+      return from(streamId, type, payload, payload.hasMetadata() ? FLAGS_M : 0);
     }
 
     public static Frame from(int streamId, FrameType type, Payload payload, int flags) {
       final ByteBuf metadata =
-          payload.getMetadata() != null
-              ? Unpooled.wrappedBuffer(payload.getMetadata())
-              : null;
+          payload.hasMetadata() ? Unpooled.wrappedBuffer(payload.getMetadata()) : null;
       final ByteBuf data =
-          payload.getData() != null
-              ? Unpooled.wrappedBuffer(payload.getData())
-              : null;
+          payload.getData() != null ? Unpooled.wrappedBuffer(payload.getData()) : null;
       return from(streamId, type, metadata, data, flags);
     }
 
@@ -587,12 +586,7 @@ public class Frame implements ByteBufHolder {
               FrameHeaderFlyweight.computeFrameHeaderLength(FrameType.CANCEL, null, 0));
       frame.content.writerIndex(
           FrameHeaderFlyweight.encode(
-              frame.content,
-              streamId,
-              0,
-              FrameType.CANCEL,
-              null,
-              Unpooled.EMPTY_BUFFER));
+              frame.content, streamId, 0, FrameType.CANCEL, null, Unpooled.EMPTY_BUFFER));
       return frame;
     }
   }
@@ -638,61 +632,60 @@ public class Frame implements ByteBufHolder {
     String additionalFlags = "";
 
     // remove training wheels
-//    try {
-      type = FrameHeaderFlyweight.frameType(content);
+    //    try {
+    type = FrameHeaderFlyweight.frameType(content);
 
-      @Nullable ByteBuf metadata = FrameHeaderFlyweight.sliceFrameMetadata(content);
+    @Nullable ByteBuf metadata = FrameHeaderFlyweight.sliceFrameMetadata(content);
 
-      if (metadata != null) {
-        if (0 < metadata.readableBytes()) {
-          payload.append(
-                  String.format("metadata: \"%s\" ", metadata.toString(StandardCharsets.UTF_8)));
-        }
+    if (metadata != null) {
+      if (0 < metadata.readableBytes()) {
+        payload.append(
+            String.format("metadata: \"%s\" ", metadata.toString(StandardCharsets.UTF_8)));
       }
+    }
 
-      ByteBuf data = FrameHeaderFlyweight.sliceFrameData(content);
-      if (0 < data.readableBytes()) {
-        payload.append(String.format("data: \"%s\" ", data.toString(StandardCharsets.UTF_8)));
-      }
+    ByteBuf data = FrameHeaderFlyweight.sliceFrameData(content);
+    if (0 < data.readableBytes()) {
+      payload.append(String.format("data: \"%s\" ", data.toString(StandardCharsets.UTF_8)));
+    }
 
-      streamId = FrameHeaderFlyweight.streamId(content);
+    streamId = FrameHeaderFlyweight.streamId(content);
 
-      switch (type) {
-        case LEASE:
-          additionalFlags =
-              " Permits: " + Lease.numberOfRequests(this) + " TTL: " + Lease.ttl(this);
-          break;
-        case REQUEST_N:
-          additionalFlags = " RequestN: " + RequestN.requestN(this);
-          break;
-        case KEEPALIVE:
-          additionalFlags = " Respond flag: " + Keepalive.hasRespondFlag(this);
-          break;
-        case REQUEST_STREAM:
-        case REQUEST_CHANNEL:
-          additionalFlags = " Initial Request N: " + Request.initialRequestN(this);
-          break;
-        case ERROR:
-          additionalFlags = " Error code: " + Error.errorCode(this);
-          break;
-        case SETUP:
-          int version = Setup.version(this);
-          additionalFlags =
-              " Version: "
-                  + VersionFlyweight.toString(version)
-                  + " keep-alive interval: "
-                  + Setup.keepaliveInterval(this)
-                  + " max lifetime: "
-                  + Setup.maxLifetime(this)
-                  + " metadata mime type: "
-                  + Setup.metadataMimeType(this)
-                  + " data mime type: "
-                  + Setup.dataMimeType(this);
-          break;
-      }
-//    } catch (Exception e) {
-//      logger.error("Error generating toString, ignored " + getType() + " " + ByteBufUtil.hexDump(content), e);
-//    }
+    switch (type) {
+      case LEASE:
+        additionalFlags = " Permits: " + Lease.numberOfRequests(this) + " TTL: " + Lease.ttl(this);
+        break;
+      case REQUEST_N:
+        additionalFlags = " RequestN: " + RequestN.requestN(this);
+        break;
+      case KEEPALIVE:
+        additionalFlags = " Respond flag: " + Keepalive.hasRespondFlag(this);
+        break;
+      case REQUEST_STREAM:
+      case REQUEST_CHANNEL:
+        additionalFlags = " Initial Request N: " + Request.initialRequestN(this);
+        break;
+      case ERROR:
+        additionalFlags = " Error code: " + Error.errorCode(this);
+        break;
+      case SETUP:
+        int version = Setup.version(this);
+        additionalFlags =
+            " Version: "
+                + VersionFlyweight.toString(version)
+                + " keep-alive interval: "
+                + Setup.keepaliveInterval(this)
+                + " max lifetime: "
+                + Setup.maxLifetime(this)
+                + " metadata mime type: "
+                + Setup.metadataMimeType(this)
+                + " data mime type: "
+                + Setup.dataMimeType(this);
+        break;
+    }
+    //    } catch (Exception e) {
+    //      logger.error("Error generating toString, ignored " + getType() + " " + ByteBufUtil.hexDump(content), e);
+    //    }
     return "Frame => Stream ID: "
         + streamId
         + " Type: "
