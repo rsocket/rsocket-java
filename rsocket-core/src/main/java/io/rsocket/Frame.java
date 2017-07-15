@@ -189,10 +189,10 @@ public class Frame implements ByteBufHolder {
    *
    * @return ByteBuffer containing the content
    */
-  public @Nullable ByteBuffer getMetadata() {
+  public ByteBuffer getMetadata() {
     final ByteBuf metadata = FrameHeaderFlyweight.sliceFrameMetadata(content);
     if (metadata == null) {
-      return null;
+      return NULL_BYTEBUFFER;
     } else if (metadata.readableBytes() > 0) {
       final ByteBuffer buffer = ByteBuffer.allocateDirect(metadata.readableBytes());
       metadata.readBytes(buffer);
@@ -458,8 +458,7 @@ public class Frame implements ByteBufHolder {
       }
       final @Nullable ByteBuf metadata =
           payload.hasMetadata() ? Unpooled.wrappedBuffer(payload.getMetadata()) : null;
-      final ByteBuf data =
-          payload.getData() != null ? Unpooled.wrappedBuffer(payload.getData()) : null;
+      final ByteBuf data = Unpooled.wrappedBuffer(payload.getData());
 
       final Frame frame = RECYCLER.get();
       frame.content =
@@ -560,8 +559,7 @@ public class Frame implements ByteBufHolder {
     public static Frame from(int streamId, FrameType type, Payload payload, int flags) {
       final ByteBuf metadata =
           payload.hasMetadata() ? Unpooled.wrappedBuffer(payload.getMetadata()) : null;
-      final ByteBuf data =
-          payload.getData() != null ? Unpooled.wrappedBuffer(payload.getData()) : null;
+      final ByteBuf data = Unpooled.wrappedBuffer(payload.getData());
       return from(streamId, type, metadata, data, flags);
     }
 

@@ -19,9 +19,23 @@ import java.nio.ByteBuffer;
 
 /** Payload of a {@link Frame}. */
 public interface Payload {
+  /**
+   * Returns whether the payload has metadata, useful for tell if metadata is empty or not present.
+   */
   boolean hasMetadata();
 
+  /**
+   * Returns the Payload metadata. Always non-null, check {@link #hasMetadata()} to differentiate
+   * null from "".
+   *
+   * @return payload metadata.
+   */
   ByteBuffer getMetadata();
 
+  /**
+   * Returns the Payload data. Always non-null.
+   *
+   * @return payload data.
+   */
   ByteBuffer getData();
 }

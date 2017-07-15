@@ -39,7 +39,7 @@ public class PayloadImpl implements Payload {
   private final boolean reusable;
 
   public PayloadImpl(Frame frame) {
-    this(frame.getData(), frame.getMetadata());
+    this(frame.getData(), frame.hasMetadata() ? frame.getMetadata() : null);
   }
 
   public PayloadImpl(String data) {

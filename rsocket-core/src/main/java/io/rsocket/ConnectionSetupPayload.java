@@ -19,7 +19,6 @@ import static io.rsocket.frame.FrameHeaderFlyweight.FLAGS_M;
 
 import io.rsocket.frame.SetupFrameFlyweight;
 import java.nio.ByteBuffer;
-import javax.annotation.Nullable;
 
 /**
  * Exposed to server for determination of RequestHandler based on mime types and SETUP metadata/data
@@ -38,7 +37,11 @@ public abstract class ConnectionSetupPayload implements Payload {
   public static ConnectionSetupPayload create(
       String metadataMimeType, String dataMimeType, Payload payload) {
     return new ConnectionSetupPayloadImpl(
-        metadataMimeType, dataMimeType, payload.getData(), payload.getMetadata(), payload.hasMetadata() ? FLAGS_M : 0);
+        metadataMimeType,
+        dataMimeType,
+        payload.getData(),
+        payload.getMetadata(),
+        payload.hasMetadata() ? FLAGS_M : 0);
   }
 
   public static ConnectionSetupPayload create(
@@ -117,7 +120,7 @@ public abstract class ConnectionSetupPayload implements Payload {
     }
 
     @Override
-    public @Nullable ByteBuffer getMetadata() {
+    public ByteBuffer getMetadata() {
       return metadata;
     }
 
