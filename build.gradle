@@ -27,6 +27,7 @@ subprojects {
     apply plugin: 'maven'
     apply plugin: 'maven-publish'
     apply plugin: 'com.jfrog.bintray'
+    apply plugin: 'com.jfrog.artifactory'
 
     group = 'io.rsocket'
     version = mavenversion
@@ -49,7 +50,7 @@ subprojects {
 
     // add javadoc/source jar tasks as artifacts
     artifacts {
-        archives sourcesJar, javadocJar
+        archives sourcesJar, javadocJar, jar
     }
 
     repositories {
@@ -99,8 +100,21 @@ subprojects {
                     password = project.property('bintrayKey')
                 }
             }
-            publications 'mavenJava'
+
+            publications('mavenJava')
+
+            defaults {
+                // Reference to Gradle publications defined in the build script.
+                // This is how we tell the Artifactory Plugin which artifacts should be
+                // published to Artifactory.
+                publications('mavenJava')
+                publishArtifacts = true
+            }
         }
+    }
+
+    artifactoryPublish {
+        dependsOn jar
     }
 
     bintray {
