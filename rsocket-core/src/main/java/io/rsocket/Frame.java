@@ -42,12 +42,7 @@ import org.slf4j.LoggerFactory;
  * <p>This provides encoding, decoding and field accessors.
  */
 public class Frame implements ByteBufHolder {
-
-  private static final Logger logger = LoggerFactory.getLogger(Frame.class);
-
   public static final ByteBuffer NULL_BYTEBUFFER = ByteBuffer.allocateDirect(0);
-  public static final int METADATA_MTU = 32 * 1024;
-  public static final int DATA_MTU = 32 * 1024;
 
   private static final Recycler<Frame> RECYCLER =
       new Recycler<Frame>() {
@@ -639,8 +634,6 @@ public class Frame implements ByteBufHolder {
     long streamId = -1;
     String additionalFlags = "";
 
-    // remove training wheels
-    //    try {
     type = FrameHeaderFlyweight.frameType(content);
 
     @Nullable ByteBuf metadata = FrameHeaderFlyweight.sliceFrameMetadata(content);
@@ -691,9 +684,7 @@ public class Frame implements ByteBufHolder {
                 + Setup.dataMimeType(this);
         break;
     }
-    //    } catch (Exception e) {
-    //      logger.error("Error generating toString, ignored " + getType() + " " + ByteBufUtil.hexDump(content), e);
-    //    }
+
     return "Frame => Stream ID: "
         + streamId
         + " Type: "

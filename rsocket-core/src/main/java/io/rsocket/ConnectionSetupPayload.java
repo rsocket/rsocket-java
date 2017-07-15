@@ -38,7 +38,7 @@ public abstract class ConnectionSetupPayload implements Payload {
   public static ConnectionSetupPayload create(
       String metadataMimeType, String dataMimeType, Payload payload) {
     return new ConnectionSetupPayloadImpl(
-        metadataMimeType, dataMimeType, payload.getData(), payload.getMetadata(), NO_FLAGS);
+        metadataMimeType, dataMimeType, payload.getData(), payload.getMetadata(), payload.hasMetadata() ? FLAGS_M : 0);
   }
 
   public static ConnectionSetupPayload create(
@@ -81,14 +81,14 @@ public abstract class ConnectionSetupPayload implements Payload {
     private final String metadataMimeType;
     private final String dataMimeType;
     private final ByteBuffer data;
-    private final @Nullable ByteBuffer metadata;
+    private final ByteBuffer metadata;
     private final int flags;
 
     public ConnectionSetupPayloadImpl(
         String metadataMimeType,
         String dataMimeType,
         ByteBuffer data,
-        @Nullable ByteBuffer metadata,
+        ByteBuffer metadata,
         int flags) {
       this.metadataMimeType = metadataMimeType;
       this.dataMimeType = dataMimeType;
@@ -96,7 +96,7 @@ public abstract class ConnectionSetupPayload implements Payload {
       this.metadata = metadata;
       this.flags = flags;
 
-      if (hasMetadata() != (metadata != null)) {
+      if (!hasMetadata() && metadata.remaining() > 0) {
         throw new IllegalArgumentException("metadata flag incorrect");
       }
     }
