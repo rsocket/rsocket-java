@@ -16,10 +16,19 @@
 package io.rsocket;
 
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 
 /** Payload of a {@link Frame}. */
 public interface Payload {
   ByteBuffer getMetadata();
 
   ByteBuffer getData();
+
+  default String getMetadataUtf8() {
+    return StandardCharsets.UTF_8.decode(getMetadata()).toString();
+  }
+
+  default String getDataUtf8() {
+    return StandardCharsets.UTF_8.decode(getData()).toString();
+  }
 }

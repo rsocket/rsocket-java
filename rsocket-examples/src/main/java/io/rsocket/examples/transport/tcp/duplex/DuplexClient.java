@@ -33,7 +33,7 @@ public final class DuplexClient {
             (setup, reactiveSocket) -> {
               reactiveSocket
                   .requestStream(new PayloadImpl("Hello-Bidi"))
-                  .map(payload -> StandardCharsets.UTF_8.decode(payload.getData()).toString())
+                  .map(Payload::getDataUtf8)
                   .log()
                   .subscribe();
 

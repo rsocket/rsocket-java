@@ -39,7 +39,7 @@ public final class StreamingClient {
 
     socket
         .requestStream(new PayloadImpl("Hello"))
-        .map(payload -> StandardCharsets.UTF_8.decode(payload.getData()).toString())
+        .map(Payload::getDataUtf8)
         .doOnNext(System.out::println)
         .take(10)
         .thenEmpty(socket.close())
