@@ -81,10 +81,14 @@ public class JavaClientDriver {
     while (iter.hasNext()) {
       String line = iter.next();
       String[] args = line.split("%%");
-      switch (args[0]) {
+      if (args[0].equals("EOF")) {
+        handleEOF();
+        continue;
+      }
+      switch (args[1]) {
         case "subscribe":
           handleSubscribe(args);
-          id.add(args[2]);
+          id.add(args[3]);
           break;
         case "channel":
           channelTest = true;
@@ -94,7 +98,7 @@ public class JavaClientDriver {
           handleEchoChannel(args);
           break;
         case "await":
-          switch (args[1]) {
+          switch (args[2]) {
             case "terminal":
               handleAwaitTerminal(args);
               break;
@@ -110,7 +114,7 @@ public class JavaClientDriver {
           break;
 
         case "assert":
-          switch (args[1]) {
+          switch (args[2]) {
             case "no_error":
               assertNoError(args);
               break;
@@ -146,9 +150,6 @@ public class JavaClientDriver {
         case "cancel":
           handleCancel(args);
           break;
-        case "EOF":
-          handleEOF();
-          break;
         default:
           // the default behavior is to just skip the line, so we can acommodate slight changes to the TCK
           break;
@@ -167,32 +168,32 @@ public class JavaClientDriver {
    * @param args
    */
   private void handleSubscribe(String[] args) {
-    switch (args[1]) {
+    switch (args[2]) {
       case "rr":
         MySubscriber<Payload> rrsub = new MySubscriber<>(0L, AGENT);
-        payloadSubscribers.put(args[2], rrsub);
-        idToType.put(args[2], args[1]);
+        payloadSubscribers.put(args[3], rrsub);
+        idToType.put(args[3], args[2]);
         RSocket rrclient = createClient.get();
-        consoleUtils.info("Sending RR with " + args[3] + " " + args[4]);
-        Publisher<Payload> rrpub = rrclient.requestResponse(new PayloadImpl(args[3], args[4]));
+        consoleUtils.info("Sending RR with " + args[4] + " " + args[5]);
+        Publisher<Payload> rrpub = rrclient.requestResponse(new PayloadImpl(args[4], args[5]));
         rrpub.subscribe(rrsub);
         break;
       case "rs":
         MySubscriber<Payload> rssub = new MySubscriber<>(0L, AGENT);
-        payloadSubscribers.put(args[2], rssub);
-        idToType.put(args[2], args[1]);
+        payloadSubscribers.put(args[3], rssub);
+        idToType.put(args[3], args[2]);
         RSocket rsclient = createClient.get();
-        consoleUtils.info("Sending RS with " + args[3] + " " + args[4]);
-        Publisher<Payload> rspub = rsclient.requestStream(new PayloadImpl(args[3], args[4]));
+        consoleUtils.info("Sending RS with " + args[4] + " " + args[5]);
+        Publisher<Payload> rspub = rsclient.requestStream(new PayloadImpl(args[4], args[5]));
         rspub.subscribe(rssub);
         break;
       case "fnf":
         MySubscriber<Void> fnfsub = new MySubscriber<>(0L, AGENT);
-        fnfSubscribers.put(args[2], fnfsub);
-        idToType.put(args[2], args[1]);
+        fnfSubscribers.put(args[3], fnfsub);
+        idToType.put(args[3], args[2]);
         RSocket fnfclient = createClient.get();
-        consoleUtils.info("Sending fnf with " + args[3] + " " + args[4]);
-        Publisher<Void> fnfpub = fnfclient.fireAndForget(new PayloadImpl(args[3], args[4]));
+        consoleUtils.info("Sending fnf with " + args[4] + " " + args[5]);
+        Publisher<Void> fnfpub = fnfclient.fireAndForget(new PayloadImpl(args[4], args[5]));
         fnfpub.subscribe(fnfsub);
         break;
       default:
@@ -218,7 +219,7 @@ public class JavaClientDriver {
       line = iter.next();
     }
     // set the initial payload
-    Payload initialPayload = new PayloadImpl(args[1], args[2]);
+    Payload initialPayload = new PayloadImpl(args[2], args[3]);
 
     // this is the subscriber that will request data from the server, like all the other test subscribers
     MySubscriber<Payload> testsub = new MySubscriber<>(1L, AGENT);
@@ -259,7 +260,7 @@ public class JavaClientDriver {
    * @param args
    */
   private void handleEchoChannel(String[] args) {
-    Payload initPayload = new PayloadImpl(args[1], args[2]);
+    Payload initPayload = new PayloadImpl(args[2], args[3]);
     MySubscriber<Payload> testsub = new MySubscriber<>(1L, AGENT);
     RSocket client = createClient.get();
     Publisher<Payload> pub =
@@ -278,7 +279,7 @@ public class JavaClientDriver {
 
   private void handleAwaitTerminal(String[] args) {
     consoleUtils.info("Awaiting at Terminal");
-    String id = args[2];
+    String id = args[3];
 
     assertNotEquals("Could not find subscriber with given id", idToType.get(id), null);
 
@@ -292,11 +293,11 @@ public class JavaClientDriver {
   }
 
   private void handleAwaitAtLeast(String[] args) {
-    consoleUtils.info("Awaiting at Terminal for at least " + args[3]);
+    consoleUtils.info("Awaiting at Terminal for at least " + args[4]);
     try {
-      String id = args[2];
+      String id = args[3];
       MySubscriber<Payload> sub = payloadSubscribers.get(id);
-      sub.awaitAtLeast(Long.parseLong(args[3]));
+      sub.awaitAtLeast(Long.parseLong(args[4]));
     } catch (InterruptedException e) {
       assertNull("interrupted ", e.getMessage());
     }
@@ -304,16 +305,16 @@ public class JavaClientDriver {
 
   private void handleAwaitNoEvents(String[] args) {
     try {
-      String id = args[2];
+      String id = args[3];
       MySubscriber<Payload> sub = payloadSubscribers.get(id);
-      sub.awaitNoEvents(Long.parseLong(args[3]));
+      sub.awaitNoEvents(Long.parseLong(args[4]));
     } catch (InterruptedException e) {
       assertNull("interrupted ", e.getMessage());
     }
   }
 
   private void assertNoError(String[] args) {
-    String id = args[2];
+    String id = args[3];
 
     assertNotNull("Could not find subscriber with given id", idToType.get(id));
     if (idToType.get(id).equals("fnf")) {
@@ -335,7 +336,7 @@ public class JavaClientDriver {
 
   private void assertError(String[] args) {
     consoleUtils.info("Checking for error");
-    String id = args[2];
+    String id = args[3];
     assertNotNull("Could not find subscriber with given id", idToType.get(id));
     if (idToType.get(id).equals("fnf")) {
       MySubscriber<Void> sub = fnfSubscribers.get(id);
@@ -347,10 +348,10 @@ public class JavaClientDriver {
   }
 
   private void assertReceived(String[] args) {
-    consoleUtils.info("Verify we received " + args[3]);
-    String id = args[2];
+    consoleUtils.info("Verify we received " + args[4]);
+    String id = args[3];
     MySubscriber<Payload> sub = payloadSubscribers.get(id);
-    String[] values = args[3].split("&&");
+    String[] values = args[4].split("&&");
     List<Tuple<String, String>> assertList = new ArrayList<>();
     for (String v : values) {
       String[] vals = v.split(",");
@@ -360,24 +361,24 @@ public class JavaClientDriver {
   }
 
   private void assertReceivedN(String[] args) {
-    String id = args[2];
+    String id = args[3];
     MySubscriber<Payload> sub = payloadSubscribers.get(id);
     try {
-      sub.assertValueCount(Integer.parseInt(args[3]));
+      sub.assertValueCount(Integer.parseInt(args[4]));
     } catch (Throwable ex) {
       assertNull(ex.getMessage());
     }
   }
 
   private void assertReceivedAtLeast(String[] args) {
-    String id = args[2];
+    String id = args[3];
     MySubscriber<Payload> sub = payloadSubscribers.get(id);
-    sub.assertReceivedAtLeast(Integer.parseInt(args[3]));
+    sub.assertReceivedAtLeast(Integer.parseInt(args[4]));
   }
 
   private void assertCompleted(String[] args) {
     consoleUtils.info("Handling onComplete");
-    String id = args[2];
+    String id = args[3];
 
     assertNotNull("Could not find subscriber with given id", idToType.get(id));
     if (idToType.get(id).equals("fnf")) {
@@ -399,7 +400,7 @@ public class JavaClientDriver {
 
   private void assertNoCompleted(String[] args) {
     consoleUtils.info("Handling NO onComplete");
-    String id = args[2];
+    String id = args[3];
 
     assertNotNull("Could not find subscriber with given id", idToType.get(id));
     if (idToType.get(id).equals("fnf")) {
@@ -420,14 +421,14 @@ public class JavaClientDriver {
   }
 
   private void assertCancelled(String[] args) {
-    String id = args[2];
+    String id = args[3];
     MySubscriber<Payload> sub = payloadSubscribers.get(id);
     assertTrue(sub.isCancelled());
   }
 
   private void handleRequest(String[] args) {
-    Long num = Long.parseLong(args[1]);
-    String id = args[2];
+    Long num = Long.parseLong(args[2]);
+    String id = args[3];
 
     assertNotNull("Could not find subscriber with given id", idToType.get(id));
     if (idToType.get(id).equals("fnf")) {
@@ -442,14 +443,14 @@ public class JavaClientDriver {
   }
 
   private void handleTake(String[] args) {
-    String id = args[2];
-    Long num = Long.parseLong(args[1]);
+    String id = args[3];
+    Long num = Long.parseLong(args[2]);
     MySubscriber<Payload> sub = payloadSubscribers.get(id);
     sub.take(num);
   }
 
   private void handleCancel(String[] args) {
-    String id = args[1];
+    String id = args[2];
     MySubscriber<Payload> sub = payloadSubscribers.get(id);
     sub.cancel();
   }
