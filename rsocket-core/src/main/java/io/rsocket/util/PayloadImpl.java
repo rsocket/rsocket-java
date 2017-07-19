@@ -21,6 +21,7 @@ import io.rsocket.Payload;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import javax.annotation.Nullable;
 
 /**
  * An implementation of {@link Payload}. This implementation is <b>not</b> thread-safe, and hence
@@ -38,38 +39,39 @@ public class PayloadImpl implements Payload {
   private final boolean reusable;
 
   public PayloadImpl(Frame frame) {
-    this(frame.getData(), frame.getMetadata());
+    this(frame.getData(), frame.hasMetadata() ? frame.getMetadata() : null);
   }
 
   public PayloadImpl(String data) {
     this(data, Charset.defaultCharset());
   }
 
-  public PayloadImpl(String data, String metadata) {
+  public PayloadImpl(String data, @Nullable String metadata) {
     this(data, StandardCharsets.UTF_8, metadata, StandardCharsets.UTF_8);
   }
 
   public PayloadImpl(String data, Charset dataCharset) {
-    this(dataCharset.encode(data), Frame.NULL_BYTEBUFFER);
+    this(dataCharset.encode(data), null);
   }
 
-  public PayloadImpl(String data, Charset dataCharset, String metadata, Charset metaDataCharset) {
-    this(dataCharset.encode(data), metaDataCharset.encode(metadata));
+  public PayloadImpl(
+      String data, Charset dataCharset, @Nullable String metadata, Charset metaDataCharset) {
+    this(dataCharset.encode(data), metadata == null ? null : metaDataCharset.encode(metadata));
   }
 
   public PayloadImpl(byte[] data) {
     this(ByteBuffer.wrap(data), Frame.NULL_BYTEBUFFER);
   }
 
-  public PayloadImpl(byte[] data, byte[] metadata) {
-    this(ByteBuffer.wrap(data), ByteBuffer.wrap(metadata));
+  public PayloadImpl(byte[] data, @Nullable byte[] metadata) {
+    this(ByteBuffer.wrap(data), metadata == null ? null : ByteBuffer.wrap(metadata));
   }
 
   public PayloadImpl(ByteBuffer data) {
     this(data, Frame.NULL_BYTEBUFFER);
   }
 
-  public PayloadImpl(ByteBuffer data, ByteBuffer metadata) {
+  public PayloadImpl(ByteBuffer data, @Nullable ByteBuffer metadata) {
     this(data, metadata, true);
   }
 
@@ -78,7 +80,7 @@ public class PayloadImpl implements Payload {
     this.metadata = metadata;
     this.reusable = reusable;
     this.dataStartPosition = reusable ? this.data.position() : 0;
-    this.metadataStartPosition = reusable ? this.metadata.position() : 0;
+    this.metadataStartPosition = (reusable && metadata != null) ? this.metadata.position() : 0;
   }
 
   @Override
@@ -91,9 +93,17 @@ public class PayloadImpl implements Payload {
 
   @Override
   public ByteBuffer getMetadata() {
+    if (metadata == null) {
+      return Frame.NULL_BYTEBUFFER;
+    }
     if (reusable) {
       metadata.position(metadataStartPosition);
     }
     return metadata;
+  }
+
+  @Override
+  public boolean hasMetadata() {
+    return metadata != null;
   }
 }

@@ -17,14 +17,12 @@
 package io.rsocket.internal;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.fail;
 
 import io.rsocket.Frame;
 import io.rsocket.plugins.PluginRegistry;
 import io.rsocket.test.util.TestDuplexConnection;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 
 public class ClientServerInputMultiplexerTest {
@@ -73,12 +71,5 @@ public class ClientServerInputMultiplexerTest {
     assertEquals(2, clientFrames.get());
     assertEquals(1, serverFrames.get());
     assertEquals(0, connectionFrames.get());
-  }
-
-  @Test
-  @Ignore
-  public void testPluginsApplied() {
-    // TODO implement test
-    fail();
   }
 }

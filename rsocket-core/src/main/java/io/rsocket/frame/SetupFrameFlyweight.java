@@ -15,6 +15,8 @@
  */
 package io.rsocket.frame;
 
+import static io.rsocket.frame.FrameHeaderFlyweight.FLAGS_M;
+
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.rsocket.FrameType;
@@ -28,7 +30,7 @@ public class SetupFrameFlyweight {
   public static final int FLAGS_STRICT_INTERPRETATION = 0b00_0010_0000;
 
   public static final int VALID_FLAGS =
-      FLAGS_RESUME_ENABLE | FLAGS_WILL_HONOR_LEASE | FLAGS_STRICT_INTERPRETATION;
+      FLAGS_RESUME_ENABLE | FLAGS_WILL_HONOR_LEASE | FLAGS_STRICT_INTERPRETATION | FLAGS_M;
 
   public static final int CURRENT_VERSION = VersionFlyweight.encode(1, 0);
 

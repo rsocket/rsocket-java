@@ -27,7 +27,7 @@ public class KeepaliveFrameFlyweight {
   private static final int PAYLOAD_OFFSET = LAST_POSITION_OFFSET + Long.BYTES;
 
   public static int computeFrameLength(final int dataLength) {
-    return FrameHeaderFlyweight.computeFrameHeaderLength(FrameType.SETUP, 0, dataLength)
+    return FrameHeaderFlyweight.computeFrameHeaderLength(FrameType.SETUP, null, dataLength)
         + Long.BYTES;
   }
 
