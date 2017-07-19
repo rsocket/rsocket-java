@@ -263,7 +263,7 @@ public class Frame implements ByteBufHolder {
   }
 
   public static boolean isFlagSet(int flags, int checkedFlag) {
-    return (flags & checkedFlag) != 0;
+    return (flags & checkedFlag) == checkedFlag;
   }
 
   public static int setFlag(int current, int toSet) {
