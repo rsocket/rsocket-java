@@ -63,8 +63,8 @@ public abstract class BaseClientServerTest<T extends ClientSetupRule<?, ?>> {
                     setup
                         .getRSocket()
                         .requestResponse(testPayload(i))
-                        .map(
-                            payload -> StandardCharsets.UTF_8.decode(payload.getData()).toString()))
+                        .map(Payload::getDataUtf8))
+
             .doOnError(Throwable::printStackTrace)
             .count()
             .block();
@@ -81,8 +81,7 @@ public abstract class BaseClientServerTest<T extends ClientSetupRule<?, ?>> {
                     setup
                         .getRSocket()
                         .requestResponse(testPayload(i))
-                        .map(
-                            payload -> StandardCharsets.UTF_8.decode(payload.getData()).toString()))
+                        .map(Payload::getDataUtf8))
             .doOnError(Throwable::printStackTrace)
             .count()
             .block();
@@ -115,8 +114,7 @@ public abstract class BaseClientServerTest<T extends ClientSetupRule<?, ?>> {
                     setup
                         .getRSocket()
                         .requestResponse(testPayload(i))
-                        .map(
-                            payload -> StandardCharsets.UTF_8.decode(payload.getData()).toString()))
+                        .map(Payload::getDataUtf8))
             .doOnError(Throwable::printStackTrace)
             .count()
             .block();
@@ -133,8 +131,7 @@ public abstract class BaseClientServerTest<T extends ClientSetupRule<?, ?>> {
                     setup
                         .getRSocket()
                         .requestResponse(testPayload(i))
-                        .map(
-                            payload -> StandardCharsets.UTF_8.decode(payload.getData()).toString()))
+                        .map(Payload::getDataUtf8))
             .doOnError(Throwable::printStackTrace)
             .count()
             .block();

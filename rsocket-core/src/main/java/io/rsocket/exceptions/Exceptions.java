@@ -27,7 +27,7 @@ public class Exceptions {
   public static RuntimeException from(Frame frame) {
     final int errorCode = Frame.Error.errorCode(frame);
 
-    String message = StandardCharsets.UTF_8.decode(frame.getData()).toString();
+    String message = frame.getDataUtf8();
     switch (errorCode) {
       case APPLICATION_ERROR:
         return new ApplicationException(message);

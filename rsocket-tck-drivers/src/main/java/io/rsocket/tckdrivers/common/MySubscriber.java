@@ -64,10 +64,7 @@ public class MySubscriber<T> extends TestSubscriber<T> {
   @Override
   public void onNext(T t) {
     Payload p = (Payload) t;
-    Tuple<String, String> tup =
-        new Tuple<>(
-            StandardCharsets.UTF_8.decode(p.getData()).toString(),
-            StandardCharsets.UTF_8.decode(p.getMetadata()).toString());
+    Tuple<String, String> tup = new Tuple<>(p.getDataUtf8(), p.getMetadataUtf8());
     consoleUtils.info("On NEXT got : " + tup.getK() + " " + tup.getV());
     if (isEcho) {
       echosub.add(tup);
@@ -129,9 +126,7 @@ public class MySubscriber<T> extends TestSubscriber<T> {
     for (int i = 0; i < values.size(); i++) {
       Payload p = (Payload) this.values().get(i);
       Tuple<String, String> v =
-          new Tuple<>(
-              StandardCharsets.UTF_8.decode(p.getData()).toString(),
-              StandardCharsets.UTF_8.decode(p.getMetadata()).toString());
+          new Tuple<>(p.getDataUtf8(), p.getMetadataUtf8());
       Tuple<String, String> u = values.get(i);
       String msg = prefix + "Values at position %d differ; ";
       assertEquals(String.format(msg, i), u, v);
@@ -149,10 +144,7 @@ public class MySubscriber<T> extends TestSubscriber<T> {
     assertEquals(msg, 1, this.values.size());
 
     Payload p = (Payload) values().get(0);
-    Tuple<String, String> v =
-        new Tuple<>(
-            StandardCharsets.UTF_8.decode(p.getData()).toString(),
-            StandardCharsets.UTF_8.decode(p.getMetadata()).toString());
+    Tuple<String, String> v = new Tuple<>(p.getDataUtf8(), p.getMetadataUtf8());
     msg = prefix;
     assertEquals(msg, valueAndClass(value), valueAndClass(v));
 
@@ -202,10 +194,7 @@ public class MySubscriber<T> extends TestSubscriber<T> {
   public Tuple<String, String> getElement(int n) {
     assert (n < values.size());
     Payload p = (Payload) values().get(n);
-    Tuple<String, String> tup =
-        new Tuple<>(
-            StandardCharsets.UTF_8.decode(p.getData()).toString(),
-            StandardCharsets.UTF_8.decode(p.getMetadata()).toString());
+    Tuple<String, String> tup = new Tuple<>(p.getDataUtf8(), p.getMetadataUtf8());
     return tup;
   }
 
