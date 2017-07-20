@@ -6,7 +6,6 @@ import io.rsocket.tckdrivers.client.JavaClientDriver;
 import io.rsocket.tckdrivers.common.ServerThread;
 import io.rsocket.tckdrivers.common.TckIndividualTest;
 import java.io.File;
-import java.net.URI;
 import java.util.*;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -61,7 +60,7 @@ public class TckTest {
 
     try {
 
-      JavaClientDriver jd = new JavaClientDriver(new URI("tcp://" + hostname + ":" + port + "/rs"));
+      JavaClientDriver jd = new JavaClientDriver("tcp://" + hostname + ":" + port + "/rs");
       jd.runTest(this.tckTest.test.subList(1, this.tckTest.test.size()), this.tckTest.name);
 
     } catch (Exception e) {

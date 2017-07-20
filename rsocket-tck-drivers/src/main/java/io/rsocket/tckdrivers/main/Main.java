@@ -23,7 +23,6 @@ import io.rsocket.tckdrivers.client.JavaClientDriver;
 import io.rsocket.tckdrivers.common.TckIndividualTest;
 import io.rsocket.tckdrivers.server.JavaTCPServer;
 import java.io.*;
-import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -87,7 +86,7 @@ public class Main {
         }
       }
       try {
-        JavaClientDriver jd = new JavaClientDriver(new URI("tcp://" + host + ":" + port + "/rs"));
+        JavaClientDriver jd = new JavaClientDriver("tcp://" + host + ":" + port + "/rs");
         jd.runTest(t.test.subList(1, t.test.size()), t.name);
       } catch (Exception e) {
         e.printStackTrace();

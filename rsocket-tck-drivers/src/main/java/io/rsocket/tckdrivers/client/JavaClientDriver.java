@@ -33,7 +33,6 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
-import java.net.URI;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -58,11 +57,11 @@ public class JavaClientDriver {
   private final Map<String, MySubscriber<Void>> fnfSubscribers;
   private final Map<String, String> idToType;
   private Supplier<RSocket> createClient;
-  private final URI uri;
+  private final String uri;
   private final String AGENT = "[CLIENT]";
   private ConsoleUtils consoleUtils = new ConsoleUtils(AGENT);
 
-  public JavaClientDriver(URI uri) throws FileNotFoundException {
+  public JavaClientDriver(String uri) throws FileNotFoundException {
     this.payloadSubscribers = new HashMap<>();
     this.fnfSubscribers = new HashMap<>();
     this.idToType = new HashMap<>();
@@ -90,13 +89,10 @@ public class JavaClientDriver {
    *
    * @return a RSocket
    */
-  public RSocket createClient(URI uri) {
-    if ("tcp".equals(uri.getScheme())) {
-      ClientTransport clientTransport = UriTransportRegistry.clientForUri(uri.toString());
+  public RSocket createClient(String uri) {
+
+      ClientTransport clientTransport = UriTransportRegistry.clientForUri(uri);
       return RSocketFactory.connect().transport(clientTransport).start().block();
-    } else {
-      throw new UnsupportedOperationException("uri unsupported: " + uri);
-    }
   }
 
   /**
