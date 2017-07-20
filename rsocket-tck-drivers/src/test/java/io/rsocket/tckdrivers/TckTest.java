@@ -4,6 +4,7 @@ import static org.junit.Assert.assertNotNull;
 
 import io.rsocket.tckdrivers.client.JavaClientDriver;
 import io.rsocket.tckdrivers.common.ServerThread;
+import io.rsocket.tckdrivers.common.TckIndividualTest;
 import java.io.File;
 import java.net.URI;
 import java.util.*;
@@ -14,18 +15,6 @@ import org.junit.runners.Parameterized.Parameters;
 
 @RunWith(Parameterized.class)
 public class TckTest {
-
-  private static class TckIndividualTest {
-    String name; // Test name
-    List<String> test; // test instructions/commands
-    String testFile; // Test belong to this file. File name is without client/server prefix
-
-    public TckIndividualTest(String name, List<String> test, String testFile) {
-      this.name = name;
-      this.test = test;
-      this.testFile = testFile;
-    }
-  }
 
   /*
    * Start port. For every input test file a server instance will be launched.
@@ -39,9 +28,6 @@ public class TckTest {
    * with a prefix "server" or "client" to indicate whether they type.
    */
   private static final String path = "src/test/resources/";
-
-  private static final String serverPrefix = "server";
-  private static final String clientPrefix = "client";
   private static HashMap<String, Integer> clientPortMap = new HashMap<String, Integer>();
 
   private TckIndividualTest tckTest;
@@ -61,7 +47,7 @@ public class TckTest {
     if (null == port) {
 
       // starting a server
-      String serverFileName = serverPrefix + this.tckTest.testFile;
+      String serverFileName = TckIndividualTest.serverPrefix + this.tckTest.testFile;
       ServerThread st = new ServerThread(currentPort, path + serverFileName);
       st.start();
       st.awaitStart();
@@ -98,23 +84,20 @@ public class TckTest {
 
     for (int i = 0; i < listOfFiles.length; i++) {
       File file = listOfFiles[i];
-      if (file.isFile() && file.getName().startsWith(clientPrefix)) {
-        String testFile = file.getName().replaceFirst(clientPrefix, "");
-        String serverFileName = serverPrefix + testFile;
+      if (file.isFile() && file.getName().startsWith(TckIndividualTest.clientPrefix)) {
+        String testFile = file.getName().replaceFirst(TckIndividualTest.clientPrefix, "");
+        String serverFileName = TckIndividualTest.serverPrefix + testFile;
 
         File f = new File(path + serverFileName);
         if (f.exists() && !f.isDirectory()) {
 
           try {
 
-            for (List<String> t : JavaClientDriver.extractTests(file)) {
-
-              String name = "";
-              name = t.get(0).split("%%")[1];
+            for (TckIndividualTest t : JavaClientDriver.extractTests(file)) {
 
               Object testObject[] = new Object[2];
-              testObject[0] = name + " (" + testFile + ")";
-              testObject[1] = new TckIndividualTest(name, t, testFile);
+              testObject[0] = t.name + " (" + testFile + ")";
+              testObject[1] = t;
               testData.add(testObject);
             }
           } catch (Exception e) {

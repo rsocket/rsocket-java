@@ -20,6 +20,7 @@ import io.airlift.airline.Command;
 import io.airlift.airline.Option;
 import io.airlift.airline.SingleCommand;
 import io.rsocket.tckdrivers.client.JavaClientDriver;
+import io.rsocket.tckdrivers.common.TckIndividualTest;
 import io.rsocket.tckdrivers.server.JavaTCPServer;
 import java.io.*;
 import java.net.URI;
@@ -68,9 +69,7 @@ public class Main {
    * @param host client connects with this host
    * @param port client connects on this port
    * @testsList list of tests to run
-   *
    */
-
   public static void runTests(String realfile, String host, int port, List<String> testsList)
       throws Exception {
     // we pass in our reactive socket here to the test suite
@@ -80,24 +79,21 @@ public class Main {
     List<List<String>> tests = new ArrayList<>();
     List<String> test = new ArrayList<>();
     File file = new File(filepath);
-    for (List<String> t : JavaClientDriver.extractTests(file)) {
+    for (TckIndividualTest t : JavaClientDriver.extractTests(file)) {
 
-      String name = "";
-      name = t.get(0).split("%%")[1];
       if (testsList.size() > 0) {
-        if (!testsList.contains(name)) {
+        if (!testsList.contains(t.name)) {
           continue;
         }
       }
       try {
         JavaClientDriver jd = new JavaClientDriver(new URI("tcp://" + host + ":" + port + "/rs"));
-        jd.runTest(t.subList(1, t.size()), name);
+        jd.runTest(t.test.subList(1, t.test.size()), t.name);
       } catch (Exception e) {
         e.printStackTrace();
       }
     }
   }
-
 
   public static void main(String[] args) {
     SingleCommand<Main> cmd = SingleCommand.singleCommand(Main.class);

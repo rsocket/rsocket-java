@@ -24,8 +24,10 @@ import io.rsocket.tckdrivers.common.MySubscriber;
 import io.rsocket.tckdrivers.common.ParseChannel;
 import io.rsocket.tckdrivers.common.ParseChannelThread;
 import io.rsocket.tckdrivers.common.ParseMarble;
+import io.rsocket.tckdrivers.common.TckIndividualTest;
 import io.rsocket.tckdrivers.common.Tuple;
-import io.rsocket.transport.netty.client.TcpClientTransport;
+import io.rsocket.transport.ClientTransport;
+import io.rsocket.uri.UriTransportRegistry;
 import io.rsocket.util.PayloadImpl;
 import java.io.BufferedReader;
 import java.io.File;
@@ -90,10 +92,8 @@ public class JavaClientDriver {
    */
   public RSocket createClient(URI uri) {
     if ("tcp".equals(uri.getScheme())) {
-      return RSocketFactory.connect()
-          .transport(TcpClientTransport.create(uri.getHost(), uri.getPort()))
-          .start()
-          .block();
+      ClientTransport clientTransport = UriTransportRegistry.clientForUri(uri.toString());
+      return RSocketFactory.connect().transport(clientTransport).start().block();
     } else {
       throw new UnsupportedOperationException("uri unsupported: " + uri);
     }
@@ -531,20 +531,27 @@ public class JavaClientDriver {
    * A function that parses the file and extract the individual tests
    *
    * @param file The file to read as input.
-   * @return a list of individual tests. Each individual test is also a list of String.
+   * @return a list of TckIndividualTest.
    */
-  public static List<List<String>> extractTests(File file) throws Exception {
+  public static List<TckIndividualTest> extractTests(File file) throws Exception {
 
     BufferedReader reader = new BufferedReader(new FileReader(file));
-    List<List<String>> tests = new ArrayList<>();
+    List<TckIndividualTest> tests = new ArrayList<>();
     List<String> test = new ArrayList<>();
     String line = reader.readLine();
+    String testFile = file.getName().replaceFirst(TckIndividualTest.clientPrefix, "");
 
     //Parsing the input client file to read all the tests
     while (line != null) {
       switch (line) {
         case "!":
-          tests.add(test);
+          String name = "";
+          if (test.size() > 1) {
+            name = test.get(0).split("%%")[1];
+          }
+
+          TckIndividualTest tckTest = new TckIndividualTest(name, test, testFile);
+          tests.add(tckTest);
           test = new ArrayList<>();
           break;
         default:
@@ -553,8 +560,14 @@ public class JavaClientDriver {
       }
       line = reader.readLine();
     }
-    tests.add(test);
-    tests = tests.subList(1, tests.size()); // remove the first list, which is empty
+
+    if (test.size() > 0) {
+      String name = "";
+      name = test.get(0).split("%%")[1];
+      TckIndividualTest tckTest = new TckIndividualTest(name, test, testFile);
+      tests.add(tckTest);
+      tests = tests.subList(1, tests.size()); // remove the first list, which is empty
+    }
     return tests;
   }
 }
