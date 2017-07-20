@@ -90,9 +90,7 @@ public class JavaClientDriver {
    * @return a RSocket
    */
   public RSocket createClient(String uri) {
-
-      ClientTransport clientTransport = UriTransportRegistry.clientForUri(uri);
-      return RSocketFactory.connect().transport(clientTransport).start().block();
+      return RSocketFactory.connect().transport(UriTransportRegistry.clientForUri(uri)).start().block();
   }
 
   /**
