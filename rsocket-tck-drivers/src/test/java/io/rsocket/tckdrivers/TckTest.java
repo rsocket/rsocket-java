@@ -2,15 +2,10 @@ package io.rsocket.tckdrivers;
 
 import static org.junit.Assert.assertNotNull;
 
-import io.rsocket.RSocket;
-import io.rsocket.RSocketFactory;
 import io.rsocket.tckdrivers.client.JavaClientDriver;
 import io.rsocket.tckdrivers.common.ServerThread;
-import io.rsocket.transport.netty.client.TcpClientTransport;
-import java.io.BufferedReader;
+import io.rsocket.tckdrivers.common.TckIndividualTest;
 import java.io.File;
-import java.io.FileReader;
-import java.net.URI;
 import java.util.*;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -19,18 +14,6 @@ import org.junit.runners.Parameterized.Parameters;
 
 @RunWith(Parameterized.class)
 public class TckTest {
-
-  private static class TckIndividualTest {
-    String name; // Test name
-    List<String> test; // test instructions/commands
-    String testFile; // Test belong to this file. File name is without client/server prefix
-
-    public TckIndividualTest(String name, List<String> test, String testFile) {
-      this.name = name;
-      this.test = test;
-      this.testFile = testFile;
-    }
-  }
 
   /*
    * Start port. For every input test file a server instance will be launched.
@@ -44,11 +27,7 @@ public class TckTest {
    * with a prefix "server" or "client" to indicate whether they type.
    */
   private static final String path = "src/test/resources/";
-
-  private static final String serverPrefix = "server";
-  private static final String clientPrefix = "client";
-  private static HashMap<String, JavaClientDriver> clientDriverMap =
-      new HashMap<String, JavaClientDriver>();
+  private static HashMap<String, Integer> clientPortMap = new HashMap<String, Integer>();
 
   private TckIndividualTest tckTest;
 
@@ -60,68 +39,33 @@ public class TckTest {
   @Test(timeout = 10000)
   public void TckTestRunner() {
 
-    JavaClientDriver jd =
-        this.clientDriverMap.get(
+    Integer port =
+        this.clientPortMap.get(
             this.tckTest.testFile); // javaclientdriver object for running the given test
 
-    if (null == jd) {
+    if (null == port) {
 
       // starting a server
-      String serverFileName = serverPrefix + this.tckTest.testFile;
+      String serverFileName = TckIndividualTest.serverPrefix + this.tckTest.testFile;
       ServerThread st = new ServerThread(currentPort, path + serverFileName);
       st.start();
       st.awaitStart();
 
-      // creating a client object to run the test
-      try {
-
-        RSocket client = createClient(new URI("tcp://" + hostname + ":" + currentPort + "/rs"));
-        jd = new JavaClientDriver(() -> client);
-        this.clientDriverMap.put(this.tckTest.testFile, jd);
-        currentPort++;
-
-      } catch (Exception e) {
-        e.printStackTrace();
-      }
+      port = currentPort;
+      this.clientPortMap.put(this.tckTest.testFile, port);
+      currentPort++;
     }
 
-    assertNotNull("JavaClientDriver is not defined", jd);
+    assertNotNull("port is not defined", port);
+
     try {
+
+      JavaClientDriver jd = new JavaClientDriver("tcp://" + hostname + ":" + port + "/rs");
       jd.runTest(this.tckTest.test.subList(1, this.tckTest.test.size()), this.tckTest.name);
+
     } catch (Exception e) {
       e.printStackTrace();
     }
-  }
-
-  /**
-   * A function that parses the file and extract the individual tests
-   *
-   * @param file The file to read as input.
-   * @return a list of individual tests. Each individual test is also a list of String.
-   */
-  private static List<List<String>> extractTests(File file) throws Exception {
-
-    BufferedReader reader = new BufferedReader(new FileReader(file));
-    List<List<String>> tests = new ArrayList<>();
-    List<String> test = new ArrayList<>();
-    String line = reader.readLine();
-
-    //Parsing the input client file to read all the tests
-    while (line != null) {
-      switch (line) {
-        case "!":
-          tests.add(test);
-          test = new ArrayList<>();
-          break;
-        default:
-          test.add(line);
-          break;
-      }
-      line = reader.readLine();
-    }
-    tests.add(test);
-    tests = tests.subList(1, tests.size()); // remove the first list, which is empty
-    return tests;
   }
 
   /**
@@ -139,23 +83,20 @@ public class TckTest {
 
     for (int i = 0; i < listOfFiles.length; i++) {
       File file = listOfFiles[i];
-      if (file.isFile() && file.getName().startsWith(clientPrefix)) {
-        String testFile = file.getName().replaceFirst(clientPrefix, "");
-        String serverFileName = serverPrefix + testFile;
+      if (file.isFile() && file.getName().startsWith(TckIndividualTest.clientPrefix)) {
+        String testFile = file.getName().replaceFirst(TckIndividualTest.clientPrefix, "");
+        String serverFileName = TckIndividualTest.serverPrefix + testFile;
 
         File f = new File(path + serverFileName);
         if (f.exists() && !f.isDirectory()) {
 
           try {
 
-            for (List<String> t : extractTests(file)) {
-
-              String name = "";
-              name = t.get(0).split("%%")[1];
+            for (TckIndividualTest t : JavaClientDriver.extractTests(file)) {
 
               Object testObject[] = new Object[2];
-              testObject[0] = name + " (" + testFile + ")";
-              testObject[1] = new TckIndividualTest(name, t, testFile);
+              testObject[0] = t.name + " (" + testFile + ")";
+              testObject[1] = t;
               testData.add(testObject);
             }
           } catch (Exception e) {
@@ -167,21 +108,5 @@ public class TckTest {
       }
     }
     return testData;
-  }
-
-  /**
-   * A function that creates a RSocket on a new TCP connection.
-   *
-   * @return a RSocket
-   */
-  public static RSocket createClient(URI uri) {
-    if ("tcp".equals(uri.getScheme())) {
-      return RSocketFactory.connect()
-          .transport(TcpClientTransport.create(uri.getHost(), uri.getPort()))
-          .start()
-          .block();
-    } else {
-      throw new UnsupportedOperationException("uri unsupported: " + uri);
-    }
   }
 }

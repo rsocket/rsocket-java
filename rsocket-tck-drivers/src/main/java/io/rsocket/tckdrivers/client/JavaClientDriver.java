@@ -17,15 +17,22 @@ import static org.junit.Assert.*;
 
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
+import io.rsocket.RSocketFactory;
 import io.rsocket.tckdrivers.common.ConsoleUtils;
 import io.rsocket.tckdrivers.common.EchoSubscription;
 import io.rsocket.tckdrivers.common.MySubscriber;
 import io.rsocket.tckdrivers.common.ParseChannel;
 import io.rsocket.tckdrivers.common.ParseChannelThread;
 import io.rsocket.tckdrivers.common.ParseMarble;
+import io.rsocket.tckdrivers.common.TckIndividualTest;
 import io.rsocket.tckdrivers.common.Tuple;
+import io.rsocket.transport.ClientTransport;
+import io.rsocket.uri.UriTransportRegistry;
 import io.rsocket.util.PayloadImpl;
+import java.io.BufferedReader;
+import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.FileReader;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -49,21 +56,41 @@ public class JavaClientDriver {
   private final Map<String, MySubscriber<Payload>> payloadSubscribers;
   private final Map<String, MySubscriber<Void>> fnfSubscribers;
   private final Map<String, String> idToType;
-  private final Supplier<RSocket> createClient;
+  private Supplier<RSocket> createClient;
+  private final String uri;
   private final String AGENT = "[CLIENT]";
   private ConsoleUtils consoleUtils = new ConsoleUtils(AGENT);
 
-  public JavaClientDriver(Supplier<RSocket> createClient) throws FileNotFoundException {
+  public JavaClientDriver(String uri) throws FileNotFoundException {
     this.payloadSubscribers = new HashMap<>();
     this.fnfSubscribers = new HashMap<>();
     this.idToType = new HashMap<>();
-    this.createClient = createClient;
+    this.uri = uri;
+
+    // creating a client object to run the test
+    try {
+
+      RSocket client = createClient(this.uri);
+      this.createClient = () -> client;
+
+    } catch (Exception e) {
+      e.printStackTrace();
+    }
   }
 
   public enum TestResult {
     PASS,
     FAIL,
     CHANNEL
+  }
+
+  /**
+   * A function that creates a RSocket on a new TCP connection.
+   *
+   * @return a RSocket
+   */
+  public RSocket createClient(String uri) {
+      return RSocketFactory.connect().transport(UriTransportRegistry.clientForUri(uri)).start().block();
   }
 
   /**
@@ -492,5 +519,49 @@ public class JavaClientDriver {
       }
       if (m > 0) pm.request(m);
     }
+  }
+
+  /**
+   * A function that parses the file and extract the individual tests
+   *
+   * @param file The file to read as input.
+   * @return a list of TckIndividualTest.
+   */
+  public static List<TckIndividualTest> extractTests(File file) throws Exception {
+
+    BufferedReader reader = new BufferedReader(new FileReader(file));
+    List<TckIndividualTest> tests = new ArrayList<>();
+    List<String> test = new ArrayList<>();
+    String line = reader.readLine();
+    String testFile = file.getName().replaceFirst(TckIndividualTest.clientPrefix, "");
+
+    //Parsing the input client file to read all the tests
+    while (line != null) {
+      switch (line) {
+        case "!":
+          String name = "";
+          if (test.size() > 1) {
+            name = test.get(0).split("%%")[1];
+          }
+
+          TckIndividualTest tckTest = new TckIndividualTest(name, test, testFile);
+          tests.add(tckTest);
+          test = new ArrayList<>();
+          break;
+        default:
+          test.add(line);
+          break;
+      }
+      line = reader.readLine();
+    }
+
+    if (test.size() > 0) {
+      String name = "";
+      name = test.get(0).split("%%")[1];
+      TckIndividualTest tckTest = new TckIndividualTest(name, test, testFile);
+      tests.add(tckTest);
+      tests = tests.subList(1, tests.size()); // remove the first list, which is empty
+    }
+    return tests;
   }
 }
