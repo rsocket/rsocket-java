@@ -1,5 +1,17 @@
 apply plugin: 'java'
+apply plugin: 'application'
 
+mainClassName = "io.rsocket.tckdrivers.main.Main"
+
+jar {
+    manifest {
+        attributes "Main-Class": "$mainClassName"
+    }
+
+    from {
+        configurations.compile.collect { it.isDirectory() ? it : zipTree(it) }
+    }
+}
 
 dependencies {
     compile project(':rsocket-core')
