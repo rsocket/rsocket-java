@@ -23,7 +23,6 @@ import static org.junit.Assert.*;
 
 import io.reactivex.subscribers.TestSubscriber;
 import io.rsocket.Payload;
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -125,8 +124,7 @@ public class MySubscriber<T> extends TestSubscriber<T> {
 
     for (int i = 0; i < values.size(); i++) {
       Payload p = (Payload) this.values().get(i);
-      Tuple<String, String> v =
-          new Tuple<>(p.getDataUtf8(), p.getMetadataUtf8());
+      Tuple<String, String> v = new Tuple<>(p.getDataUtf8(), p.getMetadataUtf8());
       Tuple<String, String> u = values.get(i);
       String msg = prefix + "Values at position %d differ; ";
       assertEquals(String.format(msg, i), u, v);

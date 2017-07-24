@@ -23,7 +23,6 @@ import io.rsocket.RSocketFactory;
 import io.rsocket.transport.netty.client.TcpClientTransport;
 import io.rsocket.transport.netty.server.TcpServerTransport;
 import io.rsocket.util.PayloadImpl;
-import java.nio.charset.StandardCharsets;
 import reactor.core.publisher.Mono;
 
 public final class HelloWorldClient {

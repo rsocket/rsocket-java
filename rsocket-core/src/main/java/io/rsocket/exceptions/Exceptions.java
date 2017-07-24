@@ -18,7 +18,6 @@ package io.rsocket.exceptions;
 import static io.rsocket.frame.ErrorFrameFlyweight.*;
 
 import io.rsocket.Frame;
-import java.nio.charset.StandardCharsets;
 
 public class Exceptions {
 
