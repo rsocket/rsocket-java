@@ -20,7 +20,6 @@ import static org.junit.Assert.assertEquals;
 import io.rsocket.Payload;
 import io.rsocket.test.ClientSetupRule;
 import io.rsocket.util.PayloadImpl;
-import java.nio.charset.StandardCharsets;
 import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;

@@ -39,7 +39,6 @@ public class PayloadImplTest {
 
   public void assertDataAndMetadata(PayloadImpl p) {
     assertThat("Unexpected data.", p.getDataUtf8(), equalTo(DATA_VAL));
-    assertThat(
-        "Unexpected metadata.", p.getMetadataUtf8(), equalTo(METADATA_VAL));
+    assertThat("Unexpected metadata.", p.getMetadataUtf8(), equalTo(METADATA_VAL));
   }
 }

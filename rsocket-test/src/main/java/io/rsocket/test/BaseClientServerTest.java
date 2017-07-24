@@ -20,7 +20,6 @@ import static org.junit.Assert.assertEquals;
 
 import io.rsocket.Payload;
 import io.rsocket.util.PayloadImpl;
-import java.nio.charset.StandardCharsets;
 import org.junit.Rule;
 import org.junit.Test;
 import reactor.core.publisher.Flux;
@@ -59,12 +58,7 @@ public abstract class BaseClientServerTest<T extends ClientSetupRule<?, ?>> {
     long outputCount =
         Flux.range(1, 1)
             .flatMap(
-                i ->
-                    setup
-                        .getRSocket()
-                        .requestResponse(testPayload(i))
-                        .map(Payload::getDataUtf8))
-
+                i -> setup.getRSocket().requestResponse(testPayload(i)).map(Payload::getDataUtf8))
             .doOnError(Throwable::printStackTrace)
             .count()
             .block();
@@ -77,11 +71,7 @@ public abstract class BaseClientServerTest<T extends ClientSetupRule<?, ?>> {
     long outputCount =
         Flux.range(1, 10)
             .flatMap(
-                i ->
-                    setup
-                        .getRSocket()
-                        .requestResponse(testPayload(i))
-                        .map(Payload::getDataUtf8))
+                i -> setup.getRSocket().requestResponse(testPayload(i)).map(Payload::getDataUtf8))
             .doOnError(Throwable::printStackTrace)
             .count()
             .block();
@@ -110,11 +100,7 @@ public abstract class BaseClientServerTest<T extends ClientSetupRule<?, ?>> {
     long outputCount =
         Flux.range(1, 100)
             .flatMap(
-                i ->
-                    setup
-                        .getRSocket()
-                        .requestResponse(testPayload(i))
-                        .map(Payload::getDataUtf8))
+                i -> setup.getRSocket().requestResponse(testPayload(i)).map(Payload::getDataUtf8))
             .doOnError(Throwable::printStackTrace)
             .count()
             .block();
@@ -127,11 +113,7 @@ public abstract class BaseClientServerTest<T extends ClientSetupRule<?, ?>> {
     long outputCount =
         Flux.range(1, 10_000)
             .flatMap(
-                i ->
-                    setup
-                        .getRSocket()
-                        .requestResponse(testPayload(i))
-                        .map(Payload::getDataUtf8))
+                i -> setup.getRSocket().requestResponse(testPayload(i)).map(Payload::getDataUtf8))
             .doOnError(Throwable::printStackTrace)
             .count()
             .block();
