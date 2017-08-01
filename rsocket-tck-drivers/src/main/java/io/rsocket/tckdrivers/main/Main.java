@@ -67,7 +67,7 @@ public class Main {
    * @param realfile file to read. If null, it reads clienttest.txt
    * @param host client connects with this host
    * @param port client connects on this port
-   * @testsList list of tests to run
+   * @param testsList list of tests to run
    */
   public static void runTests(String realfile, String host, int port, List<String> testsList)
       throws Exception {
