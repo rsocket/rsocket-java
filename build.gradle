@@ -127,12 +127,9 @@ subprojects {
         publish = false
         pkg {
             repo = 'RSocket'
-//            vcsTag = "v${project.getVersion()}"
-//            gpg {
-//                sign = true
-//            }
             name = project.name
-//            dryRun = true
+            // TODO
+            dryRun = true
             websiteUrl = 'https://github.com/rsocket/rsocket-java'
             issueTrackerUrl = 'https://github.com/rsocket/rsocket-java'
             vcsUrl = 'https://github.com/rsocket/rsocket-java.git'
@@ -140,9 +137,18 @@ subprojects {
             if (project.hasProperty('sonatypeUsername') && project.hasProperty('sonatypePassword')) {
                 def sonatypeUsername = project.property('sonatypeUsername')
                 def sonatypePassword = project.property('sonatypePassword')
-                mavenCentralSync {
-                    user = sonatypeUsername
-                    password = sonatypePassword
+                version {
+                    name = "v${project.getVersion()}"
+                    vcsTag = "v${project.getVersion()}"
+                    gpg {
+                        sign = true
+                    }
+                    mavenCentralSync {
+                        // TODO
+                        sync = false
+                        user = sonatypeUsername
+                        password = sonatypePassword
+                    }
                 }
             }
         }
