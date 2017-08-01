@@ -13,32 +13,44 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-buildscript {
-    repositories {
-        jcenter()
-    }
-    dependencies {
-        classpath 'io.reactivesocket:gradle-nebula-plugin-reactivesocket:1.0.6'
-    }
-}
 
 plugins {
+    id "com.jfrog.bintray" version "1.7.3"
     id 'com.github.sherter.google-java-format' version '0.6'
+    id "com.jfrog.artifactory" version "4.4.18"
 }
 
 description = 'RSocket: stream oriented messaging passing with Reactive Stream semantics.'
 
-apply plugin: 'reactivesocket-project'
-
 subprojects {
-    apply plugin: 'reactivesocket-project'
     apply plugin: 'java'
+    apply plugin: 'maven'
+    apply plugin: 'maven-publish'
+    apply plugin: 'com.jfrog.bintray'
+    apply plugin: 'com.jfrog.artifactory'
 
-    project.group = 'io.rsocket'
+    group = 'io.rsocket'
+    version = mavenversion
 
     compileJava {
         sourceCompatibility = 1.8
         targetCompatibility = 1.8
+    }
+
+    // custom tasks for creating source/javadoc jars
+    task sourcesJar(type: Jar, dependsOn: classes) {
+        classifier = 'sources'
+        from sourceSets.main.allSource
+    }
+
+    task javadocJar(type: Jar, dependsOn: javadoc) {
+        classifier = 'javadoc'
+        from javadoc.destinationDir
+    }
+
+    // add javadoc/source jar tasks as artifacts
+    artifacts {
+        archives sourcesJar, javadocJar, jar
     }
 
     repositories {
@@ -63,17 +75,76 @@ subprojects {
         testCompile 'io.projectreactor:reactor-test:3.1.0.M2'
     }
 
-    test {
-        testLogging.showStandardStreams = true
+    publishing {
+        publications {
+            mavenJava(MavenPublication) {
+                from components.java
+
+                artifact sourcesJar
+                artifact javadocJar
+            }
+        }
     }
-}
 
-// support for snapshot/final releases via versioned branch names like 1.x
-nebulaRelease {
-    addReleaseBranchPattern(/\d+\.\d+\.\d+/)
-    addReleaseBranchPattern('HEAD')
-}
+    artifactory {
+        publish {
+            contextUrl = 'https://oss.jfrog.org'
 
-if (project.hasProperty('release.useLastTag')) {
-    tasks.prepare.enabled = false
+            repository {
+                repoKey = 'oss-snapshot-local' //The Artifactory repository key to publish to
+                //when using oss.jfrog.org the credentials are from Bintray. For local build we expect them to be found in
+                //~/.gradle/gradle.properties, otherwise to be set in the build server
+                // Conditionalize for the users who don't have bintray credentials setup
+                if (project.hasProperty('bintrayUser')) {
+                    username = project.property('bintrayUser')
+                    password = project.property('bintrayKey')
+                }
+            }
+
+            publications('mavenJava')
+
+            defaults {
+                // Reference to Gradle publications defined in the build script.
+                // This is how we tell the Artifactory Plugin which artifacts should be
+                // published to Artifactory.
+                publications('mavenJava')
+                publishArtifacts = true
+            }
+        }
+    }
+
+    artifactoryPublish {
+        dependsOn jar
+    }
+
+    bintray {
+        if (project.hasProperty('bintrayUser')) {
+            bintray.user = project.property('bintrayUser')
+            bintray.key = project.property('bintrayKey')
+        }
+//        configurations = ['published', 'archives']
+        publications = ['mavenJava']
+        publish = false
+        pkg {
+            repo = 'RSocket'
+//            vcsTag = "v${project.getVersion()}"
+//            gpg {
+//                sign = true
+//            }
+            name = project.name
+//            dryRun = true
+            websiteUrl = 'https://github.com/rsocket/rsocket-java'
+            issueTrackerUrl = 'https://github.com/rsocket/rsocket-java'
+            vcsUrl = 'https://github.com/rsocket/rsocket-java.git'
+            licenses = ['Apache-2.0']
+            if (project.hasProperty('sonatypeUsername') && project.hasProperty('sonatypePassword')) {
+                def sonatypeUsername = project.property('sonatypeUsername')
+                def sonatypePassword = project.property('sonatypePassword')
+                mavenCentralSync {
+                    user = sonatypeUsername
+                    password = sonatypePassword
+                }
+            }
+        }
+    }
 }
