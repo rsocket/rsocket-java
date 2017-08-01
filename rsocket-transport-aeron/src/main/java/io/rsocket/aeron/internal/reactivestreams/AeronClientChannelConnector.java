@@ -29,17 +29,17 @@ import io.rsocket.aeron.internal.reactivestreams.messages.AckConnectDecoder;
 import io.rsocket.aeron.internal.reactivestreams.messages.ConnectEncoder;
 import io.rsocket.aeron.internal.reactivestreams.messages.MessageHeaderDecoder;
 import io.rsocket.aeron.internal.reactivestreams.messages.MessageHeaderEncoder;
-import java.nio.ByteBuffer;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.IntConsumer;
 import org.agrona.DirectBuffer;
 import org.agrona.concurrent.UnsafeBuffer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Mono;
-import reactor.core.publisher.MonoSource;
 import reactor.core.publisher.Operators;
+
+import java.nio.ByteBuffer;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.IntConsumer;
 
 /** Brokers a connection to a remote Aeron server. */
 public class AeronClientChannelConnector
@@ -149,7 +149,7 @@ public class AeronClientChannelConnector
 
   @Override
   public Mono<AeronChannel> apply(AeronClientConfig aeronClientConfig) {
-    return MonoSource.wrap(
+    return Mono.from(
         subscriber -> {
           subscriber.onSubscribe(Operators.emptySubscription());
           final long channelId = CHANNEL_ID_COUNTER.get();

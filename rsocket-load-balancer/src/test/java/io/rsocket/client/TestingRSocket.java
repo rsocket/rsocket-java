@@ -24,10 +24,8 @@ import java.util.function.Function;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
-import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
-import reactor.core.publisher.MonoProcessor;
-import reactor.core.publisher.MonoSource;
+import reactor.core.CoreSubscriber;
+import reactor.core.publisher.*;
 
 public class TestingRSocket implements RSocket {
 
@@ -60,7 +58,7 @@ public class TestingRSocket implements RSocket {
 
   @Override
   public Mono<Payload> requestResponse(Payload payload) {
-    return MonoSource.wrap(
+    return Mono.from(
         subscriber ->
             subscriber.onSubscribe(
                 new Subscription() {

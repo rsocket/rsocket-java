@@ -15,8 +15,6 @@
  */
 package io.rsocket.client;
 
-import static io.rsocket.util.ExceptionUtil.noStacktrace;
-
 import io.rsocket.Availability;
 import io.rsocket.Closeable;
 import io.rsocket.Payload;
@@ -31,29 +29,26 @@ import io.rsocket.stat.Median;
 import io.rsocket.stat.Quantile;
 import io.rsocket.util.Clock;
 import io.rsocket.util.RSocketProxy;
-import java.nio.channels.ClosedChannelException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.Random;
-import java.util.Set;
-import java.util.concurrent.ThreadLocalRandom;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import reactor.core.CoreSubscriber;
 import reactor.core.publisher.Flux;
-import reactor.core.publisher.FluxSource;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
-import reactor.core.publisher.MonoSource;
 import reactor.core.publisher.Operators;
+
+import java.nio.channels.ClosedChannelException;
+import java.util.*;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+
+import static io.rsocket.util.ExceptionUtil.noStacktrace;
 
 /**
  * An implementation of {@link Mono} that load balances across a pool of RSockets and emits one when
@@ -203,7 +198,7 @@ public abstract class LoadBalancedRSocketMono extends Mono<RSocket>
         maxAperture,
         maxRefreshPeriodMs) {
       @Override
-      public void subscribe(Subscriber<? super RSocket> s) {
+      public void subscribe(CoreSubscriber<? super RSocket> s) {
         started.thenMany(rSocketMono).subscribe(s);
       }
     };
@@ -493,7 +488,7 @@ public abstract class LoadBalancedRSocketMono extends Mono<RSocket>
 
   @Override
   public Mono<Void> close() {
-    return MonoSource.wrap(
+    return Mono.from(
         subscriber -> {
           subscriber.onSubscribe(Operators.emptySubscription());
 
@@ -778,35 +773,35 @@ public abstract class LoadBalancedRSocketMono extends Mono<RSocket>
 
     @Override
     public Mono<Payload> requestResponse(Payload payload) {
-      return MonoSource.wrap(
+      return Mono.from(
           subscriber ->
               source.requestResponse(payload).subscribe(new LatencySubscriber<>(subscriber, this)));
     }
 
     @Override
     public Flux<Payload> requestStream(Payload payload) {
-      return FluxSource.wrap(
+      return Flux.from(
           subscriber ->
               source.requestStream(payload).subscribe(new CountingSubscriber<>(subscriber, this)));
     }
 
     @Override
     public Mono<Void> fireAndForget(Payload payload) {
-      return MonoSource.wrap(
+      return Mono.from(
           subscriber ->
               source.fireAndForget(payload).subscribe(new CountingSubscriber<>(subscriber, this)));
     }
 
     @Override
     public Mono<Void> metadataPush(Payload payload) {
-      return MonoSource.wrap(
+      return Mono.from(
           subscriber ->
               source.metadataPush(payload).subscribe(new CountingSubscriber<>(subscriber, this)));
     }
 
     @Override
     public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
-      return FluxSource.wrap(
+      return Flux.from(
           subscriber ->
               source
                   .requestChannel(payloads)
