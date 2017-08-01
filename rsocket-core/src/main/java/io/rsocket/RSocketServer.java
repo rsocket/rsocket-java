@@ -16,12 +16,14 @@
 
 package io.rsocket;
 
+import static io.rsocket.frame.FrameHeaderFlyweight.FLAGS_C;
+import static io.rsocket.frame.FrameHeaderFlyweight.FLAGS_M;
+
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.util.collection.IntObjectHashMap;
 import io.rsocket.Frame.Request;
 import io.rsocket.exceptions.ApplicationException;
-import io.rsocket.frame.FrameHeaderFlyweight;
 import io.rsocket.internal.LimitableRequestPublisher;
 import io.rsocket.util.PayloadImpl;
 import java.util.function.Consumer;
@@ -225,9 +227,13 @@ class RSocketServer implements RSocket {
         response
             .doOnSubscribe(subscription -> addSubscription(streamId, subscription))
             .map(
-                payload ->
-                    Frame.PayloadFrame.from(
-                        streamId, FrameType.NEXT_COMPLETE, payload, FrameHeaderFlyweight.FLAGS_C))
+                payload -> {
+                  int flags = FLAGS_C;
+                  if (payload.hasMetadata()) {
+                    flags = Frame.setFlag(flags, FLAGS_M);
+                  }
+                  return Frame.PayloadFrame.from(streamId, FrameType.NEXT_COMPLETE, payload, flags);
+                })
             .onErrorResume(t -> Mono.just(Frame.Error.from(streamId, t)))
             .doFinally(
                 signalType -> {

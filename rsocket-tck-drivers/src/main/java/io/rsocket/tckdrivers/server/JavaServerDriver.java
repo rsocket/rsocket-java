@@ -36,7 +36,6 @@ import io.rsocket.transport.netty.server.TcpServerTransport;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -165,9 +164,7 @@ public class JavaServerDriver {
               return Mono.from(
                   s -> {
                     Tuple<String, String> initialPayload =
-                        new Tuple<>(
-                            StandardCharsets.UTF_8.decode(payload.getData()).toString(),
-                            StandardCharsets.UTF_8.decode(payload.getMetadata()).toString());
+                        new Tuple<>(payload.getDataUtf8(), payload.getMetadataUtf8());
                     consoleUtils.initialPayload(
                         "Received firenforget "
                             + initialPayload.getK()
@@ -190,9 +187,7 @@ public class JavaServerDriver {
               return Mono.from(
                   s -> {
                     Tuple<String, String> initialPayload =
-                        new Tuple<>(
-                            StandardCharsets.UTF_8.decode(payload.getData()).toString(),
-                            StandardCharsets.UTF_8.decode(payload.getMetadata()).toString());
+                        new Tuple<>(payload.getDataUtf8(), payload.getMetadataUtf8());
                     String marble = requestResponseMarbles.get(initialPayload);
                     consoleUtils.initialPayload(
                         "Received requestresponse "
@@ -213,9 +208,7 @@ public class JavaServerDriver {
               return Flux.from(
                   s -> {
                     Tuple<String, String> initialPayload =
-                        new Tuple<>(
-                            StandardCharsets.UTF_8.decode(payload.getData()).toString(),
-                            StandardCharsets.UTF_8.decode(payload.getMetadata()).toString());
+                        new Tuple<>(payload.getDataUtf8(), payload.getMetadataUtf8());
                     String marble = requestStreamMarbles.get(initialPayload);
                     consoleUtils.initialPayload(
                         "Received Stream " + initialPayload.getK() + " " + initialPayload.getV());

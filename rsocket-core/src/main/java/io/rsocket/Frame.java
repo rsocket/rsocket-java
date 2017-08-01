@@ -15,10 +15,9 @@
  */
 package io.rsocket;
 
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.ByteBufAllocator;
-import io.netty.buffer.ByteBufHolder;
-import io.netty.buffer.Unpooled;
+import static io.rsocket.frame.FrameHeaderFlyweight.FLAGS_M;
+
+import io.netty.buffer.*;
 import io.netty.util.IllegalReferenceCountException;
 import io.netty.util.Recycler;
 import io.netty.util.Recycler.Handle;
@@ -43,12 +42,7 @@ import org.slf4j.LoggerFactory;
  * <p>This provides encoding, decoding and field accessors.
  */
 public class Frame implements ByteBufHolder {
-
-  private static final Logger logger = LoggerFactory.getLogger(Frame.class);
-
   public static final ByteBuffer NULL_BYTEBUFFER = ByteBuffer.allocateDirect(0);
-  public static final int METADATA_MTU = 32 * 1024;
-  public static final int DATA_MTU = 32 * 1024;
 
   private static final Recycler<Frame> RECYCLER =
       new Recycler<Frame>() {
@@ -197,7 +191,9 @@ public class Frame implements ByteBufHolder {
    */
   public ByteBuffer getMetadata() {
     final ByteBuf metadata = FrameHeaderFlyweight.sliceFrameMetadata(content);
-    if (metadata.readableBytes() > 0) {
+    if (metadata == null) {
+      return NULL_BYTEBUFFER;
+    } else if (metadata.readableBytes() > 0) {
       final ByteBuffer buffer = ByteBuffer.allocateDirect(metadata.readableBytes());
       metadata.readBytes(buffer);
       buffer.flip();
@@ -266,6 +262,22 @@ public class Frame implements ByteBufHolder {
     return frame;
   }
 
+  public static boolean isFlagSet(int flags, int checkedFlag) {
+    return (flags & checkedFlag) == checkedFlag;
+  }
+
+  public static int setFlag(int current, int toSet) {
+    return current | toSet;
+  }
+
+  public boolean hasMetadata() {
+    return Frame.isFlagSet(this.flags(), FLAGS_M);
+  }
+
+  public String getDataUtf8() {
+    return StandardCharsets.UTF_8.decode(getData()).toString();
+  }
+
   /* TODO:
    *
    * fromRequest(type, id, payload)
@@ -286,7 +298,7 @@ public class Frame implements ByteBufHolder {
         String dataMimeType,
         Payload payload) {
       final ByteBuf metadata =
-          payload.getMetadata() != null
+          payload.hasMetadata()
               ? Unpooled.wrappedBuffer(payload.getMetadata())
               : Unpooled.EMPTY_BUFFER;
       final ByteBuf data =
@@ -363,7 +375,7 @@ public class Frame implements ByteBufHolder {
       final Frame frame = RECYCLER.get();
       frame.content =
           ByteBufAllocator.DEFAULT.buffer(
-              ErrorFrameFlyweight.computeFrameLength(0, dataBuffer.readableBytes()));
+              ErrorFrameFlyweight.computeFrameLength(dataBuffer.readableBytes()));
       frame.content.writerIndex(
           ErrorFrameFlyweight.encode(frame.content, streamId, code, dataBuffer));
       return frame;
@@ -448,28 +460,30 @@ public class Frame implements ByteBufHolder {
       if (initialRequestN < 1) {
         throw new IllegalStateException("initial request n must be greater than 0");
       }
-      final ByteBuf metadata =
-          payload.getMetadata() != null
-              ? Unpooled.wrappedBuffer(payload.getMetadata())
-              : Unpooled.EMPTY_BUFFER;
-      final ByteBuf data =
-          payload.getData() != null
-              ? Unpooled.wrappedBuffer(payload.getData())
-              : Unpooled.EMPTY_BUFFER;
+      final @Nullable ByteBuf metadata =
+          payload.hasMetadata() ? Unpooled.wrappedBuffer(payload.getMetadata()) : null;
+      final ByteBuf data = Unpooled.wrappedBuffer(payload.getData());
 
       final Frame frame = RECYCLER.get();
       frame.content =
           ByteBufAllocator.DEFAULT.buffer(
               RequestFrameFlyweight.computeFrameLength(
-                  type, metadata.readableBytes(), data.readableBytes()));
+                  type, metadata != null ? metadata.readableBytes() : null, data.readableBytes()));
 
       if (type.hasInitialRequestN()) {
         frame.content.writerIndex(
             RequestFrameFlyweight.encode(
-                frame.content, streamId, 0, type, initialRequestN, metadata, data));
+                frame.content,
+                streamId,
+                metadata != null ? FLAGS_M : 0,
+                type,
+                initialRequestN,
+                metadata,
+                data));
       } else {
         frame.content.writerIndex(
-            RequestFrameFlyweight.encode(frame.content, streamId, 0, type, metadata, data));
+            RequestFrameFlyweight.encode(
+                frame.content, streamId, metadata != null ? FLAGS_M : 0, type, metadata, data));
       }
 
       return frame;
@@ -478,7 +492,7 @@ public class Frame implements ByteBufHolder {
     public static Frame from(int streamId, FrameType type, int flags) {
       final Frame frame = RECYCLER.get();
       frame.content =
-          ByteBufAllocator.DEFAULT.buffer(RequestFrameFlyweight.computeFrameLength(type, 0, 0));
+          ByteBufAllocator.DEFAULT.buffer(RequestFrameFlyweight.computeFrameLength(type, null, 0));
       frame.content.writerIndex(
           RequestFrameFlyweight.encode(
               frame.content, streamId, flags, type, Unpooled.EMPTY_BUFFER, Unpooled.EMPTY_BUFFER));
@@ -539,32 +553,27 @@ public class Frame implements ByteBufHolder {
     private PayloadFrame() {}
 
     public static Frame from(int streamId, FrameType type) {
-      return from(streamId, type, Unpooled.EMPTY_BUFFER, Unpooled.EMPTY_BUFFER, 0);
+      return from(streamId, type, null, Unpooled.EMPTY_BUFFER, 0);
     }
 
     public static Frame from(int streamId, FrameType type, Payload payload) {
-      return from(streamId, type, payload, 0);
+      return from(streamId, type, payload, payload.hasMetadata() ? FLAGS_M : 0);
     }
 
     public static Frame from(int streamId, FrameType type, Payload payload, int flags) {
       final ByteBuf metadata =
-          payload.getMetadata() != null
-              ? Unpooled.wrappedBuffer(payload.getMetadata())
-              : Unpooled.EMPTY_BUFFER;
-      final ByteBuf data =
-          payload.getData() != null
-              ? Unpooled.wrappedBuffer(payload.getData())
-              : Unpooled.EMPTY_BUFFER;
+          payload.hasMetadata() ? Unpooled.wrappedBuffer(payload.getMetadata()) : null;
+      final ByteBuf data = Unpooled.wrappedBuffer(payload.getData());
       return from(streamId, type, metadata, data, flags);
     }
 
     public static Frame from(
-        int streamId, FrameType type, ByteBuf metadata, ByteBuf data, int flags) {
+        int streamId, FrameType type, @Nullable ByteBuf metadata, ByteBuf data, int flags) {
       final Frame frame = RECYCLER.get();
       frame.content =
           ByteBufAllocator.DEFAULT.buffer(
               FrameHeaderFlyweight.computeFrameHeaderLength(
-                  type, metadata.readableBytes(), data.readableBytes()));
+                  type, metadata != null ? metadata.readableBytes() : null, data.readableBytes()));
       frame.content.writerIndex(
           FrameHeaderFlyweight.encode(frame.content, streamId, flags, type, metadata, data));
       return frame;
@@ -579,15 +588,10 @@ public class Frame implements ByteBufHolder {
       final Frame frame = RECYCLER.get();
       frame.content =
           ByteBufAllocator.DEFAULT.buffer(
-              FrameHeaderFlyweight.computeFrameHeaderLength(FrameType.CANCEL, 0, 0));
+              FrameHeaderFlyweight.computeFrameHeaderLength(FrameType.CANCEL, null, 0));
       frame.content.writerIndex(
           FrameHeaderFlyweight.encode(
-              frame.content,
-              streamId,
-              0,
-              FrameType.CANCEL,
-              Unpooled.EMPTY_BUFFER,
-              Unpooled.EMPTY_BUFFER));
+              frame.content, streamId, 0, FrameType.CANCEL, null, Unpooled.EMPTY_BUFFER));
       return frame;
     }
   }
@@ -632,58 +636,57 @@ public class Frame implements ByteBufHolder {
     long streamId = -1;
     String additionalFlags = "";
 
-    try {
-      type = FrameHeaderFlyweight.frameType(content);
+    type = FrameHeaderFlyweight.frameType(content);
 
-      ByteBuf metadata = FrameHeaderFlyweight.sliceFrameMetadata(content);
+    @Nullable ByteBuf metadata = FrameHeaderFlyweight.sliceFrameMetadata(content);
+
+    if (metadata != null) {
       if (0 < metadata.readableBytes()) {
         payload.append(
             String.format("metadata: \"%s\" ", metadata.toString(StandardCharsets.UTF_8)));
       }
-
-      ByteBuf data = FrameHeaderFlyweight.sliceFrameData(content);
-      if (0 < data.readableBytes()) {
-        payload.append(String.format("data: \"%s\" ", data.toString(StandardCharsets.UTF_8)));
-      }
-
-      streamId = FrameHeaderFlyweight.streamId(content);
-
-      switch (type) {
-        case LEASE:
-          additionalFlags =
-              " Permits: " + Lease.numberOfRequests(this) + " TTL: " + Lease.ttl(this);
-          break;
-        case REQUEST_N:
-          additionalFlags = " RequestN: " + RequestN.requestN(this);
-          break;
-        case KEEPALIVE:
-          additionalFlags = " Respond flag: " + Keepalive.hasRespondFlag(this);
-          break;
-        case REQUEST_STREAM:
-        case REQUEST_CHANNEL:
-          additionalFlags = " Initial Request N: " + Request.initialRequestN(this);
-          break;
-        case ERROR:
-          additionalFlags = " Error code: " + Error.errorCode(this);
-          break;
-        case SETUP:
-          int version = Setup.version(this);
-          additionalFlags =
-              " Version: "
-                  + VersionFlyweight.toString(version)
-                  + " keep-alive interval: "
-                  + Setup.keepaliveInterval(this)
-                  + " max lifetime: "
-                  + Setup.maxLifetime(this)
-                  + " metadata mime type: "
-                  + Setup.metadataMimeType(this)
-                  + " data mime type: "
-                  + Setup.dataMimeType(this);
-          break;
-      }
-    } catch (Exception e) {
-      logger.error("Error generating toString, ignored.", e);
     }
+
+    ByteBuf data = FrameHeaderFlyweight.sliceFrameData(content);
+    if (0 < data.readableBytes()) {
+      payload.append(String.format("data: \"%s\" ", data.toString(StandardCharsets.UTF_8)));
+    }
+
+    streamId = FrameHeaderFlyweight.streamId(content);
+
+    switch (type) {
+      case LEASE:
+        additionalFlags = " Permits: " + Lease.numberOfRequests(this) + " TTL: " + Lease.ttl(this);
+        break;
+      case REQUEST_N:
+        additionalFlags = " RequestN: " + RequestN.requestN(this);
+        break;
+      case KEEPALIVE:
+        additionalFlags = " Respond flag: " + Keepalive.hasRespondFlag(this);
+        break;
+      case REQUEST_STREAM:
+      case REQUEST_CHANNEL:
+        additionalFlags = " Initial Request N: " + Request.initialRequestN(this);
+        break;
+      case ERROR:
+        additionalFlags = " Error code: " + Error.errorCode(this);
+        break;
+      case SETUP:
+        int version = Setup.version(this);
+        additionalFlags =
+            " Version: "
+                + VersionFlyweight.toString(version)
+                + " keep-alive interval: "
+                + Setup.keepaliveInterval(this)
+                + " max lifetime: "
+                + Setup.maxLifetime(this)
+                + " metadata mime type: "
+                + Setup.metadataMimeType(this)
+                + " data mime type: "
+                + Setup.dataMimeType(this);
+        break;
+    }
+
     return "Frame => Stream ID: "
         + streamId
         + " Type: "

@@ -23,7 +23,6 @@ import io.rsocket.RSocketFactory;
 import io.rsocket.transport.netty.client.TcpClientTransport;
 import io.rsocket.transport.netty.server.TcpServerTransport;
 import io.rsocket.util.PayloadImpl;
-import java.nio.charset.StandardCharsets;
 import reactor.core.publisher.Mono;
 
 public final class HelloWorldClient {
@@ -58,21 +57,21 @@ public final class HelloWorldClient {
 
     socket
         .requestResponse(new PayloadImpl("Hello"))
-        .map(payload -> StandardCharsets.UTF_8.decode(payload.getData()).toString())
+        .map(Payload::getDataUtf8)
         .onErrorReturn("error")
         .doOnNext(System.out::println)
         .block();
 
     socket
         .requestResponse(new PayloadImpl("Hello"))
-        .map(payload -> StandardCharsets.UTF_8.decode(payload.getData()).toString())
+        .map(Payload::getDataUtf8)
         .onErrorReturn("error")
         .doOnNext(System.out::println)
         .block();
 
     socket
         .requestResponse(new PayloadImpl("Hello"))
-        .map(payload -> StandardCharsets.UTF_8.decode(payload.getData()).toString())
+        .map(Payload::getDataUtf8)
         .onErrorReturn("error")
         .doOnNext(System.out::println)
         .block();

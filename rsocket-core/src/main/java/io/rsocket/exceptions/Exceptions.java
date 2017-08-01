@@ -18,7 +18,6 @@ package io.rsocket.exceptions;
 import static io.rsocket.frame.ErrorFrameFlyweight.*;
 
 import io.rsocket.Frame;
-import java.nio.charset.StandardCharsets;
 
 public class Exceptions {
 
@@ -27,7 +26,7 @@ public class Exceptions {
   public static RuntimeException from(Frame frame) {
     final int errorCode = Frame.Error.errorCode(frame);
 
-    String message = StandardCharsets.UTF_8.decode(frame.getData()).toString();
+    String message = frame.getDataUtf8();
     switch (errorCode) {
       case APPLICATION_ERROR:
         return new ApplicationException(message);

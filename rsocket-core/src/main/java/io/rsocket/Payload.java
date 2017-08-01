@@ -16,10 +16,35 @@
 package io.rsocket;
 
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 
 /** Payload of a {@link Frame}. */
 public interface Payload {
+  /**
+   * Returns whether the payload has metadata, useful for tell if metadata is empty or not present.
+   */
+  boolean hasMetadata();
+
+  /**
+   * Returns the Payload metadata. Always non-null, check {@link #hasMetadata()} to differentiate
+   * null from "".
+   *
+   * @return payload metadata.
+   */
   ByteBuffer getMetadata();
 
+  /**
+   * Returns the Payload data. Always non-null.
+   *
+   * @return payload data.
+   */
   ByteBuffer getData();
+
+  default String getMetadataUtf8() {
+    return StandardCharsets.UTF_8.decode(getMetadata()).toString();
+  }
+
+  default String getDataUtf8() {
+    return StandardCharsets.UTF_8.decode(getData()).toString();
+  }
 }

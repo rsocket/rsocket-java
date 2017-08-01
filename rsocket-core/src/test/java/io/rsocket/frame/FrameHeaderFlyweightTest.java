@@ -16,6 +16,7 @@
 
 package io.rsocket.frame;
 
+import static io.rsocket.frame.FrameHeaderFlyweight.FLAGS_M;
 import static io.rsocket.frame.FrameHeaderFlyweight.FRAME_HEADER_LENGTH;
 import static org.junit.Assert.*;
 
@@ -54,25 +55,34 @@ public class FrameHeaderFlyweightTest {
   public void frameLength() {
     int length =
         FrameHeaderFlyweight.encode(
-            byteBuf, 0, 0, FrameType.SETUP, Unpooled.EMPTY_BUFFER, Unpooled.EMPTY_BUFFER);
+            byteBuf, 0, FLAGS_M, FrameType.SETUP, Unpooled.EMPTY_BUFFER, Unpooled.EMPTY_BUFFER);
+    assertEquals(length, 12); // 72 bits
+  }
+
+  @Test
+  public void frameLengthNullMetadata() {
+    int length =
+        FrameHeaderFlyweight.encode(byteBuf, 0, 0, FrameType.SETUP, null, Unpooled.EMPTY_BUFFER);
     assertEquals(length, 9); // 72 bits
   }
 
   @Test
   public void metadataLength() {
     ByteBuf metadata = Unpooled.wrappedBuffer(new byte[] {1, 2, 3, 4});
-    FrameHeaderFlyweight.encode(byteBuf, 0, 0, FrameType.SETUP, metadata, Unpooled.EMPTY_BUFFER);
+    FrameHeaderFlyweight.encode(
+        byteBuf, 0, FLAGS_M, FrameType.SETUP, metadata, Unpooled.EMPTY_BUFFER);
     assertEquals(
         4,
-        FrameHeaderFlyweight.decodeMetadataLength(
-            byteBuf, FrameHeaderFlyweight.FRAME_HEADER_LENGTH));
+        FrameHeaderFlyweight.decodeMetadataLength(byteBuf, FrameHeaderFlyweight.FRAME_HEADER_LENGTH)
+            .longValue());
   }
 
   @Test
   public void dataLength() {
     ByteBuf data = Unpooled.wrappedBuffer(new byte[] {1, 2, 3, 4, 5});
     int length =
-        FrameHeaderFlyweight.encode(byteBuf, 0, 0, FrameType.SETUP, Unpooled.EMPTY_BUFFER, data);
+        FrameHeaderFlyweight.encode(
+            byteBuf, 0, FLAGS_M, FrameType.SETUP, Unpooled.EMPTY_BUFFER, data);
     assertEquals(
         5,
         FrameHeaderFlyweight.dataLength(
@@ -83,7 +93,7 @@ public class FrameHeaderFlyweightTest {
   public void metadataSlice() {
     ByteBuf metadata = Unpooled.wrappedBuffer(new byte[] {1, 2, 3, 4});
     FrameHeaderFlyweight.encode(
-        byteBuf, 0, 0, FrameType.REQUEST_RESPONSE, metadata, Unpooled.EMPTY_BUFFER);
+        byteBuf, 0, FLAGS_M, FrameType.REQUEST_RESPONSE, metadata, Unpooled.EMPTY_BUFFER);
     metadata.resetReaderIndex();
 
     assertEquals(metadata, FrameHeaderFlyweight.sliceFrameMetadata(byteBuf));
@@ -93,7 +103,7 @@ public class FrameHeaderFlyweightTest {
   public void dataSlice() {
     ByteBuf data = Unpooled.wrappedBuffer(new byte[] {1, 2, 3, 4, 5});
     FrameHeaderFlyweight.encode(
-        byteBuf, 0, 0, FrameType.REQUEST_RESPONSE, Unpooled.EMPTY_BUFFER, data);
+        byteBuf, 0, FLAGS_M, FrameType.REQUEST_RESPONSE, Unpooled.EMPTY_BUFFER, data);
     data.resetReaderIndex();
 
     assertEquals(data, FrameHeaderFlyweight.sliceFrameData(byteBuf));
@@ -103,7 +113,7 @@ public class FrameHeaderFlyweightTest {
   public void streamId() {
     int streamId = 1234;
     FrameHeaderFlyweight.encode(
-        byteBuf, streamId, 0, FrameType.SETUP, Unpooled.EMPTY_BUFFER, Unpooled.EMPTY_BUFFER);
+        byteBuf, streamId, FLAGS_M, FrameType.SETUP, Unpooled.EMPTY_BUFFER, Unpooled.EMPTY_BUFFER);
     assertEquals(streamId, FrameHeaderFlyweight.streamId(byteBuf));
   }
 
@@ -170,8 +180,7 @@ public class FrameHeaderFlyweightTest {
     currentIndex += Short.BYTES;
 
     FrameType frameType = FrameType.NEXT_COMPLETE;
-    FrameHeaderFlyweight.encode(
-        byteBuf, 5, 0, frameType, Unpooled.EMPTY_BUFFER, Unpooled.EMPTY_BUFFER);
+    FrameHeaderFlyweight.encode(byteBuf, 5, 0, frameType, null, Unpooled.EMPTY_BUFFER);
 
     ByteBuf expected = expectedBuffer.slice(0, currentIndex);
     ByteBuf actual = byteBuf.slice(0, FRAME_HEADER_LENGTH);

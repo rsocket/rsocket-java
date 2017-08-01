@@ -20,7 +20,6 @@ import static org.junit.Assert.assertEquals;
 import io.rsocket.Payload;
 import io.rsocket.test.ClientSetupRule;
 import io.rsocket.util.PayloadImpl;
-import java.nio.charset.StandardCharsets;
 import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
@@ -64,8 +63,7 @@ public class ClientServerTest {
                     setup
                         .getRSocket()
                         .requestResponse(new PayloadImpl("hello", "metadata"))
-                        .map(
-                            payload -> StandardCharsets.UTF_8.decode(payload.getData()).toString()))
+                        .map(Payload::getDataUtf8))
             .doOnError(Throwable::printStackTrace)
             .count()
             .block();
@@ -82,8 +80,7 @@ public class ClientServerTest {
                     setup
                         .getRSocket()
                         .requestResponse(new PayloadImpl("hello", "metadata"))
-                        .map(
-                            payload -> StandardCharsets.UTF_8.decode(payload.getData()).toString()))
+                        .map(Payload::getDataUtf8))
             .doOnError(Throwable::printStackTrace)
             .count()
             .block();
@@ -100,8 +97,7 @@ public class ClientServerTest {
                     setup
                         .getRSocket()
                         .requestResponse(new PayloadImpl("hello", "metadata"))
-                        .map(
-                            payload -> StandardCharsets.UTF_8.decode(payload.getData()).toString()))
+                        .map(Payload::getDataUtf8))
             .doOnError(Throwable::printStackTrace)
             .count()
             .block();
@@ -118,8 +114,7 @@ public class ClientServerTest {
                     setup
                         .getRSocket()
                         .requestResponse(new PayloadImpl("hello", "metadata"))
-                        .map(
-                            payload -> StandardCharsets.UTF_8.decode(payload.getData()).toString()))
+                        .map(Payload::getDataUtf8))
             .doOnError(Throwable::printStackTrace)
             .count()
             .block();

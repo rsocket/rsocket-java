@@ -25,7 +25,6 @@ import io.rsocket.exceptions.Exceptions;
 import io.rsocket.internal.LimitableRequestPublisher;
 import io.rsocket.util.PayloadImpl;
 import java.nio.channels.ClosedChannelException;
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
@@ -472,7 +471,7 @@ class RSocketClient implements RSocket {
       if (type == FrameType.ERROR) {
         // message for stream that has never existed, we have a problem with
         // the overall connection and must tear down
-        String errorMessage = StandardCharsets.UTF_8.decode(frame.getData()).toString();
+        String errorMessage = frame.getDataUtf8();
 
         throw new IllegalStateException(
             "Client received error for non-existent stream: "

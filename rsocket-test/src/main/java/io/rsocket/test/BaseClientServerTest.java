@@ -20,7 +20,6 @@ import static org.junit.Assert.assertEquals;
 
 import io.rsocket.Payload;
 import io.rsocket.util.PayloadImpl;
-import java.nio.charset.StandardCharsets;
 import org.junit.Rule;
 import org.junit.Test;
 import reactor.core.publisher.Flux;
@@ -34,7 +33,7 @@ public abstract class BaseClientServerTest<T extends ClientSetupRule<?, ?>> {
   public void testFireNForget10() {
     long outputCount =
         Flux.range(1, 10)
-            .flatMap(i -> setup.getRSocket().fireAndForget(new PayloadImpl("hello", "metadata")))
+            .flatMap(i -> setup.getRSocket().fireAndForget(testPayload(i)))
             .doOnError(Throwable::printStackTrace)
             .count()
             .block();
@@ -59,12 +58,7 @@ public abstract class BaseClientServerTest<T extends ClientSetupRule<?, ?>> {
     long outputCount =
         Flux.range(1, 1)
             .flatMap(
-                i ->
-                    setup
-                        .getRSocket()
-                        .requestResponse(new PayloadImpl("hello", "metadata"))
-                        .map(
-                            payload -> StandardCharsets.UTF_8.decode(payload.getData()).toString()))
+                i -> setup.getRSocket().requestResponse(testPayload(i)).map(Payload::getDataUtf8))
             .doOnError(Throwable::printStackTrace)
             .count()
             .block();
@@ -77,12 +71,7 @@ public abstract class BaseClientServerTest<T extends ClientSetupRule<?, ?>> {
     long outputCount =
         Flux.range(1, 10)
             .flatMap(
-                i ->
-                    setup
-                        .getRSocket()
-                        .requestResponse(new PayloadImpl("hello", "metadata"))
-                        .map(
-                            payload -> StandardCharsets.UTF_8.decode(payload.getData()).toString()))
+                i -> setup.getRSocket().requestResponse(testPayload(i)).map(Payload::getDataUtf8))
             .doOnError(Throwable::printStackTrace)
             .count()
             .block();
@@ -90,17 +79,28 @@ public abstract class BaseClientServerTest<T extends ClientSetupRule<?, ?>> {
     assertEquals(10, outputCount);
   }
 
+  private PayloadImpl testPayload(int metadataPresent) {
+    String metadata = null;
+    switch (metadataPresent % 5) {
+      case 0:
+        metadata = null;
+        break;
+      case 1:
+        metadata = "";
+        break;
+      default:
+        metadata = "metadata";
+        break;
+    }
+    return new PayloadImpl("hello", metadata);
+  }
+
   @Test(timeout = 10000)
   public void testRequestResponse100() {
     long outputCount =
         Flux.range(1, 100)
             .flatMap(
-                i ->
-                    setup
-                        .getRSocket()
-                        .requestResponse(new PayloadImpl("hello", "metadata"))
-                        .map(
-                            payload -> StandardCharsets.UTF_8.decode(payload.getData()).toString()))
+                i -> setup.getRSocket().requestResponse(testPayload(i)).map(Payload::getDataUtf8))
             .doOnError(Throwable::printStackTrace)
             .count()
             .block();
@@ -113,12 +113,7 @@ public abstract class BaseClientServerTest<T extends ClientSetupRule<?, ?>> {
     long outputCount =
         Flux.range(1, 10_000)
             .flatMap(
-                i ->
-                    setup
-                        .getRSocket()
-                        .requestResponse(new PayloadImpl("hello", "metadata"))
-                        .map(
-                            payload -> StandardCharsets.UTF_8.decode(payload.getData()).toString()))
+                i -> setup.getRSocket().requestResponse(testPayload(i)).map(Payload::getDataUtf8))
             .doOnError(Throwable::printStackTrace)
             .count()
             .block();
@@ -128,8 +123,7 @@ public abstract class BaseClientServerTest<T extends ClientSetupRule<?, ?>> {
 
   @Test(timeout = 10000)
   public void testRequestStream() {
-    Flux<Payload> publisher =
-        setup.getRSocket().requestStream(new PayloadImpl("hello", "metadata"));
+    Flux<Payload> publisher = setup.getRSocket().requestStream(testPayload(3));
 
     long count = publisher.take(5).count().block();
 
@@ -141,7 +135,7 @@ public abstract class BaseClientServerTest<T extends ClientSetupRule<?, ?>> {
     CountdownBaseSubscriber ts = new CountdownBaseSubscriber();
     ts.expect(5);
 
-    setup.getRSocket().requestStream(new PayloadImpl("hello", "metadata")).subscribe(ts);
+    setup.getRSocket().requestStream(testPayload(3)).subscribe(ts);
 
     ts.await();
     assertEquals(5, ts.count());
@@ -157,7 +151,7 @@ public abstract class BaseClientServerTest<T extends ClientSetupRule<?, ?>> {
   public void testRequestStreamWithDelayedRequestN() {
     CountdownBaseSubscriber ts = new CountdownBaseSubscriber();
 
-    setup.getRSocket().requestStream(new PayloadImpl("hello", "metadata")).subscribe(ts);
+    setup.getRSocket().requestStream(testPayload(3)).subscribe(ts);
 
     ts.expect(5);
 

@@ -29,7 +29,6 @@ import io.rsocket.transport.netty.server.NettyContextCloseable;
 import io.rsocket.transport.netty.server.TcpServerTransport;
 import io.rsocket.util.PayloadImpl;
 import io.rsocket.util.RSocketProxy;
-import java.nio.charset.StandardCharsets;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import org.junit.After;
@@ -102,7 +101,7 @@ public class TcpIntegrationTest {
 
     Payload result = client.requestStream(new PayloadImpl("REQUEST", "META")).blockLast();
 
-    assertEquals("RESPONSE", StandardCharsets.UTF_8.decode(result.getData()).toString());
+    assertEquals("RESPONSE", result.getDataUtf8());
   }
 
   @Test(timeout = 5_000L)
@@ -119,7 +118,7 @@ public class TcpIntegrationTest {
 
     Payload result = client.requestStream(new PayloadImpl("REQUEST", "META")).blockFirst();
 
-    assertEquals("", StandardCharsets.UTF_8.decode(result.getData()).toString());
+    assertEquals("", result.getDataUtf8());
   }
 
   @Test(timeout = 5_000L)
@@ -152,8 +151,8 @@ public class TcpIntegrationTest {
             .onErrorReturn(new PayloadImpl("ERROR"))
             .block();
 
-    assertEquals("ERROR", StandardCharsets.UTF_8.decode(response1.getData()).toString());
-    assertEquals("SUCCESS", StandardCharsets.UTF_8.decode(response2.getData()).toString());
+    assertEquals("ERROR", response1.getDataUtf8());
+    assertEquals("SUCCESS", response2.getDataUtf8());
   }
 
   @Test(timeout = 5_000L)
@@ -168,8 +167,7 @@ public class TcpIntegrationTest {
         new AbstractRSocket() {
           @Override
           public Flux<Payload> requestStream(Payload payload) {
-            String s = StandardCharsets.UTF_8.decode(payload.getData()).toString();
-            return map.get(s);
+            return map.get(payload.getDataUtf8());
           }
         };
 
