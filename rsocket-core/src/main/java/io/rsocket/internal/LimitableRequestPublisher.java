@@ -21,6 +21,7 @@ import javax.annotation.Nullable;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
+import reactor.core.CoreSubscriber;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Operators;
 
@@ -48,7 +49,7 @@ public class LimitableRequestPublisher<T> extends Flux<T> implements Subscriptio
   }
 
   @Override
-  public void subscribe(Subscriber<? super T> destination) {
+  public void subscribe(CoreSubscriber<? super T> destination) {
     synchronized (this) {
       if (subscribed) {
         throw new IllegalStateException("only one subscriber at a time");

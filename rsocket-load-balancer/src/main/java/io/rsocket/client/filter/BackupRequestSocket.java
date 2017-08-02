@@ -20,18 +20,18 @@ import io.rsocket.RSocket;
 import io.rsocket.stat.FrugalQuantile;
 import io.rsocket.stat.Quantile;
 import io.rsocket.util.Clock;
+import org.reactivestreams.Publisher;
+import org.reactivestreams.Subscriber;
+import org.reactivestreams.Subscription;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
-import org.reactivestreams.Publisher;
-import org.reactivestreams.Subscriber;
-import org.reactivestreams.Subscription;
-import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
-import reactor.core.publisher.MonoSource;
 
 public class BackupRequestSocket implements RSocket {
   private final ScheduledExecutorService executor;
@@ -59,7 +59,7 @@ public class BackupRequestSocket implements RSocket {
 
   @Override
   public Mono<Payload> requestResponse(Payload payload) {
-    return MonoSource.wrap(
+    return Mono.from(
         subscriber -> {
           Subscriber<? super Payload> oneSubscriber = new OneSubscriber<>(subscriber);
           Subscriber<? super Payload> backupRequest =

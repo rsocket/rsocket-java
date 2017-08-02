@@ -29,6 +29,7 @@ import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import reactor.core.CoreSubscriber;
 import reactor.core.publisher.Flux;
 
 /** */
@@ -61,7 +62,7 @@ public class AeronOutPublisher extends Flux<DirectBuffer> {
   }
 
   @Override
-  public void subscribe(Subscriber<? super DirectBuffer> destination) {
+  public void subscribe(CoreSubscriber<? super DirectBuffer> destination) {
     Objects.requireNonNull(destination);
     synchronized (this) {
       if (this.destination != null && subscription.canEmit()) {
