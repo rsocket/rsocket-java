@@ -22,7 +22,7 @@ public interface Quantile {
   /**
    * Insert a data point `x` in the quantile estimator.
    *
-   * @param x
+   * @param x the data point to add.
    */
   public void insert(double x);
 }
