@@ -47,6 +47,10 @@ public class LocalServerTransport implements ServerTransport<Closeable> {
     return new LocalServerTransport(name);
   }
 
+  public LocalClientTransport clientTransport() {
+    return LocalClientTransport.create(name);
+  }
+
   @Override
   public Mono<Closeable> start(ConnectionAcceptor acceptor) {
     return Mono.create(
