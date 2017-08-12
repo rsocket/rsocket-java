@@ -31,35 +31,55 @@ public class ConsoleUtils {
     agent = s + " ";
   }
 
-  /** Logs something at the info level */
+  /**
+   * Logs something at the info level
+   *
+   * @param s message
+   */
   public void info(String s) {
     if (debugEnabled) {
       System.out.println(agent + "INFO: " + s);
     }
   }
 
-  /** Logs a successful event */
+  /**
+   * Logs a successful event
+   *
+   * @param s message
+   */
   public void success(String s) {
     if (debugEnabled) {
       System.out.println(ANSI_GREEN + agent + "SUCCESS: " + s + ANSI_RESET);
     }
   }
 
-  /** Logs a time */
+  /**
+   * Logs a time
+   *
+   * @param s message
+   */
   public void time(String s) {
     if (debugEnabled) {
       System.out.println(ANSI_CYAN + agent + "TIME: " + s + ANSI_RESET);
     }
   }
 
-  /** Logs the initial payload the server has received */
+  /**
+   * Logs the initial payload the server has received
+   *
+   * @param s message
+   */
   public void initialPayload(String s) {
     if (debugEnabled) {
       System.out.println(agent + s);
     }
   }
 
-  /** Logs the start of a test */
+  /**
+   * Logs the start of a test
+   *
+   * @param s message
+   */
   public void teststart(String s) {
     if (debugEnabled) {
       System.out.println(ANSI_BLUE + agent + "TEST STARTING: " + s + ANSI_RESET);

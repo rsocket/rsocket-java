@@ -70,7 +70,11 @@ public class JavaClientDriver {
                 });
   }
 
-  /** Parses through the commands for each test, and calls handlers that execute the commands. */
+  /**
+   * Parses through the commands for each test, and calls handlers that execute the commands.
+   *
+   * @param test the test to run.
+   */
   public void runTest(TckClientTest test) {
     List<String> id = new ArrayList<>();
     Iterator<String> iter = test.testLines().iterator();
