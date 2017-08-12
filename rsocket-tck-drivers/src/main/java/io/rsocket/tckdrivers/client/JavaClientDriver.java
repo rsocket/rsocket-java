@@ -15,6 +15,8 @@ package io.rsocket.tckdrivers.client;
 
 import static org.junit.Assert.*;
 
+import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.LoadingCache;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.RSocketFactory;
@@ -42,6 +44,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
+import reactor.core.publisher.Mono;
 
 /**
  * This class is the driver for the Java RSocket client. To use with class with the current Java
@@ -51,40 +54,17 @@ import org.reactivestreams.Subscription;
  */
 public class JavaClientDriver {
 
-  private final Map<String, MySubscriber<Payload>> payloadSubscribers;
-  private final Map<String, MySubscriber<Void>> fnfSubscribers;
-  private final Map<String, String> idToType;
-  private final String uri;
-  private final Map<String, RSocket> clientMap;
+  private final Map<String, MySubscriber<Payload>> payloadSubscribers = new HashMap<>();
+  private final Map<String, MySubscriber<Void>> fnfSubscribers = new HashMap<>();
+  private final Map<String, String> idToType = new HashMap<>();
   private final String AGENT = "[CLIENT]";
+  private final LoadingCache<String, RSocket> clientMap;
   private ConsoleUtils consoleUtils = new ConsoleUtils(AGENT);
 
-  public JavaClientDriver(String uri) throws FileNotFoundException {
-    this.payloadSubscribers = new HashMap<>();
-    this.fnfSubscribers = new HashMap<>();
-    this.idToType = new HashMap<>();
-
-    this.clientMap = new HashMap<>();
-    this.uri = uri;
+  public JavaClientDriver(Mono<RSocket> clientBuilder) throws FileNotFoundException {
+    clientMap = CacheBuilder.newBuilder().build(s -> clientBuilder.block())
   }
 
-  public enum TestResult {
-    PASS,
-    FAIL,
-    CHANNEL
-  }
-
-  /**
-   * A function that creates a RSocket on a new TCP connection.
-   *
-   * @return a RSocket
-   */
-  public RSocket createClient() {
-    return RSocketFactory.connect()
-        .transport(UriTransportRegistry.clientForUri(uri))
-        .start()
-        .block();
-  }
   /**
    * Parses through the commands for each test, and calls handlers that execute the commands.
    *

@@ -51,7 +51,7 @@ public class Main {
     description =
         "The script file to parse, make sure to give the client and server the " + "correct files"
   )
-  public static String file;
+  public static File file;
 
   @Option(
     name = "--tests",
@@ -64,49 +64,43 @@ public class Main {
   /**
    * A function that parses the test file, and run each test
    *
-   * @param realfile file to read. If null, it reads clienttest.txt
    * @param host client connects with this host
    * @param port client connects on this port
    * @param testsList list of tests to run
    */
-  public static void runTests(String realfile, String host, int port, List<String> testsList)
+  public static void runTests(String host, int port, List<String> testsList)
       throws Exception {
-    // we pass in our reactive socket here to the test suite
-    String filepath = "rsocket-tck-drivers/src/test/resources/clienttest.txt";
-    if (realfile != null) filepath = realfile;
-
-    List<List<String>> tests = new ArrayList<>();
-    List<String> test = new ArrayList<>();
-    File file = new File(filepath);
     for (TckIndividualTest t : JavaClientDriver.extractTests(file)) {
-
-      if (testsList.size() > 0) {
-        if (!testsList.contains(t.name)) {
-          continue;
+      if (testsList.contains(t.name)) {
+        try {
+          JavaClientDriver jd = new JavaClientDriver("tcp://" + host + ":" + port + "/rs");
+          jd.runTest(t.testLines(), t.name);
+        } catch (Exception e) {
+          e.printStackTrace();
         }
-      }
-      try {
-        JavaClientDriver jd = new JavaClientDriver("tcp://" + host + ":" + port + "/rs");
-        jd.runTest(t.test.subList(1, t.test.size()), t.name);
-      } catch (Exception e) {
-        e.printStackTrace();
       }
     }
   }
 
-  public static void main(String[] args) {
+  public static void main(String[] args) throws IOException {
     SingleCommand<Main> cmd = SingleCommand.singleCommand(Main.class);
     cmd.parse(args);
     boolean passed = true;
 
     if (server) {
+      if (file == null) {
+        file = new File("rsocket-tck-drivers/src/test/resources/servertest.txt");
+      }
       new JavaTCPServer().run(file, port);
     } else if (client) {
+      if (file == null) {
+        file = new File("rsocket-tck-drivers/src/test/resources/clienttest.txt");
+      }
       try {
         if (tests != null) {
-          runTests(file, host, port, Arrays.asList(tests.split(",")));
+          runTests(host, port, Arrays.asList(tests.split(",")));
         } else {
-          runTests(file, host, port, new ArrayList<>());
+          runTests(host, port, new ArrayList<>());
         }
       } catch (Exception e) {
         e.printStackTrace();

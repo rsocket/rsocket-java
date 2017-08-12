@@ -13,6 +13,9 @@
 
 package io.rsocket.tckdrivers.common;
 
+import io.rsocket.tckdrivers.server.JavaServerDriver;
+
+import java.io.File;
 import java.util.List;
 
 public class TckIndividualTest {
@@ -26,5 +29,29 @@ public class TckIndividualTest {
     this.name = name;
     this.test = test;
     this.testFile = testFile;
+  }
+
+  public List<String> testLines() {
+    return test.subList(1, test.size());
+  }
+
+  public static List<TckIndividualTest> list(File file) {
+    File[] listOfFiles = folder.listFiles(f -> f.getName().startsWith("client"));
+
+    for (int i = 0; i < listOfFiles.length; i++) {
+      File file = listOfFiles[i];
+      if (file.getName().startsWith(TckIndividualTest.clientPrefix)) {
+        for (TckIndividualTest t : ) {
+          Object testObject[] = new Object[2];
+          testObject[0] = t.name + " (" + file.getName() + ")";
+          testObject[1] = t;
+          testData.add(testObject);
+        }
+      }
+    }
+
+  }
+
+  public JavaServerDriver serverDriver() {
   }
 }

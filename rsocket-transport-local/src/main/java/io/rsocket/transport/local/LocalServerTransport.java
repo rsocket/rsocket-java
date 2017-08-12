@@ -19,6 +19,8 @@ package io.rsocket.transport.local;
 import io.rsocket.Closeable;
 import io.rsocket.DuplexConnection;
 import io.rsocket.transport.ServerTransport;
+
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.Consumer;
@@ -54,6 +56,10 @@ public class LocalServerTransport implements ServerTransport<Closeable> {
           }
           sink.success(serverDuplexConnectionAcceptor);
         });
+  }
+
+  public static LocalServerTransport createEphemeral() {
+      return create(UUID.randomUUID().toString());
   }
 
   static class ServerDuplexConnectionAcceptor implements Consumer<DuplexConnection>, Closeable {

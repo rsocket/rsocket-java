@@ -31,6 +31,7 @@ jar {
 dependencies {
     compile project(':rsocket-core')
     compile project(':rsocket-transport-netty')
+    compile project(':rsocket-transport-local')
     compile project(':rsocket-test')
     compile 'com.fasterxml.jackson.core:jackson-core:2.8.8'
     compile 'com.fasterxml.jackson.core:jackson-databind:2.8.8'
