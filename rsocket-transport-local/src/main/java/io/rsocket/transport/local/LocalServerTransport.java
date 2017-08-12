@@ -19,7 +19,6 @@ package io.rsocket.transport.local;
 import io.rsocket.Closeable;
 import io.rsocket.DuplexConnection;
 import io.rsocket.transport.ServerTransport;
-
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -27,6 +26,9 @@ import java.util.function.Consumer;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
 
+/**
+ * Local within process transport for RSocket.
+ */
 public class LocalServerTransport implements ServerTransport<Closeable> {
   private static final ConcurrentMap<String, ServerDuplexConnectionAcceptor> registry =
       new ConcurrentHashMap<>();
@@ -43,6 +45,10 @@ public class LocalServerTransport implements ServerTransport<Closeable> {
 
   public static LocalServerTransport create(String name) {
     return new LocalServerTransport(name);
+  }
+
+  public LocalClientTransport clientTransport() {
+    return LocalClientTransport.create(name);
   }
 
   @Override
@@ -64,6 +70,17 @@ public class LocalServerTransport implements ServerTransport<Closeable> {
 
   public LocalClientTransport clientTransport() {
     return new LocalClientTransport(name);
+  }
+
+  /**
+   * Remove an instance from the JVM registry.
+   */
+  public static void dispose(String name) {
+    registry.remove(name);
+  }
+
+  public String getName() {
+    return name;
   }
 
   static class ServerDuplexConnectionAcceptor implements Consumer<DuplexConnection>, Closeable {

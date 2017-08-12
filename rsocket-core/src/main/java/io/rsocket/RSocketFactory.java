@@ -36,12 +36,20 @@ import reactor.core.publisher.Mono;
 
 /** Factory for creating RSocket clients and servers. */
 public interface RSocketFactory {
-  /** Creates a factory that establishes client connections to other RSockets */
+  /**
+   * Creates a factory that establishes client connections to other RSockets.
+   *
+   * @return a client factory
+   */
   static ClientRSocketFactory connect() {
     return new ClientRSocketFactory();
   }
 
-  /** Creates a factory that receives server connections from client RSockets */
+  /**
+   * Creates a factory that receives server connections from client RSockets.
+   *
+   * @return a server factory.
+   */
   static ServerRSocketFactory receive() {
     return new ServerRSocketFactory();
   }

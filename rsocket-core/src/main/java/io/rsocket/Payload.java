@@ -22,6 +22,8 @@ import java.nio.charset.StandardCharsets;
 public interface Payload {
   /**
    * Returns whether the payload has metadata, useful for tell if metadata is empty or not present.
+   *
+   * @return whether payload has non-null (possibly empty) metadata
    */
   boolean hasMetadata();
 
