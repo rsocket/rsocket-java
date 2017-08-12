@@ -31,7 +31,10 @@ public class RSocketLengthCodec extends LengthFieldBasedFrameDecoder {
   /**
    * Simplified non-netty focused decode usage.
    *
+   * @param in the input buffer to read data from.
+   * @return decoded buffer or null is none available.
    * @see #decode(ChannelHandlerContext, ByteBuf)
+   * @throws Exception if any error happens.
    */
   public Object decode(ByteBuf in) throws Exception {
     return decode(null, in);
