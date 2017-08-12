@@ -21,13 +21,8 @@ import static io.rsocket.tckdrivers.runner.Transports.actualLocalUrl;
 import static io.rsocket.tckdrivers.runner.Transports.urlForTransport;
 import static java.util.Arrays.asList;
 
-/** Created by yschimke on 12/08/2017. */
 class RunnerRSocket extends AbstractRSocket {
-  private SelfTestMain selfTestMain;
-
-  public RunnerRSocket(SelfTestMain selfTestMain) {
-    this.selfTestMain = selfTestMain;
-  }
+  public RunnerRSocket() {}
 
   @Override
   public Mono<Payload> requestResponse(Payload payload) {

@@ -32,7 +32,7 @@ public class SelfTestMain {
   private void run() {
     System.out.println("Connecting to " + serverUrl);
 
-    socket = connect(serverUrl, this::createRequestHandler);
+    socket = connect(serverUrl, server -> new RunnerRSocket());
 
     System.out.println("Running self test");
     Payload result = socket.requestResponse(selfTest()).block();
@@ -49,10 +49,9 @@ public class SelfTestMain {
             + uuid
             + "\",\"codeversion\":\""
             + version
-            + "\",\"capabilities\":{\"platform\":[\"rsocket-java\"],\"versions\":[\"1.0\"],\"transports\":[\"tcp\",\"ws\",\"local\"],\"modes\":[\"client\",\"server\"],\"testFormats\":[\"tck1\"]}}}}");
-  }
-
-  private RSocket createRequestHandler(RSocket serverConnection) {
-    return new RunnerRSocket(this);
+            + "\",\"capabilities\":{\"platform\":[\"rsocket-java\"],\"versions\":[\"1.0\"],"
+            + "\"transports\":[\"tcp\",\"ws\",\"local\"],"
+            + "\"modes\":[\"client\",\"server\"],"
+            + "\"testFormats\":[\"tck1\"]}}}}");
   }
 }
