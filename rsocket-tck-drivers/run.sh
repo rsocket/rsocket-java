@@ -1,7 +1,5 @@
 #!/bin/bash
 
-LATEST_VERSION=$(ls build/libs/reactivesocket-tck-drivers-*-SNAPSHOT.jar | sort -r | head -1)
-
-echo "running latest version $LATEST_VERSION"
+LATEST_VERSION=$(ls rsocket-tck-drivers/build/libs/rsocket-tck-drivers-*-SNAPSHOT.jar | sort -r | head -1)
 
 java -cp "$LATEST_VERSION" io.rsocket.tckdrivers.main.Main "$@"

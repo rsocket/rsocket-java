@@ -49,10 +49,10 @@ public class Main {
   public static boolean client;
 
   @Option(name = "--host", description = "The host to connect to for the client")
-  public static String host;
+  public static String host = "localhost";
 
   @Option(name = "--port", description = "The port")
-  public static int port;
+  public static int port = 30006;
 
   @Option(
     name = "--file",
@@ -80,8 +80,11 @@ public class Main {
     TcpClientTransport transport = TcpClientTransport.create(host, port);
     Mono<RSocket> clientBuilder = RSocketFactory.connect().transport(transport).start();
 
+    System.out.println("test file: " + file);
+
     for (TckClientTest t : TckClientTest.extractTests(file)) {
       if (testFilter.test(t.name)) {
+        System.out.println("Running " + t.name);
         JavaClientDriver jd = new JavaClientDriver(clientBuilder);
         jd.runTest(t);
       }
