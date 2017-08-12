@@ -68,10 +68,6 @@ public class LocalServerTransport implements ServerTransport<Closeable> {
       return create(UUID.randomUUID().toString());
   }
 
-  public LocalClientTransport clientTransport() {
-    return new LocalClientTransport(name);
-  }
-
   /**
    * Remove an instance from the JVM registry.
    */
