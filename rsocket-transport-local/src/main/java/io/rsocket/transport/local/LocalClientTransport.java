@@ -27,7 +27,7 @@ import reactor.core.publisher.UnicastProcessor;
 public class LocalClientTransport implements ClientTransport {
   private final String name;
 
-  private LocalClientTransport(String name) {
+  LocalClientTransport(String name) {
     this.name = name;
   }
 

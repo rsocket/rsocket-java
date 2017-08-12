@@ -62,6 +62,10 @@ public class LocalServerTransport implements ServerTransport<Closeable> {
       return create(UUID.randomUUID().toString());
   }
 
+  public LocalClientTransport clientTransport() {
+    return new LocalClientTransport(name);
+  }
+
   static class ServerDuplexConnectionAcceptor implements Consumer<DuplexConnection>, Closeable {
     private final LocalSocketAddress address;
     private final ConnectionAcceptor acceptor;

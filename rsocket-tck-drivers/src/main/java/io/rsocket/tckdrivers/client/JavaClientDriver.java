@@ -16,6 +16,7 @@ package io.rsocket.tckdrivers.client;
 import static org.junit.Assert.*;
 
 import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
@@ -61,8 +62,12 @@ public class JavaClientDriver {
   private final LoadingCache<String, RSocket> clientMap;
   private ConsoleUtils consoleUtils = new ConsoleUtils(AGENT);
 
-  public JavaClientDriver(Mono<RSocket> clientBuilder) throws FileNotFoundException {
-    clientMap = CacheBuilder.newBuilder().build(s -> clientBuilder.block())
+  public JavaClientDriver(Mono<RSocket> clientBuilder) {
+    clientMap = CacheBuilder.newBuilder().build(new CacheLoader<String, RSocket>() {
+      @Override public RSocket load(String key) throws Exception {
+        return clientBuilder.block();
+      }
+    });
   }
 
   /**

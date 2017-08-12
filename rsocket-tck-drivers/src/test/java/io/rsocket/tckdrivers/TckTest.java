@@ -4,6 +4,7 @@ import static io.rsocket.tckdrivers.main.Main.port;
 import static org.junit.Assert.assertNotNull;
 
 import io.rsocket.Closeable;
+import io.rsocket.RSocket;
 import io.rsocket.RSocketFactory;
 import io.rsocket.tckdrivers.client.JavaClientDriver;
 import io.rsocket.tckdrivers.common.TckIndividualTest;
@@ -34,8 +35,10 @@ public class TckTest {
 
     LocalServerTransport st = LocalServerTransport.createEphemeral();
     Closeable server = RSocketFactory.receive().acceptor(d.acceptor()).transport(st).start().block();
+    Mono<RSocket> client =
+        RSocketFactory.connect().transport(st.clientTransport()).start();
     try {
-      JavaClientDriver jd = new JavaClientDriver;
+      JavaClientDriver jd = new JavaClientDriver(client);
       jd.runTest(this.tckTest.test.subList(1, this.tckTest.test.size()), this.tckTest.name);
 
     } finally {
