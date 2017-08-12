@@ -65,7 +65,7 @@ public class LocalServerTransport implements ServerTransport<Closeable> {
   }
 
   public static LocalServerTransport createEphemeral() {
-    return create(UUID.randomUUID().toString());
+      return create(UUID.randomUUID().toString());
   }
 
   /**
