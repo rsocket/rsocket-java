@@ -19,13 +19,21 @@ package io.rsocket.tckdrivers.main;
 import io.airlift.airline.Command;
 import io.airlift.airline.Option;
 import io.airlift.airline.SingleCommand;
+import io.rsocket.Closeable;
+import io.rsocket.RSocket;
+import io.rsocket.RSocketFactory;
 import io.rsocket.tckdrivers.client.JavaClientDriver;
 import io.rsocket.tckdrivers.common.TckClientTest;
-import io.rsocket.tckdrivers.server.JavaTCPServer;
-import java.io.*;
-import java.util.ArrayList;
-import java.util.Arrays;
+import io.rsocket.tckdrivers.server.JavaServerDriver;
+import io.rsocket.transport.netty.client.TcpClientTransport;
+import io.rsocket.transport.netty.server.TcpServerTransport;
+import java.io.File;
+import java.io.IOException;
+import java.time.Duration;
 import java.util.List;
+import java.util.function.Predicate;
+import reactor.core.publisher.Mono;
+import reactor.ipc.netty.tcp.TcpServer;
 
 /** This class is used to run both the server and the client, depending on the options given */
 @Command(
@@ -59,52 +67,60 @@ public class Main {
         "For the client only, optional argument to list out the tests you"
             + " want to run, should be comma separated names"
   )
-  public static String tests;
+  public static List<String> tests;
 
   /**
    * A function that parses the test file, and run each test
    *
    * @param host client connects with this host
    * @param port client connects on this port
-   * @param testsList list of tests to run
    */
-  public static void runTests(String host, int port, List<String> testsList)
+  public static void runTests(String host, int port, Predicate<String> testFilter)
       throws Exception {
-    //for (TckClientTest t : JavaClientDriver.extractTests(file)) {
-    //  if (testsList.contains(t.name)) {
-    //    try {
-    //      JavaClientDriver jd = new JavaClientDriver("tcp://" + host + ":" + port + "/rs");
-    //      jd.runTest(t.testLines(), t.name);
-    //    } catch (Exception e) {
-    //      e.printStackTrace();
-    //    }
-    //  }
-    //}
+    TcpClientTransport transport = TcpClientTransport.create(host, port);
+    Mono<RSocket> clientBuilder = RSocketFactory.connect().transport(transport).start();
+
+    for (TckClientTest t : TckClientTest.extractTests(file)) {
+      if (testFilter.test(t.name)) {
+        JavaClientDriver jd = new JavaClientDriver(clientBuilder);
+        jd.runTest(t);
+      }
+    }
   }
 
   public static void main(String[] args) throws IOException {
     SingleCommand<Main> cmd = SingleCommand.singleCommand(Main.class);
     cmd.parse(args);
-    boolean passed = true;
 
     if (server) {
       if (file == null) {
         file = new File("rsocket-tck-drivers/src/test/resources/servertest.txt");
       }
-      new JavaTCPServer().run(file, port);
+      runServer();
     } else if (client) {
       if (file == null) {
         file = new File("rsocket-tck-drivers/src/test/resources/clienttest.txt");
       }
       try {
         if (tests != null) {
-          runTests(host, port, Arrays.asList(tests.split(",")));
+          runTests(host, port, name -> tests.contains(name));
         } else {
-          runTests(host, port, new ArrayList<>());
+          runTests(host, port, t -> true);
         }
       } catch (Exception e) {
         e.printStackTrace();
       }
     }
+  }
+
+  private static void runServer() throws IOException {
+    TcpServerTransport server = TcpServerTransport.create(TcpServer.create(port));
+
+    JavaServerDriver jsd = JavaServerDriver.read(file);
+
+    Closeable socket =
+        RSocketFactory.receive().acceptor(jsd.acceptor()).transport(server).start().block();
+
+    socket.onClose().block(Duration.ofDays(365));
   }
 }
