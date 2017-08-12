@@ -4,9 +4,14 @@ import io.airlift.airline.Command;
 import io.airlift.airline.Option;
 import io.airlift.airline.SingleCommand;
 import io.rsocket.*;
+import io.rsocket.tckdrivers.client.JavaClientDriver;
+import io.rsocket.tckdrivers.common.TckClientTest;
+import io.rsocket.tckdrivers.common.TckTestSuite;
+import io.rsocket.tckdrivers.server.JavaServerDriver;
 import io.rsocket.transport.netty.server.NettyContextCloseable;
 import io.rsocket.uri.UriTransportRegistry;
 import io.rsocket.util.PayloadImpl;
+import java.util.Arrays;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -17,116 +22,139 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static io.rsocket.tckdrivers.runner.JsonUtil.parseTCKMessage;
 import static io.rsocket.tckdrivers.runner.TckClient.connect;
+import static io.rsocket.tckdrivers.runner.Transports.actualLocalUrl;
+import static io.rsocket.tckdrivers.runner.Transports.urlForTransport;
+import static java.util.Arrays.asList;
 
 @Command(name = "rsotcket-main", description = "This runs the TCM main")
 public class SelfTestMain {
 
-    @Option(name = "--url", description = "The server url")
-    public String serverUrl = "tcp://localhost:30007";
+  @Option(name = "--url", description = "The server url")
+  public String serverUrl = "tcp://localhost:30007";
 
-    private RSocket socket;
-    private AtomicInteger localCounter = new AtomicInteger();
+  private RSocket socket;
 
-    static SelfTestMain fromArgs(String... args) {
-        return SingleCommand.singleCommand(SelfTestMain.class).parse(args);
+  static SelfTestMain fromArgs(String... args) {
+    return SingleCommand.singleCommand(SelfTestMain.class).parse(args);
+  }
+
+  public static void main(String... args) {
+    fromArgs(args).run();
+  }
+
+  private void run() {
+    System.out.println("Connecting to " + serverUrl);
+
+    socket = connect(serverUrl, this::createRequestHandler);
+
+    System.out.println("Running self test");
+    Payload result = socket.requestResponse(selfTest()).block();
+
+    Map<String, Object> testRunResults = parseTCKMessage(result, "testRunResults");
+    List<Map<String, Object>> suites = (List<Map<String, Object>>) testRunResults.get("suites");
+    Map<String, Object> suite0 = suites.get(0);
+    List<Map<String, Object>> tests = (List<Map<String, Object>>) suite0.get("tests");
+
+    for (Map<String, Object> t : tests) {
+      System.out.println(
+          t.get("testName")
+              + "\t"
+              + t.get("result")
+              + "\t"
+              + t.get("clientDetail")
+              + "\t"
+              + t.get("serverDetail"));
     }
+  }
 
-    public static void main(String... args) {
-        fromArgs(args).run();
-    }
+  private Payload selfTest() {
+    String uuid = UUID.randomUUID().toString();
+    String version = "0.9-SNAPSHOT";
+    return new PayloadImpl(
+        "{\"selfTestRequest\":{\"runner\":{\"uuid\":\""
+            + uuid
+            + "\",\"codeversion\":\""
+            + version
+            + "\",\"capabilities\":{\"platform\":[\"rsocket-java\"],\"versions\":[\"1.0\"],\"transports\":[\"http\",\"tcp\",\"ws\",\"local\"],\"modes\":[\"client\",\"server\"],\"testFormats\":[\"tck1\"]}}}}");
+  }
 
-    private void run() {
-        System.out.println("Connecting to " + serverUrl);
+  private RSocket createRequestHandler(RSocket serverConnection) {
+    return new AbstractRSocket() {
+      @Override
+      public Mono<Payload> requestResponse(Payload payload) {
+        Map<String, Object> clientTest = parseTCKMessage(payload, "runnerExecuteTest");
+        Map<String, Object> setup = (Map<String, Object>) clientTest.get("setup");
+        Map<String, Object> test = (Map<String, Object>) clientTest.get("test");
+        Map<String, Object> tck1Definition = (Map<String, Object>) test.get("tck1Definition");
 
-        socket = connect(serverUrl, this::createRequestHandler);
+        String url = (String) setup.get("url");
+        String testName = (String) test.get("testName");
+        String clientScript = (String) tck1Definition.get("clientScript");
 
-        System.out.println("Running self test");
-        Payload result = socket.requestResponse(selfTest()).block();
+        Mono<RSocket> client =
+            RSocketFactory.connect().transport(UriTransportRegistry.clientForUri(url)).start();
 
-        Map<String, Object> testRunResults = parseTCKMessage(result, "testRunResults");
-        List<Map<String, Object>> suites = (List<Map<String, Object>>) testRunResults.get("suites");
-        Map<String, Object> suite0 = suites.get(0);
-        List<Map<String, Object>> tests = (List<Map<String, Object>>) suite0.get("tests");
+        try {
+          JavaClientDriver jd2 = new JavaClientDriver(client);
 
-        for (Map<String, Object> t: tests) {
-            System.out.println(t.get("testName") + "\t" + t.get("result"));
+          // TODO run in another thread
+          jd2.runTest(new TckClientTest(testName, asList(clientScript.split("\n"))));
+
+          return Mono.just(
+              new PayloadImpl(
+                  "{\"runnerTestResults\":{\"result\":{\"testName\":\""
+                      + testName
+                      + "\",\"result\":\"passed\"}}}"));
+        } catch (Exception e) {
+          return Mono.just(
+              new PayloadImpl(
+                  "{\"runnerTestResults\":{\"result\":{\"testName\":\""
+                      + testName
+                      + "\",\"result\":\"failed\",\"clientDetail\":\""
+                      + e.toString()
+                      + "\"}}}"));
         }
-    }
+      }
 
-    private Payload selfTest() {
-        String uuid = UUID.randomUUID().toString();
-        String version = "0.9-SNAPSHOT";
-        return new PayloadImpl("{\"selfTestRequest\":{\"runner\":{\"uuid\":\"" + uuid +"\",\"codeversion\":\"" + version + "\",\"capabilities\":{\"platform\":[\"rsocket-java\"],\"versions\":[\"1.0\"],\"transports\":[\"http\",\"tcp\",\"ws\",\"local\"],\"modes\":[\"client\",\"server\"],\"testFormats\":[\"tck1\"]}}}}");
-    }
+      @Override
+      public Flux<Payload> requestStream(Payload payload) {
+        Map<String, Object> serverTest = parseTCKMessage(payload, "runnerExecuteTest");
 
-    private RSocket createRequestHandler(RSocket serverConnection) {
-        return new AbstractRSocket() {
-            @Override
-            public Mono<Payload> requestResponse(Payload payload) {
-                Map<String, Object> clientTest = parseTCKMessage(payload, "runnerExecuteTest");
+        Map<String, Object> setup = (Map<String, Object>) serverTest.get("setup");
+        Map<String, Object> test = (Map<String, Object>) serverTest.get("test");
+        Map<String, Object> tck1Definition = (Map<String, Object>) test.get("tck1Definition");
 
-                System.out.println("clientTest " + clientTest);
+        // TODO check version
+        String version = (String) setup.get("version");
+        String transport = (String) setup.get("transport");
+        String testName = (String) test.get("testName");
+        String serverScript = (String) tck1Definition.get("serverScript");
 
-                return Mono.just(new PayloadImpl("{\"runnerTestResults\":{\"result\":{\"testName\":\"test\",\"result\":\"passed\"}}}"));
-            }
+        JavaServerDriver javaServerDriver = new JavaServerDriver();
+        javaServerDriver.parse(asList(serverScript.split("\n")));
 
-            @Override
-            public Flux<Payload> requestStream(Payload payload) {
-                Map<String, Object> serverTest = parseTCKMessage(payload, "runnerExecuteTest");
+        String uri = urlForTransport(transport);
+        Mono<Closeable> server =
+            RSocketFactory.receive()
+                .acceptor(javaServerDriver.acceptor())
+                .transport(UriTransportRegistry.serverForUri(uri))
+                .start();
 
-                System.out.println("serverTest " + serverTest);
-                Map<String, Object> setup = (Map<String, Object>) serverTest.get("setup");
-                Map<String, Object> test = (Map<String, Object>) serverTest.get("test");
-                // TODO check version
-                String version = (String) setup.get("version");
-                String transport = (String) setup.get("transport");
-                String testName = "test";
-                String serverScript = "serverScript";
+        return server
+            .flatMapMany(
+                closeable -> {
+                  String actualUri = actualLocalUrl(transport, uri, closeable);
+                  return Flux.just(serverReady(actualUri, closeable))
+                      .concatWith(Flux.never())
+                      .doFinally(s -> closeable.close());
+                })
+            .doOnError(e -> e.printStackTrace());
+      }
+    };
+  }
 
-                String uri = urlForTransport(transport);
-                Mono<Closeable> server = RSocketFactory.receive().acceptor((s, rs) -> testRunner(testName, serverScript))
-                        .transport(UriTransportRegistry.serverForUri(uri)).start();
+  private Payload serverReady(String uri, Closeable closeable) {
 
-                return server.flatMapMany(closeable -> Flux.just(serverReady(transport, uri, closeable)).concatWith(Flux.never()).doFinally(s -> {
-                    closeable.close();
-                })).doOnError(e -> e.printStackTrace());
-            }
-        };
-    }
-
-    private Payload serverReady(String transport, String uri, Closeable closeable) {
-        if (transport.equals("tcp")) {
-            // TODO get external IP?
-            uri = "tcp://localhost:" + nettyPort(closeable);
-        } else if (transport.equals("ws")) {
-            // TODO get external IP?
-            uri = "ws://localhost:" + nettyPort(closeable);
-        }
-
-        return new PayloadImpl("{\"runnerServerReady\":{\"url\":\"" + uri + "\"}}");
-    }
-
-    private int nettyPort(Closeable closeable) {
-        return ((NettyContextCloseable) closeable).address().getPort();
-    }
-
-    private String urlForTransport(String transport) {
-        if (transport.equals("local")) {
-            return "local:test" + localCounter.incrementAndGet();
-        } else if (transport.equals("tcp")) {
-            // TODO get external IP?
-            return "tcp://localhost:0";
-        } else if (transport.equals("ws")) {
-            // TODO get external IP?
-            return "ws://localhost:0";
-        } else {
-            throw new UnsupportedOperationException("unknown transport '" + transport + "'");
-        }
-    }
-
-    private Mono<RSocket> testRunner(String testName, String serverScript) {
-        // TODO
-        return Mono.just(new AbstractRSocket() {
-        });
-    }
+    return new PayloadImpl("{\"runnerServerReady\":{\"url\":\"" + uri + "\"}}");
+  }
 }
