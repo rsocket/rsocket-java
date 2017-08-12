@@ -18,6 +18,7 @@ import io.rsocket.AbstractRSocket;
 import io.rsocket.Payload;
 import io.rsocket.SocketAcceptor;
 import io.rsocket.tckdrivers.common.*;
+import java.nio.charset.StandardCharsets;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscription;
 import reactor.core.publisher.Flux;
@@ -30,6 +31,7 @@ import java.io.Reader;
 import java.nio.file.Files;
 import java.util.*;
 
+import static com.google.common.io.Files.readLines;
 import static org.junit.Assert.*;
 
 /** This is the driver for the server. */
@@ -171,9 +173,10 @@ public class JavaServerDriver {
    * where getting concurrent requests as an initial request will nondeterministically lead to some
    * data structures to not be initialized.
    */
-  public void parse(BufferedReader reader) throws IOException {
-    String line = reader.readLine();
-    while (line != null) {
+  public void parse(List<String> lines) {
+    Iterator<String> lineIterator = lines.iterator();
+    while (lineIterator.hasNext()) {
+      String line = lineIterator.next();
       String[] args = line.split("%%");
       switch (args[0]) {
         case "rr":
@@ -187,15 +190,13 @@ public class JavaServerDriver {
           requestSubscriptionMarbles.put(new Tuple<>(args[1], args[2]), args[3]);
           break;
         case "channel":
-          handleChannel(args, reader);
+          handleChannel(args, lineIterator);
         case "echochannel":
           requestEchoChannel.add(new Tuple<>(args[1], args[2]));
           break;
         default:
           break;
       }
-
-      line = reader.readLine();
     }
   }
 
@@ -207,27 +208,26 @@ public class JavaServerDriver {
    * @param reader
    * @throws IOException
    */
-  private void handleChannel(String[] args, BufferedReader reader) throws IOException {
+  private void handleChannel(String[] args, Iterator<String> reader) {
     Tuple<String, String> initialPayload = new Tuple<>(args[1], args[2]);
     if (args.length == 5) {
       // we know that this test should fail
       requestChannelFail.add(initialPayload);
     }
-    String line = reader.readLine();
+    String line = reader.next();
     List<String> commands = new ArrayList<>();
     while (!line.equals("}")) {
       commands.add(line);
-      line = reader.readLine();
+      line = reader.next();
     }
     requestChannelCommands.put(initialPayload, commands);
   }
 
   public static JavaServerDriver read(File file) throws IOException {
-    try (BufferedReader r = Files.newBufferedReader(file.toPath())) {
-        JavaServerDriver driver = new JavaServerDriver();
-        driver.parse(r);
-        return driver;
-    }
+    List<String> lines = readLines(file, StandardCharsets.UTF_8);
+    JavaServerDriver driver = new JavaServerDriver();
+    driver.parse(lines);
+    return driver;
   }
 
   /** A trivial subscription used to interface with the ParseMarble object */

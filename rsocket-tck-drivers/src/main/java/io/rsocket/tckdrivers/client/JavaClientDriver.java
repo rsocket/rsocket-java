@@ -15,32 +15,28 @@ package io.rsocket.tckdrivers.client;
 
 import static org.junit.Assert.*;
 
+import com.google.common.base.Throwables;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
-import io.rsocket.RSocketFactory;
 import io.rsocket.tckdrivers.common.ConsoleUtils;
 import io.rsocket.tckdrivers.common.EchoSubscription;
 import io.rsocket.tckdrivers.common.MySubscriber;
 import io.rsocket.tckdrivers.common.ParseChannel;
 import io.rsocket.tckdrivers.common.ParseChannelThread;
 import io.rsocket.tckdrivers.common.ParseMarble;
-import io.rsocket.tckdrivers.common.TckIndividualTest;
+import io.rsocket.tckdrivers.common.TckClientTest;
 import io.rsocket.tckdrivers.common.Tuple;
-import io.rsocket.uri.UriTransportRegistry;
 import io.rsocket.util.PayloadImpl;
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileReader;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicReference;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
@@ -63,22 +59,21 @@ public class JavaClientDriver {
   private ConsoleUtils consoleUtils = new ConsoleUtils(AGENT);
 
   public JavaClientDriver(Mono<RSocket> clientBuilder) {
-    clientMap = CacheBuilder.newBuilder().build(new CacheLoader<String, RSocket>() {
-      @Override public RSocket load(String key) throws Exception {
-        return clientBuilder.block();
-      }
-    });
+    clientMap =
+        CacheBuilder.newBuilder()
+            .build(
+                new CacheLoader<String, RSocket>() {
+                  @Override
+                  public RSocket load(String key) throws Exception {
+                    return clientBuilder.block();
+                  }
+                });
   }
 
-  /**
-   * Parses through the commands for each test, and calls handlers that execute the commands.
-   *
-   * @param test the list of strings which makes up each test case
-   * @param name the name of the test
-   */
-  public void runTest(List<String> test, String name) throws Exception {
+  /** Parses through the commands for each test, and calls handlers that execute the commands. */
+  public void runTest(TckClientTest test) {
     List<String> id = new ArrayList<>();
-    Iterator<String> iter = test.iterator();
+    Iterator<String> iter = test.testLines().iterator();
     boolean channelTest = false; // tells whether this is a test for channel or not
     while (iter.hasNext()) {
       String line = iter.next();
@@ -94,7 +89,7 @@ public class JavaClientDriver {
           break;
         case "channel":
           channelTest = true;
-          handleChannel(args, iter, name, true);
+          handleChannel(args, iter, test.name, true);
           break;
         case "echochannel":
           handleEchoChannel(args);
@@ -165,25 +160,19 @@ public class JavaClientDriver {
   /**
    * A function that do a look up in the clientMap hashtable. If entry does not exist, it creates
    * one.
-   *
-   * @param id
-   * @return a RSocket
    */
   private RSocket getClient(String id) {
-    RSocket client = clientMap.get(id);
-    if (client == null) {
-      client = createClient();
-      clientMap.put(id, client);
+    try {
+      return clientMap.get(id);
+    } catch (ExecutionException e) {
+      throw Throwables.propagate(e);
     }
-    return client;
   }
 
   /**
    * This function takes in the arguments for the subscribe command, and subscribes an instance of
    * MySubscriber with an initial request of 0 (which means don't immediately make a request) to an
-   * instance of the corresponding publisher
-   *
-   * @param args
+   * instance of the corresponding publisher.
    */
   private void handleSubscribe(String[] args) {
     switch (args[2]) {
@@ -223,10 +212,6 @@ public class JavaClientDriver {
    * This function takes in an iterator that is parsing through the test, and collects all the parts
    * that make up the channel functionality. It then create a thread that runs the test, which we
    * wait to finish before proceeding with the other tests.
-   *
-   * @param args
-   * @param iter
-   * @param name
    */
   private void handleChannel(String[] args, Iterator<String> iter, String name, boolean pass) {
     List<String> commands = new ArrayList<>();
@@ -274,8 +259,6 @@ public class JavaClientDriver {
   /**
    * This handles echo tests. This sets up a channel connection with the EchoSubscription, which we
    * pass to the MySubscriber.
-   *
-   * @param args
    */
   private void handleEchoChannel(String[] args) {
     Payload initPayload = new PayloadImpl(args[2], args[3]);
@@ -475,13 +458,13 @@ public class JavaClientDriver {
 
   private void handleEOF() {
     MySubscriber<Void> fnfsub = new MySubscriber<>(0L, AGENT);
-    if (clientMap.size() > 0) {
-      // Use any Client to send shutdown msg to the server
-      RSocket fnfclient = clientMap.get(clientMap.keySet().toArray()[0]);
-      Publisher<Void> fnfpub = fnfclient.fireAndForget(new PayloadImpl("shutdown", "shutdown"));
-      fnfpub.subscribe(fnfsub);
-      fnfsub.request(1);
-    }
+    //if (clientMap.size() > 0) {
+    //  // Use any Client to send shutdown msg to the server
+    //  RSocket fnfclient = clientMap.get(clientMap.keySet().toArray()[0]);
+    //  Publisher<Void> fnfpub = fnfclient.fireAndForget(new PayloadImpl("shutdown", "shutdown"));
+    //  fnfpub.subscribe(fnfsub);
+    //  fnfsub.request(1);
+    //}
   }
 
   /** A subscription for channel, it handles request(n) by sort of faking an initial payload. */
@@ -513,49 +496,5 @@ public class JavaClientDriver {
       }
       if (m > 0) pm.request(m);
     }
-  }
-
-  /**
-   * A function that parses the file and extract the individual tests
-   *
-   * @param file The file to read as input.
-   * @return a list of TckIndividualTest.
-   */
-  public static List<TckIndividualTest> extractTests(File file) throws Exception {
-
-    BufferedReader reader = new BufferedReader(new FileReader(file));
-    List<TckIndividualTest> tests = new ArrayList<>();
-    List<String> test = new ArrayList<>();
-    String line = reader.readLine();
-    String testFile = file.getName().replaceFirst(TckIndividualTest.clientPrefix, "");
-
-    //Parsing the input client file to read all the tests
-    while (line != null) {
-      switch (line) {
-        case "!":
-          String name = "";
-          if (test.size() > 1) {
-            name = test.get(0).split("%%")[1];
-          }
-
-          TckIndividualTest tckTest = new TckIndividualTest(name, test, testFile);
-          tests.add(tckTest);
-          test = new ArrayList<>();
-          break;
-        default:
-          test.add(line);
-          break;
-      }
-      line = reader.readLine();
-    }
-
-    if (test.size() > 0) {
-      String name = "";
-      name = test.get(0).split("%%")[1];
-      TckIndividualTest tckTest = new TckIndividualTest(name, test, testFile);
-      tests.add(tckTest);
-      tests = tests.subList(1, tests.size()); // remove the first list, which is empty
-    }
-    return tests;
   }
 }

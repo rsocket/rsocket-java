@@ -20,7 +20,7 @@ import io.airlift.airline.Command;
 import io.airlift.airline.Option;
 import io.airlift.airline.SingleCommand;
 import io.rsocket.tckdrivers.client.JavaClientDriver;
-import io.rsocket.tckdrivers.common.TckIndividualTest;
+import io.rsocket.tckdrivers.common.TckClientTest;
 import io.rsocket.tckdrivers.server.JavaTCPServer;
 import java.io.*;
 import java.util.ArrayList;
@@ -70,16 +70,16 @@ public class Main {
    */
   public static void runTests(String host, int port, List<String> testsList)
       throws Exception {
-    for (TckIndividualTest t : JavaClientDriver.extractTests(file)) {
-      if (testsList.contains(t.name)) {
-        try {
-          JavaClientDriver jd = new JavaClientDriver("tcp://" + host + ":" + port + "/rs");
-          jd.runTest(t.testLines(), t.name);
-        } catch (Exception e) {
-          e.printStackTrace();
-        }
-      }
-    }
+    //for (TckClientTest t : JavaClientDriver.extractTests(file)) {
+    //  if (testsList.contains(t.name)) {
+    //    try {
+    //      JavaClientDriver jd = new JavaClientDriver("tcp://" + host + ":" + port + "/rs");
+    //      jd.runTest(t.testLines(), t.name);
+    //    } catch (Exception e) {
+    //      e.printStackTrace();
+    //    }
+    //  }
+    //}
   }
 
   public static void main(String[] args) throws IOException {
