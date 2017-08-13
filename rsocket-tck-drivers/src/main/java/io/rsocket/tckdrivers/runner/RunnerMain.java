@@ -51,7 +51,7 @@ public class RunnerMain {
             + version
             + "\","
             + "\"capabilities\":{\"platform\":[\"rsocket-java\"],\"versions\":[\"1.0\"],"
-            + "\"transports\":[\"http\",\"tcp\",\"ws\",\"local\"],"
+            + "\"transports\":[\"tcp\",\"ws\",\"local\"],"
             + "\"modes\":[\"client\",\"server\"],"
             + "\"testFormats\":[\"tck1\"]}}}");
   }

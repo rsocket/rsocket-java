@@ -48,20 +48,20 @@ class RunnerRSocket extends AbstractRSocket {
 
                 sink.success(
                     new PayloadImpl(
-                        "{\"runnerTestResults\":{\"result\":{\"testName\":\""
+                        "{\"runnerTestResult\":{\"result\":{\"testName\":\""
                             + testName
                             + "\",\"result\":\"passed\"}}}"));
               } catch (Exception e) {
                 sink.success(
                     new PayloadImpl(
-                        "{\"runnerTestResults\":{\"result\":{\"testName\":\""
+                        "{\"runnerTestResult\":{\"result\":{\"testName\":\""
                             + testName
                             + "\",\"result\":\"failed\",\"clientDetail\":\""
                             + e.toString()
                             + "\"}}}"));
               }
             });
-    return mono.subscribeOn(Schedulers.parallel());
+    return mono.subscribeOn(Schedulers.elastic());
   }
 
   @Override
