@@ -23,18 +23,14 @@ public class TckMessageUtil {
     }
   }
 
-  public static void printTestRunResults(Map<String, Object> testRunResults) {
-    List<Map<String, Object>> suites = (List<Map<String, Object>>) testRunResults.get("suites");
+  public static void printTestRunResults(Map<String, Object> suite) {
+    Map<String, Object> setup = (Map<String, Object>) suite.get("setup");
+    List<Map<String, Object>> tests = (List<Map<String, Object>>) suite.get("tests");
 
-    for (Map<String, Object> suite : suites) {
-      Map<String, Object> setup = (Map<String, Object>) suite.get("setup");
-      List<Map<String, Object>> tests = (List<Map<String, Object>>) suite.get("tests");
-
-      for (Map<String, Object> t : tests) {
-        String label =
-            setup.get("version") + "\t" + setup.get("transport") + "\t" + t.get("testName");
-        System.out.println(label + "\t" + TckMessageUtil.result(t));
-      }
+    for (Map<String, Object> t : tests) {
+      String label =
+          setup.get("version") + "\t" + setup.get("transport") + "\t" + t.get("testName");
+      System.out.println(label + "\t" + TckMessageUtil.result(t));
     }
   }
 

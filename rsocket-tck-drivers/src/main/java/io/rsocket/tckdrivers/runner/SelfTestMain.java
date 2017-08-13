@@ -35,10 +35,10 @@ public class SelfTestMain {
     socket = connect(serverUrl, server -> new RunnerRSocket());
 
     System.out.println("Running self test");
-    Payload result = socket.requestResponse(selfTest()).block();
-
-    Map<String, Object> testRunResults = parseTCKMessage(result, "testRunResults");
-    printTestRunResults(testRunResults);
+    socket.requestStream(selfTest()).doOnNext(result -> {
+      Map<String, Object> testRunResults = parseTCKMessage(result, "testSuiteResults");
+      printTestRunResults(testRunResults);
+    }).then().block();
   }
 
   private Payload selfTest() {
