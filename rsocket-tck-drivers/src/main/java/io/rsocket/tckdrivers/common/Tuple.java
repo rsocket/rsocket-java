@@ -18,8 +18,8 @@ import org.apache.commons.lang3.builder.HashCodeBuilder;
 /**
  * Simple implementation of a tuple
  *
- * @param <K>
- * @param <V>
+ * @param <K> key
+ * @param <V> value
  */
 public class Tuple<K, V> {
 
@@ -31,20 +31,10 @@ public class Tuple<K, V> {
     this.v = v;
   }
 
-  /**
-   * Returns K
-   *
-   * @return K
-   */
   public K getK() {
     return this.k;
   }
 
-  /**
-   * Returns V
-   *
-   * @return V
-   */
   public V getV() {
     return this.v;
   }

@@ -50,6 +50,7 @@ public class ParseMarble {
    *
    * @param marble the whole marble diagram
    * @param s the subscriber
+   * @param agent agent
    */
   public ParseMarble(String marble, Subscriber<? super Payload> s, String agent) {
     this.s = s;
@@ -78,6 +79,7 @@ public class ParseMarble {
    * This constructor is useful for channel, when the marble diagram will be build incrementally.
    *
    * @param s the subscriber
+   * @param agent agent
    */
   public ParseMarble(Subscriber<? super Payload> s, String agent) {
     this.s = s;

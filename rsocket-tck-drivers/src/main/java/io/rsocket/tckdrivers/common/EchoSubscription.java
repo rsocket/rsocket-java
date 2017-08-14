@@ -53,7 +53,7 @@ public class EchoSubscription implements Subscription {
    * Every time our buffer grows, if there are still requests to satisfy, we need to send as much as
    * we can. We make this synchronized so we can avoid data races.
    *
-   * @param payload
+   * @param payload the payload data and metadata
    */
   public void add(Tuple<String, String> payload) {
     q.add(payload);

@@ -22,6 +22,14 @@ public class TckTestSuite {
     this.serverTest = serverTest;
   }
 
+  public String getSuiteName() {
+    return suiteName;
+  }
+
+  public List<String> testLines() {
+    return serverTest;
+  }
+
   public static List<TckTestSuite> loadAll(File directory) {
     return Arrays.stream(directory.listFiles())
         .filter(f -> f.getName().startsWith("server"))

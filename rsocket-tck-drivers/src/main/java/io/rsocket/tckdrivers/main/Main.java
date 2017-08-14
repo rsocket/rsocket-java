@@ -74,6 +74,8 @@ public class Main {
    *
    * @param host client connects with this host
    * @param port client connects on this port
+   * @param testFilter predicate for tests to run
+   * @throws Exception if an exception occurs
    */
   public static void runTests(String host, int port, Predicate<String> testFilter)
       throws Exception {
