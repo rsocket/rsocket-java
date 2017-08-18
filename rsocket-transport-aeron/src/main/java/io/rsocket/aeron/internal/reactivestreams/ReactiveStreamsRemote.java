@@ -81,6 +81,9 @@ public interface ReactiveStreamsRemote {
      * Blocks till this server shutsdown till the passed duration.
      *
      * <p><em>This does not shutdown the server.</em>
+     *
+     * @param duration the number of durationUnit to wait
+     * @param durationUnit the unit e.g. seconds
      */
     void awaitShutdown(long duration, TimeUnit durationUnit);
 

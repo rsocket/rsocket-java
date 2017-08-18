@@ -70,6 +70,8 @@ public class LocalServerTransport implements ServerTransport<Closeable> {
 
   /**
    * Remove an instance from the JVM registry.
+   *
+   * @param name the local transport instance to free.
    */
   public static void dispose(String name) {
     registry.remove(name);

@@ -23,7 +23,8 @@ public interface EventLoop {
    * Executes an IntSupplier that returns a number greater than 0 if it wants the the event loop to
    * keep processing items, and zero its okay for the eventloop to execute an idle strategy
    *
-   * @param r
+   * @param r signal for roughly how many items could be processed.
+   * @return whether items could be processed
    */
   boolean execute(IntSupplier r);
 }

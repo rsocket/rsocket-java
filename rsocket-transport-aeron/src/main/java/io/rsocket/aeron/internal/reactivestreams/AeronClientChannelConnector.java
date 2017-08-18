@@ -303,6 +303,9 @@ public class AeronClientChannelConnector
      *
      * @param receiveSocketAddress the address the channels receives data on
      * @param sendSocketAddress the address the channel sends data too
+     * @param receiveStreamId receiving stream id
+     * @param sendStreamId the sending stream id
+     * @param eventLoop event loop for this client
      * @return new {@code AeronClientConfig}
      */
     public static AeronClientConfig create(

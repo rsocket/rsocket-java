@@ -56,8 +56,8 @@ public class AeronChannel implements ReactiveStreamsRemote.Channel<DirectBuffer>
   /**
    * Subscribes to a stream of DirectBuffers and sends the to an Aeron Publisher
    *
-   * @param in
-   * @return
+   * @param in the publisher of buffers.
+   * @return Mono the completes when all publishers have been sent.
    */
   public Mono<Void> send(Flux<? extends DirectBuffer> in) {
     AeronInSubscriber inSubscriber = new AeronInSubscriber(name, destination);

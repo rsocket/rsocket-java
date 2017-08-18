@@ -95,7 +95,7 @@ public class ParseMarble {
    * be sent. In other words, it allows onNext and onComplete to be sent even if we've sent all the
    * values we've been requested of.
    *
-   * @param m
+   * @param m marble string
    */
   public synchronized void add(String m) {
     consoleUtils.info("adding " + m);
@@ -110,7 +110,7 @@ public class ParseMarble {
    * this method unblocks the sendLatch as well as the parseLatch if we have more requests, as it
    * allows both emitted and non-emitted symbols to be sent,
    *
-   * @param n
+   * @param n credits to add
    */
   public synchronized void request(long n) {
     numRequested += n;
