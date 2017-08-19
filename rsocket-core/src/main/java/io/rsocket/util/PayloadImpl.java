@@ -106,4 +106,12 @@ public class PayloadImpl implements Payload {
   public boolean hasMetadata() {
     return metadata != null;
   }
+
+  public static Payload textPayload(String data) {
+    return new PayloadImpl(data);
+  }
+
+  public static Payload textPayload(String data, String metadata) {
+    return new PayloadImpl(data, metadata);
+  }
 }
