@@ -47,6 +47,11 @@ $./gradlew goJF
 ## Debugging
 Frames can be printed out to help debugging. Set the logger `io.rsocket.FrameLogger` to debug to print the frames.
 
+## Requirements
+
+- Java 8 - heavy dependence on Java 8 functional APIs and java.time, also on Reactor
+- Android O - https://github.com/rsocket/rsocket-demo-android-java8
+
 ## Bugs and Feedback
 
 For bugs, questions and discussions please use the [Github Issues](https://github.com/RSocket/reactivesocket-java/issues).
