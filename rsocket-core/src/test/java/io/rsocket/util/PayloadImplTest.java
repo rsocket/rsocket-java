@@ -13,10 +13,14 @@
 
 package io.rsocket.util;
 
+import static io.rsocket.util.PayloadImpl.textPayload;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
+import io.rsocket.Payload;
 import org.junit.Test;
+
+import javax.annotation.Nullable;
 
 public class PayloadImplTest {
   public static final String DATA_VAL = "data";
@@ -25,20 +29,31 @@ public class PayloadImplTest {
   @Test
   public void testReuse() throws Exception {
     PayloadImpl p = new PayloadImpl(DATA_VAL, METADATA_VAL);
-    assertDataAndMetadata(p);
-    assertDataAndMetadata(p);
+    assertDataAndMetadata(p, DATA_VAL, METADATA_VAL);
+    assertDataAndMetadata(p, DATA_VAL, METADATA_VAL);
   }
 
   @Test
   public void testReuseWithExternalMark() throws Exception {
     PayloadImpl p = new PayloadImpl(DATA_VAL, METADATA_VAL);
-    assertDataAndMetadata(p);
+    assertDataAndMetadata(p, DATA_VAL, METADATA_VAL);
     p.getData().position(2).mark();
-    assertDataAndMetadata(p);
+    assertDataAndMetadata(p, DATA_VAL, METADATA_VAL);
   }
 
-  public void assertDataAndMetadata(PayloadImpl p) {
-    assertThat("Unexpected data.", p.getDataUtf8(), equalTo(DATA_VAL));
-    assertThat("Unexpected metadata.", p.getMetadataUtf8(), equalTo(METADATA_VAL));
+  public void assertDataAndMetadata(Payload p, String dataVal, @Nullable String metadataVal) {
+    assertThat("Unexpected data.", p.getDataUtf8(), equalTo(dataVal));
+    if (metadataVal == null) {
+      assertThat("Non-null metadata", p.hasMetadata(), equalTo(false));
+    } else {
+      assertThat("Null metadata", p.hasMetadata(), equalTo(true));
+      assertThat("Unexpected metadata.", p.getMetadataUtf8(), equalTo(metadataVal));
+    }
+  }
+
+  @Test
+  public void staticMethods() {
+    assertDataAndMetadata(textPayload(DATA_VAL, METADATA_VAL), DATA_VAL, METADATA_VAL);
+    assertDataAndMetadata(textPayload(DATA_VAL), DATA_VAL, null);
   }
 }

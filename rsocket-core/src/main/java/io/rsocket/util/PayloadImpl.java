@@ -106,4 +106,25 @@ public class PayloadImpl implements Payload {
   public boolean hasMetadata() {
     return metadata != null;
   }
+
+  /**
+   * Static factory method for a text payload.  Mainly looks better than "new PayloadImpl(data)"
+   *
+   * @param data the data of the payload.
+   * @return a payload.
+   */
+  public static Payload textPayload(String data) {
+    return new PayloadImpl(data);
+  }
+
+  /**
+   * Static factory method for a text payload.  Mainly looks better than "new PayloadImpl(data, metadata)"
+   *
+   * @param data the data of the payload.
+   * @param metadata the metadata for the payload.
+   * @return a payload.
+   */
+  public static Payload textPayload(String data, @Nullable String metadata) {
+    return new PayloadImpl(data, metadata);
+  }
 }
