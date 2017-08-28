@@ -94,6 +94,14 @@ public interface RSocketFactory {
     R errorConsumer(Consumer<Throwable> errorConsumer);
   }
 
+  interface ContextEncoderFactory<
+      R extends Acceptor<T, A, B>,
+      T extends io.rsocket.transport.Transport,
+      A,
+      B extends Closeable> {
+    R contextEncoder(Function<String, ContextEncoder> contextEncoderFactory);
+  }
+
   interface KeepAlive<T> {
     T keepAlive();
 
@@ -121,6 +129,7 @@ public interface RSocketFactory {
           Transport<ClientTransport, RSocket>,
           Fragmentation<ClientRSocketFactory, ClientTransport, Function<RSocket, RSocket>, RSocket>,
           ErrorConsumer<ClientRSocketFactory, ClientTransport, Function<RSocket, RSocket>, RSocket>,
+          ContextEncoderFactory<ClientRSocketFactory, ClientTransport, Function<RSocket, RSocket>, RSocket>,
           SetupPayload<ClientRSocketFactory> {
 
     private Supplier<Function<RSocket, RSocket>> acceptor =
@@ -140,6 +149,7 @@ public interface RSocketFactory {
 
     private String metadataMimeType = "application/binary";
     private String dataMimeType = "application/binary";
+    private Function<String, ContextEncoder> contextEncoderFactory = ContextEncoder::forMimeType;
 
     public ClientRSocketFactory addConnectionPlugin(DuplexConnectionInterceptor interceptor) {
       plugins.addConnectionPlugin(interceptor);
@@ -205,6 +215,12 @@ public interface RSocketFactory {
     @Override
     public ClientRSocketFactory metadataMimeType(String metadataMimeType) {
       this.metadataMimeType = metadataMimeType;
+      return this;
+    }
+
+    @Override public ClientRSocketFactory contextEncoder(
+        Function<String, ContextEncoder> contextEncoderFactory) {
+      this.contextEncoderFactory = contextEncoderFactory;
       return this;
     }
 
@@ -279,7 +295,8 @@ public interface RSocketFactory {
                           StreamIdSupplier.clientSupplier(),
                           tickPeriod,
                           ackTimeout,
-                          missedAcks);
+                          missedAcks,
+                          contextEncoderFactory.apply(metadataMimeType));
 
                   Mono<RSocket> wrappedRSocketClient =
                       Mono.just(rSocketClient).map(plugins::applyClient);
@@ -308,13 +325,15 @@ public interface RSocketFactory {
   class ServerRSocketFactory
       implements Acceptor<ServerTransport, SocketAcceptor, Closeable>,
           Fragmentation<ServerRSocketFactory, ServerTransport, SocketAcceptor, Closeable>,
-          ErrorConsumer<ServerRSocketFactory, ServerTransport, SocketAcceptor, Closeable> {
+          ErrorConsumer<ServerRSocketFactory, ServerTransport, SocketAcceptor, Closeable>,
+          ContextEncoderFactory<ServerRSocketFactory, ServerTransport, SocketAcceptor, Closeable> {
 
     private Supplier<SocketAcceptor> acceptor;
     private Supplier<io.rsocket.transport.ServerTransport> transportServer;
     private Consumer<Throwable> errorConsumer = Throwable::printStackTrace;
     private int mtu = 0;
     private PluginRegistry plugins = new PluginRegistry(Plugins.defaultPlugins());
+    private Function<String, ContextEncoder> contextEncoderFactory = ContextEncoder::forMimeType;
 
     private ServerRSocketFactory() {}
 
@@ -349,6 +368,12 @@ public interface RSocketFactory {
     @Override
     public ServerRSocketFactory errorConsumer(Consumer<Throwable> errorConsumer) {
       this.errorConsumer = errorConsumer;
+      return this;
+    }
+
+    @Override public ServerRSocketFactory contextEncoder(
+        Function<String, ContextEncoder> contextEncoderFactory) {
+      this.contextEncoderFactory = contextEncoderFactory;
       return this;
     }
 
@@ -400,7 +425,7 @@ public interface RSocketFactory {
 
         RSocketClient rSocketClient =
             new RSocketClient(
-                multiplexer.asServerConnection(), errorConsumer, StreamIdSupplier.serverSupplier());
+                multiplexer.asServerConnection(), errorConsumer, StreamIdSupplier.serverSupplier(), contextEncoderFactory.apply(setupPayload.metadataMimeType()));
 
         Mono<RSocket> wrappedRSocketClient = Mono.just(rSocketClient).map(plugins::applyClient);
 

@@ -37,6 +37,7 @@ import io.rsocket.util.PayloadImpl;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import org.junit.Rule;
 import org.junit.Test;
@@ -46,6 +47,7 @@ import org.reactivestreams.Subscription;
 import reactor.core.publisher.BaseSubscriber;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.util.context.Context;
 
 public class RSocketClientTest {
 
@@ -195,7 +197,8 @@ public class RSocketClientTest {
           StreamIdSupplier.clientSupplier(),
           Duration.ofMillis(100),
           Duration.ofMillis(100),
-          4);
+          4,
+          contextEncoder);
     }
 
     public int getStreamIdForRequestType(FrameType expectedFrameType) {

@@ -19,10 +19,12 @@ package io.rsocket;
 import io.rsocket.test.util.TestDuplexConnection;
 import io.rsocket.test.util.TestSubscriber;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.function.BiFunction;
 import org.junit.rules.ExternalResource;
 import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
 import org.reactivestreams.Subscriber;
+import reactor.util.context.Context;
 
 public abstract class AbstractSocketRule<T extends RSocket> extends ExternalResource {
 
@@ -30,6 +32,7 @@ public abstract class AbstractSocketRule<T extends RSocket> extends ExternalReso
   protected Subscriber<Void> connectSub;
   protected T socket;
   protected ConcurrentLinkedQueue<Throwable> errors;
+  protected ContextEncoder contextEncoder = (p, c) -> p;
 
   @Override
   public Statement apply(final Statement base, Description description) {

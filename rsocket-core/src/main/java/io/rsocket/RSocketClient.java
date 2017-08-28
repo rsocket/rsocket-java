@@ -17,6 +17,7 @@
 package io.rsocket;
 
 import static io.rsocket.util.ExceptionUtil.noStacktrace;
+import static reactor.core.publisher.Mono.*;
 
 import io.netty.buffer.Unpooled;
 import io.netty.util.collection.IntObjectHashMap;
@@ -27,6 +28,7 @@ import io.rsocket.util.PayloadImpl;
 import java.nio.channels.ClosedChannelException;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -38,6 +40,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
 import reactor.core.publisher.UnicastProcessor;
+import reactor.util.context.Context;
 
 /** Client Side of a RSocket socket. Sends {@link Frame}s to a {@link RSocketServer} */
 class RSocketClient implements RSocket {
@@ -52,6 +55,7 @@ class RSocketClient implements RSocket {
   private final IntObjectHashMap<LimitableRequestPublisher> senders;
   private final IntObjectHashMap<Subscriber<Payload>> receivers;
   private final AtomicInteger missedAckCounter;
+  private final ContextEncoder contextEncoder;
 
   private @Nullable Disposable keepAliveSendSub;
 
@@ -60,8 +64,9 @@ class RSocketClient implements RSocket {
   RSocketClient(
       DuplexConnection connection,
       Consumer<Throwable> errorConsumer,
-      StreamIdSupplier streamIdSupplier) {
-    this(connection, errorConsumer, streamIdSupplier, Duration.ZERO, Duration.ZERO, 0);
+      StreamIdSupplier streamIdSupplier,
+      ContextEncoder contextEncoder) {
+    this(connection, errorConsumer, streamIdSupplier, Duration.ZERO, Duration.ZERO, 0, contextEncoder);
   }
 
   RSocketClient(
@@ -70,7 +75,8 @@ class RSocketClient implements RSocket {
       StreamIdSupplier streamIdSupplier,
       Duration tickPeriod,
       Duration ackTimeout,
-      int missedAcks) {
+      int missedAcks,
+      ContextEncoder contextEncoder) {
     this.connection = connection;
     this.errorConsumer = errorConsumer;
     this.streamIdSupplier = streamIdSupplier;
@@ -78,6 +84,7 @@ class RSocketClient implements RSocket {
     this.senders = new IntObjectHashMap<>(256, 0.9f);
     this.receivers = new IntObjectHashMap<>(256, 0.9f);
     this.missedAckCounter = new AtomicInteger();
+    this.contextEncoder = contextEncoder;
 
     if (!Duration.ZERO.equals(tickPeriod)) {
       long ackTimeoutMs = ackTimeout.toMillis();
@@ -118,7 +125,7 @@ class RSocketClient implements RSocket {
             String.format(
                 "Missed %d keep-alive acks with a threshold of %d and a ack timeout of %d ms",
                 count, missedAcks, ackTimeoutMs);
-        return Mono.error(new ConnectionException(message));
+        return error(new ConnectionException(message));
       }
     }
 
@@ -128,7 +135,7 @@ class RSocketClient implements RSocket {
   @Override
   public Mono<Void> fireAndForget(Payload payload) {
     Mono<Void> defer =
-        Mono.defer(
+        defer(
             () -> {
               final int streamId = streamIdSupplier.nextStreamId();
               final Frame requestFrame =
@@ -176,12 +183,11 @@ class RSocketClient implements RSocket {
   }
 
   private Mono<Payload> handleRequestResponse(final Payload payload) {
-    return started.then(
-        Mono.defer(
-            () -> {
+    return started.then(currentContext().flatMap(
+            context -> {
               int streamId = streamIdSupplier.nextStreamId();
               final Frame requestFrame =
-                  Frame.Request.from(streamId, FrameType.REQUEST_RESPONSE, payload, 1);
+                  Frame.Request.from(streamId, FrameType.REQUEST_RESPONSE, applyContext(context, payload), 1);
 
               MonoProcessor<Payload> receiver = MonoProcessor.create();
 
@@ -226,6 +232,14 @@ class RSocketClient implements RSocket {
                       })
                   .doFinally(s -> removeReceiver(streamId));
             }));
+  }
+
+  private Payload applyContext(Context context, Payload payload) {
+    if (!context.isEmpty()) {
+      return contextEncoder.apply(payload, context);
+    } else {
+      return payload;
+    }
   }
 
   private Flux<Payload> handleStreamResponse(Flux<Payload> request, FrameType requestType) {
