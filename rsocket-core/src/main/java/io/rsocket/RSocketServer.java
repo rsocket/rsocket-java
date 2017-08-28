@@ -84,24 +84,20 @@ class RSocketServer implements RSocket {
   @Override
   public Mono<Void> fireAndForget(Payload payload) {
     try {
-      Mono<Payload> payloadMono = contextAndPayload(payload);
-      return payloadMono.flatMap(requestHandler::fireAndForget);
+      Tuple2<Payload, Context> context = contextEncoder.decode(payload);
+      Payload newPayload = context.getT1();
+      return just(newPayload).flatMap(requestHandler::fireAndForget).contextStart(c -> context.getT2());
     } catch (Throwable t) {
       return error(t);
     }
   }
 
-  private Mono<Payload> contextAndPayload(Payload payload) {
-    Tuple2<Payload, Context> context = contextEncoder.decode(payload);
-    Payload newPayload = context.getT1();
-    return just(newPayload).contextStart(c -> context.getT2());
-  }
-
   @Override
   public Mono<Payload> requestResponse(Payload payload) {
     try {
-      Mono<Payload> payloadMono = contextAndPayload(payload);
-      return payloadMono.flatMap(requestHandler::requestResponse);
+      Tuple2<Payload, Context> context = contextEncoder.decode(payload);
+      Payload newPayload = context.getT1();
+      return just(newPayload).flatMap(requestHandler::requestResponse).contextStart(c -> context.getT2());
     } catch (Throwable t) {
       return error(t);
     }
@@ -110,8 +106,9 @@ class RSocketServer implements RSocket {
   @Override
   public Flux<Payload> requestStream(Payload payload) {
     try {
-      Mono<Payload> payloadMono = contextAndPayload(payload);
-      return payloadMono.flatMapMany(requestHandler::requestStream);
+      Tuple2<Payload, Context> context = contextEncoder.decode(payload);
+      Payload newPayload = context.getT1();
+      return just(newPayload).flatMapMany(requestHandler::requestStream).contextStart(c -> context.getT2());
     } catch (Throwable t) {
       return Flux.error(t);
     }
