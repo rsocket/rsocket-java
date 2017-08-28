@@ -21,12 +21,17 @@ import io.rsocket.Payload;
 import io.rsocket.util.PayloadImpl;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.util.context.Context;
+
+import static io.rsocket.util.PayloadImpl.*;
+import static reactor.core.publisher.Mono.*;
 
 public class TestRSocket extends AbstractRSocket {
 
   @Override
   public Mono<Payload> requestResponse(Payload payload) {
-    return Mono.just(new PayloadImpl("hello world", "metadata"));
+    return currentContext().switchIfEmpty(Mono.just(Context.empty())).map(context -> textPayload("" + context.get("RESULT")))
+        .switchIfEmpty(just(textPayload("hello world", "metadata")));
   }
 
   @Override
@@ -36,11 +41,11 @@ public class TestRSocket extends AbstractRSocket {
 
   @Override
   public Mono<Void> metadataPush(Payload payload) {
-    return Mono.empty();
+    return empty();
   }
 
   @Override
   public Mono<Void> fireAndForget(Payload payload) {
-    return Mono.empty();
+    return empty();
   }
 }

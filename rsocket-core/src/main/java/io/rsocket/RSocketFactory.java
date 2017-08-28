@@ -288,6 +288,7 @@ public interface RSocketFactory {
                   ClientServerInputMultiplexer multiplexer =
                       new ClientServerInputMultiplexer(connection, plugins);
 
+                  ContextEncoder contextEncoder = contextEncoderFactory.apply(metadataMimeType);
                   RSocketClient rSocketClient =
                       new RSocketClient(
                           multiplexer.asClientConnection(),
@@ -296,7 +297,7 @@ public interface RSocketFactory {
                           tickPeriod,
                           ackTimeout,
                           missedAcks,
-                          contextEncoderFactory.apply(metadataMimeType));
+                          contextEncoder);
 
                   Mono<RSocket> wrappedRSocketClient =
                       Mono.just(rSocketClient).map(plugins::applyClient);
@@ -313,7 +314,8 @@ public interface RSocketFactory {
                             .doOnNext(
                                 rSocket ->
                                     new RSocketServer(
-                                        multiplexer.asServerConnection(), rSocket, errorConsumer))
+                                        multiplexer.asServerConnection(), rSocket, errorConsumer,
+                                        contextEncoder))
                             .then(finalConnection.sendOne(setupFrame))
                             .then(wrappedRSocketClient);
                       });
@@ -423,9 +425,11 @@ public interface RSocketFactory {
 
         ConnectionSetupPayload setupPayload = ConnectionSetupPayload.create(setupFrame);
 
+        ContextEncoder contextEncoder = contextEncoderFactory.apply(setupPayload.metadataMimeType());
         RSocketClient rSocketClient =
             new RSocketClient(
-                multiplexer.asServerConnection(), errorConsumer, StreamIdSupplier.serverSupplier(), contextEncoderFactory.apply(setupPayload.metadataMimeType()));
+                multiplexer.asServerConnection(), errorConsumer, StreamIdSupplier.serverSupplier(),
+                contextEncoder);
 
         Mono<RSocket> wrappedRSocketClient = Mono.just(rSocketClient).map(plugins::applyClient);
 
@@ -434,7 +438,8 @@ public interface RSocketFactory {
                 sender -> acceptor.get().accept(setupPayload, sender).map(plugins::applyServer))
             .map(
                 handler ->
-                    new RSocketServer(multiplexer.asClientConnection(), handler, errorConsumer))
+                    new RSocketServer(multiplexer.asClientConnection(), handler, errorConsumer,
+                        contextEncoder))
             .then();
       }
     }

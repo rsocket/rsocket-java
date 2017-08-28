@@ -135,16 +135,10 @@ class RSocketClient implements RSocket {
 
   @Override
   public Mono<Void> fireAndForget(Payload payload) {
-    Mono<Void> defer =
-        defer(
-            () -> {
-              final int streamId = streamIdSupplier.nextStreamId();
-              final Frame requestFrame =
-                  Frame.Request.from(streamId, FrameType.FIRE_AND_FORGET, payload, 1);
-              return connection.sendOne(requestFrame);
-            });
-
-    return started.then(defer);
+    return started.then(connection.send(encodeCurrentContext(payload).map(p -> {
+      final int streamId = streamIdSupplier.nextStreamId();
+      return Frame.Request.from(streamId, FrameType.FIRE_AND_FORGET, p, 1);
+    })));
   }
 
   @Override
@@ -154,18 +148,19 @@ class RSocketClient implements RSocket {
 
   @Override
   public Flux<Payload> requestStream(Payload payload) {
-    return handleStreamResponse(Flux.just(payload), FrameType.REQUEST_STREAM);
+    return handleStreamResponse(encodeCurrentContext(payload).flux(), FrameType.REQUEST_STREAM);
   }
 
   @Override
   public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
+    // TODO encode context on first frame only?
     return handleStreamResponse(Flux.from(payloads), FrameType.REQUEST_CHANNEL);
   }
 
   @Override
-  public Mono<Void> metadataPush(Payload payload) {
-    final Frame requestFrame = Frame.Request.from(0, FrameType.METADATA_PUSH, payload, 1);
-    return connection.sendOne(requestFrame);
+  public Mono<Void> metadataPush(final Payload payload) {
+    return connection.send(encodeCurrentContext(payload).map(p ->
+        Frame.Request.from(0, FrameType.METADATA_PUSH, p, 1)));
   }
 
   @Override
@@ -183,16 +178,18 @@ class RSocketClient implements RSocket {
     return connection.onClose();
   }
 
-  private static Mono<Context> currentContext() {
-    return Mono.currentContext().switchIfEmpty(just(Context.empty()));
+  private Mono<Payload> encodeCurrentContext(Payload payload) {
+    return Mono.currentContext()
+        .switchIfEmpty(just(Context.empty()))
+        .map(context -> contextEncoder.encode(payload, context));
   }
 
   private Mono<Payload> handleRequestResponse(final Payload payload) {
-    return started.then(currentContext().flatMap(
-            context -> {
+    return started.then(encodeCurrentContext(payload).flatMap(
+            p -> {
               int streamId = streamIdSupplier.nextStreamId();
               final Frame requestFrame =
-                  Frame.Request.from(streamId, FrameType.REQUEST_RESPONSE, payload, 1);
+                  Frame.Request.from(streamId, FrameType.REQUEST_RESPONSE, p, 1);
 
               MonoProcessor<Payload> receiver = MonoProcessor.create();
 
@@ -237,14 +234,6 @@ class RSocketClient implements RSocket {
                       })
                   .doFinally(s -> removeReceiver(streamId));
             }));
-  }
-
-  private Payload applyContext(Context context, Payload payload) {
-    if (!context.isEmpty()) {
-      return contextEncoder.apply(payload, context);
-    } else {
-      return payload;
-    }
   }
 
   private Flux<Payload> handleStreamResponse(Flux<Payload> request, FrameType requestType) {
