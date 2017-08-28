@@ -133,7 +133,7 @@ public class RSocketTest {
       srs =
           new RSocketServer(
               serverConnection, requestAcceptor, throwable -> serverErrors.add(throwable),
-              contextEncoder);
+              ContextEncoder.NONE);
 
       crs =
           new RSocketClient(
