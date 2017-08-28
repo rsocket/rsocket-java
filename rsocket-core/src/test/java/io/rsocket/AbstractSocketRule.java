@@ -32,7 +32,7 @@ public abstract class AbstractSocketRule<T extends RSocket> extends ExternalReso
   protected Subscriber<Void> connectSub;
   protected T socket;
   protected ConcurrentLinkedQueue<Throwable> errors;
-  protected ContextEncoder contextEncoder = (p, c) -> p;
+  protected ContextEncoder contextEncoder = ContextEncoder.NONE;
 
   @Override
   public Statement apply(final Statement base, Description description) {
