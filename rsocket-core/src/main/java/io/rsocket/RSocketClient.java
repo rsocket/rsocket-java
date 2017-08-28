@@ -16,9 +16,6 @@
 
 package io.rsocket;
 
-import static io.rsocket.util.ExceptionUtil.noStacktrace;
-import static reactor.core.publisher.Mono.*;
-
 import io.netty.buffer.Unpooled;
 import io.netty.util.collection.IntObjectHashMap;
 import io.rsocket.exceptions.ConnectionException;
@@ -28,7 +25,6 @@ import io.rsocket.util.PayloadImpl;
 import java.nio.channels.ClosedChannelException;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -41,6 +37,11 @@ import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
 import reactor.core.publisher.UnicastProcessor;
 import reactor.util.context.Context;
+
+import static io.rsocket.util.ExceptionUtil.noStacktrace;
+import static reactor.core.publisher.Mono.*;
+import static reactor.core.publisher.Mono.defer;
+import static reactor.core.publisher.Mono.error;
 
 /** Client Side of a RSocket socket. Sends {@link Frame}s to a {@link RSocketServer} */
 class RSocketClient implements RSocket {
@@ -182,12 +183,16 @@ class RSocketClient implements RSocket {
     return connection.onClose();
   }
 
+  private static Mono<Context> currentContext() {
+    return Mono.currentContext().switchIfEmpty(just(Context.empty()));
+  }
+
   private Mono<Payload> handleRequestResponse(final Payload payload) {
     return started.then(currentContext().flatMap(
             context -> {
               int streamId = streamIdSupplier.nextStreamId();
               final Frame requestFrame =
-                  Frame.Request.from(streamId, FrameType.REQUEST_RESPONSE, applyContext(context, payload), 1);
+                  Frame.Request.from(streamId, FrameType.REQUEST_RESPONSE, payload, 1);
 
               MonoProcessor<Payload> receiver = MonoProcessor.create();
 
