@@ -149,7 +149,7 @@ public interface RSocketFactory {
 
     private String metadataMimeType = "application/binary";
     private String dataMimeType = "application/binary";
-    private Function<String, ContextEncoder> contextEncoderFactory = ContextEncoder::forMimeType;
+    private Function<String, ContextEncoder> contextEncoderFactory = s -> ContextEncoder.NONE;
 
     public ClientRSocketFactory addConnectionPlugin(DuplexConnectionInterceptor interceptor) {
       plugins.addConnectionPlugin(interceptor);
@@ -335,7 +335,7 @@ public interface RSocketFactory {
     private Consumer<Throwable> errorConsumer = Throwable::printStackTrace;
     private int mtu = 0;
     private PluginRegistry plugins = new PluginRegistry(Plugins.defaultPlugins());
-    private Function<String, ContextEncoder> contextEncoderFactory = ContextEncoder::forMimeType;
+    private Function<String, ContextEncoder> contextEncoderFactory = s -> ContextEncoder.NONE;
 
     private ServerRSocketFactory() {}
 
