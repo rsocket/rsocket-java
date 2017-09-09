@@ -62,7 +62,7 @@ subprojects {
     }
 
     dependencies {
-        compile 'io.projectreactor:reactor-core:3.1.0.M3'
+        compile 'io.projectreactor:reactor-core:3.1.0.RC1'
         compile 'io.netty:netty-buffer:4.1.12.Final'
         compile 'org.reactivestreams:reactive-streams:1.0.0'
         compile 'org.slf4j:slf4j-api:1.7.25'
