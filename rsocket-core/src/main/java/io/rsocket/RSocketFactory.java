@@ -94,6 +94,14 @@ public interface RSocketFactory {
     R errorConsumer(Consumer<Throwable> errorConsumer);
   }
 
+  interface ContextEncoderFactory<
+      R extends Acceptor<T, A, B>,
+      T extends io.rsocket.transport.Transport,
+      A,
+      B extends Closeable> {
+    R contextEncoder(Function<String, ContextEncoder> contextEncoderFactory);
+  }
+
   interface KeepAlive<T> {
     T keepAlive();
 
@@ -121,6 +129,7 @@ public interface RSocketFactory {
           Transport<ClientTransport, RSocket>,
           Fragmentation<ClientRSocketFactory, ClientTransport, Function<RSocket, RSocket>, RSocket>,
           ErrorConsumer<ClientRSocketFactory, ClientTransport, Function<RSocket, RSocket>, RSocket>,
+          ContextEncoderFactory<ClientRSocketFactory, ClientTransport, Function<RSocket, RSocket>, RSocket>,
           SetupPayload<ClientRSocketFactory> {
 
     private Supplier<Function<RSocket, RSocket>> acceptor =
@@ -140,6 +149,7 @@ public interface RSocketFactory {
 
     private String metadataMimeType = "application/binary";
     private String dataMimeType = "application/binary";
+    private Function<String, ContextEncoder> contextEncoderFactory = s -> ContextEncoder.NONE;
 
     public ClientRSocketFactory addConnectionPlugin(DuplexConnectionInterceptor interceptor) {
       plugins.addConnectionPlugin(interceptor);
@@ -208,6 +218,12 @@ public interface RSocketFactory {
       return this;
     }
 
+    @Override public ClientRSocketFactory contextEncoder(
+        Function<String, ContextEncoder> contextEncoderFactory) {
+      this.contextEncoderFactory = contextEncoderFactory;
+      return this;
+    }
+
     @Override
     public Start<RSocket> transport(Supplier<io.rsocket.transport.ClientTransport> t) {
       return new ClientTransport().transport(t);
@@ -272,6 +288,7 @@ public interface RSocketFactory {
                   ClientServerInputMultiplexer multiplexer =
                       new ClientServerInputMultiplexer(connection, plugins);
 
+                  ContextEncoder contextEncoder = contextEncoderFactory.apply(metadataMimeType);
                   RSocketClient rSocketClient =
                       new RSocketClient(
                           multiplexer.asClientConnection(),
@@ -279,7 +296,8 @@ public interface RSocketFactory {
                           StreamIdSupplier.clientSupplier(),
                           tickPeriod,
                           ackTimeout,
-                          missedAcks);
+                          missedAcks,
+                          contextEncoder);
 
                   Mono<RSocket> wrappedRSocketClient =
                       Mono.just(rSocketClient).map(plugins::applyClient);
@@ -296,7 +314,8 @@ public interface RSocketFactory {
                             .doOnNext(
                                 rSocket ->
                                     new RSocketServer(
-                                        multiplexer.asServerConnection(), rSocket, errorConsumer))
+                                        multiplexer.asServerConnection(), rSocket, errorConsumer,
+                                        contextEncoder))
                             .then(finalConnection.sendOne(setupFrame))
                             .then(wrappedRSocketClient);
                       });
@@ -308,13 +327,15 @@ public interface RSocketFactory {
   class ServerRSocketFactory
       implements Acceptor<ServerTransport, SocketAcceptor, Closeable>,
           Fragmentation<ServerRSocketFactory, ServerTransport, SocketAcceptor, Closeable>,
-          ErrorConsumer<ServerRSocketFactory, ServerTransport, SocketAcceptor, Closeable> {
+          ErrorConsumer<ServerRSocketFactory, ServerTransport, SocketAcceptor, Closeable>,
+          ContextEncoderFactory<ServerRSocketFactory, ServerTransport, SocketAcceptor, Closeable> {
 
     private Supplier<SocketAcceptor> acceptor;
     private Supplier<io.rsocket.transport.ServerTransport> transportServer;
     private Consumer<Throwable> errorConsumer = Throwable::printStackTrace;
     private int mtu = 0;
     private PluginRegistry plugins = new PluginRegistry(Plugins.defaultPlugins());
+    private Function<String, ContextEncoder> contextEncoderFactory = s -> ContextEncoder.NONE;
 
     private ServerRSocketFactory() {}
 
@@ -349,6 +370,12 @@ public interface RSocketFactory {
     @Override
     public ServerRSocketFactory errorConsumer(Consumer<Throwable> errorConsumer) {
       this.errorConsumer = errorConsumer;
+      return this;
+    }
+
+    @Override public ServerRSocketFactory contextEncoder(
+        Function<String, ContextEncoder> contextEncoderFactory) {
+      this.contextEncoderFactory = contextEncoderFactory;
       return this;
     }
 
@@ -398,9 +425,11 @@ public interface RSocketFactory {
 
         ConnectionSetupPayload setupPayload = ConnectionSetupPayload.create(setupFrame);
 
+        ContextEncoder contextEncoder = contextEncoderFactory.apply(setupPayload.metadataMimeType());
         RSocketClient rSocketClient =
             new RSocketClient(
-                multiplexer.asServerConnection(), errorConsumer, StreamIdSupplier.serverSupplier());
+                multiplexer.asServerConnection(), errorConsumer, StreamIdSupplier.serverSupplier(),
+                contextEncoder);
 
         Mono<RSocket> wrappedRSocketClient = Mono.just(rSocketClient).map(plugins::applyClient);
 
@@ -409,7 +438,8 @@ public interface RSocketFactory {
                 sender -> acceptor.get().accept(setupPayload, sender).map(plugins::applyServer))
             .map(
                 handler ->
-                    new RSocketServer(multiplexer.asClientConnection(), handler, errorConsumer))
+                    new RSocketServer(multiplexer.asClientConnection(), handler, errorConsumer,
+                        contextEncoder))
             .then();
       }
     }

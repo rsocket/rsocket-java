@@ -16,13 +16,18 @@
 
 package io.rsocket.test;
 
+import static io.rsocket.util.PayloadImpl.*;
 import static org.junit.Assert.assertEquals;
 
+import io.rsocket.AbstractRSocket;
 import io.rsocket.Payload;
 import io.rsocket.util.PayloadImpl;
+import java.util.stream.Collectors;
 import org.junit.Rule;
 import org.junit.Test;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+import reactor.util.context.Context;
 
 public abstract class BaseClientServerTest<T extends ClientSetupRule<?, ?>> {
   @Rule public final T setup = createClientServer();
@@ -86,10 +91,10 @@ public abstract class BaseClientServerTest<T extends ClientSetupRule<?, ?>> {
         metadata = null;
         break;
       case 1:
-        metadata = "";
+        metadata = "{}";
         break;
       default:
-        metadata = "metadata";
+        metadata = "{\"metadata\":1}";
         break;
     }
     return new PayloadImpl("hello", metadata);
@@ -163,5 +168,18 @@ public abstract class BaseClientServerTest<T extends ClientSetupRule<?, ?>> {
     ts.cancel();
 
     assertEquals(10, ts.count());
+  }
+
+  @Test
+  public void testRequestResponseWithContext() {
+    String result =
+        setup.getRSocket()
+            .requestResponse(textPayload("text"))
+            .contextStart(context -> context.put("RESULT", "Y"))
+            .map(Payload::getDataUtf8)
+            .doOnError(Throwable::printStackTrace)
+            .block();
+
+    assertEquals("Y", result);
   }
 }

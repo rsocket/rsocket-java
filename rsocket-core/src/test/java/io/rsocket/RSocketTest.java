@@ -132,13 +132,15 @@ public class RSocketTest {
 
       srs =
           new RSocketServer(
-              serverConnection, requestAcceptor, throwable -> serverErrors.add(throwable));
+              serverConnection, requestAcceptor, throwable -> serverErrors.add(throwable),
+              ContextEncoder.NONE);
 
       crs =
           new RSocketClient(
               clientConnection,
               throwable -> clientErrors.add(throwable),
-              StreamIdSupplier.clientSupplier());
+              StreamIdSupplier.clientSupplier(),
+              ContextEncoder.NONE);
     }
 
     public void setRequestAcceptor(RSocket requestAcceptor) {

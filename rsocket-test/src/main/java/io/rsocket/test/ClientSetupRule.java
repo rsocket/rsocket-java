@@ -17,6 +17,7 @@
 package io.rsocket.test;
 
 import io.rsocket.Closeable;
+import io.rsocket.JsonContextEncoder;
 import io.rsocket.RSocket;
 import io.rsocket.RSocketFactory;
 import io.rsocket.transport.ClientTransport;
@@ -30,7 +31,6 @@ import org.junit.runners.model.Statement;
 import reactor.core.publisher.Mono;
 
 public class ClientSetupRule<T, S extends Closeable> extends ExternalResource {
-
   private Supplier<T> addressSupplier;
   private BiFunction<T, S, RSocket> clientConnector;
   private Function<T, S> serverInit;
@@ -46,6 +46,7 @@ public class ClientSetupRule<T, S extends Closeable> extends ExternalResource {
     this.serverInit =
         address ->
             RSocketFactory.receive()
+                .contextEncoder(s -> new JsonContextEncoder())
                 .acceptor((setup, sendingSocket) -> Mono.just(new TestRSocket()))
                 .transport(serverTransportSupplier.apply(address))
                 .start()
@@ -55,6 +56,7 @@ public class ClientSetupRule<T, S extends Closeable> extends ExternalResource {
     this.clientConnector =
         (address, server) ->
             RSocketFactory.connect()
+                .contextEncoder(s -> new JsonContextEncoder())
                 .transport(clientTransportSupplier.apply(address, server))
                 .start()
                 .doOnError(t -> t.printStackTrace())

@@ -123,7 +123,8 @@ public class RSocketServerTest {
 
     @Override
     protected RSocketServer newRSocket() {
-      return new RSocketServer(connection, acceptingSocket, throwable -> errors.add(throwable));
+      return new RSocketServer(connection, acceptingSocket, throwable -> errors.add(throwable),
+          contextEncoder);
     }
 
     private void sendRequest(int streamId, FrameType frameType) {

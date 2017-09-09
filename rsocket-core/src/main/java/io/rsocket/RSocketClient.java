@@ -16,8 +16,6 @@
 
 package io.rsocket;
 
-import static io.rsocket.util.ExceptionUtil.noStacktrace;
-
 import io.netty.buffer.Unpooled;
 import io.netty.util.collection.IntObjectHashMap;
 import io.rsocket.exceptions.ConnectionException;
@@ -38,6 +36,12 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
 import reactor.core.publisher.UnicastProcessor;
+import reactor.util.context.Context;
+
+import static io.rsocket.util.ExceptionUtil.noStacktrace;
+import static reactor.core.publisher.Mono.*;
+import static reactor.core.publisher.Mono.defer;
+import static reactor.core.publisher.Mono.error;
 
 /** Client Side of a RSocket socket. Sends {@link Frame}s to a {@link RSocketServer} */
 class RSocketClient implements RSocket {
@@ -52,6 +56,7 @@ class RSocketClient implements RSocket {
   private final IntObjectHashMap<LimitableRequestPublisher> senders;
   private final IntObjectHashMap<Subscriber<Payload>> receivers;
   private final AtomicInteger missedAckCounter;
+  private final ContextEncoder contextEncoder;
 
   private @Nullable Disposable keepAliveSendSub;
 
@@ -60,8 +65,9 @@ class RSocketClient implements RSocket {
   RSocketClient(
       DuplexConnection connection,
       Consumer<Throwable> errorConsumer,
-      StreamIdSupplier streamIdSupplier) {
-    this(connection, errorConsumer, streamIdSupplier, Duration.ZERO, Duration.ZERO, 0);
+      StreamIdSupplier streamIdSupplier,
+      ContextEncoder contextEncoder) {
+    this(connection, errorConsumer, streamIdSupplier, Duration.ZERO, Duration.ZERO, 0, contextEncoder);
   }
 
   RSocketClient(
@@ -70,7 +76,8 @@ class RSocketClient implements RSocket {
       StreamIdSupplier streamIdSupplier,
       Duration tickPeriod,
       Duration ackTimeout,
-      int missedAcks) {
+      int missedAcks,
+      ContextEncoder contextEncoder) {
     this.connection = connection;
     this.errorConsumer = errorConsumer;
     this.streamIdSupplier = streamIdSupplier;
@@ -78,6 +85,7 @@ class RSocketClient implements RSocket {
     this.senders = new IntObjectHashMap<>(256, 0.9f);
     this.receivers = new IntObjectHashMap<>(256, 0.9f);
     this.missedAckCounter = new AtomicInteger();
+    this.contextEncoder = contextEncoder;
 
     if (!Duration.ZERO.equals(tickPeriod)) {
       long ackTimeoutMs = ackTimeout.toMillis();
@@ -118,7 +126,7 @@ class RSocketClient implements RSocket {
             String.format(
                 "Missed %d keep-alive acks with a threshold of %d and a ack timeout of %d ms",
                 count, missedAcks, ackTimeoutMs);
-        return Mono.error(new ConnectionException(message));
+        return error(new ConnectionException(message));
       }
     }
 
@@ -127,16 +135,10 @@ class RSocketClient implements RSocket {
 
   @Override
   public Mono<Void> fireAndForget(Payload payload) {
-    Mono<Void> defer =
-        Mono.defer(
-            () -> {
-              final int streamId = streamIdSupplier.nextStreamId();
-              final Frame requestFrame =
-                  Frame.Request.from(streamId, FrameType.FIRE_AND_FORGET, payload, 1);
-              return connection.sendOne(requestFrame);
-            });
-
-    return started.then(defer);
+    return started.then(connection.send(encodeCurrentContext(payload).map(p -> {
+      final int streamId = streamIdSupplier.nextStreamId();
+      return Frame.Request.from(streamId, FrameType.FIRE_AND_FORGET, p, 1);
+    })));
   }
 
   @Override
@@ -146,18 +148,19 @@ class RSocketClient implements RSocket {
 
   @Override
   public Flux<Payload> requestStream(Payload payload) {
-    return handleStreamResponse(Flux.just(payload), FrameType.REQUEST_STREAM);
+    return handleStreamResponse(encodeCurrentContext(payload).flux(), FrameType.REQUEST_STREAM);
   }
 
   @Override
   public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
+    // TODO encode context on first frame only?
     return handleStreamResponse(Flux.from(payloads), FrameType.REQUEST_CHANNEL);
   }
 
   @Override
-  public Mono<Void> metadataPush(Payload payload) {
-    final Frame requestFrame = Frame.Request.from(0, FrameType.METADATA_PUSH, payload, 1);
-    return connection.sendOne(requestFrame);
+  public Mono<Void> metadataPush(final Payload payload) {
+    return connection.send(encodeCurrentContext(payload).map(p ->
+        Frame.Request.from(0, FrameType.METADATA_PUSH, p, 1)));
   }
 
   @Override
@@ -175,13 +178,18 @@ class RSocketClient implements RSocket {
     return connection.onClose();
   }
 
+  private Mono<Payload> encodeCurrentContext(Payload payload) {
+    return Mono.currentContext()
+        .switchIfEmpty(just(Context.empty()))
+        .map(context -> contextEncoder.encode(payload, context));
+  }
+
   private Mono<Payload> handleRequestResponse(final Payload payload) {
-    return started.then(
-        Mono.defer(
-            () -> {
+    return started.then(encodeCurrentContext(payload).flatMap(
+            p -> {
               int streamId = streamIdSupplier.nextStreamId();
               final Frame requestFrame =
-                  Frame.Request.from(streamId, FrameType.REQUEST_RESPONSE, payload, 1);
+                  Frame.Request.from(streamId, FrameType.REQUEST_RESPONSE, p, 1);
 
               MonoProcessor<Payload> receiver = MonoProcessor.create();
 
