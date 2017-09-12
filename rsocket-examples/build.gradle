@@ -14,18 +14,16 @@
  * limitations under the License.
  */
 
-plugins {
-    id "me.champeau.gradle.jmh" version "0.4.4"
-}
+apply plugin: 'me.champeau.gradle.jmh'
 
 jmh {
-    jmhVersion = '1.15'
-    jvmArgs = '-XX:+UseG1GC -Xmx4g -Xms4g -XX:+UnlockCommercialFeatures -XX:+FlightRecorder'
+    jmhVersion = "$jmhVersion"
+    jvmArgs = ['-XX:+UseG1GC', '-Xmx4g', '-Xms4g', '-XX:+UnlockCommercialFeatures', '-XX:+FlightRecorder']
     profilers = ['gc']
     zip64 = true
     warmupBatchSize = 10
     iterations = 500
-    duplicateClassesStrategy = 'warn'
+    duplicateClassesStrategy = DuplicatesStrategy.WARN
 }
 
 dependencies {
@@ -34,7 +32,7 @@ dependencies {
     compile project(':rsocket-transport-netty')
     compile project(':rsocket-transport-local')
 
-    jmh group: 'org.openjdk.jmh', name: 'jmh-generator-annprocess', version: '1.15'
+    jmh "org.openjdk.jmh:jmh-generator-annprocess:$jmhVersion"
 
     testCompile project(':rsocket-test')
 }

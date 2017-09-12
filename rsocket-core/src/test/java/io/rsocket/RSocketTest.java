@@ -21,7 +21,7 @@ import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.verify;
 
-import io.rsocket.exceptions.InvalidRequestException;
+import io.rsocket.exceptions.ApplicationException;
 import io.rsocket.test.util.LocalDuplexConnection;
 import io.rsocket.test.util.TestSubscriber;
 import io.rsocket.util.PayloadImpl;
@@ -63,7 +63,7 @@ public class RSocketTest {
         });
     Subscriber<Payload> subscriber = TestSubscriber.create();
     rule.crs.requestResponse(PayloadImpl.EMPTY).subscribe(subscriber);
-    verify(subscriber).onError(any(InvalidRequestException.class));
+    verify(subscriber).onError(any(ApplicationException.class));
     rule.assertNoErrors();
   }
 

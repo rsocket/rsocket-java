@@ -28,7 +28,7 @@ public class MediaDriverHolder {
     final io.aeron.driver.MediaDriver.Context ctx =
         new io.aeron.driver.MediaDriver.Context()
             .threadingMode(ThreadingMode.SHARED)
-            .dirsDeleteOnStart(true)
+            .dirDeleteOnStart(true)
             .conductorIdleStrategy(new SleepingIdleStrategy(TimeUnit.MILLISECONDS.toNanos(1)))
             .receiverIdleStrategy(new SleepingIdleStrategy(TimeUnit.MILLISECONDS.toNanos(1)))
             .senderIdleStrategy(new SleepingIdleStrategy(TimeUnit.MILLISECONDS.toNanos(1)));

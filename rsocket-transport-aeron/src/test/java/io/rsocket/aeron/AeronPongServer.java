@@ -31,7 +31,7 @@ public final class AeronPongServer {
     final io.aeron.driver.MediaDriver.Context ctx =
         new io.aeron.driver.MediaDriver.Context()
             .threadingMode(ThreadingMode.SHARED_NETWORK)
-            .dirsDeleteOnStart(true);
+            .dirDeleteOnStart(true);
     MediaDriver.launch(ctx);
   }
 
