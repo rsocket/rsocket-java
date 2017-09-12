@@ -35,13 +35,13 @@ import java.util.function.Supplier;
 import reactor.core.publisher.Mono;
 
 /** Factory for creating RSocket clients and servers. */
-public interface RSocketFactory {
+public class RSocketFactory {
   /**
    * Creates a factory that establishes client connections to other RSockets.
    *
    * @return a client factory
    */
-  static ClientRSocketFactory connect() {
+  public static ClientRSocketFactory connect() {
     return new ClientRSocketFactory();
   }
 
@@ -50,51 +50,51 @@ public interface RSocketFactory {
    *
    * @return a server factory.
    */
-  static ServerRSocketFactory receive() {
+  public static ServerRSocketFactory receive() {
     return new ServerRSocketFactory();
   }
 
-  interface Start<T extends Closeable> {
+  public interface Start<T extends Closeable> {
     Mono<T> start();
   }
 
-  interface SetupPayload<T> {
+  public interface SetupPayload<T> {
     T setupPayload(Payload payload);
   }
 
-  interface Transport<T extends io.rsocket.transport.Transport, B extends Closeable> {
-    Start<B> transport(Supplier<T> t);
+  public interface Acceptor<T, A> {
+    T acceptor(Supplier<A> acceptor);
 
-    default Start<B> transport(T t) {
-      return transport(() -> t);
-    }
-  }
-
-  interface Acceptor<T extends io.rsocket.transport.Transport, A, B extends Closeable> {
-    Transport<T, B> acceptor(Supplier<A> acceptor);
-
-    default Transport<T, B> acceptor(A acceptor) {
+    default T acceptor(A acceptor) {
       return acceptor(() -> acceptor);
     }
   }
 
-  interface Fragmentation<
-      R extends Acceptor<T, A, B>,
-      T extends io.rsocket.transport.Transport,
-      A,
-      B extends Closeable> {
-    R fragment(int mtu);
+  public interface ClientTransportAcceptor {
+    Start<RSocket> transport(Supplier<ClientTransport> transport);
+
+    default Start<RSocket> transport(ClientTransport transport) {
+      return transport(() -> transport);
+    }
   }
 
-  interface ErrorConsumer<
-      R extends Acceptor<T, A, B>,
-      T extends io.rsocket.transport.Transport,
-      A,
-      B extends Closeable> {
-    R errorConsumer(Consumer<Throwable> errorConsumer);
+  public interface ServerTransportAcceptor {
+    <T extends Closeable> Start<T> transport(Supplier<ServerTransport<T>> transport);
+
+    default <T extends Closeable> Start<T> transport(ServerTransport<T> transport) {
+      return transport(() -> transport);
+    }
   }
 
-  interface KeepAlive<T> {
+  public interface Fragmentation<T> {
+    T fragment(int mtu);
+  }
+
+  public interface ErrorConsumer<T> {
+    T errorConsumer(Consumer<Throwable> errorConsumer);
+  }
+
+  public interface KeepAlive<T> {
     T keepAlive();
 
     T keepAlive(Duration tickPeriod, Duration ackTimeout, int missedAcks);
@@ -106,7 +106,7 @@ public interface RSocketFactory {
     T keepAliveMissedAcks(int missedAcks);
   }
 
-  interface MimeType<T> {
+  public interface MimeType<T> {
     T mimeType(String metadataMimeType, String dataMimeType);
 
     T dataMimeType(String dataMimeType);
@@ -114,19 +114,18 @@ public interface RSocketFactory {
     T metadataMimeType(String metadataMimeType);
   }
 
-  class ClientRSocketFactory
-      implements KeepAlive<ClientRSocketFactory>,
+  public static class ClientRSocketFactory
+      implements Acceptor<ClientTransportAcceptor, Function<RSocket, RSocket>>,
+          ClientTransportAcceptor,
+          KeepAlive<ClientRSocketFactory>,
           MimeType<ClientRSocketFactory>,
-          Acceptor<ClientTransport, Function<RSocket, RSocket>, RSocket>,
-          Transport<ClientTransport, RSocket>,
-          Fragmentation<ClientRSocketFactory, ClientTransport, Function<RSocket, RSocket>, RSocket>,
-          ErrorConsumer<ClientRSocketFactory, ClientTransport, Function<RSocket, RSocket>, RSocket>,
+          Fragmentation<ClientRSocketFactory>,
+          ErrorConsumer<ClientRSocketFactory>,
           SetupPayload<ClientRSocketFactory> {
 
     private Supplier<Function<RSocket, RSocket>> acceptor =
         () -> rSocket -> new AbstractRSocket() {};
 
-    private Supplier<io.rsocket.transport.ClientTransport> transportClient;
     private Consumer<Throwable> errorConsumer = Throwable::printStackTrace;
     private int mtu = 0;
     private PluginRegistry plugins = new PluginRegistry(Plugins.defaultPlugins());
@@ -209,25 +208,14 @@ public interface RSocketFactory {
     }
 
     @Override
-    public Start<RSocket> transport(Supplier<io.rsocket.transport.ClientTransport> t) {
-      return new ClientTransport().transport(t);
-    }
-
-    protected class ClientTransport
-        implements Transport<io.rsocket.transport.ClientTransport, RSocket> {
-      @Override
-      public Start<RSocket> transport(
-          Supplier<io.rsocket.transport.ClientTransport> transportClient) {
-        ClientRSocketFactory.this.transportClient = transportClient;
-        return new StartClient();
-      }
+    public Start<RSocket> transport(Supplier<ClientTransport> transportClient) {
+      return new StartClient(transportClient);
     }
 
     @Override
-    public Transport<io.rsocket.transport.ClientTransport, RSocket> acceptor(
-        Supplier<Function<RSocket, RSocket>> acceptor) {
+    public ClientTransportAcceptor acceptor(Supplier<Function<RSocket, RSocket>> acceptor) {
       this.acceptor = acceptor;
-      return new ClientTransport();
+      return StartClient::new;
     }
 
     @Override
@@ -249,6 +237,12 @@ public interface RSocketFactory {
     }
 
     protected class StartClient implements Start<RSocket> {
+      private final Supplier<ClientTransport> transportClient;
+
+      StartClient(Supplier<ClientTransport> transportClient) {
+        this.transportClient = transportClient;
+      }
+
       @Override
       public Mono<RSocket> start() {
         return transportClient
@@ -305,13 +299,12 @@ public interface RSocketFactory {
     }
   }
 
-  class ServerRSocketFactory
-      implements Acceptor<ServerTransport, SocketAcceptor, Closeable>,
-          Fragmentation<ServerRSocketFactory, ServerTransport, SocketAcceptor, Closeable>,
-          ErrorConsumer<ServerRSocketFactory, ServerTransport, SocketAcceptor, Closeable> {
+  public static class ServerRSocketFactory
+      implements Acceptor<ServerTransportAcceptor, SocketAcceptor>,
+          Fragmentation<ServerRSocketFactory>,
+          ErrorConsumer<ServerRSocketFactory> {
 
     private Supplier<SocketAcceptor> acceptor;
-    private Supplier<io.rsocket.transport.ServerTransport> transportServer;
     private Consumer<Throwable> errorConsumer = Throwable::printStackTrace;
     private int mtu = 0;
     private PluginRegistry plugins = new PluginRegistry(Plugins.defaultPlugins());
@@ -334,10 +327,9 @@ public interface RSocketFactory {
     }
 
     @Override
-    public Transport<io.rsocket.transport.ServerTransport, Closeable> acceptor(
-        Supplier<SocketAcceptor> acceptor) {
+    public ServerTransportAcceptor acceptor(Supplier<SocketAcceptor> acceptor) {
       this.acceptor = acceptor;
-      return new ServerTransport();
+      return ServerStart::new;
     }
 
     @Override
@@ -352,18 +344,15 @@ public interface RSocketFactory {
       return this;
     }
 
-    private class ServerTransport
-        implements Transport<io.rsocket.transport.ServerTransport, Closeable> {
-      @Override
-      public Start transport(Supplier<io.rsocket.transport.ServerTransport> transportServer) {
-        ServerRSocketFactory.this.transportServer = transportServer;
-        return new ServerStart();
-      }
-    }
+    private class ServerStart<T extends Closeable> implements Start<T> {
+      private final Supplier<ServerTransport<T>> transportServer;
 
-    private class ServerStart implements Start {
+      ServerStart(Supplier<ServerTransport<T>> transportServer) {
+        this.transportServer = transportServer;
+      }
+
       @Override
-      public Mono<Closeable> start() {
+      public Mono<T> start() {
         return transportServer
             .get()
             .start(

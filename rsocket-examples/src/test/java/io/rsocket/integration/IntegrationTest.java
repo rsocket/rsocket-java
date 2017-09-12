@@ -122,8 +122,6 @@ public class IntegrationTest {
                 })
             .transport(serverTransport)
             .start()
-            // TODO fix the Types through RSocketFactory.Start
-            .cast(NettyContextCloseable.class)
             .block();
 
     client =
