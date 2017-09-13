@@ -24,7 +24,9 @@ public class TckMessageUtil {
   }
 
   public static void printTestRunResults(Map<String, Object> suite) {
+    @SuppressWarnings("unchecked")
     Map<String, Object> setup = (Map<String, Object>) suite.get("setup");
+    @SuppressWarnings("unchecked")
     List<Map<String, Object>> tests = (List<Map<String, Object>>) suite.get("tests");
 
     for (Map<String, Object> t : tests) {

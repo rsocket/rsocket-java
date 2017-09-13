@@ -21,7 +21,6 @@ import com.netflix.spectator.api.Registry;
 import com.netflix.spectator.api.Timer;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
-import java.lang.reflect.Array;
 import java.util.concurrent.TimeUnit;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
@@ -99,7 +98,7 @@ public class SpectatorRSocket implements RSocket {
         registry.timer("reactiveSocketStats", concatenate(tags, "metadataPush", "timer"));
   }
 
-  static <T> T[] concatenate(T[] a, T... b) {
+  private static String[] concatenate(String[] a, String... b) {
     if (a == null || a.length == 0) {
       return b;
     }
@@ -107,8 +106,7 @@ public class SpectatorRSocket implements RSocket {
     int aLen = a.length;
     int bLen = b.length;
 
-    @SuppressWarnings("unchecked")
-    T[] c = (T[]) Array.newInstance(a.getClass().getComponentType(), aLen + bLen);
+    String[] c = new String[aLen + bLen];
     System.arraycopy(a, 0, c, 0, aLen);
     System.arraycopy(b, 0, c, aLen, bLen);
 

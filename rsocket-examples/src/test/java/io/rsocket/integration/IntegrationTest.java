@@ -149,7 +149,7 @@ public class IntegrationTest {
 
   @Test
   public void testStream() throws Exception {
-    Subscriber subscriber = TestSubscriber.createCancelling();
+    Subscriber<Payload> subscriber = TestSubscriber.createCancelling();
     client.requestStream(new PayloadImpl("start")).subscribe(subscriber);
 
     verify(subscriber).onSubscribe(any());

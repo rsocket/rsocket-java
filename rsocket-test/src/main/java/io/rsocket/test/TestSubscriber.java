@@ -14,7 +14,8 @@ public class TestSubscriber {
   }
 
   public static <T> Subscriber<T> create(long initialRequest) {
-    Subscriber mock = mock(Subscriber.class);
+    @SuppressWarnings("unchecked")
+    Subscriber<T> mock = mock(Subscriber.class);
 
     Mockito.doAnswer(
             invocation -> {
@@ -34,7 +35,8 @@ public class TestSubscriber {
   }
 
   public static Subscriber<Payload> createCancelling() {
-    Subscriber mock = mock(Subscriber.class);
+    @SuppressWarnings("unchecked")
+    Subscriber<Payload> mock = mock(Subscriber.class);
 
     Mockito.doAnswer(
             invocation -> {
