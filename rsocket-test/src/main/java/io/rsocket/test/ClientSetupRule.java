@@ -56,7 +56,7 @@ public class ClientSetupRule<T, S extends Closeable> extends ExternalResource {
             RSocketFactory.connect()
                 .transport(clientTransportSupplier.apply(address, server))
                 .start()
-                .doOnError(t -> t.printStackTrace())
+                .doOnError(Throwable::printStackTrace)
                 .block();
   }
 

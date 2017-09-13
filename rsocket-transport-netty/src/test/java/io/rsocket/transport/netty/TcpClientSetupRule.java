@@ -28,6 +28,6 @@ public class TcpClientSetupRule extends ClientSetupRule<InetSocketAddress, Netty
     super(
         () -> InetSocketAddress.createUnresolved("localhost", 0),
         (address, server) -> TcpClientTransport.create(server.address()),
-        address -> TcpServerTransport.create(address));
+        TcpServerTransport::create);
   }
 }

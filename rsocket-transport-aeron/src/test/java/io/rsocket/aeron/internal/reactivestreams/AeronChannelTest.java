@@ -65,15 +65,14 @@ public class AeronChannelTest {
         });
 
     ctx.unavailableImageHandler(
-        image -> {
-          System.out.println(
-              "=== unavailable image name image subscription => "
-                  + image.subscription().channel()
-                  + " streamid => "
-                  + image.subscription().streamId()
-                  + " registrationid => "
-                  + image.subscription().registrationId());
-        });
+        image ->
+            System.out.println(
+                "=== unavailable image name image subscription => "
+                    + image.subscription().channel()
+                    + " streamid => "
+                    + image.subscription().streamId()
+                    + " registrationid => "
+                    + image.subscription().registrationId()));
     /*ctx.errorHandler(t -> {
        /* StringWriter writer = new StringWriter();
         PrintWriter w = new PrintWriter(writer);
@@ -218,15 +217,14 @@ public class AeronChannelTest {
         });
 
     ctx.unavailableImageHandler(
-        image -> {
-          System.out.println(
-              "=== unavailable image name image subscription => "
-                  + image.subscription().channel()
-                  + " streamid => "
-                  + image.subscription().streamId()
-                  + " registrationid => "
-                  + image.subscription().registrationId());
-        });
+        image ->
+            System.out.println(
+                "=== unavailable image name image subscription => "
+                    + image.subscription().channel()
+                    + " streamid => "
+                    + image.subscription().streamId()
+                    + " registrationid => "
+                    + image.subscription().registrationId()));
 
     /*ctx.errorHandler(t -> {
        /* StringWriter writer = new StringWriter();
@@ -283,13 +281,9 @@ public class AeronChannelTest {
 
     serverChannel
         .receive()
-        .flatMap(
-            f -> {
-              // latch.countDown();
-              //System.out.println("received -> " + f.getInt(0));
-              return serverChannel.send(f);
-            },
-            32)
+        // latch.countDown();
+        //System.out.println("received -> " + f.getInt(0));
+        .flatMap(serverChannel::send, 32)
         .doOnError(Throwable::printStackTrace)
         .subscribe();
 

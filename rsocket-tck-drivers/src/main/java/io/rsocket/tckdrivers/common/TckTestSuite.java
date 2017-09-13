@@ -32,7 +32,7 @@ public class TckTestSuite {
   public static List<TckTestSuite> loadAll(File directory) {
     return Arrays.stream(directory.listFiles())
         .filter(f -> f.getName().startsWith("server"))
-        .map(f -> TckTestSuite.extractTests(f))
+        .map(TckTestSuite::extractTests)
         .collect(toList());
   }
 

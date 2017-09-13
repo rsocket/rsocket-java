@@ -17,7 +17,6 @@
 package io.rsocket;
 
 import io.rsocket.perfutil.TestDuplexConnection;
-import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.ServerTransport;
 import io.rsocket.util.PayloadImpl;
 import java.nio.ByteBuffer;
@@ -94,74 +93,69 @@ public class RSocketPerf {
     static final Object server =
         RSocketFactory.receive()
             .acceptor(
-                new SocketAcceptor() {
-                  @Override
-                  public Mono<RSocket> accept(ConnectionSetupPayload setup, RSocket sendingSocket) {
-                    RSocket rSocket =
-                        new RSocket() {
-                          @Override
-                          public Mono<Void> fireAndForget(Payload payload) {
-                            return Mono.empty();
-                          }
+                (setup, sendingSocket) -> {
+                  RSocket rSocket =
+                      new RSocket() {
+                        @Override
+                        public Mono<Void> fireAndForget(Payload payload) {
+                          return Mono.empty();
+                        }
 
-                          @Override
-                          public Mono<Payload> requestResponse(Payload payload) {
-                            return Mono.just(HELLO_PAYLOAD);
-                          }
+                        @Override
+                        public Mono<Payload> requestResponse(Payload payload) {
+                          return Mono.just(HELLO_PAYLOAD);
+                        }
 
-                          @Override
-                          public Flux<Payload> requestStream(Payload payload) {
-                            return Flux.range(1, 1_000).flatMap(i -> requestResponse(payload));
-                          }
+                        @Override
+                        public Flux<Payload> requestStream(Payload payload) {
+                          return Flux.range(1, 1_000).flatMap(i -> requestResponse(payload));
+                        }
 
-                          @Override
-                          public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
-                            return Flux.empty();
-                          }
+                        @Override
+                        public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
+                          return Flux.empty();
+                        }
 
-                          @Override
-                          public Mono<Void> metadataPush(Payload payload) {
-                            return Mono.empty();
-                          }
+                        @Override
+                        public Mono<Void> metadataPush(Payload payload) {
+                          return Mono.empty();
+                        }
 
-                          @Override
-                          public Mono<Void> close() {
-                            return Mono.empty();
-                          }
+                        @Override
+                        public Mono<Void> close() {
+                          return Mono.empty();
+                        }
 
-                          @Override
-                          public Mono<Void> onClose() {
-                            return Mono.empty();
-                          }
-                        };
+                        @Override
+                        public Mono<Void> onClose() {
+                          return Mono.empty();
+                        }
+                      };
 
-                    return Mono.just(rSocket);
-                  }
+                  return Mono.just(rSocket);
                 })
             .transport(
-                new ServerTransport() {
-                  @Override
-                  public Mono<Closeable> start(ConnectionAcceptor acceptor) {
-                    Closeable closeable =
-                        new Closeable() {
-                          MonoProcessor<Void> onClose = MonoProcessor.create();
+                (ServerTransport)
+                    acceptor -> {
+                      Closeable closeable =
+                          new Closeable() {
+                            MonoProcessor<Void> onClose = MonoProcessor.create();
 
-                          @Override
-                          public Mono<Void> close() {
-                            return Mono.empty().doFinally(s -> onClose.onComplete()).then();
-                          }
+                            @Override
+                            public Mono<Void> close() {
+                              return Mono.empty().doFinally(s -> onClose.onComplete()).then();
+                            }
 
-                          @Override
-                          public Mono<Void> onClose() {
-                            return onClose;
-                          }
-                        };
+                            @Override
+                            public Mono<Void> onClose() {
+                              return onClose;
+                            }
+                          };
 
-                    acceptor.apply(serverConnection).subscribe();
+                      acceptor.apply(serverConnection).subscribe();
 
-                    return Mono.just(closeable);
-                  }
-                });
+                      return Mono.just(closeable);
+                    });
 
     Subscriber blackHoleSubscriber;
 
@@ -191,16 +185,7 @@ public class RSocketPerf {
           };
 
       client =
-          RSocketFactory.connect()
-              .transport(
-                  new ClientTransport() {
-                    @Override
-                    public Mono<DuplexConnection> connect() {
-                      return Mono.just(clientConnection);
-                    }
-                  })
-              .start()
-              .block();
+          RSocketFactory.connect().transport(() -> Mono.just(clientConnection)).start().block();
 
       this.bh = bh;
     }

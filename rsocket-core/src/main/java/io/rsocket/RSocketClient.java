@@ -95,11 +95,7 @@ class RSocketClient implements RSocket {
               .subscribe();
     }
 
-    connection
-        .onClose()
-        .doFinally(signalType -> cleanup())
-        .doOnError(errorConsumer::accept)
-        .subscribe();
+    connection.onClose().doFinally(signalType -> cleanup()).doOnError(errorConsumer).subscribe();
 
     connection
         .receive()
@@ -208,7 +204,7 @@ class RSocketClient implements RSocket {
                             && !receiver.isTerminated()) {
                           connection
                               .sendOne(Frame.Error.from(streamId, t))
-                              .doOnError(errorConsumer::accept)
+                              .doOnError(errorConsumer)
                               .subscribe();
                         }
                       })
@@ -219,7 +215,7 @@ class RSocketClient implements RSocket {
                             && !receiver.isTerminated()) {
                           connection
                               .sendOne(Frame.Cancel.from(streamId))
-                              .doOnError(errorConsumer::accept)
+                              .doOnError(errorConsumer)
                               .subscribe();
                         }
                         subscribedRequest.cancel();
@@ -245,7 +241,7 @@ class RSocketClient implements RSocket {
 
               void sendOneFrame(Frame frame) {
                 if (isValidToSendFrame()) {
-                  connection.sendOne(frame).doOnError(errorConsumer::accept).subscribe();
+                  connection.sendOne(frame).doOnError(errorConsumer).subscribe();
                 }
               }
 

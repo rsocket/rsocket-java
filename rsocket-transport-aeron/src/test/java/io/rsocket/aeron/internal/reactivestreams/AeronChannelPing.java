@@ -74,7 +74,7 @@ public final class AeronChannelPing {
                 }
               }
             })
-        .doOnError(throwable -> throwable.printStackTrace())
+        .doOnError(Throwable::printStackTrace)
         .subscribe();
 
     byte[] b = new byte[1024];
