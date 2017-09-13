@@ -18,9 +18,8 @@ import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
 import io.rsocket.Payload;
-import org.junit.Test;
-
 import javax.annotation.Nullable;
+import org.junit.Test;
 
 public class PayloadImplTest {
   public static final String DATA_VAL = "data";

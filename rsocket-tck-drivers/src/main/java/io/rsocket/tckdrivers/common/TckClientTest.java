@@ -13,18 +13,15 @@
 
 package io.rsocket.tckdrivers.common;
 
+import static java.util.stream.Collectors.toList;
+
 import com.google.common.base.Throwables;
 import com.google.common.io.Files;
-import io.rsocket.tckdrivers.client.JavaClientDriver;
-import io.rsocket.tckdrivers.server.JavaServerDriver;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
-
-import static java.util.stream.Collectors.toList;
 
 public class TckClientTest {
   public String name;
@@ -75,7 +72,8 @@ public class TckClientTest {
     return nameLine.split("%%")[1];
   }
 
-  @Override public String toString() {
+  @Override
+  public String toString() {
     return name;
   }
 }

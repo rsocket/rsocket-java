@@ -63,7 +63,7 @@ public interface Lease {
   /**
    * Checks if the lease is expired for the passed {@code now}.
    *
-   *  @param now current time in millis.
+   * @param now current time in millis.
    * @return {@code true} if the lease has expired.
    */
   default boolean isExpired(long now) {

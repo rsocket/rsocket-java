@@ -20,6 +20,10 @@ plugins {
     id "com.jfrog.artifactory" version "4.4.18"
 }
 
+repositories {
+    jcenter()
+}
+
 description = 'RSocket: stream oriented messaging passing with Reactive Stream semantics.'
 
 subprojects {
@@ -54,7 +58,6 @@ subprojects {
     }
 
     repositories {
-        jcenter()
         maven { url 'http://repo.spring.io/milestone' }
         maven { url 'https://oss.jfrog.org/libs-snapshot' }
         maven { url 'https://dl.bintray.com/rsocket/RSocket' }

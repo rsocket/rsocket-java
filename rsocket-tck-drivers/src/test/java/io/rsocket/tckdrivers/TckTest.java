@@ -1,7 +1,6 @@
 package io.rsocket.tckdrivers;
 
 import static java.util.stream.Collectors.toList;
-import static org.junit.Assert.assertNotNull;
 
 import io.rsocket.Closeable;
 import io.rsocket.RSocket;
@@ -9,19 +8,15 @@ import io.rsocket.RSocketFactory;
 import io.rsocket.tckdrivers.client.JavaClientDriver;
 import io.rsocket.tckdrivers.common.TckClientTest;
 import io.rsocket.tckdrivers.common.TckTestSuite;
-import java.io.File;
-import java.util.*;
-
 import io.rsocket.tckdrivers.server.JavaServerDriver;
 import io.rsocket.transport.local.LocalServerTransport;
-import java.util.stream.Collectors;
+import java.io.File;
+import java.util.*;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
 import reactor.core.publisher.Mono;
-import reactor.util.function.Tuple2;
-import reactor.util.function.Tuples;
 
 @RunWith(Parameterized.class)
 public class TckTest {
