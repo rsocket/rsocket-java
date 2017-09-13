@@ -49,7 +49,6 @@ public class ClientSetupRule<T, S extends Closeable> extends ExternalResource {
                 .acceptor((setup, sendingSocket) -> Mono.just(new TestRSocket()))
                 .transport(serverTransportSupplier.apply(address))
                 .start()
-                .map(s -> (S) s) // TODO fix casting
                 .block();
 
     this.clientConnector =

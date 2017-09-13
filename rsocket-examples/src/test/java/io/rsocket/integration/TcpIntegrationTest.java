@@ -20,7 +20,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 
 import io.rsocket.AbstractRSocket;
-import io.rsocket.Closeable;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.RSocketFactory;
@@ -47,15 +46,11 @@ public class TcpIntegrationTest {
   @Before
   public void startup() {
     TcpServerTransport serverTransport = TcpServerTransport.create(0);
-    RSocketFactory.Start<Closeable> transport =
+    server =
         RSocketFactory.receive()
             .acceptor((setup, sendingSocket) -> Mono.just(new RSocketProxy(handler)))
-            .transport(serverTransport);
-    server =
-        transport
+            .transport(serverTransport)
             .start()
-            // TODO fix the Types through RSocketFactory.Start
-            .cast(NettyContextCloseable.class)
             .block();
   }
 
