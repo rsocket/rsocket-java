@@ -140,7 +140,7 @@ public class Frame implements ByteBufHolder {
   }
 
   /**
-   * Records the current access location of this object with an additonal arbitrary information for
+   * Records the current access location of this object with an additional arbitrary information for
    * debugging purposes. If this object is determined to be leaked, the information recorded by this
    * operation will be provided to you via {@link ResourceLeakDetector}.
    */

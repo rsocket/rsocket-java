@@ -166,7 +166,7 @@ public class AeronChannelServer
                 AeronChannel aeronChannel =
                     new AeronChannel("server", destination, source, eventLoop, clientSessionId);
                 logger.debug(
-                    "server create AeronChannel with destination channel {}, source channel {}, and clientSesseionId {}");
+                    "server create AeronChannel with destination channel {}, source channel {}, and clientSessionId {}");
 
                 channelConsumer.accept(aeronChannel);
 

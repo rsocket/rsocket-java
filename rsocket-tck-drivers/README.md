@@ -12,7 +12,7 @@ and this Java driver is the first driver to be created as the Java implementatio
 the time.
 
 The driver is organized with a simple structure. On both the client and server drivers, we have the main driver class that
-do an intial parse of the script files. On the server side, this process basically constructs dynamic request handlers where
+do an initial parse of the script files. On the server side, this process basically constructs dynamic request handlers where
 every time a request is received, the appropriate behavior is searched up and is passed to a ParseMarble object, which is run
 on its own thread and is used to parse through a marble diagram and enact it's behavior. On the client side, the main driver
 class splits up each test into it's own individual lines, and then runs each test synchronously in its own thread. Support

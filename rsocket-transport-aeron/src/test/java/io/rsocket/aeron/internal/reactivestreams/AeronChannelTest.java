@@ -57,9 +57,9 @@ public class AeronChannelTest {
           System.out.println(
               "name image subscription => "
                   + image.subscription().channel()
-                  + " streamid => "
+                  + " streamId => "
                   + image.subscription().streamId()
-                  + " registrationid => "
+                  + " registrationId => "
                   + image.subscription().registrationId());
           sync.countDown();
         });
@@ -69,9 +69,9 @@ public class AeronChannelTest {
             System.out.println(
                 "=== unavailable image name image subscription => "
                     + image.subscription().channel()
-                    + " streamid => "
+                    + " streamId => "
                     + image.subscription().streamId()
-                    + " registrationid => "
+                    + " registrationId => "
                     + image.subscription().registrationId()));
     /*ctx.errorHandler(t -> {
        /* StringWriter writer = new StringWriter();
@@ -209,9 +209,9 @@ public class AeronChannelTest {
           System.out.println(
               "name image subscription => "
                   + image.subscription().channel()
-                  + " streamid => "
+                  + " streamId => "
                   + image.subscription().streamId()
-                  + " registrationid => "
+                  + " registrationId => "
                   + image.subscription().registrationId());
           sync.countDown();
         });
@@ -221,9 +221,9 @@ public class AeronChannelTest {
             System.out.println(
                 "=== unavailable image name image subscription => "
                     + image.subscription().channel()
-                    + " streamid => "
+                    + " streamId => "
                     + image.subscription().streamId()
-                    + " registrationid => "
+                    + " registrationId => "
                     + image.subscription().registrationId()));
 
     /*ctx.errorHandler(t -> {
