@@ -28,7 +28,7 @@ import reactor.core.publisher.Flux;
 
 /** */
 public final class AeronChannelPing {
-  public static void main(String... args) throws Exception {
+  public static void main(String... args) {
     int count = 1_000_000_000;
     final Recorder histogram = new Recorder(Long.MAX_VALUE, 3);
     Executors.newSingleThreadScheduledExecutor()

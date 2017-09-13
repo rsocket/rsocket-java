@@ -21,7 +21,7 @@ import io.rsocket.transport.netty.server.TcpServerTransport;
 
 public final class TcpPongServer {
 
-  public static void main(String... args) throws Exception {
+  public static void main(String... args) {
     RSocketFactory.receive()
         .acceptor(new PingHandler())
         .transport(TcpServerTransport.create(7878))

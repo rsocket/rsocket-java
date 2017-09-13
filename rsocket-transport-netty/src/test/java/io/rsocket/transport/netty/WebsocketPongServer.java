@@ -21,7 +21,7 @@ import io.rsocket.transport.netty.server.WebsocketServerTransport;
 
 public final class WebsocketPongServer {
 
-  public static void main(String... args) throws Exception {
+  public static void main(String... args) {
     RSocketFactory.receive()
         .acceptor(new PingHandler())
         .transport(WebsocketServerTransport.create(7878))

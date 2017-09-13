@@ -25,7 +25,7 @@ import reactor.core.publisher.Mono;
 
 public final class WebsocketPing {
 
-  public static void main(String... args) throws Exception {
+  public static void main(String... args) {
     Mono<RSocket> client =
         RSocketFactory.connect().transport(WebsocketClientTransport.create(7878)).start();
 

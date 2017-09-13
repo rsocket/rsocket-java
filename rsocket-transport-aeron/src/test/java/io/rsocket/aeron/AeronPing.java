@@ -28,7 +28,7 @@ import reactor.core.publisher.Mono;
 
 public final class AeronPing {
 
-  public static void main(String... args) throws Exception {
+  public static void main(String... args) {
     // Create Client Connector
     AeronWrapper aeronWrapper = new DefaultAeronWrapper();
 

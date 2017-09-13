@@ -57,7 +57,7 @@ public class RSocketClientTest {
   }
 
   @Test(timeout = 2_000)
-  public void testInvalidFrameOnStream0() throws Throwable {
+  public void testInvalidFrameOnStream0() {
     rule.connection.addToReceivedBuffer(Frame.RequestN.from(0, 10));
     assertThat("Unexpected errors.", rule.errors, hasSize(1));
     assertThat(
@@ -67,7 +67,7 @@ public class RSocketClientTest {
   }
 
   @Test(timeout = 2_000)
-  public void testStreamInitialN() throws InterruptedException {
+  public void testStreamInitialN() {
     Flux<Payload> stream = rule.socket.requestStream(PayloadImpl.EMPTY);
 
     BaseSubscriber<Payload> subscriber =
@@ -98,7 +98,7 @@ public class RSocketClientTest {
   }
 
   @Test(timeout = 2_000)
-  public void testHandleSetupException() throws Throwable {
+  public void testHandleSetupException() {
     rule.connection.addToReceivedBuffer(Frame.Error.from(0, new RejectedSetupException("boom")));
     assertThat("Unexpected errors.", rule.errors, hasSize(1));
     assertThat(
@@ -108,7 +108,7 @@ public class RSocketClientTest {
   }
 
   @Test(timeout = 2_000)
-  public void testHandleApplicationException() throws Throwable {
+  public void testHandleApplicationException() {
     rule.connection.clearSendReceiveBuffers();
     Publisher<Payload> response = rule.socket.requestResponse(PayloadImpl.EMPTY);
     Subscriber<Payload> responseSub = TestSubscriber.create();
@@ -122,7 +122,7 @@ public class RSocketClientTest {
   }
 
   @Test(timeout = 2_000)
-  public void testHandleValidFrame() throws Throwable {
+  public void testHandleValidFrame() {
     Publisher<Payload> response = rule.socket.requestResponse(PayloadImpl.EMPTY);
     Subscriber<Payload> sub = TestSubscriber.create();
     response.subscribe(sub);
@@ -136,7 +136,7 @@ public class RSocketClientTest {
   }
 
   @Test(timeout = 2_000)
-  public void testRequestReplyWithCancel() throws Throwable {
+  public void testRequestReplyWithCancel() {
     Mono<Payload> response = rule.socket.requestResponse(PayloadImpl.EMPTY);
 
     try {
@@ -157,7 +157,7 @@ public class RSocketClientTest {
   }
 
   @Test(timeout = 2_000)
-  public void testRequestReplyErrorOnSend() throws Throwable {
+  public void testRequestReplyErrorOnSend() {
     rule.connection.setAvailability(0); // Fails send
     Mono<Payload> response = rule.socket.requestResponse(PayloadImpl.EMPTY);
     Subscriber<Payload> responseSub = TestSubscriber.create();
@@ -167,7 +167,7 @@ public class RSocketClientTest {
   }
 
   @Test
-  public void testLazyRequestResponse() throws Exception {
+  public void testLazyRequestResponse() {
     Publisher<Payload> response = rule.socket.requestResponse(PayloadImpl.EMPTY);
     int streamId = sendRequestResponse(response);
     rule.connection.clearSendReceiveBuffers();

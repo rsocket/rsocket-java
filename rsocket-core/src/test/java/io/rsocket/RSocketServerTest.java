@@ -77,7 +77,7 @@ public class RSocketServerTest {
   }
 
   @Test(timeout = 2_0000)
-  public void testCancel() throws Exception {
+  public void testCancel() {
     final int streamId = 4;
     final AtomicBoolean cancelled = new AtomicBoolean();
     rule.setAcceptingSocket(

@@ -36,8 +36,6 @@ import io.rsocket.transport.netty.server.TcpServerTransport;
 import io.rsocket.util.PayloadImpl;
 import io.rsocket.util.RSocketProxy;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.After;
 import org.junit.Before;
@@ -148,7 +146,7 @@ public class IntegrationTest {
   }
 
   @Test
-  public void testStream() throws Exception {
+  public void testStream() {
     Subscriber<Payload> subscriber = TestSubscriber.createCancelling();
     client.requestStream(new PayloadImpl("start")).subscribe(subscriber);
 
@@ -157,7 +155,7 @@ public class IntegrationTest {
   }
 
   @Test(timeout = 5_000L)
-  public void testClose() throws ExecutionException, InterruptedException, TimeoutException {
+  public void testClose() throws InterruptedException {
     client.close().block();
     disconnectionCounter.await();
   }
