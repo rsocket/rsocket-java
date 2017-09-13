@@ -15,7 +15,6 @@ package io.rsocket.tckdrivers.client;
 
 import static org.junit.Assert.*;
 
-import com.google.common.base.Throwables;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
@@ -169,7 +168,7 @@ public class JavaClientDriver {
     try {
       return clientMap.get(id);
     } catch (ExecutionException e) {
-      throw Throwables.propagate(e);
+      throw new RuntimeException(e);
     }
   }
 
