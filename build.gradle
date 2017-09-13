@@ -25,10 +25,6 @@ repositories {
     jcenter()
 }
 
-repositories {
-    jcenter()
-}
-
 description = 'RSocket: stream oriented messaging passing with Reactive Stream semantics.'
 
 subprojects {
