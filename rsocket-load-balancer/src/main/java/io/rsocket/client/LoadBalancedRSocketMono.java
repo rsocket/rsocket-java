@@ -15,6 +15,8 @@
  */
 package io.rsocket.client;
 
+import static io.rsocket.util.ExceptionUtil.noStacktrace;
+
 import io.rsocket.Availability;
 import io.rsocket.Closeable;
 import io.rsocket.Payload;
@@ -29,6 +31,13 @@ import io.rsocket.stat.Median;
 import io.rsocket.stat.Quantile;
 import io.rsocket.util.Clock;
 import io.rsocket.util.RSocketProxy;
+import java.nio.channels.ClosedChannelException;
+import java.util.*;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
@@ -39,16 +48,6 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
 import reactor.core.publisher.Operators;
-
-import java.nio.channels.ClosedChannelException;
-import java.util.*;
-import java.util.concurrent.ThreadLocalRandom;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
-
-import static io.rsocket.util.ExceptionUtil.noStacktrace;
 
 /**
  * An implementation of {@link Mono} that load balances across a pool of RSockets and emits one when

@@ -1,5 +1,7 @@
 package io.rsocket.tckdrivers.common;
 
+import static java.util.stream.Collectors.toList;
+
 import com.google.common.base.Throwables;
 import com.google.common.io.Files;
 import io.rsocket.tckdrivers.server.JavaServerDriver;
@@ -9,8 +11,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-
-import static java.util.stream.Collectors.toList;
 
 public class TckTestSuite {
   private String suiteName;
@@ -58,7 +58,8 @@ public class TckTestSuite {
     }
   }
 
-  @Override public String toString() {
+  @Override
+  public String toString() {
     return suiteName;
   }
 

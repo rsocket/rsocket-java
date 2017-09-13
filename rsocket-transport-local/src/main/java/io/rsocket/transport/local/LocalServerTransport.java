@@ -26,9 +26,7 @@ import java.util.function.Consumer;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
 
-/**
- * Local within process transport for RSocket.
- */
+/** Local within process transport for RSocket. */
 public class LocalServerTransport implements ServerTransport<Closeable> {
   private static final ConcurrentMap<String, ServerDuplexConnectionAcceptor> registry =
       new ConcurrentHashMap<>();
@@ -65,7 +63,7 @@ public class LocalServerTransport implements ServerTransport<Closeable> {
   }
 
   public static LocalServerTransport createEphemeral() {
-      return create(UUID.randomUUID().toString());
+    return create(UUID.randomUUID().toString());
   }
 
   /**

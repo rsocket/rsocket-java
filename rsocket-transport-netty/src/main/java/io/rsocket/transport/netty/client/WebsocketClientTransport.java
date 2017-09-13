@@ -60,7 +60,11 @@ public class WebsocketClientTransport implements ClientTransport, TransportHeade
   private static HttpClient createClient(URI uri) {
     if (isSecureWebsocket(uri)) {
       return HttpClient.create(
-          options -> options.sslSupport().connectAddress(() -> InetSocketAddress.createUnresolved(uri.getHost(), getPort(uri, 443))));
+          options ->
+              options
+                  .sslSupport()
+                  .connectAddress(
+                      () -> InetSocketAddress.createUnresolved(uri.getHost(), getPort(uri, 443))));
     } else {
       return HttpClient.create(uri.getHost(), getPort(uri, 80));
     }
