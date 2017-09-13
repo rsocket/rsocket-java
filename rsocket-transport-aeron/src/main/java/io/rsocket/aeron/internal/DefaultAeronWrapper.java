@@ -70,13 +70,6 @@ public class DefaultAeronWrapper implements AeronWrapper {
   }
 
   private void unavailableImageHandler(Image image) {
-    Iterator<Function<Image, Boolean>> iterator = unavailableImageHandlers.iterator();
-
-    while (iterator.hasNext()) {
-      Function<Image, Boolean> handler = iterator.next();
-      if (handler.apply(image)) {
-        iterator.remove();
-      }
-    }
+    unavailableImageHandlers.removeIf(handler -> handler.apply(image));
   }
 }

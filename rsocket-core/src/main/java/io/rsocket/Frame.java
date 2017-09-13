@@ -631,13 +631,8 @@ public class Frame implements ByteBufHolder {
 
   @Override
   public String toString() {
-    FrameType type = FrameType.UNDEFINED;
+    FrameType type = FrameHeaderFlyweight.frameType(content);
     StringBuilder payload = new StringBuilder();
-    long streamId = -1;
-    String additionalFlags = "";
-
-    type = FrameHeaderFlyweight.frameType(content);
-
     @Nullable ByteBuf metadata = FrameHeaderFlyweight.sliceFrameMetadata(content);
 
     if (metadata != null) {
@@ -652,8 +647,9 @@ public class Frame implements ByteBufHolder {
       payload.append(String.format("data: \"%s\" ", data.toString(StandardCharsets.UTF_8)));
     }
 
-    streamId = FrameHeaderFlyweight.streamId(content);
+    long streamId = FrameHeaderFlyweight.streamId(content);
 
+    String additionalFlags = "";
     switch (type) {
       case LEASE:
         additionalFlags = " Permits: " + Lease.numberOfRequests(this) + " TTL: " + Lease.ttl(this);
@@ -691,7 +687,7 @@ public class Frame implements ByteBufHolder {
         + streamId
         + " Type: "
         + type
-        + (!additionalFlags.isEmpty() ? additionalFlags : "")
+        + additionalFlags
         + " Payload: "
         + payload;
   }

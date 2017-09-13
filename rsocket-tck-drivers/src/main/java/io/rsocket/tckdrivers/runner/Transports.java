@@ -23,16 +23,17 @@ public class Transports {
   }
 
   public static String urlForTransport(String transport) {
-    if (transport.equals("local")) {
-      return "local:tck" + localCounter.incrementAndGet();
-    } else if (transport.equals("tcp")) {
-      // TODO get external IP?
-      return "tcp://localhost:0";
-    } else if (transport.equals("ws")) {
-      // TODO get external IP?
-      return "ws://localhost:0";
-    } else {
-      throw new UnsupportedOperationException("unknown transport '" + transport + "'");
+    switch (transport) {
+      case "local":
+        return "local:tck" + localCounter.incrementAndGet();
+      case "tcp":
+        // TODO get external IP?
+        return "tcp://localhost:0";
+      case "ws":
+        // TODO get external IP?
+        return "ws://localhost:0";
+      default:
+        throw new UnsupportedOperationException("unknown transport '" + transport + "'");
     }
   }
 }

@@ -583,7 +583,10 @@ public abstract class LoadBalancedRSocketMono extends Mono<RSocket>
 
         if (changed && logger.isDebugEnabled()) {
           StringBuilder msgBuilder = new StringBuilder();
-          msgBuilder.append("\nUpdated active factories (size: " + activeFactories.size() + ")\n");
+          msgBuilder
+              .append("\nUpdated active factories (size: ")
+              .append(activeFactories.size())
+              .append(")\n");
           for (RSocketSupplier f : activeFactories) {
             msgBuilder.append(" + ").append(f).append('\n');
           }

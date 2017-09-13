@@ -192,8 +192,7 @@ public class MySubscriber<T> extends TestSubscriber<T> {
   public Tuple<String, String> getElement(int n) {
     assert (n < values.size());
     Payload p = (Payload) values().get(n);
-    Tuple<String, String> tup = new Tuple<>(p.getDataUtf8(), p.getMetadataUtf8());
-    return tup;
+    return new Tuple<>(p.getDataUtf8(), p.getMetadataUtf8());
   }
 
   public final void setEcho(EchoSubscription echosub) {
