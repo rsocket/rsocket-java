@@ -43,7 +43,7 @@ public class FragmentationDuplexConnectionTest {
     when(mockConnection.send(any()))
         .then(
             invocation -> {
-              Publisher<Frame> frames = invocation.getArgumentAt(0, Publisher.class);
+              Publisher<Frame> frames = invocation.getArgument(0);
 
               StepVerifier.create(frames).expectNextCount(16).verifyComplete();
 
@@ -87,7 +87,7 @@ public class FragmentationDuplexConnectionTest {
     when(mockConnection.send(any()))
         .then(
             invocation -> {
-              Publisher<Frame> frames = invocation.getArgumentAt(0, Publisher.class);
+              Publisher<Frame> frames = invocation.getArgument(0);
 
               StepVerifier.create(frames).expectNextCount(16).verifyComplete();
 

@@ -14,18 +14,16 @@
  * limitations under the License.
  */
 
-plugins {
-    id "me.champeau.gradle.jmh" version "0.4.4"
-}
+apply plugin: 'me.champeau.gradle.jmh'
 
 jmh {
-    jmhVersion = '1.15'
+    jmhVersion = "$jmhVersion"
     profilers = ['gc']
     zip64 = true
-    duplicateClassesStrategy = 'warn'
+    duplicateClassesStrategy = DuplicatesStrategy.WARN
 }
 
 dependencies {
-    jmh 'org.openjdk.jmh:jmh-core:1.15'
-    jmh 'org.openjdk.jmh:jmh-generator-annprocess:1.15'
+    jmh "org.openjdk.jmh:jmh-core:$jmhVersion"
+    jmh "org.openjdk.jmh:jmh-generator-annprocess:$jmhVersion"
 }

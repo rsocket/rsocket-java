@@ -12,8 +12,9 @@ public class ExceptionUtilTest {
   public void testNoStacktrace() {
     RuntimeException ex = noStacktrace(new RuntimeException("RE"));
     assertEquals(
-        "java.lang.RuntimeException: RE\n"
-            + "\tat java.lang.RuntimeException.<init>(Unknown Source)\n",
+        String.format(
+            "java.lang.RuntimeException: RE%n"
+                + "\tat java.lang.RuntimeException.<init>(Unknown Source)%n"),
         stacktraceString(ex));
   }
 
