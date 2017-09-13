@@ -13,26 +13,21 @@
 
 package io.rsocket.tckdrivers.server;
 
-import com.google.common.base.Throwables;
+import static com.google.common.io.Files.readLines;
+import static org.junit.Assert.*;
+
 import io.rsocket.AbstractRSocket;
 import io.rsocket.Payload;
 import io.rsocket.SocketAcceptor;
 import io.rsocket.tckdrivers.common.*;
+import java.io.File;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.*;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscription;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.IOException;
-import java.io.Reader;
-import java.nio.file.Files;
-import java.util.*;
-
-import static com.google.common.io.Files.readLines;
-import static org.junit.Assert.*;
 
 /** This is the driver for the server. */
 public class JavaServerDriver {
@@ -48,8 +43,7 @@ public class JavaServerDriver {
   private ConsoleUtils consoleUtils = new ConsoleUtils("[SERVER]");
 
   // should be used if we want the server to be shutdown upon receiving some EOF packet
-  public JavaServerDriver() {
-  }
+  public JavaServerDriver() {}
 
   public SocketAcceptor acceptor() {
     return (setup, sendingSocket) -> {

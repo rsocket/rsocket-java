@@ -53,7 +53,6 @@ public class NettyContextCloseable implements Closeable {
 
   /**
    * @see NettyContext#address()
-   *
    * @return socket address.
    */
   public InetSocketAddress address() {

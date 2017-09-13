@@ -1,20 +1,15 @@
 package io.rsocket.tckdrivers.runner;
 
+import static io.rsocket.tckdrivers.runner.TckClient.connect;
+
 import io.airlift.airline.Command;
 import io.airlift.airline.Option;
 import io.airlift.airline.SingleCommand;
-import io.rsocket.AbstractRSocket;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
-import io.rsocket.RSocketFactory;
-import io.rsocket.uri.UriTransportRegistry;
 import io.rsocket.util.PayloadImpl;
-import reactor.core.publisher.Mono;
-
 import java.time.Duration;
 import java.util.UUID;
-
-import static io.rsocket.tckdrivers.runner.TckClient.connect;
 
 @Command(name = "rsotcket-main", description = "This runs the TCM main")
 public class RunnerMain {
