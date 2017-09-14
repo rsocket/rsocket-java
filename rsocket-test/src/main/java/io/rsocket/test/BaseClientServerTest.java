@@ -80,7 +80,7 @@ public abstract class BaseClientServerTest<T extends ClientSetupRule<?, ?>> {
   }
 
   private PayloadImpl testPayload(int metadataPresent) {
-    String metadata = null;
+    String metadata;
     switch (metadataPresent % 5) {
       case 0:
         metadata = null;

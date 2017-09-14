@@ -81,11 +81,7 @@ public class ResumeCache {
 
     List<Frame> resend = new ArrayList<>();
 
-    Iterator<Map.Entry<Integer, Frame>> positions = frames.entrySet().iterator();
-
-    while (positions.hasNext()) {
-      Map.Entry<Integer, Frame> cachePosition = positions.next();
-
+    for (Map.Entry<Integer, Frame> cachePosition : frames.entrySet()) {
       if (remotePosition < cachePosition.getKey()) {
         resend.add(cachePosition.getValue());
       }
