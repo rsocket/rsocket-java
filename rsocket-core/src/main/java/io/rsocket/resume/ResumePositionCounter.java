@@ -10,7 +10,7 @@ public interface ResumePositionCounter {
   int cost(Frame f);
 
   static ResumePositionCounter size() {
-    return f -> ResumeUtil.offset(f);
+    return ResumeUtil::offset;
   }
 
   static ResumePositionCounter frames() {

@@ -36,7 +36,7 @@ public class SecureWebsocketClientSetupRule
                 HttpClient.create(
                     options ->
                         options
-                            .connectAddress(() -> server.address())
+                            .connectAddress(server::address)
                             .sslSupport(c -> c.trustManager(InsecureTrustManagerFactory.INSTANCE))),
                 "https://"
                     + server.address().getHostName()

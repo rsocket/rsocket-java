@@ -237,18 +237,15 @@ public class JavaClientDriver {
     AtomicReference<ParseChannelThread> mypct = new AtomicReference<>();
     Publisher<Payload> pub =
         client.requestChannel(
-            new Publisher<Payload>() {
-              @Override
-              public void subscribe(Subscriber<? super Payload> s) {
-                ParseMarble pm = new ParseMarble(s, AGENT);
-                TestSubscription ts = new TestSubscription(pm, initialPayload, s);
-                s.onSubscribe(ts);
-                ParseChannel pc = new ParseChannel(commands, testsub, pm, name, pass, AGENT);
-                ParseChannelThread pct = new ParseChannelThread(pc);
-                pct.start();
-                mypct.set(pct);
-                c.countDown();
-              }
+            s -> {
+              ParseMarble pm = new ParseMarble(s, AGENT);
+              TestSubscription ts = new TestSubscription(pm, initialPayload, s);
+              s.onSubscribe(ts);
+              ParseChannel pc = new ParseChannel(commands, testsub, pm, name, pass, AGENT);
+              ParseChannelThread pct = new ParseChannelThread(pc);
+              pct.start();
+              mypct.set(pct);
+              c.countDown();
             });
     pub.subscribe(testsub);
     try {
@@ -269,14 +266,11 @@ public class JavaClientDriver {
     RSocket client = getClient(args[0]);
     Publisher<Payload> pub =
         client.requestChannel(
-            new Publisher<Payload>() {
-              @Override
-              public void subscribe(Subscriber<? super Payload> s) {
-                EchoSubscription echoSub = new EchoSubscription(s);
-                s.onSubscribe(echoSub);
-                testsub.setEcho(echoSub);
-                s.onNext(initPayload);
-              }
+            s -> {
+              EchoSubscription echoSub = new EchoSubscription(s);
+              s.onSubscribe(echoSub);
+              testsub.setEcho(echoSub);
+              s.onNext(initPayload);
             });
     pub.subscribe(testsub);
   }

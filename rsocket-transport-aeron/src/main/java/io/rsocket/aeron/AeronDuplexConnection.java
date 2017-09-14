@@ -53,7 +53,7 @@ public class AeronDuplexConnection implements DuplexConnection {
     return channel
         .receive()
         .map(b -> Frame.from(Unpooled.wrappedBuffer(b.byteBuffer())))
-        .doOnError(throwable -> throwable.printStackTrace());
+        .doOnError(Throwable::printStackTrace);
   }
 
   @Override

@@ -67,10 +67,7 @@ public class TestDuplexConnection implements DuplexConnection {
               sent.offer(frame);
               sentPublisher.onNext(frame);
             })
-        .doOnError(
-            throwable -> {
-              logger.error("Error in send stream on test connection.", throwable);
-            })
+        .doOnError(throwable -> logger.error("Error in send stream on test connection.", throwable))
         .subscribe(subscriber);
     sendSubscribers.add(subscriber);
     return Mono.empty();

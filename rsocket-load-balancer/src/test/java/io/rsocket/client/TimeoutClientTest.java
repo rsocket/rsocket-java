@@ -32,11 +32,7 @@ import org.reactivestreams.Subscription;
 public class TimeoutClientTest {
   @Test
   public void testTimeoutSocket() {
-    TestingRSocket socket =
-        new TestingRSocket(
-            (subscriber, payload) -> {
-              return false;
-            });
+    TestingRSocket socket = new TestingRSocket((subscriber, payload) -> false);
     RSocket timeout = RSockets.timeout(Duration.ofMillis(50)).apply(socket);
 
     timeout

@@ -158,9 +158,7 @@ public class BackupRequestSocket implements RSocket {
       if (q.estimation() > 0) {
         future =
             executor.schedule(
-                () -> {
-                  action.get().subscribe(new BackupRequestSubscriber<>(oneSubscriber, s));
-                },
+                () -> action.get().subscribe(new BackupRequestSubscriber<>(oneSubscriber, s)),
                 (long) q.estimation(),
                 TimeUnit.MICROSECONDS);
       }

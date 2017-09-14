@@ -497,33 +497,32 @@ public abstract class LoadBalancedRSocketMono extends Mono<RSocket>
             AtomicInteger n = new AtomicInteger(activeSockets.size());
 
             activeSockets.forEach(
-                rs -> {
-                  rs.close()
-                      .subscribe(
-                          new Subscriber<Void>() {
-                            @Override
-                            public void onSubscribe(Subscription s) {
-                              s.request(Long.MAX_VALUE);
-                            }
-
-                            @Override
-                            public void onNext(Void aVoid) {}
-
-                            @Override
-                            public void onError(Throwable t) {
-                              logger.warn("Exception while closing a RSocket", t);
-                              onComplete();
-                            }
-
-                            @Override
-                            public void onComplete() {
-                              if (n.decrementAndGet() == 0) {
-                                subscriber.onComplete();
-                                onClose.onComplete();
+                rs ->
+                    rs.close()
+                        .subscribe(
+                            new Subscriber<Void>() {
+                              @Override
+                              public void onSubscribe(Subscription s) {
+                                s.request(Long.MAX_VALUE);
                               }
-                            }
-                          });
-                });
+
+                              @Override
+                              public void onNext(Void aVoid) {}
+
+                              @Override
+                              public void onError(Throwable t) {
+                                logger.warn("Exception while closing a RSocket", t);
+                                onComplete();
+                              }
+
+                              @Override
+                              public void onComplete() {
+                                if (n.decrementAndGet() == 0) {
+                                  subscriber.onComplete();
+                                  onClose.onComplete();
+                                }
+                              }
+                            }));
           }
         });
   }

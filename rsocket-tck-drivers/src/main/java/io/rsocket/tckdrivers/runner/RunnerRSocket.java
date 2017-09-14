@@ -102,6 +102,6 @@ class RunnerRSocket extends AbstractRSocket {
                   .concatWith(Flux.never())
                   .doFinally(s -> closeable.close());
             })
-        .doOnError(e -> e.printStackTrace());
+        .doOnError(Throwable::printStackTrace);
   }
 }

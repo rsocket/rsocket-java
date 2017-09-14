@@ -27,6 +27,6 @@ public class LocalClientSetupRule extends ClientSetupRule<String, Closeable> {
     super(
         () -> "test" + uniqueNameGenerator.incrementAndGet(),
         (address, server) -> LocalClientTransport.create(address),
-        address -> LocalServerTransport.create(address));
+        LocalServerTransport::create);
   }
 }

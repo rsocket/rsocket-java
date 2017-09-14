@@ -43,10 +43,7 @@ public final class LocalPingPong {
     final int count = 1_000_000_000;
     pingClient
         .startPingPong(count, recorder)
-        .doOnTerminate(
-            () -> {
-              System.out.println("Sent " + count + " messages.");
-            })
+        .doOnTerminate(() -> System.out.println("Sent " + count + " messages."))
         .blockLast();
   }
 }

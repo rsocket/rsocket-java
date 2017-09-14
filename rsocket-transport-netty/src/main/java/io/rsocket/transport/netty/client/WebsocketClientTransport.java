@@ -31,7 +31,7 @@ import reactor.ipc.netty.http.client.HttpClient;
 public class WebsocketClientTransport implements ClientTransport, TransportHeaderAware {
   private final HttpClient client;
   private String path;
-  private Supplier<Map<String, String>> transportHeaders = () -> Collections.emptyMap();
+  private Supplier<Map<String, String>> transportHeaders = Collections::emptyMap;
 
   private WebsocketClientTransport(HttpClient client, String path) {
     this.client = client;
@@ -91,11 +91,7 @@ public class WebsocketClientTransport implements ClientTransport, TransportHeade
     return Mono.create(
         sink ->
             client
-                .ws(
-                    path,
-                    hb -> {
-                      transportHeaders.get().forEach((k, v) -> hb.set(k, v));
-                    })
+                .ws(path, hb -> transportHeaders.get().forEach(hb::set))
                 .flatMap(
                     response ->
                         response.receiveWebsocket(

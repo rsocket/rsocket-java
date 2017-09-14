@@ -55,7 +55,7 @@ public class FragmentationPerf {
       smallFramesIterable =
           smallFrameFragmenter
               .fragment(smallFrame)
-              .map(frame -> frame.copy())
+              .map(Frame::copy)
               .toStream()
               .collect(Collectors.toList());
     }

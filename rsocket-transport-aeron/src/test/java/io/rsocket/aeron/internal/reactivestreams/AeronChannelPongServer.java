@@ -33,17 +33,11 @@ public class AeronChannelPongServer {
     SingleThreadedEventLoop eventLoop = new SingleThreadedEventLoop("server");
 
     AeronChannelServer.AeronChannelConsumer consumer =
-        new AeronChannelServer.AeronChannelConsumer() {
-          @Override
-          public void accept(AeronChannel aeronChannel) {
-            Flux<? extends DirectBuffer> receive = aeronChannel.receive();
-            //.doOnNext(b -> System.out.println("server got => " + b.getInt(0)));
+        aeronChannel -> {
+          Flux<? extends DirectBuffer> receive = aeronChannel.receive();
+          //.doOnNext(b -> System.out.println("server got => " + b.getInt(0)));
 
-            aeronChannel
-                .send(receive)
-                .doOnError(throwable -> throwable.printStackTrace())
-                .subscribe();
-          }
+          aeronChannel.send(receive).doOnError(Throwable::printStackTrace).subscribe();
         };
 
     AeronChannelServer server =

@@ -56,16 +56,11 @@ class RSocketServer implements RSocket {
     this.sendingSubscriptions = new IntObjectHashMap<>();
     this.channelProcessors = new IntObjectHashMap<>();
     this.receiveDisposable =
-        connection
-            .receive()
-            .flatMap(this::handleFrame)
-            .doOnError(errorConsumer::accept)
-            .then()
-            .subscribe();
+        connection.receive().flatMap(this::handleFrame).doOnError(errorConsumer).then().subscribe();
 
     this.connection
         .onClose()
-        .doOnError(errorConsumer::accept)
+        .doOnError(errorConsumer)
         .doFinally(
             s -> {
               cleanup();
@@ -235,10 +230,7 @@ class RSocketServer implements RSocket {
                   return Frame.PayloadFrame.from(streamId, FrameType.NEXT_COMPLETE, payload, flags);
                 })
             .onErrorResume(t -> Mono.just(Frame.Error.from(streamId, t)))
-            .doFinally(
-                signalType -> {
-                  removeSubscription(streamId);
-                });
+            .doFinally(signalType -> removeSubscription(streamId));
 
     return responseFrame.flatMap(connection::sendOne);
   }
@@ -260,10 +252,7 @@ class RSocketServer implements RSocket {
                 })
             .concatWith(Mono.just(Frame.PayloadFrame.from(streamId, FrameType.COMPLETE)))
             .onErrorResume(t -> Mono.just(Frame.Error.from(streamId, t)))
-            .doFinally(
-                signalType -> {
-                  removeSubscription(streamId);
-                });
+            .doFinally(signalType -> removeSubscription(streamId));
 
     return connection.send(responseFrames);
   }
@@ -296,10 +285,7 @@ class RSocketServer implements RSocket {
                         .subscribe(null, errorConsumer);
                   }
                 })
-            .doFinally(
-                signalType -> {
-                  removeChannelProcessor(streamId);
-                });
+            .doFinally(signalType -> removeChannelProcessor(streamId));
 
     return handleStream(streamId, requestChannel(payloads), firstFrame);
   }

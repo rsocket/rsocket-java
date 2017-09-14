@@ -27,7 +27,7 @@ import reactor.ipc.netty.http.server.HttpServer;
 public class WebsocketServerTransport
     implements ServerTransport<NettyContextCloseable>, TransportHeaderAware {
   HttpServer server;
-  private Supplier<Map<String, String>> transportHeaders = () -> Collections.emptyMap();
+  private Supplier<Map<String, String>> transportHeaders = Collections::emptyMap;
 
   private WebsocketServerTransport(HttpServer server) {
     this.server = server;
@@ -52,12 +52,7 @@ public class WebsocketServerTransport
     return server
         .newHandler(
             (request, response) -> {
-              transportHeaders
-                  .get()
-                  .forEach(
-                      (k, v) -> {
-                        response.addHeader(k, v);
-                      });
+              transportHeaders.get().forEach(response::addHeader);
               return response.sendWebsocket(WebsocketRouteTransport.newHandler(acceptor));
             })
         .map(NettyContextCloseable::new);
