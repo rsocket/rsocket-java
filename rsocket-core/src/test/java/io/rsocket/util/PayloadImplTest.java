@@ -26,14 +26,14 @@ public class PayloadImplTest {
   public static final String METADATA_VAL = "metadata";
 
   @Test
-  public void testReuse() throws Exception {
+  public void testReuse() {
     PayloadImpl p = new PayloadImpl(DATA_VAL, METADATA_VAL);
     assertDataAndMetadata(p, DATA_VAL, METADATA_VAL);
     assertDataAndMetadata(p, DATA_VAL, METADATA_VAL);
   }
 
   @Test
-  public void testReuseWithExternalMark() throws Exception {
+  public void testReuseWithExternalMark() {
     PayloadImpl p = new PayloadImpl(DATA_VAL, METADATA_VAL);
     assertDataAndMetadata(p, DATA_VAL, METADATA_VAL);
     p.getData().position(2).mark();

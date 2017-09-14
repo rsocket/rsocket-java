@@ -63,7 +63,7 @@ public class JavaClientDriver {
             .build(
                 new CacheLoader<String, RSocket>() {
                   @Override
-                  public RSocket load(String key) throws Exception {
+                  public RSocket load(String key) {
                     return clientBuilder.block();
                   }
                 });

@@ -335,7 +335,7 @@ public class AeronClientChannelConnector
   }
 
   @Override
-  public void close() throws Exception {
+  public void close() {
     running = false;
   }
 }

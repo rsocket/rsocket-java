@@ -67,7 +67,7 @@ public class TcpIntegrationTest {
   }
 
   @Test(timeout = 5_000L)
-  public void testCompleteWithoutNext() throws InterruptedException {
+  public void testCompleteWithoutNext() {
     handler =
         new AbstractRSocket() {
           @Override
@@ -83,7 +83,7 @@ public class TcpIntegrationTest {
   }
 
   @Test(timeout = 5_000L)
-  public void testSingleStream() throws InterruptedException {
+  public void testSingleStream() {
     handler =
         new AbstractRSocket() {
           @Override
@@ -100,7 +100,7 @@ public class TcpIntegrationTest {
   }
 
   @Test(timeout = 5_000L)
-  public void testZeroPayload() throws InterruptedException {
+  public void testZeroPayload() {
     handler =
         new AbstractRSocket() {
           @Override
@@ -117,7 +117,7 @@ public class TcpIntegrationTest {
   }
 
   @Test(timeout = 5_000L)
-  public void testRequestResponseErrors() throws InterruptedException {
+  public void testRequestResponseErrors() {
     handler =
         new AbstractRSocket() {
           boolean first = true;

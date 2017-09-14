@@ -25,7 +25,7 @@ import reactor.core.publisher.Mono;
 
 public final class LocalPingPong {
 
-  public static void main(String... args) throws Exception {
+  public static void main(String... args) {
     RSocketFactory.receive()
         .acceptor(new PingHandler())
         .transport(LocalServerTransport.create("test-local-server"))

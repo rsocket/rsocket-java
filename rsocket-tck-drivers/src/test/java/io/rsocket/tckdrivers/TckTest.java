@@ -48,7 +48,7 @@ public class TckTest {
    * starts a server. It parses each client file and create a parameterized test.
    */
   @Parameters(name = "{0} - {1}")
-  public static Iterable<Object[]> data() throws Exception {
+  public static Iterable<Object[]> data() {
     return TckTestSuite.loadAll(new File("src/test/resources"))
         .stream()
         .flatMap(s -> s.clientTests().stream().map(c -> new Object[] {s, c}))

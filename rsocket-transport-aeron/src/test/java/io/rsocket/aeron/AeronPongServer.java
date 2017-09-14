@@ -35,7 +35,7 @@ public final class AeronPongServer {
     MediaDriver.launch(ctx);
   }
 
-  public static void main(String... args) throws Exception {
+  public static void main(String... args) {
     MediaDriverHolder.getInstance();
     AeronWrapper aeronWrapper = new DefaultAeronWrapper();
 
