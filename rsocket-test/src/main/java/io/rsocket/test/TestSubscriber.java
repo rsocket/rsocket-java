@@ -1,6 +1,6 @@
 package io.rsocket.test;
 
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 
 import io.rsocket.Payload;

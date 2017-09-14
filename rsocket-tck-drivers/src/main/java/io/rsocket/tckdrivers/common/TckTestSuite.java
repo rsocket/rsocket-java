@@ -2,7 +2,6 @@ package io.rsocket.tckdrivers.common;
 
 import static java.util.stream.Collectors.toList;
 
-import com.google.common.base.Throwables;
 import com.google.common.io.Files;
 import io.rsocket.tckdrivers.server.JavaServerDriver;
 import java.io.File;
@@ -54,7 +53,7 @@ public class TckTestSuite {
 
       return tckTestSuite;
     } catch (IOException e) {
-      throw Throwables.propagate(e);
+      throw new RuntimeException(e);
     }
   }
 

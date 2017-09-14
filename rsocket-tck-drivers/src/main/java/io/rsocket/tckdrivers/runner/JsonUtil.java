@@ -2,7 +2,6 @@ package io.rsocket.tckdrivers.runner;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.common.base.Throwables;
 import io.rsocket.Payload;
 import java.io.IOException;
 import java.util.Map;
@@ -20,7 +19,7 @@ public class JsonUtil {
               content.getDataUtf8(), new TypeReference<Map<String, Map<String, Object>>>() {});
       return message.get(messageType);
     } catch (IOException e) {
-      throw Throwables.propagate(e);
+      throw new RuntimeException(e);
     }
   }
 
