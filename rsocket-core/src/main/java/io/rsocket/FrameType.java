@@ -62,7 +62,7 @@ public enum FrameType {
   private final int id;
   private final int flags;
 
-  /** Index types by id for indexed lookup. */
+  /* Index types by id for indexed lookup. */
   static {
     int max = 0;
 

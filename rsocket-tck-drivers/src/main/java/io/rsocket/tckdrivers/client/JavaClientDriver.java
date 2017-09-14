@@ -151,7 +151,7 @@ public class JavaClientDriver {
           handleCancel(args);
           break;
         default:
-          // the default behavior is to just skip the line, so we can acommodate slight changes to the TCK
+          // the default behavior is to just skip the line, so we can accommodate slight changes to the TCK
           break;
       }
     }

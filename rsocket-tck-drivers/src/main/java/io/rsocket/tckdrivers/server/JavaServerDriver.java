@@ -202,7 +202,6 @@ public class JavaServerDriver {
    *
    * @param args
    * @param reader
-   * @throws IOException
    */
   private void handleChannel(String[] args, Iterator<String> reader) {
     Tuple<String, String> initialPayload = new Tuple<>(args[1], args[2]);

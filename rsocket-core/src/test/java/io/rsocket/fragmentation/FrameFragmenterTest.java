@@ -65,7 +65,7 @@ public class FrameFragmenterTest {
   }
 
   @Test
-  public void testFragmentWithDdataOnly() {
+  public void testFragmentWithDataOnly() {
     ByteBuffer data = createRandomBytes(16);
     ByteBuffer metadata = ByteBuffer.allocate(0);
 

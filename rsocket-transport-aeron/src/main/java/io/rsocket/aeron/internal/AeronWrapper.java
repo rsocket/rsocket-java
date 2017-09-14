@@ -30,12 +30,12 @@ public interface AeronWrapper {
 
   void unavailableImageHandlers(Function<Image, Boolean> handler);
 
-  default Subscription addSubscription(String channel, int streamdId) {
-    return getAeron().addSubscription(channel, streamdId);
+  default Subscription addSubscription(String channel, int streamId) {
+    return getAeron().addSubscription(channel, streamId);
   }
 
-  default Publication addPublication(String channel, int streamdId) {
-    return getAeron().addPublication(channel, streamdId);
+  default Publication addPublication(String channel, int streamId) {
+    return getAeron().addPublication(channel, streamId);
   }
 
   default void close() {
