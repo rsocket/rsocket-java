@@ -27,8 +27,11 @@ class RunnerRSocket extends AbstractRSocket {
   @Override
   public Mono<Payload> requestResponse(Payload payload) {
     Map<String, Object> clientTest = parseTCKMessage(payload, "runnerExecuteTest");
+    @SuppressWarnings("unchecked")
     Map<String, Object> setup = (Map<String, Object>) clientTest.get("setup");
+    @SuppressWarnings("unchecked")
     Map<String, Object> test = (Map<String, Object>) clientTest.get("test");
+    @SuppressWarnings("unchecked")
     Map<String, Object> tck1Definition = (Map<String, Object>) test.get("tck1Definition");
 
     String url = (String) setup.get("url");
@@ -68,8 +71,11 @@ class RunnerRSocket extends AbstractRSocket {
   public Flux<Payload> requestStream(Payload payload) {
     Map<String, Object> serverTest = parseTCKMessage(payload, "runnerExecuteTest");
 
+    @SuppressWarnings("unchecked")
     Map<String, Object> setup = (Map<String, Object>) serverTest.get("setup");
+    @SuppressWarnings("unchecked")
     Map<String, Object> test = (Map<String, Object>) serverTest.get("test");
+    @SuppressWarnings("unchecked")
     Map<String, Object> tck1Definition = (Map<String, Object>) test.get("tck1Definition");
 
     // TODO check version

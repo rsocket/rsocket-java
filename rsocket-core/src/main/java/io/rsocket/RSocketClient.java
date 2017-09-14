@@ -408,7 +408,6 @@ class RSocketClient implements RSocket {
     }
   }
 
-  @SuppressWarnings("unchecked")
   private void handleFrame(int streamId, FrameType type, Frame frame) {
     Subscriber<Payload> receiver;
     synchronized (this) {
