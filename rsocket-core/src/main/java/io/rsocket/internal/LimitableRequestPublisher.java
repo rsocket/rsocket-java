@@ -59,7 +59,7 @@ public class LimitableRequestPublisher<T> extends Flux<T> implements Subscriptio
     }
 
     destination.onSubscribe(new InnerSubscription());
-    source.subscribe(new InnerSubscriber<>(destination));
+    source.subscribe(new InnerSubscriber(destination));
   }
 
   public void increaseRequestLimit(long n) {
@@ -100,10 +100,10 @@ public class LimitableRequestPublisher<T> extends Flux<T> implements Subscriptio
     }
   }
 
-  private class InnerSubscriber<T> implements Subscriber<T> {
+  private class InnerSubscriber implements Subscriber<T> {
     Subscriber<? super T> destination;
 
-    public InnerSubscriber(Subscriber<? super T> destination) {
+    private InnerSubscriber(Subscriber<? super T> destination) {
       this.destination = destination;
     }
 
