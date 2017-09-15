@@ -1,0 +1,5 @@
+# Handle line endings automatically for files detected as text
+*       text=auto
+
+# These files are text and should be normalized
+*.java  text diff=java
