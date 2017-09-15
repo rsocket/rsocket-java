@@ -24,6 +24,6 @@ public class CloseableAdapter implements Closeable {
 
   @Override
   public Mono<Void> onClose() {
-    return onClose();
+    return onClose;
   }
 }
