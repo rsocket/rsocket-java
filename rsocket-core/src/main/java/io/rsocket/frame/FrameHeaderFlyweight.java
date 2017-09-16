@@ -103,7 +103,7 @@ public class FrameHeaderFlyweight {
       typeAndFlags |= FLAGS_M;
       byteBuf.setShort(FRAME_TYPE_AND_FLAGS_FIELD_OFFSET, (short) typeAndFlags);
 
-      if (hasMetadataLengthField(frameType) && metadata != null) {
+      if (hasMetadataLengthField(frameType)) {
         encodeLength(byteBuf, metadataOffset, metadataLength);
         length += FRAME_LENGTH_SIZE;
       }
