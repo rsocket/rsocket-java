@@ -16,8 +16,8 @@
 
 package io.rsocket;
 
+import io.rsocket.RSocketFactory.Start;
 import io.rsocket.perfutil.TestDuplexConnection;
-import io.rsocket.transport.ServerTransport;
 import io.rsocket.util.PayloadImpl;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -90,7 +90,7 @@ public class RSocketPerf {
     static final TestDuplexConnection serverConnection =
         new TestDuplexConnection(clientReceive, serverReceive);
 
-    static final Object server =
+    static final Start<Closeable> server =
         RSocketFactory.receive()
             .acceptor(
                 (setup, sendingSocket) -> {
@@ -135,27 +135,26 @@ public class RSocketPerf {
                   return Mono.just(rSocket);
                 })
             .transport(
-                (ServerTransport)
-                    acceptor -> {
-                      Closeable closeable =
-                          new Closeable() {
-                            MonoProcessor<Void> onClose = MonoProcessor.create();
+                acceptor -> {
+                  Closeable closeable =
+                      new Closeable() {
+                        MonoProcessor<Void> onClose = MonoProcessor.create();
 
-                            @Override
-                            public Mono<Void> close() {
-                              return Mono.empty().doFinally(s -> onClose.onComplete()).then();
-                            }
+                        @Override
+                        public Mono<Void> close() {
+                          return Mono.empty().doFinally(s -> onClose.onComplete()).then();
+                        }
 
-                            @Override
-                            public Mono<Void> onClose() {
-                              return onClose;
-                            }
-                          };
+                        @Override
+                        public Mono<Void> onClose() {
+                          return onClose;
+                        }
+                      };
 
-                      acceptor.apply(serverConnection).subscribe();
+                  acceptor.apply(serverConnection).subscribe();
 
-                      return Mono.just(closeable);
-                    });
+                  return Mono.just(closeable);
+                });
 
     Subscriber blackHoleSubscriber;
 

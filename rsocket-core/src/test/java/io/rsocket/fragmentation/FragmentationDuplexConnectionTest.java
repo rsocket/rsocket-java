@@ -121,7 +121,7 @@ public class FragmentationDuplexConnectionTest {
         Frame.Request.from(1024, FrameType.REQUEST_RESPONSE, new PayloadImpl(data, metadata), 1);
     FrameFragmenter frameFragmenter = new FrameFragmenter(2);
     Flux<Frame> fragmentedFrames = frameFragmenter.fragment(frame);
-    EmitterProcessor processor = EmitterProcessor.create(128);
+    EmitterProcessor<Frame> processor = EmitterProcessor.create(128);
     DuplexConnection mockConnection = mock(DuplexConnection.class);
     when(mockConnection.receive()).then(answer -> processor);
 
