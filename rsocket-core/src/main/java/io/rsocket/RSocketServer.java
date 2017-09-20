@@ -16,6 +16,7 @@
 
 package io.rsocket;
 
+import static io.rsocket.Frame.Request.initialRequestN;
 import static io.rsocket.frame.FrameHeaderFlyweight.FLAGS_C;
 import static io.rsocket.frame.FrameHeaderFlyweight.FLAGS_M;
 
@@ -157,7 +158,7 @@ class RSocketServer implements RSocket {
         case REQUEST_N:
           return handleRequestN(streamId, frame);
         case REQUEST_STREAM:
-          return handleStream(streamId, requestStream(new PayloadImpl(frame)), frame);
+          return handleStream(streamId, requestStream(new PayloadImpl(frame)), initialRequestN(frame));
         case REQUEST_CHANNEL:
           return handleChannel(streamId, frame);
         case PAYLOAD:
@@ -235,8 +236,7 @@ class RSocketServer implements RSocket {
     return responseFrame.flatMap(connection::sendOne);
   }
 
-  private Mono<Void> handleStream(int streamId, Flux<Payload> response, Frame firstFrame) {
-    int initialRequestN = Request.initialRequestN(firstFrame);
+  private Mono<Void> handleStream(int streamId, Flux<Payload> response, int initialRequestN) {
     Flux<Frame> responseFrames =
         response
             .map(payload -> Frame.PayloadFrame.from(streamId, FrameType.NEXT, payload))
@@ -287,7 +287,10 @@ class RSocketServer implements RSocket {
                 })
             .doFinally(signalType -> removeChannelProcessor(streamId));
 
-    return handleStream(streamId, requestChannel(payloads), firstFrame);
+    // TODO should this be chained?
+    frames.onNext(new PayloadImpl(firstFrame));
+
+    return handleStream(streamId, requestChannel(payloads), initialRequestN(firstFrame));
   }
 
   private Mono<Void> handleKeepAliveFrame(Frame frame) {

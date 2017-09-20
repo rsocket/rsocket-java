@@ -20,9 +20,11 @@ import static org.junit.Assert.assertEquals;
 
 import io.rsocket.Payload;
 import io.rsocket.util.PayloadImpl;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 public abstract class BaseClientServerTest<T extends ClientSetupRule<?, ?>> {
   @Rule public final T setup = createClientServer();
@@ -79,7 +81,7 @@ public abstract class BaseClientServerTest<T extends ClientSetupRule<?, ?>> {
     assertEquals(10, outputCount);
   }
 
-  private PayloadImpl testPayload(int metadataPresent) {
+  private Payload testPayload(int metadataPresent) {
     String metadata;
     switch (metadataPresent % 5) {
       case 0:
@@ -163,5 +165,33 @@ public abstract class BaseClientServerTest<T extends ClientSetupRule<?, ?>> {
     ts.cancel();
 
     assertEquals(10, ts.count());
+  }
+
+  @Test(timeout = 10000)
+  @Ignore
+  public void testChannel0() {
+    Flux<Payload> publisher = setup.getRSocket().requestChannel(Flux.empty());
+
+    long count = publisher.count().block();
+
+    assertEquals(0, count);
+  }
+
+  @Test(timeout = 10000)
+  public void testChannel1() {
+    Flux<Payload> publisher = setup.getRSocket().requestChannel(Flux.just(testPayload(0)));
+
+    long count = publisher.count().block();
+
+    assertEquals(1, count);
+  }
+
+  @Test(timeout = 10000)
+  public void testChannel3() {
+    Flux<Payload> publisher = setup.getRSocket().requestChannel(Flux.just(testPayload(0), testPayload(1), testPayload(2)));
+
+    long count = publisher.count().block();
+
+    assertEquals(3, count);
   }
 }
