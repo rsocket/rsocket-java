@@ -33,9 +33,9 @@ dependencies {
     compile project(':rsocket-transport-netty')
     compile project(':rsocket-transport-local')
     compile project(':rsocket-test')
-    compile "com.fasterxml.jackson.core:jackson-core:$jacksonVersion"
-    compile "com.fasterxml.jackson.core:jackson-databind:$jacksonVersion"
-    compile "org.apache.commons:commons-lang3:$commonsLang3Version"
-    compile "io.airlift:airline:$airlineVersion"
+    compile "com.fasterxml.jackson.core:jackson-core:2.9.1"
+    compile "com.fasterxml.jackson.core:jackson-databind:2.9.1"
+    compile "org.apache.commons:commons-lang3:3.6"
+    compile "io.airlift:airline:0.8"
     compile "io.reactivex.rxjava2:rxjava:$rxjavaVersion"
 }
