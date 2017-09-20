@@ -16,9 +16,9 @@
 
 dependencies {
     compile project(':rsocket-core')
-    compile "junit:junit:$junitVersion"
-    compile "org.mockito:mockito-core:$mockitoVersion"
-    compile "org.hamcrest:hamcrest-library:$hamcrestVersion"
-    compile "org.hdrhistogram:HdrHistogram:$hdrHistogramVersion"
-    compile "io.projectreactor:reactor-test:$reactorVersion"
+    compile "junit:junit:4.12"
+    compile "org.mockito:mockito-core:2.10.0"
+    compile "org.hamcrest:hamcrest-library:1.3"
+    compile "org.hdrhistogram:HdrHistogram:2.1.9"
+    compile "io.projectreactor:reactor-test:3.1.0.RC1"
 }
