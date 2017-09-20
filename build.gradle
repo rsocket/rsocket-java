@@ -15,6 +15,7 @@
  */
 
 plugins {
+    id "com.gradle.build-scan" version "1.9"
     id 'com.jfrog.bintray' version '1.7.3'
     id 'com.github.sherter.google-java-format' version '0.6'
     id 'com.jfrog.artifactory' version '4.5.2'
@@ -26,6 +27,8 @@ repositories {
 }
 
 description = 'RSocket: stream oriented messaging passing with Reactive Stream semantics.'
+
+buildScan { licenseAgreementUrl = 'https://gradle.com/terms-of-service'; licenseAgree = 'yes' }
 
 subprojects {
     apply plugin: 'java'
