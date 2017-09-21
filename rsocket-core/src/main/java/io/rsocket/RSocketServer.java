@@ -287,7 +287,8 @@ class RSocketServer implements RSocket {
                 })
             .doFinally(signalType -> removeChannelProcessor(streamId));
 
-    // TODO should this be chained?
+    // not chained, as the payload should be enqueued in the Unicast processor before this method returns
+    // and any later payload can be processed
     frames.onNext(new PayloadImpl(firstFrame));
 
     return handleStream(streamId, requestChannel(payloads), initialRequestN(firstFrame));
