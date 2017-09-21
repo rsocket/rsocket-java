@@ -24,7 +24,6 @@ import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
 
 public abstract class BaseClientServerTest<T extends ClientSetupRule<?, ?>> {
   @Rule public final T setup = createClientServer();
@@ -188,7 +187,10 @@ public abstract class BaseClientServerTest<T extends ClientSetupRule<?, ?>> {
 
   @Test(timeout = 10000)
   public void testChannel3() {
-    Flux<Payload> publisher = setup.getRSocket().requestChannel(Flux.just(testPayload(0), testPayload(1), testPayload(2)));
+    Flux<Payload> publisher =
+        setup
+            .getRSocket()
+            .requestChannel(Flux.just(testPayload(0), testPayload(1), testPayload(2)));
 
     long count = publisher.count().block();
 

@@ -23,7 +23,6 @@ import static io.rsocket.frame.FrameHeaderFlyweight.FLAGS_M;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.util.collection.IntObjectHashMap;
-import io.rsocket.Frame.Request;
 import io.rsocket.exceptions.ApplicationException;
 import io.rsocket.internal.LimitableRequestPublisher;
 import io.rsocket.util.PayloadImpl;
@@ -158,7 +157,8 @@ class RSocketServer implements RSocket {
         case REQUEST_N:
           return handleRequestN(streamId, frame);
         case REQUEST_STREAM:
-          return handleStream(streamId, requestStream(new PayloadImpl(frame)), initialRequestN(frame));
+          return handleStream(
+              streamId, requestStream(new PayloadImpl(frame)), initialRequestN(frame));
         case REQUEST_CHANNEL:
           return handleChannel(streamId, frame);
         case PAYLOAD:
