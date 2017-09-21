@@ -16,13 +16,13 @@
 
 package io.rsocket;
 
+import static io.rsocket.Frame.Request.initialRequestN;
 import static io.rsocket.frame.FrameHeaderFlyweight.FLAGS_C;
 import static io.rsocket.frame.FrameHeaderFlyweight.FLAGS_M;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.util.collection.IntObjectHashMap;
-import io.rsocket.Frame.Request;
 import io.rsocket.exceptions.ApplicationException;
 import io.rsocket.internal.LimitableRequestPublisher;
 import io.rsocket.util.PayloadImpl;
@@ -157,7 +157,8 @@ class RSocketServer implements RSocket {
         case REQUEST_N:
           return handleRequestN(streamId, frame);
         case REQUEST_STREAM:
-          return handleStream(streamId, requestStream(new PayloadImpl(frame)), frame);
+          return handleStream(
+              streamId, requestStream(new PayloadImpl(frame)), initialRequestN(frame));
         case REQUEST_CHANNEL:
           return handleChannel(streamId, frame);
         case PAYLOAD:
@@ -235,8 +236,7 @@ class RSocketServer implements RSocket {
     return responseFrame.flatMap(connection::sendOne);
   }
 
-  private Mono<Void> handleStream(int streamId, Flux<Payload> response, Frame firstFrame) {
-    int initialRequestN = Request.initialRequestN(firstFrame);
+  private Mono<Void> handleStream(int streamId, Flux<Payload> response, int initialRequestN) {
     Flux<Frame> responseFrames =
         response
             .map(payload -> Frame.PayloadFrame.from(streamId, FrameType.NEXT, payload))
@@ -287,7 +287,11 @@ class RSocketServer implements RSocket {
                 })
             .doFinally(signalType -> removeChannelProcessor(streamId));
 
-    return handleStream(streamId, requestChannel(payloads), firstFrame);
+    // not chained, as the payload should be enqueued in the Unicast processor before this method returns
+    // and any later payload can be processed
+    frames.onNext(new PayloadImpl(firstFrame));
+
+    return handleStream(streamId, requestChannel(payloads), initialRequestN(firstFrame));
   }
 
   private Mono<Void> handleKeepAliveFrame(Frame frame) {
