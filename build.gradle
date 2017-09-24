@@ -83,6 +83,8 @@ subprojects {
         from javadoc.destinationDir
     }
 
+    tasks.bintrayUpload.dependsOn tasks.jar, tasks.sourcesJar, tasks.javadocJar
+
     // add javadoc/source jar tasks as artifacts
     artifacts {
         archives sourcesJar, javadocJar, jar
@@ -114,8 +116,13 @@ subprojects {
             mavenJava(MavenPublication) {
                 from components.java
 
-                artifact sourcesJar
-                artifact javadocJar
+                artifact sourcesJar {
+                    classifier "sources"
+                }
+
+                artifact javadocJar {
+                    classifier "javadoc"
+                }
             }
         }
     }
@@ -153,32 +160,30 @@ subprojects {
 
     bintray {
         if (project.hasProperty('bintrayUser')) {
-            bintray.user = project.property('bintrayUser')
-            bintray.key = project.property('bintrayKey')
+            user = project.property('bintrayUser')
+            key = project.property('bintrayKey')
         }
-//        configurations = ['published', 'archives']
         publications = ['mavenJava']
-        publish = false
+        dryRun = false
+        publish = true
+        override = false
         pkg {
             repo = 'RSocket'
-            name = project.name
-            // TODO
-            dryRun = true
+            name = 'rsocket-java'
+            desc = 'RSocket'
             websiteUrl = 'https://github.com/rsocket/rsocket-java'
             issueTrackerUrl = 'https://github.com/rsocket/rsocket-java'
             vcsUrl = 'https://github.com/rsocket/rsocket-java.git'
             licenses = ['Apache-2.0']
+            githubRepo = 'rsocket/rsocket-java' //Optional Github repository
+            githubReleaseNotesFile = 'README.md' //Optional Github readme file
             if (project.hasProperty('sonatypeUsername') && project.hasProperty('sonatypePassword')) {
                 def sonatypeUsername = project.property('sonatypeUsername')
                 def sonatypePassword = project.property('sonatypePassword')
                 version {
                     name = "v${project.version}"
-                    vcsTag = "v${project.version}"
-                    gpg {
-                        sign = true
-                    }
+                    vcsTag = "${project.version}"
                     mavenCentralSync {
-                        // TODO
                         sync = false
                         user = sonatypeUsername
                         password = sonatypePassword
