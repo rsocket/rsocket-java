@@ -17,10 +17,14 @@
 package io.rsocket;
 
 import io.rsocket.exceptions.InvalidSetupException;
+import io.rsocket.exceptions.SetupException;
+import io.rsocket.exceptions.UnsupportedSetupException;
 import io.rsocket.fragmentation.FragmentationDuplexConnection;
 import io.rsocket.frame.SetupFrameFlyweight;
 import io.rsocket.frame.VersionFlyweight;
 import io.rsocket.internal.ClientServerInputMultiplexer;
+import io.rsocket.lease.LeaseControl;
+import io.rsocket.lease.LeaseSupport;
 import io.rsocket.plugins.DuplexConnectionInterceptor;
 import io.rsocket.plugins.PluginRegistry;
 import io.rsocket.plugins.Plugins;
@@ -28,11 +32,14 @@ import io.rsocket.plugins.RSocketInterceptor;
 import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.ServerTransport;
 import io.rsocket.util.PayloadImpl;
+import io.rsocket.util.RSocketProxy;
 import java.time.Duration;
+import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import reactor.core.publisher.Mono;
+import reactor.core.publisher.MonoProcessor;
 
 /** Factory for creating RSocket clients and servers. */
 public class RSocketFactory {
@@ -78,10 +85,28 @@ public class RSocketFactory {
     }
   }
 
+  public interface ClientTransportLeaseAcceptor {
+    Start<LeaseRSocket> transport(Supplier<ClientTransport> transport);
+
+    default Start<LeaseRSocket> transport(ClientTransport transport) {
+      return transport(() -> transport);
+    }
+  }
+
   public interface ServerTransportAcceptor {
     <T extends Closeable> Start<T> transport(Supplier<ServerTransport<T>> transport);
 
     default <T extends Closeable> Start<T> transport(ServerTransport<T> transport) {
+      return transport(() -> transport);
+    }
+  }
+
+  public interface ServerTransportLeaseAcceptor {
+    <T extends Closeable> ServerRSocketFactory.LeaseServerStart<T> transport(
+        Supplier<ServerTransport<T>> transport);
+
+    default <T extends Closeable> ServerRSocketFactory.LeaseServerStart<T> transport(
+        ServerTransport<T> transport) {
       return transport(() -> transport);
     }
   }
@@ -125,7 +150,9 @@ public class RSocketFactory {
 
     private Supplier<Function<RSocket, RSocket>> acceptor =
         () -> rSocket -> new AbstractRSocket() {};
-
+    private Supplier<Function<LeaseRSocket, RSocket>> leaseAcceptor =
+        () -> rSocket -> new AbstractRSocket() {};
+    private boolean hasLeaseAcceptor;
     private Consumer<Throwable> errorConsumer = Throwable::printStackTrace;
     private int mtu = 0;
     private PluginRegistry plugins = new PluginRegistry(Plugins.defaultPlugins());
@@ -136,6 +163,7 @@ public class RSocketFactory {
     private Duration tickPeriod = Duration.ZERO;
     private Duration ackTimeout = Duration.ofSeconds(30);
     private int missedAcks = 3;
+    private boolean clientLeaseEnabled;
 
     private String metadataMimeType = "application/binary";
     private String dataMimeType = "application/binary";
@@ -215,7 +243,18 @@ public class RSocketFactory {
     @Override
     public ClientTransportAcceptor acceptor(Supplier<Function<RSocket, RSocket>> acceptor) {
       this.acceptor = acceptor;
+      hasLeaseAcceptor = false;
       return StartClient::new;
+    }
+
+    public ClientTransportLeaseAcceptor leaseAcceptor(Function<LeaseRSocket, RSocket> acceptor) {
+      this.leaseAcceptor = () -> acceptor;
+      hasLeaseAcceptor = true;
+      return LeaseStartClient::new;
+    }
+
+    public ClientTransportLeaseAcceptor emptyLeaseAcceptor() {
+      return leaseAcceptor(rsocket -> new AbstractRSocket() {});
     }
 
     @Override
@@ -236,6 +275,31 @@ public class RSocketFactory {
       return this;
     }
 
+    public ClientRSocketFactory enableLease() {
+      flags |= SetupFrameFlyweight.FLAGS_WILL_HONOR_LEASE;
+      this.clientLeaseEnabled = true;
+      return this;
+    }
+
+    public ClientRSocketFactory disableLease() {
+      flags = flags & ~SetupFrameFlyweight.FLAGS_WILL_HONOR_LEASE;
+      this.clientLeaseEnabled = false;
+      return this;
+    }
+
+    public class LeaseStartClient implements Start<LeaseRSocket> {
+      private final Supplier<ClientTransport> transportClient;
+
+      public LeaseStartClient(Supplier<ClientTransport> transportClient) {
+        this.transportClient = transportClient;
+      }
+
+      @Override
+      public Mono<LeaseRSocket> start() {
+        return new StartClient(transportClient).startWithLease();
+      }
+    }
+
     protected class StartClient implements Start<RSocket> {
       private final Supplier<ClientTransport> transportClient;
 
@@ -243,8 +307,7 @@ public class RSocketFactory {
         this.transportClient = transportClient;
       }
 
-      @Override
-      public Mono<RSocket> start() {
+      public Mono<LeaseRSocket> startWithLease() {
         return transportClient
             .get()
             .connect()
@@ -266,35 +329,67 @@ public class RSocketFactory {
                   ClientServerInputMultiplexer multiplexer =
                       new ClientServerInputMultiplexer(connection, plugins);
 
+                  Optional<LeaseSupport> maybeLeaseSupport =
+                      clientLeaseEnabled
+                          ? Optional.of(
+                              LeaseSupport.ofClient(
+                                  multiplexer.asClientConnection(), errorConsumer))
+                          : Optional.empty();
+                  Optional<LeaseControl> maybeLeaseControl =
+                      maybeLeaseSupport.map(LeaseSupport::getLeaseControl);
+                  Optional<Consumer<Frame>> maybeLeaseReceiver =
+                      maybeLeaseSupport.map(LeaseSupport::getLeaseReceiver);
+                  maybeLeaseSupport.ifPresent(
+                      leaseSupport -> {
+                        plugins.addClientPlugin(leaseSupport.getRequesterEnforcer());
+                        plugins.addServerPlugin(leaseSupport.getResponderEnforcer());
+                      });
+
                   RSocketClient rSocketClient =
                       new RSocketClient(
                           multiplexer.asClientConnection(),
                           errorConsumer,
                           StreamIdSupplier.clientSupplier(),
+                          maybeLeaseReceiver,
                           tickPeriod,
                           ackTimeout,
                           missedAcks);
 
                   Mono<RSocket> wrappedRSocketClient =
                       Mono.just(rSocketClient).map(plugins::applyClient);
-
                   DuplexConnection finalConnection = connection;
-                  return wrappedRSocketClient.flatMap(
-                      wrappedClientRSocket -> {
-                        RSocket unwrappedServerSocket = acceptor.get().apply(wrappedClientRSocket);
+                  Mono<RSocket> rsocket =
+                      wrappedRSocketClient.flatMap(
+                          wrappedClientRSocket -> {
+                            RSocket unwrappedServerSocket =
+                                hasLeaseAcceptor
+                                    ? leaseAcceptor
+                                        .get()
+                                        .apply(
+                                            new LeaseRSocketImpl(
+                                                wrappedClientRSocket, maybeLeaseControl))
+                                    : acceptor.get().apply(wrappedClientRSocket);
 
-                        Mono<RSocket> wrappedRSocketServer =
-                            Mono.just(unwrappedServerSocket).map(plugins::applyServer);
+                            Mono<RSocket> wrappedRSocketServer =
+                                Mono.just(unwrappedServerSocket).map(plugins::applyServer);
 
-                        return wrappedRSocketServer
-                            .doOnNext(
-                                rSocket ->
-                                    new RSocketServer(
-                                        multiplexer.asServerConnection(), rSocket, errorConsumer))
-                            .then(finalConnection.sendOne(setupFrame))
-                            .then(wrappedRSocketClient);
-                      });
+                            return wrappedRSocketServer
+                                .doOnNext(
+                                    rSocket ->
+                                        new RSocketServer(
+                                            multiplexer.asServerConnection(),
+                                            rSocket,
+                                            errorConsumer))
+                                .then(finalConnection.sendOne(setupFrame))
+                                .then(wrappedRSocketClient);
+                          });
+                  return rsocket.map(socket -> new LeaseRSocketImpl(socket, maybeLeaseControl));
                 });
+      }
+
+      @Override
+      public Mono<RSocket> start() {
+        return startWithLease().map(RSocketProxy::new);
       }
     }
   }
@@ -305,9 +400,11 @@ public class RSocketFactory {
           ErrorConsumer<ServerRSocketFactory> {
 
     private Supplier<SocketAcceptor> acceptor;
+    private Supplier<LeaseSocketAcceptor> leaseSocketAcceptor;
     private Consumer<Throwable> errorConsumer = Throwable::printStackTrace;
     private int mtu = 0;
     private PluginRegistry plugins = new PluginRegistry(Plugins.defaultPlugins());
+    private boolean serverLeaseEnabled;
 
     private ServerRSocketFactory() {}
 
@@ -329,7 +426,14 @@ public class RSocketFactory {
     @Override
     public ServerTransportAcceptor acceptor(Supplier<SocketAcceptor> acceptor) {
       this.acceptor = acceptor;
+      this.leaseSocketAcceptor = null;
       return ServerStart::new;
+    }
+
+    public ServerTransportLeaseAcceptor leaseAcceptor(LeaseSocketAcceptor acceptor) {
+      this.leaseSocketAcceptor = () -> acceptor;
+      this.acceptor = null;
+      return LeaseServerStart::new;
     }
 
     @Override
@@ -344,6 +448,29 @@ public class RSocketFactory {
       return this;
     }
 
+    public ServerRSocketFactory enableLease() {
+      this.serverLeaseEnabled = true;
+      return this;
+    }
+
+    public ServerRSocketFactory disableLease() {
+      this.serverLeaseEnabled = false;
+      return this;
+    }
+
+    public class LeaseServerStart<T extends Closeable> implements Start<LeaseClosable<T>> {
+      Supplier<ServerTransport<T>> transportServer;
+
+      public LeaseServerStart(Supplier<ServerTransport<T>> transportServer) {
+        this.transportServer = transportServer;
+      }
+
+      @Override
+      public Mono<LeaseClosable<T>> start() {
+        return new ServerStart<>(transportServer).startWithLease();
+      }
+    }
+
     private class ServerStart<T extends Closeable> implements Start<T> {
       private final Supplier<ServerTransport<T>> transportServer;
 
@@ -353,53 +480,102 @@ public class RSocketFactory {
 
       @Override
       public Mono<T> start() {
-        return transportServer
-            .get()
-            .start(
-                connection -> {
-                  if (mtu > 0) {
-                    connection = new FragmentationDuplexConnection(connection, mtu);
-                  }
+        return startWithLease().map(LeaseClosable::getCloseable);
+      }
 
-                  ClientServerInputMultiplexer multiplexer =
-                      new ClientServerInputMultiplexer(connection, plugins);
+      public Mono<LeaseClosable<T>> startWithLease() {
+        MonoProcessor<Optional<LeaseControl>> leaseControl = MonoProcessor.create();
+        Mono<T> start =
+            transportServer
+                .get()
+                .start(
+                    connection -> {
+                      if (mtu > 0) {
+                        connection = new FragmentationDuplexConnection(connection, mtu);
+                      }
 
-                  return multiplexer
-                      .asStreamZeroConnection()
-                      .receive()
-                      .next()
-                      .flatMap(setupFrame -> processSetupFrame(multiplexer, setupFrame));
-                });
+                      ClientServerInputMultiplexer multiplexer =
+                          new ClientServerInputMultiplexer(connection, plugins);
+
+                      return multiplexer
+                          .asStreamZeroConnection()
+                          .receive()
+                          .next()
+                          .flatMap(
+                              setupFrame ->
+                                  processSetupFrame(multiplexer, setupFrame, leaseControl));
+                    });
+        return start.map(closable -> new LeaseClosable<>(closable, leaseControl));
       }
 
       private Mono<? extends Void> processSetupFrame(
-          ClientServerInputMultiplexer multiplexer, Frame setupFrame) {
+          ClientServerInputMultiplexer multiplexer,
+          Frame setupFrame,
+          MonoProcessor<Optional<LeaseControl>> leaseControlMono) {
         int version = Frame.Setup.version(setupFrame);
         if (version != SetupFrameFlyweight.CURRENT_VERSION) {
           InvalidSetupException error =
               new InvalidSetupException(
                   "Unsupported version " + VersionFlyweight.toString(version));
-          return multiplexer
-              .asStreamZeroConnection()
-              .sendOne(Frame.Error.from(0, error))
-              .then(multiplexer.close());
+          return setupError(multiplexer, error);
         }
 
-        ConnectionSetupPayload setupPayload = ConnectionSetupPayload.create(setupFrame);
+        boolean clientLeaseEnabled = Frame.Setup.supportsLease(setupFrame);
+        if (clientLeaseEnabled && !serverLeaseEnabled) {
+          UnsupportedSetupException error =
+              new UnsupportedSetupException("Server does not support lease");
+          return setupError(multiplexer, error);
+        }
+
+        Optional<LeaseSupport> maybeLeaseSupport =
+            clientLeaseEnabled
+                ? Optional.of(
+                    LeaseSupport.ofServer(multiplexer.asClientConnection(), errorConsumer))
+                : Optional.empty();
+        maybeLeaseSupport.ifPresent(
+            leaseSupport -> {
+              plugins.addClientPlugin(leaseSupport.getRequesterEnforcer());
+              plugins.addServerPlugin(leaseSupport.getResponderEnforcer());
+            });
+        Optional<Consumer<Frame>> leaseConsumer =
+            maybeLeaseSupport.map(LeaseSupport::getLeaseReceiver);
+
+        Optional<LeaseControl> maybeLeaseControl =
+            maybeLeaseSupport.map(LeaseSupport::getLeaseControl);
+        leaseControlMono.onNext(maybeLeaseControl);
 
         RSocketClient rSocketClient =
             new RSocketClient(
                 multiplexer.asServerConnection(), errorConsumer, StreamIdSupplier.serverSupplier());
 
         Mono<RSocket> wrappedRSocketClient = Mono.just(rSocketClient).map(plugins::applyClient);
-
+        ConnectionSetupPayload setupPayload = ConnectionSetupPayload.create(setupFrame);
+        boolean hasLeaseAcceptor = leaseSocketAcceptor != null;
         return wrappedRSocketClient
             .flatMap(
-                sender -> acceptor.get().accept(setupPayload, sender).map(plugins::applyServer))
+                sender -> {
+                  if (hasLeaseAcceptor) {
+                    return leaseSocketAcceptor
+                        .get()
+                        .accept(setupPayload, new LeaseRSocketImpl(sender, maybeLeaseControl))
+                        .map(plugins::applyServer);
+                  } else {
+                    return acceptor.get().accept(setupPayload, sender).map(plugins::applyServer);
+                  }
+                })
             .map(
                 handler ->
-                    new RSocketServer(multiplexer.asClientConnection(), handler, errorConsumer))
+                    new RSocketServer(
+                        multiplexer.asClientConnection(), handler, errorConsumer, leaseConsumer))
             .then();
+      }
+
+      private Mono<? extends Void> setupError(
+          ClientServerInputMultiplexer multiplexer, SetupException error) {
+        return multiplexer
+            .asStreamZeroConnection()
+            .sendOne(Frame.Error.from(0, error))
+            .then(multiplexer.close());
       }
     }
   }

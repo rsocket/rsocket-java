@@ -181,6 +181,10 @@ public class SetupFrameFlyweight {
     return fieldOffset;
   }
 
+  public static boolean supportsLease(int flags) {
+    return (flags & FLAGS_WILL_HONOR_LEASE) != 0;
+  }
+
   private static int metadataMimetypeOffset(final ByteBuf byteBuf) {
     return VARIABLE_DATA_OFFSET + resumeTokenTotalLength(byteBuf);
   }

@@ -335,6 +335,11 @@ public class Frame implements ByteBufHolder {
       return flags & SetupFrameFlyweight.VALID_FLAGS;
     }
 
+    public static boolean supportsLease(final Frame frame) {
+      ensureFrameType(FrameType.SETUP, frame);
+      return SetupFrameFlyweight.supportsLease(FrameHeaderFlyweight.flags(frame.content));
+    }
+
     public static int version(final Frame frame) {
       ensureFrameType(FrameType.SETUP, frame);
       return SetupFrameFlyweight.version(frame.content);
@@ -396,6 +401,10 @@ public class Frame implements ByteBufHolder {
     public static String message(Frame frame) {
       ensureFrameType(FrameType.ERROR, frame);
       return ErrorFrameFlyweight.message(frame.content);
+    }
+
+    public static class ErrorCodes {
+      public static final int REJECTED_SETUP = ErrorFrameFlyweight.REJECTED_SETUP;
     }
   }
 

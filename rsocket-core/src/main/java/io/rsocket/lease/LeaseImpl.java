@@ -25,16 +25,16 @@ public final class LeaseImpl implements Lease {
   private final int allowedRequests;
   private final int ttl;
   private final long expiry;
-  private final @Nullable ByteBuffer metadata;
+  private final ByteBuffer metadata;
 
   public LeaseImpl(int allowedRequests, int ttl) {
     this(allowedRequests, ttl, null);
   }
 
-  public LeaseImpl(int allowedRequests, int ttl, ByteBuffer metadata) {
+  public LeaseImpl(int allowedRequests, int ttl, @Nullable ByteBuffer metadata) {
     this.allowedRequests = allowedRequests;
     this.ttl = ttl;
-    expiry = System.currentTimeMillis() + ttl;
+    this.expiry = System.currentTimeMillis() + ttl;
     this.metadata = metadata;
   }
 
@@ -75,5 +75,25 @@ public final class LeaseImpl implements Lease {
         + ", expiry="
         + expiry
         + '}';
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) return true;
+    if (o == null || getClass() != o.getClass()) return false;
+
+    LeaseImpl lease = (LeaseImpl) o;
+
+    if (allowedRequests != lease.allowedRequests) return false;
+    if (ttl != lease.ttl) return false;
+    return metadata != null ? metadata.equals(lease.metadata) : lease.metadata == null;
+  }
+
+  @Override
+  public int hashCode() {
+    int result = allowedRequests;
+    result = 31 * result + ttl;
+    result = 31 * result + (metadata != null ? metadata.hashCode() : 0);
+    return result;
   }
 }

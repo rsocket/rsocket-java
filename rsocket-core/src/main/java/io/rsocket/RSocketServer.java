@@ -26,6 +26,7 @@ import io.netty.util.collection.IntObjectHashMap;
 import io.rsocket.exceptions.ApplicationException;
 import io.rsocket.internal.LimitableRequestPublisher;
 import io.rsocket.util.PayloadImpl;
+import java.util.Optional;
 import java.util.function.Consumer;
 import javax.annotation.Nullable;
 import org.reactivestreams.Publisher;
@@ -42,6 +43,7 @@ class RSocketServer implements RSocket {
   private final DuplexConnection connection;
   private final RSocket requestHandler;
   private final Consumer<Throwable> errorConsumer;
+  private Optional<Consumer<Frame>> leaseConsumer;
 
   private final IntObjectHashMap<Subscription> sendingSubscriptions;
   private final IntObjectHashMap<UnicastProcessor<Payload>> channelProcessors;
@@ -49,10 +51,14 @@ class RSocketServer implements RSocket {
   private Disposable receiveDisposable;
 
   RSocketServer(
-      DuplexConnection connection, RSocket requestHandler, Consumer<Throwable> errorConsumer) {
+      DuplexConnection connection,
+      RSocket requestHandler,
+      Consumer<Throwable> errorConsumer,
+      Optional<Consumer<Frame>> leaseReceiver) {
     this.connection = connection;
     this.requestHandler = requestHandler;
     this.errorConsumer = errorConsumer;
+    this.leaseConsumer = leaseReceiver;
     this.sendingSubscriptions = new IntObjectHashMap<>();
     this.channelProcessors = new IntObjectHashMap<>();
     this.receiveDisposable =
@@ -67,6 +73,11 @@ class RSocketServer implements RSocket {
               receiveDisposable.dispose();
             })
         .subscribe();
+  }
+
+  RSocketServer(
+      DuplexConnection connection, RSocket requestHandler, Consumer<Throwable> errorConsumer) {
+    this(connection, requestHandler, errorConsumer, Optional.empty());
   }
 
   @Override
@@ -168,6 +179,7 @@ class RSocketServer implements RSocket {
           return metadataPush(new PayloadImpl(frame));
         case LEASE:
           // Lease must not be received here as this is the server end of the socket which sends leases.
+          leaseConsumer.ifPresent(consumer -> consumer.accept(frame));
           return Mono.empty();
         case NEXT:
           receiver = getChannelProcessor(streamId);

@@ -69,4 +69,9 @@ public interface Lease {
   default boolean isExpired(long now) {
     return now > expiry();
   }
+
+  /** Checks if the lease has not expired and there are allowed requests available */
+  default boolean isValid() {
+    return !isExpired() && getAllowedRequests() > 0;
+  }
 }
