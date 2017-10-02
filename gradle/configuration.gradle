@@ -1,0 +1,17 @@
+task wrapper(type: Wrapper) {
+    gradleVersion = '4.1'
+    distributionType = Wrapper.DistributionType.ALL
+}
+
+repositories {
+    jcenter()
+}
+
+subprojects {
+    repositories {
+        maven { url 'http://repo.spring.io/milestone' }
+        maven { url 'https://oss.jfrog.org/libs-snapshot' }
+        maven { url 'https://dl.bintray.com/rsocket/RSocket' }
+        maven { url 'https://dl.bintray.com/reactivesocket/ReactiveSocket' }
+    }
+}

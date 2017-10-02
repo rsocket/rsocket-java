@@ -1,0 +1,11 @@
+/* Format the Java source code to comply with Google Style */
+
+apply plugin: 'com.github.sherter.google-java-format'
+
+// Use specific version
+googleJavaFormat {
+    toolVersion = '1.1'
+}
+
+// NOTE: uncomment to force code formatting before compile
+compileJava.dependsOn tasks.googleJavaFormat

@@ -14,16 +14,7 @@
  * limitations under the License.
  */
 
-apply plugin: 'me.champeau.gradle.jmh'
+apply from: "$rootDir/gradle/benchmark.gradle"
 
-jmh {
-    jmhVersion = "1.19"
-    profilers = ['gc']
-    zip64 = true
-    duplicateClassesStrategy = DuplicatesStrategy.WARN
-}
-
-dependencies {
-    jmh "org.openjdk.jmh:jmh-core:1.19"
-    jmh "org.openjdk.jmh:jmh-generator-annprocess:1.19"
-}
+// NOTE: uncomment to run specific test only
+// jmh.include = ['io.rsocket.RSocketPerf.fireAndForgetHello']
