@@ -19,9 +19,8 @@ import org.openjdk.jmh.infra.Blackhole;
 
 @BenchmarkMode(Mode.Throughput)
 @Fork(
-  value = 1,
-  jvmArgsAppend = {"-XX:+UnlockCommercialFeatures", "-XX:+FlightRecorder"}
-) //, "-Dio.netty.leakDetection.level=advanced"})
+  value = 1 // , jvmArgsAppend = {"-Dio.netty.leakDetection.level=advanced"}
+)
 @Warmup(iterations = 10)
 @Measurement(iterations = 10_000)
 @State(Scope.Thread)
