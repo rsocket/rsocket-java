@@ -16,6 +16,9 @@
 package io.rsocket.aeron.internal;
 
 public class NotConnectedException extends RuntimeException {
+
+  private static final long serialVersionUID = -5521573868855763403L;
+
   public NotConnectedException() {
     super();
   }

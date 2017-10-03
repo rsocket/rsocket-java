@@ -18,6 +18,9 @@ package io.rsocket.exceptions;
 import io.rsocket.frame.ErrorFrameFlyweight;
 
 public class CancelException extends RSocketException {
+
+  private static final long serialVersionUID = 3579712120019438212L;
+
   public CancelException(String message) {
     super(message);
   }

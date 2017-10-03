@@ -18,6 +18,9 @@ package io.rsocket.exceptions;
 import io.rsocket.frame.ErrorFrameFlyweight;
 
 public class InvalidSetupException extends SetupException {
+
+  private static final long serialVersionUID = -6685677299580579050L;
+
   public InvalidSetupException(String message) {
     super(message);
   }
