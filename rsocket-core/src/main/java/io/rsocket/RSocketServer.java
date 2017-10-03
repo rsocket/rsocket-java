@@ -167,7 +167,8 @@ class RSocketServer implements RSocket {
         case METADATA_PUSH:
           return metadataPush(new PayloadImpl(frame));
         case LEASE:
-          // Lease must not be received here as this is the server end of the socket which sends leases.
+          // Lease must not be received here as this is the server end of the socket which sends
+          // leases.
           return Mono.empty();
         case NEXT:
           receiver = getChannelProcessor(streamId);
@@ -287,7 +288,8 @@ class RSocketServer implements RSocket {
                 })
             .doFinally(signalType -> removeChannelProcessor(streamId));
 
-    // not chained, as the payload should be enqueued in the Unicast processor before this method returns
+    // not chained, as the payload should be enqueued in the Unicast processor before this method
+    // returns
     // and any later payload can be processed
     frames.onNext(new PayloadImpl(firstFrame));
 

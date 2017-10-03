@@ -11,7 +11,7 @@ public class ResumeUtil {
       case REQUEST_STREAM:
       case REQUEST_RESPONSE:
       case FIRE_AND_FORGET:
-        //case METADATA_PUSH:
+        // case METADATA_PUSH:
       case REQUEST_N:
       case CANCEL:
       case ERROR:
