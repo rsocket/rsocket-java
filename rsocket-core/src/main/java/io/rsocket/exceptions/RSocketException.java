@@ -1,6 +1,9 @@
 package io.rsocket.exceptions;
 
 public abstract class RSocketException extends RuntimeException {
+
+  private static final long serialVersionUID = 2912815394105575423L;
+
   public RSocketException(String message) {
     super(message);
   }

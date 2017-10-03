@@ -15,4 +15,7 @@
  */
 package io.rsocket.aeron.internal;
 
-public class TimedOutException extends RuntimeException {}
+public class TimedOutException extends RuntimeException {
+
+  private static final long serialVersionUID = 6252022225519863073L;
+}

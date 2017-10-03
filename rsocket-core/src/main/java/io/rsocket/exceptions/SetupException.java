@@ -16,6 +16,9 @@
 package io.rsocket.exceptions;
 
 public abstract class SetupException extends RSocketException {
+
+  private static final long serialVersionUID = -2928269501877732756L;
+
   public SetupException(String message) {
     super(message);
   }
