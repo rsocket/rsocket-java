@@ -18,6 +18,7 @@ package io.rsocket.aeron.internal.reactivestreams;
 import io.aeron.Publication;
 import io.aeron.Subscription;
 import io.rsocket.aeron.internal.EventLoop;
+import java.io.IOException;
 import java.util.Objects;
 import org.agrona.DirectBuffer;
 import reactor.core.publisher.Flux;
@@ -77,12 +78,12 @@ public class AeronChannel implements ReactiveStreamsRemote.Channel<DirectBuffer>
   }
 
   @Override
-  public void close() throws Exception {
+  public void close() throws IOException {
     try {
       destination.close();
       source.close();
     } catch (Throwable t) {
-      throw new Exception(t);
+      throw new IOException(t);
     }
   }
 
