@@ -1,0 +1,13 @@
+/* Java compiler settings */
+
+apply plugin: 'java'
+
+compileJava {
+    sourceCompatibility = JavaVersion.VERSION_1_8
+    targetCompatibility = JavaVersion.VERSION_1_8
+    options.encoding = 'UTF-8'
+    options.compilerArgs << '-Xlint:all,-cast,-fallthrough,-overloads,-rawtypes,-serial,-try,-unchecked'
+    // NOTE: uncomment to include/exclude specific warnings
+    // << '-Xlint:classfile,deprecation,dep-ann,divzero,empty,finally,options,overrides,path,processing,static,varargs'
+    // << '-Xdoclint:all,-accessibility,-syntax,-reference,-html,-missing/public'
+}

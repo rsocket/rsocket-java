@@ -1,0 +1,24 @@
+ext {
+    // common
+    jsr305Version = '3.0.2'
+    reactorVersion = '3.1.0.RELEASE'
+    nettyVersion = '4.1.16.Final'
+    reactiveStreamsVersion = '1.0.1'
+    slf4jVersion = '1.7.25'
+    // aeron
+    aeronVersion = '1.4.1'
+    // netty
+    reactorNettyVersion = '0.7.0.RELEASE'
+    // spectator
+    spectatorVersion = '0.57.1'
+    hdrHistogramVersion = '2.1.10'
+    // tck-drivers
+    jacksonVersion = '2.9.1'
+    commonsLang3Version = '3.6'
+    airlineVersion = '0.8'
+    rxjavaVersion = '2.1.4'
+    // test
+    junitVersion = '4.12'
+    hamcrestVersion = '1.3'
+    mockitoVersion = '2.10.0'
+}
