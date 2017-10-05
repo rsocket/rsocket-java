@@ -40,6 +40,7 @@ public class RSocketServerTest {
   @Rule public final ServerSocketRule rule = new ServerSocketRule();
 
   @Test(timeout = 2000)
+  @Ignore
   public void testHandleKeepAlive() throws Exception {
     rule.connection.addToReceivedBuffer(Frame.Keepalive.from(Unpooled.EMPTY_BUFFER, true));
     Frame sent = rule.connection.awaitSend();

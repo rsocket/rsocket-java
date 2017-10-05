@@ -328,23 +328,19 @@ class RSocketServer implements RSocket {
             .doOnCancel(
                 () -> {
                   if (connection.availability() > 0.0) {
-                    connection.sendOne(Frame.Cancel.from(streamId)).subscribe(null, errorConsumer);
+                    sendProcessor.onNext(Frame.Cancel.from(streamId));
                   }
                 })
             .doOnError(
                 t -> {
                   if (connection.availability() > 0.0) {
-                    connection
-                        .sendOne(Frame.Error.from(streamId, t))
-                        .subscribe(null, errorConsumer);
+                    sendProcessor.onNext(Frame.Error.from(streamId, t));
                   }
                 })
             .doOnRequest(
                 l -> {
                   if (connection.availability() > 0.0) {
-                    connection
-                        .sendOne(Frame.RequestN.from(streamId, l))
-                        .subscribe(null, errorConsumer);
+                    sendProcessor.onNext(Frame.RequestN.from(streamId, l));
                   }
                 })
             .doFinally(signalType -> removeChannelProcessor(streamId));
@@ -358,29 +354,35 @@ class RSocketServer implements RSocket {
   }
 
   private Mono<Void> handleKeepAliveFrame(Frame frame) {
-    if (Frame.Keepalive.hasRespondFlag(frame)) {
-      ByteBuf data = Unpooled.wrappedBuffer(frame.getData());
-      return connection.sendOne(Frame.Keepalive.from(data, false)).doOnError(errorConsumer);
-    }
-    return Mono.empty();
+    return Mono.fromRunnable(
+        () -> {
+          if (Frame.Keepalive.hasRespondFlag(frame)) {
+            ByteBuf data = Unpooled.wrappedBuffer(frame.getData());
+            sendProcessor.onNext(Frame.Keepalive.from(data, false));
+          }
+        });
   }
 
   private Mono<Void> handleCancelFrame(int streamId) {
-    Subscription subscription;
-    synchronized (this) {
-      subscription = sendingSubscriptions.remove(streamId);
-    }
+    return Mono.fromRunnable(
+        () -> {
+          Subscription subscription;
+          synchronized (this) {
+            subscription = sendingSubscriptions.remove(streamId);
+          }
 
-    if (subscription != null) {
-      subscription.cancel();
-    }
-
-    return Mono.empty();
+          if (subscription != null) {
+            subscription.cancel();
+          }
+        });
   }
 
   private Mono<Void> handleError(int streamId, Throwable t) {
-    errorConsumer.accept(t);
-    return connection.sendOne(Frame.Error.from(streamId, t)).doOnError(errorConsumer);
+    return Mono.fromRunnable(
+        () -> {
+          errorConsumer.accept(t);
+          sendProcessor.onNext(Frame.Error.from(streamId, t));
+        });
   }
 
   private Mono<Void> handleRequestN(int streamId, Frame frame) {

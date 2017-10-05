@@ -179,12 +179,12 @@ class RSocketClient implements RSocket {
   @Override
   public Mono<Void> fireAndForget(Payload payload) {
     Mono<Void> defer =
-        Mono.defer(
+        Mono.fromRunnable(
             () -> {
               final int streamId = streamIdSupplier.nextStreamId();
               final Frame requestFrame =
                   Frame.Request.from(streamId, FrameType.FIRE_AND_FORGET, payload, 1);
-              return connection.sendOne(requestFrame);
+              sendProcessor.onNext(requestFrame);
             });
 
     return started.then(defer);
@@ -208,7 +208,8 @@ class RSocketClient implements RSocket {
   @Override
   public Mono<Void> metadataPush(Payload payload) {
     final Frame requestFrame = Frame.Request.from(0, FrameType.METADATA_PUSH, payload, 1);
-    return connection.sendOne(requestFrame);
+    sendProcessor.onNext(requestFrame);
+    return Mono.empty();
   }
 
   @Override
@@ -314,7 +315,7 @@ class RSocketClient implements RSocket {
 
               void sendOneFrame(Frame frame) {
                 if (isValidToSendFrame()) {
-                  connection.sendOne(frame).doOnError(errorConsumer).subscribe();
+                  sendProcessor.onNext(frame);
                 }
               }
 
@@ -379,16 +380,14 @@ class RSocketClient implements RSocket {
                                           }
                                         });
 
-                            subscribedRequests =
-                                connection
-                                    .send(requestFrames)
-                                    .doOnError(
-                                        t -> {
-                                          errorConsumer.accept(t);
-                                          receiver.cancel();
-                                        })
-                                    .toProcessor();
-                            subscribedRequests.subscribe();
+                            requestFrames
+                                .doOnNext(sendProcessor::onNext)
+                                .doOnError(
+                                    t -> {
+                                      errorConsumer.accept(t);
+                                      receiver.cancel();
+                                    })
+                                .subscribe();
                           } else {
                             sendOneFrame(Frame.RequestN.from(streamId, l));
                           }
