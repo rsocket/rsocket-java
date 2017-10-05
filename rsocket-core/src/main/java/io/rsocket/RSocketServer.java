@@ -55,16 +55,16 @@ class RSocketServer implements RSocket {
     this.errorConsumer = errorConsumer;
     this.sendingSubscriptions = new IntObjectHashMap<>();
     this.channelProcessors = new IntObjectHashMap<>();
-  
+
     // DO NOT Change the order here. The Send processor must be subscribed to before receiving connections
     this.sendProcessor = EmitterProcessor.create();
-  
+
     connection
         .send(sendProcessor)
         .doOnError(this::handleSendProcessorError)
         .doFinally(this::handleSendProcessorCancel)
         .subscribe();
-    
+
     this.receiveDisposable =
         connection.receive().flatMap(this::handleFrame).doOnError(errorConsumer).then().subscribe();
 
@@ -77,7 +77,6 @@ class RSocketServer implements RSocket {
               receiveDisposable.dispose();
             })
         .subscribe();
-
   }
 
   private void handleSendProcessorError(Throwable t) {

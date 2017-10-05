@@ -78,7 +78,7 @@ class RSocketClient implements RSocket {
     this.senders = new IntObjectHashMap<>(256, 0.9f);
     this.receivers = new IntObjectHashMap<>(256, 0.9f);
     this.missedAckCounter = new AtomicInteger();
-  
+
     // DO NOT Change the order here. The Send processor must be subscribed to before receiving connections
     this.sendProcessor = EmitterProcessor.create();
 
@@ -99,13 +99,13 @@ class RSocketClient implements RSocket {
     }
 
     connection.onClose().doFinally(signalType -> cleanup()).doOnError(errorConsumer).subscribe();
-  
+
     connection
         .send(sendProcessor)
         .doOnError(this::handleSendProcessorError)
         .doFinally(this::handleSendProcessorCancel)
         .subscribe();
-    
+
     connection
         .receive()
         .doOnSubscribe(subscription -> started.onComplete())
