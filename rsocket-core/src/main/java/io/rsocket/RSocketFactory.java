@@ -114,6 +114,10 @@ public class RSocketFactory {
     T metadataMimeType(String metadataMimeType);
   }
 
+  public interface RateLimited<T> {
+    T defaultRateLimit(int rateLimit);
+  }
+
   public static class ClientRSocketFactory
       implements Acceptor<ClientTransportAcceptor, Function<RSocket, RSocket>>,
           ClientTransportAcceptor,
@@ -121,7 +125,8 @@ public class RSocketFactory {
           MimeType<ClientRSocketFactory>,
           Fragmentation<ClientRSocketFactory>,
           ErrorConsumer<ClientRSocketFactory>,
-          SetupPayload<ClientRSocketFactory> {
+          SetupPayload<ClientRSocketFactory>,
+          RateLimited<ClientRSocketFactory> {
 
     private Supplier<Function<RSocket, RSocket>> acceptor =
         () -> rSocket -> new AbstractRSocket() {};
@@ -139,6 +144,8 @@ public class RSocketFactory {
 
     private String metadataMimeType = "application/binary";
     private String dataMimeType = "application/binary";
+
+    private int defaultRateLimit = 256;
 
     public ClientRSocketFactory addConnectionPlugin(DuplexConnectionInterceptor interceptor) {
       plugins.addConnectionPlugin(interceptor);
@@ -236,6 +243,12 @@ public class RSocketFactory {
       return this;
     }
 
+    @Override
+    public ClientRSocketFactory defaultRateLimit(int rateLimit) {
+      this.defaultRateLimit = rateLimit;
+      return this;
+    }
+
     protected class StartClient implements Start<RSocket> {
       private final Supplier<ClientTransport> transportClient;
 
@@ -302,12 +315,14 @@ public class RSocketFactory {
   public static class ServerRSocketFactory
       implements Acceptor<ServerTransportAcceptor, SocketAcceptor>,
           Fragmentation<ServerRSocketFactory>,
-          ErrorConsumer<ServerRSocketFactory> {
+          ErrorConsumer<ServerRSocketFactory>,
+          RateLimited<ServerRSocketFactory> {
 
     private Supplier<SocketAcceptor> acceptor;
     private Consumer<Throwable> errorConsumer = Throwable::printStackTrace;
     private int mtu = 0;
     private PluginRegistry plugins = new PluginRegistry(Plugins.defaultPlugins());
+    private int defaultRateLimit = 256;
 
     private ServerRSocketFactory() {}
 
@@ -341,6 +356,12 @@ public class RSocketFactory {
     @Override
     public ServerRSocketFactory errorConsumer(Consumer<Throwable> errorConsumer) {
       this.errorConsumer = errorConsumer;
+      return this;
+    }
+
+    @Override
+    public ServerRSocketFactory defaultRateLimit(int rateLimit) {
+      this.defaultRateLimit = rateLimit;
       return this;
     }
 
