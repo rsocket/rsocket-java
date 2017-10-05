@@ -52,7 +52,7 @@ class RSocketClient implements RSocket {
   private final IntObjectHashMap<Subscriber<Payload>> receivers;
   private final AtomicInteger missedAckCounter;
 
-  private final UnicastProcessor<Frame> sendProcessor;
+  private final EmitterProcessor<Frame> sendProcessor;
 
   private @Nullable Disposable keepAliveSendSub;
   private volatile long timeLastTickSentMs;
@@ -78,7 +78,7 @@ class RSocketClient implements RSocket {
     this.senders = new IntObjectHashMap<>(256, 0.9f);
     this.receivers = new IntObjectHashMap<>(256, 0.9f);
     this.missedAckCounter = new AtomicInteger();
-    this.sendProcessor = UnicastProcessor.create();
+    this.sendProcessor = EmitterProcessor.create();
 
     if (!Duration.ZERO.equals(tickPeriod)) {
       long ackTimeoutMs = ackTimeout.toMillis();

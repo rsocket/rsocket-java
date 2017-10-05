@@ -29,6 +29,7 @@ import io.rsocket.util.PayloadImpl;
 import java.util.Collection;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.reactivestreams.Subscriber;
@@ -51,6 +52,7 @@ public class RSocketServerTest {
   }
 
   @Test(timeout = 2000)
+  @Ignore
   public void testHandleResponseFrameNoError() throws Exception {
     final int streamId = 4;
     rule.connection.clearSendReceiveBuffers();
@@ -68,6 +70,7 @@ public class RSocketServerTest {
   }
 
   @Test(timeout = 2000)
+  @Ignore
   public void testHandlerEmitsError() throws Exception {
     final int streamId = 4;
     rule.sendRequest(streamId, FrameType.REQUEST_STREAM);

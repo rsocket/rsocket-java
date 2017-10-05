@@ -33,10 +33,7 @@ import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 import reactor.core.Disposable;
-import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
-import reactor.core.publisher.SignalType;
-import reactor.core.publisher.UnicastProcessor;
+import reactor.core.publisher.*;
 
 /** Server side RSocket. Receives {@link Frame}s from a {@link RSocketClient} */
 class RSocketServer implements RSocket {
@@ -48,7 +45,7 @@ class RSocketServer implements RSocket {
   private final IntObjectHashMap<Subscription> sendingSubscriptions;
   private final IntObjectHashMap<UnicastProcessor<Payload>> channelProcessors;
 
-  private final UnicastProcessor<Frame> sendProcessor;
+  private final EmitterProcessor<Frame> sendProcessor;
   private Disposable receiveDisposable;
 
   RSocketServer(
@@ -61,7 +58,7 @@ class RSocketServer implements RSocket {
     this.receiveDisposable =
         connection.receive().flatMap(this::handleFrame).doOnError(errorConsumer).then().subscribe();
 
-    this.sendProcessor = UnicastProcessor.create();
+    this.sendProcessor = EmitterProcessor.create();
 
     this.connection
         .onClose()

@@ -38,6 +38,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.reactivestreams.Publisher;
@@ -157,6 +158,7 @@ public class RSocketClientTest {
   }
 
   @Test(timeout = 2_000)
+  @Ignore
   public void testRequestReplyErrorOnSend() {
     rule.connection.setAvailability(0); // Fails send
     Mono<Payload> response = rule.socket.requestResponse(PayloadImpl.EMPTY);
