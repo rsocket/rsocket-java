@@ -18,6 +18,9 @@ package io.rsocket.exceptions;
 import io.rsocket.frame.ErrorFrameFlyweight;
 
 public class RejectedSetupException extends SetupException implements Retryable {
+
+  private static final long serialVersionUID = -4932830657505898008L;
+
   public RejectedSetupException(String message) {
     super(message);
   }

@@ -183,7 +183,7 @@ public class ConnectEncoder {
     final int headerLength = 4;
     final int limit = parentMessage.limit();
     parentMessage.limit(limit + headerLength + length);
-    buffer.putInt(limit, (int) length, java.nio.ByteOrder.LITTLE_ENDIAN);
+    buffer.putInt(limit, length, java.nio.ByteOrder.LITTLE_ENDIAN);
     buffer.putBytes(limit + headerLength, src, srcOffset, length);
 
     return this;
@@ -197,7 +197,7 @@ public class ConnectEncoder {
     final int headerLength = 4;
     final int limit = parentMessage.limit();
     parentMessage.limit(limit + headerLength + length);
-    buffer.putInt(limit, (int) length, java.nio.ByteOrder.LITTLE_ENDIAN);
+    buffer.putInt(limit, length, java.nio.ByteOrder.LITTLE_ENDIAN);
     buffer.putBytes(limit + headerLength, src, srcOffset, length);
 
     return this;
@@ -219,7 +219,7 @@ public class ConnectEncoder {
     final int headerLength = 4;
     final int limit = parentMessage.limit();
     parentMessage.limit(limit + headerLength + length);
-    buffer.putInt(limit, (int) length, java.nio.ByteOrder.LITTLE_ENDIAN);
+    buffer.putInt(limit, length, java.nio.ByteOrder.LITTLE_ENDIAN);
     buffer.putBytes(limit + headerLength, bytes, 0, length);
 
     return this;
@@ -259,7 +259,7 @@ public class ConnectEncoder {
     final int headerLength = 4;
     final int limit = parentMessage.limit();
     parentMessage.limit(limit + headerLength + length);
-    buffer.putInt(limit, (int) length, java.nio.ByteOrder.LITTLE_ENDIAN);
+    buffer.putInt(limit, length, java.nio.ByteOrder.LITTLE_ENDIAN);
     buffer.putBytes(limit + headerLength, src, srcOffset, length);
 
     return this;
@@ -274,7 +274,7 @@ public class ConnectEncoder {
     final int headerLength = 4;
     final int limit = parentMessage.limit();
     parentMessage.limit(limit + headerLength + length);
-    buffer.putInt(limit, (int) length, java.nio.ByteOrder.LITTLE_ENDIAN);
+    buffer.putInt(limit, length, java.nio.ByteOrder.LITTLE_ENDIAN);
     buffer.putBytes(limit + headerLength, src, srcOffset, length);
 
     return this;
@@ -296,7 +296,7 @@ public class ConnectEncoder {
     final int headerLength = 4;
     final int limit = parentMessage.limit();
     parentMessage.limit(limit + headerLength + length);
-    buffer.putInt(limit, (int) length, java.nio.ByteOrder.LITTLE_ENDIAN);
+    buffer.putInt(limit, length, java.nio.ByteOrder.LITTLE_ENDIAN);
     buffer.putBytes(limit + headerLength, bytes, 0, length);
 
     return this;
@@ -336,7 +336,7 @@ public class ConnectEncoder {
     final int headerLength = 4;
     final int limit = parentMessage.limit();
     parentMessage.limit(limit + headerLength + length);
-    buffer.putInt(limit, (int) length, java.nio.ByteOrder.LITTLE_ENDIAN);
+    buffer.putInt(limit, length, java.nio.ByteOrder.LITTLE_ENDIAN);
     buffer.putBytes(limit + headerLength, src, srcOffset, length);
 
     return this;
@@ -351,7 +351,7 @@ public class ConnectEncoder {
     final int headerLength = 4;
     final int limit = parentMessage.limit();
     parentMessage.limit(limit + headerLength + length);
-    buffer.putInt(limit, (int) length, java.nio.ByteOrder.LITTLE_ENDIAN);
+    buffer.putInt(limit, length, java.nio.ByteOrder.LITTLE_ENDIAN);
     buffer.putBytes(limit + headerLength, src, srcOffset, length);
 
     return this;
@@ -373,7 +373,7 @@ public class ConnectEncoder {
     final int headerLength = 4;
     final int limit = parentMessage.limit();
     parentMessage.limit(limit + headerLength + length);
-    buffer.putInt(limit, (int) length, java.nio.ByteOrder.LITTLE_ENDIAN);
+    buffer.putInt(limit, length, java.nio.ByteOrder.LITTLE_ENDIAN);
     buffer.putBytes(limit + headerLength, bytes, 0, length);
 
     return this;

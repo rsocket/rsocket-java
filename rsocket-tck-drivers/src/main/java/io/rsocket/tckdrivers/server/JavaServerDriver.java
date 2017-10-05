@@ -187,7 +187,9 @@ public class JavaServerDriver {
           break;
         case "channel":
           handleChannel(args, lineIterator);
+          break;
         case "echochannel":
+          handleChannel(args, lineIterator);
           requestEchoChannel.add(new Tuple<>(args[1], args[2]));
           break;
         default:

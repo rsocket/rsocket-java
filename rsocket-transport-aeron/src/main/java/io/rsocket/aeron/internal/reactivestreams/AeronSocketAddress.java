@@ -21,6 +21,7 @@ import java.net.SocketAddress;
 /** SocketAddress that represents an Aeron Channel */
 public class AeronSocketAddress extends SocketAddress {
   private static final String FORMAT = "%s?endpoint=%s:%d";
+  private static final long serialVersionUID = -7691068719112973697L;
   private final String protocol;
   private final String host;
   private final int port;
