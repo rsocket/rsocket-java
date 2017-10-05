@@ -96,7 +96,7 @@ public class JavaServerDriver {
                         sub.setEcho(echoSubscription);
                         sub.request(
                             10000); // request a large number, which basically means the client can
-                                    // send whatever
+                        // send whatever
                       }
                     } catch (Exception e) {
                       assertNull("interrupted ", e.getMessage());
