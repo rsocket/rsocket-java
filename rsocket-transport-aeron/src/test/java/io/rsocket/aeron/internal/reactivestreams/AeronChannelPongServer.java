@@ -35,7 +35,7 @@ public class AeronChannelPongServer {
     AeronChannelServer.AeronChannelConsumer consumer =
         aeronChannel -> {
           Flux<? extends DirectBuffer> receive = aeronChannel.receive();
-          //.doOnNext(b -> System.out.println("server got => " + b.getInt(0)));
+          // .doOnNext(b -> System.out.println("server got => " + b.getInt(0)));
 
           aeronChannel.send(receive).doOnError(Throwable::printStackTrace).subscribe();
         };

@@ -76,7 +76,7 @@ public class SingleThreadedEventLoop implements EventLoop {
       while (true) {
         try {
           int count = drain();
-          //if (count > 100) {
+          // if (count > 100) {
           //    System.out.println(name + " drained..." + count);
           // }
           idleStrategy.idle(count);

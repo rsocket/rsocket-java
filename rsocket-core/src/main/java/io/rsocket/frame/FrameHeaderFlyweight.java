@@ -285,7 +285,8 @@ public class FrameHeaderFlyweight {
     if ((length & ~FRAME_LENGTH_MASK) != 0) {
       throw new IllegalArgumentException("Length is larger than 24 bits");
     }
-    // Write each byte separately in reverse order, this mean we can write 1 << 23 without overflowing.
+    // Write each byte separately in reverse order, this mean we can write 1 << 23 without
+    // overflowing.
     byteBuf.setByte(offset, length >> 16);
     byteBuf.setByte(offset + 1, length >> 8);
     byteBuf.setByte(offset + 2, length);

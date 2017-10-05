@@ -30,6 +30,10 @@ description = 'RSocket: stream oriented messaging passing with Reactive Stream s
 
 buildScan { licenseAgreementUrl = 'https://gradle.com/terms-of-service'; licenseAgree = 'yes' }
 
+googleJavaFormat {
+    toolVersion = '1.4'
+}
+
 subprojects {
     apply plugin: 'java'
     apply plugin: 'maven'

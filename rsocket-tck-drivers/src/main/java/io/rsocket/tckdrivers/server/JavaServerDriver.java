@@ -36,7 +36,8 @@ public class JavaServerDriver {
   private Map<Tuple<String, String>, String> requestResponseMarbles = new HashMap<>();
   private Map<Tuple<String, String>, String> requestStreamMarbles = new HashMap<>();
   private Map<Tuple<String, String>, String> requestSubscriptionMarbles = new HashMap<>();
-  // channel doesn't have an initial payload, but maybe the first payload sent can be viewed as the "initial"
+  // channel doesn't have an initial payload, but maybe the first payload sent can be viewed as the
+  // "initial"
   private Map<Tuple<String, String>, List<String>> requestChannelCommands = new HashMap<>();
   private Set<Tuple<String, String>> requestChannelFail = new HashSet<>();
   private Set<Tuple<String, String>> requestEchoChannel = new HashSet<>();
@@ -56,7 +57,8 @@ public class JavaServerDriver {
                     try {
                       MySubscriber<Payload> sub = new MySubscriber<>(0L, "[SERVER]");
                       payloads.subscribe(sub);
-                      // want to get equivalent of "initial payload" so we can route behavior, this might change in the future
+                      // want to get equivalent of "initial payload" so we can route behavior, this
+                      // might change in the future
                       sub.request(1);
                       sub.awaitAtLeast(1);
                       Tuple<String, String> initpayload =
@@ -93,7 +95,8 @@ public class JavaServerDriver {
                         s.onSubscribe(echoSubscription);
                         sub.setEcho(echoSubscription);
                         sub.request(
-                            10000); // request a large number, which basically means the client can send whatever
+                            10000); // request a large number, which basically means the client can
+                                    // send whatever
                       }
                     } catch (Exception e) {
                       assertNull("interrupted ", e.getMessage());
