@@ -107,52 +107,54 @@ class RSocketClient implements RSocket {
 
     connection
         .send(sendProcessor)
-        .doOnError(
-            t -> {
-              Collection<Subscriber<Payload>> values;
-              Collection<LimitableRequestPublisher> values1;
-              synchronized (RSocketClient.this) {
-                values = receivers.values();
-                values1 = senders.values();
-              }
-
-              for (Subscriber subscriber : values) {
-                try {
-                  subscriber.onError(t);
-                } catch (Throwable e) {
-                  errorConsumer.accept(e);
-                }
-              }
-
-              for (LimitableRequestPublisher p : values1) {
-                p.cancel();
-              }
-            })
-        .doFinally(
-            t -> {
-              if (SignalType.ON_ERROR == t) {
-                return;
-              }
-              Collection<Subscriber<Payload>> values;
-              Collection<LimitableRequestPublisher> values1;
-              synchronized (RSocketClient.this) {
-                values = receivers.values();
-                values1 = senders.values();
-              }
-
-              for (Subscriber subscriber : values) {
-                try {
-                  subscriber.onError(new Throwable("closed connection"));
-                } catch (Throwable e) {
-                  errorConsumer.accept(e);
-                }
-              }
-
-              for (LimitableRequestPublisher p : values1) {
-                p.cancel();
-              }
-            })
+        .doOnError(this::handleSendProcessorError)
+        .doFinally(this::handleSendProcessorCancel)
         .subscribe();
+  }
+
+  private void handleSendProcessorError(Throwable t) {
+    Collection<Subscriber<Payload>> values;
+    Collection<LimitableRequestPublisher> values1;
+    synchronized (RSocketClient.this) {
+      values = receivers.values();
+      values1 = senders.values();
+    }
+
+    for (Subscriber subscriber : values) {
+      try {
+        subscriber.onError(t);
+      } catch (Throwable e) {
+        errorConsumer.accept(e);
+      }
+    }
+
+    for (LimitableRequestPublisher p : values1) {
+      p.cancel();
+    }
+  }
+
+  private void handleSendProcessorCancel(SignalType t) {
+    if (SignalType.ON_ERROR == t) {
+      return;
+    }
+    Collection<Subscriber<Payload>> values;
+    Collection<LimitableRequestPublisher> values1;
+    synchronized (RSocketClient.this) {
+      values = receivers.values();
+      values1 = senders.values();
+    }
+
+    for (Subscriber subscriber : values) {
+      try {
+        subscriber.onError(new Throwable("closed connection"));
+      } catch (Throwable e) {
+        errorConsumer.accept(e);
+      }
+    }
+
+    for (LimitableRequestPublisher p : values1) {
+      p.cancel();
+    }
   }
 
   private Mono<Void> sendKeepAlive(long ackTimeoutMs, int missedAcks) {
@@ -396,7 +398,6 @@ class RSocketClient implements RSocket {
                         () -> {
                           sendOneFrame(Frame.Cancel.from(streamId));
                           if (subscribedRequests != null) {
-                            System.out.println("canceling....");
                             subscribedRequests.cancel();
                           }
                         })

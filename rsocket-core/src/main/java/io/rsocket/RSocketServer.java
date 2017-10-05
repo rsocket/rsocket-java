@@ -72,60 +72,62 @@ class RSocketServer implements RSocket {
 
     connection
         .send(sendProcessor)
-        .doOnError(
-            t -> {
-              Collection<Subscription> values;
-              Collection<UnicastProcessor<Payload>> values1;
-              synchronized (RSocketServer.this) {
-                values = sendingSubscriptions.values();
-                values1 = channelProcessors.values();
-              }
-
-              for (Subscription subscription : values) {
-                try {
-                  subscription.cancel();
-                } catch (Throwable e) {
-                  errorConsumer.accept(e);
-                }
-              }
-
-              for (UnicastProcessor subscription : values1) {
-                try {
-                  subscription.cancel();
-                } catch (Throwable e) {
-                  errorConsumer.accept(e);
-                }
-              }
-            })
-        .doFinally(
-            t -> {
-              if (SignalType.ON_ERROR == t) {
-                return;
-              }
-              Collection<Subscription> values;
-              Collection<UnicastProcessor<Payload>> values1;
-              synchronized (RSocketServer.this) {
-                values = sendingSubscriptions.values();
-                values1 = channelProcessors.values();
-              }
-
-              for (Subscription subscription : values) {
-                try {
-                  subscription.cancel();
-                } catch (Throwable e) {
-                  errorConsumer.accept(e);
-                }
-              }
-
-              for (UnicastProcessor subscription : values1) {
-                try {
-                  subscription.cancel();
-                } catch (Throwable e) {
-                  errorConsumer.accept(e);
-                }
-              }
-            })
+        .doOnError(this::handleSendProcessorError)
+        .doFinally(this::handleSendProcessorCancel)
         .subscribe();
+  }
+
+  private void handleSendProcessorError(Throwable t) {
+    Collection<Subscription> values;
+    Collection<UnicastProcessor<Payload>> values1;
+    synchronized (RSocketServer.this) {
+      values = sendingSubscriptions.values();
+      values1 = channelProcessors.values();
+    }
+
+    for (Subscription subscription : values) {
+      try {
+        subscription.cancel();
+      } catch (Throwable e) {
+        errorConsumer.accept(e);
+      }
+    }
+
+    for (UnicastProcessor subscription : values1) {
+      try {
+        subscription.cancel();
+      } catch (Throwable e) {
+        errorConsumer.accept(e);
+      }
+    }
+  }
+
+  private void handleSendProcessorCancel(SignalType t) {
+    if (SignalType.ON_ERROR == t) {
+      return;
+    }
+    Collection<Subscription> values;
+    Collection<UnicastProcessor<Payload>> values1;
+    synchronized (RSocketServer.this) {
+      values = sendingSubscriptions.values();
+      values1 = channelProcessors.values();
+    }
+
+    for (Subscription subscription : values) {
+      try {
+        subscription.cancel();
+      } catch (Throwable e) {
+        errorConsumer.accept(e);
+      }
+    }
+
+    for (UnicastProcessor subscription : values1) {
+      try {
+        subscription.cancel();
+      } catch (Throwable e) {
+        errorConsumer.accept(e);
+      }
+    }
   }
 
   @Override
