@@ -26,6 +26,8 @@ import io.rsocket.internal.LimitableRequestPublisher;
 import io.rsocket.util.PayloadImpl;
 import java.nio.channels.ClosedChannelException;
 import java.time.Duration;
+import java.util.Collection;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -34,10 +36,7 @@ import javax.annotation.Nullable;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import reactor.core.Disposable;
-import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
-import reactor.core.publisher.MonoProcessor;
-import reactor.core.publisher.UnicastProcessor;
+import reactor.core.publisher.*;
 
 /** Client Side of a RSocket socket. Sends {@link Frame}s to a {@link RSocketServer} */
 class RSocketClient implements RSocket {
@@ -53,8 +52,9 @@ class RSocketClient implements RSocket {
   private final IntObjectHashMap<Subscriber<Payload>> receivers;
   private final AtomicInteger missedAckCounter;
 
-  private @Nullable Disposable keepAliveSendSub;
+  private final UnicastProcessor<Frame> sendProcessor;
 
+  private @Nullable Disposable keepAliveSendSub;
   private volatile long timeLastTickSentMs;
 
   RSocketClient(
@@ -78,6 +78,7 @@ class RSocketClient implements RSocket {
     this.senders = new IntObjectHashMap<>(256, 0.9f);
     this.receivers = new IntObjectHashMap<>(256, 0.9f);
     this.missedAckCounter = new AtomicInteger();
+    this.sendProcessor = UnicastProcessor.create();
 
     if (!Duration.ZERO.equals(tickPeriod)) {
       long ackTimeoutMs = ackTimeout.toMillis();
@@ -103,22 +104,74 @@ class RSocketClient implements RSocket {
         .doOnNext(this::handleIncomingFrames)
         .doOnError(errorConsumer)
         .subscribe();
+
+    connection
+        .send(sendProcessor)
+        .doOnError(
+            t -> {
+              Collection<Subscriber<Payload>> values;
+              Collection<LimitableRequestPublisher> values1;
+              synchronized (RSocketClient.this) {
+                values = receivers.values();
+                values1 = senders.values();
+              }
+
+              for (Subscriber subscriber : values) {
+                try {
+                  subscriber.onError(t);
+                } catch (Throwable e) {
+                  errorConsumer.accept(e);
+                }
+              }
+
+              for (LimitableRequestPublisher p : values1) {
+                p.cancel();
+              }
+            })
+        .doFinally(
+            t -> {
+              if (SignalType.ON_ERROR == t) {
+                return;
+              }
+              Collection<Subscriber<Payload>> values;
+              Collection<LimitableRequestPublisher> values1;
+              synchronized (RSocketClient.this) {
+                values = receivers.values();
+                values1 = senders.values();
+              }
+
+              for (Subscriber subscriber : values) {
+                try {
+                  subscriber.onError(new Throwable("closed connection"));
+                } catch (Throwable e) {
+                  errorConsumer.accept(e);
+                }
+              }
+
+              for (LimitableRequestPublisher p : values1) {
+                p.cancel();
+              }
+            })
+        .subscribe();
   }
 
   private Mono<Void> sendKeepAlive(long ackTimeoutMs, int missedAcks) {
-    long now = System.currentTimeMillis();
-    if (now - timeLastTickSentMs > ackTimeoutMs) {
-      int count = missedAckCounter.incrementAndGet();
-      if (count >= missedAcks) {
-        String message =
-            String.format(
-                "Missed %d keep-alive acks with a threshold of %d and a ack timeout of %d ms",
-                count, missedAcks, ackTimeoutMs);
-        return Mono.error(new ConnectionException(message));
-      }
-    }
+    return Mono.fromRunnable(
+        () -> {
+          long now = System.currentTimeMillis();
+          if (now - timeLastTickSentMs > ackTimeoutMs) {
+            int count = missedAckCounter.incrementAndGet();
+            if (count >= missedAcks) {
+              String message =
+                  String.format(
+                      "Missed %d keep-alive acks with a threshold of %d and a ack timeout of %d ms",
+                      count, missedAcks, ackTimeoutMs);
+              throw new ConnectionException(message);
+            }
+          }
 
-    return connection.sendOne(Frame.Keepalive.from(Unpooled.EMPTY_BUFFER, true));
+          sendProcessor.onNext(Frame.Keepalive.from(Unpooled.EMPTY_BUFFER, true));
+        });
   }
 
   @Override
@@ -142,7 +195,7 @@ class RSocketClient implements RSocket {
 
   @Override
   public Flux<Payload> requestStream(Payload payload) {
-    return handleStreamResponse(Flux.just(payload), FrameType.REQUEST_STREAM);
+    return handleRequestStream(payload);
   }
 
   @Override
@@ -171,6 +224,54 @@ class RSocketClient implements RSocket {
     return connection.onClose();
   }
 
+  public Flux<Payload> handleRequestStream(final Payload payload) {
+    return started.thenMany(
+        Flux.defer(
+            () -> {
+              int streamId = streamIdSupplier.nextStreamId();
+
+              UnicastProcessor<Payload> receiver = UnicastProcessor.create();
+
+              synchronized (this) {
+                receivers.put(streamId, receiver);
+              }
+
+              AtomicBoolean first = new AtomicBoolean(false);
+
+              return receiver
+                  .doOnRequest(
+                      l -> {
+                        if (first.compareAndSet(false, true) && !receiver.isTerminated()) {
+                          final Frame requestFrame =
+                              Frame.Request.from(streamId, FrameType.REQUEST_STREAM, payload, l);
+
+                          sendProcessor.onNext(requestFrame);
+                        } else if (contains(streamId)
+                            && connection.availability() > 0.0
+                            && !receiver.isTerminated()) {
+                          sendProcessor.onNext(Frame.RequestN.from(streamId, l));
+                        }
+                      })
+                  .doOnError(
+                      t -> {
+                        if (contains(streamId)
+                            && connection.availability() > 0.0
+                            && !receiver.isTerminated()) {
+                          sendProcessor.onNext(Frame.Error.from(streamId, t));
+                        }
+                      })
+                  .doOnCancel(
+                      () -> {
+                        if (contains(streamId)
+                            && connection.availability() > 0.0
+                            && !receiver.isTerminated()) {
+                          sendProcessor.onNext(Frame.Cancel.from(streamId));
+                        }
+                      })
+                  .doFinally(s -> removeReceiver(streamId));
+            }));
+  }
+
   private Mono<Payload> handleRequestResponse(final Payload payload) {
     return started.then(
         Mono.defer(
@@ -185,41 +286,11 @@ class RSocketClient implements RSocket {
                 receivers.put(streamId, receiver);
               }
 
-              MonoProcessor<Void> subscribedRequest =
-                  connection
-                      .sendOne(requestFrame)
-                      .doOnError(
-                          t -> {
-                            errorConsumer.accept(t);
-                            receiver.cancel();
-                          })
-                      .toProcessor();
-              subscribedRequest.subscribe();
+              sendProcessor.onNext(requestFrame);
 
               return receiver
-                  .doOnError(
-                      t -> {
-                        if (contains(streamId)
-                            && connection.availability() > 0.0
-                            && !receiver.isTerminated()) {
-                          connection
-                              .sendOne(Frame.Error.from(streamId, t))
-                              .doOnError(errorConsumer)
-                              .subscribe();
-                        }
-                      })
-                  .doOnCancel(
-                      () -> {
-                        if (contains(streamId)
-                            && connection.availability() > 0.0
-                            && !receiver.isTerminated()) {
-                          connection
-                              .sendOne(Frame.Cancel.from(streamId))
-                              .doOnError(errorConsumer)
-                              .subscribe();
-                        }
-                        subscribedRequest.cancel();
-                      })
+                  .doOnError(t -> sendProcessor.onNext(Frame.Error.from(streamId, t)))
+                  .doOnCancel(() -> sendProcessor.onNext(Frame.Cancel.from(streamId)))
                   .doFinally(s -> removeReceiver(streamId));
             }));
   }
@@ -325,6 +396,7 @@ class RSocketClient implements RSocket {
                         () -> {
                           sendOneFrame(Frame.Cancel.from(streamId));
                           if (subscribedRequests != null) {
+                            System.out.println("canceling....");
                             subscribedRequests.cancel();
                           }
                         })
