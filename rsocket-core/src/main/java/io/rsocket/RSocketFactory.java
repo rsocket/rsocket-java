@@ -286,7 +286,8 @@ public class RSocketFactory {
                           StreamIdSupplier.clientSupplier(),
                           tickPeriod,
                           ackTimeout,
-                          missedAcks);
+                          missedAcks,
+                          defaultRateLimit);
 
                   Mono<RSocket> wrappedRSocketClient =
                       Mono.just(rSocketClient).map(plugins::applyClient);
@@ -410,7 +411,7 @@ public class RSocketFactory {
 
         RSocketClient rSocketClient =
             new RSocketClient(
-                multiplexer.asServerConnection(), errorConsumer, StreamIdSupplier.serverSupplier());
+                multiplexer.asServerConnection(), errorConsumer, StreamIdSupplier.serverSupplier(), defaultRateLimit);
 
         Mono<RSocket> wrappedRSocketClient = Mono.just(rSocketClient).map(plugins::applyClient);
 

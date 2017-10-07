@@ -138,7 +138,7 @@ public class RSocketTest {
           new RSocketClient(
               clientConnection,
               throwable -> clientErrors.add(throwable),
-              StreamIdSupplier.clientSupplier());
+              StreamIdSupplier.clientSupplier(), tickPeriod, ackTimeout, missedAcks, defaultRateLimit);
     }
 
     public void setRequestAcceptor(RSocket requestAcceptor) {

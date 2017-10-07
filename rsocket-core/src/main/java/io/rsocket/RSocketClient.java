@@ -48,6 +48,7 @@ class RSocketClient implements RSocket {
   private final DuplexConnection connection;
   private final Consumer<Throwable> errorConsumer;
   private final StreamIdSupplier streamIdSupplier;
+  private final int defaultRateLimit;
   private final MonoProcessor<Void> started;
   private final IntObjectHashMap<LimitableRequestPublisher> senders;
   private final IntObjectHashMap<Subscriber<Payload>> receivers;
@@ -57,23 +58,28 @@ class RSocketClient implements RSocket {
 
   private volatile long timeLastTickSentMs;
 
+  // Client for a connection recipient (server)
   RSocketClient(
-      DuplexConnection connection,
-      Consumer<Throwable> errorConsumer,
-      StreamIdSupplier streamIdSupplier) {
-    this(connection, errorConsumer, streamIdSupplier, Duration.ZERO, Duration.ZERO, 0);
+          DuplexConnection connection,
+          Consumer<Throwable> errorConsumer,
+          StreamIdSupplier streamIdSupplier,
+          int defaultRateLimit) {
+    this(connection, errorConsumer, streamIdSupplier, Duration.ZERO, Duration.ZERO, 0, 256);
   }
 
+  // Client for a connection initiator
   RSocketClient(
       DuplexConnection connection,
       Consumer<Throwable> errorConsumer,
       StreamIdSupplier streamIdSupplier,
       Duration tickPeriod,
       Duration ackTimeout,
-      int missedAcks) {
+      int missedAcks,
+      int defaultRateLimit) {
     this.connection = connection;
     this.errorConsumer = errorConsumer;
     this.streamIdSupplier = streamIdSupplier;
+    this.defaultRateLimit = defaultRateLimit;
     this.started = MonoProcessor.create();
     this.senders = new IntObjectHashMap<>(256, 0.9f);
     this.receivers = new IntObjectHashMap<>(256, 0.9f);
