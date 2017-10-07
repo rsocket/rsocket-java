@@ -17,7 +17,7 @@
 plugins {
     id 'com.gradle.build-scan' version '1.9' // declare before any other plugin
 
-    id 'com.github.sherter.google-java-format' version '0.6' apply false
+    id 'com.github.sherter.google-java-format' version '0.6'
     id 'com.github.johnrengelman.shadow' version '2.0.1' apply false
     id 'me.champeau.gradle.jmh' version '0.4.4' apply false
     id 'io.morethan.jmhreport' version '0.6.2.1' apply false
