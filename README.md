@@ -52,6 +52,36 @@ Frames can be printed out to help debugging. Set the logger `io.rsocket.FrameLog
 - Java 8 - heavy dependence on Java 8 functional APIs and java.time, also on Reactor
 - Android O - https://github.com/rsocket/rsocket-demo-android-java8
 
+## Trivial Client
+
+```
+package io.rsocket.transport.netty;
+
+import io.rsocket.Payload;
+import io.rsocket.RSocket;
+import io.rsocket.RSocketFactory;
+import io.rsocket.transport.netty.client.WebsocketClientTransport;
+import io.rsocket.util.PayloadImpl;
+import reactor.core.publisher.Flux;
+
+import java.net.URI;
+
+public class ExampleClient {
+    public static void main(String[] args) {
+        WebsocketClientTransport ws = WebsocketClientTransport.create(URI.create("ws://rsocket-demo.herokuapp.com/ws"));
+        RSocket client = RSocketFactory.connect().keepAlive().transport(ws).start().block();
+
+        try {
+            Flux<Payload> s = client.requestStream(PayloadImpl.textPayload("peace"));
+
+            s.take(10).doOnNext(p -> System.out.println(p.getDataUtf8())).blockLast();
+        } finally {
+            client.close().block();
+        }
+    }
+}
+```
+
 ## Bugs and Feedback
 
 For bugs, questions and discussions please use the [Github Issues](https://github.com/RSocket/reactivesocket-java/issues).
