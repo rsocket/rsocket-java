@@ -27,12 +27,13 @@ import io.rsocket.util.PayloadImpl;
 import java.nio.channels.ClosedChannelException;
 import java.time.Duration;
 import java.util.Collection;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import javax.annotation.Nullable;
+
+import io.rsocket.util.RateLimiter;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import reactor.core.Disposable;
@@ -64,7 +65,7 @@ class RSocketClient implements RSocket {
           Consumer<Throwable> errorConsumer,
           StreamIdSupplier streamIdSupplier,
           int defaultRateLimit) {
-    this(connection, errorConsumer, streamIdSupplier, Duration.ZERO, Duration.ZERO, 0, 256);
+    this(connection, errorConsumer, streamIdSupplier, Duration.ZERO, Duration.ZERO, 0, defaultRateLimit);
   }
 
   // Client for a connection initiator
@@ -76,6 +77,10 @@ class RSocketClient implements RSocket {
       Duration ackTimeout,
       int missedAcks,
       int defaultRateLimit) {
+    if (defaultRateLimit < 1) {
+      throw new IllegalArgumentException("defaultRateLimit " + defaultRateLimit + " must be > 0");
+    }
+
     this.connection = connection;
     this.errorConsumer = errorConsumer;
     this.streamIdSupplier = streamIdSupplier;
@@ -237,51 +242,65 @@ class RSocketClient implements RSocket {
   }
 
   public Flux<Payload> handleRequestStream(final Payload payload) {
-    return started.thenMany(
-        Flux.defer(
-            () -> {
-              int streamId = streamIdSupplier.nextStreamId();
+    return started.thenMany(Flux.defer(() -> createStream(payload)));
+  }
 
-              UnicastProcessor<Payload> receiver = UnicastProcessor.create();
+  private Flux<Payload> createStream(Payload payload) {
+    int streamId = streamIdSupplier.nextStreamId();
 
-              synchronized (this) {
-                receivers.put(streamId, receiver);
+    UnicastProcessor<Payload> receiver = UnicastProcessor.create();
+
+    synchronized (this) {
+      receivers.put(streamId, receiver);
+    }
+
+    RateLimiter rl = new RateLimiter(defaultRateLimit);
+
+    return receiver
+        .doOnRequest(
+            l -> {
+              boolean first = rl.onRequest(l);
+
+              if (first && !receiver.isTerminated()) {
+                final Frame requestFrame =
+                    Frame.Request.from(streamId, FrameType.REQUEST_STREAM, payload, rl.nextRequest());
+
+                sendProcessor.onNext(requestFrame);
+              } else if (isOpen(streamId, receiver)) {
+                long requestN = rl.nextRequest();
+                if (requestN > 0) {
+                  sendProcessor.onNext(Frame.RequestN.from(streamId, requestN));
+                }
               }
+            })
+        .doOnError(
+            t -> {
+              if (isOpen(streamId, receiver)) {
+                sendProcessor.onNext(Frame.Error.from(streamId, t));
+              }
+            })
+        .doOnCancel(
+            () -> {
+              if (isOpen(streamId, receiver)) {
+                sendProcessor.onNext(Frame.Cancel.from(streamId));
+              }
+            })
+        .doOnNext(p -> {
+          if (isOpen(streamId, receiver)) {
+            rl.onNext();
+            long requestN = rl.nextRequest();
+            if (requestN > 0) {
+              sendProcessor.onNext(Frame.RequestN.from(streamId, requestN));
+            }
+          }
+        })
+        .doFinally(s -> removeReceiver(streamId));
+  }
 
-              AtomicBoolean first = new AtomicBoolean(false);
-
-              return receiver
-                  .doOnRequest(
-                      l -> {
-                        if (first.compareAndSet(false, true) && !receiver.isTerminated()) {
-                          final Frame requestFrame =
-                              Frame.Request.from(streamId, FrameType.REQUEST_STREAM, payload, l);
-
-                          sendProcessor.onNext(requestFrame);
-                        } else if (contains(streamId)
-                            && connection.availability() > 0.0
-                            && !receiver.isTerminated()) {
-                          sendProcessor.onNext(Frame.RequestN.from(streamId, l));
-                        }
-                      })
-                  .doOnError(
-                      t -> {
-                        if (contains(streamId)
-                            && connection.availability() > 0.0
-                            && !receiver.isTerminated()) {
-                          sendProcessor.onNext(Frame.Error.from(streamId, t));
-                        }
-                      })
-                  .doOnCancel(
-                      () -> {
-                        if (contains(streamId)
-                            && connection.availability() > 0.0
-                            && !receiver.isTerminated()) {
-                          sendProcessor.onNext(Frame.Cancel.from(streamId));
-                        }
-                      })
-                  .doFinally(s -> removeReceiver(streamId));
-            }));
+  private boolean isOpen(int streamId, UnicastProcessor<Payload> receiver) {
+    return contains(streamId)
+        && connection.availability() > 0.0
+        && !receiver.isTerminated();
   }
 
   private Mono<Payload> handleRequestResponse(final Payload payload) {
@@ -316,14 +335,8 @@ class RSocketClient implements RSocket {
               volatile @Nullable MonoProcessor<Void> subscribedRequests;
               boolean firstRequest = true;
 
-              boolean isValidToSendFrame() {
-                return contains(streamId)
-                    && connection.availability() > 0.0
-                    && !receiver.isTerminated();
-              }
-
               void sendOneFrame(Frame frame) {
-                if (isValidToSendFrame()) {
+                if (isOpen(streamId, receiver)) {
                   sendProcessor.onNext(frame);
                 }
               }
