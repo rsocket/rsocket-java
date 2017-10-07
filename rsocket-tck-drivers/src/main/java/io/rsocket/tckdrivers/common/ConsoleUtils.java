@@ -19,11 +19,11 @@ package io.rsocket.tckdrivers.common;
 /** This class handles everything that gets printed to the console */
 public class ConsoleUtils {
 
-  private static final String ANSI_RESET = ""; //"\u001B[0m";
-  private static final String ANSI_RED = ""; //\u001B[31m";
-  private static final String ANSI_GREEN = ""; //\u001B[32m";
-  private static final String ANSI_CYAN = ""; //\u001B[36m";
-  private static final String ANSI_BLUE = ""; //\u001B[34m";
+  private static final String ANSI_RESET = ""; // "\u001B[0m";
+  private static final String ANSI_RED = ""; // \u001B[31m";
+  private static final String ANSI_GREEN = ""; // \u001B[32m";
+  private static final String ANSI_CYAN = ""; // \u001B[36m";
+  private static final String ANSI_BLUE = ""; // \u001B[34m";
   private String agent;
   private final boolean debugEnabled = false;
 

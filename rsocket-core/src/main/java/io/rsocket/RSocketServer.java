@@ -56,7 +56,8 @@ class RSocketServer implements RSocket {
     this.sendingSubscriptions = new IntObjectHashMap<>();
     this.channelProcessors = new IntObjectHashMap<>();
 
-    // DO NOT Change the order here. The Send processor must be subscribed to before receiving connections
+    // DO NOT Change the order here. The Send processor must be subscribed to before receiving
+    // connections
     this.sendProcessor = EmitterProcessor.create();
 
     connection

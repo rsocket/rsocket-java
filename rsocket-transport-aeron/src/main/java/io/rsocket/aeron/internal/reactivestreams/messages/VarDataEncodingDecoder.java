@@ -73,11 +73,19 @@ public class VarDataEncodingDecoder {
 
   public StringBuilder appendTo(final StringBuilder builder) {
     builder.append('(');
-    //Token{signal=ENCODING, name='length', description='The channel the client listens for management data on', id=-1, version=0, encodedLength=4, offset=0, componentTokenCount=1, encoding=Encoding{presence=REQUIRED, primitiveType=UINT32, byteOrder=LITTLE_ENDIAN, minValue=null, maxValue=1073741824, nullValue=null, constValue=null, characterEncoding='UTF-8', epoch='unix', timeUnit=nanosecond, semanticType='null'}}
+    // Token{signal=ENCODING, name='length', description='The channel the client listens for
+    // management data on', id=-1, version=0, encodedLength=4, offset=0, componentTokenCount=1,
+    // encoding=Encoding{presence=REQUIRED, primitiveType=UINT32, byteOrder=LITTLE_ENDIAN,
+    // minValue=null, maxValue=1073741824, nullValue=null, constValue=null,
+    // characterEncoding='UTF-8', epoch='unix', timeUnit=nanosecond, semanticType='null'}}
     builder.append("length=");
     builder.append(length());
     builder.append('|');
-    //Token{signal=ENCODING, name='varData', description='The channel the client listens for management data on', id=-1, version=0, encodedLength=-1, offset=4, componentTokenCount=1, encoding=Encoding{presence=REQUIRED, primitiveType=UINT8, byteOrder=LITTLE_ENDIAN, minValue=null, maxValue=null, nullValue=null, constValue=null, characterEncoding='UTF-8', epoch='unix', timeUnit=nanosecond, semanticType='null'}}
+    // Token{signal=ENCODING, name='varData', description='The channel the client listens for
+    // management data on', id=-1, version=0, encodedLength=-1, offset=4, componentTokenCount=1,
+    // encoding=Encoding{presence=REQUIRED, primitiveType=UINT8, byteOrder=LITTLE_ENDIAN,
+    // minValue=null, maxValue=null, nullValue=null, constValue=null, characterEncoding='UTF-8',
+    // epoch='unix', timeUnit=nanosecond, semanticType='null'}}
     builder.append(')');
 
     return builder;
