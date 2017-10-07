@@ -21,7 +21,7 @@ import org.openjdk.jmh.infra.Blackhole;
 @Fork(
   value = 1,
   jvmArgsAppend = {"-XX:+UnlockCommercialFeatures", "-XX:+FlightRecorder"}
-) //, "-Dio.netty.leakDetection.level=advanced"})
+) // , "-Dio.netty.leakDetection.level=advanced"})
 @Warmup(iterations = 10)
 @Measurement(iterations = 10_000)
 @State(Scope.Thread)
@@ -84,7 +84,7 @@ public class FragmentationPerf {
     Frame frame = smallFragmentAssembler.reassemble();
     input.bh.consume(frame);
     frame.release();
-    //input.smallFragmentAssembler.clear();
+    // input.smallFragmentAssembler.clear();
   }
 
   private static ByteBuffer createRandomBytes(int size) {

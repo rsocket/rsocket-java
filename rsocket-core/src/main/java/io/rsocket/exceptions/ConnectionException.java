@@ -18,6 +18,9 @@ package io.rsocket.exceptions;
 import io.rsocket.frame.ErrorFrameFlyweight;
 
 public class ConnectionException extends RSocketException implements Retryable {
+
+  private static final long serialVersionUID = -6565180364631212778L;
+
   public ConnectionException(String message) {
     super(message);
   }

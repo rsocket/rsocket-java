@@ -15,4 +15,7 @@
  */
 package io.rsocket.exceptions;
 
-public class NoAvailableRSocketException extends Exception {}
+public class NoAvailableRSocketException extends Exception {
+
+  private static final long serialVersionUID = 7608370678694273507L;
+}

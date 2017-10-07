@@ -151,7 +151,8 @@ public class JavaClientDriver {
           handleCancel(args);
           break;
         default:
-          // the default behavior is to just skip the line, so we can accommodate slight changes to the TCK
+          // the default behavior is to just skip the line, so we can accommodate slight changes to
+          // the TCK
           break;
       }
     }
@@ -227,12 +228,14 @@ public class JavaClientDriver {
     // set the initial payload
     Payload initialPayload = new PayloadImpl(args[2], args[3]);
 
-    // this is the subscriber that will request data from the server, like all the other test subscribers
+    // this is the subscriber that will request data from the server, like all the other test
+    // subscribers
     MySubscriber<Payload> testsub = new MySubscriber<>(1L, AGENT);
     CountDownLatch c = new CountDownLatch(1);
 
     // we now create the publisher that the server will subscribe to with its own subscriber
-    // we want to give that subscriber a subscription that the client will use to send data to the server
+    // we want to give that subscriber a subscription that the client will use to send data to the
+    // server
     RSocket client = getClient(args[0]);
     AtomicReference<ParseChannelThread> mypct = new AtomicReference<>();
     Publisher<Payload> pub =
@@ -455,13 +458,13 @@ public class JavaClientDriver {
 
   private void handleEOF() {
     MySubscriber<Void> fnfsub = new MySubscriber<>(0L, AGENT);
-    //if (clientMap.size() > 0) {
+    // if (clientMap.size() > 0) {
     //  // Use any Client to send shutdown msg to the server
     //  RSocket fnfclient = clientMap.get(clientMap.keySet().toArray()[0]);
     //  Publisher<Void> fnfpub = fnfclient.fireAndForget(new PayloadImpl("shutdown", "shutdown"));
     //  fnfpub.subscribe(fnfsub);
     //  fnfsub.request(1);
-    //}
+    // }
   }
 
   /** A subscription for channel, it handles request(n) by sort of faking an initial payload. */

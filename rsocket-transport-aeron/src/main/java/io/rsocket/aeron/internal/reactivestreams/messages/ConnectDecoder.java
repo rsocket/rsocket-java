@@ -465,35 +465,79 @@ public class ConnectDecoder {
     }
     builder.append(BLOCK_LENGTH);
     builder.append("):");
-    //Token{signal=BEGIN_FIELD, name='channelId', description='The AeronChannel id', id=1, version=0, encodedLength=0, offset=0, componentTokenCount=3, encoding=Encoding{presence=REQUIRED, primitiveType=null, byteOrder=LITTLE_ENDIAN, minValue=null, maxValue=null, nullValue=null, constValue=null, characterEncoding='null', epoch='unix', timeUnit=nanosecond, semanticType='null'}}
-    //Token{signal=ENCODING, name='int64', description='The AeronChannel id', id=-1, version=0, encodedLength=8, offset=0, componentTokenCount=1, encoding=Encoding{presence=REQUIRED, primitiveType=INT64, byteOrder=LITTLE_ENDIAN, minValue=null, maxValue=null, nullValue=null, constValue=null, characterEncoding='null', epoch='unix', timeUnit=nanosecond, semanticType='null'}}
+    // Token{signal=BEGIN_FIELD, name='channelId', description='The AeronChannel id', id=1,
+    // version=0, encodedLength=0, offset=0, componentTokenCount=3,
+    // encoding=Encoding{presence=REQUIRED, primitiveType=null, byteOrder=LITTLE_ENDIAN,
+    // minValue=null, maxValue=null, nullValue=null, constValue=null, characterEncoding='null',
+    // epoch='unix', timeUnit=nanosecond, semanticType='null'}}
+    // Token{signal=ENCODING, name='int64', description='The AeronChannel id', id=-1, version=0,
+    // encodedLength=8, offset=0, componentTokenCount=1, encoding=Encoding{presence=REQUIRED,
+    // primitiveType=INT64, byteOrder=LITTLE_ENDIAN, minValue=null, maxValue=null, nullValue=null,
+    // constValue=null, characterEncoding='null', epoch='unix', timeUnit=nanosecond,
+    // semanticType='null'}}
     builder.append("channelId=");
     builder.append(channelId());
     builder.append('|');
-    //Token{signal=BEGIN_FIELD, name='sendingStreamId', description='The stream id the connecting client will send traffic on', id=2, version=0, encodedLength=0, offset=8, componentTokenCount=3, encoding=Encoding{presence=REQUIRED, primitiveType=null, byteOrder=LITTLE_ENDIAN, minValue=null, maxValue=null, nullValue=null, constValue=null, characterEncoding='null', epoch='unix', timeUnit=nanosecond, semanticType='null'}}
-    //Token{signal=ENCODING, name='int32', description='The stream id the connecting client will send traffic on', id=-1, version=0, encodedLength=4, offset=8, componentTokenCount=1, encoding=Encoding{presence=REQUIRED, primitiveType=INT32, byteOrder=LITTLE_ENDIAN, minValue=null, maxValue=null, nullValue=null, constValue=null, characterEncoding='null', epoch='unix', timeUnit=nanosecond, semanticType='null'}}
+    // Token{signal=BEGIN_FIELD, name='sendingStreamId', description='The stream id the connecting
+    // client will send traffic on', id=2, version=0, encodedLength=0, offset=8,
+    // componentTokenCount=3, encoding=Encoding{presence=REQUIRED, primitiveType=null,
+    // byteOrder=LITTLE_ENDIAN, minValue=null, maxValue=null, nullValue=null, constValue=null,
+    // characterEncoding='null', epoch='unix', timeUnit=nanosecond, semanticType='null'}}
+    // Token{signal=ENCODING, name='int32', description='The stream id the connecting client will
+    // send traffic on', id=-1, version=0, encodedLength=4, offset=8, componentTokenCount=1,
+    // encoding=Encoding{presence=REQUIRED, primitiveType=INT32, byteOrder=LITTLE_ENDIAN,
+    // minValue=null, maxValue=null, nullValue=null, constValue=null, characterEncoding='null',
+    // epoch='unix', timeUnit=nanosecond, semanticType='null'}}
     builder.append("sendingStreamId=");
     builder.append(sendingStreamId());
     builder.append('|');
-    //Token{signal=BEGIN_FIELD, name='receivingStreamId', description='The stream id the connecting client will receive data on', id=3, version=0, encodedLength=0, offset=12, componentTokenCount=3, encoding=Encoding{presence=REQUIRED, primitiveType=null, byteOrder=LITTLE_ENDIAN, minValue=null, maxValue=null, nullValue=null, constValue=null, characterEncoding='null', epoch='unix', timeUnit=nanosecond, semanticType='null'}}
-    //Token{signal=ENCODING, name='int32', description='The stream id the connecting client will receive data on', id=-1, version=0, encodedLength=4, offset=12, componentTokenCount=1, encoding=Encoding{presence=REQUIRED, primitiveType=INT32, byteOrder=LITTLE_ENDIAN, minValue=null, maxValue=null, nullValue=null, constValue=null, characterEncoding='null', epoch='unix', timeUnit=nanosecond, semanticType='null'}}
+    // Token{signal=BEGIN_FIELD, name='receivingStreamId', description='The stream id the connecting
+    // client will receive data on', id=3, version=0, encodedLength=0, offset=12,
+    // componentTokenCount=3, encoding=Encoding{presence=REQUIRED, primitiveType=null,
+    // byteOrder=LITTLE_ENDIAN, minValue=null, maxValue=null, nullValue=null, constValue=null,
+    // characterEncoding='null', epoch='unix', timeUnit=nanosecond, semanticType='null'}}
+    // Token{signal=ENCODING, name='int32', description='The stream id the connecting client will
+    // receive data on', id=-1, version=0, encodedLength=4, offset=12, componentTokenCount=1,
+    // encoding=Encoding{presence=REQUIRED, primitiveType=INT32, byteOrder=LITTLE_ENDIAN,
+    // minValue=null, maxValue=null, nullValue=null, constValue=null, characterEncoding='null',
+    // epoch='unix', timeUnit=nanosecond, semanticType='null'}}
     builder.append("receivingStreamId=");
     builder.append(receivingStreamId());
     builder.append('|');
-    //Token{signal=BEGIN_FIELD, name='clientSessionId', description='The session id for the client publication', id=4, version=0, encodedLength=0, offset=16, componentTokenCount=3, encoding=Encoding{presence=REQUIRED, primitiveType=null, byteOrder=LITTLE_ENDIAN, minValue=null, maxValue=null, nullValue=null, constValue=null, characterEncoding='null', epoch='unix', timeUnit=nanosecond, semanticType='null'}}
-    //Token{signal=ENCODING, name='int32', description='The session id for the client publication', id=-1, version=0, encodedLength=4, offset=16, componentTokenCount=1, encoding=Encoding{presence=REQUIRED, primitiveType=INT32, byteOrder=LITTLE_ENDIAN, minValue=null, maxValue=null, nullValue=null, constValue=null, characterEncoding='null', epoch='unix', timeUnit=nanosecond, semanticType='null'}}
+    // Token{signal=BEGIN_FIELD, name='clientSessionId', description='The session id for the client
+    // publication', id=4, version=0, encodedLength=0, offset=16, componentTokenCount=3,
+    // encoding=Encoding{presence=REQUIRED, primitiveType=null, byteOrder=LITTLE_ENDIAN,
+    // minValue=null, maxValue=null, nullValue=null, constValue=null, characterEncoding='null',
+    // epoch='unix', timeUnit=nanosecond, semanticType='null'}}
+    // Token{signal=ENCODING, name='int32', description='The session id for the client publication',
+    // id=-1, version=0, encodedLength=4, offset=16, componentTokenCount=1,
+    // encoding=Encoding{presence=REQUIRED, primitiveType=INT32, byteOrder=LITTLE_ENDIAN,
+    // minValue=null, maxValue=null, nullValue=null, constValue=null, characterEncoding='null',
+    // epoch='unix', timeUnit=nanosecond, semanticType='null'}}
     builder.append("clientSessionId=");
     builder.append(clientSessionId());
     builder.append('|');
-    //Token{signal=BEGIN_VAR_DATA, name='sendingChannel', description='The Aeron channel the client will send data on', id=5, version=0, encodedLength=0, offset=20, componentTokenCount=6, encoding=Encoding{presence=REQUIRED, primitiveType=null, byteOrder=LITTLE_ENDIAN, minValue=null, maxValue=null, nullValue=null, constValue=null, characterEncoding='null', epoch='unix', timeUnit=nanosecond, semanticType='null'}}
+    // Token{signal=BEGIN_VAR_DATA, name='sendingChannel', description='The Aeron channel the client
+    // will send data on', id=5, version=0, encodedLength=0, offset=20, componentTokenCount=6,
+    // encoding=Encoding{presence=REQUIRED, primitiveType=null, byteOrder=LITTLE_ENDIAN,
+    // minValue=null, maxValue=null, nullValue=null, constValue=null, characterEncoding='null',
+    // epoch='unix', timeUnit=nanosecond, semanticType='null'}}
     builder.append("sendingChannel=");
     builder.append(sendingChannel());
     builder.append('|');
-    //Token{signal=BEGIN_VAR_DATA, name='receivingChannel', description='The Aeron channel the client will receive data on', id=6, version=0, encodedLength=0, offset=-1, componentTokenCount=6, encoding=Encoding{presence=REQUIRED, primitiveType=null, byteOrder=LITTLE_ENDIAN, minValue=null, maxValue=null, nullValue=null, constValue=null, characterEncoding='null', epoch='unix', timeUnit=nanosecond, semanticType='null'}}
+    // Token{signal=BEGIN_VAR_DATA, name='receivingChannel', description='The Aeron channel the
+    // client will receive data on', id=6, version=0, encodedLength=0, offset=-1,
+    // componentTokenCount=6, encoding=Encoding{presence=REQUIRED, primitiveType=null,
+    // byteOrder=LITTLE_ENDIAN, minValue=null, maxValue=null, nullValue=null, constValue=null,
+    // characterEncoding='null', epoch='unix', timeUnit=nanosecond, semanticType='null'}}
     builder.append("receivingChannel=");
     builder.append(receivingChannel());
     builder.append('|');
-    //Token{signal=BEGIN_VAR_DATA, name='clientManagementChannel', description='The channel the client listens for management data on', id=6, version=0, encodedLength=0, offset=-1, componentTokenCount=6, encoding=Encoding{presence=REQUIRED, primitiveType=null, byteOrder=LITTLE_ENDIAN, minValue=null, maxValue=null, nullValue=null, constValue=null, characterEncoding='null', epoch='unix', timeUnit=nanosecond, semanticType='null'}}
+    // Token{signal=BEGIN_VAR_DATA, name='clientManagementChannel', description='The channel the
+    // client listens for management data on', id=6, version=0, encodedLength=0, offset=-1,
+    // componentTokenCount=6, encoding=Encoding{presence=REQUIRED, primitiveType=null,
+    // byteOrder=LITTLE_ENDIAN, minValue=null, maxValue=null, nullValue=null, constValue=null,
+    // characterEncoding='null', epoch='unix', timeUnit=nanosecond, semanticType='null'}}
     builder.append("clientManagementChannel=");
     builder.append(clientManagementChannel());
 

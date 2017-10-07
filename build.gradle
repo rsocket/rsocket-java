@@ -30,6 +30,10 @@ description = 'RSocket: stream oriented messaging passing with Reactive Stream s
 
 buildScan { licenseAgreementUrl = 'https://gradle.com/terms-of-service'; licenseAgree = 'yes' }
 
+googleJavaFormat {
+    toolVersion = '1.4'
+}
+
 subprojects {
     apply plugin: 'java'
     apply plugin: 'maven'
@@ -43,7 +47,7 @@ subprojects {
     compileJava {
         sourceCompatibility = 1.8
         targetCompatibility = 1.8
-        options.compilerArgs << "-Xlint:deprecation" // << "-Xlint:unchecked"
+        options.compilerArgs << '-Xlint:all,-overloads,-rawtypes,-unchecked'
     }
 
     ext {

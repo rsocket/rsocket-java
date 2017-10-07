@@ -38,7 +38,7 @@ public class LocalDuplexConnection implements DuplexConnection {
 
   @Override
   public Mono<Void> send(Publisher<Frame> frames) {
-    return Flux.from(frames).concatMap(this::sendOne).then();
+    return Flux.from(frames).flatMapSequential(this::sendOne).then();
   }
 
   @Override

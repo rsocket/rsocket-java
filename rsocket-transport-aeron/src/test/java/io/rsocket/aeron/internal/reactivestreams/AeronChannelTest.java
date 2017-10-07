@@ -129,8 +129,9 @@ public class AeronChannelTest {
 
     Flux<UnsafeBuffer> unsafeBufferObservable =
         Flux.range(1, count)
-            //.doOnNext(i -> LockSupport.parkNanos(TimeUnit.MICROSECONDS.toNanos(50)))
-            // .doOnNext(i -> System.out.println(Thread.currentThread() + " => client sending => " + i))
+            // .doOnNext(i -> LockSupport.parkNanos(TimeUnit.MICROSECONDS.toNanos(50)))
+            // .doOnNext(i -> System.out.println(Thread.currentThread() + " => client sending => " +
+            // i))
             .map(
                 i -> {
                   UnsafeBuffer buffer = new UnsafeBuffer(new byte[BitUtil.SIZE_OF_INT]);
@@ -236,7 +237,7 @@ public class AeronChannelTest {
        // System.out.println("\nGOT AERON ERROR => \n [" + writer.toString() + "]\n\n");
     });*/
 
-    //ctx.driverTimeoutMs(Integer.MAX_VALUE);
+    // ctx.driverTimeoutMs(Integer.MAX_VALUE);
     Aeron aeron = Aeron.connect(ctx);
 
     Subscription serverSubscription =
@@ -282,7 +283,7 @@ public class AeronChannelTest {
     serverChannel
         .receive()
         // latch.countDown();
-        //System.out.println("received -> " + f.getInt(0));
+        // System.out.println("received -> " + f.getInt(0));
         .flatMap(serverChannel::send, 32)
         .doOnError(Throwable::printStackTrace)
         .subscribe();
@@ -316,12 +317,12 @@ public class AeronChannelTest {
     ThreadLocalRandom.current().nextBytes(bytes);
 
     Flux.range(1, count)
-        //.doOnRequest(l -> System.out.println("requested => " + l))
+        // .doOnRequest(l -> System.out.println("requested => " + l))
         .flatMap(
             i -> {
-              //System.out.println("Sending -> " + i);
+              // System.out.println("Sending -> " + i);
 
-              //UnsafeBuffer b = new UnsafeBuffer(new byte[BitUtil.SIZE_OF_INT]);
+              // UnsafeBuffer b = new UnsafeBuffer(new byte[BitUtil.SIZE_OF_INT]);
               UnsafeBuffer b = new UnsafeBuffer(bytes);
               b.putInt(0, i);
 
