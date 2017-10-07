@@ -176,13 +176,29 @@ public class AckConnectDecoder {
     }
     builder.append(BLOCK_LENGTH);
     builder.append("):");
-    //Token{signal=BEGIN_FIELD, name='channelId', description='The AeronChannel id', id=1, version=0, encodedLength=0, offset=0, componentTokenCount=3, encoding=Encoding{presence=REQUIRED, primitiveType=null, byteOrder=LITTLE_ENDIAN, minValue=null, maxValue=null, nullValue=null, constValue=null, characterEncoding='null', epoch='unix', timeUnit=nanosecond, semanticType='null'}}
-    //Token{signal=ENCODING, name='int64', description='The AeronChannel id', id=-1, version=0, encodedLength=8, offset=0, componentTokenCount=1, encoding=Encoding{presence=REQUIRED, primitiveType=INT64, byteOrder=LITTLE_ENDIAN, minValue=null, maxValue=null, nullValue=null, constValue=null, characterEncoding='null', epoch='unix', timeUnit=nanosecond, semanticType='null'}}
+    // Token{signal=BEGIN_FIELD, name='channelId', description='The AeronChannel id', id=1,
+    // version=0, encodedLength=0, offset=0, componentTokenCount=3,
+    // encoding=Encoding{presence=REQUIRED, primitiveType=null, byteOrder=LITTLE_ENDIAN,
+    // minValue=null, maxValue=null, nullValue=null, constValue=null, characterEncoding='null',
+    // epoch='unix', timeUnit=nanosecond, semanticType='null'}}
+    // Token{signal=ENCODING, name='int64', description='The AeronChannel id', id=-1, version=0,
+    // encodedLength=8, offset=0, componentTokenCount=1, encoding=Encoding{presence=REQUIRED,
+    // primitiveType=INT64, byteOrder=LITTLE_ENDIAN, minValue=null, maxValue=null, nullValue=null,
+    // constValue=null, characterEncoding='null', epoch='unix', timeUnit=nanosecond,
+    // semanticType='null'}}
     builder.append("channelId=");
     builder.append(channelId());
     builder.append('|');
-    //Token{signal=BEGIN_FIELD, name='serverSessionId', description='The session id for the server publication', id=2, version=0, encodedLength=0, offset=8, componentTokenCount=3, encoding=Encoding{presence=REQUIRED, primitiveType=null, byteOrder=LITTLE_ENDIAN, minValue=null, maxValue=null, nullValue=null, constValue=null, characterEncoding='null', epoch='unix', timeUnit=nanosecond, semanticType='null'}}
-    //Token{signal=ENCODING, name='int32', description='The session id for the server publication', id=-1, version=0, encodedLength=4, offset=8, componentTokenCount=1, encoding=Encoding{presence=REQUIRED, primitiveType=INT32, byteOrder=LITTLE_ENDIAN, minValue=null, maxValue=null, nullValue=null, constValue=null, characterEncoding='null', epoch='unix', timeUnit=nanosecond, semanticType='null'}}
+    // Token{signal=BEGIN_FIELD, name='serverSessionId', description='The session id for the server
+    // publication', id=2, version=0, encodedLength=0, offset=8, componentTokenCount=3,
+    // encoding=Encoding{presence=REQUIRED, primitiveType=null, byteOrder=LITTLE_ENDIAN,
+    // minValue=null, maxValue=null, nullValue=null, constValue=null, characterEncoding='null',
+    // epoch='unix', timeUnit=nanosecond, semanticType='null'}}
+    // Token{signal=ENCODING, name='int32', description='The session id for the server publication',
+    // id=-1, version=0, encodedLength=4, offset=8, componentTokenCount=1,
+    // encoding=Encoding{presence=REQUIRED, primitiveType=INT32, byteOrder=LITTLE_ENDIAN,
+    // minValue=null, maxValue=null, nullValue=null, constValue=null, characterEncoding='null',
+    // epoch='unix', timeUnit=nanosecond, semanticType='null'}}
     builder.append("serverSessionId=");
     builder.append(serverSessionId());
 

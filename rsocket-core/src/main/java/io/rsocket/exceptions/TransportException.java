@@ -16,6 +16,9 @@
 package io.rsocket.exceptions;
 
 public class TransportException extends Throwable {
+
+  private static final long serialVersionUID = 7541914004190564240L;
+
   public TransportException(Throwable t) {
     super(t);
   }

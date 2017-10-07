@@ -83,7 +83,7 @@ public class FragmentationPerf {
     Frame frame = smallFragmentAssembler.reassemble();
     input.bh.consume(frame);
     frame.release();
-    //input.smallFragmentAssembler.clear();
+    // input.smallFragmentAssembler.clear();
   }
 
   private static ByteBuffer createRandomBytes(int size) {

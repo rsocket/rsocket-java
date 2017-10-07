@@ -1,4 +1,3 @@
-
 /*
  * Copyright 2016 Netflix, Inc.
  *
@@ -165,7 +164,8 @@ public class MySubscriber<T> extends TestSubscriber<T> {
     consoleUtils.info("PASSED: " + message);
   }
 
-  // there might be a race condition with take, so this behavior is defined as: either wait until we have received n
+  // there might be a race condition with take, so this behavior is defined as: either wait until we
+  // have received n
   // myValues and then cancel, or cancel if we already have n myValues
   public final void take(long n) {
     if (values.size() >= n) {
