@@ -34,7 +34,7 @@ public abstract class BaseClientServerTest<T extends ClientSetupRule<?, ?>> {
   public void testFireNForget10() {
     long outputCount =
         Flux.range(1, 10)
-            .flatMap(i -> setup.getRSocket().fireAndForget(testPayload(i)))
+            .flatMap(i -> setup.getRSocket().fireAndForget(createTestPayload(i)))
             .doOnError(Throwable::printStackTrace)
             .count()
             .block();
@@ -59,7 +59,7 @@ public abstract class BaseClientServerTest<T extends ClientSetupRule<?, ?>> {
     long outputCount =
         Flux.range(1, 1)
             .flatMap(
-                i -> setup.getRSocket().requestResponse(testPayload(i)).map(Payload::getDataUtf8))
+                i -> setup.getRSocket().requestResponse(createTestPayload(i)).map(Payload::getDataUtf8))
             .doOnError(Throwable::printStackTrace)
             .count()
             .block();
@@ -72,7 +72,7 @@ public abstract class BaseClientServerTest<T extends ClientSetupRule<?, ?>> {
     long outputCount =
         Flux.range(1, 10)
             .flatMap(
-                i -> setup.getRSocket().requestResponse(testPayload(i)).map(Payload::getDataUtf8))
+                i -> setup.getRSocket().requestResponse(createTestPayload(i)).map(Payload::getDataUtf8))
             .doOnError(Throwable::printStackTrace)
             .count()
             .block();
@@ -80,7 +80,7 @@ public abstract class BaseClientServerTest<T extends ClientSetupRule<?, ?>> {
     assertEquals(10, outputCount);
   }
 
-  private Payload testPayload(int metadataPresent) {
+  private Payload createTestPayload(int metadataPresent) {
     String metadata;
     switch (metadataPresent % 5) {
       case 0:
@@ -101,7 +101,7 @@ public abstract class BaseClientServerTest<T extends ClientSetupRule<?, ?>> {
     long outputCount =
         Flux.range(1, 100)
             .flatMap(
-                i -> setup.getRSocket().requestResponse(testPayload(i)).map(Payload::getDataUtf8))
+                i -> setup.getRSocket().requestResponse(createTestPayload(i)).map(Payload::getDataUtf8))
             .doOnError(Throwable::printStackTrace)
             .count()
             .block();
@@ -114,7 +114,7 @@ public abstract class BaseClientServerTest<T extends ClientSetupRule<?, ?>> {
     long outputCount =
         Flux.range(1, 10_000)
             .flatMap(
-                i -> setup.getRSocket().requestResponse(testPayload(i)).map(Payload::getDataUtf8))
+                i -> setup.getRSocket().requestResponse(createTestPayload(i)).map(Payload::getDataUtf8))
             .doOnError(Throwable::printStackTrace)
             .count()
             .block();
@@ -124,7 +124,7 @@ public abstract class BaseClientServerTest<T extends ClientSetupRule<?, ?>> {
 
   @Test(timeout = 10000)
   public void testRequestStream() {
-    Flux<Payload> publisher = setup.getRSocket().requestStream(testPayload(3));
+    Flux<Payload> publisher = setup.getRSocket().requestStream(createTestPayload(3));
 
     long count = publisher.take(5).count().block();
 
@@ -136,7 +136,7 @@ public abstract class BaseClientServerTest<T extends ClientSetupRule<?, ?>> {
     CountdownBaseSubscriber ts = new CountdownBaseSubscriber();
     ts.expect(5);
 
-    setup.getRSocket().requestStream(testPayload(3)).subscribe(ts);
+    setup.getRSocket().requestStream(createTestPayload(3)).subscribe(ts);
 
     ts.await();
     assertEquals(5, ts.count());
@@ -152,7 +152,7 @@ public abstract class BaseClientServerTest<T extends ClientSetupRule<?, ?>> {
   public void testRequestStreamWithDelayedRequestN() {
     CountdownBaseSubscriber ts = new CountdownBaseSubscriber();
 
-    setup.getRSocket().requestStream(testPayload(3)).subscribe(ts);
+    setup.getRSocket().requestStream(createTestPayload(3)).subscribe(ts);
 
     ts.expect(5);
 
@@ -178,7 +178,7 @@ public abstract class BaseClientServerTest<T extends ClientSetupRule<?, ?>> {
 
   @Test(timeout = 10000)
   public void testChannel1() {
-    Flux<Payload> publisher = setup.getRSocket().requestChannel(Flux.just(testPayload(0)));
+    Flux<Payload> publisher = setup.getRSocket().requestChannel(Flux.just(createTestPayload(0)));
 
     long count = publisher.count().block();
 
@@ -190,7 +190,7 @@ public abstract class BaseClientServerTest<T extends ClientSetupRule<?, ?>> {
     Flux<Payload> publisher =
         setup
             .getRSocket()
-            .requestChannel(Flux.just(testPayload(0), testPayload(1), testPayload(2)));
+            .requestChannel(Flux.just(createTestPayload(0), createTestPayload(1), createTestPayload(2)));
 
     long count = publisher.count().block();
 
