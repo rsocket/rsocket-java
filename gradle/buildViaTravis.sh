@@ -1,7 +1,10 @@
 #!/bin/bash
 # This script will build the project.
 
-if [ "$TRAVIS_PULL_REQUEST" != "false" ]; then
+if [ "$TRAVIS_JDK_VERSION" == "oraclejdk9" ]; then
+  echo -e "Build Branch with JDK9 [$JAVA_HOME] => Branch [$TRAVIS_BRANCH]"
+  ./gradlew build
+elif [ "$TRAVIS_PULL_REQUEST" != "false" ]; then
   echo -e "Build Pull Request #$TRAVIS_PULL_REQUEST => Branch [$TRAVIS_BRANCH]"
   ./gradlew build
 elif [ "$TRAVIS_PULL_REQUEST" == "false" ] && [ "$TRAVIS_TAG" == "" ]; then
