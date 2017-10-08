@@ -28,28 +28,28 @@ import io.rsocket.uri.UriTransportRegistry;
 import org.junit.Test;
 
 public class NettyUriTransportRegistryTest {
-  @Test
+  @Test(timeout = 5_000L)
   public void testTcpClient() {
     ClientTransport transport = UriTransportRegistry.clientForUri("tcp://localhost:9898");
 
     assertTrue(transport instanceof TcpClientTransport);
   }
 
-  @Test
+  @Test(timeout = 5_000L)
   public void testTcpServer() {
     ServerTransport transport = UriTransportRegistry.serverForUri("tcp://localhost:9898");
 
     assertTrue(transport instanceof TcpServerTransport);
   }
 
-  @Test
+  @Test(timeout = 5_000L)
   public void testWsClient() {
     ClientTransport transport = UriTransportRegistry.clientForUri("ws://localhost:9898");
 
     assertTrue(transport instanceof WebsocketClientTransport);
   }
 
-  @Test
+  @Test(timeout = 5_000L)
   public void testWsServer() {
     ServerTransport transport = UriTransportRegistry.serverForUri("ws://localhost:9898");
 
