@@ -208,7 +208,7 @@ public class AeronClientChannelConnector
             aeronWrapper.unavailableImageHandlers(
                 image -> {
                   if (destinationStreamId == image.sessionId()) {
-                    clientSubscriptions.remove(channelId);
+                    clientSubscriptions.remove(aeronClientConfig.receiveSocketAddress);
                     return true;
                   } else {
                     return false;
@@ -237,7 +237,7 @@ public class AeronClientChannelConnector
 
           } catch (Throwable t) {
             logger.error("Error creating a channel to {}", aeronClientConfig);
-            clientSubscriptions.remove(channelId);
+            clientSubscriptions.remove(aeronClientConfig.receiveSocketAddress);
             subscriber.onError(t);
           }
         });
