@@ -253,7 +253,6 @@ class RSocketClient implements RSocket {
 
                           sendProcessor.onNext(requestFrame);
                         } else if (contains(streamId)
-                            && connection.availability() > 0.0
                             && !receiver.isTerminated()) {
                           sendProcessor.onNext(Frame.RequestN.from(streamId, l));
                         }
@@ -261,7 +260,6 @@ class RSocketClient implements RSocket {
                   .doOnError(
                       t -> {
                         if (contains(streamId)
-                            && connection.availability() > 0.0
                             && !receiver.isTerminated()) {
                           sendProcessor.onNext(Frame.Error.from(streamId, t));
                         }
@@ -269,7 +267,6 @@ class RSocketClient implements RSocket {
                   .doOnCancel(
                       () -> {
                         if (contains(streamId)
-                            && connection.availability() > 0.0
                             && !receiver.isTerminated()) {
                           sendProcessor.onNext(Frame.Cancel.from(streamId));
                         }
@@ -312,7 +309,6 @@ class RSocketClient implements RSocket {
 
               boolean isValidToSendFrame() {
                 return contains(streamId)
-                    && connection.availability() > 0.0
                     && !receiver.isTerminated();
               }
 

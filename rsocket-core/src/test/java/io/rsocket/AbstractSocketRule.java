@@ -19,6 +19,8 @@ package io.rsocket;
 import io.rsocket.test.util.TestDuplexConnection;
 import io.rsocket.test.util.TestSubscriber;
 import java.util.concurrent.ConcurrentLinkedQueue;
+
+import org.junit.Assert;
 import org.junit.rules.ExternalResource;
 import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
@@ -50,4 +52,10 @@ public abstract class AbstractSocketRule<T extends RSocket> extends ExternalReso
   }
 
   protected abstract T newRSocket();
+
+  public void assertNoConnectionErrors() {
+    if (errors.size() > 1) {
+      Assert.fail("No connection errors expected: " + errors.peek().toString());
+    }
+  }
 }

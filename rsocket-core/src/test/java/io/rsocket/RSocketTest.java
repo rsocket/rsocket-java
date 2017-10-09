@@ -28,6 +28,7 @@ import io.rsocket.util.PayloadImpl;
 import java.util.ArrayList;
 import java.util.concurrent.CountDownLatch;
 import org.hamcrest.MatcherAssert;
+import org.junit.Assert;
 import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
@@ -54,7 +55,6 @@ public class RSocketTest {
   }
 
   @Test(timeout = 2000)
-  @Ignore
   public void testHandlerEmitsError() {
     rule.setRequestAcceptor(
         new AbstractRSocket() {
@@ -66,7 +66,11 @@ public class RSocketTest {
     Subscriber<Payload> subscriber = TestSubscriber.create();
     rule.crs.requestResponse(PayloadImpl.EMPTY).subscribe(subscriber);
     verify(subscriber).onError(any(ApplicationException.class));
-    rule.assertNoErrors();
+
+    // Client sees error through normal API
+    rule.assertNoClientErrors();
+
+    rule.assertServerError("java.lang.NullPointerException: Deliberate exception.");
   }
 
   @Test(timeout = 2000)
@@ -149,10 +153,36 @@ public class RSocketTest {
     }
 
     public void assertNoErrors() {
+      assertNoClientErrors();
+      assertNoServerErrors();
+    }
+
+    public void assertNoClientErrors() {
       MatcherAssert.assertThat(
           "Unexpected error on the client connection.", clientErrors, is(empty()));
+    }
+
+    public void assertNoServerErrors() {
       MatcherAssert.assertThat(
           "Unexpected error on the server connection.", serverErrors, is(empty()));
     }
+
+    public void assertClientError(String s) {
+      assertError(s, "client", this.clientErrors);
+    }
+
+    public void assertServerError(String s) {
+      assertError(s, "server", this.serverErrors);
+    }
+  }
+
+  public static void assertError(String s, String mode, ArrayList<Throwable> errors) {
+    for (Throwable t: errors) {
+      if (t.toString().equals(s)) {
+        return;
+      }
+    }
+
+    Assert.fail("Expected " + mode + " connection error: " + s + " other errors " + errors.size());
   }
 }
