@@ -19,7 +19,6 @@ package io.rsocket;
 import io.rsocket.test.util.TestDuplexConnection;
 import io.rsocket.test.util.TestSubscriber;
 import java.util.concurrent.ConcurrentLinkedQueue;
-
 import org.junit.Assert;
 import org.junit.rules.ExternalResource;
 import org.junit.runner.Description;

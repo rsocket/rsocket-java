@@ -38,7 +38,6 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.reactivestreams.Publisher;
@@ -169,7 +168,7 @@ public class RSocketClientTest {
     verify(responseSub).onSubscribe(any(Subscription.class));
 
     // TODO this should get the error reported through the response subscription
-//    verify(responseSub).onError(any(RuntimeException.class));
+    //    verify(responseSub).onError(any(RuntimeException.class));
   }
 
   @Test(timeout = 2_000)

@@ -29,7 +29,6 @@ import java.util.ArrayList;
 import java.util.concurrent.CountDownLatch;
 import org.hamcrest.MatcherAssert;
 import org.junit.Assert;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExternalResource;
@@ -177,7 +176,7 @@ public class RSocketTest {
   }
 
   public static void assertError(String s, String mode, ArrayList<Throwable> errors) {
-    for (Throwable t: errors) {
+    for (Throwable t : errors) {
       if (t.toString().equals(s)) {
         return;
       }
