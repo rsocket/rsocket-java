@@ -7,6 +7,7 @@ import java.util.function.Consumer;
 import javax.annotation.Nonnull;
 import reactor.core.publisher.Mono;
 
+/** Facade used to enable lease support in client and server rsocket factories */
 public class LeaseSupport {
   private final LeaseManager requesterLeaseManager;
   private final LeaseManager responderLeaseManager;

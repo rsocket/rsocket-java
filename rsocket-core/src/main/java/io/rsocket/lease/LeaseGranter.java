@@ -11,6 +11,10 @@ import javax.annotation.Nonnull;
 import reactor.util.annotation.NonNull;
 import reactor.util.annotation.Nullable;
 
+/**
+ * Grants lease to requester rsocket for incoming LEASE frames, and responder rsocket for outgoing
+ * LEASE frames
+ */
 abstract class LeaseGranter {
   protected final DuplexConnection senderConnection;
   private final LeaseManager requesterLeaseManager;

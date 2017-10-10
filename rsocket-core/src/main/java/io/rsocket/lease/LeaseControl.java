@@ -6,6 +6,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import reactor.core.publisher.Flux;
 
+/** Provides means to grant and listen for lease changes from peer */
 public class LeaseControl {
   private final LeaseManager requesterLeaseManager;
   private final LeaseGranter leaseGranter;

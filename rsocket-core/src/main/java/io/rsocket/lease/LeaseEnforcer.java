@@ -8,7 +8,7 @@ import javax.annotation.Nonnull;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-
+/** Protects rsocket from requests without lease */
 class LeaseEnforcer extends RSocketProxy {
   private final LeaseManager leaseManager;
   private final String tag;

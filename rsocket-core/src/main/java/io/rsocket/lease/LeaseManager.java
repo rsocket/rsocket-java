@@ -8,7 +8,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import reactor.core.publisher.*;
-
+/** Updates lease as it is used and provides source of notifications about those updates */
 class LeaseManager {
   private static final Lease INVALID_LEASE = new LeaseImpl(0, 0);
   private static final MutableLease INVALID_MUTABLE_LEASE = new MutableLease(INVALID_LEASE);
