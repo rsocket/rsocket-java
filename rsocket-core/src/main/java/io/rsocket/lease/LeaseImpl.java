@@ -76,24 +76,4 @@ public final class LeaseImpl implements Lease {
         + expiry
         + '}';
   }
-
-  @Override
-  public boolean equals(Object o) {
-    if (this == o) return true;
-    if (o == null || getClass() != o.getClass()) return false;
-
-    LeaseImpl lease = (LeaseImpl) o;
-
-    if (allowedRequests != lease.allowedRequests) return false;
-    if (ttl != lease.ttl) return false;
-    return metadata != null ? metadata.equals(lease.metadata) : lease.metadata == null;
-  }
-
-  @Override
-  public int hashCode() {
-    int result = allowedRequests;
-    result = 31 * result + ttl;
-    result = 31 * result + (metadata != null ? metadata.hashCode() : 0);
-    return result;
-  }
 }

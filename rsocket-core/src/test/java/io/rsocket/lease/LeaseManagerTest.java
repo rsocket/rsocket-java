@@ -1,12 +1,5 @@
 package io.rsocket.lease;
 
-import static java.time.Duration.ofMillis;
-import static java.time.Duration.ofSeconds;
-import static org.hamcrest.MatcherAssert.assertThat;
-
-import java.nio.ByteBuffer;
-import java.time.Duration;
-import java.util.function.Supplier;
 import org.junit.Before;
 import org.junit.Test;
 import reactor.core.publisher.Flux;
@@ -15,13 +8,21 @@ import reactor.core.publisher.MonoSink;
 import reactor.core.scheduler.Schedulers;
 import reactor.test.StepVerifier;
 
+import java.nio.ByteBuffer;
+import java.time.Duration;
+
+import static java.time.Duration.ofMillis;
+import static java.time.Duration.ofSeconds;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
+
 public class LeaseManagerTest {
 
   private LeaseManager leaseManager;
   private ByteBuffer buffer;
   private int allowedRequests;
   private int ttl;
-  private Supplier<Lease> leaseProducer;
+  private Lease lease;
 
   @Before
   public void setUp() throws Exception {
@@ -29,7 +30,7 @@ public class LeaseManagerTest {
     buffer = ByteBuffer.allocate(1);
     allowedRequests = 42;
     ttl = 1_000;
-    leaseProducer = () -> new LeaseImpl(allowedRequests, ttl, buffer);
+    lease = new LeaseImpl(allowedRequests, ttl, buffer);
   }
 
   @Test
@@ -41,7 +42,6 @@ public class LeaseManagerTest {
   @Test
   public void leaseGranted() throws Exception {
 
-    Lease lease = leaseProducer.get();
     StepVerifier.create(
             leaseManager
                 .getLeases()
@@ -52,8 +52,8 @@ public class LeaseManagerTest {
                             .take(1)
                             .subscribe(ev -> leaseManager.leaseGranted(lease)))
                 .take(2))
-        .consumeNextWith(this::invalidAssertions)
-        .expectNext(leaseProducer.get())
+        .consumeNextWith(this::assertLeaseInvalid)
+        .consumeNextWith(l -> assertLeaseEquals(lease, l))
         .expectComplete()
         .verify(ofSeconds(1));
   }
@@ -61,7 +61,6 @@ public class LeaseManagerTest {
   @Test
   public void leaseGrantUsed() throws Exception {
 
-    Lease lease = leaseProducer.get();
     StepVerifier.create(
             leaseManager
                 .getLeases()
@@ -76,19 +75,18 @@ public class LeaseManagerTest {
                                   leaseManager.useLease(1);
                                 }))
                 .take(3))
-        .consumeNextWith(this::invalidAssertions)
-        .expectNext(leaseProducer.get())
-        .expectNext(new LeaseImpl(allowedRequests - 1, ttl, buffer))
+        .consumeNextWith(this::assertLeaseInvalid)
+        .consumeNextWith(l -> assertLeaseEquals(lease, l))
+        .consumeNextWith(l -> assertLeaseEquals(new LeaseImpl(allowedRequests - 1, ttl, buffer), l))
         .expectComplete()
         .verify(ofSeconds(1));
   }
 
   @Test
   public void subscribeAfterLeaseGrant() throws Exception {
-    Lease lease = leaseProducer.get();
     leaseManager.leaseGranted(lease);
     StepVerifier.create(leaseManager.getLeases().take(1))
-        .expectNext(leaseProducer.get())
+        .consumeNextWith(l -> assertLeaseEquals(lease, l))
         .expectComplete()
         .verify(ofSeconds(1));
   }
@@ -113,7 +111,7 @@ public class LeaseManagerTest {
                                   leaseManager.leaseGranted(leaseLoss);
                                   leaseManager.leaseGranted(leaseLoss);
                                 })))
-        .consumeNextWith(this::invalidAssertions)
+        .consumeNextWith(this::assertLeaseInvalid)
         .expectNoEvent(Duration.ofSeconds(1))
         .expectComplete()
         .verify(ofSeconds(3));
@@ -144,9 +142,14 @@ public class LeaseManagerTest {
         .verifyComplete();
   }
 
-  private void invalidAssertions(Lease l) {
+  private void assertLeaseInvalid(Lease l) {
     assertThat("start with invalid lease", !l.isValid());
     assertThat("start with expired lease", l.isExpired());
     assertThat("start with no requests lease", l.getAllowedRequests() == 0);
+  }
+
+  private void assertLeaseEquals(Lease lease, Lease l) {
+    assertThat("allowed requests is equal", l.getAllowedRequests(), equalTo(lease.getAllowedRequests()));
+    assertThat("timetolive is equal", l.getTtl(), equalTo(lease.getTtl()));
   }
 }
