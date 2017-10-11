@@ -51,11 +51,11 @@ public class LeaseSupport {
   }
 
   public RSocketInterceptor getRequesterEnforcer() {
-    return rsocket -> new LeaseEnforcer(rsocket, requesterLeaseManager, "requester");
+    return rsocket -> new LeaseEnforcingRSocket(rsocket, requesterLeaseManager, "requester");
   }
 
   public RSocketInterceptor getResponderEnforcer() {
-    return rsocket -> new LeaseEnforcer(rsocket, responderLeaseManager, "responder");
+    return rsocket -> new LeaseEnforcingRSocket(rsocket, responderLeaseManager, "responder");
   }
 
   public LeaseControl getLeaseControl() {

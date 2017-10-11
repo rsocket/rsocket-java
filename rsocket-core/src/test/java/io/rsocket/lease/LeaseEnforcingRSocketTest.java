@@ -13,7 +13,7 @@ import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-public class LeaseEnforcerTest {
+public class LeaseEnforcingRSocketTest {
 
   private LeaseManager leaseManager;
   private RSocket leaseRsocket;
@@ -23,7 +23,8 @@ public class LeaseEnforcerTest {
   public void setUp() throws Exception {
     leaseManager = new LeaseManager("test");
 
-    RSocketInterceptor enforcer = rSocket -> new LeaseEnforcer(rSocket, leaseManager, "test");
+    RSocketInterceptor enforcer =
+        rSocket -> new LeaseEnforcingRSocket(rSocket, leaseManager, "test");
     leaseRsocket = enforcer.apply(new EchoRSocket());
     payload = new PayloadImpl("payload");
   }

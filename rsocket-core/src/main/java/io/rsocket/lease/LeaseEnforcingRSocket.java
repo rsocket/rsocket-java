@@ -9,11 +9,12 @@ import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 /** Protects rsocket from requests without lease */
-class LeaseEnforcer extends RSocketProxy {
+class LeaseEnforcingRSocket extends RSocketProxy {
   private final LeaseManager leaseManager;
   private final String tag;
 
-  LeaseEnforcer(@Nonnull RSocket source, @Nonnull LeaseManager leaseManager, @Nonnull String tag) {
+  LeaseEnforcingRSocket(
+      @Nonnull RSocket source, @Nonnull LeaseManager leaseManager, @Nonnull String tag) {
     super(source);
     this.leaseManager = leaseManager;
     this.tag = tag;
@@ -41,7 +42,7 @@ class LeaseEnforcer extends RSocketProxy {
 
   @Override
   public String toString() {
-    return "LeaseEnforcer{" + "tag=" + tag + '}';
+    return "LeaseEnforcingRSocket{" + "tag=" + tag + '}';
   }
 
   private <T> Mono<T> requestMono(Supplier<Mono<T>> request) {

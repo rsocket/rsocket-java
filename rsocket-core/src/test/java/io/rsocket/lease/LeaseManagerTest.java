@@ -1,5 +1,12 @@
 package io.rsocket.lease;
 
+import static java.time.Duration.ofMillis;
+import static java.time.Duration.ofSeconds;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
+
+import java.nio.ByteBuffer;
+import java.time.Duration;
 import org.junit.Before;
 import org.junit.Test;
 import reactor.core.publisher.Flux;
@@ -7,14 +14,6 @@ import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoSink;
 import reactor.core.scheduler.Schedulers;
 import reactor.test.StepVerifier;
-
-import java.nio.ByteBuffer;
-import java.time.Duration;
-
-import static java.time.Duration.ofMillis;
-import static java.time.Duration.ofSeconds;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
 
 public class LeaseManagerTest {
 
@@ -149,7 +148,8 @@ public class LeaseManagerTest {
   }
 
   private void assertLeaseEquals(Lease lease, Lease l) {
-    assertThat("allowed requests is equal", l.getAllowedRequests(), equalTo(lease.getAllowedRequests()));
+    assertThat(
+        "allowed requests is equal", l.getAllowedRequests(), equalTo(lease.getAllowedRequests()));
     assertThat("timetolive is equal", l.getTtl(), equalTo(lease.getTtl()));
   }
 }
