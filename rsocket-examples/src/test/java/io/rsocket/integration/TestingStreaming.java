@@ -15,18 +15,18 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 public class TestingStreaming {
-  Supplier<ServerTransport<? extends Closeable>> serverSupplier =
+  private Supplier<ServerTransport<? extends Closeable>> serverSupplier =
       () -> LocalServerTransport.create("test");
 
-  Supplier<ClientTransport> clientSupplier = () -> LocalClientTransport.create("test");
+  private Supplier<ClientTransport> clientSupplier = () -> LocalClientTransport.create("test");
 
   @Test(expected = ApplicationException.class)
-  public void testRangeButThrowException() throws Exception {
+  public void testRangeButThrowException() {
     Closeable server = null;
     try {
       server =
           RSocketFactory.receive()
-              .errorConsumer(t -> t.printStackTrace())
+              .errorConsumer(Throwable::printStackTrace)
               .acceptor(
                   (connectionSetupPayload, rSocket) -> {
                     AbstractRSocket abstractRSocket =
@@ -65,12 +65,12 @@ public class TestingStreaming {
   }
 
   @Test
-  public void testRangeOfConsumers() throws Exception {
+  public void testRangeOfConsumers() {
     Closeable server = null;
     try {
       server =
           RSocketFactory.receive()
-              .errorConsumer(t -> t.printStackTrace())
+              .errorConsumer(Throwable::printStackTrace)
               .acceptor(
                   (connectionSetupPayload, rSocket) -> {
                     AbstractRSocket abstractRSocket =
@@ -102,30 +102,21 @@ public class TestingStreaming {
     }
   }
 
-  public Flux<Payload> consumer(String s) {
-    Mono<RSocket> test =
-        RSocketFactory.connect()
-            .errorConsumer(t -> t.printStackTrace())
-            .transport(clientSupplier)
-            .start();
-
-    Flux<Payload> payloadFlux =
-        test.flatMapMany(
+  private Flux<Payload> consumer(String s) {
+    return RSocketFactory.connect()
+        .errorConsumer(Throwable::printStackTrace)
+        .transport(clientSupplier)
+        .start()
+        .flatMapMany(
             rSocket -> {
               AtomicInteger count = new AtomicInteger();
               return Flux.range(1, 100)
-                  .flatMap(
-                      i -> {
-                        return rSocket.requestStream(new PayloadImpl("i -> " + i)).take(100);
-                      },
-                      1);
+                  .flatMap(i -> rSocket.requestStream(new PayloadImpl("i -> " + i)).take(100), 1);
             });
-
-    return payloadFlux;
   }
 
   @Test
-  public void testSingleConsumer() throws Exception {
+  public void testSingleConsumer() {
     Closeable server = null;
 
     try {
