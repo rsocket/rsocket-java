@@ -70,7 +70,6 @@ abstract class LeaseGranter {
   private static class ClientLeaseGranter extends LeaseGranter {
     private boolean leaseReceived;
     private Lease pendingSentLease;
-    private final Object lock = new Object();
 
     ClientLeaseGranter(
         DuplexConnection senderConnection,
@@ -83,7 +82,7 @@ abstract class LeaseGranter {
     @Override
     Consumer<Frame> grantedLeasesReceiver() {
       return f -> {
-        synchronized (lock) {
+        synchronized (this) {
           leaseReceived = true;
           if (pendingSentLease != null) {
             Lease lease = pendingSentLease;
@@ -100,7 +99,7 @@ abstract class LeaseGranter {
     @Override
     void grantLease(int numberOfRequests, int timeToLive, ByteBuffer metadata) {
       LeaseImpl lease = new LeaseImpl(numberOfRequests, timeToLive, metadata);
-      synchronized (lock) {
+      synchronized (this) {
         if (!leaseReceived) {
           pendingSentLease = lease;
         } else {
@@ -113,7 +112,6 @@ abstract class LeaseGranter {
   private static class ServerLeaseGranter extends LeaseGranter {
     private boolean validState = true;
     private boolean leaseGranted;
-    private final Object lock = new Object();
 
     ServerLeaseGranter(
         DuplexConnection senderConnection,
@@ -126,7 +124,7 @@ abstract class LeaseGranter {
     @Override
     Consumer<Frame> grantedLeasesReceiver() {
       return f -> {
-        synchronized (lock) {
+        synchronized (this) {
           if (!leaseGranted) {
             validState = false;
             RejectedSetupException exception =
@@ -145,7 +143,7 @@ abstract class LeaseGranter {
 
     @Override
     void grantLease(int numberOfRequests, int timeToLive, @Nullable ByteBuffer metadata) {
-      synchronized (lock) {
+      synchronized (this) {
         if (validState) {
           leaseGranted = true;
           sendLease(new LeaseImpl(numberOfRequests, timeToLive, metadata));
