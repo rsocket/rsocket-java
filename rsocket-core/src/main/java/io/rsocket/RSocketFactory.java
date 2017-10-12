@@ -150,9 +150,6 @@ public class RSocketFactory {
 
     private Supplier<Function<RSocket, RSocket>> acceptor =
         () -> rSocket -> new AbstractRSocket() {};
-    private Supplier<Function<LeaseRSocket, RSocket>> leaseAcceptor =
-        () -> rSocket -> new AbstractRSocket() {};
-    private boolean hasLeaseAcceptor;
     private Consumer<Throwable> errorConsumer = Throwable::printStackTrace;
     private int mtu = 0;
     private PluginRegistry plugins = new PluginRegistry(Plugins.defaultPlugins());
@@ -243,18 +240,19 @@ public class RSocketFactory {
     @Override
     public ClientTransportAcceptor acceptor(Supplier<Function<RSocket, RSocket>> acceptor) {
       this.acceptor = acceptor;
-      hasLeaseAcceptor = false;
       return StartClient::new;
     }
 
-    public ClientTransportLeaseAcceptor leaseAcceptor(Function<LeaseRSocket, RSocket> acceptor) {
-      this.leaseAcceptor = () -> acceptor;
-      hasLeaseAcceptor = true;
+    public ClientTransportLeaseAcceptor leaseAcceptor(Supplier<Function<RSocket, RSocket>> acceptor) {
+      flags |= SetupFrameFlyweight.FLAGS_WILL_HONOR_LEASE;
+      this.clientLeaseEnabled = true;
+      this.acceptor = acceptor;
       return LeaseStartClient::new;
     }
 
     public ClientTransportLeaseAcceptor emptyLeaseAcceptor() {
-      return leaseAcceptor(rsocket -> new AbstractRSocket() {});
+      return leaseAcceptor(() -> rSocket -> new AbstractRSocket() {
+      });
     }
 
     @Override
@@ -272,18 +270,6 @@ public class RSocketFactory {
     @Override
     public ClientRSocketFactory setupPayload(Payload payload) {
       this.setupPayload = payload;
-      return this;
-    }
-
-    public ClientRSocketFactory enableLease() {
-      flags |= SetupFrameFlyweight.FLAGS_WILL_HONOR_LEASE;
-      this.clientLeaseEnabled = true;
-      return this;
-    }
-
-    public ClientRSocketFactory disableLease() {
-      flags = flags & ~SetupFrameFlyweight.FLAGS_WILL_HONOR_LEASE;
-      this.clientLeaseEnabled = false;
       return this;
     }
 
@@ -361,15 +347,7 @@ public class RSocketFactory {
                   Mono<RSocket> rsocket =
                       wrappedRSocketClient.flatMap(
                           wrappedClientRSocket -> {
-                            RSocket unwrappedServerSocket =
-                                hasLeaseAcceptor
-                                    ? leaseAcceptor
-                                        .get()
-                                        .apply(
-                                            new LeaseRSocketImpl(
-                                                wrappedClientRSocket, maybeLeaseControl))
-                                    : acceptor.get().apply(wrappedClientRSocket);
-
+                            RSocket unwrappedServerSocket = acceptor.get().apply(wrappedClientRSocket);
                             Mono<RSocket> wrappedRSocketServer =
                                 Mono.just(unwrappedServerSocket).map(plugins::applyResponder);
 
@@ -400,7 +378,6 @@ public class RSocketFactory {
           ErrorConsumer<ServerRSocketFactory> {
 
     private Supplier<SocketAcceptor> acceptor;
-    private Supplier<LeaseSocketAcceptor> leaseSocketAcceptor;
     private Consumer<Throwable> errorConsumer = Throwable::printStackTrace;
     private int mtu = 0;
     private PluginRegistry plugins = new PluginRegistry(Plugins.defaultPlugins());
@@ -425,14 +402,14 @@ public class RSocketFactory {
 
     @Override
     public ServerTransportAcceptor acceptor(Supplier<SocketAcceptor> acceptor) {
+      this.serverLeaseEnabled = false;
       this.acceptor = acceptor;
-      this.leaseSocketAcceptor = null;
       return ServerStart::new;
     }
 
-    public ServerTransportLeaseAcceptor leaseAcceptor(LeaseSocketAcceptor acceptor) {
-      this.leaseSocketAcceptor = () -> acceptor;
-      this.acceptor = null;
+    public ServerTransportLeaseAcceptor leaseAcceptor(Supplier<SocketAcceptor> acceptor) {
+      this.serverLeaseEnabled = true;
+      this.acceptor = acceptor;
       return LeaseServerStart::new;
     }
 
@@ -445,16 +422,6 @@ public class RSocketFactory {
     @Override
     public ServerRSocketFactory errorConsumer(Consumer<Throwable> errorConsumer) {
       this.errorConsumer = errorConsumer;
-      return this;
-    }
-
-    public ServerRSocketFactory enableLease() {
-      this.serverLeaseEnabled = true;
-      return this;
-    }
-
-    public ServerRSocketFactory disableLease() {
-      this.serverLeaseEnabled = false;
       return this;
     }
 
@@ -550,19 +517,9 @@ public class RSocketFactory {
 
         Mono<RSocket> wrappedRSocketClient = Mono.just(rSocketRequester).map(plugins::applyRequester);
         ConnectionSetupPayload setupPayload = ConnectionSetupPayload.create(setupFrame);
-        boolean hasLeaseAcceptor = leaseSocketAcceptor != null;
         return wrappedRSocketClient
             .flatMap(
-                sender -> {
-                  if (hasLeaseAcceptor) {
-                    return leaseSocketAcceptor
-                        .get()
-                        .accept(setupPayload, new LeaseRSocketImpl(sender, maybeLeaseControl))
-                        .map(plugins::applyResponder);
-                  } else {
-                    return acceptor.get().accept(setupPayload, sender).map(plugins::applyResponder);
-                  }
-                })
+                sender -> acceptor.get().accept(setupPayload, sender).map(plugins::applyResponder))
             .map(
                 handler ->
                     new RSocketResponder(

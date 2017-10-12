@@ -20,8 +20,7 @@ public class LeaseClientServeReqRep {
   public static void main(String[] args) {
     LeaseClosable<NettyContextCloseable> serverHandle =
         RSocketFactory.receive()
-            .enableLease()
-            .leaseAcceptor(
+            .leaseAcceptor(() ->
                 (setup, reactiveSocket) ->
                     Mono.just(
                         new AbstractRSocket() {
@@ -34,36 +33,12 @@ public class LeaseClientServeReqRep {
             .start()
             .block();
 
-    serverHandle
-        .getLeaseControl()
-        .flatMapMany(
-            leaseControl ->
-                leaseControl
-                    .map(LeaseControl::getLeases)
-                    .orElseGet(
-                        () -> Flux.error(new IllegalStateException("Server: no leases support"))))
-        .subscribe(
-            lease -> LOGGER.info("Server got lease: " + lease),
-            err -> LOGGER.info("Server receive lease error: " + err));
-
     LeaseRSocket clientSocket =
         RSocketFactory.connect()
-            .enableLease()
             .emptyLeaseAcceptor()
             .transport(TcpClientTransport.create("localhost", 7000))
             .start()
             .block();
-    LeaseControl clientLeaseControl =
-        clientSocket
-            .leaseControl()
-            .orElseThrow(() -> new IllegalStateException("Lease control not available"));
-
-    clientLeaseControl
-        .getLeases()
-        .subscribe(
-            lease -> LOGGER.info("Client got lease: " + lease),
-            err -> LOGGER.info("Client receive lease error: " + err));
-
     LeaseControl serverLeaseControl =
         serverHandle
             .getLeaseControl()
@@ -75,14 +50,9 @@ public class LeaseClientServeReqRep {
               serverLeaseControl.grantLease(3, Duration.ofSeconds(5).toMillis());
             });
     Flux.interval(Duration.ofSeconds(1))
-        .flatMap(signal -> clientLeaseControl.getLeases().next())
-        .filter(Lease::isValid)
-        .flatMap(
-            lease -> {
-              String data = "Client request " + new Date();
-              LOGGER.info(data);
-              return clientSocket.requestResponse(new PayloadImpl(data));
-            })
+            .flatMap(signal ->
+                    clientSocket.requestResponse(new PayloadImpl("Client request " + new Date()))
+                            .onErrorResume(err -> Mono.<Payload>empty().doOnTerminate(() -> LOGGER.info("Error: "+err))))
         .subscribe(resp -> LOGGER.info("Client response: " + resp.getDataUtf8()));
 
     clientSocket.onClose().block();
