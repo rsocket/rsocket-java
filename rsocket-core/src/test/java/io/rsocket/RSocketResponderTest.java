@@ -34,7 +34,7 @@ import org.junit.Test;
 import org.reactivestreams.Subscriber;
 import reactor.core.publisher.Mono;
 
-public class RSocketServerTest {
+public class RSocketResponderTest {
 
   @Rule public final ServerSocketRule rule = new ServerSocketRule();
 
@@ -97,7 +97,7 @@ public class RSocketServerTest {
     assertThat("Subscription not cancelled.", cancelled.get(), is(true));
   }
 
-  public static class ServerSocketRule extends AbstractSocketRule<RSocketServer> {
+  public static class ServerSocketRule extends AbstractSocketRule<RSocketResponder> {
 
     private RSocket acceptingSocket;
 
@@ -122,8 +122,8 @@ public class RSocketServerTest {
     }
 
     @Override
-    protected RSocketServer newRSocket() {
-      return new RSocketServer(connection, acceptingSocket, throwable -> errors.add(throwable));
+    protected RSocketResponder newRSocket() {
+      return new RSocketResponder(connection, acceptingSocket, throwable -> errors.add(throwable));
     }
 
     private void sendRequest(int streamId, FrameType frameType) {

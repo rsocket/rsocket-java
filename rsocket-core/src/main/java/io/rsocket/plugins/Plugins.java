@@ -27,11 +27,11 @@ public class Plugins {
   }
 
   public static void interceptClient(RSocketInterceptor interceptor) {
-    DEFAULT.addClientPlugin(interceptor);
+    DEFAULT.addRequesterPlugin(interceptor);
   }
 
   public static void interceptServer(RSocketInterceptor interceptor) {
-    DEFAULT.addServerPlugin(interceptor);
+    DEFAULT.addResponderPlugin(interceptor);
   }
 
   public static PluginRegistry defaultPlugins() {

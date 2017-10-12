@@ -37,8 +37,8 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.UnicastProcessor;
 
-/** Server side RSocket. Receives {@link Frame}s from a {@link RSocketClient} */
-class RSocketServer implements RSocket {
+/** Server side RSocket. Receives {@link Frame}s from a {@link RSocketRequester} */
+class RSocketResponder implements RSocket {
 
   private final DuplexConnection connection;
   private final RSocket requestHandler;
@@ -50,7 +50,7 @@ class RSocketServer implements RSocket {
 
   private Disposable receiveDisposable;
 
-  RSocketServer(
+  RSocketResponder(
       DuplexConnection connection,
       RSocket requestHandler,
       Consumer<Throwable> errorConsumer,
@@ -75,7 +75,7 @@ class RSocketServer implements RSocket {
         .subscribe();
   }
 
-  RSocketServer(
+  RSocketResponder(
       DuplexConnection connection, RSocket requestHandler, Consumer<Throwable> errorConsumer) {
     this(connection, requestHandler, errorConsumer, Optional.empty());
   }
@@ -256,7 +256,7 @@ class RSocketServer implements RSocket {
                 frameFlux -> {
                   LimitableRequestPublisher<Frame> frames =
                       LimitableRequestPublisher.wrap(frameFlux);
-                  synchronized (RSocketServer.this) {
+                  synchronized (RSocketResponder.this) {
                     sendingSubscriptions.put(streamId, frames);
                   }
                   frames.increaseRequestLimit(initialRequestN);

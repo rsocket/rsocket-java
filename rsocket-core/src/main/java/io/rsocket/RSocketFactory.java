@@ -174,12 +174,12 @@ public class RSocketFactory {
     }
 
     public ClientRSocketFactory addClientPlugin(RSocketInterceptor interceptor) {
-      plugins.addClientPlugin(interceptor);
+      plugins.addRequesterPlugin(interceptor);
       return this;
     }
 
     public ClientRSocketFactory addServerPlugin(RSocketInterceptor interceptor) {
-      plugins.addServerPlugin(interceptor);
+      plugins.addResponderPlugin(interceptor);
       return this;
     }
 
@@ -341,12 +341,12 @@ public class RSocketFactory {
                       maybeLeaseSupport.map(LeaseSupport::getLeaseReceiver);
                   maybeLeaseSupport.ifPresent(
                       leaseSupport -> {
-                        plugins.addClientPlugin(leaseSupport.getRequesterEnforcer());
-                        plugins.addServerPlugin(leaseSupport.getResponderEnforcer());
+                        plugins.addRequesterPlugin(leaseSupport.getRequesterEnforcer());
+                        plugins.addResponderPlugin(leaseSupport.getResponderEnforcer());
                       });
 
-                  RSocketClient rSocketClient =
-                      new RSocketClient(
+                  RSocketRequester rSocketRequester =
+                      new RSocketRequester(
                           multiplexer.asClientConnection(),
                           errorConsumer,
                           StreamIdSupplier.clientSupplier(),
@@ -356,7 +356,7 @@ public class RSocketFactory {
                           missedAcks);
 
                   Mono<RSocket> wrappedRSocketClient =
-                      Mono.just(rSocketClient).map(plugins::applyClient);
+                      Mono.just(rSocketRequester).map(plugins::applyRequester);
                   DuplexConnection finalConnection = connection;
                   Mono<RSocket> rsocket =
                       wrappedRSocketClient.flatMap(
@@ -371,12 +371,12 @@ public class RSocketFactory {
                                     : acceptor.get().apply(wrappedClientRSocket);
 
                             Mono<RSocket> wrappedRSocketServer =
-                                Mono.just(unwrappedServerSocket).map(plugins::applyServer);
+                                Mono.just(unwrappedServerSocket).map(plugins::applyResponder);
 
                             return wrappedRSocketServer
                                 .doOnNext(
                                     rSocket ->
-                                        new RSocketServer(
+                                        new RSocketResponder(
                                             multiplexer.asServerConnection(),
                                             rSocket,
                                             errorConsumer))
@@ -414,12 +414,12 @@ public class RSocketFactory {
     }
 
     public ServerRSocketFactory addClientPlugin(RSocketInterceptor interceptor) {
-      plugins.addClientPlugin(interceptor);
+      plugins.addRequesterPlugin(interceptor);
       return this;
     }
 
     public ServerRSocketFactory addServerPlugin(RSocketInterceptor interceptor) {
-      plugins.addServerPlugin(interceptor);
+      plugins.addResponderPlugin(interceptor);
       return this;
     }
 
@@ -534,8 +534,8 @@ public class RSocketFactory {
                 : Optional.empty();
         maybeLeaseSupport.ifPresent(
             leaseSupport -> {
-              plugins.addClientPlugin(leaseSupport.getRequesterEnforcer());
-              plugins.addServerPlugin(leaseSupport.getResponderEnforcer());
+              plugins.addRequesterPlugin(leaseSupport.getRequesterEnforcer());
+              plugins.addResponderPlugin(leaseSupport.getResponderEnforcer());
             });
         Optional<Consumer<Frame>> leaseConsumer =
             maybeLeaseSupport.map(LeaseSupport::getLeaseReceiver);
@@ -544,11 +544,11 @@ public class RSocketFactory {
             maybeLeaseSupport.map(LeaseSupport::getLeaseControl);
         leaseControlMono.onNext(maybeLeaseControl);
 
-        RSocketClient rSocketClient =
-            new RSocketClient(
+        RSocketRequester rSocketRequester =
+            new RSocketRequester(
                 multiplexer.asServerConnection(), errorConsumer, StreamIdSupplier.serverSupplier());
 
-        Mono<RSocket> wrappedRSocketClient = Mono.just(rSocketClient).map(plugins::applyClient);
+        Mono<RSocket> wrappedRSocketClient = Mono.just(rSocketRequester).map(plugins::applyRequester);
         ConnectionSetupPayload setupPayload = ConnectionSetupPayload.create(setupFrame);
         boolean hasLeaseAcceptor = leaseSocketAcceptor != null;
         return wrappedRSocketClient
@@ -558,14 +558,14 @@ public class RSocketFactory {
                     return leaseSocketAcceptor
                         .get()
                         .accept(setupPayload, new LeaseRSocketImpl(sender, maybeLeaseControl))
-                        .map(plugins::applyServer);
+                        .map(plugins::applyResponder);
                   } else {
-                    return acceptor.get().accept(setupPayload, sender).map(plugins::applyServer);
+                    return acceptor.get().accept(setupPayload, sender).map(plugins::applyResponder);
                   }
                 })
             .map(
                 handler ->
-                    new RSocketServer(
+                    new RSocketResponder(
                         multiplexer.asClientConnection(), handler, errorConsumer, leaseConsumer))
             .then();
       }

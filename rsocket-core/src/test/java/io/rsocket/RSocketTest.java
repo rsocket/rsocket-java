@@ -81,8 +81,8 @@ public class RSocketTest {
 
   public static class SocketRule extends ExternalResource {
 
-    private RSocketClient crs;
-    private RSocketServer srs;
+    private RSocketRequester crs;
+    private RSocketResponder srs;
     private RSocket requestAcceptor;
     DirectProcessor<Frame> serverProcessor;
     DirectProcessor<Frame> clientProcessor;
@@ -131,11 +131,11 @@ public class RSocketTest {
               };
 
       srs =
-          new RSocketServer(
+          new RSocketResponder(
               serverConnection, requestAcceptor, throwable -> serverErrors.add(throwable));
 
       crs =
-          new RSocketClient(
+          new RSocketRequester(
               clientConnection,
               throwable -> clientErrors.add(throwable),
               StreamIdSupplier.clientSupplier());
