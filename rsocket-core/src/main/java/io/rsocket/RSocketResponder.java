@@ -43,8 +43,6 @@ class RSocketResponder implements RSocket {
   private final DuplexConnection connection;
   private final RSocket requestHandler;
   private final Consumer<Throwable> errorConsumer;
-  private Optional<Consumer<Frame>> leaseConsumer;
-
   private final IntObjectHashMap<Subscription> sendingSubscriptions;
   private final IntObjectHashMap<UnicastProcessor<Payload>> channelProcessors;
 
@@ -53,12 +51,10 @@ class RSocketResponder implements RSocket {
   RSocketResponder(
       DuplexConnection connection,
       RSocket requestHandler,
-      Consumer<Throwable> errorConsumer,
-      Optional<Consumer<Frame>> leaseReceiver) {
+      Consumer<Throwable> errorConsumer) {
     this.connection = connection;
     this.requestHandler = requestHandler;
     this.errorConsumer = errorConsumer;
-    this.leaseConsumer = leaseReceiver;
     this.sendingSubscriptions = new IntObjectHashMap<>();
     this.channelProcessors = new IntObjectHashMap<>();
     this.receiveDisposable =
@@ -73,11 +69,6 @@ class RSocketResponder implements RSocket {
               receiveDisposable.dispose();
             })
         .subscribe();
-  }
-
-  RSocketResponder(
-      DuplexConnection connection, RSocket requestHandler, Consumer<Throwable> errorConsumer) {
-    this(connection, requestHandler, errorConsumer, Optional.empty());
   }
 
   @Override
@@ -179,7 +170,6 @@ class RSocketResponder implements RSocket {
           return metadataPush(new PayloadImpl(frame));
         case LEASE:
           // Lease must not be received here as this is the server end of the socket which sends leases.
-          leaseConsumer.ifPresent(consumer -> consumer.accept(frame));
           return Mono.empty();
         case NEXT:
           receiver = getChannelProcessor(streamId);

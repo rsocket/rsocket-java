@@ -17,42 +17,53 @@
 package io.rsocket.lease;
 
 import io.rsocket.Frame;
-import java.nio.ByteBuffer;
+
 import javax.annotation.Nullable;
+import java.nio.ByteBuffer;
+import java.util.concurrent.atomic.AtomicInteger;
 
-public final class LeaseImpl implements Lease {
-
-  private final int allowedRequests;
+public class LeaseImpl implements Lease {
   private final int ttl;
-  private final long expiry;
+  protected final AtomicInteger numberOfRequests;
+  private final int startingNumberOfRequests;
   private final ByteBuffer metadata;
+  private final long expiry;
 
-  public LeaseImpl(int allowedRequests, int ttl) {
-    this(allowedRequests, ttl, null);
+  LeaseImpl(int numberOfRequests, int ttl, @Nullable ByteBuffer metadata) {
+    assertNumberOfRequests(numberOfRequests);
+    this.numberOfRequests = new AtomicInteger(numberOfRequests);
+    this.startingNumberOfRequests = numberOfRequests;
+    this.ttl = ttl;
+    this.metadata = metadata;
+    this.expiry = now() + ttl;
   }
 
-  public LeaseImpl(int allowedRequests, int ttl, @Nullable ByteBuffer metadata) {
-    this.allowedRequests = allowedRequests;
-    this.ttl = ttl;
-    this.expiry = System.currentTimeMillis() + ttl;
-    this.metadata = metadata;
+  LeaseImpl(Lease lease) {
+    this(lease.getAllowedRequests(), lease.getTtl(), lease.getMetadata());
   }
 
   public LeaseImpl(Frame leaseFrame) {
     this(
-        Frame.Lease.numberOfRequests(leaseFrame),
-        Frame.Lease.ttl(leaseFrame),
-        leaseFrame.getMetadata());
+            Frame.Lease.numberOfRequests(leaseFrame),
+            Frame.Lease.ttl(leaseFrame),
+            leaseFrame.getMetadata());
+  }
+
+  public int getTtl() {
+    return ttl;
+  }
+
+  public int getStartingAllowedRequests() {
+    return startingNumberOfRequests;
   }
 
   @Override
   public int getAllowedRequests() {
-    return allowedRequests;
+    return numberOfRequests.get();
   }
 
-  @Override
-  public int getTtl() {
-    return ttl;
+  public ByteBuffer getMetadata() {
+    return metadata;
   }
 
   @Override
@@ -60,20 +71,17 @@ public final class LeaseImpl implements Lease {
     return expiry;
   }
 
-  @Override
-  public ByteBuffer getMetadata() {
-    return metadata;
+  public boolean isValid() {
+    return now() <= expiry() && getAllowedRequests() > 0;
   }
 
-  @Override
-  public String toString() {
-    return "LeaseImpl{"
-        + "allowedRequests="
-        + allowedRequests
-        + ", ttl="
-        + ttl
-        + ", expiry="
-        + expiry
-        + '}';
+  private long now() {
+    return System.currentTimeMillis();
+  }
+
+  static void assertNumberOfRequests(int numberOfRequest) {
+    if (numberOfRequest < 0) {
+      throw new IllegalArgumentException("Number of requests should be positive");
+    }
   }
 }

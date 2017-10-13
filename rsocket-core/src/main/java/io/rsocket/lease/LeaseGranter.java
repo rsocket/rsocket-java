@@ -50,12 +50,12 @@ abstract class LeaseGranter {
         senderConnection, requesterLeaseManager, responderLeaseManager, errorConsumer);
   }
 
-  abstract Consumer<Frame> grantedLeasesReceiver();
+  abstract Consumer<Lease> grantedLeasesReceiver();
 
   abstract void grantLease(int numberOfRequests, int timeToLive, @Nullable ByteBuffer metadata);
 
-  void leaseReceived(@Nonnull Frame frame) {
-    requesterLeaseManager.leaseGranted(new LeaseImpl(frame));
+  void leaseReceived(@Nonnull Lease lease) {
+    requesterLeaseManager.leaseGranted(lease);
   }
 
   void sendLease(Lease lease) {
@@ -80,7 +80,7 @@ abstract class LeaseGranter {
     }
 
     @Override
-    Consumer<Frame> grantedLeasesReceiver() {
+    Consumer<Lease> grantedLeasesReceiver() {
       return f -> {
         synchronized (this) {
           leaseReceived = true;
@@ -122,7 +122,7 @@ abstract class LeaseGranter {
     }
 
     @Override
-    Consumer<Frame> grantedLeasesReceiver() {
+    Consumer<Lease> grantedLeasesReceiver() {
       return f -> {
         synchronized (this) {
           if (!leaseGranted) {

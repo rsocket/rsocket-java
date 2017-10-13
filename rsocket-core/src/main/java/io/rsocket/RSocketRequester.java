@@ -49,7 +49,6 @@ class RSocketRequester implements RSocket {
   private final DuplexConnection connection;
   private final Consumer<Throwable> errorConsumer;
   private final StreamIdSupplier streamIdSupplier;
-  private final Optional<Consumer<Frame>> leaseConsumer;
   private final MonoProcessor<Void> started;
   private final IntObjectHashMap<LimitableRequestPublisher> senders;
   private final IntObjectHashMap<Subscriber<Payload>> receivers;
@@ -62,13 +61,11 @@ class RSocketRequester implements RSocket {
   RSocketRequester(
       DuplexConnection connection,
       Consumer<Throwable> errorConsumer,
-      Optional<Consumer<Frame>> leaseConsumer,
       StreamIdSupplier streamIdSupplier) {
     this(
         connection,
         errorConsumer,
         streamIdSupplier,
-        leaseConsumer,
         Duration.ZERO,
         Duration.ZERO,
         0);
@@ -77,32 +74,13 @@ class RSocketRequester implements RSocket {
   RSocketRequester(
       DuplexConnection connection,
       Consumer<Throwable> errorConsumer,
-      StreamIdSupplier streamIdSupplier) {
-    this(connection, errorConsumer, streamIdSupplier, null, Duration.ZERO, Duration.ZERO, 0);
-  }
-
-  RSocketRequester(
-      DuplexConnection connection,
-      Consumer<Throwable> errorConsumer,
       StreamIdSupplier streamIdSupplier,
-      Duration tickPeriod,
-      Duration ackTimeout,
-      int missedAcks) {
-    this(connection, errorConsumer, streamIdSupplier, null, tickPeriod, ackTimeout, missedAcks);
-  }
-
-  RSocketRequester(
-      DuplexConnection connection,
-      Consumer<Throwable> errorConsumer,
-      StreamIdSupplier streamIdSupplier,
-      Optional<Consumer<Frame>> leaseConsumer,
       Duration tickPeriod,
       Duration ackTimeout,
       int missedAcks) {
     this.connection = connection;
     this.errorConsumer = errorConsumer;
     this.streamIdSupplier = streamIdSupplier;
-    this.leaseConsumer = leaseConsumer;
     this.started = MonoProcessor.create();
     this.senders = new IntObjectHashMap<>(256, 0.9f);
     this.receivers = new IntObjectHashMap<>(256, 0.9f);
@@ -417,7 +395,6 @@ class RSocketRequester implements RSocket {
       case ERROR:
         throw Exceptions.from(frame);
       case LEASE:
-        leaseConsumer.ifPresent(c -> c.accept(frame));
         break;
       case KEEPALIVE:
         if (!Frame.Keepalive.hasRespondFlag(frame)) {

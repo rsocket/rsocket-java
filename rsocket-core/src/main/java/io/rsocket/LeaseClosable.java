@@ -1,15 +1,14 @@
 package io.rsocket;
 
-import io.rsocket.lease.LeaseControl;
-import java.util.Optional;
+import io.rsocket.lease.LeaseRSocketRef;
 import reactor.core.publisher.Mono;
 import reactor.util.annotation.NonNull;
 
 public class LeaseClosable<T extends Closeable> implements Closeable {
   private final T closeable;
-  private final Mono<Optional<LeaseControl>> leaseControl;
+  private final Mono<LeaseRSocketRef> leaseControl;
 
-  public LeaseClosable(@NonNull T closeable, @NonNull Mono<Optional<LeaseControl>> leaseControl) {
+  public LeaseClosable(@NonNull T closeable, @NonNull Mono<LeaseRSocketRef> leaseControl) {
     this.closeable = closeable;
     this.leaseControl = leaseControl;
   }
@@ -18,7 +17,7 @@ public class LeaseClosable<T extends Closeable> implements Closeable {
     return closeable;
   }
 
-  public Mono<Optional<LeaseControl>> getLeaseControl() {
+  public Mono<LeaseRSocketRef> getLeaseControl() {
     return leaseControl;
   }
 
