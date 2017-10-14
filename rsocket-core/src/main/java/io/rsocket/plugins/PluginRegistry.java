@@ -38,15 +38,15 @@ public class PluginRegistry {
     connections.add(interceptor);
   }
 
-  public void addRequesterPlugin(RSocketInterceptor interceptor) {
+  public void addClientPlugin(RSocketInterceptor interceptor) {
     requesters.add(interceptor);
   }
 
-  public void addResponderPlugin(RSocketInterceptor interceptor) {
+  public void addServerPlugin(RSocketInterceptor interceptor) {
     responders.add(interceptor);
   }
 
-  public RSocket applyRequester(RSocket rSocket) {
+  public RSocket applyClient(RSocket rSocket) {
     for (RSocketInterceptor i : requesters) {
       rSocket = i.apply(rSocket);
     }
@@ -54,7 +54,7 @@ public class PluginRegistry {
     return rSocket;
   }
 
-  public RSocket applyResponder(RSocket rSocket) {
+  public RSocket applyServer(RSocket rSocket) {
     for (RSocketInterceptor i : responders) {
       rSocket = i.apply(rSocket);
     }

@@ -26,9 +26,9 @@ public class LeaseSupport {
         Flux<Lease> leaseReceivedFlux = listenerConnection.leaseReceived();
 
         RSocketLeaseSupport rsocketLeaseSupport = RSocketLeaseSupport.ofClient(clientConnection, leaseReceivedFlux, errorConsumer);
-        localPlugins.addRequesterPlugin(rsocketLeaseSupport.getRequesterInterceptor());
-        localPlugins.addResponderPlugin(rsocketLeaseSupport.getResponderInterceptor());
-        localPlugins.addResponderPlugin(rsocket -> {
+        localPlugins.addClientPlugin(rsocketLeaseSupport.getRequesterInterceptor());
+        localPlugins.addServerPlugin(rsocketLeaseSupport.getResponderInterceptor());
+        localPlugins.addServerPlugin(rsocket -> {
             leaseRSocketRegistry.addLeaseRSocket(rsocketLeaseSupport.responderRefFactory().apply(rsocket));
             return rsocket;
         });

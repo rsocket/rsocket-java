@@ -159,12 +159,12 @@ public class RSocketFactory {
     }
 
     public ClientRSocketFactory addClientPlugin(RSocketInterceptor interceptor) {
-      plugins.addRequesterPlugin(interceptor);
+      plugins.addClientPlugin(interceptor);
       return this;
     }
 
     public ClientRSocketFactory addServerPlugin(RSocketInterceptor interceptor) {
-      plugins.addResponderPlugin(interceptor);
+      plugins.addServerPlugin(interceptor);
       return this;
     }
 
@@ -311,8 +311,8 @@ public class RSocketFactory {
 
                           Mono<RSocket> wrappedRSocketClient =
                                   Mono.just(rSocketRequester)
-                                          .map(plugins::applyRequester)
-                                          .map(localPlugins::applyRequester);
+                                          .map(plugins::applyClient)
+                                          .map(localPlugins::applyClient);
                           DuplexConnection finalConnection = connection;
 
                           return wrappedRSocketClient.flatMap(
@@ -320,8 +320,8 @@ public class RSocketFactory {
                                     RSocket unwrappedServerSocket = acceptor.get().apply(wrappedClientRSocket);
                                     Mono<RSocket> wrappedRSocketServer =
                                             Mono.just(unwrappedServerSocket)
-                                            .map(plugins::applyResponder)
-                                            .map(localPlugins::applyResponder);
+                                            .map(plugins::applyServer)
+                                            .map(localPlugins::applyServer);
 
                                     return wrappedRSocketServer
                                             .doOnNext(
@@ -358,12 +358,12 @@ public class RSocketFactory {
     }
 
     public ServerRSocketFactory addClientPlugin(RSocketInterceptor interceptor) {
-      plugins.addRequesterPlugin(interceptor);
+      plugins.addClientPlugin(interceptor);
       return this;
     }
 
     public ServerRSocketFactory addServerPlugin(RSocketInterceptor interceptor) {
-      plugins.addResponderPlugin(interceptor);
+      plugins.addServerPlugin(interceptor);
       return this;
     }
 
@@ -458,16 +458,16 @@ public class RSocketFactory {
 
 
         Mono<RSocket> wrappedRSocketClient = Mono.just(rSocketRequester)
-                .map(plugins::applyRequester)
-                .map(localPlugins::applyRequester);
+                .map(plugins::applyClient)
+                .map(localPlugins::applyClient);
 
         ConnectionSetupPayload setupPayload = ConnectionSetupPayload.create(setupFrame);
 
         return wrappedRSocketClient
                 .flatMap(
                         sender -> acceptor.get().accept(setupPayload, sender)
-                                .map(plugins::applyResponder)
-                                .map(localPlugins::applyResponder))
+                                .map(plugins::applyServer)
+                                .map(localPlugins::applyServer))
                 .map(
                         handler ->
                                 new RSocketResponder(clientConnection, handler, errorConsumer))
