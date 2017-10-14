@@ -31,13 +31,11 @@ import io.rsocket.plugins.RSocketInterceptor;
 import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.ServerTransport;
 import io.rsocket.util.PayloadImpl;
-
 import java.time.Duration;
 import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
-
 import reactor.core.publisher.Mono;
 
 /** Factory for creating RSocket clients and servers. */
@@ -134,7 +132,7 @@ public class RSocketFactory {
           Fragmentation<ClientRSocketFactory>,
           ErrorConsumer<ClientRSocketFactory>,
           SetupPayload<ClientRSocketFactory>,
-  Leasing<ClientRSocketFactory>{
+          Leasing<ClientRSocketFactory> {
 
     private Supplier<Function<RSocket, RSocket>> acceptor =
         () -> rSocket -> new AbstractRSocket() {};
@@ -265,75 +263,76 @@ public class RSocketFactory {
 
     protected class StartClient implements Start<RSocket> {
       private final Supplier<ClientTransport> transportClient;
-      private final Optional<LeaseSupport> leaseSupport = leaseControlConsumer
-              .map(leaseCtrlConsumer -> new LeaseSupport(errorConsumer, leaseCtrlConsumer));
+      private final Optional<LeaseSupport> leaseSupport =
+          leaseControlConsumer.map(
+              leaseCtrlConsumer -> new LeaseSupport(errorConsumer, leaseCtrlConsumer));
 
       StartClient(Supplier<ClientTransport> transportClient) {
         this.transportClient = transportClient;
       }
+
       @Override
       public Mono<RSocket> start() {
         return transportClient
-                .get()
-                .connect()
-                .flatMap(
-                        connection -> {
-                          Frame setupFrame =
-                                  Frame.Setup.from(
-                                          flags,
-                                          (int) ackTimeout.toMillis(),
-                                          (int) ackTimeout.toMillis() * missedAcks,
-                                          metadataMimeType,
-                                          dataMimeType,
-                                          setupPayload);
+            .get()
+            .connect()
+            .flatMap(
+                connection -> {
+                  Frame setupFrame =
+                      Frame.Setup.from(
+                          flags,
+                          (int) ackTimeout.toMillis(),
+                          (int) ackTimeout.toMillis() * missedAcks,
+                          metadataMimeType,
+                          dataMimeType,
+                          setupPayload);
 
-                          if (mtu > 0) {
-                            connection = new FragmentationDuplexConnection(connection, mtu);
-                          }
-                          ClientServerInputMultiplexer multiplexer =
-                                  new ClientServerInputMultiplexer(connection, plugins);
+                  if (mtu > 0) {
+                    connection = new FragmentationDuplexConnection(connection, mtu);
+                  }
+                  ClientServerInputMultiplexer multiplexer =
+                      new ClientServerInputMultiplexer(connection, plugins);
 
-                          PluginRegistry localPlugins = new PluginRegistry();
-                          DuplexConnection clientConnection = leaseSupport
-                                  .map(leaseSupp -> leaseSupp.wrap(
-                                          localPlugins,
-                                          multiplexer.asClientConnection()))
-                                  .orElseGet(multiplexer::asClientConnection);
+                  PluginRegistry localPlugins = new PluginRegistry();
+                  DuplexConnection clientConnection =
+                      leaseSupport
+                          .map(
+                              leaseSupp ->
+                                  leaseSupp.wrap(localPlugins, multiplexer.asClientConnection()))
+                          .orElseGet(multiplexer::asClientConnection);
 
-                          RSocketRequester rSocketRequester =
-                                  new RSocketRequester(
-                                          clientConnection,
-                                          errorConsumer,
-                                          StreamIdSupplier.clientSupplier(),
-                                          tickPeriod,
-                                          ackTimeout,
-                                          missedAcks);
+                  RSocketRequester rSocketRequester =
+                      new RSocketRequester(
+                          clientConnection,
+                          errorConsumer,
+                          StreamIdSupplier.clientSupplier(),
+                          tickPeriod,
+                          ackTimeout,
+                          missedAcks);
 
-                          Mono<RSocket> wrappedRSocketClient =
-                                  Mono.just(rSocketRequester)
-                                          .map(plugins::applyClient)
-                                          .map(localPlugins::applyClient);
-                          DuplexConnection finalConnection = connection;
+                  Mono<RSocket> wrappedRSocketClient =
+                      Mono.just(rSocketRequester)
+                          .map(plugins::applyClient)
+                          .map(localPlugins::applyClient);
+                  DuplexConnection finalConnection = connection;
 
-                          return wrappedRSocketClient.flatMap(
-                                  wrappedClientRSocket -> {
-                                    RSocket unwrappedServerSocket = acceptor.get().apply(wrappedClientRSocket);
-                                    Mono<RSocket> wrappedRSocketServer =
-                                            Mono.just(unwrappedServerSocket)
-                                            .map(plugins::applyServer)
-                                            .map(localPlugins::applyServer);
+                  return wrappedRSocketClient.flatMap(
+                      wrappedClientRSocket -> {
+                        RSocket unwrappedServerSocket = acceptor.get().apply(wrappedClientRSocket);
+                        Mono<RSocket> wrappedRSocketServer =
+                            Mono.just(unwrappedServerSocket)
+                                .map(plugins::applyServer)
+                                .map(localPlugins::applyServer);
 
-                                    return wrappedRSocketServer
-                                            .doOnNext(
-                                                    rSocket ->
-                                                            new RSocketResponder(
-                                                                    multiplexer.asServerConnection(),
-                                                                    rSocket,
-                                                                    errorConsumer))
-                                            .then(finalConnection.sendOne(setupFrame))
-                                            .then(wrappedRSocketClient);
-                                  });
-                        });
+                        return wrappedRSocketServer
+                            .doOnNext(
+                                rSocket ->
+                                    new RSocketResponder(
+                                        multiplexer.asServerConnection(), rSocket, errorConsumer))
+                            .then(finalConnection.sendOne(setupFrame))
+                            .then(wrappedRSocketClient);
+                      });
+                });
       }
     }
   }
@@ -370,7 +369,7 @@ public class RSocketFactory {
     @Override
     public ServerTransportAcceptor acceptor(Supplier<SocketAcceptor> acceptor) {
       this.acceptor = acceptor;
-       return ServerStart::new;
+      return ServerStart::new;
     }
 
     @Override
@@ -399,8 +398,9 @@ public class RSocketFactory {
 
     private class ServerStart<T extends Closeable> implements Start<T> {
       private final Supplier<ServerTransport<T>> transportServer;
-      private final Optional<LeaseSupport> leaseSupport = leaseControlConsumer
-              .map(leaseCtrlConsumer -> new LeaseSupport(errorConsumer, leaseCtrlConsumer));
+      private final Optional<LeaseSupport> leaseSupport =
+          leaseControlConsumer.map(
+              leaseCtrlConsumer -> new LeaseSupport(errorConsumer, leaseCtrlConsumer));
 
       ServerStart(Supplier<ServerTransport<T>> transportServer) {
         this.transportServer = transportServer;
@@ -409,81 +409,75 @@ public class RSocketFactory {
       @Override
       public Mono<T> start() {
         return transportServer
-                .get()
-                .start(
-                        connection -> {
-                          if (mtu > 0) {
-                            connection = new FragmentationDuplexConnection(connection, mtu);
-                          }
-                          ClientServerInputMultiplexer multiplexer =
-                                  new ClientServerInputMultiplexer(connection, plugins);
+            .get()
+            .start(
+                connection -> {
+                  if (mtu > 0) {
+                    connection = new FragmentationDuplexConnection(connection, mtu);
+                  }
+                  ClientServerInputMultiplexer multiplexer =
+                      new ClientServerInputMultiplexer(connection, plugins);
 
-                          return multiplexer
-                                  .asStreamZeroConnection()
-                                  .receive()
-                                  .next()
-                                  .flatMap(
-                                          setupFrame ->
-                                                  processSetupFrame(
-                                                          multiplexer,
-                                                          setupFrame));
-                        });
+                  return multiplexer
+                      .asStreamZeroConnection()
+                      .receive()
+                      .next()
+                      .flatMap(setupFrame -> processSetupFrame(multiplexer, setupFrame));
+                });
       }
 
       private Mono<Void> processSetupFrame(
-              ClientServerInputMultiplexer multiplexer,
-              Frame setupFrame) {
+          ClientServerInputMultiplexer multiplexer, Frame setupFrame) {
         int version = Frame.Setup.version(setupFrame);
         if (version != SetupFrameFlyweight.CURRENT_VERSION) {
           InvalidSetupException error =
-                  new InvalidSetupException(
-                          "Unsupported version " + VersionFlyweight.toString(version));
+              new InvalidSetupException(
+                  "Unsupported version " + VersionFlyweight.toString(version));
           return setupError(multiplexer, error);
         }
 
         if (Frame.Setup.supportsLease(setupFrame) && !serverLeaseEnabled()) {
           UnsupportedSetupException error =
-                  new UnsupportedSetupException("Server does not support lease");
+              new UnsupportedSetupException("Server does not support lease");
           return setupError(multiplexer, error);
         }
 
         PluginRegistry localPlugins = new PluginRegistry();
-        DuplexConnection clientConnection = Frame.Setup.supportsLease(setupFrame)
+        DuplexConnection clientConnection =
+            Frame.Setup.supportsLease(setupFrame)
                 ? leaseSupport.get().wrap(localPlugins, multiplexer.asClientConnection())
                 : multiplexer.asClientConnection();
 
         RSocketRequester rSocketRequester =
-                new RSocketRequester(
-                        multiplexer.asServerConnection(), errorConsumer, StreamIdSupplier.serverSupplier());
+            new RSocketRequester(
+                multiplexer.asServerConnection(), errorConsumer, StreamIdSupplier.serverSupplier());
 
-
-        Mono<RSocket> wrappedRSocketClient = Mono.just(rSocketRequester)
-                .map(plugins::applyClient)
-                .map(localPlugins::applyClient);
+        Mono<RSocket> wrappedRSocketClient =
+            Mono.just(rSocketRequester).map(plugins::applyClient).map(localPlugins::applyClient);
 
         ConnectionSetupPayload setupPayload = ConnectionSetupPayload.create(setupFrame);
 
         return wrappedRSocketClient
-                .flatMap(
-                        sender -> acceptor.get().accept(setupPayload, sender)
-                                .map(plugins::applyServer)
-                                .map(localPlugins::applyServer))
-                .map(
-                        handler ->
-                                new RSocketResponder(clientConnection, handler, errorConsumer))
-                .then();
+            .flatMap(
+                sender ->
+                    acceptor
+                        .get()
+                        .accept(setupPayload, sender)
+                        .map(plugins::applyServer)
+                        .map(localPlugins::applyServer))
+            .map(handler -> new RSocketResponder(clientConnection, handler, errorConsumer))
+            .then();
       }
 
       private boolean serverLeaseEnabled() {
         return leaseSupport.isPresent();
       }
 
-      Mono<Void> setupError(
-              ClientServerInputMultiplexer multiplexer, SetupException error) {
+      Mono<Void> setupError(ClientServerInputMultiplexer multiplexer, SetupException error) {
         return multiplexer
-                .asStreamZeroConnection()
-                .sendOne(Frame.Error.from(0, error))
-                .then(multiplexer.close());
+            .asStreamZeroConnection()
+            .sendOne(Frame.Error.from(0, error))
+            .then(multiplexer.close());
       }
     }
   }

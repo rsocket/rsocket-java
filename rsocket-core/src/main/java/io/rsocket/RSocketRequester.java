@@ -26,7 +26,6 @@ import io.rsocket.internal.LimitableRequestPublisher;
 import io.rsocket.util.PayloadImpl;
 import java.nio.channels.ClosedChannelException;
 import java.time.Duration;
-import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -62,13 +61,7 @@ class RSocketRequester implements RSocket {
       DuplexConnection connection,
       Consumer<Throwable> errorConsumer,
       StreamIdSupplier streamIdSupplier) {
-    this(
-        connection,
-        errorConsumer,
-        streamIdSupplier,
-        Duration.ZERO,
-        Duration.ZERO,
-        0);
+    this(connection, errorConsumer, streamIdSupplier, Duration.ZERO, Duration.ZERO, 0);
   }
 
   RSocketRequester(

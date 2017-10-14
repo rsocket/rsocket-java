@@ -26,7 +26,6 @@ import io.netty.util.collection.IntObjectHashMap;
 import io.rsocket.exceptions.ApplicationException;
 import io.rsocket.internal.LimitableRequestPublisher;
 import io.rsocket.util.PayloadImpl;
-import java.util.Optional;
 import java.util.function.Consumer;
 import javax.annotation.Nullable;
 import org.reactivestreams.Publisher;
@@ -49,9 +48,7 @@ class RSocketResponder implements RSocket {
   private Disposable receiveDisposable;
 
   RSocketResponder(
-      DuplexConnection connection,
-      RSocket requestHandler,
-      Consumer<Throwable> errorConsumer) {
+      DuplexConnection connection, RSocket requestHandler, Consumer<Throwable> errorConsumer) {
     this.connection = connection;
     this.requestHandler = requestHandler;
     this.errorConsumer = errorConsumer;

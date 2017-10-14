@@ -9,45 +9,47 @@ import reactor.core.publisher.Mono;
 import reactor.core.publisher.UnicastProcessor;
 
 public class LeaseListenerConnection implements DuplexConnection {
-    private final DuplexConnection duplexConnection;
-    private final UnicastProcessor<Lease> leases = UnicastProcessor.create();
+  private final DuplexConnection duplexConnection;
+  private final UnicastProcessor<Lease> leases = UnicastProcessor.create();
 
-    public LeaseListenerConnection(DuplexConnection duplexConnection) {
-        this.duplexConnection = duplexConnection;
-    }
+  public LeaseListenerConnection(DuplexConnection duplexConnection) {
+    this.duplexConnection = duplexConnection;
+  }
 
-    @Override
-    public Mono<Void> send(Publisher<Frame> frame) {
-        return duplexConnection.send(frame);
-    }
+  @Override
+  public Mono<Void> send(Publisher<Frame> frame) {
+    return duplexConnection.send(frame);
+  }
 
-    public Flux<Lease> leaseReceived() {
-        return leases;
-    }
+  public Flux<Lease> leaseReceived() {
+    return leases;
+  }
 
-    @Override
-    public Flux<Frame> receive() {
-        return duplexConnection.receive()
-                .doOnNext(frame -> {
-                    if (frame.getType().equals(FrameType.LEASE)) {
-                        leases.onNext(new LeaseImpl(frame));
-                    }
-                })
-                .doOnTerminate(() -> leases.onComplete());
-    }
+  @Override
+  public Flux<Frame> receive() {
+    return duplexConnection
+        .receive()
+        .doOnNext(
+            frame -> {
+              if (frame.getType().equals(FrameType.LEASE)) {
+                leases.onNext(new LeaseImpl(frame));
+              }
+            })
+        .doOnTerminate(() -> leases.onComplete());
+  }
 
-    @Override
-    public double availability() {
-        return duplexConnection.availability();
-    }
+  @Override
+  public double availability() {
+    return duplexConnection.availability();
+  }
 
-    @Override
-    public Mono<Void> close() {
-        return duplexConnection.close();
-    }
+  @Override
+  public Mono<Void> close() {
+    return duplexConnection.close();
+  }
 
-    @Override
-    public Mono<Void> onClose() {
-        return duplexConnection.onClose();
-    }
+  @Override
+  public Mono<Void> onClose() {
+    return duplexConnection.onClose();
+  }
 }

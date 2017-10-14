@@ -7,15 +7,13 @@ import javax.annotation.Nullable;
 import reactor.core.publisher.*;
 /** Updates lease as it is used and provides source of notifications about those updates */
 class LeaseManager {
-  private static final MutableLeaseImpl INVALID_MUTABLE_LEASE = new MutableLeaseImpl(0,0,null);
+  private static final MutableLeaseImpl INVALID_MUTABLE_LEASE = new MutableLeaseImpl(0, 0, null);
   private volatile MutableLeaseImpl currentLease = INVALID_MUTABLE_LEASE;
   private final String tag;
 
   LeaseManager(@Nonnull String tag, @Nonnull Mono<Void> connectionCloseSignal) {
     this.tag = tag;
-    connectionCloseSignal
-        .doOnTerminate(() -> currentLease = INVALID_MUTABLE_LEASE )
-        .subscribe();
+    connectionCloseSignal.doOnTerminate(() -> currentLease = INVALID_MUTABLE_LEASE).subscribe();
   }
 
   LeaseManager(@Nonnull String tag) {
@@ -56,20 +54,20 @@ class LeaseManager {
 
   private static class MutableLeaseImpl extends LeaseImpl {
 
-      MutableLeaseImpl(int numberOfRequests, int ttl, @Nullable ByteBuffer metadata) {
-          super(numberOfRequests, ttl, metadata);
-      }
+    MutableLeaseImpl(int numberOfRequests, int ttl, @Nullable ByteBuffer metadata) {
+      super(numberOfRequests, ttl, metadata);
+    }
 
-      void use(int useRequestCount) {
-          assertUseRequests(useRequestCount);
-          numberOfRequests.accumulateAndGet(
-                  useRequestCount, (cur, update) -> Math.max(0, cur - update));
-      }
+    void use(int useRequestCount) {
+      assertUseRequests(useRequestCount);
+      numberOfRequests.accumulateAndGet(
+          useRequestCount, (cur, update) -> Math.max(0, cur - update));
+    }
 
-      static void assertUseRequests(int useRequestCount) {
-          if (useRequestCount <= 0) {
-              throw new IllegalArgumentException("Number of requests should be positive");
-          }
+    static void assertUseRequests(int useRequestCount) {
+      if (useRequestCount <= 0) {
+        throw new IllegalArgumentException("Number of requests should be positive");
       }
+    }
   }
 }

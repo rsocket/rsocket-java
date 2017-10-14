@@ -17,10 +17,9 @@
 package io.rsocket.lease;
 
 import io.rsocket.Frame;
-
-import javax.annotation.Nullable;
 import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicInteger;
+import javax.annotation.Nullable;
 
 public class LeaseImpl implements Lease {
   private final int ttl;
@@ -44,9 +43,9 @@ public class LeaseImpl implements Lease {
 
   public LeaseImpl(Frame leaseFrame) {
     this(
-            Frame.Lease.numberOfRequests(leaseFrame),
-            Frame.Lease.ttl(leaseFrame),
-            leaseFrame.getMetadata());
+        Frame.Lease.numberOfRequests(leaseFrame),
+        Frame.Lease.ttl(leaseFrame),
+        leaseFrame.getMetadata());
   }
 
   public int getTtl() {

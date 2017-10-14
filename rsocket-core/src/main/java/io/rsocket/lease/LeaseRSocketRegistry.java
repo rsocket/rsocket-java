@@ -5,14 +5,14 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentSkipListSet;
 
 public class LeaseRSocketRegistry {
-    private final Set<LeaseRSocketRef> leaseConns = new ConcurrentSkipListSet<>();
+  private final Set<LeaseRSocketRef> leaseConns = new ConcurrentSkipListSet<>();
 
-    public void addLeaseRSocket(LeaseRSocketRef leaseRSocketRef) {
-        leaseConns.add(leaseRSocketRef);
-        leaseRSocketRef.onClose().doOnTerminate(() -> leaseConns.remove(leaseRSocketRef)).subscribe();
-    }
+  public void addLeaseRSocket(LeaseRSocketRef leaseRSocketRef) {
+    leaseConns.add(leaseRSocketRef);
+    leaseRSocketRef.onClose().doOnTerminate(() -> leaseConns.remove(leaseRSocketRef)).subscribe();
+  }
 
-    public Set<LeaseRSocketRef> getLeaseRSockets() {
-        return new HashSet<>(leaseConns);
-    }
+  public Set<LeaseRSocketRef> getLeaseRSockets() {
+    return new HashSet<>(leaseConns);
+  }
 }

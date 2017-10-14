@@ -24,8 +24,7 @@ public class LeaseRSocketTest {
   public void setUp() throws Exception {
     leaseManager = new LeaseManager("test");
 
-    RSocketInterceptor enforcer =
-        rSocket -> new LeaseRSocket(rSocket, leaseManager, "test");
+    RSocketInterceptor enforcer = rSocket -> new LeaseRSocket(rSocket, leaseManager, "test");
     leaseRsocket = enforcer.apply(new EchoRSocket());
     payload = new PayloadImpl("payload");
   }
