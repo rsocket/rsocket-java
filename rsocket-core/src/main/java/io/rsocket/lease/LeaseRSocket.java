@@ -2,6 +2,7 @@ package io.rsocket.lease;
 
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
+import io.rsocket.exceptions.NoLeaseException;
 import io.rsocket.util.RSocketProxy;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;

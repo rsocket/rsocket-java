@@ -84,14 +84,6 @@ public class RSocketFactory {
     }
   }
 
-  public interface ClientTransportLeaseAcceptor {
-    Start<LeaseRSocket> leaseTransport(Supplier<ClientTransport> transport);
-
-    default Start<LeaseRSocket> leaseTransport(ClientTransport transport) {
-      return leaseTransport(() -> transport);
-    }
-  }
-
   public interface ServerTransportAcceptor {
     <T extends Closeable> Start<T> transport(Supplier<ServerTransport<T>> transport);
 

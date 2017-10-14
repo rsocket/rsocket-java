@@ -1,6 +1,7 @@
-package io.rsocket.lease;
+package io.rsocket.exceptions;
 
-import io.rsocket.exceptions.RejectedException;
+import io.rsocket.lease.Lease;
+
 import javax.annotation.Nonnull;
 
 public class NoLeaseException extends RejectedException {

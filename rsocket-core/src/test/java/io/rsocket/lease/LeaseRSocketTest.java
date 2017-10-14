@@ -5,6 +5,7 @@ import static org.junit.Assert.assertNotNull;
 
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
+import io.rsocket.exceptions.NoLeaseException;
 import io.rsocket.plugins.RSocketInterceptor;
 import io.rsocket.util.PayloadImpl;
 import org.junit.Before;
