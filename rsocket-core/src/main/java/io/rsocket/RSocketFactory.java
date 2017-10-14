@@ -222,13 +222,13 @@ public class RSocketFactory {
 
     @Override
     public Start<RSocket> transport(Supplier<ClientTransport> transportClient) {
-      return new NewStartClient(transportClient);
+      return new StartClient(transportClient);
     }
 
     @Override
     public ClientTransportAcceptor acceptor(Supplier<Function<RSocket, RSocket>> acceptor) {
       this.acceptor = acceptor;
-      return NewStartClient::new;
+      return StartClient::new;
     }
 
     @Override
@@ -263,12 +263,12 @@ public class RSocketFactory {
       return this;
     }
 
-    protected class NewStartClient implements Start<RSocket> {
+    protected class StartClient implements Start<RSocket> {
       private final Supplier<ClientTransport> transportClient;
       private final Optional<LeaseSupport> leaseSupport = leaseControlConsumer
               .map(leaseCtrlConsumer -> new LeaseSupport(errorConsumer, leaseCtrlConsumer));
 
-      NewStartClient(Supplier<ClientTransport> transportClient) {
+      StartClient(Supplier<ClientTransport> transportClient) {
         this.transportClient = transportClient;
       }
       @Override
