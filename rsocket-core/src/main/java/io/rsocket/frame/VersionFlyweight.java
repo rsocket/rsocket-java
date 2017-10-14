@@ -23,7 +23,7 @@ public class VersionFlyweight {
   }
 
   public static int major(int version) {
-    return version >> 16;
+    return version >> 16 & 0xFFFF;
   }
 
   public static int minor(int version) {

@@ -38,4 +38,11 @@ public class VersionFlyweightTest {
     assertEquals(0x12345678, version);
     assertEquals("4660.22136", VersionFlyweight.toString(version));
   }
+
+  @Test
+  public void noShortOverflow() {
+    int version = VersionFlyweight.encode(43210, 43211);
+    assertEquals(43210, VersionFlyweight.major(version));
+    assertEquals(43211, VersionFlyweight.minor(version));
+  }
 }

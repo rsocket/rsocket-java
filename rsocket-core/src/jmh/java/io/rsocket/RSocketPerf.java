@@ -41,8 +41,7 @@ import reactor.core.publisher.MonoProcessor;
 
 @BenchmarkMode(Mode.Throughput)
 @Fork(
-  value = 1,
-  jvmArgsAppend = {"-XX:+UnlockCommercialFeatures", "-XX:+FlightRecorder"}
+  value = 1 // , jvmArgsAppend = {"-Dio.netty.leakDetection.level=advanced"}
 )
 @Warmup(iterations = 10)
 @Measurement(iterations = 10)
@@ -70,7 +69,7 @@ public class RSocketPerf {
   @Benchmark
   public void fireAndForgetHello(Input input) {
     // this is synchronous so we don't need to use a CountdownLatch to wait
-    input.client.fireAndForget(Input.HELLO_PAYLOAD).subscribe(input.blackHoleSubscriber);
+    input.client.fireAndForget(Input.HELLO_PAYLOAD).subscribe(input.voidSubscriber);
   }
 
   @State(Scope.Benchmark)
@@ -156,37 +155,42 @@ public class RSocketPerf {
                   return Mono.just(closeable);
                 });
 
-    Subscriber blackHoleSubscriber;
+    Subscriber<Payload> blackHoleSubscriber;
+    Subscriber<Void> voidSubscriber;
 
     RSocket client;
 
     @Setup
     public void setup(Blackhole bh) {
-      blackHoleSubscriber =
-          new Subscriber() {
-            @Override
-            public void onSubscribe(Subscription s) {
-              s.request(Long.MAX_VALUE);
-            }
-
-            @Override
-            public void onNext(Object o) {
-              bh.consume(o);
-            }
-
-            @Override
-            public void onError(Throwable t) {
-              t.printStackTrace();
-            }
-
-            @Override
-            public void onComplete() {}
-          };
+      blackHoleSubscriber = subscriber(bh);
+      voidSubscriber = subscriber(bh);
 
       client =
           RSocketFactory.connect().transport(() -> Mono.just(clientConnection)).start().block();
 
       this.bh = bh;
+    }
+
+    private <T> Subscriber<T> subscriber(Blackhole bh) {
+      return new Subscriber<T>() {
+        @Override
+        public void onSubscribe(Subscription s) {
+          s.request(Long.MAX_VALUE);
+        }
+
+        @Override
+        public void onNext(T o) {
+          bh.consume(o);
+        }
+
+        @Override
+        public void onError(Throwable t) {
+          t.printStackTrace();
+        }
+
+        @Override
+        public void onComplete() {}
+      };
     }
   }
 }
