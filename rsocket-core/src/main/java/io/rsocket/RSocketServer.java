@@ -45,7 +45,7 @@ class RSocketServer implements RSocket {
   private final IntObjectHashMap<Subscription> sendingSubscriptions;
   private final IntObjectHashMap<UnicastProcessor<Payload>> channelProcessors;
 
-  private final EmitterProcessor<Frame> sendProcessor;
+  private final FluxProcessor<Frame, Frame> sendProcessor;
   private Disposable receiveDisposable;
 
   RSocketServer(
@@ -58,7 +58,7 @@ class RSocketServer implements RSocket {
 
     // DO NOT Change the order here. The Send processor must be subscribed to before receiving
     // connections
-    this.sendProcessor = EmitterProcessor.create();
+    this.sendProcessor = EmitterProcessor.<Frame>create().serialize();
 
     connection
         .send(sendProcessor)
@@ -67,7 +67,12 @@ class RSocketServer implements RSocket {
         .subscribe();
 
     this.receiveDisposable =
-        connection.receive().flatMap(this::handleFrame).doOnError(errorConsumer).then().subscribe();
+        connection
+            .receive()
+            .flatMapSequential(this::handleFrame)
+            .doOnError(errorConsumer)
+            .then()
+            .subscribe();
 
     this.connection
         .onClose()
