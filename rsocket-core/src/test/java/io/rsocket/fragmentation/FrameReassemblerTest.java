@@ -21,7 +21,7 @@ import io.rsocket.FrameType;
 import io.rsocket.util.PayloadImpl;
 import java.nio.ByteBuffer;
 import java.util.concurrent.ThreadLocalRandom;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 /** */
 public class FrameReassemblerTest {
@@ -60,21 +60,21 @@ public class FrameReassemblerTest {
 
       Frame reassemble = reassembler.reassemble();
 
-      Assert.assertEquals(reassemble.getStreamId(), from.getStreamId());
-      Assert.assertEquals(reassemble.getType(), from.getType());
+      assertEquals(reassemble.getStreamId(), from.getStreamId());
+      assertEquals(reassemble.getType(), from.getType());
 
       ByteBuffer reassembleData = reassemble.getData();
       ByteBuffer reassembleMetadata = reassemble.getMetadata();
 
-      Assert.assertTrue(reassembleData.hasRemaining());
-      Assert.assertTrue(reassembleMetadata.hasRemaining());
+      assertTrue(reassembleData.hasRemaining());
+      assertTrue(reassembleMetadata.hasRemaining());
 
       while (reassembleData.hasRemaining()) {
-          Assert.assertEquals(reassembleData.get(), data.get());
+          assertEquals(reassembleData.get(), data.get());
       }
 
       while (reassembleMetadata.hasRemaining()) {
-          Assert.assertEquals(reassembleMetadata.get(), metadata.get());
+          assertEquals(reassembleMetadata.get(), metadata.get());
       }
   }
 
@@ -107,21 +107,21 @@ public class FrameReassemblerTest {
 
           Frame reassemble = reassembler.reassemble();
 
-          Assert.assertEquals(reassemble.getStreamId(), request.getStreamId());
-          Assert.assertEquals(reassemble.getType(), reassemble.getType());
+          assertEquals(reassemble.getStreamId(), request.getStreamId());
+          assertEquals(reassemble.getType(), reassemble.getType());
 
           ByteBuffer reassembleData = reassemble.getData();
           ByteBuffer reassembleMetadata = reassemble.getMetadata();
 
-          Assert.assertTrue(reassembleData.hasRemaining());
-          Assert.assertTrue(reassembleMetadata.hasRemaining());
+          assertTrue(reassembleData.hasRemaining());
+          assertTrue(reassembleMetadata.hasRemaining());
 
           while (reassembleData.hasRemaining()) {
-              Assert.assertEquals(reassembleData.get(), data.get());
+              assertEquals(reassembleData.get(), data.get());
           }
 
           while (reassembleMetadata.hasRemaining()) {
-              Assert.assertEquals(reassembleMetadata.get(), metadata.get());
+              assertEquals(reassembleMetadata.get(), metadata.get());
           }
 
       }

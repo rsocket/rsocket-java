@@ -21,7 +21,7 @@ import io.rsocket.FrameType;
 import io.rsocket.util.PayloadImpl;
 import java.nio.ByteBuffer;
 import java.util.concurrent.ThreadLocalRandom;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import reactor.test.StepVerifier;
 
 public class FrameFragmenterTest {

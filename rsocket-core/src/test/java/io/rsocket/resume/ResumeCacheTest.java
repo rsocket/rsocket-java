@@ -1,16 +1,17 @@
 package io.rsocket.resume;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import io.rsocket.Frame;
 import io.rsocket.FrameType;
 import io.rsocket.util.PayloadImpl;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import reactor.core.publisher.Flux;
 
 public class ResumeCacheTest {
-  private Frame CANCEL = Frame.Cancel.from(1);
-  private Frame STREAM =
+  private final Frame CANCEL = Frame.Cancel.from(1);
+  private final Frame STREAM =
       Frame.Request.from(1, FrameType.REQUEST_STREAM, new PayloadImpl("Test"), 100);
 
   private ResumeCache cache = new ResumeCache(ResumePositionCounter.frames(), 2);
@@ -22,14 +23,14 @@ public class ResumeCacheTest {
     cache.updateRemotePosition(0);
   }
 
-  @Test(expected = IllegalStateException.class)
+  @Test
   public void failsForFutureUpdatePosition() {
-    cache.updateRemotePosition(1);
+    assertThrows(IllegalStateException.class, () -> cache.updateRemotePosition(1));
   }
 
-  @Test(expected = IllegalStateException.class)
+  @Test
   public void failsForFutureResend() {
-    cache.resend(1);
+    assertThrows(IllegalStateException.class, () -> cache.resend(1));
   }
 
   @Test

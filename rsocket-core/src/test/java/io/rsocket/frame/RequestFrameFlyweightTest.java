@@ -16,8 +16,8 @@
 
 package io.rsocket.frame;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
@@ -26,7 +26,7 @@ import io.rsocket.Frame;
 import io.rsocket.FrameType;
 import io.rsocket.util.PayloadImpl;
 import java.nio.charset.StandardCharsets;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class RequestFrameFlyweightTest {
   private final ByteBuf byteBuf = Unpooled.buffer(1024);

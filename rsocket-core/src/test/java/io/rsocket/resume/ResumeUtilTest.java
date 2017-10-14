@@ -1,17 +1,17 @@
 package io.rsocket.resume;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.rsocket.Frame;
 import io.rsocket.FrameType;
 import io.rsocket.util.PayloadImpl;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class ResumeUtilTest {
-  private Frame CANCEL = Frame.Cancel.from(1);
-  private Frame STREAM =
+  private final Frame CANCEL = Frame.Cancel.from(1);
+  private final Frame STREAM =
       Frame.Request.from(1, FrameType.REQUEST_STREAM, new PayloadImpl("Test"), 100);
 
   @Test

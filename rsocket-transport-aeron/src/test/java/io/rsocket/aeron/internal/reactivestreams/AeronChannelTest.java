@@ -15,6 +15,9 @@
  */
 package io.rsocket.aeron.internal.reactivestreams;
 
+import static java.time.Duration.ofSeconds;
+import static org.junit.jupiter.api.Assertions.assertTimeout;
+
 import io.aeron.Aeron;
 import io.aeron.Publication;
 import io.aeron.Subscription;
@@ -27,12 +30,12 @@ import java.util.concurrent.ThreadLocalRandom;
 import org.agrona.BitUtil;
 import org.agrona.LangUtil;
 import org.agrona.concurrent.UnsafeBuffer;
-import org.junit.Ignore;
-import org.junit.Test;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
 import reactor.core.publisher.Flux;
 
 /** */
-@Ignore("travis does not like me")
+@Tag("travis-ci")
 public class AeronChannelTest {
   static {
     // System.setProperty("aeron.publication.linger.timeout", String.valueOf(50_000_000_000L));
@@ -41,9 +44,7 @@ public class AeronChannelTest {
   }
 
   @Test
-  @Ignore
   public void testPing() {
-
     int count = 5_000_000;
     CountDownLatch countDownLatch = new CountDownLatch(count);
 
@@ -138,7 +139,7 @@ public class AeronChannelTest {
                   buffer.putInt(0, i);
                   return buffer;
                 })
-            // .doOnRequest(l -> System.out.println("Client reuqested => " + l))
+            // .doOnRequest(l -> System.out.println("Client requested => " + l))
             .doOnError(Throwable::printStackTrace)
             .doOnComplete(() -> System.out.println("Im done"));
 
@@ -152,51 +153,47 @@ public class AeronChannelTest {
     System.out.println("HERE!!!!");
   }
 
-  @Test(timeout = 2_000)
+  @Test
   public void testPingPong_10() {
-    pingPong(10);
-  }
-
-  @Test(timeout = 2_000)
-  public void testPingPong_100() {
-    pingPong(100);
-  }
-
-  @Test(timeout = 5_000)
-  public void testPingPong_300() {
-    pingPong(300);
-  }
-
-  @Test(timeout = 5_000)
-  public void testPingPong_1_000() {
-    pingPong(1_000);
-  }
-
-  @Test(timeout = 15_000)
-  public void testPingPong_10_000() {
-    pingPong(10_000);
-  }
-
-  @Ignore
-  @Test(timeout = 5_000)
-  public void testPingPong_100_000() {
-    pingPong(100_000);
-  }
-
-  @Ignore
-  @Test(timeout = 15_000)
-  public void testPingPong_1_000_000() {
-    pingPong(1_000_000);
-  }
-
-  @Test(timeout = 50_000)
-  @Ignore
-  public void testPingPong_10_000_000() {
-    pingPong(10_000_000);
+    assertTimeout(ofSeconds(2), () -> pingPong(10));
   }
 
   @Test
-  @Ignore
+  public void testPingPong_100() {
+    assertTimeout(ofSeconds(2), () -> pingPong(100));
+  }
+
+  @Test
+  public void testPingPong_300() {
+    assertTimeout(ofSeconds(5), () -> pingPong(300));
+  }
+
+  @Test
+  public void testPingPong_1_000() {
+    assertTimeout(ofSeconds(5), () -> pingPong(1_000));
+  }
+
+  @Test
+  public void testPingPong_10_000() {
+    assertTimeout(ofSeconds(5), () -> pingPong(10_000));
+  }
+
+  @Test
+  public void testPingPong_100_000() {
+    assertTimeout(ofSeconds(5), () -> pingPong(100_000));
+  }
+
+  @Test
+  public void testPingPong_1_000_000() {
+    assertTimeout(ofSeconds(15), () -> pingPong(1_000_000));
+  }
+
+  @Test
+  public void testPingPong_10_000_000() {
+    assertTimeout(ofSeconds(50), () -> pingPong(10_000_000));
+  }
+
+  @Test
   public void testPingPongAlot() {
     pingPong(100_000_000);
   }

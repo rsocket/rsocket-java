@@ -16,11 +16,9 @@
 package io.rsocket.transport.netty;
 
 import io.rsocket.test.BaseClientServerTest;
+import org.junit.jupiter.api.extension.ExtendWith;
 
+@ExtendWith(SecureWebsocketSetupResource.Extension.class)
 public class SecureWebsocketClientServerTest
-    extends BaseClientServerTest<SecureWebsocketClientSetupRule> {
-  @Override
-  protected SecureWebsocketClientSetupRule createClientServer() {
-    return new SecureWebsocketClientSetupRule();
-  }
+    extends BaseClientServerTest<SecureWebsocketSetupResource> {
 }

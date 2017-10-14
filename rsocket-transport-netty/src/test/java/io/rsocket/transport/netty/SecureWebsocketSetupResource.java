@@ -17,7 +17,8 @@
 package io.rsocket.transport.netty;
 
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
-import io.rsocket.test.ClientSetupRule;
+import io.rsocket.test.extension.AbstractExtension;
+import io.rsocket.test.extension.SetupResource;
 import io.rsocket.transport.netty.client.WebsocketClientTransport;
 import io.rsocket.transport.netty.server.NettyContextCloseable;
 import io.rsocket.transport.netty.server.WebsocketServerTransport;
@@ -25,10 +26,10 @@ import java.net.InetSocketAddress;
 import reactor.ipc.netty.http.client.HttpClient;
 import reactor.ipc.netty.http.server.HttpServer;
 
-public class SecureWebsocketClientSetupRule
-    extends ClientSetupRule<InetSocketAddress, NettyContextCloseable> {
+public class SecureWebsocketSetupResource
+    extends SetupResource<InetSocketAddress, NettyContextCloseable> {
 
-  public SecureWebsocketClientSetupRule() {
+  private SecureWebsocketSetupResource() {
     super(
         () -> new InetSocketAddress("localhost", 0),
         (address, server) ->
@@ -46,5 +47,12 @@ public class SecureWebsocketClientSetupRule
         address ->
             WebsocketServerTransport.create(
                 HttpServer.create(options -> options.listenAddress(address).sslSelfSigned())));
+  }
+
+  public static class Extension extends AbstractExtension {
+    @Override
+    protected Class<?> type() {
+      return SecureWebsocketSetupResource.class;
+    }
   }
 }

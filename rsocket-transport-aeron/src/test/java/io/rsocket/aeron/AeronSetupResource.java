@@ -18,15 +18,19 @@ package io.rsocket.aeron;
 
 import io.rsocket.Closeable;
 import io.rsocket.aeron.client.AeronClientTransport;
-import io.rsocket.aeron.internal.*;
+import io.rsocket.aeron.internal.AeronWrapper;
+import io.rsocket.aeron.internal.Constants;
+import io.rsocket.aeron.internal.DefaultAeronWrapper;
+import io.rsocket.aeron.internal.EventLoop;
+import io.rsocket.aeron.internal.SingleThreadedEventLoop;
 import io.rsocket.aeron.internal.reactivestreams.AeronClientChannelConnector;
 import io.rsocket.aeron.internal.reactivestreams.AeronSocketAddress;
 import io.rsocket.aeron.server.AeronServerTransport;
-import io.rsocket.test.ClientSetupRule;
+import io.rsocket.test.extension.AbstractExtension;
+import io.rsocket.test.extension.SetupResource;
 
-class AeronClientSetupRule extends ClientSetupRule<AeronSocketAddress, Closeable> {
-
-  public static final AeronSocketAddress ADDRESS =
+class AeronSetupResource extends SetupResource<AeronSocketAddress, Closeable> {
+  private static final AeronSocketAddress ADDRESS =
       AeronSocketAddress.create("aeron:udp", "127.0.0.1", 39790);
 
   static {
@@ -56,7 +60,14 @@ class AeronClientSetupRule extends ClientSetupRule<AeronSocketAddress, Closeable
   private static final AeronServerTransport server;
   private static final AeronClientTransport client;
 
-  AeronClientSetupRule() {
+  private AeronSetupResource() {
     super(() -> ADDRESS, (address, server) -> client, address -> server);
+  }
+
+  public static class Extension extends AbstractExtension {
+    @Override
+    protected Class<?> type() {
+      return AeronSetupResource.class;
+    }
   }
 }

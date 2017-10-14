@@ -17,16 +17,24 @@
 package io.rsocket.transport.local;
 
 import io.rsocket.Closeable;
-import io.rsocket.test.ClientSetupRule;
+import io.rsocket.test.extension.AbstractExtension;
+import io.rsocket.test.extension.SetupResource;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class LocalClientSetupRule extends ClientSetupRule<String, Closeable> {
+public class LocalSetupResource extends SetupResource<String, Closeable> {
   private static final AtomicInteger uniqueNameGenerator = new AtomicInteger();
 
-  public LocalClientSetupRule() {
+  private LocalSetupResource() {
     super(
         () -> "test" + uniqueNameGenerator.incrementAndGet(),
         (address, server) -> LocalClientTransport.create(address),
         LocalServerTransport::create);
+  }
+
+  public static class Extension extends AbstractExtension {
+    @Override
+    protected Class<?> type() {
+      return LocalSetupResource.class;
+    }
   }
 }

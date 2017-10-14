@@ -16,12 +16,13 @@
 
 package io.rsocket.uri;
 
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.rsocket.DuplexConnection;
 import io.rsocket.test.util.TestDuplexConnection;
 import io.rsocket.transport.ClientTransport;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class UriTransportRegistryTest {
   @Test
@@ -33,10 +34,14 @@ public class UriTransportRegistryTest {
     assertTrue(duplexConnection instanceof TestDuplexConnection);
   }
 
-  @Test(expected = UnsupportedOperationException.class)
+  @Test
   public void testTestUnregistered() {
-    ClientTransport test = UriTransportRegistry.clientForUri("mailto://bonson@baulsupp.net");
+    assertThrows(
+        UnsupportedOperationException.class,
+        () -> {
+          ClientTransport test = UriTransportRegistry.clientForUri("mailto://bonson@baulsupp.net");
 
-    test.connect().block();
+          test.connect().block();
+        });
   }
 }

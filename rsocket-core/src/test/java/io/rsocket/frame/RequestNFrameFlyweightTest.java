@@ -16,12 +16,12 @@
 
 package io.rsocket.frame;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class RequestNFrameFlyweightTest {
   private final ByteBuf byteBuf = Unpooled.buffer(1024);

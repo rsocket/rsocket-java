@@ -16,9 +16,11 @@
 
 package io.rsocket.integration;
 
+import static java.time.Duration.ofSeconds;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
-import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertTimeout;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -35,24 +37,26 @@ import io.rsocket.transport.netty.server.NettyContextCloseable;
 import io.rsocket.transport.netty.server.TcpServerTransport;
 import io.rsocket.util.PayloadImpl;
 import io.rsocket.util.RSocketProxy;
+import java.time.Duration;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.reactivestreams.Subscriber;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 public class IntegrationTest {
+  private static final Duration TIMEOUT = ofSeconds(5);
 
-  private NettyContextCloseable server;
-  private RSocket client;
-  private AtomicInteger requestCount;
-  private CountDownLatch disconnectionCounter;
-  public static volatile boolean calledClient = false;
-  public static volatile boolean calledServer = false;
-  public static volatile boolean calledFrame = false;
+  private static NettyContextCloseable server;
+  private static RSocket client;
+  private static AtomicInteger requestCount;
+  private static CountDownLatch disconnectionCounter;
+  private static volatile boolean calledClient = false;
+  private static volatile boolean calledServer = false;
+  private static volatile boolean calledFrame = false;
 
   private static final RSocketInterceptor clientPlugin;
   private static final RSocketInterceptor serverPlugin;
@@ -86,7 +90,7 @@ public class IntegrationTest {
         };
   }
 
-  @Before
+  @BeforeEach
   public void startup() {
     requestCount = new AtomicInteger();
     disconnectionCounter = new CountDownLatch(1);
@@ -131,14 +135,16 @@ public class IntegrationTest {
             .block();
   }
 
-  @After
+  @AfterEach
   public void teardown() {
     server.close().block();
   }
 
-  @Test(timeout = 5_000L)
+  @Test
   public void testRequest() {
-    client.requestResponse(new PayloadImpl("REQUEST", "META")).block();
+    assertTimeout(
+        TIMEOUT,
+        () ->  client.requestResponse(new PayloadImpl("REQUEST", "META")).block());
     assertThat("Server did not see the request.", requestCount.get(), is(1));
     assertTrue(calledClient);
     assertTrue(calledServer);
@@ -147,16 +153,24 @@ public class IntegrationTest {
 
   @Test
   public void testStream() {
-    Subscriber<Payload> subscriber = TestSubscriber.createCancelling();
-    client.requestStream(new PayloadImpl("start")).subscribe(subscriber);
-
+    Subscriber<Payload> subscriber = assertTimeout(
+        TIMEOUT,
+        () -> {
+          Subscriber<Payload> s = TestSubscriber.createCancelling();
+          client.requestStream(new PayloadImpl("start")).subscribe(s);
+          return s;
+        });
     verify(subscriber).onSubscribe(any());
     verifyNoMoreInteractions(subscriber);
   }
 
-  @Test(timeout = 5_000L)
-  public void testClose() throws InterruptedException {
-    client.close().block();
-    disconnectionCounter.await();
+  @Test
+  public void testClose() {
+    assertTimeout(
+        TIMEOUT,
+        () -> {
+          client.close().block();
+          disconnectionCounter.await();
+        });
   }
 }

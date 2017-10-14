@@ -16,6 +16,10 @@
 
 package io.rsocket.aeron.internal.reactivestreams;
 
+import static java.time.Duration.ofSeconds;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTimeout;
+
 import io.rsocket.aeron.MediaDriverHolder;
 import io.rsocket.aeron.internal.AeronWrapper;
 import io.rsocket.aeron.internal.DefaultAeronWrapper;
@@ -26,155 +30,161 @@ import java.util.concurrent.ThreadLocalRandom;
 import org.agrona.BitUtil;
 import org.agrona.DirectBuffer;
 import org.agrona.concurrent.UnsafeBuffer;
-import org.junit.Assert;
-import org.junit.Ignore;
-import org.junit.Test;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 /** */
-@Ignore("travis does not like me")
+@Tag("travis-ci")
 public class AeronClientServerChannelTest {
   static {
     MediaDriverHolder.getInstance();
   }
 
-  @Test(timeout = 5_000)
-  public void testConnect() throws Exception {
-    int clientId = ThreadLocalRandom.current().nextInt(0, 1_000);
-    int serverId = clientId + 1;
+  @Test
+  public void testConnect() {
+    assertTimeout(ofSeconds(5), () -> {
+      int clientId = ThreadLocalRandom.current().nextInt(0, 1_000);
+      int serverId = clientId + 1;
 
-    System.out.println("test client stream id => " + clientId);
-    System.out.println("test server stream id => " + serverId);
+      System.out.println("test client stream id => " + clientId);
+      System.out.println("test server stream id => " + serverId);
 
-    AeronWrapper aeronWrapper = new DefaultAeronWrapper();
+      AeronWrapper aeronWrapper = new DefaultAeronWrapper();
 
-    // Create Client Connector
-    AeronSocketAddress clientManagementSocketAddress =
-        AeronSocketAddress.create("aeron:udp", "127.0.0.1", 39790);
-    EventLoop clientEventLoop = new SingleThreadedEventLoop("client");
+      // Create Client Connector
+      AeronSocketAddress clientManagementSocketAddress =
+          AeronSocketAddress.create("aeron:udp", "127.0.0.1", 39790);
+      EventLoop clientEventLoop = new SingleThreadedEventLoop("client");
 
-    AeronSocketAddress receiveAddress = AeronSocketAddress.create("aeron:udp", "127.0.0.1", 39790);
-    AeronSocketAddress sendAddress = AeronSocketAddress.create("aeron:udp", "127.0.0.1", 39790);
+      AeronSocketAddress receiveAddress = AeronSocketAddress
+          .create("aeron:udp", "127.0.0.1", 39790);
+      AeronSocketAddress sendAddress = AeronSocketAddress.create("aeron:udp", "127.0.0.1", 39790);
 
-    AeronClientChannelConnector.AeronClientConfig config =
-        AeronClientChannelConnector.AeronClientConfig.create(
-            receiveAddress, sendAddress, clientId, serverId, clientEventLoop);
+      AeronClientChannelConnector.AeronClientConfig config =
+          AeronClientChannelConnector.AeronClientConfig.create(
+              receiveAddress, sendAddress, clientId, serverId, clientEventLoop);
 
-    AeronClientChannelConnector connector =
-        AeronClientChannelConnector.create(
-            aeronWrapper, clientManagementSocketAddress, clientEventLoop);
+      AeronClientChannelConnector connector =
+          AeronClientChannelConnector.create(
+              aeronWrapper, clientManagementSocketAddress, clientEventLoop);
 
-    // Create Server
-    CountDownLatch latch = new CountDownLatch(2);
+      // Create Server
+      CountDownLatch latch = new CountDownLatch(2);
 
-    AeronChannelServer.AeronChannelConsumer consumer =
-        (AeronChannel aeronChannel) -> {
-          Assert.assertNotNull(aeronChannel);
-          latch.countDown();
-        };
+      AeronChannelServer.AeronChannelConsumer consumer =
+          (AeronChannel aeronChannel) -> {
+            assertNotNull(aeronChannel);
+            latch.countDown();
+          };
 
-    AeronSocketAddress serverManagementSocketAddress =
-        AeronSocketAddress.create("aeron:udp", "127.0.0.1", 39790);
-    EventLoop serverEventLoop = new SingleThreadedEventLoop("server");
-    AeronChannelServer aeronChannelServer =
-        AeronChannelServer.create(
-            consumer, aeronWrapper, serverManagementSocketAddress, serverEventLoop);
+      AeronSocketAddress serverManagementSocketAddress =
+          AeronSocketAddress.create("aeron:udp", "127.0.0.1", 39790);
+      EventLoop serverEventLoop = new SingleThreadedEventLoop("server");
+      AeronChannelServer aeronChannelServer =
+          AeronChannelServer.create(
+              consumer, aeronWrapper, serverManagementSocketAddress, serverEventLoop);
 
-    aeronChannelServer.start();
+      aeronChannelServer.start();
 
-    Publisher<AeronChannel> publisher = connector.apply(config);
-    Flux.from(publisher)
-        .doOnNext(Assert::assertNotNull)
-        .doOnNext(c -> latch.countDown())
-        .doOnError(
-            t -> {
-              throw new RuntimeException(t);
-            })
-        .subscribe();
+      Publisher<AeronChannel> publisher = connector.apply(config);
+      Flux.from(publisher)
+          .doOnNext(Assertions::assertNotNull)
+          .doOnNext(c -> latch.countDown())
+          .doOnError(
+              t -> {
+                throw new RuntimeException(t);
+              })
+          .subscribe();
 
-    latch.await();
+      latch.await();
+    });
   }
 
-  @Test(timeout = 5_000)
-  public void testPingPong() throws Exception {
-    int clientId = ThreadLocalRandom.current().nextInt(2_000, 3_000);
-    int serverId = clientId + 1;
+  @Test
+  public void testPingPong() {
+    assertTimeout(ofSeconds(5), () -> {
+      int clientId = ThreadLocalRandom.current().nextInt(2_000, 3_000);
+      int serverId = clientId + 1;
 
-    System.out.println("test client stream id => " + clientId);
-    System.out.println("test server stream id => " + serverId);
+      System.out.println("test client stream id => " + clientId);
+      System.out.println("test server stream id => " + serverId);
 
-    AeronWrapper aeronWrapper = new DefaultAeronWrapper();
+      AeronWrapper aeronWrapper = new DefaultAeronWrapper();
 
-    // Create Client Connector
-    AeronSocketAddress clientManagementSocketAddress =
-        AeronSocketAddress.create("aeron:udp", "127.0.0.1", 39790);
-    EventLoop clientEventLoop = new SingleThreadedEventLoop("client");
+      // Create Client Connector
+      AeronSocketAddress clientManagementSocketAddress =
+          AeronSocketAddress.create("aeron:udp", "127.0.0.1", 39790);
+      EventLoop clientEventLoop = new SingleThreadedEventLoop("client");
 
-    AeronSocketAddress receiveAddress = AeronSocketAddress.create("aeron:udp", "127.0.0.1", 39790);
-    AeronSocketAddress sendAddress = AeronSocketAddress.create("aeron:udp", "127.0.0.1", 39790);
+      AeronSocketAddress receiveAddress = AeronSocketAddress
+          .create("aeron:udp", "127.0.0.1", 39790);
+      AeronSocketAddress sendAddress = AeronSocketAddress.create("aeron:udp", "127.0.0.1", 39790);
 
-    AeronClientChannelConnector.AeronClientConfig config =
-        AeronClientChannelConnector.AeronClientConfig.create(
-            receiveAddress, sendAddress, clientId, serverId, clientEventLoop);
+      AeronClientChannelConnector.AeronClientConfig config =
+          AeronClientChannelConnector.AeronClientConfig.create(
+              receiveAddress, sendAddress, clientId, serverId, clientEventLoop);
 
-    AeronClientChannelConnector connector =
-        AeronClientChannelConnector.create(
-            aeronWrapper, clientManagementSocketAddress, clientEventLoop);
+      AeronClientChannelConnector connector =
+          AeronClientChannelConnector.create(
+              aeronWrapper, clientManagementSocketAddress, clientEventLoop);
 
-    // Create Server
+      // Create Server
 
-    AeronChannelServer.AeronChannelConsumer consumer =
-        (AeronChannel aeronChannel) -> {
-          Assert.assertNotNull(aeronChannel);
+      AeronChannelServer.AeronChannelConsumer consumer =
+          (AeronChannel aeronChannel) -> {
+            assertNotNull(aeronChannel);
 
-          Flux<? extends DirectBuffer> receive = aeronChannel.receive();
+            Flux<? extends DirectBuffer> receive = aeronChannel.receive();
 
-          Flux<? extends DirectBuffer> data =
-              receive.doOnNext(b -> System.out.println("server received => " + b.getInt(0)));
+            Flux<? extends DirectBuffer> data =
+                receive.doOnNext(b -> System.out.println("server received => " + b.getInt(0)));
 
-          aeronChannel.send(data).subscribe();
-        };
+            aeronChannel.send(data).subscribe();
+          };
 
-    AeronSocketAddress serverManagementSocketAddress =
-        AeronSocketAddress.create("aeron:udp", "127.0.0.1", 39790);
-    EventLoop serverEventLoop = new SingleThreadedEventLoop("server");
-    AeronChannelServer aeronChannelServer =
-        AeronChannelServer.create(
-            consumer, aeronWrapper, serverManagementSocketAddress, serverEventLoop);
+      AeronSocketAddress serverManagementSocketAddress =
+          AeronSocketAddress.create("aeron:udp", "127.0.0.1", 39790);
+      EventLoop serverEventLoop = new SingleThreadedEventLoop("server");
+      AeronChannelServer aeronChannelServer =
+          AeronChannelServer.create(
+              consumer, aeronWrapper, serverManagementSocketAddress, serverEventLoop);
 
-    aeronChannelServer.start();
+      aeronChannelServer.start();
 
-    Publisher<AeronChannel> publisher = connector.apply(config);
+      Publisher<AeronChannel> publisher = connector.apply(config);
 
-    int count = 10;
-    CountDownLatch latch = new CountDownLatch(count);
+      int count = 10;
+      CountDownLatch latch = new CountDownLatch(count);
 
-    Mono.from(publisher)
-        .flatMap(
-            aeronChannel ->
-                Mono.create(
-                    callback -> {
-                      Flux<UnsafeBuffer> data =
-                          Flux.range(1, count)
-                              .map(
-                                  i -> {
-                                    byte[] b = new byte[BitUtil.SIZE_OF_INT];
-                                    UnsafeBuffer buffer = new UnsafeBuffer(b);
-                                    buffer.putInt(0, i);
-                                    return buffer;
-                                  });
+      Mono.from(publisher)
+          .flatMap(
+              aeronChannel ->
+                  Mono.create(
+                      callback -> {
+                        Flux<UnsafeBuffer> data =
+                            Flux.range(1, count)
+                                .map(
+                                    i -> {
+                                      byte[] b = new byte[BitUtil.SIZE_OF_INT];
+                                      UnsafeBuffer buffer = new UnsafeBuffer(b);
+                                      buffer.putInt(0, i);
+                                      return buffer;
+                                    });
 
-                      aeronChannel
-                          .receive()
-                          .doOnNext(b -> latch.countDown())
-                          .doOnNext(callback::success)
-                          .subscribe();
-                      aeronChannel.send(data).subscribe();
-                    }))
-        .subscribe();
+                        aeronChannel
+                            .receive()
+                            .doOnNext(b -> latch.countDown())
+                            .doOnNext(callback::success)
+                            .subscribe();
+                        aeronChannel.send(data).subscribe();
+                      }))
+          .subscribe();
 
-    latch.await();
+      latch.await();
+    });
   }
 }

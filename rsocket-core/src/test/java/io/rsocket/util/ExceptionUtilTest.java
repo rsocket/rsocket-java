@@ -1,11 +1,11 @@
 package io.rsocket.util;
 
 import static io.rsocket.util.ExceptionUtil.noStacktrace;
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class ExceptionUtilTest {
   @Test

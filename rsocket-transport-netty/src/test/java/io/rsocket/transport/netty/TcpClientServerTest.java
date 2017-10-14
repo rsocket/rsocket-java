@@ -16,10 +16,8 @@
 package io.rsocket.transport.netty;
 
 import io.rsocket.test.BaseClientServerTest;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-public class TcpClientServerTest extends BaseClientServerTest<TcpClientSetupRule> {
-  @Override
-  protected TcpClientSetupRule createClientServer() {
-    return new TcpClientSetupRule();
-  }
+@ExtendWith(TcpSetupResource.Extension.class)
+public class TcpClientServerTest extends BaseClientServerTest<TcpSetupResource> {
 }

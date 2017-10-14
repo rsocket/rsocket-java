@@ -16,66 +16,76 @@
 
 package io.rsocket.test;
 
-import static org.junit.Assert.assertEquals;
+import static java.time.Duration.ofSeconds;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTimeout;
 
+import io.rsocket.Closeable;
 import io.rsocket.Payload;
+import io.rsocket.test.extension.SetupResource;
 import io.rsocket.util.PayloadImpl;
-import org.junit.Ignore;
-import org.junit.Rule;
-import org.junit.Test;
+import java.time.Duration;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
 import reactor.core.publisher.Flux;
 
-public abstract class BaseClientServerTest<T extends ClientSetupRule<?, ?>> {
-  @Rule public final T setup = createClientServer();
+public abstract class BaseClientServerTest<T extends SetupResource<?, ? extends Closeable>> {
+  private static final Duration TIMEOUT = ofSeconds(10);
 
-  protected abstract T createClientServer();
-
-  @Test(timeout = 10000)
-  public void testFireNForget10() {
-    long outputCount =
-        Flux.range(1, 10)
-            .flatMap(i -> setup.getRSocket().fireAndForget(testPayload(i)))
-            .doOnError(Throwable::printStackTrace)
-            .count()
-            .block();
-
-    assertEquals(0, outputCount);
-  }
-
-  @Test(timeout = 10000)
-  public void testPushMetadata10() {
-    long outputCount =
-        Flux.range(1, 10)
-            .flatMap(i -> setup.getRSocket().metadataPush(new PayloadImpl("", "metadata")))
-            .doOnError(Throwable::printStackTrace)
-            .count()
-            .block();
+  @Test
+  public void testFireNForget10(T setup) {
+    long outputCount = assertTimeout(
+        TIMEOUT,
+        () ->
+            Flux.range(1, 10)
+                .flatMap(i -> setup.getRSocket().fireAndForget(testPayload(i)))
+                .doOnError(Throwable::printStackTrace)
+                .count()
+                .block());
 
     assertEquals(0, outputCount);
   }
 
-  @Test(timeout = 10000)
-  public void testRequestResponse1() {
-    long outputCount =
-        Flux.range(1, 1)
-            .flatMap(
-                i -> setup.getRSocket().requestResponse(testPayload(i)).map(Payload::getDataUtf8))
-            .doOnError(Throwable::printStackTrace)
-            .count()
-            .block();
+  @Test
+  public void testPushMetadata10(T setup) {
+    long outputCount = assertTimeout(
+        TIMEOUT,
+        () ->
+            Flux.range(1, 10)
+                .flatMap(i -> setup.getRSocket().metadataPush(new PayloadImpl("", "metadata")))
+                .doOnError(Throwable::printStackTrace)
+                .count()
+                .block());
+
+    assertEquals(0, outputCount);
+  }
+
+  @Test
+  public void testRequestResponse1(T setup) {
+    long outputCount = assertTimeout(
+        TIMEOUT,
+        () ->
+            Flux.range(1, 1)
+                .flatMap(
+                    i -> setup.getRSocket().requestResponse(testPayload(i)).map(Payload::getDataUtf8))
+                .doOnError(Throwable::printStackTrace)
+                .count()
+                .block());
 
     assertEquals(1, outputCount);
   }
 
-  @Test(timeout = 10000)
-  public void testRequestResponse10() {
-    long outputCount =
-        Flux.range(1, 10)
-            .flatMap(
-                i -> setup.getRSocket().requestResponse(testPayload(i)).map(Payload::getDataUtf8))
-            .doOnError(Throwable::printStackTrace)
-            .count()
-            .block();
+  @Test
+  public void testRequestResponse10(T setup) {
+    long outputCount = assertTimeout(
+        TIMEOUT,
+        () ->
+            Flux.range(1, 10)
+                .flatMap(
+                    i -> setup.getRSocket().requestResponse(testPayload(i)).map(Payload::getDataUtf8))
+                .doOnError(Throwable::printStackTrace)
+                .count()
+                .block());
 
     assertEquals(10, outputCount);
   }
@@ -96,103 +106,131 @@ public abstract class BaseClientServerTest<T extends ClientSetupRule<?, ?>> {
     return new PayloadImpl("hello", metadata);
   }
 
-  @Test(timeout = 10000)
-  public void testRequestResponse100() {
-    long outputCount =
-        Flux.range(1, 100)
-            .flatMap(
-                i -> setup.getRSocket().requestResponse(testPayload(i)).map(Payload::getDataUtf8))
-            .doOnError(Throwable::printStackTrace)
-            .count()
-            .block();
+  @Test
+  public void testRequestResponse100(T setup) {
+    long outputCount = assertTimeout(
+        TIMEOUT,
+        () ->
+            Flux.range(1, 100)
+                .flatMap(
+                    i -> setup.getRSocket().requestResponse(testPayload(i)).map(Payload::getDataUtf8))
+                .doOnError(Throwable::printStackTrace)
+                .count()
+                .block());
 
     assertEquals(100, outputCount);
   }
 
-  @Test(timeout = 20000)
-  public void testRequestResponse10_000() {
-    long outputCount =
-        Flux.range(1, 10_000)
-            .flatMap(
-                i -> setup.getRSocket().requestResponse(testPayload(i)).map(Payload::getDataUtf8))
-            .doOnError(Throwable::printStackTrace)
-            .count()
-            .block();
+  @Test
+  public void testRequestResponse10_000(T setup) {
+    long outputCount = assertTimeout(
+        TIMEOUT,
+        () ->
+            Flux.range(1, 10_000)
+                .flatMap(
+                    i -> setup.getRSocket().requestResponse(testPayload(i)).map(Payload::getDataUtf8))
+                .doOnError(Throwable::printStackTrace)
+                .count()
+                .block());
 
     assertEquals(10_000, outputCount);
   }
 
-  @Test(timeout = 10000)
-  public void testRequestStream() {
-    Flux<Payload> publisher = setup.getRSocket().requestStream(testPayload(3));
+  @Test
+  public void testRequestStream(T setup) {
+    long count = assertTimeout(
+        TIMEOUT,
+        () -> {
+          Flux<Payload> publisher = setup.getRSocket().requestStream(testPayload(3));
 
-    long count = publisher.take(5).count().block();
-
+          return publisher.take(5).count().block();
+        });
     assertEquals(5, count);
   }
 
-  @Test(timeout = 10000)
-  public void testRequestStreamWithRequestN() {
-    CountdownBaseSubscriber ts = new CountdownBaseSubscriber();
-    ts.expect(5);
+  @Test
+  public void testRequestStreamWithRequestN(T setup) {
+    CountdownBaseSubscriber subscriber= assertTimeout(
+        TIMEOUT,
+        () -> {
+          CountdownBaseSubscriber ts = new CountdownBaseSubscriber();
+          ts.expect(5);
 
-    setup.getRSocket().requestStream(testPayload(3)).subscribe(ts);
+          setup.getRSocket().requestStream(testPayload(3)).subscribe(ts);
 
-    ts.await();
-    assertEquals(5, ts.count());
+          ts.await();
+          assertEquals(5, ts.count());
 
-    ts.expect(5);
-    ts.await();
-    ts.cancel();
+          ts.expect(5);
+          ts.await();
+          ts.cancel();
+          return ts;
+        });
 
-    assertEquals(10, ts.count());
+    assertEquals(10, subscriber.count());
   }
 
-  @Test(timeout = 10000)
-  public void testRequestStreamWithDelayedRequestN() {
-    CountdownBaseSubscriber ts = new CountdownBaseSubscriber();
+  @Test
+  public void testRequestStreamWithDelayedRequestN(T setup) {
+    CountdownBaseSubscriber subscriber= assertTimeout(
+        TIMEOUT,
+        () -> {
+          CountdownBaseSubscriber ts = new CountdownBaseSubscriber();
 
-    setup.getRSocket().requestStream(testPayload(3)).subscribe(ts);
+          setup.getRSocket().requestStream(testPayload(3)).subscribe(ts);
 
-    ts.expect(5);
+          ts.expect(5);
 
-    ts.await();
-    assertEquals(5, ts.count());
+          ts.await();
+          assertEquals(5, ts.count());
 
-    ts.expect(5);
-    ts.await();
-    ts.cancel();
-
-    assertEquals(10, ts.count());
+          ts.expect(5);
+          ts.await();
+          ts.cancel();
+          return ts;
+        });
+    assertEquals(10, subscriber.count());
   }
 
-  @Test(timeout = 10000)
-  @Ignore
-  public void testChannel0() {
-    Flux<Payload> publisher = setup.getRSocket().requestChannel(Flux.empty());
+  @Disabled
+  @Test
+  public void testChannel0(T setup) {
+    long count = assertTimeout(
+        TIMEOUT,
+        () -> {
+          Flux<Payload> publisher = setup.getRSocket().requestChannel(Flux.empty());
 
-    long count = publisher.count().block();
+          return publisher.count().block();
+        });
 
     assertEquals(0, count);
   }
 
-  @Test(timeout = 10000)
-  public void testChannel1() {
-    Flux<Payload> publisher = setup.getRSocket().requestChannel(Flux.just(testPayload(0)));
+  @Test
+  public void testChannel1(T setup) {
+    long count = assertTimeout(
+        TIMEOUT,
+        () -> {
+          Flux<Payload> publisher = setup.getRSocket().requestChannel(Flux.just(testPayload(0)));
 
-    long count = publisher.count().block();
+          return publisher.count().block();
+        });
 
     assertEquals(1, count);
   }
 
-  @Test(timeout = 10000)
-  public void testChannel3() {
-    Flux<Payload> publisher =
-        setup
-            .getRSocket()
-            .requestChannel(Flux.just(testPayload(0), testPayload(1), testPayload(2)));
+  @Test
+  public void testChannel3(T setup) {
+    long count = assertTimeout(
+        TIMEOUT,
+        () -> {
+          Flux<Payload> publisher =
+              setup
+                  .getRSocket()
+                  .requestChannel(Flux.just(testPayload(0), testPayload(1), testPayload(2)));
 
-    long count = publisher.count().block();
+          return publisher.count().block();
+        });
 
     assertEquals(3, count);
   }

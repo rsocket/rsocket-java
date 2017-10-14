@@ -16,7 +16,7 @@
 
 package io.rsocket.transport.netty;
 
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.ServerTransport;
@@ -25,7 +25,7 @@ import io.rsocket.transport.netty.client.WebsocketClientTransport;
 import io.rsocket.transport.netty.server.TcpServerTransport;
 import io.rsocket.transport.netty.server.WebsocketServerTransport;
 import io.rsocket.uri.UriTransportRegistry;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class NettyUriTransportRegistryTest {
   @Test
