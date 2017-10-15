@@ -19,7 +19,7 @@ abstract class LeaseGranter {
   protected final DuplexConnection senderConnection;
   private final LeaseManager requesterLeaseManager;
   private final LeaseManager responderLeaseManager;
-  protected Consumer<Throwable> errorConsumer;
+  protected final Consumer<Throwable> errorConsumer;
 
   LeaseGranter(
       @NonNull DuplexConnection senderConnection,

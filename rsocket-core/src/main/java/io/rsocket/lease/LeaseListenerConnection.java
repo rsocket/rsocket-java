@@ -8,11 +8,11 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.UnicastProcessor;
 /** Listens for LEASE frames and exposes them as Lease flux */
-public class LeaseListenerConnection implements DuplexConnection {
+class LeaseListenerConnection implements DuplexConnection {
   private final DuplexConnection duplexConnection;
   private final UnicastProcessor<Lease> leases = UnicastProcessor.create();
 
-  public LeaseListenerConnection(DuplexConnection duplexConnection) {
+  LeaseListenerConnection(DuplexConnection duplexConnection) {
     this.duplexConnection = duplexConnection;
   }
 

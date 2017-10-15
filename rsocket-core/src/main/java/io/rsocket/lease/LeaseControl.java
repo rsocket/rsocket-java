@@ -5,7 +5,7 @@ import java.util.Set;
 public class LeaseControl {
   private final LeaseRSocketRegistry leaseRSocketRegistry;
 
-  public LeaseControl(LeaseRSocketRegistry leaseRSocketRegistry) {
+  LeaseControl(LeaseRSocketRegistry leaseRSocketRegistry) {
     this.leaseRSocketRegistry = leaseRSocketRegistry;
   }
 

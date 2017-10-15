@@ -14,7 +14,7 @@ class RSocketLeaseSupport {
   private final LeaseManager responderLeaseManager;
   private final LeaseGranter leaseGranter;
 
-  private RSocketLeaseSupport(
+  RSocketLeaseSupport(
       LeaseManager requesterLeaseManager,
       LeaseManager responderLeaseManager,
       Flux<Lease> receivedLease,
