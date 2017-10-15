@@ -1,9 +1,7 @@
 package io.rsocket.lease;
 
 import java.util.Set;
-/**
- * Allows granting leases on per-RSocket basis
- * */
+/** Allows granting leases on per-RSocket basis */
 public class LeaseControl {
   private final LeaseRSocketRegistry leaseRSocketRegistry;
 

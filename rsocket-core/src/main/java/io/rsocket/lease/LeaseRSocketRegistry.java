@@ -6,6 +6,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 class LeaseRSocketRegistry {
   private final Set<LeaseRSocketRef> leaseConns = ConcurrentHashMap.newKeySet();
+
   public void addLeaseRSocket(LeaseRSocketRef leaseRSocketRef) {
     leaseConns.add(leaseRSocketRef);
     leaseRSocketRef.onClose().doOnTerminate(() -> leaseConns.remove(leaseRSocketRef)).subscribe();

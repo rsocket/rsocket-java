@@ -2,12 +2,11 @@ package io.rsocket.lease;
 
 import io.rsocket.DuplexConnection;
 import io.rsocket.plugins.PluginRegistry;
-import reactor.core.publisher.Flux;
-
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+import reactor.core.publisher.Flux;
 
-/**Facade used to enable lease for Client or Server*/
+/** Facade used to enable lease for Client or Server */
 public class LeaseSupport {
   private final LeaseRSocketRegistry leaseRSocketRegistry = new LeaseRSocketRegistry();
   private final Consumer<Throwable> errorConsumer;
@@ -25,14 +24,12 @@ public class LeaseSupport {
   }
 
   public static LeaseSupport ofClient(
-          Consumer<Throwable> errorConsumer,
-          Consumer<LeaseControl> leaseControlConsumer) {
+      Consumer<Throwable> errorConsumer, Consumer<LeaseControl> leaseControlConsumer) {
     return new LeaseSupport(errorConsumer, leaseControlConsumer, LeaseGranter::ofClient);
   }
 
   public static LeaseSupport ofServer(
-          Consumer<Throwable> errorConsumer,
-          Consumer<LeaseControl> leaseControlConsumer) {
+      Consumer<Throwable> errorConsumer, Consumer<LeaseControl> leaseControlConsumer) {
     return new LeaseSupport(errorConsumer, leaseControlConsumer, LeaseGranter::ofServer);
   }
 
@@ -43,16 +40,14 @@ public class LeaseSupport {
     }
     LeaseListenerConnection listenerConnection = new LeaseListenerConnection(clientConnection);
     Flux<Lease> leaseReceivedFlux = listenerConnection.leaseReceived();
-    RSocketLeaseSupport rsocketLeaseSupport = RSocketLeaseSupport.create(
-            clientConnection,
-            leaseReceivedFlux,
-            errorConsumer,
-            factory);
+    RSocketLeaseSupport rsocketLeaseSupport =
+        RSocketLeaseSupport.create(clientConnection, leaseReceivedFlux, errorConsumer, factory);
     /*make Requester and Responder RSockets respect lease*/
     localPlugins.addClientPlugin(rsocketLeaseSupport.getRequesterInterceptor());
     localPlugins.addServerPlugin(rsocketLeaseSupport.getResponderInterceptor());
     /*add  RSocketRef to LeaseControl*/
-    localPlugins.addServerPlugin(rsocket -> {
+    localPlugins.addServerPlugin(
+        rsocket -> {
           leaseRSocketRegistry.addLeaseRSocket(rsocketLeaseSupport.getRSocketRef(rsocket));
           return rsocket;
         });
@@ -60,9 +55,10 @@ public class LeaseSupport {
   }
 
   interface LeaseGranterFactory {
-    LeaseGranter apply(DuplexConnection senderConnection,
-                       LeaseManager requesterLeaseManager,
-                       LeaseManager responderLeaseManager,
-                       Consumer<Throwable> errorConsumer);
+    LeaseGranter apply(
+        DuplexConnection senderConnection,
+        LeaseManager requesterLeaseManager,
+        LeaseManager responderLeaseManager,
+        Consumer<Throwable> errorConsumer);
   }
 }

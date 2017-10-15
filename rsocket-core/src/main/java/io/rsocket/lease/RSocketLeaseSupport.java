@@ -4,12 +4,11 @@ import io.rsocket.DuplexConnection;
 import io.rsocket.RSocket;
 import io.rsocket.plugins.RSocketInterceptor;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import javax.annotation.Nonnull;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-/** Utility used to enable lease for single connection*/
+/** Utility used to enable lease for single connection */
 class RSocketLeaseSupport {
   private final LeaseManager requesterLeaseManager;
   private final LeaseManager responderLeaseManager;
@@ -39,10 +38,7 @@ class RSocketLeaseSupport {
         responderLeaseManager,
         receivedLease,
         leaseGranterFactory.apply(
-                senderConnection,
-                requesterLeaseManager,
-                responderLeaseManager,
-                errorConsumer));
+            senderConnection, requesterLeaseManager, responderLeaseManager, errorConsumer));
   }
 
   LeaseRSocketRef getRSocketRef(RSocket rSocket) {
@@ -56,5 +52,4 @@ class RSocketLeaseSupport {
   RSocketInterceptor getResponderInterceptor() {
     return rSocket -> new LeaseRSocket(rSocket, responderLeaseManager, "responder");
   }
-
 }

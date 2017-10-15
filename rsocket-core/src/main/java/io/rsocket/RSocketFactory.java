@@ -264,8 +264,8 @@ public class RSocketFactory {
     protected class StartClient implements Start<RSocket> {
       private final Supplier<ClientTransport> transportClient;
       private final Optional<LeaseSupport> leaseSupport =
-          leaseControlConsumer.map(leaseCtrlConsumer ->
-                  LeaseSupport.ofClient(errorConsumer, leaseCtrlConsumer));
+          leaseControlConsumer.map(
+              leaseCtrlConsumer -> LeaseSupport.ofClient(errorConsumer, leaseCtrlConsumer));
 
       StartClient(Supplier<ClientTransport> transportClient) {
         this.transportClient = transportClient;
@@ -399,8 +399,8 @@ public class RSocketFactory {
     private class ServerStart<T extends Closeable> implements Start<T> {
       private final Supplier<ServerTransport<T>> transportServer;
       private final Optional<LeaseSupport> leaseSupport =
-          leaseControlConsumer.map(leaseCtrlConsumer ->
-                  LeaseSupport.ofServer(errorConsumer, leaseCtrlConsumer));
+          leaseControlConsumer.map(
+              leaseCtrlConsumer -> LeaseSupport.ofServer(errorConsumer, leaseCtrlConsumer));
 
       ServerStart(Supplier<ServerTransport<T>> transportServer) {
         this.transportServer = transportServer;
