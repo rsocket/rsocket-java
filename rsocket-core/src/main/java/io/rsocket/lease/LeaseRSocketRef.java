@@ -9,7 +9,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import reactor.core.publisher.Mono;
 
-/** Provides means to grant lease to peer, check RSocket responder availability and closed state */
+/** Provides means to grant lease to peer and check RSocket responder availability */
 public class LeaseRSocketRef implements Availability {
   private static final CloseableAvailability closed = new ClosedAvailability();
   private final LeaseGranter leaseGranter;

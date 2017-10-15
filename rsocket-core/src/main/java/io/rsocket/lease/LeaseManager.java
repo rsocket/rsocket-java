@@ -5,7 +5,7 @@ import java.util.Objects;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import reactor.core.publisher.*;
-/** Updates lease as it is used and provides source of notifications about those updates */
+/** Updates Lease on use and grant*/
 class LeaseManager {
   private static final MutableLeaseImpl INVALID_MUTABLE_LEASE = new MutableLeaseImpl(0, 0, null);
   private volatile MutableLeaseImpl currentLease = INVALID_MUTABLE_LEASE;

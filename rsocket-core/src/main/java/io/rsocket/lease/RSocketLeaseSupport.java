@@ -9,13 +9,13 @@ import javax.annotation.Nonnull;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-/** Facade used to enable lease in client and server rsocket factories, per connection */
-public class RSocketLeaseSupport {
+/** Utility used to enable lease for single connection*/
+class RSocketLeaseSupport {
   private final LeaseManager requesterLeaseManager;
   private final LeaseManager responderLeaseManager;
   private final LeaseGranter leaseGranter;
 
-  RSocketLeaseSupport(
+  private RSocketLeaseSupport(
       LeaseManager requesterLeaseManager,
       LeaseManager responderLeaseManager,
       Flux<Lease> receivedLease,
@@ -26,10 +26,11 @@ public class RSocketLeaseSupport {
     receivedLease.subscribe(leaseGranter.grantedLeasesReceiver());
   }
 
-  public static RSocketLeaseSupport ofServer(
+  static RSocketLeaseSupport create(
       @Nonnull DuplexConnection senderConnection,
       @Nonnull Flux<Lease> receivedLease,
-      @Nonnull Consumer<Throwable> errorConsumer) {
+      @Nonnull Consumer<Throwable> errorConsumer,
+      LeaseSupport.LeaseGranterFactory leaseGranterFactory) {
     Mono<Void> connectionClose = senderConnection.onClose();
     LeaseManager requesterLeaseManager = new LeaseManager("requester", connectionClose);
     LeaseManager responderLeaseManager = new LeaseManager("responder", connectionClose);
@@ -37,34 +38,23 @@ public class RSocketLeaseSupport {
         requesterLeaseManager,
         responderLeaseManager,
         receivedLease,
-        LeaseGranter.ofServer(
-            senderConnection, requesterLeaseManager, responderLeaseManager, errorConsumer));
+        leaseGranterFactory.apply(
+                senderConnection,
+                requesterLeaseManager,
+                responderLeaseManager,
+                errorConsumer));
   }
 
-  public static RSocketLeaseSupport ofClient(
-      DuplexConnection senderConnection,
-      Flux<Lease> receivedLease,
-      Consumer<Throwable> errorConsumer) {
-    Mono<Void> connectionClose = senderConnection.onClose();
-    LeaseManager requesterLeaseManager = new LeaseManager("requester", connectionClose);
-    LeaseManager responderLeaseManager = new LeaseManager("responder", connectionClose);
-    return new RSocketLeaseSupport(
-        requesterLeaseManager,
-        responderLeaseManager,
-        receivedLease,
-        LeaseGranter.ofClient(
-            senderConnection, requesterLeaseManager, responderLeaseManager, errorConsumer));
+  LeaseRSocketRef getRSocketRef(RSocket rSocket) {
+    return new LeaseRSocketRef(leaseGranter, rSocket);
   }
 
-  public Function<RSocket, LeaseRSocketRef> responderRefFactory() {
-    return rSocket -> new LeaseRSocketRef(leaseGranter, rSocket);
-  }
-
-  public RSocketInterceptor getRequesterInterceptor() {
+  RSocketInterceptor getRequesterInterceptor() {
     return rSocket -> new LeaseRSocket(rSocket, requesterLeaseManager, "requester");
   }
 
-  public RSocketInterceptor getResponderInterceptor() {
+  RSocketInterceptor getResponderInterceptor() {
     return rSocket -> new LeaseRSocket(rSocket, responderLeaseManager, "responder");
   }
+
 }

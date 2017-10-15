@@ -15,6 +15,8 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
 
+import static java.time.Duration.*;
+
 public class LeaseClientServeReqRep {
   private static final Logger LOGGER = LoggerFactory.getLogger("io.rsocket.examples.lease_req_rep");
 
@@ -45,16 +47,22 @@ public class LeaseClientServeReqRep {
             .start()
             .block();
 
-    Flux.interval(Duration.ofSeconds(1))
+    Flux.interval(ofSeconds(1))
         .flatMap(
-            signal ->
-                clientSocket
-                    .requestResponse(new PayloadImpl("Client request " + new Date()))
-                    .onErrorResume(
-                        err ->
-                            Mono.<Payload>empty()
-                                .doOnTerminate(() -> LOGGER.info("Error: " + err))))
+                signal -> {
+                  LOGGER.info("Availability: " + clientSocket.availability());
+                  return clientSocket
+                          .requestResponse(new PayloadImpl("Client request " + new Date()))
+                          .onErrorResume(err ->
+                                  Mono.<Payload>empty()
+                                          .doOnTerminate(() -> LOGGER.info("Error: " + err)));
+                })
         .subscribe(resp -> LOGGER.info("Client response: " + resp.getDataUtf8()));
+    serverLeaseControl
+            .leaseControl()
+            .flatMapMany(lc -> Flux.interval(ofSeconds(1),ofSeconds(10)).map(signal -> lc))
+            .flatMapIterable(LeaseControl::getLeaseRSockets)
+            .subscribe(ref -> ref.grantLease(7,5_000));
 
     clientSocket.onClose().block();
   }

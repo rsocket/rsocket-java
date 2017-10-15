@@ -264,8 +264,8 @@ public class RSocketFactory {
     protected class StartClient implements Start<RSocket> {
       private final Supplier<ClientTransport> transportClient;
       private final Optional<LeaseSupport> leaseSupport =
-          leaseControlConsumer.map(
-              leaseCtrlConsumer -> new LeaseSupport(errorConsumer, leaseCtrlConsumer));
+          leaseControlConsumer.map(leaseCtrlConsumer ->
+                  LeaseSupport.ofClient(errorConsumer, leaseCtrlConsumer));
 
       StartClient(Supplier<ClientTransport> transportClient) {
         this.transportClient = transportClient;
@@ -298,7 +298,7 @@ public class RSocketFactory {
                       leaseSupport
                           .map(
                               leaseSupp ->
-                                  leaseSupp.wrap(localPlugins, multiplexer.asClientConnection()))
+                                  leaseSupp.enable(localPlugins, multiplexer.asClientConnection()))
                           .orElseGet(multiplexer::asClientConnection);
 
                   RSocketRequester rSocketRequester =
@@ -399,8 +399,8 @@ public class RSocketFactory {
     private class ServerStart<T extends Closeable> implements Start<T> {
       private final Supplier<ServerTransport<T>> transportServer;
       private final Optional<LeaseSupport> leaseSupport =
-          leaseControlConsumer.map(
-              leaseCtrlConsumer -> new LeaseSupport(errorConsumer, leaseCtrlConsumer));
+          leaseControlConsumer.map(leaseCtrlConsumer ->
+                  LeaseSupport.ofServer(errorConsumer, leaseCtrlConsumer));
 
       ServerStart(Supplier<ServerTransport<T>> transportServer) {
         this.transportServer = transportServer;
@@ -445,7 +445,7 @@ public class RSocketFactory {
         PluginRegistry localPlugins = new PluginRegistry();
         DuplexConnection clientConnection =
             Frame.Setup.supportsLease(setupFrame)
-                ? leaseSupport.get().wrap(localPlugins, multiplexer.asClientConnection())
+                ? leaseSupport.get().enable(localPlugins, multiplexer.asClientConnection())
                 : multiplexer.asClientConnection();
 
         RSocketRequester rSocketRequester =

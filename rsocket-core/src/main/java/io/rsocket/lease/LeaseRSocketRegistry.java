@@ -2,11 +2,10 @@ package io.rsocket.lease;
 
 import java.util.HashSet;
 import java.util.Set;
-import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.concurrent.ConcurrentHashMap;
 
-public class LeaseRSocketRegistry {
-  private final Set<LeaseRSocketRef> leaseConns = new ConcurrentSkipListSet<>();
-
+class LeaseRSocketRegistry {
+  private final Set<LeaseRSocketRef> leaseConns = ConcurrentHashMap.newKeySet();
   public void addLeaseRSocket(LeaseRSocketRef leaseRSocketRef) {
     leaseConns.add(leaseRSocketRef);
     leaseRSocketRef.onClose().doOnTerminate(() -> leaseConns.remove(leaseRSocketRef)).subscribe();

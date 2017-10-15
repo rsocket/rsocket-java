@@ -10,8 +10,8 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 /**
- * Protects rsocket from requests without lease, and maintains its availability based on current
- * leases and availability of underlying rsocket
+ * Protects RSocket from requests without lease, maintains RSocket availability based on current
+ * lease and availability of underlying rsocket
  */
 class LeaseRSocket extends RSocketProxy {
   private final LeaseManager leaseManager;
@@ -25,22 +25,22 @@ class LeaseRSocket extends RSocketProxy {
 
   @Override
   public Mono<Void> fireAndForget(Payload payload) {
-    return protectedRequest(super.fireAndForget(payload));
+    return leaseRequest(super.fireAndForget(payload));
   }
 
   @Override
   public Mono<Payload> requestResponse(Payload payload) {
-    return protectedRequest(super.requestResponse(payload));
+    return leaseRequest(super.requestResponse(payload));
   }
 
   @Override
   public Flux<Payload> requestStream(Payload payload) {
-    return protectedRequest(super.requestStream(payload));
+    return leaseRequest(super.requestStream(payload));
   }
 
   @Override
   public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
-    return protectedRequest(super.requestChannel(payloads));
+    return leaseRequest(super.requestChannel(payloads));
   }
 
   @Override
@@ -56,7 +56,7 @@ class LeaseRSocket extends RSocketProxy {
         : 0.0;
   }
 
-  private <T> Mono<T> protectedRequest(Mono<T> request) {
+  private <T> Mono<T> leaseRequest(Mono<T> request) {
     return Mono.<Lease>just(leaseManager.getLease())
         .flatMap(
             lease -> {
@@ -69,7 +69,7 @@ class LeaseRSocket extends RSocketProxy {
             });
   }
 
-  private <T> Flux<T> protectedRequest(Flux<T> request) {
+  private <T> Flux<T> leaseRequest(Flux<T> request) {
     return Flux.<Lease>just(leaseManager.getLease())
         .flatMap(
             lease -> {
