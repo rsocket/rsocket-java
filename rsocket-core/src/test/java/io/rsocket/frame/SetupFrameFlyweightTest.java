@@ -16,14 +16,15 @@
 
 package io.rsocket.frame;
 
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
 import io.rsocket.FrameType;
 import java.nio.charset.StandardCharsets;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class SetupFrameFlyweightTest {
   private final ByteBuf byteBuf = Unpooled.buffer(1024);
@@ -44,17 +45,20 @@ public class SetupFrameFlyweightTest {
     assertEquals(data, FrameHeaderFlyweight.sliceFrameData(byteBuf));
   }
 
-  @Test(expected = IllegalArgumentException.class)
+  @Test
   public void resumeNotSupported() {
-    SetupFrameFlyweight.encode(
-        byteBuf,
-        SetupFrameFlyweight.FLAGS_RESUME_ENABLE,
-        5,
-        500,
-        "",
-        "",
-        Unpooled.EMPTY_BUFFER,
-        Unpooled.EMPTY_BUFFER);
+    assertThrows(
+        IllegalArgumentException.class,
+        () ->
+            SetupFrameFlyweight.encode(
+                byteBuf,
+                SetupFrameFlyweight.FLAGS_RESUME_ENABLE,
+                5,
+                500,
+                "",
+                "",
+                Unpooled.EMPTY_BUFFER,
+                Unpooled.EMPTY_BUFFER));
   }
 
   @Test

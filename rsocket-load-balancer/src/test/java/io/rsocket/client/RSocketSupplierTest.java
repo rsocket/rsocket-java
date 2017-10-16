@@ -15,11 +15,13 @@
  */
 package io.rsocket.client;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
@@ -30,13 +32,14 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
-import org.junit.Test;
-import org.mockito.Mockito;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 import reactor.core.publisher.Mono;
 
+@Disabled
 public class RSocketSupplierTest {
 
   @Test
@@ -69,7 +72,7 @@ public class RSocketSupplierTest {
   }
 
   @Test
-  public void testWidowReset() throws InterruptedException {
+  public void testWindowReset() throws InterruptedException {
     testRSocket(
         (latch, socket) -> {
           assertEquals(1.0, socket.availability(), 0.0);
@@ -112,10 +115,10 @@ public class RSocketSupplierTest {
               }
             });
 
-    RSocketSupplier factory = Mockito.mock(RSocketSupplier.class);
+    RSocketSupplier factory = mock(RSocketSupplier.class);
 
-    Mockito.when(factory.availability()).thenReturn(1.0);
-    Mockito.when(factory.get()).thenReturn(Mono.just(socket));
+    when(factory.availability()).thenReturn(1.0);
+    when(factory.get()).thenReturn(Mono.just(socket));
 
     RSocketSupplier failureFactory = new RSocketSupplier(factory, 100, TimeUnit.MILLISECONDS);
 
@@ -136,7 +139,7 @@ public class RSocketSupplierTest {
 
               @Override
               public void onError(Throwable t) {
-                fail();
+                fail(t);
               }
 
               @Override

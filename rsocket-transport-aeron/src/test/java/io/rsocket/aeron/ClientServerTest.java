@@ -15,48 +15,47 @@
  */
 package io.rsocket.aeron;
 
-import static org.junit.Assert.assertEquals;
+import static java.time.Duration.ofSeconds;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTimeout;
 
 import io.rsocket.Payload;
-import io.rsocket.test.ClientSetupRule;
 import io.rsocket.util.PayloadImpl;
-import org.junit.Ignore;
-import org.junit.Rule;
-import org.junit.Test;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import reactor.core.publisher.Flux;
 
-@Ignore
+@Disabled
+@ExtendWith(AeronSetupResource.Extension.class)
 public class ClientServerTest {
-
-  @Rule public final ClientSetupRule setup = new AeronClientSetupRule();
-
-  @Test(timeout = 10000)
-  public void testFireNForget10() {
-    long outputCount =
+  @Test
+  public void testFireNForget10(AeronSetupResource setup) {
+    long outputCount = assertTimeout(ofSeconds(10), () ->
         Flux.range(1, 10)
             .flatMap(i -> setup.getRSocket().fireAndForget(new PayloadImpl("hello", "metadata")))
             .doOnError(Throwable::printStackTrace)
             .count()
-            .block();
+            .block());
 
     assertEquals(0, outputCount);
   }
 
-  @Test(timeout = 10000)
-  public void testPushMetadata10() {
-    long outputCount =
+  @Test
+  public void testPushMetadata10(AeronSetupResource setup) {
+    long outputCount = assertTimeout(ofSeconds(10), () ->
         Flux.range(1, 10)
             .flatMap(i -> setup.getRSocket().metadataPush(new PayloadImpl("", "metadata")))
             .doOnError(Throwable::printStackTrace)
             .count()
-            .block();
+            .block());
 
     assertEquals(0, outputCount);
   }
 
-  @Test(timeout = 5000000)
-  public void testRequestResponse1() {
-    long outputCount =
+  @Test
+  public void testRequestResponse1(AeronSetupResource setup) {
+    long outputCount = assertTimeout(ofSeconds(5000), () ->
         Flux.range(1, 1)
             .flatMap(
                 i ->
@@ -66,14 +65,14 @@ public class ClientServerTest {
                         .map(Payload::getDataUtf8))
             .doOnError(Throwable::printStackTrace)
             .count()
-            .block();
+            .block());
 
     assertEquals(1, outputCount);
   }
 
-  @Test(timeout = 2000)
-  public void testRequestResponse10() {
-    long outputCount =
+  @Test
+  public void testRequestResponse10(AeronSetupResource setup) {
+    long outputCount = assertTimeout(ofSeconds(2), () ->
         Flux.range(1, 10)
             .flatMap(
                 i ->
@@ -83,14 +82,14 @@ public class ClientServerTest {
                         .map(Payload::getDataUtf8))
             .doOnError(Throwable::printStackTrace)
             .count()
-            .block();
+            .block());
 
     assertEquals(10, outputCount);
   }
 
-  @Test(timeout = 2000)
-  public void testRequestResponse100() {
-    long outputCount =
+  @Test
+  public void testRequestResponse100(AeronSetupResource setup) {
+    long outputCount = assertTimeout(ofSeconds(2), () ->
         Flux.range(1, 100)
             .flatMap(
                 i ->
@@ -100,14 +99,14 @@ public class ClientServerTest {
                         .map(Payload::getDataUtf8))
             .doOnError(Throwable::printStackTrace)
             .count()
-            .block();
+            .block());
 
     assertEquals(100, outputCount);
   }
 
-  @Test(timeout = 5000)
-  public void testRequestResponse10_000() {
-    long outputCount =
+  @Test
+  public void testRequestResponse10_000(AeronSetupResource setup) {
+    long outputCount = assertTimeout(ofSeconds(5), () ->
         Flux.range(1, 10_000)
             .flatMap(
                 i ->
@@ -117,17 +116,19 @@ public class ClientServerTest {
                         .map(Payload::getDataUtf8))
             .doOnError(Throwable::printStackTrace)
             .count()
-            .block();
+            .block());
 
     assertEquals(10_000, outputCount);
   }
 
-  @Test(timeout = 10000)
-  public void testRequestStream() {
-    Flux<Payload> publisher =
-        setup.getRSocket().requestStream(new PayloadImpl("hello", "metadata"));
+  @Test
+  public void testRequestStream(AeronSetupResource setup) {
+    long count = assertTimeout(ofSeconds(10), () -> {
+      Flux<Payload> publisher =
+          setup.getRSocket().requestStream(new PayloadImpl("hello", "metadata"));
 
-    long count = publisher.take(5).count().block();
+      return publisher.take(5).count().block();
+    });
 
     assertEquals(5, count);
   }

@@ -16,143 +16,82 @@
 
 package io.rsocket;
 
+import static java.time.Duration.ofSeconds;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
+import static org.junit.jupiter.api.Assertions.assertTimeout;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 
 import io.rsocket.exceptions.ApplicationException;
-import io.rsocket.test.util.LocalDuplexConnection;
+import io.rsocket.extension.ParameterExtension;
 import io.rsocket.test.util.TestSubscriber;
 import io.rsocket.util.PayloadImpl;
-import java.util.ArrayList;
+import java.time.Duration;
 import java.util.concurrent.CountDownLatch;
-import org.hamcrest.MatcherAssert;
-import org.junit.Ignore;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.ExternalResource;
-import org.junit.runner.Description;
-import org.junit.runners.model.Statement;
-import org.reactivestreams.Publisher;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.reactivestreams.Subscriber;
-import reactor.core.publisher.DirectProcessor;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+@ExtendWith(ParameterExtension.class)
 public class RSocketTest {
+  private static final Duration TIMEOUT = ofSeconds(2);
 
-  @Rule public final SocketRule rule = new SocketRule();
-
-  @Test(timeout = 2_000)
-  public void testRequestReplyNoError() {
-    Subscriber<Payload> subscriber = TestSubscriber.create();
-    rule.crs.requestResponse(new PayloadImpl("hello")).subscribe(subscriber);
+  @Test
+  public void testRequestReplyNoError(SocketResource socket) {
+    Subscriber<Payload> subscriber =
+        assertTimeout(
+            TIMEOUT,
+            () -> {
+              Subscriber<Payload> s = TestSubscriber.create();
+              socket.crs.requestResponse(new PayloadImpl("hello")).subscribe(s);
+              return s;
+            });
     verify(subscriber).onNext(TestSubscriber.anyPayload());
     verify(subscriber).onComplete();
-    rule.assertNoErrors();
+    assertNoErrors(socket);
   }
 
-  @Test(timeout = 2000)
-  @Ignore
-  public void testHandlerEmitsError() {
-    rule.setRequestAcceptor(
-        new AbstractRSocket() {
-          @Override
-          public Mono<Payload> requestResponse(Payload payload) {
-            return Mono.error(new NullPointerException("Deliberate exception."));
-          }
-        });
-    Subscriber<Payload> subscriber = TestSubscriber.create();
-    rule.crs.requestResponse(PayloadImpl.EMPTY).subscribe(subscriber);
+  @Disabled
+  @Test
+  public void testHandlerEmitsError(SocketResource socket) {
+    Subscriber<Payload> subscriber =
+        assertTimeout(
+            TIMEOUT,
+            () -> {
+              socket.acceptor(
+                  payload -> Mono.error(new NullPointerException("Deliberate exception.")));
+              Subscriber<Payload> s = TestSubscriber.create();
+              socket.crs.requestResponse(PayloadImpl.EMPTY).subscribe(s);
+              return s;
+            });
     verify(subscriber).onError(any(ApplicationException.class));
-    rule.assertNoErrors();
+    assertNoErrors(socket);
   }
 
-  @Test(timeout = 2000)
-  public void testChannel() throws Exception {
-    CountDownLatch latch = new CountDownLatch(10);
-    Flux<Payload> requests = Flux.range(0, 10).map(i -> new PayloadImpl("streaming in -> " + i));
+  @Test
+  public void testChannel(SocketResource socket) {
+    assertTimeout(
+        TIMEOUT,
+        () -> {
+          CountDownLatch latch = new CountDownLatch(10);
+          Flux<Payload> requests =
+              Flux.range(0, 10).map(i -> new PayloadImpl("streaming in -> " + i));
 
-    Flux<Payload> responses = rule.crs.requestChannel(requests);
+          Flux<Payload> responses = socket.crs.requestChannel(requests);
 
-    responses.doOnNext(p -> latch.countDown()).subscribe();
+          responses.doOnNext(p -> latch.countDown()).subscribe();
 
-    latch.await();
+          latch.await();
+        });
   }
 
-  public static class SocketRule extends ExternalResource {
-
-    private RSocketClient crs;
-    private RSocketServer srs;
-    private RSocket requestAcceptor;
-    DirectProcessor<Frame> serverProcessor;
-    DirectProcessor<Frame> clientProcessor;
-    private ArrayList<Throwable> clientErrors = new ArrayList<>();
-    private ArrayList<Throwable> serverErrors = new ArrayList<>();
-
-    @Override
-    public Statement apply(Statement base, Description description) {
-      return new Statement() {
-        @Override
-        public void evaluate() throws Throwable {
-          init();
-          base.evaluate();
-        }
-      };
-    }
-
-    protected void init() {
-      serverProcessor = DirectProcessor.create();
-      clientProcessor = DirectProcessor.create();
-
-      LocalDuplexConnection serverConnection =
-          new LocalDuplexConnection("server", clientProcessor, serverProcessor);
-      LocalDuplexConnection clientConnection =
-          new LocalDuplexConnection("client", serverProcessor, clientProcessor);
-
-      requestAcceptor =
-          null != requestAcceptor
-              ? requestAcceptor
-              : new AbstractRSocket() {
-                @Override
-                public Mono<Payload> requestResponse(Payload payload) {
-                  return Mono.just(payload);
-                }
-
-                @Override
-                public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
-                  Flux.from(payloads)
-                      .map(payload -> new PayloadImpl("server got -> [" + payload.toString() + "]"))
-                      .subscribe();
-
-                  return Flux.range(1, 10)
-                      .map(
-                          payload -> new PayloadImpl("server got -> [" + payload.toString() + "]"));
-                }
-              };
-
-      srs =
-          new RSocketServer(
-              serverConnection, requestAcceptor, throwable -> serverErrors.add(throwable));
-
-      crs =
-          new RSocketClient(
-              clientConnection,
-              throwable -> clientErrors.add(throwable),
-              StreamIdSupplier.clientSupplier());
-    }
-
-    public void setRequestAcceptor(RSocket requestAcceptor) {
-      this.requestAcceptor = requestAcceptor;
-      init();
-    }
-
-    public void assertNoErrors() {
-      MatcherAssert.assertThat(
-          "Unexpected error on the client connection.", clientErrors, is(empty()));
-      MatcherAssert.assertThat(
-          "Unexpected error on the server connection.", serverErrors, is(empty()));
-    }
+  private void assertNoErrors(SocketResource socket) {
+    assertThat("Unexpected error on the client connection.", socket.clientErrors, is(empty()));
+    assertThat("Unexpected error on the server connection.", socket.serverErrors, is(empty()));
   }
 }

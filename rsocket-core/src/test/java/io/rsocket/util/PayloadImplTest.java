@@ -14,16 +14,16 @@
 package io.rsocket.util;
 
 import static io.rsocket.util.PayloadImpl.textPayload;
-import static org.hamcrest.MatcherAssert.*;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
 
 import io.rsocket.Payload;
 import javax.annotation.Nullable;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class PayloadImplTest {
-  public static final String DATA_VAL = "data";
-  public static final String METADATA_VAL = "metadata";
+  private static final String DATA_VAL = "data";
+  private static final String METADATA_VAL = "metadata";
 
   @Test
   public void testReuse() {
@@ -40,7 +40,7 @@ public class PayloadImplTest {
     assertDataAndMetadata(p, DATA_VAL, METADATA_VAL);
   }
 
-  public void assertDataAndMetadata(Payload p, String dataVal, @Nullable String metadataVal) {
+  private void assertDataAndMetadata(Payload p, String dataVal, @Nullable String metadataVal) {
     assertThat("Unexpected data.", p.getDataUtf8(), equalTo(dataVal));
     if (metadataVal == null) {
       assertThat("Non-null metadata", p.hasMetadata(), equalTo(false));

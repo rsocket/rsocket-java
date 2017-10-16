@@ -16,8 +16,10 @@
 
 package io.rsocket.integration;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
+import static java.time.Duration.ofSeconds;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTimeout;
 
 import io.rsocket.AbstractRSocket;
 import io.rsocket.Payload;
@@ -28,23 +30,29 @@ import io.rsocket.transport.netty.server.NettyContextCloseable;
 import io.rsocket.transport.netty.server.TcpServerTransport;
 import io.rsocket.util.PayloadImpl;
 import io.rsocket.util.RSocketProxy;
+import java.time.Duration;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.UnicastProcessor;
 import reactor.core.scheduler.Schedulers;
+import reactor.util.function.Tuple2;
+import reactor.util.function.Tuples;
 
 public class TcpIntegrationTest {
-  private AbstractRSocket handler;
+  private static final Duration TIMEOUT = ofSeconds(5);
 
-  private NettyContextCloseable server;
+  private static AbstractRSocket handler;
 
-  @Before
-  public void startup() {
+  private static NettyContextCloseable server;
+
+  @BeforeAll
+  public static void startup() {
     TcpServerTransport serverTransport = TcpServerTransport.create(0);
     server =
         RSocketFactory.receive()
@@ -61,135 +69,156 @@ public class TcpIntegrationTest {
         .block();
   }
 
-  @After
-  public void cleanup() {
+  @AfterAll
+  public static void cleanup() {
     server.close().block();
   }
 
-  @Test(timeout = 5_000L)
+  @Test
   public void testCompleteWithoutNext() {
-    handler =
-        new AbstractRSocket() {
-          @Override
-          public Flux<Payload> requestStream(Payload payload) {
-            return Flux.empty();
-          }
-        };
-    RSocket client = buildClient();
-    Boolean hasElements =
-        client.requestStream(new PayloadImpl("REQUEST", "META")).log().hasElements().block();
+    Boolean hasElements = assertTimeout(
+        TIMEOUT,
+        () -> {
+          handler =
+              new AbstractRSocket() {
+                @Override
+                public Flux<Payload> requestStream(Payload payload) {
+                  return Flux.empty();
+                }
+              };
+          RSocket client = buildClient();
 
+              return client.requestStream(new PayloadImpl("REQUEST", "META")).log().hasElements().block();
+        });
     assertFalse(hasElements);
   }
 
-  @Test(timeout = 5_000L)
+  @Test
   public void testSingleStream() {
-    handler =
-        new AbstractRSocket() {
-          @Override
-          public Flux<Payload> requestStream(Payload payload) {
-            return Flux.just(new PayloadImpl("RESPONSE", "METADATA"));
-          }
-        };
+    Payload result = assertTimeout(
+        TIMEOUT,
+        () -> {
+          handler =
+              new AbstractRSocket() {
+                @Override
+                public Flux<Payload> requestStream(Payload payload) {
+                  return Flux.just(new PayloadImpl("RESPONSE", "METADATA"));
+                }
+              };
 
-    RSocket client = buildClient();
+          RSocket client = buildClient();
 
-    Payload result = client.requestStream(new PayloadImpl("REQUEST", "META")).blockLast();
-
+          return client.requestStream(new PayloadImpl("REQUEST", "META")).blockLast();
+        });
     assertEquals("RESPONSE", result.getDataUtf8());
   }
 
-  @Test(timeout = 5_000L)
+  @Test
   public void testZeroPayload() {
-    handler =
-        new AbstractRSocket() {
-          @Override
-          public Flux<Payload> requestStream(Payload payload) {
-            return Flux.just(PayloadImpl.EMPTY);
-          }
-        };
+    Payload result = assertTimeout(
+        TIMEOUT,
+        () -> {
+          handler =
+              new AbstractRSocket() {
+                @Override
+                public Flux<Payload> requestStream(Payload payload) {
+                  return Flux.just(PayloadImpl.EMPTY);
+                }
+              };
 
-    RSocket client = buildClient();
+          RSocket client = buildClient();
 
-    Payload result = client.requestStream(new PayloadImpl("REQUEST", "META")).blockFirst();
-
+          return client.requestStream(new PayloadImpl("REQUEST", "META")).blockFirst();
+        });
     assertEquals("", result.getDataUtf8());
   }
 
-  @Test(timeout = 5_000L)
+  @Disabled
+  @Test
   public void testRequestResponseErrors() {
-    handler =
-        new AbstractRSocket() {
-          boolean first = true;
+    Tuple2<Payload,Payload> response = assertTimeout(
+        TIMEOUT,
+        () -> {
+          handler =
+              new AbstractRSocket() {
+                boolean first = true;
 
-          @Override
-          public Mono<Payload> requestResponse(Payload payload) {
-            if (first) {
-              first = false;
-              return Mono.error(new RuntimeException("EX"));
-            } else {
-              return Mono.just(new PayloadImpl("SUCCESS"));
-            }
-          }
-        };
+                @Override
+                public Mono<Payload> requestResponse(Payload payload) {
+                  if (first) {
+                    first = false;
+                    return Mono.error(new RuntimeException("EX"));
+                  } else {
+                    return Mono.just(new PayloadImpl("SUCCESS"));
+                  }
+                }
+              };
 
-    RSocket client = buildClient();
+          RSocket client = buildClient();
 
-    Payload response1 =
-        client
-            .requestResponse(new PayloadImpl("REQUEST", "META"))
-            .onErrorReturn(new PayloadImpl("ERROR"))
-            .block();
-    Payload response2 =
-        client
-            .requestResponse(new PayloadImpl("REQUEST", "META"))
-            .onErrorReturn(new PayloadImpl("ERROR"))
-            .block();
+          Payload response1 =
+              client
+                  .requestResponse(new PayloadImpl("REQUEST", "META"))
+                  .onErrorReturn(new PayloadImpl("ERROR"))
+                  .block();
+          Payload response2 =
+              client
+                  .requestResponse(new PayloadImpl("REQUEST", "META"))
+                  .onErrorReturn(new PayloadImpl("ERROR"))
+                  .block();
+          return Tuples.of(response1, response2);
+        });
 
-    assertEquals("ERROR", response1.getDataUtf8());
-    assertEquals("SUCCESS", response2.getDataUtf8());
+    assertEquals("ERROR", response.getT1().getDataUtf8());
+    assertEquals("SUCCESS", response.getT2().getDataUtf8());
   }
 
-  @Test(timeout = 5_000L)
-  public void testTwoConcurrentStreams() throws InterruptedException {
-    ConcurrentHashMap<String, UnicastProcessor<Payload>> map = new ConcurrentHashMap<>();
-    UnicastProcessor<Payload> processor1 = UnicastProcessor.create();
-    map.put("REQUEST1", processor1);
-    UnicastProcessor<Payload> processor2 = UnicastProcessor.create();
-    map.put("REQUEST2", processor2);
+  @Test
+  public void testTwoConcurrentStreams() {
+    assertTimeout(
+        TIMEOUT,
+        () -> {
+          ConcurrentHashMap<String, UnicastProcessor<Payload>> map = new ConcurrentHashMap<>();
+          UnicastProcessor<Payload> processor1 = UnicastProcessor.create();
+          map.put("REQUEST1", processor1);
+          UnicastProcessor<Payload> processor2 = UnicastProcessor.create();
+          map.put("REQUEST2", processor2);
 
-    handler =
-        new AbstractRSocket() {
-          @Override
-          public Flux<Payload> requestStream(Payload payload) {
-            return map.get(payload.getDataUtf8());
-          }
-        };
+          handler =
+              new AbstractRSocket() {
+                @Override
+                public Flux<Payload> requestStream(Payload payload) {
+                  return map.get(payload.getDataUtf8());
+                }
+              };
 
-    RSocket client = buildClient();
+          RSocket client = buildClient();
 
-    Flux<Payload> response1 = client.requestStream(new PayloadImpl("REQUEST1"));
-    Flux<Payload> response2 = client.requestStream(new PayloadImpl("REQUEST2"));
+          Flux<Payload> response1 = client.requestStream(new PayloadImpl("REQUEST1"));
+          Flux<Payload> response2 = client.requestStream(new PayloadImpl("REQUEST2"));
 
-    CountDownLatch nextCountdown = new CountDownLatch(2);
-    CountDownLatch completeCountdown = new CountDownLatch(2);
+          CountDownLatch nextCountdown = new CountDownLatch(2);
+          CountDownLatch completeCountdown = new CountDownLatch(2);
 
-    response1
-        .subscribeOn(Schedulers.newSingle("1"))
-        .subscribe(c -> nextCountdown.countDown(), t -> {}, completeCountdown::countDown);
+          response1
+              .subscribeOn(Schedulers.newSingle("1"))
+              .subscribe(c -> nextCountdown.countDown(), t -> {
+              }, completeCountdown::countDown);
 
-    response2
-        .subscribeOn(Schedulers.newSingle("2"))
-        .subscribe(c -> nextCountdown.countDown(), t -> {}, completeCountdown::countDown);
+          response2
+              .subscribeOn(Schedulers.newSingle("2"))
+              .subscribe(c -> nextCountdown.countDown(), t -> {
+              }, completeCountdown::countDown);
 
-    processor1.onNext(new PayloadImpl("RESPONSE1A"));
-    processor2.onNext(new PayloadImpl("RESPONSE2A"));
+          processor1.onNext(new PayloadImpl("RESPONSE1A"));
+          processor2.onNext(new PayloadImpl("RESPONSE2A"));
 
-    nextCountdown.await();
+          nextCountdown.await();
 
-    processor1.onComplete();
-    processor2.onComplete();
+          processor1.onComplete();
+          processor2.onComplete();
 
-    completeCountdown.await();
+          completeCountdown.await();
+        });
   }
 }

@@ -16,18 +16,25 @@
 
 package io.rsocket.transport.netty;
 
-import io.rsocket.test.ClientSetupRule;
+import io.rsocket.test.extension.AbstractExtension;
+import io.rsocket.test.extension.SetupResource;
 import io.rsocket.transport.netty.client.TcpClientTransport;
 import io.rsocket.transport.netty.server.NettyContextCloseable;
 import io.rsocket.transport.netty.server.TcpServerTransport;
 import java.net.InetSocketAddress;
 
-public class TcpClientSetupRule extends ClientSetupRule<InetSocketAddress, NettyContextCloseable> {
-
-  public TcpClientSetupRule() {
+public class TcpSetupResource extends SetupResource<InetSocketAddress, NettyContextCloseable> {
+  private TcpSetupResource() {
     super(
         () -> InetSocketAddress.createUnresolved("localhost", 0),
         (address, server) -> TcpClientTransport.create(server.address()),
         TcpServerTransport::create);
+  }
+
+  public static class Extension extends AbstractExtension {
+    @Override
+    protected Class<?> type() {
+      return TcpSetupResource.class;
+    }
   }
 }

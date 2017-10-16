@@ -16,11 +16,8 @@
 package io.rsocket.transport.local;
 
 import io.rsocket.test.BaseClientServerTest;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-public class LocalClientServerTest extends BaseClientServerTest<LocalClientSetupRule> {
-
-  @Override
-  protected LocalClientSetupRule createClientServer() {
-    return new LocalClientSetupRule();
-  }
+@ExtendWith(LocalSetupResource.Extension.class)
+public class LocalClientServerTest extends BaseClientServerTest<LocalSetupResource> {
 }

@@ -16,19 +16,27 @@
 
 package io.rsocket.transport.netty;
 
-import io.rsocket.test.ClientSetupRule;
+import io.rsocket.test.extension.AbstractExtension;
+import io.rsocket.test.extension.SetupResource;
 import io.rsocket.transport.netty.client.WebsocketClientTransport;
 import io.rsocket.transport.netty.server.NettyContextCloseable;
 import io.rsocket.transport.netty.server.WebsocketServerTransport;
 import java.net.InetSocketAddress;
 
-public class WebsocketClientSetupRule
-    extends ClientSetupRule<InetSocketAddress, NettyContextCloseable> {
+public class WebsocketSetupResource
+    extends SetupResource<InetSocketAddress, NettyContextCloseable> {
 
-  public WebsocketClientSetupRule() {
+  private WebsocketSetupResource() {
     super(
         () -> InetSocketAddress.createUnresolved("localhost", 0),
         (address, server) -> WebsocketClientTransport.create(server.address()),
         address -> WebsocketServerTransport.create(address.getHostName(), address.getPort()));
+  }
+
+  public static class Extension extends AbstractExtension {
+    @Override
+    protected Class<?> type() {
+      return WebsocketSetupResource.class;
+    }
   }
 }

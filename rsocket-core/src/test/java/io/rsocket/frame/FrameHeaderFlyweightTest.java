@@ -18,13 +18,17 @@ package io.rsocket.frame;
 
 import static io.rsocket.frame.FrameHeaderFlyweight.FLAGS_M;
 import static io.rsocket.frame.FrameHeaderFlyweight.FRAME_HEADER_LENGTH;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
 import io.rsocket.FrameType;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class FrameHeaderFlyweightTest {
   // Taken from spec
@@ -46,9 +50,13 @@ public class FrameHeaderFlyweightTest {
     assertEquals(frameLength, FrameHeaderFlyweight.frameLength(byteBuf));
   }
 
-  @Test(expected = IllegalArgumentException.class)
+  @Test
   public void headerSizeTooLarge() {
-    FrameHeaderFlyweight.encodeFrameHeader(byteBuf, FRAME_MAX_SIZE + 1, 0, FrameType.SETUP, 0);
+    assertThrows(
+        IllegalArgumentException.class,
+        () ->
+            FrameHeaderFlyweight.encodeFrameHeader(
+                byteBuf, FRAME_MAX_SIZE + 1, 0, FrameType.SETUP, 0));
   }
 
   @Test
@@ -150,14 +158,14 @@ public class FrameHeaderFlyweightTest {
         case METADATA_PUSH:
         case LEASE:
           assertFalse(
-              "!hasMetadataLengthField(): " + frameType,
-              FrameHeaderFlyweight.hasMetadataLengthField(frameType));
+              FrameHeaderFlyweight.hasMetadataLengthField(frameType),
+              "!hasMetadataLengthField(): " + frameType);
           break;
         default:
           if (frameType.canHaveMetadata()) {
             assertTrue(
-                "hasMetadataLengthField(): " + frameType,
-                FrameHeaderFlyweight.hasMetadataLengthField(frameType));
+                FrameHeaderFlyweight.hasMetadataLengthField(frameType),
+                "hasMetadataLengthField(): " + frameType);
           }
       }
     }

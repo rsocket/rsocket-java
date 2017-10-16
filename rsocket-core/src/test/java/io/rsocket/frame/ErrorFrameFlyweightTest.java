@@ -16,17 +16,36 @@
 
 package io.rsocket.frame;
 
-import static io.rsocket.frame.ErrorFrameFlyweight.*;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static io.rsocket.frame.ErrorFrameFlyweight.APPLICATION_ERROR;
+import static io.rsocket.frame.ErrorFrameFlyweight.CANCELED;
+import static io.rsocket.frame.ErrorFrameFlyweight.CONNECTION_CLOSE;
+import static io.rsocket.frame.ErrorFrameFlyweight.CONNECTION_ERROR;
+import static io.rsocket.frame.ErrorFrameFlyweight.INVALID;
+import static io.rsocket.frame.ErrorFrameFlyweight.INVALID_SETUP;
+import static io.rsocket.frame.ErrorFrameFlyweight.REJECTED;
+import static io.rsocket.frame.ErrorFrameFlyweight.REJECTED_RESUME;
+import static io.rsocket.frame.ErrorFrameFlyweight.REJECTED_SETUP;
+import static io.rsocket.frame.ErrorFrameFlyweight.UNSUPPORTED_SETUP;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
 import io.rsocket.Frame;
-import io.rsocket.exceptions.*;
+import io.rsocket.exceptions.ApplicationException;
+import io.rsocket.exceptions.CancelException;
+import io.rsocket.exceptions.ConnectionCloseException;
+import io.rsocket.exceptions.ConnectionException;
+import io.rsocket.exceptions.Exceptions;
+import io.rsocket.exceptions.InvalidRequestException;
+import io.rsocket.exceptions.InvalidSetupException;
+import io.rsocket.exceptions.RejectedException;
+import io.rsocket.exceptions.RejectedResumeException;
+import io.rsocket.exceptions.RejectedSetupException;
+import io.rsocket.exceptions.UnsupportedSetupException;
 import java.nio.charset.StandardCharsets;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class ErrorFrameFlyweightTest {
   private final ByteBuf byteBuf = Unpooled.buffer(1024);

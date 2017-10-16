@@ -16,7 +16,9 @@
 
 package io.rsocket.client;
 
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
@@ -24,8 +26,7 @@ import io.rsocket.client.filter.RSockets;
 import io.rsocket.exceptions.TimeoutException;
 import io.rsocket.util.PayloadImpl;
 import java.time.Duration;
-import org.hamcrest.MatcherAssert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
@@ -46,18 +47,18 @@ public class TimeoutClientTest {
 
               @Override
               public void onNext(Payload payload) {
-                throw new AssertionError("onNext invoked when not expected.");
+                fail("onNext invoked when not expected.");
               }
 
               @Override
               public void onError(Throwable t) {
-                MatcherAssert.assertThat(
+                assertThat(
                     "Unexpected exception in onError", t, instanceOf(TimeoutException.class));
               }
 
               @Override
               public void onComplete() {
-                throw new AssertionError("onComplete invoked when not expected.");
+                fail("onComplete invoked when not expected.");
               }
             });
   }

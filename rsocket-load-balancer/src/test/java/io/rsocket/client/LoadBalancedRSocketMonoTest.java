@@ -16,18 +16,23 @@
 
 package io.rsocket.client;
 
+import static java.time.Duration.ofSeconds;
+import static org.junit.jupiter.api.Assertions.assertTimeout;
+import static org.junit.jupiter.api.Assertions.fail;
+import static org.mockito.Mockito.mock;
+
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.client.filter.RSocketSupplier;
 import io.rsocket.util.PayloadImpl;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.Function;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
@@ -36,44 +41,53 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 public class LoadBalancedRSocketMonoTest {
+  private static final Duration TIMEOUT = ofSeconds(10);
 
-  @Test(timeout = 10_000L)
-  public void testNeverSelectFailingFactories() throws InterruptedException {
-    InetSocketAddress local0 = InetSocketAddress.createUnresolved("localhost", 7000);
-    InetSocketAddress local1 = InetSocketAddress.createUnresolved("localhost", 7001);
+  @Test
+  public void testNeverSelectFailingFactories() {
+    assertTimeout(
+        TIMEOUT,
+        () -> {
+          InetSocketAddress local0 = InetSocketAddress.createUnresolved("localhost", 7000);
+          InetSocketAddress local1 = InetSocketAddress.createUnresolved("localhost", 7001);
 
-    TestingRSocket socket = new TestingRSocket(Function.identity());
-    RSocketSupplier failing = failingClient(local0);
-    RSocketSupplier succeeding = succeedingFactory(socket);
-    List<RSocketSupplier> factories = Arrays.asList(failing, succeeding);
+          TestingRSocket socket = new TestingRSocket(Function.identity());
+          RSocketSupplier failing = failingClient(local0);
+          RSocketSupplier succeeding = succeedingFactory(socket);
+          List<RSocketSupplier> factories = Arrays.asList(failing, succeeding);
 
-    testBalancer(factories);
+          testBalancer(factories);
+        });
   }
 
-  @Test(timeout = 10_000L)
-  public void testNeverSelectFailingSocket() throws InterruptedException {
-    InetSocketAddress local0 = InetSocketAddress.createUnresolved("localhost", 7000);
-    InetSocketAddress local1 = InetSocketAddress.createUnresolved("localhost", 7001);
+  @Test
+  public void testNeverSelectFailingSocket() {
+    assertTimeout(
+        TIMEOUT,
+        () -> {
+          InetSocketAddress local0 = InetSocketAddress.createUnresolved("localhost", 7000);
+          InetSocketAddress local1 = InetSocketAddress.createUnresolved("localhost", 7001);
 
-    TestingRSocket socket = new TestingRSocket(Function.identity());
-    TestingRSocket failingSocket =
-        new TestingRSocket(Function.identity()) {
-          @Override
-          public Mono<Payload> requestResponse(Payload payload) {
-            return Mono.error(new RuntimeException("You shouldn't be here"));
-          }
+          TestingRSocket socket = new TestingRSocket(Function.identity());
+          TestingRSocket failingSocket =
+              new TestingRSocket(Function.identity()) {
+                @Override
+                public Mono<Payload> requestResponse(Payload payload) {
+                  return Mono.error(new RuntimeException("You shouldn't be here"));
+                }
 
-          @Override
-          public double availability() {
-            return 0.0;
-          }
-        };
+                @Override
+                public double availability() {
+                  return 0.0;
+                }
+              };
 
-    RSocketSupplier failing = succeedingFactory(failingSocket);
-    RSocketSupplier succeeding = succeedingFactory(socket);
-    List<RSocketSupplier> clients = Arrays.asList(failing, succeeding);
+          RSocketSupplier failing = succeedingFactory(failingSocket);
+          RSocketSupplier succeeding = succeedingFactory(socket);
+          List<RSocketSupplier> clients = Arrays.asList(failing, succeeding);
 
-    testBalancer(clients);
+          testBalancer(clients);
+        });
   }
 
   private void testBalancer(List<RSocketSupplier> factories) throws InterruptedException {
@@ -112,7 +126,7 @@ public class LoadBalancedRSocketMonoTest {
               @Override
               public void onError(Throwable t) {
                 t.printStackTrace();
-                Assert.assertTrue(false);
+                fail(t);
                 latch.countDown();
               }
 
@@ -126,7 +140,7 @@ public class LoadBalancedRSocketMonoTest {
   }
 
   private static RSocketSupplier succeedingFactory(RSocket socket) {
-    RSocketSupplier mock = Mockito.mock(RSocketSupplier.class);
+    RSocketSupplier mock = mock(RSocketSupplier.class);
 
     Mockito.when(mock.availability()).thenReturn(1.0);
     Mockito.when(mock.get()).thenReturn(Mono.just(socket));
@@ -135,13 +149,13 @@ public class LoadBalancedRSocketMonoTest {
   }
 
   private static RSocketSupplier failingClient(SocketAddress sa) {
-    RSocketSupplier mock = Mockito.mock(RSocketSupplier.class);
+    RSocketSupplier mock = mock(RSocketSupplier.class);
 
     Mockito.when(mock.availability()).thenReturn(0.0);
     Mockito.when(mock.get())
         .thenAnswer(
             a -> {
-              Assert.fail();
+              fail("failing client");
               return null;
             });
 
