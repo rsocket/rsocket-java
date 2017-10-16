@@ -5,14 +5,13 @@ import io.rsocket.plugins.PluginRegistry;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Function;
-
 import reactor.core.publisher.Flux;
 
 /** Facade used to enable lease for Client or Server */
 public class LeaseSupport {
   private static final PluginRegistry emptyPluginRegistry = new PluginRegistry();
   private static final Function<DuplexConnection, LeaseEnabled> disabled =
-          conn -> new LeaseEnabled(emptyPluginRegistry,conn);
+      conn -> new LeaseEnabled(emptyPluginRegistry, conn);
 
   private final LeaseRSocketRegistry leaseRSocketRegistry = new LeaseRSocketRegistry();
   private final Consumer<Throwable> errorConsumer;

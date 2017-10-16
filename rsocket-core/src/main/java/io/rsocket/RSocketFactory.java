@@ -295,18 +295,15 @@ public class RSocketFactory {
 
                   LeaseEnabled leaseEnabled =
                       leaseSupport
-                          .map(
-                              leaseSupp ->
-                                  leaseSupp.enable(multiplexer.asClientConnection()))
-                          .orElseGet(
-                                  () -> LeaseSupport.disable(multiplexer.asClientConnection()));
+                          .map(leaseSupp -> leaseSupp.enable(multiplexer.asClientConnection()))
+                          .orElseGet(() -> LeaseSupport.disable(multiplexer.asClientConnection()));
 
                   DuplexConnection clientConnection = leaseEnabled.getClientConnection();
                   PluginRegistry leaseInterceptors = leaseEnabled.getInterceptor();
 
                   RSocketRequester rSocketRequester =
                       new RSocketRequester(
-                              clientConnection,
+                          clientConnection,
                           errorConsumer,
                           StreamIdSupplier.clientSupplier(),
                           tickPeriod,
@@ -445,7 +442,8 @@ public class RSocketFactory {
           return setupError(multiplexer, error);
         }
         /*presence of server lease support on client lease setup is checked by above condition*/
-        @SuppressWarnings("ConstantConditions") LeaseEnabled leaseEnabled =
+        @SuppressWarnings("ConstantConditions")
+        LeaseEnabled leaseEnabled =
             Frame.Setup.supportsLease(setupFrame)
                 ? leaseSupport.get().enable(multiplexer.asClientConnection())
                 : LeaseSupport.disable(multiplexer.asClientConnection());
@@ -458,8 +456,8 @@ public class RSocketFactory {
 
         Mono<RSocket> wrappedRSocketClient =
             Mono.just(rSocketRequester)
-                    .map(plugins::applyClient)
-                    .map(leaseInterceptor::applyClient);
+                .map(plugins::applyClient)
+                .map(leaseInterceptor::applyClient);
 
         ConnectionSetupPayload setupPayload = ConnectionSetupPayload.create(setupFrame);
 

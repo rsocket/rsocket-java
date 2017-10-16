@@ -5,6 +5,8 @@ import javax.annotation.Nonnull;
 
 public class NoLeaseException extends RejectedException {
 
+  private static final long serialVersionUID = 8461850714709125157L;
+
   public NoLeaseException(@Nonnull Lease lease) {
     super(leaseMessage(lease));
   }

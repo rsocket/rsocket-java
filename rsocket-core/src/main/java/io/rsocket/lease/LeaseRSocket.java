@@ -51,7 +51,8 @@ class LeaseRSocket extends RSocketProxy {
   @Override
   public double availability() {
     LeaseImpl lease = leaseManager.getLease();
-    double leaseAvailability = lease.isValid()
+    double leaseAvailability =
+        lease.isValid()
             ? lease.getAllowedRequests() / (double) lease.getStartingAllowedRequests()
             : 0.0;
     return Math.min(leaseAvailability, super.availability());
