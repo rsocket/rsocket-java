@@ -293,17 +293,20 @@ public class RSocketFactory {
                   ClientServerInputMultiplexer multiplexer =
                       new ClientServerInputMultiplexer(connection, plugins);
 
-                  PluginRegistry localPlugins = new PluginRegistry();
-                  DuplexConnection clientConnection =
+                  LeaseEnabled leaseEnabled =
                       leaseSupport
                           .map(
                               leaseSupp ->
-                                  leaseSupp.enable(localPlugins, multiplexer.asClientConnection()))
-                          .orElseGet(multiplexer::asClientConnection);
+                                  leaseSupp.enable(multiplexer.asClientConnection()))
+                          .orElseGet(
+                                  () -> LeaseSupport.disable(multiplexer.asClientConnection()));
+
+                  DuplexConnection clientConnection = leaseEnabled.getClientConnection();
+                  PluginRegistry leaseInterceptors = leaseEnabled.getInterceptor();
 
                   RSocketRequester rSocketRequester =
                       new RSocketRequester(
-                          clientConnection,
+                              clientConnection,
                           errorConsumer,
                           StreamIdSupplier.clientSupplier(),
                           tickPeriod,
@@ -313,7 +316,7 @@ public class RSocketFactory {
                   Mono<RSocket> wrappedRSocketClient =
                       Mono.just(rSocketRequester)
                           .map(plugins::applyClient)
-                          .map(localPlugins::applyClient);
+                          .map(leaseInterceptors::applyClient);
                   DuplexConnection finalConnection = connection;
 
                   return wrappedRSocketClient.flatMap(
@@ -322,7 +325,7 @@ public class RSocketFactory {
                         Mono<RSocket> wrappedRSocketServer =
                             Mono.just(unwrappedServerSocket)
                                 .map(plugins::applyServer)
-                                .map(localPlugins::applyServer);
+                                .map(leaseInterceptors::applyServer);
 
                         return wrappedRSocketServer
                             .doOnNext(
@@ -441,19 +444,22 @@ public class RSocketFactory {
               new UnsupportedSetupException("Server does not support lease");
           return setupError(multiplexer, error);
         }
-
-        PluginRegistry localPlugins = new PluginRegistry();
-        DuplexConnection clientConnection =
+        /*presence of server lease support on client lease setup is checked by above condition*/
+        @SuppressWarnings("ConstantConditions") LeaseEnabled leaseEnabled =
             Frame.Setup.supportsLease(setupFrame)
-                ? leaseSupport.get().enable(localPlugins, multiplexer.asClientConnection())
-                : multiplexer.asClientConnection();
+                ? leaseSupport.get().enable(multiplexer.asClientConnection())
+                : LeaseSupport.disable(multiplexer.asClientConnection());
+        DuplexConnection clientConnection = leaseEnabled.getClientConnection();
+        PluginRegistry leaseInterceptor = leaseEnabled.getInterceptor();
 
         RSocketRequester rSocketRequester =
             new RSocketRequester(
                 multiplexer.asServerConnection(), errorConsumer, StreamIdSupplier.serverSupplier());
 
         Mono<RSocket> wrappedRSocketClient =
-            Mono.just(rSocketRequester).map(plugins::applyClient).map(localPlugins::applyClient);
+            Mono.just(rSocketRequester)
+                    .map(plugins::applyClient)
+                    .map(leaseInterceptor::applyClient);
 
         ConnectionSetupPayload setupPayload = ConnectionSetupPayload.create(setupFrame);
 
@@ -464,7 +470,7 @@ public class RSocketFactory {
                         .get()
                         .accept(setupPayload, sender)
                         .map(plugins::applyServer)
-                        .map(localPlugins::applyServer))
+                        .map(leaseInterceptor::applyServer))
             .map(handler -> new RSocketResponder(clientConnection, handler, errorConsumer))
             .then();
       }
