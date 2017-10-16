@@ -1,28 +1,29 @@
-/*
 package io.rsocket.lease;
 
+import static io.rsocket.lease.LeaseGranterTestUtils.newLease;
 import static org.junit.Assert.*;
 
 import io.rsocket.Frame;
 import io.rsocket.FrameType;
 import io.rsocket.test.util.TestDuplexConnection;
-import java.time.Duration;
 import java.util.Collection;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
-import reactor.core.publisher.Flux;
-import reactor.test.StepVerifier;
 
-public class ServerLeaseGranterTest extends LeaseGranterTest {
+public class ServerLeaseGranterTest {
 
   private TestDuplexConnection testDuplexConnection;
   private LeaseManager requesterLeaseManager;
   private LeaseManager responderLeaseManager;
   private LeaseGranter leaseGranter;
+  private int numberOfRequests;
+  private int ttl;
 
   @Before
   public void setUp() throws Exception {
+    numberOfRequests = 1;
+    ttl = 1_000;
     testDuplexConnection = new TestDuplexConnection();
     requesterLeaseManager = new LeaseManager("requester");
     responderLeaseManager = new LeaseManager("responder");
@@ -33,26 +34,15 @@ public class ServerLeaseGranterTest extends LeaseGranterTest {
 
   @Test
   public void grantLease() throws Exception {
-    Flux<Lease> responderLeases = timeLimitedLeases(responderLeaseManager, Duration.ofSeconds(2));
-    Flux<Lease> requesterLeases = timeLimitedLeases(requesterLeaseManager, Duration.ofSeconds(2));
+    leaseGranter.grantLease(numberOfRequests, ttl, null);
 
-    int numberOfRequests = 1;
-    int ttl = 1_000;
-    delay(Duration.ofMillis(500))
-        .subscribe(signal -> leaseGranter.grantLease(numberOfRequests, ttl, null));
+    Lease responderLease = responderLeaseManager.getLease();
+    assertTrue(responderLease.isValid());
+    assertEquals(numberOfRequests, responderLease.getAllowedRequests());
+    assertEquals(ttl, responderLease.getTtl());
 
-    StepVerifier.create(responderLeases)
-        .consumeNextWith(l -> assertTrue(!l.isValid()))
-        .consumeNextWith(
-            l -> {
-              assertEquals(numberOfRequests, l.getAllowedRequests());
-              assertEquals(ttl, l.getTtl());
-            })
-        .verifyComplete();
-
-    StepVerifier.create(requesterLeases)
-        .consumeNextWith(l -> assertFalse(l.isValid()))
-        .verifyComplete();
+    Lease requesterLease = requesterLeaseManager.getLease();
+    assertFalse(requesterLease.isValid());
 
     Collection<Frame> sent = testDuplexConnection.getSent();
     Assert.assertEquals(1, sent.size());
@@ -64,14 +54,9 @@ public class ServerLeaseGranterTest extends LeaseGranterTest {
 
   @Test
   public void receiveLeaseBeforeGrantLease() throws Exception {
-    Flux<Lease> requesterLeases = timeLimitedLeases(requesterLeaseManager, Duration.ofSeconds(3));
-
-    delay(Duration.ofMillis(500))
-        .subscribe(signal -> leaseGranter.grantedLeasesReceiver().accept(newLeaseFrame(1, 1_000)));
-
-    StepVerifier.create(requesterLeases)
-        .consumeNextWith(l -> assertFalse(l.isValid()))
-        .verifyComplete();
+    leaseGranter.grantedLeasesReceiver().accept(newLease(1, 1_000));
+    LeaseImpl requesterLease = requesterLeaseManager.getLease();
+    assertFalse(requesterLease.isValid());
 
     Collection<Frame> sent = testDuplexConnection.getSent();
     Assert.assertEquals(1, sent.size());
@@ -80,4 +65,3 @@ public class ServerLeaseGranterTest extends LeaseGranterTest {
     Assert.assertEquals(Frame.Error.ErrorCodes.REJECTED_SETUP, Frame.Error.errorCode(frame));
   }
 }
-*/

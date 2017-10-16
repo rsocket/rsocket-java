@@ -1,4 +1,3 @@
-/*
 package io.rsocket.lease;
 
 import static org.junit.Assert.assertEquals;
@@ -25,8 +24,9 @@ public class LeaseRSocketTest {
   public void setUp() throws Exception {
     leaseManager = new LeaseManager("test");
 
-    RSocketInterceptor enforcer = rSocket -> new LeaseRSocket(rSocket, leaseManager, "test");
-    leaseRsocket = enforcer.apply(new EchoRSocket());
+    RSocketInterceptor rSocketInterceptor =
+        rSocket -> new LeaseRSocket(rSocket, leaseManager, "test");
+    leaseRsocket = rSocketInterceptor.apply(new EchoRSocket());
     payload = new PayloadImpl("payload");
   }
 
@@ -37,15 +37,15 @@ public class LeaseRSocketTest {
 
   @Test
   public void availableLease() throws Exception {
-    leaseManager.leaseGranted(new LeaseImpl(1, 100_000));
+    leaseManager.leaseGranted(new LeaseImpl(1, 100_000, null));
     leaseRsocket.requestResponse(payload).block();
-    Lease lease = leaseManager.getLeases().blockFirst();
+    Lease lease = leaseManager.getLease();
     assertEquals(0, lease.getAllowedRequests());
   }
 
   @Test(expected = NoLeaseException.class)
   public void availableLeaseDepleted() throws Exception {
-    leaseManager.leaseGranted(new LeaseImpl(1, 100_000));
+    leaseManager.leaseGranted(new LeaseImpl(1, 100_000, null));
     leaseRsocket.requestResponse(payload).block();
     leaseRsocket.requestResponse(payload).block();
   }
@@ -88,4 +88,3 @@ public class LeaseRSocketTest {
     }
   }
 }
-*/

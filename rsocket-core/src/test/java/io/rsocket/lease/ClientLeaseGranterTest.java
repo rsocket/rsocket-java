@@ -1,28 +1,29 @@
-/*
 package io.rsocket.lease;
 
+import static io.rsocket.lease.LeaseGranterTestUtils.newLease;
 import static org.junit.Assert.*;
 
 import io.rsocket.Frame;
 import io.rsocket.FrameType;
 import io.rsocket.test.util.TestDuplexConnection;
-import java.time.Duration;
 import java.util.Collection;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
-import reactor.core.publisher.Flux;
-import reactor.test.StepVerifier;
 
-public class ClientLeaseGranterTest extends LeaseGranterTest {
+public class ClientLeaseGranterTest {
 
   private TestDuplexConnection testDuplexConnection;
   private LeaseManager requesterLeaseManager;
   private LeaseManager responderLeaseManager;
   private LeaseGranter leaseGranter;
+  private int numberOfRequests;
+  private int ttl;
 
   @Before
   public void setUp() throws Exception {
+    numberOfRequests = 1;
+    ttl = 1_000;
     testDuplexConnection = new TestDuplexConnection();
     requesterLeaseManager = new LeaseManager("requester");
     responderLeaseManager = new LeaseManager("responder");
@@ -32,50 +33,75 @@ public class ClientLeaseGranterTest extends LeaseGranterTest {
   }
 
   @Test
-  public void grantLeaseBeforeLeaseReceived() throws Exception {
-    Flux<Lease> responderLeases = timeLimitedLeases(responderLeaseManager, Duration.ofSeconds(2));
-    Flux<Lease> requesterLeases = timeLimitedLeases(requesterLeaseManager, Duration.ofSeconds(2));
+  public void grantLeaseWithoutServerLeaseReceived() throws Exception {
 
-    int numberOfRequests = 1;
-    int ttl = 1_000;
-    delay(Duration.ofMillis(500))
-        .subscribe(signal -> leaseGranter.grantLease(numberOfRequests, ttl, null));
+    leaseGranter.grantLease(numberOfRequests, ttl, null);
 
-    StepVerifier.create(responderLeases)
-        .consumeNextWith(l -> assertFalse(l.isValid()))
-        .verifyComplete();
-
-    StepVerifier.create(requesterLeases)
-        .consumeNextWith(l -> assertFalse(l.isValid()))
-        .verifyComplete();
+    Lease responderLease = responderLeaseManager.getLease();
+    Lease requesterLease = requesterLeaseManager.getLease();
+    assertFalse("on lease grant responder lease is invalid", responderLease.isValid());
+    assertFalse(requesterLease.isValid());
 
     Collection<Frame> sent = testDuplexConnection.getSent();
     Assert.assertEquals(0, sent.size());
   }
 
   @Test
-  public void grantLeaseAfterLeaseReceived() throws Exception {
-    Flux<Lease> responderLeases = timeLimitedLeases(responderLeaseManager, Duration.ofSeconds(2));
-    Flux<Lease> requesterLeases = timeLimitedLeases(requesterLeaseManager, Duration.ofSeconds(2));
+  public void grantLeaseBeforeServerLeaseReceived() throws Exception {
 
-    int numberOfRequests = 1;
-    int ttl = 1_000;
-    leaseGranter.grantedLeasesReceiver().accept(newLeaseFrame(numberOfRequests, ttl));
-    delay(Duration.ofMillis(500))
-        .subscribe(signal -> leaseGranter.grantLease(numberOfRequests, ttl, null));
+    leaseGranter.grantLease(numberOfRequests, ttl, null);
+    leaseGranter.grantedLeasesReceiver().accept(newLease(numberOfRequests, ttl));
 
-    StepVerifier.create(responderLeases)
-        .consumeNextWith(l -> assertTrue(!l.isValid()))
-        .consumeNextWith(
-            l -> {
-              assertEquals(numberOfRequests, l.getAllowedRequests());
-              assertEquals(ttl, l.getTtl());
-            })
-        .verifyComplete();
+    Lease requesterLease = requesterLeaseManager.getLease();
+    assertTrue("on lease grant requester lease is valid", requesterLease.isValid());
+    assertEquals(
+        "on lease grant requester lease numberOfRequests is consistent",
+        numberOfRequests,
+        requesterLease.getAllowedRequests());
+    assertEquals(
+        "on lease grant requester lease timeToLive is consistent", ttl, requesterLease.getTtl());
 
-    StepVerifier.create(requesterLeases)
-        .consumeNextWith(l -> assertFalse(l.isValid()))
-        .verifyComplete();
+    Lease responderLease = responderLeaseManager.getLease();
+    assertTrue("on lease grant responder lease is valid", responderLease.isValid());
+    assertEquals(
+        "on lease grant responder lease numberOfRequests is consistent",
+        numberOfRequests,
+        responderLease.getAllowedRequests());
+    int actualTtl = responderLease.getTtl();
+    assertTrue("on lease grant responder lease timeToLive is delayed", actualTtl <= ttl);
+    assertTrue("on lease grant responder lease timeToLive is present", actualTtl > 0);
+
+    Collection<Frame> sent = testDuplexConnection.getSent();
+    Assert.assertEquals(1, sent.size());
+    Frame frame = sent.iterator().next();
+    Assert.assertEquals(FrameType.LEASE, frame.getType());
+    Assert.assertEquals(numberOfRequests, Frame.Lease.numberOfRequests(frame));
+    Assert.assertEquals(actualTtl, Frame.Lease.ttl(frame));
+  }
+
+  @Test
+  public void grantLeaseAfterServerLeaseReceived() throws Exception {
+
+    leaseGranter.grantedLeasesReceiver().accept(newLease(numberOfRequests, ttl));
+    leaseGranter.grantLease(numberOfRequests, ttl, null);
+
+    Lease requesterLease = requesterLeaseManager.getLease();
+    assertTrue("on lease grant requester lease is valid", requesterLease.isValid());
+    assertEquals(
+        "on lease grant requester lease numberOfRequests is consistent",
+        numberOfRequests,
+        requesterLease.getAllowedRequests());
+    assertEquals(
+        "on lease grant requester lease timeToLive is consistent", ttl, requesterLease.getTtl());
+
+    Lease responderLease = responderLeaseManager.getLease();
+    assertTrue("on lease grant responder lease is valid", responderLease.isValid());
+    assertEquals(
+        "on lease grant responder lease numberOfRequests is consistent",
+        numberOfRequests,
+        responderLease.getAllowedRequests());
+    assertEquals(
+        "on lease grant responder lease timeToLive is consistent", ttl, responderLease.getTtl());
 
     Collection<Frame> sent = testDuplexConnection.getSent();
     Assert.assertEquals(1, sent.size());
@@ -84,59 +110,4 @@ public class ClientLeaseGranterTest extends LeaseGranterTest {
     Assert.assertEquals(numberOfRequests, Frame.Lease.numberOfRequests(frame));
     Assert.assertEquals(ttl, Frame.Lease.ttl(frame));
   }
-
-  @Test
-  public void pendingGrantLeaseAfterReceived() throws Exception {
-    Flux<Lease> responderLeases = timeLimitedLeases(responderLeaseManager, Duration.ofSeconds(3));
-
-    int numberOfRequests = 1;
-    int ttl = 1_000;
-    leaseGranter.grantLease(numberOfRequests, ttl, null);
-    delay(Duration.ofMillis(500))
-        .subscribe(
-            signal ->
-                leaseGranter.grantedLeasesReceiver().accept(newLeaseFrame(numberOfRequests, ttl)));
-
-    StepVerifier.create(responderLeases)
-        .consumeNextWith(l -> assertTrue(!l.isValid()))
-        .consumeNextWith(
-            l -> {
-              assertEquals(numberOfRequests, l.getAllowedRequests());
-              assertTrue(l.getTtl() < ttl);
-            })
-        .verifyComplete();
-
-    Collection<Frame> sent = testDuplexConnection.getSent();
-    Assert.assertEquals(1, sent.size());
-    Frame frame = sent.iterator().next();
-    Assert.assertEquals(FrameType.LEASE, frame.getType());
-    Assert.assertEquals(numberOfRequests, Frame.Lease.numberOfRequests(frame));
-  }
-
-  @Test
-  public void leaseReceived() throws Exception {
-    Flux<Lease> responderLeases = timeLimitedLeases(responderLeaseManager, Duration.ofSeconds(2));
-    Flux<Lease> requesterLeases = timeLimitedLeases(requesterLeaseManager, Duration.ofSeconds(2));
-
-    int numberOfRequests = 1;
-    int ttl = 1_000;
-    delay(Duration.ofMillis(500))
-        .subscribe(
-            signal ->
-                leaseGranter.grantedLeasesReceiver().accept(newLeaseFrame(numberOfRequests, ttl)));
-
-    StepVerifier.create(requesterLeases)
-        .consumeNextWith(l -> assertFalse(l.isValid()))
-        .consumeNextWith(
-            l -> {
-              assertEquals(numberOfRequests, l.getAllowedRequests());
-              assertEquals(ttl, l.getTtl());
-            })
-        .verifyComplete();
-
-    StepVerifier.create(responderLeases)
-        .consumeNextWith(l -> assertFalse(l.isValid()))
-        .verifyComplete();
-  }
 }
-*/
