@@ -21,10 +21,11 @@ import static org.junit.Assert.*;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
+import io.rsocket.Frame;
 import java.nio.charset.StandardCharsets;
 import org.junit.Test;
 
-public class LeaseFrameFlyweightTest {
+public class LeaseFrameTest {
   private final ByteBuf byteBuf = Unpooled.buffer(1024);
 
   @Test
@@ -41,5 +42,14 @@ public class LeaseFrameFlyweightTest {
             byteBuf, 0, 0, Unpooled.copiedBuffer("md", StandardCharsets.UTF_8));
     assertEquals(
         "00001000000000090000000000000000006d64", ByteBufUtil.hexDump(byteBuf, 0, encoded));
+  }
+
+  @Test
+  public void nullMetadata() throws Exception {
+    int ttl = 1_000;
+    int numberOfRequests = 10;
+    Frame leaseFrame = Frame.Lease.from(ttl, numberOfRequests, null);
+    assertEquals(Frame.Lease.numberOfRequests(leaseFrame), numberOfRequests);
+    assertEquals(Frame.Lease.ttl(leaseFrame), ttl);
   }
 }
