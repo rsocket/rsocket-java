@@ -68,7 +68,7 @@ public class PayloadImpl implements Payload {
   }
 
   public PayloadImpl(ByteBuffer data) {
-    this(data, Frame.NULL_BYTEBUFFER);
+    this(data, null);
   }
 
   public PayloadImpl(ByteBuffer data, @Nullable ByteBuffer metadata) {

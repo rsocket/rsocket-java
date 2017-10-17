@@ -18,6 +18,7 @@ import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
 import io.rsocket.Payload;
+import java.nio.ByteBuffer;
 import javax.annotation.Nullable;
 import org.junit.Test;
 
@@ -38,6 +39,12 @@ public class PayloadImplTest {
     assertDataAndMetadata(p, DATA_VAL, METADATA_VAL);
     p.getData().position(2).mark();
     assertDataAndMetadata(p, DATA_VAL, METADATA_VAL);
+  }
+
+  @Test
+  public void noMetadata() throws Exception {
+    PayloadImpl payload = new PayloadImpl(ByteBuffer.wrap("test".getBytes()));
+    assertThat("No metadata", !payload.hasMetadata());
   }
 
   public void assertDataAndMetadata(Payload p, String dataVal, @Nullable String metadataVal) {
