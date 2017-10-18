@@ -14,10 +14,13 @@
  * limitations under the License.
  */
 
-package io.rsocket.transport.local;
+package local;
 
 import io.rsocket.Closeable;
 import io.rsocket.test.ClientSetupRule;
+import io.rsocket.transport.local.LocalClientTransport;
+import io.rsocket.transport.local.LocalServerTransport;
+
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class LocalClientSetupRule extends ClientSetupRule<String, Closeable> {

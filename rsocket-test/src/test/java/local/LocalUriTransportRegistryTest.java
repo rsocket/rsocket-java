@@ -14,14 +14,16 @@
  *  limitations under the License.
  */
 
-package io.rsocket.transport.local;
-
-import static org.junit.Assert.assertTrue;
+package local;
 
 import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.ServerTransport;
+import io.rsocket.transport.local.LocalClientTransport;
+import io.rsocket.transport.local.LocalServerTransport;
 import io.rsocket.uri.UriTransportRegistry;
 import org.junit.Test;
+
+import static org.junit.Assert.assertTrue;
 
 public class LocalUriTransportRegistryTest {
   @Test

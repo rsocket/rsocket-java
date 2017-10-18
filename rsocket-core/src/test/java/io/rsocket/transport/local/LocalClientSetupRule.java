@@ -18,6 +18,7 @@ package io.rsocket.transport.local;
 
 import io.rsocket.Closeable;
 import io.rsocket.test.ClientSetupRule;
+
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class LocalClientSetupRule extends ClientSetupRule<String, Closeable> {
