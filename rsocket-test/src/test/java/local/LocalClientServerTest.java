@@ -13,12 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package local;
 
-rootProject.name='rsocket'
-include 'rsocket-load-balancer'
-include 'rsocket-core'
-include 'rsocket-examples'
-include 'rsocket-spectator'
-include 'rsocket-test'
-include 'rsocket-transport-aeron'
-include 'rsocket-transport-netty'
+import io.rsocket.test.BaseClientServerTest;
+
+public class LocalClientServerTest extends BaseClientServerTest<LocalClientSetupRule> {
+
+  @Override
+  protected LocalClientSetupRule createClientServer() {
+    return new LocalClientSetupRule();
+  }
+}

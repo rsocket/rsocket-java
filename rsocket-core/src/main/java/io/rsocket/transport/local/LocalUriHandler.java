@@ -16,25 +16,29 @@
 
 package io.rsocket.transport.local;
 
-import static org.junit.Assert.assertTrue;
-
 import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.ServerTransport;
-import io.rsocket.uri.UriTransportRegistry;
-import org.junit.Test;
+import io.rsocket.uri.UriHandler;
 
-public class LocalUriTransportRegistryTest {
-  @Test
-  public void testLocalClient() {
-    ClientTransport transport = UriTransportRegistry.clientForUri("local:test1");
+import java.net.URI;
+import java.util.Optional;
 
-    assertTrue(transport instanceof LocalClientTransport);
+public class LocalUriHandler implements UriHandler {
+  @Override
+  public Optional<ClientTransport> buildClient(URI uri) {
+    if ("local".equals(uri.getScheme())) {
+      return Optional.of(LocalClientTransport.create(uri.getSchemeSpecificPart()));
+    }
+
+    return UriHandler.super.buildClient(uri);
   }
 
-  @Test
-  public void testLocalServer() {
-    ServerTransport transport = UriTransportRegistry.serverForUri("local:test1");
+  @Override
+  public Optional<ServerTransport> buildServer(URI uri) {
+    if ("local".equals(uri.getScheme())) {
+      return Optional.of(LocalServerTransport.create(uri.getSchemeSpecificPart()));
+    }
 
-    assertTrue(transport instanceof LocalServerTransport);
+    return UriHandler.super.buildServer(uri);
   }
 }

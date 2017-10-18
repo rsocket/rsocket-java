@@ -18,7 +18,6 @@ dependencies {
     compile project(':rsocket-core')
     compile project(':rsocket-spectator')
     compile project(':rsocket-transport-netty')
-    compile project(':rsocket-transport-local')
 
     testCompile project(':rsocket-test')
 }

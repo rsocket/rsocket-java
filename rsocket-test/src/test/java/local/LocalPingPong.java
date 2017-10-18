@@ -13,15 +13,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.rsocket.transport.local;
+package local;
 
 import io.rsocket.RSocket;
 import io.rsocket.RSocketFactory;
 import io.rsocket.test.PingClient;
 import io.rsocket.test.PingHandler;
-import java.time.Duration;
+import io.rsocket.transport.local.LocalClientTransport;
+import io.rsocket.transport.local.LocalServerTransport;
 import org.HdrHistogram.Recorder;
 import reactor.core.publisher.Mono;
+
+import java.time.Duration;
 
 public final class LocalPingPong {
 

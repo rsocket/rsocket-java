@@ -14,8 +14,20 @@
  * limitations under the License.
  */
 
-dependencies {
-    compile project(':rsocket-core')
+package io.rsocket.transport.local;
 
-    testCompile project(':rsocket-test')
+import io.rsocket.Closeable;
+import io.rsocket.test.ClientSetupRule;
+
+import java.util.concurrent.atomic.AtomicInteger;
+
+public class LocalClientSetupRule extends ClientSetupRule<String, Closeable> {
+  private static final AtomicInteger uniqueNameGenerator = new AtomicInteger();
+
+  public LocalClientSetupRule() {
+    super(
+        () -> "test" + uniqueNameGenerator.incrementAndGet(),
+        (address, server) -> LocalClientTransport.create(address),
+        LocalServerTransport::create);
+  }
 }
