@@ -27,8 +27,10 @@ import io.rsocket.exceptions.ApplicationException;
 import io.rsocket.internal.LimitableRequestPublisher;
 import io.rsocket.internal.UnboundedProcessor;
 import io.rsocket.util.PayloadImpl;
+
 import java.util.Collection;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import javax.annotation.Nullable;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
@@ -44,6 +46,7 @@ class RSocketServer implements RSocket {
 
   private final DuplexConnection connection;
   private final RSocket requestHandler;
+  private final Function<Frame, Payload> frameDecoder;
   private final Consumer<Throwable> errorConsumer;
 
   private final IntObjectHashMap<Subscription> sendingSubscriptions;
@@ -53,9 +56,13 @@ class RSocketServer implements RSocket {
   private Disposable receiveDisposable;
 
   RSocketServer(
-      DuplexConnection connection, RSocket requestHandler, Consumer<Throwable> errorConsumer) {
+      DuplexConnection connection,
+      RSocket requestHandler,
+      Function<Frame, Payload> frameDecoder,
+      Consumer<Throwable> errorConsumer) {
     this.connection = connection;
     this.requestHandler = requestHandler;
+    this.frameDecoder = frameDecoder;
     this.errorConsumer = errorConsumer;
     this.sendingSubscriptions = new IntObjectHashMap<>();
     this.channelProcessors = new IntObjectHashMap<>();
@@ -227,9 +234,9 @@ class RSocketServer implements RSocket {
       Subscriber<Payload> receiver;
       switch (frame.getType()) {
         case FIRE_AND_FORGET:
-          return handleFireAndForget(streamId, fireAndForget(new PayloadImpl(frame)));
+          return handleFireAndForget(streamId, fireAndForget(frameDecoder.apply(frame)));
         case REQUEST_RESPONSE:
-          return handleRequestResponse(streamId, requestResponse(new PayloadImpl(frame)));
+          return handleRequestResponse(streamId, requestResponse(frameDecoder.apply(frame)));
         case CANCEL:
           return handleCancelFrame(streamId);
         case KEEPALIVE:
@@ -238,14 +245,14 @@ class RSocketServer implements RSocket {
           return handleRequestN(streamId, frame);
         case REQUEST_STREAM:
           return handleStream(
-              streamId, requestStream(new PayloadImpl(frame)), initialRequestN(frame));
+              streamId, requestStream(frameDecoder.apply(frame)), initialRequestN(frame));
         case REQUEST_CHANNEL:
           return handleChannel(streamId, frame);
         case PAYLOAD:
           // TODO: Hook in receiving socket.
           return Mono.empty();
         case METADATA_PUSH:
-          return metadataPush(new PayloadImpl(frame));
+          return metadataPush(frameDecoder.apply(frame));
         case LEASE:
           // Lease must not be received here as this is the server end of the socket which sends
           // leases.
@@ -253,7 +260,7 @@ class RSocketServer implements RSocket {
         case NEXT:
           receiver = getChannelProcessor(streamId);
           if (receiver != null) {
-            receiver.onNext(new PayloadImpl(frame));
+            receiver.onNext(frameDecoder.apply(frame));
           }
           return Mono.empty();
         case COMPLETE:
@@ -271,7 +278,7 @@ class RSocketServer implements RSocket {
         case NEXT_COMPLETE:
           receiver = getChannelProcessor(streamId);
           if (receiver != null) {
-            receiver.onNext(new PayloadImpl(frame));
+            receiver.onNext(frameDecoder.apply(frame));
             receiver.onComplete();
           }
 
@@ -364,7 +371,7 @@ class RSocketServer implements RSocket {
     // not chained, as the payload should be enqueued in the Unicast processor before this method
     // returns
     // and any later payload can be processed
-    frames.onNext(new PayloadImpl(firstFrame));
+    frames.onNext(frameDecoder.apply(firstFrame));
 
     return handleStream(streamId, requestChannel(payloads), initialRequestN(firstFrame));
   }

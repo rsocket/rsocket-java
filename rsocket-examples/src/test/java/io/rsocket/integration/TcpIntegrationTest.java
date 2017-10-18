@@ -26,7 +26,8 @@ import io.rsocket.RSocketFactory;
 import io.rsocket.transport.netty.client.TcpClientTransport;
 import io.rsocket.transport.netty.server.NettyContextCloseable;
 import io.rsocket.transport.netty.server.TcpServerTransport;
-import io.rsocket.util.PayloadImpl;
+import io.rsocket.util.DefaultPayload;
+import io.rsocket.util.EmptyPayload;
 import io.rsocket.util.RSocketProxy;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
@@ -77,7 +78,7 @@ public class TcpIntegrationTest {
         };
     RSocket client = buildClient();
     Boolean hasElements =
-        client.requestStream(new PayloadImpl("REQUEST", "META")).log().hasElements().block();
+        client.requestStream(DefaultPayload.textPayload("REQUEST", "META")).log().hasElements().block();
 
     assertFalse(hasElements);
   }
@@ -88,13 +89,13 @@ public class TcpIntegrationTest {
         new AbstractRSocket() {
           @Override
           public Flux<Payload> requestStream(Payload payload) {
-            return Flux.just(new PayloadImpl("RESPONSE", "METADATA"));
+            return Flux.just(DefaultPayload.textPayload("RESPONSE", "METADATA"));
           }
         };
 
     RSocket client = buildClient();
 
-    Payload result = client.requestStream(new PayloadImpl("REQUEST", "META")).blockLast();
+    Payload result = client.requestStream(DefaultPayload.textPayload("REQUEST", "META")).blockLast();
 
     assertEquals("RESPONSE", result.getDataUtf8());
   }
@@ -105,13 +106,13 @@ public class TcpIntegrationTest {
         new AbstractRSocket() {
           @Override
           public Flux<Payload> requestStream(Payload payload) {
-            return Flux.just(PayloadImpl.EMPTY);
+            return Flux.just(EmptyPayload.INSTANCE);
           }
         };
 
     RSocket client = buildClient();
 
-    Payload result = client.requestStream(new PayloadImpl("REQUEST", "META")).blockFirst();
+    Payload result = client.requestStream(DefaultPayload.textPayload("REQUEST", "META")).blockFirst();
 
     assertEquals("", result.getDataUtf8());
   }
@@ -128,7 +129,7 @@ public class TcpIntegrationTest {
               first = false;
               return Mono.error(new RuntimeException("EX"));
             } else {
-              return Mono.just(new PayloadImpl("SUCCESS"));
+              return Mono.just(DefaultPayload.textPayload("SUCCESS"));
             }
           }
         };
@@ -137,13 +138,13 @@ public class TcpIntegrationTest {
 
     Payload response1 =
         client
-            .requestResponse(new PayloadImpl("REQUEST", "META"))
-            .onErrorReturn(new PayloadImpl("ERROR"))
+            .requestResponse(DefaultPayload.textPayload("REQUEST", "META"))
+            .onErrorReturn(DefaultPayload.textPayload("ERROR"))
             .block();
     Payload response2 =
         client
-            .requestResponse(new PayloadImpl("REQUEST", "META"))
-            .onErrorReturn(new PayloadImpl("ERROR"))
+            .requestResponse(DefaultPayload.textPayload("REQUEST", "META"))
+            .onErrorReturn(DefaultPayload.textPayload("ERROR"))
             .block();
 
     assertEquals("ERROR", response1.getDataUtf8());
@@ -168,8 +169,8 @@ public class TcpIntegrationTest {
 
     RSocket client = buildClient();
 
-    Flux<Payload> response1 = client.requestStream(new PayloadImpl("REQUEST1"));
-    Flux<Payload> response2 = client.requestStream(new PayloadImpl("REQUEST2"));
+    Flux<Payload> response1 = client.requestStream(DefaultPayload.textPayload("REQUEST1"));
+    Flux<Payload> response2 = client.requestStream(DefaultPayload.textPayload("REQUEST2"));
 
     CountDownLatch nextCountdown = new CountDownLatch(2);
     CountDownLatch completeCountdown = new CountDownLatch(2);
@@ -182,8 +183,8 @@ public class TcpIntegrationTest {
         .subscribeOn(Schedulers.newSingle("2"))
         .subscribe(c -> nextCountdown.countDown(), t -> {}, completeCountdown::countDown);
 
-    processor1.onNext(new PayloadImpl("RESPONSE1A"));
-    processor2.onNext(new PayloadImpl("RESPONSE2A"));
+    processor1.onNext(DefaultPayload.textPayload("RESPONSE1A"));
+    processor2.onNext(DefaultPayload.textPayload("RESPONSE2A"));
 
     nextCountdown.await();
 

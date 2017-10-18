@@ -16,7 +16,7 @@ package io.rsocket.examples.transport.tcp.stream;
 import io.rsocket.*;
 import io.rsocket.transport.netty.client.TcpClientTransport;
 import io.rsocket.transport.netty.server.TcpServerTransport;
-import io.rsocket.util.PayloadImpl;
+import io.rsocket.util.DefaultPayload;
 import java.time.Duration;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -37,7 +37,7 @@ public final class StreamingClient {
             .block();
 
     socket
-        .requestStream(new PayloadImpl("Hello"))
+        .requestStream(DefaultPayload.textPayload("Hello"))
         .map(Payload::getDataUtf8)
         .doOnNext(System.out::println)
         .take(10)
@@ -53,7 +53,7 @@ public final class StreamingClient {
             @Override
             public Flux<Payload> requestStream(Payload payload) {
               return Flux.interval(Duration.ofMillis(100))
-                  .map(aLong -> new PayloadImpl("Interval: " + aLong));
+                  .map(aLong -> DefaultPayload.textPayload("Interval: " + aLong));
             }
           });
     }

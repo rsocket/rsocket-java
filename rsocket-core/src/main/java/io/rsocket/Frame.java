@@ -30,7 +30,6 @@ import io.rsocket.frame.RequestFrameFlyweight;
 import io.rsocket.frame.RequestNFrameFlyweight;
 import io.rsocket.frame.SetupFrameFlyweight;
 import io.rsocket.frame.VersionFlyweight;
-import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import javax.annotation.Nullable;
 import org.slf4j.Logger;
@@ -41,9 +40,7 @@ import org.slf4j.LoggerFactory;
  *
  * <p>This provides encoding, decoding and field accessors.
  */
-public class Frame implements ByteBufHolder {
-  public static final ByteBuffer NULL_BYTEBUFFER = ByteBuffer.allocateDirect(0);
-
+public class Frame implements Payload, ByteBufHolder {
   private static final Recycler<Frame> RECYCLER =
       new Recycler<Frame>() {
         protected Frame newObject(Handle<Frame> handle) {
@@ -52,7 +49,7 @@ public class Frame implements ByteBufHolder {
       };
 
   private final Handle<Frame> handle;
-  private @Nullable ByteBuf content;
+  private ByteBuf content;
 
   private Frame(final Handle<Frame> handle) {
     this.handle = handle;
@@ -183,43 +180,25 @@ public class Frame implements ByteBufHolder {
   }
 
   /**
-   * Return {@link ByteBuffer} that is a {@link ByteBuffer#slice()} for the frame metadata
+   * Return {@link ByteBuf} that is a {@link ByteBuf#slice()} for the frame metadata
    *
-   * <p>If no metadata is present, the ByteBuffer will have 0 capacity.
+   * <p>If no metadata is present, the ByteBuf will have 0 capacity.
    *
-   * @return ByteBuffer containing the content
+   * @return ByteBuf containing the content
    */
-  public ByteBuffer getMetadata() {
-    final ByteBuf metadata = FrameHeaderFlyweight.sliceFrameMetadata(content);
-    if (metadata == null) {
-      return NULL_BYTEBUFFER;
-    } else if (metadata.readableBytes() > 0) {
-      final ByteBuffer buffer = ByteBuffer.allocateDirect(metadata.readableBytes());
-      metadata.readBytes(buffer);
-      buffer.flip();
-      return buffer;
-    } else {
-      return NULL_BYTEBUFFER;
-    }
+  public ByteBuf sliceMetadata() {
+    return hasMetadata() ? FrameHeaderFlyweight.sliceFrameMetadata(content) : Unpooled.EMPTY_BUFFER;
   }
 
   /**
-   * Return {@link ByteBuffer} that is a {@link ByteBuffer#slice()} for the frame data
+   * Return {@link ByteBuf} that is a {@link ByteBuf#slice()} for the frame data
    *
-   * <p>If no data is present, the ByteBuffer will have 0 capacity.
+   * <p>If no data is present, the ByteBuf will have 0 capacity.
    *
-   * @return ByteBuffer containing the data
+   * @return ByteBuf containing the data
    */
-  public ByteBuffer getData() {
-    final ByteBuf data = FrameHeaderFlyweight.sliceFrameData(content);
-    if (data.readableBytes() > 0) {
-      final ByteBuffer buffer = ByteBuffer.allocateDirect(data.readableBytes());
-      data.readBytes(buffer);
-      buffer.flip();
-      return buffer;
-    } else {
-      return NULL_BYTEBUFFER;
-    }
+  public ByteBuf sliceData() {
+    return FrameHeaderFlyweight.sliceFrameData(content);
   }
 
   /**
@@ -270,12 +249,9 @@ public class Frame implements ByteBufHolder {
     return current | toSet;
   }
 
+  @Override
   public boolean hasMetadata() {
     return Frame.isFlagSet(this.flags(), FLAGS_M);
-  }
-
-  public String getDataUtf8() {
-    return StandardCharsets.UTF_8.decode(getData()).toString();
   }
 
   /* TODO:
@@ -297,14 +273,8 @@ public class Frame implements ByteBufHolder {
         String metadataMimeType,
         String dataMimeType,
         Payload payload) {
-      final ByteBuf metadata =
-          payload.hasMetadata()
-              ? Unpooled.wrappedBuffer(payload.getMetadata())
-              : Unpooled.EMPTY_BUFFER;
-      final ByteBuf data =
-          payload.getData() != null
-              ? Unpooled.wrappedBuffer(payload.getData())
-              : Unpooled.EMPTY_BUFFER;
+      final ByteBuf metadata = payload.hasMetadata() ? payload.sliceMetadata() : Unpooled.EMPTY_BUFFER;
+      final ByteBuf data = payload.sliceData();
 
       final Frame frame = RECYCLER.get();
       frame.content =
@@ -460,9 +430,8 @@ public class Frame implements ByteBufHolder {
       if (initialRequestN < 1) {
         throw new IllegalStateException("initial request n must be greater than 0");
       }
-      final @Nullable ByteBuf metadata =
-          payload.hasMetadata() ? Unpooled.wrappedBuffer(payload.getMetadata()) : null;
-      final ByteBuf data = Unpooled.wrappedBuffer(payload.getData());
+      final @Nullable ByteBuf metadata = payload.hasMetadata() ? payload.sliceMetadata() : null;
+      final ByteBuf data = payload.sliceData();
 
       final Frame frame = RECYCLER.get();
       frame.content =
@@ -561,9 +530,8 @@ public class Frame implements ByteBufHolder {
     }
 
     public static Frame from(int streamId, FrameType type, Payload payload, int flags) {
-      final ByteBuf metadata =
-          payload.hasMetadata() ? Unpooled.wrappedBuffer(payload.getMetadata()) : null;
-      final ByteBuf data = Unpooled.wrappedBuffer(payload.getData());
+      final ByteBuf metadata = payload.hasMetadata() ? payload.sliceMetadata() : null;
+      final ByteBuf data = payload.sliceData();
       return from(streamId, type, metadata, data, flags);
     }
 

@@ -21,7 +21,8 @@ import io.rsocket.ConnectionSetupPayload;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.SocketAcceptor;
-import io.rsocket.util.PayloadImpl;
+import io.rsocket.util.DefaultPayload;
+
 import java.util.concurrent.ThreadLocalRandom;
 import reactor.core.publisher.Mono;
 
@@ -32,11 +33,11 @@ public class PingHandler implements SocketAcceptor {
   public PingHandler() {
     byte[] data = new byte[1024];
     ThreadLocalRandom.current().nextBytes(data);
-    pong = new PayloadImpl(data);
+    pong = DefaultPayload.binaryPayload(data);
   }
 
   public PingHandler(byte[] data) {
-    pong = new PayloadImpl(data);
+    pong = DefaultPayload.binaryPayload(data);
   }
 
   @Override

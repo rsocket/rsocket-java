@@ -25,6 +25,7 @@ import io.rsocket.exceptions.Exceptions;
 import io.rsocket.internal.LimitableRequestPublisher;
 import io.rsocket.internal.UnboundedProcessor;
 import io.rsocket.util.PayloadImpl;
+
 import java.nio.channels.ClosedChannelException;
 import java.time.Duration;
 import java.util.Collection;
@@ -46,6 +47,7 @@ class RSocketClient implements RSocket {
       noStacktrace(new ClosedChannelException());
 
   private final DuplexConnection connection;
+  private final Function<Frame, Payload> frameDecoder;
   private final Consumer<Throwable> errorConsumer;
   private final StreamIdSupplier streamIdSupplier;
   private final MonoProcessor<Void> started;
@@ -60,19 +62,22 @@ class RSocketClient implements RSocket {
 
   RSocketClient(
       DuplexConnection connection,
+      Function<Frame, Payload> frameDecoder,
       Consumer<Throwable> errorConsumer,
       StreamIdSupplier streamIdSupplier) {
-    this(connection, errorConsumer, streamIdSupplier, Duration.ZERO, Duration.ZERO, 0);
+    this(connection, frameDecoder, errorConsumer, streamIdSupplier, Duration.ZERO, Duration.ZERO, 0);
   }
 
   RSocketClient(
       DuplexConnection connection,
+      Function<Frame, Payload> frameDecoder,
       Consumer<Throwable> errorConsumer,
       StreamIdSupplier streamIdSupplier,
       Duration tickPeriod,
       Duration ackTimeout,
       int missedAcks) {
     this.connection = connection;
+    this.frameDecoder = frameDecoder;
     this.errorConsumer = errorConsumer;
     this.streamIdSupplier = streamIdSupplier;
     this.started = MonoProcessor.create();
@@ -194,6 +199,7 @@ class RSocketClient implements RSocket {
               final int streamId = streamIdSupplier.nextStreamId();
               final Frame requestFrame =
                   Frame.Request.from(streamId, FrameType.FIRE_AND_FORGET, payload, 1);
+              payload.release();
               sendProcessor.onNext(requestFrame);
             });
 
@@ -218,6 +224,7 @@ class RSocketClient implements RSocket {
   @Override
   public Mono<Void> metadataPush(Payload payload) {
     final Frame requestFrame = Frame.Request.from(0, FrameType.METADATA_PUSH, payload, 1);
+    payload.release();
     sendProcessor.onNext(requestFrame);
     return Mono.empty();
   }
@@ -257,7 +264,7 @@ class RSocketClient implements RSocket {
                         if (first.compareAndSet(false, true) && !receiver.isTerminated()) {
                           final Frame requestFrame =
                               Frame.Request.from(streamId, FrameType.REQUEST_STREAM, payload, l);
-
+                          payload.release();
                           sendProcessor.onNext(requestFrame);
                         } else if (contains(streamId) && !receiver.isTerminated()) {
                           sendProcessor.onNext(Frame.RequestN.from(streamId, l));
@@ -290,6 +297,7 @@ class RSocketClient implements RSocket {
               int streamId = streamIdSupplier.nextStreamId();
               final Frame requestFrame =
                   Frame.Request.from(streamId, FrameType.REQUEST_RESPONSE, payload, 1);
+              payload.release();
 
               MonoProcessor<Payload> receiver = MonoProcessor.create();
 
@@ -363,13 +371,16 @@ class RSocketClient implements RSocket {
 
                                           @Override
                                           public Frame apply(Payload payload) {
+                                            final Frame requestFrame;
                                             if (firstPayload.compareAndSet(true, false)) {
-                                              return Frame.Request.from(
+                                              requestFrame = Frame.Request.from(
                                                   streamId, requestType, payload, l);
                                             } else {
-                                              return Frame.PayloadFrame.from(
+                                              requestFrame = Frame.PayloadFrame.from(
                                                   streamId, FrameType.NEXT, payload);
                                             }
+                                            payload.release();
+                                            return requestFrame;
                                           }
                                         })
                                     .doOnComplete(
@@ -504,7 +515,7 @@ class RSocketClient implements RSocket {
           removeReceiver(streamId);
           break;
         case NEXT_COMPLETE:
-          receiver.onNext(new PayloadImpl(frame));
+          receiver.onNext(frameDecoder.apply(frame));
           receiver.onComplete();
           break;
         case CANCEL:
@@ -520,7 +531,7 @@ class RSocketClient implements RSocket {
             break;
           }
         case NEXT:
-          receiver.onNext(new PayloadImpl(frame));
+          receiver.onNext(frameDecoder.apply(frame));
           break;
         case REQUEST_N:
           {

@@ -25,11 +25,14 @@ import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.client.filter.RSocketSupplier;
 import io.rsocket.test.TestSubscriber;
-import io.rsocket.util.PayloadImpl;
+import io.rsocket.util.DefaultPayload;
+
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
+
+import io.rsocket.util.EmptyPayload;
 import org.junit.Test;
 import org.mockito.Mockito;
 import org.reactivestreams.Publisher;
@@ -44,7 +47,7 @@ public class RSocketSupplierTest {
     testRSocket(
         (latch, socket) -> {
           assertEquals(1.0, socket.availability(), 0.0);
-          Publisher<Payload> payloadPublisher = socket.requestResponse(PayloadImpl.EMPTY);
+          Publisher<Payload> payloadPublisher = socket.requestResponse(EmptyPayload.INSTANCE);
 
           Subscriber<Payload> subscriber = TestSubscriber.create();
           payloadPublisher.subscribe(subscriber);
@@ -73,7 +76,7 @@ public class RSocketSupplierTest {
     testRSocket(
         (latch, socket) -> {
           assertEquals(1.0, socket.availability(), 0.0);
-          Publisher<Payload> payloadPublisher = socket.requestResponse(PayloadImpl.EMPTY);
+          Publisher<Payload> payloadPublisher = socket.requestResponse(EmptyPayload.INSTANCE);
 
           Subscriber<Payload> subscriber = TestSubscriber.create();
           payloadPublisher.subscribe(subscriber);
@@ -106,7 +109,7 @@ public class RSocketSupplierTest {
         new TestingRSocket(
             input -> {
               if (count.getAndIncrement() < 1) {
-                return PayloadImpl.EMPTY;
+                return EmptyPayload.INSTANCE;
               } else {
                 throw new RuntimeException();
               }

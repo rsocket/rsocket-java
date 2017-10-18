@@ -27,11 +27,13 @@ import io.rsocket.plugins.Plugins;
 import io.rsocket.plugins.RSocketInterceptor;
 import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.ServerTransport;
-import io.rsocket.util.PayloadImpl;
+import io.rsocket.util.DefaultPayload;
 import java.time.Duration;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
+
+import io.rsocket.util.EmptyPayload;
 import reactor.core.publisher.Mono;
 
 /** Factory for creating RSocket clients and servers. */
@@ -58,18 +60,6 @@ public class RSocketFactory {
     Mono<T> start();
   }
 
-  public interface SetupPayload<T> {
-    T setupPayload(Payload payload);
-  }
-
-  public interface Acceptor<T, A> {
-    T acceptor(Supplier<A> acceptor);
-
-    default T acceptor(A acceptor) {
-      return acceptor(() -> acceptor);
-    }
-  }
-
   public interface ClientTransportAcceptor {
     Start<RSocket> transport(Supplier<ClientTransport> transport);
 
@@ -86,43 +76,7 @@ public class RSocketFactory {
     }
   }
 
-  public interface Fragmentation<T> {
-    T fragment(int mtu);
-  }
-
-  public interface ErrorConsumer<T> {
-    T errorConsumer(Consumer<Throwable> errorConsumer);
-  }
-
-  public interface KeepAlive<T> {
-    T keepAlive();
-
-    T keepAlive(Duration tickPeriod, Duration ackTimeout, int missedAcks);
-
-    T keepAliveTickPeriod(Duration tickPeriod);
-
-    T keepAliveAckTimeout(Duration ackTimeout);
-
-    T keepAliveMissedAcks(int missedAcks);
-  }
-
-  public interface MimeType<T> {
-    T mimeType(String metadataMimeType, String dataMimeType);
-
-    T dataMimeType(String dataMimeType);
-
-    T metadataMimeType(String metadataMimeType);
-  }
-
-  public static class ClientRSocketFactory
-      implements Acceptor<ClientTransportAcceptor, Function<RSocket, RSocket>>,
-          ClientTransportAcceptor,
-          KeepAlive<ClientRSocketFactory>,
-          MimeType<ClientRSocketFactory>,
-          Fragmentation<ClientRSocketFactory>,
-          ErrorConsumer<ClientRSocketFactory>,
-          SetupPayload<ClientRSocketFactory> {
-
+  public static class ClientRSocketFactory implements ClientTransportAcceptor {
     private Supplier<Function<RSocket, RSocket>> acceptor =
         () -> rSocket -> new AbstractRSocket() {};
 
@@ -131,7 +85,8 @@ public class RSocketFactory {
     private PluginRegistry plugins = new PluginRegistry(Plugins.defaultPlugins());
     private int flags = SetupFrameFlyweight.FLAGS_STRICT_INTERPRETATION;
 
-    private Payload setupPayload = PayloadImpl.EMPTY;
+    private Payload setupPayload = EmptyPayload.INSTANCE;
+    private Function<Frame, Payload> frameDecoder = DefaultPayload::new;
 
     private Duration tickPeriod = Duration.ZERO;
     private Duration ackTimeout = Duration.ofSeconds(30);
@@ -155,13 +110,11 @@ public class RSocketFactory {
       return this;
     }
 
-    @Override
     public ClientRSocketFactory keepAlive() {
       tickPeriod = Duration.ofSeconds(20);
       return this;
     }
 
-    @Override
     public ClientRSocketFactory keepAlive(
         Duration tickPeriod, Duration ackTimeout, int missedAcks) {
       this.tickPeriod = tickPeriod;
@@ -170,38 +123,32 @@ public class RSocketFactory {
       return this;
     }
 
-    @Override
     public ClientRSocketFactory keepAliveTickPeriod(Duration tickPeriod) {
       this.tickPeriod = tickPeriod;
       return this;
     }
 
-    @Override
     public ClientRSocketFactory keepAliveAckTimeout(Duration ackTimeout) {
       this.ackTimeout = ackTimeout;
       return this;
     }
 
-    @Override
     public ClientRSocketFactory keepAliveMissedAcks(int missedAcks) {
       this.missedAcks = missedAcks;
       return this;
     }
 
-    @Override
     public ClientRSocketFactory mimeType(String metadataMimeType, String dataMimeType) {
       this.dataMimeType = dataMimeType;
       this.metadataMimeType = metadataMimeType;
       return this;
     }
 
-    @Override
     public ClientRSocketFactory dataMimeType(String dataMimeType) {
       this.dataMimeType = dataMimeType;
       return this;
     }
 
-    @Override
     public ClientRSocketFactory metadataMimeType(String metadataMimeType) {
       this.metadataMimeType = metadataMimeType;
       return this;
@@ -212,31 +159,37 @@ public class RSocketFactory {
       return new StartClient(transportClient);
     }
 
-    @Override
+    public ClientTransportAcceptor acceptor(Function<RSocket, RSocket> acceptor) {
+      this.acceptor = () -> acceptor;
+      return StartClient::new;
+    }
+
     public ClientTransportAcceptor acceptor(Supplier<Function<RSocket, RSocket>> acceptor) {
       this.acceptor = acceptor;
       return StartClient::new;
     }
 
-    @Override
     public ClientRSocketFactory fragment(int mtu) {
       this.mtu = mtu;
       return this;
     }
 
-    @Override
     public ClientRSocketFactory errorConsumer(Consumer<Throwable> errorConsumer) {
       this.errorConsumer = errorConsumer;
       return this;
     }
 
-    @Override
     public ClientRSocketFactory setupPayload(Payload payload) {
       this.setupPayload = payload;
       return this;
     }
 
-    protected class StartClient implements Start<RSocket> {
+    public ClientRSocketFactory frameDecoder(Function<Frame, Payload> frameDecoder) {
+      this.frameDecoder = frameDecoder;
+      return this;
+    }
+
+    private class StartClient implements Start<RSocket> {
       private final Supplier<ClientTransport> transportClient;
 
       StartClient(Supplier<ClientTransport> transportClient) {
@@ -269,6 +222,7 @@ public class RSocketFactory {
                   RSocketClient rSocketClient =
                       new RSocketClient(
                           multiplexer.asClientConnection(),
+                          frameDecoder,
                           errorConsumer,
                           StreamIdSupplier.clientSupplier(),
                           tickPeriod,
@@ -290,7 +244,7 @@ public class RSocketFactory {
                             .doOnNext(
                                 rSocket ->
                                     new RSocketServer(
-                                        multiplexer.asServerConnection(), rSocket, errorConsumer))
+                                        multiplexer.asServerConnection(), rSocket, frameDecoder, errorConsumer))
                             .then(finalConnection.sendOne(setupFrame))
                             .then(wrappedRSocketClient);
                       });
@@ -299,12 +253,9 @@ public class RSocketFactory {
     }
   }
 
-  public static class ServerRSocketFactory
-      implements Acceptor<ServerTransportAcceptor, SocketAcceptor>,
-          Fragmentation<ServerRSocketFactory>,
-          ErrorConsumer<ServerRSocketFactory> {
-
+  public static class ServerRSocketFactory {
     private Supplier<SocketAcceptor> acceptor;
+    private Function<Frame, Payload> frameDecoder = DefaultPayload::new;
     private Consumer<Throwable> errorConsumer = Throwable::printStackTrace;
     private int mtu = 0;
     private PluginRegistry plugins = new PluginRegistry(Plugins.defaultPlugins());
@@ -326,19 +277,26 @@ public class RSocketFactory {
       return this;
     }
 
-    @Override
+    public ServerTransportAcceptor acceptor(SocketAcceptor acceptor) {
+      this.acceptor = () -> acceptor;
+      return ServerStart::new;
+    }
+
     public ServerTransportAcceptor acceptor(Supplier<SocketAcceptor> acceptor) {
       this.acceptor = acceptor;
       return ServerStart::new;
     }
 
-    @Override
+    public ServerRSocketFactory frameDecoder(Function<Frame, Payload> frameDecoder) {
+      this.frameDecoder = frameDecoder;
+      return this;
+    }
+
     public ServerRSocketFactory fragment(int mtu) {
       this.mtu = mtu;
       return this;
     }
 
-    @Override
     public ServerRSocketFactory errorConsumer(Consumer<Throwable> errorConsumer) {
       this.errorConsumer = errorConsumer;
       return this;
@@ -389,7 +347,10 @@ public class RSocketFactory {
 
         RSocketClient rSocketClient =
             new RSocketClient(
-                multiplexer.asServerConnection(), errorConsumer, StreamIdSupplier.serverSupplier());
+                multiplexer.asServerConnection(),
+                frameDecoder,
+                errorConsumer,
+                StreamIdSupplier.serverSupplier());
 
         Mono<RSocket> wrappedRSocketClient = Mono.just(rSocketClient).map(plugins::applyClient);
 
@@ -398,7 +359,7 @@ public class RSocketFactory {
                 sender -> acceptor.get().accept(setupPayload, sender).map(plugins::applyServer))
             .map(
                 handler ->
-                    new RSocketServer(multiplexer.asClientConnection(), handler, errorConsumer))
+                    new RSocketServer(multiplexer.asClientConnection(), handler, frameDecoder, errorConsumer))
             .then();
       }
     }

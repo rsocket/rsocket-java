@@ -13,7 +13,7 @@
 
 package io.rsocket.util;
 
-import static io.rsocket.util.PayloadImpl.textPayload;
+import static io.rsocket.util.DefaultPayload.textPayload;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
@@ -21,20 +21,20 @@ import io.rsocket.Payload;
 import javax.annotation.Nullable;
 import org.junit.Test;
 
-public class PayloadImplTest {
+public class DefaultPayloadTest {
   public static final String DATA_VAL = "data";
   public static final String METADATA_VAL = "metadata";
 
   @Test
   public void testReuse() {
-    PayloadImpl p = new PayloadImpl(DATA_VAL, METADATA_VAL);
+    Payload p = DefaultPayload.textPayload(DATA_VAL, METADATA_VAL);
     assertDataAndMetadata(p, DATA_VAL, METADATA_VAL);
     assertDataAndMetadata(p, DATA_VAL, METADATA_VAL);
   }
 
   @Test
   public void testReuseWithExternalMark() {
-    PayloadImpl p = new PayloadImpl(DATA_VAL, METADATA_VAL);
+    Payload p = DefaultPayload.textPayload(DATA_VAL, METADATA_VAL);
     assertDataAndMetadata(p, DATA_VAL, METADATA_VAL);
     p.getData().position(2).mark();
     assertDataAndMetadata(p, DATA_VAL, METADATA_VAL);

@@ -15,11 +15,15 @@
  */
 package io.rsocket;
 
+import io.netty.buffer.ByteBuf;
+
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 
+import io.netty.util.ReferenceCounted;
+
 /** Payload of a {@link Frame}. */
-public interface Payload {
+public interface Payload extends ReferenceCounted {
   /**
    * Returns whether the payload has metadata, useful for tell if metadata is empty or not present.
    *
@@ -33,20 +37,28 @@ public interface Payload {
    *
    * @return payload metadata.
    */
-  ByteBuffer getMetadata();
+  ByteBuf sliceMetadata();
 
   /**
    * Returns the Payload data. Always non-null.
    *
    * @return payload data.
    */
-  ByteBuffer getData();
+  ByteBuf sliceData();
+
+  default ByteBuffer getMetadata() {
+    return sliceMetadata().nioBuffer();
+  }
+
+  default ByteBuffer getData() {
+    return sliceData().nioBuffer();
+  }
 
   default String getMetadataUtf8() {
-    return StandardCharsets.UTF_8.decode(getMetadata()).toString();
+    return sliceMetadata().toString(StandardCharsets.UTF_8);
   }
 
   default String getDataUtf8() {
-    return StandardCharsets.UTF_8.decode(getData()).toString();
+    return sliceData().toString(StandardCharsets.UTF_8);
   }
 }

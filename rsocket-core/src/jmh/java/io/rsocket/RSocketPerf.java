@@ -18,7 +18,8 @@ package io.rsocket;
 
 import io.rsocket.RSocketFactory.Start;
 import io.rsocket.perfutil.TestDuplexConnection;
-import io.rsocket.util.PayloadImpl;
+import io.rsocket.util.DefaultPayload;
+
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -79,7 +80,7 @@ public class RSocketPerf {
 
     static final ByteBuffer HELLO = ByteBuffer.wrap("HELLO".getBytes(StandardCharsets.UTF_8));
 
-    static final Payload HELLO_PAYLOAD = new PayloadImpl(HELLO);
+    static final Payload HELLO_PAYLOAD = new DefaultPayload(HELLO);
 
     static final DirectProcessor<Frame> clientReceive = DirectProcessor.create();
     static final DirectProcessor<Frame> serverReceive = DirectProcessor.create();

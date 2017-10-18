@@ -18,7 +18,8 @@ package io.rsocket.test;
 
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
-import io.rsocket.util.PayloadImpl;
+import io.rsocket.util.DefaultPayload;
+
 import java.time.Duration;
 import org.HdrHistogram.Recorder;
 import reactor.core.publisher.Flux;
@@ -31,7 +32,7 @@ public class PingClient {
 
   public PingClient(Mono<RSocket> client) {
     this.client = client;
-    this.payload = new PayloadImpl("hello");
+    this.payload = DefaultPayload.textPayload("hello");
   }
 
   public Recorder startTracker(Duration interval) {

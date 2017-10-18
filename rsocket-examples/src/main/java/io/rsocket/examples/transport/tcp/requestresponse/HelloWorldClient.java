@@ -22,7 +22,7 @@ import io.rsocket.RSocket;
 import io.rsocket.RSocketFactory;
 import io.rsocket.transport.netty.client.TcpClientTransport;
 import io.rsocket.transport.netty.server.TcpServerTransport;
-import io.rsocket.util.PayloadImpl;
+import io.rsocket.util.DefaultPayload;
 import reactor.core.publisher.Mono;
 
 public final class HelloWorldClient {
@@ -56,21 +56,21 @@ public final class HelloWorldClient {
             .block();
 
     socket
-        .requestResponse(new PayloadImpl("Hello"))
+        .requestResponse(DefaultPayload.textPayload("Hello"))
         .map(Payload::getDataUtf8)
         .onErrorReturn("error")
         .doOnNext(System.out::println)
         .block();
 
     socket
-        .requestResponse(new PayloadImpl("Hello"))
+        .requestResponse(DefaultPayload.textPayload("Hello"))
         .map(Payload::getDataUtf8)
         .onErrorReturn("error")
         .doOnNext(System.out::println)
         .block();
 
     socket
-        .requestResponse(new PayloadImpl("Hello"))
+        .requestResponse(DefaultPayload.textPayload("Hello"))
         .map(Payload::getDataUtf8)
         .onErrorReturn("error")
         .doOnNext(System.out::println)

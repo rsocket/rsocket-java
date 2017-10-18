@@ -25,7 +25,8 @@ import static org.mockito.Mockito.when;
 import io.rsocket.DuplexConnection;
 import io.rsocket.Frame;
 import io.rsocket.FrameType;
-import io.rsocket.util.PayloadImpl;
+import io.rsocket.util.DefaultPayload;
+
 import java.nio.ByteBuffer;
 import java.util.concurrent.ThreadLocalRandom;
 import org.junit.Test;
@@ -55,7 +56,7 @@ public class FragmentationDuplexConnectionTest {
     ByteBuffer metadata = createRandomBytes(16);
 
     Frame frame =
-        Frame.Request.from(1, FrameType.REQUEST_RESPONSE, new PayloadImpl(data, metadata), 1);
+        Frame.Request.from(1, FrameType.REQUEST_RESPONSE, new DefaultPayload(data, metadata), 1);
 
     FragmentationDuplexConnection duplexConnection =
         new FragmentationDuplexConnection(mockConnection, 2);
@@ -99,11 +100,11 @@ public class FragmentationDuplexConnectionTest {
     ByteBuffer metadata = createRandomBytes(16);
 
     Frame frame1 =
-        Frame.Request.from(1, FrameType.REQUEST_RESPONSE, new PayloadImpl(data, metadata), 1);
+        Frame.Request.from(1, FrameType.REQUEST_RESPONSE, new DefaultPayload(data, metadata), 1);
     Frame frame2 =
-        Frame.Request.from(2, FrameType.REQUEST_RESPONSE, new PayloadImpl(data, metadata), 1);
+        Frame.Request.from(2, FrameType.REQUEST_RESPONSE, new DefaultPayload(data, metadata), 1);
     Frame frame3 =
-        Frame.Request.from(3, FrameType.REQUEST_RESPONSE, new PayloadImpl(data, metadata), 1);
+        Frame.Request.from(3, FrameType.REQUEST_RESPONSE, new DefaultPayload(data, metadata), 1);
 
     FragmentationDuplexConnection duplexConnection =
         new FragmentationDuplexConnection(mockConnection, 2);
@@ -118,7 +119,7 @@ public class FragmentationDuplexConnectionTest {
     ByteBuffer data = createRandomBytes(16);
     ByteBuffer metadata = createRandomBytes(16);
     Frame frame =
-        Frame.Request.from(1024, FrameType.REQUEST_RESPONSE, new PayloadImpl(data, metadata), 1);
+        Frame.Request.from(1024, FrameType.REQUEST_RESPONSE, new DefaultPayload(data, metadata), 1);
     FrameFragmenter frameFragmenter = new FrameFragmenter(2);
     Flux<Frame> fragmentedFrames = frameFragmenter.fragment(frame);
     EmitterProcessor<Frame> processor = EmitterProcessor.create(128);

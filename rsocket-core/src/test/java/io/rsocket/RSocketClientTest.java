@@ -33,11 +33,15 @@ import io.rsocket.exceptions.ApplicationException;
 import io.rsocket.exceptions.RejectedSetupException;
 import io.rsocket.frame.RequestFrameFlyweight;
 import io.rsocket.test.util.TestSubscriber;
-import io.rsocket.util.PayloadImpl;
+import io.rsocket.util.DefaultPayload;
+
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
+
+import io.rsocket.util.EmptyPayload;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.reactivestreams.Publisher;
@@ -68,7 +72,7 @@ public class RSocketClientTest {
 
   @Test(timeout = 2_000)
   public void testStreamInitialN() {
-    Flux<Payload> stream = rule.socket.requestStream(PayloadImpl.EMPTY);
+    Flux<Payload> stream = rule.socket.requestStream(EmptyPayload.INSTANCE);
 
     BaseSubscriber<Payload> subscriber =
         new BaseSubscriber<Payload>() {
@@ -110,7 +114,7 @@ public class RSocketClientTest {
   @Test(timeout = 2_000)
   public void testHandleApplicationException() {
     rule.connection.clearSendReceiveBuffers();
-    Publisher<Payload> response = rule.socket.requestResponse(PayloadImpl.EMPTY);
+    Publisher<Payload> response = rule.socket.requestResponse(EmptyPayload.INSTANCE);
     Subscriber<Payload> responseSub = TestSubscriber.create();
     response.subscribe(responseSub);
 
@@ -123,13 +127,13 @@ public class RSocketClientTest {
 
   @Test(timeout = 2_000)
   public void testHandleValidFrame() {
-    Publisher<Payload> response = rule.socket.requestResponse(PayloadImpl.EMPTY);
+    Publisher<Payload> response = rule.socket.requestResponse(EmptyPayload.INSTANCE);
     Subscriber<Payload> sub = TestSubscriber.create();
     response.subscribe(sub);
 
     int streamId = rule.getStreamIdForRequestType(REQUEST_RESPONSE);
     rule.connection.addToReceivedBuffer(
-        Frame.PayloadFrame.from(streamId, NEXT_COMPLETE, PayloadImpl.EMPTY));
+        Frame.PayloadFrame.from(streamId, NEXT_COMPLETE, EmptyPayload.INSTANCE));
 
     verify(sub).onNext(anyPayload());
     verify(sub).onComplete();
@@ -137,7 +141,7 @@ public class RSocketClientTest {
 
   @Test(timeout = 2_000)
   public void testRequestReplyWithCancel() {
-    Mono<Payload> response = rule.socket.requestResponse(PayloadImpl.EMPTY);
+    Mono<Payload> response = rule.socket.requestResponse(EmptyPayload.INSTANCE);
 
     try {
       response.block(Duration.ofMillis(100));
@@ -159,7 +163,7 @@ public class RSocketClientTest {
   @Test(timeout = 2_000)
   public void testRequestReplyErrorOnSend() {
     rule.connection.setAvailability(0); // Fails send
-    Mono<Payload> response = rule.socket.requestResponse(PayloadImpl.EMPTY);
+    Mono<Payload> response = rule.socket.requestResponse(EmptyPayload.INSTANCE);
     Subscriber<Payload> responseSub = TestSubscriber.create(10);
     response.subscribe(responseSub);
 
@@ -173,7 +177,7 @@ public class RSocketClientTest {
 
   @Test(timeout = 2_000)
   public void testLazyRequestResponse() {
-    Publisher<Payload> response = rule.socket.requestResponse(PayloadImpl.EMPTY);
+    Publisher<Payload> response = rule.socket.requestResponse(EmptyPayload.INSTANCE);
     int streamId = sendRequestResponse(response);
     rule.connection.clearSendReceiveBuffers();
     int streamId2 = sendRequestResponse(response);
@@ -185,7 +189,7 @@ public class RSocketClientTest {
     response.subscribe(sub);
     int streamId = rule.getStreamIdForRequestType(REQUEST_RESPONSE);
     rule.connection.addToReceivedBuffer(
-        Frame.PayloadFrame.from(streamId, NEXT_COMPLETE, PayloadImpl.EMPTY));
+        Frame.PayloadFrame.from(streamId, NEXT_COMPLETE, EmptyPayload.INSTANCE));
     verify(sub).onNext(anyPayload());
     verify(sub).onComplete();
     return streamId;
@@ -196,6 +200,7 @@ public class RSocketClientTest {
     protected RSocketClient newRSocket() {
       return new RSocketClient(
           connection,
+          DefaultPayload::new,
           throwable -> errors.add(throwable),
           StreamIdSupplier.clientSupplier(),
           Duration.ofMillis(100),
