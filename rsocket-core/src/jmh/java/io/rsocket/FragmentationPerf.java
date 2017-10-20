@@ -43,13 +43,13 @@ public class FragmentationPerf {
       ByteBuffer data = createRandomBytes(1 << 18);
       ByteBuffer metadata = createRandomBytes(1 << 18);
       largeFrame =
-          Frame.Request.from(1, FrameType.REQUEST_RESPONSE, new DefaultPayload(data, metadata), 1);
+          Frame.Request.from(1, FrameType.REQUEST_RESPONSE, DefaultPayload.create(data, metadata), 1);
       largeFrameFragmenter = new FrameFragmenter(1024);
 
       data = createRandomBytes(16);
       metadata = createRandomBytes(16);
       smallFrame =
-          Frame.Request.from(1, FrameType.REQUEST_RESPONSE, new DefaultPayload(data, metadata), 1);
+          Frame.Request.from(1, FrameType.REQUEST_RESPONSE, DefaultPayload.create(data, metadata), 1);
       smallFrameFragmenter = new FrameFragmenter(2);
       smallFramesIterable =
           smallFrameFragmenter

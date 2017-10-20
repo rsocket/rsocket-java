@@ -32,7 +32,7 @@ public final class DuplexClient {
         .acceptor(
             (setup, reactiveSocket) -> {
               reactiveSocket
-                  .requestStream(DefaultPayload.textPayload("Hello-Bidi"))
+                  .requestStream(DefaultPayload.create("Hello-Bidi"))
                   .map(Payload::getDataUtf8)
                   .log()
                   .subscribe();
@@ -51,7 +51,7 @@ public final class DuplexClient {
                       @Override
                       public Flux<Payload> requestStream(Payload payload) {
                         return Flux.interval(Duration.ofSeconds(1))
-                            .map(aLong -> DefaultPayload.textPayload("Bi-di Response => " + aLong));
+                            .map(aLong -> DefaultPayload.create("Bi-di Response => " + aLong));
                       }
                     })
             .transport(TcpClientTransport.create("localhost", 7000))

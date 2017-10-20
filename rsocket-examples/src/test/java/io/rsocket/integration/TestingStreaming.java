@@ -46,7 +46,7 @@ public class TestingStreaming {
                                         throw new RuntimeException("BOOM!");
                                       }
                                     })
-                                .map(l -> DefaultPayload.textPayload("l -> " + l))
+                                .map(l -> DefaultPayload.create("l -> " + l))
                                 .cast(Payload.class);
                           }
                         };
@@ -84,7 +84,7 @@ public class TestingStreaming {
                           @Override
                           public Flux<Payload> requestStream(Payload payload) {
                             return Flux.range(1, 1000)
-                                .map(l -> DefaultPayload.textPayload("l -> " + l))
+                                .map(l -> DefaultPayload.create("l -> " + l))
                                 .cast(Payload.class);
                           }
                         };
@@ -112,7 +112,7 @@ public class TestingStreaming {
             rSocket -> {
               AtomicInteger count = new AtomicInteger();
               return Flux.range(1, 100)
-                  .flatMap(i -> rSocket.requestStream(DefaultPayload.textPayload("i -> " + i)).take(100), 1);
+                  .flatMap(i -> rSocket.requestStream(DefaultPayload.create("i -> " + i)).take(100), 1);
             });
   }
 
@@ -135,7 +135,7 @@ public class TestingStreaming {
                           @Override
                           public Flux<Payload> requestStream(Payload payload) {
                             return Flux.range(1, 10_000)
-                                .map(l -> DefaultPayload.textPayload("l -> " + l))
+                                .map(l -> DefaultPayload.create("l -> " + l))
                                 .cast(Payload.class);
                           }
                         };

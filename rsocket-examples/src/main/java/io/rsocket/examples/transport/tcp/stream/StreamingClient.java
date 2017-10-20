@@ -37,7 +37,7 @@ public final class StreamingClient {
             .block();
 
     socket
-        .requestStream(DefaultPayload.textPayload("Hello"))
+        .requestStream(DefaultPayload.create("Hello"))
         .map(Payload::getDataUtf8)
         .doOnNext(System.out::println)
         .take(10)
@@ -53,7 +53,7 @@ public final class StreamingClient {
             @Override
             public Flux<Payload> requestStream(Payload payload) {
               return Flux.interval(Duration.ofMillis(100))
-                  .map(aLong -> DefaultPayload.textPayload("Interval: " + aLong));
+                  .map(aLong -> DefaultPayload.create("Interval: " + aLong));
             }
           });
     }

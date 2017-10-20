@@ -11,7 +11,7 @@ import reactor.core.publisher.Flux;
 public class ResumeCacheTest {
   private Frame CANCEL = Frame.Cancel.from(1);
   private Frame STREAM =
-      Frame.Request.from(1, FrameType.REQUEST_STREAM, DefaultPayload.textPayload("Test"), 100);
+      Frame.Request.from(1, FrameType.REQUEST_STREAM, DefaultPayload.create("Test"), 100);
 
   private ResumeCache cache = new ResumeCache(ResumePositionCounter.frames(), 2);
 

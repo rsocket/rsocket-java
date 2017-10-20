@@ -200,7 +200,7 @@ public class RSocketClientTest {
     protected RSocketClient newRSocket() {
       return new RSocketClient(
           connection,
-          DefaultPayload::new,
+          DefaultPayload::create,
           throwable -> errors.add(throwable),
           StreamIdSupplier.clientSupplier(),
           Duration.ofMillis(100),

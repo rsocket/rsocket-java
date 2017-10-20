@@ -13,7 +13,7 @@
 
 package io.rsocket.util;
 
-import static io.rsocket.util.DefaultPayload.textPayload;
+import static io.rsocket.util.DefaultPayload.create;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
@@ -27,14 +27,14 @@ public class DefaultPayloadTest {
 
   @Test
   public void testReuse() {
-    Payload p = DefaultPayload.textPayload(DATA_VAL, METADATA_VAL);
+    Payload p = DefaultPayload.create(DATA_VAL, METADATA_VAL);
     assertDataAndMetadata(p, DATA_VAL, METADATA_VAL);
     assertDataAndMetadata(p, DATA_VAL, METADATA_VAL);
   }
 
   @Test
   public void testReuseWithExternalMark() {
-    Payload p = DefaultPayload.textPayload(DATA_VAL, METADATA_VAL);
+    Payload p = DefaultPayload.create(DATA_VAL, METADATA_VAL);
     assertDataAndMetadata(p, DATA_VAL, METADATA_VAL);
     p.getData().position(2).mark();
     assertDataAndMetadata(p, DATA_VAL, METADATA_VAL);
@@ -52,7 +52,7 @@ public class DefaultPayloadTest {
 
   @Test
   public void staticMethods() {
-    assertDataAndMetadata(textPayload(DATA_VAL, METADATA_VAL), DATA_VAL, METADATA_VAL);
-    assertDataAndMetadata(textPayload(DATA_VAL), DATA_VAL, null);
+    assertDataAndMetadata(DefaultPayload.create(DATA_VAL, METADATA_VAL), DATA_VAL, METADATA_VAL);
+    assertDataAndMetadata(DefaultPayload.create(DATA_VAL), DATA_VAL, null);
   }
 }

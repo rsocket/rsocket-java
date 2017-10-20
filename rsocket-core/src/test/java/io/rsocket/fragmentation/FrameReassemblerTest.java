@@ -32,7 +32,7 @@ public class FrameReassemblerTest {
     ByteBuffer metadata = createRandomBytes(16);
 
     Frame from =
-        Frame.Request.from(1024, FrameType.REQUEST_RESPONSE, new DefaultPayload(data, metadata), 1);
+        Frame.Request.from(1024, FrameType.REQUEST_RESPONSE, DefaultPayload.create(data, metadata), 1);
     FrameFragmenter frameFragmenter = new FrameFragmenter(2);
     FrameReassembler reassembler = new FrameReassembler(from);
     frameFragmenter.fragment(from).subscribe(reassembler::append);
@@ -47,7 +47,7 @@ public class FrameReassemblerTest {
       ByteBuffer data = createRandomBytes(16);
       ByteBuffer metadata = createRandomBytes(16);
 
-      Frame from = Frame.Request.from(1024, FrameType.REQUEST_RESPONSE, new DefaultPayload(data, metadata), 1);
+      Frame from = Frame.Request.from(1024, FrameType.REQUEST_RESPONSE, DefaultPayload.create(data, metadata), 1);
 
       FrameFragmenter frameFragmenter = new FrameFragmenter(2);
 
@@ -84,7 +84,7 @@ public class FrameReassemblerTest {
       ByteBuffer data = createRandomBytes(16);
       ByteBuffer metadata = createRandomBytes(16);
 
-      Frame request = Frame.Request.from(1024, FrameType.REQUEST_RESPONSE, new DefaultPayload(data, metadata), 1);
+      Frame request = Frame.Request.from(1024, FrameType.REQUEST_RESPONSE, DefaultPayload.createdata, metadata), 1);
 
       FrameFragmenter frameFragmenter = new FrameFragmenter(2);
 

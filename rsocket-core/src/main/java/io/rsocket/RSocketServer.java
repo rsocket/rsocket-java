@@ -26,7 +26,6 @@ import io.netty.util.collection.IntObjectHashMap;
 import io.rsocket.exceptions.ApplicationException;
 import io.rsocket.internal.LimitableRequestPublisher;
 import io.rsocket.internal.UnboundedProcessor;
-import io.rsocket.util.PayloadImpl;
 
 import java.util.Collection;
 import java.util.function.Consumer;
@@ -46,7 +45,7 @@ class RSocketServer implements RSocket {
 
   private final DuplexConnection connection;
   private final RSocket requestHandler;
-  private final Function<Frame, Payload> frameDecoder;
+  private final Function<Frame, ? extends Payload> frameDecoder;
   private final Consumer<Throwable> errorConsumer;
 
   private final IntObjectHashMap<Subscription> sendingSubscriptions;
@@ -58,7 +57,7 @@ class RSocketServer implements RSocket {
   RSocketServer(
       DuplexConnection connection,
       RSocket requestHandler,
-      Function<Frame, Payload> frameDecoder,
+      Function<Frame, ? extends Payload> frameDecoder,
       Consumer<Throwable> errorConsumer) {
     this.connection = connection;
     this.requestHandler = requestHandler;
@@ -315,7 +314,9 @@ class RSocketServer implements RSocket {
               if (payload.hasMetadata()) {
                 flags = Frame.setFlag(flags, FLAGS_M);
               }
-              return Frame.PayloadFrame.from(streamId, FrameType.NEXT_COMPLETE, payload, flags);
+              final Frame frame = Frame.PayloadFrame.from(streamId, FrameType.NEXT_COMPLETE, payload, flags);
+              payload.release();
+              return frame;
             })
         .doOnError(errorConsumer)
         .onErrorResume(t -> Mono.just(Frame.Error.from(streamId, t)))
@@ -329,7 +330,11 @@ class RSocketServer implements RSocket {
 
   private Mono<Void> handleStream(int streamId, Flux<Payload> response, int initialRequestN) {
     response
-        .map(payload -> Frame.PayloadFrame.from(streamId, FrameType.NEXT, payload))
+        .map(payload -> {
+          final Frame frame = Frame.PayloadFrame.from(streamId, FrameType.NEXT, payload);
+          payload.release();
+          return frame;
+        })
         .transform(
             frameFlux -> {
               LimitableRequestPublisher<Frame> frames = LimitableRequestPublisher.wrap(frameFlux);

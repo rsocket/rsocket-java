@@ -24,7 +24,6 @@ import io.rsocket.exceptions.ConnectionException;
 import io.rsocket.exceptions.Exceptions;
 import io.rsocket.internal.LimitableRequestPublisher;
 import io.rsocket.internal.UnboundedProcessor;
-import io.rsocket.util.PayloadImpl;
 
 import java.nio.channels.ClosedChannelException;
 import java.time.Duration;
@@ -47,7 +46,7 @@ class RSocketClient implements RSocket {
       noStacktrace(new ClosedChannelException());
 
   private final DuplexConnection connection;
-  private final Function<Frame, Payload> frameDecoder;
+  private final Function<Frame, ? extends Payload> frameDecoder;
   private final Consumer<Throwable> errorConsumer;
   private final StreamIdSupplier streamIdSupplier;
   private final MonoProcessor<Void> started;
@@ -62,7 +61,7 @@ class RSocketClient implements RSocket {
 
   RSocketClient(
       DuplexConnection connection,
-      Function<Frame, Payload> frameDecoder,
+      Function<Frame, ? extends Payload> frameDecoder,
       Consumer<Throwable> errorConsumer,
       StreamIdSupplier streamIdSupplier) {
     this(connection, frameDecoder, errorConsumer, streamIdSupplier, Duration.ZERO, Duration.ZERO, 0);
@@ -70,7 +69,7 @@ class RSocketClient implements RSocket {
 
   RSocketClient(
       DuplexConnection connection,
-      Function<Frame, Payload> frameDecoder,
+      Function<Frame, ? extends Payload> frameDecoder,
       Consumer<Throwable> errorConsumer,
       StreamIdSupplier streamIdSupplier,
       Duration tickPeriod,

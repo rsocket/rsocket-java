@@ -78,7 +78,7 @@ public class TcpIntegrationTest {
         };
     RSocket client = buildClient();
     Boolean hasElements =
-        client.requestStream(DefaultPayload.textPayload("REQUEST", "META")).log().hasElements().block();
+        client.requestStream(DefaultPayload.create("REQUEST", "META")).log().hasElements().block();
 
     assertFalse(hasElements);
   }
@@ -89,13 +89,13 @@ public class TcpIntegrationTest {
         new AbstractRSocket() {
           @Override
           public Flux<Payload> requestStream(Payload payload) {
-            return Flux.just(DefaultPayload.textPayload("RESPONSE", "METADATA"));
+            return Flux.just(DefaultPayload.create("RESPONSE", "METADATA"));
           }
         };
 
     RSocket client = buildClient();
 
-    Payload result = client.requestStream(DefaultPayload.textPayload("REQUEST", "META")).blockLast();
+    Payload result = client.requestStream(DefaultPayload.create("REQUEST", "META")).blockLast();
 
     assertEquals("RESPONSE", result.getDataUtf8());
   }
@@ -112,7 +112,7 @@ public class TcpIntegrationTest {
 
     RSocket client = buildClient();
 
-    Payload result = client.requestStream(DefaultPayload.textPayload("REQUEST", "META")).blockFirst();
+    Payload result = client.requestStream(DefaultPayload.create("REQUEST", "META")).blockFirst();
 
     assertEquals("", result.getDataUtf8());
   }
@@ -129,7 +129,7 @@ public class TcpIntegrationTest {
               first = false;
               return Mono.error(new RuntimeException("EX"));
             } else {
-              return Mono.just(DefaultPayload.textPayload("SUCCESS"));
+              return Mono.just(DefaultPayload.create("SUCCESS"));
             }
           }
         };
@@ -138,13 +138,13 @@ public class TcpIntegrationTest {
 
     Payload response1 =
         client
-            .requestResponse(DefaultPayload.textPayload("REQUEST", "META"))
-            .onErrorReturn(DefaultPayload.textPayload("ERROR"))
+            .requestResponse(DefaultPayload.create("REQUEST", "META"))
+            .onErrorReturn(DefaultPayload.create("ERROR"))
             .block();
     Payload response2 =
         client
-            .requestResponse(DefaultPayload.textPayload("REQUEST", "META"))
-            .onErrorReturn(DefaultPayload.textPayload("ERROR"))
+            .requestResponse(DefaultPayload.create("REQUEST", "META"))
+            .onErrorReturn(DefaultPayload.create("ERROR"))
             .block();
 
     assertEquals("ERROR", response1.getDataUtf8());
@@ -169,8 +169,8 @@ public class TcpIntegrationTest {
 
     RSocket client = buildClient();
 
-    Flux<Payload> response1 = client.requestStream(DefaultPayload.textPayload("REQUEST1"));
-    Flux<Payload> response2 = client.requestStream(DefaultPayload.textPayload("REQUEST2"));
+    Flux<Payload> response1 = client.requestStream(DefaultPayload.create("REQUEST1"));
+    Flux<Payload> response2 = client.requestStream(DefaultPayload.create("REQUEST2"));
 
     CountDownLatch nextCountdown = new CountDownLatch(2);
     CountDownLatch completeCountdown = new CountDownLatch(2);
@@ -183,8 +183,8 @@ public class TcpIntegrationTest {
         .subscribeOn(Schedulers.newSingle("2"))
         .subscribe(c -> nextCountdown.countDown(), t -> {}, completeCountdown::countDown);
 
-    processor1.onNext(DefaultPayload.textPayload("RESPONSE1A"));
-    processor2.onNext(DefaultPayload.textPayload("RESPONSE2A"));
+    processor1.onNext(DefaultPayload.create("RESPONSE1A"));
+    processor2.onNext(DefaultPayload.create("RESPONSE2A"));
 
     nextCountdown.await();
 

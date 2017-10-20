@@ -49,7 +49,7 @@ public class RSocketTest {
   @Test(timeout = 2_000)
   public void testRequestReplyNoError() {
     Subscriber<Payload> subscriber = TestSubscriber.create();
-    rule.crs.requestResponse(DefaultPayload.textPayload("hello")).subscribe(subscriber);
+    rule.crs.requestResponse(DefaultPayload.create("hello")).subscribe(subscriber);
     verify(subscriber).onNext(TestSubscriber.anyPayload());
     verify(subscriber).onComplete();
     rule.assertNoErrors();
@@ -77,7 +77,7 @@ public class RSocketTest {
   @Test(timeout = 2000)
   public void testChannel() throws Exception {
     CountDownLatch latch = new CountDownLatch(10);
-    Flux<Payload> requests = Flux.range(0, 10).map(i -> DefaultPayload.textPayload("streaming in -> " + i));
+    Flux<Payload> requests = Flux.range(0, 10).map(i -> DefaultPayload.create("streaming in -> " + i));
 
     Flux<Payload> responses = rule.crs.requestChannel(requests);
 
@@ -128,23 +128,26 @@ public class RSocketTest {
                 @Override
                 public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
                   Flux.from(payloads)
-                      .map(payload -> DefaultPayload.textPayload("server got -> [" + payload.toString() + "]"))
+                      .map(payload -> DefaultPayload.create("server got -> [" + payload.toString() + "]"))
                       .subscribe();
 
                   return Flux.range(1, 10)
                       .map(
-                          payload -> DefaultPayload.textPayload("server got -> [" + payload.toString() + "]"));
+                          payload -> DefaultPayload.create("server got -> [" + payload.toString() + "]"));
                 }
               };
 
       srs =
           new RSocketServer(
-              serverConnection, requestAcceptor, DefaultPayload::new, throwable -> serverErrors.add(throwable));
+              serverConnection,
+              requestAcceptor,
+              DefaultPayload::create,
+              throwable -> serverErrors.add(throwable));
 
       crs =
           new RSocketClient(
               clientConnection,
-              DefaultPayload::new,
+              DefaultPayload::create,
               throwable -> clientErrors.add(throwable),
               StreamIdSupplier.clientSupplier());
     }

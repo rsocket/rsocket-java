@@ -28,23 +28,18 @@ import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
 import java.nio.charset.Charset;
 
-public class ByteBufPayload extends AbstractReferenceCounted implements Payload {
+public final class ByteBufPayload extends AbstractReferenceCounted implements Payload {
   private final ByteBuf data;
   private final ByteBuf metadata;
 
-  public ByteBufPayload(ByteBuf data) {
-    this.data = Unpooled.wrappedBuffer(data);
+  private ByteBufPayload(ByteBuf data) {
+    this.data = data.asReadOnly();
     this.metadata = null;
   }
 
-  public ByteBufPayload(ByteBuf data, @Nullable ByteBuf metadata) {
-    this.data = Unpooled.wrappedBuffer(data);
-    this.metadata = metadata == null ? null : Unpooled.wrappedBuffer(metadata);
-  }
-
-  public ByteBufPayload(Payload payload) {
-    this.data = payload.sliceData();
-    this.metadata = payload.hasMetadata() ? payload.sliceMetadata() : null;
+  private ByteBufPayload(ByteBuf data, @Nullable ByteBuf metadata) {
+    this.data = data.asReadOnly();
+    this.metadata = metadata == null ? null : metadata.asReadOnly();
   }
 
   @Override
@@ -54,12 +49,12 @@ public class ByteBufPayload extends AbstractReferenceCounted implements Payload 
 
   @Override
   public ByteBuf sliceMetadata() {
-    return metadata == null ? Unpooled.EMPTY_BUFFER : metadata;
+    return metadata == null ? Unpooled.EMPTY_BUFFER : metadata.duplicate();
   }
 
   @Override
   public ByteBuf sliceData() {
-    return data;
+    return data.duplicate();
   }
 
   @Override
@@ -106,7 +101,7 @@ public class ByteBufPayload extends AbstractReferenceCounted implements Payload 
    * @param data the data of the payload.
    * @return a payload.
    */
-  public static Payload textPayload(String data) {
+  public static Payload create(String data) {
     return new ByteBufPayload(ByteBufUtil.writeUtf8(ByteBufAllocator.DEFAULT, data));
   }
 
@@ -118,37 +113,49 @@ public class ByteBufPayload extends AbstractReferenceCounted implements Payload 
    * @param metadata the metadata for the payload.
    * @return a payload.
    */
-  public static Payload textPayload(String data, @Nullable String metadata) {
+  public static Payload create(String data, @Nullable String metadata) {
     return new ByteBufPayload(
         ByteBufUtil.writeUtf8(ByteBufAllocator.DEFAULT, data),
         metadata == null ? null : ByteBufUtil.writeUtf8(ByteBufAllocator.DEFAULT, metadata)
     );
   }
 
-  public static Payload textPayload(CharSequence data, Charset dataCharset) {
+  public static Payload create(CharSequence data, Charset dataCharset) {
     return new ByteBufPayload(ByteBufUtil.encodeString(ByteBufAllocator.DEFAULT, CharBuffer.wrap(data), dataCharset));
   }
 
-  public static Payload textPayload(CharSequence data, Charset dataCharset, @Nullable CharSequence metadata, Charset metadataCharset) {
+  public static Payload create(CharSequence data, Charset dataCharset, @Nullable CharSequence metadata, Charset metadataCharset) {
     return new ByteBufPayload(
         ByteBufUtil.encodeString(ByteBufAllocator.DEFAULT, CharBuffer.wrap(data), dataCharset),
         metadata == null ? null : ByteBufUtil.encodeString(ByteBufAllocator.DEFAULT, CharBuffer.wrap(metadata), metadataCharset)
     );
   }
 
-  public static Payload binaryPayload(byte[] data) {
+  public static Payload create(byte[] data) {
     return new ByteBufPayload(Unpooled.wrappedBuffer(data));
   }
 
-  public static Payload binaryPayload(byte[] data, @Nullable byte[] metadata) {
+  public static Payload create(byte[] data, @Nullable byte[] metadata) {
     return new ByteBufPayload(Unpooled.wrappedBuffer(data), metadata == null ? null : Unpooled.wrappedBuffer(metadata));
   }
 
-  public static Payload binaryPayload(ByteBuffer data) {
+  public static Payload create(ByteBuffer data) {
     return new ByteBufPayload(Unpooled.wrappedBuffer(data));
   }
 
-  public static Payload binaryPayload(ByteBuffer data, @Nullable ByteBuffer metadata) {
+  public static Payload create(ByteBuffer data, @Nullable ByteBuffer metadata) {
     return new ByteBufPayload(Unpooled.wrappedBuffer(data), metadata == null ? null : Unpooled.wrappedBuffer(metadata));
+  }
+
+  public static Payload create(ByteBuf data) {
+    return new ByteBufPayload(data);
+  }
+
+  public static Payload create(ByteBuf data, @Nullable ByteBuf metadata) {
+    return new ByteBufPayload(data, metadata);
+  }
+
+  public static Payload create(Payload payload) {
+    return new ByteBufPayload(payload.sliceData(), payload.hasMetadata() ? payload.sliceMetadata() : null);
   }
 }

@@ -116,13 +116,13 @@ public class IntegrationTest {
                       new AbstractRSocket() {
                         @Override
                         public Mono<Payload> requestResponse(Payload payload) {
-                          return Mono.just(DefaultPayload.textPayload("RESPONSE", "METADATA"))
+                          return Mono.just(DefaultPayload.create("RESPONSE", "METADATA"))
                               .doOnSubscribe(s -> requestCount.incrementAndGet());
                         }
 
                         @Override
                         public Flux<Payload> requestStream(Payload payload) {
-                          return Flux.range(1, 10_000).map(i -> DefaultPayload.textPayload("data -> " + i));
+                          return Flux.range(1, 10_000).map(i -> DefaultPayload.create("data -> " + i));
                         }
 
                         @Override
@@ -151,7 +151,7 @@ public class IntegrationTest {
 
   @Test(timeout = 5_000L)
   public void testRequest() {
-    client.requestResponse(DefaultPayload.textPayload("REQUEST", "META")).block();
+    client.requestResponse(DefaultPayload.create("REQUEST", "META")).block();
     assertThat("Server did not see the request.", requestCount.get(), is(1));
     assertTrue(calledClient);
     assertTrue(calledServer);
@@ -161,7 +161,7 @@ public class IntegrationTest {
   @Test(timeout = 5_000L)
   public void testStream() {
     Subscriber<Payload> subscriber = TestSubscriber.createCancelling();
-    client.requestStream(DefaultPayload.textPayload("start")).subscribe(subscriber);
+    client.requestStream(DefaultPayload.create("start")).subscribe(subscriber);
 
     verify(subscriber).onSubscribe(any());
     verifyNoMoreInteractions(subscriber);

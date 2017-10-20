@@ -27,7 +27,7 @@ public class TestRSocket extends AbstractRSocket {
 
   @Override
   public Mono<Payload> requestResponse(Payload payload) {
-    return Mono.just(DefaultPayload.textPayload("hello world", "metadata"));
+    return Mono.just(DefaultPayload.create("hello world", "metadata"));
   }
 
   @Override
@@ -48,6 +48,6 @@ public class TestRSocket extends AbstractRSocket {
   @Override
   public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
     // TODO is defensive copy neccesary?
-    return Flux.from(payloads).map(p -> new DefaultPayload(p));
+    return Flux.from(payloads).map(DefaultPayload::create);
   }
 }

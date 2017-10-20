@@ -34,7 +34,7 @@ public class ClientServerTest {
   public void testFireNForget10() {
     long outputCount =
         Flux.range(1, 10)
-            .flatMap(i -> setup.getRSocket().fireAndForget(DefaultPayload.textPayload("hello", "metadata")))
+            .flatMap(i -> setup.getRSocket().fireAndForget(DefaultPayload.create("hello", "metadata")))
             .doOnError(Throwable::printStackTrace)
             .count()
             .block();
@@ -46,7 +46,7 @@ public class ClientServerTest {
   public void testPushMetadata10() {
     long outputCount =
         Flux.range(1, 10)
-            .flatMap(i -> setup.getRSocket().metadataPush(DefaultPayload.textPayload("", "metadata")))
+            .flatMap(i -> setup.getRSocket().metadataPush(DefaultPayload.create("", "metadata")))
             .doOnError(Throwable::printStackTrace)
             .count()
             .block();
@@ -62,7 +62,7 @@ public class ClientServerTest {
                 i ->
                     setup
                         .getRSocket()
-                        .requestResponse(DefaultPayload.textPayload("hello", "metadata"))
+                        .requestResponse(DefaultPayload.create("hello", "metadata"))
                         .map(Payload::getDataUtf8))
             .doOnError(Throwable::printStackTrace)
             .count()
@@ -79,7 +79,7 @@ public class ClientServerTest {
                 i ->
                     setup
                         .getRSocket()
-                        .requestResponse(DefaultPayload.textPayload("hello", "metadata"))
+                        .requestResponse(DefaultPayload.create("hello", "metadata"))
                         .map(Payload::getDataUtf8))
             .doOnError(Throwable::printStackTrace)
             .count()
@@ -96,7 +96,7 @@ public class ClientServerTest {
                 i ->
                     setup
                         .getRSocket()
-                        .requestResponse(DefaultPayload.textPayload("hello", "metadata"))
+                        .requestResponse(DefaultPayload.create("hello", "metadata"))
                         .map(Payload::getDataUtf8))
             .doOnError(Throwable::printStackTrace)
             .count()
@@ -113,7 +113,7 @@ public class ClientServerTest {
                 i ->
                     setup
                         .getRSocket()
-                        .requestResponse(DefaultPayload.textPayload("hello", "metadata"))
+                        .requestResponse(DefaultPayload.create("hello", "metadata"))
                         .map(Payload::getDataUtf8))
             .doOnError(Throwable::printStackTrace)
             .count()
@@ -125,7 +125,7 @@ public class ClientServerTest {
   @Test(timeout = 10000)
   public void testRequestStream() {
     Flux<Payload> publisher =
-        setup.getRSocket().requestStream(DefaultPayload.textPayload("hello", "metadata"));
+        setup.getRSocket().requestStream(DefaultPayload.create("hello", "metadata"));
 
     long count = publisher.take(5).count().block();
 

@@ -12,7 +12,7 @@ import org.junit.Test;
 public class ResumeUtilTest {
   private Frame CANCEL = Frame.Cancel.from(1);
   private Frame STREAM =
-      Frame.Request.from(1, FrameType.REQUEST_STREAM, DefaultPayload.textPayload("Test"), 100);
+      Frame.Request.from(1, FrameType.REQUEST_STREAM, DefaultPayload.create("Test"), 100);
 
   @Test
   public void testSupportedTypes() {

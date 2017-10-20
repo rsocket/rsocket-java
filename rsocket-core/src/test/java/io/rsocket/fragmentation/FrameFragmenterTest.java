@@ -32,7 +32,7 @@ public class FrameFragmenterTest {
     ByteBuffer metadata = createRandomBytes(16);
 
     Frame from =
-        Frame.Request.from(1, FrameType.REQUEST_RESPONSE, new DefaultPayload(data, metadata), 1);
+        Frame.Request.from(1, FrameType.REQUEST_RESPONSE, DefaultPayload.create(data, metadata), 1);
 
     FrameFragmenter frameFragmenter = new FrameFragmenter(2);
 
@@ -45,7 +45,7 @@ public class FrameFragmenterTest {
     ByteBuffer metadata = createRandomBytes(17);
 
     Frame from =
-        Frame.Request.from(1, FrameType.REQUEST_RESPONSE, new DefaultPayload(data, metadata), 1);
+        Frame.Request.from(1, FrameType.REQUEST_RESPONSE, DefaultPayload.create(data, metadata), 1);
 
     FrameFragmenter frameFragmenter = new FrameFragmenter(2);
 
@@ -58,7 +58,7 @@ public class FrameFragmenterTest {
     ByteBuffer metadata = createRandomBytes(16);
 
     Frame from =
-        Frame.Request.from(1, FrameType.REQUEST_RESPONSE, new DefaultPayload(data, metadata), 1);
+        Frame.Request.from(1, FrameType.REQUEST_RESPONSE, DefaultPayload.create(data, metadata), 1);
 
     FrameFragmenter frameFragmenter = new FrameFragmenter(2);
 
@@ -71,7 +71,7 @@ public class FrameFragmenterTest {
     ByteBuffer metadata = ByteBuffer.allocate(0);
 
     Frame from =
-        Frame.Request.from(1, FrameType.REQUEST_RESPONSE, new DefaultPayload(data, metadata), 1);
+        Frame.Request.from(1, FrameType.REQUEST_RESPONSE, DefaultPayload.create(data, metadata), 1);
 
     FrameFragmenter frameFragmenter = new FrameFragmenter(2);
 

@@ -56,21 +56,21 @@ public final class HelloWorldClient {
             .block();
 
     socket
-        .requestResponse(DefaultPayload.textPayload("Hello"))
+        .requestResponse(DefaultPayload.create("Hello"))
         .map(Payload::getDataUtf8)
         .onErrorReturn("error")
         .doOnNext(System.out::println)
         .block();
 
     socket
-        .requestResponse(DefaultPayload.textPayload("Hello"))
+        .requestResponse(DefaultPayload.create("Hello"))
         .map(Payload::getDataUtf8)
         .onErrorReturn("error")
         .doOnNext(System.out::println)
         .block();
 
     socket
-        .requestResponse(DefaultPayload.textPayload("Hello"))
+        .requestResponse(DefaultPayload.create("Hello"))
         .map(Payload::getDataUtf8)
         .onErrorReturn("error")
         .doOnNext(System.out::println)

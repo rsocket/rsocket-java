@@ -86,7 +86,7 @@ public class RSocketFactory {
     private int flags = SetupFrameFlyweight.FLAGS_STRICT_INTERPRETATION;
 
     private Payload setupPayload = EmptyPayload.INSTANCE;
-    private Function<Frame, Payload> frameDecoder = DefaultPayload::new;
+    private Function<Frame, ? extends Payload> frameDecoder = DefaultPayload::create;
 
     private Duration tickPeriod = Duration.ZERO;
     private Duration ackTimeout = Duration.ofSeconds(30);
@@ -184,7 +184,7 @@ public class RSocketFactory {
       return this;
     }
 
-    public ClientRSocketFactory frameDecoder(Function<Frame, Payload> frameDecoder) {
+    public ClientRSocketFactory frameDecoder(Function<Frame, ? extends Payload> frameDecoder) {
       this.frameDecoder = frameDecoder;
       return this;
     }
@@ -255,7 +255,7 @@ public class RSocketFactory {
 
   public static class ServerRSocketFactory {
     private Supplier<SocketAcceptor> acceptor;
-    private Function<Frame, Payload> frameDecoder = DefaultPayload::new;
+    private Function<Frame, ? extends Payload> frameDecoder = DefaultPayload::create;
     private Consumer<Throwable> errorConsumer = Throwable::printStackTrace;
     private int mtu = 0;
     private PluginRegistry plugins = new PluginRegistry(Plugins.defaultPlugins());
@@ -287,7 +287,7 @@ public class RSocketFactory {
       return ServerStart::new;
     }
 
-    public ServerRSocketFactory frameDecoder(Function<Frame, Payload> frameDecoder) {
+    public ServerRSocketFactory frameDecoder(Function<Frame, ? extends Payload> frameDecoder) {
       this.frameDecoder = frameDecoder;
       return this;
     }

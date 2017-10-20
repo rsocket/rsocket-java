@@ -29,25 +29,20 @@ import javax.annotation.Nullable;
  * An implementation of {@link Payload}. This implementation is <b>not</b> thread-safe, and hence
  * any method can not be invoked concurrently.
  */
-public class DefaultPayload implements Payload {
+public final class DefaultPayload implements Payload {
   public static final ByteBuffer EMPTY_BUFFER = ByteBuffer.allocateDirect(0);
 
   private final ByteBuffer data;
   private final ByteBuffer metadata;
 
-  public DefaultPayload(ByteBuffer data) {
+  private DefaultPayload(ByteBuffer data) {
     this.data = data.asReadOnlyBuffer();
     this.metadata = null;
   }
 
-  public DefaultPayload(ByteBuffer data, @Nullable ByteBuffer metadata) {
+  private DefaultPayload(ByteBuffer data, @Nullable ByteBuffer metadata) {
     this.data = data.asReadOnlyBuffer();
     this.metadata = metadata == null ? null : metadata.asReadOnlyBuffer();
-  }
-
-  public DefaultPayload(Payload payload) {
-    this.data = payload.getData();
-    this.metadata = payload.hasMetadata() ? payload.getMetadata() : null;
   }
 
   @Override
@@ -67,12 +62,12 @@ public class DefaultPayload implements Payload {
 
   @Override
   public ByteBuffer getMetadata() {
-    return metadata == null ? DefaultPayload.EMPTY_BUFFER : metadata.asReadOnlyBuffer();
+    return metadata == null ? DefaultPayload.EMPTY_BUFFER : metadata.duplicate();
   }
 
   @Override
   public ByteBuffer getData() {
-    return data.asReadOnlyBuffer();
+    return data.duplicate();
   }
 
   @Override
@@ -116,7 +111,7 @@ public class DefaultPayload implements Payload {
    * @param data the data of the payload.
    * @return a payload.
    */
-  public static Payload textPayload(CharSequence data) {
+  public static Payload create(CharSequence data) {
     return new DefaultPayload(StandardCharsets.UTF_8.encode(CharBuffer.wrap(data)));
   }
 
@@ -128,37 +123,41 @@ public class DefaultPayload implements Payload {
    * @param metadata the metadata for the payload.
    * @return a payload.
    */
-  public static Payload textPayload(String data, @Nullable String metadata) {
+  public static Payload create(CharSequence data, @Nullable CharSequence metadata) {
     return new DefaultPayload(
         StandardCharsets.UTF_8.encode(CharBuffer.wrap(data)),
         metadata == null ? null : StandardCharsets.UTF_8.encode(CharBuffer.wrap(metadata))
     );
   }
 
-  public static Payload textPayload(CharSequence data, Charset dataCharset) {
+  public static Payload create(CharSequence data, Charset dataCharset) {
     return new DefaultPayload(dataCharset.encode(CharBuffer.wrap(data)));
   }
 
-  public static Payload textPayload(CharSequence data, Charset dataCharset, @Nullable CharSequence metadata, Charset metadataCharset) {
+  public static Payload create(CharSequence data, Charset dataCharset, @Nullable CharSequence metadata, Charset metadataCharset) {
     return new DefaultPayload(
         dataCharset.encode(CharBuffer.wrap(data)),
         metadata == null ? null : metadataCharset.encode(CharBuffer.wrap(metadata))
     );
   }
 
-  public static Payload binaryPayload(byte[] data) {
+  public static Payload create(byte[] data) {
     return new DefaultPayload(ByteBuffer.wrap(data));
   }
 
-  public static Payload binaryPayload(byte[] data, @Nullable byte[] metadata) {
+  public static Payload create(byte[] data, @Nullable byte[] metadata) {
     return new DefaultPayload(ByteBuffer.wrap(data), metadata == null ? null : ByteBuffer.wrap(metadata));
   }
 
-  public static Payload binaryPayload(ByteBuffer data) {
+  public static Payload create(ByteBuffer data) {
     return new DefaultPayload(data);
   }
 
-  public static Payload binaryPayload(ByteBuffer data, @Nullable ByteBuffer metadata) {
+  public static Payload create(ByteBuffer data, @Nullable ByteBuffer metadata) {
     return new DefaultPayload(data, metadata);
+  }
+
+  public static Payload create(Payload payload) {
+    return new DefaultPayload(payload.getData(), payload.hasMetadata() ? payload.getMetadata() : null);
   }
 }

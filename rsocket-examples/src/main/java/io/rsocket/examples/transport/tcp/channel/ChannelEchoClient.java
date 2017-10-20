@@ -44,7 +44,7 @@ public final class ChannelEchoClient {
             .block();
 
     socket
-        .requestChannel(Flux.interval(Duration.ofMillis(1000)).map(i -> DefaultPayload.textPayload("Hello")))
+        .requestChannel(Flux.interval(Duration.ofMillis(1000)).map(i -> DefaultPayload.create("Hello")))
         .map(Payload::getDataUtf8)
         .doOnNext(System.out::println)
         .take(10)
@@ -62,7 +62,7 @@ public final class ChannelEchoClient {
               return Flux.from(payloads)
                   .map(Payload::getDataUtf8)
                   .map(s -> "Echo: " + s)
-                  .map(DefaultPayload::textPayload);
+                  .map(DefaultPayload::create);
             }
           });
     }
