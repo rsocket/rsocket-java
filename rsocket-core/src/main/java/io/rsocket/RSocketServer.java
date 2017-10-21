@@ -335,21 +335,15 @@ class RSocketServer implements RSocket {
         frames
             .doOnCancel(
                 () -> {
-                  if (connection.availability() > 0.0) {
-                    sendProcessor.onNext(Frame.Cancel.from(streamId));
-                  }
+                  sendProcessor.onNext(Frame.Cancel.from(streamId));
                 })
             .doOnError(
                 t -> {
-                  if (connection.availability() > 0.0) {
-                    sendProcessor.onNext(Frame.Error.from(streamId, t));
-                  }
+                  sendProcessor.onNext(Frame.Error.from(streamId, t));
                 })
             .doOnRequest(
                 l -> {
-                  if (connection.availability() > 0.0) {
-                    sendProcessor.onNext(Frame.RequestN.from(streamId, l));
-                  }
+                  sendProcessor.onNext(Frame.RequestN.from(streamId, l));
                 })
             .doFinally(signalType -> removeChannelProcessor(streamId));
 
