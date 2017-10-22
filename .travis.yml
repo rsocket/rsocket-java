@@ -10,11 +10,19 @@ addons:
 
 dist: trusty
 #group: edge
-sudo: false
+sudo: true
 # as per http://blog.travis-ci.com/2014-12-17-faster-builds-with-container-based-infrastructure/
+
+install: gradle/installViaTravis.sh
 
 # script for build and release via Travis to Bintray
 script: gradle/buildViaTravis.sh
+
+after_script:
+  - gradle clean
+  - infer capture -- gradle test
+  - infer analyze -a checkers --print-active-checkers --quiet && cat infer-out/bugs.txt
+  - infer --no-default-checkers --bufferoverrun --compute-analytics --eradicate --repeated-calls --suggest-nullable --tracing --print-active-checkers --quiet && cat infer-out/bugs.txt
 
 # cache between builds
 cache:
