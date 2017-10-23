@@ -14,9 +14,9 @@ import java.util.function.BiFunction;
 public final class SwitchTransform<T, R> extends Flux<R> {
 
 	final Publisher<? extends T> source;
-	final BiFunction<T, Flux<? extends T>, Publisher<? extends R>> transformer;
+	final BiFunction<T, Flux<T>, Publisher<? extends R>> transformer;
 
-	public SwitchTransform(Publisher<? extends T> source, BiFunction<T, Flux<? extends T>, Publisher<? extends R>> transformer) {
+	public SwitchTransform(Publisher<? extends T> source, BiFunction<T, Flux<T>, Publisher<? extends R>> transformer) {
 		this.source = Objects.requireNonNull(source, "source");
 		this.transformer = Objects.requireNonNull(transformer, "transformer");
 	}
@@ -28,7 +28,7 @@ public final class SwitchTransform<T, R> extends Flux<R> {
 
 	static final class SwitchTransformSubscriber<T, R> implements CoreSubscriber<T> {
 		final CoreSubscriber<? super R> actual;
-		final BiFunction<T, Flux<? extends T>, Publisher<? extends R>> transformer;
+		final BiFunction<T, Flux<T>, Publisher<? extends R>> transformer;
 		final DirectProcessor<T> processor = DirectProcessor.create();
 
 		Subscription s;
@@ -38,7 +38,7 @@ public final class SwitchTransform<T, R> extends Flux<R> {
 		static final AtomicIntegerFieldUpdater<SwitchTransformSubscriber> ONCE =
 				AtomicIntegerFieldUpdater.newUpdater(SwitchTransformSubscriber.class, "once");
 
-		SwitchTransformSubscriber(CoreSubscriber<? super R> actual, BiFunction<T, Flux<? extends T>, Publisher<? extends R>> transformer) {
+		SwitchTransformSubscriber(CoreSubscriber<? super R> actual, BiFunction<T, Flux<T>, Publisher<? extends R>> transformer) {
 			this.actual = actual;
 			this.transformer = transformer;
 		}
