@@ -14,12 +14,14 @@
  * limitations under the License.
  */
 package io.rsocket.transport.netty;
+
+import io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueue;
+import io.netty.util.internal.shaded.org.jctools.queues.MpscUnboundedArrayQueue;
 import io.rsocket.DuplexConnection;
 import io.rsocket.Frame;
 import org.reactivestreams.Publisher;
-import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
-import reactor.core.publisher.MonoProcessor;
+import reactor.core.publisher.*;
+import reactor.core.scheduler.Schedulers;
 import reactor.ipc.netty.NettyContext;
 import reactor.ipc.netty.NettyInbound;
 import reactor.ipc.netty.NettyOutbound;
@@ -29,48 +31,48 @@ public class NettyDuplexConnection implements DuplexConnection {
   private final NettyOutbound out;
   private final NettyContext context;
   private final MonoProcessor<Void> onClose;
-  
+  private final UnicastProcessor<Frame> sendProcessor;
+
   public NettyDuplexConnection(NettyInbound in, NettyOutbound out, NettyContext context) {
     this.in = in;
     this.out = out;
     this.context = context;
     this.onClose = MonoProcessor.create();
-    
+    this.sendProcessor = UnicastProcessor.create();
+
     context.onClose(onClose::onComplete);
     this.onClose
         .doFinally(
             s -> {
+              sendProcessor.onComplete();
               this.context.dispose();
               this.context.channel().close();
             })
         .subscribe();
+    
+    sendProcessor.map(Frame::content).concatMap(out::sendObject).then().subscribe();
   }
-  
+
   @Override
   public Mono<Void> send(Publisher<Frame> frames) {
-    return Flux.from(frames).concatMap(this::sendOne).then();
+    return Flux.from(frames).doOnNext(sendProcessor::onNext).then();
   }
-  
-  @Override
-  public Mono<Void> sendOne(Frame frame) {
-    return out.sendObject(frame.content()).then();
-  }
-  
+
   @Override
   public Flux<Frame> receive() {
     return in.receive().map(buf -> Frame.from(buf.retain()));
   }
-  
+
   @Override
   public Mono<Void> close() {
     return Mono.fromRunnable(onClose::onComplete);
   }
-  
+
   @Override
   public Mono<Void> onClose() {
     return onClose;
   }
-  
+
   @Override
   public double availability() {
     return onClose.isTerminated() ? 0.0 : 1.0;

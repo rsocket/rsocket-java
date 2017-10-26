@@ -17,6 +17,7 @@
 package io.rsocket.test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import io.rsocket.Payload;
 import io.rsocket.util.PayloadImpl;
@@ -24,6 +25,9 @@ import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import reactor.core.publisher.Flux;
+import reactor.core.scheduler.Schedulers;
+
+import java.util.concurrent.CountDownLatch;
 
 public abstract class BaseClientServerTest<T extends ClientSetupRule<?, ?>> {
   @Rule public final T setup = createClientServer();
@@ -54,7 +58,7 @@ public abstract class BaseClientServerTest<T extends ClientSetupRule<?, ?>> {
     assertEquals(0, outputCount);
   }
 
-  @Test(timeout = 10000)
+  @Test()//(timeout = 10000)
   public void testRequestResponse1() {
     long outputCount =
         Flux.range(1, 1)
@@ -196,4 +200,44 @@ public abstract class BaseClientServerTest<T extends ClientSetupRule<?, ?>> {
 
     assertEquals(3, count);
   }
+  
+  @Test(timeout = 10_000)
+  public void testChannel20_000() {
+    Flux<Payload> publisher =
+        setup
+            .getRSocket()
+            .requestChannel(Flux.range(1, 20_000).map(i -> new PayloadImpl("data-" + i)));
+    
+    long count = publisher.count().block();
+    
+    assertEquals(20_000, count);
+  }
+  
+  @Test(timeout = 30_000)
+  @Ignore
+  public void testChannel200_000() throws Exception {
+    CountDownLatch latch = new CountDownLatch(200_000);
+    setup
+        .getRSocket()
+        .requestChannel(Flux.range(1, 200_000).map(i -> new PayloadImpl("data-" + i)))
+        .subscribe(p -> latch.countDown());
+    latch.await();
+  }
+  
+  @Test(timeout = 120_000)
+  @Ignore
+  public void testChannel200_000Threads() {
+    Flux<Payload> publisher =
+        setup
+            .getRSocket()
+            .requestChannel(
+                Flux.range(1, 200_000)
+                    .publishOn(Schedulers.parallel())
+                    .map(i -> new PayloadImpl("data-" + i)));
+    
+    Payload payload = publisher.subscribeOn(Schedulers.parallel()).blockLast();
+    assertTrue(payload.getDataUtf8().contains("200000"));
+    System.out.println(payload.getDataUtf8());
+  }
+  
 }
