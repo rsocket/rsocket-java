@@ -39,20 +39,20 @@ import java.util.concurrent.atomic.AtomicLongFieldUpdater;
  *
  * @param <T> the input and output type
  */
-public final class UnboundProcessor<T> extends FluxProcessor<T, T>
+public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
     implements Fuseable.QueueSubscription<T>, Fuseable {
 
   @SuppressWarnings("rawtypes")
-  static final AtomicIntegerFieldUpdater<UnboundProcessor> ONCE =
-      AtomicIntegerFieldUpdater.newUpdater(UnboundProcessor.class, "once");
+  static final AtomicIntegerFieldUpdater<UnboundedProcessor> ONCE =
+      AtomicIntegerFieldUpdater.newUpdater(UnboundedProcessor.class, "once");
 
   @SuppressWarnings("rawtypes")
-  static final AtomicIntegerFieldUpdater<UnboundProcessor> WIP =
-      AtomicIntegerFieldUpdater.newUpdater(UnboundProcessor.class, "wip");
+  static final AtomicIntegerFieldUpdater<UnboundedProcessor> WIP =
+      AtomicIntegerFieldUpdater.newUpdater(UnboundedProcessor.class, "wip");
 
   @SuppressWarnings("rawtypes")
-  static final AtomicLongFieldUpdater<UnboundProcessor> REQUESTED =
-      AtomicLongFieldUpdater.newUpdater(UnboundProcessor.class, "requested");
+  static final AtomicLongFieldUpdater<UnboundedProcessor> REQUESTED =
+      AtomicLongFieldUpdater.newUpdater(UnboundedProcessor.class, "requested");
 
   final Queue<T> queue;
 
@@ -65,7 +65,7 @@ public final class UnboundProcessor<T> extends FluxProcessor<T, T>
   volatile long requested;
   volatile long processed;
 
-  public UnboundProcessor() {
+  public UnboundedProcessor() {
     this.queue = new MpscGrowableAtomicArrayQueue<>(Queues.SMALL_BUFFER_SIZE, 1 << 24);
   }
 
@@ -237,7 +237,7 @@ public final class UnboundProcessor<T> extends FluxProcessor<T, T>
     } else {
       Operators.error(
           actual,
-          new IllegalStateException("UnboundProcessor " + "allows only a single Subscriber"));
+          new IllegalStateException("UnboundedProcessor " + "allows only a single Subscriber"));
     }
   }
 

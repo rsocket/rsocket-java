@@ -21,7 +21,7 @@ import io.netty.buffer.Unpooled;
 import io.netty.util.collection.IntObjectHashMap;
 import io.rsocket.exceptions.ApplicationException;
 import io.rsocket.internal.LimitableRequestPublisher;
-import io.rsocket.internal.UnboundProcessor;
+import io.rsocket.internal.UnboundedProcessor;
 import io.rsocket.util.PayloadImpl;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
@@ -50,7 +50,7 @@ class RSocketServer implements RSocket {
   private final IntObjectHashMap<Subscription> sendingSubscriptions;
   private final IntObjectHashMap<UnicastProcessor<Payload>> channelProcessors;
 
-  private final UnboundProcessor<Frame> sendProcessor;
+  private final UnboundedProcessor<Frame> sendProcessor;
   private Disposable receiveDisposable;
 
   RSocketServer(
@@ -63,7 +63,7 @@ class RSocketServer implements RSocket {
 
     // DO NOT Change the order here. The Send processor must be subscribed to before receiving
     // connections
-    this.sendProcessor = new UnboundProcessor<>();
+    this.sendProcessor = new UnboundedProcessor<>();
 
     connection
         .send(sendProcessor)

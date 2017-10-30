@@ -21,19 +21,17 @@ import io.netty.util.collection.IntObjectHashMap;
 import io.rsocket.exceptions.ConnectionException;
 import io.rsocket.exceptions.Exceptions;
 import io.rsocket.internal.LimitableRequestPublisher;
-import io.rsocket.internal.UnboundProcessor;
+import io.rsocket.internal.UnboundedProcessor;
 import io.rsocket.util.PayloadImpl;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import reactor.core.Disposable;
 import reactor.core.publisher.*;
-import reactor.core.scheduler.Schedulers;
 
 import javax.annotation.Nullable;
 import java.nio.channels.ClosedChannelException;
 import java.time.Duration;
 import java.util.Collection;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
@@ -56,7 +54,7 @@ class RSocketClient implements RSocket {
   private final IntObjectHashMap<Subscriber<Payload>> receivers;
   private final AtomicInteger missedAckCounter;
 
-  private final UnboundProcessor<Frame> sendProcessor;
+  private final UnboundedProcessor<Frame> sendProcessor;
 
   private @Nullable Disposable keepAliveSendSub;
   private volatile long timeLastTickSentMs;
@@ -84,7 +82,7 @@ class RSocketClient implements RSocket {
     this.missedAckCounter = new AtomicInteger();
 
     // DO NOT Change the order here. The Send processor must be subscribed to before receiving
-    this.sendProcessor = new UnboundProcessor<>();
+    this.sendProcessor = new UnboundedProcessor<>();
 
     if (!Duration.ZERO.equals(tickPeriod)) {
       long ackTimeoutMs = ackTimeout.toMillis();
