@@ -16,24 +16,29 @@
 
 package io.rsocket;
 
-import static io.rsocket.Frame.Request.initialRequestN;
-import static io.rsocket.frame.FrameHeaderFlyweight.FLAGS_C;
-import static io.rsocket.frame.FrameHeaderFlyweight.FLAGS_M;
-
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.util.collection.IntObjectHashMap;
 import io.rsocket.exceptions.ApplicationException;
 import io.rsocket.internal.LimitableRequestPublisher;
+import io.rsocket.internal.UnboundedProcessor;
 import io.rsocket.util.PayloadImpl;
-import java.util.Collection;
-import java.util.function.Consumer;
-import javax.annotation.Nullable;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 import reactor.core.Disposable;
-import reactor.core.publisher.*;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+import reactor.core.publisher.SignalType;
+import reactor.core.publisher.UnicastProcessor;
+
+import javax.annotation.Nullable;
+import java.util.Collection;
+import java.util.function.Consumer;
+
+import static io.rsocket.Frame.Request.initialRequestN;
+import static io.rsocket.frame.FrameHeaderFlyweight.FLAGS_C;
+import static io.rsocket.frame.FrameHeaderFlyweight.FLAGS_M;
 
 /** Server side RSocket. Receives {@link Frame}s from a {@link RSocketClient} */
 class RSocketServer implements RSocket {
@@ -45,7 +50,7 @@ class RSocketServer implements RSocket {
   private final IntObjectHashMap<Subscription> sendingSubscriptions;
   private final IntObjectHashMap<UnicastProcessor<Payload>> channelProcessors;
 
-  private final FluxProcessor<Frame, Frame> sendProcessor;
+  private final UnboundedProcessor<Frame> sendProcessor;
   private Disposable receiveDisposable;
 
   RSocketServer(
@@ -58,7 +63,7 @@ class RSocketServer implements RSocket {
 
     // DO NOT Change the order here. The Send processor must be subscribed to before receiving
     // connections
-    this.sendProcessor = EmitterProcessor.<Frame>create().serialize();
+    this.sendProcessor = new UnboundedProcessor<>();
 
     connection
         .send(sendProcessor)
@@ -302,7 +307,10 @@ class RSocketServer implements RSocket {
         .doOnError(errorConsumer)
         .onErrorResume(t -> Mono.just(Frame.Error.from(streamId, t)))
         .doOnNext(sendProcessor::onNext)
-        .doFinally(signalType -> removeSubscription(streamId))
+        .doFinally(
+            signalType -> {
+              removeSubscription(streamId);
+            })
         .then();
   }
 

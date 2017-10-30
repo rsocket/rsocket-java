@@ -65,7 +65,7 @@ public class PingClient {
                                     histogram.recordValue(diff);
                                   });
                         },
-                        16))
+                        64))
         .doOnError(Throwable::printStackTrace);
   }
 }
