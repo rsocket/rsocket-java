@@ -112,7 +112,7 @@ public abstract class BaseClientServerTest<T extends ClientSetupRule<?, ?>> {
     assertEquals(100, outputCount);
   }
 
-  @Test//(timeout = 20000)
+  @Test(timeout = 20000)
   public void testRequestResponse10_000() {
     long outputCount =
         Flux.range(1, 10_000)
@@ -208,7 +208,7 @@ public abstract class BaseClientServerTest<T extends ClientSetupRule<?, ?>> {
     assertEquals(3, count);
   }
   
-  @Test//(timeout = 10000)
+  @Test(timeout = 10000)
   public void testChannel512() {
     Flux<Payload> payloads = Flux.range(1, 512).map(i -> new PayloadImpl("hello " + i));
     
@@ -217,7 +217,7 @@ public abstract class BaseClientServerTest<T extends ClientSetupRule<?, ?>> {
     assertEquals(512, count);
   }
   
-  @Test//(timeout = 10000)
+  @Test(timeout = 30000)
   public void testChannel20_000() {
     Flux<Payload> payloads = Flux.range(1, 20_000).map(i -> new PayloadImpl("hello " + i));
     
@@ -226,7 +226,7 @@ public abstract class BaseClientServerTest<T extends ClientSetupRule<?, ?>> {
     assertEquals(20_000, count);
   }
   
-  @Test//(timeout = 10000)
+  @Test(timeout = 60_000)
   public void testChannel200_000() {
     Flux<Payload> payloads = Flux.range(1, 200_000).map(i -> new PayloadImpl("hello " + i));
     
