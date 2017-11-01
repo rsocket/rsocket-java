@@ -17,6 +17,7 @@ package io.rsocket.frame;
 
 import io.netty.buffer.ByteBuf;
 import io.rsocket.FrameType;
+import javax.annotation.Nullable;
 
 public class LeaseFrameFlyweight {
   private LeaseFrameFlyweight() {}
@@ -32,8 +33,11 @@ public class LeaseFrameFlyweight {
   }
 
   public static int encode(
-      final ByteBuf byteBuf, final int ttl, final int numRequests, final ByteBuf metadata) {
-    final int frameLength = computeFrameLength(metadata.readableBytes());
+      final ByteBuf byteBuf,
+      final int ttl,
+      final int numRequests,
+      @Nullable final ByteBuf metadata) {
+    final int frameLength = computeFrameLength(metadata != null ? metadata.readableBytes() : 0);
 
     int length =
         FrameHeaderFlyweight.encodeFrameHeader(byteBuf, frameLength, 0, FrameType.LEASE, 0);

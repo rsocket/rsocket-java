@@ -406,7 +406,8 @@ public class Frame implements ByteBufHolder {
       final Frame frame = RECYCLER.get();
       frame.content =
           ByteBufAllocator.DEFAULT.buffer(
-              LeaseFrameFlyweight.computeFrameLength(metadata.readableBytes()));
+              LeaseFrameFlyweight.computeFrameLength(
+                  metadata != null ? metadata.readableBytes() : 0));
       frame.content.writerIndex(
           LeaseFrameFlyweight.encode(frame.content, ttl, numberOfRequests, metadata));
       return frame;
