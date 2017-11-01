@@ -23,11 +23,11 @@ Example:
 
 ```groovy
 repositories {
-    maven { url 'https://oss.jfrog.org/libs-snapshot' }
+    maven { url 'https://oss.jfrog.org/libs-release' }
 }
 
 dependencies {
-    compile 'io.rsocket:reactivesocket:0.9-SNAPSHOT'
+    compile 'io.rsocket:reactivesocket:0.9.15'
 }
 ```
 
