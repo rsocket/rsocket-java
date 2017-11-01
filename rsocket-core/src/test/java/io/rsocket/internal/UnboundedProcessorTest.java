@@ -1,9 +1,8 @@
 package io.rsocket.internal;
 
+import java.util.concurrent.CountDownLatch;
 import org.junit.Assert;
 import org.junit.Test;
-
-import java.util.concurrent.CountDownLatch;
 
 public class UnboundedProcessorTest {
   @Test
@@ -49,39 +48,34 @@ public class UnboundedProcessorTest {
 
     Assert.assertEquals(n, count);
   }
-  
+
   @Test
   public void testOnNextAfterSubscribe_10() throws Exception {
     testOnNextAfterSubscribeN(10);
   }
-  
+
   @Test
   public void testOnNextAfterSubscribe_100() throws Exception {
     testOnNextAfterSubscribeN(100);
   }
-  
+
   @Test
   public void testOnNextAfterSubscribe_1000() throws Exception {
     testOnNextAfterSubscribeN(1000);
   }
-    
-    public void testOnNextAfterSubscribeN(int n) throws Exception {
+
+  public void testOnNextAfterSubscribeN(int n) throws Exception {
     CountDownLatch latch = new CountDownLatch(n);
-      UnboundedProcessor<Integer> processor = new UnboundedProcessor<>();
-      processor
-        .log()
-        .doOnNext(integer ->
-                      latch.countDown())
-        .subscribe();
-        
+    UnboundedProcessor<Integer> processor = new UnboundedProcessor<>();
+    processor.log().doOnNext(integer -> latch.countDown()).subscribe();
+
     for (int i = 0; i < n; i++) {
       System.out.println("onNexting -> " + i);
       processor.onNext(i);
     }
-    
+
     processor.drain();
-    
+
     latch.await();
   }
-  
 }
