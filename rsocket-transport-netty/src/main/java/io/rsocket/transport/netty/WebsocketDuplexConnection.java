@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 package io.rsocket.transport.netty;
+
 import static io.netty.buffer.Unpooled.wrappedBuffer;
 import static io.rsocket.frame.FrameHeaderFlyweight.FRAME_LENGTH_SIZE;
 
@@ -39,63 +40,63 @@ import reactor.ipc.netty.NettyOutbound;
  * back on for frames received.
  */
 public class WebsocketDuplexConnection implements DuplexConnection {
-    private final NettyInbound in;
-    private final NettyOutbound out;
-    private final NettyContext context;
-    private final MonoProcessor<Void> onClose;
-    
-    public WebsocketDuplexConnection(NettyInbound in, NettyOutbound out, NettyContext context) {
-        this.in = in;
-        this.out = out;
-        this.context = context;
-        this.onClose = MonoProcessor.create();
-        
-        context.onClose(onClose::onComplete);
-        this.onClose
-            .doFinally(
-                s -> {
-                    this.context.dispose();
-                    this.context.channel().close();
-                })
-            .subscribe();
-    }
-    
-    @Override
-    public Mono<Void> send(Publisher<Frame> frames) {
-        return Flux.from(frames).concatMap(this::sendOne).then();
-    }
-    
-    @Override
-    public Mono<Void> sendOne(Frame frame) {
-        return out.sendObject(new BinaryWebSocketFrame(frame.content().skipBytes(FRAME_LENGTH_SIZE)))
-                   .then();
-    }
-    
-    @Override
-    public Flux<Frame> receive() {
-        return in.receive()
-                   .map(
-                       buf -> {
-                           CompositeByteBuf composite = context.channel().alloc().compositeBuffer();
-                           ByteBuf length = wrappedBuffer(new byte[FRAME_LENGTH_SIZE]);
-                           FrameHeaderFlyweight.encodeLength(length, 0, buf.readableBytes());
-                           composite.addComponents(true, length, buf.retain());
-                           return Frame.from(composite);
-                       });
-    }
-    
-    @Override
-    public Mono<Void> close() {
-        return Mono.fromRunnable(onClose::onComplete);
-    }
-    
-    @Override
-    public Mono<Void> onClose() {
-        return onClose;
-    }
-    
-    @Override
-    public double availability() {
-        return onClose.isTerminated() ? 0.0 : 1.0;
-    }
+  private final NettyInbound in;
+  private final NettyOutbound out;
+  private final NettyContext context;
+  private final MonoProcessor<Void> onClose;
+
+  public WebsocketDuplexConnection(NettyInbound in, NettyOutbound out, NettyContext context) {
+    this.in = in;
+    this.out = out;
+    this.context = context;
+    this.onClose = MonoProcessor.create();
+
+    context.onClose(onClose::onComplete);
+    this.onClose
+        .doFinally(
+            s -> {
+              this.context.dispose();
+              this.context.channel().close();
+            })
+        .subscribe();
+  }
+
+  @Override
+  public Mono<Void> send(Publisher<Frame> frames) {
+    return Flux.from(frames).concatMap(this::sendOne).then();
+  }
+
+  @Override
+  public Mono<Void> sendOne(Frame frame) {
+    return out.sendObject(new BinaryWebSocketFrame(frame.content().skipBytes(FRAME_LENGTH_SIZE)))
+        .then();
+  }
+
+  @Override
+  public Flux<Frame> receive() {
+    return in.receive()
+        .map(
+            buf -> {
+              CompositeByteBuf composite = context.channel().alloc().compositeBuffer();
+              ByteBuf length = wrappedBuffer(new byte[FRAME_LENGTH_SIZE]);
+              FrameHeaderFlyweight.encodeLength(length, 0, buf.readableBytes());
+              composite.addComponents(true, length, buf.retain());
+              return Frame.from(composite);
+            });
+  }
+
+  @Override
+  public Mono<Void> close() {
+    return Mono.fromRunnable(onClose::onComplete);
+  }
+
+  @Override
+  public Mono<Void> onClose() {
+    return onClose;
+  }
+
+  @Override
+  public double availability() {
+    return onClose.isTerminated() ? 0.0 : 1.0;
+  }
 }

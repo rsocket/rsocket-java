@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 package io.rsocket.transport.netty;
+
 import io.rsocket.DuplexConnection;
 import io.rsocket.Frame;
 import org.reactivestreams.Publisher;
@@ -29,13 +30,13 @@ public class NettyDuplexConnection implements DuplexConnection {
   private final NettyOutbound out;
   private final NettyContext context;
   private final MonoProcessor<Void> onClose;
-  
+
   public NettyDuplexConnection(NettyInbound in, NettyOutbound out, NettyContext context) {
     this.in = in;
     this.out = out;
     this.context = context;
     this.onClose = MonoProcessor.create();
-    
+
     context.onClose(onClose::onComplete);
     this.onClose
         .doFinally(
@@ -45,32 +46,32 @@ public class NettyDuplexConnection implements DuplexConnection {
             })
         .subscribe();
   }
-  
+
   @Override
   public Mono<Void> send(Publisher<Frame> frames) {
     return Flux.from(frames).concatMap(this::sendOne).then();
   }
-  
+
   @Override
   public Mono<Void> sendOne(Frame frame) {
     return out.sendObject(frame.content()).then();
   }
-  
+
   @Override
   public Flux<Frame> receive() {
     return in.receive().map(buf -> Frame.from(buf.retain()));
   }
-  
+
   @Override
   public Mono<Void> close() {
     return Mono.fromRunnable(onClose::onComplete);
   }
-  
+
   @Override
   public Mono<Void> onClose() {
     return onClose;
   }
-  
+
   @Override
   public double availability() {
     return onClose.isTerminated() ? 0.0 : 1.0;
