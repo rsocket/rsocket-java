@@ -62,8 +62,8 @@ clean {
 }
 
 dependencies {
-    jmh "org.openjdk.jmh:jmh-core:${jmh.jmhVersion}"
-    jmh "org.openjdk.jmh:jmh-generator-annprocess:${jmh.jmhVersion}"
+    jmh "org.openjdk.jmh:jmh-core:1.19"
+    jmh "org.openjdk.jmh:jmh-generator-annprocess:1.19"
 
     jmhRuntime "org.slf4j:slf4j-nop:1.7.25"
 }
