@@ -45,7 +45,7 @@ jmh {
     profilers = ['gc']
     resultFormat = 'JSON'
 
-    include = ['io.rsocket.RSocketPerf.fireAndForgetHello']
+    // include = ['io.rsocket.RSocketPerf.fireAndForgetHello']
 }
 
 // run report generation after benchmark
