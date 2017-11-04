@@ -16,8 +16,8 @@
 
 dependencies {
     compile project(':rsocket-core')
-    compile "com.netflix.spectator:spectator-api:$spectatorVersion"
-    compile "org.hdrhistogram:HdrHistogram:2.1.9"
+    compile "com.netflix.spectator:spectator-api:0.58.2"
+    compile "org.hdrhistogram:HdrHistogram:2.1.10"
 
     testCompile project(':rsocket-test')
 }

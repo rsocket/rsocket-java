@@ -39,13 +39,13 @@ jmh {
     duplicateClassesStrategy = DuplicatesStrategy.WARN
     zip64 = true
 
-    jvmArgs = ['-XX:+UnlockCommercialFeatures', '-XX:+FlightRecorder']
+    // jvmArgs = ['-XX:+UnlockCommercialFeatures', '-XX:+FlightRecorder']
     // NOTE: uncomment to add specific options
     // jvmArgsAppend = ['-XX:+UseG1GC', '-Xms4g', '-Xmx4g']
     profilers = ['gc']
     resultFormat = 'JSON'
 
-    // include = ['io.rsocket.RSocketPerf.fireAndForgetHello']
+    include = ['io.rsocket.RSocketPerf.fireAndForgetHello']
 }
 
 // run report generation after benchmark
@@ -65,5 +65,5 @@ dependencies {
     jmh "org.openjdk.jmh:jmh-core:${jmh.jmhVersion}"
     jmh "org.openjdk.jmh:jmh-generator-annprocess:${jmh.jmhVersion}"
 
-    jmhRuntime "org.slf4j:slf4j-nop:$slf4jVersion"
+    jmhRuntime "org.slf4j:slf4j-nop:1.7.25"
 }
