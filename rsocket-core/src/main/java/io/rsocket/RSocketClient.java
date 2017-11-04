@@ -389,7 +389,7 @@ class RSocketClient implements RSocket {
                                 .doOnError(
                                     t -> {
                                       errorConsumer.accept(t);
-                                      receiver.cancel();
+                                      receiver.dispose();
                                     })
                                 .subscribe();
                           } else {
