@@ -73,7 +73,14 @@ class RSocketServer implements RSocket {
     this.receiveDisposable =
         connection
             .receive()
-            .flatMapSequential(this::handleFrame)
+            .flatMapSequential(
+                frame ->
+                    handleFrame(frame)
+                        .onErrorResume(
+                            t -> {
+                              errorConsumer.accept(t);
+                              return Mono.empty();
+                            }))
             .doOnError(errorConsumer)
             .then()
             .subscribe();
