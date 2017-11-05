@@ -19,7 +19,7 @@ plugins {
 
     id 'com.github.sherter.google-java-format' version '0.6'
     id 'com.github.johnrengelman.shadow' version '2.0.1' apply false
-    id 'me.champeau.gradle.jmh' version '0.4.5-beta-2' apply false
+    id 'me.champeau.gradle.jmh' version '0.4.4' apply false
     id 'io.morethan.jmhreport' version '0.7.0' apply false
 
     id 'com.jfrog.artifactory' version '4.5.4'
