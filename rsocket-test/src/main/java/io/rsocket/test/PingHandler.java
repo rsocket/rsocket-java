@@ -21,7 +21,8 @@ import io.rsocket.ConnectionSetupPayload;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.SocketAcceptor;
-import io.rsocket.util.PayloadImpl;
+import io.rsocket.util.ByteBufPayload;
+
 import java.util.concurrent.ThreadLocalRandom;
 import reactor.core.publisher.Mono;
 
@@ -32,20 +33,22 @@ public class PingHandler implements SocketAcceptor {
   public PingHandler() {
     byte[] data = new byte[1024];
     ThreadLocalRandom.current().nextBytes(data);
-    pong = new PayloadImpl(data);
+    pong = ByteBufPayload.create(data);
   }
 
   public PingHandler(byte[] data) {
-    pong = new PayloadImpl(data);
+    pong = ByteBufPayload.create(data);
   }
 
   @Override
   public Mono<RSocket> accept(ConnectionSetupPayload setup, RSocket sendingSocket) {
+    setup.release();
     return Mono.just(
         new AbstractRSocket() {
           @Override
           public Mono<Payload> requestResponse(Payload payload) {
-            return Mono.just(pong);
+            payload.release();
+            return Mono.just(pong.retain());
           }
         });
   }

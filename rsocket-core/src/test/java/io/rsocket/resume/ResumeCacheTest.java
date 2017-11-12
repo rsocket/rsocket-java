@@ -4,14 +4,14 @@ import static org.junit.Assert.assertEquals;
 
 import io.rsocket.Frame;
 import io.rsocket.FrameType;
-import io.rsocket.util.PayloadImpl;
+import io.rsocket.util.DefaultPayload;
 import org.junit.Test;
 import reactor.core.publisher.Flux;
 
 public class ResumeCacheTest {
   private Frame CANCEL = Frame.Cancel.from(1);
   private Frame STREAM =
-      Frame.Request.from(1, FrameType.REQUEST_STREAM, new PayloadImpl("Test"), 100);
+      Frame.Request.from(1, FrameType.REQUEST_STREAM, DefaultPayload.create("Test"), 100);
 
   private ResumeCache cache = new ResumeCache(ResumePositionCounter.frames(), 2);
 

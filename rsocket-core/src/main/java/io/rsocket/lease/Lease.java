@@ -16,8 +16,8 @@
 
 package io.rsocket.lease;
 
-import java.nio.ByteBuffer;
 import javax.annotation.Nullable;
+import java.nio.ByteBuffer;
 
 /** A contract for RSocket lease, which is sent by a request acceptor and is time bound. */
 public interface Lease {

@@ -25,10 +25,13 @@ import static org.hamcrest.Matchers.is;
 import io.netty.buffer.Unpooled;
 import io.rsocket.test.util.TestDuplexConnection;
 import io.rsocket.test.util.TestSubscriber;
-import io.rsocket.util.PayloadImpl;
+import io.rsocket.util.DefaultPayload;
+
 import java.util.Collection;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import io.rsocket.util.EmptyPayload;
 import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
@@ -127,11 +130,11 @@ public class RSocketServerTest {
 
     @Override
     protected RSocketServer newRSocket() {
-      return new RSocketServer(connection, acceptingSocket, throwable -> errors.add(throwable));
+      return new RSocketServer(connection, acceptingSocket, DefaultPayload::create, throwable -> errors.add(throwable));
     }
 
     private void sendRequest(int streamId, FrameType frameType) {
-      Frame request = Frame.Request.from(streamId, frameType, PayloadImpl.EMPTY, 1);
+      Frame request = Frame.Request.from(streamId, frameType, EmptyPayload.INSTANCE, 1);
       connection.addToReceivedBuffer(request);
       connection.addToReceivedBuffer(Frame.RequestN.from(streamId, 2));
     }

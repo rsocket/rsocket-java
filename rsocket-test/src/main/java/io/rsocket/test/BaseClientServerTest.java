@@ -19,7 +19,7 @@ package io.rsocket.test;
 import static org.junit.Assert.assertEquals;
 
 import io.rsocket.Payload;
-import io.rsocket.util.PayloadImpl;
+import io.rsocket.util.DefaultPayload;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.Ignore;
 import org.junit.Rule;
@@ -47,7 +47,7 @@ public abstract class BaseClientServerTest<T extends ClientSetupRule<?, ?>> {
   public void testPushMetadata10() {
     long outputCount =
         Flux.range(1, 10)
-            .flatMap(i -> setup.getRSocket().metadataPush(new PayloadImpl("", "metadata")))
+            .flatMap(i -> setup.getRSocket().metadataPush(DefaultPayload.create("", "metadata")))
             .doOnError(Throwable::printStackTrace)
             .count()
             .block();
@@ -94,7 +94,7 @@ public abstract class BaseClientServerTest<T extends ClientSetupRule<?, ?>> {
         metadata = "metadata";
         break;
     }
-    return new PayloadImpl("hello", metadata);
+    return DefaultPayload.create("hello", metadata);
   }
 
   @Test(timeout = 10000)
@@ -208,7 +208,7 @@ public abstract class BaseClientServerTest<T extends ClientSetupRule<?, ?>> {
 
   @Test(timeout = 10000)
   public void testChannel512() {
-    Flux<Payload> payloads = Flux.range(1, 512).map(i -> new PayloadImpl("hello " + i));
+    Flux<Payload> payloads = Flux.range(1, 512).map(i -> DefaultPayload.create("hello " + i));
 
     long count = setup.getRSocket().requestChannel(payloads).count().block();
 
@@ -217,7 +217,7 @@ public abstract class BaseClientServerTest<T extends ClientSetupRule<?, ?>> {
 
   @Test(timeout = 30000)
   public void testChannel20_000() {
-    Flux<Payload> payloads = Flux.range(1, 20_000).map(i -> new PayloadImpl("hello " + i));
+    Flux<Payload> payloads = Flux.range(1, 20_000).map(i -> DefaultPayload.create("hello " + i));
 
     long count = setup.getRSocket().requestChannel(payloads).count().block();
 
@@ -226,7 +226,7 @@ public abstract class BaseClientServerTest<T extends ClientSetupRule<?, ?>> {
 
   @Test(timeout = 60_000)
   public void testChannel200_000() {
-    Flux<Payload> payloads = Flux.range(1, 200_000).map(i -> new PayloadImpl("hello " + i));
+    Flux<Payload> payloads = Flux.range(1, 200_000).map(i -> DefaultPayload.create("hello " + i));
 
     long count = setup.getRSocket().requestChannel(payloads).count().block();
 
@@ -238,7 +238,7 @@ public abstract class BaseClientServerTest<T extends ClientSetupRule<?, ?>> {
   public void testChannel2_000_000() {
     AtomicInteger counter = new AtomicInteger(0);
 
-    Flux<Payload> payloads = Flux.range(1, 2_000_000).map(i -> new PayloadImpl("hello " + i));
+    Flux<Payload> payloads = Flux.range(1, 2_000_000).map(i -> DefaultPayload.create("hello " + i));
     long count = setup.getRSocket().requestChannel(payloads).count().block();
 
     assertEquals(2_000_000, count);

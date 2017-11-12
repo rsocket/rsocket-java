@@ -26,7 +26,7 @@ import io.rsocket.test.TestSubscriber;
 import io.rsocket.transport.netty.client.TcpClientTransport;
 import io.rsocket.transport.netty.server.NettyContextCloseable;
 import io.rsocket.transport.netty.server.TcpServerTransport;
-import io.rsocket.util.PayloadImpl;
+import io.rsocket.util.DefaultPayload;
 import io.rsocket.util.RSocketProxy;
 import org.junit.After;
 import org.junit.Assert;
@@ -116,13 +116,13 @@ public class IntegrationTest {
                       new AbstractRSocket() {
                         @Override
                         public Mono<Payload> requestResponse(Payload payload) {
-                          return Mono.<Payload>just(new PayloadImpl("RESPONSE", "METADATA"))
+                          return Mono.just(DefaultPayload.create("RESPONSE", "METADATA"))
                               .doOnSubscribe(s -> requestCount.incrementAndGet());
                         }
 
                         @Override
                         public Flux<Payload> requestStream(Payload payload) {
-                          return Flux.range(1, 10_000).map(i -> new PayloadImpl("data -> " + i));
+                          return Flux.range(1, 10_000).map(i -> DefaultPayload.create("data -> " + i));
                         }
 
                         @Override
@@ -151,7 +151,7 @@ public class IntegrationTest {
 
   @Test(timeout = 5_000L)
   public void testRequest() {
-    client.requestResponse(new PayloadImpl("REQUEST", "META")).block();
+    client.requestResponse(DefaultPayload.create("REQUEST", "META")).block();
     assertThat("Server did not see the request.", requestCount.get(), is(1));
     assertTrue(calledClient);
     assertTrue(calledServer);
@@ -161,7 +161,7 @@ public class IntegrationTest {
   @Test(timeout = 5_000L)
   public void testStream() {
     Subscriber<Payload> subscriber = TestSubscriber.createCancelling();
-    client.requestStream(new PayloadImpl("start")).subscribe(subscriber);
+    client.requestStream(DefaultPayload.create("start")).subscribe(subscriber);
 
     verify(subscriber).onSubscribe(any());
     verifyNoMoreInteractions(subscriber);

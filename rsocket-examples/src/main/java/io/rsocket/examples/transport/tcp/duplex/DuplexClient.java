@@ -19,7 +19,8 @@ import io.rsocket.RSocket;
 import io.rsocket.RSocketFactory;
 import io.rsocket.transport.netty.client.TcpClientTransport;
 import io.rsocket.transport.netty.server.TcpServerTransport;
-import io.rsocket.util.PayloadImpl;
+import io.rsocket.util.DefaultPayload;
+
 import java.time.Duration;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -31,7 +32,7 @@ public final class DuplexClient {
         .acceptor(
             (setup, reactiveSocket) -> {
               reactiveSocket
-                  .requestStream(new PayloadImpl("Hello-Bidi"))
+                  .requestStream(DefaultPayload.create("Hello-Bidi"))
                   .map(Payload::getDataUtf8)
                   .log()
                   .subscribe();
@@ -50,7 +51,7 @@ public final class DuplexClient {
                       @Override
                       public Flux<Payload> requestStream(Payload payload) {
                         return Flux.interval(Duration.ofSeconds(1))
-                            .map(aLong -> new PayloadImpl("Bi-di Response => " + aLong));
+                            .map(aLong -> DefaultPayload.create("Bi-di Response => " + aLong));
                       }
                     })
             .transport(TcpClientTransport.create("localhost", 7000))

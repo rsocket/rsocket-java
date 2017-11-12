@@ -19,13 +19,15 @@ package io.rsocket.client;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.client.filter.RSocketSupplier;
-import io.rsocket.util.PayloadImpl;
+import io.rsocket.util.DefaultPayload;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.Function;
+
+import io.rsocket.util.EmptyPayload;
 import org.junit.Assert;
 import org.junit.Test;
 import org.mockito.Mockito;
@@ -96,7 +98,7 @@ public class LoadBalancedRSocketMonoTest {
     CountDownLatch latch = new CountDownLatch(1);
 
     balancer
-        .requestResponse(PayloadImpl.EMPTY)
+        .requestResponse(EmptyPayload.INSTANCE)
         .subscribe(
             new Subscriber<Payload>() {
               @Override

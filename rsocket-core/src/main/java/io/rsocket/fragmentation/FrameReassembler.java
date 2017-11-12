@@ -51,11 +51,11 @@ public class FrameReassembler implements Disposable {
       if (FrameHeaderFlyweight.hasMetadataLengthField(frameType)) {
         metadataOffset += FrameHeaderFlyweight.FRAME_LENGTH_SIZE;
       }
-      metadataBuffer.addComponent(true, byteBuf.retainedSlice(metadataOffset, metadataLength));
+      metadataBuffer.addComponent(true, byteBuf.slice(metadataOffset, metadataLength));
     }
     if (0 < dataLength) {
       final int dataOffset = FrameHeaderFlyweight.dataOffset(byteBuf, frameType, frameLength);
-      dataBuffer.addComponent(true, byteBuf.retainedSlice(dataOffset, dataLength));
+      dataBuffer.addComponent(true, byteBuf.slice(dataOffset, dataLength));
     }
   }
 

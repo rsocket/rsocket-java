@@ -22,8 +22,11 @@ import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.client.filter.RSockets;
 import io.rsocket.exceptions.TimeoutException;
-import io.rsocket.util.PayloadImpl;
+import io.rsocket.util.DefaultPayload;
+
 import java.time.Duration;
+
+import io.rsocket.util.EmptyPayload;
 import org.hamcrest.MatcherAssert;
 import org.junit.Test;
 import org.reactivestreams.Subscriber;
@@ -36,7 +39,7 @@ public class TimeoutClientTest {
     RSocket timeout = RSockets.timeout(Duration.ofMillis(50)).apply(socket);
 
     timeout
-        .requestResponse(PayloadImpl.EMPTY)
+        .requestResponse(EmptyPayload.INSTANCE)
         .subscribe(
             new Subscriber<Payload>() {
               @Override

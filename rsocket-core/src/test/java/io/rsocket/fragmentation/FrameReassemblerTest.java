@@ -18,7 +18,8 @@ package io.rsocket.fragmentation;
 
 import io.rsocket.Frame;
 import io.rsocket.FrameType;
-import io.rsocket.util.PayloadImpl;
+import io.rsocket.util.DefaultPayload;
+
 import java.nio.ByteBuffer;
 import java.util.concurrent.ThreadLocalRandom;
 import org.junit.Test;
@@ -31,7 +32,7 @@ public class FrameReassemblerTest {
     ByteBuffer metadata = createRandomBytes(16);
 
     Frame from =
-        Frame.Request.from(1024, FrameType.REQUEST_RESPONSE, new PayloadImpl(data, metadata), 1);
+        Frame.Request.from(1024, FrameType.REQUEST_RESPONSE, DefaultPayload.create(data, metadata), 1);
     FrameFragmenter frameFragmenter = new FrameFragmenter(2);
     FrameReassembler reassembler = new FrameReassembler(from);
     frameFragmenter.fragment(from).subscribe(reassembler::append);
@@ -46,7 +47,7 @@ public class FrameReassemblerTest {
       ByteBuffer data = createRandomBytes(16);
       ByteBuffer metadata = createRandomBytes(16);
 
-      Frame from = Frame.Request.from(1024, FrameType.REQUEST_RESPONSE, new PayloadImpl(data, metadata), 1);
+      Frame from = Frame.Request.from(1024, FrameType.REQUEST_RESPONSE, DefaultPayload.create(data, metadata), 1);
 
       FrameFragmenter frameFragmenter = new FrameFragmenter(2);
 
@@ -83,7 +84,7 @@ public class FrameReassemblerTest {
       ByteBuffer data = createRandomBytes(16);
       ByteBuffer metadata = createRandomBytes(16);
 
-      Frame request = Frame.Request.from(1024, FrameType.REQUEST_RESPONSE, new PayloadImpl(data, metadata), 1);
+      Frame request = Frame.Request.from(1024, FrameType.REQUEST_RESPONSE, DefaultPayload.createdata, metadata), 1);
 
       FrameFragmenter frameFragmenter = new FrameFragmenter(2);
 

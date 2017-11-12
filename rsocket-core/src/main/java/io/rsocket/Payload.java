@@ -15,11 +15,16 @@
  */
 package io.rsocket;
 
+import io.netty.buffer.ByteBuf;
+
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 
+import io.netty.util.ReferenceCounted;
+import io.netty.util.ResourceLeakDetector;
+
 /** Payload of a {@link Frame}. */
-public interface Payload {
+public interface Payload extends ReferenceCounted {
   /**
    * Returns whether the payload has metadata, useful for tell if metadata is empty or not present.
    *
@@ -33,20 +38,56 @@ public interface Payload {
    *
    * @return payload metadata.
    */
-  ByteBuffer getMetadata();
+  ByteBuf sliceMetadata();
 
   /**
    * Returns the Payload data. Always non-null.
    *
    * @return payload data.
    */
-  ByteBuffer getData();
+  ByteBuf sliceData();
+
+  /**
+   * Increases the reference count by {@code 1}.
+   */
+  @Override
+  Payload retain();
+
+  /**
+   * Increases the reference count by the specified {@code increment}.
+   */
+  @Override
+  Payload retain(int increment);
+
+  /**
+   * Records the current access location of this object for debugging purposes.
+   * If this object is determined to be leaked, the information recorded by this operation will be provided to you
+   * via {@link ResourceLeakDetector}.  This method is a shortcut to {@link #touch(Object) touch(null)}.
+   */
+  @Override
+  Payload touch();
+
+  /**
+   * Records the current access location of this object with an additional arbitrary information for debugging
+   * purposes.  If this object is determined to be leaked, the information recorded by this operation will be
+   * provided to you via {@link ResourceLeakDetector}.
+   */
+  @Override
+  Payload touch(Object hint);
+
+  default ByteBuffer getMetadata() {
+    return sliceMetadata().nioBuffer();
+  }
+
+  default ByteBuffer getData() {
+    return sliceData().nioBuffer();
+  }
 
   default String getMetadataUtf8() {
-    return StandardCharsets.UTF_8.decode(getMetadata()).toString();
+    return sliceMetadata().toString(StandardCharsets.UTF_8);
   }
 
   default String getDataUtf8() {
-    return StandardCharsets.UTF_8.decode(getData()).toString();
+    return sliceData().toString(StandardCharsets.UTF_8);
   }
 }

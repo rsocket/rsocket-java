@@ -24,7 +24,8 @@ import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
 import io.rsocket.Frame;
 import io.rsocket.FrameType;
-import io.rsocket.util.PayloadImpl;
+import io.rsocket.Payload;
+import io.rsocket.util.DefaultPayload;
 import java.nio.charset.StandardCharsets;
 import org.junit.Test;
 
@@ -45,8 +46,8 @@ public class RequestFrameFlyweightTest {
     assertEquals(
         "000010000000011900000000010000026d6464", ByteBufUtil.hexDump(byteBuf, 0, encoded));
 
-    PayloadImpl payload =
-        new PayloadImpl(Frame.from(stringToBuf("000010000000011900000000010000026d6464")));
+    Payload payload =
+        DefaultPayload.create(Frame.from(stringToBuf("000010000000011900000000010000026d6464")));
 
     assertEquals("md", StandardCharsets.UTF_8.decode(payload.getMetadata()).toString());
   }
@@ -64,8 +65,8 @@ public class RequestFrameFlyweightTest {
             Unpooled.copiedBuffer("d", StandardCharsets.UTF_8));
     assertEquals("00000e0000000119000000000100000064", ByteBufUtil.hexDump(byteBuf, 0, encoded));
 
-    PayloadImpl payload =
-        new PayloadImpl(Frame.from(stringToBuf("00000e0000000119000000000100000064")));
+    Payload payload =
+        DefaultPayload.create(Frame.from(stringToBuf("00000e0000000119000000000100000064")));
 
     assertEquals("", StandardCharsets.UTF_8.decode(payload.getMetadata()).toString());
   }
@@ -83,7 +84,7 @@ public class RequestFrameFlyweightTest {
             Unpooled.copiedBuffer("d", StandardCharsets.UTF_8));
     assertEquals("00000b0000000118000000000164", ByteBufUtil.hexDump(byteBuf, 0, encoded));
 
-    PayloadImpl payload = new PayloadImpl(Frame.from(stringToBuf("00000b0000000118000000000164")));
+    Payload payload = DefaultPayload.create(Frame.from(stringToBuf("00000b0000000118000000000164")));
 
     assertFalse(payload.hasMetadata());
   }

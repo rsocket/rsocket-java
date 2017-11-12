@@ -24,9 +24,11 @@ import static org.mockito.Mockito.verify;
 import io.rsocket.exceptions.ApplicationException;
 import io.rsocket.test.util.LocalDuplexConnection;
 import io.rsocket.test.util.TestSubscriber;
-import io.rsocket.util.PayloadImpl;
+import io.rsocket.util.DefaultPayload;
 import java.util.ArrayList;
 import java.util.concurrent.CountDownLatch;
+
+import io.rsocket.util.EmptyPayload;
 import org.hamcrest.MatcherAssert;
 import org.junit.Assert;
 import org.junit.Rule;
@@ -47,7 +49,7 @@ public class RSocketTest {
   @Test(timeout = 2_000)
   public void testRequestReplyNoError() {
     Subscriber<Payload> subscriber = TestSubscriber.create();
-    rule.crs.requestResponse(new PayloadImpl("hello")).subscribe(subscriber);
+    rule.crs.requestResponse(DefaultPayload.create("hello")).subscribe(subscriber);
     verify(subscriber).onNext(TestSubscriber.anyPayload());
     verify(subscriber).onComplete();
     rule.assertNoErrors();
@@ -63,7 +65,7 @@ public class RSocketTest {
           }
         });
     Subscriber<Payload> subscriber = TestSubscriber.create();
-    rule.crs.requestResponse(PayloadImpl.EMPTY).subscribe(subscriber);
+    rule.crs.requestResponse(EmptyPayload.INSTANCE).subscribe(subscriber);
     verify(subscriber).onError(any(ApplicationException.class));
 
     // Client sees error through normal API
@@ -75,7 +77,7 @@ public class RSocketTest {
   @Test(timeout = 2000)
   public void testChannel() throws Exception {
     CountDownLatch latch = new CountDownLatch(10);
-    Flux<Payload> requests = Flux.range(0, 10).map(i -> new PayloadImpl("streaming in -> " + i));
+    Flux<Payload> requests = Flux.range(0, 10).map(i -> DefaultPayload.create("streaming in -> " + i));
 
     Flux<Payload> responses = rule.crs.requestChannel(requests);
 
@@ -126,22 +128,26 @@ public class RSocketTest {
                 @Override
                 public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
                   Flux.from(payloads)
-                      .map(payload -> new PayloadImpl("server got -> [" + payload.toString() + "]"))
+                      .map(payload -> DefaultPayload.create("server got -> [" + payload.toString() + "]"))
                       .subscribe();
 
                   return Flux.range(1, 10)
                       .map(
-                          payload -> new PayloadImpl("server got -> [" + payload.toString() + "]"));
+                          payload -> DefaultPayload.create("server got -> [" + payload.toString() + "]"));
                 }
               };
 
       srs =
           new RSocketServer(
-              serverConnection, requestAcceptor, throwable -> serverErrors.add(throwable));
+              serverConnection,
+              requestAcceptor,
+              DefaultPayload::create,
+              throwable -> serverErrors.add(throwable));
 
       crs =
           new RSocketClient(
               clientConnection,
+              DefaultPayload::create,
               throwable -> clientErrors.add(throwable),
               StreamIdSupplier.clientSupplier());
     }

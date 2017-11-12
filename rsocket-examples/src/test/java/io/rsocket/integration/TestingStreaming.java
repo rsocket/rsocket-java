@@ -6,7 +6,8 @@ import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.ServerTransport;
 import io.rsocket.transport.local.LocalClientTransport;
 import io.rsocket.transport.local.LocalServerTransport;
-import io.rsocket.util.PayloadImpl;
+import io.rsocket.util.DefaultPayload;
+
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
@@ -45,7 +46,7 @@ public class TestingStreaming {
                                         throw new RuntimeException("BOOM!");
                                       }
                                     })
-                                .map(l -> new PayloadImpl("l -> " + l))
+                                .map(l -> DefaultPayload.create("l -> " + l))
                                 .cast(Payload.class);
                           }
                         };
@@ -83,7 +84,7 @@ public class TestingStreaming {
                           @Override
                           public Flux<Payload> requestStream(Payload payload) {
                             return Flux.range(1, 1000)
-                                .map(l -> new PayloadImpl("l -> " + l))
+                                .map(l -> DefaultPayload.create("l -> " + l))
                                 .cast(Payload.class);
                           }
                         };
@@ -111,7 +112,7 @@ public class TestingStreaming {
             rSocket -> {
               AtomicInteger count = new AtomicInteger();
               return Flux.range(1, 100)
-                  .flatMap(i -> rSocket.requestStream(new PayloadImpl("i -> " + i)).take(100), 1);
+                  .flatMap(i -> rSocket.requestStream(DefaultPayload.create("i -> " + i)).take(100), 1);
             });
   }
 
@@ -134,7 +135,7 @@ public class TestingStreaming {
                           @Override
                           public Flux<Payload> requestStream(Payload payload) {
                             return Flux.range(1, 10_000)
-                                .map(l -> new PayloadImpl("l -> " + l))
+                                .map(l -> DefaultPayload.create("l -> " + l))
                                 .cast(Payload.class);
                           }
                         };
