@@ -16,7 +16,7 @@
 
 dependencies {
     compile project(':rsocket-core')
-    compile "io.aeron:aeron-all:1.4.1"
+    compile "io.aeron:aeron-all:1.5.2"
 
     testCompile project(':rsocket-test')
 }

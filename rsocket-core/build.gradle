@@ -39,7 +39,7 @@ jmh {
     duplicateClassesStrategy = DuplicatesStrategy.WARN
     zip64 = true
 
-    jvmArgs = ['-XX:+UnlockCommercialFeatures', '-XX:+FlightRecorder']
+    // jvmArgs = ['-XX:+UnlockCommercialFeatures', '-XX:+FlightRecorder']
     // NOTE: uncomment to add specific options
     // jvmArgsAppend = ['-XX:+UseG1GC', '-Xms4g', '-Xmx4g']
     profilers = ['gc']
