@@ -35,14 +35,9 @@ public final class DefaultPayload implements Payload {
   private final ByteBuffer data;
   private final ByteBuffer metadata;
 
-  private DefaultPayload(ByteBuffer data) {
-    this.data = data.asReadOnlyBuffer();
-    this.metadata = null;
-  }
-
   private DefaultPayload(ByteBuffer data, @Nullable ByteBuffer metadata) {
-    this.data = data.asReadOnlyBuffer();
-    this.metadata = metadata == null ? null : metadata.asReadOnlyBuffer();
+    this.data = data;
+    this.metadata = metadata;
   }
 
   @Override
@@ -62,12 +57,12 @@ public final class DefaultPayload implements Payload {
 
   @Override
   public ByteBuffer getMetadata() {
-    return metadata == null ? DefaultPayload.EMPTY_BUFFER : metadata.duplicate();
+    return metadata == null ? DefaultPayload.EMPTY_BUFFER : metadata;
   }
 
   @Override
   public ByteBuffer getData() {
-    return data.duplicate();
+    return data;
   }
 
   @Override
@@ -112,7 +107,7 @@ public final class DefaultPayload implements Payload {
    * @return a payload.
    */
   public static Payload create(CharSequence data) {
-    return new DefaultPayload(StandardCharsets.UTF_8.encode(CharBuffer.wrap(data)));
+    return create(StandardCharsets.UTF_8.encode(CharBuffer.wrap(data)), null);
   }
 
   /**
@@ -124,33 +119,33 @@ public final class DefaultPayload implements Payload {
    * @return a payload.
    */
   public static Payload create(CharSequence data, @Nullable CharSequence metadata) {
-    return new DefaultPayload(
+    return create(
         StandardCharsets.UTF_8.encode(CharBuffer.wrap(data)),
         metadata == null ? null : StandardCharsets.UTF_8.encode(CharBuffer.wrap(metadata))
     );
   }
 
   public static Payload create(CharSequence data, Charset dataCharset) {
-    return new DefaultPayload(dataCharset.encode(CharBuffer.wrap(data)));
+    return create(dataCharset.encode(CharBuffer.wrap(data)), null);
   }
 
   public static Payload create(CharSequence data, Charset dataCharset, @Nullable CharSequence metadata, Charset metadataCharset) {
-    return new DefaultPayload(
+    return create(
         dataCharset.encode(CharBuffer.wrap(data)),
         metadata == null ? null : metadataCharset.encode(CharBuffer.wrap(metadata))
     );
   }
 
   public static Payload create(byte[] data) {
-    return new DefaultPayload(ByteBuffer.wrap(data));
+    return create(ByteBuffer.wrap(data), null);
   }
 
   public static Payload create(byte[] data, @Nullable byte[] metadata) {
-    return new DefaultPayload(ByteBuffer.wrap(data), metadata == null ? null : ByteBuffer.wrap(metadata));
+    return create(ByteBuffer.wrap(data), metadata == null ? null : ByteBuffer.wrap(metadata));
   }
 
   public static Payload create(ByteBuffer data) {
-    return new DefaultPayload(data);
+    return create(data, null);
   }
 
   public static Payload create(ByteBuffer data, @Nullable ByteBuffer metadata) {
@@ -158,6 +153,6 @@ public final class DefaultPayload implements Payload {
   }
 
   public static Payload create(Payload payload) {
-    return new DefaultPayload(payload.getData(), payload.hasMetadata() ? payload.getMetadata() : null);
+    return create(payload.getData(), payload.hasMetadata() ? payload.getMetadata() : null);
   }
 }

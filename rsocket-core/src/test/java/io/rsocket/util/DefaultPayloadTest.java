@@ -13,7 +13,6 @@
 
 package io.rsocket.util;
 
-import static io.rsocket.util.DefaultPayload.create;
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
@@ -29,14 +28,6 @@ public class DefaultPayloadTest {
   public void testReuse() {
     Payload p = DefaultPayload.create(DATA_VAL, METADATA_VAL);
     assertDataAndMetadata(p, DATA_VAL, METADATA_VAL);
-    assertDataAndMetadata(p, DATA_VAL, METADATA_VAL);
-  }
-
-  @Test
-  public void testReuseWithExternalMark() {
-    Payload p = DefaultPayload.create(DATA_VAL, METADATA_VAL);
-    assertDataAndMetadata(p, DATA_VAL, METADATA_VAL);
-    p.getData().position(2).mark();
     assertDataAndMetadata(p, DATA_VAL, METADATA_VAL);
   }
 
