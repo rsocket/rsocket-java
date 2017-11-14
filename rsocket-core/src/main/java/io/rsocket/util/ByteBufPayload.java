@@ -159,6 +159,7 @@ public final class ByteBufPayload extends AbstractReferenceCounted implements Pa
 
   public static Payload create(ByteBuf data, @Nullable ByteBuf metadata) {
     ByteBufPayload payload = RECYCLER.get();
+    payload.setRefCnt(1);
     payload.data = data;
     payload.metadata = metadata;
     return payload;
