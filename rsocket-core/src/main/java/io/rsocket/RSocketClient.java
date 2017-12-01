@@ -432,21 +432,25 @@ class RSocketClient implements RSocket {
   }
 
   protected void cleanup() {
-    Collection<Subscriber<Payload>> subscribers;
-    Collection<LimitableRequestPublisher> publishers;
-    synchronized (RSocketClient.this) {
-      subscribers = receivers.values();
-      publishers = senders.values();
+    try {
+      Collection<Subscriber<Payload>> subscribers;
+      Collection<LimitableRequestPublisher> publishers;
+      synchronized (RSocketClient.this) {
+        subscribers = receivers.values();
+        publishers = senders.values();
+      }
 
-      senders.clear();
-      receivers.clear();
-    }
+      subscribers.forEach(this::cleanUpSubscriber);
+      publishers.forEach(this::cleanUpLimitableRequestPublisher);
 
-    subscribers.forEach(this::cleanUpSubscriber);
-    publishers.forEach(this::cleanUpLimitableRequestPublisher);
-
-    if (null != keepAliveSendSub) {
-      keepAliveSendSub.dispose();
+      if (null != keepAliveSendSub) {
+        keepAliveSendSub.dispose();
+      }
+    } finally {
+      synchronized (this) {
+        senders.clear();
+        receivers.clear();
+      }
     }
   }
 

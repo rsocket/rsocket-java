@@ -16,18 +16,11 @@
 
 package io.rsocket;
 
-import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.is;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.verify;
-
 import io.rsocket.exceptions.ApplicationException;
 import io.rsocket.test.util.LocalDuplexConnection;
 import io.rsocket.test.util.TestSubscriber;
 import io.rsocket.util.DefaultPayload;
 import io.rsocket.util.EmptyPayload;
-import java.util.ArrayList;
-import java.util.concurrent.CountDownLatch;
 import org.hamcrest.MatcherAssert;
 import org.junit.Assert;
 import org.junit.Rule;
@@ -40,6 +33,15 @@ import org.reactivestreams.Subscriber;
 import reactor.core.publisher.DirectProcessor;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+
+import java.nio.channels.ClosedChannelException;
+import java.util.ArrayList;
+import java.util.concurrent.CountDownLatch;
+
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.is;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
 
 public class RSocketTest {
 
@@ -85,6 +87,22 @@ public class RSocketTest {
 
     latch.await();
   }
+  
+  @Test(timeout = 2_000L)
+  public void testCleanup() throws Exception {
+    CountDownLatch latch = new CountDownLatch(1);
+    rule.crs
+        .requestStream(DefaultPayload.create("hi"))
+        .doOnError(t -> {
+          Assert.assertTrue(t instanceof ClosedChannelException);
+          latch.countDown();
+        })
+        .subscribe();
+
+    rule.crs.cleanup();
+    
+    latch.await();
+  }
 
   public static class SocketRule extends ExternalResource {
 
@@ -123,6 +141,11 @@ public class RSocketTest {
                 @Override
                 public Mono<Payload> requestResponse(Payload payload) {
                   return Mono.just(payload);
+                }
+                
+                @Override
+                public Flux<Payload> requestStream(Payload payload) {
+                  return Flux.never();
                 }
 
                 @Override
