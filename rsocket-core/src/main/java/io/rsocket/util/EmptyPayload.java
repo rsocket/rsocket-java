@@ -7,8 +7,7 @@ import io.rsocket.Payload;
 public class EmptyPayload implements Payload {
   public static final EmptyPayload INSTANCE = new EmptyPayload();
 
-  private EmptyPayload() {
-  }
+  private EmptyPayload() {}
 
   @Override
   public boolean hasMetadata() {

@@ -273,7 +273,8 @@ public class Frame implements Payload, ByteBufHolder {
         String metadataMimeType,
         String dataMimeType,
         Payload payload) {
-      final ByteBuf metadata = payload.hasMetadata() ? payload.sliceMetadata() : Unpooled.EMPTY_BUFFER;
+      final ByteBuf metadata =
+          payload.hasMetadata() ? payload.sliceMetadata() : Unpooled.EMPTY_BUFFER;
       final ByteBuf data = payload.sliceData();
 
       final Frame frame = RECYCLER.get();
