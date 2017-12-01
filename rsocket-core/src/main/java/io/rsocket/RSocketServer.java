@@ -26,7 +26,6 @@ import io.netty.util.collection.IntObjectHashMap;
 import io.rsocket.exceptions.ApplicationException;
 import io.rsocket.internal.LimitableRequestPublisher;
 import io.rsocket.internal.UnboundedProcessor;
-
 import java.util.Collection;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -314,7 +313,8 @@ class RSocketServer implements RSocket {
               if (payload.hasMetadata()) {
                 flags = Frame.setFlag(flags, FLAGS_M);
               }
-              final Frame frame = Frame.PayloadFrame.from(streamId, FrameType.NEXT_COMPLETE, payload, flags);
+              final Frame frame =
+                  Frame.PayloadFrame.from(streamId, FrameType.NEXT_COMPLETE, payload, flags);
               payload.release();
               return frame;
             })
@@ -330,11 +330,12 @@ class RSocketServer implements RSocket {
 
   private Mono<Void> handleStream(int streamId, Flux<Payload> response, int initialRequestN) {
     response
-        .map(payload -> {
-          final Frame frame = Frame.PayloadFrame.from(streamId, FrameType.NEXT, payload);
-          payload.release();
-          return frame;
-        })
+        .map(
+            payload -> {
+              final Frame frame = Frame.PayloadFrame.from(streamId, FrameType.NEXT, payload);
+              payload.release();
+              return frame;
+            })
         .transform(
             frameFlux -> {
               LimitableRequestPublisher<Frame> frames = LimitableRequestPublisher.wrap(frameFlux);

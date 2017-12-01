@@ -25,10 +25,11 @@ import io.rsocket.exceptions.ApplicationException;
 import io.rsocket.test.util.LocalDuplexConnection;
 import io.rsocket.test.util.TestSubscriber;
 import io.rsocket.util.DefaultPayload;
+import io.rsocket.util.EmptyPayload;
+
+import java.nio.channels.ClosedChannelException;
 import java.util.ArrayList;
 import java.util.concurrent.CountDownLatch;
-
-import io.rsocket.util.EmptyPayload;
 import org.hamcrest.MatcherAssert;
 import org.junit.Assert;
 import org.junit.Rule;
@@ -38,6 +39,8 @@ import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
+import org.reactivestreams.Subscription;
+import reactor.core.Disposable;
 import reactor.core.publisher.DirectProcessor;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -77,12 +80,29 @@ public class RSocketTest {
   @Test(timeout = 2000)
   public void testChannel() throws Exception {
     CountDownLatch latch = new CountDownLatch(10);
-    Flux<Payload> requests = Flux.range(0, 10).map(i -> DefaultPayload.create("streaming in -> " + i));
+    Flux<Payload> requests =
+        Flux.range(0, 10).map(i -> DefaultPayload.create("streaming in -> " + i));
 
     Flux<Payload> responses = rule.crs.requestChannel(requests);
 
     responses.doOnNext(p -> latch.countDown()).subscribe();
 
+    latch.await();
+  }
+  
+  @Test(timeout = 2_000L)
+  public void testCleanup() throws Exception {
+    CountDownLatch latch = new CountDownLatch(1);
+    rule.crs
+        .requestStream(DefaultPayload.create("hi"))
+        .doOnError(t -> {
+          Assert.assertTrue(t instanceof ClosedChannelException);
+          latch.countDown();
+        })
+        .subscribe();
+
+    rule.crs.cleanup();
+    
     latch.await();
   }
 
@@ -124,16 +144,24 @@ public class RSocketTest {
                 public Mono<Payload> requestResponse(Payload payload) {
                   return Mono.just(payload);
                 }
+                
+                @Override
+                public Flux<Payload> requestStream(Payload payload) {
+                  return Flux.never();
+                }
 
                 @Override
                 public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
                   Flux.from(payloads)
-                      .map(payload -> DefaultPayload.create("server got -> [" + payload.toString() + "]"))
+                      .map(
+                          payload ->
+                              DefaultPayload.create("server got -> [" + payload.toString() + "]"))
                       .subscribe();
 
                   return Flux.range(1, 10)
                       .map(
-                          payload -> DefaultPayload.create("server got -> [" + payload.toString() + "]"));
+                          payload ->
+                              DefaultPayload.create("server got -> [" + payload.toString() + "]"));
                 }
               };
 

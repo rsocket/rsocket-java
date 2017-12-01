@@ -24,7 +24,6 @@ import io.rsocket.exceptions.ConnectionException;
 import io.rsocket.exceptions.Exceptions;
 import io.rsocket.internal.LimitableRequestPublisher;
 import io.rsocket.internal.UnboundedProcessor;
-
 import java.nio.channels.ClosedChannelException;
 import java.time.Duration;
 import java.util.Collection;
@@ -64,7 +63,8 @@ class RSocketClient implements RSocket {
       Function<Frame, ? extends Payload> frameDecoder,
       Consumer<Throwable> errorConsumer,
       StreamIdSupplier streamIdSupplier) {
-    this(connection, frameDecoder, errorConsumer, streamIdSupplier, Duration.ZERO, Duration.ZERO, 0);
+    this(
+        connection, frameDecoder, errorConsumer, streamIdSupplier, Duration.ZERO, Duration.ZERO, 0);
   }
 
   RSocketClient(
@@ -372,11 +372,13 @@ class RSocketClient implements RSocket {
                                           public Frame apply(Payload payload) {
                                             final Frame requestFrame;
                                             if (firstPayload.compareAndSet(true, false)) {
-                                              requestFrame = Frame.Request.from(
-                                                  streamId, requestType, payload, l);
+                                              requestFrame =
+                                                  Frame.Request.from(
+                                                      streamId, requestType, payload, l);
                                             } else {
-                                              requestFrame = Frame.PayloadFrame.from(
-                                                  streamId, FrameType.NEXT, payload);
+                                              requestFrame =
+                                                  Frame.PayloadFrame.from(
+                                                      streamId, FrameType.NEXT, payload);
                                             }
                                             payload.release();
                                             return requestFrame;
@@ -430,21 +432,25 @@ class RSocketClient implements RSocket {
   }
 
   protected void cleanup() {
-    Collection<Subscriber<Payload>> subscribers;
-    Collection<LimitableRequestPublisher> publishers;
-    synchronized (RSocketClient.this) {
-      subscribers = receivers.values();
-      publishers = senders.values();
+    try {
+      Collection<Subscriber<Payload>> subscribers;
+      Collection<LimitableRequestPublisher> publishers;
+      synchronized (RSocketClient.this) {
+        subscribers = receivers.values();
+        publishers = senders.values();
+      }
 
-      senders.clear();
-      receivers.clear();
-    }
+      subscribers.forEach(this::cleanUpSubscriber);
+      publishers.forEach(this::cleanUpLimitableRequestPublisher);
 
-    subscribers.forEach(this::cleanUpSubscriber);
-    publishers.forEach(this::cleanUpLimitableRequestPublisher);
-
-    if (null != keepAliveSendSub) {
-      keepAliveSendSub.dispose();
+      if (null != keepAliveSendSub) {
+        keepAliveSendSub.dispose();
+      }
+    } finally {
+      synchronized (this) {
+        senders.clear();
+        receivers.clear();
+      }
     }
   }
 
