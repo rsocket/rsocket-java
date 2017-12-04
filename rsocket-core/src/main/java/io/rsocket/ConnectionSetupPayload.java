@@ -95,6 +95,7 @@ public abstract class ConnectionSetupPayload extends AbstractReferenceCounted im
   }
 
   public abstract ConnectionSetupPayload touch();
+
   public abstract ConnectionSetupPayload touch(Object hint);
 
   private static final class DefaultConnectionSetupPayload extends ConnectionSetupPayload {
@@ -106,11 +107,7 @@ public abstract class ConnectionSetupPayload extends AbstractReferenceCounted im
     private final int flags;
 
     public DefaultConnectionSetupPayload(
-        String metadataMimeType,
-        String dataMimeType,
-        ByteBuf data,
-        ByteBuf metadata,
-        int flags) {
+        String metadataMimeType, String dataMimeType, ByteBuf data, ByteBuf metadata, int flags) {
       this.metadataMimeType = metadataMimeType;
       this.dataMimeType = dataMimeType;
       this.data = data;

@@ -25,14 +25,11 @@ import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.client.filter.RSocketSupplier;
 import io.rsocket.test.TestSubscriber;
-import io.rsocket.util.DefaultPayload;
-
+import io.rsocket.util.EmptyPayload;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
-
-import io.rsocket.util.EmptyPayload;
 import org.junit.Test;
 import org.mockito.Mockito;
 import org.reactivestreams.Publisher;

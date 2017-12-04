@@ -26,7 +26,6 @@ import io.rsocket.DuplexConnection;
 import io.rsocket.Frame;
 import io.rsocket.FrameType;
 import io.rsocket.util.DefaultPayload;
-
 import java.nio.ByteBuffer;
 import java.util.concurrent.ThreadLocalRandom;
 import org.junit.Test;
@@ -119,7 +118,8 @@ public class FragmentationDuplexConnectionTest {
     ByteBuffer data = createRandomBytes(16);
     ByteBuffer metadata = createRandomBytes(16);
     Frame frame =
-        Frame.Request.from(1024, FrameType.REQUEST_RESPONSE, DefaultPayload.create(data, metadata), 1);
+        Frame.Request.from(
+            1024, FrameType.REQUEST_RESPONSE, DefaultPayload.create(data, metadata), 1);
     FrameFragmenter frameFragmenter = new FrameFragmenter(2);
     Flux<Frame> fragmentedFrames = frameFragmenter.fragment(frame);
     EmitterProcessor<Frame> processor = EmitterProcessor.create(128);

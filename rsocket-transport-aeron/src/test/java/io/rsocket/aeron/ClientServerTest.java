@@ -34,7 +34,8 @@ public class ClientServerTest {
   public void testFireNForget10() {
     long outputCount =
         Flux.range(1, 10)
-            .flatMap(i -> setup.getRSocket().fireAndForget(DefaultPayload.create("hello", "metadata")))
+            .flatMap(
+                i -> setup.getRSocket().fireAndForget(DefaultPayload.create("hello", "metadata")))
             .doOnError(Throwable::printStackTrace)
             .count()
             .block();

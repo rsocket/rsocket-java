@@ -23,11 +23,10 @@ import io.netty.buffer.Unpooled;
 import io.netty.util.AbstractReferenceCounted;
 import io.netty.util.Recycler;
 import io.rsocket.Payload;
-
-import javax.annotation.Nullable;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
 import java.nio.charset.Charset;
+import javax.annotation.Nullable;
 
 public final class ByteBufPayload extends AbstractReferenceCounted implements Payload {
   private static final Recycler<ByteBufPayload> RECYCLER =
@@ -122,19 +121,26 @@ public final class ByteBufPayload extends AbstractReferenceCounted implements Pa
   public static Payload create(String data, @Nullable String metadata) {
     return create(
         ByteBufUtil.writeUtf8(ByteBufAllocator.DEFAULT, data),
-        metadata == null ? null : ByteBufUtil.writeUtf8(ByteBufAllocator.DEFAULT, metadata)
-    );
+        metadata == null ? null : ByteBufUtil.writeUtf8(ByteBufAllocator.DEFAULT, metadata));
   }
 
   public static Payload create(CharSequence data, Charset dataCharset) {
-    return create(ByteBufUtil.encodeString(ByteBufAllocator.DEFAULT, CharBuffer.wrap(data), dataCharset), null);
-  }
-
-  public static Payload create(CharSequence data, Charset dataCharset, @Nullable CharSequence metadata, Charset metadataCharset) {
     return create(
         ByteBufUtil.encodeString(ByteBufAllocator.DEFAULT, CharBuffer.wrap(data), dataCharset),
-        metadata == null ? null : ByteBufUtil.encodeString(ByteBufAllocator.DEFAULT, CharBuffer.wrap(metadata), metadataCharset)
-    );
+        null);
+  }
+
+  public static Payload create(
+      CharSequence data,
+      Charset dataCharset,
+      @Nullable CharSequence metadata,
+      Charset metadataCharset) {
+    return create(
+        ByteBufUtil.encodeString(ByteBufAllocator.DEFAULT, CharBuffer.wrap(data), dataCharset),
+        metadata == null
+            ? null
+            : ByteBufUtil.encodeString(
+                ByteBufAllocator.DEFAULT, CharBuffer.wrap(metadata), metadataCharset));
   }
 
   public static Payload create(byte[] data) {
@@ -142,7 +148,8 @@ public final class ByteBufPayload extends AbstractReferenceCounted implements Pa
   }
 
   public static Payload create(byte[] data, @Nullable byte[] metadata) {
-    return create(Unpooled.wrappedBuffer(data), metadata == null ? null : Unpooled.wrappedBuffer(metadata));
+    return create(
+        Unpooled.wrappedBuffer(data), metadata == null ? null : Unpooled.wrappedBuffer(metadata));
   }
 
   public static Payload create(ByteBuffer data) {
@@ -150,7 +157,8 @@ public final class ByteBufPayload extends AbstractReferenceCounted implements Pa
   }
 
   public static Payload create(ByteBuffer data, @Nullable ByteBuffer metadata) {
-    return create(Unpooled.wrappedBuffer(data), metadata == null ? null : Unpooled.wrappedBuffer(metadata));
+    return create(
+        Unpooled.wrappedBuffer(data), metadata == null ? null : Unpooled.wrappedBuffer(metadata));
   }
 
   public static Payload create(ByteBuf data) {

@@ -121,19 +121,21 @@ public final class DefaultPayload implements Payload {
   public static Payload create(CharSequence data, @Nullable CharSequence metadata) {
     return create(
         StandardCharsets.UTF_8.encode(CharBuffer.wrap(data)),
-        metadata == null ? null : StandardCharsets.UTF_8.encode(CharBuffer.wrap(metadata))
-    );
+        metadata == null ? null : StandardCharsets.UTF_8.encode(CharBuffer.wrap(metadata)));
   }
 
   public static Payload create(CharSequence data, Charset dataCharset) {
     return create(dataCharset.encode(CharBuffer.wrap(data)), null);
   }
 
-  public static Payload create(CharSequence data, Charset dataCharset, @Nullable CharSequence metadata, Charset metadataCharset) {
+  public static Payload create(
+      CharSequence data,
+      Charset dataCharset,
+      @Nullable CharSequence metadata,
+      Charset metadataCharset) {
     return create(
         dataCharset.encode(CharBuffer.wrap(data)),
-        metadata == null ? null : metadataCharset.encode(CharBuffer.wrap(metadata))
-    );
+        metadata == null ? null : metadataCharset.encode(CharBuffer.wrap(metadata)));
   }
 
   public static Payload create(byte[] data) {
