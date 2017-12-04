@@ -28,12 +28,11 @@ import io.rsocket.plugins.RSocketInterceptor;
 import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.ServerTransport;
 import io.rsocket.util.DefaultPayload;
+import io.rsocket.util.EmptyPayload;
 import java.time.Duration;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
-
-import io.rsocket.util.EmptyPayload;
 import reactor.core.publisher.Mono;
 
 /** Factory for creating RSocket clients and servers. */
@@ -244,7 +243,10 @@ public class RSocketFactory {
                             .doOnNext(
                                 rSocket ->
                                     new RSocketServer(
-                                        multiplexer.asServerConnection(), rSocket, frameDecoder, errorConsumer))
+                                        multiplexer.asServerConnection(),
+                                        rSocket,
+                                        frameDecoder,
+                                        errorConsumer))
                             .then(finalConnection.sendOne(setupFrame))
                             .then(wrappedRSocketClient);
                       });
@@ -359,7 +361,8 @@ public class RSocketFactory {
                 sender -> acceptor.get().accept(setupPayload, sender).map(plugins::applyServer))
             .map(
                 handler ->
-                    new RSocketServer(multiplexer.asClientConnection(), handler, frameDecoder, errorConsumer))
+                    new RSocketServer(
+                        multiplexer.asClientConnection(), handler, frameDecoder, errorConsumer))
             .then();
       }
     }

@@ -16,12 +16,10 @@
 package io.rsocket;
 
 import io.netty.buffer.ByteBuf;
-
-import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
-
 import io.netty.util.ReferenceCounted;
 import io.netty.util.ResourceLeakDetector;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 
 /** Payload of a {@link Frame}. */
 public interface Payload extends ReferenceCounted {
@@ -47,30 +45,26 @@ public interface Payload extends ReferenceCounted {
    */
   ByteBuf sliceData();
 
-  /**
-   * Increases the reference count by {@code 1}.
-   */
+  /** Increases the reference count by {@code 1}. */
   @Override
   Payload retain();
 
-  /**
-   * Increases the reference count by the specified {@code increment}.
-   */
+  /** Increases the reference count by the specified {@code increment}. */
   @Override
   Payload retain(int increment);
 
   /**
-   * Records the current access location of this object for debugging purposes.
-   * If this object is determined to be leaked, the information recorded by this operation will be provided to you
-   * via {@link ResourceLeakDetector}.  This method is a shortcut to {@link #touch(Object) touch(null)}.
+   * Records the current access location of this object for debugging purposes. If this object is
+   * determined to be leaked, the information recorded by this operation will be provided to you via
+   * {@link ResourceLeakDetector}. This method is a shortcut to {@link #touch(Object) touch(null)}.
    */
   @Override
   Payload touch();
 
   /**
-   * Records the current access location of this object with an additional arbitrary information for debugging
-   * purposes.  If this object is determined to be leaked, the information recorded by this operation will be
-   * provided to you via {@link ResourceLeakDetector}.
+   * Records the current access location of this object with an additional arbitrary information for
+   * debugging purposes. If this object is determined to be leaked, the information recorded by this
+   * operation will be provided to you via {@link ResourceLeakDetector}.
    */
   @Override
   Payload touch(Object hint);

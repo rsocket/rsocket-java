@@ -84,7 +84,8 @@ public class RequestFrameFlyweightTest {
             Unpooled.copiedBuffer("d", StandardCharsets.UTF_8));
     assertEquals("00000b0000000118000000000164", ByteBufUtil.hexDump(byteBuf, 0, encoded));
 
-    Payload payload = DefaultPayload.create(Frame.from(stringToBuf("00000b0000000118000000000164")));
+    Payload payload =
+        DefaultPayload.create(Frame.from(stringToBuf("00000b0000000118000000000164")));
 
     assertFalse(payload.hasMetadata());
   }

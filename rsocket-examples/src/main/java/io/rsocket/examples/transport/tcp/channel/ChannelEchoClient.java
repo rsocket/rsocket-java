@@ -22,7 +22,6 @@ import io.rsocket.SocketAcceptor;
 import io.rsocket.transport.netty.client.TcpClientTransport;
 import io.rsocket.transport.netty.server.TcpServerTransport;
 import io.rsocket.util.DefaultPayload;
-
 import java.time.Duration;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
@@ -44,7 +43,8 @@ public final class ChannelEchoClient {
             .block();
 
     socket
-        .requestChannel(Flux.interval(Duration.ofMillis(1000)).map(i -> DefaultPayload.create("Hello")))
+        .requestChannel(
+            Flux.interval(Duration.ofMillis(1000)).map(i -> DefaultPayload.create("Hello")))
         .map(Payload::getDataUtf8)
         .doOnNext(System.out::println)
         .take(10)

@@ -25,10 +25,9 @@ import io.rsocket.exceptions.ApplicationException;
 import io.rsocket.test.util.LocalDuplexConnection;
 import io.rsocket.test.util.TestSubscriber;
 import io.rsocket.util.DefaultPayload;
+import io.rsocket.util.EmptyPayload;
 import java.util.ArrayList;
 import java.util.concurrent.CountDownLatch;
-
-import io.rsocket.util.EmptyPayload;
 import org.hamcrest.MatcherAssert;
 import org.junit.Assert;
 import org.junit.Rule;
@@ -77,7 +76,8 @@ public class RSocketTest {
   @Test(timeout = 2000)
   public void testChannel() throws Exception {
     CountDownLatch latch = new CountDownLatch(10);
-    Flux<Payload> requests = Flux.range(0, 10).map(i -> DefaultPayload.create("streaming in -> " + i));
+    Flux<Payload> requests =
+        Flux.range(0, 10).map(i -> DefaultPayload.create("streaming in -> " + i));
 
     Flux<Payload> responses = rule.crs.requestChannel(requests);
 
@@ -128,12 +128,15 @@ public class RSocketTest {
                 @Override
                 public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
                   Flux.from(payloads)
-                      .map(payload -> DefaultPayload.create("server got -> [" + payload.toString() + "]"))
+                      .map(
+                          payload ->
+                              DefaultPayload.create("server got -> [" + payload.toString() + "]"))
                       .subscribe();
 
                   return Flux.range(1, 10)
                       .map(
-                          payload -> DefaultPayload.create("server got -> [" + payload.toString() + "]"));
+                          payload ->
+                              DefaultPayload.create("server got -> [" + payload.toString() + "]"));
                 }
               };
 
