@@ -26,7 +26,8 @@ public interface Closeable {
    * <p><em>This method is idempotent and hence can be called as many times at any point with same
    * outcome.</em>
    *
-   * @return A {@code Publisher} that completes when this {@code RSocket} close is complete.
+   * @return A {@code Publisher} that triggers the close when subscribed to and that completes when
+   *     this {@code RSocket} close is complete.
    */
   Mono<Void> close();
 

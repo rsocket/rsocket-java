@@ -19,6 +19,10 @@ import io.netty.buffer.ByteBuf;
 import io.rsocket.FrameType;
 
 public class KeepaliveFrameFlyweight {
+  /**
+   * (R)espond: Set by the sender of the KEEPALIVE, to which the responder MUST reply with a
+   * KEEPALIVE without the R flag set
+   */
   public static final int FLAGS_KEEPALIVE_R = 0b00_1000_0000;
 
   private KeepaliveFrameFlyweight() {}
