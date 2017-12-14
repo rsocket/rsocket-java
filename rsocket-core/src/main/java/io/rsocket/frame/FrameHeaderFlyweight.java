@@ -15,12 +15,12 @@
  */
 package io.rsocket.frame;
 
-import static io.rsocket.frame.FrameHeaderFlyweight.decodeMetadataLength;
-
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.rsocket.Frame;
 import io.rsocket.FrameType;
+import org.reactivestreams.Subscriber;
+
 import javax.annotation.Nullable;
 
 /**
@@ -49,11 +49,21 @@ public class FrameHeaderFlyweight {
   private static final int STREAM_ID_FIELD_OFFSET;
   private static final int PAYLOAD_OFFSET;
 
+  /** (I)gnore flag: a value of 0 indicates the protocol can't ignore this frame */
   public static final int FLAGS_I = 0b10_0000_0000;
+  /** (M)etadata flag: a value of 1 indicates the frame contains metadata */
   public static final int FLAGS_M = 0b01_0000_0000;
 
+  /**
+   * (F)ollows: More fragments follow this fragment (in case of fragmented REQUEST_x or PAYLOAD
+   * frames)
+   */
   public static final int FLAGS_F = 0b00_1000_0000;
+  /** (C)omplete: bit to indicate stream completion ({@link Subscriber#onComplete()}) */
   public static final int FLAGS_C = 0b00_0100_0000;
+  /**
+   * (N)ext: bit to indicate payload or metadata present ({@link Subscriber#onNext(Object)})
+   */
   public static final int FLAGS_N = 0b00_0010_0000;
 
   static {

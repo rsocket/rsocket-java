@@ -25,7 +25,8 @@ import reactor.core.publisher.MonoProcessor;
  * An abstract implementation of {@link RSocket}. All request handling methods emit {@link
  * UnsupportedOperationException} and hence must be overridden to provide a valid implementation.
  *
- * <p>{@link #close()} and {@link #onClose()} returns a {@code Publisher} that never terminates.
+ * <p>{@link #close()} returns a {@code Publisher} that immediately terminates. That same Publisher
+ * is returned by the {@link #onClose()} method.
  */
 public abstract class AbstractRSocket implements RSocket {
 
