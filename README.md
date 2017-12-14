@@ -27,7 +27,7 @@ repositories {
 }
 
 dependencies {
-    compile 'io.rsocket:reactivesocket:0.9.17'
+    compile 'io.rsocket:reactivesocket:0.9.20'
 }
 ```
 
