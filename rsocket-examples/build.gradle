@@ -19,6 +19,7 @@ dependencies {
     compile project(':rsocket-spectator')
     compile project(':rsocket-transport-netty')
     compile project(':rsocket-transport-local')
+    compile "org.slf4j:slf4j-log4j12:1.7.25"
 
     testCompile project(':rsocket-test')
 }
