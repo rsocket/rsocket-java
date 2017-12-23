@@ -342,7 +342,7 @@ public class RSocketFactory {
           return multiplexer
               .asStreamZeroConnection()
               .sendOne(Frame.Error.from(0, error))
-              .then(multiplexer.close());
+              .doFinally(signalType -> multiplexer.dispose());
         }
 
         ConnectionSetupPayload setupPayload = ConnectionSetupPayload.create(setupFrame);

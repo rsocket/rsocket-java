@@ -48,7 +48,8 @@ public final class ChannelEchoClient {
         .map(Payload::getDataUtf8)
         .doOnNext(System.out::println)
         .take(10)
-        .thenEmpty(socket.close())
+        .doFinally(signalType -> socket.dispose())
+        .then()
         .block();
   }
 

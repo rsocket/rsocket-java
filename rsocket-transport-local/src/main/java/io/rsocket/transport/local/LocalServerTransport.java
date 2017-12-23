@@ -82,7 +82,7 @@ public class LocalServerTransport implements ServerTransport<Closeable> {
   static class ServerDuplexConnectionAcceptor implements Consumer<DuplexConnection>, Closeable {
     private final LocalSocketAddress address;
     private final ConnectionAcceptor acceptor;
-    private final MonoProcessor<Void> closeNotifier = MonoProcessor.create();
+    private final MonoProcessor<Void> onClose = MonoProcessor.create();
 
     public ServerDuplexConnectionAcceptor(String name, ConnectionAcceptor acceptor) {
       this.address = new LocalSocketAddress(name);
@@ -95,21 +95,22 @@ public class LocalServerTransport implements ServerTransport<Closeable> {
     }
 
     @Override
-    public Mono<Void> close() {
-      return Mono.defer(
-          () -> {
-            if (!registry.remove(address.getName(), this)) {
-              throw new AssertionError();
-            }
+    public void dispose() {
+      if (!registry.remove(address.getName(), this)) {
+        throw new AssertionError();
+      }
 
-            closeNotifier.onComplete();
-            return Mono.empty();
-          });
+      onClose.onComplete();
+    }
+
+    @Override
+    public boolean isDisposed() {
+      return onClose.isDisposed();
     }
 
     @Override
     public Mono<Void> onClose() {
-      return closeNotifier;
+      return onClose;
     }
   }
 }

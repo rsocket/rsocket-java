@@ -64,7 +64,7 @@ public class TcpIntegrationTest {
 
   @After
   public void cleanup() {
-    server.close().block();
+    server.dispose();
   }
 
   @Test(timeout = 5_000L)

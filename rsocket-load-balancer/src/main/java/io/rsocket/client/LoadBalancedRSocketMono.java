@@ -90,7 +90,6 @@ public abstract class LoadBalancedRSocketMono extends Mono<RSocket>
   private final ArrayList<WeightedSocket> activeSockets;
   private final ArrayList<RSocketSupplier> activeFactories;
   private final FactoriesRefresher factoryRefresher;
-  private final Mono<RSocket> selectSocket;
 
   private final Ewma pendings;
   private volatile int targetAperture;
@@ -137,7 +136,6 @@ public abstract class LoadBalancedRSocketMono extends Mono<RSocket>
     this.activeFactories = new ArrayList<>();
     this.pendingSockets = 0;
     this.factoryRefresher = new FactoriesRefresher();
-    this.selectSocket = Mono.fromCallable(this::select);
 
     this.minPendings = minPendings;
     this.maxPendings = maxPendings;
@@ -154,12 +152,7 @@ public abstract class LoadBalancedRSocketMono extends Mono<RSocket>
 
     factories.subscribe(factoryRefresher);
 
-    rSocketMono =
-        Mono.create(
-            sink -> {
-              RSocket rSocket = select();
-              sink.success(rSocket);
-            });
+    rSocketMono = Mono.fromCallable(this::select);
   }
 
   public static LoadBalancedRSocketMono create(
@@ -198,7 +191,7 @@ public abstract class LoadBalancedRSocketMono extends Mono<RSocket>
         maxRefreshPeriodMs) {
       @Override
       public void subscribe(CoreSubscriber<? super RSocket> s) {
-        started.thenMany(rSocketMono).subscribe(s);
+        started.then(rSocketMono).subscribe(s);
       }
     };
   }
@@ -373,7 +366,7 @@ public abstract class LoadBalancedRSocketMono extends Mono<RSocket>
       logger.debug("Removing socket: -> " + socket);
       activeSockets.remove(socket);
       activeFactories.add(socket.getFactory());
-      socket.close().subscribe();
+      socket.dispose();
       if (refresh) {
         refreshSockets();
       }
@@ -481,50 +474,24 @@ public abstract class LoadBalancedRSocketMono extends Mono<RSocket>
   }
 
   @Override
-  public Mono<Void> onClose() {
-    return onClose;
+  public void dispose() {
+    synchronized (this) {
+      factoryRefresher.close();
+      activeFactories.clear();
+      activeSockets.forEach(WeightedSocket::dispose);
+      activeSockets.clear();
+      onClose.onComplete();
+    }
   }
 
   @Override
-  public Mono<Void> close() {
-    return Mono.from(
-        subscriber -> {
-          subscriber.onSubscribe(Operators.emptySubscription());
+  public boolean isDisposed() {
+    return onClose.isDisposed();
+  }
 
-          synchronized (this) {
-            factoryRefresher.close();
-            activeFactories.clear();
-            AtomicInteger n = new AtomicInteger(activeSockets.size());
-
-            activeSockets.forEach(
-                rs ->
-                    rs.close()
-                        .subscribe(
-                            new Subscriber<Void>() {
-                              @Override
-                              public void onSubscribe(Subscription s) {
-                                s.request(Long.MAX_VALUE);
-                              }
-
-                              @Override
-                              public void onNext(Void aVoid) {}
-
-                              @Override
-                              public void onError(Throwable t) {
-                                logger.warn("Exception while closing a RSocket", t);
-                                onComplete();
-                              }
-
-                              @Override
-                              public void onComplete() {
-                                if (n.decrementAndGet() == 0) {
-                                  subscriber.onComplete();
-                                  onClose.onComplete();
-                                }
-                              }
-                            }));
-          }
-        });
+  @Override
+  public Mono<Void> onClose() {
+    return onClose;
   }
 
   /**
@@ -564,7 +531,7 @@ public abstract class LoadBalancedRSocketMono extends Mono<RSocket>
             it0.remove();
             try {
               changed = true;
-              socket.close();
+              socket.dispose();
             } catch (Exception e) {
               logger.warn("Exception while closing a RSocket", e);
             }
@@ -712,8 +679,12 @@ public abstract class LoadBalancedRSocketMono extends Mono<RSocket>
     }
 
     @Override
-    public Mono<Void> close() {
-      return Mono.empty();
+    public void dispose() {
+    }
+
+    @Override
+    public boolean isDisposed() {
+      return true;
     }
 
     @Override
@@ -880,8 +851,13 @@ public abstract class LoadBalancedRSocketMono extends Mono<RSocket>
     }
 
     @Override
-    public Mono<Void> close() {
-      return source.close();
+    public void dispose() {
+      source.dispose();
+    }
+
+    @Override
+    public boolean isDisposed() {
+      return source.isDisposed();
     }
 
     @Override

@@ -16,6 +16,7 @@
 
 package io.rsocket.internal;
 
+import io.rsocket.Closeable;
 import io.rsocket.DuplexConnection;
 import io.rsocket.Frame;
 import io.rsocket.FrameType;
@@ -41,7 +42,7 @@ import reactor.core.publisher.MonoProcessor;
  * even. Even IDs are for the streams initiated by server and odds are for streams initiated by the
  * client.
  */
-public class ClientServerInputMultiplexer {
+public class ClientServerInputMultiplexer implements Closeable {
   private static final Logger LOGGER = LoggerFactory.getLogger("io.rsocket.FrameLogger");
 
   private final DuplexConnection streamZeroConnection;
@@ -112,8 +113,19 @@ public class ClientServerInputMultiplexer {
     return streamZeroConnection;
   }
 
-  public Mono<Void> close() {
-    return source.close();
+  @Override
+  public void dispose() {
+    source.dispose();
+  }
+
+  @Override
+  public boolean isDisposed() {
+    return source.isDisposed();
+  }
+
+  @Override
+  public Mono<Void> onClose() {
+    return source.onClose();
   }
 
   private static class InternalDuplexConnection implements DuplexConnection {
@@ -158,8 +170,13 @@ public class ClientServerInputMultiplexer {
     }
 
     @Override
-    public Mono<Void> close() {
-      return source.close();
+    public void dispose() {
+      source.dispose();
+    }
+
+    @Override
+    public boolean isDisposed() {
+      return source.isDisposed();
     }
 
     @Override

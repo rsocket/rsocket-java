@@ -34,8 +34,6 @@ public interface ReactiveStreamsRemote {
     }
 
     Flux<? extends T> receive();
-
-    boolean isActive();
   }
 
   interface ClientChannelConnector<T extends ClientChannelConfig, R extends Channel<?>>

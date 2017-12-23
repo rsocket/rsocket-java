@@ -231,8 +231,6 @@ public class AeronChannelServer
   public class AeronChannelStartedServer implements ReactiveStreamsRemote.StartedServer, Closeable {
     private final MonoProcessor<Void> onClose = MonoProcessor.create();
 
-    private CountDownLatch latch = new CountDownLatch(1);
-
     public AeronWrapper getAeronWrapper() {
       return aeronWrapper;
     }
@@ -254,27 +252,29 @@ public class AeronChannelServer
     @Override
     public void awaitShutdown(long duration, TimeUnit durationUnit) {
       Duration d = Duration.ofMillis(durationUnit.toMillis(duration));
-      close().block(d);
+      onClose().block(d);
     }
 
     @Override
     public void awaitShutdown() {
-      close().block();
+      onClose().block();
     }
 
     @Override
     public void shutdown() {
-      close().subscribe();
+      dispose();
     }
 
     @Override
-    public Mono<Void> close() {
-      return Mono.defer(
-          () -> {
-            running = false;
-            managementSubscription.close();
-            return onClose;
-          });
+    public void dispose() {
+      running = false;
+      managementSubscription.close();
+      onClose.onComplete();
+    }
+
+    @Override
+    public boolean isDisposed() {
+      return onClose.isDisposed();
     }
 
     @Override

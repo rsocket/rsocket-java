@@ -223,8 +223,13 @@ public class SpectatorRSocket implements RSocket {
   }
 
   @Override
-  public Mono<Void> close() {
-    return delegate.close();
+  public void dispose() {
+    delegate.dispose();
+  }
+
+  @Override
+  public boolean isDisposed() {
+    return delegate.isDisposed();
   }
 
   @Override

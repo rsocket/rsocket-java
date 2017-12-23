@@ -71,6 +71,6 @@ public interface RSocket extends Availability, Closeable {
 
   @Override
   default double availability() {
-    return 0.0;
+    return isDisposed() ? 0.0 : 1.0;
   }
 }

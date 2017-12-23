@@ -87,8 +87,13 @@ public class RSocketSupplier implements Availability, Supplier<Mono<RSocket>>, C
   }
 
   @Override
-  public Mono<Void> close() {
-    return Mono.empty().doFinally(s -> onClose.onComplete()).then();
+  public void dispose() {
+    onClose.onComplete();
+  }
+
+  @Override
+  public boolean isDisposed() {
+    return onClose.isDisposed();
   }
 
   @Override
@@ -100,7 +105,7 @@ public class RSocketSupplier implements Availability, Supplier<Mono<RSocket>>, C
     public AvailabilityAwareRSocketProxy(RSocket source) {
       super(source);
 
-      onClose.then(close()).subscribe();
+      onClose.doFinally(signalType -> source.dispose()).subscribe();
     }
 
     @Override

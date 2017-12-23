@@ -85,20 +85,13 @@ public class FragmentationDuplexConnection implements DuplexConnection {
   }
 
   @Override
-  public Mono<Void> close() {
-    return source.close();
+  public void dispose() {
+    source.dispose();
   }
 
-  private synchronized FrameReassembler getFrameReassembler(Frame frame) {
-    return frameReassemblers.computeIfAbsent(frame.getStreamId(), s -> new FrameReassembler(frame));
-  }
-
-  private synchronized FrameReassembler removeFrameReassembler(int streamId) {
-    return frameReassemblers.remove(streamId);
-  }
-
-  private synchronized boolean frameReassemblersContain(int streamId) {
-    return frameReassemblers.containsKey(streamId);
+  @Override
+  public boolean isDisposed() {
+    return source.isDisposed();
   }
 
   @Override
@@ -113,5 +106,17 @@ public class FragmentationDuplexConnection implements DuplexConnection {
                 frameReassemblers.clear();
               }
             });
+  }
+
+  private synchronized FrameReassembler getFrameReassembler(Frame frame) {
+    return frameReassemblers.computeIfAbsent(frame.getStreamId(), s -> new FrameReassembler(frame));
+  }
+
+  private synchronized FrameReassembler removeFrameReassembler(int streamId) {
+    return frameReassemblers.remove(streamId);
+  }
+
+  private synchronized boolean frameReassemblersContain(int streamId) {
+    return frameReassemblers.containsKey(streamId);
   }
 }

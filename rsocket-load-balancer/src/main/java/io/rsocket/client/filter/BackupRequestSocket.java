@@ -88,8 +88,13 @@ public class BackupRequestSocket implements RSocket {
   }
 
   @Override
-  public Mono<Void> close() {
-    return child.close();
+  public void dispose() {
+    child.dispose();
+  }
+
+  @Override
+  public boolean isDisposed() {
+    return child.isDisposed();
   }
 
   @Override

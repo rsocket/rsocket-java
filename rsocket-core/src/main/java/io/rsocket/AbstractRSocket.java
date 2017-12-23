@@ -24,9 +24,6 @@ import reactor.core.publisher.MonoProcessor;
 /**
  * An abstract implementation of {@link RSocket}. All request handling methods emit {@link
  * UnsupportedOperationException} and hence must be overridden to provide a valid implementation.
- *
- * <p>{@link #close()} returns a {@code Publisher} that immediately terminates. That same Publisher
- * is returned by the {@link #onClose()} method.
  */
 public abstract class AbstractRSocket implements RSocket {
 
@@ -58,12 +55,13 @@ public abstract class AbstractRSocket implements RSocket {
   }
 
   @Override
-  public Mono<Void> close() {
-    return Mono.defer(
-        () -> {
-          onClose.onComplete();
-          return onClose;
-        });
+  public void dispose() {
+    onClose.onComplete();
+  }
+
+  @Override
+  public boolean isDisposed() {
+    return onClose.isDisposed();
   }
 
   @Override

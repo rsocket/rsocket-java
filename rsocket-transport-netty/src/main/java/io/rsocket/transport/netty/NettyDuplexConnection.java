@@ -63,17 +63,17 @@ public class NettyDuplexConnection implements DuplexConnection {
   }
 
   @Override
-  public Mono<Void> close() {
-    return Mono.fromRunnable(onClose::onComplete);
+  public void dispose() {
+    onClose.onComplete();
+  }
+
+  @Override
+  public boolean isDisposed() {
+    return onClose.isDisposed();
   }
 
   @Override
   public Mono<Void> onClose() {
     return onClose;
-  }
-
-  @Override
-  public double availability() {
-    return onClose.isTerminated() ? 0.0 : 1.0;
   }
 }

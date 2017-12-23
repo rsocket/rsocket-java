@@ -27,13 +27,13 @@ import reactor.core.publisher.MonoProcessor;
 public class LocalDuplexConnection implements DuplexConnection {
   private final Flux<Frame> in;
   private final Subscriber<Frame> out;
-  private final MonoProcessor<Void> closeNotifier;
+  private final MonoProcessor<Void> onClose;
 
   public LocalDuplexConnection(
-      Flux<Frame> in, Subscriber<Frame> out, MonoProcessor<Void> closeNotifier) {
+      Flux<Frame> in, Subscriber<Frame> out, MonoProcessor<Void> onClose) {
     this.in = in;
     this.out = out;
-    this.closeNotifier = closeNotifier;
+    this.onClose = onClose;
   }
 
   @Override
@@ -52,22 +52,18 @@ public class LocalDuplexConnection implements DuplexConnection {
   }
 
   @Override
-  public Mono<Void> close() {
-    return Mono.defer(
-        () -> {
-          out.onComplete();
-          closeNotifier.onComplete();
-          return closeNotifier;
-        });
+  public void dispose() {
+    out.onComplete();
+    onClose.onComplete();
+  }
+
+  @Override
+  public boolean isDisposed() {
+    return onClose.isDisposed();
   }
 
   @Override
   public Mono<Void> onClose() {
-    return closeNotifier;
-  }
-
-  @Override
-  public double availability() {
-    return closeNotifier.isDisposed() ? 0.0 : 1.0;
+    return onClose;
   }
 }

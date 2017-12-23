@@ -48,7 +48,7 @@ public class WebsocketServerTransport
   }
 
   @Override
-  public Mono<NettyContextCloseable> start(ServerTransport.ConnectionAcceptor acceptor) {
+  public Mono<NettyContextCloseable> start(ConnectionAcceptor acceptor) {
     return server
         .newHandler(
             (request, response) -> {

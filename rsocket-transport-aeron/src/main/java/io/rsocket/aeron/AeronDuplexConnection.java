@@ -32,12 +32,12 @@ import reactor.core.publisher.MonoProcessor;
 public class AeronDuplexConnection implements DuplexConnection {
   private final String name;
   private final AeronChannel channel;
-  private final MonoProcessor<Void> emptySubject;
+  private final MonoProcessor<Void> onClose;
 
   public AeronDuplexConnection(String name, AeronChannel channel) {
     this.name = name;
     this.channel = channel;
-    this.emptySubject = MonoProcessor.create();
+    this.onClose = MonoProcessor.create();
   }
 
   @Override
@@ -57,27 +57,23 @@ public class AeronDuplexConnection implements DuplexConnection {
   }
 
   @Override
-  public double availability() {
-    return channel.isActive() ? 1.0 : 0.0;
+  public void dispose() {
+    try {
+      channel.dispose();
+      onClose.onComplete();
+    } catch (Exception e) {
+      onClose.onError(e);
+    }
   }
 
   @Override
-  public Mono<Void> close() {
-    return Mono.defer(
-        () -> {
-          try {
-            channel.close();
-            emptySubject.onComplete();
-          } catch (Exception e) {
-            emptySubject.onError(e);
-          }
-          return emptySubject;
-        });
+  public boolean isDisposed() {
+    return channel.isDisposed();
   }
 
   @Override
   public Mono<Void> onClose() {
-    return emptySubject;
+    return onClose;
   }
 
   @Override
@@ -88,8 +84,8 @@ public class AeronDuplexConnection implements DuplexConnection {
         + '\''
         + ", channel="
         + channel
-        + ", emptySubject="
-        + emptySubject
+        + ", onClose="
+        + onClose
         + '}';
   }
 }

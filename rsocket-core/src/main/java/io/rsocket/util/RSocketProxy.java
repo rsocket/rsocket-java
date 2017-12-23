@@ -60,8 +60,13 @@ public class RSocketProxy implements RSocket {
   }
 
   @Override
-  public Mono<Void> close() {
-    return source.close();
+  public void dispose() {
+    source.dispose();
+  }
+
+  @Override
+  public boolean isDisposed() {
+    return source.isDisposed();
   }
 
   @Override
