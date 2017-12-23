@@ -79,7 +79,7 @@ public class RSocketPerf {
 
     static final ByteBuffer HELLO = ByteBuffer.wrap("HELLO".getBytes(StandardCharsets.UTF_8));
 
-    static final Payload HELLO_PAYLOAD = new DefaultPayload(HELLO);
+    static final Payload HELLO_PAYLOAD = DefaultPayload.create(HELLO);
 
     static final DirectProcessor<Frame> clientReceive = DirectProcessor.create();
     static final DirectProcessor<Frame> serverReceive = DirectProcessor.create();
@@ -121,8 +121,7 @@ public class RSocketPerf {
                         }
 
                         @Override
-                        public Mono<Void> close() {
-                          return Mono.empty();
+                        public void dispose() {
                         }
 
                         @Override
@@ -140,8 +139,13 @@ public class RSocketPerf {
                         MonoProcessor<Void> onClose = MonoProcessor.create();
 
                         @Override
-                        public Mono<Void> close() {
-                          return Mono.empty().doFinally(s -> onClose.onComplete()).then();
+                        public void dispose() {
+                          onClose.onComplete();
+                        }
+
+                        @Override
+                        public boolean isDisposed() {
+                          return onClose.isDisposed();
                         }
 
                         @Override

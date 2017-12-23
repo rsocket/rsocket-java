@@ -74,4 +74,9 @@ public interface DuplexConnection extends Availability, Closeable {
    * @return Stream of all {@code Frame}s received.
    */
   Flux<Frame> receive();
+
+  @Override
+  default double availability() {
+    return isDisposed() ? 0.0 : 1.0;
+  }
 }

@@ -3,35 +3,37 @@ package io.rsocket.transport.netty.server;
 import io.rsocket.Closeable;
 import io.rsocket.transport.ServerTransport;
 import io.rsocket.transport.netty.WebsocketDuplexConnection;
-import io.rsocket.util.CloseableAdapter;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
+
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Mono;
+import reactor.ipc.netty.http.server.HttpServer;
 import reactor.ipc.netty.http.server.HttpServerRoutes;
 import reactor.ipc.netty.http.websocket.WebsocketInbound;
 import reactor.ipc.netty.http.websocket.WebsocketOutbound;
 
 public class WebsocketRouteTransport implements ServerTransport<Closeable> {
-  private HttpServerRoutes routes;
+  private HttpServer server;
+  private Consumer<? super HttpServerRoutes> routesBuilder;
   private String path;
 
-  public WebsocketRouteTransport(HttpServerRoutes routes, String path) {
-    this.routes = routes;
+  public WebsocketRouteTransport(HttpServer server,
+                                 Consumer<? super HttpServerRoutes> routesBuilder,
+                                 String path) {
+    this.server = server;
+    this.routesBuilder = routesBuilder;
     this.path = path;
   }
 
   @Override
   public Mono<Closeable> start(ConnectionAcceptor acceptor) {
-    return Mono.defer(
-        () -> {
+    return server
+        .newRouter(routes -> {
+          routesBuilder.accept(routes);
           routes.ws(path, newHandler(acceptor));
-
-          return Mono.just(
-              new CloseableAdapter(
-                  () -> {
-                    // TODO close route somehow
-                  }));
-        });
+        })
+        .map(NettyContextCloseable::new);
   }
 
   public static BiFunction<WebsocketInbound, WebsocketOutbound, Publisher<Void>> newHandler(

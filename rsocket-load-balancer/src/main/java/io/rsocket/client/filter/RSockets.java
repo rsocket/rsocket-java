@@ -72,7 +72,7 @@ public final class RSockets {
 
   /**
    * Provides a mapping function to wrap a {@code RSocket} such that a call to {@link
-   * RSocket#close()} does not cancel all pending requests. Instead, it will wait for all pending
+   * RSocket#dispose()} does not cancel all pending requests. Instead, it will wait for all pending
    * requests to finish and then close the socket.
    *
    * @return Function to transform any socket into a safe closing socket.
@@ -91,7 +91,7 @@ public final class RSockets {
                 .doFinally(
                     signalType -> {
                       if (count.decrementAndGet() == 0 && closed.get()) {
-                        source.close().subscribe();
+                        source.dispose();
                       }
                     });
           }
@@ -104,7 +104,7 @@ public final class RSockets {
                 .doFinally(
                     signalType -> {
                       if (count.decrementAndGet() == 0 && closed.get()) {
-                        source.close().subscribe();
+                        source.dispose();
                       }
                     });
           }
@@ -117,7 +117,7 @@ public final class RSockets {
                 .doFinally(
                     signalType -> {
                       if (count.decrementAndGet() == 0 && closed.get()) {
-                        source.close().subscribe();
+                        source.dispose();
                       }
                     });
           }
@@ -130,7 +130,7 @@ public final class RSockets {
                 .doFinally(
                     signalType -> {
                       if (count.decrementAndGet() == 0 && closed.get()) {
-                        source.close().subscribe();
+                        source.dispose();
                       }
                     });
           }
@@ -143,24 +143,18 @@ public final class RSockets {
                 .doFinally(
                     signalType -> {
                       if (count.decrementAndGet() == 0 && closed.get()) {
-                        source.close().subscribe();
+                        source.dispose();
                       }
                     });
           }
 
           @Override
-          public Mono<Void> close() {
-            return Mono.defer(
-                () -> {
-                  if (closed.compareAndSet(false, true)) {
-                    if (count.get() == 0) {
-                      return source.close();
-                    } else {
-                      return source.onClose();
-                    }
-                  }
-                  return source.onClose();
-                });
+          public void dispose() {
+            if (closed.compareAndSet(false, true)) {
+              if (count.get() == 0) {
+                source.dispose();
+              }
+            }
           }
         };
   }

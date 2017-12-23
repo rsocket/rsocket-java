@@ -69,7 +69,7 @@ public class ClientSetupRule<T, S extends Closeable> extends ExternalResource {
         S server = serverInit.apply(address);
         client = clientConnector.apply(address, server);
         base.evaluate();
-        server.close().block();
+        server.dispose();
       }
     };
   }

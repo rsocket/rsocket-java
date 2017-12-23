@@ -98,7 +98,7 @@ class RSocketClient implements RSocket {
               .doOnError(
                   t -> {
                     errorConsumer.accept(t);
-                    connection.close().subscribe();
+                    connection.dispose();
                   })
               .subscribe();
     }
@@ -234,8 +234,13 @@ class RSocketClient implements RSocket {
   }
 
   @Override
-  public Mono<Void> close() {
-    return connection.close();
+  public void dispose() {
+    connection.dispose();
+  }
+
+  @Override
+  public boolean isDisposed() {
+    return connection.isDisposed();
   }
 
   @Override
@@ -260,25 +265,25 @@ class RSocketClient implements RSocket {
               return receiver
                   .doOnRequest(
                       l -> {
-                        if (first.compareAndSet(false, true) && !receiver.isTerminated()) {
+                        if (first.compareAndSet(false, true) && !receiver.isDisposed()) {
                           final Frame requestFrame =
                               Frame.Request.from(streamId, FrameType.REQUEST_STREAM, payload, l);
                           payload.release();
                           sendProcessor.onNext(requestFrame);
-                        } else if (contains(streamId) && !receiver.isTerminated()) {
+                        } else if (contains(streamId) && !receiver.isDisposed()) {
                           sendProcessor.onNext(Frame.RequestN.from(streamId, l));
                         }
                         sendProcessor.drain();
                       })
                   .doOnError(
                       t -> {
-                        if (contains(streamId) && !receiver.isTerminated()) {
+                        if (contains(streamId) && !receiver.isDisposed()) {
                           sendProcessor.onNext(Frame.Error.from(streamId, t));
                         }
                       })
                   .doOnCancel(
                       () -> {
-                        if (contains(streamId) && !receiver.isTerminated()) {
+                        if (contains(streamId) && !receiver.isDisposed()) {
                           sendProcessor.onNext(Frame.Cancel.from(streamId));
                         }
                       })
@@ -326,7 +331,7 @@ class RSocketClient implements RSocket {
               boolean firstRequest = true;
 
               boolean isValidToSendFrame() {
-                return contains(streamId) && !receiver.isTerminated();
+                return contains(streamId) && !receiver.isDisposed();
               }
 
               void sendOneFrame(Frame frame) {

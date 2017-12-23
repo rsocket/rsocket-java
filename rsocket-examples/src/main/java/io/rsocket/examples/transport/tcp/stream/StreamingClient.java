@@ -41,7 +41,9 @@ public final class StreamingClient {
         .map(Payload::getDataUtf8)
         .doOnNext(System.out::println)
         .take(10)
-        .thenEmpty(socket.close())
+        .then()
+        .doFinally(signalType -> socket.dispose())
+        .then()
         .block();
   }
 

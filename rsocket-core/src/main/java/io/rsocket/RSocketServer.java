@@ -200,8 +200,13 @@ class RSocketServer implements RSocket {
   }
 
   @Override
-  public Mono<Void> close() {
-    return connection.close();
+  public void dispose() {
+    connection.dispose();
+  }
+
+  @Override
+  public boolean isDisposed() {
+    return connection.isDisposed();
   }
 
   @Override
@@ -213,7 +218,7 @@ class RSocketServer implements RSocket {
     cleanUpSendingSubscriptions();
     cleanUpChannelProcessors();
 
-    requestHandler.close().subscribe();
+    requestHandler.dispose();
   }
 
   private synchronized void cleanUpSendingSubscriptions() {

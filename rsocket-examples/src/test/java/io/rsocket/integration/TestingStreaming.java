@@ -60,7 +60,7 @@ public class TestingStreaming {
       System.out.println("here");
 
     } finally {
-      server.close().block();
+      server.dispose();
     }
   }
 
@@ -98,7 +98,7 @@ public class TestingStreaming {
       System.out.println("here");
 
     } finally {
-      server.close().block();
+      server.dispose();
     }
   }
 
@@ -149,7 +149,7 @@ public class TestingStreaming {
       consumer("1").blockLast();
 
     } finally {
-      server.close().block();
+      server.dispose();
     }
   }
 

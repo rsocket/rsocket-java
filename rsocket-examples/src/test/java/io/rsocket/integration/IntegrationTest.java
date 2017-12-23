@@ -147,7 +147,7 @@ public class IntegrationTest {
 
   @After
   public void teardown() {
-    server.close().block();
+    server.dispose();
   }
 
   @Test(timeout = 5_000L)
@@ -170,7 +170,7 @@ public class IntegrationTest {
 
   @Test(timeout = 5_000L)
   public void testClose() throws InterruptedException {
-    client.close().block();
+    client.dispose();
     disconnectionCounter.await();
   }
 

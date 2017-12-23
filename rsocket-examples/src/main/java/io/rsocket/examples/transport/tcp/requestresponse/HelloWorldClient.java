@@ -76,6 +76,6 @@ public final class HelloWorldClient {
         .doOnNext(System.out::println)
         .block();
 
-    socket.close().block();
+    socket.dispose();
   }
 }

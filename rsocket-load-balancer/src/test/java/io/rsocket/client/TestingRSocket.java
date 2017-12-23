@@ -29,7 +29,7 @@ import reactor.core.publisher.*;
 public class TestingRSocket implements RSocket {
 
   private final AtomicInteger count;
-  private final MonoProcessor<Void> closeSubject = MonoProcessor.create();
+  private final MonoProcessor<Void> onClose = MonoProcessor.create();
   private final BiFunction<Subscriber<? super Payload>, Payload, Boolean> eachPayloadHandler;
 
   public TestingRSocket(Function<Payload, Payload> responder) {
@@ -127,16 +127,17 @@ public class TestingRSocket implements RSocket {
   }
 
   @Override
-  public Mono<Void> close() {
-    return Mono.defer(
-        () -> {
-          closeSubject.onComplete();
-          return closeSubject;
-        });
+  public void dispose() {
+    onClose.onComplete();
+  }
+
+  @Override
+  public boolean isDisposed() {
+    return onClose.isDisposed();
   }
 
   @Override
   public Mono<Void> onClose() {
-    return closeSubject;
+    return onClose;
   }
 }

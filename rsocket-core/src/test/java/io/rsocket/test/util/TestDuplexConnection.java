@@ -41,7 +41,7 @@ public class TestDuplexConnection implements DuplexConnection {
   private final LinkedBlockingQueue<Frame> sent;
   private final DirectProcessor<Frame> sentPublisher;
   private final DirectProcessor<Frame> received;
-  private final MonoProcessor<Void> close;
+  private final MonoProcessor<Void> onClose;
   private final ConcurrentLinkedQueue<Subscriber<Frame>> sendSubscribers;
   private volatile double availability = 1;
   private volatile int initialSendRequestN = Integer.MAX_VALUE;
@@ -51,7 +51,7 @@ public class TestDuplexConnection implements DuplexConnection {
     received = DirectProcessor.create();
     sentPublisher = DirectProcessor.create();
     sendSubscribers = new ConcurrentLinkedQueue<>();
-    close = MonoProcessor.create();
+    onClose = MonoProcessor.create();
   }
 
   @Override
@@ -84,13 +84,18 @@ public class TestDuplexConnection implements DuplexConnection {
   }
 
   @Override
-  public Mono<Void> close() {
-    return close;
+  public void dispose() {
+    onClose.onComplete();
+  }
+
+  @Override
+  public boolean isDisposed() {
+    return onClose.isDisposed();
   }
 
   @Override
   public Mono<Void> onClose() {
-    return close();
+    return onClose;
   }
 
   public Frame awaitSend() throws InterruptedException {

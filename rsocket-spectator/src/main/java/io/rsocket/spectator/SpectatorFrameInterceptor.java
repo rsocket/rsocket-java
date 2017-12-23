@@ -80,8 +80,13 @@ public class SpectatorFrameInterceptor implements DuplexConnectionInterceptor {
       }
 
       @Override
-      public Mono<Void> close() {
-        return connection.close();
+      public void dispose() {
+        connection.dispose();
+      }
+
+      @Override
+      public boolean isDisposed() {
+        return connection.isDisposed();
       }
 
       @Override

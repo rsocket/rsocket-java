@@ -18,14 +18,14 @@ package io.rsocket.aeron.internal.reactivestreams;
 import io.aeron.Publication;
 import io.aeron.Subscription;
 import io.rsocket.aeron.internal.EventLoop;
-import java.io.IOException;
 import java.util.Objects;
 import org.agrona.DirectBuffer;
+import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 /** */
-public class AeronChannel implements ReactiveStreamsRemote.Channel<DirectBuffer>, AutoCloseable {
+public class AeronChannel implements ReactiveStreamsRemote.Channel<DirectBuffer>, Disposable {
   private final String name;
   private final Publication destination;
   private final Subscription source;
@@ -78,22 +78,18 @@ public class AeronChannel implements ReactiveStreamsRemote.Channel<DirectBuffer>
   }
 
   @Override
-  public void close() throws IOException {
-    try {
-      destination.close();
-      source.close();
-    } catch (Throwable t) {
-      throw new IOException(t);
-    }
+  public void dispose() {
+    destination.close();
+    source.close();
+  }
+
+  @Override
+  public boolean isDisposed() {
+    return destination.isClosed() && source.isClosed();
   }
 
   @Override
   public String toString() {
     return "AeronChannel{" + "name='" + name + '\'' + '}';
-  }
-
-  @Override
-  public boolean isActive() {
-    return !destination.isClosed() && !source.isClosed();
   }
 }
