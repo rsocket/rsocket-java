@@ -500,6 +500,7 @@ public class Frame implements Payload, ByteBufHolder {
           result = 1;
           break;
         case FIRE_AND_FORGET:
+        case METADATA_PUSH:
           result = 0;
           break;
         default:

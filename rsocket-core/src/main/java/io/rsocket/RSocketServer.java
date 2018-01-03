@@ -16,20 +16,12 @@
 
 package io.rsocket;
 
-import static io.rsocket.Frame.Request.initialRequestN;
-import static io.rsocket.frame.FrameHeaderFlyweight.FLAGS_C;
-import static io.rsocket.frame.FrameHeaderFlyweight.FLAGS_M;
-
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
-import io.netty.util.collection.IntObjectHashMap;
 import io.rsocket.exceptions.ApplicationException;
 import io.rsocket.internal.LimitableRequestPublisher;
 import io.rsocket.internal.UnboundedProcessor;
-import java.util.Collection;
-import java.util.function.Consumer;
-import java.util.function.Function;
-import javax.annotation.Nullable;
+import io.rsocket.util.NonBlockingHashMapLong;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
@@ -39,6 +31,15 @@ import reactor.core.publisher.Mono;
 import reactor.core.publisher.SignalType;
 import reactor.core.publisher.UnicastProcessor;
 
+import javax.annotation.Nullable;
+import java.util.Collection;
+import java.util.function.Consumer;
+import java.util.function.Function;
+
+import static io.rsocket.Frame.Request.initialRequestN;
+import static io.rsocket.frame.FrameHeaderFlyweight.FLAGS_C;
+import static io.rsocket.frame.FrameHeaderFlyweight.FLAGS_M;
+
 /** Server side RSocket. Receives {@link Frame}s from a {@link RSocketClient} */
 class RSocketServer implements RSocket {
 
@@ -47,8 +48,8 @@ class RSocketServer implements RSocket {
   private final Function<Frame, ? extends Payload> frameDecoder;
   private final Consumer<Throwable> errorConsumer;
 
-  private final IntObjectHashMap<Subscription> sendingSubscriptions;
-  private final IntObjectHashMap<UnicastProcessor<Payload>> channelProcessors;
+  private final NonBlockingHashMapLong<Subscription> sendingSubscriptions;
+  private final NonBlockingHashMapLong<UnicastProcessor<Payload>> channelProcessors;
 
   private final UnboundedProcessor<Frame> sendProcessor;
   private Disposable receiveDisposable;
@@ -62,8 +63,8 @@ class RSocketServer implements RSocket {
     this.requestHandler = requestHandler;
     this.frameDecoder = frameDecoder;
     this.errorConsumer = errorConsumer;
-    this.sendingSubscriptions = new IntObjectHashMap<>();
-    this.channelProcessors = new IntObjectHashMap<>();
+    this.sendingSubscriptions = new NonBlockingHashMapLong<>();
+    this.channelProcessors = new NonBlockingHashMapLong<>();
 
     // DO NOT Change the order here. The Send processor must be subscribed to before receiving
     // connections
