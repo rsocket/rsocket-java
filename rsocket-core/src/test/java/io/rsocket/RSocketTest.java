@@ -87,22 +87,6 @@ public class RSocketTest {
 
     latch.await();
   }
-  
-  @Test(timeout = 2_000L)
-  public void testCleanup() throws Exception {
-    CountDownLatch latch = new CountDownLatch(1);
-    rule.crs
-        .requestStream(DefaultPayload.create("hi"))
-        .doOnError(t -> {
-          Assert.assertTrue(t instanceof ClosedChannelException);
-          latch.countDown();
-        })
-        .subscribe();
-
-    rule.crs.cleanup();
-    
-    latch.await();
-  }
 
   public static class SocketRule extends ExternalResource {
 

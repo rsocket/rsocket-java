@@ -81,7 +81,7 @@ subprojects {
 
     dependencies {
         compile "io.projectreactor:reactor-core:3.1.2.RELEASE"
-        compile "io.netty:netty-buffer:4.1.16.Final"
+        compile "io.netty:netty-buffer:4.1.17.Final"
         compile "org.reactivestreams:reactive-streams:1.0.1"
         compile "org.slf4j:slf4j-api:1.7.25"
         compile "com.google.code.findbugs:jsr305:3.0.2"
