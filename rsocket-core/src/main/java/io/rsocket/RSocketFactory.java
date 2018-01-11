@@ -82,7 +82,7 @@ public class RSocketFactory {
     private Consumer<Throwable> errorConsumer = Throwable::printStackTrace;
     private int mtu = 0;
     private PluginRegistry plugins = new PluginRegistry(Plugins.defaultPlugins());
-    private int flags = SetupFrameFlyweight.FLAGS_STRICT_INTERPRETATION;
+    private int flags = 0;
 
     private Payload setupPayload = EmptyPayload.INSTANCE;
     private Function<Frame, ? extends Payload> frameDecoder = DefaultPayload::create;
