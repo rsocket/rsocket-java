@@ -32,17 +32,9 @@ public class SetupFrameFlyweight {
   public static final int FLAGS_RESUME_ENABLE = 0b00_1000_0000;
   /** A flag used to indicate that the client will honor LEASE sent by the server */
   public static final int FLAGS_WILL_HONOR_LEASE = 0b00_0100_0000;
-  /**
-   * (obsolete) flag indicating that the server should reject the SETUP if it finds anything
-   * in the data or metadata that it doesn't understand
-   *
-   * @deprecated removed between protocol version 0.2 and 1.0RC
-   */
-  @Deprecated
-  public static final int FLAGS_STRICT_INTERPRETATION = 0b00_0010_0000;
 
   public static final int VALID_FLAGS =
-      FLAGS_RESUME_ENABLE | FLAGS_WILL_HONOR_LEASE | FLAGS_STRICT_INTERPRETATION | FLAGS_M;
+      FLAGS_RESUME_ENABLE | FLAGS_WILL_HONOR_LEASE | FLAGS_M;
 
   public static final int CURRENT_VERSION = VersionFlyweight.encode(1, 0);
 

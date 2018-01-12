@@ -30,7 +30,6 @@ public abstract class ConnectionSetupPayload extends AbstractReferenceCounted im
 
   public static final int NO_FLAGS = 0;
   public static final int HONOR_LEASE = SetupFrameFlyweight.FLAGS_WILL_HONOR_LEASE;
-  public static final int STRICT_INTERPRETATION = SetupFrameFlyweight.FLAGS_STRICT_INTERPRETATION;
 
   public static ConnectionSetupPayload create(String metadataMimeType, String dataMimeType) {
     return new DefaultConnectionSetupPayload(
@@ -71,10 +70,6 @@ public abstract class ConnectionSetupPayload extends AbstractReferenceCounted im
 
   public boolean willClientHonorLease() {
     return Frame.isFlagSet(getFlags(), HONOR_LEASE);
-  }
-
-  public boolean doesClientRequestStrictInterpretation() {
-    return STRICT_INTERPRETATION == (getFlags() & STRICT_INTERPRETATION);
   }
 
   @Override
