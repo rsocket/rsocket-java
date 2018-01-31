@@ -16,10 +16,10 @@
 
 package io.rsocket.fragmentation;
 
-import io.netty.util.collection.IntObjectHashMap;
 import io.rsocket.DuplexConnection;
 import io.rsocket.Frame;
 import io.rsocket.frame.FrameHeaderFlyweight;
+import io.rsocket.util.NonBlockingHashMapLong;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -28,7 +28,7 @@ import reactor.core.publisher.Mono;
 public class FragmentationDuplexConnection implements DuplexConnection {
 
   private final DuplexConnection source;
-  private final IntObjectHashMap<FrameReassembler> frameReassemblers = new IntObjectHashMap<>();
+  private final NonBlockingHashMapLong<FrameReassembler> frameReassemblers = new NonBlockingHashMapLong<>();
   private final FrameFragmenter frameFragmenter;
 
   public FragmentationDuplexConnection(DuplexConnection source, int mtu) {
@@ -108,15 +108,19 @@ public class FragmentationDuplexConnection implements DuplexConnection {
             });
   }
 
-  private synchronized FrameReassembler getFrameReassembler(Frame frame) {
-    return frameReassemblers.computeIfAbsent(frame.getStreamId(), s -> new FrameReassembler(frame));
+  private FrameReassembler getFrameReassembler(Frame frame) {
+    FrameReassembler value, newValue;
+    int streamId = frame.getStreamId();
+    return ((value = frameReassemblers.get(streamId)) == null &&
+        (value = frameReassemblers.putIfAbsent(streamId, newValue = new FrameReassembler(frame))) == null)
+        ? newValue : value;
   }
 
-  private synchronized FrameReassembler removeFrameReassembler(int streamId) {
+  private FrameReassembler removeFrameReassembler(int streamId) {
     return frameReassemblers.remove(streamId);
   }
 
-  private synchronized boolean frameReassemblersContain(int streamId) {
+  private boolean frameReassemblersContain(int streamId) {
     return frameReassemblers.containsKey(streamId);
   }
 }

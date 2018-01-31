@@ -29,7 +29,6 @@ import reactor.core.publisher.*;
 
 import javax.annotation.Nullable;
 import java.time.Duration;
-import java.util.Collection;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
@@ -122,14 +121,7 @@ class RSocketClient implements RSocket {
   }
 
   private void handleSendProcessorError(Throwable t) {
-    Collection<UnicastProcessor<Payload>> values;
-    Collection<LimitableRequestPublisher> values1;
-    synchronized (RSocketClient.this) {
-      values = receivers.values();
-      values1 = senders.values();
-    }
-
-    for (Subscriber subscriber : values) {
+    for (Subscriber subscriber : receivers.values()) {
       try {
         subscriber.onError(t);
       } catch (Throwable e) {
@@ -137,7 +129,7 @@ class RSocketClient implements RSocket {
       }
     }
 
-    for (LimitableRequestPublisher p : values1) {
+    for (LimitableRequestPublisher p : senders.values()) {
       p.cancel();
     }
   }
@@ -146,14 +138,8 @@ class RSocketClient implements RSocket {
     if (SignalType.ON_ERROR == t) {
       return;
     }
-    Collection<UnicastProcessor<Payload>> values;
-    Collection<LimitableRequestPublisher> values1;
-    synchronized (RSocketClient.this) {
-      values = receivers.values();
-      values1 = senders.values();
-    }
 
-    for (Subscriber subscriber : values) {
+    for (Subscriber subscriber : receivers.values()) {
       try {
         subscriber.onError(new Throwable("closed connection"));
       } catch (Throwable e) {
@@ -161,7 +147,7 @@ class RSocketClient implements RSocket {
       }
     }
 
-    for (LimitableRequestPublisher p : values1) {
+    for (LimitableRequestPublisher p : senders.values()) {
       p.cancel();
     }
   }
@@ -255,10 +241,7 @@ class RSocketClient implements RSocket {
               int streamId = streamIdSupplier.nextStreamId();
 
               UnicastProcessor<Payload> receiver = UnicastProcessor.create();
-
-              synchronized (this) {
-                receivers.put(streamId, receiver);
-              }
+              receivers.put(streamId, receiver);
 
               AtomicBoolean first = new AtomicBoolean(false);
 
@@ -289,7 +272,7 @@ class RSocketClient implements RSocket {
                       })
                   .doFinally(
                       s -> {
-                        removeReceiver(streamId);
+                        receivers.remove(streamId);
                       });
             }));
   }
@@ -304,10 +287,7 @@ class RSocketClient implements RSocket {
               payload.release();
 
               UnicastProcessor<Payload> receiver = UnicastProcessor.create();
-
-              synchronized (this) {
-                receivers.put(streamId, receiver);
-              }
+              receivers.put(streamId, receiver);
 
               sendProcessor.onNext(requestFrame);
 
@@ -317,7 +297,7 @@ class RSocketClient implements RSocket {
                   .doOnCancel(() -> sendProcessor.onNext(Frame.Cancel.from(streamId)))
                   .doFinally(
                       s -> {
-                        removeReceiver(streamId);
+                        receivers.remove(streamId);
                       });
             }));
   }
@@ -364,10 +344,8 @@ class RSocketClient implements RSocket {
                                               LimitableRequestPublisher.wrap(f);
                                           // Need to set this to one for first the frame
                                           wrapped.increaseRequestLimit(1);
-                                          synchronized (RSocketClient.this) {
-                                            senders.put(streamId, wrapped);
-                                            receivers.put(streamId, receiver);
-                                          }
+                                          senders.put(streamId, wrapped);
+                                          receivers.put(streamId, receiver);
 
                                           return wrapped;
                                         })
@@ -424,39 +402,32 @@ class RSocketClient implements RSocket {
                         })
                     .doFinally(
                         s -> {
-                          removeReceiver(streamId);
-                          removeSender(streamId);
+                          receivers.remove(streamId);
+                          senders.remove(streamId);
                         });
               }
             }));
   }
 
   private boolean contains(int streamId) {
-    synchronized (RSocketClient.this) {
-      return receivers.containsKey(streamId);
-    }
+    return receivers.containsKey(streamId);
   }
 
   protected void cleanup() {
     try {
-      Collection<UnicastProcessor<Payload>> subscribers;
-      Collection<LimitableRequestPublisher> publishers;
-      synchronized (RSocketClient.this) {
-        subscribers = receivers.values();
-        publishers = senders.values();
+      for (UnicastProcessor<Payload> subscriber: receivers.values()) {
+        cleanUpSubscriber(subscriber);
       }
-
-      subscribers.forEach(this::cleanUpSubscriber);
-      publishers.forEach(this::cleanUpLimitableRequestPublisher);
+      for (LimitableRequestPublisher p: senders.values()) {
+        cleanUpLimitableRequestPublisher(p);
+      }
 
       if (null != keepAliveSendSub) {
         keepAliveSendSub.dispose();
       }
     } finally {
-      synchronized (this) {
-        senders.clear();
-        receivers.clear();
-      }
+      senders.clear();
+      receivers.clear();
     }
   }
 
@@ -513,17 +484,14 @@ class RSocketClient implements RSocket {
   }
 
   private void handleFrame(int streamId, FrameType type, Frame frame) {
-    Subscriber<Payload> receiver;
-    synchronized (this) {
-      receiver = receivers.get(streamId);
-    }
+    Subscriber<Payload> receiver = receivers.get(streamId);
     if (receiver == null) {
       handleMissingResponseProcessor(streamId, type, frame);
     } else {
       switch (type) {
         case ERROR:
           receiver.onError(Exceptions.from(frame));
-          removeReceiver(streamId);
+          receivers.remove(streamId);
           break;
         case NEXT_COMPLETE:
           receiver.onNext(frameDecoder.apply(frame));
@@ -531,11 +499,8 @@ class RSocketClient implements RSocket {
           break;
         case CANCEL:
           {
-            LimitableRequestPublisher sender;
-            synchronized (this) {
-              sender = senders.remove(streamId);
-              removeReceiver(streamId);
-            }
+            LimitableRequestPublisher sender = senders.remove(streamId);
+            receivers.remove(streamId);
             if (sender != null) {
               sender.cancel();
             }
@@ -546,10 +511,7 @@ class RSocketClient implements RSocket {
           break;
         case REQUEST_N:
           {
-            LimitableRequestPublisher sender;
-            synchronized (this) {
-              sender = senders.get(streamId);
-            }
+            LimitableRequestPublisher sender = senders.get(streamId);
             if (sender != null) {
               int n = Frame.RequestN.requestN(frame);
               sender.increaseRequestLimit(n);
@@ -559,9 +521,7 @@ class RSocketClient implements RSocket {
           }
         case COMPLETE:
           receiver.onComplete();
-          synchronized (this) {
-            receivers.remove(streamId);
-          }
+          receivers.remove(streamId);
           break;
         default:
           throw new IllegalStateException(
@@ -592,13 +552,5 @@ class RSocketClient implements RSocket {
     }
     // receiving a frame after a given stream has been cancelled/completed,
     // so ignore (cancellation is async so there is a race condition)
-  }
-
-  private synchronized void removeReceiver(int streamId) {
-    receivers.remove(streamId);
-  }
-
-  private synchronized void removeSender(int streamId) {
-    senders.remove(streamId);
   }
 }
