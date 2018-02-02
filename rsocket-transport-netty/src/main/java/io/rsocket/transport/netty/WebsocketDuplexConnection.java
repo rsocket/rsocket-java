@@ -27,7 +27,6 @@ import io.rsocket.frame.FrameHeaderFlyweight;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import reactor.core.publisher.MonoProcessor;
 import reactor.ipc.netty.NettyContext;
 import reactor.ipc.netty.NettyInbound;
 import reactor.ipc.netty.NettyOutbound;
@@ -43,22 +42,11 @@ public class WebsocketDuplexConnection implements DuplexConnection {
   private final NettyInbound in;
   private final NettyOutbound out;
   private final NettyContext context;
-  private final MonoProcessor<Void> onClose;
 
   public WebsocketDuplexConnection(NettyInbound in, NettyOutbound out, NettyContext context) {
     this.in = in;
     this.out = out;
     this.context = context;
-    this.onClose = MonoProcessor.create();
-
-    context.onClose(onClose::onComplete);
-    this.onClose
-        .doFinally(
-            s -> {
-              this.context.dispose();
-              this.context.channel().close();
-            })
-        .subscribe();
   }
 
   @Override
@@ -87,16 +75,16 @@ public class WebsocketDuplexConnection implements DuplexConnection {
 
   @Override
   public void dispose() {
-    onClose.onComplete();
+    context.dispose();
   }
 
   @Override
   public boolean isDisposed() {
-    return onClose.isDisposed();
+    return context.isDisposed();
   }
 
   @Override
   public Mono<Void> onClose() {
-    return onClose;
+    return context.onClose();
   }
 }

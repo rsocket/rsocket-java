@@ -21,13 +21,10 @@ import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.netty.NettyDuplexConnection;
 import io.rsocket.transport.netty.RSocketLengthCodec;
 import java.net.InetSocketAddress;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Mono;
 import reactor.ipc.netty.tcp.TcpClient;
 
 public class TcpClientTransport implements ClientTransport {
-  private final Logger logger = LoggerFactory.getLogger(TcpClientTransport.class);
   private final TcpClient client;
 
   private TcpClientTransport(TcpClient client) {

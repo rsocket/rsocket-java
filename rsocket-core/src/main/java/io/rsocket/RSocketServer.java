@@ -31,8 +31,6 @@ import reactor.core.publisher.Mono;
 import reactor.core.publisher.SignalType;
 import reactor.core.publisher.UnicastProcessor;
 
-import javax.annotation.Nullable;
-import java.util.Collection;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -103,14 +101,7 @@ class RSocketServer implements RSocket {
   }
 
   private void handleSendProcessorError(Throwable t) {
-    Collection<Subscription> values;
-    Collection<UnicastProcessor<Payload>> values1;
-    synchronized (RSocketServer.this) {
-      values = sendingSubscriptions.values();
-      values1 = channelProcessors.values();
-    }
-
-    for (Subscription subscription : values) {
+    for (Subscription subscription : sendingSubscriptions.values()) {
       try {
         subscription.cancel();
       } catch (Throwable e) {
@@ -118,7 +109,7 @@ class RSocketServer implements RSocket {
       }
     }
 
-    for (UnicastProcessor subscription : values1) {
+    for (UnicastProcessor subscription : channelProcessors.values()) {
       try {
         subscription.cancel();
       } catch (Throwable e) {
@@ -131,14 +122,8 @@ class RSocketServer implements RSocket {
     if (SignalType.ON_ERROR == t) {
       return;
     }
-    Collection<Subscription> values;
-    Collection<UnicastProcessor<Payload>> values1;
-    synchronized (RSocketServer.this) {
-      values = sendingSubscriptions.values();
-      values1 = channelProcessors.values();
-    }
 
-    for (Subscription subscription : values) {
+    for (Subscription subscription : sendingSubscriptions.values()) {
       try {
         subscription.cancel();
       } catch (Throwable e) {
@@ -146,7 +131,7 @@ class RSocketServer implements RSocket {
       }
     }
 
-    for (UnicastProcessor subscription : values1) {
+    for (UnicastProcessor subscription : channelProcessors.values()) {
       try {
         subscription.cancel();
       } catch (Throwable e) {
@@ -262,25 +247,25 @@ class RSocketServer implements RSocket {
           // leases.
           return Mono.empty();
         case NEXT:
-          receiver = getChannelProcessor(streamId);
+          receiver = channelProcessors.get(streamId);
           if (receiver != null) {
             receiver.onNext(frameDecoder.apply(frame));
           }
           return Mono.empty();
         case COMPLETE:
-          receiver = getChannelProcessor(streamId);
+          receiver = channelProcessors.get(streamId);
           if (receiver != null) {
             receiver.onComplete();
           }
           return Mono.empty();
         case ERROR:
-          receiver = getChannelProcessor(streamId);
+          receiver = channelProcessors.get(streamId);
           if (receiver != null) {
             receiver.onError(new ApplicationException(Frame.Error.message(frame)));
           }
           return Mono.empty();
         case NEXT_COMPLETE:
-          receiver = getChannelProcessor(streamId);
+          receiver = channelProcessors.get(streamId);
           if (receiver != null) {
             receiver.onNext(frameDecoder.apply(frame));
             receiver.onComplete();
@@ -304,15 +289,15 @@ class RSocketServer implements RSocket {
 
   private Mono<Void> handleFireAndForget(int streamId, Mono<Void> result) {
     return result
-        .doOnSubscribe(subscription -> addSubscription(streamId, subscription))
+        .doOnSubscribe(subscription -> sendingSubscriptions.put(streamId, subscription))
         .doOnError(errorConsumer)
-        .doFinally(signalType -> removeSubscription(streamId))
+        .doFinally(signalType -> sendingSubscriptions.remove(streamId))
         .ignoreElement();
   }
 
   private Mono<Void> handleRequestResponse(int streamId, Mono<Payload> response) {
     return response
-        .doOnSubscribe(subscription -> addSubscription(streamId, subscription))
+        .doOnSubscribe(subscription -> sendingSubscriptions.put(streamId, subscription))
         .map(
             payload -> {
               int flags = FLAGS_C;
@@ -329,7 +314,7 @@ class RSocketServer implements RSocket {
         .doOnNext(sendProcessor::onNext)
         .doFinally(
             signalType -> {
-              removeSubscription(streamId);
+              sendingSubscriptions.remove(streamId);
             })
         .then();
   }
@@ -345,16 +330,14 @@ class RSocketServer implements RSocket {
         .transform(
             frameFlux -> {
               LimitableRequestPublisher<Frame> frames = LimitableRequestPublisher.wrap(frameFlux);
-              synchronized (RSocketServer.this) {
-                sendingSubscriptions.put(streamId, frames);
-              }
+              sendingSubscriptions.put(streamId, frames);
               frames.increaseRequestLimit(initialRequestN);
               return frames;
             })
         .concatWith(Mono.just(Frame.PayloadFrame.from(streamId, FrameType.COMPLETE)))
         .onErrorResume(t -> Mono.just(Frame.Error.from(streamId, t)))
         .doOnNext(sendProcessor::onNext)
-        .doFinally(signalType -> removeSubscription(streamId))
+        .doFinally(signalType -> sendingSubscriptions.remove(streamId))
         .subscribe();
 
     return Mono.empty();
@@ -362,7 +345,7 @@ class RSocketServer implements RSocket {
 
   private Mono<Void> handleChannel(int streamId, Frame firstFrame) {
     UnicastProcessor<Payload> frames = UnicastProcessor.create();
-    addChannelProcessor(streamId, frames);
+    channelProcessors.put(streamId, frames);
 
     Flux<Payload> payloads =
         frames
@@ -378,7 +361,7 @@ class RSocketServer implements RSocket {
                 l -> {
                   sendProcessor.onNext(Frame.RequestN.from(streamId, l));
                 })
-            .doFinally(signalType -> removeChannelProcessor(streamId));
+            .doFinally(signalType -> channelProcessors.remove(streamId));
 
     // not chained, as the payload should be enqueued in the Unicast processor before this method
     // returns
@@ -401,11 +384,7 @@ class RSocketServer implements RSocket {
   private Mono<Void> handleCancelFrame(int streamId) {
     return Mono.fromRunnable(
         () -> {
-          Subscription subscription;
-          synchronized (this) {
-            subscription = sendingSubscriptions.remove(streamId);
-          }
-
+          Subscription subscription = sendingSubscriptions.remove(streamId);
           if (subscription != null) {
             subscription.cancel();
           }
@@ -421,35 +400,11 @@ class RSocketServer implements RSocket {
   }
 
   private Mono<Void> handleRequestN(int streamId, Frame frame) {
-    final Subscription subscription = getSubscription(streamId);
+    final Subscription subscription = sendingSubscriptions.get(streamId);
     if (subscription != null) {
       int n = Frame.RequestN.requestN(frame);
       subscription.request(n >= Integer.MAX_VALUE ? Long.MAX_VALUE : n);
     }
     return Mono.empty();
-  }
-
-  private synchronized void addSubscription(int streamId, Subscription subscription) {
-    sendingSubscriptions.put(streamId, subscription);
-  }
-
-  private synchronized @Nullable Subscription getSubscription(int streamId) {
-    return sendingSubscriptions.get(streamId);
-  }
-
-  private synchronized void removeSubscription(int streamId) {
-    sendingSubscriptions.remove(streamId);
-  }
-
-  private synchronized void addChannelProcessor(int streamId, UnicastProcessor<Payload> processor) {
-    channelProcessors.put(streamId, processor);
-  }
-
-  private synchronized @Nullable UnicastProcessor<Payload> getChannelProcessor(int streamId) {
-    return channelProcessors.get(streamId);
-  }
-
-  private synchronized void removeChannelProcessor(int streamId) {
-    channelProcessors.remove(streamId);
   }
 }
