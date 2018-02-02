@@ -28,7 +28,8 @@ import reactor.core.publisher.Mono;
 public class FragmentationDuplexConnection implements DuplexConnection {
 
   private final DuplexConnection source;
-  private final NonBlockingHashMapLong<FrameReassembler> frameReassemblers = new NonBlockingHashMapLong<>();
+  private final NonBlockingHashMapLong<FrameReassembler> frameReassemblers =
+      new NonBlockingHashMapLong<>();
   private final FrameFragmenter frameFragmenter;
 
   public FragmentationDuplexConnection(DuplexConnection source, int mtu) {
@@ -111,9 +112,12 @@ public class FragmentationDuplexConnection implements DuplexConnection {
   private FrameReassembler getFrameReassembler(Frame frame) {
     FrameReassembler value, newValue;
     int streamId = frame.getStreamId();
-    return ((value = frameReassemblers.get(streamId)) == null &&
-        (value = frameReassemblers.putIfAbsent(streamId, newValue = new FrameReassembler(frame))) == null)
-        ? newValue : value;
+    return ((value = frameReassemblers.get(streamId)) == null
+            && (value =
+                    frameReassemblers.putIfAbsent(streamId, newValue = new FrameReassembler(frame)))
+                == null)
+        ? newValue
+        : value;
   }
 
   private FrameReassembler removeFrameReassembler(int streamId) {

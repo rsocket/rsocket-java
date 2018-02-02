@@ -43,7 +43,7 @@ import reactor.core.publisher.MonoProcessor;
  * client.
  */
 public class ClientServerInputMultiplexer implements Closeable {
-  private static final Logger logger = LoggerFactory.getLogger("io.rsocket.FrameLogger");
+  private static final Logger LOGGER = LoggerFactory.getLogger("io.rsocket.FrameLogger");
 
   private final DuplexConnection streamZeroConnection;
   private final DuplexConnection serverConnection;
@@ -100,7 +100,7 @@ public class ClientServerInputMultiplexer implements Closeable {
               }
             },
             t -> {
-              logger.error("Error receiving frame:", t);
+              LOGGER.error("test", t);
               dispose();
             });
   }
@@ -140,13 +140,13 @@ public class ClientServerInputMultiplexer implements Closeable {
     public InternalDuplexConnection(DuplexConnection source, MonoProcessor<Flux<Frame>> processor) {
       this.source = source;
       this.processor = processor;
-      this.debugEnabled = logger.isDebugEnabled();
+      this.debugEnabled = LOGGER.isDebugEnabled();
     }
 
     @Override
     public Mono<Void> send(Publisher<Frame> frame) {
       if (debugEnabled) {
-        frame = Flux.from(frame).doOnNext(f -> logger.debug("sending -> " + f.toString()));
+        frame = Flux.from(frame).doOnNext(f -> LOGGER.debug("sending -> " + f.toString()));
       }
 
       return source.send(frame);
@@ -155,7 +155,7 @@ public class ClientServerInputMultiplexer implements Closeable {
     @Override
     public Mono<Void> sendOne(Frame frame) {
       if (debugEnabled) {
-        logger.debug("sending -> " + frame.toString());
+        LOGGER.debug("sending -> " + frame.toString());
       }
 
       return source.sendOne(frame);
@@ -166,7 +166,7 @@ public class ClientServerInputMultiplexer implements Closeable {
       return processor.flatMapMany(
           f -> {
             if (debugEnabled) {
-              return f.doOnNext(frame -> logger.debug("receiving -> " + frame.toString()));
+              return f.doOnNext(frame -> LOGGER.debug("receiving -> " + frame.toString()));
             } else {
               return f;
             }

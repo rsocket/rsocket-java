@@ -29,8 +29,7 @@ public class LocalDuplexConnection implements DuplexConnection {
   private final Subscriber<Frame> out;
   private final MonoProcessor<Void> onClose;
 
-  public LocalDuplexConnection(
-      Flux<Frame> in, Subscriber<Frame> out, MonoProcessor<Void> onClose) {
+  public LocalDuplexConnection(Flux<Frame> in, Subscriber<Frame> out, MonoProcessor<Void> onClose) {
     this.in = in;
     this.out = out;
     this.onClose = onClose;

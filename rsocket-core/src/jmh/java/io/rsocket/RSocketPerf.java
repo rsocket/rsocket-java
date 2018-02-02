@@ -121,8 +121,7 @@ public class RSocketPerf {
                         }
 
                         @Override
-                        public void dispose() {
-                        }
+                        public void dispose() {}
 
                         @Override
                         public Mono<Void> onClose() {

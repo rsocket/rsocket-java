@@ -33,8 +33,7 @@ public class SetupFrameFlyweight {
   /** A flag used to indicate that the client will honor LEASE sent by the server */
   public static final int FLAGS_WILL_HONOR_LEASE = 0b00_0100_0000;
 
-  public static final int VALID_FLAGS =
-      FLAGS_RESUME_ENABLE | FLAGS_WILL_HONOR_LEASE | FLAGS_M;
+  public static final int VALID_FLAGS = FLAGS_RESUME_ENABLE | FLAGS_WILL_HONOR_LEASE | FLAGS_M;
 
   public static final int CURRENT_VERSION = VersionFlyweight.encode(1, 0);
 
