@@ -19,9 +19,8 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.rsocket.Frame;
 import io.rsocket.FrameType;
-import org.reactivestreams.Subscriber;
-
 import javax.annotation.Nullable;
+import org.reactivestreams.Subscriber;
 
 /**
  * Per connection frame flyweight.
@@ -61,9 +60,7 @@ public class FrameHeaderFlyweight {
   public static final int FLAGS_F = 0b00_1000_0000;
   /** (C)omplete: bit to indicate stream completion ({@link Subscriber#onComplete()}) */
   public static final int FLAGS_C = 0b00_0100_0000;
-  /**
-   * (N)ext: bit to indicate payload or metadata present ({@link Subscriber#onNext(Object)})
-   */
+  /** (N)ext: bit to indicate payload or metadata present ({@link Subscriber#onNext(Object)}) */
   public static final int FLAGS_N = 0b00_0010_0000;
 
   static {

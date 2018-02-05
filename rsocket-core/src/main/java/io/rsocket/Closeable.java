@@ -23,8 +23,8 @@ import reactor.core.publisher.Mono;
 public interface Closeable extends Disposable {
   /**
    * Returns a {@code Publisher} that completes when this {@code RSocket} is closed. A {@code
-   * RSocket} can be closed by explicitly calling {@link RSocket#dispose()} or when the underlying transport
-   * connection is closed.
+   * RSocket} can be closed by explicitly calling {@link RSocket#dispose()} or when the underlying
+   * transport connection is closed.
    *
    * @return A {@code Publisher} that completes when this {@code RSocket} close is complete.
    */

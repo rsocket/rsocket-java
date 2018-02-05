@@ -22,18 +22,17 @@ import io.rsocket.exceptions.Exceptions;
 import io.rsocket.internal.LimitableRequestPublisher;
 import io.rsocket.internal.UnboundedProcessor;
 import io.rsocket.util.NonBlockingHashMapLong;
-import org.reactivestreams.Publisher;
-import org.reactivestreams.Subscriber;
-import reactor.core.Disposable;
-import reactor.core.publisher.*;
-
-import javax.annotation.Nullable;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import javax.annotation.Nullable;
+import org.reactivestreams.Publisher;
+import org.reactivestreams.Subscriber;
+import reactor.core.Disposable;
+import reactor.core.publisher.*;
 
 /** Client Side of a RSocket socket. Sends {@link Frame}s to a {@link RSocketServer} */
 class RSocketClient implements RSocket {
@@ -88,36 +87,25 @@ class RSocketClient implements RSocket {
           started
               .thenMany(Flux.interval(tickPeriod))
               .doOnSubscribe(s -> timeLastTickSentMs = System.currentTimeMillis())
-              .concatMap(i -> sendKeepAlive(ackTimeoutMs, missedAcks))
-              .doOnError(
+              .subscribe(
+                  i -> sendKeepAlive(ackTimeoutMs, missedAcks),
                   t -> {
                     errorConsumer.accept(t);
                     connection.dispose();
-                  })
-              .subscribe();
+                  });
     }
 
-    connection
-        .onClose()
-        .doFinally(
-            signalType -> {
-              cleanup();
-            })
-        .doOnError(errorConsumer)
-        .subscribe();
+    connection.onClose().doFinally(signalType -> cleanup()).subscribe(null, errorConsumer);
 
     connection
         .send(sendProcessor)
-        .doOnError(this::handleSendProcessorError)
         .doFinally(this::handleSendProcessorCancel)
-        .subscribe();
+        .subscribe(null, this::handleSendProcessorError);
 
     connection
         .receive()
         .doOnSubscribe(subscription -> started.onComplete())
-        .doOnNext(this::handleIncomingFrames)
-        .doOnError(errorConsumer)
-        .subscribe();
+        .subscribe(this::handleIncomingFrames, errorConsumer);
   }
 
   private void handleSendProcessorError(Throwable t) {
@@ -152,23 +140,20 @@ class RSocketClient implements RSocket {
     }
   }
 
-  private Mono<Void> sendKeepAlive(long ackTimeoutMs, int missedAcks) {
-    return Mono.fromRunnable(
-        () -> {
-          long now = System.currentTimeMillis();
-          if (now - timeLastTickSentMs > ackTimeoutMs) {
-            int count = missedAckCounter.incrementAndGet();
-            if (count >= missedAcks) {
-              String message =
-                  String.format(
-                      "Missed %d keep-alive acks with a threshold of %d and a ack timeout of %d ms",
-                      count, missedAcks, ackTimeoutMs);
-              throw new ConnectionException(message);
-            }
-          }
+  private void sendKeepAlive(long ackTimeoutMs, int missedAcks) {
+    long now = System.currentTimeMillis();
+    if (now - timeLastTickSentMs > ackTimeoutMs) {
+      int count = missedAckCounter.incrementAndGet();
+      if (count >= missedAcks) {
+        String message =
+            String.format(
+                "Missed %d keep-alive acks with a threshold of %d and a ack timeout of %d ms",
+                count, missedAcks, ackTimeoutMs);
+        throw new ConnectionException(message);
+      }
+    }
 
-          sendProcessor.onNext(Frame.Keepalive.from(Unpooled.EMPTY_BUFFER, true));
-        });
+    sendProcessor.onNext(Frame.Keepalive.from(Unpooled.EMPTY_BUFFER, true));
   }
 
   @Override
@@ -380,14 +365,12 @@ class RSocketClient implements RSocket {
                                           }
                                         });
 
-                            requestFrames
-                                .doOnNext(sendProcessor::onNext)
-                                .doOnError(
-                                    t -> {
-                                      errorConsumer.accept(t);
-                                      receiver.dispose();
-                                    })
-                                .subscribe();
+                            requestFrames.subscribe(
+                                sendProcessor::onNext,
+                                t -> {
+                                  errorConsumer.accept(t);
+                                  receiver.dispose();
+                                });
                           } else {
                             sendOneFrame(Frame.RequestN.from(streamId, l));
                           }
@@ -415,10 +398,10 @@ class RSocketClient implements RSocket {
 
   protected void cleanup() {
     try {
-      for (UnicastProcessor<Payload> subscriber: receivers.values()) {
+      for (UnicastProcessor<Payload> subscriber : receivers.values()) {
         cleanUpSubscriber(subscriber);
       }
-      for (LimitableRequestPublisher p: senders.values()) {
+      for (LimitableRequestPublisher p : senders.values()) {
         cleanUpLimitableRequestPublisher(p);
       }
 

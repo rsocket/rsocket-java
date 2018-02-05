@@ -68,8 +68,7 @@ public class TestDuplexConnection implements DuplexConnection {
   }
 
   @Override
-  public void dispose() {
-  }
+  public void dispose() {}
 
   @Override
   public Mono<Void> onClose() {
