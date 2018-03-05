@@ -336,6 +336,7 @@ public class RSocketFactory {
           ClientServerInputMultiplexer multiplexer, Frame setupFrame) {
         int version = Frame.Setup.version(setupFrame);
         if (version != SetupFrameFlyweight.CURRENT_VERSION) {
+          setupFrame.release();
           InvalidSetupException error =
               new InvalidSetupException(
                   "Unsupported version " + VersionFlyweight.toString(version));
