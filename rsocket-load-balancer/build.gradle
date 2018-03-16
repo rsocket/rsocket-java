@@ -14,7 +14,19 @@
  * limitations under the License.
  */
 
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+    id 'com.jfrog.artifactory'
+    id 'com.jfrog.bintray'
+}
+
 dependencies {
-    compile project(':rsocket-core')
-    testCompile project(':rsocket-test')
+    implementation project(':rsocket-core')
+    implementation 'org.slf4j:slf4j-api'
+
+    testImplementation project(':rsocket-test')
+    testImplementation 'junit:junit'
+    testImplementation 'org.hamcrest:hamcrest-library'
+    testImplementation 'org.mockito:mockito-core'
 }

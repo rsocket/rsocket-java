@@ -14,9 +14,19 @@
  * limitations under the License.
  */
 
-dependencies {
-    compile project(':rsocket-core')
-    compile "io.aeron:aeron-all:1.4.1"
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+    id 'com.jfrog.artifactory'
+    id 'com.jfrog.bintray'
+}
 
-    testCompile project(':rsocket-test')
+dependencies {
+    api 'io.aeron:aeron-all'
+
+    implementation project(':rsocket-core')
+    implementation 'org.slf4j:slf4j-api'
+
+    testImplementation project(':rsocket-test')
+    testImplementation 'junit:junit'
 }

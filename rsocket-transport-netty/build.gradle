@@ -14,9 +14,18 @@
  * limitations under the License.
  */
 
-dependencies {
-    compile project(':rsocket-core')
-    compile "io.projectreactor.ipc:reactor-netty:0.7.3.RELEASE"
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+    id 'com.jfrog.artifactory'
+    id 'com.jfrog.bintray'
+}
 
-    testCompile project(':rsocket-test')
+dependencies {
+    api 'io.projectreactor.ipc:reactor-netty'
+
+    implementation project(':rsocket-core')
+
+    testImplementation project(':rsocket-test')
+    testImplementation 'junit:junit'
 }

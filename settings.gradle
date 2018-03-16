@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
-rootProject.name='rsocket'
-include 'rsocket-load-balancer'
+rootProject.name = 'rsocket-java'
+
 include 'rsocket-core'
 include 'rsocket-examples'
+include 'rsocket-load-balancer'
 include 'rsocket-spectator'
 include 'rsocket-test'
 include 'rsocket-transport-aeron'
