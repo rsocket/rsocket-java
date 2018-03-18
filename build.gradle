@@ -43,12 +43,22 @@ subprojects {
             dependency 'com.google.code.findbugs:jsr305:3.0.2'
             dependency 'com.netflix.spectator:spectator-api:0.63.0'
             dependency 'io.netty:netty-buffer:4.1.21.Final'
-            dependency 'junit:junit:4.12'
             dependency 'io.aeron:aeron-all:1.4.1'
             dependency 'org.hamcrest:hamcrest-library:1.3'
             dependency 'org.hdrhistogram:HdrHistogram:2.1.10'
             dependency 'org.mockito:mockito-core:2.16.0'
             dependency 'org.openjdk.jmh:jmh-core:1.20'
+
+            dependencySet(group: 'org.junit.jupiter', version: '5.1.0') {
+                entry 'junit-jupiter-api'
+                entry 'junit-jupiter-engine'
+            }
+
+            // TODO: Remove after JUnit5 migration
+            dependency 'junit:junit:4.12'
+            dependencySet(group: 'org.junit.vintage', version: '5.1.0') {
+                entry 'junit-vintage-engine'
+            }
 
             dependencySet(group: 'org.openjdk.jmh', version: '1.20') {
                 entry 'jmh-core'
@@ -72,6 +82,10 @@ subprojects {
 
             // TODO: Cleanup warnings so no need to exclude
             options.compilerArgs << '-Xlint:all,-overloads,-rawtypes,-unchecked'
+        }
+
+        test {
+            useJUnitPlatform()
         }
     }
 

@@ -27,7 +27,11 @@ dependencies {
     implementation project(':rsocket-core')
 
     testImplementation project(':rsocket-test')
-    testImplementation 'junit:junit'
+    testImplementation 'org.junit.jupiter:junit-jupiter-api'
+
+    // TODO: Remove after JUnit5 migration
+    testCompileOnly 'junit:junit'
+    testRuntimeOnly 'org.junit.vintage:junit-vintage-engine'
 }
 
 description = 'Reactor Netty RSocket transport implementations (TCP, Websocket)'

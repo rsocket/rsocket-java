@@ -32,9 +32,15 @@ dependencies {
     implementation 'org.slf4j:slf4j-api'
 
     testImplementation 'io.projectreactor:reactor-test'
-    testImplementation 'junit:junit'
     testImplementation 'org.hamcrest:hamcrest-library'
+    testImplementation 'org.junit.jupiter:junit-jupiter-api'
     testImplementation 'org.mockito:mockito-core'
+
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine'
+
+    // TODO: Remove after JUnit5 migration
+    testCompileOnly 'junit:junit'
+    testRuntimeOnly 'org.junit.vintage:junit-vintage-engine'
 }
 
 description = "Core functionality for the RSocket library"
