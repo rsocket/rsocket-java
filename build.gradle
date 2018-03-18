@@ -15,159 +15,106 @@
  */
 
 plugins {
-    id 'com.gradle.build-scan' version '1.9' // declare before any other plugin
+    id 'com.gradle.build-scan' version '1.12.1'
 
+    id 'com.github.johnrengelman.shadow' version '2.0.2' apply false
     id 'com.github.sherter.google-java-format' version '0.6'
-    id 'com.github.johnrengelman.shadow' version '2.0.1' apply false
-    id 'me.champeau.gradle.jmh' version '0.4.4' apply false
-    id 'io.morethan.jmhreport' version '0.6.2.1' apply false
-
-    id 'com.jfrog.artifactory' version '4.5.2'
-    id 'com.jfrog.bintray' version '1.7.3'
+    id 'com.jfrog.artifactory' version '4.7.0'
+    id 'com.jfrog.bintray' version '1.8.0'
+    id 'me.champeau.gradle.jmh' version '0.4.5' apply false
+    id 'io.spring.dependency-management' version '1.0.4.RELEASE' apply false
+    id 'io.morethan.jmhreport' version '0.7.0' apply false
 }
 
-repositories {
-    jcenter()
-}
-
-description = 'RSocket: stream oriented messaging passing with Reactive Stream semantics.'
-
-buildScan { licenseAgreementUrl = 'https://gradle.com/terms-of-service'; licenseAgree = 'yes' }
-
-googleJavaFormat {
-    toolVersion = '1.4'
+allprojects {
+    version '0.10.0.BUILD-SNAPSHOT'
 }
 
 subprojects {
-    apply plugin: 'java'
-    apply plugin: 'maven'
-    apply plugin: 'maven-publish'
-    apply plugin: 'com.jfrog.bintray'
-    apply plugin: 'com.jfrog.artifactory'
+    apply plugin: 'io.spring.dependency-management'
 
-    group = 'io.rsocket'
-    version = mavenversion
+    dependencyManagement {
+        imports {
+            // TODO: Upgrade to latest version
+            mavenBom 'io.projectreactor:reactor-bom:Bismuth-SR6'
+        }
 
-    compileJava {
-        sourceCompatibility = 1.8
-        targetCompatibility = 1.8
-        options.compilerArgs << '-Xlint:all,-overloads,-rawtypes,-unchecked'
-    }
+        dependencies {
+            dependency 'com.google.code.findbugs:jsr305:3.0.2'
+            dependency 'com.netflix.spectator:spectator-api:0.63.0'
+            dependency 'io.netty:netty-buffer:4.1.21.Final'
+            dependency 'junit:junit:4.12'
+            dependency 'io.aeron:aeron-all:1.4.1'
+            dependency 'org.hamcrest:hamcrest-library:1.3'
+            dependency 'org.hdrhistogram:HdrHistogram:2.1.10'
+            dependency 'org.mockito:mockito-core:2.16.0'
+            dependency 'org.openjdk.jmh:jmh-core:1.20'
 
-    // custom tasks for creating source/javadoc jars
-    task sourcesJar(type: Jar, dependsOn: classes) {
-        classifier = 'sources'
-        from sourceSets.main.allSource
-    }
+            dependencySet(group: 'org.openjdk.jmh', version: '1.20') {
+                entry 'jmh-core'
+                entry 'jmh-generator-annprocess'
+            }
 
-    task javadocJar(type: Jar, dependsOn: javadoc) {
-        classifier = 'javadoc'
-        from javadoc.destinationDir
-    }
-
-    tasks.bintrayUpload.dependsOn tasks.jar, tasks.sourcesJar, tasks.javadocJar
-
-    // add javadoc/source jar tasks as artifacts
-    artifacts {
-        archives sourcesJar, javadocJar, jar
+            dependencySet(group: 'org.slf4j', version: '1.7.25') {
+                entry 'slf4j-api'
+                entry 'slf4j-nop'
+            }
+        }
     }
 
     repositories {
-        jcenter()
+        mavenCentral()
     }
 
-    dependencies {
-        compile "io.projectreactor:reactor-core:3.1.3.RELEASE"
-        compile "io.netty:netty-buffer:4.1.20.Final"
-        compile "org.slf4j:slf4j-api:1.7.25"
-        compile "com.google.code.findbugs:jsr305:3.0.2"
+    plugins.withType(JavaPlugin) {
+        compileJava {
+            sourceCompatibility = 1.8
 
-        testCompile "junit:junit:4.12"
-        testCompile "org.mockito:mockito-core:2.10.0"
-        testCompile "org.hamcrest:hamcrest-library:1.3"
-        testCompile "org.slf4j:slf4j-log4j12:1.7.25"
-        testCompile "io.projectreactor:reactor-test:3.1.3.RELEASE"
-    }
-
-    publishing {
-        publications {
-            mavenJava(MavenPublication) {
-                from components.java
-
-                artifact sourcesJar {
-                    classifier "sources"
-                }
-
-                artifact javadocJar {
-                    classifier "javadoc"
-                }
-            }
+            // TODO: Cleanup warnings so no need to exclude
+            options.compilerArgs << '-Xlint:all,-overloads,-rawtypes,-unchecked'
         }
     }
 
-    artifactory {
-        publish {
-            contextUrl = 'https://oss.jfrog.org'
+    plugins.withType(JavaLibraryPlugin) {
+        task sourcesJar(type: Jar) {
+            classifier 'sources'
+            from sourceSets.main.allJava
+        }
 
-            repository {
-                repoKey = 'oss-snapshot-local' //The Artifactory repository key to publish to
-                //when using oss.jfrog.org the credentials are from Bintray. For local build we expect them to be found in
-                //~/.gradle/gradle.properties, otherwise to be set in the build server
-                // Conditionalize for the users who don't have bintray credentials setup
-                if (project.hasProperty('bintrayUser')) {
-                    username = project.property('bintrayUser')
-                    password = project.property('bintrayKey')
-                }
-            }
-
-            publications('mavenJava')
-
-            defaults {
-                // Reference to Gradle publications defined in the build script.
-                // This is how we tell the Artifactory Plugin which artifacts should be
-                // published to Artifactory.
-                publications('mavenJava')
-                publishArtifacts = true
-            }
+        task javadocJar(type: Jar, dependsOn: javadoc) {
+            classifier 'javadoc'
+            from javadoc.destinationDir
         }
     }
 
-    artifactoryPublish {
-        dependsOn jar
-    }
+    plugins.withType(MavenPublishPlugin) {
+        publishing {
+            publications {
+                maven(MavenPublication) {
+                    groupId 'io.rsocket'
 
-    bintray {
-        if (project.hasProperty('bintrayUser')) {
-            user = project.property('bintrayUser')
-            key = project.property('bintrayKey')
-        }
-        publications = ['mavenJava']
-        dryRun = false
-        publish = true
-        override = false
-        pkg {
-            repo = 'RSocket'
-            name = 'rsocket-java'
-            desc = 'RSocket'
-            websiteUrl = 'https://github.com/rsocket/rsocket-java'
-            issueTrackerUrl = 'https://github.com/rsocket/rsocket-java'
-            vcsUrl = 'https://github.com/rsocket/rsocket-java.git'
-            licenses = ['Apache-2.0']
-            githubRepo = 'rsocket/rsocket-java' //Optional Github repository
-            githubReleaseNotesFile = 'README.md' //Optional Github readme file
-            if (project.hasProperty('sonatypeUsername') && project.hasProperty('sonatypePassword')) {
-                def sonatypeUsername = project.property('sonatypeUsername')
-                def sonatypePassword = project.property('sonatypePassword')
-                version {
-                    name = "v${project.version}"
-                    vcsTag = "${project.version}"
-                    mavenCentralSync {
-                        sync = false
-                        user = sonatypeUsername
-                        password = sonatypePassword
-                    }
+                    from components.java
+
+                    artifact sourcesJar
+                    artifact javadocJar
                 }
             }
         }
     }
+}
+
+apply from: 'artifactory.gradle'
+apply from: 'bintray.gradle'
+
+buildScan {
+    termsOfServiceUrl = 'https://gradle.com/terms-of-service'
+    termsOfServiceAgree = 'yes'
+}
+
+googleJavaFormat {
+    toolVersion = '1.5'
+}
+
+repositories {
+    mavenCentral()
 }

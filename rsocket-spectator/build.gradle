@@ -14,10 +14,14 @@
  * limitations under the License.
  */
 
-dependencies {
-    compile project(':rsocket-core')
-    compile "com.netflix.spectator:spectator-api:0.57.1"
-    compile "org.hdrhistogram:HdrHistogram:2.1.9"
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+    id 'com.jfrog.artifactory'
+    id 'com.jfrog.bintray'
+}
 
-    testCompile project(':rsocket-test')
+dependencies {
+    implementation project(':rsocket-core')
+    implementation 'com.netflix.spectator:spectator-api'
 }

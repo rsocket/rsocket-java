@@ -14,12 +14,17 @@
  * limitations under the License.
  */
 
+plugins {
+    id 'java'
+}
+
 dependencies {
     compile project(':rsocket-core')
-    compile project(':rsocket-spectator')
-    compile project(':rsocket-transport-netty')
     compile project(':rsocket-transport-local')
-    compile "org.slf4j:slf4j-log4j12:1.7.25"
+    compile project(':rsocket-transport-netty')
 
     testCompile project(':rsocket-test')
+    testCompile 'junit:junit'
+    testCompile 'org.hamcrest:hamcrest-library'
+    testCompile 'org.mockito:mockito-core'
 }
