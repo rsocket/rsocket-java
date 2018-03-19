@@ -17,7 +17,7 @@
 package io.rsocket;
 
 import io.netty.buffer.Unpooled;
-import io.rsocket.exceptions.ConnectionException;
+import io.rsocket.exceptions.ConnectionErrorException;
 import io.rsocket.exceptions.Exceptions;
 import io.rsocket.internal.LimitableRequestPublisher;
 import io.rsocket.internal.UnboundedProcessor;
@@ -150,7 +150,7 @@ class RSocketClient implements RSocket {
             String.format(
                 "Missed %d keep-alive acks with a threshold of %d and a ack timeout of %d ms",
                 count, missedAcks, ackTimeoutMs);
-        throw new ConnectionException(message);
+        throw new ConnectionErrorException(message);
       }
     }
 

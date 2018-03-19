@@ -21,7 +21,6 @@ import static org.hamcrest.Matchers.instanceOf;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.client.filter.RSockets;
-import io.rsocket.exceptions.TimeoutException;
 import io.rsocket.util.EmptyPayload;
 import java.time.Duration;
 import org.hamcrest.MatcherAssert;

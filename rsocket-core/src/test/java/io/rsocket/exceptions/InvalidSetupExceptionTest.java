@@ -14,23 +14,22 @@
  * limitations under the License.
  */
 
-plugins {
-    id 'java'
+package io.rsocket.exceptions;
+
+final class InvalidSetupExceptionTest implements RSocketExceptionTest<InvalidSetupException> {
+
+  @Override
+  public InvalidSetupException getException(String message) {
+    return new InvalidSetupException(message);
+  }
+
+  @Override
+  public InvalidSetupException getException(String message, Throwable cause) {
+    return new InvalidSetupException(message, cause);
+  }
+
+  @Override
+  public int getSpecifiedErrorCode() {
+    return 0x00000001;
+  }
 }
-
-dependencies {
-    compile project(':rsocket-core')
-    compile project(':rsocket-transport-local')
-    compile project(':rsocket-transport-netty')
-
-    testCompile project(':rsocket-test')
-    testCompile 'org.junit.jupiter:junit-jupiter-api'
-    testCompile 'org.mockito:mockito-core'
-
-    // TODO: Remove after JUnit5 migration
-    testCompileOnly 'junit:junit'
-    testCompile 'org.hamcrest:hamcrest-library'
-    testRuntimeOnly 'org.junit.vintage:junit-vintage-engine'
-}
-
-description = 'Example usage of the RSocket library'

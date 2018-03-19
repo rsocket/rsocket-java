@@ -22,7 +22,7 @@ import static io.rsocket.frame.FrameHeaderFlyweight.FLAGS_M;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
-import io.rsocket.exceptions.ApplicationException;
+import io.rsocket.exceptions.ApplicationErrorException;
 import io.rsocket.internal.LimitableRequestPublisher;
 import io.rsocket.internal.UnboundedProcessor;
 import java.util.function.Consumer;
@@ -253,7 +253,7 @@ class RSocketServer implements RSocket {
         case ERROR:
           receiver = channelProcessors.get(streamId);
           if (receiver != null) {
-            receiver.onError(new ApplicationException(Frame.Error.message(frame)));
+            receiver.onError(new ApplicationErrorException(Frame.Error.message(frame)));
           }
           break;
         case NEXT_COMPLETE:

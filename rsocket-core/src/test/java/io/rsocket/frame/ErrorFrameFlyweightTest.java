@@ -44,31 +44,4 @@ public class ErrorFrameFlyweightTest {
     assertEquals(ErrorFrameFlyweight.APPLICATION_ERROR, ErrorFrameFlyweight.errorCode(byteBuf));
     assertEquals("d", ErrorFrameFlyweight.message(byteBuf));
   }
-
-  @Test
-  public void testExceptions() throws Exception {
-    assertExceptionMapping(INVALID_SETUP, InvalidSetupException.class);
-    assertExceptionMapping(UNSUPPORTED_SETUP, UnsupportedSetupException.class);
-    assertExceptionMapping(REJECTED_SETUP, RejectedSetupException.class);
-    assertExceptionMapping(REJECTED_RESUME, RejectedResumeException.class);
-    assertExceptionMapping(CONNECTION_ERROR, ConnectionException.class);
-    assertExceptionMapping(CONNECTION_CLOSE, ConnectionCloseException.class);
-    assertExceptionMapping(APPLICATION_ERROR, ApplicationException.class);
-    assertExceptionMapping(REJECTED, RejectedException.class);
-    assertExceptionMapping(CANCELED, CancelException.class);
-    assertExceptionMapping(INVALID, InvalidRequestException.class);
-  }
-
-  private <T extends Exception> void assertExceptionMapping(int errorCode, Class<T> exceptionClass)
-      throws Exception {
-    T ex = exceptionClass.getConstructor(String.class).newInstance("error data");
-    Frame f = Frame.Error.from(0, ex);
-
-    assertEquals(errorCode, Frame.Error.errorCode(f));
-
-    RuntimeException ex2 = Exceptions.from(f);
-
-    assertEquals(ex.getMessage(), ex2.getMessage());
-    assertTrue(exceptionClass.isInstance(ex2));
-  }
 }

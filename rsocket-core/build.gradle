@@ -33,7 +33,7 @@ dependencies {
     implementation 'org.slf4j:slf4j-api'
 
     testImplementation 'io.projectreactor:reactor-test'
-    testImplementation 'org.hamcrest:hamcrest-library'
+    testImplementation 'org.assertj:assertj-core'
     testImplementation 'org.junit.jupiter:junit-jupiter-api'
     testImplementation 'org.mockito:mockito-core'
 
@@ -41,6 +41,7 @@ dependencies {
 
     // TODO: Remove after JUnit5 migration
     testCompileOnly 'junit:junit'
+    testImplementation 'org.hamcrest:hamcrest-library'
     testRuntimeOnly 'org.junit.vintage:junit-vintage-engine'
 }
 

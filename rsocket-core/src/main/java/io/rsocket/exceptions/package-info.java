@@ -14,5 +14,13 @@
  * limitations under the License.
  */
 
-@javax.annotation.ParametersAreNonnullByDefault
+/**
+ * The hierarchy of exceptions that can be returned by the API
+ *
+ * @see <a href="https://github.com/rsocket/rsocket/blob/master/Protocol.md#error-codes">Error
+ *     Codes</a>
+ */
+@NonNullApi
 package io.rsocket.exceptions;
+
+import reactor.util.annotation.NonNullApi;

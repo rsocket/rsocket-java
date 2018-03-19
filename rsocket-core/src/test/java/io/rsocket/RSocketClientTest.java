@@ -29,7 +29,7 @@ import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 
-import io.rsocket.exceptions.ApplicationException;
+import io.rsocket.exceptions.ApplicationErrorException;
 import io.rsocket.exceptions.RejectedSetupException;
 import io.rsocket.frame.RequestFrameFlyweight;
 import io.rsocket.test.util.TestSubscriber;
@@ -117,9 +117,9 @@ public class RSocketClientTest {
 
     int streamId = rule.getStreamIdForRequestType(REQUEST_RESPONSE);
     rule.connection.addToReceivedBuffer(
-        Frame.Error.from(streamId, new ApplicationException("error")));
+        Frame.Error.from(streamId, new ApplicationErrorException("error")));
 
-    verify(responseSub).onError(any(ApplicationException.class));
+    verify(responseSub).onError(any(ApplicationErrorException.class));
   }
 
   @Test(timeout = 2_000)

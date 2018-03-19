@@ -16,22 +16,20 @@
 
 package io.rsocket.exceptions;
 
-import io.rsocket.frame.ErrorFrameFlyweight;
+final class CanceledExceptionTest implements RSocketExceptionTest<CanceledException> {
 
-public class ApplicationException extends RSocketException {
-
-  private static final long serialVersionUID = -8801579369150844447L;
-
-  public ApplicationException(String message) {
-    super(message);
-  }
-
-  public ApplicationException(String message, Throwable cause) {
-    super(message, cause);
+  @Override
+  public CanceledException getException(String message) {
+    return new CanceledException(message);
   }
 
   @Override
-  public int errorCode() {
-    return ErrorFrameFlyweight.APPLICATION_ERROR;
+  public CanceledException getException(String message, Throwable cause) {
+    return new CanceledException(message, cause);
+  }
+
+  @Override
+  public int getSpecifiedErrorCode() {
+    return 0x00000203;
   }
 }

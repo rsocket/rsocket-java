@@ -18,14 +18,34 @@ package io.rsocket.exceptions;
 
 import io.rsocket.frame.ErrorFrameFlyweight;
 
-public class ConnectionCloseException extends RSocketException {
+/**
+ * The connection is being terminated. Sender or Receiver of this frame MUST wait for outstanding
+ * streams to terminate before closing the connection. New requests MAY not be accepted.
+ *
+ * @see <a href="https://github.com/rsocket/rsocket/blob/master/Protocol.md#error-codes">Error
+ *     Codes</a>
+ */
+public final class ConnectionCloseException extends RSocketException {
 
-  private static final long serialVersionUID = -7659717517940756969L;
+  private static final long serialVersionUID = -2214953527482377471L;
 
+  /**
+   * Constructs a new exception with the specified message.
+   *
+   * @param message the message
+   * @throws NullPointerException if {@code message} is {@code null}
+   */
   public ConnectionCloseException(String message) {
     super(message);
   }
 
+  /**
+   * Constructs a new exception with the specified message and cause.
+   *
+   * @param message the message
+   * @param cause the cause of this exception
+   * @throws NullPointerException if {@code message} or {@code cause} is {@code null}
+   */
   public ConnectionCloseException(String message, Throwable cause) {
     super(message, cause);
   }

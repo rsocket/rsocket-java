@@ -16,16 +16,11 @@
 
 package io.rsocket.client;
 
-import static io.rsocket.util.ExceptionUtil.noStacktrace;
-
 import io.rsocket.Availability;
 import io.rsocket.Closeable;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.client.filter.RSocketSupplier;
-import io.rsocket.exceptions.NoAvailableRSocketException;
-import io.rsocket.exceptions.TimeoutException;
-import io.rsocket.exceptions.TransportException;
 import io.rsocket.stat.Ewma;
 import io.rsocket.stat.FrugalQuantile;
 import io.rsocket.stat.Median;
@@ -33,7 +28,12 @@ import io.rsocket.stat.Quantile;
 import io.rsocket.util.Clock;
 import io.rsocket.util.RSocketProxy;
 import java.nio.channels.ClosedChannelException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -640,12 +640,9 @@ public abstract class LoadBalancedRSocketMono extends Mono<RSocket>
    */
   private static class FailingRSocket implements RSocket {
 
-    @SuppressWarnings("ThrowableInstanceNeverThrown")
-    private static final NoAvailableRSocketException NO_AVAILABLE_RS_EXCEPTION =
-        noStacktrace(new NoAvailableRSocketException());
-
-    private static final Mono<Void> errorVoid = Mono.error(NO_AVAILABLE_RS_EXCEPTION);
-    private static final Mono<Payload> errorPayload = Mono.error(NO_AVAILABLE_RS_EXCEPTION);
+    private static final Mono<Void> errorVoid = Mono.error(NoAvailableRSocketException.INSTANCE);
+    private static final Mono<Payload> errorPayload =
+        Mono.error(NoAvailableRSocketException.INSTANCE);
 
     @Override
     public Mono<Void> fireAndForget(Payload payload) {

@@ -18,14 +18,35 @@ package io.rsocket.exceptions;
 
 import io.rsocket.frame.ErrorFrameFlyweight;
 
-public class RejectedException extends RSocketException implements Retryable {
+/**
+ * Despite being a valid request, the Responder decided to reject it. The Responder guarantees that
+ * it didn't process the request. The reason for the rejection is explained in the Error Data
+ * section.
+ *
+ * @see <a href="https://github.com/rsocket/rsocket/blob/master/Protocol.md#error-codes">Error
+ *     Codes</a>
+ */
+public final class RejectedException extends RSocketException implements Retryable {
 
-  private static final long serialVersionUID = 2773784636669279750L;
+  private static final long serialVersionUID = 3926231092835143715L;
 
+  /**
+   * Constructs a new exception with the specified message.
+   *
+   * @param message the message
+   * @throws NullPointerException if {@code message} is {@code null}
+   */
   public RejectedException(String message) {
     super(message);
   }
 
+  /**
+   * Constructs a new exception with the specified message and cause.
+   *
+   * @param message the message
+   * @param cause the cause of this exception
+   * @throws NullPointerException if {@code message} or {@code cause} is {@code null}
+   */
   public RejectedException(String message, Throwable cause) {
     super(message, cause);
   }

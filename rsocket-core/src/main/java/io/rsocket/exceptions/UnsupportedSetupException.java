@@ -18,14 +18,33 @@ package io.rsocket.exceptions;
 
 import io.rsocket.frame.ErrorFrameFlyweight;
 
-public class UnsupportedSetupException extends SetupException {
+/**
+ * Some (or all) of the parameters specified by the client are unsupported by the server.
+ *
+ * @see <a href="https://github.com/rsocket/rsocket/blob/master/Protocol.md#error-codes">Error
+ *     Codes</a>
+ */
+public final class UnsupportedSetupException extends SetupException {
 
-  private static final long serialVersionUID = -2533421488941132736L;
+  private static final long serialVersionUID = -1892507835635323415L;
 
+  /**
+   * Constructs a new exception with the specified message.
+   *
+   * @param message the message
+   * @throws NullPointerException if {@code message} is {@code null}
+   */
   public UnsupportedSetupException(String message) {
     super(message);
   }
 
+  /**
+   * Constructs a new exception with the specified message and cause.
+   *
+   * @param message the message
+   * @param cause the cause of this exception
+   * @throws NullPointerException if {@code message} or {@code cause} is {@code null}
+   */
   public UnsupportedSetupException(String message, Throwable cause) {
     super(message, cause);
   }

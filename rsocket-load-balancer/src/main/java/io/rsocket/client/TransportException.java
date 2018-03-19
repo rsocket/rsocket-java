@@ -14,9 +14,13 @@
  * limitations under the License.
  */
 
-package io.rsocket.exceptions;
+package io.rsocket.client;
 
-public class TimeoutException extends Exception {
+public final class TransportException extends Throwable {
 
-  private static final long serialVersionUID = -6352901497935205059L;
+  private static final long serialVersionUID = -3339846338318701123L;
+
+  public TransportException(Throwable t) {
+    super(t);
+  }
 }
