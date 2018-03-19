@@ -19,7 +19,7 @@ package io.rsocket.fragmentation;
 import io.rsocket.DuplexConnection;
 import io.rsocket.Frame;
 import io.rsocket.frame.FrameHeaderFlyweight;
-import io.rsocket.util.NonBlockingHashMapLong;
+import org.jctools.maps.NonBlockingHashMapLong;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;

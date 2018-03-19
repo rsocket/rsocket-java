@@ -25,9 +25,10 @@ import io.netty.buffer.Unpooled;
 import io.rsocket.exceptions.ApplicationException;
 import io.rsocket.internal.LimitableRequestPublisher;
 import io.rsocket.internal.UnboundedProcessor;
-import io.rsocket.util.NonBlockingHashMapLong;
 import java.util.function.Consumer;
 import java.util.function.Function;
+
+import org.jctools.maps.NonBlockingHashMapLong;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;

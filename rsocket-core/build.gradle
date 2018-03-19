@@ -29,12 +29,33 @@ dependencies {
     api 'io.projectreactor:reactor-core'
 
     implementation 'com.google.code.findbugs:jsr305'
+    implementation 'org.jctools:jctools-core'
     implementation 'org.slf4j:slf4j-api'
 
     testImplementation 'io.projectreactor:reactor-test'
     testImplementation 'junit:junit'
     testImplementation 'org.hamcrest:hamcrest-library'
     testImplementation 'org.mockito:mockito-core'
+}
+
+jar {
+    enabled = false
+    dependsOn(shadowJar { classifier = null })
+}
+
+shadowJar {
+    dependencies {
+        include(dependency('org.jctools:jctools-core'))
+    }
+
+    include '*.jar'
+    include 'io/rsocket/**'
+    include 'org/jctools/maps/ConcurrentAutoTable*.class'
+    include 'org/jctools/maps/NonBlockingHashMapLong*.class'
+    include 'org/jctools/util/RangeUtil*.class'
+    include 'org/jctools/util/UnsafeAccess*.class'
+
+    relocate 'org.jctools', 'io.rsocket.shadowed.org.jctools'
 }
 
 description = "Core functionality for the RSocket library"
