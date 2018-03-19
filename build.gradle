@@ -97,6 +97,29 @@ subprojects {
 
                     artifact sourcesJar
                     artifact javadocJar
+
+                    pom.withXml {
+                        asNode().':version' + {
+                            resolveStrategy = DELEGATE_FIRST
+
+                            name project.name
+                            description project.description
+                            url 'http://rsocket.io'
+
+                            licenses {
+                                license {
+                                    name 'The Apache Software License, Version 2.0'
+                                    url 'http://www.apache.org/license/LICENSE-2.0.txt'
+                                }
+                            }
+
+                            scm {
+                                connection 'scm:git:https://github.com/rsocket/rsocket-java.git'
+                                developerConnection 'scm:git:https://github.com/rsocket/rsocket-java.git'
+                                url 'https://github.com/rsocket/rsocket-java'
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -110,6 +133,8 @@ buildScan {
     termsOfServiceUrl = 'https://gradle.com/terms-of-service'
     termsOfServiceAgree = 'yes'
 }
+
+description = 'RSocket: Stream Oriented Messaging Passing with Reactive Stream Semantics.'
 
 googleJavaFormat {
     toolVersion = '1.5'

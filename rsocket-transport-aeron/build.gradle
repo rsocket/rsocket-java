@@ -30,3 +30,5 @@ dependencies {
     testImplementation project(':rsocket-test')
     testImplementation 'junit:junit'
 }
+
+description = 'Aeron RSocket transport implementation'

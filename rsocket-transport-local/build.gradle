@@ -27,3 +27,5 @@ dependencies {
     testImplementation project(':rsocket-test')
     testImplementation 'junit:junit'
 }
+
+description = 'Local RSocket transport implementation'

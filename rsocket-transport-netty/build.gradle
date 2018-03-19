@@ -29,3 +29,5 @@ dependencies {
     testImplementation project(':rsocket-test')
     testImplementation 'junit:junit'
 }
+
+description = 'Reactor Netty RSocket transport implementations (TCP, Websocket)'
