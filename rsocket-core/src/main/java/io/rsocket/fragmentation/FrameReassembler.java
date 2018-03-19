@@ -20,8 +20,8 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.PooledByteBufAllocator;
 import io.rsocket.Frame;
-import io.rsocket.FrameType;
 import io.rsocket.frame.FrameHeaderFlyweight;
+import io.rsocket.framing.FrameType;
 import reactor.core.Disposable;
 
 /** Assembles Fragmented frames. */

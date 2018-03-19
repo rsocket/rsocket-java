@@ -19,6 +19,7 @@ package io.rsocket;
 import io.netty.buffer.Unpooled;
 import io.rsocket.exceptions.ConnectionErrorException;
 import io.rsocket.exceptions.Exceptions;
+import io.rsocket.framing.FrameType;
 import io.rsocket.internal.LimitableRequestPublisher;
 import io.rsocket.internal.UnboundedProcessor;
 import java.time.Duration;
@@ -164,7 +165,7 @@ class RSocketClient implements RSocket {
             () -> {
               final int streamId = streamIdSupplier.nextStreamId();
               final Frame requestFrame =
-                  Frame.Request.from(streamId, FrameType.FIRE_AND_FORGET, payload, 1);
+                  Frame.Request.from(streamId, FrameType.REQUEST_FNF, payload, 1);
               payload.release();
               sendProcessor.onNext(requestFrame);
             });

@@ -39,14 +39,6 @@ import org.junit.jupiter.api.Test;
 
 final class ExceptionsTest {
 
-  @DisplayName("from throws NullPointerException with null frame")
-  @Test
-  void fromWithNullFrame() {
-    assertThatNullPointerException()
-        .isThrownBy(() -> Exceptions.from(null))
-        .withMessage("frame must not be null");
-  }
-
   @DisplayName("from returns ApplicationErrorException")
   @Test
   void fromApplicationException() {
@@ -85,6 +77,16 @@ final class ExceptionsTest {
     assertThat(Exceptions.from(Frame.from(byteBuf)))
         .isInstanceOf(ConnectionErrorException.class)
         .withFailMessage("test-message");
+  }
+
+  @DisplayName("from returns IllegalArgumentException if error frame has illegal error code")
+  @Test
+  void fromIllegalErrorFrame() {
+    ByteBuf byteBuf = createErrorFrame(0x00000000, "test-message");
+
+    assertThat(Exceptions.from(Frame.from(byteBuf)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .withFailMessage("Invalid Error frame: %d, '%s'", 0, "test-message");
   }
 
   @DisplayName("from returns InvalidException")
@@ -147,14 +149,12 @@ final class ExceptionsTest {
         .withFailMessage("test-message");
   }
 
-  @DisplayName("from returns IllegalArgumentException if error frame has illegal error code")
+  @DisplayName("from throws NullPointerException with null frame")
   @Test
-  void fromIllegalErrorFrame() {
-    ByteBuf byteBuf = createErrorFrame(0x00000000, "test-message");
-
-    assertThat(Exceptions.from(Frame.from(byteBuf)))
-        .isInstanceOf(IllegalArgumentException.class)
-        .withFailMessage("Invalid Error frame: %d, '%s'", 0, "test-message");
+  void fromWithNullFrame() {
+    assertThatNullPointerException()
+        .isThrownBy(() -> Exceptions.from(null))
+        .withMessage("frame must not be null");
   }
 
   private ByteBuf createErrorFrame(int errorCode, String message) {

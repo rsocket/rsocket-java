@@ -16,7 +16,8 @@
 
 package io.rsocket.exceptions;
 
-final class ApplicationErrorExceptionTest implements RSocketExceptionTest<ApplicationErrorException> {
+final class ApplicationErrorExceptionTest
+    implements RSocketExceptionTest<ApplicationErrorException> {
 
   @Override
   public ApplicationErrorException getException(String message) {

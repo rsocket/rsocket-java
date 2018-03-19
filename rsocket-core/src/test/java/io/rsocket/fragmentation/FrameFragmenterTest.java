@@ -17,7 +17,7 @@
 package io.rsocket.fragmentation;
 
 import io.rsocket.Frame;
-import io.rsocket.FrameType;
+import io.rsocket.framing.FrameType;
 import io.rsocket.util.DefaultPayload;
 import java.nio.ByteBuffer;
 import java.util.concurrent.ThreadLocalRandom;

@@ -17,7 +17,7 @@
 package io.rsocket.frame;
 
 import io.netty.buffer.ByteBuf;
-import io.rsocket.FrameType;
+import io.rsocket.framing.FrameType;
 
 public class KeepaliveFrameFlyweight {
   /**

@@ -23,6 +23,7 @@ import io.netty.buffer.Unpooled;
 import io.netty.util.AbstractReferenceCounted;
 import io.rsocket.Frame.Setup;
 import io.rsocket.frame.SetupFrameFlyweight;
+import io.rsocket.framing.FrameType;
 
 /**
  * Exposed to server for determination of RequestHandler based on mime types and SETUP metadata/data

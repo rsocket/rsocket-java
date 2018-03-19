@@ -16,7 +16,7 @@
 
 package io.rsocket.exceptions;
 
-import io.rsocket.frame.ErrorFrameFlyweight;
+import io.rsocket.framing.ErrorType;
 
 /**
  * The connection is being terminated. Sender or Receiver of this frame MUST wait for outstanding
@@ -52,6 +52,6 @@ public final class ConnectionCloseException extends RSocketException {
 
   @Override
   public int errorCode() {
-    return ErrorFrameFlyweight.CONNECTION_CLOSE;
+    return ErrorType.CONNECTION_CLOSE;
   }
 }

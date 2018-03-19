@@ -21,7 +21,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import io.rsocket.Frame;
-import io.rsocket.FrameType;
+import io.rsocket.framing.FrameType;
 import io.rsocket.util.DefaultPayload;
 import org.junit.Test;
 
@@ -38,7 +38,7 @@ public class ResumeUtilTest {
     assertTrue(ResumeUtil.isTracked(FrameType.REQUEST_N));
     assertTrue(ResumeUtil.isTracked(FrameType.CANCEL));
     assertTrue(ResumeUtil.isTracked(FrameType.ERROR));
-    assertTrue(ResumeUtil.isTracked(FrameType.FIRE_AND_FORGET));
+    assertTrue(ResumeUtil.isTracked(FrameType.REQUEST_FNF));
     assertTrue(ResumeUtil.isTracked(FrameType.PAYLOAD));
   }
 

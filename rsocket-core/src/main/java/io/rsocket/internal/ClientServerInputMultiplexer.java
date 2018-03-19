@@ -19,7 +19,7 @@ package io.rsocket.internal;
 import io.rsocket.Closeable;
 import io.rsocket.DuplexConnection;
 import io.rsocket.Frame;
-import io.rsocket.FrameType;
+import io.rsocket.framing.FrameType;
 import io.rsocket.plugins.DuplexConnectionInterceptor.Type;
 import io.rsocket.plugins.PluginRegistry;
 import org.reactivestreams.Publisher;

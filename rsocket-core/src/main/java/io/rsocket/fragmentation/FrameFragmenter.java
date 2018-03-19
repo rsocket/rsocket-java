@@ -19,8 +19,8 @@ package io.rsocket.fragmentation;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.rsocket.Frame;
-import io.rsocket.FrameType;
 import io.rsocket.frame.FrameHeaderFlyweight;
+import io.rsocket.framing.FrameType;
 import java.util.function.Consumer;
 import javax.annotation.Nullable;
 import reactor.core.publisher.Flux;
@@ -40,7 +40,7 @@ public class FrameFragmenter {
 
   private boolean isFragmentableFrame(FrameType type) {
     switch (type) {
-      case FIRE_AND_FORGET:
+      case REQUEST_FNF:
       case REQUEST_STREAM:
       case REQUEST_CHANNEL:
       case REQUEST_RESPONSE:

@@ -16,7 +16,7 @@
 
 package io.rsocket.exceptions;
 
-import io.rsocket.frame.ErrorFrameFlyweight;
+import io.rsocket.framing.ErrorType;
 
 /**
  * Some (or all) of the parameters specified by the client are unsupported by the server.
@@ -51,6 +51,6 @@ public final class UnsupportedSetupException extends SetupException {
 
   @Override
   public int errorCode() {
-    return ErrorFrameFlyweight.UNSUPPORTED_SETUP;
+    return ErrorType.UNSUPPORTED_SETUP;
   }
 }

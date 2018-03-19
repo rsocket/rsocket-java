@@ -24,7 +24,7 @@ import static org.mockito.Mockito.when;
 
 import io.rsocket.DuplexConnection;
 import io.rsocket.Frame;
-import io.rsocket.FrameType;
+import io.rsocket.framing.FrameType;
 import io.rsocket.util.DefaultPayload;
 import java.nio.ByteBuffer;
 import java.util.concurrent.ThreadLocalRandom;

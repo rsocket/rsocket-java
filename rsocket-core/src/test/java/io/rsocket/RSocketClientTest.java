@@ -16,7 +16,7 @@
 
 package io.rsocket;
 
-import static io.rsocket.FrameType.*;
+import static io.rsocket.framing.FrameType.*;
 import static io.rsocket.test.util.TestSubscriber.anyPayload;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
@@ -32,6 +32,7 @@ import static org.mockito.Mockito.verify;
 import io.rsocket.exceptions.ApplicationErrorException;
 import io.rsocket.exceptions.RejectedSetupException;
 import io.rsocket.frame.RequestFrameFlyweight;
+import io.rsocket.framing.FrameType;
 import io.rsocket.test.util.TestSubscriber;
 import io.rsocket.util.DefaultPayload;
 import io.rsocket.util.EmptyPayload;

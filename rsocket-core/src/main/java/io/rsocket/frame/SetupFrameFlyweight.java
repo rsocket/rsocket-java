@@ -20,7 +20,7 @@ import static io.rsocket.frame.FrameHeaderFlyweight.FLAGS_M;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
-import io.rsocket.FrameType;
+import io.rsocket.framing.FrameType;
 import java.nio.charset.StandardCharsets;
 
 public class SetupFrameFlyweight {

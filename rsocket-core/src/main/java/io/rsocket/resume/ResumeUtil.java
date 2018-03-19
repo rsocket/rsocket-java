@@ -17,7 +17,7 @@
 package io.rsocket.resume;
 
 import io.rsocket.Frame;
-import io.rsocket.FrameType;
+import io.rsocket.framing.FrameType;
 import io.rsocket.frame.FrameHeaderFlyweight;
 
 public class ResumeUtil {
@@ -26,7 +26,7 @@ public class ResumeUtil {
       case REQUEST_CHANNEL:
       case REQUEST_STREAM:
       case REQUEST_RESPONSE:
-      case FIRE_AND_FORGET:
+      case REQUEST_FNF:
         // case METADATA_PUSH:
       case REQUEST_N:
       case CANCEL:

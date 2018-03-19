@@ -40,6 +40,7 @@ subprojects {
         }
 
         dependencies {
+            dependency 'ch.qos.logback:logback-classic:1.2.3'
             dependency 'com.google.code.findbugs:jsr305:3.0.2'
             dependency 'com.netflix.spectator:spectator-api:0.63.0'
             dependency 'io.netty:netty-buffer:4.1.21.Final'
@@ -49,6 +50,7 @@ subprojects {
             dependency 'org.jctools:jctools-core:2.1.2'
             dependency 'org.mockito:mockito-core:2.16.0'
             dependency 'org.openjdk.jmh:jmh-core:1.20'
+            dependency 'org.slf4j:slf4j-api:1.7.25'
 
             dependencySet(group: 'org.junit.jupiter', version: '5.1.0') {
                 entry 'junit-jupiter-api'
@@ -66,11 +68,6 @@ subprojects {
                 entry 'jmh-core'
                 entry 'jmh-generator-annprocess'
             }
-
-            dependencySet(group: 'org.slf4j', version: '1.7.25') {
-                entry 'slf4j-api'
-                entry 'slf4j-nop'
-            }
         }
     }
 
@@ -84,6 +81,14 @@ subprojects {
 
             // TODO: Cleanup warnings so no need to exclude
             options.compilerArgs << '-Xlint:all,-overloads,-rawtypes,-unchecked'
+        }
+
+        javadoc {
+            options.with {
+                links 'https://docs.oracle.com/javase/8/docs/api/'
+                links 'https://projectreactor.io/docs/core/release/api/'
+                links 'https://netty.io/4.1/api/'
+            }
         }
 
         test {

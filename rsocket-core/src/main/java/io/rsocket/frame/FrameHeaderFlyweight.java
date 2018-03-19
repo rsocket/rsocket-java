@@ -19,7 +19,7 @@ package io.rsocket.frame;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.rsocket.Frame;
-import io.rsocket.FrameType;
+import io.rsocket.framing.FrameType;
 import javax.annotation.Nullable;
 import org.reactivestreams.Subscriber;
 
@@ -187,7 +187,7 @@ public class FrameHeaderFlyweight {
 
   public static FrameType frameType(final ByteBuf byteBuf) {
     int typeAndFlags = byteBuf.getShort(FRAME_TYPE_AND_FLAGS_FIELD_OFFSET);
-    FrameType result = FrameType.from(typeAndFlags >> FRAME_TYPE_SHIFT);
+    FrameType result = FrameType.fromEncodedType(typeAndFlags >> FRAME_TYPE_SHIFT);
 
     if (FrameType.PAYLOAD == result) {
       final int flags = typeAndFlags & FRAME_FLAGS_MASK;
@@ -327,7 +327,7 @@ public class FrameHeaderFlyweight {
 
   private static int payloadOffset(final ByteBuf byteBuf) {
     int typeAndFlags = byteBuf.getShort(FRAME_TYPE_AND_FLAGS_FIELD_OFFSET);
-    FrameType frameType = FrameType.from(typeAndFlags >> FRAME_TYPE_SHIFT);
+    FrameType frameType = FrameType.fromEncodedType(typeAndFlags >> FRAME_TYPE_SHIFT);
     int result = PAYLOAD_OFFSET;
 
     switch (frameType) {
@@ -344,7 +344,7 @@ public class FrameHeaderFlyweight {
         result = KeepaliveFrameFlyweight.payloadOffset(byteBuf);
         break;
       case REQUEST_RESPONSE:
-      case FIRE_AND_FORGET:
+      case REQUEST_FNF:
       case REQUEST_STREAM:
       case REQUEST_CHANNEL:
         result = RequestFrameFlyweight.payloadOffset(frameType, byteBuf);
