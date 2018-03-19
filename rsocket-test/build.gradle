@@ -22,8 +22,11 @@ dependencies {
     api 'org.hdrhistogram:HdrHistogram'
 
     implementation project(':rsocket-core')
-    implementation 'junit:junit'
+    implementation 'org.junit.jupiter:junit-jupiter-api'
     implementation 'org.mockito:mockito-core'
+
+    // TODO: Remove after JUnit5 migration
+    implementation 'junit:junit'
 }
 
 description = 'Test utilities for RSocket projects'
