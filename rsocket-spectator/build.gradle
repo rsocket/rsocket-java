@@ -25,3 +25,5 @@ dependencies {
     implementation project(':rsocket-core')
     implementation 'com.netflix.spectator:spectator-api'
 }
+
+description = 'Transparent Metrics exposure to Spectator'

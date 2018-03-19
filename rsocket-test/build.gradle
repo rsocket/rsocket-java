@@ -25,3 +25,5 @@ dependencies {
     implementation 'junit:junit'
     implementation 'org.mockito:mockito-core'
 }
+
+description = 'Test utilities for RSocket projects'

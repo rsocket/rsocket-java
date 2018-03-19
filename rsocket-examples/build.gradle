@@ -28,3 +28,5 @@ dependencies {
     testCompile 'org.hamcrest:hamcrest-library'
     testCompile 'org.mockito:mockito-core'
 }
+
+description = 'Example usage of the RSocket library'

@@ -37,4 +37,6 @@ dependencies {
     testImplementation 'org.mockito:mockito-core'
 }
 
+description = "Core functionality for the RSocket library"
+
 apply from: 'jmh.gradle'

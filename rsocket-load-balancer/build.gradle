@@ -30,3 +30,5 @@ dependencies {
     testImplementation 'org.hamcrest:hamcrest-library'
     testImplementation 'org.mockito:mockito-core'
 }
+
+description = 'Transparent Load Balancer for RSocket'
