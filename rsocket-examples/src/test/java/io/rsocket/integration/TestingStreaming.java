@@ -17,7 +17,7 @@
 package io.rsocket.integration;
 
 import io.rsocket.*;
-import io.rsocket.exceptions.ApplicationException;
+import io.rsocket.exceptions.ApplicationErrorException;
 import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.ServerTransport;
 import io.rsocket.transport.local.LocalClientTransport;
@@ -36,7 +36,7 @@ public class TestingStreaming {
 
   private Supplier<ClientTransport> clientSupplier = () -> LocalClientTransport.create("test");
 
-  @Test(expected = ApplicationException.class)
+  @Test(expected = ApplicationErrorException.class)
   public void testRangeButThrowException() {
     Closeable server = null;
     try {

@@ -16,17 +16,41 @@
 
 package io.rsocket.exceptions;
 
+import java.util.Objects;
+import reactor.util.annotation.Nullable;
+
+/** The root of the RSocket exception hierarchy. */
 public abstract class RSocketException extends RuntimeException {
 
   private static final long serialVersionUID = 2912815394105575423L;
 
+  /**
+   * Constructs a new exception with the specified message.
+   *
+   * @param message the message
+   * @throws NullPointerException if {@code message} is {@code null}
+   */
   public RSocketException(String message) {
-    super(message);
+    super(Objects.requireNonNull(message, "message must not be null"));
   }
 
-  public RSocketException(String message, Throwable cause) {
-    super(message, cause);
+  /**
+   * Constructs a new exception with the specified message and cause.
+   *
+   * @param message the message
+   * @param cause the cause of this exception
+   * @throws NullPointerException if {@code message} is {@code null}
+   */
+  public RSocketException(String message, @Nullable Throwable cause) {
+    super(Objects.requireNonNull(message, "message must not be null"), cause);
   }
 
+  /**
+   * Returns the RSocket <a
+   * href="https://github.com/rsocket/rsocket/blob/master/Protocol.md#error-codes">error code</a>
+   * represented by this exception
+   *
+   * @return the RSocket error code
+   */
   public abstract int errorCode();
 }

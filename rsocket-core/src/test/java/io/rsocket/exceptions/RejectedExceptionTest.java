@@ -16,7 +16,20 @@
 
 package io.rsocket.exceptions;
 
-public class NoAvailableRSocketException extends Exception {
+final class RejectedExceptionTest implements RSocketExceptionTest<RejectedException> {
 
-  private static final long serialVersionUID = 7608370678694273507L;
+  @Override
+  public RejectedException getException(String message) {
+    return new RejectedException(message);
+  }
+
+  @Override
+  public RejectedException getException(String message, Throwable cause) {
+    return new RejectedException(message, cause);
+  }
+
+  @Override
+  public int getSpecifiedErrorCode() {
+    return 0x00000202;
+  }
 }

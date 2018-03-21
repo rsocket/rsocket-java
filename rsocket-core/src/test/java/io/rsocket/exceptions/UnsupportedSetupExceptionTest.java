@@ -16,22 +16,21 @@
 
 package io.rsocket.exceptions;
 
-import io.rsocket.frame.ErrorFrameFlyweight;
+final class UnsupportedSetupExceptionTest
+    implements RSocketExceptionTest<UnsupportedSetupException> {
 
-public class ConnectionException extends RSocketException implements Retryable {
-
-  private static final long serialVersionUID = -6565180364631212778L;
-
-  public ConnectionException(String message) {
-    super(message);
-  }
-
-  public ConnectionException(String message, Throwable cause) {
-    super(message, cause);
+  @Override
+  public UnsupportedSetupException getException(String message) {
+    return new UnsupportedSetupException(message);
   }
 
   @Override
-  public int errorCode() {
-    return ErrorFrameFlyweight.CONNECTION_ERROR;
+  public UnsupportedSetupException getException(String message, Throwable cause) {
+    return new UnsupportedSetupException(message, cause);
+  }
+
+  @Override
+  public int getSpecifiedErrorCode() {
+    return 0x00000002;
   }
 }

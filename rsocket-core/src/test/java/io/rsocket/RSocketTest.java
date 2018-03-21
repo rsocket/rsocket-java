@@ -21,7 +21,7 @@ import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 
-import io.rsocket.exceptions.ApplicationException;
+import io.rsocket.exceptions.ApplicationErrorException;
 import io.rsocket.test.util.LocalDuplexConnection;
 import io.rsocket.test.util.TestSubscriber;
 import io.rsocket.util.DefaultPayload;
@@ -65,7 +65,7 @@ public class RSocketTest {
         });
     Subscriber<Payload> subscriber = TestSubscriber.create();
     rule.crs.requestResponse(EmptyPayload.INSTANCE).subscribe(subscriber);
-    verify(subscriber).onError(any(ApplicationException.class));
+    verify(subscriber).onError(any(ApplicationErrorException.class));
 
     // Client sees error through normal API
     rule.assertNoClientErrors();

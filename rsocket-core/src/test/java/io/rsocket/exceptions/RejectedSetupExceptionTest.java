@@ -14,14 +14,22 @@
  * limitations under the License.
  */
 
-package io.rsocket.util;
+package io.rsocket.exceptions;
 
-public class ExceptionUtil {
-  public static <T extends Throwable> T noStacktrace(T ex) {
-    ex.setStackTrace(
-        new StackTraceElement[] {
-          new StackTraceElement(ex.getClass().getName(), "<init>", null, -1)
-        });
-    return ex;
+final class RejectedSetupExceptionTest implements RSocketExceptionTest<RejectedSetupException> {
+
+  @Override
+  public RejectedSetupException getException(String message) {
+    return new RejectedSetupException(message);
+  }
+
+  @Override
+  public RejectedSetupException getException(String message, Throwable cause) {
+    return new RejectedSetupException(message, cause);
+  }
+
+  @Override
+  public int getSpecifiedErrorCode() {
+    return 0x00000003;
   }
 }

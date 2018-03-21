@@ -16,29 +16,49 @@
 
 package io.rsocket.exceptions;
 
-import static io.rsocket.frame.ErrorFrameFlyweight.*;
+import static io.rsocket.frame.ErrorFrameFlyweight.APPLICATION_ERROR;
+import static io.rsocket.frame.ErrorFrameFlyweight.CANCELED;
+import static io.rsocket.frame.ErrorFrameFlyweight.CONNECTION_CLOSE;
+import static io.rsocket.frame.ErrorFrameFlyweight.CONNECTION_ERROR;
+import static io.rsocket.frame.ErrorFrameFlyweight.INVALID;
+import static io.rsocket.frame.ErrorFrameFlyweight.INVALID_SETUP;
+import static io.rsocket.frame.ErrorFrameFlyweight.REJECTED;
+import static io.rsocket.frame.ErrorFrameFlyweight.REJECTED_RESUME;
+import static io.rsocket.frame.ErrorFrameFlyweight.REJECTED_SETUP;
+import static io.rsocket.frame.ErrorFrameFlyweight.UNSUPPORTED_SETUP;
 
 import io.rsocket.Frame;
+import java.util.Objects;
 
-public class Exceptions {
+/** Utility class that generates an exception from a frame. */
+public final class Exceptions {
 
   private Exceptions() {}
 
+  /**
+   * Create a {@link RSocketException} from a {@link Frame} that matches the error code it contains.
+   *
+   * @param frame the frame to retrieve the error code and message from
+   * @return a {@link RSocketException} that matches the error code in the {@link Frame}
+   * @throws NullPointerException if {@code frame} is {@code null}
+   */
   public static RuntimeException from(Frame frame) {
-    final int errorCode = Frame.Error.errorCode(frame);
+    Objects.requireNonNull(frame, "frame must not be null");
 
+    int errorCode = Frame.Error.errorCode(frame);
     String message = frame.getDataUtf8();
+
     switch (errorCode) {
       case APPLICATION_ERROR:
-        return new ApplicationException(message);
+        return new ApplicationErrorException(message);
       case CANCELED:
-        return new CancelException(message);
+        return new CanceledException(message);
       case CONNECTION_CLOSE:
         return new ConnectionCloseException(message);
       case CONNECTION_ERROR:
-        return new ConnectionException(message);
+        return new ConnectionErrorException(message);
       case INVALID:
-        return new InvalidRequestException(message);
+        return new InvalidException(message);
       case INVALID_SETUP:
         return new InvalidSetupException(message);
       case REJECTED:
@@ -50,8 +70,8 @@ public class Exceptions {
       case UNSUPPORTED_SETUP:
         return new UnsupportedSetupException(message);
       default:
-        return new InvalidRequestException(
-            "Invalid Error frame: " + errorCode + " '" + message + "'");
+        return new IllegalArgumentException(
+            String.format("Invalid Error frame: %d '%s'", errorCode, message));
     }
   }
 }

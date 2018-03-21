@@ -18,14 +18,34 @@ package io.rsocket.exceptions;
 
 import io.rsocket.frame.ErrorFrameFlyweight;
 
-public class InvalidSetupException extends SetupException {
+/**
+ * The Setup frame is invalid for the server (it could be that the client is too recent for the old
+ * server).
+ *
+ * @see <a href="https://github.com/rsocket/rsocket/blob/master/Protocol.md#error-codes">Error
+ *     Codes</a>
+ */
+public final class InvalidSetupException extends SetupException {
 
-  private static final long serialVersionUID = -6685677299580579050L;
+  private static final long serialVersionUID = -6816210006610385251L;
 
+  /**
+   * Constructs a new exception with the specified message.
+   *
+   * @param message the message
+   * @throws NullPointerException if {@code message} is {@code null}
+   */
   public InvalidSetupException(String message) {
     super(message);
   }
 
+  /**
+   * Constructs a new exception with the specified message and cause.
+   *
+   * @param message the message
+   * @param cause the cause of this exception
+   * @throws NullPointerException if {@code message} or {@code cause} is {@code null}
+   */
   public InvalidSetupException(String message, Throwable cause) {
     super(message, cause);
   }

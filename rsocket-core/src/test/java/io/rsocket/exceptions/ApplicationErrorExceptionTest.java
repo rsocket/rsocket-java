@@ -16,22 +16,20 @@
 
 package io.rsocket.exceptions;
 
-import io.rsocket.frame.ErrorFrameFlyweight;
+final class ApplicationErrorExceptionTest implements RSocketExceptionTest<ApplicationErrorException> {
 
-public class InvalidRequestException extends RSocketException {
-
-  private static final long serialVersionUID = 812240443606264942L;
-
-  public InvalidRequestException(String message) {
-    super(message);
-  }
-
-  public InvalidRequestException(String message, Throwable cause) {
-    super(message, cause);
+  @Override
+  public ApplicationErrorException getException(String message) {
+    return new ApplicationErrorException(message);
   }
 
   @Override
-  public int errorCode() {
-    return ErrorFrameFlyweight.INVALID;
+  public ApplicationErrorException getException(String message, Throwable cause) {
+    return new ApplicationErrorException(message, cause);
+  }
+
+  @Override
+  public int getSpecifiedErrorCode() {
+    return 0x00000201;
   }
 }

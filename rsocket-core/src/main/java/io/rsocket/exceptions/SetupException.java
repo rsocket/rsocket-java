@@ -16,14 +16,28 @@
 
 package io.rsocket.exceptions;
 
+/** The root of the setup exception hierarchy. */
 public abstract class SetupException extends RSocketException {
 
   private static final long serialVersionUID = -2928269501877732756L;
 
+  /**
+   * Constructs a new exception with the specified message.
+   *
+   * @param message the message
+   * @throws NullPointerException if {@code message} is {@code null}
+   */
   public SetupException(String message) {
     super(message);
   }
 
+  /**
+   * Constructs a new exception with the specified message and cause.
+   *
+   * @param message the message
+   * @param cause the cause of this exception
+   * @throws NullPointerException if {@code message} or {@code cause} is {@code null}
+   */
   public SetupException(String message, Throwable cause) {
     super(message, cause);
   }

@@ -18,14 +18,33 @@ package io.rsocket.exceptions;
 
 import io.rsocket.frame.ErrorFrameFlyweight;
 
-public class RejectedSetupException extends SetupException implements Retryable {
+/**
+ * The server rejected the setup, it can specify the reason in the payload.
+ *
+ * @see <a href="https://github.com/rsocket/rsocket/blob/master/Protocol.md#error-codes">Error
+ *     Codes</a>
+ */
+public final class RejectedSetupException extends SetupException implements Retryable {
 
-  private static final long serialVersionUID = -4932830657505898008L;
+  private static final long serialVersionUID = 8757401529926371738L;
 
+  /**
+   * Constructs a new exception with the specified message.
+   *
+   * @param message the message
+   * @throws NullPointerException if {@code message} is {@code null}
+   */
   public RejectedSetupException(String message) {
     super(message);
   }
 
+  /**
+   * Constructs a new exception with the specified message and cause.
+   *
+   * @param message the message
+   * @param cause the cause of this exception
+   * @throws NullPointerException if {@code message} or {@code cause} is {@code null}
+   */
   public RejectedSetupException(String message, Throwable cause) {
     super(message, cause);
   }

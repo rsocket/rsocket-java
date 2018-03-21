@@ -19,14 +19,15 @@ package io.rsocket.exceptions;
 import io.rsocket.frame.ErrorFrameFlyweight;
 
 /**
- * The server rejected the resume, it can specify the reason in the payload.
+ * The connection is being terminated. Sender or Receiver of this frame MAY close the connection
+ * immediately without waiting for outstanding streams to terminate.
  *
  * @see <a href="https://github.com/rsocket/rsocket/blob/master/Protocol.md#error-codes">Error
  *     Codes</a>
  */
-public final class RejectedResumeException extends RSocketException {
+public final class ConnectionErrorException extends RSocketException implements Retryable {
 
-  private static final long serialVersionUID = -873684362478544811L;
+  private static final long serialVersionUID = 512325887785119744L;
 
   /**
    * Constructs a new exception with the specified message.
@@ -34,7 +35,7 @@ public final class RejectedResumeException extends RSocketException {
    * @param message the message
    * @throws NullPointerException if {@code message} is {@code null}
    */
-  public RejectedResumeException(String message) {
+  public ConnectionErrorException(String message) {
     super(message);
   }
 
@@ -45,12 +46,12 @@ public final class RejectedResumeException extends RSocketException {
    * @param cause the cause of this exception
    * @throws NullPointerException if {@code message} or {@code cause} is {@code null}
    */
-  public RejectedResumeException(String message, Throwable cause) {
+  public ConnectionErrorException(String message, Throwable cause) {
     super(message, cause);
   }
 
   @Override
   public int errorCode() {
-    return ErrorFrameFlyweight.REJECTED_RESUME;
+    return ErrorFrameFlyweight.CONNECTION_ERROR;
   }
 }
