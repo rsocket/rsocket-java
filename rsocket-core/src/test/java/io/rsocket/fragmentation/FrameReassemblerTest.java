@@ -16,126 +16,124 @@
 
 package io.rsocket.fragmentation;
 
-import io.rsocket.Frame;
-import io.rsocket.framing.FrameType;
-import io.rsocket.util.DefaultPayload;
-import java.nio.ByteBuffer;
-import java.util.concurrent.ThreadLocalRandom;
-import org.junit.Test;
+import static io.netty.buffer.UnpooledByteBufAllocator.DEFAULT;
+import static io.rsocket.fragmentation.FrameReassembler.createFrameReassembler;
+import static io.rsocket.framing.PayloadFrame.createPayloadFrame;
+import static io.rsocket.framing.RequestStreamFrame.createRequestStreamFrame;
+import static io.rsocket.framing.TestFrames.createTestCancelFrame;
+import static io.rsocket.test.util.ByteBufUtils.getRandomByteBuf;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
-/** */
-public class FrameReassemblerTest {
+import io.netty.buffer.ByteBuf;
+import io.rsocket.framing.CancelFrame;
+import io.rsocket.framing.PayloadFrame;
+import io.rsocket.framing.RequestStreamFrame;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+
+final class FrameReassemblerTest {
+
+  @DisplayName("createFrameReassembler throws NullPointerException")
   @Test
-  public void testAppend() {
-    ByteBuffer data = createRandomBytes(16);
-    ByteBuffer metadata = createRandomBytes(16);
-
-    Frame from =
-        Frame.Request.from(
-            1024, FrameType.REQUEST_RESPONSE, DefaultPayload.create(data, metadata), 1);
-    FrameFragmenter frameFragmenter = new FrameFragmenter(2);
-    FrameReassembler reassembler = new FrameReassembler(from);
-    frameFragmenter.fragment(from).subscribe(reassembler::append);
+  void createFrameReassemblerNullByteBufAllocator() {
+    assertThatNullPointerException()
+        .isThrownBy(() -> createFrameReassembler(null))
+        .withMessage("byteBufAllocator must not be null");
   }
 
-  private ByteBuffer createRandomBytes(int size) {
-    byte[] bytes = new byte[size];
-    ThreadLocalRandom.current().nextBytes(bytes);
-    return ByteBuffer.wrap(bytes);
-  }
-  /*
-      ByteBuffer data = createRandomBytes(16);
-      ByteBuffer metadata = createRandomBytes(16);
-
-      Frame from = Frame.Request.from(1024, FrameType.REQUEST_RESPONSE, DefaultPayload.create(data, metadata), 1);
-
-      FrameFragmenter frameFragmenter = new FrameFragmenter(2);
-
-      FrameReassembler reassembler = new FrameReassembler(2);
-
-      frameFragmenter
-          .fragment(from)
-          .log()
-          .doOnNext(reassembler::append)
-          .blockLast();
-
-      Frame reassemble = reassembler.reassemble();
-
-      Assert.assertEquals(reassemble.getStreamId(), from.getStreamId());
-      Assert.assertEquals(reassemble.getType(), from.getType());
-
-      ByteBuffer reassembleData = reassemble.getData();
-      ByteBuffer reassembleMetadata = reassemble.getMetadata();
-
-      Assert.assertTrue(reassembleData.hasRemaining());
-      Assert.assertTrue(reassembleMetadata.hasRemaining());
-
-      while (reassembleData.hasRemaining()) {
-          Assert.assertEquals(reassembleData.get(), data.get());
-      }
-
-      while (reassembleMetadata.hasRemaining()) {
-          Assert.assertEquals(reassembleMetadata.get(), metadata.get());
-      }
-  }
-
+  @DisplayName("reassembles data")
   @Test
-  public void testReassmembleAndClear() {
-      ByteBuffer data = createRandomBytes(16);
-      ByteBuffer metadata = createRandomBytes(16);
+  void reassembleData() {
+    ByteBuf data = getRandomByteBuf(6);
 
-      Frame request = Frame.Request.from(1024, FrameType.REQUEST_RESPONSE, DefaultPayload.createdata, metadata), 1);
+    RequestStreamFrame frame = createRequestStreamFrame(DEFAULT, false, 1, null, data);
 
-      FrameFragmenter frameFragmenter = new FrameFragmenter(2);
+    RequestStreamFrame fragment1 =
+        createRequestStreamFrame(DEFAULT, true, 1, null, data.slice(0, 2));
 
-      FrameReassembler reassembler = new FrameReassembler(2);
+    PayloadFrame fragment2 = createPayloadFrame(DEFAULT, true, false, null, data.slice(2, 2));
 
-      Iterable<ByteBuf> fragments = frameFragmenter
-          .fragment(request)
-          .log()
-          .map(frame -> frame.content().copy())
-          .toIterable();
+    PayloadFrame fragment3 = createPayloadFrame(DEFAULT, false, false, null, data.slice(4, 2));
 
-      fragments
-          .forEach(f -> ByteBufUtil.prettyHexDump(f));
+    FrameReassembler frameReassembler = createFrameReassembler(DEFAULT);
 
-
-      for (int i = 0; i < 5; i++) {
-          for (ByteBuf frame : fragments) {
-              reassembler
-                  .append(Frame.from(frame));
-          }
-
-          Frame reassemble = reassembler.reassemble();
-
-          Assert.assertEquals(reassemble.getStreamId(), request.getStreamId());
-          Assert.assertEquals(reassemble.getType(), reassemble.getType());
-
-          ByteBuffer reassembleData = reassemble.getData();
-          ByteBuffer reassembleMetadata = reassemble.getMetadata();
-
-          Assert.assertTrue(reassembleData.hasRemaining());
-          Assert.assertTrue(reassembleMetadata.hasRemaining());
-
-          while (reassembleData.hasRemaining()) {
-              Assert.assertEquals(reassembleData.get(), data.get());
-          }
-
-          while (reassembleMetadata.hasRemaining()) {
-              Assert.assertEquals(reassembleMetadata.get(), metadata.get());
-          }
-
-      }
+    assertThat(frameReassembler.reassemble(fragment1)).isNull();
+    assertThat(frameReassembler.reassemble(fragment2)).isNull();
+    assertThat(frameReassembler.reassemble(fragment3)).isEqualTo(frame);
   }
 
+  @DisplayName("reassembles metadata")
   @Test
-  public void substring() {
-      String s = "1234567890";
-      String substring = s.substring(0, 5);
-      System.out.println(substring);
-      String substring1 = s.substring(5, 10);
-      System.out.println(substring1);
+  void reassembleMetadata() {
+    ByteBuf metadata = getRandomByteBuf(6);
+
+    RequestStreamFrame frame = createRequestStreamFrame(DEFAULT, false, 1, metadata, null);
+
+    RequestStreamFrame fragment1 =
+        createRequestStreamFrame(DEFAULT, true, 1, metadata.slice(0, 2), null);
+
+    PayloadFrame fragment2 = createPayloadFrame(DEFAULT, true, true, metadata.slice(2, 2), null);
+
+    PayloadFrame fragment3 = createPayloadFrame(DEFAULT, false, true, metadata.slice(4, 2), null);
+
+    FrameReassembler frameReassembler = createFrameReassembler(DEFAULT);
+
+    assertThat(frameReassembler.reassemble(fragment1)).isNull();
+    assertThat(frameReassembler.reassemble(fragment2)).isNull();
+    assertThat(frameReassembler.reassemble(fragment3)).isEqualTo(frame);
   }
 
-  */
+  @DisplayName("reassembles metadata and data")
+  @Test
+  void reassembleMetadataAndData() {
+    ByteBuf metadata = getRandomByteBuf(5);
+    ByteBuf data = getRandomByteBuf(5);
+
+    RequestStreamFrame frame = createRequestStreamFrame(DEFAULT, false, 1, metadata, data);
+
+    RequestStreamFrame fragment1 =
+        createRequestStreamFrame(DEFAULT, true, 1, metadata.slice(0, 2), null);
+
+    PayloadFrame fragment2 = createPayloadFrame(DEFAULT, true, true, metadata.slice(2, 2), null);
+
+    PayloadFrame fragment3 =
+        createPayloadFrame(DEFAULT, true, false, metadata.slice(4, 1), data.slice(0, 1));
+
+    PayloadFrame fragment4 = createPayloadFrame(DEFAULT, true, false, null, data.slice(1, 2));
+
+    PayloadFrame fragment5 = createPayloadFrame(DEFAULT, false, false, null, data.slice(3, 2));
+
+    FrameReassembler frameReassembler = createFrameReassembler(DEFAULT);
+
+    assertThat(frameReassembler.reassemble(fragment1)).isNull();
+    assertThat(frameReassembler.reassemble(fragment2)).isNull();
+    assertThat(frameReassembler.reassemble(fragment3)).isNull();
+    assertThat(frameReassembler.reassemble(fragment4)).isNull();
+    assertThat(frameReassembler.reassemble(fragment5)).isEqualTo(frame);
+  }
+
+  @DisplayName("does not reassemble a non-fragment frame")
+  @Test
+  void reassembleNonFragment() {
+    PayloadFrame frame = createPayloadFrame(DEFAULT, false, true, (ByteBuf) null, null);
+
+    assertThat(createFrameReassembler(DEFAULT).reassemble(frame)).isEqualTo(frame);
+  }
+
+  @DisplayName("does not reassemble non fragmentable frame")
+  @Test
+  void reassembleNonFragmentableFrame() {
+    CancelFrame frame = createTestCancelFrame();
+
+    assertThat(createFrameReassembler(DEFAULT).reassemble(frame)).isEqualTo(frame);
+  }
+
+  @DisplayName("reassemble throws NullPointerException with null frame")
+  @Test
+  void reassembleNullFrame() {
+    assertThatNullPointerException()
+        .isThrownBy(() -> createFrameReassembler(DEFAULT).reassemble(null))
+        .withMessage("frame must not be null");
+  }
 }
