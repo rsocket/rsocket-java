@@ -15,7 +15,7 @@ Learn more at http://rsocket.io
 
 ## Build and Binaries
 
-<a href='https://travis-ci.org/rsocket/rsocket-java/builds'><img src='https://travis-ci.org/rsocket/rsocket-java.svg?branch=1.0.x'></a>
+[![Build Status](https://travis-ci.org/rsocket/rsocket-java.svg?branch=1.0.x)](https://travis-ci.org/rsocket/rsocket-java)
 
 Snapshots are available via JFrog.
 
