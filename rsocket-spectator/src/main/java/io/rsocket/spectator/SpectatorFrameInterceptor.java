@@ -20,7 +20,7 @@ import com.netflix.spectator.api.Counter;
 import com.netflix.spectator.api.Registry;
 import io.rsocket.DuplexConnection;
 import io.rsocket.Frame;
-import io.rsocket.FrameType;
+import io.rsocket.framing.FrameType;
 import io.rsocket.plugins.DuplexConnectionInterceptor;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
@@ -44,7 +44,7 @@ public class SpectatorFrameInterceptor implements DuplexConnectionInterceptor {
       Counter errorCounter = registry.counter(FrameType.ERROR.name(), type.name());
       Counter extCounter = registry.counter(FrameType.EXT.name(), type.name());
       Counter fireAndForgetCounter =
-          registry.counter(FrameType.FIRE_AND_FORGET.name(), type.name());
+          registry.counter(FrameType.REQUEST_FNF.name(), type.name());
       Counter keepAliveCounter = registry.counter(FrameType.KEEPALIVE.name(), type.name());
       Counter leaseCounter = registry.counter(FrameType.LEASE.name(), type.name());
       Counter metadataPushCounter = registry.counter(FrameType.METADATA_PUSH.name(), type.name());
@@ -58,7 +58,7 @@ public class SpectatorFrameInterceptor implements DuplexConnectionInterceptor {
       Counter resumeCounter = registry.counter(FrameType.RESUME.name(), type.name());
       Counter resumeOkCounter = registry.counter(FrameType.RESUME_OK.name(), type.name());
       Counter setupCounter = registry.counter(FrameType.SETUP.name(), type.name());
-      Counter undefinedCounter = registry.counter(FrameType.UNDEFINED.name(), type.name());
+      Counter undefinedCounter = registry.counter(FrameType.RESERVED.name(), type.name());
 
       @Override
       public Mono<Void> send(Publisher<Frame> frame) {
@@ -116,7 +116,7 @@ public class SpectatorFrameInterceptor implements DuplexConnectionInterceptor {
           case EXT:
             extCounter.increment();
             break;
-          case FIRE_AND_FORGET:
+          case REQUEST_FNF:
             fireAndForgetCounter.increment();
             break;
           case KEEPALIVE:
@@ -155,7 +155,7 @@ public class SpectatorFrameInterceptor implements DuplexConnectionInterceptor {
           case SETUP:
             setupCounter.increment();
             break;
-          case UNDEFINED:
+          case RESERVED:
           default:
             undefinedCounter.increment();
             break;

@@ -23,7 +23,7 @@ import static org.junit.Assert.*;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
-import io.rsocket.FrameType;
+import io.rsocket.framing.FrameType;
 import org.junit.Test;
 
 public class FrameHeaderFlyweightTest {
@@ -119,7 +119,7 @@ public class FrameHeaderFlyweightTest {
 
   @Test
   public void typeAndFlag() {
-    FrameType frameType = FrameType.FIRE_AND_FORGET;
+    FrameType frameType = FrameType.REQUEST_FNF;
     int flags = 0b1110110111;
     FrameHeaderFlyweight.encode(
         byteBuf, 0, flags, frameType, Unpooled.EMPTY_BUFFER, Unpooled.EMPTY_BUFFER);
@@ -144,7 +144,7 @@ public class FrameHeaderFlyweightTest {
   public void missingMetadataLength() {
     for (FrameType frameType : FrameType.values()) {
       switch (frameType) {
-        case UNDEFINED:
+        case RESERVED:
           break;
         case CANCEL:
         case METADATA_PUSH:

@@ -24,12 +24,6 @@ import org.junit.jupiter.api.Test;
 
 interface RSocketExceptionTest<T extends RSocketException> {
 
-  T getException(String message);
-
-  T getException(String message, Throwable cause);
-
-  int getSpecifiedErrorCode();
-
   @DisplayName("constructor throws NullPointerException with null message")
   @Test
   default void constructorWithNullMessage() {
@@ -51,4 +45,10 @@ interface RSocketExceptionTest<T extends RSocketException> {
   default void errorCodeReturnsSpecifiedValue() {
     assertThat(getException("test-message").errorCode()).isEqualTo(getSpecifiedErrorCode());
   }
+
+  T getException(String message, Throwable cause);
+
+  T getException(String message);
+
+  int getSpecifiedErrorCode();
 }

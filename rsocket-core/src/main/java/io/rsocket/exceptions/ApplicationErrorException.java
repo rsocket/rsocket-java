@@ -16,7 +16,7 @@
 
 package io.rsocket.exceptions;
 
-import io.rsocket.frame.ErrorFrameFlyweight;
+import io.rsocket.framing.ErrorType;
 
 /**
  * Application layer logic generating a Reactive Streams {@code onError} event.
@@ -51,6 +51,6 @@ public final class ApplicationErrorException extends RSocketException {
 
   @Override
   public int errorCode() {
-    return ErrorFrameFlyweight.APPLICATION_ERROR;
+    return ErrorType.APPLICATION_ERROR;
   }
 }

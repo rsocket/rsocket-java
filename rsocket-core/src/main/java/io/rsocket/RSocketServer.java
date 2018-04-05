@@ -23,6 +23,7 @@ import static io.rsocket.frame.FrameHeaderFlyweight.FLAGS_M;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.rsocket.exceptions.ApplicationErrorException;
+import io.rsocket.framing.FrameType;
 import io.rsocket.internal.LimitableRequestPublisher;
 import io.rsocket.internal.UnboundedProcessor;
 import java.util.function.Consumer;
@@ -207,7 +208,7 @@ class RSocketServer implements RSocket {
       int streamId = frame.getStreamId();
       Subscriber<Payload> receiver;
       switch (frame.getType()) {
-        case FIRE_AND_FORGET:
+        case REQUEST_FNF:
           handleFireAndForget(streamId, fireAndForget(frameDecoder.apply(frame)));
           break;
         case REQUEST_RESPONSE:

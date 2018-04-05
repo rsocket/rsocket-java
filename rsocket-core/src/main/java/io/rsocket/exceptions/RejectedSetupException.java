@@ -16,7 +16,7 @@
 
 package io.rsocket.exceptions;
 
-import io.rsocket.frame.ErrorFrameFlyweight;
+import io.rsocket.framing.ErrorType;
 
 /**
  * The server rejected the setup, it can specify the reason in the payload.
@@ -51,6 +51,6 @@ public final class RejectedSetupException extends SetupException implements Retr
 
   @Override
   public int errorCode() {
-    return ErrorFrameFlyweight.REJECTED_SETUP;
+    return ErrorType.REJECTED_SETUP;
   }
 }

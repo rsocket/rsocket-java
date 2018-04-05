@@ -16,7 +16,7 @@
 
 package io.rsocket.exceptions;
 
-import io.rsocket.frame.ErrorFrameFlyweight;
+import io.rsocket.framing.ErrorType;
 
 /**
  * The request is invalid.
@@ -51,6 +51,6 @@ public final class InvalidException extends RSocketException {
 
   @Override
   public int errorCode() {
-    return ErrorFrameFlyweight.INVALID;
+    return ErrorType.INVALID;
   }
 }

@@ -16,7 +16,7 @@
 
 package io.rsocket.exceptions;
 
-import io.rsocket.frame.ErrorFrameFlyweight;
+import io.rsocket.framing.ErrorType;
 
 /**
  * Despite being a valid request, the Responder decided to reject it. The Responder guarantees that
@@ -53,6 +53,6 @@ public final class RejectedException extends RSocketException implements Retryab
 
   @Override
   public int errorCode() {
-    return ErrorFrameFlyweight.REJECTED;
+    return ErrorType.REJECTED;
   }
 }

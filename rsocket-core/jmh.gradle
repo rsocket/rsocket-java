@@ -16,11 +16,9 @@
 
 dependencies {
     jmh configurations.api
+    jmh configurations.implementation
     jmh 'org.openjdk.jmh:jmh-core'
     jmh 'org.openjdk.jmh:jmh-generator-annprocess'
-
-    jmhRuntime 'org.openjdk.jmh:jmh-core'
-    jmhRuntime 'org.slf4j:slf4j-nop'
 }
 
 jmhCompileGeneratedClasses.enabled = false
@@ -36,7 +34,6 @@ jmh {
 
 jmhJar {
     from project.configurations.jmh
-    from project.configurations.jmhRuntime
 }
 
 tasks.jmh.finalizedBy tasks.jmhReport

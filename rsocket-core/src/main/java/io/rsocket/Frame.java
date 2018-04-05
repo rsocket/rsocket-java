@@ -31,7 +31,9 @@ import io.rsocket.frame.RequestFrameFlyweight;
 import io.rsocket.frame.RequestNFrameFlyweight;
 import io.rsocket.frame.SetupFrameFlyweight;
 import io.rsocket.frame.VersionFlyweight;
+import io.rsocket.framing.FrameType;
 import java.nio.charset.StandardCharsets;
+import java.util.Objects;
 import javax.annotation.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -500,7 +502,7 @@ public class Frame implements Payload, ByteBufHolder {
         case REQUEST_RESPONSE:
           result = 1;
           break;
-        case FIRE_AND_FORGET:
+        case REQUEST_FNF:
         case METADATA_PUSH:
           result = 0;
           break;
@@ -598,6 +600,23 @@ public class Frame implements Payload, ByteBufHolder {
     if (typeInFrame != frameType) {
       throw new AssertionError("expected " + frameType + ", but saw" + typeInFrame);
     }
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) {
+      return true;
+    }
+    if (!(o instanceof Frame)) {
+      return false;
+    }
+    final Frame frame = (Frame) o;
+    return Objects.equals(content, frame.content);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(content);
   }
 
   @Override

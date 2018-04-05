@@ -16,7 +16,7 @@
 
 package io.rsocket.exceptions;
 
-import io.rsocket.frame.ErrorFrameFlyweight;
+import io.rsocket.framing.ErrorType;
 
 /**
  * The Responder canceled the request but may have started processing it (similar to REJECTED but
@@ -52,6 +52,6 @@ public final class CanceledException extends RSocketException {
 
   @Override
   public int errorCode() {
-    return ErrorFrameFlyweight.CANCELED;
+    return ErrorType.CANCELED;
   }
 }

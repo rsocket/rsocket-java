@@ -19,7 +19,7 @@ package io.rsocket.resume;
 import static org.junit.Assert.assertEquals;
 
 import io.rsocket.Frame;
-import io.rsocket.FrameType;
+import io.rsocket.framing.FrameType;
 import io.rsocket.util.DefaultPayload;
 import org.junit.Test;
 import reactor.core.publisher.Flux;

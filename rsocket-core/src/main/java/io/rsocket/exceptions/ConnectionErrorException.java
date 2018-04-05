@@ -16,7 +16,7 @@
 
 package io.rsocket.exceptions;
 
-import io.rsocket.frame.ErrorFrameFlyweight;
+import io.rsocket.framing.ErrorType;
 
 /**
  * The connection is being terminated. Sender or Receiver of this frame MAY close the connection
@@ -52,6 +52,6 @@ public final class ConnectionErrorException extends RSocketException implements 
 
   @Override
   public int errorCode() {
-    return ErrorFrameFlyweight.CONNECTION_ERROR;
+    return ErrorType.CONNECTION_ERROR;
   }
 }

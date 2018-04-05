@@ -18,7 +18,7 @@ package io.rsocket.frame;
 
 import io.netty.buffer.ByteBuf;
 import io.rsocket.Frame;
-import io.rsocket.FrameType;
+import io.rsocket.framing.FrameType;
 import javax.annotation.Nullable;
 
 public class RequestFrameFlyweight {

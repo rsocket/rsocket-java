@@ -21,7 +21,7 @@ import static org.junit.Assert.*;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
-import io.rsocket.FrameType;
+import io.rsocket.framing.FrameType;
 import java.nio.charset.StandardCharsets;
 import org.junit.Test;
 

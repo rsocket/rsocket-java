@@ -14,5 +14,14 @@
  * limitations under the License.
  */
 
-@javax.annotation.ParametersAreNonnullByDefault
+/**
+ * Support for frame fragmentation and reassembly.
+ *
+ * @see <a
+ *     href="https://github.com/rsocket/rsocket/blob/master/Protocol.md#fragmentation-and-reassembly">Fragmentation
+ *     and Reassembly</a>
+ */
+@NonNullApi
 package io.rsocket.fragmentation;
+
+import reactor.util.annotation.NonNullApi;

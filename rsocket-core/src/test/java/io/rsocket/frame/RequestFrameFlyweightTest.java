@@ -23,7 +23,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
 import io.rsocket.Frame;
-import io.rsocket.FrameType;
+import io.rsocket.framing.FrameType;
 import io.rsocket.Payload;
 import io.rsocket.util.DefaultPayload;
 import java.nio.charset.StandardCharsets;

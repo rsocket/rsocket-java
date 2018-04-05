@@ -16,120 +16,188 @@
 
 package io.rsocket.fragmentation;
 
+import static io.rsocket.framing.PayloadFrame.createPayloadFrame;
+import static io.rsocket.util.DisposableUtil.disposeQuietly;
+import static java.lang.Math.min;
+
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
-import io.rsocket.Frame;
-import io.rsocket.FrameType;
-import io.rsocket.frame.FrameHeaderFlyweight;
-import java.util.function.Consumer;
-import javax.annotation.Nullable;
+import io.netty.buffer.ByteBufAllocator;
+import io.rsocket.framing.FragmentableFrame;
+import io.rsocket.framing.Frame;
+import java.util.Objects;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.SynchronousSink;
+import reactor.util.annotation.Nullable;
 
-public class FrameFragmenter {
-  private final int mtu;
+/**
+ * The implementation of the RSocket fragmentation behavior.
+ *
+ * @see <a
+ *     href="https://github.com/rsocket/rsocket/blob/master/Protocol.md#fragmentation-and-reassembly">Fragmentation
+ *     and Reassembly</a>
+ */
+final class FrameFragmenter {
 
-  public FrameFragmenter(int mtu) {
-    this.mtu = mtu;
+  private final ByteBufAllocator byteBufAllocator;
+
+  private final Logger logger = LoggerFactory.getLogger(this.getClass());
+
+  private final int maxFragmentSize;
+
+  /**
+   * Creates a new instance
+   *
+   * @param byteBufAllocator the {@link ByteBufAllocator} to use
+   * @param maxFragmentSize the maximum size of each fragment
+   */
+  FrameFragmenter(ByteBufAllocator byteBufAllocator, int maxFragmentSize) {
+    this.byteBufAllocator =
+        Objects.requireNonNull(byteBufAllocator, "byteBufAllocator must not be null");
+    this.maxFragmentSize = maxFragmentSize;
   }
 
-  public boolean shouldFragment(Frame frame) {
-    return isFragmentableFrame(frame.getType())
-        && FrameHeaderFlyweight.payloadLength(frame.content()) > mtu;
-  }
-
-  private boolean isFragmentableFrame(FrameType type) {
-    switch (type) {
-      case FIRE_AND_FORGET:
-      case REQUEST_STREAM:
-      case REQUEST_CHANNEL:
-      case REQUEST_RESPONSE:
-      case PAYLOAD:
-      case NEXT_COMPLETE:
-      case METADATA_PUSH:
-        return true;
-      default:
-        return false;
-    }
-  }
-
+  /**
+   * Returns a {@link Flux} of fragments frames
+   *
+   * @param frame the {@link Frame} to fragment
+   * @return a {@link Flux} of fragment frames
+   * @throws NullPointerException if {@code frame} is {@code null}
+   */
   public Flux<Frame> fragment(Frame frame) {
+    Objects.requireNonNull(frame, "frame must not be null");
 
-    return Flux.generate(new FragmentGenerator(frame));
+    if (!shouldFragment(frame)) {
+      logger.debug("Not fragmenting {}", frame);
+      return Flux.just(frame);
+    }
+
+    logger.debug("Fragmenting {}", frame);
+    return Flux.generate(
+        () -> new FragmentationState((FragmentableFrame) frame),
+        this::generate,
+        FragmentationState::dispose);
   }
 
-  private class FragmentGenerator implements Consumer<SynchronousSink<Frame>> {
-    private final Frame frame;
-    private final int streamId;
-    private final FrameType frameType;
-    private final int flags;
+  private FragmentationState generate(FragmentationState state, SynchronousSink<Frame> sink) {
+    int fragmentLength = maxFragmentSize;
 
-    private ByteBuf data;
-    private @Nullable ByteBuf metadata;
+    ByteBuf metadata;
+    if (state.hasReadableMetadata()) {
+      metadata = state.readMetadataFragment(fragmentLength);
+      fragmentLength -= metadata.readableBytes();
+    } else {
+      metadata = null;
+    }
 
-    public FragmentGenerator(Frame frame) {
-      this.frame = frame.retain();
-      this.streamId = frame.getStreamId();
-      this.frameType = frame.getType();
-      this.flags = frame.flags() & ~FrameHeaderFlyweight.FLAGS_M;
-      metadata =
-          frame.hasMetadata() ? FrameHeaderFlyweight.sliceFrameMetadata(frame.content()) : null;
-      data = FrameHeaderFlyweight.sliceFrameData(frame.content());
+    if (state.hasReadableMetadata()) {
+      Frame fragment = state.createFrame(byteBufAllocator, false, metadata, null);
+      logger.debug("Fragment {}", fragment);
+
+      sink.next(fragment);
+      return state;
+    }
+
+    ByteBuf data;
+    data = state.hasReadableData() ? state.readDataFragment(fragmentLength) : null;
+
+    if (state.hasReadableData()) {
+      Frame fragment = state.createFrame(byteBufAllocator, false, metadata, data);
+      logger.debug("Fragment {}", fragment);
+
+      sink.next(fragment);
+      return state;
+    }
+
+    Frame fragment = state.createFrame(byteBufAllocator, true, metadata, data);
+    logger.debug("Final Fragment {}", fragment);
+
+    sink.next(fragment);
+    sink.complete();
+    return state;
+  }
+
+  private int getFragmentableLength(FragmentableFrame fragmentableFrame) {
+    return fragmentableFrame.getMetadataLength().orElse(0) + fragmentableFrame.getDataLength();
+  }
+
+  private boolean shouldFragment(Frame frame) {
+    if (!(frame instanceof FragmentableFrame)) {
+      return false;
+    }
+
+    FragmentableFrame fragmentableFrame = (FragmentableFrame) frame;
+    return !fragmentableFrame.isFollowsFlagSet()
+        && getFragmentableLength(fragmentableFrame) > maxFragmentSize;
+  }
+
+  static final class FragmentationState implements Disposable {
+
+    private final FragmentableFrame frame;
+
+    private int dataIndex = 0;
+
+    private boolean initialFragmentCreated = false;
+
+    private int metadataIndex = 0;
+
+    FragmentationState(FragmentableFrame frame) {
+      this.frame = frame;
     }
 
     @Override
-    public void accept(SynchronousSink<Frame> sink) {
-      final int dataLength = data.readableBytes();
+    public void dispose() {
+      disposeQuietly(frame);
+    }
 
-      if (metadata != null) {
-        final int metadataLength = metadata.readableBytes();
+    Frame createFrame(
+        ByteBufAllocator byteBufAllocator,
+        boolean complete,
+        @Nullable ByteBuf metadata,
+        @Nullable ByteBuf data) {
 
-        if (metadataLength > mtu) {
-          sink.next(
-              Frame.PayloadFrame.from(
-                  streamId,
-                  frameType,
-                  metadata.readSlice(mtu),
-                  Unpooled.EMPTY_BUFFER,
-                  flags | FrameHeaderFlyweight.FLAGS_M | FrameHeaderFlyweight.FLAGS_F));
-        } else {
-          if (dataLength > mtu - metadataLength) {
-            sink.next(
-                Frame.PayloadFrame.from(
-                    streamId,
-                    frameType,
-                    metadata.readSlice(metadataLength),
-                    data.readSlice(mtu - metadataLength),
-                    flags | FrameHeaderFlyweight.FLAGS_M | FrameHeaderFlyweight.FLAGS_F));
-          } else {
-            sink.next(
-                Frame.PayloadFrame.from(
-                    streamId,
-                    frameType,
-                    metadata.readSlice(metadataLength),
-                    data.readSlice(dataLength),
-                    flags | FrameHeaderFlyweight.FLAGS_M));
-            frame.release();
-            sink.complete();
-          }
-        }
+      if (initialFragmentCreated) {
+        return createPayloadFrame(byteBufAllocator, !complete, data == null, metadata, data);
       } else {
-        if (dataLength > mtu) {
-          sink.next(
-              Frame.PayloadFrame.from(
-                  streamId,
-                  frameType,
-                  Unpooled.EMPTY_BUFFER,
-                  data.readSlice(mtu),
-                  flags | FrameHeaderFlyweight.FLAGS_F));
-        } else {
-          sink.next(
-              Frame.PayloadFrame.from(
-                  streamId, frameType, Unpooled.EMPTY_BUFFER, data.readSlice(dataLength), flags));
-          frame.release();
-          sink.complete();
-        }
+        initialFragmentCreated = true;
+        return frame.createFragment(byteBufAllocator, metadata, data);
       }
+    }
+
+    boolean hasReadableData() {
+      return frame.getDataLength() - dataIndex > 0;
+    }
+
+    boolean hasReadableMetadata() {
+      Integer metadataLength = frame.getUnsafeMetadataLength();
+      return metadataLength != null && metadataLength - metadataIndex > 0;
+    }
+
+    ByteBuf readDataFragment(int length) {
+      int safeLength = min(length, frame.getDataLength() - dataIndex);
+
+      ByteBuf fragment = frame.getUnsafeData().slice(dataIndex, safeLength);
+
+      dataIndex += fragment.readableBytes();
+      return fragment;
+    }
+
+    ByteBuf readMetadataFragment(int length) {
+      Integer metadataLength = frame.getUnsafeMetadataLength();
+      ByteBuf metadata = frame.getUnsafeMetadata();
+
+      if (metadataLength == null || metadata == null) {
+        throw new IllegalStateException("Cannot read metadata fragment with no metadata");
+      }
+
+      int safeLength = min(length, metadataLength - metadataIndex);
+
+      ByteBuf fragment = metadata.slice(metadataIndex, safeLength);
+
+      metadataIndex += fragment.readableBytes();
+      return fragment;
     }
   }
 }

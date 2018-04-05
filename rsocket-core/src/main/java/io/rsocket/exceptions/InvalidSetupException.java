@@ -16,7 +16,7 @@
 
 package io.rsocket.exceptions;
 
-import io.rsocket.frame.ErrorFrameFlyweight;
+import io.rsocket.framing.ErrorType;
 
 /**
  * The Setup frame is invalid for the server (it could be that the client is too recent for the old
@@ -52,6 +52,6 @@ public final class InvalidSetupException extends SetupException {
 
   @Override
   public int errorCode() {
-    return ErrorFrameFlyweight.INVALID_SETUP;
+    return ErrorType.INVALID_SETUP;
   }
 }

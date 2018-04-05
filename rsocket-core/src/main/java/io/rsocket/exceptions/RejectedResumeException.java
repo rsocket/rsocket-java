@@ -16,7 +16,7 @@
 
 package io.rsocket.exceptions;
 
-import io.rsocket.frame.ErrorFrameFlyweight;
+import io.rsocket.framing.ErrorType;
 
 /**
  * The server rejected the resume, it can specify the reason in the payload.
@@ -51,6 +51,6 @@ public final class RejectedResumeException extends RSocketException {
 
   @Override
   public int errorCode() {
-    return ErrorFrameFlyweight.REJECTED_RESUME;
+    return ErrorType.REJECTED_RESUME;
   }
 }

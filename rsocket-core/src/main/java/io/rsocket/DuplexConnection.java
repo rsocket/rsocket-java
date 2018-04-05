@@ -33,11 +33,12 @@ public interface DuplexConnection extends Availability, Closeable {
    *
    * The passed {@code Publisher} must
    *
-   * @param frame Stream of {@code Frame}s to send on the connection.
+   * @param frames Stream of {@code Frame}s to send on the connection.
    * @return {@code Publisher} that completes when all the frames are written on the connection
    *     successfully and errors when it fails.
+   * @throws NullPointerException if {@code frames} is {@code null}
    */
-  Mono<Void> send(Publisher<Frame> frame);
+  Mono<Void> send(Publisher<Frame> frames);
 
   /**
    * Sends a single {@code Frame} on this connection and returns the {@code Publisher} representing

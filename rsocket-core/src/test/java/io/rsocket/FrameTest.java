@@ -19,6 +19,7 @@ package io.rsocket;
 import static org.junit.Assert.assertEquals;
 
 import io.rsocket.frame.FrameHeaderFlyweight;
+import io.rsocket.framing.FrameType;
 import io.rsocket.util.DefaultPayload;
 import org.junit.Test;
 
