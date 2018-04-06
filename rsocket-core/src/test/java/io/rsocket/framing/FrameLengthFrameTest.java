@@ -18,6 +18,7 @@ package io.rsocket.framing;
 
 import static io.netty.buffer.UnpooledByteBufAllocator.DEFAULT;
 import static io.rsocket.framing.FrameLengthFrame.createFrameLengthFrame;
+import static io.rsocket.framing.FrameType.CANCEL;
 import static io.rsocket.framing.TestFrames.createTestCancelFrame;
 import static io.rsocket.framing.TestFrames.createTestFrame;
 import static io.rsocket.test.util.ByteBufUtils.getRandomByteBuf;
@@ -62,7 +63,8 @@ final class FrameLengthFrameTest implements FrameTest<FrameLengthFrame> {
             .writeBytes(frame, 0, frame.readableBytes());
 
     assertThat(
-            createFrameLengthFrame(DEFAULT, createTestFrame(frame)).mapFrame(Function.identity()))
+            createFrameLengthFrame(DEFAULT, createTestFrame(CANCEL, frame))
+                .mapFrame(Function.identity()))
         .isEqualTo(expected);
   }
 

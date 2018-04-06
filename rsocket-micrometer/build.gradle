@@ -16,18 +16,26 @@
 
 plugins {
     id 'java-library'
+    id 'maven-publish'
+    id 'com.jfrog.artifactory'
+    id 'com.jfrog.bintray'
 }
 
 dependencies {
-    api 'org.hdrhistogram:HdrHistogram'
-
     implementation project(':rsocket-core')
     implementation 'com.google.code.findbugs:jsr305'
-    implementation 'org.junit.jupiter:junit-jupiter-api'
-    implementation 'org.mockito:mockito-core'
+    implementation 'io.micrometer:micrometer-core'
+    implementation 'org.slf4j:slf4j-api'
 
-    // TODO: Remove after JUnit5 migration
-    implementation 'junit:junit'
+
+    testImplementation project(':rsocket-test')
+    testImplementation 'io.projectreactor:reactor-test'
+    testImplementation 'org.assertj:assertj-core'
+    testImplementation 'org.junit.jupiter:junit-jupiter-api'
+    testImplementation 'org.mockito:mockito-core'
+
+    testRuntimeOnly 'ch.qos.logback:logback-classic'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine'
 }
 
-description = 'Test utilities for RSocket projects'
+description = 'Transparent Metrics exposure to Micrometer'

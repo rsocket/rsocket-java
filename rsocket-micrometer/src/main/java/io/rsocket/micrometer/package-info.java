@@ -14,20 +14,12 @@
  * limitations under the License.
  */
 
-plugins {
-    id 'java-library'
-}
+/**
+ * Transparent metrics exposure for Micrometer.
+ *
+ * @see <a href="https://micrometer.io">Micrometer</a>
+ */
+@NonNullApi
+package io.rsocket.micrometer;
 
-dependencies {
-    api 'org.hdrhistogram:HdrHistogram'
-
-    implementation project(':rsocket-core')
-    implementation 'com.google.code.findbugs:jsr305'
-    implementation 'org.junit.jupiter:junit-jupiter-api'
-    implementation 'org.mockito:mockito-core'
-
-    // TODO: Remove after JUnit5 migration
-    implementation 'junit:junit'
-}
-
-description = 'Test utilities for RSocket projects'
+import reactor.util.annotation.NonNullApi;

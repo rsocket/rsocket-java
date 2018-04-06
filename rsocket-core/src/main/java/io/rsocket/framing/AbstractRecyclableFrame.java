@@ -23,8 +23,6 @@ import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
 import io.netty.util.Recycler.Handle;
 import java.util.Objects;
-import java.util.function.Consumer;
-import java.util.function.Function;
 import reactor.util.annotation.Nullable;
 
 /**
@@ -50,17 +48,6 @@ abstract class AbstractRecyclableFrame<SELF extends AbstractRecyclableFrame<SELF
   }
 
   @Override
-  public final void consumeFrame(Consumer<ByteBuf> consumer) {
-    Objects.requireNonNull(consumer, "consumer must not be null");
-
-    mapFrame(
-        byteBuf -> {
-          consumer.accept(byteBuf);
-          return null;
-        });
-  }
-
-  @Override
   @SuppressWarnings("unchecked")
   public final void dispose() {
     if (byteBuf != null) {
@@ -83,16 +70,18 @@ abstract class AbstractRecyclableFrame<SELF extends AbstractRecyclableFrame<SELF
     return Objects.equals(byteBuf, that.byteBuf);
   }
 
-  @Override
-  public int hashCode() {
-    return Objects.hash(byteBuf);
+  public FrameType getFrameType() {
+    int encodedType = byteBuf.getUnsignedShort(0) >> FRAME_TYPE_SHIFT;
+    return FrameType.fromEncodedType(encodedType);
+  }
+
+  public final ByteBuf getUnsafeFrame() {
+    return byteBuf.asReadOnly();
   }
 
   @Override
-  public final <T> T mapFrame(Function<ByteBuf, T> function) {
-    Objects.requireNonNull(function, "function must not be null");
-
-    return function.apply(byteBuf.asReadOnly());
+  public int hashCode() {
+    return Objects.hash(byteBuf);
   }
 
   /**
