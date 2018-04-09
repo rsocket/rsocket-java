@@ -14,16 +14,8 @@
  * limitations under the License.
  */
 
-plugins {
-    id 'java-library'
-    id 'maven-publish'
-    id 'com.jfrog.artifactory'
-    id 'com.jfrog.bintray'
-}
+/** Utilities for testing RSocket components. */
+@NonNullApi
+package io.rsocket.test;
 
-dependencies {
-    implementation project(':rsocket-core')
-    implementation 'com.netflix.spectator:spectator-api'
-}
-
-description = 'Transparent Metrics exposure to Spectator'
+import reactor.util.annotation.NonNullApi;

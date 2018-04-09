@@ -38,7 +38,31 @@ public interface Frame extends Disposable {
    * @param consumer the {@link Consumer} to consume the {@code Frame} as a {@link ByteBuf}
    * @throws NullPointerException if {@code consumer} is {@code null}
    */
-  void consumeFrame(Consumer<ByteBuf> consumer);
+  default void consumeFrame(Consumer<ByteBuf> consumer) {
+    Objects.requireNonNull(consumer, "consumer must not be null");
+
+    consumer.accept(getUnsafeFrame());
+  }
+
+  /**
+   * Returns the {@link FrameType}.
+   *
+   * @return the {@link FrameType}
+   */
+  FrameType getFrameType();
+
+  /**
+   * Returns the frame directly.
+   *
+   * <p><b>Note:</b> this frame will be outside of the {@code Frame}'s lifecycle and may be released
+   * at any time. It is highly recommended that you {@link ByteBuf#retain()} the frame if you store
+   * it.
+   *
+   * @return the frame directly
+   * @see #consumeFrame(Consumer)
+   * @see #mapFrame(Function)
+   */
+  ByteBuf getUnsafeFrame();
 
   /**
    * Exposes the {@code Frame} as a {@link ByteBuf} for mapping to a different type.
@@ -49,5 +73,9 @@ public interface Frame extends Disposable {
    * @return the {@code Frame} as a {@link ByteBuf} mapped to a different type
    * @throws NullPointerException if {@code function} is {@code null}
    */
-  <T> T mapFrame(Function<ByteBuf, T> function);
+  default <T> T mapFrame(Function<ByteBuf, T> function) {
+    Objects.requireNonNull(function, "function must not be null");
+
+    return function.apply(getUnsafeFrame());
+  }
 }

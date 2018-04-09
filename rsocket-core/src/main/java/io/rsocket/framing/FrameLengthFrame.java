@@ -96,6 +96,23 @@ public final class FrameLengthFrame extends AbstractRecyclableFrame<FrameLengthF
   }
 
   /**
+   * Returns the frame without frame length directly.
+   *
+   * <p><b>Note:</b> this frame without frame length will be outside of the {@link Frame}'s
+   * lifecycle and may be released at any time. It is highly recommended that you {@link
+   * ByteBuf#retain()} the frame without frame length if you store it.
+   *
+   * @return the frame without frame length directly
+   * @see #mapFrameWithoutFrameLength(Function)
+   */
+  public ByteBuf getUnsafeFrameWithoutFrameLength() {
+    ByteBuf byteBuf = getByteBuf();
+    return byteBuf
+        .slice(FRAME_LENGTH_BYTES, byteBuf.readableBytes() - FRAME_LENGTH_BYTES)
+        .asReadOnly();
+  }
+
+  /**
    * Exposes the {@link Frame} without the frame length as a {@link ByteBuf} for mapping to a
    * different type.
    *
@@ -109,7 +126,7 @@ public final class FrameLengthFrame extends AbstractRecyclableFrame<FrameLengthF
   public <T> T mapFrameWithoutFrameLength(Function<ByteBuf, T> function) {
     Objects.requireNonNull(function, "function must not be null");
 
-    return function.apply(getFrameWithoutFrameLength());
+    return function.apply(getUnsafeFrameWithoutFrameLength());
   }
 
   @Override
@@ -120,10 +137,5 @@ public final class FrameLengthFrame extends AbstractRecyclableFrame<FrameLengthF
         + ", frameWithoutFrameLength="
         + mapFrameWithoutFrameLength(ByteBufUtil::hexDump)
         + '}';
-  }
-
-  private ByteBuf getFrameWithoutFrameLength() {
-    ByteBuf byteBuf = getByteBuf();
-    return byteBuf.slice(FRAME_LENGTH_BYTES, byteBuf.readableBytes() - FRAME_LENGTH_BYTES);
   }
 }

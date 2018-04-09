@@ -17,6 +17,7 @@
 package io.rsocket.framing;
 
 import static io.netty.buffer.UnpooledByteBufAllocator.DEFAULT;
+import static io.rsocket.framing.FrameType.CANCEL;
 import static io.rsocket.framing.StreamIdFrame.createStreamIdFrame;
 import static io.rsocket.framing.TestFrames.createTestCancelFrame;
 import static io.rsocket.framing.TestFrames.createTestFrame;
@@ -62,7 +63,8 @@ final class StreamIdFrameTest implements FrameTest<StreamIdFrame> {
             .writeBytes(frame, 0, frame.readableBytes());
 
     assertThat(
-            createStreamIdFrame(DEFAULT, 100, createTestFrame(frame)).mapFrame(Function.identity()))
+            createStreamIdFrame(DEFAULT, 100, createTestFrame(CANCEL, frame))
+                .mapFrame(Function.identity()))
         .isEqualTo(expected);
   }
 

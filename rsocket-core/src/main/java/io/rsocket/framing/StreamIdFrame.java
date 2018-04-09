@@ -93,6 +93,21 @@ public final class StreamIdFrame extends AbstractRecyclableFrame<StreamIdFrame> 
   }
 
   /**
+   * Returns the frame without stream id directly.
+   *
+   * <p><b>Note:</b> this frame without stream id will be outside of the {@link Frame}'s lifecycle
+   * and may be released at any time. It is highly recommended that you {@link ByteBuf#retain()} the
+   * frame without stream id if you store it.
+   *
+   * @return the frame without stream id directly
+   * @see #mapFrameWithoutStreamId(Function)
+   */
+  public ByteBuf getUnsafeFrameWithoutStreamId() {
+    ByteBuf byteBuf = getByteBuf();
+    return byteBuf.slice(STREAM_ID_BYTES, byteBuf.readableBytes() - STREAM_ID_BYTES).asReadOnly();
+  }
+
+  /**
    * Exposes the {@link Frame} without the stream id as a {@link ByteBuf} for mapping to a different
    * type.
    *
@@ -105,7 +120,7 @@ public final class StreamIdFrame extends AbstractRecyclableFrame<StreamIdFrame> 
   public <T> T mapFrameWithoutStreamId(Function<ByteBuf, T> function) {
     Objects.requireNonNull(function, "function must not be null");
 
-    return function.apply(getFrameWithoutStreamId());
+    return function.apply(getUnsafeFrameWithoutStreamId());
   }
 
   @Override
@@ -116,10 +131,5 @@ public final class StreamIdFrame extends AbstractRecyclableFrame<StreamIdFrame> 
         + ", frameWithoutStreamId="
         + mapFrameWithoutStreamId(ByteBufUtil::hexDump)
         + '}';
-  }
-
-  private ByteBuf getFrameWithoutStreamId() {
-    ByteBuf byteBuf = getByteBuf();
-    return byteBuf.slice(STREAM_ID_BYTES, byteBuf.readableBytes() - STREAM_ID_BYTES);
   }
 }
