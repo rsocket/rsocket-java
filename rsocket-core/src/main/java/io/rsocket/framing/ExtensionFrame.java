@@ -16,6 +16,7 @@
 
 package io.rsocket.framing;
 
+import static io.netty.util.ReferenceCountUtil.release;
 import static io.rsocket.framing.FrameType.EXT;
 import static io.rsocket.util.RecyclerFactory.createRecycler;
 
@@ -79,8 +80,16 @@ public final class ExtensionFrame extends AbstractRecyclableMetadataAndDataFrame
       @Nullable String metadata,
       @Nullable String data) {
 
-    return createExtensionFrame(
-        byteBufAllocator, ignore, extendedType, getUtf8AsByteBuf(metadata), getUtf8AsByteBuf(data));
+    ByteBuf metadataByteBuf = getUtf8AsByteBuf(metadata);
+    ByteBuf dataByteBuf = getUtf8AsByteBuf(data);
+
+    try {
+      return createExtensionFrame(
+          byteBufAllocator, ignore, extendedType, metadataByteBuf, dataByteBuf);
+    } finally {
+      release(metadataByteBuf);
+      release(dataByteBuf);
+    }
   }
 
   /**

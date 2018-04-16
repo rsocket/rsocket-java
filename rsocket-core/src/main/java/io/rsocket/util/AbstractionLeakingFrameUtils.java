@@ -16,9 +16,10 @@
 
 package io.rsocket.util;
 
+import static io.netty.util.ReferenceCountUtil.release;
 import static io.rsocket.framing.FrameLengthFrame.createFrameLengthFrame;
 import static io.rsocket.framing.StreamIdFrame.createStreamIdFrame;
-import static io.rsocket.util.DisposableUtil.disposeQuietly;
+import static io.rsocket.util.DisposableUtils.disposeQuietly;
 
 import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.Frame;
@@ -60,7 +61,7 @@ public final class AbstractionLeakingFrameUtils {
       return Tuples.of(streamIdFrame.getStreamId(), frame);
     } finally {
       disposeQuietly(frameLengthFrame, streamIdFrame);
-      abstractionLeakingFrame.release();
+      release(abstractionLeakingFrame);
     }
   }
 

@@ -16,6 +16,7 @@
 
 package io.rsocket.framing;
 
+import static io.netty.util.ReferenceCountUtil.release;
 import static io.rsocket.framing.FrameType.ERROR;
 import static io.rsocket.util.RecyclerFactory.createRecycler;
 
@@ -70,7 +71,13 @@ public final class ErrorFrame extends AbstractRecyclableDataFrame<ErrorFrame> {
   public static ErrorFrame createErrorFrame(
       ByteBufAllocator byteBufAllocator, int errorCode, @Nullable String data) {
 
-    return createErrorFrame(byteBufAllocator, errorCode, getUtf8AsByteBuf(data));
+    ByteBuf dataByteBuf = getUtf8AsByteBuf(data);
+
+    try {
+      return createErrorFrame(byteBufAllocator, errorCode, dataByteBuf);
+    } finally {
+      release(dataByteBuf);
+    }
   }
 
   /**

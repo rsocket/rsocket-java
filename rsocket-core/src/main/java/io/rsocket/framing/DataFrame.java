@@ -51,6 +51,7 @@ public interface DataFrame extends Frame {
    * it.
    *
    * @return the data directly
+   * @see #getDataAsUtf8()
    * @see #mapData(Function)
    */
   ByteBuf getUnsafeData();

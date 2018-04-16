@@ -55,6 +55,7 @@ public interface MetadataFrame extends Frame {
    * if you store it.
    *
    * @return the metadata directly, or {@code null} if the Metadata flag is not set
+   * @see #getMetadataAsUtf8()
    * @see #mapMetadata(Function)
    */
   @Nullable

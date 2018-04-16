@@ -16,7 +16,7 @@
 
 package io.rsocket.fragmentation;
 
-import static io.rsocket.util.DisposableUtil.disposeQuietly;
+import static io.rsocket.util.DisposableUtils.disposeQuietly;
 import static io.rsocket.util.RecyclerFactory.createRecycler;
 
 import io.netty.buffer.ByteBuf;

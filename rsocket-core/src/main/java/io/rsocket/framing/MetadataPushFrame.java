@@ -16,6 +16,7 @@
 
 package io.rsocket.framing;
 
+import static io.netty.util.ReferenceCountUtil.release;
 import static io.rsocket.framing.FrameType.METADATA_PUSH;
 import static io.rsocket.util.RecyclerFactory.createRecycler;
 
@@ -69,8 +70,13 @@ public final class MetadataPushFrame extends AbstractRecyclableMetadataFrame<Met
   public static MetadataPushFrame createMetadataPushFrame(
       ByteBufAllocator byteBufAllocator, String metadata) {
 
-    return createMetadataPushFrame(
-        byteBufAllocator, getUtf8AsByteBufRequired(metadata, "metadata must not be null"));
+    ByteBuf metadataByteBuf = getUtf8AsByteBufRequired(metadata, "metadata must not be null");
+
+    try {
+      return createMetadataPushFrame(byteBufAllocator, metadataByteBuf);
+    } finally {
+      release(metadataByteBuf);
+    }
   }
 
   /**

@@ -19,9 +19,9 @@ import java.util.Arrays;
 import reactor.core.Disposable;
 
 /** Utilities for working with the {@link Disposable} type. */
-public final class DisposableUtil {
+public final class DisposableUtils {
 
-  private DisposableUtil() {}
+  private DisposableUtils() {}
 
   /**
    * Calls the {@link Disposable#dispose()} method if the instance is not null. If any exceptions
@@ -34,7 +34,9 @@ public final class DisposableUtil {
         .forEach(
             disposable -> {
               try {
-                disposable.dispose();
+                if (disposable != null) {
+                  disposable.dispose();
+                }
               } catch (RuntimeException e) {
                 // Suppress any exceptions during disposal
               }
