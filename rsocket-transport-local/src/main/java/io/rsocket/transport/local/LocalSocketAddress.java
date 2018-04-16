@@ -17,22 +17,31 @@
 package io.rsocket.transport.local;
 
 import java.net.SocketAddress;
+import java.util.Objects;
 
-public class LocalSocketAddress extends SocketAddress {
+/** An implementation of {@link SocketAddress} representing a local connection. */
+final class LocalSocketAddress extends SocketAddress {
 
-  private static final long serialVersionUID = -5974652906020342524L;
+  private static final long serialVersionUID = -7513338854585475473L;
+
   private final String name;
 
-  public LocalSocketAddress(String name) {
-    this.name = name;
-  }
-
-  public String getName() {
-    return name;
+  /**
+   * Creates a new instance.
+   *
+   * @param name the name representing the address
+   * @throws NullPointerException if {@code name} is {@code null}
+   */
+  LocalSocketAddress(String name) {
+    this.name = Objects.requireNonNull(name, "name must not be null");
   }
 
   @Override
   public String toString() {
     return "[local server] " + name;
+  }
+
+  String getName() {
+    return name;
   }
 }

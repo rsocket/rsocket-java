@@ -14,22 +14,25 @@
  * limitations under the License.
  */
 
-plugins {
-    id 'java-library'
+package io.rsocket.transport.local;
+
+import io.rsocket.test.UriHandlerTest;
+import io.rsocket.uri.UriHandler;
+
+final class LocalUriHandlerTest implements UriHandlerTest {
+
+  @Override
+  public String getInvalidUri() {
+    return "http://test";
+  }
+
+  @Override
+  public UriHandler getUriHandler() {
+    return new LocalUriHandler();
+  }
+
+  @Override
+  public String getValidUri() {
+    return "local:test";
+  }
 }
-
-dependencies {
-    api 'org.hdrhistogram:HdrHistogram'
-
-    implementation project(':rsocket-core')
-    implementation 'com.google.code.findbugs:jsr305'
-    implementation 'io.projectreactor:reactor-test'
-    implementation 'org.assertj:assertj-core'
-    implementation 'org.junit.jupiter:junit-jupiter-api'
-    implementation 'org.mockito:mockito-core'
-
-    // TODO: Remove after JUnit5 migration
-    implementation 'junit:junit'
-}
-
-description = 'Test utilities for RSocket projects'

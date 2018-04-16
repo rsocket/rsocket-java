@@ -22,26 +22,39 @@ import io.rsocket.transport.netty.client.WebsocketClientTransport;
 import io.rsocket.transport.netty.server.WebsocketServerTransport;
 import io.rsocket.uri.UriHandler;
 import java.net.URI;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
-public class WebsocketUriHandler implements UriHandler {
+/**
+ * An implementation of {@link UriHandler} that creates {@link WebsocketClientTransport}s and {@link
+ * WebsocketServerTransport}s.
+ */
+public final class WebsocketUriHandler implements UriHandler {
+
+  private static final List<String> SCHEME = Arrays.asList("ws", "wss");
+
   @Override
   public Optional<ClientTransport> buildClient(URI uri) {
-    if ("ws".equals(uri.getScheme()) || "wss".equals(uri.getScheme())) {
-      return Optional.of(WebsocketClientTransport.create(uri));
+    Objects.requireNonNull(uri, "uri must not be null");
+
+    if (SCHEME.stream().noneMatch(scheme -> scheme.equals(uri.getScheme()))) {
+      return Optional.empty();
     }
 
-    return UriHandler.super.buildClient(uri);
+    return Optional.of(WebsocketClientTransport.create(uri));
   }
 
   @Override
   public Optional<ServerTransport> buildServer(URI uri) {
-    if ("ws".equals(uri.getScheme())) {
-      return Optional.of(
-          WebsocketServerTransport.create(
-              uri.getHost(), WebsocketClientTransport.getPort(uri, 80)));
+    Objects.requireNonNull(uri, "uri must not be null");
+
+    if (SCHEME.stream().noneMatch(scheme -> scheme.equals(uri.getScheme()))) {
+      return Optional.empty();
     }
 
-    return UriHandler.super.buildServer(uri);
+    return Optional.of(
+        WebsocketServerTransport.create(uri.getHost(), WebsocketClientTransport.getPort(uri, 80)));
   }
 }

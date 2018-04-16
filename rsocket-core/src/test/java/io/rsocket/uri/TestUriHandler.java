@@ -18,16 +18,29 @@ package io.rsocket.uri;
 
 import io.rsocket.test.util.TestDuplexConnection;
 import io.rsocket.transport.ClientTransport;
+import io.rsocket.transport.ServerTransport;
 import java.net.URI;
+import java.util.Objects;
 import java.util.Optional;
 import reactor.core.publisher.Mono;
 
-public class TestUriHandler implements UriHandler {
+public final class TestUriHandler implements UriHandler {
+
+  private static final String SCHEME = "test";
+
   @Override
   public Optional<ClientTransport> buildClient(URI uri) {
-    if ("test".equals(uri.getScheme())) {
-      return Optional.of(() -> Mono.just(new TestDuplexConnection()));
+    Objects.requireNonNull(uri, "uri must not be null");
+
+    if (!SCHEME.equals(uri.getScheme())) {
+      return Optional.empty();
     }
-    return UriHandler.super.buildClient(uri);
+
+    return Optional.of(() -> Mono.just(new TestDuplexConnection()));
+  }
+
+  @Override
+  public Optional<ServerTransport> buildServer(URI uri) {
+    return Optional.empty();
   }
 }

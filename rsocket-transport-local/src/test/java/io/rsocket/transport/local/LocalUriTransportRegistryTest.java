@@ -16,25 +16,39 @@
 
 package io.rsocket.transport.local;
 
-import static org.junit.Assert.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
 
-import io.rsocket.transport.ClientTransport;
-import io.rsocket.transport.ServerTransport;
 import io.rsocket.uri.UriTransportRegistry;
-import org.junit.Test;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 
-public class LocalUriTransportRegistryTest {
+final class LocalUriTransportRegistryTest {
+
+  @DisplayName("local URI returns LocalClientTransport")
   @Test
-  public void testLocalClient() {
-    ClientTransport transport = UriTransportRegistry.clientForUri("local:test1");
-
-    assertTrue(transport instanceof LocalClientTransport);
+  void clientForUri() {
+    assertThat(UriTransportRegistry.clientForUri("local:test1"))
+        .isInstanceOf(LocalClientTransport.class);
   }
 
+  @DisplayName("non-local URI does not return LocalClientTransport")
   @Test
-  public void testLocalServer() {
-    ServerTransport transport = UriTransportRegistry.serverForUri("local:test1");
+  void clientForUriInvalid() {
+    assertThat(UriTransportRegistry.clientForUri("http://localhost"))
+        .isNotInstanceOf(LocalClientTransport.class);
+  }
 
-    assertTrue(transport instanceof LocalServerTransport);
+  @DisplayName("local URI returns LocalServerTransport")
+  @Test
+  void serverForUri() {
+    assertThat(UriTransportRegistry.serverForUri("local:test1"))
+        .isInstanceOf(LocalServerTransport.class);
+  }
+
+  @DisplayName("non-local URI does not return LocalServerTransport")
+  @Test
+  void serverForUriInvalid() {
+    assertThat(UriTransportRegistry.serverForUri("http://localhost"))
+        .isNotInstanceOf(LocalServerTransport.class);
   }
 }

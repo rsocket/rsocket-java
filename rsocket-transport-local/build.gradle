@@ -23,13 +23,15 @@ plugins {
 
 dependencies {
     implementation project(':rsocket-core')
+    implementation 'com.google.code.findbugs:jsr305'
 
     testImplementation project(':rsocket-test')
+    testImplementation 'io.projectreactor:reactor-test'
+    testImplementation 'org.assertj:assertj-core'
     testImplementation 'org.junit.jupiter:junit-jupiter-api'
 
-    // TODO: Remove after JUnit5 migration
-    testCompileOnly 'junit:junit'
-    testRuntimeOnly 'org.junit.vintage:junit-vintage-engine'
+    testRuntimeOnly 'ch.qos.logback:logback-classic'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine'
 }
 
 description = 'Local RSocket transport implementation'
