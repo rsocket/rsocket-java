@@ -16,12 +16,14 @@
 
 package io.rsocket.framing;
 
+import static io.netty.util.ReferenceCountUtil.release;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
 import io.netty.util.Recycler.Handle;
+import io.netty.util.ReferenceCounted;
 import java.util.Objects;
 import reactor.util.annotation.Nullable;
 
@@ -51,7 +53,7 @@ abstract class AbstractRecyclableFrame<SELF extends AbstractRecyclableFrame<SELF
   @SuppressWarnings("unchecked")
   public final void dispose() {
     if (byteBuf != null) {
-      byteBuf.release();
+      release(byteBuf);
     }
 
     byteBuf = null;

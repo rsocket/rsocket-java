@@ -16,6 +16,7 @@
 
 package io.rsocket.framing;
 
+import static io.netty.util.ReferenceCountUtil.release;
 import static io.rsocket.util.RecyclerFactory.createRecycler;
 
 import io.netty.buffer.ByteBuf;
@@ -79,12 +80,16 @@ public final class RequestStreamFrame
       @Nullable String metadata,
       @Nullable String data) {
 
-    return createRequestStreamFrame(
-        byteBufAllocator,
-        follows,
-        initialRequestN,
-        getUtf8AsByteBuf(metadata),
-        getUtf8AsByteBuf(data));
+    ByteBuf metadataByteBuf = getUtf8AsByteBuf(metadata);
+    ByteBuf dataByteBuf = getUtf8AsByteBuf(data);
+
+    try {
+      return createRequestStreamFrame(
+          byteBufAllocator, follows, initialRequestN, metadataByteBuf, dataByteBuf);
+    } finally {
+      release(metadataByteBuf);
+      release(dataByteBuf);
+    }
   }
 
   /**

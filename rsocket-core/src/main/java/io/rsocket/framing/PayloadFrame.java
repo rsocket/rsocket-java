@@ -16,6 +16,7 @@
 
 package io.rsocket.framing;
 
+import static io.netty.util.ReferenceCountUtil.release;
 import static io.rsocket.util.RecyclerFactory.createRecycler;
 
 import io.netty.buffer.ByteBuf;
@@ -78,8 +79,15 @@ public final class PayloadFrame extends AbstractRecyclableFragmentableFrame<Payl
       @Nullable String metadata,
       @Nullable String data) {
 
-    return createPayloadFrame(
-        byteBufAllocator, follows, complete, getUtf8AsByteBuf(metadata), getUtf8AsByteBuf(data));
+    ByteBuf metadataByteBuf = getUtf8AsByteBuf(metadata);
+    ByteBuf dataByteBuf = getUtf8AsByteBuf(data);
+
+    try {
+      return createPayloadFrame(byteBufAllocator, follows, complete, metadataByteBuf, dataByteBuf);
+    } finally {
+      release(metadataByteBuf);
+      release(dataByteBuf);
+    }
   }
 
   /**

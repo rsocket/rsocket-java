@@ -16,6 +16,7 @@
 
 package io.rsocket.framing;
 
+import static io.netty.util.ReferenceCountUtil.release;
 import static io.rsocket.util.RecyclerFactory.createRecycler;
 
 import io.netty.buffer.ByteBuf;
@@ -74,8 +75,16 @@ public final class RequestFireAndForgetFrame
       @Nullable String metadata,
       @Nullable String data) {
 
-    return createRequestFireAndForgetFrame(
-        byteBufAllocator, follows, getUtf8AsByteBuf(metadata), getUtf8AsByteBuf(data));
+    ByteBuf metadataByteBuf = getUtf8AsByteBuf(metadata);
+    ByteBuf dataByteBuf = getUtf8AsByteBuf(data);
+
+    try {
+      return createRequestFireAndForgetFrame(
+          byteBufAllocator, follows, metadataByteBuf, dataByteBuf);
+    } finally {
+      release(metadataByteBuf);
+      release(dataByteBuf);
+    }
   }
 
   /**

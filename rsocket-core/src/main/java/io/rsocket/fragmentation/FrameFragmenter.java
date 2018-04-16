@@ -17,7 +17,7 @@
 package io.rsocket.fragmentation;
 
 import static io.rsocket.framing.PayloadFrame.createPayloadFrame;
-import static io.rsocket.util.DisposableUtil.disposeQuietly;
+import static io.rsocket.util.DisposableUtils.disposeQuietly;
 import static java.lang.Math.min;
 
 import io.netty.buffer.ByteBuf;

@@ -16,6 +16,7 @@
 
 package io.rsocket.framing;
 
+import static io.netty.util.ReferenceCountUtil.release;
 import static io.rsocket.framing.LengthUtils.getLengthAsUnsignedByte;
 import static io.rsocket.framing.LengthUtils.getLengthAsUnsignedShort;
 import static io.rsocket.util.NumberUtils.requireUnsignedShort;
@@ -110,16 +111,26 @@ public final class SetupFrame extends AbstractRecyclableMetadataAndDataFrame<Set
       @Nullable String metadata,
       @Nullable String data) {
 
-    return createSetupFrame(
-        byteBufAllocator,
-        lease,
-        keepAliveInterval,
-        maxLifetime,
-        getUtf8AsByteBuf(resumeIdentificationToken),
-        metadataMimeType,
-        dataMimeType,
-        getUtf8AsByteBuf(metadata),
-        getUtf8AsByteBuf(data));
+    ByteBuf resumeIdentificationTokenByteBuf = getUtf8AsByteBuf(resumeIdentificationToken);
+    ByteBuf metadataByteBuf = getUtf8AsByteBuf(metadata);
+    ByteBuf dataByteBuf = getUtf8AsByteBuf(data);
+
+    try {
+      return createSetupFrame(
+          byteBufAllocator,
+          lease,
+          keepAliveInterval,
+          maxLifetime,
+          resumeIdentificationTokenByteBuf,
+          metadataMimeType,
+          dataMimeType,
+          metadataByteBuf,
+          dataByteBuf);
+    } finally {
+      release(resumeIdentificationTokenByteBuf);
+      release(metadataByteBuf);
+      release(dataByteBuf);
+    }
   }
 
   /**
@@ -211,38 +222,46 @@ public final class SetupFrame extends AbstractRecyclableMetadataAndDataFrame<Set
     ByteBuf dataMimeTypeByteBuf =
         getUtf8AsByteBufRequired(dataMimeType, "dataMimeType must not be null");
 
-    ByteBuf byteBuf = createFrameTypeAndFlags(byteBufAllocator, FrameType.SETUP);
+    try {
+      ByteBuf byteBuf = createFrameTypeAndFlags(byteBufAllocator, FrameType.SETUP);
 
-    if (lease) {
-      byteBuf = setFlag(byteBuf, FLAG_LEASE);
-    }
+      if (lease) {
+        byteBuf = setFlag(byteBuf, FLAG_LEASE);
+      }
 
-    byteBuf =
-        byteBuf
-            .writeShort(requireUnsignedShort(majorVersion))
-            .writeShort(requireUnsignedShort(minorVersion))
-            .writeInt(toIntExact(keepAliveInterval.toMillis()))
-            .writeInt(toIntExact(maxLifetime.toMillis()));
-
-    if (resumeIdentificationToken != null) {
       byteBuf =
-          setFlag(byteBuf, FLAG_RESUME_ENABLED)
-              .writeShort(getLengthAsUnsignedShort(resumeIdentificationToken));
+          byteBuf
+              .writeShort(requireUnsignedShort(majorVersion))
+              .writeShort(requireUnsignedShort(minorVersion))
+              .writeInt(toIntExact(keepAliveInterval.toMillis()))
+              .writeInt(toIntExact(maxLifetime.toMillis()));
+
+      if (resumeIdentificationToken != null) {
+        byteBuf =
+            setFlag(byteBuf, FLAG_RESUME_ENABLED)
+                .writeShort(getLengthAsUnsignedShort(resumeIdentificationToken));
+        byteBuf =
+            Unpooled.wrappedBuffer(
+                byteBuf, resumeIdentificationToken.retain(), byteBufAllocator.buffer());
+      }
+
+      byteBuf = byteBuf.writeByte(getLengthAsUnsignedByte(metadataMimeTypeByteBuf));
       byteBuf =
           Unpooled.wrappedBuffer(
-              byteBuf, resumeIdentificationToken.retain(), byteBufAllocator.buffer());
+              byteBuf, metadataMimeTypeByteBuf.retain(), byteBufAllocator.buffer());
+
+      byteBuf = byteBuf.writeByte(getLengthAsUnsignedByte(dataMimeTypeByteBuf));
+      byteBuf =
+          Unpooled.wrappedBuffer(byteBuf, dataMimeTypeByteBuf.retain(), byteBufAllocator.buffer());
+
+      byteBuf = appendMetadata(byteBufAllocator, byteBuf, metadata);
+      byteBuf = appendData(byteBuf, data);
+
+      return RECYCLER.get().setByteBuf(byteBuf);
+    } finally {
+      release(metadataMimeTypeByteBuf);
+      release(dataMimeTypeByteBuf);
     }
-
-    byteBuf = byteBuf.writeByte(getLengthAsUnsignedByte(metadataMimeTypeByteBuf));
-    byteBuf = Unpooled.wrappedBuffer(byteBuf, metadataMimeTypeByteBuf, byteBufAllocator.buffer());
-
-    byteBuf = byteBuf.writeByte(getLengthAsUnsignedByte(dataMimeTypeByteBuf));
-    byteBuf = Unpooled.wrappedBuffer(byteBuf, dataMimeTypeByteBuf, byteBufAllocator.buffer());
-
-    byteBuf = appendMetadata(byteBufAllocator, byteBuf, metadata);
-    byteBuf = appendData(byteBuf, data);
-
-    return RECYCLER.get().setByteBuf(byteBuf);
   }
 
   /**

@@ -16,6 +16,7 @@
 
 package io.rsocket.framing;
 
+import static io.netty.util.ReferenceCountUtil.release;
 import static io.rsocket.framing.FrameType.RESUME;
 import static io.rsocket.framing.LengthUtils.getLengthAsUnsignedShort;
 import static io.rsocket.util.NumberUtils.requireUnsignedShort;
@@ -70,12 +71,19 @@ public final class ResumeFrame extends AbstractRecyclableFrame<ResumeFrame> {
       long lastReceivedServerPosition,
       long firstAvailableClientPosition) {
 
-    return createResumeFrame(
-        byteBufAllocator,
+    ByteBuf resumeIdentificationTokenByteBuf =
         getUtf8AsByteBufRequired(
-            resumeIdentificationToken, "resumeIdentificationToken must not be null"),
-        lastReceivedServerPosition,
-        firstAvailableClientPosition);
+            resumeIdentificationToken, "resumeIdentificationToken must not be null");
+
+    try {
+      return createResumeFrame(
+          byteBufAllocator,
+          resumeIdentificationTokenByteBuf,
+          lastReceivedServerPosition,
+          firstAvailableClientPosition);
+    } finally {
+      release(resumeIdentificationToken);
+    }
   }
 
   /**
