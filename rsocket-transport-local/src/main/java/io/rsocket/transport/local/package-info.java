@@ -14,14 +14,8 @@
  * limitations under the License.
  */
 
+/** The local RSocket transport implementation. */
+@NonNullApi
 package io.rsocket.transport.local;
 
-import io.rsocket.test.BaseClientServerTest;
-
-public class LocalClientServerTest extends BaseClientServerTest<LocalClientSetupRule> {
-
-  @Override
-  protected LocalClientSetupRule createClientServer() {
-    return new LocalClientSetupRule();
-  }
-}
+import reactor.util.annotation.NonNullApi;

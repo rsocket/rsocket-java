@@ -18,36 +18,34 @@ package io.rsocket.transport.local;
 
 import io.rsocket.DuplexConnection;
 import io.rsocket.Frame;
+import java.util.Objects;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
 
-public class LocalDuplexConnection implements DuplexConnection {
+/** An implementation of {@link DuplexConnection} that connects inside the same JVM. */
+final class LocalDuplexConnection implements DuplexConnection {
+
   private final Flux<Frame> in;
-  private final Subscriber<Frame> out;
+
   private final MonoProcessor<Void> onClose;
 
-  public LocalDuplexConnection(Flux<Frame> in, Subscriber<Frame> out, MonoProcessor<Void> onClose) {
-    this.in = in;
-    this.out = out;
-    this.onClose = onClose;
-  }
+  private final Subscriber<Frame> out;
 
-  @Override
-  public Mono<Void> send(Publisher<Frame> frames) {
-    return Flux.from(frames).flatMapSequential(this::sendOne).then();
-  }
-
-  @Override
-  public Mono<Void> sendOne(Frame frame) {
-    return Mono.fromRunnable(() -> out.onNext(frame));
-  }
-
-  @Override
-  public Flux<Frame> receive() {
-    return in;
+  /**
+   * Creates a new instance.
+   *
+   * @param in the inbound {@link Frame}s
+   * @param out the outbound {@link Frame}s
+   * @param onClose the closing notifier
+   * @throws NullPointerException if {@code in}, {@code out}, or {@code onClose} are {@code null}
+   */
+  LocalDuplexConnection(Flux<Frame> in, Subscriber<Frame> out, MonoProcessor<Void> onClose) {
+    this.in = Objects.requireNonNull(in, "in must not be null");
+    this.out = Objects.requireNonNull(out, "out must not be null");
+    this.onClose = Objects.requireNonNull(onClose, "onClose must not be null");
   }
 
   @Override
@@ -64,5 +62,17 @@ public class LocalDuplexConnection implements DuplexConnection {
   @Override
   public Mono<Void> onClose() {
     return onClose;
+  }
+
+  @Override
+  public Flux<Frame> receive() {
+    return in;
+  }
+
+  @Override
+  public Mono<Void> send(Publisher<Frame> frames) {
+    Objects.requireNonNull(frames, "frames must not be null");
+
+    return Flux.from(frames).doOnNext(out::onNext).then();
   }
 }

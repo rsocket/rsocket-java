@@ -19,19 +19,35 @@ package io.rsocket.transport.local;
 import io.rsocket.DuplexConnection;
 import io.rsocket.Frame;
 import io.rsocket.transport.ClientTransport;
+import io.rsocket.transport.ServerTransport;
 import io.rsocket.transport.local.LocalServerTransport.ServerDuplexConnectionAcceptor;
+import java.util.Objects;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
 import reactor.core.publisher.UnicastProcessor;
 
-public class LocalClientTransport implements ClientTransport {
+/**
+ * An implementation of {@link ClientTransport} that connects to a {@link ServerTransport} in the
+ * same JVM.
+ */
+public final class LocalClientTransport implements ClientTransport {
+
   private final String name;
 
-  LocalClientTransport(String name) {
+  private LocalClientTransport(String name) {
     this.name = name;
   }
 
+  /**
+   * Creates a new instance.
+   *
+   * @param name the name of the {@link ServerTransport} instance to connect to
+   * @return a new instance
+   * @throws NullPointerException if {@code name} is {@code null}
+   */
   public static LocalClientTransport create(String name) {
+    Objects.requireNonNull(name, "name must not be null");
+
     return new LocalClientTransport(name);
   }
 
@@ -40,15 +56,17 @@ public class LocalClientTransport implements ClientTransport {
     return Mono.defer(
         () -> {
           ServerDuplexConnectionAcceptor server = LocalServerTransport.findServer(name);
-          if (server != null) {
-            final UnicastProcessor<Frame> in = UnicastProcessor.create();
-            final UnicastProcessor<Frame> out = UnicastProcessor.create();
-            final MonoProcessor<Void> closeNotifier = MonoProcessor.create();
-            server.accept(new LocalDuplexConnection(out, in, closeNotifier));
-            DuplexConnection client = new LocalDuplexConnection(in, out, closeNotifier);
-            return Mono.just(client);
+          if (server == null) {
+            return Mono.error(new IllegalArgumentException("Could not find server: " + name));
           }
-          return Mono.error(new IllegalArgumentException("Could not find server: " + name));
+
+          UnicastProcessor<Frame> in = UnicastProcessor.create();
+          UnicastProcessor<Frame> out = UnicastProcessor.create();
+          MonoProcessor<Void> closeNotifier = MonoProcessor.create();
+
+          server.accept(new LocalDuplexConnection(out, in, closeNotifier));
+
+          return Mono.just((DuplexConnection) new LocalDuplexConnection(in, out, closeNotifier));
         });
   }
 }

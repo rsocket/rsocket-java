@@ -22,21 +22,37 @@ import java.net.URI;
 import java.util.Optional;
 import java.util.ServiceLoader;
 
-/**
- * URI to {@link ClientTransport} or {@link ServerTransport}. Should return a non empty value only
- * when the URI is unambiguously mapped to a particular transport, either by a standardised
- * implementation or via some flag in the URI to indicate a choice.
- */
+/** Maps a {@link URI} to a {@link ClientTransport} or {@link ServerTransport}. */
 public interface UriHandler {
+
+  /**
+   * Load all registered instances of {@code UriHandler}.
+   *
+   * @return all registered instances of {@code UriHandler}
+   */
   static ServiceLoader<UriHandler> loadServices() {
     return ServiceLoader.load(UriHandler.class);
   }
 
-  default Optional<ClientTransport> buildClient(URI uri) {
-    return Optional.empty();
-  }
+  /**
+   * Returns an implementation of {@link ClientTransport} unambiguously mapped to a {@link URI},
+   * otherwise {@link Optional#EMPTY}.
+   *
+   * @param uri the uri to map
+   * @return an implementation of {@link ClientTransport} unambiguously mapped to a {@link URI}, *
+   *     otherwise {@link Optional#EMPTY}
+   * @throws NullPointerException if {@code uri} is {@code null}
+   */
+  Optional<ClientTransport> buildClient(URI uri);
 
-  default Optional<ServerTransport> buildServer(URI uri) {
-    return Optional.empty();
-  }
+  /**
+   * Returns an implementation of {@link ServerTransport} unambiguously mapped to a {@link URI},
+   * otherwise {@link Optional#EMPTY}.
+   *
+   * @param uri the uri to map
+   * @return an implementation of {@link ServerTransport} unambiguously mapped to a {@link URI}, *
+   *     otherwise {@link Optional#EMPTY}
+   * @throws NullPointerException if {@code uri} is {@code null}
+   */
+  Optional<ServerTransport> buildServer(URI uri);
 }

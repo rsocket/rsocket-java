@@ -22,25 +22,37 @@ import io.rsocket.transport.netty.client.TcpClientTransport;
 import io.rsocket.transport.netty.server.TcpServerTransport;
 import io.rsocket.uri.UriHandler;
 import java.net.URI;
+import java.util.Objects;
 import java.util.Optional;
 import reactor.ipc.netty.tcp.TcpServer;
 
-public class TcpUriHandler implements UriHandler {
+/**
+ * An implementation of {@link UriHandler} that creates {@link TcpClientTransport}s and {@link
+ * TcpServerTransport}s.
+ */
+public final class TcpUriHandler implements UriHandler {
+
+  private static final String SCHEME = "tcp";
+
   @Override
   public Optional<ClientTransport> buildClient(URI uri) {
-    if ("tcp".equals(uri.getScheme())) {
-      return Optional.of(TcpClientTransport.create(uri.getHost(), uri.getPort()));
+    Objects.requireNonNull(uri, "uri must not be null");
+
+    if (!SCHEME.equals(uri.getScheme())) {
+      return Optional.empty();
     }
 
-    return UriHandler.super.buildClient(uri);
+    return Optional.of(TcpClientTransport.create(uri.getHost(), uri.getPort()));
   }
 
   @Override
   public Optional<ServerTransport> buildServer(URI uri) {
-    if ("tcp".equals(uri.getScheme())) {
-      return Optional.of(TcpServerTransport.create(TcpServer.create(uri.getHost(), uri.getPort())));
+    Objects.requireNonNull(uri, "uri must not be null");
+
+    if (!SCHEME.equals(uri.getScheme())) {
+      return Optional.empty();
     }
 
-    return UriHandler.super.buildServer(uri);
+    return Optional.of(TcpServerTransport.create(TcpServer.create(uri.getHost(), uri.getPort())));
   }
 }

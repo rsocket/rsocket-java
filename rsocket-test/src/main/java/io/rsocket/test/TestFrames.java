@@ -93,6 +93,8 @@ public final class TestFrames {
   /**
    * Returns a custom test {@link Frame}.
    *
+   * @param frameType the type of frame
+   * @param byteBuf the {@link ByteBuf} of content for this frame
    * @return a custom test {@link Frame}
    */
   public static Frame createTestFrame(FrameType frameType, ByteBuf byteBuf) {

@@ -16,17 +16,24 @@
 
 package io.rsocket.transport.local;
 
-import io.rsocket.Closeable;
-import io.rsocket.test.ClientSetupRule;
-import java.util.concurrent.atomic.AtomicInteger;
+import io.rsocket.test.TransportTest;
+import java.time.Duration;
 
-public class LocalClientSetupRule extends ClientSetupRule<String, Closeable> {
-  private static final AtomicInteger uniqueNameGenerator = new AtomicInteger();
+final class LocalTransportTest implements TransportTest {
 
-  public LocalClientSetupRule() {
-    super(
-        () -> "test" + uniqueNameGenerator.incrementAndGet(),
-        (address, server) -> LocalClientTransport.create(address),
-        LocalServerTransport::create);
+  private final LocalServerTransport serverTransport = LocalServerTransport.createEphemeral();
+
+  private final LocalClientTransport clientTransport = serverTransport.clientTransport();
+
+  private final TransportPair transportPair = new TransportPair(serverTransport, clientTransport);
+
+  @Override
+  public Duration getTimeout() {
+    return Duration.ofSeconds(10);
+  }
+
+  @Override
+  public TransportPair getTransportPair() {
+    return transportPair;
   }
 }

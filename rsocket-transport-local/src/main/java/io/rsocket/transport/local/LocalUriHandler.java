@@ -20,24 +20,36 @@ import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.ServerTransport;
 import io.rsocket.uri.UriHandler;
 import java.net.URI;
+import java.util.Objects;
 import java.util.Optional;
 
-public class LocalUriHandler implements UriHandler {
+/**
+ * An implementation of {@link UriHandler} that creates {@link LocalClientTransport}s and {@link
+ * LocalServerTransport}s.
+ */
+public final class LocalUriHandler implements UriHandler {
+
+  private static final String SCHEME = "local";
+
   @Override
   public Optional<ClientTransport> buildClient(URI uri) {
-    if ("local".equals(uri.getScheme())) {
-      return Optional.of(LocalClientTransport.create(uri.getSchemeSpecificPart()));
+    Objects.requireNonNull(uri, "uri must not be null");
+
+    if (!SCHEME.equals(uri.getScheme())) {
+      return Optional.empty();
     }
 
-    return UriHandler.super.buildClient(uri);
+    return Optional.of(LocalClientTransport.create(uri.getSchemeSpecificPart()));
   }
 
   @Override
   public Optional<ServerTransport> buildServer(URI uri) {
-    if ("local".equals(uri.getScheme())) {
-      return Optional.of(LocalServerTransport.create(uri.getSchemeSpecificPart()));
+    Objects.requireNonNull(uri, "uri must not be null");
+
+    if (!SCHEME.equals(uri.getScheme())) {
+      return Optional.empty();
     }
 
-    return UriHandler.super.buildServer(uri);
+    return Optional.of(LocalServerTransport.create(uri.getSchemeSpecificPart()));
   }
 }
