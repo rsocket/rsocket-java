@@ -36,13 +36,13 @@ subprojects {
     dependencyManagement {
         imports {
             // TODO: Upgrade to latest version
-            mavenBom 'io.projectreactor:reactor-bom:Bismuth-SR6'
+            mavenBom 'io.projectreactor:reactor-bom:Bismuth-SR9'
         }
 
         dependencies {
             dependency 'ch.qos.logback:logback-classic:1.2.3'
             dependency 'com.google.code.findbugs:jsr305:3.0.2'
-            dependency 'io.netty:netty-buffer:4.1.21.Final'
+            dependency 'io.netty:netty-buffer:4.1.24.Final'
             dependency 'io.aeron:aeron-all:1.4.1'
             dependency 'io.micrometer:micrometer-core:1.0.3'
             dependency 'org.assertj:assertj-core:3.9.1'
