@@ -228,28 +228,21 @@ public class RSocketFactory {
                           ackTimeout,
                           missedAcks);
 
-                  Mono<RSocket> wrappedRSocketClient =
-                      Mono.just(rSocketClient).map(plugins::applyClient);
+                  RSocket wrappedRSocketClient = plugins.applyClient(rSocketClient);
 
-                  DuplexConnection finalConnection = connection;
-                  return wrappedRSocketClient.flatMap(
-                      wrappedClientRSocket -> {
-                        RSocket unwrappedServerSocket = acceptor.get().apply(wrappedClientRSocket);
+                  RSocket unwrappedServerSocket = acceptor.get().apply(wrappedRSocketClient);
 
-                        Mono<RSocket> wrappedRSocketServer =
-                            Mono.just(unwrappedServerSocket).map(plugins::applyServer);
+                  RSocket wrappedRSocketServer = plugins.applyServer(unwrappedServerSocket);
 
-                        return wrappedRSocketServer
-                            .doOnNext(
-                                rSocket ->
-                                    new RSocketServer(
-                                        multiplexer.asServerConnection(),
-                                        rSocket,
-                                        frameDecoder,
-                                        errorConsumer))
-                            .then(finalConnection.sendOne(setupFrame))
-                            .then(wrappedRSocketClient);
-                      });
+                  RSocketServer rSocketServer = new RSocketServer(
+                      multiplexer.asServerConnection(),
+                      wrappedRSocketServer,
+                      frameDecoder,
+                      errorConsumer);
+
+                  return connection
+                      .sendOne(setupFrame)
+                      .thenReturn(wrappedRSocketClient);
                 });
       }
     }
