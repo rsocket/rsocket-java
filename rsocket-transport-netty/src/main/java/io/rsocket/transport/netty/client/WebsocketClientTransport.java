@@ -16,21 +16,33 @@
 
 package io.rsocket.transport.netty.client;
 
+import static io.rsocket.transport.netty.UriUtils.getPort;
+import static io.rsocket.transport.netty.UriUtils.isSecure;
+
 import io.rsocket.DuplexConnection;
 import io.rsocket.transport.ClientTransport;
+import io.rsocket.transport.ServerTransport;
 import io.rsocket.transport.TransportHeaderAware;
 import io.rsocket.transport.netty.WebsocketDuplexConnection;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Supplier;
 import reactor.core.publisher.Mono;
 import reactor.ipc.netty.http.client.HttpClient;
 
-public class WebsocketClientTransport implements ClientTransport, TransportHeaderAware {
+/**
+ * An implementation of {@link ClientTransport} that connects to a {@link ServerTransport} via a
+ * Websocket.
+ */
+public final class WebsocketClientTransport implements ClientTransport, TransportHeaderAware {
+
   private final HttpClient client;
+
   private String path;
+
   private Supplier<Map<String, String>> transportHeaders = Collections::emptyMap;
 
   private WebsocketClientTransport(HttpClient client, String path) {
@@ -38,51 +50,71 @@ public class WebsocketClientTransport implements ClientTransport, TransportHeade
     this.path = path;
   }
 
+  /**
+   * Creates a new instance connecting to localhost
+   *
+   * @param port the port to connect to
+   * @return a new instance
+   */
   public static WebsocketClientTransport create(int port) {
     HttpClient httpClient = HttpClient.create(port);
     return create(httpClient, "/");
   }
 
+  /**
+   * Creates a new instance
+   *
+   * @param bindAddress the address to connect to
+   * @param port the port to connect to
+   * @return a new instance
+   * @throws NullPointerException if {@code bindAddress} is {@code null}
+   */
   public static WebsocketClientTransport create(String bindAddress, int port) {
+    Objects.requireNonNull(bindAddress, "bindAddress must not be null");
+
     HttpClient httpClient = HttpClient.create(bindAddress, port);
     return create(httpClient, "/");
   }
 
+  /**
+   * Creates a new instance
+   *
+   * @param address the address to connect to
+   * @return a new instance
+   * @throws NullPointerException if {@code address} is {@code null}
+   */
   public static WebsocketClientTransport create(InetSocketAddress address) {
+    Objects.requireNonNull(address, "address must not be null");
+
     return create(address.getHostName(), address.getPort());
   }
 
+  /**
+   * Creates a new instance
+   *
+   * @param uri the URI to connect to
+   * @return a new instance
+   * @throws NullPointerException if {@code uri} is {@code null}
+   */
   public static WebsocketClientTransport create(URI uri) {
+    Objects.requireNonNull(uri, "uri must not be null");
+
     HttpClient httpClient = createClient(uri);
-    return create(httpClient, uri.toString());
+    return create(httpClient, uri.getPath());
   }
 
-  private static HttpClient createClient(URI uri) {
-    if (isSecureWebsocket(uri)) {
-      return HttpClient.create(
-          options ->
-              options
-                  .sslSupport()
-                  .connectAddress(
-                      () -> InetSocketAddress.createUnresolved(uri.getHost(), getPort(uri, 443))));
-    } else {
-      return HttpClient.create(uri.getHost(), getPort(uri, 80));
-    }
-  }
-
-  public static int getPort(URI uri, int defaultPort) {
-    return uri.getPort() == -1 ? defaultPort : uri.getPort();
-  }
-
-  public static boolean isSecureWebsocket(URI uri) {
-    return uri.getScheme().equals("wss") || uri.getScheme().equals("https");
-  }
-
-  public static boolean isPlaintextWebsocket(URI uri) {
-    return uri.getScheme().equals("ws") || uri.getScheme().equals("http");
-  }
-
+  /**
+   * Creates a new instance
+   *
+   * @param client the {@link HttpClient} to use
+   * @param path the path to request
+   * @return a new instance
+   * @throws NullPointerException if {@code client} or {@code path} is {@code null}
+   */
   public static WebsocketClientTransport create(HttpClient client, String path) {
+    Objects.requireNonNull(client, "client must not be null");
+    Objects.requireNonNull(path, "path must not be null");
+
     return new WebsocketClientTransport(client, path);
   }
 
@@ -107,6 +139,20 @@ public class WebsocketClientTransport implements ClientTransport, TransportHeade
 
   @Override
   public void setTransportHeaders(Supplier<Map<String, String>> transportHeaders) {
-    this.transportHeaders = transportHeaders;
+    this.transportHeaders =
+        Objects.requireNonNull(transportHeaders, "transportHeaders must not be null");
+  }
+
+  private static HttpClient createClient(URI uri) {
+    if (isSecure(uri)) {
+      return HttpClient.create(
+          options ->
+              options
+                  .sslSupport()
+                  .connectAddress(
+                      () -> InetSocketAddress.createUnresolved(uri.getHost(), getPort(uri, 443))));
+    } else {
+      return HttpClient.create(uri.getHost(), getPort(uri, 80));
+    }
   }
 }

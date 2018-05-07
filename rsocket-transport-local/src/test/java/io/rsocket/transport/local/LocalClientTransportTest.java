@@ -33,12 +33,7 @@ final class LocalClientTransportTest {
 
     serverTransport
         .start(duplexConnection -> Mono.empty())
-        .as(StepVerifier::create)
-        .expectNextCount(1)
-        .verifyComplete();
-
-    LocalClientTransport.create(serverTransport.getName())
-        .connect()
+        .flatMap(closeable -> LocalClientTransport.create(serverTransport.getName()).connect())
         .as(StepVerifier::create)
         .expectNextCount(1)
         .verifyComplete();

@@ -18,35 +18,75 @@ package io.rsocket.transport.netty.client;
 
 import io.rsocket.DuplexConnection;
 import io.rsocket.transport.ClientTransport;
-import io.rsocket.transport.netty.NettyDuplexConnection;
+import io.rsocket.transport.ServerTransport;
 import io.rsocket.transport.netty.RSocketLengthCodec;
+import io.rsocket.transport.netty.TcpDuplexConnection;
 import java.net.InetSocketAddress;
+import java.util.Objects;
 import reactor.core.publisher.Mono;
 import reactor.ipc.netty.tcp.TcpClient;
 
-public class TcpClientTransport implements ClientTransport {
+/**
+ * An implementation of {@link ClientTransport} that connects to a {@link ServerTransport} via TCP.
+ */
+public final class TcpClientTransport implements ClientTransport {
+
   private final TcpClient client;
 
   private TcpClientTransport(TcpClient client) {
     this.client = client;
   }
 
+  /**
+   * Creates a new instance connecting to localhost
+   *
+   * @param port the port to connect to
+   * @return a new instance
+   */
   public static TcpClientTransport create(int port) {
     TcpClient tcpClient = TcpClient.create(port);
     return create(tcpClient);
   }
 
+  /**
+   * Creates a new instance
+   *
+   * @param bindAddress the address to connect to
+   * @param port the port to connect to
+   * @return a new instance
+   * @throws NullPointerException if {@code bindAddress} is {@code null}
+   */
   public static TcpClientTransport create(String bindAddress, int port) {
+    Objects.requireNonNull(bindAddress, "bindAddress must not be null");
+
     TcpClient tcpClient = TcpClient.create(bindAddress, port);
     return create(tcpClient);
   }
 
+  /**
+   * Creates a new instance
+   *
+   * @param address the address to connect to
+   * @return a new instance
+   * @throws NullPointerException if {@code address} is {@code null}
+   */
   public static TcpClientTransport create(InetSocketAddress address) {
+    Objects.requireNonNull(address, "address must not be null");
+
     TcpClient tcpClient = TcpClient.create(address.getHostString(), address.getPort());
     return create(tcpClient);
   }
 
+  /**
+   * Creates a new instance
+   *
+   * @param client the {@link TcpClient} to use
+   * @return a new instance
+   * @throws NullPointerException if {@code client} is {@code null}
+   */
   public static TcpClientTransport create(TcpClient client) {
+    Objects.requireNonNull(client, "client must not be null");
+
     return new TcpClientTransport(client);
   }
 
@@ -57,9 +97,11 @@ public class TcpClientTransport implements ClientTransport {
             client
                 .newHandler(
                     (in, out) -> {
-                      in.context().addHandler("client-length-codec", new RSocketLengthCodec());
-                      NettyDuplexConnection connection =
-                          new NettyDuplexConnection(in, out, in.context());
+                      in.context().addHandler(new RSocketLengthCodec());
+
+                      TcpDuplexConnection connection =
+                          new TcpDuplexConnection(in, out, in.context());
+
                       sink.success(connection);
                       return connection.onClose();
                     })

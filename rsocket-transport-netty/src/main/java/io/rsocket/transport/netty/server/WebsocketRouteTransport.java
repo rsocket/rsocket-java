@@ -19,6 +19,7 @@ package io.rsocket.transport.netty.server;
 import io.rsocket.Closeable;
 import io.rsocket.transport.ServerTransport;
 import io.rsocket.transport.netty.WebsocketDuplexConnection;
+import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import org.reactivestreams.Publisher;
@@ -28,20 +29,37 @@ import reactor.ipc.netty.http.server.HttpServerRoutes;
 import reactor.ipc.netty.http.websocket.WebsocketInbound;
 import reactor.ipc.netty.http.websocket.WebsocketOutbound;
 
-public class WebsocketRouteTransport implements ServerTransport<Closeable> {
-  private HttpServer server;
-  private Consumer<? super HttpServerRoutes> routesBuilder;
-  private String path;
+/**
+ * An implementation of {@link ServerTransport} that connects via Websocket and listens on specified
+ * routes.
+ */
+public final class WebsocketRouteTransport implements ServerTransport<Closeable> {
 
+  private final String path;
+
+  private final Consumer<? super HttpServerRoutes> routesBuilder;
+
+  private final HttpServer server;
+
+  /**
+   * Creates a new instance
+   *
+   * @param server the {@link HttpServer} to use
+   * @param routesBuilder the builder for the routes that will be listened on
+   * @param path the path foe each route
+   */
   public WebsocketRouteTransport(
       HttpServer server, Consumer<? super HttpServerRoutes> routesBuilder, String path) {
-    this.server = server;
-    this.routesBuilder = routesBuilder;
-    this.path = path;
+
+    this.server = Objects.requireNonNull(server, "server must not be null");
+    this.routesBuilder = Objects.requireNonNull(routesBuilder, "routesBuilder must not be null");
+    this.path = Objects.requireNonNull(path, "path must not be null");
   }
 
   @Override
   public Mono<Closeable> start(ConnectionAcceptor acceptor) {
+    Objects.requireNonNull(acceptor, "acceptor must not be null");
+
     return server
         .newRouter(
             routes -> {
@@ -51,8 +69,18 @@ public class WebsocketRouteTransport implements ServerTransport<Closeable> {
         .map(NettyContextCloseable::new);
   }
 
-  public static BiFunction<WebsocketInbound, WebsocketOutbound, Publisher<Void>> newHandler(
+  /**
+   * Creates a new Websocket handler
+   *
+   * @param acceptor the {@link ConnectionAcceptor} to use with the handler
+   * @return a new Websocket handler
+   * @throws NullPointerException if {@code acceptor} is {@code null}
+   */
+  static BiFunction<WebsocketInbound, WebsocketOutbound, Publisher<Void>> newHandler(
       ConnectionAcceptor acceptor) {
+
+    Objects.requireNonNull(acceptor, "acceptor must not be null");
+
     return (in, out) -> {
       WebsocketDuplexConnection connection = new WebsocketDuplexConnection(in, out, in.context());
       acceptor.apply(connection).subscribe();

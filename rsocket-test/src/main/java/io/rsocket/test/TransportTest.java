@@ -24,6 +24,9 @@ import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.ServerTransport;
 import io.rsocket.util.DefaultPayload;
 import java.time.Duration;
+import java.util.function.BiFunction;
+import java.util.function.Function;
+import java.util.function.Supplier;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -258,21 +261,32 @@ public interface TransportTest {
         .verify(getTimeout());
   }
 
-  final class TransportPair implements Disposable {
+  final class TransportPair<T, S extends Closeable> implements Disposable {
 
     private final RSocket client;
 
-    private final Closeable server;
+    private final S server;
 
-    public TransportPair(ServerTransport<?> serverTransport, ClientTransport clientTransport) {
-      this.server =
+    public TransportPair(
+        Supplier<T> addressSupplier,
+        BiFunction<T, S, ClientTransport> clientTransportSupplier,
+        Function<T, ServerTransport<S>> serverTransportSupplier) {
+
+      T address = addressSupplier.get();
+
+      server =
           RSocketFactory.receive()
               .acceptor((setup, sendingSocket) -> Mono.just(new TestRSocket()))
-              .transport(serverTransport)
+              .transport(serverTransportSupplier.apply(address))
               .start()
               .block();
 
-      this.client = RSocketFactory.connect().transport(clientTransport).start().block();
+      client =
+          RSocketFactory.connect()
+              .transport(clientTransportSupplier.apply(address, server))
+              .start()
+              .doOnError(Throwable::printStackTrace)
+              .block();
     }
 
     @Override

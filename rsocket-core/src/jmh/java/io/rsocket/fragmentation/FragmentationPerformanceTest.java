@@ -57,7 +57,7 @@ public class FragmentationPerformanceTest {
 
   @Benchmark
   public void largeReassembly(Input input) {
-    input.largeFrames.forEach(frame -> input.reassembler.reassemble(frame, input.sink));
+    input.largeFrames.forEach(frame -> input.reassembler.reassemble(frame));
 
     input.bh.consume(input.sink.next);
   }
@@ -72,7 +72,7 @@ public class FragmentationPerformanceTest {
 
   @Benchmark
   public void smallReassembly(Input input) {
-    input.smallFrames.forEach(frame -> input.reassembler.reassemble(frame, input.sink));
+    input.smallFrames.forEach(frame -> input.reassembler.reassemble(frame));
 
     input.bh.consume(input.sink.next);
   }

@@ -14,14 +14,8 @@
  * limitations under the License.
  */
 
-package io.rsocket.transport.netty;
+/** The Netty-based RSocket client transport implementations. */
+@NonNullApi
+package io.rsocket.transport.netty.client;
 
-import io.rsocket.test.BaseClientServerTest;
-
-public class SecureWebsocketClientServerTest
-    extends BaseClientServerTest<SecureWebsocketClientSetupRule> {
-  @Override
-  protected SecureWebsocketClientSetupRule createClientServer() {
-    return new SecureWebsocketClientSetupRule();
-  }
-}
+import reactor.util.annotation.NonNullApi;

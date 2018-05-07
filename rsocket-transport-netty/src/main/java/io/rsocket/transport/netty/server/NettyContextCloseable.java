@@ -18,17 +18,36 @@ package io.rsocket.transport.netty.server;
 
 import io.rsocket.Closeable;
 import java.net.InetSocketAddress;
+import java.util.Objects;
 import reactor.core.publisher.Mono;
 import reactor.ipc.netty.NettyContext;
 
 /**
- * A {@link Closeable} wrapping a {@link NettyContext}, allowing for close and aware of its address.
+ * An implementation of {@link Closeable} that wraps a {@link NettyContext}, enabling close-ability
+ * and exposing the {@link NettyContext}'s address.
  */
-public class NettyContextCloseable implements Closeable {
+public final class NettyContextCloseable implements Closeable {
+
   private NettyContext context;
 
+  /**
+   * Creates a new instance
+   *
+   * @param context the {@link NettyContext} to wrap
+   * @throws NullPointerException if {@code context} is {@code null}
+   */
   NettyContextCloseable(NettyContext context) {
-    this.context = context;
+    this.context = Objects.requireNonNull(context, "context must not be null");
+  }
+
+  /**
+   * Returns the address that the {@link NettyContext} is listening on.
+   *
+   * @return the address that the {@link NettyContext} is listening on
+   * @see NettyContext#address()
+   */
+  public InetSocketAddress address() {
+    return context.address();
   }
 
   @Override
@@ -44,13 +63,5 @@ public class NettyContextCloseable implements Closeable {
   @Override
   public Mono<Void> onClose() {
     return context.onClose();
-  }
-
-  /**
-   * @see NettyContext#address()
-   * @return socket address.
-   */
-  public InetSocketAddress address() {
-    return context.address();
   }
 }

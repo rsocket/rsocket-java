@@ -16,6 +16,9 @@
 
 package io.rsocket.transport.netty;
 
+import static io.rsocket.transport.netty.UriUtils.getPort;
+import static io.rsocket.transport.netty.UriUtils.isSecure;
+
 import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.ServerTransport;
 import io.rsocket.transport.netty.client.WebsocketClientTransport;
@@ -33,7 +36,7 @@ import java.util.Optional;
  */
 public final class WebsocketUriHandler implements UriHandler {
 
-  private static final List<String> SCHEME = Arrays.asList("ws", "wss");
+  private static final List<String> SCHEME = Arrays.asList("ws", "wss", "http", "https");
 
   @Override
   public Optional<ClientTransport> buildClient(URI uri) {
@@ -54,7 +57,8 @@ public final class WebsocketUriHandler implements UriHandler {
       return Optional.empty();
     }
 
-    return Optional.of(
-        WebsocketServerTransport.create(uri.getHost(), WebsocketClientTransport.getPort(uri, 80)));
+    int port = isSecure(uri) ? getPort(uri, 443) : getPort(uri, 80);
+
+    return Optional.of(WebsocketServerTransport.create(uri.getHost(), port));
   }
 }
