@@ -325,7 +325,7 @@ public class RSocketFactory {
                 });
       }
 
-      private Mono<? extends Void> processSetupFrame(
+      private Mono<Void> processSetupFrame(
           ClientServerInputMultiplexer multiplexer, Frame setupFrame) {
         int version = Frame.Setup.version(setupFrame);
         if (version != SetupFrameFlyweight.CURRENT_VERSION) {
@@ -348,15 +348,20 @@ public class RSocketFactory {
                 errorConsumer,
                 StreamIdSupplier.serverSupplier());
 
-        Mono<RSocket> wrappedRSocketClient = Mono.just(rSocketClient).map(plugins::applyClient);
+        RSocket wrappedRSocketClient = plugins.applyClient(rSocketClient);
 
-        return wrappedRSocketClient
-            .flatMap(
-                sender -> acceptor.get().accept(setupPayload, sender).map(plugins::applyServer))
-            .map(
-                handler ->
-                    new RSocketServer(
-                        multiplexer.asClientConnection(), handler, frameDecoder, errorConsumer))
+        return acceptor
+            .get()
+            .accept(setupPayload, wrappedRSocketClient)
+            .doOnNext(unwrappedServerSocket -> {
+              RSocket wrappedRSocketServer = plugins.applyServer(unwrappedServerSocket);
+
+              RSocketServer rSocketServer = new RSocketServer(
+                  multiplexer.asClientConnection(),
+                  wrappedRSocketServer,
+                  frameDecoder,
+                  errorConsumer);
+            })
             .then();
       }
     }
