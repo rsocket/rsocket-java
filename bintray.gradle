@@ -54,6 +54,8 @@ if (project.hasProperty('bintrayUser') && project.hasProperty('bintrayKey') &&
 
     subprojects {
         plugins.withId('com.jfrog.bintray') {
+            tasks.bintrayUpload.dependsOn tasks.jar, tasks.sourcesJar, tasks.javadocJar
+
             bintray {
                 publications('maven')
             }
