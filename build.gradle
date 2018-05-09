@@ -27,7 +27,7 @@ plugins {
 }
 
 allprojects {
-    version = findProperty('version') ?: '0.11.0.BUILD-SNAPSHOT'
+    version = hasProperty('version') ? property('version') : '0.11.0.BUILD-SNAPSHOT'
 }
 
 subprojects {
