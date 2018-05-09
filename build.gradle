@@ -130,6 +130,24 @@ subprojects {
                                 }
                             }
 
+                            developers {
+                                developer {
+                                    id 'robertroeser'
+                                    name 'Robert Roeser'
+                                    email 'robert@netifi.com'
+                                }
+                                developer {
+                                    id 'rdegnan'
+                                    name 'Ryland Degnan'
+                                    email 'ryland@netifi.com'
+                                }
+                                developer {
+                                    id 'yschimke'
+                                    name 'Yuri Schimke'
+                                    email 'yuri@schimke.ee'
+                                }
+                            }
+
                             scm {
                                 connection 'scm:git:https://github.com/rsocket/rsocket-java.git'
                                 developerConnection 'scm:git:https://github.com/rsocket/rsocket-java.git'
