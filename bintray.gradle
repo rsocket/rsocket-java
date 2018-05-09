@@ -17,45 +17,42 @@
 if (project.hasProperty('bintrayUser') && project.hasProperty('bintrayKey') &&
         project.hasProperty('sonatypeUsername') && project.hasProperty('sonatypePassword')) {
 
-    bintray {
-        user = project.property('bintrayUser')
-        key = project.property('bintrayKey')
-
-        publish = true
-
-        pkg {
-            repo = 'RSocket'
-            name = 'rsocket-java'
-            licenses = ['Apache-2.0']
-
-            issueTrackerUrl = 'https://github.com/rsocket/rsocket-java/issues'
-            websiteUrl = 'https://github.com/rsocket/rsocket-java'
-            vcsUrl = 'https://github.com/rsocket/rsocket-java.git'
-
-            githubRepo = 'rsocket/rsocket-java' //Optional Github repository
-            githubReleaseNotesFile = 'README.md' //Optional Github readme file
-
-            version {
-                name = project.version
-                released = new Date()
-                vcsTag = project.version
-
-                gpg {
-                    sign = true
-                }
-
-                mavenCentralSync {
-                    user = project.property('sonatypeUsername')
-                    password = project.property('sonatypePassword')
-                }
-            }
-        }
-    }
-
     subprojects {
         plugins.withId('com.jfrog.bintray') {
             bintray {
-                publications('maven')
+                user = project.property('bintrayUser')
+                key = project.property('bintrayKey')
+
+                publications = ['maven']
+                publish = true
+
+                pkg {
+                    repo = 'RSocket'
+                    name = 'rsocket-java'
+                    licenses = ['Apache-2.0']
+
+                    issueTrackerUrl = 'https://github.com/rsocket/rsocket-java/issues'
+                    websiteUrl = 'https://github.com/rsocket/rsocket-java'
+                    vcsUrl = 'https://github.com/rsocket/rsocket-java.git'
+
+                    githubRepo = 'rsocket/rsocket-java' //Optional Github repository
+                    githubReleaseNotesFile = 'README.md' //Optional Github readme file
+
+                    version {
+                        name = project.version
+                        released = new Date()
+                        vcsTag = project.version
+
+                        gpg {
+                            sign = true
+                        }
+
+                        mavenCentralSync {
+                            user = project.property('sonatypeUsername')
+                            password = project.property('sonatypePassword')
+                        }
+                    }
+                }
             }
         }
     }
