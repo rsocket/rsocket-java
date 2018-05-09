@@ -26,10 +26,6 @@ plugins {
     id 'io.morethan.jmhreport' version '0.7.0' apply false
 }
 
-allprojects {
-    version = hasProperty('version') ? property('version') : '0.11.0.BUILD-SNAPSHOT'
-}
-
 subprojects {
     apply plugin: 'io.spring.dependency-management'
 
