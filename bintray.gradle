@@ -38,7 +38,7 @@ if (project.hasProperty('bintrayUser') && project.hasProperty('bintrayKey') &&
             version {
                 name = project.version
                 released = new Date()
-                vcsTag = "v${project.version}"
+                vcsTag = project.version
 
                 gpg {
                     sign = true
