@@ -15,7 +15,7 @@
  */
 
 if (project.hasProperty('bintrayUser') && project.hasProperty('bintrayKey') &&
-        project.hasProperty('sonatypeUser') && project.hasProperty('sonatypePassword')) {
+        project.hasProperty('sonatypeUsername') && project.hasProperty('sonatypePassword')) {
 
     bintray {
         user = project.property('bintrayUser')
@@ -45,7 +45,7 @@ if (project.hasProperty('bintrayUser') && project.hasProperty('bintrayKey') &&
                 }
 
                 mavenCentralSync {
-                    user = project.property('sonatypeUser')
+                    user = project.property('sonatypeUsername')
                     password = project.property('sonatypePassword')
                 }
             }
