@@ -22,8 +22,9 @@ plugins {
 }
 
 dependencies {
-    implementation project(':rsocket-core')
-    implementation 'com.google.code.findbugs:jsr305'
+    api project(':rsocket-core')
+
+    compileOnly 'com.google.code.findbugs:jsr305'
 
     testImplementation project(':rsocket-test')
     testImplementation 'io.projectreactor:reactor-test'

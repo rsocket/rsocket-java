@@ -22,9 +22,8 @@ plugins {
 }
 
 dependencies {
+    api project(':rsocket-core')
     api 'io.projectreactor.ipc:reactor-netty'
-
-    implementation project(':rsocket-core')
 
     testImplementation project(':rsocket-test')
     testImplementation 'org.junit.jupiter:junit-jupiter-api'
