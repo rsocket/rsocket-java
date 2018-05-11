@@ -27,11 +27,12 @@ plugins {
 dependencies {
     api 'io.netty:netty-buffer'
     api 'io.projectreactor:reactor-core'
-    api 'io.projectreactor.addons:reactor-extra'
 
-    implementation 'com.google.code.findbugs:jsr305'
-    implementation 'org.jctools:jctools-core'
+    implementation 'io.projectreactor.addons:reactor-extra'
     implementation 'org.slf4j:slf4j-api'
+
+    compileOnly 'com.google.code.findbugs:jsr305'
+    compileOnly 'org.jctools:jctools-core'
 
     testImplementation 'io.projectreactor:reactor-test'
     testImplementation 'org.assertj:assertj-core'
@@ -39,6 +40,7 @@ dependencies {
     testImplementation 'org.mockito:mockito-core'
 
     testRuntimeOnly 'ch.qos.logback:logback-classic'
+    testRuntimeOnly 'org.jctools:jctools-core'
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine'
 
     // TODO: Remove after JUnit5 migration
@@ -53,6 +55,8 @@ jar {
 }
 
 shadowJar {
+    configurations = [project.configurations.compileOnly]
+
     dependencies {
         include(dependency('org.jctools:jctools-core'))
     }

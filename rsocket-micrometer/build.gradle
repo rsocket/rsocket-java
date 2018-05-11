@@ -22,11 +22,12 @@ plugins {
 }
 
 dependencies {
-    implementation project(':rsocket-core')
-    implementation 'com.google.code.findbugs:jsr305'
-    implementation 'io.micrometer:micrometer-core'
+    api project(':rsocket-core')
+    api 'io.micrometer:micrometer-core'
+
     implementation 'org.slf4j:slf4j-api'
 
+    compileOnly 'com.google.code.findbugs:jsr305'
 
     testImplementation project(':rsocket-test')
     testImplementation 'io.projectreactor:reactor-test'

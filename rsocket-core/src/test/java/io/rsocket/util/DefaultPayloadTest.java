@@ -20,7 +20,6 @@ import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
 
 import io.rsocket.Payload;
-import javax.annotation.Nullable;
 import org.junit.Test;
 
 public class DefaultPayloadTest {
@@ -34,7 +33,7 @@ public class DefaultPayloadTest {
     assertDataAndMetadata(p, DATA_VAL, METADATA_VAL);
   }
 
-  public void assertDataAndMetadata(Payload p, String dataVal, @Nullable String metadataVal) {
+  public void assertDataAndMetadata(Payload p, String dataVal, String metadataVal) {
     assertThat("Unexpected data.", p.getDataUtf8(), equalTo(dataVal));
     if (metadataVal == null) {
       assertThat("Non-null metadata", p.hasMetadata(), equalTo(false));

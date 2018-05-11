@@ -15,24 +15,25 @@
  */
 
 if (project.hasProperty('bintrayUser') && project.hasProperty('bintrayKey')) {
-    artifactory {
-        publish {
-            contextUrl = 'https://oss.jfrog.org'
-
-            repository {
-                repoKey = 'oss-snapshot-local'
-
-                // Credentials for oss.jfrog.org are a user's Bintray credentials
-                username = project.property('bintrayUser')
-                password = project.property('bintrayKey')
-            }
-        }
-    }
 
     subprojects {
         plugins.withId('com.jfrog.artifactory') {
-            artifactoryPublish {
-                publications('maven')
+            artifactory {
+                publish {
+                    contextUrl = 'https://oss.jfrog.org'
+
+                    repository {
+                        repoKey = 'oss-snapshot-local'
+
+                        // Credentials for oss.jfrog.org are a user's Bintray credentials
+                        username = project.property('bintrayUser')
+                        password = project.property('bintrayKey')
+                    }
+
+                    defaults {
+                        publications('maven')
+                    }
+                }
             }
         }
     }

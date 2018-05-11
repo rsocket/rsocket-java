@@ -22,9 +22,9 @@ plugins {
 }
 
 dependencies {
+    api project(':rsocket-core')
     api 'io.aeron:aeron-all'
 
-    implementation project(':rsocket-core')
     implementation 'org.slf4j:slf4j-api'
 
     testImplementation project(':rsocket-test')
