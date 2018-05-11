@@ -47,11 +47,11 @@ final class FragmentationDuplexConnectionTest {
   private final ArgumentCaptor<Publisher<Frame>> publishers =
       ArgumentCaptor.forClass(Publisher.class);
 
-  @DisplayName("constructor throws NullPointerException with invalid maxFragmentLength")
+  @DisplayName("constructor throws IllegalArgumentException with negative maxFragmentLength")
   @Test
   void constructorInvalidMaxFragmentSize() {
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> new FragmentationDuplexConnection(DEFAULT, delegate, 0))
+        .isThrownBy(() -> new FragmentationDuplexConnection(DEFAULT, delegate, Integer.MIN_VALUE))
         .withMessage("maxFragmentSize must be positive");
   }
 
@@ -365,5 +365,18 @@ final class FragmentationDuplexConnectionTest {
     assertThatNullPointerException()
         .isThrownBy(() -> new FragmentationDuplexConnection(DEFAULT, delegate, 2).send(null))
         .withMessage("frames must not be null");
+  }
+
+  @DisplayName("does not fragment with zero maxFragmentLength")
+  @Test
+  void sendZeroMaxFragmentLength() {
+    Frame frame =
+        toAbstractionLeakingFrame(
+            DEFAULT, 1, createPayloadFrame(DEFAULT, false, false, null, getRandomByteBuf(2)));
+
+    new FragmentationDuplexConnection(DEFAULT, delegate, 0).sendOne(frame);
+    verify(delegate).send(publishers.capture());
+
+    StepVerifier.create(Flux.from(publishers.getValue())).expectNext(frame).verifyComplete();
   }
 }

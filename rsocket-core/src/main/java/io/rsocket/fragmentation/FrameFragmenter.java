@@ -124,7 +124,7 @@ final class FrameFragmenter {
   }
 
   private boolean shouldFragment(Frame frame) {
-    if (!(frame instanceof FragmentableFrame)) {
+    if (maxFragmentSize == 0 || !(frame instanceof FragmentableFrame)) {
       return false;
     }
 
