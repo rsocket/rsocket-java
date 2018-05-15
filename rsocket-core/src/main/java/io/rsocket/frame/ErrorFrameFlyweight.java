@@ -17,8 +17,8 @@
 package io.rsocket.frame;
 
 import io.netty.buffer.ByteBuf;
-import io.rsocket.framing.FrameType;
 import io.rsocket.exceptions.*;
+import io.rsocket.framing.FrameType;
 import java.nio.charset.StandardCharsets;
 
 public class ErrorFrameFlyweight {

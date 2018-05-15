@@ -19,7 +19,6 @@ package io.rsocket;
 import static io.rsocket.frame.FrameHeaderFlyweight.FLAGS_M;
 
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
 import io.netty.util.AbstractReferenceCounted;
 import io.rsocket.Frame.Setup;
 import io.rsocket.frame.SetupFrameFlyweight;
@@ -30,38 +29,9 @@ import io.rsocket.framing.FrameType;
  */
 public abstract class ConnectionSetupPayload extends AbstractReferenceCounted implements Payload {
 
-  public static final int NO_FLAGS = 0;
-  public static final int HONOR_LEASE = SetupFrameFlyweight.FLAGS_WILL_HONOR_LEASE;
-
-  public static ConnectionSetupPayload create(String metadataMimeType, String dataMimeType) {
-    return new DefaultConnectionSetupPayload(
-        metadataMimeType, dataMimeType, Unpooled.EMPTY_BUFFER, Unpooled.EMPTY_BUFFER, NO_FLAGS);
-  }
-
-  public static ConnectionSetupPayload create(
-      String metadataMimeType, String dataMimeType, Payload payload) {
-    return new DefaultConnectionSetupPayload(
-        metadataMimeType,
-        dataMimeType,
-        payload.sliceData(),
-        payload.sliceMetadata(),
-        payload.hasMetadata() ? FLAGS_M : 0);
-  }
-
-  public static ConnectionSetupPayload create(
-      String metadataMimeType, String dataMimeType, int flags) {
-    return new DefaultConnectionSetupPayload(
-        metadataMimeType, dataMimeType, Unpooled.EMPTY_BUFFER, Unpooled.EMPTY_BUFFER, flags);
-  }
-
   public static ConnectionSetupPayload create(final Frame setupFrame) {
     Frame.ensureFrameType(FrameType.SETUP, setupFrame);
-    return new DefaultConnectionSetupPayload(
-        Setup.metadataMimeType(setupFrame),
-        Setup.dataMimeType(setupFrame),
-        setupFrame.sliceData(),
-        setupFrame.sliceMetadata(),
-        Setup.getFlags(setupFrame));
+    return new DefaultConnectionSetupPayload(setupFrame);
   }
 
   public abstract String metadataMimeType();
@@ -71,7 +41,7 @@ public abstract class ConnectionSetupPayload extends AbstractReferenceCounted im
   public abstract int getFlags();
 
   public boolean willClientHonorLease() {
-    return Frame.isFlagSet(getFlags(), HONOR_LEASE);
+    return Frame.isFlagSet(getFlags(), SetupFrameFlyweight.FLAGS_WILL_HONOR_LEASE);
   }
 
   @Override
@@ -97,68 +67,52 @@ public abstract class ConnectionSetupPayload extends AbstractReferenceCounted im
 
   private static final class DefaultConnectionSetupPayload extends ConnectionSetupPayload {
 
-    private final String metadataMimeType;
-    private final String dataMimeType;
-    private final ByteBuf data;
-    private final ByteBuf metadata;
-    private final int flags;
+    private final Frame setupFrame;
 
-    public DefaultConnectionSetupPayload(
-        String metadataMimeType, String dataMimeType, ByteBuf data, ByteBuf metadata, int flags) {
-      this.metadataMimeType = metadataMimeType;
-      this.dataMimeType = dataMimeType;
-      this.data = data;
-      this.metadata = metadata;
-      this.flags = flags;
-
-      if (!hasMetadata() && metadata.readableBytes() > 0) {
-        throw new IllegalArgumentException("metadata flag incorrect");
-      }
+    public DefaultConnectionSetupPayload(final Frame setupFrame) {
+      this.setupFrame = setupFrame;
     }
 
     @Override
     public String metadataMimeType() {
-      return metadataMimeType;
+      return Setup.metadataMimeType(setupFrame);
     }
 
     @Override
     public String dataMimeType() {
-      return dataMimeType;
+      return Setup.dataMimeType(setupFrame);
     }
 
     @Override
     public ByteBuf sliceData() {
-      return data;
+      return setupFrame.sliceData();
     }
 
     @Override
     public ByteBuf sliceMetadata() {
-      return metadata;
+      return setupFrame.sliceMetadata();
     }
 
     @Override
     public int getFlags() {
-      return flags;
+      return Setup.getFlags(setupFrame);
     }
 
     @Override
     public ConnectionSetupPayload touch() {
-      data.touch();
-      metadata.touch();
+      setupFrame.touch();
       return this;
     }
 
     @Override
     public ConnectionSetupPayload touch(Object hint) {
-      data.touch(hint);
-      metadata.touch(hint);
+      setupFrame.touch(hint);
       return this;
     }
 
     @Override
     protected void deallocate() {
-      data.release();
-      metadata.release();
+      setupFrame.release();
     }
   }
 }

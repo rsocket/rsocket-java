@@ -16,6 +16,8 @@
 
 package io.rsocket.internal;
 
+import io.rsocket.Payload;
+import io.rsocket.util.EmptyPayload;
 import java.util.concurrent.CountDownLatch;
 import org.junit.Assert;
 import org.junit.Test;
@@ -52,10 +54,10 @@ public class UnboundedProcessorTest {
   }
 
   public void testOnNextBeforeSubscribeN(int n) {
-    UnboundedProcessor<Integer> processor = new UnboundedProcessor<>();
+    UnboundedProcessor<Payload> processor = new UnboundedProcessor<>();
 
     for (int i = 0; i < n; i++) {
-      processor.onNext(i);
+      processor.onNext(EmptyPayload.INSTANCE);
     }
 
     processor.onComplete();
@@ -82,12 +84,12 @@ public class UnboundedProcessorTest {
 
   public void testOnNextAfterSubscribeN(int n) throws Exception {
     CountDownLatch latch = new CountDownLatch(n);
-    UnboundedProcessor<Integer> processor = new UnboundedProcessor<>();
+    UnboundedProcessor<Payload> processor = new UnboundedProcessor<>();
     processor.log().doOnNext(integer -> latch.countDown()).subscribe();
 
     for (int i = 0; i < n; i++) {
       System.out.println("onNexting -> " + i);
-      processor.onNext(i);
+      processor.onNext(EmptyPayload.INSTANCE);
     }
 
     processor.drain();

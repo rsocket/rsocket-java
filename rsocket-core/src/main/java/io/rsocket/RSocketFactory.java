@@ -234,15 +234,14 @@ public class RSocketFactory {
 
                   RSocket wrappedRSocketServer = plugins.applyServer(unwrappedServerSocket);
 
-                  RSocketServer rSocketServer = new RSocketServer(
-                      multiplexer.asServerConnection(),
-                      wrappedRSocketServer,
-                      frameDecoder,
-                      errorConsumer);
+                  RSocketServer rSocketServer =
+                      new RSocketServer(
+                          multiplexer.asServerConnection(),
+                          wrappedRSocketServer,
+                          frameDecoder,
+                          errorConsumer);
 
-                  return connection
-                      .sendOne(setupFrame)
-                      .thenReturn(wrappedRSocketClient);
+                  return connection.sendOne(setupFrame).thenReturn(wrappedRSocketClient);
                 });
       }
     }
@@ -353,15 +352,18 @@ public class RSocketFactory {
         return acceptor
             .get()
             .accept(setupPayload, wrappedRSocketClient)
-            .doOnNext(unwrappedServerSocket -> {
-              RSocket wrappedRSocketServer = plugins.applyServer(unwrappedServerSocket);
+            .doOnNext(
+                unwrappedServerSocket -> {
+                  RSocket wrappedRSocketServer = plugins.applyServer(unwrappedServerSocket);
 
-              RSocketServer rSocketServer = new RSocketServer(
-                  multiplexer.asClientConnection(),
-                  wrappedRSocketServer,
-                  frameDecoder,
-                  errorConsumer);
-            })
+                  RSocketServer rSocketServer =
+                      new RSocketServer(
+                          multiplexer.asClientConnection(),
+                          wrappedRSocketServer,
+                          frameDecoder,
+                          errorConsumer);
+                })
+            .doFinally(signalType -> setupPayload.release())
             .then();
       }
     }

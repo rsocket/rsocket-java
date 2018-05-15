@@ -17,8 +17,8 @@
 package io.rsocket.resume;
 
 import io.rsocket.Frame;
-import io.rsocket.framing.FrameType;
 import io.rsocket.frame.FrameHeaderFlyweight;
+import io.rsocket.framing.FrameType;
 
 public class ResumeUtil {
   public static boolean isTracked(FrameType frameType) {

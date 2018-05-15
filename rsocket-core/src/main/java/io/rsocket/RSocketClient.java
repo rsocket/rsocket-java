@@ -27,9 +27,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import javax.annotation.Nullable;
-
 import org.jctools.maps.NonBlockingHashMapLong;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
@@ -185,7 +183,7 @@ class RSocketClient implements RSocket {
 
   @Override
   public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
-    return handleChannel(Flux.from(payloads), FrameType.REQUEST_CHANNEL);
+    return handleChannel(Flux.from(payloads));
   }
 
   @Override
@@ -289,108 +287,88 @@ class RSocketClient implements RSocket {
             }));
   }
 
-  private Flux<Payload> handleChannel(Flux<Payload> request, FrameType requestType) {
+  private Flux<Payload> handleChannel(Flux<Payload> request) {
     return started.thenMany(
         Flux.defer(
-            new Supplier<Flux<Payload>>() {
+            () -> {
               final UnicastProcessor<Payload> receiver = UnicastProcessor.create();
               final int streamId = streamIdSupplier.nextStreamId();
-              volatile @Nullable MonoProcessor<Void> subscribedRequests;
-              boolean firstRequest = true;
+              final AtomicBoolean firstRequest = new AtomicBoolean(true);
 
-              boolean isValidToSendFrame() {
-                return contains(streamId) && !receiver.isDisposed();
-              }
+              return receiver
+                  .doOnRequest(
+                      n -> {
+                        if (firstRequest.compareAndSet(true, false)) {
+                          final AtomicBoolean firstPayload = new AtomicBoolean(true);
+                          final Flux<Frame> requestFrames =
+                              request
+                                  .transform(
+                                      f -> {
+                                        LimitableRequestPublisher<Payload> wrapped =
+                                            LimitableRequestPublisher.wrap(f);
+                                        // Need to set this to one for first the frame
+                                        wrapped.increaseRequestLimit(1);
+                                        senders.put(streamId, wrapped);
+                                        receivers.put(streamId, receiver);
 
-              void sendOneFrame(Frame frame) {
-                if (isValidToSendFrame()) {
-                  sendProcessor.onNext(frame);
-                }
-              }
+                                        return wrapped;
+                                      })
+                                  .map(
+                                      payload -> {
+                                        final Frame requestFrame;
+                                        if (firstPayload.compareAndSet(true, false)) {
+                                          requestFrame =
+                                              Frame.Request.from(
+                                                  streamId, FrameType.REQUEST_CHANNEL, payload, n);
+                                        } else {
+                                          requestFrame =
+                                              Frame.PayloadFrame.from(
+                                                  streamId, FrameType.NEXT, payload);
+                                        }
+                                        payload.release();
+                                        return requestFrame;
+                                      })
+                                  .doOnComplete(
+                                      () -> {
+                                        if (contains(streamId) && !receiver.isDisposed()) {
+                                          sendProcessor.onNext(
+                                              Frame.PayloadFrame.from(
+                                                  streamId, FrameType.COMPLETE));
+                                        }
+                                        if (firstPayload.get()) {
+                                          receiver.onComplete();
+                                        }
+                                      });
 
-              @Override
-              public Flux<Payload> get() {
-                return receiver
-                    .doOnRequest(
-                        l -> {
-                          boolean _firstRequest = false;
-                          synchronized (RSocketClient.this) {
-                            if (firstRequest) {
-                              _firstRequest = true;
-                              firstRequest = false;
-                            }
+                          requestFrames.subscribe(
+                              sendProcessor::onNext,
+                              t -> {
+                                errorConsumer.accept(t);
+                                receiver.dispose();
+                              });
+                        } else {
+                          if (contains(streamId) && !receiver.isDisposed()) {
+                            sendProcessor.onNext(Frame.RequestN.from(streamId, n));
                           }
-
-                          if (_firstRequest) {
-                            AtomicBoolean firstPayload = new AtomicBoolean(true);
-                            Flux<Frame> requestFrames =
-                                request
-                                    .transform(
-                                        f -> {
-                                          LimitableRequestPublisher<Payload> wrapped =
-                                              LimitableRequestPublisher.wrap(f);
-                                          // Need to set this to one for first the frame
-                                          wrapped.increaseRequestLimit(1);
-                                          senders.put(streamId, wrapped);
-                                          receivers.put(streamId, receiver);
-
-                                          return wrapped;
-                                        })
-                                    .map(
-                                        new Function<Payload, Frame>() {
-
-                                          @Override
-                                          public Frame apply(Payload payload) {
-                                            final Frame requestFrame;
-                                            if (firstPayload.compareAndSet(true, false)) {
-                                              requestFrame =
-                                                  Frame.Request.from(
-                                                      streamId, requestType, payload, l);
-                                            } else {
-                                              requestFrame =
-                                                  Frame.PayloadFrame.from(
-                                                      streamId, FrameType.NEXT, payload);
-                                            }
-                                            payload.release();
-                                            return requestFrame;
-                                          }
-                                        })
-                                    .doOnComplete(
-                                        () -> {
-                                          if (FrameType.REQUEST_CHANNEL == requestType) {
-                                            sendOneFrame(
-                                                Frame.PayloadFrame.from(
-                                                    streamId, FrameType.COMPLETE));
-                                            if (firstPayload.get()) {
-                                              receiver.onComplete();
-                                            }
-                                          }
-                                        });
-
-                            requestFrames.subscribe(
-                                sendProcessor::onNext,
-                                t -> {
-                                  errorConsumer.accept(t);
-                                  receiver.dispose();
-                                });
-                          } else {
-                            sendOneFrame(Frame.RequestN.from(streamId, l));
-                          }
-                        })
-                    .doOnError(t -> sendOneFrame(Frame.Error.from(streamId, t)))
-                    .doOnCancel(
-                        () -> {
-                          sendOneFrame(Frame.Cancel.from(streamId));
-                          if (subscribedRequests != null) {
-                            subscribedRequests.cancel();
-                          }
-                        })
-                    .doFinally(
-                        s -> {
-                          receivers.remove(streamId);
-                          senders.remove(streamId);
-                        });
-              }
+                        }
+                      })
+                  .doOnError(
+                      t -> {
+                        if (contains(streamId) && !receiver.isDisposed()) {
+                          sendProcessor.onNext(Frame.Error.from(streamId, t));
+                        }
+                      })
+                  .doOnCancel(
+                      () -> {
+                        if (contains(streamId) && !receiver.isDisposed()) {
+                          sendProcessor.onNext(Frame.Cancel.from(streamId));
+                        }
+                      })
+                  .doFinally(
+                      s -> {
+                        receivers.remove(streamId);
+                        senders.remove(streamId);
+                      });
             }));
   }
 

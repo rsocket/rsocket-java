@@ -28,7 +28,6 @@ import io.rsocket.internal.LimitableRequestPublisher;
 import io.rsocket.internal.UnboundedProcessor;
 import java.util.function.Consumer;
 import java.util.function.Function;
-
 import org.jctools.maps.NonBlockingHashMapLong;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
@@ -315,6 +314,7 @@ class RSocketServer implements RSocket {
               payload.release();
               return frame;
             })
+        .concatWith(Mono.fromCallable(() -> Frame.PayloadFrame.from(streamId, FrameType.COMPLETE)))
         .transform(
             frameFlux -> {
               LimitableRequestPublisher<Frame> frames = LimitableRequestPublisher.wrap(frameFlux);
@@ -322,7 +322,6 @@ class RSocketServer implements RSocket {
               frames.increaseRequestLimit(initialRequestN);
               return frames;
             })
-        .concatWith(Mono.just(Frame.PayloadFrame.from(streamId, FrameType.COMPLETE)))
         .doFinally(signalType -> sendingSubscriptions.remove(streamId))
         .subscribe(sendProcessor::onNext, t -> handleError(streamId, t));
   }

@@ -16,6 +16,7 @@
 
 package io.rsocket.internal;
 
+import io.netty.util.ReferenceCountUtil;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.function.BiFunction;
@@ -41,7 +42,8 @@ public final class SwitchTransform<T, R> extends Flux<R> {
     Flux.from(source).subscribe(new SwitchTransformSubscriber<>(actual, transformer));
   }
 
-  static final class SwitchTransformSubscriber<T, R> implements CoreSubscriber<T> {
+  static final class SwitchTransformSubscriber<T, R>
+      implements CoreSubscriber<T> {
     @SuppressWarnings("rawtypes")
     static final AtomicIntegerFieldUpdater<SwitchTransformSubscriber> ONCE =
         AtomicIntegerFieldUpdater.newUpdater(SwitchTransformSubscriber.class, "once");
@@ -77,6 +79,7 @@ public final class SwitchTransform<T, R> extends Flux<R> {
           Flux.from(result).subscribe(actual);
         } catch (Throwable e) {
           onError(Operators.onOperatorError(s, e, t, actual.currentContext()));
+          ReferenceCountUtil.release(t);
           return;
         }
       }
