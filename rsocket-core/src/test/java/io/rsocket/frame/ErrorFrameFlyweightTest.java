@@ -18,12 +18,10 @@ package io.rsocket.frame;
 
 import static io.rsocket.frame.ErrorFrameFlyweight.*;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
-import io.rsocket.Frame;
 import io.rsocket.exceptions.*;
 import java.nio.charset.StandardCharsets;
 import org.junit.Test;

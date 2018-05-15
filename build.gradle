@@ -89,6 +89,8 @@ subprojects {
 
         test {
             useJUnitPlatform()
+
+            systemProperty "io.netty.leakDetection.level", "ADVANCED"
         }
     }
 

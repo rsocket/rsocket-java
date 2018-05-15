@@ -16,7 +16,7 @@
 
 package io.rsocket.internal;
 
-import io.netty.util.internal.shaded.org.jctools.queues.atomic.MpscGrowableAtomicArrayQueue;
+import io.netty.util.ReferenceCountUtil;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
@@ -42,36 +42,46 @@ import reactor.util.context.Context;
 public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
     implements Fuseable.QueueSubscription<T>, Fuseable {
 
+  final Queue<T> queue;
+
+  volatile boolean done;
+  Throwable error;
+
+  volatile CoreSubscriber<? super T> actual;
+
+  volatile boolean cancelled;
+
+  volatile int once;
+
   @SuppressWarnings("rawtypes")
   static final AtomicIntegerFieldUpdater<UnboundedProcessor> ONCE =
       AtomicIntegerFieldUpdater.newUpdater(UnboundedProcessor.class, "once");
+
+  volatile int wip;
 
   @SuppressWarnings("rawtypes")
   static final AtomicIntegerFieldUpdater<UnboundedProcessor> WIP =
       AtomicIntegerFieldUpdater.newUpdater(UnboundedProcessor.class, "wip");
 
+  volatile long requested;
+
   @SuppressWarnings("rawtypes")
   static final AtomicLongFieldUpdater<UnboundedProcessor> REQUESTED =
       AtomicLongFieldUpdater.newUpdater(UnboundedProcessor.class, "requested");
 
-  final Queue<T> queue;
-
-  volatile boolean done;
-  Throwable error;
-  volatile CoreSubscriber<? super T> actual;
-  volatile boolean cancelled;
-  volatile int once;
-  volatile int wip;
-  volatile long requested;
-  volatile long processed;
-
   public UnboundedProcessor() {
-    this.queue = new MpscGrowableAtomicArrayQueue<>(Queues.SMALL_BUFFER_SIZE, 1 << 24);
+    this.queue = Queues.<T>unboundedMultiproducer().get();
   }
 
   @Override
   public int getBufferSize() {
     return Queues.capacity(this.queue);
+  }
+
+  @Override
+  public Object scanUnsafe(Attr key) {
+    if (Attr.BUFFERED == key) return queue.size();
+    return super.scanUnsafe(key);
   }
 
   void drainRegular(Subscriber<? super T> a) {
@@ -97,6 +107,7 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
         if (empty) {
           break;
         }
+
         a.onNext(t);
 
         e++;
@@ -144,7 +155,12 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
 
   boolean checkTerminated(boolean d, boolean empty, Subscriber<? super T> a, Queue<T> q) {
     if (cancelled) {
-      q.clear();
+      while (!q.isEmpty()) {
+        T t = q.poll();
+        if (t != null) {
+          ReferenceCountUtil.release(t);
+        }
+      }
       actual = null;
       return true;
     }
@@ -186,6 +202,7 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
   public void onNext(T t) {
     if (done || cancelled) {
       Operators.onNextDropped(t, currentContext());
+      ReferenceCountUtil.release(t);
       return;
     }
 
@@ -193,9 +210,9 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
       Throwable ex =
           Operators.onOperatorError(null, Exceptions.failWithOverflow(), t, currentContext());
       onError(Operators.onOperatorError(null, ex, t, currentContext()));
+      ReferenceCountUtil.release(t);
       return;
     }
-
     drain();
   }
 
@@ -227,8 +244,9 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
   public void subscribe(CoreSubscriber<? super T> actual) {
     Objects.requireNonNull(actual, "subscribe");
     if (once == 0 && ONCE.compareAndSet(this, 0, 1)) {
-      this.actual = actual;
+
       actual.onSubscribe(this);
+      this.actual = actual;
       if (cancelled) {
         this.actual = null;
       } else {
@@ -255,8 +273,10 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
       return;
     }
     cancelled = true;
+
     if (WIP.getAndIncrement(this) == 0) {
-      queue.clear();
+      clear();
+      actual = null;
     }
   }
 
@@ -278,7 +298,12 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
 
   @Override
   public void clear() {
-    queue.clear();
+    while (!queue.isEmpty()) {
+      T t = queue.poll();
+      if (t != null) {
+        ReferenceCountUtil.release(t);
+      }
+    }
   }
 
   @Override
