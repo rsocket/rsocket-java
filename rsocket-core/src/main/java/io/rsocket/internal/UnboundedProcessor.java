@@ -158,7 +158,7 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
       while (!q.isEmpty()) {
         T t = q.poll();
         if (t != null) {
-          ReferenceCountUtil.release(t);
+          ReferenceCountUtil.safeRelease(t);
         }
       }
       actual = null;
@@ -202,7 +202,7 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
   public void onNext(T t) {
     if (done || cancelled) {
       Operators.onNextDropped(t, currentContext());
-      ReferenceCountUtil.release(t);
+      ReferenceCountUtil.safeRelease(t);
       return;
     }
 
@@ -210,7 +210,7 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
       Throwable ex =
           Operators.onOperatorError(null, Exceptions.failWithOverflow(), t, currentContext());
       onError(Operators.onOperatorError(null, ex, t, currentContext()));
-      ReferenceCountUtil.release(t);
+      ReferenceCountUtil.safeRelease(t);
       return;
     }
     drain();
@@ -301,7 +301,7 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
     while (!queue.isEmpty()) {
       T t = queue.poll();
       if (t != null) {
-        ReferenceCountUtil.release(t);
+        ReferenceCountUtil.safeRelease(t);
       }
     }
   }
