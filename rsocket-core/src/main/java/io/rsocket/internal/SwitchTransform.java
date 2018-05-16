@@ -25,6 +25,7 @@ import org.reactivestreams.Subscription;
 import reactor.core.CoreSubscriber;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Operators;
+import reactor.core.publisher.UnicastProcessor;
 
 public final class SwitchTransform<T, R> extends Flux<R> {
 
@@ -39,7 +40,7 @@ public final class SwitchTransform<T, R> extends Flux<R> {
 
   @Override
   public void subscribe(CoreSubscriber<? super R> actual) {
-    Flux.from(source).subscribe(new SwitchTransformSubscriber<>(actual, transformer));
+    source.subscribe(new SwitchTransformSubscriber<>(actual, transformer));
   }
 
   static final class SwitchTransformSubscriber<T, R>
@@ -50,7 +51,7 @@ public final class SwitchTransform<T, R> extends Flux<R> {
 
     final CoreSubscriber<? super R> actual;
     final BiFunction<T, Flux<T>, Publisher<? extends R>> transformer;
-    final UnboundedProcessor<T> processor = new UnboundedProcessor<>();
+    final UnicastProcessor<T> processor = UnicastProcessor.create();
     Subscription s;
     volatile int once;
 
@@ -76,10 +77,10 @@ public final class SwitchTransform<T, R> extends Flux<R> {
           Publisher<? extends R> result =
               Objects.requireNonNull(
                   transformer.apply(t, processor), "The transformer returned a null value");
-          Flux.from(result).subscribe(actual);
+          result.subscribe(actual);
         } catch (Throwable e) {
           onError(Operators.onOperatorError(s, e, t, actual.currentContext()));
-          ReferenceCountUtil.release(t);
+          ReferenceCountUtil.safeRelease(t);
           return;
         }
       }
