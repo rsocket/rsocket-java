@@ -38,6 +38,25 @@ public final class NumberUtils {
   private NumberUtils() {}
 
   /**
+   * Requires that an {@code int} is greater than or equal to zero.
+   *
+   * @param i the {@code int} to test
+   * @param message detail message to be used in the event that a {@link IllegalArgumentException}
+   *     is thrown
+   * @return the {@code int} if greater than or equal to zero
+   * @throws IllegalArgumentException if {@code i} is less than zero
+   */
+  public static int requireNonNegative(int i, String message) {
+    Objects.requireNonNull(message, "message must not be null");
+
+    if (i < 0) {
+      throw new IllegalArgumentException(message);
+    }
+
+    return i;
+  }
+
+  /**
    * Requires that a {@code long} is greater than zero.
    *
    * @param l the {@code long} to test

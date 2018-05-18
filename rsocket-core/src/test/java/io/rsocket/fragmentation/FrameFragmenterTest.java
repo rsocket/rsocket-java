@@ -173,4 +173,16 @@ final class FrameFragmenterTest {
         .isThrownBy(() -> new FrameFragmenter(DEFAULT, 2).fragment(null))
         .withMessage("frame must not be null");
   }
+
+  @DisplayName("does not fragment with zero maxFragmentLength")
+  @Test
+  void fragmentZeroMaxFragmentLength() {
+    PayloadFrame frame = createPayloadFrame(DEFAULT, false, false, null, getRandomByteBuf(2));
+
+    new FrameFragmenter(DEFAULT, 0)
+        .fragment(frame)
+        .as(StepVerifier::create)
+        .expectNext(frame)
+        .verifyComplete();
+  }
 }

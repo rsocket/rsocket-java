@@ -25,7 +25,37 @@ import org.junit.jupiter.api.Test;
 
 final class NumberUtilsTest {
 
-  @DisplayName("returns long value with positive int")
+  @DisplayName("returns int value with postitive int")
+  @Test
+  void requireNonNegativeInt() {
+    assertThat(NumberUtils.requireNonNegative(Integer.MAX_VALUE, "test-message"))
+        .isEqualTo(Integer.MAX_VALUE);
+  }
+
+  @DisplayName(
+      "requireNonNegative with int argument throws IllegalArgumentException with negative value")
+  @Test
+  void requireNonNegativeIntNegative() {
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> NumberUtils.requireNonNegative(Integer.MIN_VALUE, "test-message"))
+        .withMessage("test-message");
+  }
+
+  @DisplayName("requireNonNegative with int argument throws NullPointerException with null message")
+  @Test
+  void requireNonNegativeIntNullMessage() {
+    assertThatNullPointerException()
+        .isThrownBy(() -> NumberUtils.requireNonNegative(Integer.MIN_VALUE, null))
+        .withMessage("message must not be null");
+  }
+
+  @DisplayName("requireNonNegative returns int value with zero")
+  @Test
+  void requireNonNegativeIntZero() {
+    assertThat(NumberUtils.requireNonNegative(0, "test-message")).isEqualTo(0);
+  }
+
+  @DisplayName("requirePositive returns int value with positive int")
   @Test
   void requirePositiveInt() {
     assertThat(NumberUtils.requirePositive(Integer.MAX_VALUE, "test-message"))
@@ -52,13 +82,12 @@ final class NumberUtilsTest {
   @DisplayName("requirePositive with int argument throws IllegalArgumentException with zero value")
   @Test
   void requirePositiveIntZero() {
-
     assertThatIllegalArgumentException()
         .isThrownBy(() -> NumberUtils.requirePositive(0, "test-message"))
         .withMessage("test-message");
   }
 
-  @DisplayName("returns long value with positive long")
+  @DisplayName("requirePositive returns long value with positive long")
   @Test
   void requirePositiveLong() {
     assertThat(NumberUtils.requirePositive(Long.MAX_VALUE, "test-message"))
@@ -85,7 +114,6 @@ final class NumberUtilsTest {
   @DisplayName("requirePositive with long argument throws IllegalArgumentException with zero value")
   @Test
   void requirePositiveLongZero() {
-
     assertThatIllegalArgumentException()
         .isThrownBy(() -> NumberUtils.requirePositive(0L, "test-message"))
         .withMessage("test-message");
