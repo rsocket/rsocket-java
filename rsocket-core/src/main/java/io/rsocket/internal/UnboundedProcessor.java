@@ -312,6 +312,11 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
   }
 
   @Override
+  public void dispose() {
+    cancel();
+  }
+
+  @Override
   public boolean isDisposed() {
     return cancelled || done;
   }

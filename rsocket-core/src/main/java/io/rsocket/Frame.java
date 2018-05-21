@@ -135,9 +135,7 @@ public class Frame extends AbstractReferenceCounted implements Payload, ByteBufH
     return this;
   }
 
-  /**
-   * Called once {@link #refCnt()} is equals 0.
-   */
+  /** Called once {@link #refCnt()} is equals 0. */
   @Override
   protected void deallocate() {
     content.release();

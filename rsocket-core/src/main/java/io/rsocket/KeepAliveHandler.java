@@ -8,11 +8,10 @@ import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
 import reactor.core.publisher.UnicastProcessor;
 
-abstract class KeepAliveHandler {
+abstract class KeepAliveHandler implements Disposable {
   private final KeepAlive keepAlive;
   private final UnicastProcessor<Frame> sent = UnicastProcessor.create();
   private final MonoProcessor<KeepAlive> timeout = MonoProcessor.create();
-  private final Flux<Long> interval;
   private Disposable intervalDisposable;
   private volatile long lastReceivedMillis;
 
@@ -26,20 +25,17 @@ abstract class KeepAliveHandler {
 
   private KeepAliveHandler(KeepAlive keepAlive) {
     this.keepAlive = keepAlive;
-    this.interval = Flux.interval(Duration.ofMillis(keepAlive.getTickPeriod()));
-  }
-
-  public void start() {
     this.lastReceivedMillis = System.currentTimeMillis();
-    intervalDisposable = interval.subscribe(v -> onIntervalTick());
+    this.intervalDisposable =
+        Flux.interval(Duration.ofMillis(keepAlive.getTickPeriod()))
+            .subscribe(v -> onIntervalTick());
   }
 
-  public void stop() {
+  @Override
+  public void dispose() {
     sent.onComplete();
     timeout.onComplete();
-    if (intervalDisposable != null) {
-      intervalDisposable.dispose();
-    }
+    intervalDisposable.dispose();
   }
 
   public void receive(Frame keepAliveFrame) {

@@ -163,6 +163,8 @@ public final class DefaultPayload implements Payload {
   }
 
   public static Payload create(Payload payload) {
-    return create(Unpooled.copiedBuffer(payload.sliceData()), payload.hasMetadata() ? Unpooled.copiedBuffer(payload.sliceMetadata()) : null);
+    return create(
+        Unpooled.copiedBuffer(payload.sliceData()),
+        payload.hasMetadata() ? Unpooled.copiedBuffer(payload.sliceMetadata()) : null);
   }
 }

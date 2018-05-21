@@ -175,6 +175,8 @@ public final class ByteBufPayload extends AbstractReferenceCounted implements Pa
   }
 
   public static Payload create(Payload payload) {
-    return create(payload.sliceData().retain(), payload.hasMetadata() ? payload.sliceMetadata().retain() : null);
+    return create(
+        payload.sliceData().retain(),
+        payload.hasMetadata() ? payload.sliceMetadata().retain() : null);
   }
 }

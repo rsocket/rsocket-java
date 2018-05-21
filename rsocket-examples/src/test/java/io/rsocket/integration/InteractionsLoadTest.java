@@ -19,7 +19,7 @@ import reactor.core.publisher.Mono;
 public class InteractionsLoadTest {
 
   @Test
-  //@SlowTest
+  @SlowTest
   public void channel() {
     TcpServerTransport serverTransport = TcpServerTransport.create(0);
 
