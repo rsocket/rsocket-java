@@ -16,18 +16,27 @@
 
 package io.rsocket.transport.netty;
 
-import io.rsocket.test.ClientSetupRule;
+import io.rsocket.test.TransportTest;
 import io.rsocket.transport.netty.client.TcpClientTransport;
-import io.rsocket.transport.netty.server.NettyContextCloseable;
 import io.rsocket.transport.netty.server.TcpServerTransport;
 import java.net.InetSocketAddress;
+import java.time.Duration;
 
-public class TcpClientSetupRule extends ClientSetupRule<InetSocketAddress, NettyContextCloseable> {
+final class TcpTransportTest implements TransportTest {
 
-  public TcpClientSetupRule() {
-    super(
-        () -> InetSocketAddress.createUnresolved("localhost", 0),
-        (address, server) -> TcpClientTransport.create(server.address()),
-        TcpServerTransport::create);
+  private final TransportPair transportPair =
+      new TransportPair<>(
+          () -> InetSocketAddress.createUnresolved("localhost", 0),
+          (address, server) -> TcpClientTransport.create(server.address()),
+          TcpServerTransport::create);
+
+  @Override
+  public Duration getTimeout() {
+    return Duration.ofMinutes(2);
+  }
+
+  @Override
+  public TransportPair getTransportPair() {
+    return transportPair;
   }
 }

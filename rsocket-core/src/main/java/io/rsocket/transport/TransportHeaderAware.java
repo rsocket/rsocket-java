@@ -24,5 +24,12 @@ import java.util.function.Supplier;
  * Http2.
  */
 public interface TransportHeaderAware {
+
+  /**
+   * Sets the transport headers
+   *
+   * @param transportHeaders the transport headers
+   * @throws NullPointerException if {@code transportHeaders} is {@code null}
+   */
   void setTransportHeaders(Supplier<Map<String, String>> transportHeaders);
 }

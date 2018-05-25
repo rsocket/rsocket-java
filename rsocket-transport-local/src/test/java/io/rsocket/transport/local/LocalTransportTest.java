@@ -18,14 +18,17 @@ package io.rsocket.transport.local;
 
 import io.rsocket.test.TransportTest;
 import java.time.Duration;
+import java.util.concurrent.atomic.AtomicInteger;
 
 final class LocalTransportTest implements TransportTest {
 
-  private final LocalServerTransport serverTransport = LocalServerTransport.createEphemeral();
+  private static final AtomicInteger UNIQUE_NAME_GENERATOR = new AtomicInteger();
 
-  private final LocalClientTransport clientTransport = serverTransport.clientTransport();
-
-  private final TransportPair transportPair = new TransportPair(serverTransport, clientTransport);
+  private final TransportPair transportPair =
+      new TransportPair<>(
+          () -> "test" + UNIQUE_NAME_GENERATOR.incrementAndGet(),
+          (address, server) -> LocalClientTransport.create(address),
+          LocalServerTransport::create);
 
   @Override
   public Duration getTimeout() {

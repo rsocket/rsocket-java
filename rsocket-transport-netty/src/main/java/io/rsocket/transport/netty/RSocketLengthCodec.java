@@ -23,7 +23,13 @@ import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 
-public class RSocketLengthCodec extends LengthFieldBasedFrameDecoder {
+/**
+ * An extension to the Netty {@link LengthFieldBasedFrameDecoder} that encapsulates the
+ * RSocket-specific frame length header details.
+ */
+public final class RSocketLengthCodec extends LengthFieldBasedFrameDecoder {
+
+  /** Creates a new instance of the decoder, specifying the RSocket frame length header size. */
   public RSocketLengthCodec() {
     super(FRAME_LENGTH_MASK, 0, FRAME_LENGTH_SIZE, 0, 0);
   }

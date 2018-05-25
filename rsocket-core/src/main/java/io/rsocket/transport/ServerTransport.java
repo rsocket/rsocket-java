@@ -30,6 +30,7 @@ public interface ServerTransport<T extends Closeable> extends Transport {
    *
    * @param acceptor An acceptor to process a newly accepted {@code DuplexConnection}
    * @return A handle to retrieve information about a started server.
+   * @throws NullPointerException if {@code acceptor} is {@code null}
    */
   Mono<T> start(ConnectionAcceptor acceptor);
 

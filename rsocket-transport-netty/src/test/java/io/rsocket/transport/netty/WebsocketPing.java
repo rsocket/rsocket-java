@@ -31,8 +31,11 @@ public final class WebsocketPing {
         RSocketFactory.connect().transport(WebsocketClientTransport.create(7878)).start();
 
     PingClient pingClient = new PingClient(client);
+
     Recorder recorder = pingClient.startTracker(Duration.ofSeconds(1));
-    final int count = 1_000_000_000;
+
+    int count = 1_000_000_000;
+
     pingClient
         .startPingPong(count, recorder)
         .doOnTerminate(() -> System.out.println("Sent " + count + " messages."))

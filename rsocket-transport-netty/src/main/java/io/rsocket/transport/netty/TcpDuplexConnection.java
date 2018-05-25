@@ -25,30 +25,26 @@ import reactor.ipc.netty.NettyContext;
 import reactor.ipc.netty.NettyInbound;
 import reactor.ipc.netty.NettyOutbound;
 
-public class NettyDuplexConnection implements DuplexConnection {
-  private final NettyInbound in;
-  private final NettyOutbound out;
+/** An implementation of {@link DuplexConnection} that connects via TCP. */
+public final class TcpDuplexConnection implements DuplexConnection {
+
   private final NettyContext context;
 
-  public NettyDuplexConnection(NettyInbound in, NettyOutbound out, NettyContext context) {
+  private final NettyInbound in;
+
+  private final NettyOutbound out;
+
+  /**
+   * Creates a new instance
+   *
+   * @param in the {@link NettyInbound} to listen on
+   * @param out the {@link NettyOutbound} to send with
+   * @param context the {@link NettyContext} to for managing the server
+   */
+  public TcpDuplexConnection(NettyInbound in, NettyOutbound out, NettyContext context) {
     this.in = in;
     this.out = out;
     this.context = context;
-  }
-
-  @Override
-  public Mono<Void> send(Publisher<Frame> frames) {
-    return Flux.from(frames).concatMap(this::sendOne).then();
-  }
-
-  @Override
-  public Mono<Void> sendOne(Frame frame) {
-    return out.sendObject(frame.content()).then();
-  }
-
-  @Override
-  public Flux<Frame> receive() {
-    return in.receive().map(buf -> Frame.from(buf.retain()));
   }
 
   @Override
@@ -64,5 +60,20 @@ public class NettyDuplexConnection implements DuplexConnection {
   @Override
   public Mono<Void> onClose() {
     return context.onClose();
+  }
+
+  @Override
+  public Flux<Frame> receive() {
+    return in.receive().map(buf -> Frame.from(buf.retain()));
+  }
+
+  @Override
+  public Mono<Void> send(Publisher<Frame> frames) {
+    return Flux.from(frames).concatMap(this::sendOne).then();
+  }
+
+  @Override
+  public Mono<Void> sendOne(Frame frame) {
+    return out.sendObject(frame.content()).then();
   }
 }

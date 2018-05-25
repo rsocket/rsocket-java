@@ -16,46 +16,88 @@
 
 package io.rsocket.transport.netty.server;
 
+import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.ServerTransport;
-import io.rsocket.transport.netty.NettyDuplexConnection;
 import io.rsocket.transport.netty.RSocketLengthCodec;
+import io.rsocket.transport.netty.TcpDuplexConnection;
 import java.net.InetSocketAddress;
+import java.util.Objects;
 import reactor.core.publisher.Mono;
 import reactor.ipc.netty.tcp.TcpServer;
 
-public class TcpServerTransport implements ServerTransport<NettyContextCloseable> {
-  TcpServer server;
+/**
+ * An implementation of {@link ServerTransport} that connects to a {@link ClientTransport} via TCP.
+ */
+public final class TcpServerTransport implements ServerTransport<NettyContextCloseable> {
+
+  private final TcpServer server;
 
   private TcpServerTransport(TcpServer server) {
     this.server = server;
   }
 
-  public static TcpServerTransport create(InetSocketAddress address) {
-    TcpServer server = TcpServer.create(address.getHostName(), address.getPort());
-    return create(server);
-  }
-
-  public static TcpServerTransport create(String bindAddress, int port) {
-    TcpServer server = TcpServer.create(bindAddress, port);
-    return create(server);
-  }
-
+  /**
+   * Creates a new instance binding to localhost
+   *
+   * @param port the port to bind to
+   * @return a new instance
+   */
   public static TcpServerTransport create(int port) {
     TcpServer server = TcpServer.create(port);
     return create(server);
   }
 
+  /**
+   * Creates a new instance
+   *
+   * @param bindAddress the address to bind to
+   * @param port the port to bind to
+   * @return a new instance
+   * @throws NullPointerException if {@code bindAddress} is {@code null}
+   */
+  public static TcpServerTransport create(String bindAddress, int port) {
+    Objects.requireNonNull(bindAddress, "bindAddress must not be null");
+
+    TcpServer server = TcpServer.create(bindAddress, port);
+    return create(server);
+  }
+
+  /**
+   * Creates a new instance
+   *
+   * @param address the address to bind to
+   * @return a new instance
+   * @throws NullPointerException if {@code address} is {@code null}
+   */
+  public static TcpServerTransport create(InetSocketAddress address) {
+    Objects.requireNonNull(address, "address must not be null");
+
+    TcpServer server = TcpServer.create(address.getHostName(), address.getPort());
+    return create(server);
+  }
+
+  /**
+   * Creates a new instance
+   *
+   * @param server the {@link TcpServer} to use
+   * @return a new instance
+   * @throws NullPointerException if {@code server} is {@code null}
+   */
   public static TcpServerTransport create(TcpServer server) {
+    Objects.requireNonNull(server, "server must not be null");
+
     return new TcpServerTransport(server);
   }
 
   @Override
   public Mono<NettyContextCloseable> start(ConnectionAcceptor acceptor) {
+    Objects.requireNonNull(acceptor, "acceptor must not be null");
+
     return server
         .newHandler(
             (in, out) -> {
-              in.context().addHandler("server-length-codec", new RSocketLengthCodec());
-              NettyDuplexConnection connection = new NettyDuplexConnection(in, out, in.context());
+              in.context().addHandler(new RSocketLengthCodec());
+              TcpDuplexConnection connection = new TcpDuplexConnection(in, out, in.context());
               acceptor.apply(connection).subscribe();
 
               return out.neverComplete();

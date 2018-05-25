@@ -14,26 +14,8 @@
  * limitations under the License.
  */
 
-plugins {
-    id 'java-library'
-    id 'maven-publish'
-    id 'com.jfrog.artifactory'
-    id 'com.jfrog.bintray'
-}
+/** The Netty-based RSocket transport implementations. */
+@NonNullApi
+package io.rsocket.transport.netty;
 
-dependencies {
-    api project(':rsocket-core')
-    api 'org.hdrhistogram:HdrHistogram'
-    api 'org.junit.jupiter:junit-jupiter-api'
-
-    compileOnly  'com.google.code.findbugs:jsr305'
-
-    implementation 'io.projectreactor:reactor-test'
-    implementation 'org.assertj:assertj-core'
-    implementation 'org.mockito:mockito-core'
-
-    // TODO: Remove after JUnit5 migration
-    implementation 'junit:junit'
-}
-
-description = 'Test utilities for RSocket projects'
+import reactor.util.annotation.NonNullApi;

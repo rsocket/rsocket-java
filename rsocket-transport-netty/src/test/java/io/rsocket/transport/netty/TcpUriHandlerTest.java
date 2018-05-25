@@ -16,11 +16,23 @@
 
 package io.rsocket.transport.netty;
 
-import io.rsocket.test.BaseClientServerTest;
+import io.rsocket.test.UriHandlerTest;
+import io.rsocket.uri.UriHandler;
 
-public class WebsocketClientServerTest extends BaseClientServerTest<WebsocketClientSetupRule> {
+final class TcpUriHandlerTest implements UriHandlerTest {
+
   @Override
-  protected WebsocketClientSetupRule createClientServer() {
-    return new WebsocketClientSetupRule();
+  public String getInvalidUri() {
+    return "http://test";
+  }
+
+  @Override
+  public UriHandler getUriHandler() {
+    return new TcpUriHandler();
+  }
+
+  @Override
+  public String getValidUri() {
+    return "tcp://test:9898";
   }
 }
