@@ -134,7 +134,7 @@ public class SetupFrameFlyweight {
       byteBuf.setShort(length, resumeToken.readableBytes());
       length += Short.BYTES;
       int resumeTokenLength = resumeToken.readableBytes();
-      byteBuf.setBytes(length, resumeToken, resumeTokenLength);
+      byteBuf.setBytes(length, resumeToken, resumeToken.readerIndex(), resumeTokenLength);
       length += resumeTokenLength;
     }
 
