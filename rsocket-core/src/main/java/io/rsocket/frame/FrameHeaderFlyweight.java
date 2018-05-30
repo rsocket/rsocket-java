@@ -115,7 +115,7 @@ public class FrameHeaderFlyweight {
         encodeLength(byteBuf, metadataOffset, metadataLength);
         length += FRAME_LENGTH_SIZE;
       }
-      byteBuf.setBytes(metadataOffset + length, metadata);
+      byteBuf.setBytes(metadataOffset + length, metadata, metadata.readerIndex(), metadataLength);
       length += metadataLength;
     }
 
@@ -127,7 +127,7 @@ public class FrameHeaderFlyweight {
     final int dataLength = data.readableBytes();
 
     if (0 < dataLength) {
-      byteBuf.setBytes(dataOffset, data);
+      byteBuf.setBytes(dataOffset, data, data.readerIndex(), dataLength);
       length += dataLength;
     }
 

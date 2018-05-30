@@ -50,7 +50,6 @@ class RSocketServer implements RSocket {
   private final NonBlockingHashMapLong<UnicastProcessor<Payload>> channelProcessors;
 
   private final UnboundedProcessor<Frame> sendProcessor;
-  private Disposable receiveDisposable;
 
   RSocketServer(
       DuplexConnection connection,
@@ -73,7 +72,9 @@ class RSocketServer implements RSocket {
         .doFinally(this::handleSendProcessorCancel)
         .subscribe(null, this::handleSendProcessorError);
 
-    this.receiveDisposable = connection.receive().subscribe(this::handleFrame, errorConsumer);
+    Disposable receiveDisposable = connection
+        .receive()
+        .subscribe(this::handleFrame, errorConsumer);
 
     this.connection
         .onClose()
@@ -190,6 +191,7 @@ class RSocketServer implements RSocket {
     cleanUpChannelProcessors();
 
     requestHandler.dispose();
+    sendProcessor.dispose();
   }
 
   private synchronized void cleanUpSendingSubscriptions() {

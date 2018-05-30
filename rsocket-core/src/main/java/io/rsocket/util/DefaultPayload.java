@@ -57,12 +57,12 @@ public final class DefaultPayload implements Payload {
 
   @Override
   public ByteBuffer getMetadata() {
-    return metadata == null ? DefaultPayload.EMPTY_BUFFER : metadata;
+    return metadata == null ? DefaultPayload.EMPTY_BUFFER : metadata.duplicate();
   }
 
   @Override
   public ByteBuffer getData() {
-    return data;
+    return data.duplicate();
   }
 
   @Override
