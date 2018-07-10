@@ -140,7 +140,7 @@ public interface TransportTest {
   }
 
   @DisplayName("makes 1 requestChannel request with 2,000,000 payloads")
-  @Test
+  @SlowTest
   default void requestChannel2_000_000() {
     Flux<Payload> payloads = Flux.range(0, 2_000_000).map(this::createTestPayload);
 
