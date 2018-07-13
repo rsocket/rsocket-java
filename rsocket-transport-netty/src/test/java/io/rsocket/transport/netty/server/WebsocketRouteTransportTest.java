@@ -22,7 +22,7 @@ import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import reactor.core.publisher.Mono;
-import reactor.ipc.netty.http.server.HttpServer;
+import reactor.netty.http.server.HttpServer;
 import reactor.test.StepVerifier;
 
 final class WebsocketRouteTransportTest {
@@ -75,7 +75,7 @@ final class WebsocketRouteTransportTest {
   @Test
   void start() {
     WebsocketRouteTransport serverTransport =
-        new WebsocketRouteTransport(HttpServer.create(0), routes -> {}, "/test-path");
+        new WebsocketRouteTransport(HttpServer.create(), routes -> {}, "/test-path");
 
     serverTransport
         .start(duplexConnection -> Mono.empty())
@@ -90,7 +90,7 @@ final class WebsocketRouteTransportTest {
     assertThatNullPointerException()
         .isThrownBy(
             () ->
-                new WebsocketRouteTransport(HttpServer.create(0), routes -> {}, "/test-path")
+                new WebsocketRouteTransport(HttpServer.create(), routes -> {}, "/test-path")
                     .start(null))
         .withMessage("acceptor must not be null");
   }

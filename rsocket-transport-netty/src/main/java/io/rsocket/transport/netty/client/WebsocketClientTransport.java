@@ -30,8 +30,11 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
+
 import reactor.core.publisher.Mono;
-import reactor.ipc.netty.http.client.HttpClient;
+import reactor.netty.Connection;
+import reactor.netty.http.client.HttpClient;
+import reactor.netty.tcp.TcpClient;
 
 /**
  * An implementation of {@link ClientTransport} that connects to a {@link ServerTransport} via a
@@ -57,8 +60,8 @@ public final class WebsocketClientTransport implements ClientTransport, Transpor
    * @return a new instance
    */
   public static WebsocketClientTransport create(int port) {
-    HttpClient httpClient = HttpClient.create(port);
-    return create(httpClient, "/");
+    TcpClient client = TcpClient.create().port(port);
+    return create(client);
   }
 
   /**
@@ -72,8 +75,8 @@ public final class WebsocketClientTransport implements ClientTransport, Transpor
   public static WebsocketClientTransport create(String bindAddress, int port) {
     Objects.requireNonNull(bindAddress, "bindAddress must not be null");
 
-    HttpClient httpClient = HttpClient.create(bindAddress, port);
-    return create(httpClient, "/");
+    TcpClient client = TcpClient.create().host(bindAddress).port(port);
+    return create(client);
   }
 
   /**
@@ -86,7 +89,8 @@ public final class WebsocketClientTransport implements ClientTransport, Transpor
   public static WebsocketClientTransport create(InetSocketAddress address) {
     Objects.requireNonNull(address, "address must not be null");
 
-    return create(address.getHostName(), address.getPort());
+    TcpClient client = TcpClient.create().addressSupplier(() -> address);
+    return create(client);
   }
 
   /**
@@ -99,8 +103,21 @@ public final class WebsocketClientTransport implements ClientTransport, Transpor
   public static WebsocketClientTransport create(URI uri) {
     Objects.requireNonNull(uri, "uri must not be null");
 
-    HttpClient httpClient = createClient(uri);
-    return create(httpClient, uri.getPath());
+    TcpClient client = createClient(uri);
+    return create(HttpClient.from(client), uri.getPath());
+  }
+
+  /**
+   * Creates a new instance
+   *
+   * @param client the {@link TcpClient} to use
+   * @return a new instance
+   * @throws NullPointerException if {@code client} or {@code path} is {@code null}
+   */
+  public static WebsocketClientTransport create(TcpClient client) {
+    Objects.requireNonNull(client, "client must not be null");
+
+    return create(HttpClient.from(client), "/");
   }
 
   /**
@@ -120,21 +137,12 @@ public final class WebsocketClientTransport implements ClientTransport, Transpor
 
   @Override
   public Mono<DuplexConnection> connect() {
-    return Mono.create(
-        sink ->
-            client
-                .ws(path, hb -> transportHeaders.get().forEach(hb::set))
-                .flatMap(
-                    response ->
-                        response.receiveWebsocket(
-                            (in, out) -> {
-                              WebsocketDuplexConnection connection =
-                                  new WebsocketDuplexConnection(in, out, in.context());
-                              sink.success(connection);
-                              return connection.onClose();
-                            }))
-                .doOnError(sink::error)
-                .subscribe());
+      return client
+          .headers(headers -> transportHeaders.get().forEach(headers::set))
+          .websocket()
+          .uri(path)
+          .connect()
+          .map(WebsocketDuplexConnection::new);
   }
 
   @Override
@@ -143,16 +151,16 @@ public final class WebsocketClientTransport implements ClientTransport, Transpor
         Objects.requireNonNull(transportHeaders, "transportHeaders must not be null");
   }
 
-  private static HttpClient createClient(URI uri) {
+  private static TcpClient createClient(URI uri) {
     if (isSecure(uri)) {
-      return HttpClient.create(
-          options ->
-              options
-                  .sslSupport()
-                  .connectAddress(
-                      () -> InetSocketAddress.createUnresolved(uri.getHost(), getPort(uri, 443))));
+      return TcpClient.create()
+          .secure()
+          .host(uri.getHost())
+          .port(getPort(uri, 443));
     } else {
-      return HttpClient.create(uri.getHost(), getPort(uri, 80));
+      return TcpClient.create()
+          .host(uri.getHost())
+          .port(getPort(uri, 80));
     }
   }
 }

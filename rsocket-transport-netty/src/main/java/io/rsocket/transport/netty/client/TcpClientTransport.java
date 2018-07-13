@@ -24,7 +24,7 @@ import io.rsocket.transport.netty.TcpDuplexConnection;
 import java.net.InetSocketAddress;
 import java.util.Objects;
 import reactor.core.publisher.Mono;
-import reactor.ipc.netty.tcp.TcpClient;
+import reactor.netty.tcp.TcpClient;
 
 /**
  * An implementation of {@link ClientTransport} that connects to a {@link ServerTransport} via TCP.
@@ -44,7 +44,7 @@ public final class TcpClientTransport implements ClientTransport {
    * @return a new instance
    */
   public static TcpClientTransport create(int port) {
-    TcpClient tcpClient = TcpClient.create(port);
+    TcpClient tcpClient = TcpClient.create().port(port);
     return create(tcpClient);
   }
 
@@ -59,7 +59,7 @@ public final class TcpClientTransport implements ClientTransport {
   public static TcpClientTransport create(String bindAddress, int port) {
     Objects.requireNonNull(bindAddress, "bindAddress must not be null");
 
-    TcpClient tcpClient = TcpClient.create(bindAddress, port);
+    TcpClient tcpClient = TcpClient.create().host(bindAddress).port(port);
     return create(tcpClient);
   }
 
@@ -73,7 +73,7 @@ public final class TcpClientTransport implements ClientTransport {
   public static TcpClientTransport create(InetSocketAddress address) {
     Objects.requireNonNull(address, "address must not be null");
 
-    TcpClient tcpClient = TcpClient.create(address.getHostString(), address.getPort());
+    TcpClient tcpClient = TcpClient.create().addressSupplier(() -> address);
     return create(tcpClient);
   }
 
@@ -92,20 +92,9 @@ public final class TcpClientTransport implements ClientTransport {
 
   @Override
   public Mono<DuplexConnection> connect() {
-    return Mono.create(
-        sink ->
-            client
-                .newHandler(
-                    (in, out) -> {
-                      in.context().addHandler(new RSocketLengthCodec());
-
-                      TcpDuplexConnection connection =
-                          new TcpDuplexConnection(in, out, in.context());
-
-                      sink.success(connection);
-                      return connection.onClose();
-                    })
-                .doOnError(sink::error)
-                .subscribe());
+    return client
+      .doOnConnected(c -> c.addHandlerLast(new RSocketLengthCodec()))
+      .connect()
+      .map(TcpDuplexConnection::new);
   }
 }

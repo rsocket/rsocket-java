@@ -21,50 +21,42 @@ import io.rsocket.Frame;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import reactor.ipc.netty.NettyContext;
-import reactor.ipc.netty.NettyInbound;
-import reactor.ipc.netty.NettyOutbound;
+import reactor.netty.Connection;
+
+import java.util.Objects;
 
 /** An implementation of {@link DuplexConnection} that connects via TCP. */
 public final class TcpDuplexConnection implements DuplexConnection {
 
-  private final NettyContext context;
-
-  private final NettyInbound in;
-
-  private final NettyOutbound out;
+  private final Connection connection;
 
   /**
    * Creates a new instance
    *
-   * @param in the {@link NettyInbound} to listen on
-   * @param out the {@link NettyOutbound} to send with
-   * @param context the {@link NettyContext} to for managing the server
+   * @param connection the {@link Connection} to for managing the server
    */
-  public TcpDuplexConnection(NettyInbound in, NettyOutbound out, NettyContext context) {
-    this.in = in;
-    this.out = out;
-    this.context = context;
+  public TcpDuplexConnection(Connection connection) {
+    this.connection = Objects.requireNonNull(connection, "connection must not be null");
   }
 
   @Override
   public void dispose() {
-    context.dispose();
+    connection.dispose();
   }
 
   @Override
   public boolean isDisposed() {
-    return context.isDisposed();
+    return connection.isDisposed();
   }
 
   @Override
   public Mono<Void> onClose() {
-    return context.onClose();
+    return connection.onDispose();
   }
 
   @Override
   public Flux<Frame> receive() {
-    return in.receive().map(buf -> Frame.from(buf.retain()));
+    return connection.inbound().receive().map(buf -> Frame.from(buf.retain()));
   }
 
   @Override
@@ -74,6 +66,6 @@ public final class TcpDuplexConnection implements DuplexConnection {
 
   @Override
   public Mono<Void> sendOne(Frame frame) {
-    return out.sendObject(frame.content()).then();
+    return connection.outbound().sendObject(frame.content()).then();
   }
 }

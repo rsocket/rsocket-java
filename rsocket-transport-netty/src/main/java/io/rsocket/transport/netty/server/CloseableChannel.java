@@ -20,48 +20,48 @@ import io.rsocket.Closeable;
 import java.net.InetSocketAddress;
 import java.util.Objects;
 import reactor.core.publisher.Mono;
-import reactor.ipc.netty.NettyContext;
+import reactor.netty.DisposableChannel;
 
 /**
- * An implementation of {@link Closeable} that wraps a {@link NettyContext}, enabling close-ability
- * and exposing the {@link NettyContext}'s address.
+ * An implementation of {@link Closeable} that wraps a {@link DisposableChannel}, enabling close-ability
+ * and exposing the {@link DisposableChannel}'s address.
  */
-public final class NettyContextCloseable implements Closeable {
+public final class CloseableChannel implements Closeable {
 
-  private NettyContext context;
+  private DisposableChannel channel;
 
   /**
    * Creates a new instance
    *
-   * @param context the {@link NettyContext} to wrap
+   * @param channel the {@link DisposableChannel} to wrap
    * @throws NullPointerException if {@code context} is {@code null}
    */
-  NettyContextCloseable(NettyContext context) {
-    this.context = Objects.requireNonNull(context, "context must not be null");
+  CloseableChannel(DisposableChannel channel) {
+    this.channel = Objects.requireNonNull(channel, "channel must not be null");
   }
 
   /**
-   * Returns the address that the {@link NettyContext} is listening on.
+   * Return local server selector channel address.
    *
-   * @return the address that the {@link NettyContext} is listening on
-   * @see NettyContext#address()
+   * @return local {@link InetSocketAddress}
+   * @see DisposableChannel#address()
    */
   public InetSocketAddress address() {
-    return context.address();
+    return channel.address();
   }
 
   @Override
   public void dispose() {
-    context.dispose();
+    channel.dispose();
   }
 
   @Override
   public boolean isDisposed() {
-    return context.isDisposed();
+    return channel.isDisposed();
   }
 
   @Override
   public Mono<Void> onClose() {
-    return context.onClose();
+    return channel.onDispose();
   }
 }

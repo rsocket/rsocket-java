@@ -9,7 +9,7 @@ import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.ServerTransport;
 import io.rsocket.transport.netty.client.TcpClientTransport;
 import io.rsocket.transport.netty.client.WebsocketClientTransport;
-import io.rsocket.transport.netty.server.NettyContextCloseable;
+import io.rsocket.transport.netty.server.CloseableChannel;
 import io.rsocket.transport.netty.server.TcpServerTransport;
 import io.rsocket.transport.netty.server.WebsocketServerTransport;
 import io.rsocket.util.DefaultPayload;
@@ -34,14 +34,14 @@ public class SetupRejectionTest {
   @ParameterizedTest
   @MethodSource(value = "transports")
   void rejectSetupTcp(
-      Function<InetSocketAddress, ServerTransport<NettyContextCloseable>> serverTransport,
+      Function<InetSocketAddress, ServerTransport<CloseableChannel>> serverTransport,
       Function<InetSocketAddress, ClientTransport> clientTransport) {
 
     String errorMessage = "error";
     RejectingAcceptor acceptor = new RejectingAcceptor(errorMessage);
     Mono<RSocket> serverRequester = acceptor.requesterRSocket();
 
-    NettyContextCloseable nettyCtx =
+    CloseableChannel channel =
         RSocketFactory.receive()
             .acceptor(acceptor)
             .transport(serverTransport.apply(new InetSocketAddress(0)))
@@ -53,7 +53,7 @@ public class SetupRejectionTest {
     RSocket clientRequester =
         RSocketFactory.connect()
             .errorConsumer(errorConsumer)
-            .transport(clientTransport.apply(nettyCtx.address()))
+            .transport(clientTransport.apply(channel.address()))
             .start()
             .block();
 
@@ -73,13 +73,13 @@ public class SetupRejectionTest {
             err -> err instanceof RejectedSetupException && errorMessage.equals(err.getMessage()))
         .verify(Duration.ofSeconds(5));
 
-    nettyCtx.dispose();
+    channel.dispose();
   }
 
   static Stream<Arguments> transports() {
-    Function<InetSocketAddress, ServerTransport<NettyContextCloseable>> tcpServer =
+    Function<InetSocketAddress, ServerTransport<CloseableChannel>> tcpServer =
         TcpServerTransport::create;
-    Function<InetSocketAddress, ServerTransport<NettyContextCloseable>> wsServer =
+    Function<InetSocketAddress, ServerTransport<CloseableChannel>> wsServer =
         WebsocketServerTransport::create;
     Function<InetSocketAddress, ClientTransport> tcpClient = TcpClientTransport::create;
     Function<InetSocketAddress, ClientTransport> wsClient = WebsocketClientTransport::create;

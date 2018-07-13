@@ -23,21 +23,21 @@ import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import reactor.core.publisher.Mono;
-import reactor.ipc.netty.NettyContext;
-import reactor.ipc.netty.tcp.TcpServer;
+import reactor.netty.DisposableChannel;
+import reactor.netty.tcp.TcpServer;
 import reactor.test.StepVerifier;
 
-final class NettyContextCloseableTest {
+final class CloseableChannelTest {
 
-  private final Mono<? extends NettyContext> nettyContext =
-      TcpServer.create().newHandler((in, out) -> Mono.empty());
+  private final Mono<? extends DisposableChannel> channel =
+      TcpServer.create().handle((in, out) -> Mono.empty()).bind();
 
   @DisplayName("returns the address of the context")
   @Test
   void address() {
-    nettyContext
-        .map(NettyContextCloseable::new)
-        .map(NettyContextCloseable::address)
+    channel
+        .map(CloseableChannel::new)
+        .map(CloseableChannel::address)
         .as(StepVerifier::create)
         .expectNextCount(1)
         .verifyComplete();
@@ -46,8 +46,8 @@ final class NettyContextCloseableTest {
   @DisplayName("creates instance")
   @Test
   void constructor() {
-    nettyContext
-        .map(NettyContextCloseable::new)
+    channel
+        .map(CloseableChannel::new)
         .as(StepVerifier::create)
         .expectNextCount(1)
         .verifyComplete();
@@ -57,8 +57,8 @@ final class NettyContextCloseableTest {
   @Test
   void constructorNullContext() {
     assertThatNullPointerException()
-        .isThrownBy(() -> new NettyContextCloseable(null))
-        .withMessage("context must not be null");
+        .isThrownBy(() -> new CloseableChannel(null))
+        .withMessage("channel must not be null");
   }
 
   @Disabled(
@@ -67,8 +67,8 @@ final class NettyContextCloseableTest {
   @DisplayName("disposes context")
   @Test
   void dispose() {
-    nettyContext
-        .map(NettyContextCloseable::new)
+    channel
+        .map(CloseableChannel::new)
         .delayUntil(
             closeable -> {
               closeable.dispose();
