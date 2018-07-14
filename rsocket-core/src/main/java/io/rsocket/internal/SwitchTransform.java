@@ -43,8 +43,7 @@ public final class SwitchTransform<T, R> extends Flux<R> {
     source.subscribe(new SwitchTransformSubscriber<>(actual, transformer));
   }
 
-  static final class SwitchTransformSubscriber<T, R>
-      implements CoreSubscriber<T> {
+  static final class SwitchTransformSubscriber<T, R> implements CoreSubscriber<T> {
     @SuppressWarnings("rawtypes")
     static final AtomicIntegerFieldUpdater<SwitchTransformSubscriber> ONCE =
         AtomicIntegerFieldUpdater.newUpdater(SwitchTransformSubscriber.class, "once");

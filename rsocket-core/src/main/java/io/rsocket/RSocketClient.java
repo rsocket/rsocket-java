@@ -367,7 +367,10 @@ class RSocketClient implements RSocket {
                   .doFinally(
                       s -> {
                         receivers.remove(streamId);
-                        senders.remove(streamId);
+                        LimitableRequestPublisher sender = senders.remove(streamId);
+                        if (sender != null) {
+                          sender.cancel();
+                        }
                       });
             }));
   }

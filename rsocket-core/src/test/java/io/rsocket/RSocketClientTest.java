@@ -48,6 +48,7 @@ import org.reactivestreams.Subscription;
 import reactor.core.publisher.BaseSubscriber;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.publisher.MonoProcessor;
 
 public class RSocketClientTest {
 
@@ -180,6 +181,18 @@ public class RSocketClientTest {
     rule.connection.clearSendReceiveBuffers();
     int streamId2 = sendRequestResponse(response);
     assertThat("Stream ID reused.", streamId2, not(equalTo(streamId)));
+  }
+
+  @Test
+  public void testChannelRequestCancellation() {
+    MonoProcessor<Void> cancelled = MonoProcessor.create();
+    Flux<Payload> request = Flux.<Payload>never().doOnCancel(cancelled::onComplete);
+    rule.socket.requestChannel(request).subscribe().dispose();
+    Flux.first(
+            cancelled,
+            Flux.error(new IllegalStateException("Channel request not cancelled"))
+                .delaySubscription(Duration.ofSeconds(1)))
+        .blockFirst();
   }
 
   public int sendRequestResponse(Publisher<Payload> response) {
