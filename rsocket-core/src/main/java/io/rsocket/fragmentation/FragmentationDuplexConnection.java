@@ -68,7 +68,8 @@ public final class FragmentationDuplexConnection implements DuplexConnection {
    *
    * @param byteBufAllocator the {@link ByteBufAllocator} to use
    * @param delegate the {@link DuplexConnection} to decorate
-   * @param maxFragmentSize the maximum fragment size. A value of 0 indicates that frames should not be fragmented.
+   * @param maxFragmentSize the maximum fragment size. A value of 0 indicates that frames should not
+   *     be fragmented.
    * @throws NullPointerException if {@code byteBufAllocator} or {@code delegate} are {@code null}
    * @throws IllegalArgumentException if {@code maxFragmentSize} is not {@code positive}
    */
