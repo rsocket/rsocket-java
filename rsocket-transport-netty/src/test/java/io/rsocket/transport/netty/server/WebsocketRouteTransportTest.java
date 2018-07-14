@@ -75,7 +75,7 @@ final class WebsocketRouteTransportTest {
   @Test
   void start() {
     WebsocketRouteTransport serverTransport =
-        new WebsocketRouteTransport(HttpServer.create(), routes -> {}, "/test-path");
+        new WebsocketRouteTransport(HttpServer.create(0), routes -> {}, "/test-path");
 
     serverTransport
         .start(duplexConnection -> Mono.empty())
@@ -90,7 +90,7 @@ final class WebsocketRouteTransportTest {
     assertThatNullPointerException()
         .isThrownBy(
             () ->
-                new WebsocketRouteTransport(HttpServer.create(), routes -> {}, "/test-path")
+                new WebsocketRouteTransport(HttpServer.create(0), routes -> {}, "/test-path")
                     .start(null))
         .withMessage("acceptor must not be null");
   }
