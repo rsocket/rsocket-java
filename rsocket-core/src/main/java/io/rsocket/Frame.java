@@ -159,7 +159,7 @@ public class Frame implements Payload, ByteBufHolder {
    */
   @Override
   public boolean release() {
-    if (content.release()) {
+    if (content != null && content.release()) {
       recycle();
       return true;
     }
@@ -175,7 +175,7 @@ public class Frame implements Payload, ByteBufHolder {
    */
   @Override
   public boolean release(int decrement) {
-    if (content.release(decrement)) {
+    if (content != null && content.release(decrement)) {
       recycle();
       return true;
     }
