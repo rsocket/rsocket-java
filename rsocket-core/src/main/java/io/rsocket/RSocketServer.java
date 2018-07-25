@@ -302,6 +302,7 @@ class RSocketServer implements RSocket {
               payload.release();
               return frame;
             })
+        .switchIfEmpty(Mono.fromCallable(() -> Frame.PayloadFrame.from(streamId, FrameType.COMPLETE)))
         .doFinally(signalType -> sendingSubscriptions.remove(streamId))
         .subscribe(sendProcessor::onNext, t -> handleError(streamId, t));
   }
