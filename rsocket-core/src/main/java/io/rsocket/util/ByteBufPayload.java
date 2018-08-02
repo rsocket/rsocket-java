@@ -51,12 +51,12 @@ public final class ByteBufPayload extends AbstractReferenceCounted implements Pa
 
   @Override
   public ByteBuf sliceMetadata() {
-    return metadata == null ? Unpooled.EMPTY_BUFFER : metadata;
+    return metadata == null ? Unpooled.EMPTY_BUFFER : metadata.slice();
   }
 
   @Override
   public ByteBuf sliceData() {
-    return data;
+    return data.slice();
   }
 
   @Override
