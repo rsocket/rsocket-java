@@ -211,7 +211,9 @@ public class RSocketFactory {
                           dataMimeType,
                           setupPayload);
 
-                  connection = new FragmentationDuplexConnection(connection, mtu);
+                  if (mtu > 0) {
+                    connection = new FragmentationDuplexConnection(connection, mtu);
+                  }
 
                   ClientServerInputMultiplexer multiplexer =
                       new ClientServerInputMultiplexer(connection, plugins);

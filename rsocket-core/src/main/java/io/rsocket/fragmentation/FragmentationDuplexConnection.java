@@ -83,6 +83,11 @@ public final class FragmentationDuplexConnection implements DuplexConnection {
     NumberUtils.requireNonNegative(maxFragmentSize, "maxFragmentSize must be positive");
 
     this.frameFragmenter = new FrameFragmenter(byteBufAllocator, maxFragmentSize);
+
+    delegate
+        .onClose()
+        .doFinally(signalType -> frameReassemblers.values().forEach(FrameReassembler::dispose))
+        .subscribe();
   }
 
   @Override
@@ -102,9 +107,7 @@ public final class FragmentationDuplexConnection implements DuplexConnection {
 
   @Override
   public Mono<Void> onClose() {
-    return delegate
-        .onClose()
-        .doAfterTerminate(() -> frameReassemblers.values().forEach(FrameReassembler::dispose));
+    return delegate.onClose();
   }
 
   @Override

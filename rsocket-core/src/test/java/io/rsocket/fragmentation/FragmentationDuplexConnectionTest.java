@@ -37,6 +37,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
 final class FragmentationDuplexConnectionTest {
@@ -93,6 +94,7 @@ final class FragmentationDuplexConnectionTest {
             DEFAULT, 1, createPayloadFrame(DEFAULT, false, false, null, data.slice(4, 2)));
 
     when(delegate.receive()).thenReturn(Flux.just(fragment1, fragment2, fragment3));
+    when(delegate.onClose()).thenReturn(Mono.never());
 
     new FragmentationDuplexConnection(DEFAULT, delegate, 2)
         .receive()
@@ -123,6 +125,7 @@ final class FragmentationDuplexConnectionTest {
             DEFAULT, 1, createPayloadFrame(DEFAULT, false, true, metadata.slice(4, 2), null));
 
     when(delegate.receive()).thenReturn(Flux.just(fragment1, fragment2, fragment3));
+    when(delegate.onClose()).thenReturn(Mono.never());
 
     new FragmentationDuplexConnection(DEFAULT, delegate, 2)
         .receive()
@@ -165,6 +168,7 @@ final class FragmentationDuplexConnectionTest {
 
     when(delegate.receive())
         .thenReturn(Flux.just(fragment1, fragment2, fragment3, fragment4, fragment5));
+    when(delegate.onClose()).thenReturn(Mono.never());
 
     new FragmentationDuplexConnection(DEFAULT, delegate, 2)
         .receive()
@@ -181,6 +185,7 @@ final class FragmentationDuplexConnectionTest {
             DEFAULT, 1, createPayloadFrame(DEFAULT, false, true, (ByteBuf) null, null));
 
     when(delegate.receive()).thenReturn(Flux.just(frame));
+    when(delegate.onClose()).thenReturn(Mono.never());
 
     new FragmentationDuplexConnection(DEFAULT, delegate, 2)
         .receive()
@@ -195,6 +200,7 @@ final class FragmentationDuplexConnectionTest {
     Frame frame = toAbstractionLeakingFrame(DEFAULT, 1, createTestCancelFrame());
 
     when(delegate.receive()).thenReturn(Flux.just(frame));
+    when(delegate.onClose()).thenReturn(Mono.never());
 
     new FragmentationDuplexConnection(DEFAULT, delegate, 2)
         .receive()
@@ -224,6 +230,8 @@ final class FragmentationDuplexConnectionTest {
         toAbstractionLeakingFrame(
             DEFAULT, 1, createPayloadFrame(DEFAULT, false, false, null, data.slice(4, 2)));
 
+    when(delegate.onClose()).thenReturn(Mono.never());
+
     new FragmentationDuplexConnection(DEFAULT, delegate, 2).sendOne(frame);
     verify(delegate).send(publishers.capture());
 
@@ -241,6 +249,8 @@ final class FragmentationDuplexConnectionTest {
         toAbstractionLeakingFrame(
             DEFAULT, 1, createPayloadFrame(DEFAULT, false, false, null, getRandomByteBuf(2)));
 
+    when(delegate.onClose()).thenReturn(Mono.never());
+
     new FragmentationDuplexConnection(DEFAULT, delegate, 2).sendOne(frame);
     verify(delegate).send(publishers.capture());
 
@@ -254,6 +264,8 @@ final class FragmentationDuplexConnectionTest {
         toAbstractionLeakingFrame(
             DEFAULT, 1, createPayloadFrame(DEFAULT, true, true, (ByteBuf) null, null));
 
+    when(delegate.onClose()).thenReturn(Mono.never());
+
     new FragmentationDuplexConnection(DEFAULT, delegate, 2).sendOne(frame);
     verify(delegate).send(publishers.capture());
 
@@ -266,6 +278,8 @@ final class FragmentationDuplexConnectionTest {
     Frame frame =
         toAbstractionLeakingFrame(
             DEFAULT, 1, createPayloadFrame(DEFAULT, false, false, null, getRandomByteBuf(1)));
+
+    when(delegate.onClose()).thenReturn(Mono.never());
 
     new FragmentationDuplexConnection(DEFAULT, delegate, 2).sendOne(frame);
     verify(delegate).send(publishers.capture());
@@ -293,6 +307,8 @@ final class FragmentationDuplexConnectionTest {
     Frame fragment3 =
         toAbstractionLeakingFrame(
             DEFAULT, 1, createPayloadFrame(DEFAULT, false, true, metadata.slice(4, 2), null));
+
+    when(delegate.onClose()).thenReturn(Mono.never());
 
     new FragmentationDuplexConnection(DEFAULT, delegate, 2).sendOne(frame);
     verify(delegate).send(publishers.capture());
@@ -336,6 +352,8 @@ final class FragmentationDuplexConnectionTest {
         toAbstractionLeakingFrame(
             DEFAULT, 1, createPayloadFrame(DEFAULT, false, false, null, data.slice(3, 2)));
 
+    when(delegate.onClose()).thenReturn(Mono.never());
+
     new FragmentationDuplexConnection(DEFAULT, delegate, 2).sendOne(frame);
     verify(delegate).send(publishers.capture());
 
@@ -353,6 +371,8 @@ final class FragmentationDuplexConnectionTest {
   void sendNonFragmentable() {
     Frame frame = toAbstractionLeakingFrame(DEFAULT, 1, createTestCancelFrame());
 
+    when(delegate.onClose()).thenReturn(Mono.never());
+
     new FragmentationDuplexConnection(DEFAULT, delegate, 2).sendOne(frame);
     verify(delegate).send(publishers.capture());
 
@@ -362,6 +382,8 @@ final class FragmentationDuplexConnectionTest {
   @DisplayName("send throws NullPointerException with null frames")
   @Test
   void sendNullFrames() {
+    when(delegate.onClose()).thenReturn(Mono.never());
+
     assertThatNullPointerException()
         .isThrownBy(() -> new FragmentationDuplexConnection(DEFAULT, delegate, 2).send(null))
         .withMessage("frames must not be null");
@@ -373,6 +395,8 @@ final class FragmentationDuplexConnectionTest {
     Frame frame =
         toAbstractionLeakingFrame(
             DEFAULT, 1, createPayloadFrame(DEFAULT, false, false, null, getRandomByteBuf(2)));
+
+    when(delegate.onClose()).thenReturn(Mono.never());
 
     new FragmentationDuplexConnection(DEFAULT, delegate, 0).sendOne(frame);
     verify(delegate).send(publishers.capture());
