@@ -23,10 +23,11 @@ import io.netty.buffer.Unpooled;
 import io.netty.util.AbstractReferenceCounted;
 import io.netty.util.Recycler;
 import io.rsocket.Payload;
+
+import javax.annotation.Nullable;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
 import java.nio.charset.Charset;
-import javax.annotation.Nullable;
 
 public final class ByteBufPayload extends AbstractReferenceCounted implements Payload {
   private static final Recycler<ByteBufPayload> RECYCLER =
@@ -168,8 +169,8 @@ public final class ByteBufPayload extends AbstractReferenceCounted implements Pa
   public static Payload create(ByteBuf data, @Nullable ByteBuf metadata) {
     ByteBufPayload payload = RECYCLER.get();
     payload.setRefCnt(1);
-    payload.data = data;
-    payload.metadata = metadata;
+    payload.data = data.retain();
+    payload.metadata = metadata == null ? Unpooled.EMPTY_BUFFER : metadata.retain();
     return payload;
   }
 
