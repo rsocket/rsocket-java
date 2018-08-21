@@ -4,25 +4,27 @@ import io.rsocket.AbstractRSocket;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.RSocketFactory;
+import io.rsocket.test.SlowTest;
 import io.rsocket.transport.netty.client.TcpClientTransport;
 import io.rsocket.transport.netty.server.NettyContextCloseable;
 import io.rsocket.transport.netty.server.TcpServerTransport;
 import io.rsocket.util.DefaultPayload;
+import org.junit.jupiter.api.Test;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Schedulers;
 
 import java.time.Duration;
 import java.util.function.Supplier;
 
 public class InteractionsLoadTest {
 
-  public static void main(String[] args) {
+  @Test
+  @SlowTest
+  public void channel() {
     TcpServerTransport serverTransport = TcpServerTransport.create(0);
 
     NettyContextCloseable server = RSocketFactory.receive()
-       // .frameDecoder(ByteBufPayload::create)
         .acceptor((setup, rsocket) -> Mono.just(new EchoRSocket()))
         .transport(serverTransport)
         .start()
@@ -32,7 +34,6 @@ public class InteractionsLoadTest {
 
     RSocket client = RSocketFactory
         .connect()
-        //.frameDecoder(ByteBufPayload::create)
         .transport(transport).start()
         .block(Duration.ofSeconds(10));
 
@@ -40,21 +41,20 @@ public class InteractionsLoadTest {
     Flux.range(1, concurrency)
         .flatMap(v ->
             client.requestChannel(
-                input().map(iv ->
-                DefaultPayload.create("foo")))
-                .limitRate(10000),concurrency)
+                input().onBackpressureDrop().map(iv ->
+                    DefaultPayload.create("foo")))
+                .limitRate(10000), concurrency)
+        .timeout(Duration.ofSeconds(5))
         .doOnNext(p -> {
           String data = p.getDataUtf8();
           if (!data.equals("bar")) {
-            System.out.println("Channel Client Bad message: " + data);
+            throw new IllegalStateException("Channel Client Bad message: " + data);
           }
-          //p.release();
         })
         .window(Duration.ofSeconds(1))
         .flatMap(Flux::count)
         .doOnNext(d -> System.out.println("Got: " + d))
-        .timeout(Duration.ofSeconds(525))
-        .take(Duration.ofMinutes(2))
+        .take(Duration.ofMinutes(1))
         .doOnTerminate(server::dispose)
         .subscribe();
 
@@ -68,7 +68,7 @@ public class InteractionsLoadTest {
     for (int i = 0; i < 10; i++) {
       interval = interval.mergeWith(interval);
     }
-    return interval.publishOn(Schedulers.newSingle("bar"));
+    return interval;
   }
 
   private static class EchoRSocket extends AbstractRSocket {
@@ -78,9 +78,8 @@ public class InteractionsLoadTest {
 
         String data = p.getDataUtf8();
         if (!data.equals("foo")) {
-          System.out.println("Channel Server Bad message: " + data);
+          throw  new IllegalStateException("Channel Server Bad message: " + data);
         }
-       // p.release();
         return DefaultPayload.create(DefaultPayload.create("bar"));
       });
     }
@@ -90,12 +89,11 @@ public class InteractionsLoadTest {
       return Flux.just(payload)
           .map(p -> {
             String data = p.getDataUtf8();
-          //  p.release();
             return data;
           })
           .doOnNext((data) -> {
             if (!data.equals("foo")) {
-              System.out.println("Stream Server Bad message: " + data);
+              throw new IllegalStateException("Stream Server Bad message: " + data);
             }
           }).flatMap(data -> {
             Supplier<Payload> p = () -> DefaultPayload.create("bar");
