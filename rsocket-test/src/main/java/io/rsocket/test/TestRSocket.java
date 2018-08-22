@@ -32,7 +32,7 @@ public class TestRSocket extends AbstractRSocket {
 
   @Override
   public Flux<Payload> requestStream(Payload payload) {
-    return Flux.range(1, 10_000).flatMap(l -> requestResponse(payload));
+    return Flux.range(1, 10_000).map(l -> DefaultPayload.create("hello world " + l, "metadata"));
   }
 
   @Override

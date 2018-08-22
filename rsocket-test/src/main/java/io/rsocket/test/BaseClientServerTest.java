@@ -16,15 +16,18 @@
 
 package io.rsocket.test;
 
-import static org.junit.Assert.assertEquals;
-
 import io.rsocket.Payload;
 import io.rsocket.util.DefaultPayload;
-import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import reactor.core.publisher.Flux;
+
+import java.util.Arrays;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.junit.Assert.assertEquals;
 
 public abstract class BaseClientServerTest<T extends ClientSetupRule<?, ?>> {
   @Rule public final T setup = createClientServer();
@@ -127,9 +130,9 @@ public abstract class BaseClientServerTest<T extends ClientSetupRule<?, ?>> {
   public void testRequestStream() {
     Flux<Payload> publisher = setup.getRSocket().requestStream(testPayload(3));
 
-    long count = publisher.take(5).count().block();
+    List<Payload> values = publisher.take(5).collectList().block();
 
-    assertEquals(5, count);
+    assertEquals(Arrays.asList("hello world 1", "hello world 2", "hello world 3", "hello world 4", "hello world 5"), values);
   }
 
   @Test(timeout = 10000)
