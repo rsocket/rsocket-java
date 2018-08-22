@@ -155,6 +155,12 @@ public final class DefaultPayload implements Payload {
   }
 
   public static Payload create(Payload payload) {
-    return create(payload.getData(), payload.hasMetadata() ? payload.getMetadata() : null);
+    return create(copy(payload.sliceData()), payload.hasMetadata() ? copy(payload.sliceMetadata()) : null);
+  }
+
+  private static ByteBuffer copy(ByteBuf byteBuf) {
+    byte[] contents = new byte[byteBuf.readableBytes()];
+    byteBuf.readBytes(contents);
+    return ByteBuffer.wrap(contents);
   }
 }
