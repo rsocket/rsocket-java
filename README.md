@@ -17,21 +17,17 @@ Learn more at http://rsocket.io
 
 [![Build Status](https://travis-ci.org/rsocket/rsocket-java.svg?branch=1.0.x)](https://travis-ci.org/rsocket/rsocket-java)
 
-Snapshots are available via JFrog.
+Releases are available via Maven Central.
 
 Example:
 
 ```groovy
-repositories {
-    maven { url 'https://oss.jfrog.org/libs-release' }
-}
-
 dependencies {
-    implementation 'io.rsocket:reactivesocket:0.9.20'
+    implementation 'io.rsocket:rsocket-core:0.11.5'
+    implementation 'io.rsocket:rsocket-transport-netty:0.11.5'
 }
 ```
 
-No releases to Maven Central or JCenter have occurred yet.
 
 ## Development
 
