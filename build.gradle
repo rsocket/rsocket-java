@@ -31,7 +31,7 @@ subprojects {
     dependencyManagement {
         imports {
             // TODO: Upgrade to latest version
-            mavenBom 'io.projectreactor:reactor-bom:Bismuth-SR9'
+            mavenBom 'io.projectreactor:reactor-bom:Bismuth-SR10'
         }
 
         dependencies {
