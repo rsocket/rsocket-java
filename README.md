@@ -72,11 +72,11 @@ public class ExampleClient {
         RSocket client = RSocketFactory.connect().keepAlive().transport(ws).start().block();
 
         try {
-            Flux<Payload> s = client.requestStream(DefaultPayload.textPayload("peace"));
+            Flux<Payload> s = client.requestStream(DefaultPayload.create("peace"));
 
             s.take(10).doOnNext(p -> System.out.println(p.getDataUtf8())).blockLast();
         } finally {
-            client.close().block();
+            client.dispose();
         }
     }
 }
