@@ -98,9 +98,7 @@ public final class TcpServerTransport implements ServerTransport<NettyContextClo
             (in, out) -> {
               in.context().addHandler(new RSocketLengthCodec());
               TcpDuplexConnection connection = new TcpDuplexConnection(in, out, in.context());
-              acceptor.apply(connection).subscribe();
-
-              return out.neverComplete();
+              return acceptor.apply(connection).then(out.neverComplete());
             })
         .map(NettyContextCloseable::new);
   }

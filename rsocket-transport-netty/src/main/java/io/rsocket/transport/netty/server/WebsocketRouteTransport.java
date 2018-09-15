@@ -83,9 +83,7 @@ public final class WebsocketRouteTransport implements ServerTransport<Closeable>
 
     return (in, out) -> {
       WebsocketDuplexConnection connection = new WebsocketDuplexConnection(in, out, in.context());
-      acceptor.apply(connection).subscribe();
-
-      return out.neverComplete();
+      return acceptor.apply(connection).then(out.neverComplete());
     };
   }
 }
