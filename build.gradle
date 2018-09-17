@@ -50,6 +50,7 @@ subprojects {
             dependencySet(group: 'org.junit.jupiter', version: '5.1.0') {
                 entry 'junit-jupiter-api'
                 entry 'junit-jupiter-engine'
+                entry 'junit-jupiter-params'
             }
 
             // TODO: Remove after JUnit5 migration

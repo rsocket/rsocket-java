@@ -20,9 +20,8 @@ import static io.rsocket.Frame.Request.initialRequestN;
 import static io.rsocket.frame.FrameHeaderFlyweight.FLAGS_C;
 import static io.rsocket.frame.FrameHeaderFlyweight.FLAGS_M;
 
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
 import io.rsocket.exceptions.ApplicationErrorException;
+import io.rsocket.exceptions.ConnectionErrorException;
 import io.rsocket.framing.FrameType;
 import io.rsocket.internal.LimitableRequestPublisher;
 import io.rsocket.internal.UnboundedProcessor;
@@ -33,10 +32,7 @@ import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 import reactor.core.Disposable;
-import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
-import reactor.core.publisher.SignalType;
-import reactor.core.publisher.UnicastProcessor;
+import reactor.core.publisher.*;
 
 /** Server side RSocket. Receives {@link Frame}s from a {@link RSocketClient} */
 class RSocketServer implements RSocket {
@@ -45,35 +41,73 @@ class RSocketServer implements RSocket {
   private final RSocket requestHandler;
   private final Function<Frame, ? extends Payload> frameDecoder;
   private final Consumer<Throwable> errorConsumer;
+  private final MonoProcessor<Void> started;
 
   private final NonBlockingHashMapLong<Subscription> sendingSubscriptions;
   private final NonBlockingHashMapLong<UnicastProcessor<Payload>> channelProcessors;
 
   private final UnboundedProcessor<Frame> sendProcessor;
   private Disposable receiveDisposable;
+  private KeepAliveHandler keepAliveHandler;
 
+  /*client responder*/
   RSocketServer(
       DuplexConnection connection,
       RSocket requestHandler,
       Function<Frame, ? extends Payload> frameDecoder,
       Consumer<Throwable> errorConsumer) {
+    this(connection, requestHandler, frameDecoder, errorConsumer, 0, 0);
+  }
+  /*server responder*/
+  RSocketServer(
+      DuplexConnection connection,
+      RSocket requestHandler,
+      Function<Frame, ? extends Payload> frameDecoder,
+      Consumer<Throwable> errorConsumer,
+      long tickPeriod,
+      long ackTimeout) {
     this.connection = connection;
     this.requestHandler = requestHandler;
     this.frameDecoder = frameDecoder;
     this.errorConsumer = errorConsumer;
     this.sendingSubscriptions = new NonBlockingHashMapLong<>();
     this.channelProcessors = new NonBlockingHashMapLong<>();
+    this.started = MonoProcessor.create();
 
     // DO NOT Change the order here. The Send processor must be subscribed to before receiving
     // connections
     this.sendProcessor = new UnboundedProcessor<>();
+
+    if (tickPeriod != 0) {
+      keepAliveHandler =
+          KeepAliveHandler.ofServer(new KeepAliveHandler.KeepAlive(tickPeriod, ackTimeout));
+
+      started.doOnTerminate(() -> keepAliveHandler.start()).subscribe();
+
+      keepAliveHandler
+          .timeout()
+          .subscribe(
+              keepAlive -> {
+                String message =
+                    String.format("No keep-alive acks for %d ms", keepAlive.getTimeoutMillis());
+                errorConsumer.accept(new ConnectionErrorException(message));
+                connection.dispose();
+              });
+      keepAliveHandler.send().subscribe(sendProcessor::onNext);
+    } else {
+      keepAliveHandler = null;
+    }
 
     connection
         .send(sendProcessor)
         .doFinally(this::handleSendProcessorCancel)
         .subscribe(null, this::handleSendProcessorError);
 
-    this.receiveDisposable = connection.receive().subscribe(this::handleFrame, errorConsumer);
+    this.receiveDisposable =
+        connection
+            .receive()
+            .doOnSubscribe(subscription -> started.onComplete())
+            .subscribe(this::handleFrame, errorConsumer);
 
     this.connection
         .onClose()
@@ -186,6 +220,9 @@ class RSocketServer implements RSocket {
   }
 
   private void cleanup() {
+    if (keepAliveHandler != null) {
+      keepAliveHandler.stop();
+    }
     cleanUpSendingSubscriptions();
     cleanUpChannelProcessors();
 
@@ -302,7 +339,8 @@ class RSocketServer implements RSocket {
               payload.release();
               return frame;
             })
-        .switchIfEmpty(Mono.fromCallable(() -> Frame.PayloadFrame.from(streamId, FrameType.COMPLETE)))
+        .switchIfEmpty(
+            Mono.fromCallable(() -> Frame.PayloadFrame.from(streamId, FrameType.COMPLETE)))
         .doFinally(signalType -> sendingSubscriptions.remove(streamId))
         .subscribe(sendProcessor::onNext, t -> handleError(streamId, t));
   }
@@ -347,9 +385,8 @@ class RSocketServer implements RSocket {
   }
 
   private void handleKeepAliveFrame(Frame frame) {
-    if (Frame.Keepalive.hasRespondFlag(frame)) {
-      ByteBuf data = Unpooled.wrappedBuffer(frame.getData());
-      sendProcessor.onNext(Frame.Keepalive.from(data, false));
+    if (keepAliveHandler != null) {
+      keepAliveHandler.receive(frame);
     }
   }
 
