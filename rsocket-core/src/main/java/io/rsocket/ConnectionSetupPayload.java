@@ -34,6 +34,10 @@ public abstract class ConnectionSetupPayload extends AbstractReferenceCounted im
     return new DefaultConnectionSetupPayload(setupFrame);
   }
 
+  public abstract int keepAliveInterval();
+
+  public abstract int keepAliveMaxLifetime();
+
   public abstract String metadataMimeType();
 
   public abstract String dataMimeType();
@@ -71,6 +75,16 @@ public abstract class ConnectionSetupPayload extends AbstractReferenceCounted im
 
     public DefaultConnectionSetupPayload(final Frame setupFrame) {
       this.setupFrame = setupFrame;
+    }
+
+    @Override
+    public int keepAliveInterval() {
+      return SetupFrameFlyweight.keepaliveInterval(setupFrame.content());
+    }
+
+    @Override
+    public int keepAliveMaxLifetime() {
+      return SetupFrameFlyweight.maxLifetime(setupFrame.content());
     }
 
     @Override

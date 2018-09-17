@@ -87,7 +87,7 @@ public class RSocketFactory {
     private Payload setupPayload = EmptyPayload.INSTANCE;
     private Function<Frame, ? extends Payload> frameDecoder = DefaultPayload::create;
 
-    private Duration tickPeriod = Duration.ZERO;
+    private Duration tickPeriod = Duration.ofSeconds(20);
     private Duration ackTimeout = Duration.ofSeconds(30);
     private int missedAcks = 3;
 
@@ -109,8 +109,13 @@ public class RSocketFactory {
       return this;
     }
 
+    /**
+     * Deprecated as Keep-Alive is not optional according to spec
+     *
+     * @return this ClientRSocketFactory
+     */
+    @Deprecated
     public ClientRSocketFactory keepAlive() {
-      tickPeriod = Duration.ofSeconds(20);
       return this;
     }
 
@@ -205,8 +210,8 @@ public class RSocketFactory {
                   Frame setupFrame =
                       Frame.Setup.from(
                           flags,
-                          (int) ackTimeout.toMillis(),
-                          (int) ackTimeout.toMillis() * missedAcks,
+                          (int) tickPeriod.toMillis(),
+                          (int) (ackTimeout.toMillis() + tickPeriod.toMillis() * missedAcks),
                           metadataMimeType,
                           dataMimeType,
                           setupPayload);
@@ -339,6 +344,8 @@ public class RSocketFactory {
         }
 
         ConnectionSetupPayload setupPayload = ConnectionSetupPayload.create(setupFrame);
+        int keepAliveInterval = setupPayload.keepAliveInterval();
+        int keepAliveMaxLifetime = setupPayload.keepAliveMaxLifetime();
 
         RSocketClient rSocketClient =
             new RSocketClient(
@@ -361,7 +368,9 @@ public class RSocketFactory {
                           multiplexer.asClientConnection(),
                           wrappedRSocketServer,
                           frameDecoder,
-                          errorConsumer);
+                          errorConsumer,
+                          keepAliveInterval,
+                          keepAliveMaxLifetime);
                 })
             .doFinally(signalType -> setupPayload.release())
             .then();
