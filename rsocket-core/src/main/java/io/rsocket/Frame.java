@@ -19,6 +19,7 @@ package io.rsocket;
 import static io.rsocket.frame.FrameHeaderFlyweight.FLAGS_M;
 
 import io.netty.buffer.*;
+import io.netty.util.AbstractReferenceCounted;
 import io.netty.util.IllegalReferenceCountException;
 import io.netty.util.Recycler;
 import io.netty.util.Recycler.Handle;
@@ -33,7 +34,6 @@ import io.rsocket.frame.SetupFrameFlyweight;
 import io.rsocket.frame.VersionFlyweight;
 import io.rsocket.framing.FrameType;
 import java.nio.charset.StandardCharsets;
-import java.util.Objects;
 import javax.annotation.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,7 +43,7 @@ import org.slf4j.LoggerFactory;
  *
  * <p>This provides encoding, decoding and field accessors.
  */
-public class Frame implements Payload, ByteBufHolder {
+public class Frame extends AbstractReferenceCounted implements Payload, ByteBufHolder {
   private static final Recycler<Frame> RECYCLER =
       new Recycler<Frame>() {
         protected Frame newObject(Handle<Frame> handle) {
@@ -56,12 +56,6 @@ public class Frame implements Payload, ByteBufHolder {
 
   private Frame(final Handle<Frame> handle) {
     this.handle = handle;
-  }
-
-  /** Clear and recycle this instance. */
-  private void recycle() {
-    content = null;
-    handle.recycle(this);
   }
 
   /** Return the content which is held by this {@link Frame}. */
@@ -105,26 +99,17 @@ public class Frame implements Payload, ByteBufHolder {
     return from(content);
   }
 
-  /**
-   * Returns the reference count of this object. If {@code 0}, it means this object has been
-   * deallocated.
-   */
-  @Override
-  public int refCnt() {
-    return content.refCnt();
-  }
-
   /** Increases the reference count by {@code 1}. */
   @Override
   public Frame retain() {
-    content.retain();
+    super.retain();
     return this;
   }
 
   /** Increases the reference count by the specified {@code increment}. */
   @Override
   public Frame retain(int increment) {
-    content.retain(increment);
+    super.retain(increment);
     return this;
   }
 
@@ -151,35 +136,13 @@ public class Frame implements Payload, ByteBufHolder {
   }
 
   /**
-   * Decreases the reference count by {@code 1} and deallocates this object if the reference count
-   * reaches at {@code 0}.
-   *
-   * @return {@code true} if and only if the reference count became {@code 0} and this object has
-   *     been deallocated
+   * Called once {@link #refCnt()} is equals 0.
    */
   @Override
-  public boolean release() {
-    if (content != null && content.release()) {
-      recycle();
-      return true;
-    }
-    return false;
-  }
-
-  /**
-   * Decreases the reference count by the specified {@code decrement} and deallocates this object if
-   * the reference count reaches at {@code 0}.
-   *
-   * @return {@code true} if and only if the reference count became {@code 0} and this object has
-   *     been deallocated
-   */
-  @Override
-  public boolean release(int decrement) {
-    if (content != null && content.release(decrement)) {
-      recycle();
-      return true;
-    }
-    return false;
+  protected void deallocate() {
+    content.release();
+    content = null;
+    handle.recycle(this);
   }
 
   /**
@@ -239,6 +202,7 @@ public class Frame implements Payload, ByteBufHolder {
    */
   public static Frame from(final ByteBuf content) {
     final Frame frame = RECYCLER.get();
+    frame.setRefCnt(1);
     frame.content = content;
 
     return frame;
@@ -281,6 +245,7 @@ public class Frame implements Payload, ByteBufHolder {
       final ByteBuf data = payload.sliceData();
 
       final Frame frame = RECYCLER.get();
+      frame.setRefCnt(1);
       frame.content =
           ByteBufAllocator.DEFAULT.buffer(
               SetupFrameFlyweight.computeFrameLength(
@@ -347,6 +312,7 @@ public class Frame implements Payload, ByteBufHolder {
 
       final int code = ErrorFrameFlyweight.errorCodeFromException(throwable);
       final Frame frame = RECYCLER.get();
+      frame.setRefCnt(1);
       frame.content =
           ByteBufAllocator.DEFAULT.buffer(
               ErrorFrameFlyweight.computeFrameLength(dataBuffer.readableBytes()));
@@ -378,6 +344,7 @@ public class Frame implements Payload, ByteBufHolder {
 
     public static Frame from(int ttl, int numberOfRequests, ByteBuf metadata) {
       final Frame frame = RECYCLER.get();
+      frame.setRefCnt(1);
       frame.content =
           ByteBufAllocator.DEFAULT.buffer(
               LeaseFrameFlyweight.computeFrameLength(metadata.readableBytes()));
@@ -411,6 +378,7 @@ public class Frame implements Payload, ByteBufHolder {
       }
 
       final Frame frame = RECYCLER.get();
+      frame.setRefCnt(1);
       frame.content = ByteBufAllocator.DEFAULT.buffer(RequestNFrameFlyweight.computeFrameLength());
       frame.content.writerIndex(RequestNFrameFlyweight.encode(frame.content, streamId, requestN));
       return frame;
@@ -438,6 +406,7 @@ public class Frame implements Payload, ByteBufHolder {
       final ByteBuf data = payload.sliceData();
 
       final Frame frame = RECYCLER.get();
+      frame.setRefCnt(1);
       frame.content =
           ByteBufAllocator.DEFAULT.buffer(
               RequestFrameFlyweight.computeFrameLength(
@@ -464,6 +433,7 @@ public class Frame implements Payload, ByteBufHolder {
 
     public static Frame from(int streamId, FrameType type, int flags) {
       final Frame frame = RECYCLER.get();
+      frame.setRefCnt(1);
       frame.content =
           ByteBufAllocator.DEFAULT.buffer(RequestFrameFlyweight.computeFrameLength(type, null, 0));
       frame.content.writerIndex(
@@ -480,6 +450,7 @@ public class Frame implements Payload, ByteBufHolder {
         int initialRequestN,
         int flags) {
       final Frame frame = RECYCLER.get();
+      frame.setRefCnt(1);
       frame.content =
           ByteBufAllocator.DEFAULT.buffer(
               RequestFrameFlyweight.computeFrameLength(
@@ -543,6 +514,7 @@ public class Frame implements Payload, ByteBufHolder {
     public static Frame from(
         int streamId, FrameType type, @Nullable ByteBuf metadata, ByteBuf data, int flags) {
       final Frame frame = RECYCLER.get();
+      frame.setRefCnt(1);
       frame.content =
           ByteBufAllocator.DEFAULT.buffer(
               FrameHeaderFlyweight.computeFrameHeaderLength(
@@ -559,6 +531,7 @@ public class Frame implements Payload, ByteBufHolder {
 
     public static Frame from(int streamId) {
       final Frame frame = RECYCLER.get();
+      frame.setRefCnt(1);
       frame.content =
           ByteBufAllocator.DEFAULT.buffer(
               FrameHeaderFlyweight.computeFrameHeaderLength(FrameType.CANCEL, null, 0));
@@ -575,6 +548,7 @@ public class Frame implements Payload, ByteBufHolder {
 
     public static Frame from(ByteBuf data, boolean respond) {
       final Frame frame = RECYCLER.get();
+      frame.setRefCnt(1);
       frame.content =
           ByteBufAllocator.DEFAULT.buffer(
               KeepaliveFrameFlyweight.computeFrameLength(data.readableBytes()));
@@ -611,12 +585,12 @@ public class Frame implements Payload, ByteBufHolder {
       return false;
     }
     final Frame frame = (Frame) o;
-    return Objects.equals(content, frame.content);
+    return content.equals(frame.content());
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(content);
+    return content.hashCode();
   }
 
   @Override

@@ -22,6 +22,7 @@ import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
 import io.netty.util.AbstractReferenceCounted;
 import io.netty.util.Recycler;
+import io.netty.util.Recycler.Handle;
 import io.rsocket.Payload;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
@@ -36,11 +37,11 @@ public final class ByteBufPayload extends AbstractReferenceCounted implements Pa
         }
       };
 
-  private final Recycler.Handle<ByteBufPayload> handle;
+  private final Handle<ByteBufPayload> handle;
   private ByteBuf data;
   private ByteBuf metadata;
 
-  private ByteBufPayload(final Recycler.Handle<ByteBufPayload> handle) {
+  private ByteBufPayload(final Handle<ByteBufPayload> handle) {
     this.handle = handle;
   }
 
@@ -168,12 +169,12 @@ public final class ByteBufPayload extends AbstractReferenceCounted implements Pa
   public static Payload create(ByteBuf data, @Nullable ByteBuf metadata) {
     ByteBufPayload payload = RECYCLER.get();
     payload.setRefCnt(1);
-    payload.data = data.retain();
-    payload.metadata = metadata == null ? Unpooled.EMPTY_BUFFER : metadata.retain();
+    payload.data = data;
+    payload.metadata = metadata;
     return payload;
   }
 
   public static Payload create(Payload payload) {
-    return create(payload.sliceData(), payload.hasMetadata() ? payload.sliceMetadata() : null);
+    return create(payload.sliceData().retain(), payload.hasMetadata() ? payload.sliceMetadata().retain() : null);
   }
 }

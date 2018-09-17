@@ -19,7 +19,7 @@ import reactor.core.publisher.Mono;
 public class InteractionsLoadTest {
 
   @Test
-  @SlowTest
+  //@SlowTest
   public void channel() {
     TcpServerTransport serverTransport = TcpServerTransport.create(0);
 
@@ -80,7 +80,7 @@ public class InteractionsLoadTest {
                 if (!data.equals("foo")) {
                   throw new IllegalStateException("Channel Server Bad message: " + data);
                 }
-                return DefaultPayload.create(DefaultPayload.create("bar"));
+                return DefaultPayload.create("bar");
               });
     }
 
