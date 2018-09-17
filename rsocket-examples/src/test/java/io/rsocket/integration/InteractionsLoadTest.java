@@ -80,7 +80,7 @@ public class InteractionsLoadTest {
                 if (!data.equals("foo")) {
                   throw new IllegalStateException("Channel Server Bad message: " + data);
                 }
-                return DefaultPayload.create(DefaultPayload.create("bar"));
+                return DefaultPayload.create("bar");
               });
     }
 

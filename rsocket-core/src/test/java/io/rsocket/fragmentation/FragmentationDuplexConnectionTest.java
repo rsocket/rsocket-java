@@ -184,7 +184,7 @@ final class FragmentationDuplexConnectionTest {
         toAbstractionLeakingFrame(
             DEFAULT, 1, createPayloadFrame(DEFAULT, false, true, (ByteBuf) null, null));
 
-    when(delegate.receive()).thenReturn(Flux.just(frame));
+    when(delegate.receive()).thenReturn(Flux.just(frame.retain()));
     when(delegate.onClose()).thenReturn(Mono.never());
 
     new FragmentationDuplexConnection(DEFAULT, delegate, 2)
@@ -199,7 +199,7 @@ final class FragmentationDuplexConnectionTest {
   void reassembleNonFragmentableFrame() {
     Frame frame = toAbstractionLeakingFrame(DEFAULT, 1, createTestCancelFrame());
 
-    when(delegate.receive()).thenReturn(Flux.just(frame));
+    when(delegate.receive()).thenReturn(Flux.just(frame.retain()));
     when(delegate.onClose()).thenReturn(Mono.never());
 
     new FragmentationDuplexConnection(DEFAULT, delegate, 2)
@@ -232,7 +232,7 @@ final class FragmentationDuplexConnectionTest {
 
     when(delegate.onClose()).thenReturn(Mono.never());
 
-    new FragmentationDuplexConnection(DEFAULT, delegate, 2).sendOne(frame);
+    new FragmentationDuplexConnection(DEFAULT, delegate, 2).sendOne(frame.retain());
     verify(delegate).send(publishers.capture());
 
     StepVerifier.create(Flux.from(publishers.getValue()))
@@ -251,7 +251,7 @@ final class FragmentationDuplexConnectionTest {
 
     when(delegate.onClose()).thenReturn(Mono.never());
 
-    new FragmentationDuplexConnection(DEFAULT, delegate, 2).sendOne(frame);
+    new FragmentationDuplexConnection(DEFAULT, delegate, 2).sendOne(frame.retain());
     verify(delegate).send(publishers.capture());
 
     StepVerifier.create(Flux.from(publishers.getValue())).expectNext(frame).verifyComplete();
@@ -266,7 +266,7 @@ final class FragmentationDuplexConnectionTest {
 
     when(delegate.onClose()).thenReturn(Mono.never());
 
-    new FragmentationDuplexConnection(DEFAULT, delegate, 2).sendOne(frame);
+    new FragmentationDuplexConnection(DEFAULT, delegate, 2).sendOne(frame.retain());
     verify(delegate).send(publishers.capture());
 
     StepVerifier.create(Flux.from(publishers.getValue())).expectNext(frame).verifyComplete();
@@ -281,7 +281,7 @@ final class FragmentationDuplexConnectionTest {
 
     when(delegate.onClose()).thenReturn(Mono.never());
 
-    new FragmentationDuplexConnection(DEFAULT, delegate, 2).sendOne(frame);
+    new FragmentationDuplexConnection(DEFAULT, delegate, 2).sendOne(frame.retain());
     verify(delegate).send(publishers.capture());
 
     StepVerifier.create(Flux.from(publishers.getValue())).expectNext(frame).verifyComplete();
@@ -310,7 +310,7 @@ final class FragmentationDuplexConnectionTest {
 
     when(delegate.onClose()).thenReturn(Mono.never());
 
-    new FragmentationDuplexConnection(DEFAULT, delegate, 2).sendOne(frame);
+    new FragmentationDuplexConnection(DEFAULT, delegate, 2).sendOne(frame.retain());
     verify(delegate).send(publishers.capture());
 
     StepVerifier.create(Flux.from(publishers.getValue()))
@@ -354,7 +354,7 @@ final class FragmentationDuplexConnectionTest {
 
     when(delegate.onClose()).thenReturn(Mono.never());
 
-    new FragmentationDuplexConnection(DEFAULT, delegate, 2).sendOne(frame);
+    new FragmentationDuplexConnection(DEFAULT, delegate, 2).sendOne(frame.retain());
     verify(delegate).send(publishers.capture());
 
     StepVerifier.create(Flux.from(publishers.getValue()))
@@ -373,7 +373,7 @@ final class FragmentationDuplexConnectionTest {
 
     when(delegate.onClose()).thenReturn(Mono.never());
 
-    new FragmentationDuplexConnection(DEFAULT, delegate, 2).sendOne(frame);
+    new FragmentationDuplexConnection(DEFAULT, delegate, 2).sendOne(frame.retain());
     verify(delegate).send(publishers.capture());
 
     StepVerifier.create(Flux.from(publishers.getValue())).expectNext(frame).verifyComplete();
@@ -398,7 +398,7 @@ final class FragmentationDuplexConnectionTest {
 
     when(delegate.onClose()).thenReturn(Mono.never());
 
-    new FragmentationDuplexConnection(DEFAULT, delegate, 0).sendOne(frame);
+    new FragmentationDuplexConnection(DEFAULT, delegate, 0).sendOne(frame.retain());
     verify(delegate).send(publishers.capture());
 
     StepVerifier.create(Flux.from(publishers.getValue())).expectNext(frame).verifyComplete();

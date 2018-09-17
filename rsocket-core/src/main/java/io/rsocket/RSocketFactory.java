@@ -253,7 +253,7 @@ public class RSocketFactory {
   }
 
   public static class ServerRSocketFactory {
-    private Supplier<SocketAcceptor> acceptor;
+    private SocketAcceptor acceptor;
     private Function<Frame, ? extends Payload> frameDecoder = DefaultPayload::create;
     private Consumer<Throwable> errorConsumer = Throwable::printStackTrace;
     private int mtu = 0;
@@ -277,11 +277,6 @@ public class RSocketFactory {
     }
 
     public ServerTransportAcceptor acceptor(SocketAcceptor acceptor) {
-      this.acceptor = () -> acceptor;
-      return ServerStart::new;
-    }
-
-    public ServerTransportAcceptor acceptor(Supplier<SocketAcceptor> acceptor) {
       this.acceptor = acceptor;
       return ServerStart::new;
     }
@@ -357,7 +352,6 @@ public class RSocketFactory {
         RSocket wrappedRSocketClient = plugins.applyClient(rSocketClient);
 
         return acceptor
-            .get()
             .accept(setupPayload, wrappedRSocketClient)
             .doOnNext(
                 unwrappedServerSocket -> {

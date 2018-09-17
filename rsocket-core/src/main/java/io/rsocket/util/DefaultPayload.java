@@ -154,14 +154,17 @@ public final class DefaultPayload implements Payload {
     return new DefaultPayload(data, metadata);
   }
 
-  public static Payload create(Payload payload) {
-    return create(
-        copy(payload.sliceData()), payload.hasMetadata() ? copy(payload.sliceMetadata()) : null);
+  public static Payload create(ByteBuf data) {
+    return create(data, null);
   }
 
-  private static ByteBuffer copy(ByteBuf byteBuf) {
-    byte[] contents = new byte[byteBuf.readableBytes()];
-    byteBuf.readBytes(contents);
-    return ByteBuffer.wrap(contents);
+  public static Payload create(ByteBuf data, @Nullable ByteBuf metadata) {
+    return create(data.nioBuffer(), metadata == null ? null : metadata.nioBuffer());
+  }
+
+  public static Payload create(Payload payload) {
+    return create(
+        Unpooled.copiedBuffer(payload.sliceData()),
+        payload.hasMetadata() ? Unpooled.copiedBuffer(payload.sliceMetadata()) : null);
   }
 }

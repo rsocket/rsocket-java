@@ -31,16 +31,19 @@ public abstract class AbstractRSocket implements RSocket {
 
   @Override
   public Mono<Void> fireAndForget(Payload payload) {
+    payload.release();
     return Mono.error(new UnsupportedOperationException("Fire and forget not implemented."));
   }
 
   @Override
   public Mono<Payload> requestResponse(Payload payload) {
+    payload.release();
     return Mono.error(new UnsupportedOperationException("Request-Response not implemented."));
   }
 
   @Override
   public Flux<Payload> requestStream(Payload payload) {
+    payload.release();
     return Flux.error(new UnsupportedOperationException("Request-Stream not implemented."));
   }
 
@@ -51,6 +54,7 @@ public abstract class AbstractRSocket implements RSocket {
 
   @Override
   public Mono<Void> metadataPush(Payload payload) {
+    payload.release();
     return Mono.error(new UnsupportedOperationException("Metadata-Push not implemented."));
   }
 
