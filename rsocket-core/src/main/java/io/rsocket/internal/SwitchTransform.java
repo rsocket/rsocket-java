@@ -16,16 +16,16 @@
 
 package io.rsocket.internal;
 
-import io.netty.util.ReferenceCountUtil;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.function.BiFunction;
+
+import io.netty.util.ReferenceCountUtil;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscription;
 import reactor.core.CoreSubscriber;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Operators;
-import reactor.core.publisher.UnicastProcessor;
 
 public final class SwitchTransform<T, R> extends Flux<R> {
 
@@ -50,7 +50,7 @@ public final class SwitchTransform<T, R> extends Flux<R> {
 
     final CoreSubscriber<? super R> actual;
     final BiFunction<T, Flux<T>, Publisher<? extends R>> transformer;
-    final UnicastProcessor<T> processor = UnicastProcessor.create();
+    final TransmitProcessor<T> processor = TransmitProcessor.create();
     Subscription s;
     volatile int once;
 
