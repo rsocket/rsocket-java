@@ -17,6 +17,7 @@
 package io.rsocket;
 
 import io.rsocket.exceptions.InvalidSetupException;
+import io.rsocket.exceptions.RejectedSetupException;
 import io.rsocket.fragmentation.FragmentationDuplexConnection;
 import io.rsocket.frame.SetupFrameFlyweight;
 import io.rsocket.frame.VersionFlyweight;
@@ -353,6 +354,12 @@ public class RSocketFactory {
 
         return acceptor
             .accept(setupPayload, wrappedRSocketClient)
+            .onErrorResume(
+                err ->
+                    multiplexer
+                        .asStreamZeroConnection()
+                        .sendOne(rejectedSetupErrorFrame(err))
+                        .then(Mono.error(err)))
             .doOnNext(
                 unwrappedServerSocket -> {
                   RSocket wrappedRSocketServer = plugins.applyServer(unwrappedServerSocket);
@@ -368,6 +375,12 @@ public class RSocketFactory {
                 })
             .doFinally(signalType -> setupPayload.release())
             .then();
+      }
+
+      private Frame rejectedSetupErrorFrame(Throwable err) {
+        String msg = err.getMessage();
+        return Frame.Error.from(
+            0, new RejectedSetupException(msg == null ? "rejected by server acceptor" : msg));
       }
     }
   }
