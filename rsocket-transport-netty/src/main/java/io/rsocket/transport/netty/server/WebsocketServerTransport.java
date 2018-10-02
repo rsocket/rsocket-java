@@ -25,14 +25,14 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
 import reactor.core.publisher.Mono;
-import reactor.ipc.netty.http.server.HttpServer;
+import reactor.netty.http.server.HttpServer;
 
 /**
  * An implementation of {@link ServerTransport} that connects to a {@link ClientTransport} via a
  * Websocket.
  */
 public final class WebsocketServerTransport
-    implements ServerTransport<NettyContextCloseable>, TransportHeaderAware {
+    implements ServerTransport<CloseableChannel>, TransportHeaderAware {
 
   private final HttpServer server;
 
@@ -49,7 +49,7 @@ public final class WebsocketServerTransport
    * @return a new instance
    */
   public static WebsocketServerTransport create(int port) {
-    HttpServer httpServer = HttpServer.create(port);
+    HttpServer httpServer = HttpServer.create().port(port);
     return create(httpServer);
   }
 
@@ -64,7 +64,7 @@ public final class WebsocketServerTransport
   public static WebsocketServerTransport create(String bindAddress, int port) {
     Objects.requireNonNull(bindAddress, "bindAddress must not be null");
 
-    HttpServer httpServer = HttpServer.create(bindAddress, port);
+    HttpServer httpServer = HttpServer.create().host(bindAddress).port(port);
     return create(httpServer);
   }
 
@@ -101,15 +101,16 @@ public final class WebsocketServerTransport
   }
 
   @Override
-  public Mono<NettyContextCloseable> start(ConnectionAcceptor acceptor) {
+  public Mono<CloseableChannel> start(ConnectionAcceptor acceptor) {
     Objects.requireNonNull(acceptor, "acceptor must not be null");
 
     return server
-        .newHandler(
+        .handle(
             (request, response) -> {
               transportHeaders.get().forEach(response::addHeader);
               return response.sendWebsocket(WebsocketRouteTransport.newHandler(acceptor));
             })
-        .map(NettyContextCloseable::new);
+        .bind()
+        .map(CloseableChannel::new);
   }
 }

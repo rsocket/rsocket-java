@@ -16,14 +16,20 @@
 
 package io.rsocket.transport.netty;
 
+import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
+import io.netty.handler.ssl.util.SelfSignedCertificate;
 import io.rsocket.test.TransportTest;
 import io.rsocket.transport.netty.client.WebsocketClientTransport;
 import io.rsocket.transport.netty.server.WebsocketServerTransport;
 import java.net.InetSocketAddress;
+import java.security.cert.CertificateException;
 import java.time.Duration;
-import reactor.ipc.netty.http.client.HttpClient;
-import reactor.ipc.netty.http.server.HttpServer;
+
+import reactor.core.Exceptions;
+import reactor.netty.http.client.HttpClient;
+import reactor.netty.http.server.HttpServer;
+import reactor.netty.tcp.TcpServer;
 
 final class WebsocketSecureTransportTest implements TransportTest {
 
@@ -32,18 +38,27 @@ final class WebsocketSecureTransportTest implements TransportTest {
           () -> new InetSocketAddress("localhost", 0),
           (address, server) ->
               WebsocketClientTransport.create(
-                  HttpClient.create(
-                      options ->
-                          options
-                              .connectAddress(server::address)
-                              .sslSupport(
-                                  c -> c.trustManager(InsecureTrustManagerFactory.INSTANCE))),
+                  HttpClient.create()
+                    .addressSupplier(server::address)
+                    .secure(ssl -> ssl.sslContext(
+                        SslContextBuilder.forClient()
+                            .trustManager(InsecureTrustManagerFactory.INSTANCE))),
                   String.format(
                       "https://%s:%d/",
                       server.address().getHostName(), server.address().getPort())),
-          address ->
-              WebsocketServerTransport.create(
-                  HttpServer.create(options -> options.listenAddress(address).sslSelfSigned())));
+          address -> {
+            try {
+              SelfSignedCertificate ssc = new SelfSignedCertificate();
+              HttpServer server = HttpServer.from(
+                  TcpServer.create()
+                      .addressSupplier(() -> address)
+                      .secure(ssl -> ssl.sslContext(
+                          SslContextBuilder.forServer(ssc.certificate(), ssc.privateKey()))));
+              return WebsocketServerTransport.create(server);
+            } catch (CertificateException e) {
+              throw Exceptions.propagate(e);
+            }
+          });
 
   @Override
   public Duration getTimeout() {

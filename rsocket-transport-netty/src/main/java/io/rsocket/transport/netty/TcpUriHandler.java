@@ -24,7 +24,7 @@ import io.rsocket.uri.UriHandler;
 import java.net.URI;
 import java.util.Objects;
 import java.util.Optional;
-import reactor.ipc.netty.tcp.TcpServer;
+import reactor.netty.tcp.TcpServer;
 
 /**
  * An implementation of {@link UriHandler} that creates {@link TcpClientTransport}s and {@link
@@ -53,6 +53,9 @@ public final class TcpUriHandler implements UriHandler {
       return Optional.empty();
     }
 
-    return Optional.of(TcpServerTransport.create(TcpServer.create(uri.getHost(), uri.getPort())));
+    return Optional.of(TcpServerTransport.create(
+        TcpServer.create()
+          .host(uri.getHost())
+          .port(uri.getPort())));
   }
 }

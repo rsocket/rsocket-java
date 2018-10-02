@@ -18,7 +18,6 @@ package io.rsocket.fragmentation;
 
 import static io.rsocket.fragmentation.FrameReassembler.createFrameReassembler;
 import static io.rsocket.util.AbstractionLeakingFrameUtils.toAbstractionLeakingFrame;
-import static reactor.function.TupleUtils.function;
 
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.PooledByteBufAllocator;
@@ -115,7 +114,7 @@ public final class FragmentationDuplexConnection implements DuplexConnection {
     return delegate
         .receive()
         .map(AbstractionLeakingFrameUtils::fromAbstractionLeakingFrame)
-        .concatMap(function(this::toReassembledFrames));
+        .concatMap(t2 -> toReassembledFrames(t2.getT1(), t2.getT2()));
   }
 
   @Override
@@ -125,7 +124,7 @@ public final class FragmentationDuplexConnection implements DuplexConnection {
     return delegate.send(
         Flux.from(frames)
             .map(AbstractionLeakingFrameUtils::fromAbstractionLeakingFrame)
-            .concatMap(function(this::toFragmentedFrames)));
+            .concatMap(t2 -> toFragmentedFrames(t2.getT1(), t2.getT2())));
   }
 
   private Flux<Frame> toFragmentedFrames(int streamId, io.rsocket.framing.Frame frame) {

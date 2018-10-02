@@ -24,7 +24,7 @@ import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.RSocketFactory;
 import io.rsocket.transport.netty.client.TcpClientTransport;
-import io.rsocket.transport.netty.server.NettyContextCloseable;
+import io.rsocket.transport.netty.server.CloseableChannel;
 import io.rsocket.transport.netty.server.TcpServerTransport;
 import io.rsocket.util.DefaultPayload;
 import io.rsocket.util.EmptyPayload;
@@ -42,7 +42,7 @@ import reactor.core.scheduler.Schedulers;
 public class TcpIntegrationTest {
   private AbstractRSocket handler;
 
-  private NettyContextCloseable server;
+  private CloseableChannel server;
 
   @Before
   public void startup() {

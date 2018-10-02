@@ -24,7 +24,7 @@ import java.net.InetSocketAddress;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import reactor.core.publisher.Mono;
-import reactor.ipc.netty.tcp.TcpClient;
+import reactor.netty.tcp.TcpClient;
 import reactor.test.StepVerifier;
 
 final class TcpClientTransportTest {

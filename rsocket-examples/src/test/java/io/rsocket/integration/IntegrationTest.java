@@ -31,7 +31,7 @@ import io.rsocket.plugins.DuplexConnectionInterceptor;
 import io.rsocket.plugins.RSocketInterceptor;
 import io.rsocket.test.TestSubscriber;
 import io.rsocket.transport.netty.client.TcpClientTransport;
-import io.rsocket.transport.netty.server.NettyContextCloseable;
+import io.rsocket.transport.netty.server.CloseableChannel;
 import io.rsocket.transport.netty.server.TcpServerTransport;
 import io.rsocket.util.DefaultPayload;
 import io.rsocket.util.RSocketProxy;
@@ -83,7 +83,7 @@ public class IntegrationTest {
         };
   }
 
-  private NettyContextCloseable server;
+  private CloseableChannel server;
   private RSocket client;
   private AtomicInteger requestCount;
   private CountDownLatch disconnectionCounter;

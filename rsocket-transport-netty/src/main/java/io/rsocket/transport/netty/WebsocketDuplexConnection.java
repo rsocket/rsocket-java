@@ -28,9 +28,7 @@ import java.util.Objects;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import reactor.ipc.netty.NettyContext;
-import reactor.ipc.netty.NettyInbound;
-import reactor.ipc.netty.NettyOutbound;
+import reactor.netty.Connection;
 
 /**
  * An implementation of {@link DuplexConnection} that connects via a Websocket.
@@ -41,46 +39,38 @@ import reactor.ipc.netty.NettyOutbound;
  */
 public final class WebsocketDuplexConnection implements DuplexConnection {
 
-  private final NettyContext context;
-
-  private final NettyInbound in;
-
-  private final NettyOutbound out;
+  private final Connection connection;
 
   /**
    * Creates a new instance
    *
-   * @param in the {@link NettyInbound} to listen on
-   * @param out the {@link NettyOutbound} to send with
-   * @param context the {@link NettyContext} to for managing the server
+   * @param connection the {@link Connection} to for managing the server
    */
-  public WebsocketDuplexConnection(NettyInbound in, NettyOutbound out, NettyContext context) {
-    this.in = Objects.requireNonNull(in, "in must not be null");
-    this.out = Objects.requireNonNull(out, "out must not be null");
-    this.context = Objects.requireNonNull(context, "context must not be null");
+  public WebsocketDuplexConnection(Connection connection) {
+    this.connection = Objects.requireNonNull(connection, "connection must not be null");
   }
 
   @Override
   public void dispose() {
-    context.dispose();
+    connection.dispose();
   }
 
   @Override
   public boolean isDisposed() {
-    return context.isDisposed();
+    return connection.isDisposed();
   }
 
   @Override
   public Mono<Void> onClose() {
-    return context.onClose();
+    return connection.onDispose();
   }
 
   @Override
   public Flux<Frame> receive() {
-    return in.receive()
+    return connection.inbound().receive()
         .map(
             buf -> {
-              CompositeByteBuf composite = context.channel().alloc().compositeBuffer();
+              CompositeByteBuf composite = connection.channel().alloc().compositeBuffer();
               ByteBuf length = wrappedBuffer(new byte[FRAME_LENGTH_SIZE]);
               FrameHeaderFlyweight.encodeLength(length, 0, buf.readableBytes());
               composite.addComponents(true, length, buf.retain());
@@ -95,7 +85,7 @@ public final class WebsocketDuplexConnection implements DuplexConnection {
 
   @Override
   public Mono<Void> sendOne(Frame frame) {
-    return out.sendObject(new BinaryWebSocketFrame(frame.content().skipBytes(FRAME_LENGTH_SIZE)))
+    return connection.outbound().sendObject(new BinaryWebSocketFrame(frame.content().skipBytes(FRAME_LENGTH_SIZE)))
         .then();
   }
 }

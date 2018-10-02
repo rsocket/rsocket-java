@@ -6,7 +6,7 @@ import io.rsocket.RSocket;
 import io.rsocket.RSocketFactory;
 import io.rsocket.test.SlowTest;
 import io.rsocket.transport.netty.client.TcpClientTransport;
-import io.rsocket.transport.netty.server.NettyContextCloseable;
+import io.rsocket.transport.netty.server.CloseableChannel;
 import io.rsocket.transport.netty.server.TcpServerTransport;
 import io.rsocket.util.DefaultPayload;
 import java.time.Duration;
@@ -23,7 +23,7 @@ public class InteractionsLoadTest {
   public void channel() {
     TcpServerTransport serverTransport = TcpServerTransport.create(0);
 
-    NettyContextCloseable server =
+    CloseableChannel server =
         RSocketFactory.receive()
             .acceptor((setup, rsocket) -> Mono.just(new EchoRSocket()))
             .transport(serverTransport)

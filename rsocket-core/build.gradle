@@ -27,7 +27,6 @@ dependencies {
     api 'io.netty:netty-buffer'
     api 'io.projectreactor:reactor-core'
 
-    implementation 'io.projectreactor.addons:reactor-extra'
     implementation 'org.jctools:jctools-core'
     implementation 'org.slf4j:slf4j-api'
 

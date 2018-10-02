@@ -19,11 +19,17 @@ plugins {
     id 'maven-publish'
     id 'com.jfrog.artifactory'
     id 'com.jfrog.bintray'
+    id "com.google.osdetector" version "1.4.0"
+}
+
+def os_suffix = ""
+if (osdetector.classifier in ["linux-x86_64"] || ["osx-x86_64"] || ["windows-x86_64"]) {
+    os_suffix = ":" + osdetector.classifier
 }
 
 dependencies {
     api project(':rsocket-core')
-    api 'io.projectreactor.ipc:reactor-netty'
+    api 'io.projectreactor.netty:reactor-netty'
 
     compileOnly 'com.google.code.findbugs:jsr305'
 
@@ -35,6 +41,7 @@ dependencies {
 
     testRuntimeOnly 'ch.qos.logback:logback-classic'
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine'
+    testRuntimeOnly 'io.netty:netty-tcnative-boringssl-static:2.0.14.Final' + os_suffix
 }
 
 description = 'Reactor Netty RSocket transport implementations (TCP, Websocket)'

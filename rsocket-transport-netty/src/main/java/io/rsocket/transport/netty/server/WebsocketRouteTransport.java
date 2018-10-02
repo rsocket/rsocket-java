@@ -24,10 +24,11 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Mono;
-import reactor.ipc.netty.http.server.HttpServer;
-import reactor.ipc.netty.http.server.HttpServerRoutes;
-import reactor.ipc.netty.http.websocket.WebsocketInbound;
-import reactor.ipc.netty.http.websocket.WebsocketOutbound;
+import reactor.netty.Connection;
+import reactor.netty.http.server.HttpServer;
+import reactor.netty.http.server.HttpServerRoutes;
+import reactor.netty.http.websocket.WebsocketInbound;
+import reactor.netty.http.websocket.WebsocketOutbound;
 
 /**
  * An implementation of {@link ServerTransport} that connects via Websocket and listens on specified
@@ -61,12 +62,13 @@ public final class WebsocketRouteTransport implements ServerTransport<Closeable>
     Objects.requireNonNull(acceptor, "acceptor must not be null");
 
     return server
-        .newRouter(
+        .route(
             routes -> {
               routesBuilder.accept(routes);
               routes.ws(path, newHandler(acceptor));
             })
-        .map(NettyContextCloseable::new);
+        .bind()
+        .map(CloseableChannel::new);
   }
 
   /**
@@ -82,7 +84,7 @@ public final class WebsocketRouteTransport implements ServerTransport<Closeable>
     Objects.requireNonNull(acceptor, "acceptor must not be null");
 
     return (in, out) -> {
-      WebsocketDuplexConnection connection = new WebsocketDuplexConnection(in, out, in.context());
+      WebsocketDuplexConnection connection = new WebsocketDuplexConnection((Connection)in);
       return acceptor.apply(connection).then(out.neverComplete());
     };
   }

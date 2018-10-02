@@ -430,10 +430,9 @@ class RSocketClient implements RSocket {
         lifecycle.terminate(error);
         errorConsumer.accept(error);
         connection.dispose();
+        break;
       case LEASE:
-        {
-          break;
-        }
+        break;
       case KEEPALIVE:
         if (keepAliveHandler != null) {
           keepAliveHandler.receive(frame);

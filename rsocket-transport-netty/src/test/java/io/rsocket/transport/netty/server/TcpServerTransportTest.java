@@ -23,7 +23,7 @@ import java.net.InetSocketAddress;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import reactor.core.publisher.Mono;
-import reactor.ipc.netty.tcp.TcpServer;
+import reactor.netty.tcp.TcpServer;
 import reactor.test.StepVerifier;
 
 final class TcpServerTransportTest {
