@@ -74,8 +74,6 @@ subprojects {
     repositories {
         mavenCentral()
 
-        println("-----------VERSION: " + version + "-----------")
-
         if (version.endsWith('BUILD-SNAPSHOT') || project.hasProperty('platformVersion')) {
             maven { url 'http://repo.spring.io/libs-snapshot' }
         }
