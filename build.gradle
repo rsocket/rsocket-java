@@ -21,7 +21,7 @@ plugins {
     id 'com.jfrog.artifactory' version '4.7.0'
     id 'com.jfrog.bintray' version '1.8.0'
     id 'me.champeau.gradle.jmh' version '0.4.5' apply false
-    id 'io.spring.dependency-management' version '1.0.4.RELEASE' apply false
+    id 'io.spring.dependency-management' version '1.0.6.RELEASE' apply false
     id 'io.morethan.jmhreport' version '0.7.0' apply false
 }
 
@@ -30,7 +30,12 @@ subprojects {
 
     dependencyManagement {
         imports {
-            mavenBom 'io.projectreactor:reactor-bom:Californium-RELEASE'
+            if (version.endsWith('BUILD-SNAPSHOT') || project.hasProperty('platformVersion')) {
+                mavenBom 'io.projectreactor:reactor-bom:Californium-BUILD-SNAPSHOT'
+            }
+            else {
+                mavenBom 'io.projectreactor:reactor-bom:Californium-RELEASE'
+            }
         }
 
         dependencies {
@@ -68,6 +73,10 @@ subprojects {
 
     repositories {
         mavenCentral()
+
+        if (version.endsWith('BUILD-SNAPSHOT') || project.hasProperty('platformVersion')) {
+            maven { url 'http://repo.spring.io/libs-snapshot' }
+        }
     }
 
     plugins.withType(JavaPlugin) {
