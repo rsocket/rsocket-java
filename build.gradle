@@ -28,7 +28,7 @@ plugins {
 subprojects {
     apply plugin: 'io.spring.dependency-management'
 
-    ext['reactor-bom.version'] = 'Californium-SR1'
+    ext['reactor-bom.version'] = 'Californium-BUILD-SNAPSHOT'
     ext['logback.version'] = '1.2.3'
     ext['findbugs.version'] = '3.0.2'
     ext['netty.version'] = '4.1.29.Final'
