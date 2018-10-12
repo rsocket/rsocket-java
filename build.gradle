@@ -15,43 +15,52 @@
  */
 
 plugins {
-    id 'com.gradle.build-scan' version '1.12.1'
+    id 'com.gradle.build-scan' version '1.16'
 
-    id 'com.github.sherter.google-java-format' version '0.6'
-    id 'com.jfrog.artifactory' version '4.7.0'
-    id 'com.jfrog.bintray' version '1.8.0'
-    id 'me.champeau.gradle.jmh' version '0.4.5' apply false
+    id 'com.github.sherter.google-java-format' version '0.7.1'
+    id 'com.jfrog.artifactory' version '4.7.3'
+    id 'com.jfrog.bintray' version '1.8.4'
+    id 'me.champeau.gradle.jmh' version '0.4.7' apply false
     id 'io.spring.dependency-management' version '1.0.6.RELEASE' apply false
-    id 'io.morethan.jmhreport' version '0.7.0' apply false
+    id 'io.morethan.jmhreport' version '0.9.0' apply false
 }
 
 subprojects {
     apply plugin: 'io.spring.dependency-management'
 
+    ext['reactor-bom.version'] = 'Californium-SR1'
+    ext['logback.version'] = '1.2.3'
+    ext['findbugs.version'] = '3.0.2'
+    ext['netty.version'] = '4.1.29.Final'
+    ext['aeron.version'] = '1.11.2'
+    ext['hdrhistogram.version'] = '2.1.10'
+    ext['jctool.version'] = '2.1.2'
+    ext['mockito.version'] = '2.23.0'
+    ext['slf4j.version'] = '1.7.25'
+    ext['jmh.version'] = '1.21'
+    ext['junit.version'] = '5.1.0'
+    ext['hamcrest.version'] = '1.3'
+    ext['micrometer.version'] = '1.0.6'
+    ext['assertj.version'] = '3.11.1'
+
     dependencyManagement {
         imports {
-            if (version.endsWith('BUILD-SNAPSHOT') || project.hasProperty('platformVersion')) {
-                mavenBom 'io.projectreactor:reactor-bom:Californium-BUILD-SNAPSHOT'
-            }
-            else {
-                mavenBom 'io.projectreactor:reactor-bom:Californium-RELEASE'
-            }
+            mavenBom "io.projectreactor:reactor-bom:${ext['reactor-bom.version']}"
         }
 
         dependencies {
-            dependency 'ch.qos.logback:logback-classic:1.2.3'
-            dependency 'com.google.code.findbugs:jsr305:3.0.2'
-            dependency 'io.netty:netty-buffer:4.1.29.Final'
-            dependency 'io.aeron:aeron-all:1.4.1'
-            dependency 'io.micrometer:micrometer-core:1.0.6'
-            dependency 'org.assertj:assertj-core:3.9.1'
-            dependency 'org.hdrhistogram:HdrHistogram:2.1.10'
-            dependency 'org.jctools:jctools-core:2.1.2'
-            dependency 'org.mockito:mockito-core:2.16.0'
-            dependency 'org.openjdk.jmh:jmh-core:1.20'
-            dependency 'org.slf4j:slf4j-api:1.7.25'
+            dependency "ch.qos.logback:logback-classic:${ext['logback.version']}"
+            dependency "com.google.code.findbugs:jsr305:${ext['findbugs.version']}"
+            dependency "io.netty:netty-buffer:${ext['netty.version']}"
+            dependency "io.aeron:aeron-all:${ext['aeron.version']}"
+            dependency "io.micrometer:micrometer-core:${ext['micrometer.version']}"
+            dependency "org.assertj:assertj-core:${ext['assertj.version']}"
+            dependency "org.hdrhistogram:HdrHistogram:${ext['hdrhistogram.version']}"
+            dependency "org.jctools:jctools-core:${ext['jctool.version']}"
+            dependency "org.mockito:mockito-core:${ ext['mockito.version']}"
+            dependency "org.slf4j:slf4j-api:${ext['slf4j.version']}"
 
-            dependencySet(group: 'org.junit.jupiter', version: '5.1.0') {
+            dependencySet(group: 'org.junit.jupiter', version: ext['junit.version']) {
                 entry 'junit-jupiter-api'
                 entry 'junit-jupiter-engine'
                 entry 'junit-jupiter-params'
@@ -59,12 +68,12 @@ subprojects {
 
             // TODO: Remove after JUnit5 migration
             dependency 'junit:junit:4.12'
-            dependency 'org.hamcrest:hamcrest-library:1.3'
-            dependencySet(group: 'org.junit.vintage', version: '5.1.0') {
+            dependency "org.hamcrest:hamcrest-library:${ext['hamcrest.version']}"
+            dependencySet(group: 'org.junit.vintage', version: ext['junit.version']) {
                 entry 'junit-vintage-engine'
             }
 
-            dependencySet(group: 'org.openjdk.jmh', version: '1.20') {
+            dependencySet(group: 'org.openjdk.jmh', version: ext['jmh.version']) {
                 entry 'jmh-core'
                 entry 'jmh-generator-annprocess'
             }
