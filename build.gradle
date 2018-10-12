@@ -32,7 +32,6 @@ subprojects {
     ext['logback.version'] = '1.2.3'
     ext['findbugs.version'] = '3.0.2'
     ext['netty.version'] = '4.1.29.Final'
-    ext['aeron.version'] = '1.11.2'
     ext['hdrhistogram.version'] = '2.1.10'
     ext['jctool.version'] = '2.1.2'
     ext['mockito.version'] = '2.23.0'
@@ -52,7 +51,6 @@ subprojects {
             dependency "ch.qos.logback:logback-classic:${ext['logback.version']}"
             dependency "com.google.code.findbugs:jsr305:${ext['findbugs.version']}"
             dependency "io.netty:netty-buffer:${ext['netty.version']}"
-            dependency "io.aeron:aeron-all:${ext['aeron.version']}"
             dependency "io.micrometer:micrometer-core:${ext['micrometer.version']}"
             dependency "org.assertj:assertj-core:${ext['assertj.version']}"
             dependency "org.hdrhistogram:HdrHistogram:${ext['hdrhistogram.version']}"
