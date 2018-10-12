@@ -41,7 +41,7 @@ dependencies {
 
     testRuntimeOnly 'ch.qos.logback:logback-classic'
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine'
-    testRuntimeOnly 'io.netty:netty-tcnative-boringssl-static:2.0.14.Final' + os_suffix
+    testRuntimeOnly 'io.netty:netty-tcnative-boringssl-static:2.0.17.Final' + os_suffix
 }
 
 description = 'Reactor Netty RSocket transport implementations (TCP, Websocket)'
