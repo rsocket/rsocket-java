@@ -53,9 +53,7 @@ public final class TcpUriHandler implements UriHandler {
       return Optional.empty();
     }
 
-    return Optional.of(TcpServerTransport.create(
-        TcpServer.create()
-          .host(uri.getHost())
-          .port(uri.getPort())));
+    return Optional.of(
+        TcpServerTransport.create(TcpServer.create().host(uri.getHost()).port(uri.getPort())));
   }
 }

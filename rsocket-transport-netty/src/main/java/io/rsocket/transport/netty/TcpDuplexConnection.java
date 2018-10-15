@@ -18,12 +18,11 @@ package io.rsocket.transport.netty;
 
 import io.rsocket.DuplexConnection;
 import io.rsocket.Frame;
+import java.util.Objects;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.netty.Connection;
-
-import java.util.Objects;
 
 /** An implementation of {@link DuplexConnection} that connects via TCP. */
 public final class TcpDuplexConnection implements DuplexConnection {

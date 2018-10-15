@@ -46,11 +46,7 @@ final class CloseableChannelTest {
   @DisplayName("creates instance")
   @Test
   void constructor() {
-    channel
-        .map(CloseableChannel::new)
-        .as(StepVerifier::create)
-        .expectNextCount(1)
-        .verifyComplete();
+    channel.map(CloseableChannel::new).as(StepVerifier::create).expectNextCount(1).verifyComplete();
   }
 
   @DisplayName("constructor throws NullPointerException with null context")

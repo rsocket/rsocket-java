@@ -84,7 +84,7 @@ public final class WebsocketRouteTransport implements ServerTransport<Closeable>
     Objects.requireNonNull(acceptor, "acceptor must not be null");
 
     return (in, out) -> {
-      WebsocketDuplexConnection connection = new WebsocketDuplexConnection((Connection)in);
+      WebsocketDuplexConnection connection = new WebsocketDuplexConnection((Connection) in);
       return acceptor.apply(connection).then(out.neverComplete());
     };
   }
