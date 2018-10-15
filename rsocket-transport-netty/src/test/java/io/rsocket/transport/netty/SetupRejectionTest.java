@@ -13,11 +13,13 @@ import io.rsocket.transport.netty.server.CloseableChannel;
 import io.rsocket.transport.netty.server.TcpServerTransport;
 import io.rsocket.transport.netty.server.WebsocketServerTransport;
 import io.rsocket.util.DefaultPayload;
+
 import java.net.InetSocketAddress;
 import java.time.Duration;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Stream;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -44,9 +46,9 @@ public class SetupRejectionTest {
     CloseableChannel channel =
         RSocketFactory.receive()
             .acceptor(acceptor)
-            .transport(serverTransport.apply(new InetSocketAddress(0)))
+            .transport(serverTransport.apply(new InetSocketAddress("localhost", 0)))
             .start()
-            .block();
+            .block(Duration.ofSeconds(5));
 
     ErrorConsumer errorConsumer = new ErrorConsumer();
 
@@ -55,7 +57,7 @@ public class SetupRejectionTest {
             .errorConsumer(errorConsumer)
             .transport(clientTransport.apply(channel.address()))
             .start()
-            .block();
+            .block(Duration.ofSeconds(5));
 
     StepVerifier.create(errorConsumer.errors().next())
         .expectNextMatches(
@@ -64,10 +66,10 @@ public class SetupRejectionTest {
         .verify(Duration.ofSeconds(5));
 
     StepVerifier.create(clientRequester.onClose()).expectComplete().verify(Duration.ofSeconds(5));
-    // FIXME: it hangs
-//    StepVerifier.create(serverRequester.flatMap(socket -> socket.onClose()))
-//        .expectComplete()
-//        .verify(Duration.ofSeconds(5));
+
+    StepVerifier.create(serverRequester.flatMap(socket -> socket.onClose()))
+        .expectComplete()
+        .verify(Duration.ofSeconds(5));
 
     StepVerifier.create(clientRequester.requestResponse(DefaultPayload.create("test")))
         .expectErrorMatches(
