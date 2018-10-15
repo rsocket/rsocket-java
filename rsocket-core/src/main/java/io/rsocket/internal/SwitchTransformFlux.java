@@ -16,12 +16,11 @@
 
 package io.rsocket.internal;
 
+import io.netty.util.ReferenceCountUtil;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.function.BiFunction;
-
-import io.netty.util.ReferenceCountUtil;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscription;
 import reactor.core.CoreSubscriber;
@@ -36,7 +35,7 @@ public final class SwitchTransformFlux<T, R> extends Flux<R> {
   final BiFunction<T, Flux<T>, Publisher<? extends R>> transformer;
 
   public SwitchTransformFlux(
-          Publisher<? extends T> source, BiFunction<T, Flux<T>, Publisher<? extends R>> transformer) {
+      Publisher<? extends T> source, BiFunction<T, Flux<T>, Publisher<? extends R>> transformer) {
     this.source = Objects.requireNonNull(source, "source");
     this.transformer = Objects.requireNonNull(transformer, "transformer");
   }
@@ -60,14 +59,14 @@ public final class SwitchTransformFlux<T, R> extends Flux<R> {
     Subscription s;
 
     volatile int once;
+
     @SuppressWarnings("rawtypes")
     static final AtomicIntegerFieldUpdater<SwitchTransformMain> ONCE =
-            AtomicIntegerFieldUpdater.newUpdater(SwitchTransformMain.class, "once");
+        AtomicIntegerFieldUpdater.newUpdater(SwitchTransformMain.class, "once");
 
     SwitchTransformMain(
-            CoreSubscriber<? super R> actual,
-            BiFunction<T, Flux<T>, Publisher<? extends R>> transformer
-    ) {
+        CoreSubscriber<? super R> actual,
+        BiFunction<T, Flux<T>, Publisher<? extends R>> transformer) {
       this.actual = actual;
       this.transformer = transformer;
       this.inner = new SwitchTransformInner<>(this);
@@ -100,7 +99,8 @@ public final class SwitchTransformFlux<T, R> extends Flux<R> {
         try {
           inner.first = t;
           Publisher<? extends R> result =
-            Objects.requireNonNull(transformer.apply(t, inner), "The transformer returned a null value");
+              Objects.requireNonNull(
+                  transformer.apply(t, inner), "The transformer returned a null value");
           result.subscribe(actual);
           return;
         } catch (Throwable e) {
@@ -151,25 +151,28 @@ public final class SwitchTransformFlux<T, R> extends Flux<R> {
     }
   }
 
-  static final class SwitchTransformInner<V> extends Flux<V>
-          implements Scannable, Subscription {
+  static final class SwitchTransformInner<V> extends Flux<V> implements Scannable, Subscription {
 
     final SwitchTransformMain<V, ?> parent;
 
     volatile CoreSubscriber<? super V> actual;
+
     @SuppressWarnings("rawtypes")
     static final AtomicReferenceFieldUpdater<SwitchTransformInner, CoreSubscriber> ACTUAL =
-            AtomicReferenceFieldUpdater.newUpdater(SwitchTransformInner.class, CoreSubscriber.class, "actual");
+        AtomicReferenceFieldUpdater.newUpdater(
+            SwitchTransformInner.class, CoreSubscriber.class, "actual");
 
     volatile V first;
+
     @SuppressWarnings("rawtypes")
     static final AtomicReferenceFieldUpdater<SwitchTransformInner, Object> FIRST =
-            AtomicReferenceFieldUpdater.newUpdater(SwitchTransformInner.class, Object.class, "first");
+        AtomicReferenceFieldUpdater.newUpdater(SwitchTransformInner.class, Object.class, "first");
 
     volatile int once;
+
     @SuppressWarnings("rawtypes")
     static final AtomicIntegerFieldUpdater<SwitchTransformInner> ONCE =
-            AtomicIntegerFieldUpdater.newUpdater(SwitchTransformInner.class, "once");
+        AtomicIntegerFieldUpdater.newUpdater(SwitchTransformInner.class, "once");
 
     SwitchTransformInner(SwitchTransformMain<V, ?> parent) {
       this.parent = parent;
@@ -204,8 +207,7 @@ public final class SwitchTransformFlux<T, R> extends Flux<R> {
       if (once == 0 && ONCE.compareAndSet(this, 0, 1)) {
         ACTUAL.lazySet(this, actual);
         actual.onSubscribe(this);
-      }
-      else {
+      } else {
         actual.onError(new IllegalStateException("SwitchTransform allows only one Subscriber"));
       }
     }

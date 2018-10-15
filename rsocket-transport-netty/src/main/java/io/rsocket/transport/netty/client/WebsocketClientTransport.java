@@ -30,9 +30,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
-
 import reactor.core.publisher.Mono;
-import reactor.netty.Connection;
 import reactor.netty.http.client.HttpClient;
 import reactor.netty.tcp.TcpClient;
 
@@ -137,12 +135,12 @@ public final class WebsocketClientTransport implements ClientTransport, Transpor
 
   @Override
   public Mono<DuplexConnection> connect() {
-      return client
-          .headers(headers -> transportHeaders.get().forEach(headers::set))
-          .websocket()
-          .uri(path)
-          .connect()
-          .map(WebsocketDuplexConnection::new);
+    return client
+        .headers(headers -> transportHeaders.get().forEach(headers::set))
+        .websocket()
+        .uri(path)
+        .connect()
+        .map(WebsocketDuplexConnection::new);
   }
 
   @Override
@@ -153,14 +151,9 @@ public final class WebsocketClientTransport implements ClientTransport, Transpor
 
   private static TcpClient createClient(URI uri) {
     if (isSecure(uri)) {
-      return TcpClient.create()
-          .secure()
-          .host(uri.getHost())
-          .port(getPort(uri, 443));
+      return TcpClient.create().secure().host(uri.getHost()).port(getPort(uri, 443));
     } else {
-      return TcpClient.create()
-          .host(uri.getHost())
-          .port(getPort(uri, 80));
+      return TcpClient.create().host(uri.getHost()).port(getPort(uri, 80));
     }
   }
 }

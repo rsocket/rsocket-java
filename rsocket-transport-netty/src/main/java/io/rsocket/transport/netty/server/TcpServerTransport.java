@@ -20,10 +20,8 @@ import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.ServerTransport;
 import io.rsocket.transport.netty.RSocketLengthCodec;
 import io.rsocket.transport.netty.TcpDuplexConnection;
-
 import java.net.InetSocketAddress;
 import java.util.Objects;
-
 import reactor.core.publisher.Mono;
 import reactor.netty.tcp.TcpServer;
 
@@ -95,14 +93,12 @@ public final class TcpServerTransport implements ServerTransport<CloseableChanne
     Objects.requireNonNull(acceptor, "acceptor must not be null");
 
     return server
-        .doOnConnection(c -> {
-          c.addHandlerLast(new RSocketLengthCodec());
-          TcpDuplexConnection connection = new TcpDuplexConnection(c);
-          acceptor
-              .apply(connection)
-              .then(Mono.<Void>never())
-              .subscribe(c.disposeSubscriber());
-        })
+        .doOnConnection(
+            c -> {
+              c.addHandlerLast(new RSocketLengthCodec());
+              TcpDuplexConnection connection = new TcpDuplexConnection(c);
+              acceptor.apply(connection).then(Mono.<Void>never()).subscribe(c.disposeSubscriber());
+            })
         .bind()
         .map(CloseableChannel::new);
   }

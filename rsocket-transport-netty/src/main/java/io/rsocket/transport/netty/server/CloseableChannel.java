@@ -23,8 +23,8 @@ import reactor.core.publisher.Mono;
 import reactor.netty.DisposableChannel;
 
 /**
- * An implementation of {@link Closeable} that wraps a {@link DisposableChannel}, enabling close-ability
- * and exposing the {@link DisposableChannel}'s address.
+ * An implementation of {@link Closeable} that wraps a {@link DisposableChannel}, enabling
+ * close-ability and exposing the {@link DisposableChannel}'s address.
  */
 public final class CloseableChannel implements Closeable {
 

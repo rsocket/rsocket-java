@@ -25,7 +25,6 @@ import io.rsocket.transport.netty.server.WebsocketServerTransport;
 import java.net.InetSocketAddress;
 import java.security.cert.CertificateException;
 import java.time.Duration;
-
 import reactor.core.Exceptions;
 import reactor.netty.http.client.HttpClient;
 import reactor.netty.http.server.HttpServer;
@@ -39,21 +38,27 @@ final class WebsocketSecureTransportTest implements TransportTest {
           (address, server) ->
               WebsocketClientTransport.create(
                   HttpClient.create()
-                    .addressSupplier(server::address)
-                    .secure(ssl -> ssl.sslContext(
-                        SslContextBuilder.forClient()
-                            .trustManager(InsecureTrustManagerFactory.INSTANCE))),
+                      .addressSupplier(server::address)
+                      .secure(
+                          ssl ->
+                              ssl.sslContext(
+                                  SslContextBuilder.forClient()
+                                      .trustManager(InsecureTrustManagerFactory.INSTANCE))),
                   String.format(
                       "https://%s:%d/",
                       server.address().getHostName(), server.address().getPort())),
           address -> {
             try {
               SelfSignedCertificate ssc = new SelfSignedCertificate();
-              HttpServer server = HttpServer.from(
-                  TcpServer.create()
-                      .addressSupplier(() -> address)
-                      .secure(ssl -> ssl.sslContext(
-                          SslContextBuilder.forServer(ssc.certificate(), ssc.privateKey()))));
+              HttpServer server =
+                  HttpServer.from(
+                      TcpServer.create()
+                          .addressSupplier(() -> address)
+                          .secure(
+                              ssl ->
+                                  ssl.sslContext(
+                                      SslContextBuilder.forServer(
+                                          ssc.certificate(), ssc.privateKey()))));
               return WebsocketServerTransport.create(server);
             } catch (CertificateException e) {
               throw Exceptions.propagate(e);

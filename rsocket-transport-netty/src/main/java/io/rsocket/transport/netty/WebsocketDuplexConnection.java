@@ -67,7 +67,9 @@ public final class WebsocketDuplexConnection implements DuplexConnection {
 
   @Override
   public Flux<Frame> receive() {
-    return connection.inbound().receive()
+    return connection
+        .inbound()
+        .receive()
         .map(
             buf -> {
               CompositeByteBuf composite = connection.channel().alloc().compositeBuffer();
@@ -85,7 +87,9 @@ public final class WebsocketDuplexConnection implements DuplexConnection {
 
   @Override
   public Mono<Void> sendOne(Frame frame) {
-    return connection.outbound().sendObject(new BinaryWebSocketFrame(frame.content().skipBytes(FRAME_LENGTH_SIZE)))
+    return connection
+        .outbound()
+        .sendObject(new BinaryWebSocketFrame(frame.content().skipBytes(FRAME_LENGTH_SIZE)))
         .then();
   }
 }
