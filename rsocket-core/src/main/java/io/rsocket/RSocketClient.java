@@ -21,8 +21,11 @@ import io.rsocket.exceptions.Exceptions;
 import io.rsocket.framing.FrameType;
 import io.rsocket.internal.LimitableRequestPublisher;
 import io.rsocket.internal.UnboundedProcessor;
+
+import java.nio.channels.ClosedChannelException;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import org.jctools.maps.NonBlockingHashMapLong;
@@ -72,7 +75,7 @@ class RSocketClient implements RSocket {
     // DO NOT Change the order here. The Send processor must be subscribed to before receiving
     this.sendProcessor = new UnboundedProcessor<>();
 
-    connection.onClose().doFinally(signalType -> cleanup()).subscribe(null, errorConsumer);
+    connection.onClose().doFinally(signalType -> terminate()).subscribe(null, errorConsumer);
 
     connection
         .send(sendProcessor)
@@ -92,7 +95,9 @@ class RSocketClient implements RSocket {
               keepAlive -> {
                 String message =
                     String.format("No keep-alive acks for %d ms", keepAlive.getTimeoutMillis());
-                errorConsumer.accept(new ConnectionErrorException(message));
+                ConnectionErrorException err = new ConnectionErrorException(message);
+                lifecycle.terminate(err);
+                errorConsumer.accept(err);
                 connection.dispose();
               });
       keepAliveHandler.send().subscribe(sendProcessor::onNext);
@@ -157,12 +162,7 @@ class RSocketClient implements RSocket {
 
   @Override
   public Mono<Void> metadataPush(Payload payload) {
-    return Mono.fromRunnable(
-        () -> {
-          final Frame requestFrame = Frame.Request.from(0, FrameType.METADATA_PUSH, payload, 1);
-          payload.release();
-          sendProcessor.onNext(requestFrame);
-        });
+    return handleMetadataPush(payload);
   }
 
   @Override
@@ -187,7 +187,7 @@ class RSocketClient implements RSocket {
 
   private Mono<Void> handleFireAndForget(Payload payload) {
     return lifecycle
-        .started()
+        .active()
         .then(
             Mono.fromRunnable(
                 () -> {
@@ -201,7 +201,7 @@ class RSocketClient implements RSocket {
 
   private Flux<Payload> handleRequestStream(final Payload payload) {
     return lifecycle
-        .started()
+        .active()
         .thenMany(
             Flux.defer(
                 () -> {
@@ -247,7 +247,7 @@ class RSocketClient implements RSocket {
 
   private Mono<Payload> handleRequestResponse(final Payload payload) {
     return lifecycle
-        .started()
+        .active()
         .then(
             Mono.defer(
                 () -> {
@@ -274,7 +274,7 @@ class RSocketClient implements RSocket {
 
   private Flux<Payload> handleChannel(Flux<Payload> request) {
     return lifecycle
-        .started()
+        .active()
         .thenMany(
             Flux.defer(
                 () -> {
@@ -365,11 +365,25 @@ class RSocketClient implements RSocket {
                 }));
   }
 
+  private Mono<Void> handleMetadataPush(Payload payload) {
+    return lifecycle
+        .active()
+        .then(Mono.fromRunnable(
+            () -> {
+              final Frame requestFrame = Frame.Request.from(0, FrameType.METADATA_PUSH, payload, 1);
+              payload.release();
+              sendProcessor.onNext(requestFrame);
+            }));
+  }
+
   private boolean contains(int streamId) {
     return receivers.containsKey(streamId);
   }
 
-  protected void cleanup() {
+  protected void terminate() {
+
+    lifecycle.terminate(new ClosedChannelException());
+
     if (keepAliveHandler != null) {
       keepAliveHandler.dispose();
     }
@@ -397,13 +411,8 @@ class RSocketClient implements RSocket {
   }
 
   private synchronized void cleanUpSubscriber(UnicastProcessor<?> subscriber) {
-    Throwable err = lifecycle.terminationError();
     try {
-      if (err != null) {
-        subscriber.onError(err);
-      } else {
-        subscriber.cancel();
-      }
+        subscriber.onError(lifecycle.terminationError());
     } catch (Throwable t) {
       errorConsumer.accept(t);
     }
@@ -519,12 +528,12 @@ class RSocketClient implements RSocket {
 
   private static class Lifecycle {
 
-    private volatile Throwable terminationError;
+    private final AtomicReference<Throwable> terminationError = new AtomicReference<>();
 
-    public Mono<Void> started() {
+    public Mono<Void> active() {
       return Mono.create(
           sink -> {
-            Throwable err = terminationError;
+            Throwable err = terminationError();
             if (err == null) {
               sink.success();
             } else {
@@ -534,11 +543,11 @@ class RSocketClient implements RSocket {
     }
 
     public void terminate(Throwable err) {
-      this.terminationError = err;
+      this.terminationError.compareAndSet(null, err);
     }
 
     public Throwable terminationError() {
-      return terminationError;
+      return terminationError.get();
     }
   }
 }

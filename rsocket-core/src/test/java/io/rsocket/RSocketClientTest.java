@@ -215,7 +215,7 @@ public class RSocketClientTest {
           throwable -> errors.add(throwable),
           StreamIdSupplier.clientSupplier(),
           Duration.ofMillis(100),
-          Duration.ofMillis(100),
+          Duration.ofMillis(10_000),
           4);
     }
 
