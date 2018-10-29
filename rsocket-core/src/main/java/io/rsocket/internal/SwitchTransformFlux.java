@@ -16,12 +16,11 @@
 
 package io.rsocket.internal;
 
+import io.netty.util.ReferenceCountUtil;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.function.BiFunction;
-
-import io.netty.util.ReferenceCountUtil;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscription;
 import reactor.core.CoreSubscriber;
@@ -38,7 +37,7 @@ public final class SwitchTransformFlux<T, R> extends Flux<R> {
   final BiFunction<T, Flux<T>, Publisher<? extends R>> transformer;
 
   public SwitchTransformFlux(
-          Publisher<? extends T> source, BiFunction<T, Flux<T>, Publisher<? extends R>> transformer) {
+      Publisher<? extends T> source, BiFunction<T, Flux<T>, Publisher<? extends R>> transformer) {
     this.source = Objects.requireNonNull(source, "source");
     this.transformer = Objects.requireNonNull(transformer, "transformer");
   }
@@ -52,42 +51,48 @@ public final class SwitchTransformFlux<T, R> extends Flux<R> {
   @SuppressWarnings("unchecked")
   public void subscribe(CoreSubscriber<? super R> actual) {
     if (actual instanceof Fuseable.ConditionalSubscriber) {
-      source.subscribe(new SwitchTransformConditionalOperator<>((Fuseable.ConditionalSubscriber<? super R>) actual, transformer));
+      source.subscribe(
+          new SwitchTransformConditionalOperator<>(
+              (Fuseable.ConditionalSubscriber<? super R>) actual, transformer));
       return;
     }
     source.subscribe(new SwitchTransformOperator<>(actual, transformer));
   }
 
   static final class SwitchTransformOperator<T, R> extends Flux<T>
-          implements CoreSubscriber<T>, Subscription, Scannable {
+      implements CoreSubscriber<T>, Subscription, Scannable {
 
     final CoreSubscriber<? super R> outer;
     final BiFunction<T, Flux<T>, Publisher<? extends R>> transformer;
 
     Subscription s;
-    Throwable    throwable;
+    Throwable throwable;
 
     volatile boolean done;
-    volatile T       first;
+    volatile T first;
 
     volatile CoreSubscriber<? super T> inner;
+
     @SuppressWarnings("rawtypes")
     static final AtomicReferenceFieldUpdater<SwitchTransformOperator, CoreSubscriber> INNER =
-            AtomicReferenceFieldUpdater.newUpdater(SwitchTransformOperator.class, CoreSubscriber.class, "inner");
+        AtomicReferenceFieldUpdater.newUpdater(
+            SwitchTransformOperator.class, CoreSubscriber.class, "inner");
 
     volatile int wip;
+
     @SuppressWarnings("rawtypes")
     static final AtomicIntegerFieldUpdater<SwitchTransformOperator> WIP =
-            AtomicIntegerFieldUpdater.newUpdater(SwitchTransformOperator.class, "wip");
+        AtomicIntegerFieldUpdater.newUpdater(SwitchTransformOperator.class, "wip");
 
     volatile int once;
+
     @SuppressWarnings("rawtypes")
     static final AtomicIntegerFieldUpdater<SwitchTransformOperator> ONCE =
-            AtomicIntegerFieldUpdater.newUpdater(SwitchTransformOperator.class, "once");
+        AtomicIntegerFieldUpdater.newUpdater(SwitchTransformOperator.class, "once");
 
     SwitchTransformOperator(
-            CoreSubscriber<? super R> outer,
-            BiFunction<T, Flux<T>, Publisher<? extends R>> transformer) {
+        CoreSubscriber<? super R> outer,
+        BiFunction<T, Flux<T>, Publisher<? extends R>> transformer) {
       this.outer = outer;
       this.transformer = transformer;
     }
@@ -133,9 +138,9 @@ public final class SwitchTransformFlux<T, R> extends Flux<R> {
       if (once == 0 && ONCE.compareAndSet(this, 0, 1)) {
         INNER.lazySet(this, actual);
         actual.onSubscribe(this);
-      }
-      else {
-        Operators.error(actual, new IllegalStateException("SwitchTransform allows only one Subscriber"));
+      } else {
+        Operators.error(
+            actual, new IllegalStateException("SwitchTransform allows only one Subscriber"));
       }
     }
 
@@ -160,12 +165,11 @@ public final class SwitchTransformFlux<T, R> extends Flux<R> {
         try {
           first = t;
           Publisher<? extends R> result =
-                  Objects.requireNonNull(
-                          transformer.apply(t, this), "The transformer returned a null value");
+              Objects.requireNonNull(
+                  transformer.apply(t, this), "The transformer returned a null value");
           result.subscribe(outer);
           return;
-        }
-        catch (Throwable e) {
+        } catch (Throwable e) {
           onError(Operators.onOperatorError(s, e, t, currentContext()));
           ReferenceCountUtil.safeRelease(t);
           return;
@@ -190,8 +194,7 @@ public final class SwitchTransformFlux<T, R> extends Flux<R> {
         if (first == null) {
           drainRegular();
         }
-      }
-      else {
+      } else {
         Operators.error(outer, t);
       }
     }
@@ -209,8 +212,7 @@ public final class SwitchTransformFlux<T, R> extends Flux<R> {
         if (first == null) {
           drainRegular();
         }
-      }
-      else {
+      } else {
         Operators.complete(outer);
       }
     }
@@ -222,8 +224,7 @@ public final class SwitchTransformFlux<T, R> extends Flux<R> {
         if (n > 0) {
           s.request(n);
         }
-      }
-      else {
+      } else {
         s.request(n);
       }
     }
@@ -239,7 +240,7 @@ public final class SwitchTransformFlux<T, R> extends Flux<R> {
       Subscription s = this.s;
       CoreSubscriber<? super T> a = inner;
 
-      for (;;) {
+      for (; ; ) {
         if (f != null) {
           first = null;
           ReferenceCountUtil.safeRelease(f);
@@ -262,13 +263,11 @@ public final class SwitchTransformFlux<T, R> extends Flux<R> {
           Throwable t = throwable;
           if (t != null) {
             a.onError(t);
-          }
-          else {
+          } else {
             a.onComplete();
           }
           return sent;
         }
-
 
         m = WIP.addAndGet(this, -m);
 
@@ -279,37 +278,44 @@ public final class SwitchTransformFlux<T, R> extends Flux<R> {
     }
   }
 
-
   static final class SwitchTransformConditionalOperator<T, R> extends Flux<T>
-          implements Fuseable.ConditionalSubscriber<T>, Subscription, Scannable {
+      implements Fuseable.ConditionalSubscriber<T>, Subscription, Scannable {
 
     final Fuseable.ConditionalSubscriber<? super R> outer;
     final BiFunction<T, Flux<T>, Publisher<? extends R>> transformer;
 
     Subscription s;
-    Throwable    throwable;
+    Throwable throwable;
 
     volatile boolean done;
-    volatile T       first;
+    volatile T first;
 
     volatile Fuseable.ConditionalSubscriber<? super T> inner;
+
     @SuppressWarnings("rawtypes")
-    static final AtomicReferenceFieldUpdater<SwitchTransformConditionalOperator, Fuseable.ConditionalSubscriber> INNER =
-            AtomicReferenceFieldUpdater.newUpdater(SwitchTransformConditionalOperator.class, Fuseable.ConditionalSubscriber.class, "inner");
+    static final AtomicReferenceFieldUpdater<
+            SwitchTransformConditionalOperator, Fuseable.ConditionalSubscriber>
+        INNER =
+            AtomicReferenceFieldUpdater.newUpdater(
+                SwitchTransformConditionalOperator.class,
+                Fuseable.ConditionalSubscriber.class,
+                "inner");
 
     volatile int wip;
+
     @SuppressWarnings("rawtypes")
     static final AtomicIntegerFieldUpdater<SwitchTransformConditionalOperator> WIP =
-            AtomicIntegerFieldUpdater.newUpdater(SwitchTransformConditionalOperator.class, "wip");
+        AtomicIntegerFieldUpdater.newUpdater(SwitchTransformConditionalOperator.class, "wip");
 
     volatile int once;
+
     @SuppressWarnings("rawtypes")
     static final AtomicIntegerFieldUpdater<SwitchTransformConditionalOperator> ONCE =
-            AtomicIntegerFieldUpdater.newUpdater(SwitchTransformConditionalOperator.class, "once");
+        AtomicIntegerFieldUpdater.newUpdater(SwitchTransformConditionalOperator.class, "once");
 
     SwitchTransformConditionalOperator(
-            Fuseable.ConditionalSubscriber<? super R> outer,
-            BiFunction<T, Flux<T>, Publisher<? extends R>> transformer) {
+        Fuseable.ConditionalSubscriber<? super R> outer,
+        BiFunction<T, Flux<T>, Publisher<? extends R>> transformer) {
       this.outer = outer;
       this.transformer = transformer;
     }
@@ -356,14 +362,13 @@ public final class SwitchTransformFlux<T, R> extends Flux<R> {
       if (once == 0 && ONCE.compareAndSet(this, 0, 1)) {
         if (actual instanceof Fuseable.ConditionalSubscriber) {
           INNER.lazySet(this, (Fuseable.ConditionalSubscriber<? super T>) actual);
-        }
-        else {
+        } else {
           INNER.lazySet(this, new ConditionalSubscriberAdapter<>(actual));
         }
         actual.onSubscribe(this);
-      }
-      else {
-        Operators.error(actual, new IllegalStateException("SwitchTransform allows only one Subscriber"));
+      } else {
+        Operators.error(
+            actual, new IllegalStateException("SwitchTransform allows only one Subscriber"));
       }
     }
 
@@ -388,12 +393,11 @@ public final class SwitchTransformFlux<T, R> extends Flux<R> {
         try {
           first = t;
           Publisher<? extends R> result =
-                  Objects.requireNonNull(
-                          transformer.apply(t, this), "The transformer returned a null value");
+              Objects.requireNonNull(
+                  transformer.apply(t, this), "The transformer returned a null value");
           result.subscribe(outer);
           return;
-        }
-        catch (Throwable e) {
+        } catch (Throwable e) {
           onError(Operators.onOperatorError(s, e, t, currentContext()));
           ReferenceCountUtil.safeRelease(t);
           return;
@@ -416,12 +420,11 @@ public final class SwitchTransformFlux<T, R> extends Flux<R> {
         try {
           first = t;
           Publisher<? extends R> result =
-                  Objects.requireNonNull(
-                          transformer.apply(t, this), "The transformer returned a null value");
+              Objects.requireNonNull(
+                  transformer.apply(t, this), "The transformer returned a null value");
           result.subscribe(outer);
           return true;
-        }
-        catch (Throwable e) {
+        } catch (Throwable e) {
           onError(Operators.onOperatorError(s, e, t, currentContext()));
           ReferenceCountUtil.safeRelease(t);
           return false;
@@ -446,8 +449,7 @@ public final class SwitchTransformFlux<T, R> extends Flux<R> {
         if (first == null) {
           drainRegular();
         }
-      }
-      else {
+      } else {
         Operators.error(outer, t);
       }
     }
@@ -465,8 +467,7 @@ public final class SwitchTransformFlux<T, R> extends Flux<R> {
         if (first == null) {
           drainRegular();
         }
-      }
-      else {
+      } else {
         Operators.complete(outer);
       }
     }
@@ -477,8 +478,7 @@ public final class SwitchTransformFlux<T, R> extends Flux<R> {
         if (--n > 0) {
           s.request(n);
         }
-      }
-      else {
+      } else {
         s.request(n);
       }
     }
@@ -494,7 +494,7 @@ public final class SwitchTransformFlux<T, R> extends Flux<R> {
       Subscription s = this.s;
       CoreSubscriber<? super T> a = inner;
 
-      for (;;) {
+      for (; ; ) {
         if (f != null) {
           first = null;
           ReferenceCountUtil.safeRelease(f);
@@ -517,13 +517,11 @@ public final class SwitchTransformFlux<T, R> extends Flux<R> {
           Throwable t = throwable;
           if (t != null) {
             a.onError(t);
-          }
-          else {
+          } else {
             a.onComplete();
           }
           return sent;
         }
-
 
         m = WIP.addAndGet(this, -m);
 
