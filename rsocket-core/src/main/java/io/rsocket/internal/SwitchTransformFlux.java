@@ -243,7 +243,6 @@ public final class SwitchTransformFlux<T, R> extends Flux<R> {
       for (; ; ) {
         if (f != null) {
           first = null;
-          ReferenceCountUtil.safeRelease(f);
 
           if (s == Operators.cancelledSubscription()) {
             Operators.onNextDropped(f, a.currentContext());
@@ -251,6 +250,7 @@ public final class SwitchTransformFlux<T, R> extends Flux<R> {
           }
 
           a.onNext(f);
+          ReferenceCountUtil.safeRelease(f);
           f = null;
           sent = true;
         }
@@ -497,7 +497,6 @@ public final class SwitchTransformFlux<T, R> extends Flux<R> {
       for (; ; ) {
         if (f != null) {
           first = null;
-          ReferenceCountUtil.safeRelease(f);
 
           if (s == Operators.cancelledSubscription()) {
             Operators.onNextDropped(f, a.currentContext());
@@ -505,6 +504,7 @@ public final class SwitchTransformFlux<T, R> extends Flux<R> {
           }
 
           a.onNext(f);
+          ReferenceCountUtil.safeRelease(f);
           f = null;
           sent = true;
         }
