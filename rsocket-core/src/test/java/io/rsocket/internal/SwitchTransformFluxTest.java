@@ -394,4 +394,51 @@ public class SwitchTransformFluxTest {
     publisher.assertCancelled();
     publisher.assertWasRequested();
   }
+
+  @Test
+  public void shouldBeAbleToCatchDiscardedElement() {
+    TestPublisher<Integer> publisher = TestPublisher.createCold();
+    Integer[] discarded = new Integer[1];
+    Flux<String> switchTransformed =
+        publisher
+            .flux()
+            .transform(
+                flux ->
+                    new SwitchTransformFlux<>(
+                        flux, (first, innerFlux) -> innerFlux.map(String::valueOf)))
+            .doOnDiscard(Integer.class, e -> discarded[0] = e);
+
+    publisher.next(1);
+
+    StepVerifier.create(switchTransformed, 0).thenCancel().verify(Duration.ofSeconds(10));
+
+    publisher.assertCancelled();
+    publisher.assertWasRequested();
+
+    Assert.assertArrayEquals(new Integer[] {1}, discarded);
+  }
+
+  @Test
+  public void shouldBeAbleToCatchDiscardedElementInCaseOfConditional() {
+    TestPublisher<Integer> publisher = TestPublisher.createCold();
+    Integer[] discarded = new Integer[1];
+    Flux<String> switchTransformed =
+        publisher
+            .flux()
+            .transform(
+                flux ->
+                    new SwitchTransformFlux<>(
+                        flux, (first, innerFlux) -> innerFlux.map(String::valueOf)))
+            .filter(t -> true)
+            .doOnDiscard(Integer.class, e -> discarded[0] = e);
+
+    publisher.next(1);
+
+    StepVerifier.create(switchTransformed, 0).thenCancel().verify(Duration.ofSeconds(10));
+
+    publisher.assertCancelled();
+    publisher.assertWasRequested();
+
+    Assert.assertArrayEquals(new Integer[] {1}, discarded);
+  }
 }
