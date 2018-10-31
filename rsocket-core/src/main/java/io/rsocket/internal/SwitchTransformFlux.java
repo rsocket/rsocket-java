@@ -16,7 +16,6 @@
 
 package io.rsocket.internal;
 
-import io.netty.util.ReferenceCountUtil;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
@@ -122,11 +121,15 @@ public final class SwitchTransformFlux<T, R> extends Flux<R> {
       if (s != Operators.cancelledSubscription()) {
         Subscription s = this.s;
         this.s = Operators.cancelledSubscription();
-        ReferenceCountUtil.safeRelease(first);
 
         if (WIP.getAndIncrement(this) == 0) {
           INNER.lazySet(this, null);
-          first = null;
+
+          T f = first;
+          if (f != null) {
+            first = null;
+            Operators.onDiscard(f, currentContext());
+          }
         }
 
         s.cancel();
@@ -171,7 +174,6 @@ public final class SwitchTransformFlux<T, R> extends Flux<R> {
           return;
         } catch (Throwable e) {
           onError(Operators.onOperatorError(s, e, t, currentContext()));
-          ReferenceCountUtil.safeRelease(t);
           return;
         }
       }
@@ -219,13 +221,14 @@ public final class SwitchTransformFlux<T, R> extends Flux<R> {
 
     @Override
     public void request(long n) {
-      if (first != null && drainRegular() && n != Long.MAX_VALUE) {
-        n = Operators.addCap(n, -1);
-        if (n > 0) {
+      if (Operators.validate(n)) {
+        if (first != null && drainRegular() && n != Long.MAX_VALUE) {
+          if (--n > 0) {
+            s.request(n);
+          }
+        } else {
           s.request(n);
         }
-      } else {
-        s.request(n);
       }
     }
 
@@ -245,12 +248,11 @@ public final class SwitchTransformFlux<T, R> extends Flux<R> {
           first = null;
 
           if (s == Operators.cancelledSubscription()) {
-            Operators.onNextDropped(f, a.currentContext());
+            Operators.onDiscard(f, a.currentContext());
             return true;
           }
 
           a.onNext(f);
-          ReferenceCountUtil.safeRelease(f);
           f = null;
           sent = true;
         }
@@ -345,11 +347,15 @@ public final class SwitchTransformFlux<T, R> extends Flux<R> {
       if (s != Operators.cancelledSubscription()) {
         Subscription s = this.s;
         this.s = Operators.cancelledSubscription();
-        ReferenceCountUtil.safeRelease(first);
 
         if (WIP.getAndIncrement(this) == 0) {
           INNER.lazySet(this, null);
-          first = null;
+
+          T f = first;
+          if (f != null) {
+            first = null;
+            Operators.onDiscard(f, currentContext());
+          }
         }
 
         s.cancel();
@@ -399,7 +405,6 @@ public final class SwitchTransformFlux<T, R> extends Flux<R> {
           return;
         } catch (Throwable e) {
           onError(Operators.onOperatorError(s, e, t, currentContext()));
-          ReferenceCountUtil.safeRelease(t);
           return;
         }
       }
@@ -426,7 +431,6 @@ public final class SwitchTransformFlux<T, R> extends Flux<R> {
           return true;
         } catch (Throwable e) {
           onError(Operators.onOperatorError(s, e, t, currentContext()));
-          ReferenceCountUtil.safeRelease(t);
           return false;
         }
       }
@@ -474,12 +478,14 @@ public final class SwitchTransformFlux<T, R> extends Flux<R> {
 
     @Override
     public void request(long n) {
-      if (first != null && drainRegular() && n != Long.MAX_VALUE) {
-        if (--n > 0) {
+      if (Operators.validate(n)) {
+        if (first != null && drainRegular() && n != Long.MAX_VALUE) {
+          if (--n > 0) {
+            s.request(n);
+          }
+        } else {
           s.request(n);
         }
-      } else {
-        s.request(n);
       }
     }
 
@@ -499,12 +505,11 @@ public final class SwitchTransformFlux<T, R> extends Flux<R> {
           first = null;
 
           if (s == Operators.cancelledSubscription()) {
-            Operators.onNextDropped(f, a.currentContext());
+            Operators.onDiscard(f, a.currentContext());
             return true;
           }
 
           a.onNext(f);
-          ReferenceCountUtil.safeRelease(f);
           f = null;
           sent = true;
         }
