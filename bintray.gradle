@@ -25,6 +25,7 @@ if (project.hasProperty('bintrayUser') && project.hasProperty('bintrayKey') &&
 
                 publications = ['maven']
                 publish = true
+                override = true
 
                 pkg {
                     repo = 'RSocket'
