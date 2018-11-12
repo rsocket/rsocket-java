@@ -222,7 +222,7 @@ public enum FrameType {
   private final int flags;
   
   FrameType(int encodedType) {
-    this(encodedType, 0);
+    this(encodedType, Flags.EMPTY);
   }
   
   FrameType(int encodedType, int flags) {
@@ -305,6 +305,7 @@ public enum FrameType {
   }
   
   private static class Flags {
+    private static final int EMPTY                 = 0b00000;
     private static final int CAN_HAVE_DATA         = 0b10000;
     private static final int CAN_HAVE_METADATA     = 0b01000;
     private static final int IS_FRAGMENTABLE       = 0b00100;
