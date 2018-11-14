@@ -28,6 +28,7 @@ import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.netty.Connection;
+import reactor.netty.NettyOutbound;
 
 import static io.netty.buffer.Unpooled.wrappedBuffer;
 import static io.rsocket.frame.FrameHeaderFlyweight.FRAME_LENGTH_SIZE;
@@ -39,11 +40,11 @@ import static io.rsocket.frame.FrameHeaderFlyweight.FRAME_LENGTH_SIZE;
  * message oriented transports so this must be specifically dropped from Frames sent and stitched
  * back on for frames received.
  */
-public final class WebsocketDuplexConnection implements DuplexConnection, Function<Frame,
-                                                                Publisher<Void>> {
+public final class WebsocketDuplexConnection implements DuplexConnection {
 
   private final Connection connection;
-
+  private final NettyOutbound outbound;
+  
   /**
    * Creates a new instance
    *
@@ -51,6 +52,8 @@ public final class WebsocketDuplexConnection implements DuplexConnection, Functi
    */
   public WebsocketDuplexConnection(Connection connection) {
     this.connection = Objects.requireNonNull(connection, "connection must not be null");
+    this.outbound = connection.outbound();
+  
   }
 
   @Override
@@ -86,19 +89,13 @@ public final class WebsocketDuplexConnection implements DuplexConnection, Functi
   @Override
   public Mono<Void> send(Publisher<Frame> frames) {
     return Flux.from(frames)
-               .flatMapSequential(this, 256, Integer.MAX_VALUE)
+               .flatMapSequential(this::sendOne, 256, Integer.MAX_VALUE)
                .then();
   }
-
-  @Override
-  public Publisher<Void> apply(Frame frame) {
-    return sendOne(frame);
-  }
-
+  
   @Override
   public Mono<Void> sendOne(Frame frame) {
-    return connection
-        .outbound()
+    return outbound
         .sendObject(new BinaryWebSocketFrame(frame.content().skipBytes(FRAME_LENGTH_SIZE)))
         .then();
   }
