@@ -36,14 +36,7 @@ final class StreamIdSupplier {
   }
 
   int nextStreamId() {
-    int n;
-    int o;
-    do {
-      o = streamId;
-      n = o + 2;
-    } while (!STREAM_ID.compareAndSet(this, o, n));
-
-    return n;
+    return STREAM_ID.addAndGet(this, 2);
   }
 
   boolean isBeforeOrCurrent(int streamId) {
