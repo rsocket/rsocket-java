@@ -172,8 +172,10 @@ public interface TransportTest {
 
     getClient()
         .requestChannel(payloads)
+        .log()
         .as(StepVerifier::create)
         .expectNextCount(512)
+        .as("expected 512 items")
         .expectComplete()
         .verify(getTimeout());
   }
