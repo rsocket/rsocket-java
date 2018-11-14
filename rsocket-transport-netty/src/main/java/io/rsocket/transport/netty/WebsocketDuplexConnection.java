@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *       http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -15,8 +15,8 @@
  */
 package io.rsocket.transport.netty;
 
-import static io.netty.buffer.Unpooled.wrappedBuffer;
-import static io.rsocket.frame.FrameHeaderFlyweight.FRAME_LENGTH_SIZE;
+import java.util.Objects;
+import java.util.function.Function;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.CompositeByteBuf;
@@ -24,11 +24,13 @@ import io.netty.handler.codec.http.websocketx.BinaryWebSocketFrame;
 import io.rsocket.DuplexConnection;
 import io.rsocket.Frame;
 import io.rsocket.frame.FrameHeaderFlyweight;
-import java.util.Objects;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.netty.Connection;
+
+import static io.netty.buffer.Unpooled.wrappedBuffer;
+import static io.rsocket.frame.FrameHeaderFlyweight.FRAME_LENGTH_SIZE;
 
 /**
  * An implementation of {@link DuplexConnection} that connects via a Websocket.
@@ -37,7 +39,8 @@ import reactor.netty.Connection;
  * message oriented transports so this must be specifically dropped from Frames sent and stitched
  * back on for frames received.
  */
-public final class WebsocketDuplexConnection implements DuplexConnection {
+public final class WebsocketDuplexConnection implements DuplexConnection, Function<Frame,
+                                                                Publisher<Void>> {
 
   private final Connection connection;
 
@@ -82,7 +85,14 @@ public final class WebsocketDuplexConnection implements DuplexConnection {
 
   @Override
   public Mono<Void> send(Publisher<Frame> frames) {
-    return Flux.from(frames).concatMap(this::sendOne).then();
+    return Flux.from(frames)
+               .flatMapSequential(this, 256, Integer.MAX_VALUE)
+               .then();
+  }
+
+  @Override
+  public Publisher<Void> apply(Frame frame) {
+    return sendOne(frame);
   }
 
   @Override
