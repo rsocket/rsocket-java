@@ -25,9 +25,9 @@ import io.rsocket.plugins.PluginRegistry;
 import org.reactivestreams.Publisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import reactor.core.publisher.DirectProcessor;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import reactor.core.publisher.MonoProcessor;
 
 /**
  * {@link DuplexConnection#receive()} is a single stream on which the following type of frames
@@ -52,9 +52,10 @@ public class ClientServerInputMultiplexer implements Closeable {
 
   public ClientServerInputMultiplexer(DuplexConnection source, PluginRegistry plugins) {
     this.source = source;
-    final MonoProcessor<Flux<Frame>> streamZero = MonoProcessor.create();
-    final MonoProcessor<Flux<Frame>> server = MonoProcessor.create();
-    final MonoProcessor<Flux<Frame>> client = MonoProcessor.create();
+
+    DirectProcessor<Frame> streamZero = DirectProcessor.create();
+    DirectProcessor<Frame> server = DirectProcessor.create();
+    DirectProcessor<Frame> client = DirectProcessor.create();
 
     source = plugins.applyConnection(Type.SOURCE, source);
     streamZeroConnection =
@@ -66,42 +67,20 @@ public class ClientServerInputMultiplexer implements Closeable {
 
     source
         .receive()
-        .groupBy(
+        .subscribe(
             frame -> {
               int streamId = frame.getStreamId();
-              final Type type;
               if (streamId == 0) {
                 if (frame.getType() == FrameType.SETUP) {
-                  type = Type.STREAM_ZERO;
+                  streamZero.onNext(frame);
                 } else {
-                  type = Type.CLIENT;
+                  client.onNext(frame);
                 }
               } else if ((streamId & 0b1) == 0) {
-                type = Type.SERVER;
+                server.onNext(frame);
               } else {
-                type = Type.CLIENT;
+                client.onNext(frame);
               }
-              return type;
-            })
-        .subscribe(
-            group -> {
-              switch (group.key()) {
-                case STREAM_ZERO:
-                  streamZero.onNext(group);
-                  break;
-
-                case SERVER:
-                  server.onNext(group);
-                  break;
-
-                case CLIENT:
-                  client.onNext(group);
-                  break;
-              }
-            },
-            t -> {
-              LOGGER.error("test", t);
-              dispose();
             });
   }
 
@@ -134,10 +113,10 @@ public class ClientServerInputMultiplexer implements Closeable {
 
   private static class InternalDuplexConnection implements DuplexConnection {
     private final DuplexConnection source;
-    private final MonoProcessor<Flux<Frame>> processor;
+    private final Flux<Frame> processor;
     private final boolean debugEnabled;
 
-    public InternalDuplexConnection(DuplexConnection source, MonoProcessor<Flux<Frame>> processor) {
+    public InternalDuplexConnection(DuplexConnection source, Flux<Frame> processor) {
       this.source = source;
       this.processor = processor;
       this.debugEnabled = LOGGER.isDebugEnabled();
@@ -163,14 +142,11 @@ public class ClientServerInputMultiplexer implements Closeable {
 
     @Override
     public Flux<Frame> receive() {
-      return processor.flatMapMany(
-          f -> {
-            if (debugEnabled) {
-              return f.doOnNext(frame -> LOGGER.debug("receiving -> " + frame.toString()));
-            } else {
-              return f;
-            }
-          });
+      if (debugEnabled) {
+        return processor.doOnNext(frame -> LOGGER.debug("receiving -> " + frame.toString()));
+      } else {
+        return processor;
+      }
     }
 
     @Override
