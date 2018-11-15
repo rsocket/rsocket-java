@@ -89,7 +89,7 @@ public final class WebsocketDuplexConnection implements DuplexConnection {
   @Override
   public Mono<Void> send(Publisher<Frame> frames) {
     return Flux.from(frames)
-               .flatMapSequential(this::sendOne, 256, Integer.MAX_VALUE)
+               .concatMap(this::sendOne, 256)
                .then();
   }
   

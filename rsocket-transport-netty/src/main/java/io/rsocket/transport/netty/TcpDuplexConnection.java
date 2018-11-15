@@ -66,7 +66,7 @@ public final class TcpDuplexConnection implements DuplexConnection {
   public Mono<Void> send(Publisher<Frame> frames) {
     return Flux.from(frames)
                .map(Frame::content)
-               .flatMapSequential(outbound::sendObject, 256, Integer.MAX_VALUE)
+               .concatMap(outbound::sendObject, 256)
                .then();
   }
   
