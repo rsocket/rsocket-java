@@ -19,19 +19,25 @@ package io.rsocket;
 import io.rsocket.exceptions.ConnectionErrorException;
 import io.rsocket.exceptions.Exceptions;
 import io.rsocket.framing.FrameType;
+import io.rsocket.internal.Int2ObjectHashMap;
 import io.rsocket.internal.LimitableRequestPublisher;
 import io.rsocket.internal.UnboundedProcessor;
+import org.reactivestreams.Publisher;
+import org.reactivestreams.Subscriber;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+import reactor.core.publisher.SignalType;
+import reactor.core.publisher.UnicastProcessor;
+import reactor.util.concurrent.Queues;
 
 import java.nio.channels.ClosedChannelException;
 import java.time.Duration;
+import java.util.Collections;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import org.jctools.maps.NonBlockingHashMapLong;
-import org.reactivestreams.Publisher;
-import org.reactivestreams.Subscriber;
-import reactor.core.publisher.*;
 
 /** Client Side of a RSocket socket. Sends {@link Frame}s to a {@link RSocketServer} */
 class RSocketClient implements RSocket {
@@ -40,8 +46,8 @@ class RSocketClient implements RSocket {
   private final Function<Frame, ? extends Payload> frameDecoder;
   private final Consumer<Throwable> errorConsumer;
   private final StreamIdSupplier streamIdSupplier;
-  private final NonBlockingHashMapLong<LimitableRequestPublisher> senders;
-  private final NonBlockingHashMapLong<UnicastProcessor<Payload>> receivers;
+  private final Map<Integer, LimitableRequestPublisher> senders;
+  private final Map<Integer, UnicastProcessor<Payload>> receivers;
   private final UnboundedProcessor<Frame> sendProcessor;
   private KeepAliveHandler keepAliveHandler;
   private final Lifecycle lifecycle = new Lifecycle();
@@ -69,8 +75,8 @@ class RSocketClient implements RSocket {
     this.frameDecoder = frameDecoder;
     this.errorConsumer = errorConsumer;
     this.streamIdSupplier = streamIdSupplier;
-    this.senders = new NonBlockingHashMapLong<>(256);
-    this.receivers = new NonBlockingHashMapLong<>(256);
+    this.senders   = Collections.synchronizedMap(new Int2ObjectHashMap<>());
+    this.receivers = Collections.synchronizedMap(new Int2ObjectHashMap<>());
 
     // DO NOT Change the order here. The Send processor must be subscribed to before receiving
     this.sendProcessor = new UnboundedProcessor<>();
