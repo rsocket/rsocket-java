@@ -16,10 +16,10 @@
 
 package io.rsocket;
 
+import io.netty.util.collection.IntObjectHashMap;
 import io.rsocket.exceptions.ApplicationErrorException;
 import io.rsocket.exceptions.ConnectionErrorException;
 import io.rsocket.framing.FrameType;
-import io.rsocket.internal.Int2ObjectHashMap;
 import io.rsocket.internal.LimitableRequestPublisher;
 import io.rsocket.internal.UnboundedProcessor;
 import org.reactivestreams.Publisher;
@@ -30,7 +30,6 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.SignalType;
 import reactor.core.publisher.UnicastProcessor;
-import reactor.util.concurrent.Queues;
 
 import java.util.Collections;
 import java.util.Map;
@@ -76,8 +75,8 @@ class RSocketServer implements RSocket {
     this.requestHandler = requestHandler;
     this.frameDecoder = frameDecoder;
     this.errorConsumer = errorConsumer;
-    this.sendingSubscriptions = Collections.synchronizedMap(new Int2ObjectHashMap<>());
-    this.channelProcessors    = Collections.synchronizedMap(new Int2ObjectHashMap<>());
+    this.sendingSubscriptions = Collections.synchronizedMap(new IntObjectHashMap<>());
+    this.channelProcessors    = Collections.synchronizedMap(new IntObjectHashMap<>());
 
     // DO NOT Change the order here. The Send processor must be subscribed to before receiving
     // connections
