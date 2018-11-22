@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *       http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -15,20 +15,23 @@
  */
 package io.rsocket.transport.netty;
 
-import static io.netty.buffer.Unpooled.wrappedBuffer;
-import static io.rsocket.frame.FrameHeaderFlyweight.FRAME_LENGTH_SIZE;
-
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.CompositeByteBuf;
 import io.netty.handler.codec.http.websocketx.BinaryWebSocketFrame;
 import io.rsocket.DuplexConnection;
 import io.rsocket.Frame;
 import io.rsocket.frame.FrameHeaderFlyweight;
-import java.util.Objects;
 import org.reactivestreams.Publisher;
+import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.netty.Connection;
+import reactor.netty.FutureMono;
+
+import java.util.Objects;
+
+import static io.netty.buffer.Unpooled.wrappedBuffer;
+import static io.rsocket.frame.FrameHeaderFlyweight.FRAME_LENGTH_SIZE;
 
 /**
  * An implementation of {@link DuplexConnection} that connects via a Websocket.
@@ -40,6 +43,7 @@ import reactor.netty.Connection;
 public final class WebsocketDuplexConnection implements DuplexConnection {
 
   private final Connection connection;
+  private final Disposable channelClosed;
 
   /**
    * Creates a new instance
@@ -48,6 +52,15 @@ public final class WebsocketDuplexConnection implements DuplexConnection {
    */
   public WebsocketDuplexConnection(Connection connection) {
     this.connection = Objects.requireNonNull(connection, "connection must not be null");
+    this.channelClosed =
+        FutureMono.from(connection.channel().closeFuture())
+            .doFinally(
+                s -> {
+                  if (!isDisposed()) {
+                    dispose();
+                  }
+                })
+            .subscribe();
   }
 
   @Override
@@ -62,7 +75,14 @@ public final class WebsocketDuplexConnection implements DuplexConnection {
 
   @Override
   public Mono<Void> onClose() {
-    return connection.onDispose();
+    return connection
+        .onDispose()
+        .doFinally(
+            s -> {
+              if (!channelClosed.isDisposed()) {
+                channelClosed.dispose();
+              }
+            });
   }
 
   @Override
@@ -82,14 +102,18 @@ public final class WebsocketDuplexConnection implements DuplexConnection {
 
   @Override
   public Mono<Void> send(Publisher<Frame> frames) {
-    return Flux.from(frames).concatMap(this::sendOne).then();
+    return Flux.from(frames)
+        .transform(
+            frameFlux ->
+                new SendPublisher<>(
+                    frameFlux,
+                    connection.channel(),
+                    this::toBinaryWebSocketFrame,
+                    binaryWebSocketFrame -> binaryWebSocketFrame.content().readableBytes()))
+        .then();
   }
 
-  @Override
-  public Mono<Void> sendOne(Frame frame) {
-    return connection
-        .outbound()
-        .sendObject(new BinaryWebSocketFrame(frame.content().skipBytes(FRAME_LENGTH_SIZE)))
-        .then();
+  private BinaryWebSocketFrame toBinaryWebSocketFrame(Frame frame) {
+    return new BinaryWebSocketFrame(frame.content().skipBytes(FRAME_LENGTH_SIZE).retain());
   }
 }
