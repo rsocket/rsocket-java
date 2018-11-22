@@ -130,6 +130,7 @@ public class LoadBalancedRSocketMonoTest {
 
     Mockito.when(mock.availability()).thenReturn(1.0);
     Mockito.when(mock.get()).thenReturn(Mono.just(socket));
+    Mockito.when(mock.onClose()).thenReturn(Mono.never());
 
     return mock;
   }

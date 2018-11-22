@@ -16,20 +16,23 @@
 
 package io.rsocket.fragmentation;
 
-import static io.rsocket.fragmentation.FrameReassembler.createFrameReassembler;
-import static io.rsocket.util.AbstractionLeakingFrameUtils.toAbstractionLeakingFrame;
-
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.PooledByteBufAllocator;
+import io.netty.util.collection.IntObjectHashMap;
+import io.netty.util.collection.LongObjectHashMap;
 import io.rsocket.DuplexConnection;
 import io.rsocket.Frame;
 import io.rsocket.util.AbstractionLeakingFrameUtils;
 import io.rsocket.util.NumberUtils;
-import java.util.Objects;
-import org.jctools.maps.NonBlockingHashMapLong;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+
+import java.util.Collection;
+import java.util.Objects;
+
+import static io.rsocket.fragmentation.FrameReassembler.createFrameReassembler;
+import static io.rsocket.util.AbstractionLeakingFrameUtils.toAbstractionLeakingFrame;
 
 /**
  * A {@link DuplexConnection} implementation that fragments and reassembles {@link Frame}s.
@@ -46,8 +49,7 @@ public final class FragmentationDuplexConnection implements DuplexConnection {
 
   private final FrameFragmenter frameFragmenter;
 
-  private final NonBlockingHashMapLong<FrameReassembler> frameReassemblers =
-      new NonBlockingHashMapLong<>();
+  private final IntObjectHashMap<FrameReassembler> frameReassemblers = new IntObjectHashMap<>();
 
   /**
    * Creates a new instance.
@@ -85,7 +87,16 @@ public final class FragmentationDuplexConnection implements DuplexConnection {
 
     delegate
         .onClose()
-        .doFinally(signalType -> frameReassemblers.values().forEach(FrameReassembler::dispose))
+        .doFinally(
+            signalType -> {
+              Collection<FrameReassembler> values;
+              synchronized (this) {
+                values = frameReassemblers.values();
+              }
+              for (FrameReassembler reassembler : values) {
+                reassembler.dispose();
+              }
+            })
         .subscribe();
   }
 
@@ -134,9 +145,13 @@ public final class FragmentationDuplexConnection implements DuplexConnection {
   }
 
   private Mono<Frame> toReassembledFrames(int streamId, io.rsocket.framing.Frame fragment) {
-    FrameReassembler frameReassembler =
-        frameReassemblers.computeIfAbsent(
-            (long) streamId, i -> createFrameReassembler(byteBufAllocator));
+    FrameReassembler frameReassembler;
+
+    synchronized (this) {
+      frameReassembler =
+          frameReassemblers.computeIfAbsent(
+               streamId, i -> createFrameReassembler(byteBufAllocator));
+    }
 
     return Mono.justOrEmpty(frameReassembler.reassemble(fragment))
         .map(frame -> toAbstractionLeakingFrame(byteBufAllocator, streamId, frame));

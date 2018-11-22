@@ -62,6 +62,7 @@ class SendPublisher<V extends ReferenceCounted> extends Flux<Frame> {
     this.sizeOf = sizeOf;
   }
 
+  @SuppressWarnings("unchecked")
   private ChannelPromise writeCleanupPromise(V poll) {
     return channel
         .newPromise()
@@ -117,7 +118,6 @@ class SendPublisher<V extends ReferenceCounted> extends Flux<Frame> {
     final CoreSubscriber<? super Frame> destination;
     volatile Subscription s;
     private AtomicBoolean pendingFlush = new AtomicBoolean();
-    private SendPublisher sendPublisher;
 
     private InnerSubscriber(CoreSubscriber<? super Frame> destination) {
       this.destination = destination;
