@@ -33,6 +33,7 @@ import org.junit.jupiter.api.Test;
 import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 import reactor.test.StepVerifier;
 
 public interface TransportTest {
@@ -164,16 +165,23 @@ public interface TransportTest {
         .expectComplete()
         .verify(getTimeout());
   }
-
+  
   @DisplayName("makes 1 requestChannel request with 512 payloads")
   @Test
   default void requestChannel512() {
     Flux<Payload> payloads = Flux.range(0, 512).map(this::createTestPayload);
-
+    
+    Flux.range(0, 1024)
+        .flatMap(v -> Mono.fromRunnable(()-> check(payloads)).subscribeOn(Schedulers.elastic()), 12)
+        .blockLast();
+  }
+  
+  default void check(Flux<Payload> payloads) {
     getClient()
         .requestChannel(payloads)
         .as(StepVerifier::create)
         .expectNextCount(512)
+        .as("expected 512 items")
         .expectComplete()
         .verify(getTimeout());
   }
@@ -233,7 +241,7 @@ public interface TransportTest {
         .expectComplete()
         .verify(getTimeout());
   }
-
+  
   @DisplayName("makes 1 requestStream request and receives 5 responses")
   @Test
   default void requestStream5() {

@@ -16,25 +16,23 @@
 
 package io.rsocket.transport.netty;
 
-import java.util.Objects;
-import java.util.function.Function;
-
 import io.netty.buffer.ByteBuf;
 import io.rsocket.DuplexConnection;
 import io.rsocket.Frame;
 import org.reactivestreams.Publisher;
+import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.netty.Connection;
-import reactor.netty.NettyOutbound;
+import reactor.netty.FutureMono;
+
+import java.util.Objects;
 
 /** An implementation of {@link DuplexConnection} that connects via TCP. */
-public final class TcpDuplexConnection implements DuplexConnection, Function<ByteBuf,
-        Publisher<Void>> {
-
+public final class TcpDuplexConnection implements DuplexConnection {
+  
   private final Connection connection;
-  private final NettyOutbound outbound;
-
+  private final Disposable channelClosed;
   /**
    * Creates a new instance
    *
@@ -42,44 +40,54 @@ public final class TcpDuplexConnection implements DuplexConnection, Function<Byt
    */
   public TcpDuplexConnection(Connection connection) {
     this.connection = Objects.requireNonNull(connection, "connection must not be null");
-    this.outbound = connection.outbound();
+    this.channelClosed =
+        FutureMono.from(connection.channel().closeFuture())
+            .doFinally(
+                s -> {
+                  if (!isDisposed()) {
+                    dispose();
+                  }
+                })
+            .subscribe();
   }
-
+  
   @Override
   public void dispose() {
     connection.dispose();
   }
-
+  
   @Override
   public boolean isDisposed() {
     return connection.isDisposed();
   }
-
+  
   @Override
   public Mono<Void> onClose() {
-    return connection.onDispose();
+    return connection
+               .onDispose()
+               .doFinally(
+                   s -> {
+                     if (!channelClosed.isDisposed()) {
+                       channelClosed.dispose();
+                     }
+                   });
   }
-
+  
   @Override
   public Flux<Frame> receive() {
     return connection.inbound().receive().map(buf -> Frame.from(buf.retain()));
   }
-
+  
   @Override
   public Mono<Void> send(Publisher<Frame> frames) {
     return Flux.from(frames)
-        .map(Frame::content)
-        .flatMapSequential(this, 256, Integer.MAX_VALUE)
-        .then();
-  }
-
-  @Override
-  public Mono<Void> sendOne(Frame frame) {
-    return outbound.sendObject(frame.content()).then();
-  }
-
-  @Override
-  public Publisher<Void> apply(ByteBuf frame) {
-    return outbound.sendObject(frame);
+               .transform(
+                   frameFlux ->
+                       new SendPublisher<>(
+                           frameFlux,
+                           connection.channel(),
+                           frame -> frame.content().retain(),
+                           ByteBuf::readableBytes))
+               .then();
   }
 }
