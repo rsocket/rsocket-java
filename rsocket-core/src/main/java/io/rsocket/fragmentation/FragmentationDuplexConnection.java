@@ -19,7 +19,6 @@ package io.rsocket.fragmentation;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.util.collection.IntObjectHashMap;
-import io.netty.util.collection.LongObjectHashMap;
 import io.rsocket.DuplexConnection;
 import io.rsocket.Frame;
 import io.rsocket.util.AbstractionLeakingFrameUtils;
@@ -90,12 +89,10 @@ public final class FragmentationDuplexConnection implements DuplexConnection {
         .doFinally(
             signalType -> {
               Collection<FrameReassembler> values;
-              synchronized (this) {
+              synchronized (FragmentationDuplexConnection.this) {
                 values = frameReassemblers.values();
               }
-              for (FrameReassembler reassembler : values) {
-                reassembler.dispose();
-              }
+              values.forEach(FrameReassembler::dispose);
             })
         .subscribe();
   }
@@ -146,11 +143,10 @@ public final class FragmentationDuplexConnection implements DuplexConnection {
 
   private Mono<Frame> toReassembledFrames(int streamId, io.rsocket.framing.Frame fragment) {
     FrameReassembler frameReassembler;
-
     synchronized (this) {
       frameReassembler =
           frameReassemblers.computeIfAbsent(
-               streamId, i -> createFrameReassembler(byteBufAllocator));
+              streamId, i -> createFrameReassembler(byteBufAllocator));
     }
 
     return Mono.justOrEmpty(frameReassembler.reassemble(fragment))

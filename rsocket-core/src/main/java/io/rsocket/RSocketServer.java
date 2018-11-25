@@ -22,14 +22,12 @@ import io.rsocket.exceptions.ConnectionErrorException;
 import io.rsocket.framing.FrameType;
 import io.rsocket.internal.LimitableRequestPublisher;
 import io.rsocket.internal.UnboundedProcessor;
+import org.reactivestreams.Processor;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 import reactor.core.Disposable;
-import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
-import reactor.core.publisher.SignalType;
-import reactor.core.publisher.UnicastProcessor;
+import reactor.core.publisher.*;
 
 import java.util.Collections;
 import java.util.Map;
@@ -42,18 +40,18 @@ import static io.rsocket.frame.FrameHeaderFlyweight.FLAGS_M;
 
 /** Server side RSocket. Receives {@link Frame}s from a {@link RSocketClient} */
 class RSocketServer implements RSocket {
-
+  
   private final DuplexConnection connection;
   private final RSocket requestHandler;
   private final Function<Frame, ? extends Payload> frameDecoder;
   private final Consumer<Throwable> errorConsumer;
-
+  
   private final Map<Integer, Subscription> sendingSubscriptions;
-  private final Map<Integer, UnicastProcessor<Payload>> channelProcessors;
-
+  private final Map<Integer, Processor<Payload,Payload>> channelProcessors;
+  
   private final UnboundedProcessor<Frame> sendProcessor;
   private KeepAliveHandler keepAliveHandler;
-
+  
   /*client responder*/
   RSocketServer(
       DuplexConnection connection,
@@ -62,7 +60,7 @@ class RSocketServer implements RSocket {
       Consumer<Throwable> errorConsumer) {
     this(connection, requestHandler, frameDecoder, errorConsumer, 0, 0);
   }
-
+  
   /*server responder*/
   RSocketServer(
       DuplexConnection connection,
@@ -77,18 +75,18 @@ class RSocketServer implements RSocket {
     this.errorConsumer = errorConsumer;
     this.sendingSubscriptions = Collections.synchronizedMap(new IntObjectHashMap<>());
     this.channelProcessors    = Collections.synchronizedMap(new IntObjectHashMap<>());
-
+    
     // DO NOT Change the order here. The Send processor must be subscribed to before receiving
     // connections
     this.sendProcessor = new UnboundedProcessor<>();
-
+    
     connection
         .send(sendProcessor)
         .doFinally(this::handleSendProcessorCancel)
         .subscribe(null, this::handleSendProcessorError);
-
+    
     Disposable receiveDisposable = connection.receive().subscribe(this::handleFrame, errorConsumer);
-
+    
     this.connection
         .onClose()
         .doFinally(
@@ -97,11 +95,11 @@ class RSocketServer implements RSocket {
               receiveDisposable.dispose();
             })
         .subscribe(null, errorConsumer);
-
+    
     if (tickPeriod != 0) {
       keepAliveHandler =
           KeepAliveHandler.ofServer(new KeepAliveHandler.KeepAlive(tickPeriod, ackTimeout));
-
+      
       keepAliveHandler
           .timeout()
           .subscribe(
@@ -116,7 +114,7 @@ class RSocketServer implements RSocket {
       keepAliveHandler = null;
     }
   }
-
+  
   private void handleSendProcessorError(Throwable t) {
     for (Subscription subscription : sendingSubscriptions.values()) {
       try {
@@ -125,21 +123,21 @@ class RSocketServer implements RSocket {
         errorConsumer.accept(e);
       }
     }
-
-    for (UnicastProcessor subscription : channelProcessors.values()) {
+    
+    for (Processor<Payload,Payload> subscription : channelProcessors.values()) {
       try {
-        subscription.cancel();
+        subscription.onError(t);
       } catch (Throwable e) {
         errorConsumer.accept(e);
       }
     }
   }
-
+  
   private void handleSendProcessorCancel(SignalType t) {
     if (SignalType.ON_ERROR == t) {
       return;
     }
-
+    
     for (Subscription subscription : sendingSubscriptions.values()) {
       try {
         subscription.cancel();
@@ -147,16 +145,16 @@ class RSocketServer implements RSocket {
         errorConsumer.accept(e);
       }
     }
-
-    for (UnicastProcessor subscription : channelProcessors.values()) {
+    
+    for (Processor<Payload,Payload> subscription : channelProcessors.values()) {
       try {
-        subscription.cancel();
+        subscription.onComplete();
       } catch (Throwable e) {
         errorConsumer.accept(e);
       }
     }
   }
-
+  
   @Override
   public Mono<Void> fireAndForget(Payload payload) {
     try {
@@ -165,7 +163,7 @@ class RSocketServer implements RSocket {
       return Mono.error(t);
     }
   }
-
+  
   @Override
   public Mono<Payload> requestResponse(Payload payload) {
     try {
@@ -174,7 +172,7 @@ class RSocketServer implements RSocket {
       return Mono.error(t);
     }
   }
-
+  
   @Override
   public Flux<Payload> requestStream(Payload payload) {
     try {
@@ -183,7 +181,7 @@ class RSocketServer implements RSocket {
       return Flux.error(t);
     }
   }
-
+  
   @Override
   public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
     try {
@@ -192,7 +190,7 @@ class RSocketServer implements RSocket {
       return Flux.error(t);
     }
   }
-
+  
   @Override
   public Mono<Void> metadataPush(Payload payload) {
     try {
@@ -201,43 +199,45 @@ class RSocketServer implements RSocket {
       return Mono.error(t);
     }
   }
-
+  
   @Override
   public void dispose() {
     connection.dispose();
   }
-
+  
   @Override
   public boolean isDisposed() {
     return connection.isDisposed();
   }
-
+  
   @Override
   public Mono<Void> onClose() {
     return connection.onClose();
   }
-
+  
   private void cleanup() {
     if (keepAliveHandler != null) {
       keepAliveHandler.dispose();
     }
     cleanUpSendingSubscriptions();
     cleanUpChannelProcessors();
-
+    
     requestHandler.dispose();
     sendProcessor.dispose();
   }
-
+  
   private synchronized void cleanUpSendingSubscriptions() {
     sendingSubscriptions.values().forEach(Subscription::cancel);
     sendingSubscriptions.clear();
   }
-
+  
   private synchronized void cleanUpChannelProcessors() {
-    channelProcessors.values().forEach(Subscription::cancel);
+    channelProcessors
+        .values()
+        .forEach(Processor::onComplete);
     channelProcessors.clear();
   }
-
+  
   private void handleFrame(Frame frame) {
     try {
       int streamId = frame.getStreamId();
@@ -313,14 +313,14 @@ class RSocketServer implements RSocket {
       frame.release();
     }
   }
-
+  
   private void handleFireAndForget(int streamId, Mono<Void> result) {
     result
         .doOnSubscribe(subscription -> sendingSubscriptions.put(streamId, subscription))
         .doFinally(signalType -> sendingSubscriptions.remove(streamId))
         .subscribe(null, errorConsumer);
   }
-
+  
   private void handleRequestResponse(int streamId, Mono<Payload> response) {
     response
         .doOnSubscribe(subscription -> sendingSubscriptions.put(streamId, subscription))
@@ -340,7 +340,7 @@ class RSocketServer implements RSocket {
         .doFinally(signalType -> sendingSubscriptions.remove(streamId))
         .subscribe(sendProcessor::onNext, t -> handleError(streamId, t));
   }
-
+  
   private void handleStream(int streamId, Flux<Payload> response, int initialRequestN) {
     response
         .transform(
@@ -364,44 +364,44 @@ class RSocketServer implements RSocket {
               sendProcessor.onNext(frame);
             });
   }
-
+  
   private void handleChannel(int streamId, Payload payload, int initialRequestN) {
     UnicastProcessor<Payload> frames = UnicastProcessor.create();
     channelProcessors.put(streamId, frames);
-
+    
     Flux<Payload> payloads =
         frames
             .doOnCancel(() -> sendProcessor.onNext(Frame.Cancel.from(streamId)))
             .doOnError(t -> sendProcessor.onNext(Frame.Error.from(streamId, t)))
             .doOnRequest(l -> sendProcessor.onNext(Frame.RequestN.from(streamId, l)))
             .doFinally(signalType -> channelProcessors.remove(streamId));
-
+    
     // not chained, as the payload should be enqueued in the Unicast processor before this method
     // returns
     // and any later payload can be processed
     frames.onNext(payload);
-
+    
     handleStream(streamId, requestChannel(payloads), initialRequestN);
   }
-
+  
   private void handleKeepAliveFrame(Frame frame) {
     if (keepAliveHandler != null) {
       keepAliveHandler.receive(frame);
     }
   }
-
+  
   private void handleCancelFrame(int streamId) {
     Subscription subscription = sendingSubscriptions.remove(streamId);
     if (subscription != null) {
       subscription.cancel();
     }
   }
-
+  
   private void handleError(int streamId, Throwable t) {
     errorConsumer.accept(t);
     sendProcessor.onNext(Frame.Error.from(streamId, t));
   }
-
+  
   private void handleRequestN(int streamId, Frame frame) {
     final Subscription subscription = sendingSubscriptions.get(streamId);
     if (subscription != null) {
