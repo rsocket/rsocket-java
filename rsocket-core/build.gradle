@@ -38,7 +38,6 @@ dependencies {
     testImplementation 'org.mockito:mockito-core'
 
     testRuntimeOnly 'ch.qos.logback:logback-classic'
-    testRuntimeOnly 'org.jctools:jctools-core'
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine'
 
     // TODO: Remove after JUnit5 migration
