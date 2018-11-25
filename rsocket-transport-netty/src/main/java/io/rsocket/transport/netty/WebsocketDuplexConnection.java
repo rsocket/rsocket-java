@@ -41,79 +41,79 @@ import static io.rsocket.frame.FrameHeaderFlyweight.FRAME_LENGTH_SIZE;
  * back on for frames received.
  */
 public final class WebsocketDuplexConnection implements DuplexConnection {
-
-  private final Connection connection;
-  private final Disposable channelClosed;
-
-  /**
-   * Creates a new instance
-   *
-   * @param connection the {@link Connection} to for managing the server
-   */
-  public WebsocketDuplexConnection(Connection connection) {
-    this.connection = Objects.requireNonNull(connection, "connection must not be null");
-    this.channelClosed =
-        FutureMono.from(connection.channel().closeFuture())
-            .doFinally(
-                s -> {
-                  if (!isDisposed()) {
-                    dispose();
-                  }
-                })
-            .subscribe();
-  }
-
-  @Override
-  public void dispose() {
-    connection.dispose();
-  }
-
-  @Override
-  public boolean isDisposed() {
-    return connection.isDisposed();
-  }
-
-  @Override
-  public Mono<Void> onClose() {
-    return connection
-        .onDispose()
-        .doFinally(
-            s -> {
-              if (!channelClosed.isDisposed()) {
-                channelClosed.dispose();
-              }
-            });
-  }
-
-  @Override
-  public Flux<Frame> receive() {
-    return connection
-        .inbound()
-        .receive()
-        .map(
-            buf -> {
-              CompositeByteBuf composite = connection.channel().alloc().compositeBuffer();
-              ByteBuf length = wrappedBuffer(new byte[FRAME_LENGTH_SIZE]);
-              FrameHeaderFlyweight.encodeLength(length, 0, buf.readableBytes());
-              composite.addComponents(true, length, buf.retain());
-              return Frame.from(composite);
-            });
-  }
-
-  @Override
-  public Mono<Void> send(Publisher<Frame> frames) {
-    return Flux.from(frames)
-        .transform(
-            frameFlux ->
-                new SendPublisher<>(
-                    frameFlux,
-                    connection.channel(),
-                    this::toBinaryWebSocketFrame,
-                    binaryWebSocketFrame -> binaryWebSocketFrame.content().readableBytes()))
-        .then();
-  }
-
-  private BinaryWebSocketFrame toBinaryWebSocketFrame(Frame frame) {
-    return new BinaryWebSocketFrame(frame.content().skipBytes(FRAME_LENGTH_SIZE).retain());
-  }
+    
+    private final Connection connection;
+    private final Disposable channelClosed;
+    
+    /**
+     * Creates a new instance
+     *
+     * @param connection the {@link Connection} to for managing the server
+     */
+    public WebsocketDuplexConnection(Connection connection) {
+        this.connection = Objects.requireNonNull(connection, "connection must not be null");
+        this.channelClosed =
+            FutureMono.from(connection.channel().closeFuture())
+                .doFinally(
+                    s -> {
+                        if (!isDisposed()) {
+                            dispose();
+                        }
+                    })
+                .subscribe();
+    }
+    
+    @Override
+    public void dispose() {
+        connection.dispose();
+    }
+    
+    @Override
+    public boolean isDisposed() {
+        return connection.isDisposed();
+    }
+    
+    @Override
+    public Mono<Void> onClose() {
+        return connection
+                   .onDispose()
+                   .doFinally(
+                       s -> {
+                           if (!channelClosed.isDisposed()) {
+                               channelClosed.dispose();
+                           }
+                       });
+    }
+    
+    @Override
+    public Flux<Frame> receive() {
+        return connection
+                   .inbound()
+                   .receive()
+                   .map(
+                       buf -> {
+                           CompositeByteBuf composite = connection.channel().alloc().compositeBuffer();
+                           ByteBuf length = wrappedBuffer(new byte[FRAME_LENGTH_SIZE]);
+                           FrameHeaderFlyweight.encodeLength(length, 0, buf.readableBytes());
+                           composite.addComponents(true, length, buf.retain());
+                           return Frame.from(composite);
+                       });
+    }
+    
+    @Override
+    public Mono<Void> send(Publisher<Frame> frames) {
+        return Flux.from(frames)
+                   .transform(
+                       frameFlux ->
+                           new SendPublisher<>(
+                               frameFlux,
+                               connection.channel(),
+                               this::toBinaryWebSocketFrame,
+                               binaryWebSocketFrame -> binaryWebSocketFrame.content().readableBytes()))
+                   .then();
+    }
+    
+    private BinaryWebSocketFrame toBinaryWebSocketFrame(Frame frame) {
+        return new BinaryWebSocketFrame(frame.content().skipBytes(FRAME_LENGTH_SIZE).retain());
+    }
 }

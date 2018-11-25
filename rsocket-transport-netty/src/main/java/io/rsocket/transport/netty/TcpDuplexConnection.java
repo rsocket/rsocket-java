@@ -30,7 +30,7 @@ import java.util.Objects;
 
 /** An implementation of {@link DuplexConnection} that connects via TCP. */
 public final class TcpDuplexConnection implements DuplexConnection {
-
+  
   private final Connection connection;
   private final Disposable channelClosed;
   /**
@@ -50,44 +50,44 @@ public final class TcpDuplexConnection implements DuplexConnection {
                 })
             .subscribe();
   }
-
+  
   @Override
   public void dispose() {
     connection.dispose();
   }
-
+  
   @Override
   public boolean isDisposed() {
     return connection.isDisposed();
   }
-
+  
   @Override
   public Mono<Void> onClose() {
     return connection
-        .onDispose()
-        .doFinally(
-            s -> {
-              if (!channelClosed.isDisposed()) {
-                channelClosed.dispose();
-              }
-            });
+               .onDispose()
+               .doFinally(
+                   s -> {
+                     if (!channelClosed.isDisposed()) {
+                       channelClosed.dispose();
+                     }
+                   });
   }
-
+  
   @Override
   public Flux<Frame> receive() {
     return connection.inbound().receive().map(buf -> Frame.from(buf.retain()));
   }
-
+  
   @Override
   public Mono<Void> send(Publisher<Frame> frames) {
     return Flux.from(frames)
-        .transform(
-            frameFlux ->
-                new SendPublisher<>(
-                    frameFlux,
-                    connection.channel(),
-                    frame -> frame.content().retain(),
-                    ByteBuf::readableBytes))
-        .then();
+               .transform(
+                   frameFlux ->
+                       new SendPublisher<>(
+                           frameFlux,
+                           connection.channel(),
+                           frame -> frame.content().retain(),
+                           ByteBuf::readableBytes))
+               .then();
   }
 }
