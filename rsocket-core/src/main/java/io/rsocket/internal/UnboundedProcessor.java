@@ -17,6 +17,7 @@
 package io.rsocket.internal;
 
 import io.netty.util.ReferenceCountUtil;
+import io.netty.util.internal.shaded.org.jctools.queues.MpscUnboundedArrayQueue;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 import reactor.core.CoreSubscriber;
@@ -43,32 +44,24 @@ import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
     implements Fuseable.QueueSubscription<T>, Fuseable {
 
-  final Queue<T> queue;
-
-  volatile boolean done;
-  Throwable error;
-
-  volatile CoreSubscriber<? super T> actual;
-
-  volatile boolean cancelled;
-
-  volatile int once;
-
   @SuppressWarnings("rawtypes")
   static final AtomicIntegerFieldUpdater<UnboundedProcessor> ONCE =
       AtomicIntegerFieldUpdater.newUpdater(UnboundedProcessor.class, "once");
-
-  volatile int wip;
-
   @SuppressWarnings("rawtypes")
   static final AtomicIntegerFieldUpdater<UnboundedProcessor> WIP =
       AtomicIntegerFieldUpdater.newUpdater(UnboundedProcessor.class, "wip");
-
-  volatile long requested;
-
   @SuppressWarnings("rawtypes")
   static final AtomicLongFieldUpdater<UnboundedProcessor> REQUESTED =
       AtomicLongFieldUpdater.newUpdater(UnboundedProcessor.class, "requested");
+  final Queue<T> queue;
+  volatile boolean done;
+  Throwable error;
+  volatile CoreSubscriber<? super T> actual;
+  volatile boolean cancelled;
+  volatile int once;
+  volatile int wip;
+  volatile long requested;
+  volatile boolean outputFused;
 
   public UnboundedProcessor() {
     this.queue = Queues.<T>unboundedMultiproducer().get();
@@ -130,20 +123,60 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
       }
     }
   }
-
+  
+  void drainFused(Subscriber<? super T> a) {
+    int missed = 1;
+    
+    final Queue<T> q = queue;
+    
+    for (;;) {
+      
+      if (cancelled) {
+        q.clear();
+        actual = null;
+        return;
+      }
+      
+      boolean d = done;
+      
+      a.onNext(null);
+      
+      if (d) {
+        actual = null;
+        
+        Throwable ex = error;
+        if (ex != null) {
+          a.onError(ex);
+        } else {
+          a.onComplete();
+        }
+        return;
+      }
+      
+      missed = WIP.addAndGet(this, -missed);
+      if (missed == 0) {
+        break;
+      }
+    }
+  }
+  
+  
   public void drain() {
     if (WIP.getAndIncrement(this) != 0) {
       return;
     }
 
     int missed = 1;
-
+    
     for (; ; ) {
       Subscriber<? super T> a = actual;
       if (a != null) {
-
-        drainRegular(a);
-
+  
+        if (outputFused) {
+          drainFused(a);
+        } else {
+          drainRegular(a);
+        }
         return;
       }
 
@@ -282,6 +315,11 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
   }
 
   @Override
+  public T peek() {
+    return queue.peek();
+  }
+
+  @Override
   @Nullable
   public T poll() {
     return queue.poll();
@@ -306,12 +344,16 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
       }
     }
   }
-
+  
   @Override
   public int requestFusion(int requestedMode) {
+    if ((requestedMode & Fuseable.ASYNC) != 0) {
+      outputFused = true;
+      return Fuseable.ASYNC;
+    }
     return Fuseable.NONE;
   }
-
+  
   @Override
   public void dispose() {
     cancel();

@@ -21,16 +21,18 @@ import io.rsocket.DuplexConnection;
 import io.rsocket.Frame;
 import org.reactivestreams.Publisher;
 import reactor.core.Disposable;
+import reactor.core.Fuseable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.netty.Connection;
 import reactor.netty.FutureMono;
 
 import java.util.Objects;
+import java.util.Queue;
 
 /** An implementation of {@link DuplexConnection} that connects via TCP. */
 public final class TcpDuplexConnection implements DuplexConnection {
-  
+
   private final Connection connection;
   private final Disposable channelClosed;
   /**
@@ -50,44 +52,57 @@ public final class TcpDuplexConnection implements DuplexConnection {
                 })
             .subscribe();
   }
-  
+
   @Override
   public void dispose() {
     connection.dispose();
   }
-  
+
   @Override
   public boolean isDisposed() {
     return connection.isDisposed();
   }
-  
+
   @Override
   public Mono<Void> onClose() {
     return connection
-               .onDispose()
-               .doFinally(
-                   s -> {
-                     if (!channelClosed.isDisposed()) {
-                       channelClosed.dispose();
-                     }
-                   });
+        .onDispose()
+        .doFinally(
+            s -> {
+              if (!channelClosed.isDisposed()) {
+                channelClosed.dispose();
+              }
+            });
   }
-  
+
   @Override
   public Flux<Frame> receive() {
     return connection.inbound().receive().map(buf -> Frame.from(buf.retain()));
   }
-  
+
   @Override
   public Mono<Void> send(Publisher<Frame> frames) {
     return Flux.from(frames)
-               .transform(
-                   frameFlux ->
-                       new SendPublisher<>(
-                           frameFlux,
-                           connection.channel(),
-                           frame -> frame.content().retain(),
-                           ByteBuf::readableBytes))
-               .then();
+        .transform(
+            frameFlux -> {
+              if (frameFlux instanceof Fuseable.QueueSubscription) {
+                Fuseable.QueueSubscription<Frame> queueSubscription =
+                    (Fuseable.QueueSubscription<Frame>) frameFlux;
+                queueSubscription.requestFusion(Fuseable.ASYNC);
+                return new SendPublisher<>(
+                    queueSubscription,
+                    frameFlux,
+                    connection.channel(),
+                    frame -> frame.content().retain(),
+                    ByteBuf::readableBytes);
+              } else {
+                return new SendPublisher<>(
+                    frameFlux,
+                    connection.channel(),
+                    frame -> frame.content().retain(),
+                    ByteBuf::readableBytes);
+              }
+            })
+        .then();
   }
 }

@@ -23,10 +23,12 @@ import io.rsocket.Frame;
 import io.rsocket.frame.FrameHeaderFlyweight;
 import org.reactivestreams.Publisher;
 import reactor.core.Disposable;
+import reactor.core.Fuseable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.netty.Connection;
 import reactor.netty.FutureMono;
+import reactor.util.concurrent.Queues;
 
 import java.util.Objects;
 
@@ -41,79 +43,93 @@ import static io.rsocket.frame.FrameHeaderFlyweight.FRAME_LENGTH_SIZE;
  * back on for frames received.
  */
 public final class WebsocketDuplexConnection implements DuplexConnection {
-    
-    private final Connection connection;
-    private final Disposable channelClosed;
-    
-    /**
-     * Creates a new instance
-     *
-     * @param connection the {@link Connection} to for managing the server
-     */
-    public WebsocketDuplexConnection(Connection connection) {
-        this.connection = Objects.requireNonNull(connection, "connection must not be null");
-        this.channelClosed =
-            FutureMono.from(connection.channel().closeFuture())
-                .doFinally(
-                    s -> {
-                        if (!isDisposed()) {
-                            dispose();
-                        }
-                    })
-                .subscribe();
-    }
-    
-    @Override
-    public void dispose() {
-        connection.dispose();
-    }
-    
-    @Override
-    public boolean isDisposed() {
-        return connection.isDisposed();
-    }
-    
-    @Override
-    public Mono<Void> onClose() {
-        return connection
-                   .onDispose()
-                   .doFinally(
-                       s -> {
-                           if (!channelClosed.isDisposed()) {
-                               channelClosed.dispose();
-                           }
-                       });
-    }
-    
-    @Override
-    public Flux<Frame> receive() {
-        return connection
-                   .inbound()
-                   .receive()
-                   .map(
-                       buf -> {
-                           CompositeByteBuf composite = connection.channel().alloc().compositeBuffer();
-                           ByteBuf length = wrappedBuffer(new byte[FRAME_LENGTH_SIZE]);
-                           FrameHeaderFlyweight.encodeLength(length, 0, buf.readableBytes());
-                           composite.addComponents(true, length, buf.retain());
-                           return Frame.from(composite);
-                       });
-    }
-    
-    @Override
-    public Mono<Void> send(Publisher<Frame> frames) {
-        return Flux.from(frames)
-                   .transform(
-                       frameFlux ->
-                           new SendPublisher<>(
-                               frameFlux,
-                               connection.channel(),
-                               this::toBinaryWebSocketFrame,
-                               binaryWebSocketFrame -> binaryWebSocketFrame.content().readableBytes()))
-                   .then();
-    }
-    
-    private BinaryWebSocketFrame toBinaryWebSocketFrame(Frame frame) {
-        return new BinaryWebSocketFrame(frame.content().skipBytes(FRAME_LENGTH_SIZE).retain());
-    }
+
+  private final Connection connection;
+  private final Disposable channelClosed;
+
+  /**
+   * Creates a new instance
+   *
+   * @param connection the {@link Connection} to for managing the server
+   */
+  public WebsocketDuplexConnection(Connection connection) {
+    this.connection = Objects.requireNonNull(connection, "connection must not be null");
+    this.channelClosed =
+        FutureMono.from(connection.channel().closeFuture())
+            .doFinally(
+                s -> {
+                  if (!isDisposed()) {
+                    dispose();
+                  }
+                })
+            .subscribe();
+  }
+
+  @Override
+  public void dispose() {
+    connection.dispose();
+  }
+
+  @Override
+  public boolean isDisposed() {
+    return connection.isDisposed();
+  }
+
+  @Override
+  public Mono<Void> onClose() {
+    return connection
+        .onDispose()
+        .doFinally(
+            s -> {
+              if (!channelClosed.isDisposed()) {
+                channelClosed.dispose();
+              }
+            });
+  }
+
+  @Override
+  public Flux<Frame> receive() {
+    return connection
+        .inbound()
+        .receive()
+        .map(
+            buf -> {
+              CompositeByteBuf composite = connection.channel().alloc().compositeBuffer();
+              ByteBuf length = wrappedBuffer(new byte[FRAME_LENGTH_SIZE]);
+              FrameHeaderFlyweight.encodeLength(length, 0, buf.readableBytes());
+              composite.addComponents(true, length, buf.retain());
+              return Frame.from(composite);
+            });
+  }
+
+  @Override
+  public Mono<Void> send(Publisher<Frame> frames) {
+    return Flux.from(frames)
+        .transform(
+            frameFlux -> {
+              if (frameFlux instanceof Fuseable.QueueSubscription) {
+                Fuseable.QueueSubscription<Frame> queueSubscription =
+                    (Fuseable.QueueSubscription<Frame>) frameFlux;
+                queueSubscription.requestFusion(Fuseable.ASYNC);
+                return new SendPublisher<>(
+                    queueSubscription,
+                    frameFlux,
+                    connection.channel(),
+                    this::toBinaryWebSocketFrame,
+                    binaryWebSocketFrame -> binaryWebSocketFrame.content().readableBytes());
+              } else {
+                return new SendPublisher<>(
+                    Queues.<Frame>small().get(),
+                    frameFlux,
+                    connection.channel(),
+                    this::toBinaryWebSocketFrame,
+                    binaryWebSocketFrame -> binaryWebSocketFrame.content().readableBytes());
+              }
+            })
+        .then();
+  }
+
+  private BinaryWebSocketFrame toBinaryWebSocketFrame(Frame frame) {
+    return new BinaryWebSocketFrame(frame.content().skipBytes(FRAME_LENGTH_SIZE).retain());
+  }
 }
