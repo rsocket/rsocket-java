@@ -100,7 +100,7 @@ public class ClientServerInputMultiplexer implements Closeable {
               }
             },
             t -> {
-              LOGGER.error("test", t);
+              LOGGER.error("Error receiving frame:", t);
               dispose();
             });
   }
