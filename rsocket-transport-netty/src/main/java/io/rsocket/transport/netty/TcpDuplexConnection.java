@@ -26,6 +26,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.netty.Connection;
 import reactor.netty.FutureMono;
+import reactor.netty.NettyPipeline;
 
 import java.util.Objects;
 import java.util.Queue;
@@ -77,6 +78,10 @@ public final class TcpDuplexConnection implements DuplexConnection {
 
   @Override
   public Flux<Frame> receive() {
+    connection
+        .channel()
+        .pipeline()
+        .addLast(NettyPipeline.ReactiveBridge, null);
     return connection.inbound().receive().map(buf -> Frame.from(buf.retain()));
   }
 
