@@ -28,10 +28,10 @@ plugins {
 subprojects {
     apply plugin: 'io.spring.dependency-management'
 
-    ext['reactor-bom.version'] = 'Californium-SR1'
+    ext['reactor-bom.version'] = 'Californium-SR3'
     ext['logback.version'] = '1.2.3'
     ext['findbugs.version'] = '3.0.2'
-    ext['netty.version'] = '4.1.29.Final'
+    ext['netty.version'] = '4.1.31.Final'
     ext['netty-boringssl.version'] = '2.0.18.Final'
     ext['hdrhistogram.version'] = '2.1.10'
     ext['mockito.version'] = '2.23.0'
