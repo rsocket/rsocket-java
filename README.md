@@ -80,6 +80,36 @@ public class ExampleClient {
 }
 ```
 
+## Zero Copy
+By default to make RSocket easier to use it copies the incoming Payload. Copying the payload comes at cost to performance
+and latency. If you want to use zero copy you must disable this. To disable copying you must include a `frameDecoder`
+argument in your `RSocketFactory`. This will let you manage the Payload without copying the data from the underlying
+transport. You must free the Payload when you are done with them
+or you will get a memory leak. Used correctly this will increase latency and performance.
+
+### Example Server setup
+```java
+RSocketFactory.receive()
+        // Enable Zero Copy
+        .frameDecoder(Frame::retain)
+        .acceptor(new PingHandler())
+        .transport(TcpServerTransport.create(7878))
+        .start()
+        .block()
+        .onClose()
+        .block();
+```
+
+### Example Client setup
+```java
+Mono<RSocket> client =
+        RSocketFactory.connect()
+            // Enable Zero Copy
+            .frameDecoder(Frame::retain)
+            .transport(TcpClientTransport.create(7878))
+            .start();
+```
+
 ## Bugs and Feedback
 
 For bugs, questions and discussions please use the [Github Issues](https://github.com/RSocket/reactivesocket-java/issues).
