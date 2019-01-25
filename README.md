@@ -85,7 +85,7 @@ By default to make RSocket easier to use it copies the incoming Payload. Copying
 and latency. If you want to use zero copy you must disable this. To disable copying you must include a `frameDecoder`
 argument in your `RSocketFactory`. This will let you manage the Payload without copying the data from the underlying
 transport. You must free the Payload when you are done with them
-or you will get a memory leak. Used correctly this will increase latency and performance.
+or you will get a memory leak. Used correctly this will reduce latency and increase performance.
 
 ### Example Server setup
 ```java
