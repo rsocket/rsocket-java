@@ -7,7 +7,7 @@ import reactor.core.publisher.Flux;
  * Extends the {@link RSocket} that allows an implementer to peek at the first request payload of a
  * channel.
  */
-public interface RequestHandler extends RSocket {
+public interface ResponderRSocket extends RSocket {
   /**
    * Implement this method to peak at the first payload of the incoming request stream without
    * having to subscribe to Publish&lt;Payload&gt; payloads

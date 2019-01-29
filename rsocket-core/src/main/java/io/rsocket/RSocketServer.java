@@ -42,12 +42,11 @@ import static io.rsocket.frame.FrameHeaderFlyweight.FLAGS_C;
 import static io.rsocket.frame.FrameHeaderFlyweight.FLAGS_M;
 
 /** Server side RSocket. Receives {@link Frame}s from a {@link RSocketClient} */
-class RSocketServer implements RequestHandler {
+class RSocketServer implements ResponderRSocket {
 
   private final DuplexConnection connection;
   private final RSocket requestHandler;
-  private final RequestHandler optimizedRequestHandler;
-  private final boolean hasOptimizedRequestHandler;
+  private final ResponderRSocket responderRSocket;
   private final Function<Frame, ? extends Payload> frameDecoder;
   private final Consumer<Throwable> errorConsumer;
 
@@ -74,16 +73,10 @@ class RSocketServer implements RequestHandler {
       Consumer<Throwable> errorConsumer,
       long tickPeriod,
       long ackTimeout) {
-    
-    if (requestHandler instanceof RequestHandler) {
-      this.optimizedRequestHandler = (RequestHandler) requestHandler;
-      this.hasOptimizedRequestHandler = true;
-      this.requestHandler = null;
-    } else {
-      this.hasOptimizedRequestHandler = false;
-      this.requestHandler = requestHandler;
-      this.optimizedRequestHandler = null;
-    }
+
+    this.requestHandler = requestHandler;
+    this.responderRSocket =
+        (requestHandler instanceof ResponderRSocket) ? (ResponderRSocket) requestHandler : null;
 
     this.connection = connection;
     this.frameDecoder = frameDecoder;
@@ -221,7 +214,7 @@ class RSocketServer implements RequestHandler {
   @Override
   public Flux<Payload> requestChannel(Payload payload, Publisher<Payload> payloads) {
     try {
-      return optimizedRequestHandler.requestChannel(payloads);
+      return responderRSocket.requestChannel(payloads);
     } catch (Throwable t) {
       return Flux.error(t);
     }
@@ -415,7 +408,7 @@ class RSocketServer implements RequestHandler {
     // and any later payload can be processed
     frames.onNext(payload);
 
-    if (hasOptimizedRequestHandler) {
+    if (responderRSocket != null) {
       handleStream(streamId, requestChannel(payload, payloads), initialRequestN);
     } else {
       handleStream(streamId, requestChannel(payloads), initialRequestN);
