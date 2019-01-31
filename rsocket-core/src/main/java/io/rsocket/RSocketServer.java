@@ -27,7 +27,10 @@ import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 import reactor.core.Disposable;
-import reactor.core.publisher.*;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+import reactor.core.publisher.SignalType;
+import reactor.core.publisher.UnicastProcessor;
 
 import java.util.Collections;
 import java.util.Map;
@@ -39,15 +42,16 @@ import static io.rsocket.frame.FrameHeaderFlyweight.FLAGS_C;
 import static io.rsocket.frame.FrameHeaderFlyweight.FLAGS_M;
 
 /** Server side RSocket. Receives {@link Frame}s from a {@link RSocketClient} */
-class RSocketServer implements RSocket {
+class RSocketServer implements ResponderRSocket {
 
   private final DuplexConnection connection;
   private final RSocket requestHandler;
+  private final ResponderRSocket responderRSocket;
   private final Function<Frame, ? extends Payload> frameDecoder;
   private final Consumer<Throwable> errorConsumer;
 
   private final Map<Integer, Subscription> sendingSubscriptions;
-  private final Map<Integer, Processor<Payload,Payload>> channelProcessors;
+  private final Map<Integer, Processor<Payload, Payload>> channelProcessors;
 
   private final UnboundedProcessor<Frame> sendProcessor;
   private KeepAliveHandler keepAliveHandler;
@@ -69,12 +73,16 @@ class RSocketServer implements RSocket {
       Consumer<Throwable> errorConsumer,
       long tickPeriod,
       long ackTimeout) {
-    this.connection = connection;
+
     this.requestHandler = requestHandler;
+    this.responderRSocket =
+        (requestHandler instanceof ResponderRSocket) ? (ResponderRSocket) requestHandler : null;
+
+    this.connection = connection;
     this.frameDecoder = frameDecoder;
     this.errorConsumer = errorConsumer;
     this.sendingSubscriptions = Collections.synchronizedMap(new IntObjectHashMap<>());
-    this.channelProcessors    = Collections.synchronizedMap(new IntObjectHashMap<>());
+    this.channelProcessors = Collections.synchronizedMap(new IntObjectHashMap<>());
 
     // DO NOT Change the order here. The Send processor must be subscribed to before receiving
     // connections
@@ -116,21 +124,27 @@ class RSocketServer implements RSocket {
   }
 
   private void handleSendProcessorError(Throwable t) {
-    sendingSubscriptions.values().forEach(subscription -> {
-      try {
-        subscription.cancel();
-      } catch (Throwable e) {
-        errorConsumer.accept(e);
-      }
-    });
+    sendingSubscriptions
+        .values()
+        .forEach(
+            subscription -> {
+              try {
+                subscription.cancel();
+              } catch (Throwable e) {
+                errorConsumer.accept(e);
+              }
+            });
 
-    channelProcessors.values().forEach(subscription -> {
-      try {
-        subscription.onError(t);
-      } catch (Throwable e) {
-        errorConsumer.accept(e);
-      }
-    });
+    channelProcessors
+        .values()
+        .forEach(
+            subscription -> {
+              try {
+                subscription.onError(t);
+              } catch (Throwable e) {
+                errorConsumer.accept(e);
+              }
+            });
   }
 
   private void handleSendProcessorCancel(SignalType t) {
@@ -138,21 +152,27 @@ class RSocketServer implements RSocket {
       return;
     }
 
-    sendingSubscriptions.values().forEach(subscription -> {
-      try {
-        subscription.cancel();
-      } catch (Throwable e) {
-        errorConsumer.accept(e);
-      }
-    });
+    sendingSubscriptions
+        .values()
+        .forEach(
+            subscription -> {
+              try {
+                subscription.cancel();
+              } catch (Throwable e) {
+                errorConsumer.accept(e);
+              }
+            });
 
-    channelProcessors.values().forEach(subscription -> {
-      try {
-        subscription.onComplete();
-      } catch (Throwable e) {
-        errorConsumer.accept(e);
-      }
-    });
+    channelProcessors
+        .values()
+        .forEach(
+            subscription -> {
+              try {
+                subscription.onComplete();
+              } catch (Throwable e) {
+                errorConsumer.accept(e);
+              }
+            });
   }
 
   @Override
@@ -186,6 +206,15 @@ class RSocketServer implements RSocket {
   public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
     try {
       return requestHandler.requestChannel(payloads);
+    } catch (Throwable t) {
+      return Flux.error(t);
+    }
+  }
+
+  @Override
+  public Flux<Payload> requestChannel(Payload payload, Publisher<Payload> payloads) {
+    try {
+      return responderRSocket.requestChannel(payload, payloads);
     } catch (Throwable t) {
       return Flux.error(t);
     }
@@ -232,9 +261,7 @@ class RSocketServer implements RSocket {
   }
 
   private synchronized void cleanUpChannelProcessors() {
-    channelProcessors
-        .values()
-        .forEach(Processor::onComplete);
+    channelProcessors.values().forEach(Processor::onComplete);
     channelProcessors.clear();
   }
 
@@ -381,7 +408,11 @@ class RSocketServer implements RSocket {
     // and any later payload can be processed
     frames.onNext(payload);
 
-    handleStream(streamId, requestChannel(payloads), initialRequestN);
+    if (responderRSocket != null) {
+      handleStream(streamId, requestChannel(payload, payloads), initialRequestN);
+    } else {
+      handleStream(streamId, requestChannel(payloads), initialRequestN);
+    }
   }
 
   private void handleKeepAliveFrame(Frame frame) {
