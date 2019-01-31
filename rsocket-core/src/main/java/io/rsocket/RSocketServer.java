@@ -214,7 +214,7 @@ class RSocketServer implements ResponderRSocket {
   @Override
   public Flux<Payload> requestChannel(Payload payload, Publisher<Payload> payloads) {
     try {
-      return responderRSocket.requestChannel(payloads);
+      return responderRSocket.requestChannel(payload, payloads);
     } catch (Throwable t) {
       return Flux.error(t);
     }
