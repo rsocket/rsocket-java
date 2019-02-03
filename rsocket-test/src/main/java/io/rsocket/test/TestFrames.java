@@ -18,44 +18,44 @@ package io.rsocket.test;
 
 import static io.netty.buffer.Unpooled.EMPTY_BUFFER;
 import static io.netty.buffer.UnpooledByteBufAllocator.DEFAULT;
-import static io.rsocket.framing.CancelFrame.createCancelFrame;
-import static io.rsocket.framing.ErrorFrame.createErrorFrame;
-import static io.rsocket.framing.ExtensionFrame.createExtensionFrame;
-import static io.rsocket.framing.FrameLengthFrame.createFrameLengthFrame;
-import static io.rsocket.framing.KeepaliveFrame.createKeepaliveFrame;
-import static io.rsocket.framing.LeaseFrame.createLeaseFrame;
-import static io.rsocket.framing.MetadataPushFrame.createMetadataPushFrame;
-import static io.rsocket.framing.PayloadFrame.createPayloadFrame;
-import static io.rsocket.framing.RequestChannelFrame.createRequestChannelFrame;
-import static io.rsocket.framing.RequestFireAndForgetFrame.createRequestFireAndForgetFrame;
-import static io.rsocket.framing.RequestNFrame.createRequestNFrame;
-import static io.rsocket.framing.RequestResponseFrame.createRequestResponseFrame;
-import static io.rsocket.framing.RequestStreamFrame.createRequestStreamFrame;
-import static io.rsocket.framing.ResumeFrame.createResumeFrame;
-import static io.rsocket.framing.ResumeOkFrame.createResumeOkFrame;
-import static io.rsocket.framing.SetupFrame.createSetupFrame;
-import static io.rsocket.framing.StreamIdFrame.createStreamIdFrame;
+import static io.rsocket.frame.CancelFrame.createCancelFrame;
+import static io.rsocket.frame.ErrorFrame.createErrorFrame;
+import static io.rsocket.frame.ExtensionFrameFlyweight.createExtensionFrame;
+import static io.rsocket.frame.FrameLengthFrame.createFrameLengthFrame;
+import static io.rsocket.frame.KeepaliveFrame.createKeepaliveFrame;
+import static io.rsocket.frame.LeaseFrame.createLeaseFrame;
+import static io.rsocket.frame.MetadataPushFrame.createMetadataPushFrame;
+import static io.rsocket.frame.PayloadFrame.createPayloadFrame;
+import static io.rsocket.frame.RequestChannelFrame.createRequestChannelFrame;
+import static io.rsocket.frame.RequestFireAndForgetFrame.createRequestFireAndForgetFrame;
+import static io.rsocket.frame.RequestNFrame.createRequestNFrame;
+import static io.rsocket.frame.RequestResponseFrame.createRequestResponseFrame;
+import static io.rsocket.frame.RequestStreamFrame.createRequestStreamFrame;
+import static io.rsocket.frame.ResumeFrame.createResumeFrame;
+import static io.rsocket.frame.ResumeOkFrame.createResumeOkFrame;
+import static io.rsocket.frame.SetupFrame.createSetupFrame;
+import static io.rsocket.frame.StreamIdFrame.createStreamIdFrame;
 
 import io.netty.buffer.ByteBuf;
-import io.rsocket.framing.CancelFrame;
-import io.rsocket.framing.ErrorFrame;
-import io.rsocket.framing.ExtensionFrame;
-import io.rsocket.framing.Frame;
-import io.rsocket.framing.FrameLengthFrame;
-import io.rsocket.framing.FrameType;
-import io.rsocket.framing.KeepaliveFrame;
-import io.rsocket.framing.LeaseFrame;
-import io.rsocket.framing.MetadataPushFrame;
-import io.rsocket.framing.PayloadFrame;
-import io.rsocket.framing.RequestChannelFrame;
-import io.rsocket.framing.RequestFireAndForgetFrame;
-import io.rsocket.framing.RequestNFrame;
-import io.rsocket.framing.RequestResponseFrame;
-import io.rsocket.framing.RequestStreamFrame;
-import io.rsocket.framing.ResumeFrame;
-import io.rsocket.framing.ResumeOkFrame;
-import io.rsocket.framing.SetupFrame;
-import io.rsocket.framing.StreamIdFrame;
+import io.rsocket.frame.CancelFrame;
+import io.rsocket.frame.ErrorFrame;
+import io.rsocket.frame.ExtensionFrameFlyweight;
+import io.rsocket.frame.Frame;
+import io.rsocket.frame.FrameLengthFrame;
+import io.rsocket.frame.FrameType;
+import io.rsocket.frame.KeepaliveFrame;
+import io.rsocket.frame.LeaseFrame;
+import io.rsocket.frame.MetadataPushFrame;
+import io.rsocket.frame.PayloadFrame;
+import io.rsocket.frame.RequestChannelFrame;
+import io.rsocket.frame.RequestFireAndForgetFrame;
+import io.rsocket.frame.RequestNFrame;
+import io.rsocket.frame.RequestResponseFrame;
+import io.rsocket.frame.RequestStreamFrame;
+import io.rsocket.frame.ResumeFrame;
+import io.rsocket.frame.ResumeOkFrame;
+import io.rsocket.frame.SetupFrame;
+import io.rsocket.frame.StreamIdFrame;
 import java.time.Duration;
 
 /** Test instances of all frame types. */
@@ -82,11 +82,11 @@ public final class TestFrames {
   }
 
   /**
-   * Returns a test instance of {@link ExtensionFrame}.
+   * Returns a test instance of {@link ExtensionFrameFlyweight}.
    *
-   * @return a test instance of {@link ExtensionFrame}
+   * @return a test instance of {@link ExtensionFrameFlyweight}
    */
-  public static ExtensionFrame createTestExtensionFrame() {
+  public static ExtensionFrameFlyweight createTestExtensionFrame() {
     return createExtensionFrame(DEFAULT, true, 1, (ByteBuf) null, null);
   }
 

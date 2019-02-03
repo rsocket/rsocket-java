@@ -16,19 +16,16 @@
 
 package io.rsocket.resume;
 
-import io.rsocket.Frame;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import io.netty.buffer.ByteBuf;
 import reactor.core.publisher.Flux;
+
+import java.util.*;
 
 public class ResumeCache {
   private final ResumePositionCounter strategy;
   private final int maxBufferSize;
 
-  private final LinkedHashMap<Integer, Frame> frames = new LinkedHashMap<>();
+  private final LinkedHashMap<Integer, ByteBuf> frames = new LinkedHashMap<>();
   private int lastRemotePosition = 0;
   private int currentPosition = 0;
   private int bufferSize;
@@ -55,10 +52,10 @@ public class ResumeCache {
 
     lastRemotePosition = remotePosition;
 
-    Iterator<Map.Entry<Integer, Frame>> positions = frames.entrySet().iterator();
+    Iterator<Map.Entry<Integer, ByteBuf>> positions = frames.entrySet().iterator();
 
     while (positions.hasNext()) {
-      Map.Entry<Integer, Frame> cachePosition = positions.next();
+      Map.Entry<Integer, ByteBuf> cachePosition = positions.next();
 
       if (cachePosition.getKey() <= remotePosition) {
         positions.remove();
@@ -70,7 +67,7 @@ public class ResumeCache {
     }
   }
 
-  public void sent(Frame frame) {
+  public void sent(ByteBuf frame) {
     if (ResumeUtil.isTracked(frame)) {
       frames.put(currentPosition, frame.copy());
       bufferSize += strategy.cost(frame);
@@ -78,26 +75,26 @@ public class ResumeCache {
       currentPosition += ResumeUtil.offset(frame);
 
       if (frames.size() > maxBufferSize) {
-        Frame f = frames.remove(first(frames));
+        ByteBuf f = frames.remove(first(frames));
         bufferSize -= strategy.cost(f);
       }
     }
   }
 
-  private int first(LinkedHashMap<Integer, Frame> frames) {
+  private int first(LinkedHashMap<Integer, ByteBuf> frames) {
     return frames.keySet().iterator().next();
   }
 
-  public Flux<Frame> resend(int remotePosition) {
+  public Flux<ByteBuf> resend(int remotePosition) {
     updateRemotePosition(remotePosition);
 
     if (remotePosition == currentPosition) {
       return Flux.empty();
     }
 
-    List<Frame> resend = new ArrayList<>();
+    List<ByteBuf> resend = new ArrayList<>();
 
-    for (Map.Entry<Integer, Frame> cachePosition : frames.entrySet()) {
+    for (Map.Entry<Integer, ByteBuf> cachePosition : frames.entrySet()) {
       if (remotePosition < cachePosition.getKey()) {
         resend.add(cachePosition.getValue());
       }

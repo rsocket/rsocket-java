@@ -16,6 +16,7 @@
 
 package io.rsocket.transport.local;
 
+import io.netty.buffer.ByteBuf;
 import io.rsocket.DuplexConnection;
 import io.rsocket.Frame;
 import java.util.Objects;
@@ -65,7 +66,7 @@ final class LocalDuplexConnection implements DuplexConnection {
   }
 
   @Override
-  public Flux<Frame> receive() {
+  public Flux<ByteBuf> receive() {
     return in;
   }
 

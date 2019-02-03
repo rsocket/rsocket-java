@@ -16,16 +16,8 @@
 
 package io.rsocket.resume;
 
-import static org.junit.Assert.assertEquals;
-
-import io.rsocket.Frame;
-import io.rsocket.framing.FrameType;
-import io.rsocket.util.DefaultPayload;
-import org.junit.Test;
-import reactor.core.publisher.Flux;
-
 public class ResumeCacheTest {
-  private Frame CANCEL = Frame.Cancel.from(1);
+  /*private Frame CANCEL = Frame.Cancel.from(1);
   private Frame STREAM =
       Frame.Request.from(1, FrameType.REQUEST_STREAM, DefaultPayload.create("Test"), 100);
 
@@ -134,5 +126,5 @@ public class ResumeCacheTest {
     assertEquals(20, cache.getCurrentPosition());
     assertEquals(14, cache.getEarliestResendPosition());
     assertEquals(6, cache.size());
-  }
+  }*/
 }

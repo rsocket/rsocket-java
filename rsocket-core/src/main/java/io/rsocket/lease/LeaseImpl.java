@@ -16,33 +16,33 @@
 
 package io.rsocket.lease;
 
-import io.rsocket.Frame;
-import java.nio.ByteBuffer;
-import javax.annotation.Nullable;
+import io.netty.buffer.ByteBuf;
+import io.rsocket.frame.LeaseFlyweight;
+import reactor.util.annotation.Nullable;
 
 public final class LeaseImpl implements Lease {
 
   private final int allowedRequests;
   private final int ttl;
   private final long expiry;
-  private final @Nullable ByteBuffer metadata;
+  private final @Nullable ByteBuf metadata;
 
   public LeaseImpl(int allowedRequests, int ttl) {
     this(allowedRequests, ttl, null);
   }
 
-  public LeaseImpl(int allowedRequests, int ttl, ByteBuffer metadata) {
+  public LeaseImpl(int allowedRequests, int ttl, ByteBuf metadata) {
     this.allowedRequests = allowedRequests;
     this.ttl = ttl;
     expiry = System.currentTimeMillis() + ttl;
     this.metadata = metadata;
   }
 
-  public LeaseImpl(Frame leaseFrame) {
+  public LeaseImpl(ByteBuf leaseFrame) {
     this(
-        Frame.Lease.numberOfRequests(leaseFrame),
-        Frame.Lease.ttl(leaseFrame),
-        leaseFrame.getMetadata());
+        LeaseFlyweight.numRequests(leaseFrame),
+        LeaseFlyweight.ttl(leaseFrame),
+        LeaseFlyweight.metadata(leaseFrame));
   }
 
   @Override
@@ -61,7 +61,7 @@ public final class LeaseImpl implements Lease {
   }
 
   @Override
-  public ByteBuffer getMetadata() {
+  public ByteBuf getMetadata() {
     return metadata;
   }
 

@@ -1,53 +1,37 @@
-/*
- * Copyright 2015-2018 the original author or authors.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package io.rsocket.frame;
 
 import io.netty.buffer.ByteBuf;
-import io.rsocket.framing.FrameType;
+import io.netty.buffer.ByteBufAllocator;
 
 public class RequestNFrameFlyweight {
   private RequestNFrameFlyweight() {}
 
-  // relative to start of passed offset
-  private static final int REQUEST_N_FIELD_OFFSET = FrameHeaderFlyweight.FRAME_HEADER_LENGTH;
+  public static ByteBuf encode(
+      final ByteBufAllocator allocator, final int streamId, long requestN) {
+    int i = (int) requestN;
+    if (requestN > Integer.MAX_VALUE) {
+      i = Integer.MAX_VALUE;
+    }
 
-  public static int computeFrameLength() {
-    int length = FrameHeaderFlyweight.computeFrameHeaderLength(FrameType.REQUEST_N, 0, 0);
-
-    return length + Integer.BYTES;
+    return encode(allocator, streamId, i);
   }
 
-  public static int encode(final ByteBuf byteBuf, final int streamId, final int requestN) {
-    final int frameLength = computeFrameLength();
+  public static ByteBuf encode(final ByteBufAllocator allocator, final int streamId, int requestN) {
+    ByteBuf header = FrameHeaderFlyweight.encode(allocator, streamId, FrameType.REQUEST_N, 0);
 
-    int length =
-        FrameHeaderFlyweight.encodeFrameHeader(
-            byteBuf, frameLength, 0, FrameType.REQUEST_N, streamId);
+    if (requestN < 1) {
+      throw new IllegalArgumentException("request n is less than 1");
+    }
 
-    byteBuf.setInt(REQUEST_N_FIELD_OFFSET, requestN);
-
-    return length + Integer.BYTES;
+    return header.writeInt(requestN);
   }
 
-  public static int requestN(final ByteBuf byteBuf) {
-    return byteBuf.getInt(REQUEST_N_FIELD_OFFSET);
-  }
-
-  public static int payloadOffset(final ByteBuf byteBuf) {
-    return FrameHeaderFlyweight.FRAME_HEADER_LENGTH + Integer.BYTES;
+  public static int requestN(ByteBuf byteBuf) {
+    FrameHeaderFlyweight.ensureFrameType(FrameType.REQUEST_N, byteBuf);
+    byteBuf.markReaderIndex();
+    byteBuf.skipBytes(FrameHeaderFlyweight.size());
+    int i = byteBuf.readInt();
+    byteBuf.resetReaderIndex();
+    return i;
   }
 }

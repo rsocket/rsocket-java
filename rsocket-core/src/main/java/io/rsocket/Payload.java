@@ -22,7 +22,7 @@ import io.netty.util.ResourceLeakDetector;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 
-/** Payload of a {@link Frame}. */
+/** Payload of a Frame . */
 public interface Payload extends ReferenceCounted {
   /**
    * Returns whether the payload has metadata, useful for tell if metadata is empty or not present.

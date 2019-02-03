@@ -16,7 +16,7 @@
 
 package io.rsocket.exceptions;
 
-import io.rsocket.framing.ErrorType;
+import io.rsocket.frame.ErrorType;
 
 /**
  * Application layer logic generating a Reactive Streams {@code onError} event.

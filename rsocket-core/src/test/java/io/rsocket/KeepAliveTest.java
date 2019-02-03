@@ -1,26 +1,7 @@
 package io.rsocket;
 
-import io.netty.buffer.Unpooled;
-import io.rsocket.exceptions.ConnectionErrorException;
-import io.rsocket.framing.FrameType;
-import io.rsocket.test.util.TestDuplexConnection;
-import io.rsocket.util.DefaultPayload;
-import java.time.Duration;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.function.Consumer;
-import java.util.function.Supplier;
-import java.util.stream.Stream;
-import org.assertj.core.api.Assertions;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.MethodSource;
-import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
-import reactor.test.StepVerifier;
-
 public class KeepAliveTest {
-  private static final int CLIENT_REQUESTER_TICK_PERIOD = 100;
+  /*private static final int CLIENT_REQUESTER_TICK_PERIOD = 100;
   private static final int CLIENT_REQUESTER_TIMEOUT = 700;
   private static final int CLIENT_REQUESTER_MISSED_ACKS = 3;
   private static final int SERVER_RESPONDER_TICK_PERIOD = 100;
@@ -149,5 +130,5 @@ public class KeepAliveTest {
     public List<Throwable> errors() {
       return new ArrayList<>(errors);
     }
-  }
+  }*/
 }

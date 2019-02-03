@@ -16,19 +16,21 @@
 
 package io.rsocket.internal;
 
-import static org.junit.Assert.assertEquals;
-
-import io.rsocket.Frame;
+import io.netty.buffer.ByteBufAllocator;
+import io.rsocket.frame.ErrorFrameFlyweight;
 import io.rsocket.plugins.PluginRegistry;
 import io.rsocket.test.util.TestDuplexConnection;
-import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.Before;
 import org.junit.Test;
+
+import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.junit.Assert.assertEquals;
 
 public class ClientServerInputMultiplexerTest {
   private TestDuplexConnection source;
   private ClientServerInputMultiplexer multiplexer;
-
+  private ByteBufAllocator allocator;
   @Before
   public void setup() {
     source = new TestDuplexConnection();
@@ -56,18 +58,18 @@ public class ClientServerInputMultiplexerTest {
         .receive()
         .doOnNext(f -> connectionFrames.incrementAndGet())
         .subscribe();
-
-    source.addToReceivedBuffer(Frame.Error.from(1, new Exception()));
+    
+    source.addToReceivedBuffer(ErrorFrameFlyweight.encode(allocator, 1, new Exception()));
     assertEquals(1, clientFrames.get());
     assertEquals(0, serverFrames.get());
     assertEquals(0, connectionFrames.get());
 
-    source.addToReceivedBuffer(Frame.Error.from(2, new Exception()));
+    source.addToReceivedBuffer(ErrorFrameFlyweight.encode(allocator, 1, new Exception()));
     assertEquals(1, clientFrames.get());
     assertEquals(1, serverFrames.get());
     assertEquals(0, connectionFrames.get());
 
-    source.addToReceivedBuffer(Frame.Error.from(1, new Exception()));
+    source.addToReceivedBuffer(ErrorFrameFlyweight.encode(allocator, 1, new Exception()));
     assertEquals(2, clientFrames.get());
     assertEquals(1, serverFrames.get());
     assertEquals(0, connectionFrames.get());

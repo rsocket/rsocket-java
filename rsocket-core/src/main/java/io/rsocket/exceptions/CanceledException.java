@@ -16,7 +16,7 @@
 
 package io.rsocket.exceptions;
 
-import io.rsocket.framing.ErrorType;
+import io.rsocket.frame.ErrorType;
 
 /**
  * The Responder canceled the request but may have started processing it (similar to REJECTED but

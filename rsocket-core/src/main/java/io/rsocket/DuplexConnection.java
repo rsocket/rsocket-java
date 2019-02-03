@@ -17,6 +17,8 @@
 package io.rsocket;
 
 import java.nio.channels.ClosedChannelException;
+
+import io.netty.buffer.ByteBuf;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import reactor.core.publisher.Flux;
@@ -26,7 +28,7 @@ import reactor.core.publisher.Mono;
 public interface DuplexConnection extends Availability, Closeable {
 
   /**
-   * Sends the source of {@link Frame}s on this connection and returns the {@code Publisher}
+   * Sends the source of Frames on this connection and returns the {@code Publisher}
    * representing the result of this send.
    *
    * <h2>Flow control</h2>
@@ -38,7 +40,7 @@ public interface DuplexConnection extends Availability, Closeable {
    *     successfully and errors when it fails.
    * @throws NullPointerException if {@code frames} is {@code null}
    */
-  Mono<Void> send(Publisher<Frame> frames);
+  Mono<Void> send(Publisher<ByteBuf> frames);
 
   /**
    * Sends a single {@code Frame} on this connection and returns the {@code Publisher} representing
@@ -48,7 +50,7 @@ public interface DuplexConnection extends Availability, Closeable {
    * @return {@code Publisher} that completes when the frame is written on the connection
    *     successfully and errors when it fails.
    */
-  default Mono<Void> sendOne(Frame frame) {
+  default Mono<Void> sendOne(ByteBuf frame) {
     return send(Mono.just(frame));
   }
 
@@ -75,7 +77,7 @@ public interface DuplexConnection extends Availability, Closeable {
    *
    * @return Stream of all {@code Frame}s received.
    */
-  Flux<Frame> receive();
+  Flux<ByteBuf> receive();
 
   @Override
   default double availability() {

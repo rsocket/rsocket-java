@@ -16,24 +16,8 @@
 
 package io.rsocket.fragmentation;
 
-import static io.netty.buffer.UnpooledByteBufAllocator.DEFAULT;
-import static io.rsocket.fragmentation.FrameReassembler.createFrameReassembler;
-import static io.rsocket.framing.PayloadFrame.createPayloadFrame;
-import static io.rsocket.framing.RequestStreamFrame.createRequestStreamFrame;
-import static io.rsocket.framing.TestFrames.createTestCancelFrame;
-import static io.rsocket.test.util.ByteBufUtils.getRandomByteBuf;
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatNullPointerException;
-
-import io.netty.buffer.ByteBuf;
-import io.rsocket.framing.CancelFrame;
-import io.rsocket.framing.PayloadFrame;
-import io.rsocket.framing.RequestStreamFrame;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
-
 final class FrameReassemblerTest {
-
+/*
   @DisplayName("createFrameReassembler throws NullPointerException")
   @Test
   void createFrameReassemblerNullByteBufAllocator() {
@@ -135,5 +119,5 @@ final class FrameReassemblerTest {
     assertThatNullPointerException()
         .isThrownBy(() -> createFrameReassembler(DEFAULT).reassemble(null))
         .withMessage("frame must not be null");
-  }
+  }*/
 }
