@@ -16,21 +16,8 @@
 
 package io.rsocket.fragmentation;
 
-import static io.rsocket.util.DisposableUtils.disposeQuietly;
-import static io.rsocket.util.RecyclerFactory.createRecycler;
-
-import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
-import io.netty.buffer.Unpooled;
-import io.netty.util.Recycler;
-import io.netty.util.Recycler.Handle;
-import io.rsocket.framing.FragmentableFrame;
-import io.rsocket.framing.Frame;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
 import reactor.core.Disposable;
-import reactor.util.annotation.Nullable;
 
 /**
  * The implementation of the RSocket reassembly behavior.
@@ -40,7 +27,16 @@ import reactor.util.annotation.Nullable;
  *     and Reassembly</a>
  */
 final class FrameReassembler implements Disposable {
-
+  @Override
+  public void dispose() {
+  
+  }
+  
+  @Override
+  public boolean isDisposed() {
+    return false;
+  }
+  /*
   private static final Recycler<FrameReassembler> RECYCLER = createRecycler(FrameReassembler::new);
 
   private final Handle<FrameReassembler> handle;
@@ -65,25 +61,25 @@ final class FrameReassembler implements Disposable {
     handle.recycle(this);
   }
 
-  /**
+  *//**
    * Creates a new instance
    *
    * @param byteBufAllocator the {@link ByteBufAllocator} to use
    * @return the {@code FrameReassembler}
    * @throws NullPointerException if {@code byteBufAllocator} is {@code null}
-   */
+   *//*
   static FrameReassembler createFrameReassembler(ByteBufAllocator byteBufAllocator) {
     return RECYCLER.get().setByteBufAllocator(byteBufAllocator);
   }
 
-  /**
+  *//**
    * Reassembles a frame. If the frame is not a candidate for fragmentation, emits the frame. If
    * frame is a candidate for fragmentation, accumulates the content until the final fragment.
    *
    * @param frame the frame to inspect for reassembly
    * @return the reassembled frame if complete, otherwise {@code null}
    * @throws NullPointerException if {@code frame} is {@code null}
-   */
+   *//*
   @Nullable
   Frame reassemble(Frame frame) {
     Objects.requireNonNull(frame, "frame must not be null");
@@ -166,5 +162,5 @@ final class FrameReassembler implements Disposable {
           ? metadata.retain()
           : Unpooled.wrappedBuffer(this.metadata, metadata.retain());
     }
-  }
+  }*/
 }

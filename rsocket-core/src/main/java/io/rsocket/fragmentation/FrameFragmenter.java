@@ -16,21 +16,9 @@
 
 package io.rsocket.fragmentation;
 
-import static io.rsocket.framing.PayloadFrame.createPayloadFrame;
-import static io.rsocket.util.DisposableUtils.disposeQuietly;
-import static java.lang.Math.min;
-
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
-import io.rsocket.framing.FragmentableFrame;
-import io.rsocket.framing.Frame;
-import java.util.Objects;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
-import reactor.core.publisher.SynchronousSink;
-import reactor.util.annotation.Nullable;
 
 /**
  * The implementation of the RSocket fragmentation behavior.
@@ -40,33 +28,33 @@ import reactor.util.annotation.Nullable;
  *     and Reassembly</a>
  */
 final class FrameFragmenter {
-
+/*
   private final ByteBufAllocator byteBufAllocator;
 
   private final Logger logger = LoggerFactory.getLogger(this.getClass());
 
   private final int maxFragmentSize;
 
-  /**
+  *//**
    * Creates a new instance
    *
    * @param byteBufAllocator the {@link ByteBufAllocator} to use
    * @param maxFragmentSize the maximum size of each fragment
-   */
+   *//*
   FrameFragmenter(ByteBufAllocator byteBufAllocator, int maxFragmentSize) {
     this.byteBufAllocator =
         Objects.requireNonNull(byteBufAllocator, "byteBufAllocator must not be null");
     this.maxFragmentSize = maxFragmentSize;
   }
 
-  /**
+  *//**
    * Returns a {@link Flux} of fragments frames
    *
-   * @param frame the {@link Frame} to fragment
+   * @param frame the {@link ByteBuf} to fragment
    * @return a {@link Flux} of fragment frames
    * @throws NullPointerException if {@code frame} is {@code null}
-   */
-  public Flux<Frame> fragment(Frame frame) {
+   *//*
+  public Flux<ByteBuf> fragment(ByteBuf frame) {
     Objects.requireNonNull(frame, "frame must not be null");
 
     if (!shouldFragment(frame)) {
@@ -81,7 +69,7 @@ final class FrameFragmenter {
         FragmentationState::dispose);
   }
 
-  private FragmentationState generate(FragmentationState state, SynchronousSink<Frame> sink) {
+  private FragmentationState generate(FragmentationState state, SynchronousSink<ByteBuf> sink) {
     int fragmentLength = maxFragmentSize;
 
     ByteBuf metadata;
@@ -93,7 +81,7 @@ final class FrameFragmenter {
     }
 
     if (state.hasReadableMetadata()) {
-      Frame fragment = state.createFrame(byteBufAllocator, false, metadata, null);
+      ByteBuf fragment = state.createFrame(byteBufAllocator, false, metadata, null);
       logger.debug("Fragment {}", fragment);
 
       sink.next(fragment);
@@ -104,14 +92,14 @@ final class FrameFragmenter {
     data = state.hasReadableData() ? state.readDataFragment(fragmentLength) : null;
 
     if (state.hasReadableData()) {
-      Frame fragment = state.createFrame(byteBufAllocator, false, metadata, data);
+      ByteBuf fragment = state.createFrame(byteBufAllocator, false, metadata, data);
       logger.debug("Fragment {}", fragment);
 
       sink.next(fragment);
       return state;
     }
 
-    Frame fragment = state.createFrame(byteBufAllocator, true, metadata, data);
+    ByteBuf fragment = state.createFrame(byteBufAllocator, true, metadata, data);
     logger.debug("Final Fragment {}", fragment);
 
     sink.next(fragment);
@@ -123,7 +111,7 @@ final class FrameFragmenter {
     return fragmentableFrame.getMetadataLength().orElse(0) + fragmentableFrame.getDataLength();
   }
 
-  private boolean shouldFragment(Frame frame) {
+  private boolean shouldFragment(ByteBuf frame) {
     if (maxFragmentSize == 0 || !(frame instanceof FragmentableFrame)) {
       return false;
     }
@@ -152,7 +140,7 @@ final class FrameFragmenter {
       disposeQuietly(frame);
     }
 
-    Frame createFrame(
+    ByteBuf createFrame(
         ByteBufAllocator byteBufAllocator,
         boolean complete,
         @Nullable ByteBuf metadata,
@@ -199,5 +187,5 @@ final class FrameFragmenter {
       metadataIndex += fragment.readableBytes();
       return fragment;
     }
-  }
+  }*/
 }

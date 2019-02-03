@@ -16,43 +16,9 @@
 
 package io.rsocket;
 
-import static io.rsocket.framing.FrameType.*;
-import static io.rsocket.test.util.TestSubscriber.anyPayload;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.verify;
-
-import io.rsocket.exceptions.ApplicationErrorException;
-import io.rsocket.exceptions.RejectedSetupException;
-import io.rsocket.frame.RequestFrameFlyweight;
-import io.rsocket.framing.FrameType;
-import io.rsocket.test.util.TestSubscriber;
-import io.rsocket.util.DefaultPayload;
-import io.rsocket.util.EmptyPayload;
-import java.time.Duration;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.stream.Collectors;
-import org.junit.Rule;
-import org.junit.Test;
-import org.reactivestreams.Publisher;
-import org.reactivestreams.Subscriber;
-import org.reactivestreams.Subscription;
-import reactor.core.publisher.BaseSubscriber;
-import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
-import reactor.core.publisher.MonoProcessor;
-
 public class RSocketClientTest {
 
-  @Rule public final ClientSocketRule rule = new ClientSocketRule();
+  /*@Rule public final ClientSocketRule rule = new ClientSocketRule();
 
   @Test(timeout = 2_000)
   public void testKeepAlive() throws Exception {
@@ -234,5 +200,5 @@ public class RSocketClientTest {
               + ", frames found: "
               + framesFound);
     }
-  }
+  }*/
 }

@@ -17,8 +17,9 @@
 package io.rsocket.transport.netty;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.DuplexConnection;
-import io.rsocket.Frame;
+import io.rsocket.frame.FrameLengthFlyweight;
 import org.reactivestreams.Publisher;
 import reactor.core.Disposable;
 import reactor.core.Fuseable;
@@ -28,13 +29,13 @@ import reactor.netty.Connection;
 import reactor.netty.FutureMono;
 
 import java.util.Objects;
-import java.util.Queue;
 
 /** An implementation of {@link DuplexConnection} that connects via TCP. */
 public final class TcpDuplexConnection implements DuplexConnection {
 
   private final Connection connection;
   private final Disposable channelClosed;
+  private final ByteBufAllocator allocator = ByteBufAllocator.DEFAULT;
   /**
    * Creates a new instance
    *
@@ -76,30 +77,30 @@ public final class TcpDuplexConnection implements DuplexConnection {
   }
 
   @Override
-  public Flux<Frame> receive() {
-    return connection.inbound().receive().map(buf -> Frame.from(buf.retain()));
+  public Flux<ByteBuf> receive() {
+    return connection.inbound().receive().map(FrameLengthFlyweight::frameRetained);
   }
 
   @Override
-  public Mono<Void> send(Publisher<Frame> frames) {
+  public Mono<Void> send(Publisher<ByteBuf> frames) {
     return Flux.from(frames)
         .transform(
             frameFlux -> {
               if (frameFlux instanceof Fuseable.QueueSubscription) {
-                Fuseable.QueueSubscription<Frame> queueSubscription =
-                    (Fuseable.QueueSubscription<Frame>) frameFlux;
+                Fuseable.QueueSubscription<ByteBuf> queueSubscription =
+                    (Fuseable.QueueSubscription<ByteBuf>) frameFlux;
                 queueSubscription.requestFusion(Fuseable.ASYNC);
                 return new SendPublisher<>(
                     queueSubscription,
                     frameFlux,
                     connection.channel(),
-                    frame -> frame.content().retain(),
+                    frame -> FrameLengthFlyweight.encode(allocator, frame.readableBytes(), frame),
                     ByteBuf::readableBytes);
               } else {
                 return new SendPublisher<>(
                     frameFlux,
                     connection.channel(),
-                    frame -> frame.content().retain(),
+                    frame -> FrameLengthFlyweight.encode(allocator, frame.readableBytes(), frame),
                     ByteBuf::readableBytes);
               }
             })

@@ -1,57 +1,56 @@
-/*
- * Copyright 2015-2018 the original author or authors.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package io.rsocket.frame;
 
 import io.netty.buffer.ByteBuf;
-import io.rsocket.framing.FrameType;
+import io.netty.buffer.ByteBufAllocator;
 
-public class KeepaliveFrameFlyweight {
+public class KeepAliveFrameFlyweight {
   /**
    * (R)espond: Set by the sender of the KEEPALIVE, to which the responder MUST reply with a
    * KEEPALIVE without the R flag set
    */
   public static final int FLAGS_KEEPALIVE_R = 0b00_1000_0000;
 
-  private KeepaliveFrameFlyweight() {}
+  public static final long LAST_POSITION_MASK = 0x8000000000000000L;
 
-  private static final int LAST_POSITION_OFFSET = FrameHeaderFlyweight.FRAME_HEADER_LENGTH;
-  private static final int PAYLOAD_OFFSET = LAST_POSITION_OFFSET + Long.BYTES;
+  private KeepAliveFrameFlyweight() {}
 
-  public static int computeFrameLength(final int dataLength) {
-    return FrameHeaderFlyweight.computeFrameHeaderLength(FrameType.SETUP, null, dataLength)
-        + Long.BYTES;
+  public static ByteBuf encode(
+      final ByteBufAllocator allocator,
+      final boolean respond,
+      final long lastPosition,
+      final ByteBuf data) {
+    final int flags = respond ? FLAGS_KEEPALIVE_R : 0;
+    ByteBuf header = FrameHeaderFlyweight.encodeStreamZero(allocator, FrameType.KEEPALIVE, flags);
+
+    long lp = 0;
+    if (lastPosition > 0) {
+      lp |= lastPosition;
+    }
+
+    header.writeLong(lp);
+
+    return DataAndMetadataFlyweight.encodeOnlyData(allocator, header, data);
   }
 
-  public static int encode(final ByteBuf byteBuf, int flags, final ByteBuf data) {
-    final int frameLength = computeFrameLength(data.readableBytes());
-
-    int length =
-        FrameHeaderFlyweight.encodeFrameHeader(byteBuf, frameLength, flags, FrameType.KEEPALIVE, 0);
-
-    // We don't support resumability, last position is always zero
-    byteBuf.setLong(length, 0);
-    length += Long.BYTES;
-
-    length += FrameHeaderFlyweight.encodeData(byteBuf, length, data);
-
-    return length;
+  public static boolean respondFlag(ByteBuf byteBuf) {
+    FrameHeaderFlyweight.ensureFrameType(FrameType.KEEPALIVE, byteBuf);
+    int flags = FrameHeaderFlyweight.flags(byteBuf);
+    return (flags & FLAGS_KEEPALIVE_R) == FLAGS_KEEPALIVE_R;
   }
 
-  public static int payloadOffset(final ByteBuf byteBuf) {
-    return PAYLOAD_OFFSET;
+  public static long lastPosition(ByteBuf byteBuf) {
+    FrameHeaderFlyweight.ensureFrameType(FrameType.KEEPALIVE, byteBuf);
+    byteBuf.markReaderIndex();
+    long l = byteBuf.skipBytes(FrameHeaderFlyweight.size()).readLong();
+    byteBuf.resetReaderIndex();
+    return l;
+  }
+
+  public static ByteBuf data(ByteBuf byteBuf) {
+    FrameHeaderFlyweight.ensureFrameType(FrameType.KEEPALIVE, byteBuf);
+    byteBuf.markReaderIndex();
+    ByteBuf slice = byteBuf.skipBytes(FrameHeaderFlyweight.size() + Long.BYTES).slice();
+    byteBuf.resetReaderIndex();
+    return slice;
   }
 }

@@ -16,22 +16,17 @@
 
 package io.rsocket;
 
-import static io.rsocket.frame.FrameHeaderFlyweight.FLAGS_M;
-
 import io.netty.buffer.ByteBuf;
 import io.netty.util.AbstractReferenceCounted;
-import io.rsocket.Frame.Setup;
-import io.rsocket.frame.SetupFrameFlyweight;
-import io.rsocket.framing.FrameType;
+import io.rsocket.frame.FrameHeaderFlyweight;
 
 /**
  * Exposed to server for determination of ResponderRSocket based on mime types and SETUP metadata/data
  */
 public abstract class ConnectionSetupPayload extends AbstractReferenceCounted implements Payload {
 
-  public static ConnectionSetupPayload create(final Frame setupFrame) {
-    Frame.ensureFrameType(FrameType.SETUP, setupFrame);
-    return new DefaultConnectionSetupPayload(setupFrame);
+  public static ConnectionSetupPayload create(final ByteBuf setupFrame) {
+    return null;
   }
 
   public abstract int keepAliveInterval();
@@ -45,12 +40,12 @@ public abstract class ConnectionSetupPayload extends AbstractReferenceCounted im
   public abstract int getFlags();
 
   public boolean willClientHonorLease() {
-    return Frame.isFlagSet(getFlags(), SetupFrameFlyweight.FLAGS_WILL_HONOR_LEASE);
+    return false;
   }
 
   @Override
   public boolean hasMetadata() {
-    return Frame.isFlagSet(getFlags(), FLAGS_M);
+    return FrameHeaderFlyweight.hasMetadata(null);
   }
 
   @Override
@@ -71,62 +66,52 @@ public abstract class ConnectionSetupPayload extends AbstractReferenceCounted im
 
   private static final class DefaultConnectionSetupPayload extends ConnectionSetupPayload {
 
-    private final Frame setupFrame;
-
-    public DefaultConnectionSetupPayload(final Frame setupFrame) {
-      this.setupFrame = setupFrame;
-    }
-
     @Override
     public int keepAliveInterval() {
-      return SetupFrameFlyweight.keepaliveInterval(setupFrame.content());
+      return 0;
     }
 
     @Override
     public int keepAliveMaxLifetime() {
-      return SetupFrameFlyweight.maxLifetime(setupFrame.content());
+      return 0;
     }
 
     @Override
     public String metadataMimeType() {
-      return Setup.metadataMimeType(setupFrame);
+      return null;
     }
 
     @Override
     public String dataMimeType() {
-      return Setup.dataMimeType(setupFrame);
-    }
-
-    @Override
-    public ByteBuf sliceData() {
-      return setupFrame.sliceData();
-    }
-
-    @Override
-    public ByteBuf sliceMetadata() {
-      return setupFrame.sliceMetadata();
+      return null;
     }
 
     @Override
     public int getFlags() {
-      return Setup.getFlags(setupFrame);
+      return 0;
     }
 
     @Override
     public ConnectionSetupPayload touch() {
-      setupFrame.touch();
-      return this;
+      return null;
     }
 
     @Override
     public ConnectionSetupPayload touch(Object hint) {
-      setupFrame.touch(hint);
-      return this;
+      return null;
     }
 
     @Override
-    protected void deallocate() {
-      setupFrame.release();
+    protected void deallocate() {}
+
+    @Override
+    public ByteBuf sliceMetadata() {
+      return null;
+    }
+
+    @Override
+    public ByteBuf sliceData() {
+      return null;
     }
   }
 }

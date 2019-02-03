@@ -16,7 +16,7 @@
 
 package io.rsocket.exceptions;
 
-import io.rsocket.framing.ErrorType;
+import io.rsocket.frame.ErrorType;
 
 /**
  * Despite being a valid request, the Responder decided to reject it. The Responder guarantees that

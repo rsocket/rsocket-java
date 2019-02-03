@@ -16,10 +16,13 @@
 
 package io.rsocket;
 
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufAllocator;
 import io.netty.util.collection.IntObjectHashMap;
 import io.rsocket.exceptions.ApplicationErrorException;
 import io.rsocket.exceptions.ConnectionErrorException;
-import io.rsocket.framing.FrameType;
+import io.rsocket.frame.*;
+import io.rsocket.frame.decoder.FrameDecoder;
 import io.rsocket.internal.LimitableRequestPublisher;
 import io.rsocket.internal.UnboundedProcessor;
 import org.reactivestreams.Processor;
@@ -35,32 +38,27 @@ import reactor.core.publisher.UnicastProcessor;
 import java.util.Collections;
 import java.util.Map;
 import java.util.function.Consumer;
-import java.util.function.Function;
 
-import static io.rsocket.Frame.Request.initialRequestN;
-import static io.rsocket.frame.FrameHeaderFlyweight.FLAGS_C;
-import static io.rsocket.frame.FrameHeaderFlyweight.FLAGS_M;
-
-/** Server side RSocket. Receives {@link Frame}s from a {@link RSocketClient} */
-class RSocketServer implements ResponderRSocket {
+/** Server side RSocket. Receives {@link ByteBuf}s from a {@link RSocketClient} */
+class RSocketServer implements RSocket {
 
   private final DuplexConnection connection;
   private final RSocket requestHandler;
-  private final ResponderRSocket responderRSocket;
-  private final Function<Frame, ? extends Payload> frameDecoder;
+  private final FrameDecoder frameDecoder;
   private final Consumer<Throwable> errorConsumer;
 
   private final Map<Integer, Subscription> sendingSubscriptions;
   private final Map<Integer, Processor<Payload, Payload>> channelProcessors;
 
-  private final UnboundedProcessor<Frame> sendProcessor;
+  private final UnboundedProcessor<ByteBuf> sendProcessor;
+  private final ByteBufAllocator allocator = ByteBufAllocator.DEFAULT;
   private KeepAliveHandler keepAliveHandler;
 
   /*client responder*/
   RSocketServer(
       DuplexConnection connection,
       RSocket requestHandler,
-      Function<Frame, ? extends Payload> frameDecoder,
+      FrameDecoder frameDecoder,
       Consumer<Throwable> errorConsumer) {
     this(connection, requestHandler, frameDecoder, errorConsumer, 0, 0);
   }
@@ -69,16 +67,12 @@ class RSocketServer implements ResponderRSocket {
   RSocketServer(
       DuplexConnection connection,
       RSocket requestHandler,
-      Function<Frame, ? extends Payload> frameDecoder,
+      FrameDecoder frameDecoder,
       Consumer<Throwable> errorConsumer,
       long tickPeriod,
       long ackTimeout) {
-
-    this.requestHandler = requestHandler;
-    this.responderRSocket =
-        (requestHandler instanceof ResponderRSocket) ? (ResponderRSocket) requestHandler : null;
-
     this.connection = connection;
+    this.requestHandler = requestHandler;
     this.frameDecoder = frameDecoder;
     this.errorConsumer = errorConsumer;
     this.sendingSubscriptions = Collections.synchronizedMap(new IntObjectHashMap<>());
@@ -212,15 +206,6 @@ class RSocketServer implements ResponderRSocket {
   }
 
   @Override
-  public Flux<Payload> requestChannel(Payload payload, Publisher<Payload> payloads) {
-    try {
-      return responderRSocket.requestChannel(payload, payloads);
-    } catch (Throwable t) {
-      return Flux.error(t);
-    }
-  }
-
-  @Override
   public Mono<Void> metadataPush(Payload payload) {
     try {
       return requestHandler.metadataPush(payload);
@@ -265,11 +250,12 @@ class RSocketServer implements ResponderRSocket {
     channelProcessors.clear();
   }
 
-  private void handleFrame(Frame frame) {
+  private void handleFrame(ByteBuf frame) {
     try {
-      int streamId = frame.getStreamId();
+      int streamId = FrameHeaderFlyweight.streamId(frame);
       Subscriber<Payload> receiver;
-      switch (frame.getType()) {
+      FrameType frameType = FrameHeaderFlyweight.frameType(frame);
+      switch (frameType) {
         case REQUEST_FNF:
           handleFireAndForget(streamId, fireAndForget(frameDecoder.apply(frame)));
           break;
@@ -286,10 +272,14 @@ class RSocketServer implements ResponderRSocket {
           handleRequestN(streamId, frame);
           break;
         case REQUEST_STREAM:
-          handleStream(streamId, requestStream(frameDecoder.apply(frame)), initialRequestN(frame));
+          handleStream(
+              streamId,
+              requestStream(frameDecoder.apply(frame)),
+              RequestStreamFrameFlyweight.initialRequestN(frame));
           break;
         case REQUEST_CHANNEL:
-          handleChannel(streamId, frameDecoder.apply(frame), initialRequestN(frame));
+          handleChannel(
+              streamId, frameDecoder.apply(frame), RequestChannelFrameFlyweight.initialRequestN(frame));
           break;
         case METADATA_PUSH:
           metadataPush(frameDecoder.apply(frame));
@@ -316,7 +306,7 @@ class RSocketServer implements ResponderRSocket {
         case ERROR:
           receiver = channelProcessors.get(streamId);
           if (receiver != null) {
-            receiver.onError(new ApplicationErrorException(Frame.Error.message(frame)));
+            receiver.onError(new ApplicationErrorException(ErrorFrameFlyweight.dataUtf8(frame)));
           }
           break;
         case NEXT_COMPLETE:
@@ -332,8 +322,7 @@ class RSocketServer implements ResponderRSocket {
         default:
           handleError(
               streamId,
-              new IllegalStateException(
-                  "ServerRSocket: Unexpected frame type: " + frame.getType()));
+              new IllegalStateException("ServerRSocket: Unexpected frame type: " + frameType));
           break;
       }
     } finally {
@@ -351,19 +340,9 @@ class RSocketServer implements ResponderRSocket {
   private void handleRequestResponse(int streamId, Mono<Payload> response) {
     response
         .doOnSubscribe(subscription -> sendingSubscriptions.put(streamId, subscription))
-        .map(
-            payload -> {
-              int flags = FLAGS_C;
-              if (payload.hasMetadata()) {
-                flags = Frame.setFlag(flags, FLAGS_M);
-              }
-              final Frame frame =
-                  Frame.PayloadFrame.from(streamId, FrameType.NEXT_COMPLETE, payload, flags);
-              payload.release();
-              return frame;
-            })
+        .map(payload -> PayloadFrameFlyweight.encodeNextComplete(allocator, streamId, payload))
         .switchIfEmpty(
-            Mono.fromCallable(() -> Frame.PayloadFrame.from(streamId, FrameType.COMPLETE)))
+            Mono.fromCallable(() -> PayloadFrameFlyweight.encodeComplete(allocator, streamId)))
         .doFinally(signalType -> sendingSubscriptions.remove(streamId))
         .subscribe(sendProcessor::onNext, t -> handleError(streamId, t));
   }
@@ -380,16 +359,9 @@ class RSocketServer implements ResponderRSocket {
             })
         .doFinally(signalType -> sendingSubscriptions.remove(streamId))
         .subscribe(
-            payload -> {
-              final Frame frame = Frame.PayloadFrame.from(streamId, FrameType.NEXT, payload);
-              payload.release();
-              sendProcessor.onNext(frame);
-            },
+            payload -> PayloadFrameFlyweight.encodeNext(allocator, streamId, payload),
             t -> handleError(streamId, t),
-            () -> {
-              final Frame frame = Frame.PayloadFrame.from(streamId, FrameType.COMPLETE);
-              sendProcessor.onNext(frame);
-            });
+            () -> sendProcessor.onNext(PayloadFrameFlyweight.encodeComplete(allocator, streamId)));
   }
 
   private void handleChannel(int streamId, Payload payload, int initialRequestN) {
@@ -398,9 +370,10 @@ class RSocketServer implements ResponderRSocket {
 
     Flux<Payload> payloads =
         frames
-            .doOnCancel(() -> sendProcessor.onNext(Frame.Cancel.from(streamId)))
-            .doOnError(t -> sendProcessor.onNext(Frame.Error.from(streamId, t)))
-            .doOnRequest(l -> sendProcessor.onNext(Frame.RequestN.from(streamId, l)))
+            .doOnCancel(() -> sendProcessor.onNext(CancelFrameFlyweight.encode(allocator, streamId)))
+            .doOnError(t -> handleError(streamId, t))
+            .doOnRequest(
+                l -> sendProcessor.onNext(RequestNFrameFlyweight.encode(allocator, streamId, l)))
             .doFinally(signalType -> channelProcessors.remove(streamId));
 
     // not chained, as the payload should be enqueued in the Unicast processor before this method
@@ -408,14 +381,10 @@ class RSocketServer implements ResponderRSocket {
     // and any later payload can be processed
     frames.onNext(payload);
 
-    if (responderRSocket != null) {
-      handleStream(streamId, requestChannel(payload, payloads), initialRequestN);
-    } else {
-      handleStream(streamId, requestChannel(payloads), initialRequestN);
-    }
+    handleStream(streamId, requestChannel(payloads), initialRequestN);
   }
 
-  private void handleKeepAliveFrame(Frame frame) {
+  private void handleKeepAliveFrame(ByteBuf frame) {
     if (keepAliveHandler != null) {
       keepAliveHandler.receive(frame);
     }
@@ -430,13 +399,13 @@ class RSocketServer implements ResponderRSocket {
 
   private void handleError(int streamId, Throwable t) {
     errorConsumer.accept(t);
-    sendProcessor.onNext(Frame.Error.from(streamId, t));
+    sendProcessor.onNext(ErrorFrameFlyweight.encode(allocator, streamId, t));
   }
 
-  private void handleRequestN(int streamId, Frame frame) {
+  private void handleRequestN(int streamId, ByteBuf frame) {
     final Subscription subscription = sendingSubscriptions.get(streamId);
     if (subscription != null) {
-      int n = Frame.RequestN.requestN(frame);
+      int n = RequestNFrameFlyweight.requestN(frame);
       subscription.request(n >= Integer.MAX_VALUE ? Long.MAX_VALUE : n);
     }
   }

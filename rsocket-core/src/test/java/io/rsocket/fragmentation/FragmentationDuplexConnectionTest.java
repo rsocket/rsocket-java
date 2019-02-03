@@ -16,32 +16,8 @@
 
 package io.rsocket.fragmentation;
 
-import static io.netty.buffer.UnpooledByteBufAllocator.DEFAULT;
-import static io.rsocket.framing.PayloadFrame.createPayloadFrame;
-import static io.rsocket.framing.RequestStreamFrame.createRequestStreamFrame;
-import static io.rsocket.framing.TestFrames.createTestCancelFrame;
-import static io.rsocket.test.util.ByteBufUtils.getRandomByteBuf;
-import static io.rsocket.util.AbstractionLeakingFrameUtils.toAbstractionLeakingFrame;
-import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
-import static org.assertj.core.api.Assertions.assertThatNullPointerException;
-import static org.mockito.Mockito.RETURNS_SMART_NULLS;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-
-import io.netty.buffer.ByteBuf;
-import io.rsocket.DuplexConnection;
-import io.rsocket.Frame;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
-import org.reactivestreams.Publisher;
-import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
-import reactor.test.StepVerifier;
-
 final class FragmentationDuplexConnectionTest {
-
+/*
   private final DuplexConnection delegate = mock(DuplexConnection.class, RETURNS_SMART_NULLS);
 
   @SuppressWarnings("unchecked")
@@ -402,5 +378,5 @@ final class FragmentationDuplexConnectionTest {
     verify(delegate).send(publishers.capture());
 
     StepVerifier.create(Flux.from(publishers.getValue())).expectNext(frame).verifyComplete();
-  }
+  }*/
 }

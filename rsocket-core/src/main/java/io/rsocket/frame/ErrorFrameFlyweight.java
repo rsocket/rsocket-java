@@ -1,29 +1,13 @@
-/*
- * Copyright 2015-2018 the original author or authors.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package io.rsocket.frame;
 
 import io.netty.buffer.ByteBuf;
-import io.rsocket.exceptions.*;
-import io.rsocket.framing.FrameType;
+import io.netty.buffer.ByteBufAllocator;
+import io.netty.buffer.ByteBufUtil;
+import io.rsocket.exceptions.RSocketException;
+
 import java.nio.charset.StandardCharsets;
 
 public class ErrorFrameFlyweight {
-
-  private ErrorFrameFlyweight() {}
 
   // defined error codes
   public static final int INVALID_SETUP = 0x00000001;
@@ -37,47 +21,48 @@ public class ErrorFrameFlyweight {
   public static final int CANCELED = 0x00000203;
   public static final int INVALID = 0x00000204;
 
-  // relative to start of passed offset
-  private static final int ERROR_CODE_FIELD_OFFSET = FrameHeaderFlyweight.FRAME_HEADER_LENGTH;
-  private static final int PAYLOAD_OFFSET = ERROR_CODE_FIELD_OFFSET + Integer.BYTES;
+  public static ByteBuf encode(
+      ByteBufAllocator allocator, int streamId, Throwable t, ByteBuf data) {
+    ByteBuf header = FrameHeaderFlyweight.encode(allocator, streamId, FrameType.ERROR, 0);
 
-  public static int computeFrameLength(final int dataLength) {
-    int length = FrameHeaderFlyweight.computeFrameHeaderLength(FrameType.ERROR, null, dataLength);
-    return length + Integer.BYTES;
+    int errorCode = errorCodeFromException(t);
+
+    header.writeInt(errorCode);
+
+    return allocator.compositeBuffer(2).addComponents(true, header, data);
   }
 
-  public static int encode(
-      final ByteBuf byteBuf, final int streamId, final int errorCode, final ByteBuf data) {
-    final int frameLength = computeFrameLength(data.readableBytes());
-
-    int length =
-        FrameHeaderFlyweight.encodeFrameHeader(byteBuf, frameLength, 0, FrameType.ERROR, streamId);
-
-    byteBuf.setInt(ERROR_CODE_FIELD_OFFSET, errorCode);
-    length += Integer.BYTES;
-
-    length += FrameHeaderFlyweight.encodeData(byteBuf, length, data);
-
-    return length;
+  public static ByteBuf encode(ByteBufAllocator allocator, int streamId, Throwable t) {
+    String message = t.getMessage() == null ? "" : t.getMessage();
+    ByteBuf data = ByteBufUtil.writeUtf8(allocator, message);
+    return encode(allocator, streamId, t, data);
   }
 
-  public static int errorCodeFromException(Throwable ex) {
-    if (ex instanceof RSocketException) {
-      return ((RSocketException) ex).errorCode();
+  public static int errorCodeFromException(Throwable t) {
+    if (t instanceof RSocketException) {
+      return ((RSocketException) t).errorCode();
     }
 
     return APPLICATION_ERROR;
   }
 
-  public static int errorCode(final ByteBuf byteBuf) {
-    return byteBuf.getInt(ERROR_CODE_FIELD_OFFSET);
+  public static int errorCode(ByteBuf byteBuf) {
+    byteBuf.markReaderIndex();
+    byteBuf.skipBytes(FrameHeaderFlyweight.size());
+    int i = byteBuf.readInt();
+    byteBuf.resetReaderIndex();
+    return i;
   }
 
-  public static int payloadOffset(final ByteBuf byteBuf) {
-    return FrameHeaderFlyweight.FRAME_HEADER_LENGTH + Integer.BYTES;
+  public static ByteBuf data(ByteBuf byteBuf) {
+    byteBuf.markReaderIndex();
+    byteBuf.skipBytes(FrameHeaderFlyweight.size() + Integer.BYTES);
+    ByteBuf slice = byteBuf.slice();
+    byteBuf.resetReaderIndex();
+    return slice;
   }
 
-  public static String message(ByteBuf content) {
-    return FrameHeaderFlyweight.sliceFrameData(content).toString(StandardCharsets.UTF_8);
+  public static String dataUtf8(ByteBuf byteBuf) {
+    return data(byteBuf).toString(StandardCharsets.UTF_8);
   }
 }

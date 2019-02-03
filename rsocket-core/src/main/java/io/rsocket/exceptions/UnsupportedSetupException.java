@@ -16,7 +16,7 @@
 
 package io.rsocket.exceptions;
 
-import io.rsocket.framing.ErrorType;
+import io.rsocket.frame.ErrorType;
 
 /**
  * Some (or all) of the parameters specified by the client are unsupported by the server.

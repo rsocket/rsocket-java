@@ -16,9 +16,9 @@
 
 package io.rsocket.resume;
 
-import io.rsocket.Frame;
+import io.netty.buffer.ByteBuf;
 import io.rsocket.frame.FrameHeaderFlyweight;
-import io.rsocket.framing.FrameType;
+import io.rsocket.frame.FrameType;
 
 public class ResumeUtil {
   public static boolean isTracked(FrameType frameType) {
@@ -38,17 +38,11 @@ public class ResumeUtil {
     }
   }
 
-  public static boolean isTracked(Frame frame) {
-    return isTracked(frame.getType());
+  public static boolean isTracked(ByteBuf frame) {
+    return isTracked(FrameHeaderFlyweight.frameType(frame));
   }
 
-  public static int offset(Frame frame) {
-    int length = frame.content().readableBytes();
-
-    if (length < FrameHeaderFlyweight.FRAME_HEADER_LENGTH) {
-      throw new IllegalStateException("invalid frame");
-    }
-
-    return length - FrameHeaderFlyweight.FRAME_LENGTH_SIZE;
+  public static int offset(ByteBuf frame) {
+    return 0;
   }
 }

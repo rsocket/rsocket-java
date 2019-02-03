@@ -16,41 +16,22 @@
 
 package io.rsocket.micrometer;
 
-import static io.rsocket.framing.FrameType.CANCEL;
-import static io.rsocket.framing.FrameType.COMPLETE;
-import static io.rsocket.framing.FrameType.ERROR;
-import static io.rsocket.framing.FrameType.EXT;
-import static io.rsocket.framing.FrameType.KEEPALIVE;
-import static io.rsocket.framing.FrameType.LEASE;
-import static io.rsocket.framing.FrameType.METADATA_PUSH;
-import static io.rsocket.framing.FrameType.NEXT;
-import static io.rsocket.framing.FrameType.NEXT_COMPLETE;
-import static io.rsocket.framing.FrameType.PAYLOAD;
-import static io.rsocket.framing.FrameType.REQUEST_CHANNEL;
-import static io.rsocket.framing.FrameType.REQUEST_FNF;
-import static io.rsocket.framing.FrameType.REQUEST_N;
-import static io.rsocket.framing.FrameType.REQUEST_RESPONSE;
-import static io.rsocket.framing.FrameType.REQUEST_STREAM;
-import static io.rsocket.framing.FrameType.RESUME;
-import static io.rsocket.framing.FrameType.RESUME_OK;
-import static io.rsocket.framing.FrameType.SETUP;
-
-import io.micrometer.core.instrument.Counter;
-import io.micrometer.core.instrument.Meter;
-import io.micrometer.core.instrument.MeterRegistry;
-import io.micrometer.core.instrument.Tag;
-import io.micrometer.core.instrument.Tags;
+import io.micrometer.core.instrument.*;
+import io.netty.buffer.ByteBuf;
 import io.rsocket.DuplexConnection;
-import io.rsocket.Frame;
-import io.rsocket.framing.FrameType;
+import io.rsocket.frame.FrameHeaderFlyweight;
+import io.rsocket.frame.FrameType;
 import io.rsocket.plugins.DuplexConnectionInterceptor.Type;
-import java.util.Objects;
-import java.util.function.Consumer;
 import org.reactivestreams.Publisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+
+import java.util.Objects;
+import java.util.function.Consumer;
+
+import static io.rsocket.frame.FrameType.*;
 
 /**
  * An implementation of {@link DuplexConnection} that intercepts frames and gathers Micrometer
@@ -114,18 +95,18 @@ final class MicrometerDuplexConnection implements DuplexConnection {
   }
 
   @Override
-  public Flux<Frame> receive() {
+  public Flux<ByteBuf> receive() {
     return delegate.receive().doOnNext(frameCounters);
   }
 
   @Override
-  public Mono<Void> send(Publisher<Frame> frames) {
+  public Mono<Void> send(Publisher<ByteBuf> frames) {
     Objects.requireNonNull(frames, "frames must not be null");
 
     return delegate.send(Flux.from(frames).doOnNext(frameCounters));
   }
 
-  private static final class FrameCounters implements Consumer<Frame> {
+  private static final class FrameCounters implements Consumer<ByteBuf> {
 
     private final Logger logger = LoggerFactory.getLogger(this.getClass());
 
@@ -189,9 +170,23 @@ final class MicrometerDuplexConnection implements DuplexConnection {
       this.unknown = counter(connectionType, meterRegistry, "UNKNOWN", tags);
     }
 
+    private static Counter counter(
+        Type connectionType, MeterRegistry meterRegistry, FrameType frameType, Tag... tags) {
+
+      return counter(connectionType, meterRegistry, frameType.name(), tags);
+    }
+
+    private static Counter counter(
+        Type connectionType, MeterRegistry meterRegistry, String frameType, Tag... tags) {
+
+      return meterRegistry.counter(
+          "rsocket.frame",
+          Tags.of(tags).and("connection.type", connectionType.name()).and("frame.type", frameType));
+    }
+
     @Override
-    public void accept(Frame frame) {
-      FrameType frameType = frame.getType();
+    public void accept(ByteBuf frame) {
+      FrameType frameType = FrameHeaderFlyweight.frameType(frame);
 
       switch (frameType) {
         case SETUP:
@@ -252,20 +247,6 @@ final class MicrometerDuplexConnection implements DuplexConnection {
           this.logger.debug("Skipping count of unknown frame type: {}", frameType);
           this.unknown.increment();
       }
-    }
-
-    private static Counter counter(
-        Type connectionType, MeterRegistry meterRegistry, FrameType frameType, Tag... tags) {
-
-      return counter(connectionType, meterRegistry, frameType.name(), tags);
-    }
-
-    private static Counter counter(
-        Type connectionType, MeterRegistry meterRegistry, String frameType, Tag... tags) {
-
-      return meterRegistry.counter(
-          "rsocket.frame",
-          Tags.of(tags).and("connection.type", connectionType.name()).and("frame.type", frameType));
     }
   }
 }
