@@ -13,24 +13,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package io.rsocket.frame;
 
-package io.rsocket.transport.netty;
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufUtil;
+import org.assertj.core.presentation.StandardRepresentation;
 
-import io.rsocket.RSocketFactory;
-import io.rsocket.frame.decoder.FrameDecoder;
-import io.rsocket.test.PingHandler;
-import io.rsocket.transport.netty.server.TcpServerTransport;
-
-public final class TcpPongServer {
-
-  public static void main(String... args) {
-    RSocketFactory.receive()
-        .frameDecoder(FrameDecoder.ZERO_COPY)
-        .acceptor(new PingHandler())
-        .transport(TcpServerTransport.create(7878))
-        .start()
-        .block()
-        .onClose()
-        .block();
+public final class ByteBufRepresentation extends StandardRepresentation {
+  
+  @Override
+  protected String fallbackToStringOf(Object object) {
+    if (object instanceof ByteBuf) {
+      return ByteBufUtil.prettyHexDump((ByteBuf) object);
+    }
+    
+    return super.fallbackToStringOf(object);
   }
 }

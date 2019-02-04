@@ -8,8 +8,8 @@ import io.rsocket.util.ByteBufPayload;
 import java.nio.ByteBuffer;
 
 /** Default Frame decoder that copies the frames contents for easy of use. */
-public class DefaultFrameDecoder implements FrameDecoder {
-
+class DefaultFrameDecoder implements FrameDecoder {
+  
   @Override
   public Payload apply(ByteBuf byteBuf) {
     ByteBuf m = PayloadFrameFlyweight.metadata(byteBuf);
