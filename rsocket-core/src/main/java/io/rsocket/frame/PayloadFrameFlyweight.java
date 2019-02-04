@@ -46,7 +46,7 @@ public class PayloadFrameFlyweight {
         streamId,
         false,
         true,
-        false,
+        true,
         0,
         payload.hasMetadata() ? payload.sliceMetadata().retain() : null,
         payload.sliceData().retain());

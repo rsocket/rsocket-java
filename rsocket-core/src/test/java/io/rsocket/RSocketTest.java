@@ -16,18 +16,12 @@
 
 package io.rsocket;
 
-import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.is;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.verify;
-
+import io.netty.buffer.ByteBuf;
 import io.rsocket.exceptions.ApplicationErrorException;
 import io.rsocket.test.util.LocalDuplexConnection;
 import io.rsocket.test.util.TestSubscriber;
 import io.rsocket.util.DefaultPayload;
 import io.rsocket.util.EmptyPayload;
-import java.util.ArrayList;
-import java.util.concurrent.CountDownLatch;
 import org.hamcrest.MatcherAssert;
 import org.junit.Assert;
 import org.junit.Rule;
@@ -40,18 +34,35 @@ import org.reactivestreams.Subscriber;
 import reactor.core.publisher.DirectProcessor;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.test.StepVerifier;
+
+import java.util.ArrayList;
+
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.is;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
 
 public class RSocketTest {
-/*
+
   @Rule public final SocketRule rule = new SocketRule();
+
+  public static void assertError(String s, String mode, ArrayList<Throwable> errors) {
+    for (Throwable t : errors) {
+      if (t.toString().equals(s)) {
+        return;
+      }
+    }
+
+    Assert.fail("Expected " + mode + " connection error: " + s + " other errors " + errors.size());
+  }
 
   @Test(timeout = 2_000)
   public void testRequestReplyNoError() {
-    Subscriber<Payload> subscriber = TestSubscriber.create();
-    rule.crs.requestResponse(DefaultPayload.create("hello")).subscribe(subscriber);
-    verify(subscriber).onNext(TestSubscriber.anyPayload());
-    verify(subscriber).onComplete();
-    rule.assertNoErrors();
+    StepVerifier.create(rule.crs.requestResponse(DefaultPayload.create("hello")))
+        .expectNextCount(1)
+        .expectComplete()
+        .verify();
   }
 
   @Test(timeout = 2000)
@@ -75,24 +86,25 @@ public class RSocketTest {
 
   @Test(timeout = 2000)
   public void testChannel() throws Exception {
-    CountDownLatch latch = new CountDownLatch(10);
     Flux<Payload> requests =
-        Flux.range(0, 10).map(i -> DefaultPayload.create("streaming in -> " + i));
-
+      Flux.range(0, 10).map(i -> DefaultPayload.create("streaming in -> " + i));
     Flux<Payload> responses = rule.crs.requestChannel(requests);
-
-    responses.doOnNext(p -> latch.countDown()).subscribe();
-
-    latch.await();
+    StepVerifier.create(responses)
+        .expectNextCount(10)
+        .expectComplete()
+        .verify();
   }
 
   public static class SocketRule extends ExternalResource {
 
+    DirectProcessor<ByteBuf> serverProcessor;
+    DirectProcessor<ByteBuf> clientProcessor;
     private RSocketClient crs;
+
+    @SuppressWarnings("unused")
     private RSocketServer srs;
+
     private RSocket requestAcceptor;
-    DirectProcessor<Frame> serverProcessor;
-    DirectProcessor<Frame> clientProcessor;
     private ArrayList<Throwable> clientErrors = new ArrayList<>();
     private ArrayList<Throwable> serverErrors = new ArrayList<>();
 
@@ -188,14 +200,4 @@ public class RSocketTest {
       assertError(s, "server", this.serverErrors);
     }
   }
-
-  public static void assertError(String s, String mode, ArrayList<Throwable> errors) {
-    for (Throwable t : errors) {
-      if (t.toString().equals(s)) {
-        return;
-      }
-    }
-
-    Assert.fail("Expected " + mode + " connection error: " + s + " other errors " + errors.size());
-  }*/
 }
