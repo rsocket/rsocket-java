@@ -279,7 +279,9 @@ class RSocketServer implements RSocket {
           break;
         case REQUEST_CHANNEL:
           handleChannel(
-              streamId, frameDecoder.apply(frame), RequestChannelFrameFlyweight.initialRequestN(frame));
+              streamId,
+              frameDecoder.apply(frame),
+              RequestChannelFrameFlyweight.initialRequestN(frame));
           break;
         case METADATA_PUSH:
           metadataPush(frameDecoder.apply(frame));
@@ -359,7 +361,9 @@ class RSocketServer implements RSocket {
             })
         .doFinally(signalType -> sendingSubscriptions.remove(streamId))
         .subscribe(
-            payload -> PayloadFrameFlyweight.encodeNext(allocator, streamId, payload),
+            payload ->
+                sendProcessor.onNext(
+                    PayloadFrameFlyweight.encodeNext(allocator, streamId, payload)),
             t -> handleError(streamId, t),
             () -> sendProcessor.onNext(PayloadFrameFlyweight.encodeComplete(allocator, streamId)));
   }
@@ -370,7 +374,8 @@ class RSocketServer implements RSocket {
 
     Flux<Payload> payloads =
         frames
-            .doOnCancel(() -> sendProcessor.onNext(CancelFrameFlyweight.encode(allocator, streamId)))
+            .doOnCancel(
+                () -> sendProcessor.onNext(CancelFrameFlyweight.encode(allocator, streamId)))
             .doOnError(t -> handleError(streamId, t))
             .doOnRequest(
                 l -> sendProcessor.onNext(RequestNFrameFlyweight.encode(allocator, streamId, l)))

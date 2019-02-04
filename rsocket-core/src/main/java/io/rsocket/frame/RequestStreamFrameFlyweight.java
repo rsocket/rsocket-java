@@ -2,12 +2,43 @@ package io.rsocket.frame;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
+import io.rsocket.Payload;
 
 public class RequestStreamFrameFlyweight {
 
   private static final RequestFlyweight FLYWEIGHT = new RequestFlyweight(FrameType.REQUEST_STREAM);
 
   private RequestStreamFrameFlyweight() {}
+
+  public static ByteBuf encode(
+      ByteBufAllocator allocator,
+      int streamId,
+      boolean fragmentFollows,
+      long requestN,
+      Payload payload) {
+    return encode(
+        allocator,
+        streamId,
+        fragmentFollows,
+        requestN,
+        payload.sliceMetadata(),
+        payload.sliceData());
+  }
+
+  public static ByteBuf encode(
+      ByteBufAllocator allocator,
+      int streamId,
+      boolean fragmentFollows,
+      int requestN,
+      Payload payload) {
+    return encode(
+        allocator,
+        streamId,
+        fragmentFollows,
+        requestN,
+        payload.sliceMetadata(),
+        payload.sliceData());
+  }
 
   public static ByteBuf encode(
       ByteBufAllocator allocator,
