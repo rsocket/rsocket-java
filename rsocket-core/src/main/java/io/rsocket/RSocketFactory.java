@@ -24,7 +24,6 @@ import io.rsocket.fragmentation.FragmentationDuplexConnection;
 import io.rsocket.frame.ErrorFrameFlyweight;
 import io.rsocket.frame.SetupFrameFlyweight;
 import io.rsocket.frame.VersionFlyweight;
-import io.rsocket.frame.decoder.DefaultFrameDecoder;
 import io.rsocket.frame.decoder.FrameDecoder;
 import io.rsocket.internal.ClientServerInputMultiplexer;
 import io.rsocket.plugins.DuplexConnectionInterceptor;
@@ -90,7 +89,7 @@ public class RSocketFactory {
     private PluginRegistry plugins = new PluginRegistry(Plugins.defaultPlugins());
 
     private Payload setupPayload = EmptyPayload.INSTANCE;
-    private FrameDecoder frameDecoder = new DefaultFrameDecoder();
+    private FrameDecoder frameDecoder = FrameDecoder.DEFAULT;
 
     private Duration tickPeriod = Duration.ofSeconds(20);
     private Duration ackTimeout = Duration.ofSeconds(30);
@@ -262,7 +261,7 @@ public class RSocketFactory {
 
   public static class ServerRSocketFactory {
     private SocketAcceptor acceptor;
-    private FrameDecoder frameDecoder = new DefaultFrameDecoder();
+    private FrameDecoder frameDecoder = FrameDecoder.DEFAULT;
     private Consumer<Throwable> errorConsumer = Throwable::printStackTrace;
     private int mtu = 0;
     private PluginRegistry plugins = new PluginRegistry(Plugins.defaultPlugins());

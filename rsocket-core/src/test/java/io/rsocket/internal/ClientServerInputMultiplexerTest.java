@@ -30,7 +30,7 @@ import static org.junit.Assert.assertEquals;
 public class ClientServerInputMultiplexerTest {
   private TestDuplexConnection source;
   private ClientServerInputMultiplexer multiplexer;
-  private ByteBufAllocator allocator;
+  private ByteBufAllocator allocator = ByteBufAllocator.DEFAULT;
   @Before
   public void setup() {
     source = new TestDuplexConnection();
@@ -64,7 +64,7 @@ public class ClientServerInputMultiplexerTest {
     assertEquals(0, serverFrames.get());
     assertEquals(0, connectionFrames.get());
 
-    source.addToReceivedBuffer(ErrorFrameFlyweight.encode(allocator, 1, new Exception()));
+    source.addToReceivedBuffer(ErrorFrameFlyweight.encode(allocator, 2, new Exception()));
     assertEquals(1, clientFrames.get());
     assertEquals(1, serverFrames.get());
     assertEquals(0, connectionFrames.get());
