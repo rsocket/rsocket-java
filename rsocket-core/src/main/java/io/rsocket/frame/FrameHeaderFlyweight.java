@@ -105,7 +105,7 @@ public final class FrameHeaderFlyweight {
     return result;
   }
 
-  static void ensureFrameType(final FrameType frameType, ByteBuf byteBuf) {
+  public static void ensureFrameType(final FrameType frameType, ByteBuf byteBuf) {
     if (!disableFrameTypeCheck) {
       final FrameType typeInFrame = frameType(byteBuf);
 

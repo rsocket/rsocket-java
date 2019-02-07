@@ -18,6 +18,8 @@ package io.rsocket.transport.local;
 
 import io.netty.buffer.ByteBuf;
 import io.rsocket.DuplexConnection;
+import io.rsocket.frame.FrameHeaderFlyweight;
+import io.rsocket.frame.FrameType;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import reactor.core.publisher.Flux;
@@ -74,6 +76,14 @@ final class LocalDuplexConnection implements DuplexConnection {
   public Mono<Void> send(Publisher<ByteBuf> frames) {
     Objects.requireNonNull(frames, "frames must not be null");
 
-    return Flux.from(frames).doOnNext(out::onNext).then();
+    return Flux.from(frames)
+        .doOnNext(
+            byteBuf -> {
+              byteBuf.retain();
+              out.onNext(byteBuf);
+              FrameType frameType = FrameHeaderFlyweight.frameType(byteBuf);
+              System.out.println(frameType);
+            })
+        .then();
   }
 }

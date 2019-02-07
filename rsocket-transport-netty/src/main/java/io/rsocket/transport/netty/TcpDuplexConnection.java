@@ -78,7 +78,11 @@ public final class TcpDuplexConnection implements DuplexConnection {
 
   @Override
   public Flux<ByteBuf> receive() {
-    return connection.inbound().receive().map(FrameLengthFlyweight::frameRetained);
+    return connection.inbound().receive().map(byteBuf -> {
+      ByteBuf frame = FrameLengthFlyweight.frame(byteBuf);
+      frame.retain();
+      return frame;
+    });
   }
 
   @Override

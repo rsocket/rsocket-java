@@ -18,11 +18,12 @@ package io.rsocket;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
+import io.netty.util.ReferenceCountUtil;
 import io.netty.util.collection.IntObjectHashMap;
 import io.rsocket.exceptions.ApplicationErrorException;
 import io.rsocket.exceptions.ConnectionErrorException;
 import io.rsocket.frame.*;
-import io.rsocket.frame.decoder.FrameDecoder;
+import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.internal.LimitableRequestPublisher;
 import io.rsocket.internal.UnboundedProcessor;
 import org.reactivestreams.Processor;
@@ -44,7 +45,7 @@ class RSocketServer implements RSocket {
 
   private final DuplexConnection connection;
   private final RSocket requestHandler;
-  private final FrameDecoder frameDecoder;
+  private final PayloadDecoder payloadDecoder;
   private final Consumer<Throwable> errorConsumer;
 
   private final Map<Integer, Subscription> sendingSubscriptions;
@@ -58,22 +59,22 @@ class RSocketServer implements RSocket {
   RSocketServer(
       DuplexConnection connection,
       RSocket requestHandler,
-      FrameDecoder frameDecoder,
+      PayloadDecoder payloadDecoder,
       Consumer<Throwable> errorConsumer) {
-    this(connection, requestHandler, frameDecoder, errorConsumer, 0, 0);
+    this(connection, requestHandler, payloadDecoder, errorConsumer, 0, 0);
   }
 
   /*server responder*/
   RSocketServer(
       DuplexConnection connection,
       RSocket requestHandler,
-      FrameDecoder frameDecoder,
+      PayloadDecoder payloadDecoder,
       Consumer<Throwable> errorConsumer,
       long tickPeriod,
       long ackTimeout) {
     this.connection = connection;
     this.requestHandler = requestHandler;
-    this.frameDecoder = frameDecoder;
+    this.payloadDecoder = payloadDecoder;
     this.errorConsumer = errorConsumer;
     this.sendingSubscriptions = Collections.synchronizedMap(new IntObjectHashMap<>());
     this.channelProcessors = Collections.synchronizedMap(new IntObjectHashMap<>());
@@ -257,10 +258,10 @@ class RSocketServer implements RSocket {
       FrameType frameType = FrameHeaderFlyweight.frameType(frame);
       switch (frameType) {
         case REQUEST_FNF:
-          handleFireAndForget(streamId, fireAndForget(frameDecoder.apply(frame)));
+          handleFireAndForget(streamId, fireAndForget(payloadDecoder.apply(frame)));
           break;
         case REQUEST_RESPONSE:
-          handleRequestResponse(streamId, requestResponse(frameDecoder.apply(frame)));
+          handleRequestResponse(streamId, requestResponse(payloadDecoder.apply(frame)));
           break;
         case CANCEL:
           handleCancelFrame(streamId);
@@ -274,17 +275,17 @@ class RSocketServer implements RSocket {
         case REQUEST_STREAM:
           handleStream(
               streamId,
-              requestStream(frameDecoder.apply(frame)),
+              requestStream(payloadDecoder.apply(frame)),
               RequestStreamFrameFlyweight.initialRequestN(frame));
           break;
         case REQUEST_CHANNEL:
           handleChannel(
               streamId,
-              frameDecoder.apply(frame),
+              payloadDecoder.apply(frame),
               RequestChannelFrameFlyweight.initialRequestN(frame));
           break;
         case METADATA_PUSH:
-          metadataPush(frameDecoder.apply(frame));
+          metadataPush(payloadDecoder.apply(frame));
           break;
         case PAYLOAD:
           // TODO: Hook in receiving socket.
@@ -296,7 +297,7 @@ class RSocketServer implements RSocket {
         case NEXT:
           receiver = channelProcessors.get(streamId);
           if (receiver != null) {
-            receiver.onNext(frameDecoder.apply(frame));
+            receiver.onNext(payloadDecoder.apply(frame));
           }
           break;
         case COMPLETE:
@@ -314,7 +315,7 @@ class RSocketServer implements RSocket {
         case NEXT_COMPLETE:
           receiver = channelProcessors.get(streamId);
           if (receiver != null) {
-            receiver.onNext(frameDecoder.apply(frame));
+            receiver.onNext(payloadDecoder.apply(frame));
             receiver.onComplete();
           }
           break;
@@ -328,7 +329,7 @@ class RSocketServer implements RSocket {
           break;
       }
     } finally {
-      frame.release();
+      ReferenceCountUtil.safeRelease(frame);
     }
   }
 

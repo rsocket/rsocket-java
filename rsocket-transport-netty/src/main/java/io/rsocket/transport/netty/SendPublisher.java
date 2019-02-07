@@ -98,7 +98,9 @@ class SendPublisher<V extends ReferenceCounted> extends Flux<ByteBuf> {
                   tryComplete(is);
                 }
               } finally {
-                ReferenceCountUtil.safeRelease(poll);
+                if (poll.refCnt() > 0) {
+                  ReferenceCountUtil.safeRelease(poll);
+                }
               }
             });
   }

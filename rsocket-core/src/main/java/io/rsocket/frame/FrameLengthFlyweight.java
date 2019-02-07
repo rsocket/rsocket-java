@@ -50,12 +50,4 @@ public class FrameLengthFlyweight {
     byteBuf.resetReaderIndex();
     return slice;
   }
-
-  public static ByteBuf frameRetained(ByteBuf byteBuf) {
-    byteBuf.markReaderIndex();
-    byteBuf.skipBytes(3);
-    ByteBuf slice = byteBuf.retainedSlice();
-    byteBuf.resetReaderIndex();
-    return slice;
-  }
 }
