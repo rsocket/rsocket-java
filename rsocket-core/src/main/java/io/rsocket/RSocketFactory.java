@@ -24,7 +24,7 @@ import io.rsocket.fragmentation.FragmentationDuplexConnection;
 import io.rsocket.frame.ErrorFrameFlyweight;
 import io.rsocket.frame.SetupFrameFlyweight;
 import io.rsocket.frame.VersionFlyweight;
-import io.rsocket.frame.decoder.FrameDecoder;
+import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.internal.ClientServerInputMultiplexer;
 import io.rsocket.plugins.DuplexConnectionInterceptor;
 import io.rsocket.plugins.PluginRegistry;
@@ -89,7 +89,7 @@ public class RSocketFactory {
     private PluginRegistry plugins = new PluginRegistry(Plugins.defaultPlugins());
 
     private Payload setupPayload = EmptyPayload.INSTANCE;
-    private FrameDecoder frameDecoder = FrameDecoder.DEFAULT;
+    private PayloadDecoder payloadDecoder = PayloadDecoder.DEFAULT;
 
     private Duration tickPeriod = Duration.ofSeconds(20);
     private Duration ackTimeout = Duration.ofSeconds(30);
@@ -192,8 +192,8 @@ public class RSocketFactory {
       return this;
     }
 
-    public ClientRSocketFactory frameDecoder(FrameDecoder frameDecoder) {
-      this.frameDecoder = frameDecoder;
+    public ClientRSocketFactory frameDecoder(PayloadDecoder payloadDecoder) {
+      this.payloadDecoder = payloadDecoder;
       return this;
     }
 
@@ -233,7 +233,7 @@ public class RSocketFactory {
                   RSocketClient rSocketClient =
                       new RSocketClient(
                           multiplexer.asClientConnection(),
-                          frameDecoder,
+                        payloadDecoder,
                           errorConsumer,
                           StreamIdSupplier.clientSupplier(),
                           tickPeriod,
@@ -250,7 +250,7 @@ public class RSocketFactory {
                       new RSocketServer(
                           multiplexer.asServerConnection(),
                           wrappedRSocketServer,
-                          frameDecoder,
+                        payloadDecoder,
                           errorConsumer);
 
                   return connection.sendOne(setupFrame).thenReturn(wrappedRSocketClient);
@@ -261,7 +261,7 @@ public class RSocketFactory {
 
   public static class ServerRSocketFactory {
     private SocketAcceptor acceptor;
-    private FrameDecoder frameDecoder = FrameDecoder.DEFAULT;
+    private PayloadDecoder payloadDecoder = PayloadDecoder.DEFAULT;
     private Consumer<Throwable> errorConsumer = Throwable::printStackTrace;
     private int mtu = 0;
     private PluginRegistry plugins = new PluginRegistry(Plugins.defaultPlugins());
@@ -288,8 +288,8 @@ public class RSocketFactory {
       return ServerStart::new;
     }
 
-    public ServerRSocketFactory frameDecoder(FrameDecoder frameDecoder) {
-      this.frameDecoder = frameDecoder;
+    public ServerRSocketFactory frameDecoder(PayloadDecoder payloadDecoder) {
+      this.payloadDecoder = payloadDecoder;
       return this;
     }
 
@@ -352,7 +352,7 @@ public class RSocketFactory {
         RSocketClient rSocketClient =
             new RSocketClient(
                 multiplexer.asServerConnection(),
-                frameDecoder,
+              payloadDecoder,
                 errorConsumer,
                 StreamIdSupplier.serverSupplier());
 
@@ -374,7 +374,7 @@ public class RSocketFactory {
                       new RSocketServer(
                           multiplexer.asClientConnection(),
                           wrappedRSocketServer,
-                          frameDecoder,
+                        payloadDecoder,
                           errorConsumer,
                           keepAliveInterval,
                           keepAliveMaxLifetime);

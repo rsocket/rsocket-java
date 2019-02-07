@@ -22,7 +22,7 @@ import io.netty.util.collection.IntObjectHashMap;
 import io.rsocket.exceptions.ConnectionErrorException;
 import io.rsocket.exceptions.Exceptions;
 import io.rsocket.frame.*;
-import io.rsocket.frame.decoder.FrameDecoder;
+import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.internal.LimitableRequestPublisher;
 import io.rsocket.internal.UnboundedProcessor;
 import io.rsocket.internal.UnicastMonoProcessor;
@@ -46,7 +46,7 @@ import java.util.function.Consumer;
 class RSocketClient implements RSocket {
 
   private final DuplexConnection connection;
-  private final FrameDecoder frameDecoder;
+  private final PayloadDecoder payloadDecoder;
   private final Consumer<Throwable> errorConsumer;
   private final StreamIdSupplier streamIdSupplier;
   private final Map<Integer, LimitableRequestPublisher> senders;
@@ -59,24 +59,24 @@ class RSocketClient implements RSocket {
   /*server requester*/
   RSocketClient(
       DuplexConnection connection,
-      FrameDecoder frameDecoder,
+      PayloadDecoder payloadDecoder,
       Consumer<Throwable> errorConsumer,
       StreamIdSupplier streamIdSupplier) {
     this(
-        connection, frameDecoder, errorConsumer, streamIdSupplier, Duration.ZERO, Duration.ZERO, 0);
+        connection, payloadDecoder, errorConsumer, streamIdSupplier, Duration.ZERO, Duration.ZERO, 0);
   }
 
   /*client requester*/
   RSocketClient(
       DuplexConnection connection,
-      FrameDecoder frameDecoder,
+      PayloadDecoder payloadDecoder,
       Consumer<Throwable> errorConsumer,
       StreamIdSupplier streamIdSupplier,
       Duration tickPeriod,
       Duration ackTimeout,
       int missedAcks) {
     this.connection = connection;
-    this.frameDecoder = frameDecoder;
+    this.payloadDecoder = payloadDecoder;
     this.errorConsumer = errorConsumer;
     this.streamIdSupplier = streamIdSupplier;
     this.senders = Collections.synchronizedMap(new IntObjectHashMap<>());
@@ -494,7 +494,7 @@ class RSocketClient implements RSocket {
           receivers.remove(streamId);
           break;
         case NEXT_COMPLETE:
-          receiver.onNext(frameDecoder.apply(frame));
+          receiver.onNext(payloadDecoder.apply(frame));
           receiver.onComplete();
           break;
         case CANCEL:
@@ -507,7 +507,7 @@ class RSocketClient implements RSocket {
             break;
           }
         case NEXT:
-          receiver.onNext(frameDecoder.apply(frame));
+          receiver.onNext(payloadDecoder.apply(frame));
           break;
         case REQUEST_N:
           {

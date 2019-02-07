@@ -18,7 +18,7 @@ package io.rsocket.transport.netty;
 
 import io.rsocket.RSocket;
 import io.rsocket.RSocketFactory;
-import io.rsocket.frame.decoder.FrameDecoder;
+import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.test.PingClient;
 import io.rsocket.transport.netty.client.TcpClientTransport;
 import org.HdrHistogram.Recorder;
@@ -31,7 +31,7 @@ public final class TcpPing {
   public static void main(String... args) {
     Mono<RSocket> client =
         RSocketFactory.connect()
-            .frameDecoder(FrameDecoder.ZERO_COPY)
+            .frameDecoder(PayloadDecoder.ZERO_COPY)
             .transport(TcpClientTransport.create(7878))
             .start();
 

@@ -136,6 +136,20 @@ public class SetupFrameFlyweight {
     return (FLAGS_RESUME_ENABLE & FrameHeaderFlyweight.flags(byteBuf)) == FLAGS_RESUME_ENABLE;
   }
 
+  public static int keepaliveInterval(ByteBuf byteBuf) {
+    byteBuf.markReaderIndex();
+    int i = byteBuf.skipBytes(FrameHeaderFlyweight.size() + Integer.BYTES).readInt();
+    byteBuf.resetReaderIndex();
+    return i;
+  }
+
+  public static int maxLifetime(ByteBuf byteBuf) {
+    byteBuf.markReaderIndex();
+    int i = byteBuf.skipBytes(FrameHeaderFlyweight.size() + 2 * Integer.BYTES).readInt();
+    byteBuf.resetReaderIndex();
+    return i;
+  }
+
   public static String metadataMimeType(ByteBuf byteBuf) {
     int skip = bytesToSkipToMimeType(byteBuf);
     byteBuf.markReaderIndex();
