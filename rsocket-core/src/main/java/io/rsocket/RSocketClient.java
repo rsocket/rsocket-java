@@ -239,7 +239,7 @@ class RSocketClient implements RSocket {
                                       allocator,
                                       streamId,
                                       false,
-                                      (int) n,
+                                      n,
                                       payload.sliceMetadata().retain(),
                                       payload.sliceData().retain()));
                             } else if (contains(streamId) && !receiver.isDisposed()) {
@@ -339,7 +339,7 @@ class RSocketClient implements RSocket {
                                                       streamId,
                                                       false,
                                                       false,
-                                                      (int) n,
+                                                      n,
                                                       payload.sliceMetadata().retain(),
                                                       payload.sliceData().retain());
                                             } else {

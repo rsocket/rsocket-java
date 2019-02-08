@@ -30,6 +30,8 @@ import org.junit.runners.model.Statement;
 import reactor.core.publisher.Mono;
 
 public class ClientSetupRule<T, S extends Closeable> extends ExternalResource {
+  private static final String data = "hello world";
+  private static final String metadata = "metadata";
 
   private Supplier<T> addressSupplier;
   private BiFunction<T, S, RSocket> clientConnector;
@@ -46,7 +48,9 @@ public class ClientSetupRule<T, S extends Closeable> extends ExternalResource {
     this.serverInit =
         address ->
             RSocketFactory.receive()
-                .acceptor((setup, sendingSocket) -> Mono.just(new TestRSocket()))
+                .acceptor((setup, sendingSocket) -> Mono.just(new TestRSocket(
+                    data,
+                    metadata)))
                 .transport(serverTransportSupplier.apply(address))
                 .start()
                 .block();
@@ -76,5 +80,13 @@ public class ClientSetupRule<T, S extends Closeable> extends ExternalResource {
 
   public RSocket getRSocket() {
     return client;
+  }
+
+  public String expectedPayloadData() {
+    return data;
+  }
+
+  public String expectedPayloadMetadata() {
+    return metadata;
   }
 }

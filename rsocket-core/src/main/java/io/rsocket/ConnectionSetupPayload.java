@@ -19,6 +19,7 @@ package io.rsocket;
 import io.netty.buffer.ByteBuf;
 import io.netty.util.AbstractReferenceCounted;
 import io.rsocket.frame.FrameHeaderFlyweight;
+import io.rsocket.frame.SetupFrameFlyweight;
 
 /**
  * Exposed to server for determination of ResponderRSocket based on mime types and SETUP metadata/data
@@ -26,7 +27,7 @@ import io.rsocket.frame.FrameHeaderFlyweight;
 public abstract class ConnectionSetupPayload extends AbstractReferenceCounted implements Payload {
 
   public static ConnectionSetupPayload create(final ByteBuf setupFrame) {
-    return null;
+    return new DefaultConnectionSetupPayload(setupFrame);
   }
 
   public abstract int keepAliveInterval();
@@ -39,14 +40,7 @@ public abstract class ConnectionSetupPayload extends AbstractReferenceCounted im
 
   public abstract int getFlags();
 
-  public boolean willClientHonorLease() {
-    return false;
-  }
-
-  @Override
-  public boolean hasMetadata() {
-    return FrameHeaderFlyweight.hasMetadata(null);
-  }
+  public abstract boolean willClientHonorLease();
 
   @Override
   public ConnectionSetupPayload retain() {
@@ -65,53 +59,72 @@ public abstract class ConnectionSetupPayload extends AbstractReferenceCounted im
   public abstract ConnectionSetupPayload touch(Object hint);
 
   private static final class DefaultConnectionSetupPayload extends ConnectionSetupPayload {
+    private final ByteBuf setupFrame;
+
+    public DefaultConnectionSetupPayload(ByteBuf setupFrame) {
+      this.setupFrame = setupFrame;
+    }
+
+    @Override
+    public boolean hasMetadata() {
+      return FrameHeaderFlyweight.hasMetadata(setupFrame);
+    }
 
     @Override
     public int keepAliveInterval() {
-      return 0;
+      return SetupFrameFlyweight.keepAliveInterval(setupFrame);
     }
 
     @Override
     public int keepAliveMaxLifetime() {
-      return 0;
+      return SetupFrameFlyweight.keepAliveMaxLifetime(setupFrame);
     }
 
     @Override
     public String metadataMimeType() {
-      return null;
+      return SetupFrameFlyweight.metadataMimeType(setupFrame);
     }
 
     @Override
     public String dataMimeType() {
-      return null;
+      return SetupFrameFlyweight.dataMimeType(setupFrame);
     }
 
     @Override
     public int getFlags() {
-      return 0;
+      return FrameHeaderFlyweight.flags(setupFrame);
+    }
+
+    @Override
+    public boolean willClientHonorLease() {
+      return SetupFrameFlyweight.honorLease(setupFrame);
     }
 
     @Override
     public ConnectionSetupPayload touch() {
-      return null;
+      setupFrame.touch();
+      return this;
     }
 
     @Override
     public ConnectionSetupPayload touch(Object hint) {
-      return null;
+      setupFrame.touch(hint);
+      return this;
     }
 
     @Override
-    protected void deallocate() {}
+    protected void deallocate() {
+      setupFrame.release();
+    }
 
     @Override
     public ByteBuf sliceMetadata() {
-      return null;
+      return SetupFrameFlyweight.metadata(setupFrame);
     }
 
     @Override
     public ByteBuf sliceData() {
-      return null;
+      return SetupFrameFlyweight.data(setupFrame);
     }
   }
 }

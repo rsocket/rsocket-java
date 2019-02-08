@@ -2,6 +2,7 @@ package io.rsocket.frame;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
+import io.netty.buffer.Unpooled;
 
 class DataAndMetadataFlyweight {
   public static final int FRAME_LENGTH_MASK = 0xFFFFFF;
@@ -28,9 +29,6 @@ class DataAndMetadataFlyweight {
 
   static ByteBuf encodeOnlyMetadata(
       ByteBufAllocator allocator, final ByteBuf header, ByteBuf metadata) {
-    int length = metadata.readableBytes();
-    encodeLength(header, length);
-
     return allocator.compositeBuffer(2).addComponents(true, header, metadata);
   }
 
@@ -47,29 +45,38 @@ class DataAndMetadataFlyweight {
     return allocator.compositeBuffer(3).addComponents(true, header, metadata, data);
   }
 
-  static ByteBuf metadataWithoutMarking(ByteBuf byteBuf) {
-    int length = decodeLength(byteBuf);
-    ByteBuf metadata = byteBuf.readSlice(length);
-    return metadata;
+  static ByteBuf metadataWithoutMarking(ByteBuf byteBuf, boolean hasMetadata) {
+    if (hasMetadata) {
+      int length = decodeLength(byteBuf);
+      return byteBuf.readSlice(length);
+    } else {
+      return Unpooled.EMPTY_BUFFER;
+    }
   }
 
-  static ByteBuf metadata(ByteBuf byteBuf) {
+  static ByteBuf metadata(ByteBuf byteBuf,boolean hasMetadata) {
     byteBuf.markReaderIndex();
-    int length = decodeLength(byteBuf);
-    ByteBuf metadata = byteBuf.readSlice(length);
+    ByteBuf metadata = metadataWithoutMarking(byteBuf, hasMetadata);
     byteBuf.resetReaderIndex();
     return metadata;
   }
 
-  static ByteBuf dataWithoutMarking(ByteBuf byteBuf) {
-    int length = decodeLength(byteBuf);
-    byteBuf.skipBytes(length);
-    return byteBuf.slice();
+  static ByteBuf dataWithoutMarking(ByteBuf byteBuf, boolean hasMetadata) {
+    if (hasMetadata) {
+      /*moves reader index*/
+      int length = decodeLength(byteBuf);
+      byteBuf.skipBytes(length);
+    }
+    if (byteBuf.readableBytes() > 0) {
+      return byteBuf.slice();
+    } else {
+      return Unpooled.EMPTY_BUFFER;
+    }
   }
 
-  static ByteBuf data(ByteBuf byteBuf) {
+  static ByteBuf data(ByteBuf byteBuf, boolean hasMetadata) {
     byteBuf.markReaderIndex();
-    ByteBuf data = dataWithoutMarking(byteBuf);
+    ByteBuf data = dataWithoutMarking(byteBuf, hasMetadata);
     byteBuf.resetReaderIndex();
     return data;
   }

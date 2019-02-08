@@ -33,6 +33,7 @@ class SetupFrameFlyweightTest {
     assertEquals("data_type", SetupFrameFlyweight.dataMimeType(frame));
     assertEquals(metadata, SetupFrameFlyweight.metadata(frame));
     assertEquals(data, SetupFrameFlyweight.data(frame));
+    assertEquals(SetupFrameFlyweight.CURRENT_VERSION, SetupFrameFlyweight.version(frame));
   }
 
   @Test

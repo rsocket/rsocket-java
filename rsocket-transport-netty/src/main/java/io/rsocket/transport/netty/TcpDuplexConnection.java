@@ -94,13 +94,13 @@ public final class TcpDuplexConnection implements DuplexConnection {
                     queueSubscription,
                     frameFlux,
                     connection.channel(),
-                    frame -> FrameLengthFlyweight.encode(allocator, frame.readableBytes(), frame),
+                    frame -> FrameLengthFlyweight.encode(allocator, frame.readableBytes(), frame).retain(),
                     ByteBuf::readableBytes);
               } else {
                 return new SendPublisher<>(
                     frameFlux,
                     connection.channel(),
-                    frame -> FrameLengthFlyweight.encode(allocator, frame.readableBytes(), frame),
+                    frame -> FrameLengthFlyweight.encode(allocator, frame.readableBytes(), frame).retain(),
                     ByteBuf::readableBytes);
               }
             })
