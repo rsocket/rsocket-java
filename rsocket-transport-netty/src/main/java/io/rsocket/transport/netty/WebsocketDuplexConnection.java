@@ -83,7 +83,7 @@ public final class WebsocketDuplexConnection implements DuplexConnection {
 
   @Override
   public Flux<ByteBuf> receive() {
-    return connection.inbound().receive();
+    return connection.inbound().receive().map(ByteBuf::retain);
   }
 
   @Override

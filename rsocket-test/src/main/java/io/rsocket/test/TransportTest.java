@@ -23,10 +23,6 @@ import io.rsocket.RSocketFactory;
 import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.ServerTransport;
 import io.rsocket.util.DefaultPayload;
-import java.time.Duration;
-import java.util.function.BiFunction;
-import java.util.function.Function;
-import java.util.function.Supplier;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -35,6 +31,11 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 import reactor.test.StepVerifier;
+
+import java.time.Duration;
+import java.util.function.BiFunction;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 public interface TransportTest {
 
@@ -130,10 +131,11 @@ public interface TransportTest {
   @DisplayName("makes 1 requestChannel request with 20,000 payloads")
   @Test
   default void requestChannel20_000() {
-    Flux<Payload> payloads = Flux.range(0, 20_000).map(this::createTestPayload);
+    Flux<Payload> payloads = Flux.range(0, 20_000).map(metadataPresent -> createTestPayload(7));
 
     getClient()
         .requestChannel(payloads)
+        .doOnNext(this::assertChannelPayload)
         .as(StepVerifier::create)
         .expectNextCount(20_000)
         .expectComplete()
@@ -191,7 +193,7 @@ public interface TransportTest {
   default void requestResponse1() {
     getClient()
         .requestResponse(createTestPayload(1))
-        .map(Payload::getDataUtf8)
+        .doOnNext(this::assertPayload)
         .as(StepVerifier::create)
         .expectNextCount(1)
         .expectComplete()
@@ -202,7 +204,8 @@ public interface TransportTest {
   @Test
   default void requestResponse10() {
     Flux.range(1, 10)
-        .flatMap(i -> getClient().requestResponse(createTestPayload(i)).map(Payload::getDataUtf8))
+        .flatMap(i -> getClient().requestResponse(createTestPayload(i))
+            .doOnNext(v -> assertPayload(v)))
         .as(StepVerifier::create)
         .expectNextCount(10)
         .expectComplete()
@@ -236,17 +239,19 @@ public interface TransportTest {
   default void requestStream10_000() {
     getClient()
         .requestStream(createTestPayload(3))
+        .doOnNext(this::assertPayload)
         .as(StepVerifier::create)
         .expectNextCount(10_000)
         .expectComplete()
         .verify(getTimeout());
   }
-  
+
   @DisplayName("makes 1 requestStream request and receives 5 responses")
   @Test
   default void requestStream5() {
     getClient()
         .requestStream(createTestPayload(3))
+        .doOnNext(this::assertPayload)
         .take(5)
         .as(StepVerifier::create)
         .expectNextCount(5)
@@ -269,7 +274,26 @@ public interface TransportTest {
         .verify(getTimeout());
   }
 
+  default void assertPayload(Payload p) {
+    TransportPair transportPair = getTransportPair();
+    if (!transportPair.expectedPayloadData().equals(p.getDataUtf8())
+        ||
+        !transportPair.expectedPayloadMetadata().equals(p.getMetadataUtf8())) {
+      throw new IllegalStateException("Unexpected payload");
+    }
+  }
+
+  default void assertChannelPayload(Payload p) {
+    if (!"test-data".equals(p.getDataUtf8())
+        ||
+        !"metadata".equals(p.getMetadataUtf8())) {
+      throw new IllegalStateException("Unexpected payload");
+    }
+  }
+
   final class TransportPair<T, S extends Closeable> implements Disposable {
+    private static final String data = "hello world";
+    private static final String metadata = "metadata";
 
     private final RSocket client;
 
@@ -284,7 +308,9 @@ public interface TransportTest {
 
       server =
           RSocketFactory.receive()
-              .acceptor((setup, sendingSocket) -> Mono.just(new TestRSocket()))
+              .acceptor((setup, sendingSocket) -> Mono.just(new TestRSocket(
+                  data,
+                  metadata)))
               .transport(serverTransportSupplier.apply(address))
               .start()
               .block();
@@ -304,6 +330,14 @@ public interface TransportTest {
 
     RSocket getClient() {
       return client;
+    }
+
+    public String expectedPayloadData() {
+      return data;
+    }
+
+    public String expectedPayloadMetadata() {
+      return metadata;
     }
   }
 }

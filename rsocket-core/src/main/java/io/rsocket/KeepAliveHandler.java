@@ -45,7 +45,8 @@ abstract class KeepAliveHandler implements Disposable {
   public void receive(ByteBuf keepAliveFrame) {
     this.lastReceivedMillis = System.currentTimeMillis();
     if (KeepAliveFrameFlyweight.respondFlag(keepAliveFrame)) {
-      doSend(KeepAliveFrameFlyweight.encode(ByteBufAllocator.DEFAULT, false, 0, keepAliveFrame));
+      doSend(KeepAliveFrameFlyweight.encode(ByteBufAllocator.DEFAULT, false, 0,
+          KeepAliveFrameFlyweight.data(keepAliveFrame).retain()));
     }
   }
 

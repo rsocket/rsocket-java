@@ -8,12 +8,8 @@ public class RequestNFrameFlyweight {
 
   public static ByteBuf encode(
       final ByteBufAllocator allocator, final int streamId, long requestN) {
-    int i = (int) requestN;
-    if (requestN > Integer.MAX_VALUE) {
-      i = Integer.MAX_VALUE;
-    }
-
-    return encode(allocator, streamId, i);
+    int reqN = requestN > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) requestN;
+    return encode(allocator, streamId, reqN);
   }
 
   public static ByteBuf encode(final ByteBufAllocator allocator, final int streamId, int requestN) {

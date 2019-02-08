@@ -37,10 +37,11 @@ public class LeaseFlyweight {
   }
 
   public static ByteBuf metadata(final ByteBuf byteBuf) {
+    boolean hasMetadata = FrameHeaderFlyweight.hasMetadata(byteBuf);
     FrameHeaderFlyweight.ensureFrameType(FrameType.LEASE, byteBuf);
     byteBuf.markReaderIndex();
     byteBuf.skipBytes(FrameHeaderFlyweight.size() + Integer.BYTES * 2);
-    ByteBuf metadata = DataAndMetadataFlyweight.metadataWithoutMarking(byteBuf);
+    ByteBuf metadata = DataAndMetadataFlyweight.metadataWithoutMarking(byteBuf, hasMetadata);
     byteBuf.resetReaderIndex();
     return metadata;
   }

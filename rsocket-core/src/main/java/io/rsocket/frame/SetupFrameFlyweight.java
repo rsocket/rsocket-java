@@ -19,6 +19,12 @@ public class SetupFrameFlyweight {
 
   public static final int CURRENT_VERSION = VersionFlyweight.encode(1, 0);
 
+  private static final int VERSION_FIELD_OFFSET = FrameHeaderFlyweight.size();
+  private static final int KEEPALIVE_INTERVAL_FIELD_OFFSET = VERSION_FIELD_OFFSET + Integer.BYTES;
+  private static final int KEEPALIVE_MAX_LIFETIME_FIELD_OFFSET =
+      KEEPALIVE_INTERVAL_FIELD_OFFSET + Integer.BYTES;
+  private static final int VARIABLE_DATA_OFFSET = KEEPALIVE_MAX_LIFETIME_FIELD_OFFSET + Integer.BYTES;
+
   public static ByteBuf encode(
       final ByteBufAllocator allocator,
       boolean lease,
@@ -96,33 +102,30 @@ public class SetupFrameFlyweight {
   public static int version(ByteBuf byteBuf) {
     FrameHeaderFlyweight.ensureFrameType(FrameType.SETUP, byteBuf);
     byteBuf.markReaderIndex();
-    int i = byteBuf.skipBytes(FrameHeaderFlyweight.size()).readInt();
+    int version = byteBuf.skipBytes(VERSION_FIELD_OFFSET).readInt();
     byteBuf.resetReaderIndex();
-    return i;
+    return version;
   }
 
   public static int resumeTokenLength(ByteBuf byteBuf) {
     byteBuf.markReaderIndex();
-    short i = byteBuf.skipBytes(FrameHeaderFlyweight.size()).readShort();
+    int tokenLength = byteBuf.skipBytes(VARIABLE_DATA_OFFSET).readShort() & 0xFFFF;
     byteBuf.resetReaderIndex();
-    return i;
+    return tokenLength;
   }
 
-  private static int bytesToSkipToMimeType(ByteBuf byteBuf) {
-    int bytesToSkip = FrameHeaderFlyweight.size();
-    if ((FLAGS_RESUME_ENABLE & FrameHeaderFlyweight.flags(byteBuf)) == FLAGS_RESUME_ENABLE) {
-      bytesToSkip = resumeTokenLength(byteBuf) + Short.BYTES;
-    }
-    bytesToSkip +=
-        // Skip Version
-        Integer.BYTES
-            // Skip keepaliveInterval
-            + Integer.BYTES
-            // Skip maxLifetime
-            + Integer.BYTES;
-
+  public static int keepAliveInterval(ByteBuf byteBuf) {
+    byteBuf.markReaderIndex();
+    int keepAliveInterval = byteBuf.skipBytes(KEEPALIVE_INTERVAL_FIELD_OFFSET).readInt();
     byteBuf.resetReaderIndex();
-    return bytesToSkip;
+    return keepAliveInterval;
+  }
+
+  public static int keepAliveMaxLifetime(ByteBuf byteBuf) {
+    byteBuf.markReaderIndex();
+    int keepAliveMaxLifetime = byteBuf.skipBytes(KEEPALIVE_MAX_LIFETIME_FIELD_OFFSET).readInt();
+    byteBuf.resetReaderIndex();
+    return keepAliveMaxLifetime;
   }
 
   public static boolean honorLease(ByteBuf byteBuf) {
@@ -137,35 +140,45 @@ public class SetupFrameFlyweight {
     int skip = bytesToSkipToMimeType(byteBuf);
     byteBuf.markReaderIndex();
     int length = byteBuf.skipBytes(skip).readByte();
-    String s = byteBuf.readSlice(length).toString(StandardCharsets.UTF_8);
+    String mimeType = byteBuf.readSlice(length).toString(StandardCharsets.UTF_8);
     byteBuf.resetReaderIndex();
-    return s;
+    return mimeType;
   }
 
   public static String dataMimeType(ByteBuf byteBuf) {
     int skip = bytesToSkipToMimeType(byteBuf);
     byteBuf.markReaderIndex();
-    int length = byteBuf.skipBytes(skip).readByte();
-    length = byteBuf.skipBytes(length).readByte();
-    String s = byteBuf.readSlice(length).toString(StandardCharsets.UTF_8);
+    int metadataLength = byteBuf.skipBytes(skip).readByte();
+    int dataLength = byteBuf.skipBytes(metadataLength).readByte();
+    String mimeType = byteBuf.readSlice(dataLength).toString(StandardCharsets.UTF_8);
     byteBuf.resetReaderIndex();
-    return s;
+    return mimeType;
   }
 
   public static ByteBuf metadata(ByteBuf byteBuf) {
+    boolean hasMetadata = FrameHeaderFlyweight.hasMetadata(byteBuf);
     byteBuf.markReaderIndex();
     skipToPayload(byteBuf);
-    ByteBuf metadata = DataAndMetadataFlyweight.metadataWithoutMarking(byteBuf);
+    ByteBuf metadata = DataAndMetadataFlyweight.metadataWithoutMarking(byteBuf, hasMetadata);
     byteBuf.resetReaderIndex();
     return metadata;
   }
 
   public static ByteBuf data(ByteBuf byteBuf) {
+    boolean hasMetadata = FrameHeaderFlyweight.hasMetadata(byteBuf);
     byteBuf.markReaderIndex();
     skipToPayload(byteBuf);
-    ByteBuf data = DataAndMetadataFlyweight.dataWithoutMarking(byteBuf);
+    ByteBuf data = DataAndMetadataFlyweight.dataWithoutMarking(byteBuf, hasMetadata);
     byteBuf.resetReaderIndex();
     return data;
+  }
+
+  private static int bytesToSkipToMimeType(ByteBuf byteBuf) {
+    int bytesToSkip = VARIABLE_DATA_OFFSET;
+    if ((FLAGS_RESUME_ENABLE & FrameHeaderFlyweight.flags(byteBuf)) == FLAGS_RESUME_ENABLE) {
+      bytesToSkip = resumeTokenLength(byteBuf) + Short.BYTES;
+    }
+    return bytesToSkip;
   }
 
   private static void skipToPayload(ByteBuf byteBuf) {

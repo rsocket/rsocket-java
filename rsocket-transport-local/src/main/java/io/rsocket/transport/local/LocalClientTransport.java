@@ -16,15 +16,16 @@
 
 package io.rsocket.transport.local;
 
+import io.netty.buffer.ByteBuf;
 import io.rsocket.DuplexConnection;
-import io.rsocket.Frame;
 import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.ServerTransport;
 import io.rsocket.transport.local.LocalServerTransport.ServerDuplexConnectionAcceptor;
-import java.util.Objects;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
 import reactor.core.publisher.UnicastProcessor;
+
+import java.util.Objects;
 
 /**
  * An implementation of {@link ClientTransport} that connects to a {@link ServerTransport} in the
@@ -60,8 +61,8 @@ public final class LocalClientTransport implements ClientTransport {
             return Mono.error(new IllegalArgumentException("Could not find server: " + name));
           }
 
-          UnicastProcessor<Frame> in = UnicastProcessor.create();
-          UnicastProcessor<Frame> out = UnicastProcessor.create();
+          UnicastProcessor<ByteBuf> in = UnicastProcessor.create();
+          UnicastProcessor<ByteBuf> out = UnicastProcessor.create();
           MonoProcessor<Void> closeNotifier = MonoProcessor.create();
 
           server.accept(new LocalDuplexConnection(out, in, closeNotifier));

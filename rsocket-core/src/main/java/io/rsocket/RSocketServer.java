@@ -346,7 +346,7 @@ class RSocketServer implements RSocket {
         .switchIfEmpty(
             Mono.fromCallable(() -> PayloadFrameFlyweight.encodeComplete(allocator, streamId)))
         .doFinally(signalType -> sendingSubscriptions.remove(streamId))
-        .subscribe(sendProcessor::onNext, t -> handleError(streamId, t));
+        .subscribe(t1 -> sendProcessor.onNext(t1), t -> handleError(streamId, t));
   }
 
   private void handleStream(int streamId, Flux<Payload> response, int initialRequestN) {

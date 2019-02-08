@@ -3,6 +3,8 @@ package io.rsocket.frame;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 
+import javax.annotation.Nullable;
+
 class RequestFlyweight {
   FrameType frameType;
 
@@ -14,7 +16,7 @@ class RequestFlyweight {
       final ByteBufAllocator allocator,
       final int streamId,
       boolean fragmentFollows,
-      ByteBuf metadata,
+      @Nullable ByteBuf metadata,
       ByteBuf data) {
     return encode(allocator, streamId, fragmentFollows, false, false, 0, metadata, data);
   }
@@ -26,7 +28,7 @@ class RequestFlyweight {
       boolean complete,
       boolean next,
       int requestN,
-      ByteBuf metadata,
+      @Nullable ByteBuf metadata,
       ByteBuf data) {
     int flags = 0;
 
@@ -62,33 +64,37 @@ class RequestFlyweight {
   }
 
   ByteBuf data(ByteBuf byteBuf) {
-    byteBuf.markReaderIndex();
+    boolean hasMetadata = FrameHeaderFlyweight.hasMetadata(byteBuf);
+    int idx = byteBuf.readerIndex();
     byteBuf.skipBytes(FrameHeaderFlyweight.size());
-    ByteBuf data = DataAndMetadataFlyweight.dataWithoutMarking(byteBuf);
-    byteBuf.resetReaderIndex();
+    ByteBuf data = DataAndMetadataFlyweight.dataWithoutMarking(byteBuf, hasMetadata);
+    byteBuf.readerIndex(idx);
     return data;
   }
 
   ByteBuf metadata(ByteBuf byteBuf) {
+    boolean hasMetadata = FrameHeaderFlyweight.hasMetadata(byteBuf);
     byteBuf.markReaderIndex();
     byteBuf.skipBytes(FrameHeaderFlyweight.size());
-    ByteBuf metadata = DataAndMetadataFlyweight.metadataWithoutMarking(byteBuf);
+    ByteBuf metadata = DataAndMetadataFlyweight.metadataWithoutMarking(byteBuf, hasMetadata);
     byteBuf.resetReaderIndex();
     return metadata;
   }
 
   ByteBuf dataWithRequestN(ByteBuf byteBuf) {
+    boolean hasMetadata = FrameHeaderFlyweight.hasMetadata(byteBuf);
     byteBuf.markReaderIndex();
-    byteBuf.skipBytes(FrameHeaderFlyweight.size() + Long.BYTES);
-    ByteBuf data = DataAndMetadataFlyweight.dataWithoutMarking(byteBuf);
+    byteBuf.skipBytes(FrameHeaderFlyweight.size() + Integer.BYTES);
+    ByteBuf data = DataAndMetadataFlyweight.dataWithoutMarking(byteBuf, hasMetadata);
     byteBuf.resetReaderIndex();
     return data;
   }
 
   ByteBuf metadataWithRequestN(ByteBuf byteBuf) {
+    boolean hasMetadata = FrameHeaderFlyweight.hasMetadata(byteBuf);
     byteBuf.markReaderIndex();
-    byteBuf.skipBytes(FrameHeaderFlyweight.size() + Long.BYTES);
-    ByteBuf metadata = DataAndMetadataFlyweight.metadataWithoutMarking(byteBuf);
+    byteBuf.skipBytes(FrameHeaderFlyweight.size() + Integer.BYTES);
+    ByteBuf metadata = DataAndMetadataFlyweight.metadataWithoutMarking(byteBuf, hasMetadata);
     byteBuf.resetReaderIndex();
     return metadata;
   }
