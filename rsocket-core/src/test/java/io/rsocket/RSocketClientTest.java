@@ -211,6 +211,7 @@ public class RSocketClientTest {
     @Override
     protected RSocketClient newRSocket() {
       return new RSocketClient(
+          ByteBufAllocator.DEFAULT,
           connection,
           DefaultPayload::create,
           throwable -> errors.add(throwable),

@@ -53,21 +53,30 @@ class RSocketClient implements RSocket {
   private final Map<Integer, Processor<Payload, Payload>> receivers;
   private final UnboundedProcessor<ByteBuf> sendProcessor;
   private final Lifecycle lifecycle = new Lifecycle();
-  private final ByteBufAllocator allocator = ByteBufAllocator.DEFAULT;
+  private final ByteBufAllocator allocator;
   private KeepAliveHandler keepAliveHandler;
 
   /*server requester*/
   RSocketClient(
+      ByteBufAllocator allocator,
       DuplexConnection connection,
       PayloadDecoder payloadDecoder,
       Consumer<Throwable> errorConsumer,
       StreamIdSupplier streamIdSupplier) {
     this(
-        connection, payloadDecoder, errorConsumer, streamIdSupplier, Duration.ZERO, Duration.ZERO, 0);
+        allocator,
+        connection,
+        payloadDecoder,
+        errorConsumer,
+        streamIdSupplier,
+        Duration.ZERO,
+        Duration.ZERO,
+        0);
   }
 
   /*client requester*/
   RSocketClient(
+      ByteBufAllocator allocator,
       DuplexConnection connection,
       PayloadDecoder payloadDecoder,
       Consumer<Throwable> errorConsumer,
@@ -75,6 +84,7 @@ class RSocketClient implements RSocket {
       Duration tickPeriod,
       Duration ackTimeout,
       int missedAcks) {
+    this.allocator = allocator;
     this.connection = connection;
     this.payloadDecoder = payloadDecoder;
     this.errorConsumer = errorConsumer;
@@ -251,13 +261,15 @@ class RSocketClient implements RSocket {
                       .doOnError(
                           t -> {
                             if (contains(streamId) && !receiver.isDisposed()) {
-                              sendProcessor.onNext(ErrorFrameFlyweight.encode(allocator, streamId, t));
+                              sendProcessor.onNext(
+                                  ErrorFrameFlyweight.encode(allocator, streamId, t));
                             }
                           })
                       .doOnCancel(
                           () -> {
                             if (contains(streamId) && !receiver.isDisposed()) {
-                              sendProcessor.onNext(CancelFrameFlyweight.encode(allocator, streamId));
+                              sendProcessor.onNext(
+                                  CancelFrameFlyweight.encode(allocator, streamId));
                             }
                           })
                       .doFinally(
@@ -289,11 +301,14 @@ class RSocketClient implements RSocket {
 
                   return receiver
                       .doOnError(
-                          t -> sendProcessor.onNext(ErrorFrameFlyweight.encode(allocator, streamId, t)))
+                          t ->
+                              sendProcessor.onNext(
+                                  ErrorFrameFlyweight.encode(allocator, streamId, t)))
                       .doFinally(
                           s -> {
                             if (s == SignalType.CANCEL) {
-                              sendProcessor.onNext(CancelFrameFlyweight.encode(allocator, streamId));
+                              sendProcessor.onNext(
+                                  CancelFrameFlyweight.encode(allocator, streamId));
                             }
 
                             receivers.remove(streamId);
@@ -378,13 +393,15 @@ class RSocketClient implements RSocket {
                       .doOnError(
                           t -> {
                             if (contains(streamId) && !receiver.isDisposed()) {
-                              sendProcessor.onNext(ErrorFrameFlyweight.encode(allocator, streamId, t));
+                              sendProcessor.onNext(
+                                  ErrorFrameFlyweight.encode(allocator, streamId, t));
                             }
                           })
                       .doOnCancel(
                           () -> {
                             if (contains(streamId) && !receiver.isDisposed()) {
-                              sendProcessor.onNext(CancelFrameFlyweight.encode(allocator, streamId));
+                              sendProcessor.onNext(
+                                  CancelFrameFlyweight.encode(allocator, streamId));
                             }
                           })
                       .doFinally(
@@ -405,7 +422,8 @@ class RSocketClient implements RSocket {
             Mono.fromRunnable(
                 () -> {
                   sendProcessor.onNext(
-                      MetadataPushFrameFlyweight.encode(allocator, payload.sliceMetadata().retain()));
+                      MetadataPushFrameFlyweight.encode(
+                          allocator, payload.sliceMetadata().retain()));
                 }));
   }
 
