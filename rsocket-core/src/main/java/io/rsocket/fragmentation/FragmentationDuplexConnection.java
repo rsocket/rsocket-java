@@ -23,7 +23,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 /**
- * A {@link DuplexConnection} implementation that fragments and reassembles {@link Frame}s.
+ * A {@link DuplexConnection} implementation that fragments and reassembles {@link ByteBuf}s.
  *
  * @see <a
  *     href="https://github.com/rsocket/rsocket/blob/master/Protocol.md#fragmentation-and-reassembly">Fragmentation
