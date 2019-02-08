@@ -52,26 +52,29 @@ class RSocketServer implements RSocket {
   private final Map<Integer, Processor<Payload, Payload>> channelProcessors;
 
   private final UnboundedProcessor<ByteBuf> sendProcessor;
-  private final ByteBufAllocator allocator = ByteBufAllocator.DEFAULT;
+  private final ByteBufAllocator allocator;
   private KeepAliveHandler keepAliveHandler;
 
   /*client responder*/
   RSocketServer(
+      ByteBufAllocator allocator,
       DuplexConnection connection,
       RSocket requestHandler,
       PayloadDecoder payloadDecoder,
       Consumer<Throwable> errorConsumer) {
-    this(connection, requestHandler, payloadDecoder, errorConsumer, 0, 0);
+    this(allocator, connection, requestHandler, payloadDecoder, errorConsumer, 0, 0);
   }
 
   /*server responder*/
   RSocketServer(
+      ByteBufAllocator allocator,
       DuplexConnection connection,
       RSocket requestHandler,
       PayloadDecoder payloadDecoder,
       Consumer<Throwable> errorConsumer,
       long tickPeriod,
       long ackTimeout) {
+    this.allocator = allocator;
     this.connection = connection;
     this.requestHandler = requestHandler;
     this.payloadDecoder = payloadDecoder;

@@ -36,6 +36,7 @@ import io.rsocket.util.EmptyPayload;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
+import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -97,6 +98,14 @@ public class RSocketFactory {
 
     private String metadataMimeType = "application/binary";
     private String dataMimeType = "application/binary";
+
+    private ByteBufAllocator allocator = ByteBufAllocator.DEFAULT;
+
+    public ClientRSocketFactory byteBufAllocator(ByteBufAllocator allocator) {
+      Objects.requireNonNull(allocator);
+      this.allocator = allocator;
+      return this;
+    }
 
     public ClientRSocketFactory addConnectionPlugin(DuplexConnectionInterceptor interceptor) {
       plugins.addConnectionPlugin(interceptor);
@@ -213,7 +222,7 @@ public class RSocketFactory {
                 connection -> {
                   ByteBuf setupFrame =
                       SetupFrameFlyweight.encode(
-                          ByteBufAllocator.DEFAULT,
+                          allocator,
                           false,
                           false,
                           (int) tickPeriod.toMillis(),
@@ -232,8 +241,9 @@ public class RSocketFactory {
 
                   RSocketClient rSocketClient =
                       new RSocketClient(
+                          allocator,
                           multiplexer.asClientConnection(),
-                        payloadDecoder,
+                          payloadDecoder,
                           errorConsumer,
                           StreamIdSupplier.clientSupplier(),
                           tickPeriod,
@@ -248,9 +258,10 @@ public class RSocketFactory {
 
                   RSocketServer rSocketServer =
                       new RSocketServer(
+                          allocator,
                           multiplexer.asServerConnection(),
                           wrappedRSocketServer,
-                        payloadDecoder,
+                          payloadDecoder,
                           errorConsumer);
 
                   return connection.sendOne(setupFrame).thenReturn(wrappedRSocketClient);
@@ -265,8 +276,15 @@ public class RSocketFactory {
     private Consumer<Throwable> errorConsumer = Throwable::printStackTrace;
     private int mtu = 0;
     private PluginRegistry plugins = new PluginRegistry(Plugins.defaultPlugins());
+    private ByteBufAllocator allocator = ByteBufAllocator.DEFAULT;
 
     private ServerRSocketFactory() {}
+
+    public ServerRSocketFactory byteBufAllocator(ByteBufAllocator allocator) {
+      Objects.requireNonNull(allocator);
+      this.allocator = allocator;
+      return this;
+    }
 
     public ServerRSocketFactory addConnectionPlugin(DuplexConnectionInterceptor interceptor) {
       plugins.addConnectionPlugin(interceptor);
@@ -351,8 +369,9 @@ public class RSocketFactory {
 
         RSocketClient rSocketClient =
             new RSocketClient(
+                allocator,
                 multiplexer.asServerConnection(),
-              payloadDecoder,
+                payloadDecoder,
                 errorConsumer,
                 StreamIdSupplier.serverSupplier());
 
@@ -372,9 +391,10 @@ public class RSocketFactory {
 
                   RSocketServer rSocketServer =
                       new RSocketServer(
+                          allocator,
                           multiplexer.asClientConnection(),
                           wrappedRSocketServer,
-                        payloadDecoder,
+                          payloadDecoder,
                           errorConsumer,
                           keepAliveInterval,
                           keepAliveMaxLifetime);

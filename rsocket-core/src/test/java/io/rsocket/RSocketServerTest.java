@@ -134,7 +134,11 @@ public class RSocketServerTest {
     @Override
     protected RSocketServer newRSocket() {
       return new RSocketServer(
-          connection, acceptingSocket, DefaultPayload::create, throwable -> errors.add(throwable));
+          ByteBufAllocator.DEFAULT,
+          connection,
+          acceptingSocket,
+          DefaultPayload::create,
+          throwable -> errors.add(throwable));
     }
 
     private void sendRequest(int streamId, FrameType frameType) {

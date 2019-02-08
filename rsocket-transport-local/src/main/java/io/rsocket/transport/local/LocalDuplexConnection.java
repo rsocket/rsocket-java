@@ -81,8 +81,6 @@ final class LocalDuplexConnection implements DuplexConnection {
             byteBuf -> {
               byteBuf.retain();
               out.onNext(byteBuf);
-              FrameType frameType = FrameHeaderFlyweight.frameType(byteBuf);
-              System.out.println(frameType);
             })
         .then();
   }

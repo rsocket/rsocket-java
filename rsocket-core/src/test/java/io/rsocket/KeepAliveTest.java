@@ -43,6 +43,7 @@ public class KeepAliveTest {
       Errors errors = new Errors();
       RSocketClient rSocket =
           new RSocketClient(
+              ByteBufAllocator.DEFAULT,
               connection,
               DefaultPayload::create,
               errors,
@@ -61,7 +62,13 @@ public class KeepAliveTest {
       Errors errors = new Errors();
       RSocketServer rSocket =
           new RSocketServer(
-              connection, handler, DefaultPayload::create, errors, tickPeriod, timeout);
+              ByteBufAllocator.DEFAULT,
+              connection,
+              handler,
+              DefaultPayload::create,
+              errors,
+              tickPeriod,
+              timeout);
       return new TestData(rSocket, errors, connection);
     };
   }

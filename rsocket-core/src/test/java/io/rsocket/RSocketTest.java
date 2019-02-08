@@ -17,6 +17,7 @@
 package io.rsocket;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.exceptions.ApplicationErrorException;
 import io.rsocket.test.util.LocalDuplexConnection;
 import io.rsocket.test.util.TestSubscriber;
@@ -159,6 +160,7 @@ public class RSocketTest {
 
       srs =
           new RSocketServer(
+              ByteBufAllocator.DEFAULT,
               serverConnection,
               requestAcceptor,
               DefaultPayload::create,
@@ -166,6 +168,7 @@ public class RSocketTest {
 
       crs =
           new RSocketClient(
+              ByteBufAllocator.DEFAULT,
               clientConnection,
               DefaultPayload::create,
               throwable -> clientErrors.add(throwable),

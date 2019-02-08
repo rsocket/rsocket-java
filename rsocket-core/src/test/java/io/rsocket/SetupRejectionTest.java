@@ -52,7 +52,11 @@ public class SetupRejectionTest {
     List<Throwable> errors = new ArrayList<>();
     RSocketClient rSocket =
         new RSocketClient(
-            conn, DefaultPayload::create, errors::add, StreamIdSupplier.clientSupplier());
+            ByteBufAllocator.DEFAULT,
+            conn,
+            DefaultPayload::create,
+            errors::add,
+            StreamIdSupplier.clientSupplier());
 
     String errorMsg = "error";
 
@@ -78,7 +82,11 @@ public class SetupRejectionTest {
     TestDuplexConnection conn = new TestDuplexConnection();
     RSocketClient rSocket =
         new RSocketClient(
-            conn, DefaultPayload::create, err -> {}, StreamIdSupplier.clientSupplier());
+            ByteBufAllocator.DEFAULT,
+            conn,
+            DefaultPayload::create,
+            err -> {},
+            StreamIdSupplier.clientSupplier());
 
     conn.addToReceivedBuffer(
         ErrorFrameFlyweight.encode(
