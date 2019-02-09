@@ -95,8 +95,11 @@ public class SetupFrameFlyweight {
     length = ByteBufUtil.utf8Bytes(dataMimeType);
     header.writeByte(length);
     ByteBufUtil.writeUtf8(header, dataMimeType);
-
-    return DataAndMetadataFlyweight.encode(allocator, header, metadata, data);
+    if (metadata != null) {
+      return DataAndMetadataFlyweight.encode(allocator, header, metadata, data);
+    } else {
+      return DataAndMetadataFlyweight.encodeOnlyData(allocator, header, data);
+    }
   }
 
   public static int version(ByteBuf byteBuf) {
