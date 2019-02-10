@@ -8,8 +8,7 @@ import org.junit.jupiter.api.Test;
 
 import java.nio.charset.StandardCharsets;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 class RequestFlyweightTest {
   @Test
@@ -75,8 +74,10 @@ class RequestFlyweightTest {
     String data = RequestResponseFrameFlyweight.data(request).toString(StandardCharsets.UTF_8);
     String metadata = RequestResponseFrameFlyweight.metadata(request).toString(StandardCharsets.UTF_8);
 
+    assertTrue(FrameHeaderFlyweight.hasMetadata(request));
     assertEquals("d", data);
     assertEquals("md", metadata);
+    request.release();
   }
 
   @Test
@@ -91,12 +92,14 @@ class RequestFlyweightTest {
     String data = RequestResponseFrameFlyweight.data(request).toString(StandardCharsets.UTF_8);
     ByteBuf metadata = RequestResponseFrameFlyweight.metadata(request);
 
+    assertFalse(FrameHeaderFlyweight.hasMetadata(request));
     assertEquals("d", data);
     assertTrue(metadata.readableBytes() == 0);
+    request.release();
   }
 
   @Test
-  void requestResponseDataEmptyData() {
+  void requestResponseMetadata() {
     ByteBuf request = RequestResponseFrameFlyweight.encode(
         ByteBufAllocator.DEFAULT,
         1,
@@ -107,8 +110,10 @@ class RequestFlyweightTest {
     ByteBuf data = RequestResponseFrameFlyweight.data(request);
     String metadata = RequestResponseFrameFlyweight.metadata(request).toString(StandardCharsets.UTF_8);
 
+    assertTrue(FrameHeaderFlyweight.hasMetadata(request));
     assertTrue(data.readableBytes() == 0);
     assertEquals("md", metadata);
+    request.release();
   }
 
   @Test
@@ -117,7 +122,7 @@ class RequestFlyweightTest {
         ByteBufAllocator.DEFAULT,
         1,
         false,
-        42,
+        Integer.MAX_VALUE + 1L,
         Unpooled.copiedBuffer("md", StandardCharsets.UTF_8),
         Unpooled.copiedBuffer("d", StandardCharsets.UTF_8));
 
@@ -125,9 +130,11 @@ class RequestFlyweightTest {
     String data = RequestStreamFrameFlyweight.data(request).toString(StandardCharsets.UTF_8);
     String metadata = RequestStreamFrameFlyweight.metadata(request).toString(StandardCharsets.UTF_8);
 
-    assertEquals(42, actualRequest);
+    assertTrue(FrameHeaderFlyweight.hasMetadata(request));
+    assertEquals(Integer.MAX_VALUE, actualRequest);
     assertEquals("md", metadata);
     assertEquals("d", data);
+    request.release();
   }
 
   @Test
@@ -144,9 +151,11 @@ class RequestFlyweightTest {
     String data = RequestStreamFrameFlyweight.data(request).toString(StandardCharsets.UTF_8);
     ByteBuf metadata = RequestStreamFrameFlyweight.metadata(request);
 
+    assertFalse(FrameHeaderFlyweight.hasMetadata(request));
     assertEquals(42, actualRequest);
     assertTrue(metadata.readableBytes() == 0);
     assertEquals("d", data);
+    request.release();
   }
 
   @Test
@@ -163,8 +172,64 @@ class RequestFlyweightTest {
     ByteBuf data = RequestStreamFrameFlyweight.data(request);
     String metadata = RequestStreamFrameFlyweight.metadata(request).toString(StandardCharsets.UTF_8);
 
+    assertTrue(FrameHeaderFlyweight.hasMetadata(request));
     assertEquals(42, actualRequest);
     assertTrue(data.readableBytes() == 0);
     assertEquals("md", metadata);
+    request.release();
+  }
+
+  @Test
+  void requestFnfDataAndMetadata() {
+    ByteBuf request = RequestFireAndForgetFrameFlyweight.encode(
+        ByteBufAllocator.DEFAULT,
+        1,
+        false,
+        Unpooled.copiedBuffer("md", StandardCharsets.UTF_8),
+        Unpooled.copiedBuffer("d", StandardCharsets.UTF_8));
+
+    String data = RequestFireAndForgetFrameFlyweight.data(request).toString(StandardCharsets.UTF_8);
+    String metadata = RequestFireAndForgetFrameFlyweight.metadata(request).toString(StandardCharsets.UTF_8);
+
+    assertTrue(FrameHeaderFlyweight.hasMetadata(request));
+    assertEquals("d", data);
+    assertEquals("md", metadata);
+    request.release();
+  }
+
+  @Test
+  void requestFnfData() {
+    ByteBuf request = RequestFireAndForgetFrameFlyweight.encode(
+        ByteBufAllocator.DEFAULT,
+        1,
+        false,
+        null,
+        Unpooled.copiedBuffer("d", StandardCharsets.UTF_8));
+
+    String data = RequestFireAndForgetFrameFlyweight.data(request).toString(StandardCharsets.UTF_8);
+    ByteBuf metadata = RequestFireAndForgetFrameFlyweight.metadata(request);
+
+    assertFalse(FrameHeaderFlyweight.hasMetadata(request));
+    assertEquals("d", data);
+    assertTrue(metadata.readableBytes() == 0);
+    request.release();
+  }
+
+  @Test
+  void requestFnfMetadata() {
+    ByteBuf request = RequestFireAndForgetFrameFlyweight.encode(
+        ByteBufAllocator.DEFAULT,
+        1,
+        false,
+        Unpooled.copiedBuffer("md", StandardCharsets.UTF_8),
+        Unpooled.EMPTY_BUFFER);
+
+    ByteBuf data = RequestFireAndForgetFrameFlyweight.data(request);
+    String metadata = RequestFireAndForgetFrameFlyweight.metadata(request).toString(StandardCharsets.UTF_8);
+
+    assertTrue(FrameHeaderFlyweight.hasMetadata(request));
+    assertEquals("md", metadata);
+    assertTrue(data.readableBytes() == 0);
+    request.release();
   }
 }

@@ -34,6 +34,7 @@ class SetupFrameFlyweightTest {
     assertEquals(metadata, SetupFrameFlyweight.metadata(frame));
     assertEquals(data, SetupFrameFlyweight.data(frame));
     assertEquals(SetupFrameFlyweight.CURRENT_VERSION, SetupFrameFlyweight.version(frame));
+    frame.release();
   }
 
   @Test
@@ -70,5 +71,6 @@ class SetupFrameFlyweightTest {
     assertEquals(
         "00002100000000050000010000000013880000ea60046d646d7403646d740000026d6464",
         ByteBufUtil.hexDump(frame));
+    frame.release();
   }
 }

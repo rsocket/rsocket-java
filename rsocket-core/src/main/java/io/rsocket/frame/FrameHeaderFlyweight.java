@@ -13,8 +13,6 @@ import org.reactivestreams.Subscriber;
  * <p>Not thread-safe. Assumed to be used single-threaded
  */
 public final class FrameHeaderFlyweight {
-  public static final int FRAME_LENGTH_SIZE = 3;
-  public static final int FRAME_LENGTH_MASK = 0xFFFFFF;
   /** (I)gnore flag: a value of 0 indicates the protocol can't ignore this frame */
   public static final int FLAGS_I = 0b10_0000_0000;
   /** (M)etadata flag: a value of 1 indicates the frame contains metadata */
@@ -80,7 +78,7 @@ public final class FrameHeaderFlyweight {
   public static FrameType frameType(ByteBuf byteBuf) {
     byteBuf.markReaderIndex();
     byteBuf.skipBytes(Integer.BYTES);
-    int typeAndFlags = byteBuf.readShort();
+    int typeAndFlags = byteBuf.readShort() & 0xFFFF;
 
     FrameType result = FrameType.fromEncodedType(typeAndFlags >> FRAME_TYPE_SHIFT);
 

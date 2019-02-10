@@ -2,7 +2,6 @@ package io.rsocket.frame;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
-import io.netty.buffer.Unpooled;
 
 public class RequestFireAndForgetFrameFlyweight {
 
@@ -16,10 +15,6 @@ public class RequestFireAndForgetFrameFlyweight {
       boolean fragmentFollows,
       ByteBuf metadata,
       ByteBuf data) {
-
-    if (metadata == null) {
-      metadata = Unpooled.EMPTY_BUFFER;
-    }
 
     return FLYWEIGHT.encode(allocator, streamId, fragmentFollows, metadata, data);
   }

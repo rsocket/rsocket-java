@@ -48,7 +48,8 @@ public final class TestFrames {
    * @return {@link ByteBuf} representing test instance of Extension frame
    */
   public static ByteBuf createTestExtensionFrame() {
-    return ExtensionFrameFlyweight.encode(allocator, 1, 1,Unpooled.EMPTY_BUFFER);
+    return ExtensionFrameFlyweight.encode(allocator, 1, 1,
+        Unpooled.EMPTY_BUFFER, Unpooled.EMPTY_BUFFER);
   }
 
   /**

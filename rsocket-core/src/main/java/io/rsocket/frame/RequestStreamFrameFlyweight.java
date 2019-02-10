@@ -47,11 +47,10 @@ public class RequestStreamFrameFlyweight {
       long requestN,
       ByteBuf metadata,
       ByteBuf data) {
-    int i = (int) requestN;
-    if (requestN > Integer.MAX_VALUE) {
-      i = Integer.MAX_VALUE;
-    }
-    return encode(allocator, streamId, fragmentFollows, i, metadata, data);
+    int reqN = requestN > Integer.MAX_VALUE
+        ? Integer.MAX_VALUE
+        : (int) requestN;
+    return encode(allocator, streamId, fragmentFollows, reqN, metadata, data);
   }
 
   public static ByteBuf encode(

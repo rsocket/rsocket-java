@@ -20,6 +20,7 @@ public class PayloadFlyweightTest {
     String metadata = PayloadFrameFlyweight.metadata(nextComplete).toString(StandardCharsets.UTF_8);
     Assertions.assertEquals("d", data);
     Assertions.assertEquals("md", metadata);
+    nextComplete.release();
   }
 
   @Test
@@ -30,6 +31,7 @@ public class PayloadFlyweightTest {
     ByteBuf metadata = PayloadFrameFlyweight.metadata(nextComplete);
     Assertions.assertEquals("d", data);
     Assertions.assertTrue(metadata.readableBytes() == 0);
+    nextComplete.release();
   }
 
   @Test
@@ -43,6 +45,7 @@ public class PayloadFlyweightTest {
     String metadata = PayloadFrameFlyweight.metadata(nextComplete).toString(StandardCharsets.UTF_8);
     Assertions.assertTrue(data.readableBytes() == 0);
     Assertions.assertEquals("md", metadata);
+    nextComplete.release();
   }
 
   @Test
@@ -53,6 +56,7 @@ public class PayloadFlyweightTest {
     String metadata = PayloadFrameFlyweight.metadata(next).toString(StandardCharsets.UTF_8);
     Assertions.assertEquals("d", data);
     Assertions.assertEquals("md", metadata);
+    next.release();
   }
 
   @Test
@@ -63,5 +67,6 @@ public class PayloadFlyweightTest {
     ByteBuf metadata = PayloadFrameFlyweight.metadata(next);
     Assertions.assertEquals("d", data);
     Assertions.assertTrue(metadata.readableBytes() == 0);
+    next.release();
   }
 }

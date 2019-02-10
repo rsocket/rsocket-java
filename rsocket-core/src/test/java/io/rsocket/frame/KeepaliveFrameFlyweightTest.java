@@ -11,7 +11,7 @@ import java.nio.charset.StandardCharsets;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-class KeepAliveFrameFlyweightTest {
+class KeepaliveFrameFlyweightTest {
   @Test
   void canReadData() {
     ByteBuf data = Unpooled.wrappedBuffer(new byte[] {5, 4, 3});

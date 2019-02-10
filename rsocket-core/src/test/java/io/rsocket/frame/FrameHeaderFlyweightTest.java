@@ -24,6 +24,7 @@ class FrameHeaderFlyweightTest {
     
     assertEquals(flags, FrameHeaderFlyweight.flags(header));
     assertEquals(frameType, FrameHeaderFlyweight.frameType(header));
+    header.release();
   }
   
   @Test
@@ -40,5 +41,6 @@ class FrameHeaderFlyweightTest {
     assertNotEquals(flags, FrameHeaderFlyweight.flags(header));
     assertEquals(flags & 0b0000_0011_1111_1111, FrameHeaderFlyweight.flags(header));
     assertEquals(frameType, FrameHeaderFlyweight.frameType(header));
+    header.release();
   }
 }
