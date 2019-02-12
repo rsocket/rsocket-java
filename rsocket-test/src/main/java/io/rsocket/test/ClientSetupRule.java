@@ -48,9 +48,7 @@ public class ClientSetupRule<T, S extends Closeable> extends ExternalResource {
     this.serverInit =
         address ->
             RSocketFactory.receive()
-                .acceptor((setup, sendingSocket) -> Mono.just(new TestRSocket(
-                    data,
-                    metadata)))
+                .acceptor((setup, sendingSocket) -> Mono.just(new TestRSocket(data, metadata)))
                 .transport(serverTransportSupplier.apply(address))
                 .start()
                 .block();

@@ -1,4 +1,3 @@
 package io.rsocket.frame;
 
-public class ResumeOkFlyweight {
-}
+public class ResumeOkFlyweight {}

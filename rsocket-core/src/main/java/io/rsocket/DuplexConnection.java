@@ -16,9 +16,8 @@
 
 package io.rsocket;
 
-import java.nio.channels.ClosedChannelException;
-
 import io.netty.buffer.ByteBuf;
+import java.nio.channels.ClosedChannelException;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import reactor.core.publisher.Flux;
@@ -28,8 +27,8 @@ import reactor.core.publisher.Mono;
 public interface DuplexConnection extends Availability, Closeable {
 
   /**
-   * Sends the source of Frames on this connection and returns the {@code Publisher}
-   * representing the result of this send.
+   * Sends the source of Frames on this connection and returns the {@code Publisher} representing
+   * the result of this send.
    *
    * <h2>Flow control</h2>
    *

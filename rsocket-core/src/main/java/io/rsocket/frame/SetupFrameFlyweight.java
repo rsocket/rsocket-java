@@ -4,7 +4,6 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
-
 import java.nio.charset.StandardCharsets;
 
 public class SetupFrameFlyweight {
@@ -23,7 +22,8 @@ public class SetupFrameFlyweight {
   private static final int KEEPALIVE_INTERVAL_FIELD_OFFSET = VERSION_FIELD_OFFSET + Integer.BYTES;
   private static final int KEEPALIVE_MAX_LIFETIME_FIELD_OFFSET =
       KEEPALIVE_INTERVAL_FIELD_OFFSET + Integer.BYTES;
-  private static final int VARIABLE_DATA_OFFSET = KEEPALIVE_MAX_LIFETIME_FIELD_OFFSET + Integer.BYTES;
+  private static final int VARIABLE_DATA_OFFSET =
+      KEEPALIVE_MAX_LIFETIME_FIELD_OFFSET + Integer.BYTES;
 
   public static ByteBuf encode(
       final ByteBufAllocator allocator,

@@ -2,7 +2,6 @@ package io.rsocket.frame;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
-
 import javax.annotation.Nullable;
 
 class RequestFlyweight {

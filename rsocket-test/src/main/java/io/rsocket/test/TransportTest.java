@@ -23,6 +23,10 @@ import io.rsocket.RSocketFactory;
 import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.ServerTransport;
 import io.rsocket.util.DefaultPayload;
+import java.time.Duration;
+import java.util.function.BiFunction;
+import java.util.function.Function;
+import java.util.function.Supplier;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -31,11 +35,6 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 import reactor.test.StepVerifier;
-
-import java.time.Duration;
-import java.util.function.BiFunction;
-import java.util.function.Function;
-import java.util.function.Supplier;
 
 public interface TransportTest {
 
@@ -167,17 +166,18 @@ public interface TransportTest {
         .expectComplete()
         .verify(getTimeout());
   }
-  
+
   @DisplayName("makes 1 requestChannel request with 512 payloads")
   @Test
   default void requestChannel512() {
     Flux<Payload> payloads = Flux.range(0, 512).map(this::createTestPayload);
-    
+
     Flux.range(0, 1024)
-        .flatMap(v -> Mono.fromRunnable(()-> check(payloads)).subscribeOn(Schedulers.elastic()), 12)
+        .flatMap(
+            v -> Mono.fromRunnable(() -> check(payloads)).subscribeOn(Schedulers.elastic()), 12)
         .blockLast();
   }
-  
+
   default void check(Flux<Payload> payloads) {
     getClient()
         .requestChannel(payloads)
@@ -204,8 +204,8 @@ public interface TransportTest {
   @Test
   default void requestResponse10() {
     Flux.range(1, 10)
-        .flatMap(i -> getClient().requestResponse(createTestPayload(i))
-            .doOnNext(v -> assertPayload(v)))
+        .flatMap(
+            i -> getClient().requestResponse(createTestPayload(i)).doOnNext(v -> assertPayload(v)))
         .as(StepVerifier::create)
         .expectNextCount(10)
         .expectComplete()
@@ -277,16 +277,13 @@ public interface TransportTest {
   default void assertPayload(Payload p) {
     TransportPair transportPair = getTransportPair();
     if (!transportPair.expectedPayloadData().equals(p.getDataUtf8())
-        ||
-        !transportPair.expectedPayloadMetadata().equals(p.getMetadataUtf8())) {
+        || !transportPair.expectedPayloadMetadata().equals(p.getMetadataUtf8())) {
       throw new IllegalStateException("Unexpected payload");
     }
   }
 
   default void assertChannelPayload(Payload p) {
-    if (!"test-data".equals(p.getDataUtf8())
-        ||
-        !"metadata".equals(p.getMetadataUtf8())) {
+    if (!"test-data".equals(p.getDataUtf8()) || !"metadata".equals(p.getMetadataUtf8())) {
       throw new IllegalStateException("Unexpected payload");
     }
   }
@@ -308,9 +305,7 @@ public interface TransportTest {
 
       server =
           RSocketFactory.receive()
-              .acceptor((setup, sendingSocket) -> Mono.just(new TestRSocket(
-                  data,
-                  metadata)))
+              .acceptor((setup, sendingSocket) -> Mono.just(new TestRSocket(data, metadata)))
               .transport(serverTransportSupplier.apply(address))
               .start()
               .block();

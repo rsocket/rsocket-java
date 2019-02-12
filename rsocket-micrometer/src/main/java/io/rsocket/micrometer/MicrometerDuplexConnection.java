@@ -16,22 +16,21 @@
 
 package io.rsocket.micrometer;
 
+import static io.rsocket.frame.FrameType.*;
+
 import io.micrometer.core.instrument.*;
 import io.netty.buffer.ByteBuf;
 import io.rsocket.DuplexConnection;
 import io.rsocket.frame.FrameHeaderFlyweight;
 import io.rsocket.frame.FrameType;
 import io.rsocket.plugins.DuplexConnectionInterceptor.Type;
+import java.util.Objects;
+import java.util.function.Consumer;
 import org.reactivestreams.Publisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-
-import java.util.Objects;
-import java.util.function.Consumer;
-
-import static io.rsocket.frame.FrameType.*;
 
 /**
  * An implementation of {@link DuplexConnection} that intercepts frames and gathers Micrometer

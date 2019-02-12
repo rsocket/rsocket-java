@@ -18,6 +18,7 @@ package io.rsocket.transport.netty;
 import io.netty.buffer.ByteBuf;
 import io.netty.handler.codec.http.websocketx.BinaryWebSocketFrame;
 import io.rsocket.DuplexConnection;
+import java.util.Objects;
 import org.reactivestreams.Publisher;
 import reactor.core.Disposable;
 import reactor.core.Fuseable;
@@ -26,8 +27,6 @@ import reactor.core.publisher.Mono;
 import reactor.netty.Connection;
 import reactor.netty.FutureMono;
 import reactor.util.concurrent.Queues;
-
-import java.util.Objects;
 
 /**
  * An implementation of {@link DuplexConnection} that connects via a Websocket.

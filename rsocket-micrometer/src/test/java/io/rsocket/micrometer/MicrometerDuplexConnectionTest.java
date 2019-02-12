@@ -14,8 +14,15 @@
  * limitations under the License.
  */
 
-
 package io.rsocket.micrometer;
+
+import static io.rsocket.frame.FrameType.*;
+import static io.rsocket.plugins.DuplexConnectionInterceptor.Type.CLIENT;
+import static io.rsocket.plugins.DuplexConnectionInterceptor.Type.SERVER;
+import static io.rsocket.test.TestFrames.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatNullPointerException;
+import static org.mockito.Mockito.*;
 
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Tag;
@@ -32,14 +39,6 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Operators;
 import reactor.test.StepVerifier;
-
-import static io.rsocket.frame.FrameType.*;
-import static io.rsocket.plugins.DuplexConnectionInterceptor.Type.CLIENT;
-import static io.rsocket.plugins.DuplexConnectionInterceptor.Type.SERVER;
-import static io.rsocket.test.TestFrames.*;
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatNullPointerException;
-import static org.mockito.Mockito.*;
 
 final class MicrometerDuplexConnectionTest {
 

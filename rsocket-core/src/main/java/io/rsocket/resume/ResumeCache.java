@@ -17,9 +17,8 @@
 package io.rsocket.resume;
 
 import io.netty.buffer.ByteBuf;
-import reactor.core.publisher.Flux;
-
 import java.util.*;
+import reactor.core.publisher.Flux;
 
 public class ResumeCache {
   private final ResumePositionCounter strategy;

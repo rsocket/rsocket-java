@@ -16,12 +16,11 @@
 
 package io.rsocket.exceptions;
 
+import static io.rsocket.frame.ErrorFrameFlyweight.*;
+
 import io.netty.buffer.ByteBuf;
 import io.rsocket.frame.ErrorFrameFlyweight;
-
 import java.util.Objects;
-
-import static io.rsocket.frame.ErrorFrameFlyweight.*;
 
 /** Utility class that generates an exception from a frame. */
 public final class Exceptions {

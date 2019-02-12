@@ -51,18 +51,17 @@ public class PayloadFrameFlyweight {
         payload.hasMetadata() ? payload.sliceMetadata().retain() : null,
         payload.sliceData().retain());
   }
-  
-  public static ByteBuf encodeNext(
-    ByteBufAllocator allocator, int streamId, Payload payload) {
+
+  public static ByteBuf encodeNext(ByteBufAllocator allocator, int streamId, Payload payload) {
     return FLYWEIGHT.encode(
-      allocator,
-      streamId,
-      false,
-      false,
-      true,
-      0,
-      payload.hasMetadata() ? payload.sliceMetadata().retain() : null,
-      payload.sliceData().retain());
+        allocator,
+        streamId,
+        false,
+        false,
+        true,
+        0,
+        payload.hasMetadata() ? payload.sliceMetadata().retain() : null,
+        payload.sliceData().retain());
   }
 
   public static ByteBuf encodeComplete(ByteBufAllocator allocator, int streamId) {

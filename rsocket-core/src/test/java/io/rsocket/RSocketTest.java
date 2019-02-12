@@ -16,6 +16,11 @@
 
 package io.rsocket;
 
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.is;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
+
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.exceptions.ApplicationErrorException;
@@ -23,6 +28,7 @@ import io.rsocket.test.util.LocalDuplexConnection;
 import io.rsocket.test.util.TestSubscriber;
 import io.rsocket.util.DefaultPayload;
 import io.rsocket.util.EmptyPayload;
+import java.util.ArrayList;
 import org.hamcrest.MatcherAssert;
 import org.junit.Assert;
 import org.junit.Rule;
@@ -36,13 +42,6 @@ import reactor.core.publisher.DirectProcessor;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
-
-import java.util.ArrayList;
-
-import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.is;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.verify;
 
 public class RSocketTest {
 
@@ -88,12 +87,9 @@ public class RSocketTest {
   @Test(timeout = 2000)
   public void testChannel() throws Exception {
     Flux<Payload> requests =
-      Flux.range(0, 10).map(i -> DefaultPayload.create("streaming in -> " + i));
+        Flux.range(0, 10).map(i -> DefaultPayload.create("streaming in -> " + i));
     Flux<Payload> responses = rule.crs.requestChannel(requests);
-    StepVerifier.create(responses)
-        .expectNextCount(10)
-        .expectComplete()
-        .verify();
+    StepVerifier.create(responses).expectNextCount(10).expectComplete().verify();
   }
 
   public static class SocketRule extends ExternalResource {

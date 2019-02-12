@@ -54,7 +54,7 @@ class DataAndMetadataFlyweight {
     }
   }
 
-  static ByteBuf metadata(ByteBuf byteBuf,boolean hasMetadata) {
+  static ByteBuf metadata(ByteBuf byteBuf, boolean hasMetadata) {
     byteBuf.markReaderIndex();
     ByteBuf metadata = metadataWithoutMarking(byteBuf, hasMetadata);
     byteBuf.resetReaderIndex();

@@ -17,7 +17,6 @@
 package io.rsocket.lease;
 
 import io.netty.buffer.ByteBuf;
-
 import javax.annotation.Nullable;
 
 /** A contract for RSocket lease, which is sent by a request acceptor and is time bound. */

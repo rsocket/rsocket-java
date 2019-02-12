@@ -6,6 +6,11 @@ import io.netty.channel.ChannelPromise;
 import io.netty.channel.EventLoop;
 import io.netty.util.ReferenceCountUtil;
 import io.netty.util.ReferenceCounted;
+import java.util.Queue;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
+import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
+import java.util.function.Function;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
@@ -14,12 +19,6 @@ import reactor.core.Fuseable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Operators;
 import reactor.util.concurrent.Queues;
-
-import java.util.Queue;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
-import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
-import java.util.function.Function;
 
 class SendPublisher<V extends ReferenceCounted> extends Flux<ByteBuf> {
 
@@ -35,6 +34,7 @@ class SendPublisher<V extends ReferenceCounted> extends Flux<ByteBuf> {
   private final Publisher<ByteBuf> source;
   private final Channel channel;
   private final EventLoop eventLoop;
+
   private final Queue<ByteBuf> queue;
   private final AtomicBoolean completed = new AtomicBoolean();
   private final Function<ByteBuf, V> transformer;
@@ -59,7 +59,10 @@ class SendPublisher<V extends ReferenceCounted> extends Flux<ByteBuf> {
 
   @SuppressWarnings("unchecked")
   SendPublisher(
-      Publisher<ByteBuf> source, Channel channel, Function<ByteBuf, V> transformer, SizeOf<V> sizeOf) {
+      Publisher<ByteBuf> source,
+      Channel channel,
+      Function<ByteBuf, V> transformer,
+      SizeOf<V> sizeOf) {
     this(Queues.<ByteBuf>small().get(), source, channel, transformer, sizeOf);
   }
 
