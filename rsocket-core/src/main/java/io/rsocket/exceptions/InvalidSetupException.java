@@ -16,7 +16,7 @@
 
 package io.rsocket.exceptions;
 
-import io.rsocket.framing.ErrorType;
+import io.rsocket.frame.ErrorType;
 
 /**
  * The Setup frame is invalid for the server (it could be that the client is too recent for the old

@@ -1,11 +1,11 @@
 package io.rsocket.transport.netty;
 
+import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelPromise;
 import io.netty.channel.EventLoop;
 import io.netty.util.ReferenceCountUtil;
 import io.netty.util.ReferenceCounted;
-import io.rsocket.Frame;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
@@ -21,7 +21,7 @@ import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.function.Function;
 
-class SendPublisher<V extends ReferenceCounted> extends Flux<Frame> {
+class SendPublisher<V extends ReferenceCounted> extends Flux<ByteBuf> {
 
   private static final AtomicIntegerFieldUpdater<SendPublisher> WIP =
       AtomicIntegerFieldUpdater.newUpdater(SendPublisher.class, "wip");
@@ -32,12 +32,12 @@ class SendPublisher<V extends ReferenceCounted> extends Flux<Frame> {
       AtomicReferenceFieldUpdater.newUpdater(SendPublisher.class, Object.class, "innerSubscriber");
   private static final AtomicIntegerFieldUpdater<SendPublisher> TERMINATED =
       AtomicIntegerFieldUpdater.newUpdater(SendPublisher.class, "terminated");
-  private final Publisher<Frame> source;
+  private final Publisher<ByteBuf> source;
   private final Channel channel;
   private final EventLoop eventLoop;
-  private final Queue<Frame> queue;
+  private final Queue<ByteBuf> queue;
   private final AtomicBoolean completed = new AtomicBoolean();
-  private final Function<Frame, V> transformer;
+  private final Function<ByteBuf, V> transformer;
   private final SizeOf<V> sizeOf;
 
   @SuppressWarnings("unused")
@@ -59,16 +59,16 @@ class SendPublisher<V extends ReferenceCounted> extends Flux<Frame> {
 
   @SuppressWarnings("unchecked")
   SendPublisher(
-      Publisher<Frame> source, Channel channel, Function<Frame, V> transformer, SizeOf<V> sizeOf) {
-    this(Queues.<Frame>small().get(), source, channel, transformer, sizeOf);
+      Publisher<ByteBuf> source, Channel channel, Function<ByteBuf, V> transformer, SizeOf<V> sizeOf) {
+    this(Queues.<ByteBuf>small().get(), source, channel, transformer, sizeOf);
   }
 
   @SuppressWarnings("unchecked")
   SendPublisher(
-      Queue<Frame> queue,
-      Publisher<Frame> source,
+      Queue<ByteBuf> queue,
+      Publisher<ByteBuf> source,
       Channel channel,
-      Function<Frame, V> transformer,
+      Function<ByteBuf, V> transformer,
       SizeOf<V> sizeOf) {
     this.source = source;
     this.channel = channel;
@@ -98,7 +98,9 @@ class SendPublisher<V extends ReferenceCounted> extends Flux<Frame> {
                   tryComplete(is);
                 }
               } finally {
-                ReferenceCountUtil.safeRelease(poll);
+                if (poll.refCnt() > 0) {
+                  ReferenceCountUtil.safeRelease(poll);
+                }
               }
             });
   }
@@ -115,7 +117,7 @@ class SendPublisher<V extends ReferenceCounted> extends Flux<Frame> {
   }
 
   @Override
-  public void subscribe(CoreSubscriber<? super Frame> destination) {
+  public void subscribe(CoreSubscriber<? super ByteBuf> destination) {
     InnerSubscriber innerSubscriber = new InnerSubscriber(destination);
     if (!INNER_SUBSCRIBER.compareAndSet(this, null, innerSubscriber)) {
       Operators.error(
@@ -132,12 +134,12 @@ class SendPublisher<V extends ReferenceCounted> extends Flux<Frame> {
     int size(V v);
   }
 
-  private class InnerSubscriber implements Subscriber<Frame> {
-    final CoreSubscriber<? super Frame> destination;
+  private class InnerSubscriber implements Subscriber<ByteBuf> {
+    final CoreSubscriber<? super ByteBuf> destination;
     volatile Subscription s;
     private AtomicBoolean pendingFlush = new AtomicBoolean();
 
-    private InnerSubscriber(CoreSubscriber<? super Frame> destination) {
+    private InnerSubscriber(CoreSubscriber<? super ByteBuf> destination) {
       this.destination = destination;
     }
 
@@ -149,7 +151,7 @@ class SendPublisher<V extends ReferenceCounted> extends Flux<Frame> {
     }
 
     @Override
-    public void onNext(Frame t) {
+    public void onNext(ByteBuf t) {
       if (terminated == 0) {
         if (!fuse && !queue.offer(t)) {
           throw new IllegalStateException("missing back pressure");
@@ -220,9 +222,9 @@ class SendPublisher<V extends ReferenceCounted> extends Flux<Frame> {
 
           long r = Math.min(requested, requestedUpstream);
           while (r-- > 0) {
-            Frame frame = queue.poll();
-            if (frame != null && terminated == 0) {
-              V poll = transformer.apply(frame);
+            ByteBuf ByteBuf = queue.poll();
+            if (ByteBuf != null && terminated == 0) {
+              V poll = transformer.apply(ByteBuf);
               int readableBytes = sizeOf.size(poll);
               pending++;
               if (channel.isWritable() && readableBytes <= channel.bytesBeforeUnwritable()) {
@@ -280,7 +282,7 @@ class SendPublisher<V extends ReferenceCounted> extends Flux<Frame> {
     public void cancel() {
       TERMINATED.set(SendPublisher.this, 1);
       while (!queue.isEmpty()) {
-        Frame poll = queue.poll();
+        ByteBuf poll = queue.poll();
         if (poll != null) {
           ReferenceCountUtil.safeRelease(poll);
         }

@@ -20,7 +20,7 @@ import io.micrometer.core.instrument.Meter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tag;
 import io.rsocket.DuplexConnection;
-import io.rsocket.framing.FrameType;
+import io.rsocket.frame.FrameType;
 import io.rsocket.plugins.DuplexConnectionInterceptor;
 import java.util.Objects;
 

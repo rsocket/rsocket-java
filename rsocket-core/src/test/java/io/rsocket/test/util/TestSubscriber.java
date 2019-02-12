@@ -19,6 +19,7 @@ package io.rsocket.test.util;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 
+import io.netty.buffer.ByteBuf;
 import io.rsocket.Payload;
 import org.mockito.Mockito;
 import org.reactivestreams.Subscriber;

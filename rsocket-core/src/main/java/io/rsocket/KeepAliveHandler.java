@@ -1,27 +1,23 @@
 package io.rsocket;
 
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
-import java.time.Duration;
+import io.rsocket.frame.KeepAliveFrameFlyweight;
 import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
 import reactor.core.publisher.UnicastProcessor;
 
+import java.time.Duration;
+
 abstract class KeepAliveHandler implements Disposable {
   private final KeepAlive keepAlive;
-  private final UnicastProcessor<Frame> sent = UnicastProcessor.create();
+  private final UnicastProcessor<ByteBuf> sent = UnicastProcessor.create();
   private final MonoProcessor<KeepAlive> timeout = MonoProcessor.create();
   private Disposable intervalDisposable;
   private volatile long lastReceivedMillis;
-
-  static KeepAliveHandler ofServer(KeepAlive keepAlive) {
-    return new KeepAliveHandler.Server(keepAlive);
-  }
-
-  static KeepAliveHandler ofClient(KeepAlive keepAlive) {
-    return new KeepAliveHandler.Client(keepAlive);
-  }
 
   private KeepAliveHandler(KeepAlive keepAlive) {
     this.keepAlive = keepAlive;
@@ -31,6 +27,14 @@ abstract class KeepAliveHandler implements Disposable {
             .subscribe(v -> onIntervalTick());
   }
 
+  static KeepAliveHandler ofServer(KeepAlive keepAlive) {
+    return new KeepAliveHandler.Server(keepAlive);
+  }
+
+  static KeepAliveHandler ofClient(KeepAlive keepAlive) {
+    return new KeepAliveHandler.Client(keepAlive);
+  }
+
   @Override
   public void dispose() {
     sent.onComplete();
@@ -38,14 +42,15 @@ abstract class KeepAliveHandler implements Disposable {
     intervalDisposable.dispose();
   }
 
-  public void receive(Frame keepAliveFrame) {
+  public void receive(ByteBuf keepAliveFrame) {
     this.lastReceivedMillis = System.currentTimeMillis();
-    if (Frame.Keepalive.hasRespondFlag(keepAliveFrame)) {
-      doSend(Frame.Keepalive.from(Unpooled.wrappedBuffer(keepAliveFrame.getData()), false));
+    if (KeepAliveFrameFlyweight.respondFlag(keepAliveFrame)) {
+      doSend(KeepAliveFrameFlyweight.encode(ByteBufAllocator.DEFAULT, false, 0,
+          KeepAliveFrameFlyweight.data(keepAliveFrame).retain()));
     }
   }
 
-  public Flux<Frame> send() {
+  public Flux<ByteBuf> send() {
     return sent;
   }
 
@@ -55,7 +60,7 @@ abstract class KeepAliveHandler implements Disposable {
 
   abstract void onIntervalTick();
 
-  void doSend(Frame frame) {
+  void doSend(ByteBuf frame) {
     sent.onNext(frame);
   }
 
@@ -87,7 +92,7 @@ abstract class KeepAliveHandler implements Disposable {
     @Override
     void onIntervalTick() {
       doCheckTimeout();
-      doSend(Frame.Keepalive.from(Unpooled.EMPTY_BUFFER, true));
+      doSend(KeepAliveFrameFlyweight.encode(ByteBufAllocator.DEFAULT, true, 0, Unpooled.EMPTY_BUFFER));
     }
   }
 

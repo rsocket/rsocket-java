@@ -25,7 +25,7 @@
 
     <logger name="io.rsocket.transport.local" level="INFO"/>
 
-    <root level="INFO">
+    <root level="ERROR">
         <appender-ref ref="STDOUT"/>
     </root>
 

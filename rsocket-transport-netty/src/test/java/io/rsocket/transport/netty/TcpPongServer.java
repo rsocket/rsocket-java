@@ -16,8 +16,8 @@
 
 package io.rsocket.transport.netty;
 
-import io.rsocket.Frame;
 import io.rsocket.RSocketFactory;
+import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.test.PingHandler;
 import io.rsocket.transport.netty.server.TcpServerTransport;
 
@@ -25,7 +25,7 @@ public final class TcpPongServer {
 
   public static void main(String... args) {
     RSocketFactory.receive()
-        .frameDecoder(Frame::retain)
+        .frameDecoder(PayloadDecoder.ZERO_COPY)
         .acceptor(new PingHandler())
         .transport(TcpServerTransport.create(7878))
         .start()

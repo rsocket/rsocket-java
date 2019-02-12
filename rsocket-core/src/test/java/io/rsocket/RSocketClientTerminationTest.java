@@ -19,7 +19,7 @@ import java.util.function.Function;
 
 @RunWith(Parameterized.class)
 public class RSocketClientTerminationTest {
-
+  
   @Rule
   public final ClientSocketRule rule = new ClientSocketRule();
   private Function<RSocket, ? extends Publisher<?>> interaction;

@@ -16,33 +16,36 @@
 
 package io.rsocket.transport.local;
 
+import io.netty.buffer.ByteBuf;
 import io.rsocket.DuplexConnection;
-import io.rsocket.Frame;
-import java.util.Objects;
+import io.rsocket.frame.FrameHeaderFlyweight;
+import io.rsocket.frame.FrameType;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
 
+import java.util.Objects;
+
 /** An implementation of {@link DuplexConnection} that connects inside the same JVM. */
 final class LocalDuplexConnection implements DuplexConnection {
 
-  private final Flux<Frame> in;
+  private final Flux<ByteBuf> in;
 
   private final MonoProcessor<Void> onClose;
 
-  private final Subscriber<Frame> out;
+  private final Subscriber<ByteBuf> out;
 
   /**
    * Creates a new instance.
    *
-   * @param in the inbound {@link Frame}s
-   * @param out the outbound {@link Frame}s
+   * @param in the inbound {@link ByteBuf}s
+   * @param out the outbound {@link ByteBuf}s
    * @param onClose the closing notifier
    * @throws NullPointerException if {@code in}, {@code out}, or {@code onClose} are {@code null}
    */
-  LocalDuplexConnection(Flux<Frame> in, Subscriber<Frame> out, MonoProcessor<Void> onClose) {
+  LocalDuplexConnection(Flux<ByteBuf> in, Subscriber<ByteBuf> out, MonoProcessor<Void> onClose) {
     this.in = Objects.requireNonNull(in, "in must not be null");
     this.out = Objects.requireNonNull(out, "out must not be null");
     this.onClose = Objects.requireNonNull(onClose, "onClose must not be null");
@@ -65,14 +68,20 @@ final class LocalDuplexConnection implements DuplexConnection {
   }
 
   @Override
-  public Flux<Frame> receive() {
+  public Flux<ByteBuf> receive() {
     return in;
   }
 
   @Override
-  public Mono<Void> send(Publisher<Frame> frames) {
+  public Mono<Void> send(Publisher<ByteBuf> frames) {
     Objects.requireNonNull(frames, "frames must not be null");
 
-    return Flux.from(frames).doOnNext(out::onNext).then();
+    return Flux.from(frames)
+        .doOnNext(
+            byteBuf -> {
+              byteBuf.retain();
+              out.onNext(byteBuf);
+            })
+        .then();
   }
 }
