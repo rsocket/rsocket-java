@@ -18,15 +18,12 @@ package io.rsocket.transport.local;
 
 import io.netty.buffer.ByteBuf;
 import io.rsocket.DuplexConnection;
-import io.rsocket.frame.FrameHeaderFlyweight;
-import io.rsocket.frame.FrameType;
+import java.util.Objects;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
-
-import java.util.Objects;
 
 /** An implementation of {@link DuplexConnection} that connects inside the same JVM. */
 final class LocalDuplexConnection implements DuplexConnection {

@@ -21,11 +21,10 @@ import io.rsocket.DuplexConnection;
 import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.ServerTransport;
 import io.rsocket.transport.local.LocalServerTransport.ServerDuplexConnectionAcceptor;
+import java.util.Objects;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
 import reactor.core.publisher.UnicastProcessor;
-
-import java.util.Objects;
 
 /**
  * An implementation of {@link ClientTransport} that connects to a {@link ServerTransport} in the

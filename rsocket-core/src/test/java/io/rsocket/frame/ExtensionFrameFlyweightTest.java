@@ -3,10 +3,9 @@ package io.rsocket.frame;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
+import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
-
-import java.nio.charset.StandardCharsets;
 
 public class ExtensionFrameFlyweightTest {
 
@@ -16,7 +15,8 @@ public class ExtensionFrameFlyweightTest {
     ByteBuf data = bytebuf("d");
     int extendedType = 1;
 
-    ByteBuf extension = ExtensionFrameFlyweight.encode(ByteBufAllocator.DEFAULT, 1, extendedType, metadata, data);
+    ByteBuf extension =
+        ExtensionFrameFlyweight.encode(ByteBufAllocator.DEFAULT, 1, extendedType, metadata, data);
 
     Assertions.assertTrue(FrameHeaderFlyweight.hasMetadata(extension));
     Assertions.assertEquals(extendedType, ExtensionFrameFlyweight.extendedType(extension));
@@ -30,8 +30,8 @@ public class ExtensionFrameFlyweightTest {
     ByteBuf data = bytebuf("d");
     int extendedType = 1;
 
-    ByteBuf extension = ExtensionFrameFlyweight.encode(ByteBufAllocator.DEFAULT, 1,
-        extendedType, null, data);
+    ByteBuf extension =
+        ExtensionFrameFlyweight.encode(ByteBufAllocator.DEFAULT, 1, extendedType, null, data);
 
     Assertions.assertFalse(FrameHeaderFlyweight.hasMetadata(extension));
     Assertions.assertEquals(extendedType, ExtensionFrameFlyweight.extendedType(extension));
@@ -45,8 +45,9 @@ public class ExtensionFrameFlyweightTest {
     ByteBuf metadata = bytebuf("md");
     int extendedType = 1;
 
-    ByteBuf extension = ExtensionFrameFlyweight.encode(ByteBufAllocator.DEFAULT, 1,
-        extendedType, metadata, Unpooled.EMPTY_BUFFER);
+    ByteBuf extension =
+        ExtensionFrameFlyweight.encode(
+            ByteBufAllocator.DEFAULT, 1, extendedType, metadata, Unpooled.EMPTY_BUFFER);
 
     Assertions.assertTrue(FrameHeaderFlyweight.hasMetadata(extension));
     Assertions.assertEquals(extendedType, ExtensionFrameFlyweight.extendedType(extension));

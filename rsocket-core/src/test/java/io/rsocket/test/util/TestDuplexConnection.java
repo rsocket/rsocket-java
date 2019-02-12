@@ -18,6 +18,9 @@ package io.rsocket.test.util;
 
 import io.netty.buffer.ByteBuf;
 import io.rsocket.DuplexConnection;
+import java.util.Collection;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.slf4j.Logger;
@@ -26,10 +29,6 @@ import reactor.core.publisher.DirectProcessor;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
-
-import java.util.Collection;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.LinkedBlockingQueue;
 
 /**
  * An implementation of {@link DuplexConnection} that provides functionality to modify the behavior

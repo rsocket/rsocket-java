@@ -16,7 +16,6 @@
 
 package io.rsocket.fragmentation;
 
-import io.netty.buffer.ByteBufAllocator;
 import reactor.core.Disposable;
 
 /**
@@ -28,10 +27,8 @@ import reactor.core.Disposable;
  */
 final class FrameReassembler implements Disposable {
   @Override
-  public void dispose() {
-  
-  }
-  
+  public void dispose() {}
+
   @Override
   public boolean isDisposed() {
     return false;
@@ -61,25 +58,29 @@ final class FrameReassembler implements Disposable {
     handle.recycle(this);
   }
 
-  *//**
+  */
+  /**
    * Creates a new instance
    *
    * @param byteBufAllocator the {@link ByteBufAllocator} to use
    * @return the {@code FrameReassembler}
    * @throws NullPointerException if {@code byteBufAllocator} is {@code null}
-   *//*
+   */
+  /*
   static FrameReassembler createFrameReassembler(ByteBufAllocator byteBufAllocator) {
     return RECYCLER.get().setByteBufAllocator(byteBufAllocator);
   }
 
-  *//**
+  */
+  /**
    * Reassembles a frame. If the frame is not a candidate for fragmentation, emits the frame. If
    * frame is a candidate for fragmentation, accumulates the content until the final fragment.
    *
    * @param frame the frame to inspect for reassembly
    * @return the reassembled frame if complete, otherwise {@code null}
    * @throws NullPointerException if {@code frame} is {@code null}
-   *//*
+   */
+  /*
   @Nullable
   Frame reassemble(Frame frame) {
     Objects.requireNonNull(frame, "frame must not be null");

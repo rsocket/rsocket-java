@@ -4,13 +4,12 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
 import io.rsocket.frame.KeepAliveFrameFlyweight;
+import java.time.Duration;
 import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
 import reactor.core.publisher.UnicastProcessor;
-
-import java.time.Duration;
 
 abstract class KeepAliveHandler implements Disposable {
   private final KeepAlive keepAlive;
@@ -45,8 +44,12 @@ abstract class KeepAliveHandler implements Disposable {
   public void receive(ByteBuf keepAliveFrame) {
     this.lastReceivedMillis = System.currentTimeMillis();
     if (KeepAliveFrameFlyweight.respondFlag(keepAliveFrame)) {
-      doSend(KeepAliveFrameFlyweight.encode(ByteBufAllocator.DEFAULT, false, 0,
-          KeepAliveFrameFlyweight.data(keepAliveFrame).retain()));
+      doSend(
+          KeepAliveFrameFlyweight.encode(
+              ByteBufAllocator.DEFAULT,
+              false,
+              0,
+              KeepAliveFrameFlyweight.data(keepAliveFrame).retain()));
     }
   }
 
@@ -92,7 +95,8 @@ abstract class KeepAliveHandler implements Disposable {
     @Override
     void onIntervalTick() {
       doCheckTimeout();
-      doSend(KeepAliveFrameFlyweight.encode(ByteBufAllocator.DEFAULT, true, 0, Unpooled.EMPTY_BUFFER));
+      doSend(
+          KeepAliveFrameFlyweight.encode(ByteBufAllocator.DEFAULT, true, 0, Unpooled.EMPTY_BUFFER));
     }
   }
 

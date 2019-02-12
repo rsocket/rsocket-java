@@ -53,7 +53,7 @@ public class PayloadFlyweightPerf {
       this.bh = bh;
       this.frameType = FrameType.REQUEST_RESPONSE;
       allocator = ByteBufAllocator.DEFAULT;
-      
+
       // Encode a payload and then copy it a single bytebuf
       payload = allocator.buffer();
       ByteBuf encode =

@@ -1,5 +1,8 @@
 package io.rsocket;
 
+import static io.rsocket.transport.ServerTransport.ConnectionAcceptor;
+import static org.assertj.core.api.Assertions.assertThat;
+
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.exceptions.Exceptions;
@@ -11,18 +14,14 @@ import io.rsocket.frame.SetupFrameFlyweight;
 import io.rsocket.test.util.TestDuplexConnection;
 import io.rsocket.transport.ServerTransport;
 import io.rsocket.util.DefaultPayload;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import org.junit.Ignore;
 import org.junit.jupiter.api.Test;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.UnicastProcessor;
 import reactor.test.StepVerifier;
-
-import java.time.Duration;
-import java.util.ArrayList;
-import java.util.List;
-
-import static io.rsocket.transport.ServerTransport.ConnectionAcceptor;
-import static org.assertj.core.api.Assertions.assertThat;
 
 @Ignore
 public class SetupRejectionTest {

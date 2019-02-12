@@ -18,9 +18,7 @@ public class RequestChannelFrameFlyweight {
       ByteBuf metadata,
       ByteBuf data) {
 
-    int reqN = requestN > Integer.MAX_VALUE
-        ? Integer.MAX_VALUE
-        : (int) requestN;
+    int reqN = requestN > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) requestN;
 
     return FLYWEIGHT.encode(
         allocator, streamId, fragmentFollows, complete, false, reqN, metadata, data);

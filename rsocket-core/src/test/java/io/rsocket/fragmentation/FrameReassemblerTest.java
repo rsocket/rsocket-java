@@ -17,7 +17,7 @@
 package io.rsocket.fragmentation;
 
 final class FrameReassemblerTest {
-/*
+  /*
   @DisplayName("createFrameReassembler throws NullPointerException")
   @Test
   void createFrameReassemblerNullByteBufAllocator() {

@@ -17,7 +17,7 @@
 package io.rsocket.fragmentation;
 
 final class FragmentationDuplexConnectionTest {
-/*
+  /*
   private final DuplexConnection delegate = mock(DuplexConnection.class, RETURNS_SMART_NULLS);
 
   @SuppressWarnings("unchecked")

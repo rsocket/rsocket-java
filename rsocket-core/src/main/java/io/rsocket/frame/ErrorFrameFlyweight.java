@@ -4,7 +4,6 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.ByteBufUtil;
 import io.rsocket.exceptions.RSocketException;
-
 import java.nio.charset.StandardCharsets;
 
 public class ErrorFrameFlyweight {

@@ -20,13 +20,13 @@ import io.netty.buffer.ByteBufUtil;
 import org.assertj.core.presentation.StandardRepresentation;
 
 public final class ByteBufRepresentation extends StandardRepresentation {
-  
+
   @Override
   protected String fallbackToStringOf(Object object) {
     if (object instanceof ByteBuf) {
       return ByteBufUtil.prettyHexDump((ByteBuf) object);
     }
-    
+
     return super.fallbackToStringOf(object);
   }
 }

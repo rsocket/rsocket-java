@@ -30,29 +30,26 @@ import reactor.core.publisher.Mono;
  *     and Reassembly</a>
  */
 public final class FragmentationDuplexConnection implements DuplexConnection {
-  public FragmentationDuplexConnection(DuplexConnection connection, int mtu) {
-    
-  }
-  
+  public FragmentationDuplexConnection(DuplexConnection connection, int mtu) {}
+
   @Override
   public Mono<Void> send(Publisher<ByteBuf> frames) {
     return null;
   }
-  
+
   @Override
   public Flux<ByteBuf> receive() {
     return null;
   }
-  
+
   @Override
   public Mono<Void> onClose() {
     return null;
   }
-  
+
   @Override
-  public void dispose() {
-  
-  }
+  public void dispose() {}
+
   /*
   private final ByteBufAllocator byteBufAllocator;
 
@@ -62,20 +59,23 @@ public final class FragmentationDuplexConnection implements DuplexConnection {
 
   private final IntObjectHashMap<FrameReassembler> frameReassemblers = new IntObjectHashMap<>();
 
-  *//**
+  */
+  /**
    * Creates a new instance.
    *
    * @param delegate the {@link DuplexConnection} to decorate
    * @param maxFragmentSize the maximum fragment size
    * @throws NullPointerException if {@code delegate} is {@code null}
    * @throws IllegalArgumentException if {@code maxFragmentSize} is not {@code positive}
-   *//*
+   */
+  /*
   // TODO: Remove once ByteBufAllocators are shared
   public FragmentationDuplexConnection(DuplexConnection delegate, int maxFragmentSize) {
     this(PooledByteBufAllocator.DEFAULT, delegate, maxFragmentSize);
   }
 
-  *//**
+  */
+  /**
    * Creates a new instance.
    *
    * @param byteBufAllocator the {@link ByteBufAllocator} to use
@@ -84,7 +84,8 @@ public final class FragmentationDuplexConnection implements DuplexConnection {
    *     be fragmented.
    * @throws NullPointerException if {@code byteBufAllocator} or {@code delegate} are {@code null}
    * @throws IllegalArgumentException if {@code maxFragmentSize} is not {@code positive}
-   *//*
+   */
+  /*
   public FragmentationDuplexConnection(
       ByteBufAllocator byteBufAllocator, DuplexConnection delegate, int maxFragmentSize) {
 

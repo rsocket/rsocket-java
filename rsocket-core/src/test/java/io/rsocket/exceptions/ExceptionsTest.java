@@ -16,10 +16,8 @@
 
 package io.rsocket.exceptions;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
 final class ExceptionsTest {
-/*
+  /*
   @DisplayName("from returns ApplicationErrorException")
   @Test
   void fromApplicationException() {
