@@ -30,6 +30,8 @@ import reactor.core.publisher.Operators;
 import reactor.util.annotation.Nullable;
 import reactor.util.context.Context;
 
+/** @deprecated in favour of {@link Flux#switchOnFirst(BiFunction)} */
+@Deprecated
 public final class SwitchTransformFlux<T, R> extends Flux<R> {
 
   final Publisher<? extends T> source;
