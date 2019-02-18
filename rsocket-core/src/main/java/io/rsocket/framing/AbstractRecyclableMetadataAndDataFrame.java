@@ -125,6 +125,9 @@ abstract class AbstractRecyclableMetadataAndDataFrame<
   }
 
   private int getDataOffset(int metadataLengthOffset) {
+    if (!isFlagSet(FLAG_METADATA)) {
+      return 0;
+    }
     return getMetadataOffset(metadataLengthOffset) + getMetadataLength(metadataLengthOffset);
   }
 

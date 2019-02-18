@@ -32,6 +32,7 @@ import static org.mockito.Mockito.when;
 import io.netty.buffer.ByteBuf;
 import io.rsocket.DuplexConnection;
 import io.rsocket.Frame;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -40,6 +41,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
+@Disabled
 final class FragmentationDuplexConnectionTest {
 
   private final DuplexConnection delegate = mock(DuplexConnection.class, RETURNS_SMART_NULLS);
