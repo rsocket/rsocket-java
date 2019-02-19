@@ -25,11 +25,14 @@ import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import java.util.function.Function;
+
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import reactor.util.function.Tuple2;
 import reactor.util.function.Tuples;
 
+@Disabled
 final class RequestResponseFrameTest implements FragmentableFrameTest<RequestResponseFrame> {
 
   @Override
