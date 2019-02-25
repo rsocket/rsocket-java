@@ -20,7 +20,6 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.util.ReferenceCountUtil;
 import io.netty.util.collection.IntObjectHashMap;
-import io.rsocket.exceptions.ConnectionErrorException;
 import io.rsocket.exceptions.Exceptions;
 import io.rsocket.frame.*;
 import io.rsocket.frame.decoder.PayloadDecoder;
@@ -28,7 +27,6 @@ import io.rsocket.internal.LimitableRequestPublisher;
 import io.rsocket.internal.UnboundedProcessor;
 import io.rsocket.internal.UnicastMonoProcessor;
 import java.nio.channels.ClosedChannelException;
-import java.time.Duration;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -54,25 +52,6 @@ class RSocketClient implements RSocket {
   private final UnboundedProcessor<ByteBuf> sendProcessor;
   private final Lifecycle lifecycle = new Lifecycle();
   private final ByteBufAllocator allocator;
-  private KeepAliveHandler keepAliveHandler;
-
-  /*server requester*/
-  RSocketClient(
-      ByteBufAllocator allocator,
-      DuplexConnection connection,
-      PayloadDecoder payloadDecoder,
-      Consumer<Throwable> errorConsumer,
-      StreamIdSupplier streamIdSupplier) {
-    this(
-        allocator,
-        connection,
-        payloadDecoder,
-        errorConsumer,
-        streamIdSupplier,
-        Duration.ZERO,
-        Duration.ZERO,
-        0);
-  }
 
   /*client requester*/
   RSocketClient(
@@ -80,10 +59,7 @@ class RSocketClient implements RSocket {
       DuplexConnection connection,
       PayloadDecoder payloadDecoder,
       Consumer<Throwable> errorConsumer,
-      StreamIdSupplier streamIdSupplier,
-      Duration tickPeriod,
-      Duration ackTimeout,
-      int missedAcks) {
+      StreamIdSupplier streamIdSupplier) {
     this.allocator = allocator;
     this.connection = connection;
     this.payloadDecoder = payloadDecoder;
@@ -103,27 +79,6 @@ class RSocketClient implements RSocket {
         .subscribe(null, this::handleSendProcessorError);
 
     connection.receive().subscribe(this::handleIncomingFrames, errorConsumer);
-
-    if (!Duration.ZERO.equals(tickPeriod)) {
-      this.keepAliveHandler =
-          KeepAliveHandler.ofClient(
-              new KeepAliveHandler.KeepAlive(tickPeriod, ackTimeout, missedAcks));
-
-      keepAliveHandler
-          .timeout()
-          .subscribe(
-              keepAlive -> {
-                String message =
-                    String.format("No keep-alive acks for %d ms", keepAlive.getTimeoutMillis());
-                ConnectionErrorException err = new ConnectionErrorException(message);
-                lifecycle.setTerminationError(err);
-                errorConsumer.accept(err);
-                connection.dispose();
-              });
-      keepAliveHandler.send().subscribe(sendProcessor::onNext);
-    } else {
-      keepAliveHandler = null;
-    }
   }
 
   private void handleSendProcessorError(Throwable t) {
@@ -433,9 +388,6 @@ class RSocketClient implements RSocket {
   protected void terminate() {
     lifecycle.setTerminationError(new ClosedChannelException());
 
-    if (keepAliveHandler != null) {
-      keepAliveHandler.dispose();
-    }
     try {
       receivers.values().forEach(this::cleanUpSubscriber);
       senders.values().forEach(this::cleanUpLimitableRequestPublisher);
@@ -490,9 +442,8 @@ class RSocketClient implements RSocket {
       case LEASE:
         break;
       case KEEPALIVE:
-        if (keepAliveHandler != null) {
-          keepAliveHandler.receive(frame);
-        }
+        // KeepAlive is handled by corresponding connection interceptor,
+        // just release its frame here
         break;
       default:
         // Ignore unknown frames. Throwing an error will close the socket.

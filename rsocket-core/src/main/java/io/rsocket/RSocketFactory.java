@@ -25,6 +25,7 @@ import io.rsocket.frame.SetupFrameFlyweight;
 import io.rsocket.frame.VersionFlyweight;
 import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.internal.ClientServerInputMultiplexer;
+import io.rsocket.keepalive.KeepAliveConnection;
 import io.rsocket.plugins.DuplexConnectionInterceptor;
 import io.rsocket.plugins.PluginRegistry;
 import io.rsocket.plugins.Plugins;
@@ -32,12 +33,14 @@ import io.rsocket.plugins.RSocketInterceptor;
 import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.ServerTransport;
 import io.rsocket.util.EmptyPayload;
+import io.rsocket.util.KeepAliveData;
+import reactor.core.publisher.Mono;
+
 import java.time.Duration;
 import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import reactor.core.publisher.Mono;
 
 /** Factory for creating RSocket clients and servers. */
 public class RSocketFactory {
@@ -213,9 +216,7 @@ public class RSocketFactory {
 
       @Override
       public Mono<RSocket> start() {
-        return transportClient
-            .get()
-            .connect(mtu)
+        return newConnection()
             .flatMap(
                 connection -> {
                   ByteBuf setupFrame =
@@ -239,10 +240,7 @@ public class RSocketFactory {
                           multiplexer.asClientConnection(),
                           payloadDecoder,
                           errorConsumer,
-                          StreamIdSupplier.clientSupplier(),
-                          tickPeriod,
-                          ackTimeout,
-                          missedAcks);
+                          StreamIdSupplier.clientSupplier());
 
                   RSocket wrappedRSocketClient = plugins.applyClient(rSocketClient);
 
@@ -260,6 +258,32 @@ public class RSocketFactory {
 
                   return connection.sendOne(setupFrame).thenReturn(wrappedRSocketClient);
                 });
+      }
+
+      private long keepAliveTickPeriod() {
+        return tickPeriod.toMillis();
+      }
+
+      private long keepAliveTimeout() {
+        return ackTimeout.toMillis() + tickPeriod.toMillis() * missedAcks;
+      }
+
+      private Mono<KeepAliveConnection> newConnection() {
+        return transportClient
+            .get()
+            .connect(mtu)
+            .map(
+                connection ->
+                    KeepAliveConnection.ofClient(
+                        allocator,
+                        connection,
+                        notUsed ->
+                            Mono.just(
+                                new KeepAliveData(
+                                    keepAliveTickPeriod(),
+                                    keepAliveTimeout())
+                            ),
+                        errorConsumer));
       }
     }
   }
@@ -328,6 +352,12 @@ public class RSocketFactory {
             .get()
             .start(
                 connection -> {
+                  connection =
+                      KeepAliveConnection.ofServer(
+                          allocator,
+                          connection,
+                          keepAliveData(),
+                          errorConsumer);
                   ClientServerInputMultiplexer multiplexer =
                       new ClientServerInputMultiplexer(connection, plugins);
 
@@ -338,6 +368,13 @@ public class RSocketFactory {
                       .flatMap(setupFrame -> processSetupFrame(multiplexer, setupFrame));
                 },
                 mtu);
+      }
+
+      private Function<ByteBuf, Mono<KeepAliveData>> keepAliveData() {
+        return frame -> Mono.just(
+            new KeepAliveData(
+                SetupFrameFlyweight.keepAliveInterval(frame),
+                SetupFrameFlyweight.keepAliveMaxLifetime(frame)));
       }
 
       private Mono<Void> processSetupFrame(
@@ -355,8 +392,6 @@ public class RSocketFactory {
         }
 
         ConnectionSetupPayload setupPayload = ConnectionSetupPayload.create(setupFrame);
-        int keepAliveInterval = setupPayload.keepAliveInterval();
-        int keepAliveMaxLifetime = setupPayload.keepAliveMaxLifetime();
 
         RSocketClient rSocketClient =
             new RSocketClient(
@@ -386,9 +421,7 @@ public class RSocketFactory {
                           multiplexer.asClientConnection(),
                           wrappedRSocketServer,
                           payloadDecoder,
-                          errorConsumer,
-                          keepAliveInterval,
-                          keepAliveMaxLifetime);
+                          errorConsumer);
                 })
             .doFinally(signalType -> setupPayload.release())
             .then();

@@ -50,11 +50,6 @@ public class RSocketClientTest {
   @Rule public final ClientSocketRule rule = new ClientSocketRule();
 
   @Test(timeout = 2_000)
-  public void testKeepAlive() throws Exception {
-    assertThat("Unexpected frame sent.", frameType(rule.connection.awaitSend()), is(KEEPALIVE));
-  }
-
-  @Test(timeout = 2_000)
   public void testInvalidFrameOnStream0() {
     rule.connection.addToReceivedBuffer(
         RequestNFrameFlyweight.encode(ByteBufAllocator.DEFAULT, 0, 10));
@@ -214,10 +209,7 @@ public class RSocketClientTest {
           connection,
           DefaultPayload::create,
           throwable -> errors.add(throwable),
-          StreamIdSupplier.clientSupplier(),
-          Duration.ofMillis(100),
-          Duration.ofMillis(10_000),
-          4);
+          StreamIdSupplier.clientSupplier());
     }
 
     public int getStreamIdForRequestType(FrameType expectedFrameType) {
