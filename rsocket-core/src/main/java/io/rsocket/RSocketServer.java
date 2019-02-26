@@ -34,6 +34,7 @@ import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 import reactor.core.Disposable;
+import reactor.core.Exceptions;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.SignalType;
@@ -330,8 +331,10 @@ class RSocketServer implements RSocket {
               new IllegalStateException("ServerRSocket: Unexpected frame type: " + frameType));
           break;
       }
-    } finally {
       ReferenceCountUtil.safeRelease(frame);
+    } catch (Throwable t) {
+      ReferenceCountUtil.safeRelease(frame);
+      throw Exceptions.propagate(t);
     }
   }
 
@@ -345,11 +348,28 @@ class RSocketServer implements RSocket {
   private void handleRequestResponse(int streamId, Mono<Payload> response) {
     response
         .doOnSubscribe(subscription -> sendingSubscriptions.put(streamId, subscription))
-        .map(payload -> PayloadFrameFlyweight.encodeNextComplete(allocator, streamId, payload))
+        .map(
+            payload -> {
+              ByteBuf byteBuf = null;
+              try {
+                byteBuf = PayloadFrameFlyweight.encodeNextComplete(allocator, streamId, payload);
+              } catch (Throwable t) {
+                if (byteBuf != null) {
+                  ReferenceCountUtil.safeRelease(byteBuf);
+                  ReferenceCountUtil.safeRelease(payload);
+                }
+              }
+              payload.release();
+              return byteBuf;
+            })
         .switchIfEmpty(
             Mono.fromCallable(() -> PayloadFrameFlyweight.encodeComplete(allocator, streamId)))
         .doFinally(signalType -> sendingSubscriptions.remove(streamId))
-        .subscribe(t1 -> sendProcessor.onNext(t1), t -> handleError(streamId, t));
+        .subscribe(
+            t1 -> {
+              sendProcessor.onNext(t1);
+            },
+            t -> handleError(streamId, t));
   }
 
   private void handleStream(int streamId, Flux<Payload> response, int initialRequestN) {
@@ -364,9 +384,20 @@ class RSocketServer implements RSocket {
             })
         .doFinally(signalType -> sendingSubscriptions.remove(streamId))
         .subscribe(
-            payload ->
-                sendProcessor.onNext(
-                    PayloadFrameFlyweight.encodeNext(allocator, streamId, payload)),
+            payload -> {
+              ByteBuf byteBuf = null;
+              try {
+                byteBuf = PayloadFrameFlyweight.encodeNext(allocator, streamId, payload);
+              } catch (Throwable t) {
+                if (byteBuf != null) {
+                  ReferenceCountUtil.safeRelease(byteBuf);
+                  ReferenceCountUtil.safeRelease(payload);
+                }
+                throw Exceptions.propagate(t);
+              }
+              payload.release();
+              sendProcessor.onNext(byteBuf);
+            },
             t -> handleError(streamId, t),
             () -> sendProcessor.onNext(PayloadFrameFlyweight.encodeComplete(allocator, streamId)));
   }

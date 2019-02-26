@@ -16,19 +16,18 @@
 
 package io.rsocket.transport.netty.server;
 
+import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.Closeable;
+import io.rsocket.DuplexConnection;
+import io.rsocket.fragmentation.FragmentationDuplexConnection;
 import io.rsocket.transport.ServerTransport;
 import io.rsocket.transport.netty.WebsocketDuplexConnection;
 import java.util.Objects;
-import java.util.function.BiFunction;
 import java.util.function.Consumer;
-import org.reactivestreams.Publisher;
 import reactor.core.publisher.Mono;
 import reactor.netty.Connection;
 import reactor.netty.http.server.HttpServer;
 import reactor.netty.http.server.HttpServerRoutes;
-import reactor.netty.http.websocket.WebsocketInbound;
-import reactor.netty.http.websocket.WebsocketOutbound;
 
 /**
  * An implementation of {@link ServerTransport} that connects via Websocket and listens on specified
@@ -58,34 +57,26 @@ public final class WebsocketRouteTransport implements ServerTransport<Closeable>
   }
 
   @Override
-  public Mono<Closeable> start(ConnectionAcceptor acceptor) {
+  public Mono<Closeable> start(ConnectionAcceptor acceptor, int mtu) {
     Objects.requireNonNull(acceptor, "acceptor must not be null");
 
     return server
         .route(
             routes -> {
               routesBuilder.accept(routes);
-              routes.ws(path, newHandler(acceptor));
+              routes.ws(
+                  path,
+                  (in, out) -> {
+                    DuplexConnection connection = new WebsocketDuplexConnection((Connection) in);
+                    if (mtu > 0) {
+                      connection =
+                          new FragmentationDuplexConnection(
+                              connection, ByteBufAllocator.DEFAULT, mtu, false);
+                    }
+                    return acceptor.apply(connection).then(out.neverComplete());
+                  });
             })
         .bind()
         .map(CloseableChannel::new);
-  }
-
-  /**
-   * Creates a new Websocket handler
-   *
-   * @param acceptor the {@link ConnectionAcceptor} to use with the handler
-   * @return a new Websocket handler
-   * @throws NullPointerException if {@code acceptor} is {@code null}
-   */
-  static BiFunction<WebsocketInbound, WebsocketOutbound, Publisher<Void>> newHandler(
-      ConnectionAcceptor acceptor) {
-
-    Objects.requireNonNull(acceptor, "acceptor must not be null");
-
-    return (in, out) -> {
-      WebsocketDuplexConnection connection = new WebsocketDuplexConnection((Connection) in);
-      return acceptor.apply(connection).then(out.neverComplete());
-    };
   }
 }

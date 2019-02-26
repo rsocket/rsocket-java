@@ -39,8 +39,8 @@ final class WebsocketClientTransportTest {
     WebsocketServerTransport serverTransport = WebsocketServerTransport.create(address);
 
     serverTransport
-        .start(duplexConnection -> Mono.empty())
-        .flatMap(context -> WebsocketClientTransport.create(context.address()).connect())
+        .start(duplexConnection -> Mono.empty(), 0)
+        .flatMap(context -> WebsocketClientTransport.create(context.address()).connect(0))
         .as(StepVerifier::create)
         .expectNextCount(1)
         .verifyComplete();
@@ -49,7 +49,7 @@ final class WebsocketClientTransportTest {
   @DisplayName("create generates error if server not started")
   @Test
   void connectNoServer() {
-    WebsocketClientTransport.create(8000).connect().as(StepVerifier::create).verifyError();
+    WebsocketClientTransport.create(8000).connect(0).as(StepVerifier::create).verifyError();
   }
 
   @DisplayName("creates client with BindAddress")

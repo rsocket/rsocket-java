@@ -124,7 +124,7 @@ public class SetupRejectionTest {
     private final TestDuplexConnection conn = new TestDuplexConnection();
 
     @Override
-    public Mono<TestCloseable> start(ConnectionAcceptor acceptor) {
+    public Mono<TestCloseable> start(ConnectionAcceptor acceptor, int mtu) {
       return Mono.just(new TestCloseable(acceptor, conn));
     }
 

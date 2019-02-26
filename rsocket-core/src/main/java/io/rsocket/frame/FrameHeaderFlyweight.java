@@ -45,7 +45,7 @@ public final class FrameHeaderFlyweight {
     return encode(allocator, 0, frameType, flags);
   }
 
-  static ByteBuf encode(
+  public static ByteBuf encode(
       final ByteBufAllocator allocator, final int streamId, final FrameType frameType, int flags) {
     if (!frameType.canHaveMetadata() && ((flags & FLAGS_M) == FLAGS_M)) {
       throw new IllegalStateException("bad value for metadata flag");
@@ -54,6 +54,10 @@ public final class FrameHeaderFlyweight {
     short typeAndFlags = (short) (frameType.getEncodedType() << FRAME_TYPE_SHIFT | (short) flags);
 
     return allocator.buffer().writeInt(streamId).writeShort(typeAndFlags);
+  }
+
+  public static boolean hasFollows(ByteBuf byteBuf) {
+    return (flags(byteBuf) & FLAGS_F) == FLAGS_F;
   }
 
   public static int streamId(ByteBuf byteBuf) {
@@ -113,7 +117,7 @@ public final class FrameHeaderFlyweight {
     }
   }
 
-  static int size() {
+  public static int size() {
     return HEADER_SIZE;
   }
 }

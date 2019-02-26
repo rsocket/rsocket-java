@@ -2,12 +2,20 @@ package io.rsocket.frame;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
+import io.rsocket.Payload;
 
 public class RequestFireAndForgetFrameFlyweight {
 
   private static final RequestFlyweight FLYWEIGHT = new RequestFlyweight(FrameType.REQUEST_FNF);
 
   private RequestFireAndForgetFrameFlyweight() {}
+
+  public static ByteBuf encode(
+      ByteBufAllocator allocator, int streamId, boolean fragmentFollows, Payload payload) {
+
+    return FLYWEIGHT.encode(
+        allocator, streamId, fragmentFollows, payload.metadata(), payload.data());
+  }
 
   public static ByteBuf encode(
       ByteBufAllocator allocator,

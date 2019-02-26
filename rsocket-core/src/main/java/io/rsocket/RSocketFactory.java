@@ -20,7 +20,6 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.exceptions.InvalidSetupException;
 import io.rsocket.exceptions.RejectedSetupException;
-import io.rsocket.fragmentation.FragmentationDuplexConnection;
 import io.rsocket.frame.ErrorFrameFlyweight;
 import io.rsocket.frame.SetupFrameFlyweight;
 import io.rsocket.frame.VersionFlyweight;
@@ -216,7 +215,7 @@ public class RSocketFactory {
       public Mono<RSocket> start() {
         return transportClient
             .get()
-            .connect()
+            .connect(mtu)
             .flatMap(
                 connection -> {
                   ByteBuf setupFrame =
@@ -230,10 +229,6 @@ public class RSocketFactory {
                           dataMimeType,
                           setupPayload.sliceMetadata(),
                           setupPayload.sliceData());
-
-                  if (mtu > 0) {
-                    connection = new FragmentationDuplexConnection(connection, mtu);
-                  }
 
                   ClientServerInputMultiplexer multiplexer =
                       new ClientServerInputMultiplexer(connection, plugins);
@@ -333,10 +328,6 @@ public class RSocketFactory {
             .get()
             .start(
                 connection -> {
-                  if (mtu > 0) {
-                    connection = new FragmentationDuplexConnection(connection, mtu);
-                  }
-
                   ClientServerInputMultiplexer multiplexer =
                       new ClientServerInputMultiplexer(connection, plugins);
 
@@ -345,7 +336,8 @@ public class RSocketFactory {
                       .receive()
                       .next()
                       .flatMap(setupFrame -> processSetupFrame(multiplexer, setupFrame));
-                });
+                },
+                mtu);
       }
 
       private Mono<Void> processSetupFrame(

@@ -21,6 +21,7 @@ import io.rsocket.Closeable;
 import io.rsocket.DuplexConnection;
 import io.rsocket.frame.FrameHeaderFlyweight;
 import io.rsocket.frame.FrameType;
+import io.rsocket.frame.FrameUtil;
 import io.rsocket.plugins.DuplexConnectionInterceptor.Type;
 import io.rsocket.plugins.PluginRegistry;
 import org.reactivestreams.Publisher;
@@ -148,7 +149,7 @@ public class ClientServerInputMultiplexer implements Closeable {
     @Override
     public Mono<Void> send(Publisher<ByteBuf> frame) {
       if (debugEnabled) {
-        frame = Flux.from(frame).doOnNext(f -> LOGGER.debug("sending -> " + f.toString()));
+        frame = Flux.from(frame).doOnNext(f -> LOGGER.debug("sending -> " + FrameUtil.toString(f)));
       }
 
       return source.send(frame);
@@ -157,7 +158,7 @@ public class ClientServerInputMultiplexer implements Closeable {
     @Override
     public Mono<Void> sendOne(ByteBuf frame) {
       if (debugEnabled) {
-        LOGGER.debug("sending -> " + frame.toString());
+        LOGGER.debug("sending -> " + FrameUtil.toString(frame));
       }
 
       return source.sendOne(frame);
@@ -168,7 +169,7 @@ public class ClientServerInputMultiplexer implements Closeable {
       return processor.flatMapMany(
           f -> {
             if (debugEnabled) {
-              return f.doOnNext(frame -> LOGGER.debug("receiving -> " + frame.toString()));
+              return f.doOnNext(frame -> LOGGER.debug("receiving -> " + FrameUtil.toString(frame)));
             } else {
               return f;
             }

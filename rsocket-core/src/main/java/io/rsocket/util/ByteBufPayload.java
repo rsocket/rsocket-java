@@ -45,62 +45,6 @@ public final class ByteBufPayload extends AbstractReferenceCounted implements Pa
     this.handle = handle;
   }
 
-  @Override
-  public boolean hasMetadata() {
-    return metadata != null;
-  }
-
-  @Override
-  public ByteBuf sliceMetadata() {
-    return metadata == null ? Unpooled.EMPTY_BUFFER : metadata.slice();
-  }
-
-  @Override
-  public ByteBuf sliceData() {
-    return data.slice();
-  }
-
-  @Override
-  public ByteBufPayload retain() {
-    super.retain();
-    return this;
-  }
-
-  @Override
-  public ByteBufPayload retain(int increment) {
-    super.retain(increment);
-    return this;
-  }
-
-  @Override
-  public ByteBufPayload touch() {
-    data.touch();
-    if (metadata != null) {
-      metadata.touch();
-    }
-    return this;
-  }
-
-  @Override
-  public ByteBufPayload touch(Object hint) {
-    data.touch(hint);
-    if (metadata != null) {
-      metadata.touch(hint);
-    }
-    return this;
-  }
-
-  @Override
-  protected void deallocate() {
-    data.release();
-    data = null;
-    if (metadata != null) {
-      metadata.release();
-      metadata = null;
-    }
-    handle.recycle(this);
-  }
-
   /**
    * Static factory method for a text payload. Mainly looks better than "new ByteBufPayload(data)"
    *
@@ -178,5 +122,71 @@ public final class ByteBufPayload extends AbstractReferenceCounted implements Pa
     return create(
         payload.sliceData().retain(),
         payload.hasMetadata() ? payload.sliceMetadata().retain() : null);
+  }
+
+  @Override
+  public boolean hasMetadata() {
+    return metadata != null;
+  }
+
+  @Override
+  public ByteBuf sliceMetadata() {
+    return metadata == null ? Unpooled.EMPTY_BUFFER : metadata.slice();
+  }
+
+  @Override
+  public ByteBuf data() {
+    return data;
+  }
+
+  @Override
+  public ByteBuf metadata() {
+    return metadata == null ? Unpooled.EMPTY_BUFFER : metadata;
+  }
+
+  @Override
+  public ByteBuf sliceData() {
+    return data.slice();
+  }
+
+  @Override
+  public ByteBufPayload retain() {
+    super.retain();
+    return this;
+  }
+
+  @Override
+  public ByteBufPayload retain(int increment) {
+    super.retain(increment);
+    return this;
+  }
+
+  @Override
+  public ByteBufPayload touch() {
+    data.touch();
+    if (metadata != null) {
+      metadata.touch();
+    }
+    return this;
+  }
+
+  @Override
+  public ByteBufPayload touch(Object hint) {
+    data.touch(hint);
+    if (metadata != null) {
+      metadata.touch(hint);
+    }
+    return this;
+  }
+
+  @Override
+  protected void deallocate() {
+    data.release();
+    data = null;
+    if (metadata != null) {
+      metadata.release();
+      metadata = null;
+    }
+    handle.recycle(this);
   }
 }

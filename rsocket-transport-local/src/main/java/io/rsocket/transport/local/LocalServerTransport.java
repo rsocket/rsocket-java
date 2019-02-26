@@ -16,8 +16,10 @@
 
 package io.rsocket.transport.local;
 
+import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.Closeable;
 import io.rsocket.DuplexConnection;
+import io.rsocket.fragmentation.FragmentationDuplexConnection;
 import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.ServerTransport;
 import java.util.Objects;
@@ -77,34 +79,6 @@ public final class LocalServerTransport implements ServerTransport<Closeable> {
   }
 
   /**
-   * Returns a new {@link LocalClientTransport} that is connected to this {@code
-   * LocalServerTransport}.
-   *
-   * @return a new {@link LocalClientTransport} that is connected to this {@code
-   *     LocalServerTransport}
-   */
-  public LocalClientTransport clientTransport() {
-    return LocalClientTransport.create(name);
-  }
-
-  @Override
-  public Mono<Closeable> start(ConnectionAcceptor acceptor) {
-    Objects.requireNonNull(acceptor, "acceptor must not be null");
-
-    return Mono.create(
-        sink -> {
-          ServerDuplexConnectionAcceptor serverDuplexConnectionAcceptor =
-              new ServerDuplexConnectionAcceptor(name, acceptor);
-
-          if (registry.putIfAbsent(name, serverDuplexConnectionAcceptor) != null) {
-            throw new IllegalStateException("name already registered: " + name);
-          }
-
-          sink.success(serverDuplexConnectionAcceptor);
-        });
-  }
-
-  /**
    * Retrieves an instance of {@link ServerDuplexConnectionAcceptor} based on the name of its {@code
    * LocalServerTransport}. Returns {@code null} if that server is not registered.
    *
@@ -116,6 +90,34 @@ public final class LocalServerTransport implements ServerTransport<Closeable> {
     Objects.requireNonNull(name, "name must not be null");
 
     return registry.get(name);
+  }
+
+  /**
+   * Returns a new {@link LocalClientTransport} that is connected to this {@code
+   * LocalServerTransport}.
+   *
+   * @return a new {@link LocalClientTransport} that is connected to this {@code
+   *     LocalServerTransport}
+   */
+  public LocalClientTransport clientTransport() {
+    return LocalClientTransport.create(name);
+  }
+
+  @Override
+  public Mono<Closeable> start(ConnectionAcceptor acceptor, int mtu) {
+    Objects.requireNonNull(acceptor, "acceptor must not be null");
+
+    return Mono.create(
+        sink -> {
+          ServerDuplexConnectionAcceptor serverDuplexConnectionAcceptor =
+              new ServerDuplexConnectionAcceptor(name, acceptor, mtu);
+
+          if (registry.putIfAbsent(name, serverDuplexConnectionAcceptor) != null) {
+            throw new IllegalStateException("name already registered: " + name);
+          }
+
+          sink.success(serverDuplexConnectionAcceptor);
+        });
   }
 
   /**
@@ -138,6 +140,8 @@ public final class LocalServerTransport implements ServerTransport<Closeable> {
 
     private final MonoProcessor<Void> onClose = MonoProcessor.create();
 
+    private final int mtu;
+
     /**
      * Creates a new instance
      *
@@ -145,16 +149,23 @@ public final class LocalServerTransport implements ServerTransport<Closeable> {
      * @param acceptor the {@link ConnectionAcceptor} to call when the server has been created
      * @throws NullPointerException if {@code name} or {@code acceptor} is {@code null}
      */
-    ServerDuplexConnectionAcceptor(String name, ConnectionAcceptor acceptor) {
+    ServerDuplexConnectionAcceptor(String name, ConnectionAcceptor acceptor, int mtu) {
       Objects.requireNonNull(name, "name must not be null");
 
       this.address = new LocalSocketAddress(name);
       this.acceptor = Objects.requireNonNull(acceptor, "acceptor must not be null");
+      this.mtu = mtu;
     }
 
     @Override
     public void accept(DuplexConnection duplexConnection) {
       Objects.requireNonNull(duplexConnection, "duplexConnection must not be null");
+
+      if (mtu > 0) {
+        duplexConnection =
+            new FragmentationDuplexConnection(
+                duplexConnection, ByteBufAllocator.DEFAULT, mtu, false);
+      }
 
       acceptor.apply(duplexConnection).subscribe();
     }

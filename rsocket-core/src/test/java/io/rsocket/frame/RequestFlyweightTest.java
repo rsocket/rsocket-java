@@ -40,7 +40,7 @@ class RequestFlyweightTest {
 
     frame = FrameLengthFlyweight.encode(ByteBufAllocator.DEFAULT, frame.readableBytes(), frame);
 
-    assertEquals("00000e0000000119000000000100000064", ByteBufUtil.hexDump(frame));
+    assertEquals("00000b0000000118000000000164", ByteBufUtil.hexDump(frame));
     frame.release();
   }
 
