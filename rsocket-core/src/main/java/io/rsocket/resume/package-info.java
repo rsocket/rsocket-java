@@ -14,18 +14,5 @@
  * limitations under the License.
  */
 
-package io.rsocket.plugins;
-
-import io.rsocket.DuplexConnection;
-import java.util.function.BiFunction;
-
-/** */
-public @FunctionalInterface interface DuplexConnectionInterceptor
-    extends BiFunction<DuplexConnectionInterceptor.Type, DuplexConnection, DuplexConnection> {
-  enum Type {
-    SETUP,
-    CLIENT,
-    SERVER,
-    SOURCE
-  }
-}
+@javax.annotation.ParametersAreNonnullByDefault
+package io.rsocket.resume;

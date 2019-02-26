@@ -186,7 +186,6 @@ public class KeepAliveTest {
     return SetupFrameFlyweight.encode(
         allocator,
         false,
-        false,
          TICK_PERIOD, TIMEOUT,
         "metadataType",
         "dataType",byteBuf("metadata"), byteBuf("data"));

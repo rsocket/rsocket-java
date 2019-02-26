@@ -103,6 +103,6 @@ public class FrameUtil {
       default:
         return Unpooled.EMPTY_BUFFER;
     }
-    return data.retain();
+    return data;
   }
 }

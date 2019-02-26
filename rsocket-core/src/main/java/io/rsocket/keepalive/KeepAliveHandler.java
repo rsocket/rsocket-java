@@ -72,7 +72,7 @@ abstract class KeepAliveHandler implements Disposable {
               allocator,
               false,
               localLastReceivedPos,
-              KeepAliveFrameFlyweight.data(keepAliveFrame.retain())));
+              KeepAliveFrameFlyweight.data(keepAliveFrame).retain()));
     }
     return remoteLastReceivedPos;
   }

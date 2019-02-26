@@ -20,10 +20,10 @@ import io.netty.buffer.ByteBuf;
 import io.rsocket.Closeable;
 import io.rsocket.DuplexConnection;
 import io.rsocket.frame.FrameHeaderFlyweight;
-import io.rsocket.frame.FrameType;
 import io.rsocket.frame.FrameUtil;
 import io.rsocket.plugins.DuplexConnectionInterceptor.Type;
 import io.rsocket.plugins.PluginRegistry;
+import io.rsocket.resume.ResumeAwareConnection;
 import org.reactivestreams.Publisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,8 +36,8 @@ import reactor.core.publisher.MonoProcessor;
  * arrive:
  *
  * <ul>
- *   <li>Frames for streams initiated by the initiator of the connection (client).
- *   <li>Frames for streams initiated by the acceptor of the connection (server).
+ * <li>Frames for streams initiated by the initiator of the connection (client).
+ * <li>Frames for streams initiated by the acceptor of the connection (server).
  * </ul>
  *
  * <p>The only way to differentiate these two frames is determining whether the stream Id is odd or
@@ -46,25 +46,33 @@ import reactor.core.publisher.MonoProcessor;
  */
 public class ClientServerInputMultiplexer implements Closeable {
   private static final Logger LOGGER = LoggerFactory.getLogger("io.rsocket.FrameLogger");
+  private static final PluginRegistry emptyPluginRegistry = new PluginRegistry();
 
-  private final DuplexConnection streamZeroConnection;
+  private final DuplexConnection setupConnection;
   private final DuplexConnection serverConnection;
   private final DuplexConnection clientConnection;
   private final DuplexConnection source;
+  private final ResumeAwareConnection clientServerConnection;
+
+  public ClientServerInputMultiplexer(DuplexConnection source) {
+    this(source, emptyPluginRegistry);
+  }
 
   public ClientServerInputMultiplexer(DuplexConnection source, PluginRegistry plugins) {
     this.source = source;
-    final MonoProcessor<Flux<ByteBuf>> streamZero = MonoProcessor.create();
+    final MonoProcessor<Flux<ByteBuf>> setup = MonoProcessor.create();
     final MonoProcessor<Flux<ByteBuf>> server = MonoProcessor.create();
     final MonoProcessor<Flux<ByteBuf>> client = MonoProcessor.create();
 
     source = plugins.applyConnection(Type.SOURCE, source);
-    streamZeroConnection =
-        plugins.applyConnection(Type.STREAM_ZERO, new InternalDuplexConnection(source, streamZero));
+    setupConnection =
+        plugins.applyConnection(Type.SETUP, new InternalDuplexConnection(source, setup));
     serverConnection =
         plugins.applyConnection(Type.SERVER, new InternalDuplexConnection(source, server));
     clientConnection =
         plugins.applyConnection(Type.CLIENT, new InternalDuplexConnection(source, client));
+    clientServerConnection =
+        new ClientServerConnection(new InternalDuplexConnection(source, client, server), source);
 
     source
         .receive()
@@ -73,8 +81,8 @@ public class ClientServerInputMultiplexer implements Closeable {
               int streamId = FrameHeaderFlyweight.streamId(frame);
               final Type type;
               if (streamId == 0) {
-                if (FrameHeaderFlyweight.frameType(frame) == FrameType.SETUP) {
-                  type = Type.STREAM_ZERO;
+                if (isSetup(frame)) {
+                  type = Type.SETUP;
                 } else {
                   type = Type.CLIENT;
                 }
@@ -88,8 +96,8 @@ public class ClientServerInputMultiplexer implements Closeable {
         .subscribe(
             group -> {
               switch (group.key()) {
-                case STREAM_ZERO:
-                  streamZero.onNext(group);
+                case SETUP:
+                  setup.onNext(group);
                   break;
 
                 case SERVER:
@@ -107,6 +115,10 @@ public class ClientServerInputMultiplexer implements Closeable {
             });
   }
 
+  public ResumeAwareConnection asClientServerConnection() {
+    return clientServerConnection;
+  }
+
   public DuplexConnection asServerConnection() {
     return serverConnection;
   }
@@ -115,8 +127,8 @@ public class ClientServerInputMultiplexer implements Closeable {
     return clientConnection;
   }
 
-  public DuplexConnection asStreamZeroConnection() {
-    return streamZeroConnection;
+  public DuplexConnection asSetupConnection() {
+    return setupConnection;
   }
 
   @Override
@@ -134,15 +146,26 @@ public class ClientServerInputMultiplexer implements Closeable {
     return source.onClose();
   }
 
+  private static boolean isSetup(ByteBuf frame) {
+    switch (FrameHeaderFlyweight.frameType(frame)) {
+      case SETUP:
+      case RESUME:
+      case RESUME_OK:
+        return true;
+      default:
+        return false;
+    }
+  }
+
   private static class InternalDuplexConnection implements DuplexConnection {
     private final DuplexConnection source;
-    private final MonoProcessor<Flux<ByteBuf>> processor;
+    private final MonoProcessor<Flux<ByteBuf>>[] processors;
     private final boolean debugEnabled;
 
     public InternalDuplexConnection(
-        DuplexConnection source, MonoProcessor<Flux<ByteBuf>> processor) {
+        DuplexConnection source, MonoProcessor<Flux<ByteBuf>>... processors) {
       this.source = source;
-      this.processor = processor;
+      this.processors = processors;
       this.debugEnabled = LOGGER.isDebugEnabled();
     }
 
@@ -166,14 +189,17 @@ public class ClientServerInputMultiplexer implements Closeable {
 
     @Override
     public Flux<ByteBuf> receive() {
-      return processor.flatMapMany(
-          f -> {
-            if (debugEnabled) {
-              return f.doOnNext(frame -> LOGGER.debug("receiving -> " + FrameUtil.toString(frame)));
-            } else {
-              return f;
-            }
-          });
+      return Flux.fromArray(processors)
+          .flatMap(
+              p ->
+                  p.flatMapMany(
+                      f -> {
+                        if (debugEnabled) {
+                          return f.doOnNext(frame -> LOGGER.debug("receiving -> " + FrameUtil.toString(frame)));
+                        } else {
+                          return f;
+                        }
+                      }));
     }
 
     @Override

@@ -4,6 +4,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
+
 import java.nio.charset.StandardCharsets;
 
 public class SetupFrameFlyweight {
@@ -28,7 +29,6 @@ public class SetupFrameFlyweight {
   public static ByteBuf encode(
       final ByteBufAllocator allocator,
       boolean lease,
-      boolean resume,
       final int keepaliveInterval,
       final int maxLifetime,
       final String metadataMimeType,
@@ -38,7 +38,6 @@ public class SetupFrameFlyweight {
     return encode(
         allocator,
         lease,
-        resume,
         keepaliveInterval,
         maxLifetime,
         Unpooled.EMPTY_BUFFER,
@@ -51,7 +50,6 @@ public class SetupFrameFlyweight {
   public static ByteBuf encode(
       final ByteBufAllocator allocator,
       boolean lease,
-      boolean resume,
       final int keepaliveInterval,
       final int maxLifetime,
       final ByteBuf resumeToken,
@@ -61,14 +59,10 @@ public class SetupFrameFlyweight {
       final ByteBuf data) {
 
     int flags = 0;
-    if (resume) {
-      throw new IllegalArgumentException("RESUME_ENABLE not supported");
-    }
 
-    /*
-    if (resume) {
+    if (resumeToken != null && resumeToken.readableBytes() > 0) {
       flags |= FLAGS_RESUME_ENABLE;
-    }*/
+    }
 
     if (lease) {
       flags |= FLAGS_WILL_HONOR_LEASE;
@@ -110,6 +104,16 @@ public class SetupFrameFlyweight {
     return version;
   }
 
+  public static String humanReadableVersion(ByteBuf byteBuf) {
+    int encodedVersion = version(byteBuf);
+    return VersionFlyweight.major(encodedVersion) +
+        "." + VersionFlyweight.minor(encodedVersion);
+  }
+
+  public static boolean isSupportedVersion(ByteBuf byteBuf) {
+    return CURRENT_VERSION == version(byteBuf);
+  }
+
   public static int resumeTokenLength(ByteBuf byteBuf) {
     byteBuf.markReaderIndex();
     int tokenLength = byteBuf.skipBytes(VARIABLE_DATA_OFFSET).readShort() & 0xFFFF;
@@ -137,6 +141,28 @@ public class SetupFrameFlyweight {
 
   public static boolean resumeEnabled(ByteBuf byteBuf) {
     return (FLAGS_RESUME_ENABLE & FrameHeaderFlyweight.flags(byteBuf)) == FLAGS_RESUME_ENABLE;
+  }
+
+  public static byte[] resumeToken(ByteBuf byteBuf) {
+    if (resumeEnabled(byteBuf)) {
+      byteBuf.markReaderIndex();
+      //header
+      int resumePos = FrameHeaderFlyweight.size() +
+          //version
+          Integer.BYTES +
+          //keep-alive interval
+          Integer.BYTES +
+          //keep-alive maxLifeTime
+          Integer.BYTES;
+
+      int tokenLength = byteBuf.skipBytes(resumePos).readShort() & 0xFFFF;
+      byte[] resumeToken = new byte[tokenLength];
+      byteBuf.readBytes(resumeToken);
+      byteBuf.resetReaderIndex();
+      return resumeToken;
+    } else {
+      return null;
+    }
   }
 
   public static String metadataMimeType(ByteBuf byteBuf) {
@@ -179,7 +205,7 @@ public class SetupFrameFlyweight {
   private static int bytesToSkipToMimeType(ByteBuf byteBuf) {
     int bytesToSkip = VARIABLE_DATA_OFFSET;
     if ((FLAGS_RESUME_ENABLE & FrameHeaderFlyweight.flags(byteBuf)) == FLAGS_RESUME_ENABLE) {
-      bytesToSkip = resumeTokenLength(byteBuf) + Short.BYTES;
+      bytesToSkip += resumeTokenLength(byteBuf) + Short.BYTES;
     }
     return bytesToSkip;
   }
