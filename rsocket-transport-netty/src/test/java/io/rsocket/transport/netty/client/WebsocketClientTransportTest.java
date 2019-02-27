@@ -55,13 +55,15 @@ final class WebsocketClientTransportTest {
   @DisplayName("creates client with BindAddress")
   @Test
   void createBindAddress() {
-    assertThat(WebsocketClientTransport.create("test-bind-address", 8000)).isNotNull();
+    assertThat(WebsocketClientTransport.create("test-bind-address", 8000)).isNotNull()
+                                                                          .hasFieldOrPropertyWithValue("path", "/");
   }
 
   @DisplayName("creates client with HttpClient")
   @Test
   void createHttpClient() {
-    assertThat(WebsocketClientTransport.create(HttpClient.create(), "/")).isNotNull();
+    assertThat(WebsocketClientTransport.create(HttpClient.create(), "/")).isNotNull()
+                                                                         .hasFieldOrPropertyWithValue("path", "/");
   }
 
   @DisplayName("creates client with InetSocketAddress")
@@ -70,7 +72,8 @@ final class WebsocketClientTransportTest {
     assertThat(
             WebsocketClientTransport.create(
                 InetSocketAddress.createUnresolved("test-bind-address", 8000)))
-        .isNotNull();
+        .isNotNull()
+        .hasFieldOrPropertyWithValue("path", "/");
   }
 
   @DisplayName("create throws NullPointerException with null bindAddress")
@@ -122,7 +125,17 @@ final class WebsocketClientTransportTest {
   @DisplayName("creates client with URI")
   @Test
   void createUri() {
-    assertThat(WebsocketClientTransport.create(URI.create("ws://test-host/"))).isNotNull();
+    assertThat(WebsocketClientTransport.create(URI.create("ws://test-host")))
+        .isNotNull()
+        .hasFieldOrPropertyWithValue("path", "/");
+  }
+
+  @DisplayName("creates client with URI path")
+  @Test
+  void createUriPath() {
+    assertThat(WebsocketClientTransport.create(URI.create("ws://test-host/test")))
+        .isNotNull()
+        .hasFieldOrPropertyWithValue("path", "/test");
   }
 
   @DisplayName("sets transport headers")
