@@ -18,6 +18,7 @@ package io.rsocket;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
+import io.netty.util.ReferenceCountUtil;
 import io.netty.util.collection.IntObjectHashMap;
 import io.rsocket.exceptions.ConnectionErrorException;
 import io.rsocket.exceptions.Exceptions;
@@ -220,7 +221,6 @@ class RSocketClient implements RSocket {
                           false,
                           payload.hasMetadata() ? payload.sliceMetadata().retain() : null,
                           payload.sliceData().retain());
-
                   payload.release();
                   sendProcessor.onNext(requestFrame);
                 }));
@@ -292,12 +292,12 @@ class RSocketClient implements RSocket {
                           false,
                           payload.sliceMetadata().retain(),
                           payload.sliceData().retain());
+                  payload.release();
 
                   UnicastMonoProcessor<Payload> receiver = UnicastMonoProcessor.create();
                   receivers.put(streamId, receiver);
 
                   sendProcessor.onNext(requestFrame);
-
                   return receiver
                       .doOnError(
                           t ->
@@ -472,8 +472,10 @@ class RSocketClient implements RSocket {
       } else {
         handleFrame(streamId, type, frame);
       }
-    } finally {
       frame.release();
+    } catch (Throwable t) {
+      ReferenceCountUtil.safeRelease(frame);
+      throw reactor.core.Exceptions.propagate(t);
     }
   }
 

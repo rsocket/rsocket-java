@@ -21,9 +21,12 @@ class DataAndMetadataFlyweight {
   }
 
   private static int decodeLength(final ByteBuf byteBuf) {
-    int length = (byteBuf.readByte() & 0xFF) << 16;
-    length |= (byteBuf.readByte() & 0xFF) << 8;
-    length |= byteBuf.readByte() & 0xFF;
+    byte b = byteBuf.readByte();
+    int length = (b & 0xFF) << 16;
+    byte b1 = byteBuf.readByte();
+    length |= (b1 & 0xFF) << 8;
+    byte b2 = byteBuf.readByte();
+    length |= b2 & 0xFF;
     return length;
   }
 

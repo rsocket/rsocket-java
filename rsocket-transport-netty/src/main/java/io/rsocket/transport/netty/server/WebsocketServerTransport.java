@@ -16,15 +16,20 @@
 
 package io.rsocket.transport.netty.server;
 
+import io.netty.buffer.ByteBufAllocator;
+import io.rsocket.DuplexConnection;
+import io.rsocket.fragmentation.FragmentationDuplexConnection;
 import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.ServerTransport;
 import io.rsocket.transport.TransportHeaderAware;
+import io.rsocket.transport.netty.WebsocketDuplexConnection;
 import java.net.InetSocketAddress;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
 import reactor.core.publisher.Mono;
+import reactor.netty.Connection;
 import reactor.netty.http.server.HttpServer;
 
 /**
@@ -101,14 +106,23 @@ public final class WebsocketServerTransport
   }
 
   @Override
-  public Mono<CloseableChannel> start(ConnectionAcceptor acceptor) {
+  public Mono<CloseableChannel> start(ConnectionAcceptor acceptor, int mtu) {
     Objects.requireNonNull(acceptor, "acceptor must not be null");
 
     return server
         .handle(
             (request, response) -> {
               transportHeaders.get().forEach(response::addHeader);
-              return response.sendWebsocket(WebsocketRouteTransport.newHandler(acceptor));
+              return response.sendWebsocket(
+                  (in, out) -> {
+                    DuplexConnection connection = new WebsocketDuplexConnection((Connection) in);
+                    if (mtu > 0) {
+                      connection =
+                          new FragmentationDuplexConnection(
+                              connection, ByteBufAllocator.DEFAULT, mtu, false);
+                    }
+                    return acceptor.apply(connection).then(out.neverComplete());
+                  });
             })
         .bind()
         .map(CloseableChannel::new);

@@ -88,22 +88,19 @@ class SendPublisher<V extends ReferenceCounted> extends Flux<ByteBuf> {
         .newPromise()
         .addListener(
             future -> {
-              try {
-                if (requested != Long.MAX_VALUE) {
-                  requested--;
-                }
-                requestedUpstream--;
-                pending--;
+              if (requested != Long.MAX_VALUE) {
+                requested--;
+              }
+              requestedUpstream--;
+              pending--;
 
-                InnerSubscriber is = (InnerSubscriber) INNER_SUBSCRIBER.get(SendPublisher.this);
-                if (is != null) {
-                  is.tryRequestMoreUpstream();
-                  tryComplete(is);
-                }
-              } finally {
-                if (poll.refCnt() > 0) {
-                  ReferenceCountUtil.safeRelease(poll);
-                }
+              InnerSubscriber is = (InnerSubscriber) INNER_SUBSCRIBER.get(SendPublisher.this);
+              if (is != null) {
+                is.tryRequestMoreUpstream();
+                tryComplete(is);
+              }
+              if (poll.refCnt() > 0) {
+                ReferenceCountUtil.safeRelease(poll);
               }
             });
   }

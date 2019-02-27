@@ -17,12 +17,7 @@ public class RequestStreamFrameFlyweight {
       long requestN,
       Payload payload) {
     return encode(
-        allocator,
-        streamId,
-        fragmentFollows,
-        requestN,
-        payload.sliceMetadata(),
-        payload.sliceData());
+        allocator, streamId, fragmentFollows, requestN, payload.metadata(), payload.data());
   }
 
   public static ByteBuf encode(
@@ -32,12 +27,7 @@ public class RequestStreamFrameFlyweight {
       int requestN,
       Payload payload) {
     return encode(
-        allocator,
-        streamId,
-        fragmentFollows,
-        requestN,
-        payload.sliceMetadata(),
-        payload.sliceData());
+        allocator, streamId, fragmentFollows, requestN, payload.metadata(), payload.data());
   }
 
   public static ByteBuf encode(

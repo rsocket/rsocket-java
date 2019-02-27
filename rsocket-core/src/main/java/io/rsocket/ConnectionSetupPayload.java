@@ -127,5 +127,15 @@ public abstract class ConnectionSetupPayload extends AbstractReferenceCounted im
     public ByteBuf sliceData() {
       return SetupFrameFlyweight.data(setupFrame);
     }
+
+    @Override
+    public ByteBuf data() {
+      return sliceData();
+    }
+
+    @Override
+    public ByteBuf metadata() {
+      return sliceMetadata();
+    }
   }
 }
