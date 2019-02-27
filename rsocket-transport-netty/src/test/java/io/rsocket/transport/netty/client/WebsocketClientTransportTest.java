@@ -55,22 +55,25 @@ final class WebsocketClientTransportTest {
   @DisplayName("creates client with BindAddress")
   @Test
   void createBindAddress() {
-    assertThat(WebsocketClientTransport.create("test-bind-address", 8000)).isNotNull()
-                                                                          .hasFieldOrPropertyWithValue("path", "/");
+    assertThat(WebsocketClientTransport.create("test-bind-address", 8000))
+        .isNotNull()
+        .hasFieldOrPropertyWithValue("path", "/");
   }
 
   @DisplayName("creates client with HttpClient")
   @Test
   void createHttpClient() {
-    assertThat(WebsocketClientTransport.create(HttpClient.create(), "/")).isNotNull()
-                                                                         .hasFieldOrPropertyWithValue("path", "/");
+    assertThat(WebsocketClientTransport.create(HttpClient.create(), "/"))
+        .isNotNull()
+        .hasFieldOrPropertyWithValue("path", "/");
   }
 
   @DisplayName("creates client with HttpClient and path without root")
   @Test
   void createHttpClientWithPathWithoutRoot() {
-    assertThat(WebsocketClientTransport.create(HttpClient.create(), "test")).isNotNull()
-                                                                         .hasFieldOrPropertyWithValue("path", "/test");
+    assertThat(WebsocketClientTransport.create(HttpClient.create(), "test"))
+        .isNotNull()
+        .hasFieldOrPropertyWithValue("path", "/test");
   }
 
   @DisplayName("creates client with InetSocketAddress")
