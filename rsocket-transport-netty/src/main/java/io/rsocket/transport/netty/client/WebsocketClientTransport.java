@@ -40,6 +40,8 @@ import reactor.netty.tcp.TcpClient;
  */
 public final class WebsocketClientTransport implements ClientTransport, TransportHeaderAware {
 
+  private static final String DEFAULT_PATH = "/";
+
   private final HttpClient client;
 
   private String path;
@@ -115,7 +117,7 @@ public final class WebsocketClientTransport implements ClientTransport, Transpor
   public static WebsocketClientTransport create(TcpClient client) {
     Objects.requireNonNull(client, "client must not be null");
 
-    return create(HttpClient.from(client), "/");
+    return create(HttpClient.from(client), DEFAULT_PATH);
   }
 
   /**
@@ -129,6 +131,8 @@ public final class WebsocketClientTransport implements ClientTransport, Transpor
   public static WebsocketClientTransport create(HttpClient client, String path) {
     Objects.requireNonNull(client, "client must not be null");
     Objects.requireNonNull(path, "path must not be null");
+
+    path = path.startsWith(DEFAULT_PATH) ? path : (DEFAULT_PATH + path);
 
     return new WebsocketClientTransport(client, path);
   }

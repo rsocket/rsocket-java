@@ -66,6 +66,13 @@ final class WebsocketClientTransportTest {
                                                                          .hasFieldOrPropertyWithValue("path", "/");
   }
 
+  @DisplayName("creates client with HttpClient and path without root")
+  @Test
+  void createHttpClientWithPathWithoutRoot() {
+    assertThat(WebsocketClientTransport.create(HttpClient.create(), "test")).isNotNull()
+                                                                         .hasFieldOrPropertyWithValue("path", "/test");
+  }
+
   @DisplayName("creates client with InetSocketAddress")
   @Test
   void createInetSocketAddress() {
