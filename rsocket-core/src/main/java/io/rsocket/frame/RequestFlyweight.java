@@ -2,7 +2,6 @@ package io.rsocket.frame;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
-import io.netty.buffer.Unpooled;
 import javax.annotation.Nullable;
 
 class RequestFlyweight {
@@ -32,7 +31,7 @@ class RequestFlyweight {
       ByteBuf data) {
     int flags = 0;
 
-    if (metadata != null && Unpooled.EMPTY_BUFFER != metadata) {
+    if (metadata != null) {
       flags |= FrameHeaderFlyweight.FLAGS_M;
     }
 
@@ -54,7 +53,7 @@ class RequestFlyweight {
       header.writeInt(requestN);
     }
 
-    if (metadata != null && Unpooled.EMPTY_BUFFER != metadata) {
+    if (metadata != null) {
       return DataAndMetadataFlyweight.encode(allocator, header, metadata, data);
     } else {
       return DataAndMetadataFlyweight.encodeOnlyData(allocator, header, data);

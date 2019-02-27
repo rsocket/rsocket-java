@@ -40,7 +40,7 @@ public final class TcpDuplexConnection implements DuplexConnection {
   /**
    * Creates a new instance
    *
-   * @param connection the {@link Connection} to for managing the server
+   * @param connection the {@link Connection} for managing the server
    */
   public TcpDuplexConnection(Connection connection) {
     this(connection, true);

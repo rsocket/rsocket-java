@@ -24,10 +24,9 @@ public class FragmentationIntegrationTest {
 
   private ByteBufAllocator allocator = ByteBufAllocator.DEFAULT;
 
-  @DisplayName("fragments and reassmbles data")
+  @DisplayName("fragments and reassembles data")
   @Test
   void fragmentAndReassembleData() {
-    System.out.println("original");
     ByteBuf frame =
         PayloadFrameFlyweight.encodeNextComplete(allocator, 2, DefaultPayload.create(data));
     System.out.println(FrameUtil.toString(frame));
