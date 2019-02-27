@@ -141,7 +141,7 @@ final class FrameFragmenter {
         return PayloadFrameFlyweight.encode(
             allocator, streamId, true, true, false, metadataFragment, dataFragment);
       default:
-        throw new IllegalStateException("unsupported fragment type");
+        throw new IllegalStateException("unsupported fragment type: " + frameType);
     }
   }
 
@@ -165,11 +165,7 @@ final class FrameFragmenter {
       dataFragment = data.readRetainedSlice(r);
     }
 
-    boolean follows =
-        metadata == Unpooled.EMPTY_BUFFER
-            ? data.isReadable()
-            : data.isReadable() || metadata.isReadable();
-
+    boolean follows = data.isReadable() || metadata.isReadable();
     return PayloadFrameFlyweight.encode(
         allocator, streamId, follows, false, true, metadataFragment, dataFragment);
   }

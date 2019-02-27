@@ -52,7 +52,7 @@ public final class FragmentationDuplexConnection implements DuplexConnection {
     Objects.requireNonNull(delegate, "delegate must not be null");
     Objects.requireNonNull(allocator, "byteBufAllocator must not be null");
     if (mtu < MIN_MTU_SIZE) {
-      throw new IllegalArgumentException("smallest allowed mtu size is 64 bytes");
+      throw new IllegalArgumentException("smallest allowed mtu size is " + MIN_MTU_SIZE + " bytes");
     }
     this.encodeLength = encodeLength;
     this.allocator = allocator;
@@ -64,11 +64,7 @@ public final class FragmentationDuplexConnection implements DuplexConnection {
   }
 
   private boolean shouldFragment(FrameType frameType, int readableBytes) {
-    if (frameType.isFragmentable()) {
-      return readableBytes > mtu;
-    } else {
-      return false;
-    }
+    return frameType.isFragmentable() && readableBytes > mtu;
   }
 
   @Override
