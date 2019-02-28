@@ -22,7 +22,7 @@ public class ServerRSocketSession implements RSocketSession<ResumeAwareConnectio
   private final ResumableDuplexConnection resumableConnection;
   private final FluxProcessor<ResumeAwareConnection, ResumeAwareConnection> newConnections =
       ReplayProcessor.create(0);
-  private ByteBufAllocator allocator;
+  private final ByteBufAllocator allocator;
   private final KeepAliveData keepAliveData;
   private final ResumeToken resumeToken;
 
@@ -35,9 +35,14 @@ public class ServerRSocketSession implements RSocketSession<ResumeAwareConnectio
     this.allocator = Objects.requireNonNull(allocator);
     this.keepAliveData = Objects.requireNonNull(keepAliveData);
     this.resumeToken = Objects.requireNonNull(resumeToken);
+    int cachedFramesLimit = config.cacheSizeFrames();
     this.resumableConnection =
         new ResumableDuplexConnection(
-            "server", duplexConnection, ResumedFramesCalculator.ofServer, config.cacheSizeFrames());
+            "server",
+                duplexConnection,
+                ResumedFramesCalculator.ofServer,
+                cachedFramesLimit,
+                cachedFramesLimit * 2);
 
     Mono<ResumeAwareConnection> timeout =
         resumableConnection

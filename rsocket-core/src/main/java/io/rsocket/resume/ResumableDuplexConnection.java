@@ -4,17 +4,17 @@ import io.netty.buffer.ByteBuf;
 import io.rsocket.Closeable;
 import io.rsocket.DuplexConnection;
 import io.rsocket.frame.FrameHeaderFlyweight;
+import io.rsocket.internal.UnboundedProcessor;
 import org.reactivestreams.Publisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.Disposable;
 import reactor.core.Disposables;
 import reactor.core.publisher.*;
+import reactor.util.concurrent.Queues;
 
 import java.nio.channels.ClosedChannelException;
-import java.util.Iterator;
 import java.util.Queue;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -24,11 +24,12 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
   private static final Logger logger = LoggerFactory.getLogger(ResumableDuplexConnection.class);
 
   private final long cachedFramesLimit;
+  private final long cachedFramesCap;
   private final ReplayProcessor<DuplexConnection> connections = ReplayProcessor.create(1);
   private final EmitterProcessor<Throwable> connectionErrors = EmitterProcessor.create();
   private volatile ResumeAwareConnection curConnection;
   private final AtomicBoolean disposed = new AtomicBoolean();
-  private final Queue<ByteBuf> cachedFrames = new ConcurrentLinkedQueue<>();
+  private final Queue<ByteBuf> cachedFrames;
   private final AtomicInteger cachedFramesSize = new AtomicInteger();
   private final AtomicLong position = new AtomicLong();
   private final AtomicLong impliedPosition = new AtomicLong();
@@ -36,9 +37,9 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
   private volatile State state;
   private final String tag;
   private final ResumedFramesCalculator resumedFramesCalculator;
-  private final FluxProcessor<Object, Object> actions = EmitterProcessor.create().serialize();
-  private final FluxProcessor<ByteBuf, ByteBuf> framesAcceptor =
-      ReplayProcessor.<ByteBuf>create(0).serialize();
+  private final UnboundedProcessor<Object> actions = new UnboundedProcessor<>();
+  /*used instead of EmitterProcessor because its autocancel=false capability had no expected effect*/
+  private final FluxProcessor<ByteBuf, ByteBuf> sentFrames = ReplayProcessor.create(0);
   private final Disposable.Composite sendPublisherDisposables = Disposables.composite();
   private final Mono<Void> framesSent;
 
@@ -46,17 +47,20 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
       String tag,
       ResumeAwareConnection duplexConnection,
       ResumedFramesCalculator resumedFramesCalculator,
-      long cachedFramesLimit) {
+      int cachedFramesLimit,
+      int cachedFramesCap) {
     this.tag = tag;
     this.resumedFramesCalculator = resumedFramesCalculator;
     this.cachedFramesLimit = cachedFramesLimit;
+    this.cachedFramesCap = cachedFramesCap;
+    this.cachedFrames = cachedFramesQueue(cachedFramesLimit);
 
     framesSent =
         connections
             .switchMap(
                 c -> {
                   logger.info("Switching transport: {}", tag);
-                  return c.send(framesAcceptor)
+                  return c.send(sentFrames)
                       .doFinally(
                           s ->
                               logger.info(
@@ -68,9 +72,11 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
             .then()
             .cache();
 
-    actions.ofType(ByteBuf.class).subscribe(this::sendFrame);
-    actions.ofType(ResumeStart.class).subscribe(ResumeStart::run);
-    actions.ofType(ResumeComplete.class).subscribe(ResumeComplete::run);
+    Flux<Object> acts = actions.publish().autoConnect(4);
+    acts.ofType(ByteBuf.class).subscribe(this::sendFrame);
+    acts.ofType(ResumeStart.class).subscribe(ResumeStart::run);
+    acts.ofType(ResumeComplete.class).subscribe(ResumeComplete::run);
+    acts.ofType(Disposed.class).subscribe(Disposed::run);
 
     reconnect(duplexConnection);
   }
@@ -134,20 +140,7 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
   public void dispose() {
     if (disposed.compareAndSet(false, true)) {
       logger.info("Resumable connection disposed: {}, {}", tag, this);
-      Throwable err = connectionErrors.getError();
-      if (err == null) {
-        connections.onComplete();
-      } else {
-        connections.onError(err);
-      }
-      connectionErrors.onComplete();
-      curConnection.dispose();
-
-      impliedPosDisposable.dispose();
-
-      cachedFramesSize.set(0);
-      cachedFrames.forEach(byteBuf -> byteBuf.release(byteBuf.refCnt()));
-      cachedFrames.clear();
+      actions.onNext(new Disposed());
     }
   }
 
@@ -159,6 +152,25 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
   @Override
   public boolean isDisposed() {
     return disposed.get();
+  }
+
+  private void terminate() {
+    connections.onComplete();
+    connectionErrors.onComplete();
+    curConnection.dispose();
+
+    impliedPosDisposable.dispose();
+
+    cachedFramesSize.set(0);
+    releaseCachedFrames();
+  }
+
+  private void releaseCachedFrames() {
+    ByteBuf frame = cachedFrames.poll();
+    while (frame != null) {
+      frame.release(frame.refCnt());
+      frame = cachedFrames.poll();
+    }
   }
 
   private void acceptRemoteResumePositions() {
@@ -176,12 +188,15 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
       if (size > cachedFramesLimit && !state.isResuming()) {
         releaseFrame();
       }
+      if (size > cachedFramesCap) {
+        terminate();
+      }
       if (state.isResumed()) {
-        framesAcceptor.onNext(f);
+        sentFrames.onNext(f);
       }
     } else {
       logger.info("{} Send non-resumable frame, connection: {}", tag, curConnection);
-      framesAcceptor.onNext(f);
+      sentFrames.onNext(f);
     }
   }
 
@@ -221,30 +236,30 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
     logger.info("Completing resumption. Cached frames size: {}", size);
     long toRemoveCount = Math.max(0, size - cachedFramesLimit);
     long removedCount = 0;
-    Iterator<ByteBuf> iterator = cachedFrames.iterator();
-    while (iterator.hasNext()) {
-      ByteBuf content = iterator.next();
+    long processedCount = 0;
+    /*SpscQueue does not have iterator*/
+    while (processedCount < size) {
+      ByteBuf frame = cachedFrames.poll();
       if (removedCount < toRemoveCount) {
-        iterator.remove();
         removedCount++;
       } else {
-        content.retain();
+        cachedFrames.offer(frame.retain());
       }
-      framesAcceptor.onNext(content.resetReaderIndex());
+      sentFrames.onNext(frame);
+      processedCount++;
     }
     state = State.RESUMED;
     acceptRemoteResumePositions();
   }
 
   private void disconnect(DuplexConnection connection) {
-    Throwable err = new ClosedChannelException();
     if (curConnection == connection && state.isActive()) {
+      Throwable err = new ClosedChannelException();
       state = State.DISCONNECTED;
       logger.info(
-          "{} Inner connection disconnected: {}, {}",
+          "{} Inner connection disconnected: {}",
           tag,
-          err.getClass().getSimpleName(),
-          err.getMessage());
+          err.getClass().getSimpleName());
       connectionErrors.onNext(err);
     }
   }
@@ -290,6 +305,10 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
       default:
         return false;
     }
+  }
+
+  private static Queue<ByteBuf> cachedFramesQueue(int framesLimit) {
+    return Queues.<ByteBuf>unbounded(framesLimit / 10).get();
   }
 
   private enum State {
@@ -351,6 +370,14 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
     @Override
     public void run() {
       resumeComplete();
+    }
+  }
+
+  class Disposed implements Runnable {
+
+    @Override
+    public void run() {
+      terminate();
     }
   }
 }

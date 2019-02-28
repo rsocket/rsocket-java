@@ -42,7 +42,7 @@ public interface ClientSetup {
             ByteBufAllocator allocator,
             Mono<KeepAliveConnection> newConnection,
             ResumeToken resumeToken,
-            long resumeCacheSize,
+            int resumeCacheSize,
             Duration resumeSessionDuration,
             Supplier<ResumeStrategy> resumeStrategySupplier) {
       this.allocator = allocator;

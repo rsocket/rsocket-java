@@ -21,16 +21,21 @@ public class ClientRSocketSession implements RSocketSession<Mono<? extends Resum
   private final ResumableDuplexConnection resumableConnection;
   private volatile Mono<? extends ResumeAwareConnection> newConnection;
   private volatile ResumeToken resumeToken;
-  private ByteBufAllocator allocator;
+  private final ByteBufAllocator allocator;
 
   public ClientRSocketSession(
       ByteBufAllocator allocator,
       ResumeAwareConnection duplexConnection,
       ClientResumeConfiguration config) {
     this.allocator = Objects.requireNonNull(allocator);
+    int cachedFramesLimit = config.cacheSizeFrames();
     this.resumableConnection =
         new ResumableDuplexConnection(
-            "client", duplexConnection, ResumedFramesCalculator.ofClient, config.cacheSizeFrames());
+            "client",
+                duplexConnection,
+                ResumedFramesCalculator.ofClient,
+                cachedFramesLimit,
+                cachedFramesLimit * 2);
 
     resumableConnection
         .connectionErrors()

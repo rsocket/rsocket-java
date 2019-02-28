@@ -104,7 +104,7 @@ public class RSocketFactory {
 
     private boolean resumeEnabled;
     private Supplier<ResumeToken> resumeTokenSupplier = ResumeToken::generate;
-    private long resumeCacheSize = 32768;
+    private int resumeCacheSize = 32768;
     private Duration resumeSessionDuration = Duration.ofMinutes(2);
     private Supplier<ResumeStrategy> resumeStrategySupplier =
         () ->
@@ -191,7 +191,7 @@ public class RSocketFactory {
       return this;
     }
 
-    public ClientRSocketFactory resumeCacheSize(long framesCount) {
+    public ClientRSocketFactory resumeCacheSize(int framesCount) {
       this.resumeCacheSize = assertResumeCacheSize(framesCount);
       return this;
     }
@@ -346,7 +346,7 @@ public class RSocketFactory {
     private PluginRegistry plugins = new PluginRegistry(Plugins.defaultPlugins());
     private boolean resumeSupported;
     private Duration resumeSessionDuration = Duration.ofSeconds(120);
-    private long resumeCacheSize = 32768;
+    private int resumeCacheSize = 32768;
     private ByteBufAllocator allocator = ByteBufAllocator.DEFAULT;
 
     private ServerRSocketFactory() {}
@@ -397,7 +397,7 @@ public class RSocketFactory {
       return this;
     }
 
-    public ServerRSocketFactory resumeCacheSize(long framesCount) {
+    public ServerRSocketFactory resumeCacheSize(int framesCount) {
       this.resumeCacheSize = assertResumeCacheSize(framesCount);
       return this;
     }
@@ -555,7 +555,7 @@ public class RSocketFactory {
     }
   }
 
-  private static long assertResumeCacheSize(long cacheSize) {
+  private static int assertResumeCacheSize(int cacheSize) {
     if (cacheSize <= 0) {
       throw new IllegalArgumentException(
           "Resume cache size should be positive: " + cacheSize);

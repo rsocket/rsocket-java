@@ -5,11 +5,11 @@ import java.util.function.Supplier;
 
 public class ClientResumeConfiguration {
   private final Duration sessionDuration;
-  private final long cacheSizeFrames;
+  private final int cacheSizeFrames;
   private final Supplier<ResumeStrategy> resumeStrategy;
 
   public ClientResumeConfiguration(
-      Duration sessionDuration, long cacheSizeFrames, Supplier<ResumeStrategy> resumeStrategy) {
+      Duration sessionDuration, int cacheSizeFrames, Supplier<ResumeStrategy> resumeStrategy) {
     this.sessionDuration = sessionDuration;
     this.cacheSizeFrames = cacheSizeFrames;
     this.resumeStrategy = resumeStrategy;
@@ -19,7 +19,7 @@ public class ClientResumeConfiguration {
     return sessionDuration;
   }
 
-  public long cacheSizeFrames() {
+  public int cacheSizeFrames() {
     return cacheSizeFrames;
   }
 

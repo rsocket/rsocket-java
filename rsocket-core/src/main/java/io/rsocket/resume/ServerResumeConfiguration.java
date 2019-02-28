@@ -4,9 +4,9 @@ import java.time.Duration;
 
 public class ServerResumeConfiguration {
   private final Duration sessionDuration;
-  private final long cacheSizeFrames;
+  private final int cacheSizeFrames;
 
-  public ServerResumeConfiguration(Duration sessionDuration, long cacheSizeFrames) {
+  public ServerResumeConfiguration(Duration sessionDuration, int cacheSizeFrames) {
     this.sessionDuration = sessionDuration;
     this.cacheSizeFrames = cacheSizeFrames;
   }
@@ -15,7 +15,7 @@ public class ServerResumeConfiguration {
     return sessionDuration;
   }
 
-  public long cacheSizeFrames() {
+  public int cacheSizeFrames() {
     return cacheSizeFrames;
   }
 }

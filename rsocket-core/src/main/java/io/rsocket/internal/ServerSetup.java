@@ -100,7 +100,7 @@ public interface ServerSetup {
             ByteBufAllocator allocator,
             SessionManager sessionManager,
             Duration resumeSessionDuration,
-            long resumeCacheSize) {
+            int resumeCacheSize) {
         this.allocator = allocator;
         this.sessionManager = sessionManager;
         this.resumeConfig = new ServerResumeConfiguration(resumeSessionDuration, resumeCacheSize);
