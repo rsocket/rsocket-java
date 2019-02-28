@@ -267,7 +267,7 @@ final class FrameReassembler extends AtomicBoolean implements Disposable {
 
     ByteBuf data = assembleData(frame, streamId);
 
-    return FragmentationFlyweight.encode(allocator, header, metadata, data);
+    return FragmentationFlyweight.encode(allocator, header, metadata.retain(), data);
   }
 
   private ByteBuf assembleData(ByteBuf frame, int streamId) {
