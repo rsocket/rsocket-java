@@ -41,10 +41,11 @@ import reactor.core.publisher.SignalType;
 import reactor.core.publisher.UnicastProcessor;
 
 /** Server side RSocket. Receives {@link ByteBuf}s from a {@link RSocketClient} */
-class RSocketServer implements RSocket {
+class RSocketServer implements ResponderRSocket {
 
   private final DuplexConnection connection;
   private final RSocket requestHandler;
+  private final ResponderRSocket responderRSocket;
   private final PayloadDecoder payloadDecoder;
   private final Consumer<Throwable> errorConsumer;
 
@@ -76,7 +77,11 @@ class RSocketServer implements RSocket {
       long ackTimeout) {
     this.allocator = allocator;
     this.connection = connection;
+
     this.requestHandler = requestHandler;
+    this.responderRSocket =
+        (requestHandler instanceof ResponderRSocket) ? (ResponderRSocket) requestHandler : null;
+
     this.payloadDecoder = payloadDecoder;
     this.errorConsumer = errorConsumer;
     this.sendingSubscriptions = Collections.synchronizedMap(new IntObjectHashMap<>());
@@ -204,6 +209,15 @@ class RSocketServer implements RSocket {
   public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
     try {
       return requestHandler.requestChannel(payloads);
+    } catch (Throwable t) {
+      return Flux.error(t);
+    }
+  }
+
+  @Override
+  public Flux<Payload> requestChannel(Payload payload, Publisher<Payload> payloads) {
+    try {
+      return responderRSocket.requestChannel(payload, payloads);
     } catch (Throwable t) {
       return Flux.error(t);
     }
@@ -420,7 +434,11 @@ class RSocketServer implements RSocket {
     // and any later payload can be processed
     frames.onNext(payload);
 
-    handleStream(streamId, requestChannel(payloads), initialRequestN);
+    if (responderRSocket != null) {
+      handleStream(streamId, requestChannel(payload, payloads), initialRequestN);
+    } else {
+      handleStream(streamId, requestChannel(payloads), initialRequestN);
+    }
   }
 
   private void handleKeepAliveFrame(ByteBuf frame) {
