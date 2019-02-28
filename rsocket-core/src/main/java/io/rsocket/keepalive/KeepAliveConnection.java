@@ -10,7 +10,7 @@ import io.rsocket.resume.ResumeAwareConnection;
 import io.rsocket.resume.ResumeStateHolder;
 import io.rsocket.util.DuplexConnectionProxy;
 import io.rsocket.util.Function3;
-import io.rsocket.util.KeepAliveData;
+import io.rsocket.internal.KeepAliveData;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.*;
 

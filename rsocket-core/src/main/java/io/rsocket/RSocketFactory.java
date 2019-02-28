@@ -19,9 +19,7 @@ package io.rsocket;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.exceptions.InvalidSetupException;
-import io.rsocket.exceptions.RejectedResumeException;
 import io.rsocket.exceptions.RejectedSetupException;
-import io.rsocket.exceptions.UnsupportedSetupException;
 import io.rsocket.frame.*;
 import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.internal.ClientServerInputMultiplexer;
@@ -33,10 +31,11 @@ import io.rsocket.plugins.RSocketInterceptor;
 import io.rsocket.resume.*;
 import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.ServerTransport;
-import io.rsocket.util.ClientSetup;
+import io.rsocket.internal.ClientSetup;
+import io.rsocket.util.ConnectionUtils;
 import io.rsocket.util.EmptyPayload;
-import io.rsocket.util.KeepAliveData;
-import io.rsocket.util.ServerSetup;
+import io.rsocket.internal.KeepAliveData;
+import io.rsocket.internal.ServerSetup;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
@@ -308,8 +307,14 @@ public class RSocketFactory {
 
       private ClientSetup clientSetup() {
         return resumeEnabled
-            ? new ResumableClientSetup(newConnection())
-            : new DefaultClientSetup();
+            ? new ClientSetup.ResumableClientSetup(
+                allocator,
+                newConnection(),
+                resumeTokenSupplier.get(),
+                resumeCacheSize,
+                resumeSessionDuration,
+                resumeStrategySupplier)
+            : new ClientSetup.DefaultClientSetup();
       }
 
       private Mono<KeepAliveConnection> newConnection() {
@@ -330,47 +335,6 @@ public class RSocketFactory {
                         errorConsumer));
       }
 
-      class DefaultClientSetup implements ClientSetup {
-
-        @Override
-        public DuplexConnection wrappedConnection(KeepAliveConnection connection) {
-          return connection;
-        }
-
-        @Override
-        public ResumeToken resumeToken() {
-          return ResumeToken.empty();
-        }
-      }
-
-      private class ResumableClientSetup implements ClientSetup {
-        private final ResumeToken resumeToken;
-        private ClientResumeConfiguration config;
-        private Mono<KeepAliveConnection> newConnection;
-
-        public ResumableClientSetup(Mono<KeepAliveConnection> newConnection) {
-          this.newConnection = newConnection;
-          this.resumeToken = resumeTokenSupplier.get();
-          this.config =
-              new ClientResumeConfiguration(
-                  resumeSessionDuration, resumeCacheSize, resumeStrategySupplier);
-        }
-
-        @Override
-        public DuplexConnection wrappedConnection(KeepAliveConnection connection) {
-          ClientRSocketSession rSocketSession =
-              new ClientRSocketSession(allocator, connection, config)
-                  .continueWith(newConnection)
-                  .resumeWith(resumeToken);
-
-          return rSocketSession.resumableConnection();
-        }
-
-        @Override
-        public ResumeToken resumeToken() {
-          return resumeToken;
-        }
-      }
     }
   }
 
@@ -485,27 +449,30 @@ public class RSocketFactory {
               ByteBuf startFrame, ClientServerInputMultiplexer multiplexer) {
             switch (FrameHeaderFlyweight.frameType(startFrame)) {
               case SETUP:
-                return setupRSocket(startFrame, multiplexer);
+                return acceptSetup(startFrame, multiplexer);
               case RESUME:
-                return resumeRSocket(startFrame, multiplexer);
+                return acceptResume(startFrame, multiplexer);
               default:
-                return invalidSetupRSocket(startFrame, multiplexer);
+                return acceptUnknown(startFrame, multiplexer);
             }
           }
 
-          private Mono<Void> setupRSocket(
+          private Mono<Void> acceptSetup(
               ByteBuf setupFrame, ClientServerInputMultiplexer multiplexer) {
 
             if (!SetupFrameFlyweight.isSupportedVersion(setupFrame)) {
-              return errorThenDispose(
-                  setupFrame,
-                  f ->
+              return sendError(
+                      multiplexer,
                       new InvalidSetupException(
                           "Unsupported version: "
-                              + SetupFrameFlyweight.humanReadableVersion(f)),
-                  multiplexer);
+                              + SetupFrameFlyweight.humanReadableVersion(setupFrame)))
+                      .doFinally(
+                              signalType -> {
+                                setupFrame.release();
+                                multiplexer.dispose();
+                              });
             }
-            return serverSetup.setup(
+            return serverSetup.acceptRSocketSetup(
                 setupFrame,
                 multiplexer,
                 wrappedMultiplexer -> {
@@ -524,12 +491,9 @@ public class RSocketFactory {
 
                   return acceptor
                       .accept(setupPayload, wrappedRSocketClient)
-                      .onErrorResume(
-                          err ->
-                              wrappedMultiplexer
-                                  .asSetupConnection()
-                                  .sendOne(rejectedSetupError(err))
-                                  .then(Mono.error(err)))
+                      .onErrorResume(err ->
+                              sendError(multiplexer, rejectedSetupError(err))
+                              .then(Mono.error(err)))
                       .doOnNext(
                           unwrappedServerSocket -> {
                             RSocket wrappedRSocketServer =
@@ -548,178 +512,45 @@ public class RSocketFactory {
                 });
           }
 
-          private Mono<Void> resumeRSocket(
+          private Mono<Void> acceptResume(
               ByteBuf resumeFrame, ClientServerInputMultiplexer multiplexer) {
-            return serverSetup.resume(resumeFrame, multiplexer);
+            return serverSetup.acceptRSocketResume(resumeFrame, multiplexer);
           }
         });
       }
 
-      private class ResumableServerSetup implements ServerSetup {
-        private final SessionManager sessionManager;
-        private final ServerResumeConfiguration resumeConfig;
-
-        public ResumableServerSetup(SessionManager sessionManager) {
-          this.sessionManager = sessionManager;
-          this.resumeConfig = new ServerResumeConfiguration(resumeSessionDuration, resumeCacheSize);
-        }
-
-        @Override
-        public Mono<Void> setup(
-            ByteBuf frame,
-            ClientServerInputMultiplexer multiplexer,
-            Function<ClientServerInputMultiplexer, Mono<Void>> then) {
-
-          ResumeToken token = ResumeToken.fromBytes(SetupFrameFlyweight.resumeToken(frame));
-          if (!token.isEmpty()) {
-
-            KeepAliveData keepAliveData =
-                new KeepAliveData(
-                    SetupFrameFlyweight.keepAliveInterval(frame),
-                    SetupFrameFlyweight.keepAliveMaxLifetime(frame));
-
-            DuplexConnection resumableConnection =
-                sessionManager
-                    .save(
-                        new ServerRSocketSession(
-                            allocator,
-                            multiplexer.asClientServerConnection(),
-                            resumeConfig,
-                            keepAliveData,
-                            token))
-                    .resumableConnection();
-            return then.apply(new ClientServerInputMultiplexer(resumableConnection));
-          } else {
-            return then.apply(multiplexer);
-          }
-        }
-
-        @Override
-        public Mono<Void> resume(ByteBuf frame, ClientServerInputMultiplexer multiplexer) {
-          return sessionManager
-              .get(ResumeToken.fromBytes(ResumeFrameFlyweight.token(frame)))
-              .map(
-                  session ->
-                      session
-                          .continueWith(multiplexer.asClientServerConnection())
-                          .resumeWith(frame)
-                          .onClose()
-                          .then())
-              .orElseGet(
-                  () ->
-                      multiplexer
-                          .asSetupConnection()
-                          .sendOne(
-                              ErrorFrameFlyweight.encode(allocator,
-                                  0,
-                                  new RejectedResumeException("unknown resume token")))
-                          .onErrorResume(err -> Mono.empty())
-                          .doFinally(
-                              s -> {
-                                frame.release();
-                                multiplexer.dispose();
-                              })
-                          .then());
-        }
-
-        @Override
-        public Function<ByteBuf, Mono<KeepAliveData>> keepAliveData() {
-          return frame -> {
-            if (FrameHeaderFlyweight.frameType(frame) == FrameType.SETUP) {
-              return Mono.just(
-                  new KeepAliveData(
-                      SetupFrameFlyweight.keepAliveInterval(frame),
-                      SetupFrameFlyweight.keepAliveMaxLifetime(frame)));
-            } else {
-              return sessionManager
-                  .get(ResumeToken.fromBytes(ResumeFrameFlyweight.token(frame)))
-                  .map(ServerRSocketSession::keepAliveData)
-                  .map(Mono::just)
-                  .orElseGet(Mono::never);
-            }
-          };
-        }
-
-        @Override
-        public void dispose() {
-          sessionManager.dispose();
-        }
-      }
-
-      private class DefaultServerSetup implements ServerSetup {
-
-        @Override
-        public Mono<Void> setup(
-            ByteBuf frame,
-            ClientServerInputMultiplexer multiplexer,
-            Function<ClientServerInputMultiplexer, Mono<Void>> then) {
-
-          if (!ResumeToken.fromBytes(SetupFrameFlyweight.resumeToken(frame)).isEmpty()) {
-            return errorThenDispose(
-                frame, f -> new UnsupportedSetupException("resume not supported"), multiplexer);
-          } else {
-            return then.apply(multiplexer);
-          }
-        }
-
-        @Override
-        public Mono<Void> resume(ByteBuf frame, ClientServerInputMultiplexer multiplexer) {
-
-          return errorThenDispose(
-              frame, f -> new RejectedResumeException("resume not supported"), multiplexer);
-        }
-
-        @Override
-        public Function<ByteBuf, Mono<KeepAliveData>> keepAliveData() {
-          return frame -> {
-            if (FrameHeaderFlyweight.frameType(frame) == FrameType.SETUP) {
-              return Mono.just(
-                  new KeepAliveData(
-                      SetupFrameFlyweight.keepAliveInterval(frame),
-                      SetupFrameFlyweight.keepAliveMaxLifetime(frame)));
-            } else {
-              return Mono.never();
-            }
-          };
-        }
-      }
-
-      private ServerSetup serverSetup() {
+        private ServerSetup serverSetup() {
         return resumeSupported
-            ? new ResumableServerSetup(new SessionManager())
-            : new DefaultServerSetup();
+            ? new ServerSetup.ResumableServerSetup(
+                allocator,
+                new SessionManager(),
+                resumeSessionDuration,
+                resumeCacheSize)
+            : new ServerSetup.DefaultServerSetup(allocator);
       }
 
-      private Mono<Void> invalidSetupRSocket(
+      private Mono<Void> acceptUnknown(
           ByteBuf frame,
           ClientServerInputMultiplexer multiplexer) {
-        return errorThenDispose(
-            frame,
-            f -> new InvalidSetupException("invalid setup frame: " + FrameHeaderFlyweight.frameType(f)),
-            multiplexer);
+        return sendError(
+                multiplexer,
+                new InvalidSetupException("invalid setup frame: " + FrameHeaderFlyweight.frameType(frame)))
+                .doFinally(
+                        signalType -> {
+                          frame.release();
+                          multiplexer.dispose();
+                        });
       }
 
-      private Mono<Void> errorThenDispose(
-          ByteBuf frame,
-          Function<ByteBuf, Exception> exception,
-          ClientServerInputMultiplexer multiplexer) {
-        return multiplexer
-            .asSetupConnection()
-            .sendOne(ErrorFrameFlyweight.encode(allocator, 0, exception.apply(frame)))
-            .onErrorResume(err -> Mono.empty())
-            .doFinally(
-                signalType -> {
-                  frame.release();
-                  multiplexer.dispose();
-                });
+      private Mono<Void> sendError(
+              ClientServerInputMultiplexer multiplexer,
+              Exception exception) {
+        return ConnectionUtils.sendError(allocator, multiplexer, exception);
       }
 
-      private ByteBuf rejectedSetupError(Throwable err) {
+      private Exception rejectedSetupError(Throwable err) {
         String msg = err.getMessage();
-        return ErrorFrameFlyweight.encode(
-            ByteBufAllocator.DEFAULT,
-            0,
-            new RejectedSetupException(msg == null ? "rejected by server acceptor" : msg));
+        return new RejectedSetupException(msg == null ? "rejected by server acceptor" : msg);
       }
     }
   }

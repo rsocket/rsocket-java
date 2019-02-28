@@ -12,7 +12,7 @@ import io.rsocket.frame.SetupFrameFlyweight;
 import io.rsocket.keepalive.KeepAliveConnection;
 import io.rsocket.resume.ResumeStateHolder;
 import io.rsocket.test.util.TestDuplexConnection;
-import io.rsocket.util.KeepAliveData;
+import io.rsocket.internal.KeepAliveData;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

@@ -1,4 +1,4 @@
-package io.rsocket.util;
+package io.rsocket.internal;
 
 import java.time.Duration;
 

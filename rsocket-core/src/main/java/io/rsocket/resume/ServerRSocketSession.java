@@ -7,7 +7,7 @@ import io.rsocket.exceptions.RejectedResumeException;
 import io.rsocket.frame.ErrorFrameFlyweight;
 import io.rsocket.frame.ResumeFrameFlyweight;
 import io.rsocket.frame.ResumeOkFrameFlyweight;
-import io.rsocket.util.KeepAliveData;
+import io.rsocket.internal.KeepAliveData;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.FluxProcessor;
