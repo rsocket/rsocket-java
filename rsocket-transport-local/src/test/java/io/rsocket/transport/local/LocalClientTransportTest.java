@@ -32,8 +32,8 @@ final class LocalClientTransportTest {
     LocalServerTransport serverTransport = LocalServerTransport.createEphemeral();
 
     serverTransport
-        .start(duplexConnection -> Mono.empty())
-        .flatMap(closeable -> LocalClientTransport.create(serverTransport.getName()).connect())
+        .start(duplexConnection -> Mono.empty(), 0)
+        .flatMap(closeable -> LocalClientTransport.create(serverTransport.getName()).connect(0))
         .as(StepVerifier::create)
         .expectNextCount(1)
         .verifyComplete();
@@ -43,7 +43,7 @@ final class LocalClientTransportTest {
   @Test
   void connectNoServer() {
     LocalClientTransport.create("test-name")
-        .connect()
+        .connect(0)
         .as(StepVerifier::create)
         .verifyErrorMessage("Could not find server: test-name");
   }

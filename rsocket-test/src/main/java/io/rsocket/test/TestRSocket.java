@@ -24,10 +24,17 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 public class TestRSocket extends AbstractRSocket {
+  private final String data;
+  private final String metadata;
+
+  public TestRSocket(String data, String metadata) {
+    this.data = data;
+    this.metadata = metadata;
+  }
 
   @Override
   public Mono<Payload> requestResponse(Payload payload) {
-    return Mono.just(DefaultPayload.create("hello world", "metadata"));
+    return Mono.just(DefaultPayload.create(data, metadata));
   }
 
   @Override

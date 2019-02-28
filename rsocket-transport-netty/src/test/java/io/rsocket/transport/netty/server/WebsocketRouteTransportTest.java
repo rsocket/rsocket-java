@@ -16,7 +16,6 @@
 
 package io.rsocket.transport.netty.server;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
 import org.junit.jupiter.api.DisplayName;
@@ -57,20 +56,6 @@ final class WebsocketRouteTransportTest {
         .withMessage("server must not be null");
   }
 
-  @DisplayName("creates a new handler")
-  @Test
-  void newHandler() {
-    assertThat(WebsocketRouteTransport.newHandler(duplexConnection -> null)).isNotNull();
-  }
-
-  @DisplayName("newHandler throws NullPointerException with null acceptor")
-  @Test
-  void newHandlerNullAcceptor() {
-    assertThatNullPointerException()
-        .isThrownBy(() -> WebsocketRouteTransport.newHandler(null))
-        .withMessage("acceptor must not be null");
-  }
-
   @DisplayName("starts server")
   @Test
   void start() {
@@ -78,7 +63,7 @@ final class WebsocketRouteTransportTest {
         new WebsocketRouteTransport(HttpServer.create(), routes -> {}, "/test-path");
 
     serverTransport
-        .start(duplexConnection -> Mono.empty())
+        .start(duplexConnection -> Mono.empty(), 0)
         .as(StepVerifier::create)
         .expectNextCount(1)
         .verifyComplete();
@@ -91,7 +76,7 @@ final class WebsocketRouteTransportTest {
         .isThrownBy(
             () ->
                 new WebsocketRouteTransport(HttpServer.create(), routes -> {}, "/test-path")
-                    .start(null))
+                    .start(null, 0))
         .withMessage("acceptor must not be null");
   }
 }

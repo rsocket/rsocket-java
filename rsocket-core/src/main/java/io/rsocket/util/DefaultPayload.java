@@ -40,66 +40,6 @@ public final class DefaultPayload implements Payload {
     this.metadata = metadata;
   }
 
-  @Override
-  public boolean hasMetadata() {
-    return metadata != null;
-  }
-
-  @Override
-  public ByteBuf sliceMetadata() {
-    return metadata == null ? Unpooled.EMPTY_BUFFER : Unpooled.wrappedBuffer(metadata);
-  }
-
-  @Override
-  public ByteBuf sliceData() {
-    return Unpooled.wrappedBuffer(data);
-  }
-
-  @Override
-  public ByteBuffer getMetadata() {
-    return metadata == null ? DefaultPayload.EMPTY_BUFFER : metadata.duplicate();
-  }
-
-  @Override
-  public ByteBuffer getData() {
-    return data.duplicate();
-  }
-
-  @Override
-  public int refCnt() {
-    return 1;
-  }
-
-  @Override
-  public DefaultPayload retain() {
-    return this;
-  }
-
-  @Override
-  public DefaultPayload retain(int increment) {
-    return this;
-  }
-
-  @Override
-  public DefaultPayload touch() {
-    return this;
-  }
-
-  @Override
-  public DefaultPayload touch(Object hint) {
-    return this;
-  }
-
-  @Override
-  public boolean release() {
-    return false;
-  }
-
-  @Override
-  public boolean release(int decrement) {
-    return false;
-  }
-
   /**
    * Static factory method for a text payload. Mainly looks better than "new DefaultPayload(data)"
    *
@@ -166,5 +106,75 @@ public final class DefaultPayload implements Payload {
     return create(
         Unpooled.copiedBuffer(payload.sliceData()),
         payload.hasMetadata() ? Unpooled.copiedBuffer(payload.sliceMetadata()) : null);
+  }
+
+  @Override
+  public boolean hasMetadata() {
+    return metadata != null;
+  }
+
+  @Override
+  public ByteBuf sliceMetadata() {
+    return metadata == null ? Unpooled.EMPTY_BUFFER : Unpooled.wrappedBuffer(metadata);
+  }
+
+  @Override
+  public ByteBuf sliceData() {
+    return Unpooled.wrappedBuffer(data);
+  }
+
+  @Override
+  public ByteBuffer getMetadata() {
+    return metadata == null ? DefaultPayload.EMPTY_BUFFER : metadata.duplicate();
+  }
+
+  @Override
+  public ByteBuffer getData() {
+    return data.duplicate();
+  }
+
+  @Override
+  public ByteBuf data() {
+    return sliceData();
+  }
+
+  @Override
+  public ByteBuf metadata() {
+    return sliceMetadata();
+  }
+
+  @Override
+  public int refCnt() {
+    return 1;
+  }
+
+  @Override
+  public DefaultPayload retain() {
+    return this;
+  }
+
+  @Override
+  public DefaultPayload retain(int increment) {
+    return this;
+  }
+
+  @Override
+  public DefaultPayload touch() {
+    return this;
+  }
+
+  @Override
+  public DefaultPayload touch(Object hint) {
+    return this;
+  }
+
+  @Override
+  public boolean release() {
+    return false;
+  }
+
+  @Override
+  public boolean release(int decrement) {
+    return false;
   }
 }

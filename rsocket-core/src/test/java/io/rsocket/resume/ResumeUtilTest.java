@@ -16,17 +16,8 @@
 
 package io.rsocket.resume;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
-
-import io.rsocket.Frame;
-import io.rsocket.framing.FrameType;
-import io.rsocket.util.DefaultPayload;
-import org.junit.Test;
-
 public class ResumeUtilTest {
-  private Frame CANCEL = Frame.Cancel.from(1);
+  /*private Frame CANCEL = Frame.Cancel.from(1);
   private Frame STREAM =
       Frame.Request.from(1, FrameType.REQUEST_STREAM, DefaultPayload.create("Test"), 100);
 
@@ -56,5 +47,5 @@ public class ResumeUtilTest {
   public void testOffset() {
     assertEquals(6, ResumeUtil.offset(CANCEL));
     assertEquals(14, ResumeUtil.offset(STREAM));
-  }
+  }*/
 }

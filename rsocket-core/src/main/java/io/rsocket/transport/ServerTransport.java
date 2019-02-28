@@ -29,10 +29,11 @@ public interface ServerTransport<T extends Closeable> extends Transport {
    * Starts this server.
    *
    * @param acceptor An acceptor to process a newly accepted {@code DuplexConnection}
+   * @param mtu The mtu used for fragmentation - if set to zero fragmentation will be disabled
    * @return A handle to retrieve information about a started server.
    * @throws NullPointerException if {@code acceptor} is {@code null}
    */
-  Mono<T> start(ConnectionAcceptor acceptor);
+  Mono<T> start(ConnectionAcceptor acceptor, int mtu);
 
   /** A contract to accept a new {@code DuplexConnection}. */
   interface ConnectionAcceptor extends Function<DuplexConnection, Publisher<Void>> {

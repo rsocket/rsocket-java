@@ -1,8 +1,11 @@
 package io.rsocket;
 
+import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
 import io.rsocket.exceptions.ConnectionErrorException;
-import io.rsocket.framing.FrameType;
+import io.rsocket.frame.FrameHeaderFlyweight;
+import io.rsocket.frame.FrameType;
+import io.rsocket.frame.KeepAliveFrameFlyweight;
 import io.rsocket.test.util.TestDuplexConnection;
 import io.rsocket.util.DefaultPayload;
 import java.time.Duration;
@@ -26,6 +29,49 @@ public class KeepAliveTest {
   private static final int SERVER_RESPONDER_TICK_PERIOD = 100;
   private static final int SERVER_RESPONDER_TIMEOUT = 1000;
 
+  static Stream<Supplier<TestData>> testData() {
+    return Stream.of(
+        requester(
+            CLIENT_REQUESTER_TICK_PERIOD, CLIENT_REQUESTER_TIMEOUT, CLIENT_REQUESTER_MISSED_ACKS),
+        responder(SERVER_RESPONDER_TICK_PERIOD, SERVER_RESPONDER_TIMEOUT));
+  }
+
+  static Supplier<TestData> requester(int tickPeriod, int timeout, int missedAcks) {
+    return () -> {
+      TestDuplexConnection connection = new TestDuplexConnection();
+      Errors errors = new Errors();
+      RSocketClient rSocket =
+          new RSocketClient(
+              ByteBufAllocator.DEFAULT,
+              connection,
+              DefaultPayload::create,
+              errors,
+              StreamIdSupplier.clientSupplier(),
+              Duration.ofMillis(tickPeriod),
+              Duration.ofMillis(timeout),
+              missedAcks);
+      return new TestData(rSocket, errors, connection);
+    };
+  }
+
+  static Supplier<TestData> responder(int tickPeriod, int timeout) {
+    return () -> {
+      TestDuplexConnection connection = new TestDuplexConnection();
+      AbstractRSocket handler = new AbstractRSocket() {};
+      Errors errors = new Errors();
+      RSocketServer rSocket =
+          new RSocketServer(
+              ByteBufAllocator.DEFAULT,
+              connection,
+              handler,
+              DefaultPayload::create,
+              errors,
+              tickPeriod,
+              timeout);
+      return new TestData(rSocket, errors, connection);
+    };
+  }
+
   @ParameterizedTest
   @MethodSource("testData")
   void keepAlives(Supplier<TestData> testDataSupplier) {
@@ -34,7 +80,10 @@ public class KeepAliveTest {
 
     Flux.interval(Duration.ofMillis(100))
         .subscribe(
-            n -> connection.addToReceivedBuffer(Frame.Keepalive.from(Unpooled.EMPTY_BUFFER, true)));
+            n ->
+                connection.addToReceivedBuffer(
+                    KeepAliveFrameFlyweight.encode(
+                        ByteBufAllocator.DEFAULT, true, 0, Unpooled.EMPTY_BUFFER)));
 
     Mono.delay(Duration.ofMillis(1500)).block();
 
@@ -67,51 +116,21 @@ public class KeepAliveTest {
 
     Mono.delay(Duration.ofMillis(100))
         .subscribe(
-            l -> connection.addToReceivedBuffer(Frame.Keepalive.from(Unpooled.EMPTY_BUFFER, true)));
+            l ->
+                connection.addToReceivedBuffer(
+                    KeepAliveFrameFlyweight.encode(
+                        ByteBufAllocator.DEFAULT, true, 0, Unpooled.EMPTY_BUFFER)));
 
     Mono<Void> keepAliveResponse =
         Flux.from(connection.getSentAsPublisher())
-            .filter(f -> f.getType() == FrameType.KEEPALIVE && !Frame.Keepalive.hasRespondFlag(f))
+            .filter(
+                f ->
+                    FrameHeaderFlyweight.frameType(f) == FrameType.KEEPALIVE
+                        && !KeepAliveFrameFlyweight.respondFlag(f))
             .next()
             .then();
 
     StepVerifier.create(keepAliveResponse).expectComplete().verify(Duration.ofSeconds(5));
-  }
-
-  static Stream<Supplier<TestData>> testData() {
-    return Stream.of(
-        requester(
-            CLIENT_REQUESTER_TICK_PERIOD, CLIENT_REQUESTER_TIMEOUT, CLIENT_REQUESTER_MISSED_ACKS),
-        responder(SERVER_RESPONDER_TICK_PERIOD, SERVER_RESPONDER_TIMEOUT));
-  }
-
-  static Supplier<TestData> requester(int tickPeriod, int timeout, int missedAcks) {
-    return () -> {
-      TestDuplexConnection connection = new TestDuplexConnection();
-      Errors errors = new Errors();
-      RSocketClient rSocket =
-          new RSocketClient(
-              connection,
-              DefaultPayload::create,
-              errors,
-              StreamIdSupplier.clientSupplier(),
-              Duration.ofMillis(tickPeriod),
-              Duration.ofMillis(timeout),
-              missedAcks);
-      return new TestData(rSocket, errors, connection);
-    };
-  }
-
-  static Supplier<TestData> responder(int tickPeriod, int timeout) {
-    return () -> {
-      TestDuplexConnection connection = new TestDuplexConnection();
-      AbstractRSocket handler = new AbstractRSocket() {};
-      Errors errors = new Errors();
-      RSocketServer rSocket =
-          new RSocketServer(
-              connection, handler, DefaultPayload::create, errors, tickPeriod, timeout);
-      return new TestData(rSocket, errors, connection);
-    };
   }
 
   static class TestData {

@@ -16,9 +16,9 @@
 
 package io.rsocket.transport.netty;
 
-import io.rsocket.Frame;
 import io.rsocket.RSocket;
 import io.rsocket.RSocketFactory;
+import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.test.PingClient;
 import io.rsocket.transport.netty.client.TcpClientTransport;
 import java.time.Duration;
@@ -30,7 +30,7 @@ public final class TcpPing {
   public static void main(String... args) {
     Mono<RSocket> client =
         RSocketFactory.connect()
-            .frameDecoder(Frame::retain)
+            .frameDecoder(PayloadDecoder.ZERO_COPY)
             .transport(TcpClientTransport.create(7878))
             .start();
 

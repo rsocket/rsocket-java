@@ -16,173 +16,337 @@
 
 package io.rsocket.fragmentation;
 
-import static io.netty.buffer.UnpooledByteBufAllocator.DEFAULT;
-import static io.rsocket.framing.PayloadFrame.createPayloadFrame;
-import static io.rsocket.framing.RequestStreamFrame.createRequestStreamFrame;
-import static io.rsocket.framing.TestFrames.createTestCancelFrame;
-import static io.rsocket.test.util.ByteBufUtils.getRandomByteBuf;
-import static org.assertj.core.api.Assertions.assertThatNullPointerException;
-
 import io.netty.buffer.ByteBuf;
-import io.rsocket.framing.CancelFrame;
-import io.rsocket.framing.PayloadFrame;
-import io.rsocket.framing.RequestStreamFrame;
+import io.netty.buffer.ByteBufAllocator;
+import io.netty.buffer.Unpooled;
+import io.rsocket.frame.*;
+import io.rsocket.util.DefaultPayload;
+import java.util.concurrent.ThreadLocalRandom;
+import org.junit.Assert;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.reactivestreams.Publisher;
+import reactor.core.publisher.Flux;
 import reactor.test.StepVerifier;
 
 final class FrameFragmenterTest {
+  private static byte[] data = new byte[4096];
+  private static byte[] metadata = new byte[4096];
 
-  @DisplayName("constructor throws NullPointerException with null ByteBufAllocator")
-  @Test
-  void constructorNullByteBufAllocator() {
-    assertThatNullPointerException()
-        .isThrownBy(() -> new FrameFragmenter(null, 2))
-        .withMessage("byteBufAllocator must not be null");
+  static {
+    ThreadLocalRandom.current().nextBytes(data);
+    ThreadLocalRandom.current().nextBytes(metadata);
   }
 
-  @DisplayName("fragments data")
+  private ByteBufAllocator allocator = ByteBufAllocator.DEFAULT;
+
+  @Test
+  void testGettingData() {
+    ByteBuf rr =
+        RequestResponseFrameFlyweight.encode(allocator, 1, true, DefaultPayload.create(data));
+    ByteBuf fnf =
+        RequestFireAndForgetFrameFlyweight.encode(allocator, 1, true, DefaultPayload.create(data));
+    ByteBuf rs =
+        RequestStreamFrameFlyweight.encode(allocator, 1, true, 1, DefaultPayload.create(data));
+    ByteBuf rc =
+        RequestChannelFrameFlyweight.encode(
+            allocator, 1, true, false, 1, DefaultPayload.create(data));
+
+    ByteBuf data = FrameFragmenter.getData(rr, FrameType.REQUEST_RESPONSE);
+    Assert.assertEquals(data, Unpooled.wrappedBuffer(data));
+    data.release();
+
+    data = FrameFragmenter.getData(fnf, FrameType.REQUEST_FNF);
+    Assert.assertEquals(data, Unpooled.wrappedBuffer(data));
+    data.release();
+
+    data = FrameFragmenter.getData(rs, FrameType.REQUEST_STREAM);
+    Assert.assertEquals(data, Unpooled.wrappedBuffer(data));
+    data.release();
+
+    data = FrameFragmenter.getData(rc, FrameType.REQUEST_CHANNEL);
+    Assert.assertEquals(data, Unpooled.wrappedBuffer(data));
+    data.release();
+  }
+
+  @Test
+  void testGettingMetadata() {
+    ByteBuf rr =
+        RequestResponseFrameFlyweight.encode(
+            allocator, 1, true, DefaultPayload.create(data, metadata));
+    ByteBuf fnf =
+        RequestFireAndForgetFrameFlyweight.encode(
+            allocator, 1, true, DefaultPayload.create(data, metadata));
+    ByteBuf rs =
+        RequestStreamFrameFlyweight.encode(
+            allocator, 1, true, 1, DefaultPayload.create(data, metadata));
+    ByteBuf rc =
+        RequestChannelFrameFlyweight.encode(
+            allocator, 1, true, false, 1, DefaultPayload.create(data, metadata));
+
+    ByteBuf data = FrameFragmenter.getMetadata(rr, FrameType.REQUEST_RESPONSE);
+    Assert.assertEquals(data, Unpooled.wrappedBuffer(metadata));
+    data.release();
+
+    data = FrameFragmenter.getMetadata(fnf, FrameType.REQUEST_FNF);
+    Assert.assertEquals(data, Unpooled.wrappedBuffer(metadata));
+    data.release();
+
+    data = FrameFragmenter.getMetadata(rs, FrameType.REQUEST_STREAM);
+    Assert.assertEquals(data, Unpooled.wrappedBuffer(metadata));
+    data.release();
+
+    data = FrameFragmenter.getMetadata(rc, FrameType.REQUEST_CHANNEL);
+    Assert.assertEquals(data, Unpooled.wrappedBuffer(metadata));
+    data.release();
+  }
+
+  @Test
+  void returnEmptBufferWhenNoMetadataPresent() {
+    ByteBuf rr =
+        RequestResponseFrameFlyweight.encode(allocator, 1, true, DefaultPayload.create(data));
+
+    ByteBuf data = FrameFragmenter.getMetadata(rr, FrameType.REQUEST_RESPONSE);
+    Assert.assertEquals(data, Unpooled.EMPTY_BUFFER);
+    data.release();
+  }
+
+  @DisplayName("encode first frame")
+  @Test
+  void encodeFirstFrameWithData() {
+    ByteBuf rr =
+        RequestResponseFrameFlyweight.encode(allocator, 1, true, DefaultPayload.create(data));
+
+    ByteBuf fragment =
+        FrameFragmenter.encodeFirstFragment(
+            allocator,
+            256,
+            rr,
+            FrameType.REQUEST_RESPONSE,
+            1,
+            Unpooled.EMPTY_BUFFER,
+            Unpooled.wrappedBuffer(data));
+
+    Assert.assertEquals(256, fragment.readableBytes());
+    Assert.assertEquals(FrameType.REQUEST_RESPONSE, FrameHeaderFlyweight.frameType(fragment));
+    Assert.assertEquals(1, FrameHeaderFlyweight.streamId(fragment));
+    Assert.assertTrue(FrameHeaderFlyweight.hasFollows(fragment));
+
+    ByteBuf data = RequestResponseFrameFlyweight.data(fragment);
+    ByteBuf byteBuf = Unpooled.wrappedBuffer(this.data).readSlice(data.readableBytes());
+    Assert.assertEquals(byteBuf, data);
+
+    Assert.assertFalse(FrameHeaderFlyweight.hasMetadata(fragment));
+  }
+
+  @DisplayName("encode first channel frame")
+  @Test
+  void encodeFirstWithDataChannel() {
+    ByteBuf rc =
+        RequestChannelFrameFlyweight.encode(
+            allocator, 1, true, false, 10, DefaultPayload.create(data));
+
+    ByteBuf fragment =
+        FrameFragmenter.encodeFirstFragment(
+            allocator,
+            256,
+            rc,
+            FrameType.REQUEST_CHANNEL,
+            1,
+            Unpooled.EMPTY_BUFFER,
+            Unpooled.wrappedBuffer(data));
+
+    Assert.assertEquals(256, fragment.readableBytes());
+    Assert.assertEquals(FrameType.REQUEST_CHANNEL, FrameHeaderFlyweight.frameType(fragment));
+    Assert.assertEquals(1, FrameHeaderFlyweight.streamId(fragment));
+    Assert.assertEquals(10, RequestChannelFrameFlyweight.initialRequestN(fragment));
+    Assert.assertTrue(FrameHeaderFlyweight.hasFollows(fragment));
+
+    ByteBuf data = RequestChannelFrameFlyweight.data(fragment);
+    ByteBuf byteBuf = Unpooled.wrappedBuffer(this.data).readSlice(data.readableBytes());
+    Assert.assertEquals(byteBuf, data);
+
+    Assert.assertFalse(FrameHeaderFlyweight.hasMetadata(fragment));
+  }
+
+  @DisplayName("encode first stream frame")
+  @Test
+  void encodeFirstWithDataStream() {
+    ByteBuf rc =
+        RequestStreamFrameFlyweight.encode(allocator, 1, true, 50, DefaultPayload.create(data));
+
+    ByteBuf fragment =
+        FrameFragmenter.encodeFirstFragment(
+            allocator,
+            256,
+            rc,
+            FrameType.REQUEST_STREAM,
+            1,
+            Unpooled.EMPTY_BUFFER,
+            Unpooled.wrappedBuffer(data));
+
+    Assert.assertEquals(256, fragment.readableBytes());
+    Assert.assertEquals(FrameType.REQUEST_STREAM, FrameHeaderFlyweight.frameType(fragment));
+    Assert.assertEquals(1, FrameHeaderFlyweight.streamId(fragment));
+    Assert.assertEquals(50, RequestStreamFrameFlyweight.initialRequestN(fragment));
+    Assert.assertTrue(FrameHeaderFlyweight.hasFollows(fragment));
+
+    ByteBuf data = RequestStreamFrameFlyweight.data(fragment);
+    ByteBuf byteBuf = Unpooled.wrappedBuffer(this.data).readSlice(data.readableBytes());
+    Assert.assertEquals(byteBuf, data);
+
+    Assert.assertFalse(FrameHeaderFlyweight.hasMetadata(fragment));
+  }
+
+  @DisplayName("encode first frame with only metadata")
+  @Test
+  void encodeFirstFrameWithMetadata() {
+    ByteBuf rr =
+        RequestResponseFrameFlyweight.encode(
+            allocator,
+            1,
+            true,
+            DefaultPayload.create(Unpooled.EMPTY_BUFFER, Unpooled.wrappedBuffer(metadata)));
+
+    ByteBuf fragment =
+        FrameFragmenter.encodeFirstFragment(
+            allocator,
+            256,
+            rr,
+            FrameType.REQUEST_RESPONSE,
+            1,
+            Unpooled.wrappedBuffer(metadata),
+            Unpooled.EMPTY_BUFFER);
+
+    Assert.assertEquals(256, fragment.readableBytes());
+    Assert.assertEquals(FrameType.REQUEST_RESPONSE, FrameHeaderFlyweight.frameType(fragment));
+    Assert.assertEquals(1, FrameHeaderFlyweight.streamId(fragment));
+    Assert.assertTrue(FrameHeaderFlyweight.hasFollows(fragment));
+
+    ByteBuf data = RequestResponseFrameFlyweight.data(fragment);
+    Assert.assertEquals(data, Unpooled.EMPTY_BUFFER);
+
+    Assert.assertTrue(FrameHeaderFlyweight.hasMetadata(fragment));
+  }
+
+  @DisplayName("encode first stream frame with data and metadata")
+  @Test
+  void encodeFirstWithDataAndMetadataStream() {
+    ByteBuf rc =
+        RequestStreamFrameFlyweight.encode(
+            allocator, 1, true, 50, DefaultPayload.create(data, metadata));
+
+    ByteBuf fragment =
+        FrameFragmenter.encodeFirstFragment(
+            allocator,
+            256,
+            rc,
+            FrameType.REQUEST_STREAM,
+            1,
+            Unpooled.wrappedBuffer(metadata),
+            Unpooled.wrappedBuffer(data));
+
+    Assert.assertEquals(256, fragment.readableBytes());
+    Assert.assertEquals(FrameType.REQUEST_STREAM, FrameHeaderFlyweight.frameType(fragment));
+    Assert.assertEquals(1, FrameHeaderFlyweight.streamId(fragment));
+    Assert.assertEquals(50, RequestStreamFrameFlyweight.initialRequestN(fragment));
+    Assert.assertTrue(FrameHeaderFlyweight.hasFollows(fragment));
+
+    ByteBuf data = RequestStreamFrameFlyweight.data(fragment);
+    Assert.assertEquals(0, data.readableBytes());
+
+    ByteBuf metadata = RequestStreamFrameFlyweight.metadata(fragment);
+    ByteBuf byteBuf = Unpooled.wrappedBuffer(this.metadata).readSlice(metadata.readableBytes());
+    Assert.assertEquals(byteBuf, metadata);
+
+    Assert.assertTrue(FrameHeaderFlyweight.hasMetadata(fragment));
+  }
+
+  @DisplayName("fragments frame with only data")
   @Test
   void fragmentData() {
-    ByteBuf data = getRandomByteBuf(6);
+    ByteBuf rr =
+        RequestResponseFrameFlyweight.encode(allocator, 1, true, DefaultPayload.create(data));
 
-    RequestStreamFrame frame = createRequestStreamFrame(DEFAULT, false, 1, null, data);
+    Publisher<ByteBuf> fragments =
+        FrameFragmenter.fragmentFrame(allocator, 1024, rr, FrameType.REQUEST_RESPONSE, false);
 
-    RequestStreamFrame fragment1 =
-        createRequestStreamFrame(DEFAULT, true, 1, null, data.slice(0, 2));
-
-    PayloadFrame fragment2 = createPayloadFrame(DEFAULT, true, false, null, data.slice(2, 2));
-
-    PayloadFrame fragment3 = createPayloadFrame(DEFAULT, false, false, null, data.slice(4, 2));
-
-    new FrameFragmenter(DEFAULT, 2)
-        .fragment(frame)
-        .as(StepVerifier::create)
-        .expectNext(fragment1)
-        .expectNext(fragment2)
-        .expectNext(fragment3)
+    StepVerifier.create(Flux.from(fragments).doOnError(Throwable::printStackTrace))
+        .expectNextCount(1)
+        .assertNext(
+            byteBuf -> {
+              Assert.assertEquals(FrameType.NEXT, FrameHeaderFlyweight.frameType(byteBuf));
+              Assert.assertEquals(1, FrameHeaderFlyweight.streamId(byteBuf));
+              Assert.assertTrue(FrameHeaderFlyweight.hasFollows(byteBuf));
+            })
+        .expectNextCount(2)
+        .assertNext(
+            byteBuf -> {
+              Assert.assertEquals(FrameType.NEXT, FrameHeaderFlyweight.frameType(byteBuf));
+              Assert.assertFalse(FrameHeaderFlyweight.hasFollows(byteBuf));
+            })
         .verifyComplete();
   }
 
-  @DisplayName("does not fragment with size equal to maxFragmentLength")
-  @Test
-  void fragmentEqualToMaxFragmentLength() {
-    PayloadFrame frame = createPayloadFrame(DEFAULT, false, false, null, getRandomByteBuf(2));
-
-    new FrameFragmenter(DEFAULT, 2)
-        .fragment(frame)
-        .as(StepVerifier::create)
-        .expectNext(frame)
-        .verifyComplete();
-  }
-
-  @DisplayName("does not fragment an already-fragmented frame")
-  @Test
-  void fragmentFragment() {
-    PayloadFrame frame = createPayloadFrame(DEFAULT, true, true, (ByteBuf) null, null);
-
-    new FrameFragmenter(DEFAULT, 2)
-        .fragment(frame)
-        .as(StepVerifier::create)
-        .expectNext(frame)
-        .verifyComplete();
-  }
-
-  @DisplayName("does not fragment with size smaller than maxFragmentLength")
-  @Test
-  void fragmentLessThanMaxFragmentLength() {
-    PayloadFrame frame = createPayloadFrame(DEFAULT, false, false, null, getRandomByteBuf(1));
-
-    new FrameFragmenter(DEFAULT, 2)
-        .fragment(frame)
-        .as(StepVerifier::create)
-        .expectNext(frame)
-        .verifyComplete();
-  }
-
-  @DisplayName("fragments metadata")
+  @DisplayName("fragments frame with only metadata")
   @Test
   void fragmentMetadata() {
-    ByteBuf metadata = getRandomByteBuf(6);
+    ByteBuf rr =
+        RequestStreamFrameFlyweight.encode(
+            allocator,
+            1,
+            true,
+            10,
+            DefaultPayload.create(Unpooled.EMPTY_BUFFER, Unpooled.wrappedBuffer(metadata)));
 
-    RequestStreamFrame frame = createRequestStreamFrame(DEFAULT, false, 1, metadata, null);
+    Publisher<ByteBuf> fragments =
+        FrameFragmenter.fragmentFrame(allocator, 1024, rr, FrameType.REQUEST_STREAM, false);
 
-    RequestStreamFrame fragment1 =
-        createRequestStreamFrame(DEFAULT, true, 1, metadata.slice(0, 2), null);
-
-    PayloadFrame fragment2 = createPayloadFrame(DEFAULT, true, true, metadata.slice(2, 2), null);
-
-    PayloadFrame fragment3 = createPayloadFrame(DEFAULT, false, true, metadata.slice(4, 2), null);
-
-    new FrameFragmenter(DEFAULT, 2)
-        .fragment(frame)
-        .as(StepVerifier::create)
-        .expectNext(fragment1)
-        .expectNext(fragment2)
-        .expectNext(fragment3)
+    StepVerifier.create(Flux.from(fragments).doOnError(Throwable::printStackTrace))
+        .expectNextCount(1)
+        .assertNext(
+            byteBuf -> {
+              Assert.assertEquals(FrameType.NEXT, FrameHeaderFlyweight.frameType(byteBuf));
+              Assert.assertEquals(1, FrameHeaderFlyweight.streamId(byteBuf));
+              Assert.assertTrue(FrameHeaderFlyweight.hasFollows(byteBuf));
+            })
+        .expectNextCount(2)
+        .assertNext(
+            byteBuf -> {
+              Assert.assertEquals(FrameType.NEXT, FrameHeaderFlyweight.frameType(byteBuf));
+              Assert.assertFalse(FrameHeaderFlyweight.hasFollows(byteBuf));
+            })
         .verifyComplete();
   }
 
-  @DisplayName("fragments metadata and data")
+  @DisplayName("fragments frame with  data and metadata")
   @Test
-  void fragmentMetadataAndData() {
-    ByteBuf metadata = getRandomByteBuf(5);
-    ByteBuf data = getRandomByteBuf(5);
+  void fragmentDataAndMetadata() {
+    ByteBuf rr =
+        RequestResponseFrameFlyweight.encode(
+            allocator, 1, true, DefaultPayload.create(data, metadata));
 
-    RequestStreamFrame frame = createRequestStreamFrame(DEFAULT, false, 1, metadata, data);
+    Publisher<ByteBuf> fragments =
+        FrameFragmenter.fragmentFrame(allocator, 1024, rr, FrameType.REQUEST_RESPONSE, false);
 
-    RequestStreamFrame fragment1 =
-        createRequestStreamFrame(DEFAULT, true, 1, metadata.slice(0, 2), null);
-
-    PayloadFrame fragment2 = createPayloadFrame(DEFAULT, true, true, metadata.slice(2, 2), null);
-
-    PayloadFrame fragment3 =
-        createPayloadFrame(DEFAULT, true, false, metadata.slice(4, 1), data.slice(0, 1));
-
-    PayloadFrame fragment4 = createPayloadFrame(DEFAULT, true, false, null, data.slice(1, 2));
-
-    PayloadFrame fragment5 = createPayloadFrame(DEFAULT, false, false, null, data.slice(3, 2));
-
-    new FrameFragmenter(DEFAULT, 2)
-        .fragment(frame)
-        .as(StepVerifier::create)
-        .expectNext(fragment1)
-        .expectNext(fragment2)
-        .expectNext(fragment3)
-        .expectNext(fragment4)
-        .expectNext(fragment5)
-        .verifyComplete();
-  }
-
-  @DisplayName("does not fragment non-fragmentable frame")
-  @Test
-  void fragmentNonFragmentable() {
-    CancelFrame frame = createTestCancelFrame();
-
-    new FrameFragmenter(DEFAULT, 2)
-        .fragment(frame)
-        .as(StepVerifier::create)
-        .expectNext(frame)
-        .verifyComplete();
-  }
-
-  @DisplayName("fragment throws NullPointerException with null frame")
-  @Test
-  void fragmentWithNullFrame() {
-    assertThatNullPointerException()
-        .isThrownBy(() -> new FrameFragmenter(DEFAULT, 2).fragment(null))
-        .withMessage("frame must not be null");
-  }
-
-  @DisplayName("does not fragment with zero maxFragmentLength")
-  @Test
-  void fragmentZeroMaxFragmentLength() {
-    PayloadFrame frame = createPayloadFrame(DEFAULT, false, false, null, getRandomByteBuf(2));
-
-    new FrameFragmenter(DEFAULT, 0)
-        .fragment(frame)
-        .as(StepVerifier::create)
-        .expectNext(frame)
+    StepVerifier.create(Flux.from(fragments).doOnError(Throwable::printStackTrace))
+        .assertNext(
+            byteBuf -> {
+              Assert.assertEquals(
+                  FrameType.REQUEST_RESPONSE, FrameHeaderFlyweight.frameType(byteBuf));
+              Assert.assertTrue(FrameHeaderFlyweight.hasFollows(byteBuf));
+            })
+        .expectNextCount(6)
+        .assertNext(
+            byteBuf -> {
+              Assert.assertEquals(FrameType.NEXT, FrameHeaderFlyweight.frameType(byteBuf));
+              Assert.assertTrue(FrameHeaderFlyweight.hasFollows(byteBuf));
+            })
+        .assertNext(
+            byteBuf -> {
+              Assert.assertEquals(FrameType.NEXT, FrameHeaderFlyweight.frameType(byteBuf));
+              Assert.assertFalse(FrameHeaderFlyweight.hasFollows(byteBuf));
+            })
         .verifyComplete();
   }
 }

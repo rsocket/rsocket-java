@@ -34,9 +34,9 @@ import reactor.core.publisher.Mono;
  */
 public class UriTransportRegistry {
   private static final ClientTransport FAILED_CLIENT_LOOKUP =
-      () -> Mono.error(new UnsupportedOperationException());
+      (mtu) -> Mono.error(new UnsupportedOperationException());
   private static final ServerTransport FAILED_SERVER_LOOKUP =
-      acceptor -> Mono.error(new UnsupportedOperationException());
+      (acceptor, mtu) -> Mono.error(new UnsupportedOperationException());
 
   private List<UriHandler> handlers;
 
@@ -55,6 +55,10 @@ public class UriTransportRegistry {
     return UriTransportRegistry.fromServices().findClient(uri);
   }
 
+  public static ServerTransport serverForUri(String uri) {
+    return UriTransportRegistry.fromServices().findServer(uri);
+  }
+
   private ClientTransport findClient(String uriString) {
     URI uri = URI.create(uriString);
 
@@ -66,10 +70,6 @@ public class UriTransportRegistry {
     }
 
     return FAILED_CLIENT_LOOKUP;
-  }
-
-  public static ServerTransport serverForUri(String uri) {
-    return UriTransportRegistry.fromServices().findServer(uri);
   }
 
   private ServerTransport findServer(String uriString) {

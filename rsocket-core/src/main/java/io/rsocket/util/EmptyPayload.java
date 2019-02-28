@@ -41,6 +41,16 @@ public class EmptyPayload implements Payload {
   }
 
   @Override
+  public ByteBuf data() {
+    return sliceData();
+  }
+
+  @Override
+  public ByteBuf metadata() {
+    return sliceMetadata();
+  }
+
+  @Override
   public int refCnt() {
     return 1;
   }

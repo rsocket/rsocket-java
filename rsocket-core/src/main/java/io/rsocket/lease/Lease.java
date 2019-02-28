@@ -16,7 +16,7 @@
 
 package io.rsocket.lease;
 
-import java.nio.ByteBuffer;
+import io.netty.buffer.ByteBuf;
 import javax.annotation.Nullable;
 
 /** A contract for RSocket lease, which is sent by a request acceptor and is time bound. */
@@ -49,7 +49,7 @@ public interface Lease {
    * @return Metadata for the lease.
    */
   @Nullable
-  ByteBuffer getMetadata();
+  ByteBuf getMetadata();
 
   /**
    * Checks if the lease is expired now.

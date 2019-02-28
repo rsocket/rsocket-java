@@ -16,8 +16,8 @@
 
 package io.rsocket.test.util;
 
+import io.netty.buffer.ByteBuf;
 import io.rsocket.DuplexConnection;
-import io.rsocket.Frame;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.DirectProcessor;
 import reactor.core.publisher.Flux;
@@ -25,13 +25,13 @@ import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
 
 public class LocalDuplexConnection implements DuplexConnection {
-  private final DirectProcessor<Frame> send;
-  private final DirectProcessor<Frame> receive;
+  private final DirectProcessor<ByteBuf> send;
+  private final DirectProcessor<ByteBuf> receive;
   private final MonoProcessor<Void> onClose;
   private final String name;
 
   public LocalDuplexConnection(
-      String name, DirectProcessor<Frame> send, DirectProcessor<Frame> receive) {
+      String name, DirectProcessor<ByteBuf> send, DirectProcessor<ByteBuf> receive) {
     this.name = name;
     this.send = send;
     this.receive = receive;
@@ -39,7 +39,7 @@ public class LocalDuplexConnection implements DuplexConnection {
   }
 
   @Override
-  public Mono<Void> send(Publisher<Frame> frame) {
+  public Mono<Void> send(Publisher<ByteBuf> frame) {
     return Flux.from(frame)
         .doOnNext(f -> System.out.println(name + " - " + f.toString()))
         .doOnNext(send::onNext)
@@ -48,7 +48,7 @@ public class LocalDuplexConnection implements DuplexConnection {
   }
 
   @Override
-  public Flux<Frame> receive() {
+  public Flux<ByteBuf> receive() {
     return receive.doOnNext(f -> System.out.println(name + " - " + f.toString()));
   }
 

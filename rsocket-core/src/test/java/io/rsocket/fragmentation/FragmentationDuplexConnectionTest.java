@@ -16,22 +16,22 @@
 
 package io.rsocket.fragmentation;
 
-import static io.netty.buffer.UnpooledByteBufAllocator.DEFAULT;
-import static io.rsocket.framing.PayloadFrame.createPayloadFrame;
-import static io.rsocket.framing.RequestStreamFrame.createRequestStreamFrame;
-import static io.rsocket.framing.TestFrames.createTestCancelFrame;
-import static io.rsocket.test.util.ByteBufUtils.getRandomByteBuf;
-import static io.rsocket.util.AbstractionLeakingFrameUtils.toAbstractionLeakingFrame;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
-import static org.mockito.Mockito.RETURNS_SMART_NULLS;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufAllocator;
+import io.netty.buffer.CompositeByteBuf;
+import io.netty.buffer.Unpooled;
+import io.netty.util.ReferenceCountUtil;
 import io.rsocket.DuplexConnection;
-import io.rsocket.Frame;
+import io.rsocket.frame.*;
+import io.rsocket.util.DefaultPayload;
+import java.util.Arrays;
+import java.util.List;
+import java.util.concurrent.ThreadLocalRandom;
+import org.junit.Assert;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -41,26 +41,44 @@ import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
 final class FragmentationDuplexConnectionTest {
+  private static byte[] data = new byte[1024];
+  private static byte[] metadata = new byte[1024];
+
+  static {
+    ThreadLocalRandom.current().nextBytes(data);
+    ThreadLocalRandom.current().nextBytes(metadata);
+  }
 
   private final DuplexConnection delegate = mock(DuplexConnection.class, RETURNS_SMART_NULLS);
 
   @SuppressWarnings("unchecked")
-  private final ArgumentCaptor<Publisher<Frame>> publishers =
+  private final ArgumentCaptor<Publisher<ByteBuf>> publishers =
       ArgumentCaptor.forClass(Publisher.class);
+
+  private ByteBufAllocator allocator = ByteBufAllocator.DEFAULT;
 
   @DisplayName("constructor throws IllegalArgumentException with negative maxFragmentLength")
   @Test
   void constructorInvalidMaxFragmentSize() {
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> new FragmentationDuplexConnection(DEFAULT, delegate, Integer.MIN_VALUE))
-        .withMessage("maxFragmentSize must be positive");
+        .isThrownBy(
+            () -> new FragmentationDuplexConnection(delegate, allocator, Integer.MIN_VALUE, false))
+        .withMessage("smallest allowed mtu size is 64 bytes");
+  }
+
+  @DisplayName("constructor throws IllegalArgumentException with negative maxFragmentLength")
+  @Test
+  void constructorMtuLessThanMin() {
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> new FragmentationDuplexConnection(delegate, allocator, 2, false))
+        .withMessage("smallest allowed mtu size is 64 bytes");
   }
 
   @DisplayName("constructor throws NullPointerException with null byteBufAllocator")
   @Test
   void constructorNullByteBufAllocator() {
     assertThatNullPointerException()
-        .isThrownBy(() -> new FragmentationDuplexConnection(null, delegate, 2))
+        .isThrownBy(() -> new FragmentationDuplexConnection(delegate, null, 64, false))
         .withMessage("byteBufAllocator must not be null");
   }
 
@@ -68,339 +86,241 @@ final class FragmentationDuplexConnectionTest {
   @Test
   void constructorNullDelegate() {
     assertThatNullPointerException()
-        .isThrownBy(() -> new FragmentationDuplexConnection(DEFAULT, null, 2))
+        .isThrownBy(() -> new FragmentationDuplexConnection(null, allocator, 64, false))
         .withMessage("delegate must not be null");
   }
 
   @DisplayName("reassembles data")
   @Test
   void reassembleData() {
-    ByteBuf data = getRandomByteBuf(6);
+    List<ByteBuf> byteBufs =
+        Arrays.asList(
+            RequestResponseFrameFlyweight.encode(allocator, 1, true, DefaultPayload.create(data)),
+            PayloadFrameFlyweight.encode(
+                allocator, 1, true, false, true, DefaultPayload.create(data)),
+            PayloadFrameFlyweight.encode(
+                allocator, 1, true, false, true, DefaultPayload.create(data)),
+            PayloadFrameFlyweight.encode(
+                allocator, 1, true, false, true, DefaultPayload.create(data)),
+            PayloadFrameFlyweight.encode(
+                allocator, 1, false, false, true, DefaultPayload.create(data)));
 
-    Frame frame =
-        toAbstractionLeakingFrame(
-            DEFAULT, 1, createRequestStreamFrame(DEFAULT, false, 1, null, data));
+    CompositeByteBuf data =
+        allocator
+            .compositeDirectBuffer()
+            .addComponents(
+                true,
+                Unpooled.wrappedBuffer(FragmentationDuplexConnectionTest.data),
+                Unpooled.wrappedBuffer(FragmentationDuplexConnectionTest.data),
+                Unpooled.wrappedBuffer(FragmentationDuplexConnectionTest.data),
+                Unpooled.wrappedBuffer(FragmentationDuplexConnectionTest.data),
+                Unpooled.wrappedBuffer(FragmentationDuplexConnectionTest.data));
 
-    Frame fragment1 =
-        toAbstractionLeakingFrame(
-            DEFAULT, 1, createRequestStreamFrame(DEFAULT, true, 1, null, data.slice(0, 2)));
-
-    Frame fragment2 =
-        toAbstractionLeakingFrame(
-            DEFAULT, 1, createPayloadFrame(DEFAULT, true, false, null, data.slice(2, 2)));
-
-    Frame fragment3 =
-        toAbstractionLeakingFrame(
-            DEFAULT, 1, createPayloadFrame(DEFAULT, false, false, null, data.slice(4, 2)));
-
-    when(delegate.receive()).thenReturn(Flux.just(fragment1, fragment2, fragment3));
+    when(delegate.receive()).thenReturn(Flux.fromIterable(byteBufs));
     when(delegate.onClose()).thenReturn(Mono.never());
 
-    new FragmentationDuplexConnection(DEFAULT, delegate, 2)
+    new FragmentationDuplexConnection(delegate, allocator, 1030, false)
         .receive()
         .as(StepVerifier::create)
-        .expectNext(frame)
+        .assertNext(
+            byteBuf -> {
+              Assert.assertEquals(data, RequestResponseFrameFlyweight.data(byteBuf));
+              ReferenceCountUtil.safeRelease(byteBuf);
+            })
         .verifyComplete();
   }
 
   @DisplayName("reassembles metadata")
   @Test
   void reassembleMetadata() {
-    ByteBuf metadata = getRandomByteBuf(6);
+    List<ByteBuf> byteBufs =
+        Arrays.asList(
+            RequestResponseFrameFlyweight.encode(
+                allocator,
+                1,
+                true,
+                DefaultPayload.create(Unpooled.EMPTY_BUFFER, Unpooled.wrappedBuffer(metadata))),
+            PayloadFrameFlyweight.encode(
+                allocator,
+                1,
+                true,
+                false,
+                true,
+                DefaultPayload.create(Unpooled.EMPTY_BUFFER, Unpooled.wrappedBuffer(metadata))),
+            PayloadFrameFlyweight.encode(
+                allocator,
+                1,
+                true,
+                false,
+                true,
+                DefaultPayload.create(Unpooled.EMPTY_BUFFER, Unpooled.wrappedBuffer(metadata))),
+            PayloadFrameFlyweight.encode(
+                allocator,
+                1,
+                true,
+                false,
+                true,
+                DefaultPayload.create(Unpooled.EMPTY_BUFFER, Unpooled.wrappedBuffer(metadata))),
+            PayloadFrameFlyweight.encode(
+                allocator,
+                1,
+                false,
+                false,
+                true,
+                DefaultPayload.create(Unpooled.EMPTY_BUFFER, Unpooled.wrappedBuffer(metadata))));
 
-    Frame frame =
-        toAbstractionLeakingFrame(
-            DEFAULT, 1, createRequestStreamFrame(DEFAULT, false, 1, metadata, null));
+    CompositeByteBuf metadata =
+        allocator
+            .compositeDirectBuffer()
+            .addComponents(
+                true,
+                Unpooled.wrappedBuffer(FragmentationDuplexConnectionTest.metadata),
+                Unpooled.wrappedBuffer(FragmentationDuplexConnectionTest.metadata),
+                Unpooled.wrappedBuffer(FragmentationDuplexConnectionTest.metadata),
+                Unpooled.wrappedBuffer(FragmentationDuplexConnectionTest.metadata),
+                Unpooled.wrappedBuffer(FragmentationDuplexConnectionTest.metadata));
 
-    Frame fragment1 =
-        toAbstractionLeakingFrame(
-            DEFAULT, 1, createRequestStreamFrame(DEFAULT, true, 1, metadata.slice(0, 2), null));
-
-    Frame fragment2 =
-        toAbstractionLeakingFrame(
-            DEFAULT, 1, createPayloadFrame(DEFAULT, true, true, metadata.slice(2, 2), null));
-
-    Frame fragment3 =
-        toAbstractionLeakingFrame(
-            DEFAULT, 1, createPayloadFrame(DEFAULT, false, true, metadata.slice(4, 2), null));
-
-    when(delegate.receive()).thenReturn(Flux.just(fragment1, fragment2, fragment3));
+    when(delegate.receive()).thenReturn(Flux.fromIterable(byteBufs));
     when(delegate.onClose()).thenReturn(Mono.never());
 
-    new FragmentationDuplexConnection(DEFAULT, delegate, 2)
+    new FragmentationDuplexConnection(delegate, allocator, 1030, false)
         .receive()
         .as(StepVerifier::create)
-        .expectNext(frame)
+        .assertNext(
+            byteBuf -> {
+              System.out.println(byteBuf.readableBytes());
+              ByteBuf m = RequestResponseFrameFlyweight.metadata(byteBuf);
+              Assert.assertEquals(metadata, m);
+            })
         .verifyComplete();
   }
 
   @DisplayName("reassembles metadata and data")
   @Test
   void reassembleMetadataAndData() {
-    ByteBuf metadata = getRandomByteBuf(5);
-    ByteBuf data = getRandomByteBuf(5);
+    List<ByteBuf> byteBufs =
+        Arrays.asList(
+            RequestResponseFrameFlyweight.encode(
+                allocator,
+                1,
+                true,
+                DefaultPayload.create(Unpooled.EMPTY_BUFFER, Unpooled.wrappedBuffer(metadata))),
+            PayloadFrameFlyweight.encode(
+                allocator,
+                1,
+                true,
+                false,
+                true,
+                DefaultPayload.create(Unpooled.EMPTY_BUFFER, Unpooled.wrappedBuffer(metadata))),
+            PayloadFrameFlyweight.encode(
+                allocator,
+                1,
+                true,
+                false,
+                true,
+                DefaultPayload.create(Unpooled.EMPTY_BUFFER, Unpooled.wrappedBuffer(metadata))),
+            PayloadFrameFlyweight.encode(
+                allocator,
+                1,
+                true,
+                false,
+                true,
+                DefaultPayload.create(
+                    Unpooled.wrappedBuffer(data), Unpooled.wrappedBuffer(metadata))),
+            PayloadFrameFlyweight.encode(
+                allocator, 1, false, false, true, DefaultPayload.create(data)));
 
-    Frame frame =
-        toAbstractionLeakingFrame(
-            DEFAULT, 1, createRequestStreamFrame(DEFAULT, false, 1, metadata, data));
+    CompositeByteBuf data =
+        allocator
+            .compositeDirectBuffer()
+            .addComponents(
+                true,
+                Unpooled.wrappedBuffer(FragmentationDuplexConnectionTest.data),
+                Unpooled.wrappedBuffer(FragmentationDuplexConnectionTest.data));
 
-    Frame fragment1 =
-        toAbstractionLeakingFrame(
-            DEFAULT, 1, createRequestStreamFrame(DEFAULT, true, 1, metadata.slice(0, 2), null));
+    CompositeByteBuf metadata =
+        allocator
+            .compositeDirectBuffer()
+            .addComponents(
+                true,
+                Unpooled.wrappedBuffer(FragmentationDuplexConnectionTest.metadata),
+                Unpooled.wrappedBuffer(FragmentationDuplexConnectionTest.metadata),
+                Unpooled.wrappedBuffer(FragmentationDuplexConnectionTest.metadata),
+                Unpooled.wrappedBuffer(FragmentationDuplexConnectionTest.metadata));
 
-    Frame fragment2 =
-        toAbstractionLeakingFrame(
-            DEFAULT, 1, createPayloadFrame(DEFAULT, true, true, metadata.slice(2, 2), null));
-
-    Frame fragment3 =
-        toAbstractionLeakingFrame(
-            DEFAULT,
-            1,
-            createPayloadFrame(DEFAULT, true, false, metadata.slice(4, 1), data.slice(0, 1)));
-
-    Frame fragment4 =
-        toAbstractionLeakingFrame(
-            DEFAULT, 1, createPayloadFrame(DEFAULT, true, false, null, data.slice(1, 2)));
-
-    Frame fragment5 =
-        toAbstractionLeakingFrame(
-            DEFAULT, 1, createPayloadFrame(DEFAULT, false, false, null, data.slice(3, 2)));
-
-    when(delegate.receive())
-        .thenReturn(Flux.just(fragment1, fragment2, fragment3, fragment4, fragment5));
+    when(delegate.receive()).thenReturn(Flux.fromIterable(byteBufs));
     when(delegate.onClose()).thenReturn(Mono.never());
 
-    new FragmentationDuplexConnection(DEFAULT, delegate, 2)
+    new FragmentationDuplexConnection(delegate, allocator, 1030, false)
         .receive()
         .as(StepVerifier::create)
-        .expectNext(frame)
+        .assertNext(
+            byteBuf -> {
+              Assert.assertEquals(data, RequestResponseFrameFlyweight.data(byteBuf));
+              Assert.assertEquals(metadata, RequestResponseFrameFlyweight.metadata(byteBuf));
+            })
         .verifyComplete();
   }
 
   @DisplayName("does not reassemble a non-fragment frame")
   @Test
   void reassembleNonFragment() {
-    Frame frame =
-        toAbstractionLeakingFrame(
-            DEFAULT, 1, createPayloadFrame(DEFAULT, false, true, (ByteBuf) null, null));
+    ByteBuf encode =
+        RequestResponseFrameFlyweight.encode(
+            allocator, 1, false, DefaultPayload.create(Unpooled.wrappedBuffer(data)));
 
-    when(delegate.receive()).thenReturn(Flux.just(frame.retain()));
+    when(delegate.receive()).thenReturn(Flux.just(encode));
     when(delegate.onClose()).thenReturn(Mono.never());
 
-    new FragmentationDuplexConnection(DEFAULT, delegate, 2)
+    new FragmentationDuplexConnection(delegate, allocator, 1030, false)
         .receive()
         .as(StepVerifier::create)
-        .expectNext(frame)
+        .assertNext(
+            byteBuf -> {
+              Assert.assertEquals(
+                  Unpooled.wrappedBuffer(data), RequestResponseFrameFlyweight.data(byteBuf));
+            })
         .verifyComplete();
   }
 
   @DisplayName("does not reassemble non fragmentable frame")
   @Test
   void reassembleNonFragmentableFrame() {
-    Frame frame = toAbstractionLeakingFrame(DEFAULT, 1, createTestCancelFrame());
+    ByteBuf encode = CancelFrameFlyweight.encode(allocator, 2);
 
-    when(delegate.receive()).thenReturn(Flux.just(frame.retain()));
+    when(delegate.receive()).thenReturn(Flux.just(encode));
     when(delegate.onClose()).thenReturn(Mono.never());
 
-    new FragmentationDuplexConnection(DEFAULT, delegate, 2)
+    new FragmentationDuplexConnection(delegate, allocator, 1030, false)
         .receive()
         .as(StepVerifier::create)
-        .expectNext(frame)
+        .assertNext(
+            byteBuf -> {
+              Assert.assertEquals(FrameType.CANCEL, FrameHeaderFlyweight.frameType(byteBuf));
+            })
         .verifyComplete();
   }
 
   @DisplayName("fragments data")
   @Test
   void sendData() {
-    ByteBuf data = getRandomByteBuf(6);
-
-    Frame frame =
-        toAbstractionLeakingFrame(
-            DEFAULT, 1, createRequestStreamFrame(DEFAULT, false, 1, null, data));
-
-    Frame fragment1 =
-        toAbstractionLeakingFrame(
-            DEFAULT, 1, createRequestStreamFrame(DEFAULT, true, 1, null, data.slice(0, 2)));
-
-    Frame fragment2 =
-        toAbstractionLeakingFrame(
-            DEFAULT, 1, createPayloadFrame(DEFAULT, true, false, null, data.slice(2, 2)));
-
-    Frame fragment3 =
-        toAbstractionLeakingFrame(
-            DEFAULT, 1, createPayloadFrame(DEFAULT, false, false, null, data.slice(4, 2)));
+    ByteBuf encode =
+        RequestResponseFrameFlyweight.encode(
+            allocator, 1, false, Unpooled.EMPTY_BUFFER, Unpooled.wrappedBuffer(data));
 
     when(delegate.onClose()).thenReturn(Mono.never());
 
-    new FragmentationDuplexConnection(DEFAULT, delegate, 2).sendOne(frame.retain());
+    new FragmentationDuplexConnection(delegate, allocator, 64, false).sendOne(encode.retain());
+
     verify(delegate).send(publishers.capture());
 
     StepVerifier.create(Flux.from(publishers.getValue()))
-        .expectNext(fragment1)
-        .expectNext(fragment2)
-        .expectNext(fragment3)
+        .expectNextCount(17)
+        .assertNext(
+            byteBuf -> {
+              Assert.assertEquals(FrameType.NEXT, FrameHeaderFlyweight.frameType(byteBuf));
+              Assert.assertFalse(FrameHeaderFlyweight.hasFollows(byteBuf));
+            })
         .verifyComplete();
-  }
-
-  @DisplayName("does not fragment with size equal to maxFragmentLength")
-  @Test
-  void sendEqualToMaxFragmentLength() {
-    Frame frame =
-        toAbstractionLeakingFrame(
-            DEFAULT, 1, createPayloadFrame(DEFAULT, false, false, null, getRandomByteBuf(2)));
-
-    when(delegate.onClose()).thenReturn(Mono.never());
-
-    new FragmentationDuplexConnection(DEFAULT, delegate, 2).sendOne(frame.retain());
-    verify(delegate).send(publishers.capture());
-
-    StepVerifier.create(Flux.from(publishers.getValue())).expectNext(frame).verifyComplete();
-  }
-
-  @DisplayName("does not fragment an already-fragmented frame")
-  @Test
-  void sendFragment() {
-    Frame frame =
-        toAbstractionLeakingFrame(
-            DEFAULT, 1, createPayloadFrame(DEFAULT, true, true, (ByteBuf) null, null));
-
-    when(delegate.onClose()).thenReturn(Mono.never());
-
-    new FragmentationDuplexConnection(DEFAULT, delegate, 2).sendOne(frame.retain());
-    verify(delegate).send(publishers.capture());
-
-    StepVerifier.create(Flux.from(publishers.getValue())).expectNext(frame).verifyComplete();
-  }
-
-  @DisplayName("does not fragment with size smaller than maxFragmentLength")
-  @Test
-  void sendLessThanMaxFragmentLength() {
-    Frame frame =
-        toAbstractionLeakingFrame(
-            DEFAULT, 1, createPayloadFrame(DEFAULT, false, false, null, getRandomByteBuf(1)));
-
-    when(delegate.onClose()).thenReturn(Mono.never());
-
-    new FragmentationDuplexConnection(DEFAULT, delegate, 2).sendOne(frame.retain());
-    verify(delegate).send(publishers.capture());
-
-    StepVerifier.create(Flux.from(publishers.getValue())).expectNext(frame).verifyComplete();
-  }
-
-  @DisplayName("fragments metadata")
-  @Test
-  void sendMetadata() {
-    ByteBuf metadata = getRandomByteBuf(6);
-
-    Frame frame =
-        toAbstractionLeakingFrame(
-            DEFAULT, 1, createRequestStreamFrame(DEFAULT, false, 1, metadata, null));
-
-    Frame fragment1 =
-        toAbstractionLeakingFrame(
-            DEFAULT, 1, createRequestStreamFrame(DEFAULT, true, 1, metadata.slice(0, 2), null));
-
-    Frame fragment2 =
-        toAbstractionLeakingFrame(
-            DEFAULT, 1, createPayloadFrame(DEFAULT, true, true, metadata.slice(2, 2), null));
-
-    Frame fragment3 =
-        toAbstractionLeakingFrame(
-            DEFAULT, 1, createPayloadFrame(DEFAULT, false, true, metadata.slice(4, 2), null));
-
-    when(delegate.onClose()).thenReturn(Mono.never());
-
-    new FragmentationDuplexConnection(DEFAULT, delegate, 2).sendOne(frame.retain());
-    verify(delegate).send(publishers.capture());
-
-    StepVerifier.create(Flux.from(publishers.getValue()))
-        .expectNext(fragment1)
-        .expectNext(fragment2)
-        .expectNext(fragment3)
-        .verifyComplete();
-  }
-
-  @DisplayName("fragments metadata and data")
-  @Test
-  void sendMetadataAndData() {
-    ByteBuf metadata = getRandomByteBuf(5);
-    ByteBuf data = getRandomByteBuf(5);
-
-    Frame frame =
-        toAbstractionLeakingFrame(
-            DEFAULT, 1, createRequestStreamFrame(DEFAULT, false, 1, metadata, data));
-
-    Frame fragment1 =
-        toAbstractionLeakingFrame(
-            DEFAULT, 1, createRequestStreamFrame(DEFAULT, true, 1, metadata.slice(0, 2), null));
-
-    Frame fragment2 =
-        toAbstractionLeakingFrame(
-            DEFAULT, 1, createPayloadFrame(DEFAULT, true, true, metadata.slice(2, 2), null));
-
-    Frame fragment3 =
-        toAbstractionLeakingFrame(
-            DEFAULT,
-            1,
-            createPayloadFrame(DEFAULT, true, false, metadata.slice(4, 1), data.slice(0, 1)));
-
-    Frame fragment4 =
-        toAbstractionLeakingFrame(
-            DEFAULT, 1, createPayloadFrame(DEFAULT, true, false, null, data.slice(1, 2)));
-
-    Frame fragment5 =
-        toAbstractionLeakingFrame(
-            DEFAULT, 1, createPayloadFrame(DEFAULT, false, false, null, data.slice(3, 2)));
-
-    when(delegate.onClose()).thenReturn(Mono.never());
-
-    new FragmentationDuplexConnection(DEFAULT, delegate, 2).sendOne(frame.retain());
-    verify(delegate).send(publishers.capture());
-
-    StepVerifier.create(Flux.from(publishers.getValue()))
-        .expectNext(fragment1)
-        .expectNext(fragment2)
-        .expectNext(fragment3)
-        .expectNext(fragment4)
-        .expectNext(fragment5)
-        .verifyComplete();
-  }
-
-  @DisplayName("does not fragment non-fragmentable frame")
-  @Test
-  void sendNonFragmentable() {
-    Frame frame = toAbstractionLeakingFrame(DEFAULT, 1, createTestCancelFrame());
-
-    when(delegate.onClose()).thenReturn(Mono.never());
-
-    new FragmentationDuplexConnection(DEFAULT, delegate, 2).sendOne(frame.retain());
-    verify(delegate).send(publishers.capture());
-
-    StepVerifier.create(Flux.from(publishers.getValue())).expectNext(frame).verifyComplete();
-  }
-
-  @DisplayName("send throws NullPointerException with null frames")
-  @Test
-  void sendNullFrames() {
-    when(delegate.onClose()).thenReturn(Mono.never());
-
-    assertThatNullPointerException()
-        .isThrownBy(() -> new FragmentationDuplexConnection(DEFAULT, delegate, 2).send(null))
-        .withMessage("frames must not be null");
-  }
-
-  @DisplayName("does not fragment with zero maxFragmentLength")
-  @Test
-  void sendZeroMaxFragmentLength() {
-    Frame frame =
-        toAbstractionLeakingFrame(
-            DEFAULT, 1, createPayloadFrame(DEFAULT, false, false, null, getRandomByteBuf(2)));
-
-    when(delegate.onClose()).thenReturn(Mono.never());
-
-    new FragmentationDuplexConnection(DEFAULT, delegate, 0).sendOne(frame.retain());
-    verify(delegate).send(publishers.capture());
-
-    StepVerifier.create(Flux.from(publishers.getValue())).expectNext(frame).verifyComplete();
   }
 }

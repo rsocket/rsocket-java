@@ -18,6 +18,7 @@ package io.rsocket.transport.local;
 
 import io.rsocket.RSocket;
 import io.rsocket.RSocketFactory;
+import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.test.PingClient;
 import io.rsocket.test.PingHandler;
 import java.time.Duration;
@@ -28,6 +29,7 @@ public final class LocalPingPong {
 
   public static void main(String... args) {
     RSocketFactory.receive()
+        .frameDecoder(PayloadDecoder.ZERO_COPY)
         .acceptor(new PingHandler())
         .transport(LocalServerTransport.create("test-local-server"))
         .start()
@@ -35,6 +37,7 @@ public final class LocalPingPong {
 
     Mono<RSocket> client =
         RSocketFactory.connect()
+            .frameDecoder(PayloadDecoder.ZERO_COPY)
             .transport(LocalClientTransport.create("test-local-server"))
             .start();
 

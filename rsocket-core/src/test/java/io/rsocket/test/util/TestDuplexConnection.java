@@ -16,8 +16,8 @@
 
 package io.rsocket.test.util;
 
+import io.netty.buffer.ByteBuf;
 import io.rsocket.DuplexConnection;
-import io.rsocket.Frame;
 import java.util.Collection;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -38,11 +38,11 @@ public class TestDuplexConnection implements DuplexConnection {
 
   private static final Logger logger = LoggerFactory.getLogger(TestDuplexConnection.class);
 
-  private final LinkedBlockingQueue<Frame> sent;
-  private final DirectProcessor<Frame> sentPublisher;
-  private final DirectProcessor<Frame> received;
+  private final LinkedBlockingQueue<ByteBuf> sent;
+  private final DirectProcessor<ByteBuf> sentPublisher;
+  private final DirectProcessor<ByteBuf> received;
   private final MonoProcessor<Void> onClose;
-  private final ConcurrentLinkedQueue<Subscriber<Frame>> sendSubscribers;
+  private final ConcurrentLinkedQueue<Subscriber<ByteBuf>> sendSubscribers;
   private volatile double availability = 1;
   private volatile int initialSendRequestN = Integer.MAX_VALUE;
 
@@ -55,12 +55,12 @@ public class TestDuplexConnection implements DuplexConnection {
   }
 
   @Override
-  public Mono<Void> send(Publisher<Frame> frames) {
+  public Mono<Void> send(Publisher<ByteBuf> frames) {
     if (availability <= 0) {
       return Mono.error(
           new IllegalStateException("RSocket not available. Availability: " + availability));
     }
-    Subscriber<Frame> subscriber = TestSubscriber.create(initialSendRequestN);
+    Subscriber<ByteBuf> subscriber = TestSubscriber.create(initialSendRequestN);
     Flux.from(frames)
         .doOnNext(
             frame -> {
@@ -74,7 +74,7 @@ public class TestDuplexConnection implements DuplexConnection {
   }
 
   @Override
-  public Flux<Frame> receive() {
+  public Flux<ByteBuf> receive() {
     return received;
   }
 
@@ -98,7 +98,7 @@ public class TestDuplexConnection implements DuplexConnection {
     return onClose;
   }
 
-  public Frame awaitSend() throws InterruptedException {
+  public ByteBuf awaitSend() throws InterruptedException {
     return sent.take();
   }
 
@@ -106,16 +106,16 @@ public class TestDuplexConnection implements DuplexConnection {
     this.availability = availability;
   }
 
-  public Collection<Frame> getSent() {
+  public Collection<ByteBuf> getSent() {
     return sent;
   }
 
-  public Publisher<Frame> getSentAsPublisher() {
+  public Publisher<ByteBuf> getSentAsPublisher() {
     return sentPublisher;
   }
 
-  public void addToReceivedBuffer(Frame... received) {
-    for (Frame frame : received) {
+  public void addToReceivedBuffer(ByteBuf... received) {
+    for (ByteBuf frame : received) {
       this.received.onNext(frame);
     }
   }
@@ -129,7 +129,7 @@ public class TestDuplexConnection implements DuplexConnection {
     this.initialSendRequestN = initialSendRequestN;
   }
 
-  public Collection<Subscriber<Frame>> getSendSubscribers() {
+  public Collection<Subscriber<ByteBuf>> getSendSubscribers() {
     return sendSubscribers;
   }
 }

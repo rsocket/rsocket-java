@@ -102,7 +102,7 @@ final class WebsocketServerTransportTest {
     WebsocketServerTransport serverTransport = WebsocketServerTransport.create(address);
 
     serverTransport
-        .start(duplexConnection -> Mono.empty())
+        .start(duplexConnection -> Mono.empty(), 0)
         .as(StepVerifier::create)
         .expectNextCount(1)
         .verifyComplete();
@@ -112,7 +112,7 @@ final class WebsocketServerTransportTest {
   @Test
   void startNullAcceptor() {
     assertThatNullPointerException()
-        .isThrownBy(() -> WebsocketServerTransport.create(8000).start(null))
+        .isThrownBy(() -> WebsocketServerTransport.create(8000).start(null, 0))
         .withMessage("acceptor must not be null");
   }
 }

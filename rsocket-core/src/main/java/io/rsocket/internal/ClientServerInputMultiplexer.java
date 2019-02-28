@@ -16,10 +16,12 @@
 
 package io.rsocket.internal;
 
+import io.netty.buffer.ByteBuf;
 import io.rsocket.Closeable;
 import io.rsocket.DuplexConnection;
-import io.rsocket.Frame;
-import io.rsocket.framing.FrameType;
+import io.rsocket.frame.FrameHeaderFlyweight;
+import io.rsocket.frame.FrameType;
+import io.rsocket.frame.FrameUtil;
 import io.rsocket.plugins.DuplexConnectionInterceptor.Type;
 import io.rsocket.plugins.PluginRegistry;
 import org.reactivestreams.Publisher;
@@ -52,9 +54,9 @@ public class ClientServerInputMultiplexer implements Closeable {
 
   public ClientServerInputMultiplexer(DuplexConnection source, PluginRegistry plugins) {
     this.source = source;
-    final MonoProcessor<Flux<Frame>> streamZero = MonoProcessor.create();
-    final MonoProcessor<Flux<Frame>> server = MonoProcessor.create();
-    final MonoProcessor<Flux<Frame>> client = MonoProcessor.create();
+    final MonoProcessor<Flux<ByteBuf>> streamZero = MonoProcessor.create();
+    final MonoProcessor<Flux<ByteBuf>> server = MonoProcessor.create();
+    final MonoProcessor<Flux<ByteBuf>> client = MonoProcessor.create();
 
     source = plugins.applyConnection(Type.SOURCE, source);
     streamZeroConnection =
@@ -68,10 +70,10 @@ public class ClientServerInputMultiplexer implements Closeable {
         .receive()
         .groupBy(
             frame -> {
-              int streamId = frame.getStreamId();
+              int streamId = FrameHeaderFlyweight.streamId(frame);
               final Type type;
               if (streamId == 0) {
-                if (frame.getType() == FrameType.SETUP) {
+                if (FrameHeaderFlyweight.frameType(frame) == FrameType.SETUP) {
                   type = Type.STREAM_ZERO;
                 } else {
                   type = Type.CLIENT;
@@ -134,39 +136,40 @@ public class ClientServerInputMultiplexer implements Closeable {
 
   private static class InternalDuplexConnection implements DuplexConnection {
     private final DuplexConnection source;
-    private final MonoProcessor<Flux<Frame>> processor;
+    private final MonoProcessor<Flux<ByteBuf>> processor;
     private final boolean debugEnabled;
 
-    public InternalDuplexConnection(DuplexConnection source, MonoProcessor<Flux<Frame>> processor) {
+    public InternalDuplexConnection(
+        DuplexConnection source, MonoProcessor<Flux<ByteBuf>> processor) {
       this.source = source;
       this.processor = processor;
       this.debugEnabled = LOGGER.isDebugEnabled();
     }
 
     @Override
-    public Mono<Void> send(Publisher<Frame> frame) {
+    public Mono<Void> send(Publisher<ByteBuf> frame) {
       if (debugEnabled) {
-        frame = Flux.from(frame).doOnNext(f -> LOGGER.debug("sending -> " + f.toString()));
+        frame = Flux.from(frame).doOnNext(f -> LOGGER.debug("sending -> " + FrameUtil.toString(f)));
       }
 
       return source.send(frame);
     }
 
     @Override
-    public Mono<Void> sendOne(Frame frame) {
+    public Mono<Void> sendOne(ByteBuf frame) {
       if (debugEnabled) {
-        LOGGER.debug("sending -> " + frame.toString());
+        LOGGER.debug("sending -> " + FrameUtil.toString(frame));
       }
 
       return source.sendOne(frame);
     }
 
     @Override
-    public Flux<Frame> receive() {
+    public Flux<ByteBuf> receive() {
       return processor.flatMapMany(
           f -> {
             if (debugEnabled) {
-              return f.doOnNext(frame -> LOGGER.debug("receiving -> " + frame.toString()));
+              return f.doOnNext(frame -> LOGGER.debug("receiving -> " + FrameUtil.toString(frame)));
             } else {
               return f;
             }

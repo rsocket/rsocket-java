@@ -16,21 +16,18 @@
 
 package io.rsocket;
 
-import static io.rsocket.frame.FrameHeaderFlyweight.FLAGS_M;
-
 import io.netty.buffer.ByteBuf;
 import io.netty.util.AbstractReferenceCounted;
-import io.rsocket.Frame.Setup;
+import io.rsocket.frame.FrameHeaderFlyweight;
 import io.rsocket.frame.SetupFrameFlyweight;
-import io.rsocket.framing.FrameType;
 
 /**
- * Exposed to server for determination of ResponderRSocket based on mime types and SETUP metadata/data
+ * Exposed to server for determination of ResponderRSocket based on mime types and SETUP
+ * metadata/data
  */
 public abstract class ConnectionSetupPayload extends AbstractReferenceCounted implements Payload {
 
-  public static ConnectionSetupPayload create(final Frame setupFrame) {
-    Frame.ensureFrameType(FrameType.SETUP, setupFrame);
+  public static ConnectionSetupPayload create(final ByteBuf setupFrame) {
     return new DefaultConnectionSetupPayload(setupFrame);
   }
 
@@ -44,14 +41,7 @@ public abstract class ConnectionSetupPayload extends AbstractReferenceCounted im
 
   public abstract int getFlags();
 
-  public boolean willClientHonorLease() {
-    return Frame.isFlagSet(getFlags(), SetupFrameFlyweight.FLAGS_WILL_HONOR_LEASE);
-  }
-
-  @Override
-  public boolean hasMetadata() {
-    return Frame.isFlagSet(getFlags(), FLAGS_M);
-  }
+  public abstract boolean willClientHonorLease();
 
   @Override
   public ConnectionSetupPayload retain() {
@@ -70,46 +60,45 @@ public abstract class ConnectionSetupPayload extends AbstractReferenceCounted im
   public abstract ConnectionSetupPayload touch(Object hint);
 
   private static final class DefaultConnectionSetupPayload extends ConnectionSetupPayload {
+    private final ByteBuf setupFrame;
 
-    private final Frame setupFrame;
-
-    public DefaultConnectionSetupPayload(final Frame setupFrame) {
+    public DefaultConnectionSetupPayload(ByteBuf setupFrame) {
       this.setupFrame = setupFrame;
     }
 
     @Override
+    public boolean hasMetadata() {
+      return FrameHeaderFlyweight.hasMetadata(setupFrame);
+    }
+
+    @Override
     public int keepAliveInterval() {
-      return SetupFrameFlyweight.keepaliveInterval(setupFrame.content());
+      return SetupFrameFlyweight.keepAliveInterval(setupFrame);
     }
 
     @Override
     public int keepAliveMaxLifetime() {
-      return SetupFrameFlyweight.maxLifetime(setupFrame.content());
+      return SetupFrameFlyweight.keepAliveMaxLifetime(setupFrame);
     }
 
     @Override
     public String metadataMimeType() {
-      return Setup.metadataMimeType(setupFrame);
+      return SetupFrameFlyweight.metadataMimeType(setupFrame);
     }
 
     @Override
     public String dataMimeType() {
-      return Setup.dataMimeType(setupFrame);
-    }
-
-    @Override
-    public ByteBuf sliceData() {
-      return setupFrame.sliceData();
-    }
-
-    @Override
-    public ByteBuf sliceMetadata() {
-      return setupFrame.sliceMetadata();
+      return SetupFrameFlyweight.dataMimeType(setupFrame);
     }
 
     @Override
     public int getFlags() {
-      return Setup.getFlags(setupFrame);
+      return FrameHeaderFlyweight.flags(setupFrame);
+    }
+
+    @Override
+    public boolean willClientHonorLease() {
+      return SetupFrameFlyweight.honorLease(setupFrame);
     }
 
     @Override
@@ -127,6 +116,26 @@ public abstract class ConnectionSetupPayload extends AbstractReferenceCounted im
     @Override
     protected void deallocate() {
       setupFrame.release();
+    }
+
+    @Override
+    public ByteBuf sliceMetadata() {
+      return SetupFrameFlyweight.metadata(setupFrame);
+    }
+
+    @Override
+    public ByteBuf sliceData() {
+      return SetupFrameFlyweight.data(setupFrame);
+    }
+
+    @Override
+    public ByteBuf data() {
+      return sliceData();
+    }
+
+    @Override
+    public ByteBuf metadata() {
+      return sliceMetadata();
     }
   }
 }

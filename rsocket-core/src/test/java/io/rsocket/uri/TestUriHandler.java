@@ -36,7 +36,7 @@ public final class TestUriHandler implements UriHandler {
       return Optional.empty();
     }
 
-    return Optional.of(() -> Mono.just(new TestDuplexConnection()));
+    return Optional.of((mtu) -> Mono.just(new TestDuplexConnection()));
   }
 
   @Override

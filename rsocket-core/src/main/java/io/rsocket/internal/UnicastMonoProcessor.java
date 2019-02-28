@@ -1,5 +1,9 @@
 package io.rsocket.internal;
 
+import java.util.Objects;
+import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
+import java.util.function.LongSupplier;
+import java.util.stream.Stream;
 import org.reactivestreams.Processor;
 import org.reactivestreams.Subscription;
 import reactor.core.CoreSubscriber;
@@ -11,11 +15,6 @@ import reactor.core.publisher.Operators;
 import reactor.util.annotation.Nullable;
 import reactor.util.context.Context;
 import reactor.util.function.Tuple2;
-
-import java.util.Objects;
-import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
-import java.util.function.LongSupplier;
-import java.util.stream.Stream;
 
 public class UnicastMonoProcessor<O> extends Mono<O>
     implements Processor<O, O>,

@@ -16,14 +16,14 @@
 
 package io.rsocket;
 
+import static io.rsocket.frame.FrameHeaderFlyweight.frameType;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.*;
 
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
-import io.rsocket.framing.FrameType;
+import io.rsocket.frame.*;
 import io.rsocket.test.util.TestDuplexConnection;
 import io.rsocket.test.util.TestSubscriber;
 import io.rsocket.util.DefaultPayload;
@@ -44,13 +44,14 @@ public class RSocketServerTest {
   @Test(timeout = 2000)
   @Ignore
   public void testHandleKeepAlive() throws Exception {
-    rule.connection.addToReceivedBuffer(Frame.Keepalive.from(Unpooled.EMPTY_BUFFER, true));
-    Frame sent = rule.connection.awaitSend();
-    assertThat("Unexpected frame sent.", sent.getType(), is(FrameType.KEEPALIVE));
+    rule.connection.addToReceivedBuffer(
+        KeepAliveFrameFlyweight.encode(ByteBufAllocator.DEFAULT, true, 0, Unpooled.EMPTY_BUFFER));
+    ByteBuf sent = rule.connection.awaitSend();
+    assertThat("Unexpected frame sent.", frameType(sent), is(FrameType.KEEPALIVE));
     /*Keep alive ack must not have respond flag else, it will result in infinite ping-pong of keep alive frames.*/
     assertThat(
         "Unexpected keep-alive frame respond flag.",
-        Frame.Keepalive.hasRespondFlag(sent),
+        KeepAliveFrameFlyweight.respondFlag(sent),
         is(false));
   }
 
@@ -62,13 +63,13 @@ public class RSocketServerTest {
 
     rule.sendRequest(streamId, FrameType.REQUEST_RESPONSE);
 
-    Collection<Subscriber<Frame>> sendSubscribers = rule.connection.getSendSubscribers();
+    Collection<Subscriber<ByteBuf>> sendSubscribers = rule.connection.getSendSubscribers();
     assertThat("Request not sent.", sendSubscribers, hasSize(1));
     assertThat("Unexpected error.", rule.errors, is(empty()));
-    Subscriber<Frame> sendSub = sendSubscribers.iterator().next();
+    Subscriber<ByteBuf> sendSub = sendSubscribers.iterator().next();
     assertThat(
         "Unexpected frame sent.",
-        rule.connection.awaitSend().getType(),
+        frameType(rule.connection.awaitSend()),
         anyOf(is(FrameType.COMPLETE), is(FrameType.NEXT_COMPLETE)));
   }
 
@@ -79,7 +80,7 @@ public class RSocketServerTest {
     rule.sendRequest(streamId, FrameType.REQUEST_STREAM);
     assertThat("Unexpected error.", rule.errors, is(empty()));
     assertThat(
-        "Unexpected frame sent.", rule.connection.awaitSend().getType(), is(FrameType.ERROR));
+        "Unexpected frame sent.", frameType(rule.connection.awaitSend()), is(FrameType.ERROR));
   }
 
   @Test(timeout = 2_0000)
@@ -98,7 +99,9 @@ public class RSocketServerTest {
     assertThat("Unexpected error.", rule.errors, is(empty()));
     assertThat("Unexpected frame sent.", rule.connection.getSent(), is(empty()));
 
-    rule.connection.addToReceivedBuffer(Frame.Cancel.from(streamId));
+    rule.connection.addToReceivedBuffer(
+        CancelFrameFlyweight.encode(ByteBufAllocator.DEFAULT, streamId));
+
     assertThat("Unexpected frame sent.", rule.connection.getSent(), is(empty()));
     assertThat("Subscription not cancelled.", cancelled.get(), is(true));
   }
@@ -130,13 +133,34 @@ public class RSocketServerTest {
     @Override
     protected RSocketServer newRSocket() {
       return new RSocketServer(
-          connection, acceptingSocket, DefaultPayload::create, throwable -> errors.add(throwable));
+          ByteBufAllocator.DEFAULT,
+          connection,
+          acceptingSocket,
+          DefaultPayload::create,
+          throwable -> errors.add(throwable));
     }
 
     private void sendRequest(int streamId, FrameType frameType) {
-      Frame request = Frame.Request.from(streamId, frameType, EmptyPayload.INSTANCE, 1);
+      ByteBuf request;
+
+      switch (frameType) {
+        case REQUEST_STREAM:
+          request =
+              RequestStreamFrameFlyweight.encode(
+                  ByteBufAllocator.DEFAULT, streamId, false, 1, EmptyPayload.INSTANCE);
+          break;
+        case REQUEST_RESPONSE:
+          request =
+              RequestResponseFrameFlyweight.encode(
+                  ByteBufAllocator.DEFAULT, streamId, false, EmptyPayload.INSTANCE);
+          break;
+        default:
+          throw new IllegalArgumentException("unsupported type: " + frameType);
+      }
+
       connection.addToReceivedBuffer(request);
-      connection.addToReceivedBuffer(Frame.RequestN.from(streamId, 2));
+      connection.addToReceivedBuffer(
+          RequestNFrameFlyweight.encode(ByteBufAllocator.DEFAULT, streamId, 2));
     }
   }
 }

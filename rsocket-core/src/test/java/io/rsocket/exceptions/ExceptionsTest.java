@@ -16,29 +16,8 @@
 
 package io.rsocket.exceptions;
 
-import static io.rsocket.frame.ErrorFrameFlyweight.APPLICATION_ERROR;
-import static io.rsocket.frame.ErrorFrameFlyweight.CANCELED;
-import static io.rsocket.frame.ErrorFrameFlyweight.CONNECTION_CLOSE;
-import static io.rsocket.frame.ErrorFrameFlyweight.CONNECTION_ERROR;
-import static io.rsocket.frame.ErrorFrameFlyweight.INVALID;
-import static io.rsocket.frame.ErrorFrameFlyweight.INVALID_SETUP;
-import static io.rsocket.frame.ErrorFrameFlyweight.REJECTED;
-import static io.rsocket.frame.ErrorFrameFlyweight.REJECTED_RESUME;
-import static io.rsocket.frame.ErrorFrameFlyweight.REJECTED_SETUP;
-import static io.rsocket.frame.ErrorFrameFlyweight.UNSUPPORTED_SETUP;
-import static java.nio.charset.StandardCharsets.UTF_8;
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatNullPointerException;
-
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
-import io.rsocket.Frame;
-import io.rsocket.frame.ErrorFrameFlyweight;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
-
 final class ExceptionsTest {
-
+  /*
   @DisplayName("from returns ApplicationErrorException")
   @Test
   void fromApplicationException() {
@@ -163,5 +142,5 @@ final class ExceptionsTest {
     ErrorFrameFlyweight.encode(byteBuf, 0, errorCode, Unpooled.copiedBuffer(message, UTF_8));
 
     return byteBuf;
-  }
+  }*/
 }

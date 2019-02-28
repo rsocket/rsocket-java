@@ -17,7 +17,10 @@
 package io.rsocket.internal;
 
 import io.netty.util.ReferenceCountUtil;
-import io.netty.util.internal.shaded.org.jctools.queues.MpscUnboundedArrayQueue;
+import java.util.Objects;
+import java.util.Queue;
+import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
+import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 import reactor.core.CoreSubscriber;
@@ -28,11 +31,6 @@ import reactor.core.publisher.Operators;
 import reactor.util.annotation.Nullable;
 import reactor.util.concurrent.Queues;
 import reactor.util.context.Context;
-
-import java.util.Objects;
-import java.util.Queue;
-import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
-import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 
 /**
  * A Processor implementation that takes a custom queue and allows only a single subscriber.
@@ -47,12 +45,15 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
   @SuppressWarnings("rawtypes")
   static final AtomicIntegerFieldUpdater<UnboundedProcessor> ONCE =
       AtomicIntegerFieldUpdater.newUpdater(UnboundedProcessor.class, "once");
+
   @SuppressWarnings("rawtypes")
   static final AtomicIntegerFieldUpdater<UnboundedProcessor> WIP =
       AtomicIntegerFieldUpdater.newUpdater(UnboundedProcessor.class, "wip");
+
   @SuppressWarnings("rawtypes")
   static final AtomicLongFieldUpdater<UnboundedProcessor> REQUESTED =
       AtomicLongFieldUpdater.newUpdater(UnboundedProcessor.class, "requested");
+
   final Queue<T> queue;
   volatile boolean done;
   Throwable error;
@@ -123,27 +124,27 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
       }
     }
   }
-  
+
   void drainFused(Subscriber<? super T> a) {
     int missed = 1;
-    
+
     final Queue<T> q = queue;
-    
-    for (;;) {
-      
+
+    for (; ; ) {
+
       if (cancelled) {
         q.clear();
         actual = null;
         return;
       }
-      
+
       boolean d = done;
-      
+
       a.onNext(null);
-      
+
       if (d) {
         actual = null;
-        
+
         Throwable ex = error;
         if (ex != null) {
           a.onError(ex);
@@ -152,26 +153,25 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
         }
         return;
       }
-      
+
       missed = WIP.addAndGet(this, -missed);
       if (missed == 0) {
         break;
       }
     }
   }
-  
-  
+
   public void drain() {
     if (WIP.getAndIncrement(this) != 0) {
       return;
     }
 
     int missed = 1;
-    
+
     for (; ; ) {
       Subscriber<? super T> a = actual;
       if (a != null) {
-  
+
         if (outputFused) {
           drainFused(a);
         } else {
@@ -344,7 +344,7 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
       }
     }
   }
-  
+
   @Override
   public int requestFusion(int requestedMode) {
     if ((requestedMode & Fuseable.ASYNC) != 0) {
@@ -353,7 +353,7 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
     }
     return Fuseable.NONE;
   }
-  
+
   @Override
   public void dispose() {
     cancel();

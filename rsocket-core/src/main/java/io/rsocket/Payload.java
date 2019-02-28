@@ -22,7 +22,7 @@ import io.netty.util.ResourceLeakDetector;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 
-/** Payload of a {@link Frame}. */
+/** Payload of a Frame . */
 public interface Payload extends ReferenceCounted {
   /**
    * Returns whether the payload has metadata, useful for tell if metadata is empty or not present.
@@ -32,8 +32,8 @@ public interface Payload extends ReferenceCounted {
   boolean hasMetadata();
 
   /**
-   * Returns the Payload metadata. Always non-null, check {@link #hasMetadata()} to differentiate
-   * null from "".
+   * Returns a slice Payload metadata. Always non-null, check {@link #hasMetadata()} to
+   * differentiate null from "".
    *
    * @return payload metadata.
    */
@@ -45,6 +45,22 @@ public interface Payload extends ReferenceCounted {
    * @return payload data.
    */
   ByteBuf sliceData();
+
+  /**
+   * Returns the Payloads' data without slicing if possible. This is not safe and editing this could
+   * effect the payload. It is recommended to call sliceData().
+   *
+   * @return data as a bytebuf or slice of the data
+   */
+  ByteBuf data();
+
+  /**
+   * Returns the Payloads' metadata without slicing if possible. This is not safe and editing this
+   * could effect the payload. It is recommended to call sliceMetadata().
+   *
+   * @return metadata as a bytebuf or slice of the metadata
+   */
+  ByteBuf metadata();
 
   /** Increases the reference count by {@code 1}. */
   @Override

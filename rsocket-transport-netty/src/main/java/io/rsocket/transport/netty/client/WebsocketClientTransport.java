@@ -19,7 +19,9 @@ package io.rsocket.transport.netty.client;
 import static io.rsocket.transport.netty.UriUtils.getPort;
 import static io.rsocket.transport.netty.UriUtils.isSecure;
 
+import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.DuplexConnection;
+import io.rsocket.fragmentation.FragmentationDuplexConnection;
 import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.ServerTransport;
 import io.rsocket.transport.TransportHeaderAware;
@@ -133,27 +135,36 @@ public final class WebsocketClientTransport implements ClientTransport, Transpor
     return new WebsocketClientTransport(client, path);
   }
 
-  @Override
-  public Mono<DuplexConnection> connect() {
-    return client
-        .headers(headers -> transportHeaders.get().forEach(headers::set))
-        .websocket()
-        .uri(path)
-        .connect()
-        .map(WebsocketDuplexConnection::new);
-  }
-
-  @Override
-  public void setTransportHeaders(Supplier<Map<String, String>> transportHeaders) {
-    this.transportHeaders =
-        Objects.requireNonNull(transportHeaders, "transportHeaders must not be null");
-  }
-
   private static TcpClient createClient(URI uri) {
     if (isSecure(uri)) {
       return TcpClient.create().secure().host(uri.getHost()).port(getPort(uri, 443));
     } else {
       return TcpClient.create().host(uri.getHost()).port(getPort(uri, 80));
     }
+  }
+
+  @Override
+  public Mono<DuplexConnection> connect(int mtu) {
+    return client
+        .headers(headers -> transportHeaders.get().forEach(headers::set))
+        .websocket()
+        .uri(path)
+        .connect()
+        .map(
+            c -> {
+              DuplexConnection connection = new WebsocketDuplexConnection(c);
+              if (mtu > 0) {
+                connection =
+                    new FragmentationDuplexConnection(
+                        connection, ByteBufAllocator.DEFAULT, mtu, false);
+              }
+              return connection;
+            });
+  }
+
+  @Override
+  public void setTransportHeaders(Supplier<Map<String, String>> transportHeaders) {
+    this.transportHeaders =
+        Objects.requireNonNull(transportHeaders, "transportHeaders must not be null");
   }
 }

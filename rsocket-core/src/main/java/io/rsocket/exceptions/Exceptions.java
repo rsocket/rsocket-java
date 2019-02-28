@@ -16,18 +16,10 @@
 
 package io.rsocket.exceptions;
 
-import static io.rsocket.frame.ErrorFrameFlyweight.APPLICATION_ERROR;
-import static io.rsocket.frame.ErrorFrameFlyweight.CANCELED;
-import static io.rsocket.frame.ErrorFrameFlyweight.CONNECTION_CLOSE;
-import static io.rsocket.frame.ErrorFrameFlyweight.CONNECTION_ERROR;
-import static io.rsocket.frame.ErrorFrameFlyweight.INVALID;
-import static io.rsocket.frame.ErrorFrameFlyweight.INVALID_SETUP;
-import static io.rsocket.frame.ErrorFrameFlyweight.REJECTED;
-import static io.rsocket.frame.ErrorFrameFlyweight.REJECTED_RESUME;
-import static io.rsocket.frame.ErrorFrameFlyweight.REJECTED_SETUP;
-import static io.rsocket.frame.ErrorFrameFlyweight.UNSUPPORTED_SETUP;
+import static io.rsocket.frame.ErrorFrameFlyweight.*;
 
-import io.rsocket.Frame;
+import io.netty.buffer.ByteBuf;
+import io.rsocket.frame.ErrorFrameFlyweight;
 import java.util.Objects;
 
 /** Utility class that generates an exception from a frame. */
@@ -36,17 +28,17 @@ public final class Exceptions {
   private Exceptions() {}
 
   /**
-   * Create a {@link RSocketException} from a {@link Frame} that matches the error code it contains.
+   * Create a {@link RSocketException} from a Frame that matches the error code it contains.
    *
    * @param frame the frame to retrieve the error code and message from
-   * @return a {@link RSocketException} that matches the error code in the {@link Frame}
+   * @return a {@link RSocketException} that matches the error code in the Frame
    * @throws NullPointerException if {@code frame} is {@code null}
    */
-  public static RuntimeException from(Frame frame) {
+  public static RuntimeException from(ByteBuf frame) {
     Objects.requireNonNull(frame, "frame must not be null");
 
-    int errorCode = Frame.Error.errorCode(frame);
-    String message = frame.getDataUtf8();
+    int errorCode = ErrorFrameFlyweight.errorCode(frame);
+    String message = ErrorFrameFlyweight.dataUtf8(frame);
 
     switch (errorCode) {
       case APPLICATION_ERROR:

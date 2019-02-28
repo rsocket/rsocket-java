@@ -17,7 +17,7 @@
 plugins {
     id 'com.gradle.build-scan' version '1.16'
 
-    id 'com.github.sherter.google-java-format' version '0.7.1'
+    id 'com.github.sherter.google-java-format' version '0.7.1' apply false
     id 'com.jfrog.artifactory' version '4.7.3' apply false
     id 'com.jfrog.bintray' version '1.8.4' apply false
     id 'me.champeau.gradle.jmh' version '0.4.7' apply false
@@ -27,8 +27,9 @@ plugins {
 
 subprojects {
     apply plugin: 'io.spring.dependency-management'
+    apply plugin: 'com.github.sherter.google-java-format'
 
-    ext['reactor-bom.version'] = 'Californium-SR3'
+    ext['reactor-bom.version'] = 'Californium-SR5'
     ext['logback.version'] = '1.2.3'
     ext['findbugs.version'] = '3.0.2'
     ext['netty.version'] = '4.1.31.Final'
@@ -42,6 +43,10 @@ subprojects {
     ext['micrometer.version'] = '1.0.6'
     ext['assertj.version'] = '3.11.1'
 
+    googleJavaFormat {
+        toolVersion = '1.6'
+    }
+    
     dependencyManagement {
         imports {
             mavenBom "io.projectreactor:reactor-bom:${ext['reactor-bom.version']}"
@@ -187,10 +192,6 @@ buildScan {
 }
 
 description = 'RSocket: Stream Oriented Messaging Passing with Reactive Stream Semantics.'
-
-googleJavaFormat {
-    toolVersion = '1.5'
-}
 
 repositories {
     mavenCentral()
