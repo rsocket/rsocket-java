@@ -20,6 +20,7 @@ public class ServerRSocketSession implements RSocketSession<ResumeAwareConnectio
   private static final Logger logger = LoggerFactory.getLogger(ServerRSocketSession.class);
 
   private final ResumableDuplexConnection resumableConnection;
+  /*used instead of EmitterProcessor because its autocancel=false capability had no expected effect*/
   private final FluxProcessor<ResumeAwareConnection, ResumeAwareConnection> newConnections =
       ReplayProcessor.create(0);
   private final ByteBufAllocator allocator;
@@ -35,14 +36,13 @@ public class ServerRSocketSession implements RSocketSession<ResumeAwareConnectio
     this.allocator = Objects.requireNonNull(allocator);
     this.keepAliveData = Objects.requireNonNull(keepAliveData);
     this.resumeToken = Objects.requireNonNull(resumeToken);
-    int cachedFramesLimit = config.cacheSizeFrames();
     this.resumableConnection =
         new ResumableDuplexConnection(
             "server",
-                duplexConnection,
-                ResumedFramesCalculator.ofServer,
-                cachedFramesLimit,
-                cachedFramesLimit * 2);
+            duplexConnection,
+            ResumedFramesCalculator.ofServer,
+            config.resumeStoreFactory().apply(resumeToken),
+            config.resumeStreamTimeout());
 
     Mono<ResumeAwareConnection> timeout =
         resumableConnection

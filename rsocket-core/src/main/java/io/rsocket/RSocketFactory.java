@@ -20,9 +20,13 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.exceptions.InvalidSetupException;
 import io.rsocket.exceptions.RejectedSetupException;
-import io.rsocket.frame.*;
+import io.rsocket.frame.FrameHeaderFlyweight;
+import io.rsocket.frame.SetupFrameFlyweight;
 import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.internal.ClientServerInputMultiplexer;
+import io.rsocket.internal.ClientSetup;
+import io.rsocket.internal.KeepAliveData;
+import io.rsocket.internal.ServerSetup;
 import io.rsocket.keepalive.KeepAliveConnection;
 import io.rsocket.plugins.DuplexConnectionInterceptor;
 import io.rsocket.plugins.PluginRegistry;
@@ -31,11 +35,8 @@ import io.rsocket.plugins.RSocketInterceptor;
 import io.rsocket.resume.*;
 import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.ServerTransport;
-import io.rsocket.internal.ClientSetup;
 import io.rsocket.util.ConnectionUtils;
 import io.rsocket.util.EmptyPayload;
-import io.rsocket.internal.KeepAliveData;
-import io.rsocket.internal.ServerSetup;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
@@ -104,11 +105,14 @@ public class RSocketFactory {
 
     private boolean resumeEnabled;
     private Supplier<ResumeToken> resumeTokenSupplier = ResumeToken::generate;
-    private int resumeCacheSize = 32768;
+    private Function<? super ResumeToken, ? extends ResumeStore> resumeStoreFactory =
+        token -> new InMemoryResumeStore("client", 32768);
     private Duration resumeSessionDuration = Duration.ofMinutes(2);
+    private Duration resumeStreamTimeout = Duration.ofSeconds(10);
     private Supplier<ResumeStrategy> resumeStrategySupplier =
         () ->
             new ExponentialBackoffResumeStrategy(Duration.ofSeconds(1), Duration.ofSeconds(16), 2);
+
     private ByteBufAllocator allocator = ByteBufAllocator.DEFAULT;
 
     public ClientRSocketFactory byteBufAllocator(ByteBufAllocator allocator) {
@@ -191,13 +195,18 @@ public class RSocketFactory {
       return this;
     }
 
-    public ClientRSocketFactory resumeCacheSize(int framesCount) {
-      this.resumeCacheSize = assertResumeCacheSize(framesCount);
+    public ClientRSocketFactory resumeStore(Function<? super ResumeToken, ? extends ResumeStore> resumeStoreFactory) {
+      this.resumeStoreFactory = resumeStoreFactory;
       return this;
     }
 
     public ClientRSocketFactory resumeSessionDuration(Duration sessionDuration) {
       this.resumeSessionDuration = Objects.requireNonNull(sessionDuration);
+      return this;
+    }
+
+    public ClientRSocketFactory resumeStreamTimeout(Duration resumeStreamTimeout) {
+      this.resumeStreamTimeout = Objects.requireNonNull(resumeStreamTimeout);
       return this;
     }
 
@@ -306,15 +315,19 @@ public class RSocketFactory {
       }
 
       private ClientSetup clientSetup() {
-        return resumeEnabled
-            ? new ClientSetup.ResumableClientSetup(
-                allocator,
-                newConnection(),
-                resumeTokenSupplier.get(),
-                resumeCacheSize,
-                resumeSessionDuration,
-                resumeStrategySupplier)
-            : new ClientSetup.DefaultClientSetup();
+        if (resumeEnabled) {
+          ResumeToken resumeToken = resumeTokenSupplier.get();
+          return new ClientSetup.ResumableClientSetup(
+              allocator,
+              newConnection(),
+              resumeToken,
+              resumeStoreFactory.apply(resumeToken),
+              resumeSessionDuration,
+              resumeStreamTimeout,
+              resumeStrategySupplier);
+        } else {
+          return new ClientSetup.DefaultClientSetup();
+        }
       }
 
       private Mono<KeepAliveConnection> newConnection() {
@@ -346,7 +359,10 @@ public class RSocketFactory {
     private PluginRegistry plugins = new PluginRegistry(Plugins.defaultPlugins());
     private boolean resumeSupported;
     private Duration resumeSessionDuration = Duration.ofSeconds(120);
-    private int resumeCacheSize = 32768;
+    private Duration resumeStreamTimeout = Duration.ofSeconds(10);
+    private Function<? super ResumeToken, ? extends ResumeStore> resumeStoreFactory =
+        token -> new InMemoryResumeStore("server", 32768);
+
     private ByteBufAllocator allocator = ByteBufAllocator.DEFAULT;
 
     private ServerRSocketFactory() {}
@@ -397,13 +413,18 @@ public class RSocketFactory {
       return this;
     }
 
-    public ServerRSocketFactory resumeCacheSize(int framesCount) {
-      this.resumeCacheSize = assertResumeCacheSize(framesCount);
+    public ServerRSocketFactory resumeStore(Function<? super ResumeToken, ? extends ResumeStore> resumeStoreFactory) {
+      this.resumeStoreFactory = resumeStoreFactory;
       return this;
     }
 
     public ServerRSocketFactory resumeSessionDuration(Duration sessionDuration) {
       this.resumeSessionDuration = Objects.requireNonNull(sessionDuration);
+      return this;
+    }
+
+    public ServerRSocketFactory resumeStreamTimeout(Duration resumeStreamTimeout) {
+      this.resumeStreamTimeout = Objects.requireNonNull(resumeStreamTimeout);
       return this;
     }
 
@@ -525,7 +546,8 @@ public class RSocketFactory {
                 allocator,
                 new SessionManager(),
                 resumeSessionDuration,
-                resumeCacheSize)
+                resumeStreamTimeout,
+                resumeStoreFactory)
             : new ServerSetup.DefaultServerSetup(allocator);
       }
 
@@ -552,15 +574,6 @@ public class RSocketFactory {
         String msg = err.getMessage();
         return new RejectedSetupException(msg == null ? "rejected by server acceptor" : msg);
       }
-    }
-  }
-
-  private static int assertResumeCacheSize(int cacheSize) {
-    if (cacheSize <= 0) {
-      throw new IllegalArgumentException(
-          "Resume cache size should be positive: " + cacheSize);
-    } else {
-      return cacheSize;
     }
   }
 }

@@ -3,10 +3,7 @@ package io.rsocket.internal;
 import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.DuplexConnection;
 import io.rsocket.keepalive.KeepAliveConnection;
-import io.rsocket.resume.ClientRSocketSession;
-import io.rsocket.resume.ClientResumeConfiguration;
-import io.rsocket.resume.ResumeStrategy;
-import io.rsocket.resume.ResumeToken;
+import io.rsocket.resume.*;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
@@ -42,15 +39,19 @@ public interface ClientSetup {
             ByteBufAllocator allocator,
             Mono<KeepAliveConnection> newConnection,
             ResumeToken resumeToken,
-            int resumeCacheSize,
+            ResumeStore resumeStore,
             Duration resumeSessionDuration,
+            Duration resumeStreamTimeout,
             Supplier<ResumeStrategy> resumeStrategySupplier) {
       this.allocator = allocator;
       this.newConnection = newConnection;
       this.resumeToken = resumeToken;
       this.config =
           new ClientResumeConfiguration(
-              resumeSessionDuration, resumeCacheSize, resumeStrategySupplier);
+              resumeSessionDuration,
+              resumeStrategySupplier,
+              resumeStore,
+              resumeStreamTimeout);
     }
 
     @Override

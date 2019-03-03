@@ -60,7 +60,7 @@ public class ResumeIntegrationTest {
     int sessionDurationSeconds = 15;
     RSocket rSocket = newClientRSocket(clientTransport, sessionDurationSeconds).block();
 
-    Flux.just(3, 13, 22)
+    Flux.just(3, 11, 18, 40)
         .flatMap(v -> Mono.delay(Duration.ofSeconds(v)))
         .subscribe(v -> clientTransport.disconnectFor(Duration.ofSeconds(1)));
 
@@ -68,7 +68,7 @@ public class ResumeIntegrationTest {
     StepVerifier.create(
         rSocket
             .requestChannel(testRequest())
-            .take(Duration.ofSeconds(40))
+            .take(Duration.ofSeconds(60))
             .map(Payload::getDataUtf8)
             .timeout(Duration.ofSeconds(5))
             .doOnNext(x -> throwOnNonContinuous(counter, x))

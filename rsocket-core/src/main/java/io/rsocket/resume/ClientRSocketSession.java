@@ -28,14 +28,14 @@ public class ClientRSocketSession implements RSocketSession<Mono<? extends Resum
       ResumeAwareConnection duplexConnection,
       ClientResumeConfiguration config) {
     this.allocator = Objects.requireNonNull(allocator);
-    int cachedFramesLimit = config.cacheSizeFrames();
     this.resumableConnection =
         new ResumableDuplexConnection(
             "client",
                 duplexConnection,
                 ResumedFramesCalculator.ofClient,
-                cachedFramesLimit,
-                cachedFramesLimit * 2);
+                config.resumeStore(),
+                config.resumeStreamTimeout()
+            );
 
     resumableConnection
         .connectionErrors()

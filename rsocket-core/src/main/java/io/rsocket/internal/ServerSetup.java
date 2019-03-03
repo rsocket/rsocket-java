@@ -5,17 +5,16 @@ import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.DuplexConnection;
 import io.rsocket.exceptions.RejectedResumeException;
 import io.rsocket.exceptions.UnsupportedSetupException;
-import io.rsocket.frame.*;
+import io.rsocket.frame.FrameHeaderFlyweight;
+import io.rsocket.frame.FrameType;
+import io.rsocket.frame.ResumeFrameFlyweight;
+import io.rsocket.frame.SetupFrameFlyweight;
+import io.rsocket.resume.*;
+import io.rsocket.util.ConnectionUtils;
+import reactor.core.publisher.Mono;
 
 import java.time.Duration;
 import java.util.function.Function;
-
-import io.rsocket.resume.ResumeToken;
-import io.rsocket.resume.ServerRSocketSession;
-import io.rsocket.resume.ServerResumeConfiguration;
-import io.rsocket.resume.SessionManager;
-import io.rsocket.util.ConnectionUtils;
-import reactor.core.publisher.Mono;
 
 public interface ServerSetup {
   /*accept connection as SETUP*/
@@ -92,18 +91,22 @@ public interface ServerSetup {
   }
 
   class ResumableServerSetup implements ServerSetup {
-      private ByteBufAllocator allocator;
-      private final SessionManager sessionManager;
+    private final ByteBufAllocator allocator;
+    private final SessionManager sessionManager;
     private final ServerResumeConfiguration resumeConfig;
 
     public ResumableServerSetup(
-            ByteBufAllocator allocator,
-            SessionManager sessionManager,
-            Duration resumeSessionDuration,
-            int resumeCacheSize) {
-        this.allocator = allocator;
-        this.sessionManager = sessionManager;
-        this.resumeConfig = new ServerResumeConfiguration(resumeSessionDuration, resumeCacheSize);
+        ByteBufAllocator allocator,
+        SessionManager sessionManager,
+        Duration resumeSessionDuration,
+        Duration resumeStreamTimeout,
+        Function<? super ResumeToken, ? extends ResumeStore> resumeStoreFactory) {
+      this.allocator = allocator;
+      this.sessionManager = sessionManager;
+      this.resumeConfig = new ServerResumeConfiguration(
+          resumeSessionDuration,
+          resumeStreamTimeout,
+          resumeStoreFactory);
     }
 
     @Override
@@ -148,14 +151,14 @@ public interface ServerSetup {
                       .onClose()
                       .then())
           .orElseGet(() ->
-                  sendError(
-                          multiplexer,
-                          new RejectedResumeException("unknown resume token"))
-                          .doFinally(
-                                  s -> {
-                                    frame.release();
-                                    multiplexer.dispose();
-                                  })
+              sendError(
+                  multiplexer,
+                  new RejectedResumeException("unknown resume token"))
+                  .doFinally(
+                      s -> {
+                        frame.release();
+                        multiplexer.dispose();
+                      })
           );
     }
 
@@ -178,8 +181,8 @@ public interface ServerSetup {
     }
 
     private Mono<Void> sendError(
-            ClientServerInputMultiplexer multiplexer,
-            Exception exception) {
+        ClientServerInputMultiplexer multiplexer,
+        Exception exception) {
       return ConnectionUtils.sendError(allocator, multiplexer, exception);
     }
 
