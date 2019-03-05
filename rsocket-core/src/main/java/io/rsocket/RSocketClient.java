@@ -519,7 +519,6 @@ class RSocketClient implements RSocket {
         case CANCEL:
           {
             LimitableRequestPublisher sender = senders.remove(streamId);
-            receivers.remove(streamId);
             if (sender != null) {
               sender.cancel();
             }
