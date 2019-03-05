@@ -35,6 +35,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
+import org.assertj.core.api.Assertions;
 import org.junit.Rule;
 import org.junit.Test;
 import org.reactivestreams.Publisher;
@@ -44,6 +45,7 @@ import reactor.core.publisher.BaseSubscriber;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
+import reactor.core.publisher.UnicastProcessor;
 
 public class RSocketClientTest {
 
@@ -192,6 +194,26 @@ public class RSocketClientTest {
             Flux.error(new IllegalStateException("Channel request not cancelled"))
                 .delaySubscription(Duration.ofSeconds(1)))
         .blockFirst();
+  }
+
+  @Test
+  public void testChannelRequestServerSideCancellation() {
+    MonoProcessor<Payload> cancelled = MonoProcessor.create();
+    UnicastProcessor<Payload> request = UnicastProcessor.create();
+    request.onNext(EmptyPayload.INSTANCE);
+    rule.socket.requestChannel(request).subscribe(cancelled);
+    int streamId = rule.getStreamIdForRequestType(REQUEST_CHANNEL);
+    rule.connection.addToReceivedBuffer(
+        CancelFrameFlyweight.encode(ByteBufAllocator.DEFAULT, streamId));
+    rule.connection.addToReceivedBuffer(
+        PayloadFrameFlyweight.encodeComplete(ByteBufAllocator.DEFAULT, streamId));
+    Flux.first(
+            cancelled,
+            Flux.error(new IllegalStateException("Channel request not cancelled"))
+                .delaySubscription(Duration.ofSeconds(1)))
+        .blockFirst();
+
+    Assertions.assertThat(request.isDisposed()).isTrue();
   }
 
   public int sendRequestResponse(Publisher<Payload> response) {
