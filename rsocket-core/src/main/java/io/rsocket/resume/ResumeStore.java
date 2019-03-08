@@ -3,14 +3,11 @@ package io.rsocket.resume;
 import io.netty.buffer.ByteBuf;
 import io.rsocket.Closeable;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 public interface ResumeStore extends Closeable {
 
-  /**
-   * Save frame to head of the store. It is an error
-   * to block current thread or throw exception in this method
-   */
-  void saveFrame(ByteBuf frame);
+  Mono<Void> saveFrames(Flux<ByteBuf> frames);
 
   /**
    * Release frames from tail of the store up to remote implied position

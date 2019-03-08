@@ -29,15 +29,22 @@ public class InMemoryResumeStore implements ResumeStore {
     this.cachedFrames = cachedFramesQueue(cacheLimit);
   }
 
-  @Override
-  public void saveFrame(ByteBuf frame) {
-    cachedFramesSize.incrementAndGet();
-    cachedFrames.offer(frame.retain());
-    if (cachedFramesSize.get() == cacheLimit) {
-      releaseFrame();
-    }
+  public Mono<Void> saveFrames(Flux<ByteBuf> frames) {
+    return Mono.defer(
+        () -> {
+          MonoProcessor<Void> completed = MonoProcessor.create();
+          frames
+              .doFinally(s -> completed.onComplete())
+              .subscribe(frame -> {
+                cachedFramesSize.incrementAndGet();
+                cachedFrames.offer(frame.retain());
+                if (cachedFramesSize.get() == cacheLimit) {
+                  releaseFrame();
+                }
+              });
+          return completed;
+        });
   }
-
 
   @Override
   public void releaseFrames(long remoteImpliedPos) {
@@ -64,12 +71,12 @@ public class InMemoryResumeStore implements ResumeStore {
   public Flux<ByteBuf> resumeStream() {
     return Flux.create(s -> {
       int size = cachedFramesSize.get();
-      logger.info("{} Resuming stream size: {}",tag, size);
+      logger.info("{} Resuming stream size: {}", tag, size);
       /*spsc queue has no iterator - iterating by consuming*/
       for (int i = 0; i < size; i++) {
         ByteBuf frame = cachedFrames.poll();
-          cachedFrames.offer(frame.retain());
-          s.next(frame);
+        cachedFrames.offer(frame.retain());
+        s.next(frame);
       }
       s.complete();
       logger.info("{} Resuming stream completed", tag);

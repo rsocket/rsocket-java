@@ -2,7 +2,11 @@ package io.rsocket.resume;
 
 import io.netty.buffer.ByteBuf;
 import org.reactivestreams.Subscriber;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import reactor.core.Disposable;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Operators;
 import reactor.util.concurrent.Queues;
 
 import java.util.ArrayList;
@@ -12,21 +16,47 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 public class UpstreamFramesSubscribers implements Disposable {
+  private static final Logger logger = LoggerFactory.getLogger(UpstreamFramesSubscribers.class);
+
   private final Collection<UpstreamFramesSubscriber> subs = new ArrayList<>();
   private final AtomicBoolean disposed = new AtomicBoolean();
 
   private final Queue<ByteBuf> framesCache;
   private final Consumer<ByteBuf> frameConsumer;
-  private final int limitRate;
+  private final Disposable downstreamRequestDisposable;
+  private final Disposable resumeSaveStreamDisposable;
+  private long downStreamRequestN;
+  private long resumeSaveStreamRequestN;
 
-  public UpstreamFramesSubscribers(int limitRate, Consumer<ByteBuf> frameConsumer) {
-    this.limitRate = limitRate;
-    this.framesCache = Queues.<ByteBuf>unbounded(limitRate * 2).get();
+  public UpstreamFramesSubscribers(
+      Flux<Long> downstreamRequests,
+      Flux<Long> resumeSaveStreamRequests,
+      int estimatedDownstreamRequestN,
+      int estimatedSubscribersCount,
+      Consumer<ByteBuf> frameConsumer) {
+    this.framesCache = Queues.<ByteBuf>unbounded(
+        estimatedDownstreamRequestN * estimatedSubscribersCount).get();
     this.frameConsumer = frameConsumer;
+
+    downstreamRequestDisposable =
+        downstreamRequests
+            .subscribe(requestN -> {
+              downStreamRequestN = Operators.addCap(downStreamRequestN, requestN);
+              requestN();
+            });
+
+    resumeSaveStreamDisposable =
+        resumeSaveStreamRequests
+            .subscribe(requestN -> {
+              resumeSaveStreamRequestN = Operators.addCap(resumeSaveStreamRequestN, requestN);
+              requestN();
+            });
   }
 
   public Subscriber<ByteBuf> create(Consumer<ByteBuf> frameConsumer) {
-    UpstreamFramesSubscriber sub = new UpstreamFramesSubscriber(limitRate, frameConsumer, framesCache);
+    UpstreamFramesSubscriber sub = new UpstreamFramesSubscriber(
+        frameConsumer,
+        framesCache);
     subs.add(sub);
     return sub;
   }
@@ -50,6 +80,8 @@ public class UpstreamFramesSubscribers implements Disposable {
       subs.forEach(UpstreamFramesSubscriber::dispose);
       subs.clear();
       releaseCache();
+      downstreamRequestDisposable.dispose();
+      resumeSaveStreamDisposable.dispose();
     }
   }
 
@@ -62,6 +94,15 @@ public class UpstreamFramesSubscribers implements Disposable {
     ByteBuf frame = framesCache.poll();
     while (frame != null && frame.refCnt() > 0) {
       frame.release(frame.refCnt());
+    }
+  }
+
+  private void requestN() {
+    long requests = Math.min(downStreamRequestN, resumeSaveStreamRequestN);
+    if (requests > 0) {
+      downStreamRequestN -= requests;
+      resumeSaveStreamRequestN -= requests;
+      subs.forEach(sub -> sub.request(requests));
     }
   }
 }

@@ -3,32 +3,31 @@ package io.rsocket.resume;
 import io.netty.buffer.ByteBuf;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import reactor.core.Disposable;
+import reactor.core.publisher.Operators;
 
 import java.util.Queue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 public class UpstreamFramesSubscriber implements Subscriber<ByteBuf>,Disposable {
+  private static final Logger logger = LoggerFactory.getLogger(UpstreamFramesSubscriber.class);
+
   private final AtomicBoolean disposed = new AtomicBoolean();
   private final AtomicBoolean subscribed = new AtomicBoolean();
 
-  private final int firstRequestSize;
-  private final int requestSize;
-
-  private long received;
   private final Consumer<ByteBuf> itemConsumer;
-  private volatile Subscription subs;
+  private Subscription subs;
 
   private boolean resumeStarted;
   private final Queue<ByteBuf> framesCache;
-  private boolean pendingRequest;
 
-  UpstreamFramesSubscriber(int limitRate,
-                           Consumer<ByteBuf> itemConsumer,
+  private long request;
+
+  UpstreamFramesSubscriber(Consumer<ByteBuf> itemConsumer,
                            Queue<ByteBuf> framesCache) {
-    this.requestSize = limitRate;
-    this.firstRequestSize = requestSize * 2;
     this.itemConsumer = itemConsumer;
     this.framesCache = framesCache;
   }
@@ -38,7 +37,7 @@ public class UpstreamFramesSubscriber implements Subscriber<ByteBuf>,Disposable 
     this.subs = s;
     if (subscribed.compareAndSet(false, true)) {
       if (!isDisposed()) {
-        s.request(firstRequestSize);
+        doRequest();
       } else {
         s.cancel();
       }
@@ -50,22 +49,26 @@ public class UpstreamFramesSubscriber implements Subscriber<ByteBuf>,Disposable 
     }
   }
 
+  public void request(long requestN) {
+    request = Operators.addCap(request, requestN);
+    doRequest();
+  }
+
+  private void doRequest() {
+    if (subs != null && !resumeStarted) {
+      if (request > 0) {
+        subs.request(request);
+        request = 0;
+      }
+    }
+  }
+
   @Override
   public void onNext(ByteBuf item) {
-    received++;
-
     if (resumeStarted) {
       framesCache.offer(item);
     } else {
       itemConsumer.accept(item);
-    }
-
-    if (received % requestSize == 0) {
-      if (!resumeStarted) {
-        subs.request(requestSize);
-      } else {
-        pendingRequest = true;
-      }
     }
   }
 
@@ -85,10 +88,7 @@ public class UpstreamFramesSubscriber implements Subscriber<ByteBuf>,Disposable 
 
   public void resumeComplete() {
     resumeStarted = false;
-    if (pendingRequest) {
-      pendingRequest = false;
-      subs.request(requestSize);
-    }
+    doRequest();
   }
 
   @Override
