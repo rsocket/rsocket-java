@@ -42,7 +42,6 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
       downStreamRequestListener.requests(),
       resumeSaveStreamRequestListener.requests(),
       128,
-      2,
       actions::onNext);
   private volatile State state;
   private volatile Disposable impliedPosDisposable = Disposables.disposed();
@@ -177,6 +176,7 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
     curConnection.dispose();
 
     impliedPosDisposable.dispose();
+    resumedStreamDisposable.dispose();
     resumeStore.dispose();
   }
 

@@ -12,12 +12,13 @@ import java.util.Queue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
-public class UpstreamFramesSubscriber implements Subscriber<ByteBuf>,Disposable {
+class UpstreamFramesSubscriber implements Subscriber<ByteBuf>, Disposable {
   private static final Logger logger = LoggerFactory.getLogger(UpstreamFramesSubscriber.class);
 
   private final AtomicBoolean disposed = new AtomicBoolean();
   private final AtomicBoolean subscribed = new AtomicBoolean();
 
+  private final UpstreamFramesSubscribers upstreamFrameSubscribers;
   private final Consumer<ByteBuf> itemConsumer;
   private Subscription subs;
 
@@ -25,11 +26,18 @@ public class UpstreamFramesSubscriber implements Subscriber<ByteBuf>,Disposable 
   private final Queue<ByteBuf> framesCache;
 
   private long request;
+  private long receivedItemsCount;
+  private long curRequestN;
+  private boolean overRequested;
 
-  UpstreamFramesSubscriber(Consumer<ByteBuf> itemConsumer,
+  UpstreamFramesSubscriber(UpstreamFramesSubscribers upstreamFrameSubscribers,
+                           long initialRequest,
+                           Consumer<ByteBuf> itemConsumer,
                            Queue<ByteBuf> framesCache) {
+    this.upstreamFrameSubscribers = upstreamFrameSubscribers;
     this.itemConsumer = itemConsumer;
     this.framesCache = framesCache;
+    this.request = initialRequest;
   }
 
   @Override
@@ -50,8 +58,26 @@ public class UpstreamFramesSubscriber implements Subscriber<ByteBuf>,Disposable 
   }
 
   public void request(long requestN) {
-    request = Operators.addCap(request, requestN);
-    doRequest();
+    doRequest(requestN, false);
+  }
+
+  public void overRequest(long requestN) {
+    doRequest(requestN, true);
+  }
+
+  private void doRequest(long requestN, boolean overRequest) {
+    if (requestN > 0) {
+      overRequested = overRequest;
+      logger.info("Upstream subscriber requestN: {}", requestN);
+      request = Operators.addCap(request, requestN);
+      receivedItemsCount = 0;
+      curRequestN = requestN;
+      doRequest();
+    }
+  }
+
+  public long requestCount() {
+    return receivedItemsCount;
   }
 
   private void doRequest() {
@@ -65,10 +91,15 @@ public class UpstreamFramesSubscriber implements Subscriber<ByteBuf>,Disposable 
 
   @Override
   public void onNext(ByteBuf item) {
+    receivedItemsCount++;
     if (resumeStarted) {
       framesCache.offer(item);
     } else {
       itemConsumer.accept(item);
+      if (receivedItemsCount == curRequestN && !overRequested) {
+        overRequested = true;
+        upstreamFrameSubscribers.overRequest(this);
+      }
     }
   }
 

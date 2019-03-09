@@ -18,7 +18,7 @@ public class InMemoryResumeStore implements ResumeStore {
   private final MonoProcessor<Void> disposed = MonoProcessor.create();
   private final AtomicLong position = new AtomicLong();
   private final AtomicLong impliedPosition = new AtomicLong();
-  private volatile AtomicInteger cachedFramesSize = new AtomicInteger();
+  private final AtomicInteger cachedFramesSize = new AtomicInteger();
   private final Queue<ByteBuf> cachedFrames;
   private final String tag;
   private final int cacheLimit;
@@ -66,7 +66,6 @@ public class InMemoryResumeStore implements ResumeStore {
     position.incrementAndGet();
   }
 
-  /*must be subscribed at most once on resumeStart -> resumeFrames cycle*/
   @Override
   public Flux<ByteBuf> resumeStream() {
     return Flux.create(s -> {
