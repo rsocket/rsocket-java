@@ -6,7 +6,9 @@ import org.reactivestreams.Subscription;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.Disposable;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Operators;
+import reactor.util.concurrent.Queues;
 
 import java.util.Queue;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -16,68 +18,58 @@ class UpstreamFramesSubscriber implements Subscriber<ByteBuf>, Disposable {
   private static final Logger logger = LoggerFactory.getLogger(UpstreamFramesSubscriber.class);
 
   private final AtomicBoolean disposed = new AtomicBoolean();
-  private final AtomicBoolean subscribed = new AtomicBoolean();
-
-  private final UpstreamFramesSubscribers upstreamFrameSubscribers;
   private final Consumer<ByteBuf> itemConsumer;
-  private Subscription subs;
+  private final Disposable downstreamRequestDisposable;
+  private final Disposable resumeSaveStreamDisposable;
 
+  private Subscription subs;
   private boolean resumeStarted;
   private final Queue<ByteBuf> framesCache;
-
   private long request;
-  private long receivedItemsCount;
-  private long curRequestN;
-  private boolean overRequested;
+  private long downStreamRequestN;
+  private long resumeSaveStreamRequestN;
 
-  UpstreamFramesSubscriber(UpstreamFramesSubscribers upstreamFrameSubscribers,
-                           long initialRequest,
-                           Consumer<ByteBuf> itemConsumer,
-                           Queue<ByteBuf> framesCache) {
-    this.upstreamFrameSubscribers = upstreamFrameSubscribers;
+  UpstreamFramesSubscriber(int estimatedDownstreamRequest,
+                           Flux<Long> downstreamRequests,
+                           Flux<Long> resumeSaveStreamRequests,
+                           Consumer<ByteBuf> itemConsumer) {
     this.itemConsumer = itemConsumer;
-    this.framesCache = framesCache;
-    this.request = initialRequest;
+    this.framesCache = Queues.<ByteBuf>unbounded(estimatedDownstreamRequest).get();
+
+    downstreamRequestDisposable =
+        downstreamRequests
+            .subscribe(requestN -> {
+              downStreamRequestN = Operators.addCap(downStreamRequestN, requestN);
+              requestN();
+            });
+
+    resumeSaveStreamDisposable =
+        resumeSaveStreamRequests
+            .subscribe(requestN -> {
+              resumeSaveStreamRequestN = Operators.addCap(resumeSaveStreamRequestN, requestN);
+              requestN();
+            });
   }
 
   @Override
   public void onSubscribe(Subscription s) {
     this.subs = s;
-    if (subscribed.compareAndSet(false, true)) {
-      if (!isDisposed()) {
-        doRequest();
-      } else {
-        s.cancel();
-      }
+    if (!isDisposed()) {
+      doRequest();
     } else {
-      if (!isDisposed()) {
-        onError(new IllegalStateException("FrameSubscriber must be subscribed at most once"));
-        dispose();
-      }
+      s.cancel();
     }
   }
 
-  public void request(long requestN) {
-    doRequest(requestN, false);
-  }
-
-  public void overRequest(long requestN) {
-    doRequest(requestN, true);
-  }
-
-  private void doRequest(long requestN, boolean overRequest) {
-    if (requestN > 0) {
-      overRequested = overRequest;
-      logger.info("Upstream subscriber requestN: {}", requestN);
-      request = Operators.addCap(request, requestN);
-      receivedItemsCount = 0;
-      curRequestN = requestN;
+  private void requestN() {
+    long requests = Math.min(downStreamRequestN, resumeSaveStreamRequestN);
+    if (requests > 0) {
+      downStreamRequestN -= requests;
+      resumeSaveStreamRequestN -= requests;
+      logger.info("Upstream subscriber requestN: {}", requests);
+      request = Operators.addCap(request, requests);
       doRequest();
     }
-  }
-
-  public long requestCount() {
-    return receivedItemsCount;
   }
 
   private void doRequest() {
@@ -91,15 +83,10 @@ class UpstreamFramesSubscriber implements Subscriber<ByteBuf>, Disposable {
 
   @Override
   public void onNext(ByteBuf item) {
-    receivedItemsCount++;
     if (resumeStarted) {
       framesCache.offer(item);
     } else {
       itemConsumer.accept(item);
-      if (receivedItemsCount == curRequestN && !overRequested) {
-        overRequested = true;
-        upstreamFrameSubscribers.overRequest(this);
-      }
     }
   }
 
@@ -119,20 +106,35 @@ class UpstreamFramesSubscriber implements Subscriber<ByteBuf>, Disposable {
 
   public void resumeComplete() {
     resumeStarted = false;
+    ByteBuf frame = framesCache.poll();
+    while (frame != null) {
+      itemConsumer.accept(frame);
+      frame = framesCache.poll();
+    }
     doRequest();
   }
 
   @Override
   public void dispose() {
     if (disposed.compareAndSet(false, true)) {
+      releaseCache();
       if (subs != null) {
         subs.cancel();
       }
+      resumeSaveStreamDisposable.dispose();
+      downstreamRequestDisposable.dispose();
     }
   }
 
   @Override
   public boolean isDisposed() {
     return disposed.get();
+  }
+
+  private void releaseCache() {
+    ByteBuf frame = framesCache.poll();
+    while (frame != null && frame.refCnt() > 0) {
+      frame.release(frame.refCnt());
+    }
   }
 }
