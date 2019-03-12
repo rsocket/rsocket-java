@@ -92,7 +92,17 @@ class RSocketServer implements ResponderRSocket {
     this.sendProcessor = new UnboundedProcessor<>();
 
     connection
-        .send(sendProcessor)
+        .send(
+            sendProcessor.doOnRequest(
+                r ->
+                    sendingSubscriptions.forEach(
+                        (__, s) -> {
+                          if (s instanceof LimitableRequestPublisher) {
+                            LimitableRequestPublisher lrp = (LimitableRequestPublisher) s;
+
+                            lrp.increaseInternalLimit(r);
+                          }
+                        })))
         .doFinally(this::handleSendProcessorCancel)
         .subscribe(null, this::handleSendProcessorError);
 
@@ -391,7 +401,7 @@ class RSocketServer implements ResponderRSocket {
         .transform(
             frameFlux -> {
               LimitableRequestPublisher<Payload> payloads =
-                  LimitableRequestPublisher.wrap(frameFlux);
+                  LimitableRequestPublisher.wrap(frameFlux, sendProcessor.available());
               sendingSubscriptions.put(streamId, payloads);
               payloads.increaseRequestLimit(initialRequestN);
               return payloads;
