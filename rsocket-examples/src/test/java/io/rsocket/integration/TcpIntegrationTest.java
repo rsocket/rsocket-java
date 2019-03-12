@@ -67,7 +67,7 @@ public class TcpIntegrationTest {
     server.dispose();
   }
 
-  @Test(timeout = 5_000L)
+  @Test(timeout = 15_000L)
   public void testCompleteWithoutNext() {
     handler =
         new AbstractRSocket() {
@@ -83,7 +83,7 @@ public class TcpIntegrationTest {
     assertFalse(hasElements);
   }
 
-  @Test(timeout = 5_000L)
+  @Test(timeout = 15_000L)
   public void testSingleStream() {
     handler =
         new AbstractRSocket() {
@@ -100,7 +100,7 @@ public class TcpIntegrationTest {
     assertEquals("RESPONSE", result.getDataUtf8());
   }
 
-  @Test(timeout = 5_000L)
+  @Test(timeout = 15_000L)
   public void testZeroPayload() {
     handler =
         new AbstractRSocket() {
@@ -117,7 +117,7 @@ public class TcpIntegrationTest {
     assertEquals("", result.getDataUtf8());
   }
 
-  @Test(timeout = 5_000L)
+  @Test(timeout = 15_000L)
   public void testRequestResponseErrors() {
     handler =
         new AbstractRSocket() {
@@ -151,7 +151,7 @@ public class TcpIntegrationTest {
     assertEquals("SUCCESS", response2.getDataUtf8());
   }
 
-  @Test(timeout = 5_000L)
+  @Test(timeout = 15_000L)
   public void testTwoConcurrentStreams() throws InterruptedException {
     ConcurrentHashMap<String, UnicastProcessor<Payload>> map = new ConcurrentHashMap<>();
     UnicastProcessor<Payload> processor1 = UnicastProcessor.create();

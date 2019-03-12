@@ -221,6 +221,10 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
     }
   }
 
+  public long available() {
+    return requested;
+  }
+
   @Override
   public int getPrefetch() {
     return Integer.MAX_VALUE;

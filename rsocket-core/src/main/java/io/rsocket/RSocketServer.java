@@ -49,6 +49,7 @@ class RSocketServer implements ResponderRSocket {
   private final PayloadDecoder payloadDecoder;
   private final Consumer<Throwable> errorConsumer;
 
+  private final Map<Integer, LimitableRequestPublisher> sendingLimitableSubscriptions;
   private final Map<Integer, Subscription> sendingSubscriptions;
   private final Map<Integer, Processor<Payload, Payload>> channelProcessors;
 
@@ -84,6 +85,7 @@ class RSocketServer implements ResponderRSocket {
 
     this.payloadDecoder = payloadDecoder;
     this.errorConsumer = errorConsumer;
+    this.sendingLimitableSubscriptions = Collections.synchronizedMap(new IntObjectHashMap<>());
     this.sendingSubscriptions = Collections.synchronizedMap(new IntObjectHashMap<>());
     this.channelProcessors = Collections.synchronizedMap(new IntObjectHashMap<>());
 
@@ -92,7 +94,13 @@ class RSocketServer implements ResponderRSocket {
     this.sendProcessor = new UnboundedProcessor<>();
 
     connection
-        .send(sendProcessor)
+        .send(
+            sendProcessor.doOnRequest(
+                r -> {
+                  for (LimitableRequestPublisher lrp : sendingLimitableSubscriptions.values()) {
+                    lrp.increaseInternalLimit(r);
+                  }
+                }))
         .doFinally(this::handleSendProcessorCancel)
         .subscribe(null, this::handleSendProcessorError);
 
@@ -138,6 +146,17 @@ class RSocketServer implements ResponderRSocket {
               }
             });
 
+    sendingLimitableSubscriptions
+        .values()
+        .forEach(
+            subscription -> {
+              try {
+                subscription.cancel();
+              } catch (Throwable e) {
+                errorConsumer.accept(e);
+              }
+            });
+
     channelProcessors
         .values()
         .forEach(
@@ -156,6 +175,17 @@ class RSocketServer implements ResponderRSocket {
     }
 
     sendingSubscriptions
+        .values()
+        .forEach(
+            subscription -> {
+              try {
+                subscription.cancel();
+              } catch (Throwable e) {
+                errorConsumer.accept(e);
+              }
+            });
+
+    sendingLimitableSubscriptions
         .values()
         .forEach(
             subscription -> {
@@ -261,6 +291,9 @@ class RSocketServer implements ResponderRSocket {
   private synchronized void cleanUpSendingSubscriptions() {
     sendingSubscriptions.values().forEach(Subscription::cancel);
     sendingSubscriptions.clear();
+
+    sendingLimitableSubscriptions.values().forEach(Subscription::cancel);
+    sendingLimitableSubscriptions.clear();
   }
 
   private synchronized void cleanUpChannelProcessors() {
@@ -391,12 +424,12 @@ class RSocketServer implements ResponderRSocket {
         .transform(
             frameFlux -> {
               LimitableRequestPublisher<Payload> payloads =
-                  LimitableRequestPublisher.wrap(frameFlux);
-              sendingSubscriptions.put(streamId, payloads);
+                  LimitableRequestPublisher.wrap(frameFlux, sendProcessor.available());
+              sendingLimitableSubscriptions.put(streamId, payloads);
               payloads.increaseRequestLimit(initialRequestN);
               return payloads;
             })
-        .doFinally(signalType -> sendingSubscriptions.remove(streamId))
+        .doFinally(signalType -> sendingLimitableSubscriptions.remove(streamId))
         .subscribe(
             payload -> {
               ByteBuf byteBuf = null;
@@ -449,6 +482,11 @@ class RSocketServer implements ResponderRSocket {
 
   private void handleCancelFrame(int streamId) {
     Subscription subscription = sendingSubscriptions.remove(streamId);
+
+    if (subscription == null) {
+      subscription = sendingLimitableSubscriptions.get(streamId);
+    }
+
     if (subscription != null) {
       subscription.cancel();
     }
@@ -460,7 +498,12 @@ class RSocketServer implements ResponderRSocket {
   }
 
   private void handleRequestN(int streamId, ByteBuf frame) {
-    final Subscription subscription = sendingSubscriptions.get(streamId);
+    Subscription subscription = sendingSubscriptions.get(streamId);
+
+    if (subscription == null) {
+      subscription = sendingLimitableSubscriptions.get(streamId);
+    }
+
     if (subscription != null) {
       int n = RequestNFrameFlyweight.requestN(frame);
       subscription.request(n >= Integer.MAX_VALUE ? Long.MAX_VALUE : n);
