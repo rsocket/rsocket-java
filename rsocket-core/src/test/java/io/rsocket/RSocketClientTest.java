@@ -219,7 +219,7 @@ public class RSocketClientTest {
     Assertions.assertThat(request.isDisposed()).isTrue();
   }
 
-  @Test(timeout = 2_000900)
+  @Test(timeout = 2_000)
   @SuppressWarnings("unchecked")
   public void
       testClientSideRequestChannelShouldNotHangInfinitelySendingElementsAndShouldProduceDataValuingConnectionBackpressure() {
