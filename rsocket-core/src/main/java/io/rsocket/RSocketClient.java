@@ -100,7 +100,11 @@ class RSocketClient implements RSocket {
     connection
         .send(
             sendProcessor.doOnRequest(
-                r -> senders.forEach((__, lrp) -> lrp.increaseInternalLimit(r))))
+                r -> {
+                  for (LimitableRequestPublisher lrp : senders.values()) {
+                    lrp.increaseInternalLimit(r);
+                  }
+                }))
         .doFinally(this::handleSendProcessorCancel)
         .subscribe(null, this::handleSendProcessorError);
 

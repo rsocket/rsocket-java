@@ -94,15 +94,15 @@ class RSocketServer implements ResponderRSocket {
     connection
         .send(
             sendProcessor.doOnRequest(
-                r ->
-                    sendingSubscriptions.forEach(
-                        (__, s) -> {
-                          if (s instanceof LimitableRequestPublisher) {
-                            LimitableRequestPublisher lrp = (LimitableRequestPublisher) s;
+                r -> {
+                  for (Subscription s : sendingSubscriptions.values()) {
+                    if (s instanceof LimitableRequestPublisher) {
+                      LimitableRequestPublisher lrp = (LimitableRequestPublisher) s;
 
-                            lrp.increaseInternalLimit(r);
-                          }
-                        })))
+                      lrp.increaseInternalLimit(r);
+                    }
+                  }
+                }))
         .doFinally(this::handleSendProcessorCancel)
         .subscribe(null, this::handleSendProcessorError);
 
