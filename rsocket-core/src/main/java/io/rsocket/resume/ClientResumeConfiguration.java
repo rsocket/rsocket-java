@@ -28,7 +28,8 @@ public class ClientResumeConfiguration {
   public ClientResumeConfiguration(
       Duration sessionDuration,
       Supplier<ResumeStrategy> resumeStrategy,
-      ResumableFramesStore resumableFramesStore, Duration resumeStreamTimeout) {
+      ResumableFramesStore resumableFramesStore,
+      Duration resumeStreamTimeout) {
     this.sessionDuration = sessionDuration;
     this.resumeStrategy = resumeStrategy;
     this.resumableFramesStore = resumableFramesStore;

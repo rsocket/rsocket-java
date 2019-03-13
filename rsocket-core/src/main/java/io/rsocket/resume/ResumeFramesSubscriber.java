@@ -17,13 +17,12 @@
 package io.rsocket.resume;
 
 import io.netty.buffer.ByteBuf;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
-
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
 
 class ResumeFramesSubscriber implements Subscriber<ByteBuf>, Disposable {
   private final Flux<Long> requests;
@@ -34,10 +33,11 @@ class ResumeFramesSubscriber implements Subscriber<ByteBuf>, Disposable {
   private volatile Disposable requestsDisposable;
   private volatile Subscription subscription;
 
-  public ResumeFramesSubscriber(Flux<Long> requests,
-                                Consumer<ByteBuf> onNext,
-                                Consumer<Throwable> onError,
-                                Runnable onComplete) {
+  public ResumeFramesSubscriber(
+      Flux<Long> requests,
+      Consumer<ByteBuf> onNext,
+      Consumer<Throwable> onError,
+      Runnable onComplete) {
     this.requests = requests;
     this.onNext = onNext;
     this.onError = onError;

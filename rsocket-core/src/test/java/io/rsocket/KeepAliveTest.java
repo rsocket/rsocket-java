@@ -25,16 +25,10 @@ import io.rsocket.frame.FrameHeaderFlyweight;
 import io.rsocket.frame.FrameType;
 import io.rsocket.frame.KeepAliveFrameFlyweight;
 import io.rsocket.frame.SetupFrameFlyweight;
+import io.rsocket.internal.KeepAliveData;
 import io.rsocket.keepalive.KeepAliveConnection;
 import io.rsocket.resume.ResumeStateHolder;
 import io.rsocket.test.util.TestDuplexConnection;
-import io.rsocket.internal.KeepAliveData;
-import org.assertj.core.api.Assertions;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import reactor.core.publisher.Mono;
-import reactor.core.publisher.ReplayProcessor;
-
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -44,6 +38,11 @@ import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import reactor.core.publisher.Mono;
+import reactor.core.publisher.ReplayProcessor;
 
 public class KeepAliveTest {
   private static final int TICK_PERIOD = 100;
@@ -66,8 +65,10 @@ public class KeepAliveTest {
     errors = new ArrayList<>();
     errorConsumer = errors::add;
 
-    clientConnection = KeepAliveConnection.ofClient(allocator, testConnection, timingsProvider, errorConsumer);
-    serverConnection = KeepAliveConnection.ofServer(allocator, testConnection, timingsProvider, errorConsumer);
+    clientConnection =
+        KeepAliveConnection.ofClient(allocator, testConnection, timingsProvider, errorConsumer);
+    serverConnection =
+        KeepAliveConnection.ofServer(allocator, testConnection, timingsProvider, errorConsumer);
   }
 
   @Test
@@ -91,9 +92,7 @@ public class KeepAliveTest {
     Assertions.assertThat(clientConnection.isDisposed()).isFalse();
     Collection<ByteBuf> sent = testConnection.getSent();
     Collection<ByteBuf> sentAfterSetup =
-        sent.stream()
-            .filter(f -> frameType(f) != FrameType.SETUP)
-            .collect(Collectors.toList());
+        sent.stream().filter(f -> frameType(f) != FrameType.SETUP).collect(Collectors.toList());
 
     Assertions.assertThat(sentAfterSetup).isNotEmpty();
     sentAfterSetup.forEach(
@@ -163,10 +162,7 @@ public class KeepAliveTest {
 
     Collection<ByteBuf> sent = testConnection.getSent();
     Collection<ByteBuf> sentAfterSetup =
-        sent
-            .stream()
-            .filter(f -> frameType(f) != FrameType.SETUP)
-            .collect(Collectors.toList());
+        sent.stream().filter(f -> frameType(f) != FrameType.SETUP).collect(Collectors.toList());
     Assertions.assertThat(sentAfterSetup).isNotEmpty();
 
     sentAfterSetup.forEach(
@@ -202,9 +198,12 @@ public class KeepAliveTest {
     return SetupFrameFlyweight.encode(
         allocator,
         false,
-         TICK_PERIOD, TIMEOUT,
+        TICK_PERIOD,
+        TIMEOUT,
         "metadataType",
-        "dataType",byteBuf("metadata"), byteBuf("data"));
+        "dataType",
+        byteBuf("metadata"),
+        byteBuf("data"));
   }
 
   private ByteBuf byteBuf(String msg) {

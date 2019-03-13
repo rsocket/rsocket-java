@@ -36,8 +36,8 @@ import reactor.core.publisher.MonoProcessor;
  * arrive:
  *
  * <ul>
- * <li>Frames for streams initiated by the initiator of the connection (client).
- * <li>Frames for streams initiated by the acceptor of the connection (server).
+ *   <li>Frames for streams initiated by the initiator of the connection (client).
+ *   <li>Frames for streams initiated by the acceptor of the connection (server).
  * </ul>
  *
  * <p>The only way to differentiate these two frames is determining whether the stream Id is odd or
@@ -195,7 +195,8 @@ public class ClientServerInputMultiplexer implements Closeable {
                   p.flatMapMany(
                       f -> {
                         if (debugEnabled) {
-                          return f.doOnNext(frame -> LOGGER.debug("receiving -> " + FrameUtil.toString(frame)));
+                          return f.doOnNext(
+                              frame -> LOGGER.debug("receiving -> " + FrameUtil.toString(frame)));
                         } else {
                           return f;
                         }

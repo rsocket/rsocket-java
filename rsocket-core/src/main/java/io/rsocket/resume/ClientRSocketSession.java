@@ -24,7 +24,6 @@ import io.rsocket.frame.ErrorFrameFlyweight;
 import io.rsocket.frame.ResumeFrameFlyweight;
 import io.rsocket.frame.ResumeOkFrameFlyweight;
 import io.rsocket.internal.ClientServerInputMultiplexer;
-
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.slf4j.Logger;
@@ -47,11 +46,10 @@ public class ClientRSocketSession implements RSocketSession<Mono<? extends Resum
     this.resumableConnection =
         new ResumableDuplexConnection(
             "client",
-                duplexConnection,
-                ResumedFramesCalculator.ofClient,
-                config.resumeStore(),
-                config.resumeStreamTimeout()
-            );
+            duplexConnection,
+            ResumedFramesCalculator.ofClient,
+            config.resumeStore(),
+            config.resumeStreamTimeout());
 
     resumableConnection
         .connectionErrors()
@@ -90,9 +88,11 @@ public class ClientRSocketSession implements RSocketSession<Mono<? extends Resum
                   state);
               /*Connection is established again: send RESUME frame to server, listen for RESUME_OK*/
               sendFrame(
-                  ResumeFrameFlyweight.encode(
-                      allocator,
-                      resumeToken.toByteArray(), state.impliedPosition(), state.position()))
+                      ResumeFrameFlyweight.encode(
+                          allocator,
+                          resumeToken.toByteArray(),
+                          state.impliedPosition(),
+                          state.position()))
                   .then(multiplexer.asSetupConnection().receive().next())
                   .subscribe(this::resumeWith);
             },
@@ -120,10 +120,10 @@ public class ClientRSocketSession implements RSocketSession<Mono<? extends Resum
                 .onErrorResume(
                     err ->
                         sendFrame(
-                            ErrorFrameFlyweight.encode(
-                                allocator,
-                                0,
-                                errorFrameThrowable(resumptionState.impliedPosition())))
+                                ErrorFrameFlyweight.encode(
+                                    allocator,
+                                    0,
+                                    errorFrameThrowable(resumptionState.impliedPosition())))
                             .then(Mono.fromRunnable(resumableConnection::dispose))
                             /*Resumption is impossible: no need to return control to ResumableConnection*/
                             .then(Mono.never())));

@@ -22,25 +22,25 @@ import io.rsocket.DuplexConnection;
 import io.rsocket.exceptions.ConnectionErrorException;
 import io.rsocket.frame.FrameHeaderFlyweight;
 import io.rsocket.frame.FrameType;
+import io.rsocket.internal.KeepAliveData;
 import io.rsocket.resume.ResumeAwareConnection;
 import io.rsocket.resume.ResumeStateHolder;
 import io.rsocket.util.DuplexConnectionProxy;
 import io.rsocket.util.Function3;
-import io.rsocket.internal.KeepAliveData;
-import org.reactivestreams.Publisher;
-import reactor.core.publisher.*;
-
 import java.time.Duration;
 import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import org.reactivestreams.Publisher;
+import reactor.core.publisher.*;
 
 public class KeepAliveConnection extends DuplexConnectionProxy implements ResumeAwareConnection {
 
   private final MonoProcessor<KeepAliveHandler> keepAliveHandlerReady = MonoProcessor.create();
   private final ByteBufAllocator allocator;
   private final Function<ByteBuf, Mono<KeepAliveData>> keepAliveData;
-  private final Function3<ByteBufAllocator, Duration, Duration, KeepAliveHandler> keepAliveHandlerFactory;
+  private final Function3<ByteBufAllocator, Duration, Duration, KeepAliveHandler>
+      keepAliveHandlerFactory;
   private final Consumer<Throwable> errorConsumer;
   private final UnicastProcessor<ByteBuf> keepAliveFrames = UnicastProcessor.create();
   private final EmitterProcessor<Long> lastReceivedPositions = EmitterProcessor.create();
@@ -53,11 +53,7 @@ public class KeepAliveConnection extends DuplexConnectionProxy implements Resume
       Consumer<Throwable> errorConsumer) {
 
     return new KeepAliveConnection(
-        allocator,
-        duplexConnection,
-        keepAliveData,
-        KeepAliveHandler::ofClient,
-        errorConsumer);
+        allocator, duplexConnection, keepAliveData, KeepAliveHandler::ofClient, errorConsumer);
   }
 
   public static KeepAliveConnection ofServer(
@@ -67,11 +63,7 @@ public class KeepAliveConnection extends DuplexConnectionProxy implements Resume
       Consumer<Throwable> errorConsumer) {
 
     return new KeepAliveConnection(
-        allocator,
-        duplexConnection,
-        keepAliveData,
-        KeepAliveHandler::ofServer,
-        errorConsumer);
+        allocator, duplexConnection, keepAliveData, KeepAliveHandler::ofServer, errorConsumer);
   }
 
   private KeepAliveConnection(
@@ -113,8 +105,7 @@ public class KeepAliveConnection extends DuplexConnectionProxy implements Resume
             .doOnNext(
                 f -> {
                   if (isStartFrame(f)) {
-                    keepAliveHandler(keepAliveData.apply(f))
-                        .subscribe(keepAliveHandlerReady);
+                    keepAliveHandler(keepAliveData.apply(f)).subscribe(keepAliveHandlerReady);
                   }
                 }));
   }
@@ -139,11 +130,11 @@ public class KeepAliveConnection extends DuplexConnectionProxy implements Resume
   public Mono<Void> onClose() {
     return super.onClose()
         .then(Mono.fromRunnable(lastReceivedPositions::onComplete))
-        .then(Mono.fromRunnable(() ->
-            Optional
-                .ofNullable(keepAliveHandlerReady.peek())
-                .ifPresent(KeepAliveHandler::dispose))
-        );
+        .then(
+            Mono.fromRunnable(
+                () ->
+                    Optional.ofNullable(keepAliveHandlerReady.peek())
+                        .ifPresent(KeepAliveHandler::dispose)));
   }
 
   @Override
@@ -168,7 +159,6 @@ public class KeepAliveConnection extends DuplexConnectionProxy implements Resume
 
   private Mono<KeepAliveHandler> keepAliveHandler(Mono<KeepAliveData> keepAliveData) {
     return keepAliveData.map(
-        kad -> keepAliveHandlerFactory
-            .apply(allocator, kad.getTickPeriod(), kad.getTimeout()));
+        kad -> keepAliveHandlerFactory.apply(allocator, kad.getTickPeriod(), kad.getTimeout()));
   }
 }

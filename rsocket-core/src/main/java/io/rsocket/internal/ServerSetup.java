@@ -27,10 +27,9 @@ import io.rsocket.frame.ResumeFrameFlyweight;
 import io.rsocket.frame.SetupFrameFlyweight;
 import io.rsocket.resume.*;
 import io.rsocket.util.ConnectionUtils;
-import reactor.core.publisher.Mono;
-
 import java.time.Duration;
 import java.util.function.Function;
+import reactor.core.publisher.Mono;
 
 public interface ServerSetup {
   /*accept connection as SETUP*/
@@ -61,10 +60,9 @@ public interface ServerSetup {
         Function<ClientServerInputMultiplexer, Mono<Void>> then) {
 
       if (!ResumeToken.fromBytes(SetupFrameFlyweight.resumeToken(frame)).isEmpty()) {
-        return sendError(
-                multiplexer,
-                new UnsupportedSetupException("resume not supported"))
-                .doFinally(signalType -> {
+        return sendError(multiplexer, new UnsupportedSetupException("resume not supported"))
+            .doFinally(
+                signalType -> {
                   frame.release();
                   multiplexer.dispose();
                 });
@@ -76,10 +74,9 @@ public interface ServerSetup {
     @Override
     public Mono<Void> acceptRSocketResume(ByteBuf frame, ClientServerInputMultiplexer multiplexer) {
 
-      return sendError(
-              multiplexer,
-              new RejectedResumeException("resume not supported"))
-              .doFinally(signalType -> {
+      return sendError(multiplexer, new RejectedResumeException("resume not supported"))
+          .doFinally(
+              signalType -> {
                 frame.release();
                 multiplexer.dispose();
               });
@@ -99,9 +96,7 @@ public interface ServerSetup {
       };
     }
 
-    private Mono<Void> sendError(
-            ClientServerInputMultiplexer multiplexer,
-            Exception exception) {
+    private Mono<Void> sendError(ClientServerInputMultiplexer multiplexer, Exception exception) {
       return ConnectionUtils.sendError(allocator, multiplexer, exception);
     }
   }
@@ -119,10 +114,9 @@ public interface ServerSetup {
         Function<? super ResumeToken, ? extends ResumableFramesStore> resumeStoreFactory) {
       this.allocator = allocator;
       this.sessionManager = sessionManager;
-      this.resumeConfig = new ServerResumeConfiguration(
-          resumeSessionDuration,
-          resumeStreamTimeout,
-          resumeStoreFactory);
+      this.resumeConfig =
+          new ServerResumeConfiguration(
+              resumeSessionDuration, resumeStreamTimeout, resumeStoreFactory);
     }
 
     @Override
@@ -166,16 +160,14 @@ public interface ServerSetup {
                       .resumeWith(frame)
                       .onClose()
                       .then())
-          .orElseGet(() ->
-              sendError(
-                  multiplexer,
-                  new RejectedResumeException("unknown resume token"))
-                  .doFinally(
-                      s -> {
-                        frame.release();
-                        multiplexer.dispose();
-                      })
-          );
+          .orElseGet(
+              () ->
+                  sendError(multiplexer, new RejectedResumeException("unknown resume token"))
+                      .doFinally(
+                          s -> {
+                            frame.release();
+                            multiplexer.dispose();
+                          }));
     }
 
     @Override
@@ -196,9 +188,7 @@ public interface ServerSetup {
       };
     }
 
-    private Mono<Void> sendError(
-        ClientServerInputMultiplexer multiplexer,
-        Exception exception) {
+    private Mono<Void> sendError(ClientServerInputMultiplexer multiplexer, Exception exception) {
       return ConnectionUtils.sendError(allocator, multiplexer, exception);
     }
 

@@ -37,13 +37,12 @@ import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.ServerTransport;
 import io.rsocket.util.ConnectionUtils;
 import io.rsocket.util.EmptyPayload;
-import reactor.core.publisher.Mono;
-
 import java.time.Duration;
 import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import reactor.core.publisher.Mono;
 
 /** Factory for creating RSocket clients and servers. */
 public class RSocketFactory {
@@ -195,7 +194,8 @@ public class RSocketFactory {
       return this;
     }
 
-    public ClientRSocketFactory resumeStore(Function<? super ResumeToken, ? extends ResumableFramesStore> resumeStoreFactory) {
+    public ClientRSocketFactory resumeStore(
+        Function<? super ResumeToken, ? extends ResumableFramesStore> resumeStoreFactory) {
       this.resumeStoreFactory = resumeStoreFactory;
       return this;
     }
@@ -340,14 +340,9 @@ public class RSocketFactory {
                         allocator,
                         connection,
                         notUsed ->
-                            Mono.just(
-                                new KeepAliveData(
-                                    keepAliveTickPeriod(),
-                                    keepAliveTimeout())
-                            ),
+                            Mono.just(new KeepAliveData(keepAliveTickPeriod(), keepAliveTimeout())),
                         errorConsumer));
       }
-
     }
   }
 
@@ -413,7 +408,8 @@ public class RSocketFactory {
       return this;
     }
 
-    public ServerRSocketFactory resumeStore(Function<? super ResumeToken, ? extends ResumableFramesStore> resumeStoreFactory) {
+    public ServerRSocketFactory resumeStore(
+        Function<? super ResumeToken, ? extends ResumableFramesStore> resumeStoreFactory) {
       this.resumeStoreFactory = resumeStoreFactory;
       return this;
     }
@@ -437,110 +433,112 @@ public class RSocketFactory {
 
       @Override
       public Mono<T> start() {
-        return Mono.defer(new Supplier<Mono<T>>() {
+        return Mono.defer(
+            new Supplier<Mono<T>>() {
 
-          ServerSetup serverSetup = serverSetup();
+              ServerSetup serverSetup = serverSetup();
 
-          @Override
-          public Mono<T> get() {
-            return transportServer
-                .get()
-                .start(
-                    connection -> {
-                      connection =
-                          KeepAliveConnection.ofServer(
-                              allocator,
-                              connection,
-                              serverSetup.keepAliveData(),
-                              errorConsumer);
-                      ClientServerInputMultiplexer multiplexer =
-                          new ClientServerInputMultiplexer(connection, plugins);
+              @Override
+              public Mono<T> get() {
+                return transportServer
+                    .get()
+                    .start(
+                        connection -> {
+                          connection =
+                              KeepAliveConnection.ofServer(
+                                  allocator,
+                                  connection,
+                                  serverSetup.keepAliveData(),
+                                  errorConsumer);
+                          ClientServerInputMultiplexer multiplexer =
+                              new ClientServerInputMultiplexer(connection, plugins);
 
-                      return multiplexer
-                          .asSetupConnection()
-                          .receive()
-                          .next()
-                          .flatMap(startFrame -> accept(startFrame, multiplexer));
-                    },
-                    mtu)
-                .doOnNext(c -> c.onClose().doFinally(v -> serverSetup.dispose()).subscribe());
-          }
+                          return multiplexer
+                              .asSetupConnection()
+                              .receive()
+                              .next()
+                              .flatMap(startFrame -> accept(startFrame, multiplexer));
+                        },
+                        mtu)
+                    .doOnNext(c -> c.onClose().doFinally(v -> serverSetup.dispose()).subscribe());
+              }
 
-          private Mono<Void> accept(
-              ByteBuf startFrame, ClientServerInputMultiplexer multiplexer) {
-            switch (FrameHeaderFlyweight.frameType(startFrame)) {
-              case SETUP:
-                return acceptSetup(startFrame, multiplexer);
-              case RESUME:
-                return acceptResume(startFrame, multiplexer);
-              default:
-                return acceptUnknown(startFrame, multiplexer);
-            }
-          }
+              private Mono<Void> accept(
+                  ByteBuf startFrame, ClientServerInputMultiplexer multiplexer) {
+                switch (FrameHeaderFlyweight.frameType(startFrame)) {
+                  case SETUP:
+                    return acceptSetup(startFrame, multiplexer);
+                  case RESUME:
+                    return acceptResume(startFrame, multiplexer);
+                  default:
+                    return acceptUnknown(startFrame, multiplexer);
+                }
+              }
 
-          private Mono<Void> acceptSetup(
-              ByteBuf setupFrame, ClientServerInputMultiplexer multiplexer) {
+              private Mono<Void> acceptSetup(
+                  ByteBuf setupFrame, ClientServerInputMultiplexer multiplexer) {
 
-            if (!SetupFrameFlyweight.isSupportedVersion(setupFrame)) {
-              return sendError(
-                      multiplexer,
-                      new InvalidSetupException(
-                          "Unsupported version: "
-                              + SetupFrameFlyweight.humanReadableVersion(setupFrame)))
+                if (!SetupFrameFlyweight.isSupportedVersion(setupFrame)) {
+                  return sendError(
+                          multiplexer,
+                          new InvalidSetupException(
+                              "Unsupported version: "
+                                  + SetupFrameFlyweight.humanReadableVersion(setupFrame)))
                       .doFinally(
-                              signalType -> {
-                                setupFrame.release();
-                                multiplexer.dispose();
-                              });
-            }
-            return serverSetup.acceptRSocketSetup(
-                setupFrame,
-                multiplexer,
-                wrappedMultiplexer -> {
-                  ConnectionSetupPayload setupPayload =
-                      ConnectionSetupPayload.create(setupFrame);
+                          signalType -> {
+                            setupFrame.release();
+                            multiplexer.dispose();
+                          });
+                }
+                return serverSetup.acceptRSocketSetup(
+                    setupFrame,
+                    multiplexer,
+                    wrappedMultiplexer -> {
+                      ConnectionSetupPayload setupPayload =
+                          ConnectionSetupPayload.create(setupFrame);
 
-                  RSocketClient rSocketClient =
-                      new RSocketClient(
-                          allocator,
-                          wrappedMultiplexer.asServerConnection(),
-                          payloadDecoder,
-                          errorConsumer,
-                          StreamIdSupplier.serverSupplier());
+                      RSocketClient rSocketClient =
+                          new RSocketClient(
+                              allocator,
+                              wrappedMultiplexer.asServerConnection(),
+                              payloadDecoder,
+                              errorConsumer,
+                              StreamIdSupplier.serverSupplier());
 
-                  RSocket wrappedRSocketClient = plugins.applyClient(rSocketClient);
+                      RSocket wrappedRSocketClient = plugins.applyClient(rSocketClient);
 
-                  return acceptor
-                      .accept(setupPayload, wrappedRSocketClient)
-                      .onErrorResume(err ->
-                              sendError(multiplexer, rejectedSetupError(err))
-                              .then(Mono.error(err)))
-                      .doOnNext(
-                          unwrappedServerSocket -> {
-                            RSocket wrappedRSocketServer =
-                                plugins.applyServer(unwrappedServerSocket);
+                      return acceptor
+                          .accept(setupPayload, wrappedRSocketClient)
+                          .onErrorResume(
+                              err ->
+                                  sendError(multiplexer, rejectedSetupError(err))
+                                      .then(Mono.error(err)))
+                          .doOnNext(
+                              unwrappedServerSocket -> {
+                                RSocket wrappedRSocketServer =
+                                    plugins.applyServer(unwrappedServerSocket);
 
-                            RSocketServer rSocketServer =
-                                new RSocketServer(
-                                    allocator,
-                                    wrappedMultiplexer.asClientConnection(),
-                                    wrappedRSocketServer,
-                                    payloadDecoder,
-                                    errorConsumer);
-                          })
-                      .doFinally(signalType -> setupPayload.release())
-                      .then();
-                });
-          }
+                                RSocketServer rSocketServer =
+                                    new RSocketServer(
+                                        allocator,
+                                        wrappedMultiplexer.asClientConnection(),
+                                        wrappedRSocketServer,
+                                        payloadDecoder,
+                                        errorConsumer);
+                              })
+                          .doFinally(signalType -> setupPayload.release())
+                          .then();
+                    });
+              }
 
-          private Mono<Void> acceptResume(
-              ByteBuf resumeFrame, ClientServerInputMultiplexer multiplexer) {
-            return serverSetup.acceptRSocketResume(resumeFrame, multiplexer);
-          }
-        });
+              private Mono<Void> acceptResume(
+                  ByteBuf resumeFrame, ClientServerInputMultiplexer multiplexer) {
+                return serverSetup.acceptRSocketResume(resumeFrame, multiplexer);
+              }
+            });
       }
 
-        private ServerSetup serverSetup() {
+      private ServerSetup serverSetup() {
         return resumeSupported
             ? new ServerSetup.ResumableServerSetup(
                 allocator,
@@ -551,22 +549,19 @@ public class RSocketFactory {
             : new ServerSetup.DefaultServerSetup(allocator);
       }
 
-      private Mono<Void> acceptUnknown(
-          ByteBuf frame,
-          ClientServerInputMultiplexer multiplexer) {
+      private Mono<Void> acceptUnknown(ByteBuf frame, ClientServerInputMultiplexer multiplexer) {
         return sendError(
                 multiplexer,
-                new InvalidSetupException("invalid setup frame: " + FrameHeaderFlyweight.frameType(frame)))
-                .doFinally(
-                        signalType -> {
-                          frame.release();
-                          multiplexer.dispose();
-                        });
+                new InvalidSetupException(
+                    "invalid setup frame: " + FrameHeaderFlyweight.frameType(frame)))
+            .doFinally(
+                signalType -> {
+                  frame.release();
+                  multiplexer.dispose();
+                });
       }
 
-      private Mono<Void> sendError(
-              ClientServerInputMultiplexer multiplexer,
-              Exception exception) {
+      private Mono<Void> sendError(ClientServerInputMultiplexer multiplexer, Exception exception) {
         return ConnectionUtils.sendError(allocator, multiplexer, exception);
       }
 

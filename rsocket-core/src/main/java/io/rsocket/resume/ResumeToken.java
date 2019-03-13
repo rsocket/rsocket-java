@@ -19,12 +19,11 @@ package io.rsocket.resume;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
-
-import javax.annotation.Nullable;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Objects;
 import java.util.UUID;
+import javax.annotation.Nullable;
 
 public final class ResumeToken {
   private static final int MAX_TOKEN_LENGTH = 65535; // unsigned 16 bit
@@ -37,8 +36,7 @@ public final class ResumeToken {
   }
 
   public static ResumeToken fromBytes(@Nullable byte[] token) {
-    return token == null || token.length == 0
-        ? EMPTY_TOKEN : new ResumeToken(token);
+    return token == null || token.length == 0 ? EMPTY_TOKEN : new ResumeToken(token);
   }
 
   public static ResumeToken empty() {

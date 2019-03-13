@@ -14,9 +14,7 @@ public class ResumeOkFrameFlyweight {
   public static long lastReceivedClientPos(ByteBuf byteBuf) {
     FrameHeaderFlyweight.ensureFrameType(FrameType.RESUME_OK, byteBuf);
     byteBuf.markReaderIndex();
-    long lastReceivedClientPosition = byteBuf
-        .skipBytes(FrameHeaderFlyweight.size())
-        .readLong();
+    long lastReceivedClientPosition = byteBuf.skipBytes(FrameHeaderFlyweight.size()).readLong();
     byteBuf.resetReaderIndex();
 
     return lastReceivedClientPosition;

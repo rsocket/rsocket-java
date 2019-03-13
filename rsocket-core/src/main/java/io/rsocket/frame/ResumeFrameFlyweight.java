@@ -56,7 +56,7 @@ public class ResumeFrameFlyweight {
     // header + version
     int tokenPos = FrameHeaderFlyweight.size() + Integer.BYTES;
     byteBuf.skipBytes(tokenPos);
-    //token
+    // token
     int tokenLength = byteBuf.readShort() & 0xFFFF;
     byte[] token = new byte[tokenLength];
     byteBuf.readBytes(token);
@@ -72,7 +72,7 @@ public class ResumeFrameFlyweight {
     // header + version
     int tokenPos = FrameHeaderFlyweight.size() + Integer.BYTES;
     byteBuf.skipBytes(tokenPos);
-    //token
+    // token
     int tokenLength = byteBuf.readShort() & 0xFFFF;
     byteBuf.skipBytes(tokenLength);
     long lastReceivedServerPos = byteBuf.readLong();
@@ -88,7 +88,7 @@ public class ResumeFrameFlyweight {
     // header + version
     int tokenPos = FrameHeaderFlyweight.size() + Integer.BYTES;
     byteBuf.skipBytes(tokenPos);
-    //token
+    // token
     int tokenLength = byteBuf.readShort() & 0xFFFF;
     byteBuf.skipBytes(tokenLength);
     // last received server position

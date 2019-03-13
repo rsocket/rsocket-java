@@ -20,10 +20,9 @@ import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.DuplexConnection;
 import io.rsocket.keepalive.KeepAliveConnection;
 import io.rsocket.resume.*;
-import reactor.core.publisher.Mono;
-
 import java.time.Duration;
 import java.util.function.Supplier;
+import reactor.core.publisher.Mono;
 
 public interface ClientSetup {
   /*Provide different connections for SETUP / RESUME cases*/
@@ -52,13 +51,13 @@ public interface ClientSetup {
     private final Mono<KeepAliveConnection> newConnection;
 
     public ResumableClientSetup(
-            ByteBufAllocator allocator,
-            Mono<KeepAliveConnection> newConnection,
-            ResumeToken resumeToken,
-            ResumableFramesStore resumableFramesStore,
-            Duration resumeSessionDuration,
-            Duration resumeStreamTimeout,
-            Supplier<ResumeStrategy> resumeStrategySupplier) {
+        ByteBufAllocator allocator,
+        Mono<KeepAliveConnection> newConnection,
+        ResumeToken resumeToken,
+        ResumableFramesStore resumableFramesStore,
+        Duration resumeSessionDuration,
+        Duration resumeStreamTimeout,
+        Supplier<ResumeStrategy> resumeStrategySupplier) {
       this.allocator = allocator;
       this.newConnection = newConnection;
       this.resumeToken = resumeToken;

@@ -39,16 +39,16 @@ class DisconnectableClientTransport implements ClientTransport {
             now() < nextConnectPermitMillis
                 ? Mono.error(new ClosedChannelException())
                 : clientTransport
-                .connect(mtu)
-                .map(
-                    c -> {
-                      if (curConnection.compareAndSet(null, c)) {
-                        return c;
-                      } else {
-                        throw new IllegalStateException(
-                            "Transport supports at most 1 connection");
-                      }
-                    }));
+                    .connect(mtu)
+                    .map(
+                        c -> {
+                          if (curConnection.compareAndSet(null, c)) {
+                            return c;
+                          } else {
+                            throw new IllegalStateException(
+                                "Transport supports at most 1 connection");
+                          }
+                        }));
   }
 
   public void disconnect() {

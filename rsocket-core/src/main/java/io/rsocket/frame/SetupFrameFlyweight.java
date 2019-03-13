@@ -4,7 +4,6 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
-
 import java.nio.charset.StandardCharsets;
 
 public class SetupFrameFlyweight {
@@ -106,8 +105,7 @@ public class SetupFrameFlyweight {
 
   public static String humanReadableVersion(ByteBuf byteBuf) {
     int encodedVersion = version(byteBuf);
-    return VersionFlyweight.major(encodedVersion) +
-        "." + VersionFlyweight.minor(encodedVersion);
+    return VersionFlyweight.major(encodedVersion) + "." + VersionFlyweight.minor(encodedVersion);
   }
 
   public static boolean isSupportedVersion(ByteBuf byteBuf) {
@@ -146,14 +144,18 @@ public class SetupFrameFlyweight {
   public static byte[] resumeToken(ByteBuf byteBuf) {
     if (resumeEnabled(byteBuf)) {
       byteBuf.markReaderIndex();
-      //header
-      int resumePos = FrameHeaderFlyweight.size() +
-          //version
-          Integer.BYTES +
-          //keep-alive interval
-          Integer.BYTES +
-          //keep-alive maxLifeTime
-          Integer.BYTES;
+      // header
+      int resumePos =
+          FrameHeaderFlyweight.size()
+              +
+              // version
+              Integer.BYTES
+              +
+              // keep-alive interval
+              Integer.BYTES
+              +
+              // keep-alive maxLifeTime
+              Integer.BYTES;
 
       int tokenLength = byteBuf.skipBytes(resumePos).readShort() & 0xFFFF;
       byte[] resumeToken = new byte[tokenLength];

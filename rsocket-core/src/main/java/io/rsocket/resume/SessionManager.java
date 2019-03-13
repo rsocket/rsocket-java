@@ -22,8 +22,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class SessionManager {
   private boolean isDisposed;
-  private final Map<ResumeToken, ServerRSocketSession> sessions =
-      new ConcurrentHashMap<>();
+  private final Map<ResumeToken, ServerRSocketSession> sessions = new ConcurrentHashMap<>();
 
   public ServerRSocketSession save(ServerRSocketSession session) {
     if (isDisposed) {

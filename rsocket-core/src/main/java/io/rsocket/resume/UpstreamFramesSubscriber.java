@@ -18,6 +18,9 @@ package io.rsocket.resume;
 
 import io.netty.buffer.ByteBuf;
 import io.rsocket.internal.UnboundedProcessor;
+import java.util.Queue;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 import org.slf4j.Logger;
@@ -26,10 +29,6 @@ import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Operators;
 import reactor.util.concurrent.Queues;
-
-import java.util.Queue;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
 
 class UpstreamFramesSubscriber implements Subscriber<ByteBuf>, Disposable {
   private static final Logger logger = LoggerFactory.getLogger(UpstreamFramesSubscriber.class);
@@ -47,20 +46,18 @@ class UpstreamFramesSubscriber implements Subscriber<ByteBuf>, Disposable {
   private long downStreamRequestN;
   private long resumeSaveStreamRequestN;
 
-  UpstreamFramesSubscriber(int estimatedDownstreamRequest,
-                           Flux<Long> downstreamRequests,
-                           Flux<Long> resumeSaveStreamRequests,
-                           Consumer<ByteBuf> itemConsumer) {
+  UpstreamFramesSubscriber(
+      int estimatedDownstreamRequest,
+      Flux<Long> downstreamRequests,
+      Flux<Long> resumeSaveStreamRequests,
+      Consumer<ByteBuf> itemConsumer) {
     this.itemConsumer = itemConsumer;
     this.framesCache = Queues.<ByteBuf>unbounded(estimatedDownstreamRequest).get();
 
-    downstreamRequestDisposable =
-        downstreamRequests
-            .subscribe(requestN -> requestN(0, requestN));
+    downstreamRequestDisposable = downstreamRequests.subscribe(requestN -> requestN(0, requestN));
 
     resumeSaveStreamDisposable =
-        resumeSaveStreamRequests
-            .subscribe(requestN -> requestN(requestN, 0));
+        resumeSaveStreamRequests.subscribe(requestN -> requestN(requestN, 0));
 
     Flux<Object> acts = actions.publish().autoConnect(3);
     acts.ofType(ByteBuf.class).subscribe(this::processFrame);

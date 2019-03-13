@@ -21,16 +21,15 @@ import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
 import io.rsocket.frame.KeepAliveFrameFlyweight;
 import io.rsocket.resume.ResumeStateHolder;
+import java.time.Duration;
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 import reactor.core.Disposable;
 import reactor.core.Disposables;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
 import reactor.core.publisher.UnicastProcessor;
-
-import java.time.Duration;
-import java.util.Optional;
-import java.util.concurrent.atomic.AtomicReference;
 
 abstract class KeepAliveHandler implements Disposable {
   protected final ByteBufAllocator allocator;
@@ -42,21 +41,18 @@ abstract class KeepAliveHandler implements Disposable {
   private final AtomicReference<Disposable> intervalDisposable = new AtomicReference<>();
   private volatile long lastReceivedMillis;
 
-  static KeepAliveHandler ofServer(ByteBufAllocator allocator,
-                                   Duration keepAlivePeriod,
-                                   Duration keepAliveTimeout) {
+  static KeepAliveHandler ofServer(
+      ByteBufAllocator allocator, Duration keepAlivePeriod, Duration keepAliveTimeout) {
     return new KeepAliveHandler.Server(allocator, keepAlivePeriod, keepAliveTimeout);
   }
 
-  static KeepAliveHandler ofClient(ByteBufAllocator allocator,
-                                   Duration keepAlivePeriod,
-                                   Duration keepAliveTimeout) {
+  static KeepAliveHandler ofClient(
+      ByteBufAllocator allocator, Duration keepAlivePeriod, Duration keepAliveTimeout) {
     return new KeepAliveHandler.Client(allocator, keepAlivePeriod, keepAliveTimeout);
   }
 
-  private KeepAliveHandler(ByteBufAllocator allocator,
-                           Duration keepAlivePeriod,
-                           Duration keepAliveTimeout) {
+  private KeepAliveHandler(
+      ByteBufAllocator allocator, Duration keepAlivePeriod, Duration keepAliveTimeout) {
     this.allocator = allocator;
     this.keepAlivePeriod = keepAlivePeriod;
     this.keepAliveTimeout = keepAliveTimeout;
@@ -147,11 +143,9 @@ abstract class KeepAliveHandler implements Disposable {
     @Override
     void onIntervalTick() {
       doCheckTimeout();
-      doSend(KeepAliveFrameFlyweight.encode(
-          allocator,
-          true,
-          obtainLastReceivedPos(),
-          Unpooled.EMPTY_BUFFER));
+      doSend(
+          KeepAliveFrameFlyweight.encode(
+              allocator, true, obtainLastReceivedPos(), Unpooled.EMPTY_BUFFER));
     }
   }
 

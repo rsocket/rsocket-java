@@ -17,16 +17,15 @@
 package io.rsocket.resume;
 
 import io.netty.buffer.ByteBuf;
+import java.util.Queue;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
 import reactor.util.concurrent.Queues;
-
-import java.util.Queue;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 
 public class InMemoryResumableFramesStore implements ResumableFramesStore {
   private static final Logger logger = LoggerFactory.getLogger(InMemoryResumableFramesStore.class);
@@ -51,13 +50,14 @@ public class InMemoryResumableFramesStore implements ResumableFramesStore {
           MonoProcessor<Void> completed = MonoProcessor.create();
           frames
               .doFinally(s -> completed.onComplete())
-              .subscribe(frame -> {
-                cachedFramesSize.incrementAndGet();
-                cachedFrames.offer(frame.retain());
-                if (cachedFramesSize.get() == cacheLimit) {
-                  releaseFrame();
-                }
-              });
+              .subscribe(
+                  frame -> {
+                    cachedFramesSize.incrementAndGet();
+                    cachedFrames.offer(frame.retain());
+                    if (cachedFramesSize.get() == cacheLimit) {
+                      releaseFrame();
+                    }
+                  });
           return completed;
         });
   }
@@ -84,18 +84,19 @@ public class InMemoryResumableFramesStore implements ResumableFramesStore {
 
   @Override
   public Flux<ByteBuf> resumeStream() {
-    return Flux.create(s -> {
-      int size = cachedFramesSize.get();
-      logger.info("{} Resuming stream size: {}", tag, size);
-      /*spsc queue has no iterator - iterating by consuming*/
-      for (int i = 0; i < size; i++) {
-        ByteBuf frame = cachedFrames.poll();
-        cachedFrames.offer(frame.retain());
-        s.next(frame);
-      }
-      s.complete();
-      logger.info("{} Resuming stream completed", tag);
-    });
+    return Flux.create(
+        s -> {
+          int size = cachedFramesSize.get();
+          logger.info("{} Resuming stream size: {}", tag, size);
+          /*spsc queue has no iterator - iterating by consuming*/
+          for (int i = 0; i < size; i++) {
+            ByteBuf frame = cachedFrames.poll();
+            cachedFrames.offer(frame.retain());
+            s.next(frame);
+          }
+          s.complete();
+          logger.info("{} Resuming stream completed", tag);
+        });
   }
 
   @Override

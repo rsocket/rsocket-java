@@ -1,15 +1,12 @@
 package io.rsocket.frame;
 
+import static org.junit.jupiter.api.Assertions.*;
+
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
-import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
-import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
-
 import org.junit.jupiter.api.Test;
-
-import static org.junit.jupiter.api.Assertions.*;
 
 class SetupFrameFlyweightTest {
   @Test
@@ -18,14 +15,7 @@ class SetupFrameFlyweightTest {
     ByteBuf data = Unpooled.wrappedBuffer(new byte[] {5, 4, 3});
     ByteBuf frame =
         SetupFrameFlyweight.encode(
-            ByteBufAllocator.DEFAULT,
-            false,
-            5,
-            500,
-            "metadata_type",
-            "data_type",
-            metadata,
-            data);
+            ByteBufAllocator.DEFAULT, false, 5, 500, "metadata_type", "data_type", metadata, data);
 
     assertEquals(FrameType.SETUP, FrameHeaderFlyweight.frameType(frame));
     assertFalse(SetupFrameFlyweight.resumeEnabled(frame));

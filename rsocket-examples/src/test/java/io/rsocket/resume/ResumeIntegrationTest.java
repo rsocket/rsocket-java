@@ -29,6 +29,11 @@ import io.rsocket.transport.netty.client.TcpClientTransport;
 import io.rsocket.transport.netty.server.CloseableChannel;
 import io.rsocket.transport.netty.server.TcpServerTransport;
 import io.rsocket.util.DefaultPayload;
+import java.net.InetSocketAddress;
+import java.nio.channels.ClosedChannelException;
+import java.time.Duration;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.reactivestreams.Publisher;
@@ -36,12 +41,6 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.ReplayProcessor;
 import reactor.test.StepVerifier;
-
-import java.net.InetSocketAddress;
-import java.nio.channels.ClosedChannelException;
-import java.time.Duration;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Consumer;
 
 @SlowTest
 public class ResumeIntegrationTest {
@@ -61,7 +60,7 @@ public class ResumeIntegrationTest {
     Mono.delay(Duration.ofSeconds(1)).subscribe(v -> clientTransport.disconnectPermanently());
 
     StepVerifier.create(
-        rSocket.requestChannel(testRequest()).then().doFinally(s -> closeable.dispose()))
+            rSocket.requestChannel(testRequest()).then().doFinally(s -> closeable.dispose()))
         .expectError(ClosedChannelException.class)
         .verify(Duration.ofSeconds(7));
   }
@@ -82,14 +81,14 @@ public class ResumeIntegrationTest {
 
     AtomicInteger counter = new AtomicInteger(-1);
     StepVerifier.create(
-        rSocket
-            .requestChannel(testRequest())
-            .take(Duration.ofSeconds(120))
-            .map(Payload::getDataUtf8)
-            .timeout(Duration.ofSeconds(12))
-            .doOnNext(x -> throwOnNonContinuous(counter, x))
-            .then()
-            .doFinally(s -> closeable.dispose()))
+            rSocket
+                .requestChannel(testRequest())
+                .take(Duration.ofSeconds(120))
+                .map(Payload::getDataUtf8)
+                .timeout(Duration.ofSeconds(12))
+                .doOnNext(x -> throwOnNonContinuous(counter, x))
+                .then()
+                .doFinally(s -> closeable.dispose()))
         .expectComplete()
         .verify();
   }
@@ -113,14 +112,15 @@ public class ResumeIntegrationTest {
         .subscribe(v -> clientTransport.disconnectFor(Duration.ofSeconds(3)));
 
     StepVerifier.create(
-        rSocket.requestChannel(testRequest()).then().doFinally(s -> closeable.dispose()))
+            rSocket.requestChannel(testRequest()).then().doFinally(s -> closeable.dispose()))
         .expectError()
         .verify(Duration.ofSeconds(5));
 
     StepVerifier.create(errorConsumer.errors().next())
         .expectNextMatches(
             err ->
-                err instanceof RejectedResumeException && "unknown resume token".equals(err.getMessage()))
+                err instanceof RejectedResumeException
+                    && "unknown resume token".equals(err.getMessage()))
         .expectComplete()
         .verify(Duration.ofSeconds(5));
   }
@@ -147,7 +147,8 @@ public class ResumeIntegrationTest {
     StepVerifier.create(errorConsumer.errors().next().doFinally(s -> closeableChannel.dispose()))
         .expectNextMatches(
             err ->
-                err instanceof UnsupportedSetupException && "resume not supported".equals(err.getMessage()))
+                err instanceof UnsupportedSetupException
+                    && "resume not supported".equals(err.getMessage()))
         .expectComplete()
         .verify(Duration.ofSeconds(5));
 

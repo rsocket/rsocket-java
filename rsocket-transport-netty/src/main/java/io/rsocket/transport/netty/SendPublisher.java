@@ -6,6 +6,7 @@ import io.netty.channel.ChannelPromise;
 import io.netty.channel.EventLoop;
 import io.netty.util.ReferenceCountUtil;
 import io.netty.util.ReferenceCounted;
+import java.nio.channels.ClosedChannelException;
 import java.util.Queue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
@@ -20,13 +21,6 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Operators;
 import reactor.netty.FutureMono;
 import reactor.util.concurrent.Queues;
-
-import java.nio.channels.ClosedChannelException;
-import java.util.Queue;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
-import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
-import java.util.function.Function;
 
 class SendPublisher<V extends ReferenceCounted> extends Flux<ByteBuf> {
 

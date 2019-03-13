@@ -24,13 +24,12 @@ import io.rsocket.frame.ErrorFrameFlyweight;
 import io.rsocket.frame.ResumeFrameFlyweight;
 import io.rsocket.frame.ResumeOkFrameFlyweight;
 import io.rsocket.internal.KeepAliveData;
+import java.util.Objects;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.FluxProcessor;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.ReplayProcessor;
-
-import java.util.Objects;
 
 public class ServerRSocketSession implements RSocketSession<ResumeAwareConnection> {
   private static final Logger logger = LoggerFactory.getLogger(ServerRSocketSession.class);
@@ -100,14 +99,12 @@ public class ServerRSocketSession implements RSocketSession<ResumeAwareConnectio
     resumableConnection.resume(
         stateFromFrame(resumeFrame),
         pos ->
-            pos.flatMap(impliedPos ->
-                sendFrame(ResumeOkFrameFlyweight.encode(allocator, impliedPos)))
+            pos.flatMap(
+                    impliedPos -> sendFrame(ResumeOkFrameFlyweight.encode(allocator, impliedPos)))
                 .onErrorResume(
                     err ->
-                        sendFrame(ErrorFrameFlyweight.encode(
-                            allocator,
-                            0,
-                            errorFrameThrowable(err)))
+                        sendFrame(
+                                ErrorFrameFlyweight.encode(allocator, 0, errorFrameThrowable(err)))
                             .then(Mono.fromRunnable(resumableConnection::dispose))
                             /*Resumption is impossible: no need to return control to ResumableConnection*/
                             .then(Mono.never())));
