@@ -124,7 +124,7 @@ class UpstreamFramesSubscriber implements Subscriber<ByteBuf>, Disposable {
       if (requests > 0) {
         downStreamRequestN -= requests;
         resumeSaveStreamRequestN -= requests;
-        logger.info("Upstream subscriber requestN: {}", requests);
+        logger.debug("Upstream subscriber requestN: {}", requests);
         request = Operators.addCap(request, requests);
       }
     }

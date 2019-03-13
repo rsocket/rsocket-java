@@ -87,11 +87,11 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
         connections
             .switchMap(
                 c -> {
-                  logger.info("Switching transport: {}", tag);
+                  logger.debug("Switching transport: {}", tag);
                   return c.send(downStreamRequestListener.apply(downStreamFrames))
                       .doFinally(
                           s ->
-                              logger.info(
+                              logger.debug(
                                   "{} Transport send completed: {}, {}", tag, s, c.toString()))
                       .onErrorResume(err -> Mono.never());
                 })
@@ -111,11 +111,11 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
    * but sending in suppressed until resume() is called*/
   public void reconnect(ResumeAwareConnection connection) {
     if (curConnection == null) {
-      logger.info("{} Resumable duplex connection started with connection: {}", tag, connection);
+      logger.debug("{} Resumable duplex connection started with connection: {}", tag, connection);
       state = State.CONNECTED;
       onNewConnection(connection);
     } else {
-      logger.info(
+      logger.debug(
           "{} Resumable duplex connection reconnected with connection: {}", tag, connection);
       /*race between sendFrame and doResumeStart may lead to ongoing upstream frames
       written before resume complete*/
@@ -172,7 +172,7 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
   @Override
   public void dispose() {
     if (disposed.compareAndSet(false, true)) {
-      logger.info("Resumable connection disposed: {}, {}", tag, this);
+      logger.debug("Resumable connection disposed: {}, {}", tag, this);
       upstreams.onComplete();
       connections.onComplete();
       connectionErrors.onComplete();
@@ -200,7 +200,7 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
     impliedPosDisposable =
         curConnection
             .receiveResumePositions(this)
-            .doOnNext(l -> logger.info("Got remote position from keep-alive: {}", l))
+            .doOnNext(l -> logger.debug("Got remote position from keep-alive: {}", l))
             .subscribe(this::releaseFramesToPosition);
   }
 
@@ -236,10 +236,10 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
       ResumptionState peerResumptionState, Function<Mono<Long>, Mono<Void>> sendResumeFrame) {
     ResumptionState localResumptionState = state();
 
-    logger.info(
+    logger.debug(
         "Resumption start. Calculating implied pos using: {}",
         resumedFramesCalculator.getClass().getSimpleName());
-    logger.info(
+    logger.debug(
         "Resumption states. local: {}, remote: {}", localResumptionState, peerResumptionState);
 
     Mono<Long> res = resumedFramesCalculator.calculate(localResumptionState, peerResumptionState);
@@ -262,7 +262,7 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
   }
 
   private void doResumeComplete() {
-    logger.info("Completing resumption");
+    logger.debug("Completing resumption");
     state = State.RESUME_COMPLETED;
     upstreamSubscriber.resumeComplete();
     acceptRemoteResumePositions();
@@ -291,7 +291,7 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
     if (curConnection == connection && state.isActive()) {
       Throwable err = new ClosedChannelException();
       state = State.DISCONNECTED;
-      logger.info("{} Inner connection disconnected: {}", tag, err.getClass().getSimpleName());
+      logger.debug("{} Inner connection disconnected: {}", tag, err.getClass().getSimpleName());
       connectionErrors.onNext(err);
     }
   }

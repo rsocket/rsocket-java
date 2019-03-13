@@ -55,7 +55,7 @@ public class ClientRSocketSession implements RSocketSession<Mono<? extends Resum
         .connectionErrors()
         .flatMap(
             err -> {
-              logger.info("Client session connection error. Starting new connection");
+              logger.debug("Client session connection error. Starting new connection");
               ResumeStrategy reconnectOnError = config.resumptionStrategy().get();
               ClientResume clientResume = new ClientResume(config.sessionDuration(), resumeToken);
               AtomicBoolean once = new AtomicBoolean();
@@ -69,11 +69,11 @@ public class ClientRSocketSession implements RSocketSession<Mono<? extends Resum
                           errors
                               .doOnNext(
                                   retryErr ->
-                                      logger.info("Resumption reconnection error: {}", retryErr))
+                                      logger.debug("Resumption reconnection error: {}", retryErr))
                               .flatMap(
                                   retryErr ->
                                       Mono.from(reconnectOnError.apply(clientResume, retryErr))
-                                          .doOnNext(v -> logger.info("Retrying with: {}", v))))
+                                          .doOnNext(v -> logger.debug("Retrying with: {}", v))))
                   .timeout(config.sessionDuration());
             })
         .map(ClientServerInputMultiplexer::new)
@@ -83,7 +83,7 @@ public class ClientRSocketSession implements RSocketSession<Mono<? extends Resum
               reconnect(multiplexer.asClientServerConnection());
 
               ResumptionState state = resumableConnection.state();
-              logger.info(
+              logger.debug(
                   "Client ResumableConnection reconnected. Sending RESUME frame with state: {}",
                   state);
               /*Connection is established again: send RESUME frame to server, listen for RESUME_OK*/
@@ -97,7 +97,7 @@ public class ClientRSocketSession implements RSocketSession<Mono<? extends Resum
                   .subscribe(this::resumeWith);
             },
             err -> {
-              logger.info("Client ResumableConnection reconnect timeout");
+              logger.debug("Client ResumableConnection reconnect timeout");
               resumableConnection.dispose();
             });
   }
@@ -110,7 +110,7 @@ public class ClientRSocketSession implements RSocketSession<Mono<? extends Resum
 
   @Override
   public ClientRSocketSession resumeWith(ByteBuf resumeOkFrame) {
-    logger.info("ResumeOK FRAME received");
+    logger.debug("ResumeOK FRAME received");
     ResumptionState resumptionState = stateFromFrame(resumeOkFrame);
     resumableConnection.resume(
         resumptionState,

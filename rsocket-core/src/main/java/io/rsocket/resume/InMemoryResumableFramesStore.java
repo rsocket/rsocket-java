@@ -65,14 +65,15 @@ public class InMemoryResumableFramesStore implements ResumableFramesStore {
   @Override
   public void releaseFrames(long remoteImpliedPos) {
     long pos = position.get();
-    logger.info("{} Removing frames for local: {}, remote implied: {}", tag, pos, remoteImpliedPos);
+    logger.debug(
+        "{} Removing frames for local: {}, remote implied: {}", tag, pos, remoteImpliedPos);
     long removeCount = Math.max(0, remoteImpliedPos - pos);
     long processedCount = 0;
     while (processedCount < removeCount) {
       releaseFrame();
       processedCount++;
     }
-    logger.info("{} Removed frames. Current size: {}", tag, cachedFramesSize.get());
+    logger.debug("{} Removed frames. Current size: {}", tag, cachedFramesSize.get());
   }
 
   private void releaseFrame() {
@@ -87,7 +88,7 @@ public class InMemoryResumableFramesStore implements ResumableFramesStore {
     return Flux.create(
         s -> {
           int size = cachedFramesSize.get();
-          logger.info("{} Resuming stream size: {}", tag, size);
+          logger.debug("{} Resuming stream size: {}", tag, size);
           /*spsc queue has no iterator - iterating by consuming*/
           for (int i = 0; i < size; i++) {
             ByteBuf frame = cachedFrames.poll();
@@ -95,7 +96,7 @@ public class InMemoryResumableFramesStore implements ResumableFramesStore {
             s.next(frame);
           }
           s.complete();
-          logger.info("{} Resuming stream completed", tag);
+          logger.debug("{} Resuming stream completed", tag);
         });
   }
 

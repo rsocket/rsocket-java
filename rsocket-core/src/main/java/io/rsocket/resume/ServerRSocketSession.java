@@ -64,10 +64,10 @@ public class ServerRSocketSession implements RSocketSession<ResumeAwareConnectio
             .connectionErrors()
             .flatMap(
                 err -> {
-                  logger.info("Starting session timeout due to error: {}", err);
+                  logger.debug("Starting session timeout due to error: {}", err);
                   return newConnections
                       .next()
-                      .doOnNext(c -> logger.info("Connection after error: {}", c))
+                      .doOnNext(c -> logger.debug("Connection after error: {}", c))
                       .timeout(config.sessionDuration());
                 })
             .then()
@@ -78,24 +78,24 @@ public class ServerRSocketSession implements RSocketSession<ResumeAwareConnectio
         .subscribe(
             connection -> {
               reconnect(connection);
-              logger.info("Server ResumableConnection reconnected: {}", connection);
+              logger.debug("Server ResumableConnection reconnected: {}", connection);
             },
             err -> {
-              logger.info("Server ResumableConnection reconnect timeout");
+              logger.debug("Server ResumableConnection reconnect timeout");
               resumableConnection.dispose();
             });
   }
 
   @Override
   public ServerRSocketSession continueWith(ResumeAwareConnection newConnection) {
-    logger.info("Server continued with connection: {}", newConnection);
+    logger.debug("Server continued with connection: {}", newConnection);
     newConnections.onNext(newConnection);
     return this;
   }
 
   @Override
   public ServerRSocketSession resumeWith(ByteBuf resumeFrame) {
-    logger.info("Resume FRAME received");
+    logger.debug("Resume FRAME received");
     resumableConnection.resume(
         stateFromFrame(resumeFrame),
         pos ->
@@ -131,7 +131,7 @@ public class ServerRSocketSession implements RSocketSession<ResumeAwareConnectio
   }
 
   private Mono<Void> sendFrame(ByteBuf frame) {
-    logger.info("Sending Resume frame: {}", frame);
+    logger.debug("Sending Resume frame: {}", frame);
     return resumableConnection.sendOne(frame).onErrorResume(e -> Mono.empty());
   }
 
