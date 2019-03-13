@@ -17,7 +17,6 @@
 package io.rsocket.internal;
 
 import io.netty.util.ReferenceCountUtil;
-import io.netty.util.internal.shaded.org.jctools.queues.MpscUnboundedArrayQueue;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 import reactor.core.CoreSubscriber;
@@ -219,6 +218,10 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
     } else {
       s.request(Long.MAX_VALUE);
     }
+  }
+
+  public long available() {
+    return requested;
   }
 
   @Override
