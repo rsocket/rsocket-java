@@ -12,8 +12,8 @@ import java.util.Queue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
-public class InMemoryResumeStore implements ResumeStore {
-  private static final Logger logger = LoggerFactory.getLogger(InMemoryResumeStore.class);
+public class InMemoryResumableFramesStore implements ResumableFramesStore {
+  private static final Logger logger = LoggerFactory.getLogger(InMemoryResumableFramesStore.class);
 
   private final MonoProcessor<Void> disposed = MonoProcessor.create();
   private final AtomicLong position = new AtomicLong();
@@ -23,7 +23,7 @@ public class InMemoryResumeStore implements ResumeStore {
   private final String tag;
   private final int cacheLimit;
 
-  public InMemoryResumeStore(String tag, int cacheLimit) {
+  public InMemoryResumableFramesStore(String tag, int cacheLimit) {
     this.tag = tag;
     this.cacheLimit = cacheLimit;
     this.cachedFrames = cachedFramesQueue(cacheLimit);

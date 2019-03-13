@@ -6,16 +6,16 @@ import java.util.function.Supplier;
 public class ClientResumeConfiguration {
   private final Duration sessionDuration;
   private final Supplier<ResumeStrategy> resumeStrategy;
-  private final ResumeStore resumeStore;
+  private final ResumableFramesStore resumableFramesStore;
   private final Duration resumeStreamTimeout;
 
   public ClientResumeConfiguration(
       Duration sessionDuration,
       Supplier<ResumeStrategy> resumeStrategy,
-      ResumeStore resumeStore, Duration resumeStreamTimeout) {
+      ResumableFramesStore resumableFramesStore, Duration resumeStreamTimeout) {
     this.sessionDuration = sessionDuration;
     this.resumeStrategy = resumeStrategy;
-    this.resumeStore = resumeStore;
+    this.resumableFramesStore = resumableFramesStore;
     this.resumeStreamTimeout = resumeStreamTimeout;
   }
 
@@ -27,8 +27,8 @@ public class ClientResumeConfiguration {
     return resumeStrategy;
   }
 
-  public ResumeStore resumeStore() {
-    return resumeStore;
+  public ResumableFramesStore resumeStore() {
+    return resumableFramesStore;
   }
 
   public Duration resumeStreamTimeout() {

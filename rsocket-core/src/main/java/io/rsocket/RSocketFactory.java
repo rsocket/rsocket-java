@@ -105,8 +105,8 @@ public class RSocketFactory {
 
     private boolean resumeEnabled;
     private Supplier<ResumeToken> resumeTokenSupplier = ResumeToken::generate;
-    private Function<? super ResumeToken, ? extends ResumeStore> resumeStoreFactory =
-        token -> new InMemoryResumeStore("client", 32768);
+    private Function<? super ResumeToken, ? extends ResumableFramesStore> resumeStoreFactory =
+        token -> new InMemoryResumableFramesStore("client", 1024);
     private Duration resumeSessionDuration = Duration.ofMinutes(2);
     private Duration resumeStreamTimeout = Duration.ofSeconds(10);
     private Supplier<ResumeStrategy> resumeStrategySupplier =
@@ -195,7 +195,7 @@ public class RSocketFactory {
       return this;
     }
 
-    public ClientRSocketFactory resumeStore(Function<? super ResumeToken, ? extends ResumeStore> resumeStoreFactory) {
+    public ClientRSocketFactory resumeStore(Function<? super ResumeToken, ? extends ResumableFramesStore> resumeStoreFactory) {
       this.resumeStoreFactory = resumeStoreFactory;
       return this;
     }
@@ -302,7 +302,7 @@ public class RSocketFactory {
                           setupPayload.sliceMetadata(),
                           setupPayload.sliceData());
 
-                  return connection.sendOne(setupFrame).thenReturn(wrappedRSocketClient);
+                  return wrappedConnection.sendOne(setupFrame).thenReturn(wrappedRSocketClient);
                 });
       }
 
@@ -360,8 +360,8 @@ public class RSocketFactory {
     private boolean resumeSupported;
     private Duration resumeSessionDuration = Duration.ofSeconds(120);
     private Duration resumeStreamTimeout = Duration.ofSeconds(10);
-    private Function<? super ResumeToken, ? extends ResumeStore> resumeStoreFactory =
-        token -> new InMemoryResumeStore("server", 32768);
+    private Function<? super ResumeToken, ? extends ResumableFramesStore> resumeStoreFactory =
+        token -> new InMemoryResumableFramesStore("server", 1024);
 
     private ByteBufAllocator allocator = ByteBufAllocator.DEFAULT;
 
@@ -413,7 +413,7 @@ public class RSocketFactory {
       return this;
     }
 
-    public ServerRSocketFactory resumeStore(Function<? super ResumeToken, ? extends ResumeStore> resumeStoreFactory) {
+    public ServerRSocketFactory resumeStore(Function<? super ResumeToken, ? extends ResumableFramesStore> resumeStoreFactory) {
       this.resumeStoreFactory = resumeStoreFactory;
       return this;
     }

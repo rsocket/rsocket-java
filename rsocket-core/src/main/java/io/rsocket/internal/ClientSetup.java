@@ -39,7 +39,7 @@ public interface ClientSetup {
             ByteBufAllocator allocator,
             Mono<KeepAliveConnection> newConnection,
             ResumeToken resumeToken,
-            ResumeStore resumeStore,
+            ResumableFramesStore resumableFramesStore,
             Duration resumeSessionDuration,
             Duration resumeStreamTimeout,
             Supplier<ResumeStrategy> resumeStrategySupplier) {
@@ -50,7 +50,7 @@ public interface ClientSetup {
           new ClientResumeConfiguration(
               resumeSessionDuration,
               resumeStrategySupplier,
-              resumeStore,
+              resumableFramesStore,
               resumeStreamTimeout);
     }
 

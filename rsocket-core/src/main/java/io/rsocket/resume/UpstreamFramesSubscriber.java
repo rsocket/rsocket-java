@@ -1,6 +1,7 @@
 package io.rsocket.resume;
 
 import io.netty.buffer.ByteBuf;
+import io.rsocket.internal.UnboundedProcessor;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 import org.slf4j.Logger;
@@ -17,13 +18,14 @@ import java.util.function.Consumer;
 class UpstreamFramesSubscriber implements Subscriber<ByteBuf>, Disposable {
   private static final Logger logger = LoggerFactory.getLogger(UpstreamFramesSubscriber.class);
 
+  private final UnboundedProcessor<Object> actions = new UnboundedProcessor<>();
   private final AtomicBoolean disposed = new AtomicBoolean();
   private final Consumer<ByteBuf> itemConsumer;
   private final Disposable downstreamRequestDisposable;
   private final Disposable resumeSaveStreamDisposable;
 
-  private Subscription subs;
-  private boolean resumeStarted;
+  private volatile Subscription subs;
+  private volatile boolean resumeStarted;
   private final Queue<ByteBuf> framesCache;
   private long request;
   private long downStreamRequestN;
@@ -38,17 +40,16 @@ class UpstreamFramesSubscriber implements Subscriber<ByteBuf>, Disposable {
 
     downstreamRequestDisposable =
         downstreamRequests
-            .subscribe(requestN -> {
-              downStreamRequestN = Operators.addCap(downStreamRequestN, requestN);
-              requestN();
-            });
+            .subscribe(requestN -> requestN(0, requestN));
 
     resumeSaveStreamDisposable =
         resumeSaveStreamRequests
-            .subscribe(requestN -> {
-              resumeSaveStreamRequestN = Operators.addCap(resumeSaveStreamRequestN, requestN);
-              requestN();
-            });
+            .subscribe(requestN -> requestN(requestN, 0));
+
+    Flux<Object> acts = actions.publish().autoConnect(3);
+    acts.ofType(ByteBuf.class).subscribe(this::processFrame);
+    acts.ofType(ResumeStart.class).subscribe(ResumeStart::run);
+    acts.ofType(ResumeComplete.class).subscribe(ResumeComplete::run);
   }
 
   @Override
@@ -61,33 +62,9 @@ class UpstreamFramesSubscriber implements Subscriber<ByteBuf>, Disposable {
     }
   }
 
-  private void requestN() {
-    long requests = Math.min(downStreamRequestN, resumeSaveStreamRequestN);
-    if (requests > 0) {
-      downStreamRequestN -= requests;
-      resumeSaveStreamRequestN -= requests;
-      logger.info("Upstream subscriber requestN: {}", requests);
-      request = Operators.addCap(request, requests);
-      doRequest();
-    }
-  }
-
-  private void doRequest() {
-    if (subs != null && !resumeStarted) {
-      if (request > 0) {
-        subs.request(request);
-        request = 0;
-      }
-    }
-  }
-
   @Override
   public void onNext(ByteBuf item) {
-    if (resumeStarted) {
-      framesCache.offer(item);
-    } else {
-      itemConsumer.accept(item);
-    }
+    actions.onNext(item);
   }
 
   @Override
@@ -101,17 +78,11 @@ class UpstreamFramesSubscriber implements Subscriber<ByteBuf>, Disposable {
   }
 
   public void resumeStart() {
-    resumeStarted = true;
+    actions.onNext(new ResumeStart());
   }
 
   public void resumeComplete() {
-    resumeStarted = false;
-    ByteBuf frame = framesCache.poll();
-    while (frame != null) {
-      itemConsumer.accept(frame);
-      frame = framesCache.poll();
-    }
-    doRequest();
+    actions.onNext(new ResumeComplete());
   }
 
   @Override
@@ -131,10 +102,76 @@ class UpstreamFramesSubscriber implements Subscriber<ByteBuf>, Disposable {
     return disposed.get();
   }
 
+  private void requestN(long resumeStreamRequest, long downStreamRequest) {
+    synchronized (this) {
+      downStreamRequestN = Operators.addCap(downStreamRequestN, downStreamRequest);
+      resumeSaveStreamRequestN = Operators.addCap(resumeSaveStreamRequestN, resumeStreamRequest);
+
+      long requests = Math.min(downStreamRequestN, resumeSaveStreamRequestN);
+      if (requests > 0) {
+        downStreamRequestN -= requests;
+        resumeSaveStreamRequestN -= requests;
+        logger.info("Upstream subscriber requestN: {}", requests);
+        request = Operators.addCap(request, requests);
+      }
+    }
+    doRequest();
+  }
+
+  private void doRequest() {
+    if (subs != null && !resumeStarted) {
+      synchronized (this) {
+        long r = request;
+        if (r > 0) {
+          subs.request(r);
+          request = 0;
+        }
+      }
+    }
+  }
+
   private void releaseCache() {
     ByteBuf frame = framesCache.poll();
     while (frame != null && frame.refCnt() > 0) {
       frame.release(frame.refCnt());
+    }
+  }
+
+  private void doResumeStart() {
+    resumeStarted = true;
+  }
+
+  private void doResumeComplete() {
+    ByteBuf frame = framesCache.poll();
+    while (frame != null) {
+      itemConsumer.accept(frame);
+      frame = framesCache.poll();
+    }
+    resumeStarted = false;
+    doRequest();
+  }
+
+  private void processFrame(ByteBuf item) {
+    if (resumeStarted) {
+      framesCache.offer(item);
+    } else {
+      itemConsumer.accept(item);
+    }
+  }
+
+  private class ResumeStart implements Runnable {
+
+    @Override
+    public void run() {
+      doResumeStart();
+    }
+  }
+
+  private class ResumeComplete implements Runnable {
+
+    @Override
+    public void run() {
+      doResumeComplete();
     }
   }
 }

@@ -22,7 +22,7 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
 
   private final String tag;
   private final ResumedFramesCalculator resumedFramesCalculator;
-  private final ResumeStore resumeStore;
+  private final ResumableFramesStore resumableFramesStore;
   private final Duration resumeStreamTimeout;
 
   private final ReplayProcessor<DuplexConnection> connections = ReplayProcessor.create(1);
@@ -54,14 +54,14 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
       String tag,
       ResumeAwareConnection duplexConnection,
       ResumedFramesCalculator resumedFramesCalculator,
-      ResumeStore resumeStore,
+      ResumableFramesStore resumableFramesStore,
       Duration resumeStreamTimeout) {
     this.tag = tag;
     this.resumedFramesCalculator = resumedFramesCalculator;
-    this.resumeStore = resumeStore;
+    this.resumableFramesStore = resumableFramesStore;
     this.resumeStreamTimeout = resumeStreamTimeout;
 
-    resumeStore.saveFrames(
+    resumableFramesStore.saveFrames(
         resumeSaveStreamRequestListener.apply(resumeSaveFrames))
         .subscribe(resumeSaveCompleted);
 
@@ -79,15 +79,14 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
                                   "{} Transport send completed: {}, {}", tag, s, c.toString()))
                       .onErrorResume(err -> Mono.never());
                 })
-            .doOnError(err -> upstreamSubscriber.dispose())
-            .onErrorResume(err -> Mono.empty())
             .then()
             .cache();
 
-    Flux<Object> acts = actions.publish().autoConnect(3);
+    Flux<Object> acts = actions.publish().autoConnect(4);
     acts.ofType(ByteBuf.class).subscribe(this::sendFrame);
+    acts.ofType(ResumeStart.class).subscribe(ResumeStart::run);
     acts.ofType(Resume.class).subscribe(Resume::run);
-    acts.ofType(ConnectionDisposed.class).subscribe(ConnectionDisposed::run);
+    acts.ofType(ResumeComplete.class).subscribe(ResumeComplete::run);
 
     reconnect(duplexConnection);
   }
@@ -98,19 +97,20 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
     if (curConnection == null) {
       logger.info("{} Resumable duplex connection started with connection: {}", tag, connection);
       state = State.CONNECTED;
+      onNewConnection(connection);
     } else {
       logger.info("{} Resumable duplex connection reconnected with connection: {}", tag, connection);
-      doResumeStart();
+      /*race between sendFrame and doResumeStart may lead to ongoing upstream frames
+        written before resume complete*/
+      actions.onNext(new ResumeStart(connection));
     }
-    curConnection = connection;
-    connection.onClose().doFinally(v -> disconnect(connection)).subscribe();
-    connections.onNext(connection);
   }
 
   /*after receiving RESUME (Server) or RESUME_OK (Client)
   calculate and send resume frames */
   public void resume(
       ResumptionState peerResumptionState, Function<Mono<Long>, Mono<Void>> resumeFrameSent) {
+    /*race between sendFrame and doResume may lead to duplicate frames on resume store*/
     actions.onNext(new Resume(peerResumptionState, resumeFrameSent));
   }
 
@@ -136,7 +136,7 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
                 .doOnNext(
                     f -> {
                       if (isResumableFrame(f)) {
-                        resumeStore.resumableFrameReceived();
+                        resumableFramesStore.resumableFrameReceived();
                       }
                     })
                 .onErrorResume(err -> Mono.never()));
@@ -144,7 +144,7 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
 
   @Override
   public long impliedPosition() {
-    return resumeStore.frameImpliedPosition();
+    return resumableFramesStore.frameImpliedPosition();
   }
 
   @Override
@@ -159,7 +159,15 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
   public void dispose() {
     if (disposed.compareAndSet(false, true)) {
       logger.info("Resumable connection disposed: {}, {}", tag, this);
-      actions.onNext(new ConnectionDisposed());
+      upstreams.onComplete();
+      connections.onComplete();
+      connectionErrors.onComplete();
+      resumeSaveFrames.onComplete();
+      curConnection.dispose();
+      upstreamSubscriber.dispose();
+      impliedPosDisposable.dispose();
+      resumedStreamDisposable.dispose();
+      resumableFramesStore.dispose();
     }
   }
 
@@ -171,18 +179,6 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
   @Override
   public boolean isDisposed() {
     return disposed.get();
-  }
-
-  private void terminate() {
-    upstreams.onComplete();
-    connections.onComplete();
-    connectionErrors.onComplete();
-    resumeSaveFrames.onComplete();
-    curConnection.dispose();
-
-    impliedPosDisposable.dispose();
-    resumedStreamDisposable.dispose();
-    resumeStore.dispose();
   }
 
   private void acceptRemoteResumePositions() {
@@ -207,18 +203,19 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
 
   ResumptionState state() {
     return new ResumptionState(
-        resumeStore.framePosition(),
-        resumeStore.frameImpliedPosition());
+        resumableFramesStore.framePosition(),
+        resumableFramesStore.frameImpliedPosition());
   }
 
   Flux<Throwable> connectionErrors() {
     return connectionErrors;
   }
 
-  private void doResumeStart() {
+  private void doResumeStart(ResumeAwareConnection connection) {
     state = State.RESUME_STARTED;
     resumedStreamDisposable.dispose();
     upstreamSubscriber.resumeStart();
+    onNewConnection(connection);
   }
 
   private void doResume(
@@ -240,8 +237,8 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
 
     sendResumeFrame
         .apply(localImpliedPos)
-        .then(streamResumedFrames(resumeStore.resumeStream().timeout(resumeStreamTimeout)
-            .doFinally(s -> doResumeComplete()))
+        .then(streamResumedFrames(resumableFramesStore.resumeStream().timeout(resumeStreamTimeout)
+            .doFinally(s -> actions.onNext(new ResumeComplete())))
                 .doOnError(err -> dispose())
         )
         .onErrorResume(err -> Mono.empty())
@@ -268,6 +265,12 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
     });
   }
 
+  private void onNewConnection(ResumeAwareConnection connection) {
+    curConnection = connection;
+    connection.onClose().doFinally(v -> disconnect(connection)).subscribe();
+    connections.onNext(connection);
+  }
+
   private void disconnect(DuplexConnection connection) {
     /*do not report late disconnects on old connection if new one is available*/
     if (curConnection == connection && state.isActive()) {
@@ -284,7 +287,7 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
   /*remove frames confirmed by implied pos,
   set current pos accordingly*/
   private void releaseFramesToPosition(Long remoteImpliedPos) {
-    resumeStore.releaseFrames(remoteImpliedPos);
+    resumableFramesStore.releaseFrames(remoteImpliedPos);
   }
 
   static boolean isResumableFrame(ByteBuf frame) {
@@ -322,6 +325,19 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
     }
   }
 
+  class ResumeStart implements Runnable {
+    private ResumeAwareConnection connection;
+
+    public ResumeStart(ResumeAwareConnection connection) {
+      this.connection = connection;
+    }
+
+    @Override
+    public void run() {
+      doResumeStart(connection);
+    }
+  }
+
   class Resume implements Runnable {
     private final ResumptionState peerResumptionState;
     private final Function<Mono<Long>, Mono<Void>> resumeFrameSent;
@@ -338,11 +354,11 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
     }
   }
 
-  class ConnectionDisposed implements Runnable {
+  private class ResumeComplete implements Runnable {
 
     @Override
     public void run() {
-      terminate();
+      doResumeComplete();
     }
   }
 }

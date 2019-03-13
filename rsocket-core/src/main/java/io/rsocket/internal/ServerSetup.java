@@ -100,7 +100,7 @@ public interface ServerSetup {
         SessionManager sessionManager,
         Duration resumeSessionDuration,
         Duration resumeStreamTimeout,
-        Function<? super ResumeToken, ? extends ResumeStore> resumeStoreFactory) {
+        Function<? super ResumeToken, ? extends ResumableFramesStore> resumeStoreFactory) {
       this.allocator = allocator;
       this.sessionManager = sessionManager;
       this.resumeConfig = new ServerResumeConfiguration(

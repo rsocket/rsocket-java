@@ -60,17 +60,17 @@ public class ResumeIntegrationTest {
     int sessionDurationSeconds = 15;
     RSocket rSocket = newClientRSocket(clientTransport, sessionDurationSeconds).block();
 
-    Flux.just(3, 11, 18, 40)
+    Flux.just(3, 20, 40, 75)
         .flatMap(v -> Mono.delay(Duration.ofSeconds(v)))
-        .subscribe(v -> clientTransport.disconnectFor(Duration.ofSeconds(1)));
+        .subscribe(v -> clientTransport.disconnectFor(Duration.ofSeconds(7)));
 
     AtomicInteger counter = new AtomicInteger(-1);
     StepVerifier.create(
         rSocket
             .requestChannel(testRequest())
-            .take(Duration.ofSeconds(60))
+            .take(Duration.ofSeconds(120))
             .map(Payload::getDataUtf8)
-            .timeout(Duration.ofSeconds(5))
+            .timeout(Duration.ofSeconds(12))
             .doOnNext(x -> throwOnNonContinuous(counter, x))
             .then()
             .doFinally(s -> closeable.dispose()))
