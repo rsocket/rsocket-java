@@ -37,6 +37,7 @@ public class InMemoryResumableFramesStore implements ResumableFramesStore {
   private final Queue<ByteBuf> cachedFrames;
   private final String tag;
   private final int cacheLimit;
+  private final AtomicInteger upstreamFrameRefCnt = new AtomicInteger();
 
   public InMemoryResumableFramesStore(String tag, int cacheLimit) {
     this.tag = tag;
@@ -53,6 +54,7 @@ public class InMemoryResumableFramesStore implements ResumableFramesStore {
               .subscribe(
                   frame -> {
                     cachedFramesSize.incrementAndGet();
+                    upstreamFrameRefCnt.compareAndSet(0, frame.refCnt());
                     cachedFrames.offer(frame.retain());
                     if (cachedFramesSize.get() == cacheLimit) {
                       releaseFrame();
@@ -88,11 +90,17 @@ public class InMemoryResumableFramesStore implements ResumableFramesStore {
     return Flux.create(
         s -> {
           int size = cachedFramesSize.get();
+          int refCnt = upstreamFrameRefCnt.get();
           logger.debug("{} Resuming stream size: {}", tag, size);
           /*spsc queue has no iterator - iterating by consuming*/
           for (int i = 0; i < size; i++) {
             ByteBuf frame = cachedFrames.poll();
-            cachedFrames.offer(frame.retain());
+            /*in the event of connection termination some frames
+             * are not released on DuplexConnection*/
+            if (frame.refCnt() == refCnt) {
+              frame.retain();
+            }
+            cachedFrames.offer(frame);
             s.next(frame);
           }
           s.complete();

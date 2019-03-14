@@ -146,7 +146,7 @@ class UpstreamFramesSubscriber implements Subscriber<ByteBuf>, Disposable {
   private void releaseCache() {
     ByteBuf frame = framesCache.poll();
     while (frame != null && frame.refCnt() > 0) {
-      frame.release(frame.refCnt());
+      frame.release();
     }
   }
 
