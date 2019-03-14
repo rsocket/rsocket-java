@@ -21,7 +21,6 @@ import io.netty.buffer.ByteBufAllocator;
 import io.netty.util.ReferenceCountUtil;
 import io.netty.util.collection.IntObjectHashMap;
 import io.rsocket.exceptions.ApplicationErrorException;
-import io.rsocket.exceptions.ConnectionErrorException;
 import io.rsocket.frame.*;
 import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.internal.LimitableRequestPublisher;
@@ -55,17 +54,6 @@ class RSocketServer implements ResponderRSocket {
 
   private final UnboundedProcessor<ByteBuf> sendProcessor;
   private final ByteBufAllocator allocator;
-  private KeepAliveHandler keepAliveHandler;
-
-  /*client responder*/
-  RSocketServer(
-      ByteBufAllocator allocator,
-      DuplexConnection connection,
-      RSocket requestHandler,
-      PayloadDecoder payloadDecoder,
-      Consumer<Throwable> errorConsumer) {
-    this(allocator, connection, requestHandler, payloadDecoder, errorConsumer, 0, 0);
-  }
 
   /*server responder*/
   RSocketServer(
@@ -73,9 +61,7 @@ class RSocketServer implements ResponderRSocket {
       DuplexConnection connection,
       RSocket requestHandler,
       PayloadDecoder payloadDecoder,
-      Consumer<Throwable> errorConsumer,
-      long tickPeriod,
-      long ackTimeout) {
+      Consumer<Throwable> errorConsumer) {
     this.allocator = allocator;
     this.connection = connection;
 
@@ -114,24 +100,6 @@ class RSocketServer implements ResponderRSocket {
               receiveDisposable.dispose();
             })
         .subscribe(null, errorConsumer);
-
-    if (tickPeriod != 0) {
-      keepAliveHandler =
-          KeepAliveHandler.ofServer(new KeepAliveHandler.KeepAlive(tickPeriod, ackTimeout));
-
-      keepAliveHandler
-          .timeout()
-          .subscribe(
-              keepAlive -> {
-                String message =
-                    String.format("No keep-alive acks for %d ms", keepAlive.getTimeoutMillis());
-                errorConsumer.accept(new ConnectionErrorException(message));
-                connection.dispose();
-              });
-      keepAliveHandler.send().subscribe(sendProcessor::onNext);
-    } else {
-      keepAliveHandler = null;
-    }
   }
 
   private void handleSendProcessorError(Throwable t) {
@@ -278,9 +246,6 @@ class RSocketServer implements ResponderRSocket {
   }
 
   private void cleanup() {
-    if (keepAliveHandler != null) {
-      keepAliveHandler.dispose();
-    }
     cleanUpSendingSubscriptions();
     cleanUpChannelProcessors();
 
@@ -317,7 +282,8 @@ class RSocketServer implements ResponderRSocket {
           handleCancelFrame(streamId);
           break;
         case KEEPALIVE:
-          handleKeepAliveFrame(frame);
+          // KeepAlive is handled by corresponding connection interceptor,
+          // just release its frame here
           break;
         case REQUEST_N:
           handleRequestN(streamId, frame);
@@ -471,12 +437,6 @@ class RSocketServer implements ResponderRSocket {
       handleStream(streamId, requestChannel(payload, payloads), initialRequestN);
     } else {
       handleStream(streamId, requestChannel(payloads), initialRequestN);
-    }
-  }
-
-  private void handleKeepAliveFrame(ByteBuf frame) {
-    if (keepAliveHandler != null) {
-      keepAliveHandler.receive(frame);
     }
   }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2015-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,18 +14,19 @@
  * limitations under the License.
  */
 
-package io.rsocket.plugins;
+package io.rsocket.resume;
 
-import io.rsocket.DuplexConnection;
-import java.util.function.BiFunction;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.ReplayProcessor;
 
-/** */
-public @FunctionalInterface interface DuplexConnectionInterceptor
-    extends BiFunction<DuplexConnectionInterceptor.Type, DuplexConnection, DuplexConnection> {
-  enum Type {
-    SETUP,
-    CLIENT,
-    SERVER,
-    SOURCE
+class RequestListener {
+  private final ReplayProcessor<Long> requests = ReplayProcessor.create(1);
+
+  public <T> Flux<T> apply(Flux<T> flux) {
+    return flux.doOnRequest(requests::onNext);
+  }
+
+  public Flux<Long> requests() {
+    return requests;
   }
 }

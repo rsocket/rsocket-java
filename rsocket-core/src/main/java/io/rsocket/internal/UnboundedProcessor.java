@@ -16,7 +16,7 @@
 
 package io.rsocket.internal;
 
-import io.netty.util.ReferenceCountUtil;
+import io.netty.util.ReferenceCounted;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
@@ -192,7 +192,7 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
       while (!q.isEmpty()) {
         T t = q.poll();
         if (t != null) {
-          ReferenceCountUtil.safeRelease(t);
+          release(t);
         }
       }
       actual = null;
@@ -240,7 +240,7 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
   public void onNext(T t) {
     if (done || cancelled) {
       Operators.onNextDropped(t, currentContext());
-      ReferenceCountUtil.safeRelease(t);
+      release(t);
       return;
     }
 
@@ -248,7 +248,7 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
       Throwable ex =
           Operators.onOperatorError(null, Exceptions.failWithOverflow(), t, currentContext());
       onError(Operators.onOperatorError(null, ex, t, currentContext()));
-      ReferenceCountUtil.safeRelease(t);
+      release(t);
       return;
     }
     drain();
@@ -344,7 +344,7 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
     while (!queue.isEmpty()) {
       T t = queue.poll();
       if (t != null) {
-        ReferenceCountUtil.safeRelease(t);
+        release(t);
       }
     }
   }
@@ -387,5 +387,14 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
   @Override
   public boolean hasDownstreams() {
     return actual != null;
+  }
+
+  void release(T t) {
+    if (t instanceof ReferenceCounted) {
+      ReferenceCounted refCounted = (ReferenceCounted) t;
+      if (refCounted.refCnt() > 0) {
+        refCounted.release();
+      }
+    }
   }
 }

@@ -99,7 +99,6 @@ public final class TestFrames {
     return SetupFrameFlyweight.encode(
         allocator,
         false,
-        false,
         1,
         1,
         Unpooled.EMPTY_BUFFER,

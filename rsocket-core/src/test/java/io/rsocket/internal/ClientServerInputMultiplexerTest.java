@@ -54,7 +54,7 @@ public class ClientServerInputMultiplexerTest {
         .doOnNext(f -> serverFrames.incrementAndGet())
         .subscribe();
     multiplexer
-        .asStreamZeroConnection()
+        .asSetupConnection()
         .receive()
         .doOnNext(f -> connectionFrames.incrementAndGet())
         .subscribe();

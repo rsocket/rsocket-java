@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2015-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,18 +14,24 @@
  * limitations under the License.
  */
 
-package io.rsocket.plugins;
+package io.rsocket.resume;
 
-import io.rsocket.DuplexConnection;
-import java.util.function.BiFunction;
+import java.time.Duration;
 
-/** */
-public @FunctionalInterface interface DuplexConnectionInterceptor
-    extends BiFunction<DuplexConnectionInterceptor.Type, DuplexConnection, DuplexConnection> {
-  enum Type {
-    SETUP,
-    CLIENT,
-    SERVER,
-    SOURCE
+class ClientResume {
+  private final Duration sessionDuration;
+  private final ResumeToken resumeToken;
+
+  public ClientResume(Duration sessionDuration, ResumeToken resumeToken) {
+    this.sessionDuration = sessionDuration;
+    this.resumeToken = resumeToken;
+  }
+
+  public Duration sessionDuration() {
+    return sessionDuration;
+  }
+
+  public ResumeToken resumeToken() {
+    return resumeToken;
   }
 }

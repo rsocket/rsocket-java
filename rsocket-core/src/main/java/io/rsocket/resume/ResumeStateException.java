@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2015-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,20 +16,21 @@
 
 package io.rsocket.resume;
 
-import io.netty.buffer.ByteBuf;
+class ResumeStateException extends RuntimeException {
+  private static final long serialVersionUID = -5393753463377588732L;
+  private final ResumptionState local;
+  private final ResumptionState remote;
 
-/**
- * Calculates the cost of a Frame when stored in the ResumeCache. Two obvious and provided
- * strategies are simple frame counts and size in bytes.
- */
-public interface ResumePositionCounter {
-  int cost(ByteBuf f);
-
-  static ResumePositionCounter size() {
-    return ResumeUtil::offset;
+  public ResumeStateException(ResumptionState local, ResumptionState remote) {
+    this.local = local;
+    this.remote = remote;
   }
 
-  static ResumePositionCounter frames() {
-    return f -> 1;
+  public ResumptionState localState() {
+    return local;
+  }
+
+  public ResumptionState remoteState() {
+    return remote;
   }
 }

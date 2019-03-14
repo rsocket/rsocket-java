@@ -6,6 +6,7 @@ import io.netty.channel.ChannelPromise;
 import io.netty.channel.EventLoop;
 import io.netty.util.ReferenceCountUtil;
 import io.netty.util.ReferenceCounted;
+import java.nio.channels.ClosedChannelException;
 import java.util.Queue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
@@ -18,6 +19,7 @@ import reactor.core.CoreSubscriber;
 import reactor.core.Fuseable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Operators;
+import reactor.netty.FutureMono;
 import reactor.util.concurrent.Queues;
 
 class SendPublisher<V extends ReferenceCounted> extends Flux<ByteBuf> {
@@ -141,6 +143,9 @@ class SendPublisher<V extends ReferenceCounted> extends Flux<ByteBuf> {
 
     private InnerSubscriber(CoreSubscriber<? super ByteBuf> destination) {
       this.destination = destination;
+      FutureMono.from(channel.closeFuture())
+          .doFinally(s -> onError(new ClosedChannelException()))
+          .subscribe();
     }
 
     @Override
@@ -167,8 +172,10 @@ class SendPublisher<V extends ReferenceCounted> extends Flux<ByteBuf> {
           s.cancel();
           destination.onError(t);
         } finally {
-          if (!queue.isEmpty()) {
-            queue.forEach(ReferenceCountUtil::safeRelease);
+          ByteBuf byteBuf = queue.poll();
+          while (byteBuf != null) {
+            ReferenceCountUtil.safeRelease(byteBuf);
+            byteBuf = queue.poll();
           }
         }
       }
