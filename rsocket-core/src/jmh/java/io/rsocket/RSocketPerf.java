@@ -22,7 +22,7 @@ import reactor.core.publisher.Mono;
 
 @BenchmarkMode(Mode.Throughput)
 @Fork(
-    value = 1 // , jvmArgsAppend = {"-Dio.netty.leakDetection.level=paranoid"}
+    value = 1 , jvmArgsAppend = {"-Dio.netty.leakDetection.level=advanced"}
     )
 @Warmup(iterations = 10)
 @Measurement(iterations = 10, time = 10)
@@ -38,7 +38,7 @@ public class RSocketPerf {
   Closeable server;
 
   @Setup
-  public void setUp(Blackhole blackhole) {
+  public void setUp() {
     server =
         RSocketFactory.receive()
             .acceptor(
@@ -49,8 +49,6 @@ public class RSocketPerf {
                           @Override
                           public Mono<Void> fireAndForget(Payload payload) {
                             payload.release();
-                            blackhole.consume(payload);
-
                             return Mono.empty();
                           }
 
