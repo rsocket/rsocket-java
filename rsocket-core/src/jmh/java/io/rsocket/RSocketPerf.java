@@ -22,10 +22,10 @@ import reactor.core.publisher.Mono;
 
 @BenchmarkMode(Mode.Throughput)
 @Fork(
-    value = 1 //, jvmArgsAppend = {"-Dio.netty.leakDetection.level=advanced"}
+    value = 1 // , jvmArgsAppend = {"-Dio.netty.leakDetection.level=advanced"}
     )
 @Warmup(iterations = 10)
-@Measurement(iterations = 10, time = 10)
+@Measurement(iterations = 10, time = 20)
 @State(Scope.Benchmark)
 public class RSocketPerf {
 
