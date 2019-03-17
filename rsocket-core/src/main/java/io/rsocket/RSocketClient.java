@@ -41,7 +41,6 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.SignalType;
 import reactor.core.publisher.UnicastProcessor;
-import reactor.util.concurrent.Queues;
 
 /** Client Side of a RSocket socket. Sends {@link ByteBuf}s to a {@link RSocketServer} */
 class RSocketClient implements RSocket {
@@ -226,8 +225,7 @@ class RSocketClient implements RSocket {
           int streamId = streamIdSupplier.nextStreamId();
 
           final UnboundedProcessor<ByteBuf> sendProcessor = this.sendProcessor;
-          final UnicastProcessor<Payload> receiver =
-              UnicastProcessor.create(Queues.<Payload>one().get());
+          final UnicastProcessor<Payload> receiver = UnicastProcessor.create();
 
           receivers.put(streamId, receiver);
 
@@ -277,8 +275,7 @@ class RSocketClient implements RSocket {
     return lifecycle.activeFlux(
         () -> {
           final UnboundedProcessor<ByteBuf> sendProcessor = this.sendProcessor;
-          final UnicastProcessor<Payload> receiver =
-              UnicastProcessor.create(Queues.<Payload>one().get());
+          final UnicastProcessor<Payload> receiver = UnicastProcessor.create();
           final int streamId = streamIdSupplier.nextStreamId();
 
           return receiver
