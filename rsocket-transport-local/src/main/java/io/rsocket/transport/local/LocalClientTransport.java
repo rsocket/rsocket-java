@@ -27,6 +27,7 @@ import java.util.Objects;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
 import reactor.core.publisher.UnicastProcessor;
+import reactor.util.concurrent.Queues;
 
 /**
  * An implementation of {@link ClientTransport} that connects to a {@link ServerTransport} in the
@@ -61,8 +62,10 @@ public final class LocalClientTransport implements ClientTransport {
             return Mono.error(new IllegalArgumentException("Could not find server: " + name));
           }
 
-          UnicastProcessor<ByteBuf> in = UnicastProcessor.create();
-          UnicastProcessor<ByteBuf> out = UnicastProcessor.create();
+          UnicastProcessor<ByteBuf> in =
+              UnicastProcessor.create(Queues.<ByteBuf>unboundedMultiproducer().get());
+          UnicastProcessor<ByteBuf> out =
+              UnicastProcessor.create(Queues.<ByteBuf>unboundedMultiproducer().get());
           MonoProcessor<Void> closeNotifier = MonoProcessor.create();
 
           server.accept(new LocalDuplexConnection(out, in, closeNotifier));
