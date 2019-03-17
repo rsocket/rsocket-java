@@ -124,7 +124,6 @@ final class FragmentationDuplexConnectionTest {
         .assertNext(
             byteBuf -> {
               Assert.assertEquals(data, RequestResponseFrameFlyweight.data(byteBuf));
-              //              ReferenceCountUtil.safeRelease(byteBuf);
             })
         .verifyComplete();
   }
