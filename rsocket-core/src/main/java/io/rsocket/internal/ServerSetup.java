@@ -31,12 +31,12 @@ import java.time.Duration;
 import java.util.function.Function;
 import reactor.core.publisher.Mono;
 
-public interface ServerSetup {
+public interface ServerSetup<T> {
   /*accept connection as SETUP*/
-  Mono<Void> acceptRSocketSetup(
+  Mono<T> acceptRSocketSetup(
       ByteBuf frame,
       ClientServerInputMultiplexer multiplexer,
-      Function<ClientServerInputMultiplexer, Mono<Void>> then);
+      Function<ClientServerInputMultiplexer, Mono<T>> then);
 
   /*accept connection as RESUME*/
   Mono<Void> acceptRSocketResume(ByteBuf frame, ClientServerInputMultiplexer multiplexer);
@@ -46,7 +46,7 @@ public interface ServerSetup {
 
   default void dispose() {}
 
-  class DefaultServerSetup implements ServerSetup {
+  class DefaultServerSetup<T> implements ServerSetup<T> {
     private final ByteBufAllocator allocator;
 
     public DefaultServerSetup(ByteBufAllocator allocator) {
@@ -54,10 +54,10 @@ public interface ServerSetup {
     }
 
     @Override
-    public Mono<Void> acceptRSocketSetup(
+    public Mono<T> acceptRSocketSetup(
         ByteBuf frame,
         ClientServerInputMultiplexer multiplexer,
-        Function<ClientServerInputMultiplexer, Mono<Void>> then) {
+        Function<ClientServerInputMultiplexer, Mono<T>> then) {
 
       if (!ResumeToken.fromBytes(SetupFrameFlyweight.resumeToken(frame)).isEmpty()) {
         return sendError(multiplexer, new UnsupportedSetupException("resume not supported"))
@@ -65,7 +65,7 @@ public interface ServerSetup {
                 signalType -> {
                   frame.release();
                   multiplexer.dispose();
-                });
+                }).then(Mono.empty());
       } else {
         return then.apply(multiplexer);
       }
@@ -101,7 +101,7 @@ public interface ServerSetup {
     }
   }
 
-  class ResumableServerSetup implements ServerSetup {
+  class ResumableServerSetup<T> implements ServerSetup<T> {
     private final ByteBufAllocator allocator;
     private final SessionManager sessionManager;
     private final ServerResumeConfiguration resumeConfig;
@@ -120,10 +120,10 @@ public interface ServerSetup {
     }
 
     @Override
-    public Mono<Void> acceptRSocketSetup(
+    public Mono<T> acceptRSocketSetup(
         ByteBuf frame,
         ClientServerInputMultiplexer multiplexer,
-        Function<ClientServerInputMultiplexer, Mono<Void>> then) {
+        Function<ClientServerInputMultiplexer, Mono<T>> then) {
 
       ResumeToken token = ResumeToken.fromBytes(SetupFrameFlyweight.resumeToken(frame));
       if (!token.isEmpty()) {

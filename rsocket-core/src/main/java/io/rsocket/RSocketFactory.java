@@ -39,6 +39,8 @@ import io.rsocket.util.ConnectionUtils;
 import io.rsocket.util.EmptyPayload;
 import java.time.Duration;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -436,10 +438,12 @@ public class RSocketFactory {
         return Mono.defer(
             new Supplier<Mono<T>>() {
 
-              ServerSetup serverSetup = serverSetup();
+              ServerSetup<RSocketServer> serverSetup = serverSetup();
 
               @Override
               public Mono<T> get() {
+                AtomicReference<RSocketServer> rSocketServer = new AtomicReference<>();
+
                 return transportServer
                     .get()
                     .start(
@@ -457,25 +461,31 @@ public class RSocketFactory {
                               .asSetupConnection()
                               .receive()
                               .next()
-                              .flatMap(startFrame -> accept(startFrame, multiplexer));
+                              .flatMap(startFrame -> accept(startFrame, multiplexer))
+                              .doOnNext(r -> rSocketServer.compareAndSet(null, r))
+                              .then(Mono.empty());
                         },
                         mtu)
-                    .doOnNext(c -> c.onClose().doFinally(v -> serverSetup.dispose()).subscribe());
+                    .doOnNext(c -> c.onClose().doFinally(v -> {
+                      serverSetup.dispose();
+                      Optional.ofNullable(rSocketServer.get())
+                              .ifPresent(RSocketServer::dispose);
+                    }).subscribe());
               }
 
-              private Mono<Void> accept(
+              private Mono<RSocketServer> accept(
                   ByteBuf startFrame, ClientServerInputMultiplexer multiplexer) {
                 switch (FrameHeaderFlyweight.frameType(startFrame)) {
                   case SETUP:
                     return acceptSetup(startFrame, multiplexer);
                   case RESUME:
-                    return acceptResume(startFrame, multiplexer);
+                    return acceptResume(startFrame, multiplexer).then(Mono.empty());
                   default:
-                    return acceptUnknown(startFrame, multiplexer);
+                    return acceptUnknown(startFrame, multiplexer).then(Mono.empty());
                 }
               }
 
-              private Mono<Void> acceptSetup(
+              private Mono<RSocketServer> acceptSetup(
                   ByteBuf setupFrame, ClientServerInputMultiplexer multiplexer) {
 
                 if (!SetupFrameFlyweight.isSupportedVersion(setupFrame)) {
@@ -488,7 +498,8 @@ public class RSocketFactory {
                           signalType -> {
                             setupFrame.release();
                             multiplexer.dispose();
-                          });
+                          })
+                          .then(Mono.empty());
                 }
                 return serverSetup.acceptRSocketSetup(
                     setupFrame,
@@ -513,21 +524,14 @@ public class RSocketFactory {
                               err ->
                                   sendError(multiplexer, rejectedSetupError(err))
                                       .then(Mono.error(err)))
-                          .doOnNext(
-                              unwrappedServerSocket -> {
-                                RSocket wrappedRSocketServer =
-                                    plugins.applyServer(unwrappedServerSocket);
-
-                                RSocketServer rSocketServer =
-                                    new RSocketServer(
-                                        allocator,
-                                        wrappedMultiplexer.asClientConnection(),
-                                        wrappedRSocketServer,
-                                        payloadDecoder,
-                                        errorConsumer);
-                              })
-                          .doFinally(signalType -> setupPayload.release())
-                          .then();
+                          .map(unwrappedServerSocket -> plugins.applyServer(unwrappedServerSocket))
+                          .map(wrappedRSocketServer -> new RSocketServer(
+                                  allocator,
+                                  wrappedMultiplexer.asClientConnection(),
+                                  wrappedRSocketServer,
+                                  payloadDecoder,
+                                  errorConsumer))
+                          .doFinally(signalType -> setupPayload.release());
                     });
               }
 
@@ -538,15 +542,15 @@ public class RSocketFactory {
             });
       }
 
-      private ServerSetup serverSetup() {
+      private ServerSetup<RSocketServer> serverSetup() {
         return resumeSupported
-            ? new ServerSetup.ResumableServerSetup(
+            ? new ServerSetup.ResumableServerSetup<>(
                 allocator,
                 new SessionManager(),
                 resumeSessionDuration,
                 resumeStreamTimeout,
                 resumeStoreFactory)
-            : new ServerSetup.DefaultServerSetup(allocator);
+            : new ServerSetup.DefaultServerSetup<>(allocator);
       }
 
       private Mono<Void> acceptUnknown(ByteBuf frame, ClientServerInputMultiplexer multiplexer) {
@@ -572,3 +576,4 @@ public class RSocketFactory {
     }
   }
 }
+
