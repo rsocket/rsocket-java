@@ -69,6 +69,9 @@ public class RSocketFactory {
   }
 
   public interface ServerTransportAcceptor {
+
+    ServerTransport.ConnectionAcceptor toConnectionAcceptor();
+
     <T extends Closeable> Start<T> transport(Supplier<ServerTransport<T>> transport);
 
     default <T extends Closeable> Start<T> transport(ServerTransport<T> transport) {
@@ -279,7 +282,7 @@ public class RSocketFactory {
 
     public ServerTransportAcceptor acceptor(SocketAcceptor acceptor) {
       this.acceptor = acceptor;
-      return ServerStart::new;
+      return new ServerStart<>();
     }
 
     public ServerRSocketFactory frameDecoder(Function<Frame, ? extends Payload> frameDecoder) {
@@ -297,32 +300,41 @@ public class RSocketFactory {
       return this;
     }
 
-    private class ServerStart<T extends Closeable> implements Start<T> {
-      private final Supplier<ServerTransport<T>> transportServer;
-
-      ServerStart(Supplier<ServerTransport<T>> transportServer) {
-        this.transportServer = transportServer;
-      }
+    private class ServerStart<T extends Closeable> implements Start<T>, ServerTransportAcceptor {
+      private Supplier<ServerTransport<T>> transportServer;
 
       @Override
       public Mono<T> start() {
         return transportServer
             .get()
-            .start(
-                connection -> {
-                  if (mtu > 0) {
-                    connection = new FragmentationDuplexConnection(connection, mtu);
-                  }
+            .start(this::acceptor);
+      }
 
-                  ClientServerInputMultiplexer multiplexer =
-                      new ClientServerInputMultiplexer(connection, plugins);
+      @Override
+      public ServerTransport.ConnectionAcceptor toConnectionAcceptor() {
+        return this::acceptor;
+      }
 
-                  return multiplexer
-                      .asStreamZeroConnection()
-                      .receive()
-                      .next()
-                      .flatMap(setupFrame -> processSetupFrame(multiplexer, setupFrame));
-                });
+      @Override
+      @SuppressWarnings("unchecked")
+      public <T extends Closeable> Start<T> transport(Supplier<ServerTransport<T>> transport) {
+        this.transportServer = (Supplier) transport;
+        return (Start<T>) this;
+      }
+
+      private Mono<Void> acceptor(DuplexConnection connection) {
+        if (mtu > 0) {
+          connection = new FragmentationDuplexConnection(connection, mtu);
+        }
+
+        ClientServerInputMultiplexer multiplexer =
+            new ClientServerInputMultiplexer(connection, plugins);
+
+        return multiplexer
+            .asStreamZeroConnection()
+            .receive()
+            .next()
+            .flatMap(setupFrame -> processSetupFrame(multiplexer, setupFrame));
       }
 
       private Mono<Void> processSetupFrame(

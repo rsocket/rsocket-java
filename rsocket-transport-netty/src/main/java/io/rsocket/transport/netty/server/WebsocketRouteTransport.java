@@ -78,7 +78,7 @@ public final class WebsocketRouteTransport implements ServerTransport<Closeable>
    * @return a new Websocket handler
    * @throws NullPointerException if {@code acceptor} is {@code null}
    */
-  static BiFunction<WebsocketInbound, WebsocketOutbound, Publisher<Void>> newHandler(
+  public static BiFunction<WebsocketInbound, WebsocketOutbound, Publisher<Void>> newHandler(
       ConnectionAcceptor acceptor) {
 
     Objects.requireNonNull(acceptor, "acceptor must not be null");
