@@ -40,6 +40,7 @@ import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.ReplayProcessor;
+import reactor.core.scheduler.Schedulers;
 import reactor.test.StepVerifier;
 
 @SlowTest
@@ -83,7 +84,7 @@ public class ResumeIntegrationTest {
     StepVerifier.create(
             rSocket
                 .requestChannel(testRequest())
-                .take(Duration.ofSeconds(120))
+                .take(Duration.ofSeconds(600))
                 .map(Payload::getDataUtf8)
                 .timeout(Duration.ofSeconds(12))
                 .doOnNext(x -> throwOnNonContinuous(counter, x))
@@ -210,7 +211,8 @@ public class ResumeIntegrationTest {
     return RSocketFactory.connect()
         .resume()
         .resumeSessionDuration(Duration.ofSeconds(sessionDurationSeconds))
-        .keepAliveTickPeriod(Duration.ofSeconds(1))
+        .keepAliveTickPeriod(Duration.ofSeconds(30))
+        .keepAliveAckTimeout(Duration.ofMinutes(5))
         .errorConsumer(errConsumer)
         .resumeStrategy(() -> new PeriodicResumeStrategy(Duration.ofSeconds(1)))
         .transport(clientTransport)
@@ -224,6 +226,7 @@ public class ResumeIntegrationTest {
   private static Mono<CloseableChannel> newServerRSocket(int sessionDurationSeconds) {
     return RSocketFactory.receive()
         .resume()
+        .resumeStore(t -> new InMemoryResumableFramesStore("server", 100_000))
         .resumeSessionDuration(Duration.ofSeconds(sessionDurationSeconds))
         .acceptor((setupPayload, rSocket) -> Mono.just(new TestResponderRSocket()))
         .transport(serverTransport(SERVER_HOST, SERVER_PORT))
@@ -236,10 +239,21 @@ public class ResumeIntegrationTest {
 
     @Override
     public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
-      return Flux.interval(Duration.ofMillis(1))
-          .onBackpressureLatest()
+      return duplicate(
+              Flux.interval(Duration.ofMillis(1))
+                  .onBackpressureLatest()
+                  .publishOn(Schedulers.elastic()),
+              20)
           .map(v -> DefaultPayload.create(String.valueOf(counter.getAndIncrement())))
           .takeUntilOther(Flux.from(payloads).then());
+    }
+
+    private <T> Flux<T> duplicate(Flux<T> f, int n) {
+      Flux<T> r = Flux.empty();
+      for (int i = 0; i < n; i++) {
+        r = r.mergeWith(f);
+      }
+      return r;
     }
   }
 }

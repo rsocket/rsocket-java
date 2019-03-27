@@ -20,7 +20,9 @@ import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.util.ByteBufPayload;
 import java.time.Duration;
+import java.util.function.BiFunction;
 import org.HdrHistogram.Recorder;
+import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -49,7 +51,18 @@ public class PingClient {
     return histogram;
   }
 
-  public Flux<Payload> startPingPong(int count, final Recorder histogram) {
+  public Flux<Payload> requestResponsePingPong(int count, final Recorder histogram) {
+    return pingPong(RSocket::requestResponse, count, histogram);
+  }
+
+  public Flux<Payload> requestStreamPingPong(int count, final Recorder histogram) {
+    return pingPong(RSocket::requestStream, count, histogram);
+  }
+
+  Flux<Payload> pingPong(
+      BiFunction<RSocket, ? super Payload, ? extends Publisher<Payload>> interaction,
+      int count,
+      final Recorder histogram) {
     return client
         .flatMapMany(
             rsocket ->
@@ -57,8 +70,7 @@ public class PingClient {
                     .flatMap(
                         i -> {
                           long start = System.nanoTime();
-                          return rsocket
-                              .requestResponse(payload.retain())
+                          return Flux.from(interaction.apply(rsocket, payload.retain()))
                               .doOnNext(Payload::release)
                               .doFinally(
                                   signalType -> {
