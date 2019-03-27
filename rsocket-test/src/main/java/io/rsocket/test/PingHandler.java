@@ -23,6 +23,7 @@ import io.rsocket.RSocket;
 import io.rsocket.SocketAcceptor;
 import io.rsocket.util.ByteBufPayload;
 import java.util.concurrent.ThreadLocalRandom;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 public class PingHandler implements SocketAcceptor {
@@ -47,6 +48,12 @@ public class PingHandler implements SocketAcceptor {
           public Mono<Payload> requestResponse(Payload payload) {
             payload.release();
             return Mono.just(pong.retain());
+          }
+
+          @Override
+          public Flux<Payload> requestStream(Payload payload) {
+            payload.release();
+            return Flux.range(0, 100).map(v -> pong.retain());
           }
         });
   }

@@ -226,7 +226,7 @@ public class ResumeIntegrationTest {
   private static Mono<CloseableChannel> newServerRSocket(int sessionDurationSeconds) {
     return RSocketFactory.receive()
         .resume()
-        .resumeStore(t -> new InMemoryResumableFramesStore("server",100_000))
+        .resumeStore(t -> new InMemoryResumableFramesStore("server", 100_000))
         .resumeSessionDuration(Duration.ofSeconds(sessionDurationSeconds))
         .acceptor((setupPayload, rSocket) -> Mono.just(new TestResponderRSocket()))
         .transport(serverTransport(SERVER_HOST, SERVER_PORT))
@@ -239,14 +239,17 @@ public class ResumeIntegrationTest {
 
     @Override
     public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
-      return duplicate(Flux.interval(Duration.ofMillis(1))
-          .onBackpressureLatest().publishOn(Schedulers.elastic()), 20)
+      return duplicate(
+              Flux.interval(Duration.ofMillis(1))
+                  .onBackpressureLatest()
+                  .publishOn(Schedulers.elastic()),
+              20)
           .map(v -> DefaultPayload.create(String.valueOf(counter.getAndIncrement())))
           .takeUntilOther(Flux.from(payloads).then());
     }
 
     private <T> Flux<T> duplicate(Flux<T> f, int n) {
-      Flux<T> r =Flux.empty();
+      Flux<T> r = Flux.empty();
       for (int i = 0; i < n; i++) {
         r = r.mergeWith(f);
       }

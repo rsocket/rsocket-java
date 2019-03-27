@@ -22,12 +22,23 @@ import io.rsocket.test.PingHandler;
 import io.rsocket.transport.netty.server.TcpServerTransport;
 
 public final class TcpPongServer {
+  private static final boolean isResume =
+      Boolean.valueOf(System.getProperty("RSOCKET_TEST_RESUME", "false"));
+  private static final int port = Integer.valueOf(System.getProperty("RSOCKET_TEST_PORT", "7878"));
 
   public static void main(String... args) {
-    RSocketFactory.receive()
+    System.out.println("Starting TCP ping-pong server");
+    System.out.println("port: " + port);
+    System.out.println("resume enabled: " + isResume);
+
+    RSocketFactory.ServerRSocketFactory serverRSocketFactory = RSocketFactory.receive();
+    if (isResume) {
+      serverRSocketFactory.resume();
+    }
+    serverRSocketFactory
         .frameDecoder(PayloadDecoder.ZERO_COPY)
         .acceptor(new PingHandler())
-        .transport(TcpServerTransport.create(7878))
+        .transport(TcpServerTransport.create(port))
         .start()
         .block()
         .onClose()
