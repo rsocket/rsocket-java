@@ -25,7 +25,8 @@ import io.rsocket.frame.SetupFrameFlyweight;
 import io.rsocket.framing.FrameType;
 
 /**
- * Exposed to server for determination of ResponderRSocket based on mime types and SETUP metadata/data
+ * Exposed to server for determination of ResponderRSocket based on mime types and SETUP
+ * metadata/data
  */
 public abstract class ConnectionSetupPayload extends AbstractReferenceCounted implements Payload {
 

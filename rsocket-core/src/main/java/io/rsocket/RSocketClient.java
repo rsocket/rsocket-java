@@ -36,6 +36,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import org.reactivestreams.Processor;
+import org.reactivestreams.Publisher;
+import org.reactivestreams.Subscriber;
+import reactor.core.publisher.*;
 
 /** Client Side of a RSocket socket. Sends {@link Frame}s to a {@link RSocketServer} */
 class RSocketClient implements RSocket {
@@ -119,13 +123,16 @@ class RSocketClient implements RSocket {
   private void handleSendProcessorError(Throwable t) {
     Throwable terminationError = lifecycle.getTerminationError();
     Throwable err = terminationError != null ? terminationError : t;
-    receivers.values().forEach(subscriber -> {
-      try {
-        subscriber.onError(err);
-      } catch (Throwable e) {
-        errorConsumer.accept(e);
-      }
-    });
+    receivers
+        .values()
+        .forEach(
+            subscriber -> {
+              try {
+                subscriber.onError(err);
+              } catch (Throwable e) {
+                errorConsumer.accept(e);
+              }
+            });
 
     senders.values().forEach(LimitableRequestPublisher::cancel);
   }
@@ -135,13 +142,16 @@ class RSocketClient implements RSocket {
       return;
     }
 
-    receivers.values().forEach(subscriber -> {
-      try {
-        subscriber.onError(new Throwable("closed connection"));
-      } catch (Throwable e) {
-        errorConsumer.accept(e);
-      }
-    });
+    receivers
+        .values()
+        .forEach(
+            subscriber -> {
+              try {
+                subscriber.onError(new Throwable("closed connection"));
+              } catch (Throwable e) {
+                errorConsumer.accept(e);
+              }
+            });
 
     senders.values().forEach(LimitableRequestPublisher::cancel);
   }
@@ -476,9 +486,9 @@ class RSocketClient implements RSocket {
           receiver.onComplete();
           break;
         case CANCEL:
-        {
-          LimitableRequestPublisher sender = senders.remove(streamId);
-          if (sender != null) {
+          {
+            LimitableRequestPublisher sender = senders.remove(streamId);
+            if (sender != null) {
             sender.cancel();
           }
           break;
@@ -487,15 +497,15 @@ class RSocketClient implements RSocket {
           receiver.onNext(frameDecoder.apply(frame));
           break;
         case REQUEST_N:
-        {
-          LimitableRequestPublisher sender = senders.get(streamId);
-          if (sender != null) {
-            int n = Frame.RequestN.requestN(frame);
-            sender.increaseRequestLimit(n);
-            sendProcessor.drain();
+          {
+            LimitableRequestPublisher sender = senders.get(streamId);
+            if (sender != null) {
+              int n = Frame.RequestN.requestN(frame);
+              sender.increaseRequestLimit(n);
+              sendProcessor.drain();
+            }
+            break;
           }
-          break;
-        }
         case COMPLETE:
           receiver.onComplete();
           receivers.remove(streamId);

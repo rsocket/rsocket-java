@@ -15,25 +15,23 @@
  */
 package io.rsocket.transport.netty;
 
+import static io.netty.buffer.Unpooled.wrappedBuffer;
+import static io.rsocket.frame.FrameHeaderFlyweight.FRAME_LENGTH_SIZE;
+
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.CompositeByteBuf;
 import io.netty.handler.codec.http.websocketx.BinaryWebSocketFrame;
 import io.rsocket.DuplexConnection;
 import io.rsocket.Frame;
 import io.rsocket.frame.FrameHeaderFlyweight;
+import io.rsocket.internal.BaseDuplexConnection;
+import java.util.Objects;
 import org.reactivestreams.Publisher;
-import reactor.core.Disposable;
 import reactor.core.Fuseable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.netty.Connection;
-import reactor.netty.FutureMono;
 import reactor.util.concurrent.Queues;
-
-import java.util.Objects;
-
-import static io.netty.buffer.Unpooled.wrappedBuffer;
-import static io.rsocket.frame.FrameHeaderFlyweight.FRAME_LENGTH_SIZE;
 
 /**
  * An implementation of {@link DuplexConnection} that connects via a Websocket.
@@ -42,10 +40,9 @@ import static io.rsocket.frame.FrameHeaderFlyweight.FRAME_LENGTH_SIZE;
  * message oriented transports so this must be specifically dropped from Frames sent and stitched
  * back on for frames received.
  */
-public final class WebsocketDuplexConnection implements DuplexConnection {
+public final class WebsocketDuplexConnection extends BaseDuplexConnection {
 
   private final Connection connection;
-  private final Disposable channelClosed;
 
   /**
    * Creates a new instance
@@ -54,37 +51,21 @@ public final class WebsocketDuplexConnection implements DuplexConnection {
    */
   public WebsocketDuplexConnection(Connection connection) {
     this.connection = Objects.requireNonNull(connection, "connection must not be null");
-    this.channelClosed =
-        FutureMono.from(connection.channel().closeFuture())
-            .doFinally(
-                s -> {
-                  if (!isDisposed()) {
-                    dispose();
-                  }
-                })
-            .subscribe();
-  }
 
-  @Override
-  public void dispose() {
-    connection.dispose();
-  }
-
-  @Override
-  public boolean isDisposed() {
-    return connection.isDisposed();
-  }
-
-  @Override
-  public Mono<Void> onClose() {
-    return connection
-        .onDispose()
-        .doFinally(
-            s -> {
-              if (!channelClosed.isDisposed()) {
-                channelClosed.dispose();
-              }
+    connection
+        .channel()
+        .closeFuture()
+        .addListener(
+            future -> {
+              if (!isDisposed()) dispose();
             });
+  }
+
+  @Override
+  protected void doOnClose() {
+    if (!connection.isDisposed()) {
+      connection.dispose();
+    }
   }
 
   @Override
