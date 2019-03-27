@@ -20,20 +20,18 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.DuplexConnection;
 import io.rsocket.frame.FrameLengthFlyweight;
+import io.rsocket.internal.BaseDuplexConnection;
 import java.util.Objects;
 import org.reactivestreams.Publisher;
-import reactor.core.Disposable;
 import reactor.core.Fuseable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.netty.Connection;
-import reactor.netty.FutureMono;
 
 /** An implementation of {@link DuplexConnection} that connects via TCP. */
-public final class TcpDuplexConnection implements DuplexConnection {
+public final class TcpDuplexConnection extends BaseDuplexConnection {
 
   private final Connection connection;
-  private final Disposable channelClosed;
   private final ByteBufAllocator allocator = ByteBufAllocator.DEFAULT;
   private final boolean encodeLength;
 
@@ -55,37 +53,21 @@ public final class TcpDuplexConnection implements DuplexConnection {
   public TcpDuplexConnection(Connection connection, boolean encodeLength) {
     this.encodeLength = encodeLength;
     this.connection = Objects.requireNonNull(connection, "connection must not be null");
-    this.channelClosed =
-        FutureMono.from(connection.channel().closeFuture())
-            .doFinally(
-                s -> {
-                  if (!isDisposed()) {
-                    dispose();
-                  }
-                })
-            .subscribe();
-  }
 
-  @Override
-  public void dispose() {
-    connection.dispose();
-  }
-
-  @Override
-  public boolean isDisposed() {
-    return connection.isDisposed();
-  }
-
-  @Override
-  public Mono<Void> onClose() {
-    return connection
-        .onDispose()
-        .doFinally(
-            s -> {
-              if (!channelClosed.isDisposed()) {
-                channelClosed.dispose();
-              }
+    connection
+        .channel()
+        .closeFuture()
+        .addListener(
+            future -> {
+              if (!isDisposed()) dispose();
             });
+  }
+
+  @Override
+  protected void doOnClose() {
+    if (!connection.isDisposed()) {
+      connection.dispose();
+    }
   }
 
   @Override
