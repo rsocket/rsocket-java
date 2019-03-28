@@ -41,6 +41,7 @@ public class ServerRSocketSession implements RSocketSession<ResumeAwareConnectio
   private final ByteBufAllocator allocator;
   private final KeepAliveData keepAliveData;
   private final ResumeToken resumeToken;
+  private String message = "";
 
   public ServerRSocketSession(
       ByteBufAllocator allocator,
@@ -86,6 +87,19 @@ public class ServerRSocketSession implements RSocketSession<ResumeAwareConnectio
             });
   }
 
+  public ServerRSocketSession fail(String message) {
+    this.message = message;
+    return this;
+  }
+
+  public String failMessage() {
+    return message;
+  }
+
+  public boolean isFailed() {
+    return !message.isEmpty();
+  }
+
   @Override
   public ServerRSocketSession continueWith(ResumeAwareConnection newConnection) {
     logger.debug("Server continued with connection: {}", newConnection);
@@ -128,6 +142,12 @@ public class ServerRSocketSession implements RSocketSession<ResumeAwareConnectio
 
   public KeepAliveData keepAliveData() {
     return keepAliveData;
+  }
+
+  @Override
+  public void dispose() {
+    newConnections.onComplete();
+    resumableConnection().dispose();
   }
 
   private Mono<Void> sendFrame(ByteBuf frame) {

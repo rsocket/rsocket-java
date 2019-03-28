@@ -21,6 +21,7 @@ import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.RSocketFactory;
 import io.rsocket.exceptions.RejectedResumeException;
+import io.rsocket.exceptions.RejectedSetupException;
 import io.rsocket.exceptions.UnsupportedSetupException;
 import io.rsocket.test.SlowTest;
 import io.rsocket.transport.ClientTransport;
@@ -31,7 +32,9 @@ import io.rsocket.transport.netty.server.TcpServerTransport;
 import io.rsocket.util.DefaultPayload;
 import java.net.InetSocketAddress;
 import java.nio.channels.ClosedChannelException;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import org.assertj.core.api.Assertions;
@@ -43,77 +46,70 @@ import reactor.core.publisher.ReplayProcessor;
 import reactor.core.scheduler.Schedulers;
 import reactor.test.StepVerifier;
 
-@SlowTest
 public class ResumeIntegrationTest {
   private static final String SERVER_HOST = "localhost";
   private static final int SERVER_PORT = 0;
 
   @Test
   void timeoutOnPermanentDisconnect() {
-    CloseableChannel closeable = newServerRSocket().block();
-
-    DisconnectableClientTransport clientTransport =
-        new DisconnectableClientTransport(clientTransport(closeable.address()));
-
     int sessionDurationSeconds = 5;
-    RSocket rSocket = newClientRSocket(clientTransport, sessionDurationSeconds).block();
+    CloseableChannel server = newResumableServer().block();
+    DisconnectableClientTransport clientTransport =
+        new DisconnectableClientTransport(clientTransport(server.address()));
+
+    RSocket client = newResumableClient(clientTransport, sessionDurationSeconds).block();
 
     Mono.delay(Duration.ofSeconds(1)).subscribe(v -> clientTransport.disconnectPermanently());
 
     StepVerifier.create(
-            rSocket.requestChannel(testRequest()).then().doFinally(s -> closeable.dispose()))
+            client.requestChannel(testRequest()).then().doFinally(s -> server.dispose()))
         .expectError(ClosedChannelException.class)
         .verify(Duration.ofSeconds(7));
   }
 
-  @Test
+  @SlowTest
   public void reconnectOnDisconnect() {
-    CloseableChannel closeable = newServerRSocket().block();
-
-    DisconnectableClientTransport clientTransport =
-        new DisconnectableClientTransport(clientTransport(closeable.address()));
-
     int sessionDurationSeconds = 15;
-    RSocket rSocket = newClientRSocket(clientTransport, sessionDurationSeconds).block();
+    CloseableChannel server = newResumableServer().block();
+    DisconnectableClientTransport clientTransport =
+        new DisconnectableClientTransport(clientTransport(server.address()));
 
+    RSocket client = newResumableClient(clientTransport, sessionDurationSeconds).block();
     Flux.just(3, 20, 40, 75)
         .flatMap(v -> Mono.delay(Duration.ofSeconds(v)))
         .subscribe(v -> clientTransport.disconnectFor(Duration.ofSeconds(7)));
 
     AtomicInteger counter = new AtomicInteger(-1);
     StepVerifier.create(
-            rSocket
+            client
                 .requestChannel(testRequest())
                 .take(Duration.ofSeconds(600))
                 .map(Payload::getDataUtf8)
                 .timeout(Duration.ofSeconds(12))
                 .doOnNext(x -> throwOnNonContinuous(counter, x))
                 .then()
-                .doFinally(s -> closeable.dispose()))
+                .doFinally(s -> server.dispose()))
         .expectComplete()
         .verify();
   }
 
   @Test
   public void reconnectOnMissingSession() {
-
-    int serverSessionDuration = 2;
-
-    CloseableChannel closeable = newServerRSocket(serverSessionDuration).block();
-
-    DisconnectableClientTransport clientTransport =
-        new DisconnectableClientTransport(clientTransport(closeable.address()));
-    ErrorConsumer errorConsumer = new ErrorConsumer();
+    int serverSessionDurationSeconds = 2;
     int clientSessionDurationSeconds = 10;
+    CloseableChannel server = newResumableServer(serverSessionDurationSeconds).block();
+    DisconnectableClientTransport clientTransport =
+        new DisconnectableClientTransport(clientTransport(server.address()));
+    ErrorConsumer errorConsumer = new ErrorConsumer();
 
-    RSocket rSocket =
-        newClientRSocket(clientTransport, clientSessionDurationSeconds, errorConsumer).block();
+    RSocket client =
+        newResumableClient(clientTransport, clientSessionDurationSeconds, errorConsumer).block();
 
     Mono.delay(Duration.ofSeconds(1))
         .subscribe(v -> clientTransport.disconnectFor(Duration.ofSeconds(3)));
 
     StepVerifier.create(
-            rSocket.requestChannel(testRequest()).then().doFinally(s -> closeable.dispose()))
+            client.requestChannel(testRequest()).then().doFinally(s -> server.dispose()))
         .expectError()
         .verify(Duration.ofSeconds(5));
 
@@ -124,28 +120,25 @@ public class ResumeIntegrationTest {
                     && "unknown resume token".equals(err.getMessage()))
         .expectComplete()
         .verify(Duration.ofSeconds(5));
+
+    StepVerifier.create(client.onClose()).expectComplete().verify(Duration.ofSeconds(5));
+    Assertions.assertThat(client.isDisposed()).isTrue();
   }
 
   @Test
   void serverMissingResume() {
-    CloseableChannel closeableChannel =
-        RSocketFactory.receive()
-            .acceptor((setupPayload, rSocket) -> Mono.just(new TestResponderRSocket()))
-            .transport(serverTransport(SERVER_HOST, SERVER_PORT))
-            .start()
-            .block();
-
+    int sessionDurationSeconds = 15;
+    CloseableChannel nonResumableServer = newServer().block();
     ErrorConsumer errorConsumer = new ErrorConsumer();
 
-    RSocket rSocket =
-        RSocketFactory.connect()
-            .resume()
-            .errorConsumer(errorConsumer)
-            .transport(clientTransport(closeableChannel.address()))
-            .start()
+    RSocket resumableClient =
+        newResumableClient(
+                clientTransport(nonResumableServer.address()),
+                sessionDurationSeconds,
+                errorConsumer)
             .block();
 
-    StepVerifier.create(errorConsumer.errors().next().doFinally(s -> closeableChannel.dispose()))
+    StepVerifier.create(errorConsumer.errors().next().doFinally(s -> nonResumableServer.dispose()))
         .expectNextMatches(
             err ->
                 err instanceof UnsupportedSetupException
@@ -153,8 +146,36 @@ public class ResumeIntegrationTest {
         .expectComplete()
         .verify(Duration.ofSeconds(5));
 
-    StepVerifier.create(rSocket.onClose()).expectComplete().verify(Duration.ofSeconds(5));
-    Assertions.assertThat(rSocket.isDisposed()).isTrue();
+    StepVerifier.create(resumableClient.onClose()).expectComplete().verify(Duration.ofSeconds(5));
+    Assertions.assertThat(resumableClient.isDisposed()).isTrue();
+  }
+
+  @Test
+  void duplicateSession() {
+    int sessionDurationSeconds = 15;
+    CloseableChannel server = newResumableServer(sessionDurationSeconds).block();
+    ErrorConsumer errorConsumer = new ErrorConsumer();
+    ResumeToken token = ResumeToken.fromBytes("testToken".getBytes(StandardCharsets.UTF_8));
+
+    Mono<RSocket> client =
+        newResumableClient(
+            clientTransport(server.address()),
+            sessionDurationSeconds,
+            errorConsumer,
+            Optional.of(token));
+
+    Flux.just(0, 500)
+        .flatMap(delay -> Mono.delay(Duration.ofMillis(delay)))
+        .flatMap(v -> client)
+        .subscribe();
+
+    StepVerifier.create(errorConsumer.errors().next().doFinally(s -> server.dispose()))
+        .expectNextMatches(
+            err ->
+                err instanceof RejectedSetupException
+                    && "duplicate session".equals(err.getMessage()))
+        .expectComplete()
+        .verify(Duration.ofSeconds(5));
   }
 
   static ClientTransport clientTransport(InetSocketAddress address) {
@@ -199,35 +220,55 @@ public class ResumeIntegrationTest {
     counter.set(curValue);
   }
 
-  private static Mono<RSocket> newClientRSocket(
-      DisconnectableClientTransport clientTransport, int sessionDurationSeconds) {
-    return newClientRSocket(clientTransport, sessionDurationSeconds, err -> {});
+  private static Mono<RSocket> newResumableClient(
+      ClientTransport clientTransport, int sessionDurationSeconds) {
+    return newResumableClient(clientTransport, sessionDurationSeconds, err -> {});
   }
 
-  private static Mono<RSocket> newClientRSocket(
-      DisconnectableClientTransport clientTransport,
+  private static Mono<RSocket> newResumableClient(
+      ClientTransport clientTransport,
       int sessionDurationSeconds,
       Consumer<Throwable> errConsumer) {
-    return RSocketFactory.connect()
-        .resume()
-        .resumeSessionDuration(Duration.ofSeconds(sessionDurationSeconds))
-        .keepAliveTickPeriod(Duration.ofSeconds(30))
-        .keepAliveAckTimeout(Duration.ofMinutes(5))
-        .errorConsumer(errConsumer)
-        .resumeStrategy(() -> new PeriodicResumeStrategy(Duration.ofSeconds(1)))
-        .transport(clientTransport)
-        .start();
+    return newResumableClient(
+        clientTransport, sessionDurationSeconds, errConsumer, Optional.empty());
   }
 
-  private static Mono<CloseableChannel> newServerRSocket() {
-    return newServerRSocket(15);
+  private static Mono<RSocket> newResumableClient(
+      ClientTransport clientTransport,
+      int sessionDurationSeconds,
+      Consumer<Throwable> errConsumer,
+      Optional<ResumeToken> resumeToken) {
+
+    RSocketFactory.ClientRSocketFactory clientRSocketFactory =
+        RSocketFactory.connect()
+            .resume()
+            .resumeSessionDuration(Duration.ofSeconds(sessionDurationSeconds))
+            .keepAliveTickPeriod(Duration.ofSeconds(30))
+            .keepAliveAckTimeout(Duration.ofMinutes(5))
+            .errorConsumer(errConsumer)
+            .resumeStrategy(() -> new PeriodicResumeStrategy(Duration.ofSeconds(1)));
+    if (resumeToken.isPresent()) {
+      clientRSocketFactory.resumeToken(resumeToken::get);
+    }
+    return clientRSocketFactory.transport(clientTransport).start();
   }
 
-  private static Mono<CloseableChannel> newServerRSocket(int sessionDurationSeconds) {
+  private static Mono<CloseableChannel> newResumableServer() {
+    return newResumableServer(15);
+  }
+
+  private static Mono<CloseableChannel> newResumableServer(int sessionDurationSeconds) {
     return RSocketFactory.receive()
         .resume()
         .resumeStore(t -> new InMemoryResumableFramesStore("server", 100_000))
         .resumeSessionDuration(Duration.ofSeconds(sessionDurationSeconds))
+        .acceptor((setupPayload, rSocket) -> Mono.just(new TestResponderRSocket()))
+        .transport(serverTransport(SERVER_HOST, SERVER_PORT))
+        .start();
+  }
+
+  private Mono<CloseableChannel> newServer() {
+    return RSocketFactory.receive()
         .acceptor((setupPayload, rSocket) -> Mono.just(new TestResponderRSocket()))
         .transport(serverTransport(SERVER_HOST, SERVER_PORT))
         .start();

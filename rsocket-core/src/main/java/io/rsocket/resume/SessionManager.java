@@ -26,16 +26,17 @@ public class SessionManager {
 
   public ServerRSocketSession save(ServerRSocketSession session) {
     if (isDisposed) {
-      session.dispose();
+      return session.fail("server is closed");
     } else {
       ResumeToken token = session.token();
-      session.onClose().doOnSuccess(v -> sessions.remove(token)).subscribe();
-      ServerRSocketSession prev = sessions.put(token, session);
-      if (prev != null) {
-        prev.dispose();
+      if (sessions.containsKey(token)) {
+        return session.fail("duplicate session");
+      } else {
+        session.onClose().doOnSuccess(v -> sessions.remove(token)).subscribe();
+        sessions.put(token, session);
+        return session;
       }
     }
-    return session;
   }
 
   public Optional<ServerRSocketSession> get(ResumeToken resumeToken) {

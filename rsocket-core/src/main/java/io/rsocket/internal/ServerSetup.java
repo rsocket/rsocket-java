@@ -20,6 +20,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.DuplexConnection;
 import io.rsocket.exceptions.RejectedResumeException;
+import io.rsocket.exceptions.RejectedSetupException;
 import io.rsocket.exceptions.UnsupportedSetupException;
 import io.rsocket.frame.FrameHeaderFlyweight;
 import io.rsocket.frame.FrameType;
@@ -133,16 +134,24 @@ public interface ServerSetup {
                 SetupFrameFlyweight.keepAliveInterval(frame),
                 SetupFrameFlyweight.keepAliveMaxLifetime(frame));
 
-        DuplexConnection resumableConnection =
-            sessionManager
-                .save(
-                    new ServerRSocketSession(
-                        allocator,
-                        multiplexer.asClientServerConnection(),
-                        resumeConfig,
-                        keepAliveData,
-                        token))
-                .resumableConnection();
+        ServerRSocketSession savedSession =
+            sessionManager.save(
+                new ServerRSocketSession(
+                    allocator,
+                    multiplexer.asClientServerConnection(),
+                    resumeConfig,
+                    keepAliveData,
+                    token));
+        if (savedSession.isFailed()) {
+          String msg = savedSession.failMessage();
+          return sendError(multiplexer, new RejectedSetupException(msg))
+              .doFinally(
+                  s -> {
+                    frame.release();
+                    multiplexer.dispose();
+                  });
+        }
+        DuplexConnection resumableConnection = savedSession.resumableConnection();
         return then.apply(new ClientServerInputMultiplexer(resumableConnection));
       } else {
         return then.apply(multiplexer);
