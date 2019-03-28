@@ -6,6 +6,11 @@ import io.netty.channel.EventLoop;
 import io.netty.util.ReferenceCountUtil;
 import io.netty.util.ReferenceCounted;
 import io.rsocket.Frame;
+import java.util.Queue;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
+import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
+import java.util.function.Function;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
@@ -14,12 +19,6 @@ import reactor.core.Fuseable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Operators;
 import reactor.util.concurrent.Queues;
-
-import java.util.Queue;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
-import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
-import java.util.function.Function;
 
 class SendPublisher<V extends ReferenceCounted> extends Flux<Frame> {
 

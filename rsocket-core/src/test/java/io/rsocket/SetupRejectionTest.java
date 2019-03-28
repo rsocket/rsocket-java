@@ -12,6 +12,10 @@ import io.rsocket.util.DefaultPayload;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+
 import org.junit.jupiter.api.Test;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.UnicastProcessor;
@@ -40,27 +44,32 @@ public class SetupRejectionTest {
 
   @Test
   void requesterStreamsTerminatedOnZeroErrorFrame() {
-    TestDuplexConnection conn = new TestDuplexConnection();
-    List<Throwable> errors = new ArrayList<>();
-    RSocketClient rSocket =
-        new RSocketClient(
-            conn, DefaultPayload::create, errors::add, StreamIdSupplier.clientSupplier());
+    ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
+    try {
 
-    String errorMsg = "error";
+      TestDuplexConnection conn = new TestDuplexConnection();
+      List<Throwable> errors = new ArrayList<>();
+      RSocketClient rSocket =
+          new RSocketClient(
+              conn, DefaultPayload::create, errors::add, StreamIdSupplier.clientSupplier());
 
-    Mono.delay(Duration.ofMillis(100))
-        .doOnTerminate(
-            () ->
-                conn.addToReceivedBuffer(Frame.Error.from(0, new RejectedSetupException(errorMsg))))
-        .subscribe();
+      String errorMsg = "error";
 
-    StepVerifier.create(rSocket.requestResponse(DefaultPayload.create("test")))
-        .expectErrorMatches(
-            err -> err instanceof RejectedSetupException && errorMsg.equals(err.getMessage()))
-        .verify(Duration.ofSeconds(5));
+      scheduler.schedule(
+          () -> conn.addToReceivedBuffer(Frame.Error.from(0, new RejectedSetupException(errorMsg))),
+          100,
+          TimeUnit.MILLISECONDS);
 
-    assertThat(errors).hasSize(1);
-    assertThat(rSocket.isDisposed()).isTrue();
+      StepVerifier.create(rSocket.requestResponse(DefaultPayload.create("test")))
+                  .expectErrorMatches(
+                      err -> err instanceof RejectedSetupException && errorMsg.equals(err.getMessage()))
+                  .verify(Duration.ofSeconds(5));
+
+      assertThat(errors).hasSize(1);
+      assertThat(rSocket.isDisposed()).isTrue();
+    } finally {
+      scheduler.shutdownNow();
+    }
   }
 
   @Test

@@ -17,7 +17,6 @@
 package io.rsocket.framing;
 
 import io.rsocket.Frame;
-
 import java.util.Arrays;
 
 /**
@@ -27,12 +26,12 @@ import java.util.Arrays;
  *     Types</a>
  */
 public enum FrameType {
-  
+
   /** Reserved. */
   RESERVED(0x00),
-  
+
   // CONNECTION
-  
+
   /**
    * Sent by client to initiate protocol processing.
    *
@@ -41,7 +40,7 @@ public enum FrameType {
    *     Frame</a>
    */
   SETUP(0x01, Flags.CAN_HAVE_DATA | Flags.CAN_HAVE_METADATA),
-  
+
   /**
    * Sent by Responder to grant the ability to send requests.
    *
@@ -50,7 +49,7 @@ public enum FrameType {
    *     Frame</a>
    */
   LEASE(0x02, Flags.CAN_HAVE_METADATA),
-  
+
   /**
    * Connection keepalive.
    *
@@ -59,9 +58,9 @@ public enum FrameType {
    *     Frame</a>
    */
   KEEPALIVE(0x03, Flags.CAN_HAVE_DATA),
-  
+
   // START REQUEST
-  
+
   /**
    * Request single response.
    *
@@ -75,7 +74,7 @@ public enum FrameType {
           | Flags.CAN_HAVE_METADATA
           | Flags.IS_FRAGMENTABLE
           | Flags.IS_REQUEST_TYPE),
-  
+
   /**
    * A single one-way message.
    *
@@ -88,7 +87,7 @@ public enum FrameType {
           | Flags.CAN_HAVE_METADATA
           | Flags.IS_FRAGMENTABLE
           | Flags.IS_REQUEST_TYPE),
-  
+
   /**
    * Request a completable stream.
    *
@@ -103,7 +102,7 @@ public enum FrameType {
           | Flags.HAS_INITIAL_REQUEST_N
           | Flags.IS_FRAGMENTABLE
           | Flags.IS_REQUEST_TYPE),
-  
+
   /**
    * Request a completable stream in both directions.
    *
@@ -118,9 +117,9 @@ public enum FrameType {
           | Flags.HAS_INITIAL_REQUEST_N
           | Flags.IS_FRAGMENTABLE
           | Flags.IS_REQUEST_TYPE),
-  
+
   // DURING REQUEST
-  
+
   /**
    * Request N more items with Reactive Streams semantics.
    *
@@ -129,7 +128,7 @@ public enum FrameType {
    *     Frame</a>
    */
   REQUEST_N(0x08),
-  
+
   /**
    * Cancel outstanding request.
    *
@@ -137,9 +136,9 @@ public enum FrameType {
    *     Frame</a>
    */
   CANCEL(0x09),
-  
+
   // RESPONSE
-  
+
   /**
    * Payload on a stream. For example, response to a request, or message on a channel.
    *
@@ -147,7 +146,7 @@ public enum FrameType {
    *     Frame</a>
    */
   PAYLOAD(0x0A, Flags.CAN_HAVE_DATA | Flags.CAN_HAVE_METADATA | Flags.IS_FRAGMENTABLE),
-  
+
   /**
    * Error at connection or application level.
    *
@@ -155,9 +154,9 @@ public enum FrameType {
    *     Frame</a>
    */
   ERROR(0x0B, Flags.CAN_HAVE_DATA),
-  
+
   // METADATA
-  
+
   /**
    * Asynchronous Metadata frame.
    *
@@ -166,9 +165,9 @@ public enum FrameType {
    *     Push Frame</a>
    */
   METADATA_PUSH(0x0C, Flags.CAN_HAVE_METADATA),
-  
+
   // RESUMPTION
-  
+
   /**
    * Replaces SETUP for Resuming Operation (optional).
    *
@@ -176,7 +175,7 @@ public enum FrameType {
    *     Frame</a>
    */
   RESUME(0x0D),
-  
+
   /**
    * Sent in response to a RESUME if resuming operation possible (optional).
    *
@@ -185,18 +184,18 @@ public enum FrameType {
    *     Frame</a>
    */
   RESUME_OK(0x0E),
-  
+
   // SYNTHETIC PAYLOAD TYPES
-  
+
   /** A {@link #PAYLOAD} frame with {@code NEXT} flag set. */
   NEXT(0xA0, Flags.CAN_HAVE_DATA | Flags.CAN_HAVE_METADATA | Flags.IS_FRAGMENTABLE),
-  
+
   /** A {@link #PAYLOAD} frame with {@code COMPLETE} flag set. */
   COMPLETE(0xB0),
-  
+
   /** A {@link #PAYLOAD} frame with {@code NEXT} and {@code COMPLETE} flags set. */
   NEXT_COMPLETE(0xC0, Flags.CAN_HAVE_DATA | Flags.CAN_HAVE_METADATA | Flags.IS_FRAGMENTABLE),
-  
+
   /**
    * Used To Extend more frame types as well as extensions.
    *
@@ -204,32 +203,32 @@ public enum FrameType {
    *     Frame</a>
    */
   EXT(0x3F, Flags.CAN_HAVE_DATA | Flags.CAN_HAVE_METADATA);
-  
+
   /** The size of the encoded frame type */
   static final int ENCODED_SIZE = 6;
-  
+
   private static final FrameType[] FRAME_TYPES_BY_ENCODED_TYPE;
-  
+
   static {
     FRAME_TYPES_BY_ENCODED_TYPE = new FrameType[getMaximumEncodedType() + 1];
-    
+
     for (FrameType frameType : values()) {
       FRAME_TYPES_BY_ENCODED_TYPE[frameType.encodedType] = frameType;
     }
   }
-  
+
   private final int encodedType;
   private final int flags;
-  
+
   FrameType(int encodedType) {
     this(encodedType, Flags.EMPTY);
   }
-  
+
   FrameType(int encodedType, int flags) {
     this.encodedType = encodedType;
     this.flags = flags;
   }
-  
+
   /**
    * Returns the {@code FrameType} that matches the specified {@code encodedType}.
    *
@@ -238,18 +237,18 @@ public enum FrameType {
    */
   public static FrameType fromEncodedType(int encodedType) {
     FrameType frameType = FRAME_TYPES_BY_ENCODED_TYPE[encodedType];
-    
+
     if (frameType == null) {
       throw new IllegalArgumentException(String.format("Frame type %d is unknown", encodedType));
     }
-    
+
     return frameType;
   }
-  
+
   private static int getMaximumEncodedType() {
     return Arrays.stream(values()).mapToInt(frameType -> frameType.encodedType).max().orElse(0);
   }
-  
+
   /**
    * Whether the frame type can have data.
    *
@@ -258,7 +257,7 @@ public enum FrameType {
   public boolean canHaveData() {
     return Flags.CAN_HAVE_DATA == (flags & Flags.CAN_HAVE_DATA);
   }
-  
+
   /**
    * Whether the frame type can have metadata
    *
@@ -267,7 +266,7 @@ public enum FrameType {
   public boolean canHaveMetadata() {
     return Flags.CAN_HAVE_METADATA == (flags & Flags.CAN_HAVE_METADATA);
   }
-  
+
   /**
    * Returns the encoded type.
    *
@@ -276,7 +275,7 @@ public enum FrameType {
   public int getEncodedType() {
     return encodedType;
   }
-  
+
   /**
    * Whether the frame type starts with an initial {@code requestN}.
    *
@@ -285,7 +284,7 @@ public enum FrameType {
   public boolean hasInitialRequestN() {
     return Flags.HAS_INITIAL_REQUEST_N == (flags & Flags.HAS_INITIAL_REQUEST_N);
   }
-  
+
   /**
    * Whether the frame type is fragmentable.
    *
@@ -294,7 +293,7 @@ public enum FrameType {
   public boolean isFragmentable() {
     return Flags.IS_FRAGMENTABLE == (flags & Flags.IS_FRAGMENTABLE);
   }
-  
+
   /**
    * Whether the frame type is a request type.
    *
@@ -303,15 +302,15 @@ public enum FrameType {
   public boolean isRequestType() {
     return Flags.IS_REQUEST_TYPE == (flags & Flags.IS_REQUEST_TYPE);
   }
-  
+
   private static class Flags {
-    private static final int EMPTY                 = 0b00000;
-    private static final int CAN_HAVE_DATA         = 0b10000;
-    private static final int CAN_HAVE_METADATA     = 0b01000;
-    private static final int IS_FRAGMENTABLE       = 0b00100;
-    private static final int IS_REQUEST_TYPE       = 0b00010;
+    private static final int EMPTY = 0b00000;
+    private static final int CAN_HAVE_DATA = 0b10000;
+    private static final int CAN_HAVE_METADATA = 0b01000;
+    private static final int IS_FRAGMENTABLE = 0b00100;
+    private static final int IS_REQUEST_TYPE = 0b00010;
     private static final int HAS_INITIAL_REQUEST_N = 0b00001;
-    
+
     private Flags() {}
   }
 }

@@ -2,6 +2,11 @@ package io.rsocket.client;
 
 import io.rsocket.Closeable;
 import io.rsocket.client.filter.RSocketSupplier;
+import java.time.Duration;
+import java.util.*;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 import org.reactivestreams.Publisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -9,12 +14,6 @@ import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
-
-import java.time.Duration;
-import java.util.*;
-import java.util.concurrent.ThreadLocalRandom;
-import java.util.function.Consumer;
-import java.util.function.Supplier;
 
 public class RSocketSupplierPool
     implements Supplier<Optional<RSocketSupplier>>, Consumer<RSocketSupplier>, Closeable {
@@ -178,11 +177,11 @@ public class RSocketSupplierPool
       }
     }
   }
-  
+
   public synchronized int poolSize() {
     return factoryPool.size();
   }
-  
+
   public synchronized boolean isPoolEmpty() {
     return factoryPool.isEmpty();
   }
