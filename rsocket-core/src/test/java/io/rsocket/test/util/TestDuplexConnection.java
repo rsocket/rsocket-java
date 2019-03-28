@@ -27,6 +27,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.DirectProcessor;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.FluxSink;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
 
@@ -40,7 +41,9 @@ public class TestDuplexConnection implements DuplexConnection {
 
   private final LinkedBlockingQueue<Frame> sent;
   private final DirectProcessor<Frame> sentPublisher;
+  private final FluxSink<Frame> sentFluxSink;
   private final DirectProcessor<Frame> received;
+  private final FluxSink<Frame> receivedFluxSink;
   private final MonoProcessor<Void> onClose;
   private final ConcurrentLinkedQueue<Subscriber<Frame>> sendSubscribers;
   private volatile double availability = 1;
@@ -49,7 +52,9 @@ public class TestDuplexConnection implements DuplexConnection {
   public TestDuplexConnection() {
     sent = new LinkedBlockingQueue<>();
     received = DirectProcessor.create();
+    receivedFluxSink = received.serialize().sink();
     sentPublisher = DirectProcessor.create();
+    sentFluxSink = sentPublisher.serialize().sink();
     sendSubscribers = new ConcurrentLinkedQueue<>();
     onClose = MonoProcessor.create();
   }
@@ -65,7 +70,7 @@ public class TestDuplexConnection implements DuplexConnection {
         .doOnNext(
             frame -> {
               sent.offer(frame);
-              sentPublisher.onNext(frame);
+              sentFluxSink.next(frame);
             })
         .doOnError(throwable -> logger.error("Error in send stream on test connection.", throwable))
         .subscribe(subscriber);
@@ -116,7 +121,7 @@ public class TestDuplexConnection implements DuplexConnection {
 
   public void addToReceivedBuffer(Frame... received) {
     for (Frame frame : received) {
-      this.received.onNext(frame);
+      this.receivedFluxSink.next(frame);
     }
   }
 

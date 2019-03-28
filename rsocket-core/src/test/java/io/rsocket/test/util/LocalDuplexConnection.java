@@ -21,11 +21,12 @@ import io.rsocket.Frame;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.DirectProcessor;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.FluxSink;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
 
 public class LocalDuplexConnection implements DuplexConnection {
-  private final DirectProcessor<Frame> send;
+  private final FluxSink<Frame> sendFluxSink;
   private final DirectProcessor<Frame> receive;
   private final MonoProcessor<Void> onClose;
   private final String name;
@@ -33,7 +34,7 @@ public class LocalDuplexConnection implements DuplexConnection {
   public LocalDuplexConnection(
       String name, DirectProcessor<Frame> send, DirectProcessor<Frame> receive) {
     this.name = name;
-    this.send = send;
+    this.sendFluxSink = send.serialize().sink();
     this.receive = receive;
     onClose = MonoProcessor.create();
   }
@@ -42,8 +43,8 @@ public class LocalDuplexConnection implements DuplexConnection {
   public Mono<Void> send(Publisher<Frame> frame) {
     return Flux.from(frame)
         .doOnNext(f -> System.out.println(name + " - " + f.toString()))
-        .doOnNext(send::onNext)
-        .doOnError(send::onError)
+        .doOnNext(sendFluxSink::next)
+        .doOnError(sendFluxSink::error)
         .then();
   }
 
