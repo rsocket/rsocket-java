@@ -151,7 +151,7 @@ public class TcpIntegrationTest {
     assertEquals("SUCCESS", response2.getDataUtf8());
   }
 
-  @Test(timeout = 15_000L)
+  @Test(timeout = 35_000L)
   public void testTwoConcurrentStreams() throws InterruptedException {
     ConcurrentHashMap<String, UnicastProcessor<Payload>> map = new ConcurrentHashMap<>();
     UnicastProcessor<Payload> processor1 = UnicastProcessor.create();
