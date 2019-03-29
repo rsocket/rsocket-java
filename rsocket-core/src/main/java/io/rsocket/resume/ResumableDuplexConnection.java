@@ -153,7 +153,7 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
                 .doOnNext(
                     f -> {
                       if (isResumableFrame(f)) {
-                        resumableFramesStore.resumableFrameReceived();
+                        resumableFramesStore.resumableFrameReceived(f);
                       }
                     })
                 .onErrorResume(err -> Mono.never()));

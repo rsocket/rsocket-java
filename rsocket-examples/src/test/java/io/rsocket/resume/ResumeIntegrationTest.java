@@ -211,6 +211,7 @@ public class ResumeIntegrationTest {
     return RSocketFactory.connect()
         .resume()
         .resumeSessionDuration(Duration.ofSeconds(sessionDurationSeconds))
+        .resumeStore(t -> new InMemoryResumableFramesStore("client", 10_000_000))
         .keepAliveTickPeriod(Duration.ofSeconds(30))
         .keepAliveAckTimeout(Duration.ofMinutes(5))
         .errorConsumer(errConsumer)
@@ -226,7 +227,7 @@ public class ResumeIntegrationTest {
   private static Mono<CloseableChannel> newServerRSocket(int sessionDurationSeconds) {
     return RSocketFactory.receive()
         .resume()
-        .resumeStore(t -> new InMemoryResumableFramesStore("server", 100_000))
+        .resumeStore(t -> new InMemoryResumableFramesStore("server", 10_000_000))
         .resumeSessionDuration(Duration.ofSeconds(sessionDurationSeconds))
         .acceptor((setupPayload, rSocket) -> Mono.just(new TestResponderRSocket()))
         .transport(serverTransport(SERVER_HOST, SERVER_PORT))

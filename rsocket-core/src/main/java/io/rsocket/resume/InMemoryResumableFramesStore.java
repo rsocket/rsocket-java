@@ -17,80 +17,78 @@
 package io.rsocket.resume;
 
 import io.netty.buffer.ByteBuf;
-import java.util.Queue;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
+import org.reactivestreams.Subscriber;
+import org.reactivestreams.Subscription;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import reactor.core.CoreSubscriber;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
 import reactor.util.concurrent.Queues;
 
+import java.util.Queue;
+
 public class InMemoryResumableFramesStore implements ResumableFramesStore {
   private static final Logger logger = LoggerFactory.getLogger(InMemoryResumableFramesStore.class);
+  private static final int SAVE_REQUEST_SIZE = 256;
 
   private final MonoProcessor<Void> disposed = MonoProcessor.create();
-  private final AtomicLong position = new AtomicLong();
-  private final AtomicLong impliedPosition = new AtomicLong();
-  private final AtomicInteger cachedFramesSize = new AtomicInteger();
+  private volatile long position;
+  private volatile long impliedPosition;
+  private volatile int cacheSize;
   private final Queue<ByteBuf> cachedFrames;
   private final String tag;
   private final int cacheLimit;
-  private final AtomicInteger upstreamFrameRefCnt = new AtomicInteger();
+  private volatile int upstreamFrameRefCnt;
 
-  public InMemoryResumableFramesStore(String tag, int cacheLimit) {
+  public InMemoryResumableFramesStore(String tag, int cacheSizeBytes) {
     this.tag = tag;
-    this.cacheLimit = cacheLimit;
-    this.cachedFrames = cachedFramesQueue(cacheLimit);
+    this.cacheLimit = cacheSizeBytes;
+    this.cachedFrames = cachedFramesQueue(cacheSizeBytes);
   }
 
   public Mono<Void> saveFrames(Flux<ByteBuf> frames) {
-    return Mono.defer(
-        () -> {
-          MonoProcessor<Void> completed = MonoProcessor.create();
-          frames
-              .doFinally(s -> completed.onComplete())
-              .subscribe(
-                  frame -> {
-                    cachedFramesSize.incrementAndGet();
-                    upstreamFrameRefCnt.compareAndSet(0, frame.refCnt());
-                    cachedFrames.offer(frame.retain());
-                    if (cachedFramesSize.get() == cacheLimit) {
-                      releaseFrame();
-                    }
-                  });
-          return completed;
-        });
+    MonoProcessor<Void> completed = MonoProcessor.create();
+    frames
+        .doFinally(s -> completed.onComplete())
+        .subscribe(new FramesSubscriber(SAVE_REQUEST_SIZE));
+    return completed;
   }
 
   @Override
   public void releaseFrames(long remoteImpliedPos) {
-    long pos = position.get();
+    long pos = position;
     logger.debug(
         "{} Removing frames for local: {}, remote implied: {}", tag, pos, remoteImpliedPos);
-    long removeCount = Math.max(0, remoteImpliedPos - pos);
-    long processedCount = 0;
-    while (processedCount < removeCount) {
-      releaseFrame();
-      processedCount++;
+    long removeSize = Math.max(0, remoteImpliedPos - pos);
+    while (removeSize > 0) {
+      ByteBuf cachedFrame = cachedFrames.poll();
+      if (cachedFrame != null) {
+        removeSize -= releaseTailFrame(cachedFrame);
+      } else {
+        break;
+      }
     }
-    logger.debug("{} Removed frames. Current size: {}", tag, cachedFramesSize.get());
-  }
-
-  private void releaseFrame() {
-    ByteBuf content = cachedFrames.poll();
-    cachedFramesSize.decrementAndGet();
-    content.release();
-    position.incrementAndGet();
+    if (removeSize > 0) {
+      throw new IllegalStateException(
+          String.format("Local and remote state disagreement: " +
+              "need to remove additional %d bytes, but cache is empty", removeSize));
+    } else if (removeSize < 0) {
+      throw new IllegalStateException(
+          "Local and remote state disagreement: " +
+              "local and remote frame sizes are not equal");
+    } else {
+      logger.debug("{} Removed frames. Current cache size: {}", tag, cacheSize);
+    }
   }
 
   @Override
   public Flux<ByteBuf> resumeStream() {
     return Flux.create(
         s -> {
-          int size = cachedFramesSize.get();
-          int refCnt = upstreamFrameRefCnt.get();
+          int size = cachedFrames.size();
+          int refCnt = upstreamFrameRefCnt;
           logger.debug("{} Resuming stream size: {}", tag, size);
           /*spsc queue has no iterator - iterating by consuming*/
           for (int i = 0; i < size; i++) {
@@ -110,17 +108,18 @@ public class InMemoryResumableFramesStore implements ResumableFramesStore {
 
   @Override
   public long framePosition() {
-    return position.get();
+    return position;
   }
 
   @Override
   public long frameImpliedPosition() {
-    return impliedPosition.get();
+    return impliedPosition;
   }
 
   @Override
-  public void resumableFrameReceived() {
-    impliedPosition.incrementAndGet();
+  public void resumableFrameReceived(ByteBuf frame) {
+    /*called on transport thread so non-atomic on volatile is safe*/
+    impliedPosition += frame.readableBytes();
   }
 
   @Override
@@ -130,7 +129,7 @@ public class InMemoryResumableFramesStore implements ResumableFramesStore {
 
   @Override
   public void dispose() {
-    cachedFramesSize.set(0);
+    cacheSize = 0;
     ByteBuf frame = cachedFrames.poll();
     while (frame != null) {
       frame.release();
@@ -139,7 +138,81 @@ public class InMemoryResumableFramesStore implements ResumableFramesStore {
     disposed.onComplete();
   }
 
+  @Override
+  public boolean isDisposed() {
+    return disposed.isTerminated();
+  }
+
+  /* this method and saveFrame() won't be called concurrently,
+  * so non-atomic on volatile is safe*/
+  private int releaseTailFrame(ByteBuf content) {
+    int frameSize = content.readableBytes();
+    cacheSize -= frameSize;
+    position += frameSize;
+    content.release();
+    return frameSize;
+  }
+
+  /*this method and releaseTailFrame() won't be called concurrently,
+  * so non-atomic on volatile is safe*/
+  private void saveFrame(ByteBuf frame) {
+    if (upstreamFrameRefCnt == 0) {
+      upstreamFrameRefCnt = frame.refCnt();
+    }
+
+    int frameSize = frame.readableBytes();
+    long availableSize = cacheLimit - cacheSize;
+    while (availableSize < frameSize) {
+      ByteBuf cachedFrame = cachedFrames.poll();
+      if (cachedFrame != null) {
+        availableSize += releaseTailFrame(cachedFrame);
+      } else {
+        break;
+      }
+    }
+    if (availableSize >= frameSize) {
+      cachedFrames.offer(frame.retain());
+      cacheSize += frameSize;
+    }
+  }
+
   private static Queue<ByteBuf> cachedFramesQueue(int size) {
     return Queues.<ByteBuf>get(size).get();
+  }
+
+  private class FramesSubscriber implements Subscriber<ByteBuf> {
+    private final int firstRequestSize;
+    private final int refillSize;
+    private int received;
+    private Subscription s;
+
+    public FramesSubscriber(int requestSize) {
+      this.firstRequestSize = requestSize;
+      this.refillSize = firstRequestSize / 2;
+    }
+
+    @Override
+    public void onSubscribe(Subscription s) {
+      this.s = s;
+      s.request(firstRequestSize);
+    }
+
+    @Override
+    public void onNext(ByteBuf byteBuf) {
+      saveFrame(byteBuf);
+      if (++received == refillSize) {
+        received = 0;
+        s.request(refillSize);
+      }
+    }
+
+    @Override
+    public void onError(Throwable t) {
+      logger.info("unexpected onError signal: {}, {}", t.getClass(), t.getMessage());
+    }
+
+    @Override
+    public void onComplete() {
+    }
   }
 }
