@@ -18,6 +18,7 @@ package io.rsocket.frame;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
+import io.netty.buffer.Unpooled;
 import java.util.Arrays;
 import org.junit.Assert;
 import org.junit.jupiter.api.Test;
@@ -28,10 +29,11 @@ public class ResumeFrameFlyweightTest {
   void testEncoding() {
     byte[] tokenBytes = new byte[65000];
     Arrays.fill(tokenBytes, (byte) 1);
-    ByteBuf byteBuf = ResumeFrameFlyweight.encode(ByteBufAllocator.DEFAULT, tokenBytes, 21, 12);
+    ByteBuf token = Unpooled.wrappedBuffer(tokenBytes);
+    ByteBuf byteBuf = ResumeFrameFlyweight.encode(ByteBufAllocator.DEFAULT, token, 21, 12);
     Assert.assertEquals(
         ResumeFrameFlyweight.CURRENT_VERSION, ResumeFrameFlyweight.version(byteBuf));
-    Assert.assertArrayEquals(tokenBytes, ResumeFrameFlyweight.token(byteBuf));
+    Assert.assertEquals(token, ResumeFrameFlyweight.token(byteBuf));
     Assert.assertEquals(21, ResumeFrameFlyweight.lastReceivedServerPos(byteBuf));
     Assert.assertEquals(12, ResumeFrameFlyweight.firstAvailableClientPos(byteBuf));
     byteBuf.release();

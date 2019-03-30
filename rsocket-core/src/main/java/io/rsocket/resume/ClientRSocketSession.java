@@ -35,7 +35,7 @@ public class ClientRSocketSession implements RSocketSession<Mono<? extends Resum
 
   private final ResumableDuplexConnection resumableConnection;
   private volatile Mono<? extends ResumeAwareConnection> newConnection;
-  private volatile ResumeToken resumeToken;
+  private volatile ByteBuf resumeToken;
   private final ByteBufAllocator allocator;
 
   public ClientRSocketSession(
@@ -90,7 +90,8 @@ public class ClientRSocketSession implements RSocketSession<Mono<? extends Resum
               sendFrame(
                       ResumeFrameFlyweight.encode(
                           allocator,
-                          resumeToken.toByteArray(),
+                          /*retain so token is not released once sent as part of resume frame*/
+                          resumeToken.retain(),
                           state.impliedPosition(),
                           state.position()))
                   .then(multiplexer.asSetupConnection().receive().next())
@@ -130,8 +131,9 @@ public class ClientRSocketSession implements RSocketSession<Mono<? extends Resum
     return this;
   }
 
-  public ClientRSocketSession resumeWith(ResumeToken resumeToken) {
-    this.resumeToken = resumeToken;
+  public ClientRSocketSession resumeToken(ByteBuf resumeToken) {
+    /*retain so token is not released once sent as part of setup frame*/
+    this.resumeToken = resumeToken.retain();
     return this;
   }
 
@@ -146,7 +148,7 @@ public class ClientRSocketSession implements RSocketSession<Mono<? extends Resum
   }
 
   @Override
-  public ResumeToken token() {
+  public ByteBuf token() {
     return resumeToken;
   }
 

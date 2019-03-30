@@ -16,18 +16,19 @@
 
 package io.rsocket.resume;
 
+import io.netty.buffer.ByteBuf;
 import java.time.Duration;
 import java.util.function.Function;
 
 public class ServerResumeConfiguration {
   private final Duration sessionDuration;
   private final Duration resumeStreamTimeout;
-  private final Function<? super ResumeToken, ? extends ResumableFramesStore> resumeStoreFactory;
+  private final Function<? super ByteBuf, ? extends ResumableFramesStore> resumeStoreFactory;
 
   public ServerResumeConfiguration(
       Duration sessionDuration,
       Duration resumeStreamTimeout,
-      Function<? super ResumeToken, ? extends ResumableFramesStore> resumeStoreFactory) {
+      Function<? super ByteBuf, ? extends ResumableFramesStore> resumeStoreFactory) {
     this.sessionDuration = sessionDuration;
     this.resumeStreamTimeout = resumeStreamTimeout;
     this.resumeStoreFactory = resumeStoreFactory;
@@ -41,7 +42,7 @@ public class ServerResumeConfiguration {
     return resumeStreamTimeout;
   }
 
-  public Function<? super ResumeToken, ? extends ResumableFramesStore> resumeStoreFactory() {
+  public Function<? super ByteBuf, ? extends ResumableFramesStore> resumeStoreFactory() {
     return resumeStoreFactory;
   }
 }

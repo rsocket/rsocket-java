@@ -16,7 +16,9 @@
 
 package io.rsocket.internal;
 
+import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
+import io.netty.buffer.Unpooled;
 import io.rsocket.DuplexConnection;
 import io.rsocket.keepalive.KeepAliveConnection;
 import io.rsocket.resume.*;
@@ -29,7 +31,7 @@ public interface ClientSetup {
   DuplexConnection wrappedConnection(KeepAliveConnection duplexConnection);
 
   /*Provide different resume tokens for SETUP / RESUME cases*/
-  ResumeToken resumeToken();
+  ByteBuf resumeToken();
 
   class DefaultClientSetup implements ClientSetup {
 
@@ -39,13 +41,13 @@ public interface ClientSetup {
     }
 
     @Override
-    public ResumeToken resumeToken() {
-      return ResumeToken.empty();
+    public ByteBuf resumeToken() {
+      return Unpooled.EMPTY_BUFFER;
     }
   }
 
   class ResumableClientSetup implements ClientSetup {
-    private final ResumeToken resumeToken;
+    private final ByteBuf resumeToken;
     private final ClientResumeConfiguration config;
     private final ByteBufAllocator allocator;
     private final Mono<KeepAliveConnection> newConnection;
@@ -53,7 +55,7 @@ public interface ClientSetup {
     public ResumableClientSetup(
         ByteBufAllocator allocator,
         Mono<KeepAliveConnection> newConnection,
-        ResumeToken resumeToken,
+        ByteBuf resumeToken,
         ResumableFramesStore resumableFramesStore,
         Duration resumeSessionDuration,
         Duration resumeStreamTimeout,
@@ -74,13 +76,13 @@ public interface ClientSetup {
       ClientRSocketSession rSocketSession =
           new ClientRSocketSession(allocator, connection, config)
               .continueWith(newConnection)
-              .resumeWith(resumeToken);
+              .resumeToken(resumeToken);
 
       return rSocketSession.resumableConnection();
     }
 
     @Override
-    public ResumeToken resumeToken() {
+    public ByteBuf resumeToken() {
       return resumeToken;
     }
   }

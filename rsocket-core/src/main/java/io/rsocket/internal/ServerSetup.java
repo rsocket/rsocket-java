@@ -59,7 +59,7 @@ public interface ServerSetup {
         ClientServerInputMultiplexer multiplexer,
         Function<ClientServerInputMultiplexer, Mono<Void>> then) {
 
-      if (!ResumeToken.fromBytes(SetupFrameFlyweight.resumeToken(frame)).isEmpty()) {
+      if (SetupFrameFlyweight.resumeEnabled(frame)) {
         return sendError(multiplexer, new UnsupportedSetupException("resume not supported"))
             .doFinally(
                 signalType -> {
@@ -111,7 +111,7 @@ public interface ServerSetup {
         SessionManager sessionManager,
         Duration resumeSessionDuration,
         Duration resumeStreamTimeout,
-        Function<? super ResumeToken, ? extends ResumableFramesStore> resumeStoreFactory) {
+        Function<? super ByteBuf, ? extends ResumableFramesStore> resumeStoreFactory) {
       this.allocator = allocator;
       this.sessionManager = sessionManager;
       this.resumeConfig =
@@ -125,8 +125,8 @@ public interface ServerSetup {
         ClientServerInputMultiplexer multiplexer,
         Function<ClientServerInputMultiplexer, Mono<Void>> then) {
 
-      ResumeToken token = ResumeToken.fromBytes(SetupFrameFlyweight.resumeToken(frame));
-      if (!token.isEmpty()) {
+      if (SetupFrameFlyweight.resumeEnabled(frame)) {
+        ByteBuf resumeToken = SetupFrameFlyweight.resumeToken(frame);
 
         KeepAliveData keepAliveData =
             new KeepAliveData(
@@ -141,7 +141,7 @@ public interface ServerSetup {
                         multiplexer.asClientServerConnection(),
                         resumeConfig,
                         keepAliveData,
-                        token))
+                        resumeToken))
                 .resumableConnection();
         return then.apply(new ClientServerInputMultiplexer(resumableConnection));
       } else {
@@ -152,7 +152,7 @@ public interface ServerSetup {
     @Override
     public Mono<Void> acceptRSocketResume(ByteBuf frame, ClientServerInputMultiplexer multiplexer) {
       return sessionManager
-          .get(ResumeToken.fromBytes(ResumeFrameFlyweight.token(frame)))
+          .get(ResumeFrameFlyweight.token(frame))
           .map(
               session ->
                   session
@@ -180,7 +180,7 @@ public interface ServerSetup {
                   SetupFrameFlyweight.keepAliveMaxLifetime(frame)));
         } else {
           return sessionManager
-              .get(ResumeToken.fromBytes(ResumeFrameFlyweight.token(frame)))
+              .get(ResumeFrameFlyweight.token(frame))
               .map(ServerRSocketSession::keepAliveData)
               .map(Mono::just)
               .orElseGet(Mono::never);

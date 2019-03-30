@@ -76,7 +76,9 @@ public class SetupFrameFlyweight {
     header.writeInt(CURRENT_VERSION).writeInt(keepaliveInterval).writeInt(maxLifetime);
 
     if ((flags & FLAGS_RESUME_ENABLE) != 0) {
+      resumeToken.markReaderIndex();
       header.writeShort(resumeToken.readableBytes()).writeBytes(resumeToken);
+      resumeToken.resetReaderIndex();
     }
 
     // Write metadata mime-type
@@ -141,7 +143,7 @@ public class SetupFrameFlyweight {
     return (FLAGS_RESUME_ENABLE & FrameHeaderFlyweight.flags(byteBuf)) == FLAGS_RESUME_ENABLE;
   }
 
-  public static byte[] resumeToken(ByteBuf byteBuf) {
+  public static ByteBuf resumeToken(ByteBuf byteBuf) {
     if (resumeEnabled(byteBuf)) {
       byteBuf.markReaderIndex();
       // header
@@ -158,8 +160,7 @@ public class SetupFrameFlyweight {
               Integer.BYTES;
 
       int tokenLength = byteBuf.skipBytes(resumePos).readShort() & 0xFFFF;
-      byte[] resumeToken = new byte[tokenLength];
-      byteBuf.readBytes(resumeToken);
+      ByteBuf resumeToken = byteBuf.readSlice(tokenLength);
       byteBuf.resetReaderIndex();
       return resumeToken;
     } else {

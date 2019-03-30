@@ -21,6 +21,7 @@ import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.exceptions.InvalidSetupException;
 import io.rsocket.exceptions.RejectedSetupException;
 import io.rsocket.frame.FrameHeaderFlyweight;
+import io.rsocket.frame.ResumeFrameFlyweight;
 import io.rsocket.frame.SetupFrameFlyweight;
 import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.internal.ClientServerInputMultiplexer;
@@ -106,9 +107,9 @@ public class RSocketFactory {
     private String dataMimeType = "application/binary";
 
     private boolean resumeEnabled;
-    private Supplier<ResumeToken> resumeTokenSupplier = ResumeToken::generate;
-    private Function<? super ResumeToken, ? extends ResumableFramesStore> resumeStoreFactory =
-        token -> new InMemoryResumableFramesStore("client", 1024);
+    private Supplier<ByteBuf> resumeTokenSupplier = ResumeFrameFlyweight::generateResumeToken;
+    private Function<? super ByteBuf, ? extends ResumableFramesStore> resumeStoreFactory =
+        token -> new InMemoryResumableFramesStore("client", 100_000);
     private Duration resumeSessionDuration = Duration.ofMinutes(2);
     private Duration resumeStreamTimeout = Duration.ofSeconds(10);
     private Supplier<ResumeStrategy> resumeStrategySupplier =
@@ -192,13 +193,13 @@ public class RSocketFactory {
       return this;
     }
 
-    public ClientRSocketFactory resumeToken(Supplier<ResumeToken> resumeTokenSupplier) {
+    public ClientRSocketFactory resumeToken(Supplier<ByteBuf> resumeTokenSupplier) {
       this.resumeTokenSupplier = Objects.requireNonNull(resumeTokenSupplier);
       return this;
     }
 
     public ClientRSocketFactory resumeStore(
-        Function<? super ResumeToken, ? extends ResumableFramesStore> resumeStoreFactory) {
+        Function<? super ByteBuf, ? extends ResumableFramesStore> resumeStoreFactory) {
       this.resumeStoreFactory = resumeStoreFactory;
       return this;
     }
@@ -267,6 +268,7 @@ public class RSocketFactory {
                 connection -> {
                   ClientSetup clientSetup = clientSetup();
                   DuplexConnection wrappedConnection = clientSetup.wrappedConnection(connection);
+                  ByteBuf resumeToken = clientSetup.resumeToken();
 
                   ClientServerInputMultiplexer multiplexer =
                       new ClientServerInputMultiplexer(wrappedConnection, plugins);
@@ -278,6 +280,8 @@ public class RSocketFactory {
                           payloadDecoder,
                           errorConsumer,
                           StreamIdSupplier.clientSupplier());
+
+                  rSocketClient.onClose().doFinally(s -> resumeToken.release()).subscribe();
 
                   RSocket wrappedRSocketClient = plugins.applyClient(rSocketClient);
 
@@ -299,7 +303,7 @@ public class RSocketFactory {
                           false,
                           (int) keepAliveTickPeriod(),
                           (int) keepAliveTimeout(),
-                          clientSetup.resumeToken().toByteBuf(),
+                          resumeToken,
                           metadataMimeType,
                           dataMimeType,
                           setupPayload.sliceMetadata(),
@@ -319,7 +323,7 @@ public class RSocketFactory {
 
       private ClientSetup clientSetup() {
         if (resumeEnabled) {
-          ResumeToken resumeToken = resumeTokenSupplier.get();
+          ByteBuf resumeToken = resumeTokenSupplier.get();
           return new ClientSetup.ResumableClientSetup(
               allocator,
               newConnection(),
@@ -358,8 +362,8 @@ public class RSocketFactory {
     private boolean resumeSupported;
     private Duration resumeSessionDuration = Duration.ofSeconds(120);
     private Duration resumeStreamTimeout = Duration.ofSeconds(10);
-    private Function<? super ResumeToken, ? extends ResumableFramesStore> resumeStoreFactory =
-        token -> new InMemoryResumableFramesStore("server", 1024);
+    private Function<? super ByteBuf, ? extends ResumableFramesStore> resumeStoreFactory =
+        token -> new InMemoryResumableFramesStore("server", 100_000);
 
     private ByteBufAllocator allocator = ByteBufAllocator.DEFAULT;
 
@@ -412,7 +416,7 @@ public class RSocketFactory {
     }
 
     public ServerRSocketFactory resumeStore(
-        Function<? super ResumeToken, ? extends ResumableFramesStore> resumeStoreFactory) {
+        Function<? super ByteBuf, ? extends ResumableFramesStore> resumeStoreFactory) {
       this.resumeStoreFactory = resumeStoreFactory;
       return this;
     }

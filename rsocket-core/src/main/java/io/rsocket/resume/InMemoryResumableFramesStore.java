@@ -17,17 +17,15 @@
 package io.rsocket.resume;
 
 import io.netty.buffer.ByteBuf;
+import java.util.Queue;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import reactor.core.CoreSubscriber;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
 import reactor.util.concurrent.Queues;
-
-import java.util.Queue;
 
 public class InMemoryResumableFramesStore implements ResumableFramesStore {
   private static final Logger logger = LoggerFactory.getLogger(InMemoryResumableFramesStore.class);
@@ -72,12 +70,13 @@ public class InMemoryResumableFramesStore implements ResumableFramesStore {
     }
     if (removeSize > 0) {
       throw new IllegalStateException(
-          String.format("Local and remote state disagreement: " +
-              "need to remove additional %d bytes, but cache is empty", removeSize));
+          String.format(
+              "Local and remote state disagreement: "
+                  + "need to remove additional %d bytes, but cache is empty",
+              removeSize));
     } else if (removeSize < 0) {
       throw new IllegalStateException(
-          "Local and remote state disagreement: " +
-              "local and remote frame sizes are not equal");
+          "Local and remote state disagreement: " + "local and remote frame sizes are not equal");
     } else {
       logger.debug("{} Removed frames. Current cache size: {}", tag, cacheSize);
     }
@@ -144,7 +143,7 @@ public class InMemoryResumableFramesStore implements ResumableFramesStore {
   }
 
   /* this method and saveFrame() won't be called concurrently,
-  * so non-atomic on volatile is safe*/
+   * so non-atomic on volatile is safe*/
   private int releaseTailFrame(ByteBuf content) {
     int frameSize = content.readableBytes();
     cacheSize -= frameSize;
@@ -154,7 +153,7 @@ public class InMemoryResumableFramesStore implements ResumableFramesStore {
   }
 
   /*this method and releaseTailFrame() won't be called concurrently,
-  * so non-atomic on volatile is safe*/
+   * so non-atomic on volatile is safe*/
   private void saveFrame(ByteBuf frame) {
     if (upstreamFrameRefCnt == 0) {
       upstreamFrameRefCnt = frame.refCnt();
@@ -212,7 +211,6 @@ public class InMemoryResumableFramesStore implements ResumableFramesStore {
     }
 
     @Override
-    public void onComplete() {
-    }
+    public void onComplete() {}
   }
 }

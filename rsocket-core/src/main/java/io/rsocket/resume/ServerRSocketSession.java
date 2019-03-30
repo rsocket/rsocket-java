@@ -40,14 +40,14 @@ public class ServerRSocketSession implements RSocketSession<ResumeAwareConnectio
       ReplayProcessor.create(0);
   private final ByteBufAllocator allocator;
   private final KeepAliveData keepAliveData;
-  private final ResumeToken resumeToken;
+  private final ByteBuf resumeToken;
 
   public ServerRSocketSession(
       ByteBufAllocator allocator,
       ResumeAwareConnection duplexConnection,
       ServerResumeConfiguration config,
       KeepAliveData keepAliveData,
-      ResumeToken resumeToken) {
+      ByteBuf resumeToken) {
     this.allocator = Objects.requireNonNull(allocator);
     this.keepAliveData = Objects.requireNonNull(keepAliveData);
     this.resumeToken = Objects.requireNonNull(resumeToken);
@@ -122,7 +122,7 @@ public class ServerRSocketSession implements RSocketSession<ResumeAwareConnectio
   }
 
   @Override
-  public ResumeToken token() {
+  public ByteBuf token() {
     return resumeToken;
   }
 
