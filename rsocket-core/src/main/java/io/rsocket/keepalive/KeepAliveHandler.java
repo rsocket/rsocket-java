@@ -22,7 +22,6 @@ import io.netty.buffer.Unpooled;
 import io.rsocket.frame.KeepAliveFrameFlyweight;
 import io.rsocket.resume.ResumeStateHolder;
 import java.time.Duration;
-import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import reactor.core.Disposable;
 import reactor.core.Disposables;
@@ -32,10 +31,10 @@ import reactor.core.publisher.MonoProcessor;
 import reactor.core.publisher.UnicastProcessor;
 
 abstract class KeepAliveHandler implements Disposable {
-  protected final ByteBufAllocator allocator;
+  final ByteBufAllocator allocator;
   private final Duration keepAlivePeriod;
-  private final Duration keepAliveTimeout;
-  private volatile Optional<ResumeStateHolder> resumeStateHolder = Optional.empty();
+  private final long keepAliveTimeout;
+  private volatile ResumeStateHolder resumeStateHolder;
   private final UnicastProcessor<ByteBuf> sent = UnicastProcessor.create();
   private final MonoProcessor<KeepAlive> timeout = MonoProcessor.create();
   private final AtomicReference<Disposable> intervalDisposable = new AtomicReference<>();
@@ -55,7 +54,7 @@ abstract class KeepAliveHandler implements Disposable {
       ByteBufAllocator allocator, Duration keepAlivePeriod, Duration keepAliveTimeout) {
     this.allocator = allocator;
     this.keepAlivePeriod = keepAlivePeriod;
-    this.keepAliveTimeout = keepAliveTimeout;
+    this.keepAliveTimeout = keepAliveTimeout.toMillis();
   }
 
   public void start() {
@@ -90,11 +89,11 @@ abstract class KeepAliveHandler implements Disposable {
   }
 
   public void resumeState(ResumeStateHolder resumeStateHolder) {
-    this.resumeStateHolder = Optional.of(resumeStateHolder);
+    this.resumeStateHolder = resumeStateHolder;
   }
 
   public boolean hasResumeState() {
-    return resumeStateHolder.isPresent();
+    return resumeStateHolder != null;
   }
 
   public Flux<ByteBuf> send() {
@@ -113,13 +112,13 @@ abstract class KeepAliveHandler implements Disposable {
 
   void doCheckTimeout() {
     long now = System.currentTimeMillis();
-    if (now - lastReceivedMillis >= keepAliveTimeout.toMillis()) {
-      timeout.onNext(new KeepAlive(keepAlivePeriod.toMillis(), keepAliveTimeout.toMillis()));
+    if (now - lastReceivedMillis >= keepAliveTimeout) {
+      timeout.onNext(new KeepAlive(keepAlivePeriod.toMillis(), keepAliveTimeout));
     }
   }
 
-  Long obtainLastReceivedPos() {
-    return resumeStateHolder.map(ResumeStateHolder::impliedPosition).orElse(0L);
+  long obtainLastReceivedPos() {
+    return resumeStateHolder != null ? resumeStateHolder.impliedPosition() : 0;
   }
 
   private static class Server extends KeepAliveHandler {
