@@ -62,7 +62,6 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
           actions::onNext);
 
   private volatile State state;
-  private volatile Disposable impliedPosDisposable = Disposables.disposed();
   private volatile Disposable resumedStreamDisposable = Disposables.disposed();
   private final AtomicBoolean disposed = new AtomicBoolean();
 
@@ -114,6 +113,7 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
       logger.debug("{} Resumable duplex connection started with connection: {}", tag, connection);
       state = State.CONNECTED;
       onNewConnection(connection);
+      acceptRemoteResumePositions();
     } else {
       logger.debug(
           "{} Resumable duplex connection reconnected with connection: {}", tag, connection);
@@ -165,6 +165,12 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
   }
 
   @Override
+  public void onImpliedPosition(long remoteImpliedPos) {
+    logger.debug("Got remote position from keep-alive: {}", remoteImpliedPos);
+    releaseFramesToPosition(remoteImpliedPos);
+  }
+
+  @Override
   public Mono<Void> onClose() {
     return Flux.merge(connections.last().flatMap(Closeable::onClose), resumeSaveCompleted).then();
   }
@@ -179,7 +185,6 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
       resumeSaveFrames.onComplete();
       curConnection.dispose();
       upstreamSubscriber.dispose();
-      impliedPosDisposable.dispose();
       resumedStreamDisposable.dispose();
       resumableFramesStore.dispose();
     }
@@ -196,12 +201,7 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
   }
 
   private void acceptRemoteResumePositions() {
-    impliedPosDisposable.dispose();
-    impliedPosDisposable =
-        curConnection
-            .receiveResumePositions(this)
-            .doOnNext(l -> logger.debug("Got remote position from keep-alive: {}", l))
-            .subscribe(this::releaseFramesToPosition);
+    curConnection.acceptResumeState(this);
   }
 
   private void sendFrame(ByteBuf f) {

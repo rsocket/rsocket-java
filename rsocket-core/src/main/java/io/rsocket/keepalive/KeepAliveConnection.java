@@ -28,7 +28,6 @@ import io.rsocket.resume.ResumeStateHolder;
 import io.rsocket.util.DuplexConnectionProxy;
 import io.rsocket.util.Function3;
 import java.time.Duration;
-import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import org.reactivestreams.Publisher;
@@ -42,9 +41,8 @@ public class KeepAliveConnection extends DuplexConnectionProxy implements Resume
   private final Function3<ByteBufAllocator, Duration, Duration, KeepAliveHandler>
       keepAliveHandlerFactory;
   private final Consumer<Throwable> errorConsumer;
-  private final UnicastProcessor<ByteBuf> keepAliveFrames = UnicastProcessor.create();
-  private final EmitterProcessor<Long> lastReceivedPositions = EmitterProcessor.create();
   private volatile KeepAliveHandler keepAliveHandler;
+  private volatile ResumeStateHolder resumeStateHolder;
 
   public static KeepAliveConnection ofClient(
       ByteBufAllocator allocator,
@@ -82,7 +80,8 @@ public class KeepAliveConnection extends DuplexConnectionProxy implements Resume
 
   private void startKeepAlives(KeepAliveHandler keepAliveHandler) {
     this.keepAliveHandler = keepAliveHandler;
-    send(keepAliveFrames).subscribe(null, err -> keepAliveHandler.dispose());
+
+    send(keepAliveHandler.send()).subscribe(null, err -> keepAliveHandler.dispose());
 
     keepAliveHandler
         .timeout()
@@ -94,7 +93,6 @@ public class KeepAliveConnection extends DuplexConnectionProxy implements Resume
               errorConsumer.accept(err);
               dispose();
             });
-    keepAliveHandler.send().subscribe(keepAliveFrames::onNext);
     keepAliveHandler.start();
   }
 
@@ -118,7 +116,7 @@ public class KeepAliveConnection extends DuplexConnectionProxy implements Resume
               if (isKeepAliveFrame(f)) {
                 long receivedPos = keepAliveHandler.receive(f);
                 if (isResumeRequested() && receivedPos > 0) {
-                  lastReceivedPositions.onNext(receivedPos);
+                  resumeStateHolder.onImpliedPosition(receivedPos);
                 }
               } else if (isStartFrame(f)) {
                 keepAliveHandler(keepAliveData.apply(f)).subscribe(keepAliveHandlerReady);
@@ -127,21 +125,18 @@ public class KeepAliveConnection extends DuplexConnectionProxy implements Resume
   }
 
   @Override
-  public Mono<Void> onClose() {
-    return super.onClose()
-        .then(Mono.fromRunnable(lastReceivedPositions::onComplete))
-        .then(
-            Mono.fromRunnable(
-                () ->
-                    Optional.ofNullable(keepAliveHandlerReady.peek())
-                        .ifPresent(KeepAliveHandler::dispose)));
+  public void dispose() {
+    KeepAliveHandler keepAliveHandler = keepAliveHandlerReady.peek();
+    if (keepAliveHandler != null) {
+      keepAliveHandler.dispose();
+    }
+    super.dispose();
   }
 
   @Override
-  public Flux<Long> receiveResumePositions(ResumeStateHolder resumeStateHolder) {
-    return keepAliveHandlerReady
-        .doOnNext(h -> h.resumeState(resumeStateHolder))
-        .thenMany(lastReceivedPositions);
+  public void acceptResumeState(ResumeStateHolder resumeStateHolder) {
+    this.resumeStateHolder = resumeStateHolder;
+    keepAliveHandlerReady.subscribe(h -> h.resumeState(resumeStateHolder));
   }
 
   private boolean isResumeRequested() {

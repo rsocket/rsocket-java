@@ -42,7 +42,6 @@ import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import reactor.core.publisher.Mono;
-import reactor.core.publisher.ReplayProcessor;
 
 public class KeepAliveTest {
   private static final int TICK_PERIOD = 100;
@@ -122,8 +121,8 @@ public class KeepAliveTest {
 
   @Test
   void clientResumptionState() {
-    ReplayProcessor<Long> resumePositions = ReplayProcessor.create();
-    clientConnection.receiveResumePositions(new TestResumeStateHolder()).subscribe(resumePositions);
+    TestResumeStateHolder resumeStateHolder = new TestResumeStateHolder();
+    clientConnection.acceptResumeState(resumeStateHolder);
 
     clientConnection.sendOne(setupFrame()).subscribe();
     clientConnection.receive().subscribe();
@@ -134,8 +133,7 @@ public class KeepAliveTest {
 
     Mono.delay(Duration.ofMillis(500)).block();
 
-    List<Long> receivedPositions =
-        resumePositions.take(3).timeout(Duration.ofMillis(100)).collectList().block();
+    List<Long> receivedPositions = resumeStateHolder.receivedImpliedPositions();
 
     Collection<ByteBuf> sent = testConnection.getSent();
     List<Long> sentPositions =
@@ -215,14 +213,24 @@ public class KeepAliveTest {
   }
 
   private static class TestResumeStateHolder implements ResumeStateHolder {
-    private List<Integer> positions = Arrays.asList(1, 5, 6, 8);
+    private final List<Long> sentPositions = Arrays.asList(1L, 5L, 6L, 8L);
+    private final List<Long> receivedPositions = new ArrayList<>();
     private int counter = 0;
 
     @Override
     public long impliedPosition() {
-      Integer res = positions.get(counter);
-      counter = Math.min(counter + 1, positions.size() - 1);
+      long res = sentPositions.get(counter);
+      counter = Math.min(counter + 1, sentPositions.size() - 1);
       return res;
+    }
+
+    @Override
+    public void onImpliedPosition(long remoteImpliedPos) {
+      receivedPositions.add(remoteImpliedPos);
+    }
+
+    public List<Long> receivedImpliedPositions() {
+      return receivedPositions;
     }
   }
 }
