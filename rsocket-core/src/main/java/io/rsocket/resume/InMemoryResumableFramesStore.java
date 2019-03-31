@@ -29,7 +29,7 @@ import reactor.util.concurrent.Queues;
 
 public class InMemoryResumableFramesStore implements ResumableFramesStore {
   private static final Logger logger = LoggerFactory.getLogger(InMemoryResumableFramesStore.class);
-  private static final int SAVE_REQUEST_SIZE = 256;
+  private static final long SAVE_REQUEST_SIZE = Long.MAX_VALUE;
 
   private final MonoProcessor<Void> disposed = MonoProcessor.create();
   private volatile long position;
@@ -180,12 +180,12 @@ public class InMemoryResumableFramesStore implements ResumableFramesStore {
   }
 
   private class FramesSubscriber implements Subscriber<ByteBuf> {
-    private final int firstRequestSize;
-    private final int refillSize;
+    private final long firstRequestSize;
+    private final long refillSize;
     private int received;
     private Subscription s;
 
-    public FramesSubscriber(int requestSize) {
+    public FramesSubscriber(long requestSize) {
       this.firstRequestSize = requestSize;
       this.refillSize = firstRequestSize / 2;
     }
@@ -199,7 +199,7 @@ public class InMemoryResumableFramesStore implements ResumableFramesStore {
     @Override
     public void onNext(ByteBuf byteBuf) {
       saveFrame(byteBuf);
-      if (++received == refillSize) {
+      if (firstRequestSize != Long.MAX_VALUE && ++received == refillSize) {
         received = 0;
         s.request(refillSize);
       }

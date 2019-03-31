@@ -17,7 +17,6 @@
 package io.rsocket.resume;
 
 import io.netty.buffer.ByteBuf;
-import io.rsocket.internal.UnboundedProcessor;
 import java.util.Queue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
@@ -27,13 +26,15 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.FluxProcessor;
 import reactor.core.publisher.Operators;
+import reactor.core.publisher.UnicastProcessor;
 import reactor.util.concurrent.Queues;
 
 class UpstreamFramesSubscriber implements Subscriber<ByteBuf>, Disposable {
   private static final Logger logger = LoggerFactory.getLogger(UpstreamFramesSubscriber.class);
 
-  private final UnboundedProcessor<Object> actions = new UnboundedProcessor<>();
+  private final FluxProcessor<Object, Object> actions = UnicastProcessor.create().serialize();
   private final AtomicBoolean disposed = new AtomicBoolean();
   private final Consumer<ByteBuf> itemConsumer;
   private final Disposable downstreamRequestDisposable;
@@ -59,10 +60,7 @@ class UpstreamFramesSubscriber implements Subscriber<ByteBuf>, Disposable {
     resumeSaveStreamDisposable =
         resumeSaveStreamRequests.subscribe(requestN -> requestN(requestN, 0));
 
-    Flux<Object> acts = actions.publish().autoConnect(3);
-    acts.ofType(ByteBuf.class).subscribe(this::processFrame);
-    acts.ofType(ResumeStart.class).subscribe(ResumeStart::run);
-    acts.ofType(ResumeComplete.class).subscribe(ResumeComplete::run);
+    dispatch(actions);
   }
 
   @Override
@@ -113,6 +111,17 @@ class UpstreamFramesSubscriber implements Subscriber<ByteBuf>, Disposable {
   @Override
   public boolean isDisposed() {
     return disposed.get();
+  }
+
+  private void dispatch(Flux<?> p) {
+    p.subscribe(
+        o -> {
+          if (o instanceof ByteBuf) {
+            processFrame(((ByteBuf) o));
+          } else {
+            ((Runnable) o).run();
+          }
+        });
   }
 
   private void requestN(long resumeStreamRequest, long downStreamRequest) {

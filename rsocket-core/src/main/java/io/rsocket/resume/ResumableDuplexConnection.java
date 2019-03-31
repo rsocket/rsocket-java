@@ -20,7 +20,6 @@ import io.netty.buffer.ByteBuf;
 import io.rsocket.Closeable;
 import io.rsocket.DuplexConnection;
 import io.rsocket.frame.FrameHeaderFlyweight;
-import io.rsocket.internal.UnboundedProcessor;
 import java.nio.channels.ClosedChannelException;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -47,8 +46,7 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
   private final FluxProcessor<ByteBuf, ByteBuf> downStreamFrames = ReplayProcessor.create(0);
   private final FluxProcessor<ByteBuf, ByteBuf> resumeSaveFrames = EmitterProcessor.create();
   private final MonoProcessor<Void> resumeSaveCompleted = MonoProcessor.create();
-
-  private final UnboundedProcessor<Object> actions = new UnboundedProcessor<>();
+  private final FluxProcessor<Object, Object> actions = UnicastProcessor.create().serialize();
 
   private final Mono<Void> framesSent;
   private final RequestListener downStreamRequestListener = new RequestListener();
@@ -97,12 +95,7 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
             .then()
             .cache();
 
-    Flux<Object> acts = actions.publish().autoConnect(4);
-    acts.ofType(ByteBuf.class).subscribe(this::sendFrame);
-    acts.ofType(ResumeStart.class).subscribe(ResumeStart::run);
-    acts.ofType(Resume.class).subscribe(Resume::run);
-    acts.ofType(ResumeComplete.class).subscribe(ResumeComplete::run);
-
+    dispatch(actions);
     reconnect(duplexConnection);
   }
 
@@ -223,6 +216,17 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
 
   Flux<Throwable> connectionErrors() {
     return connectionErrors;
+  }
+
+  private void dispatch(Flux<?> f) {
+    f.subscribe(
+        o -> {
+          if (o instanceof ByteBuf) {
+            sendFrame((ByteBuf) o);
+          } else {
+            ((Runnable) o).run();
+          }
+        });
   }
 
   private void doResumeStart(ResumeAwareConnection connection) {
