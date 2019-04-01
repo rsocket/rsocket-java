@@ -16,7 +16,7 @@
 
 package io.rsocket.transport.netty.server;
 
-import static io.rsocket.frame.FrameUtil.FRAME_MAX_SIZE;
+import static io.rsocket.frame.FrameLengthFlyweight.FRAME_LENGTH_MASK;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
@@ -52,7 +52,7 @@ final class WebsocketServerTransportTest {
     captor.getValue().apply(httpServerRequest, httpServerResponse);
 
     Mockito.verify(httpServerResponse)
-        .sendWebsocket(Mockito.nullable(String.class), Mockito.eq(FRAME_MAX_SIZE), Mockito.any());
+        .sendWebsocket(Mockito.nullable(String.class), Mockito.eq(FRAME_LENGTH_MASK), Mockito.any());
   }
 
   @Test
@@ -72,7 +72,7 @@ final class WebsocketServerTransportTest {
     captor.getValue().apply(httpServerRequest, httpServerResponse);
 
     Mockito.verify(httpServerResponse)
-        .sendWebsocket(Mockito.nullable(String.class), Mockito.eq(65536), Mockito.any());
+        .sendWebsocket(Mockito.nullable(String.class), Mockito.eq(FRAME_LENGTH_MASK), Mockito.any());
   }
 
   @Test
@@ -93,7 +93,7 @@ final class WebsocketServerTransportTest {
     captor.getValue().apply(httpServerRequest, httpServerResponse);
 
     Mockito.verify(httpServerResponse)
-        .sendWebsocket(Mockito.nullable(String.class), Mockito.eq(65536 + 1000), Mockito.any());
+        .sendWebsocket(Mockito.nullable(String.class), Mockito.eq(FRAME_LENGTH_MASK), Mockito.any());
   }
 
   @DisplayName("creates server with BindAddress")

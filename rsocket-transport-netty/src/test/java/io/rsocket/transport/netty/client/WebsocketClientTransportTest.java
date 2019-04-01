@@ -16,7 +16,7 @@
 
 package io.rsocket.transport.netty.client;
 
-import static io.rsocket.frame.FrameUtil.FRAME_MAX_SIZE;
+import static io.rsocket.frame.FrameLengthFlyweight.FRAME_LENGTH_MASK;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
@@ -49,7 +49,7 @@ final class WebsocketClientTransportTest {
 
     clientTransport.connect(0).subscribe();
 
-    Assertions.assertThat(captor.getValue()).isEqualTo(FRAME_MAX_SIZE);
+    Assertions.assertThat(captor.getValue()).isEqualTo(FRAME_LENGTH_MASK);
   }
 
   @Test
@@ -63,7 +63,7 @@ final class WebsocketClientTransportTest {
 
     clientTransport.connect(65536 - 10000).subscribe();
 
-    Assertions.assertThat(captor.getValue()).isEqualTo(65536);
+    Assertions.assertThat(captor.getValue()).isEqualTo(FRAME_LENGTH_MASK);
   }
 
   @Test
@@ -78,7 +78,7 @@ final class WebsocketClientTransportTest {
 
     clientTransport.connect(65536 + 10000).subscribe();
 
-    Assertions.assertThat(captor.getValue()).isEqualTo(65536 + 10000);
+    Assertions.assertThat(captor.getValue()).isEqualTo(FRAME_LENGTH_MASK);
   }
 
   @DisplayName("connects to server")

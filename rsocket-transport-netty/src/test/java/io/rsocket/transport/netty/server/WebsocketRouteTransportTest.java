@@ -16,7 +16,7 @@
 
 package io.rsocket.transport.netty.server;
 
-import static io.rsocket.frame.FrameUtil.FRAME_MAX_SIZE;
+import static io.rsocket.frame.FrameLengthFlyweight.FRAME_LENGTH_MASK;
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
 import java.util.function.BiFunction;
@@ -53,7 +53,7 @@ final class WebsocketRouteTransportTest {
             Mockito.any(Predicate.class),
             Mockito.any(BiFunction.class),
             Mockito.nullable(String.class),
-            Mockito.eq(FRAME_MAX_SIZE));
+            Mockito.eq(FRAME_LENGTH_MASK));
   }
 
   @Test
@@ -76,7 +76,7 @@ final class WebsocketRouteTransportTest {
             Mockito.any(Predicate.class),
             Mockito.any(BiFunction.class),
             Mockito.nullable(String.class),
-            Mockito.eq(65536));
+            Mockito.eq(FRAME_LENGTH_MASK));
   }
 
   @Test
@@ -100,7 +100,7 @@ final class WebsocketRouteTransportTest {
             Mockito.any(Predicate.class),
             Mockito.any(BiFunction.class),
             Mockito.nullable(String.class),
-            Mockito.eq(65536 + 1000));
+            Mockito.eq(FRAME_LENGTH_MASK));
   }
 
   @DisplayName("creates server")

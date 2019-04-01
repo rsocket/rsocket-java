@@ -16,7 +16,7 @@
 
 package io.rsocket.transport.netty.client;
 
-import static io.rsocket.frame.FrameUtil.FRAME_MAX_SIZE;
+import static io.rsocket.frame.FrameLengthFlyweight.FRAME_LENGTH_MASK;
 import static io.rsocket.transport.netty.UriUtils.getPort;
 import static io.rsocket.transport.netty.UriUtils.isSecure;
 
@@ -153,7 +153,7 @@ public final class WebsocketClientTransport implements ClientTransport, Transpor
   public Mono<DuplexConnection> connect(int mtu) {
     return client
         .headers(headers -> transportHeaders.get().forEach(headers::set))
-        .websocket(Math.max(DEFAULT_FRAME_SIZE, mtu == 0 ? FRAME_MAX_SIZE : mtu))
+        .websocket(FRAME_LENGTH_MASK)
         .uri(path)
         .connect()
         .map(

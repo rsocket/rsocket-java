@@ -41,8 +41,6 @@ import reactor.netty.http.server.HttpServer;
 public final class WebsocketServerTransport
     implements ServerTransport<CloseableChannel>, TransportHeaderAware {
 
-  private static final int DEFAULT_FRAME_SIZE = 65536;
-
   private final HttpServer server;
 
   private Supplier<Map<String, String>> transportHeaders = Collections::emptyMap;
@@ -119,7 +117,7 @@ public final class WebsocketServerTransport
               transportHeaders.get().forEach(response::addHeader);
               return response.sendWebsocket(
                   null,
-                  Math.max(DEFAULT_FRAME_SIZE, mtu == 0 ? FRAME_LENGTH_MASK : mtu),
+                  FRAME_LENGTH_MASK,
                   (in, out) -> {
                     DuplexConnection connection = new WebsocketDuplexConnection((Connection) in);
                     if (mtu > 0) {

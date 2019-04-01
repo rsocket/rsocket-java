@@ -44,8 +44,6 @@ import reactor.netty.http.server.HttpServerRoutes;
  */
 public final class WebsocketRouteTransport implements ServerTransport<Closeable> {
 
-  private static final int DEFAULT_FRAME_SIZE = 65536;
-
   private final UriPathTemplate template;
 
   private final Consumer<? super HttpServerRoutes> routesBuilder;
@@ -87,7 +85,7 @@ public final class WebsocketRouteTransport implements ServerTransport<Closeable>
                     return acceptor.apply(connection).then(out.neverComplete());
                   },
                   null,
-                  Math.max(DEFAULT_FRAME_SIZE, mtu == 0 ? FRAME_LENGTH_MASK : mtu));
+                  FRAME_LENGTH_MASK);
             })
         .bind()
         .map(CloseableChannel::new);
