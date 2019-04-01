@@ -30,17 +30,17 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Mono;
 
-public class ClientRSocketSession implements RSocketSession<Mono<? extends ResumeAwareConnection>> {
+public class ClientRSocketSession implements RSocketSession<Mono<? extends ResumePositionsConnection>> {
   private static final Logger logger = LoggerFactory.getLogger(ClientRSocketSession.class);
 
   private final ResumableDuplexConnection resumableConnection;
-  private volatile Mono<? extends ResumeAwareConnection> newConnection;
+  private volatile Mono<? extends ResumePositionsConnection> newConnection;
   private volatile ByteBuf resumeToken;
   private final ByteBufAllocator allocator;
 
   public ClientRSocketSession(
       ByteBufAllocator allocator,
-      ResumeAwareConnection duplexConnection,
+      ResumePositionsConnection duplexConnection,
       ClientResumeConfiguration config) {
     this.allocator = Objects.requireNonNull(allocator);
     this.resumableConnection =
@@ -101,7 +101,7 @@ public class ClientRSocketSession implements RSocketSession<Mono<? extends Resum
   }
 
   @Override
-  public ClientRSocketSession continueWith(Mono<? extends ResumeAwareConnection> newConnection) {
+  public ClientRSocketSession continueWith(Mono<? extends ResumePositionsConnection> newConnection) {
     this.newConnection = newConnection;
     return this;
   }
@@ -137,7 +137,7 @@ public class ClientRSocketSession implements RSocketSession<Mono<? extends Resum
   }
 
   @Override
-  public void reconnect(ResumeAwareConnection connection) {
+  public void reconnect(ResumePositionsConnection connection) {
     resumableConnection.reconnect(connection);
   }
 

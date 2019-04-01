@@ -40,7 +40,7 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
 
   private final ReplayProcessor<DuplexConnection> connections = ReplayProcessor.create(1);
   private final EmitterProcessor<Throwable> connectionErrors = EmitterProcessor.create();
-  private volatile ResumeAwareConnection curConnection;
+  private volatile ResumePositionsConnection curConnection;
   /*used instead of EmitterProcessor because its autocancel=false capability had no expected effect*/
   private final FluxProcessor<ByteBuf, ByteBuf> downStreamFrames = ReplayProcessor.create(0);
   private final FluxProcessor<ByteBuf, ByteBuf> resumeSaveFrames = EmitterProcessor.create();
@@ -64,7 +64,7 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
 
   ResumableDuplexConnection(
       String tag,
-      ResumeAwareConnection duplexConnection,
+      ResumePositionsConnection duplexConnection,
       ResumableFramesStore resumableFramesStore,
       Duration resumeStreamTimeout) {
     this.tag = tag;
@@ -98,7 +98,7 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
 
   /*reconnected by session after error. After this downstream can receive frames,
    * but sending in suppressed until resume() is called*/
-  public void reconnect(ResumeAwareConnection connection) {
+  public void reconnect(ResumePositionsConnection connection) {
     if (curConnection == null) {
       logger.debug("{} Resumable duplex connection started with connection: {}", tag, connection);
       state = State.CONNECTED;
@@ -225,7 +225,7 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
         });
   }
 
-  private void doResumeStart(ResumeAwareConnection connection) {
+  private void doResumeStart(ResumePositionsConnection connection) {
     state = State.RESUME_STARTED;
     resumedStreamDisposable.dispose();
     upstreamSubscriber.resumeStart();
@@ -306,7 +306,7 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
         });
   }
 
-  private void onNewConnection(ResumeAwareConnection connection) {
+  private void onNewConnection(ResumePositionsConnection connection) {
     curConnection = connection;
     connection.onClose().doFinally(v -> disconnect(connection)).subscribe();
     connections.onNext(connection);
@@ -364,9 +364,9 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
   }
 
   class ResumeStart implements Runnable {
-    private ResumeAwareConnection connection;
+    private ResumePositionsConnection connection;
 
-    public ResumeStart(ResumeAwareConnection connection) {
+    public ResumeStart(ResumePositionsConnection connection) {
       this.connection = connection;
     }
 

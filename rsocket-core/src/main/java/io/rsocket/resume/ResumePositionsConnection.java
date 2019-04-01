@@ -18,7 +18,7 @@ package io.rsocket.resume;
 
 import io.rsocket.DuplexConnection;
 
-public interface ResumeAwareConnection extends DuplexConnection {
+public interface ResumePositionsConnection extends DuplexConnection {
 
   void acceptResumeState(ResumeStateHolder resumeStateHolder);
 }

@@ -23,7 +23,7 @@ import io.rsocket.frame.FrameHeaderFlyweight;
 import io.rsocket.frame.FrameUtil;
 import io.rsocket.plugins.DuplexConnectionInterceptor.Type;
 import io.rsocket.plugins.PluginRegistry;
-import io.rsocket.resume.ResumeAwareConnection;
+import io.rsocket.resume.ResumePositionsConnection;
 import org.reactivestreams.Publisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -52,7 +52,7 @@ public class ClientServerInputMultiplexer implements Closeable {
   private final DuplexConnection serverConnection;
   private final DuplexConnection clientConnection;
   private final DuplexConnection source;
-  private final ResumeAwareConnection clientServerConnection;
+  private final ResumePositionsConnection clientServerConnection;
 
   public ClientServerInputMultiplexer(DuplexConnection source) {
     this(source, emptyPluginRegistry);
@@ -115,7 +115,7 @@ public class ClientServerInputMultiplexer implements Closeable {
             });
   }
 
-  public ResumeAwareConnection asClientServerConnection() {
+  public ResumePositionsConnection asClientServerConnection() {
     return clientServerConnection;
   }
 

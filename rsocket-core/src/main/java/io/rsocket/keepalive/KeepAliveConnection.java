@@ -23,7 +23,7 @@ import io.rsocket.exceptions.ConnectionErrorException;
 import io.rsocket.frame.FrameHeaderFlyweight;
 import io.rsocket.frame.FrameType;
 import io.rsocket.internal.KeepAliveData;
-import io.rsocket.resume.ResumeAwareConnection;
+import io.rsocket.resume.ResumePositionsConnection;
 import io.rsocket.resume.ResumeStateHolder;
 import io.rsocket.util.DuplexConnectionProxy;
 import io.rsocket.util.Function3;
@@ -33,7 +33,7 @@ import java.util.function.Function;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.*;
 
-public class KeepAliveConnection extends DuplexConnectionProxy implements ResumeAwareConnection {
+public class KeepAliveConnection extends DuplexConnectionProxy implements ResumePositionsConnection {
 
   private final MonoProcessor<KeepAliveHandler> keepAliveHandlerReady = MonoProcessor.create();
   private final ByteBufAllocator allocator;

@@ -31,12 +31,12 @@ import reactor.core.publisher.FluxProcessor;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.ReplayProcessor;
 
-public class ServerRSocketSession implements RSocketSession<ResumeAwareConnection> {
+public class ServerRSocketSession implements RSocketSession<ResumePositionsConnection> {
   private static final Logger logger = LoggerFactory.getLogger(ServerRSocketSession.class);
 
   private final ResumableDuplexConnection resumableConnection;
   /*used instead of EmitterProcessor because its autocancel=false capability had no expected effect*/
-  private final FluxProcessor<ResumeAwareConnection, ResumeAwareConnection> newConnections =
+  private final FluxProcessor<ResumePositionsConnection, ResumePositionsConnection> newConnections =
       ReplayProcessor.create(0);
   private final ByteBufAllocator allocator;
   private final KeepAliveData keepAliveData;
@@ -44,7 +44,7 @@ public class ServerRSocketSession implements RSocketSession<ResumeAwareConnectio
 
   public ServerRSocketSession(
       ByteBufAllocator allocator,
-      ResumeAwareConnection duplexConnection,
+      ResumePositionsConnection duplexConnection,
       ServerResumeConfiguration config,
       KeepAliveData keepAliveData,
       ByteBuf resumeToken) {
@@ -58,7 +58,7 @@ public class ServerRSocketSession implements RSocketSession<ResumeAwareConnectio
             config.resumeStoreFactory().apply(resumeToken),
             config.resumeStreamTimeout());
 
-    Mono<ResumeAwareConnection> timeout =
+    Mono<ResumePositionsConnection> timeout =
         resumableConnection
             .connectionErrors()
             .flatMap(
@@ -70,7 +70,7 @@ public class ServerRSocketSession implements RSocketSession<ResumeAwareConnectio
                       .timeout(config.sessionDuration());
                 })
             .then()
-            .cast(ResumeAwareConnection.class);
+            .cast(ResumePositionsConnection.class);
 
     newConnections
         .mergeWith(timeout)
@@ -86,7 +86,7 @@ public class ServerRSocketSession implements RSocketSession<ResumeAwareConnectio
   }
 
   @Override
-  public ServerRSocketSession continueWith(ResumeAwareConnection newConnection) {
+  public ServerRSocketSession continueWith(ResumePositionsConnection newConnection) {
     logger.debug("Server continued with connection: {}", newConnection);
     newConnections.onNext(newConnection);
     return this;
@@ -116,7 +116,7 @@ public class ServerRSocketSession implements RSocketSession<ResumeAwareConnectio
   }
 
   @Override
-  public void reconnect(ResumeAwareConnection connection) {
+  public void reconnect(ResumePositionsConnection connection) {
     resumableConnection.reconnect(connection);
   }
 

@@ -17,11 +17,11 @@
 package io.rsocket.internal;
 
 import io.rsocket.DuplexConnection;
-import io.rsocket.resume.ResumeAwareConnection;
+import io.rsocket.resume.ResumePositionsConnection;
 import io.rsocket.resume.ResumeStateHolder;
 import io.rsocket.util.DuplexConnectionProxy;
 
-class ClientServerConnection extends DuplexConnectionProxy implements ResumeAwareConnection {
+class ClientServerConnection extends DuplexConnectionProxy implements ResumePositionsConnection {
 
   private final DuplexConnection resumeAware;
 
@@ -32,8 +32,8 @@ class ClientServerConnection extends DuplexConnectionProxy implements ResumeAwar
 
   @Override
   public void acceptResumeState(ResumeStateHolder resumeStateHolder) {
-    if (resumeAware instanceof ResumeAwareConnection) {
-      ((ResumeAwareConnection) resumeAware).acceptResumeState(resumeStateHolder);
+    if (resumeAware instanceof ResumePositionsConnection) {
+      ((ResumePositionsConnection) resumeAware).acceptResumeState(resumeStateHolder);
     }
   }
 }

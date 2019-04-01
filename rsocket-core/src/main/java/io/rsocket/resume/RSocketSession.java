@@ -31,7 +31,7 @@ public interface RSocketSession<T> extends Closeable {
 
   RSocketSession resumeWith(ByteBuf resumeFrame);
 
-  void reconnect(ResumeAwareConnection connection);
+  void reconnect(ResumePositionsConnection connection);
 
   @Override
   default Mono<Void> onClose() {
