@@ -26,15 +26,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
-import reactor.core.publisher.FluxProcessor;
 import reactor.core.publisher.Operators;
-import reactor.core.publisher.UnicastProcessor;
 import reactor.util.concurrent.Queues;
 
 class UpstreamFramesSubscriber implements Subscriber<ByteBuf>, Disposable {
   private static final Logger logger = LoggerFactory.getLogger(UpstreamFramesSubscriber.class);
 
-  private final FluxProcessor<Object, Object> actions = UnicastProcessor.create().serialize();
   private final AtomicBoolean disposed = new AtomicBoolean();
   private final Consumer<ByteBuf> itemConsumer;
   private final Disposable downstreamRequestDisposable;
@@ -59,8 +56,6 @@ class UpstreamFramesSubscriber implements Subscriber<ByteBuf>, Disposable {
 
     resumeSaveStreamDisposable =
         resumeSaveStreamRequests.subscribe(requestN -> requestN(requestN, 0));
-
-    dispatch(actions);
   }
 
   @Override
@@ -75,7 +70,7 @@ class UpstreamFramesSubscriber implements Subscriber<ByteBuf>, Disposable {
 
   @Override
   public void onNext(ByteBuf item) {
-    actions.onNext(item);
+    processFrame(item);
   }
 
   @Override
@@ -89,11 +84,17 @@ class UpstreamFramesSubscriber implements Subscriber<ByteBuf>, Disposable {
   }
 
   public void resumeStart() {
-    actions.onNext(new ResumeStart());
+    resumeStarted = true;
   }
 
   public void resumeComplete() {
-    actions.onNext(new ResumeComplete());
+    ByteBuf frame = framesCache.poll();
+    while (frame != null) {
+      itemConsumer.accept(frame);
+      frame = framesCache.poll();
+    }
+    resumeStarted = false;
+    doRequest();
   }
 
   @Override
@@ -111,17 +112,6 @@ class UpstreamFramesSubscriber implements Subscriber<ByteBuf>, Disposable {
   @Override
   public boolean isDisposed() {
     return disposed.get();
-  }
-
-  private void dispatch(Flux<?> p) {
-    p.subscribe(
-        o -> {
-          if (o instanceof ByteBuf) {
-            processFrame(((ByteBuf) o));
-          } else {
-            ((Runnable) o).run();
-          }
-        });
   }
 
   private void requestN(long resumeStreamRequest, long downStreamRequest) {
@@ -159,41 +149,11 @@ class UpstreamFramesSubscriber implements Subscriber<ByteBuf>, Disposable {
     }
   }
 
-  private void doResumeStart() {
-    resumeStarted = true;
-  }
-
-  private void doResumeComplete() {
-    ByteBuf frame = framesCache.poll();
-    while (frame != null) {
-      itemConsumer.accept(frame);
-      frame = framesCache.poll();
-    }
-    resumeStarted = false;
-    doRequest();
-  }
-
   private void processFrame(ByteBuf item) {
     if (resumeStarted) {
       framesCache.offer(item);
     } else {
       itemConsumer.accept(item);
-    }
-  }
-
-  private class ResumeStart implements Runnable {
-
-    @Override
-    public void run() {
-      doResumeStart();
-    }
-  }
-
-  private class ResumeComplete implements Runnable {
-
-    @Override
-    public void run() {
-      doResumeComplete();
     }
   }
 }

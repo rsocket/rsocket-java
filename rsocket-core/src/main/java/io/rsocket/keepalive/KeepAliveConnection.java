@@ -33,7 +33,8 @@ import java.util.function.Function;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.*;
 
-public class KeepAliveConnection extends DuplexConnectionProxy implements ResumePositionsConnection {
+public class KeepAliveConnection extends DuplexConnectionProxy
+    implements ResumePositionsConnection {
 
   private final MonoProcessor<KeepAliveHandler> keepAliveHandlerReady = MonoProcessor.create();
   private final ByteBufAllocator allocator;

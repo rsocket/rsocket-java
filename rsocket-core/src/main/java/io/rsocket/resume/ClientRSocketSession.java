@@ -30,7 +30,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Mono;
 
-public class ClientRSocketSession implements RSocketSession<Mono<? extends ResumePositionsConnection>> {
+public class ClientRSocketSession
+    implements RSocketSession<Mono<? extends ResumePositionsConnection>> {
   private static final Logger logger = LoggerFactory.getLogger(ClientRSocketSession.class);
 
   private final ResumableDuplexConnection resumableConnection;
@@ -101,7 +102,8 @@ public class ClientRSocketSession implements RSocketSession<Mono<? extends Resum
   }
 
   @Override
-  public ClientRSocketSession continueWith(Mono<? extends ResumePositionsConnection> newConnection) {
+  public ClientRSocketSession continueWith(
+      Mono<? extends ResumePositionsConnection> newConnection) {
     this.newConnection = newConnection;
     return this;
   }

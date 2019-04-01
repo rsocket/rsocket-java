@@ -22,7 +22,9 @@ import io.rsocket.DuplexConnection;
 import io.rsocket.frame.FrameHeaderFlyweight;
 import java.nio.channels.ClosedChannelException;
 import java.time.Duration;
+import java.util.Queue;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import org.reactivestreams.Publisher;
 import org.slf4j.Logger;
@@ -30,6 +32,7 @@ import org.slf4j.LoggerFactory;
 import reactor.core.Disposable;
 import reactor.core.Disposables;
 import reactor.core.publisher.*;
+import reactor.util.concurrent.Queues;
 
 class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
   private static final Logger logger = LoggerFactory.getLogger(ResumableDuplexConnection.class);
@@ -45,7 +48,8 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
   private final FluxProcessor<ByteBuf, ByteBuf> downStreamFrames = ReplayProcessor.create(0);
   private final FluxProcessor<ByteBuf, ByteBuf> resumeSaveFrames = EmitterProcessor.create();
   private final MonoProcessor<Void> resumeSaveCompleted = MonoProcessor.create();
-  private final FluxProcessor<Object, Object> actions = UnicastProcessor.create().serialize();
+  private final Queue<Object> actions = Queues.unboundedMultiproducer().get();
+  private final AtomicInteger actionsWip = new AtomicInteger();
 
   private final Mono<Void> framesSent;
   private final RequestListener downStreamRequestListener = new RequestListener();
@@ -56,7 +60,7 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
           128,
           downStreamRequestListener.requests(),
           resumeSaveStreamRequestListener.requests(),
-          actions::onNext);
+          this::dispatch);
 
   private volatile State state;
   private volatile Disposable resumedStreamDisposable = Disposables.disposed();
@@ -92,7 +96,6 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
             .then()
             .cache();
 
-    dispatch(actions);
     reconnect(duplexConnection);
   }
 
@@ -109,7 +112,7 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
           "{} Resumable duplex connection reconnected with connection: {}", tag, connection);
       /*race between sendFrame and doResumeStart may lead to ongoing upstream frames
       written before resume complete*/
-      actions.onNext(new ResumeStart(connection));
+      dispatch(new ResumeStart(connection));
     }
   }
 
@@ -118,7 +121,7 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
   public void resume(
       long remotePos, long remoteImpliedPos, Function<Mono<Long>, Mono<Void>> resumeFrameSent) {
     /*race between sendFrame and doResume may lead to duplicate frames on resume store*/
-    actions.onNext(new Resume(remotePos, remoteImpliedPos, resumeFrameSent));
+    dispatch(new Resume(remotePos, remoteImpliedPos, resumeFrameSent));
   }
 
   @Override
@@ -214,15 +217,18 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
     return connectionErrors;
   }
 
-  private void dispatch(Flux<?> f) {
-    f.subscribe(
-        o -> {
-          if (o instanceof ByteBuf) {
-            sendFrame((ByteBuf) o);
-          } else {
-            ((Runnable) o).run();
-          }
-        });
+  private void dispatch(Object action) {
+    actions.offer(action);
+    if (actionsWip.getAndIncrement() == 0) {
+      do {
+        Object a = actions.poll();
+        if (a instanceof ByteBuf) {
+          sendFrame((ByteBuf) a);
+        } else {
+          ((Runnable) a).run();
+        }
+      } while (actionsWip.decrementAndGet() != 0);
+    }
   }
 
   private void doResumeStart(ResumePositionsConnection connection) {
@@ -272,7 +278,7 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
                     resumableFramesStore
                         .resumeStream()
                         .timeout(resumeStreamTimeout)
-                        .doFinally(s -> actions.onNext(new ResumeComplete())))
+                        .doFinally(s -> dispatch(new ResumeComplete())))
                 .doOnError(err -> dispose()))
         .onErrorResume(err -> Mono.empty())
         .subscribe();
@@ -299,7 +305,7 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
         s -> {
           ResumeFramesSubscriber subscriber =
               new ResumeFramesSubscriber(
-                  downStreamRequestListener.requests(), actions::onNext, s::error, s::success);
+                  downStreamRequestListener.requests(), this::dispatch, s::error, s::success);
           s.onDispose(subscriber);
           resumedStreamDisposable = subscriber;
           frames.subscribe(subscriber);
