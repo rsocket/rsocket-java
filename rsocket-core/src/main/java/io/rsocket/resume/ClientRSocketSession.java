@@ -45,11 +45,7 @@ public class ClientRSocketSession implements RSocketSession<Mono<? extends Resum
     this.allocator = Objects.requireNonNull(allocator);
     this.resumableConnection =
         new ResumableDuplexConnection(
-            "client",
-            duplexConnection,
-            ResumedFramesCalculator.ofClient,
-            config.resumeStore(),
-            config.resumeStreamTimeout());
+            "client", duplexConnection, config.resumeStore(), config.resumeStreamTimeout());
 
     resumableConnection
         .connectionErrors()

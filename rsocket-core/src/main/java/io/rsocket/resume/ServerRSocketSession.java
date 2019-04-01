@@ -55,7 +55,6 @@ public class ServerRSocketSession implements RSocketSession<ResumeAwareConnectio
         new ResumableDuplexConnection(
             "server",
             duplexConnection,
-            ResumedFramesCalculator.ofServer,
             config.resumeStoreFactory().apply(resumeToken),
             config.resumeStreamTimeout());
 

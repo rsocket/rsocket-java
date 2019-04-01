@@ -16,56 +16,42 @@
 
 package io.rsocket.resume;
 
-import java.time.Duration;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import reactor.test.StepVerifier;
 
 public class ResumeCalculatorTest {
 
-  private ResumedFramesCalculator clientResumeCalculator;
-  private ResumedFramesCalculator serverResumeCalculator;
-
   @BeforeEach
-  void setUp() {
-    clientResumeCalculator = ResumedFramesCalculator.ofClient;
-    serverResumeCalculator = ResumedFramesCalculator.ofServer;
-  }
+  void setUp() {}
 
   @Test
   void clientResumeSuccess() {
-    StepVerifier.create(clientResumeCalculator.calculate(1, 42, -1, 3))
-        .expectNext(3L)
-        .expectComplete()
-        .verify(Duration.ofSeconds(1));
+    long position = ResumableDuplexConnection.calculateRemoteImpliedPos(1, 42, -1, 3);
+    Assertions.assertEquals(3, position);
   }
 
   @Test
   void clientResumeError() {
-    StepVerifier.create(clientResumeCalculator.calculate(4, 42, -1, 3))
-        .expectError(ResumeStateException.class)
-        .verify(Duration.ofSeconds(1));
+    long position = ResumableDuplexConnection.calculateRemoteImpliedPos(4, 42, -1, 3);
+    Assertions.assertEquals(-1, position);
   }
 
   @Test
   void serverResumeSuccess() {
-    StepVerifier.create(serverResumeCalculator.calculate(1, 42, 4, 23))
-        .expectNext(23L)
-        .expectComplete()
-        .verify(Duration.ofSeconds(1));
+    long position = ResumableDuplexConnection.calculateRemoteImpliedPos(1, 42, 4, 23);
+    Assertions.assertEquals(23, position);
   }
 
   @Test
   void serverResumeErrorClientState() {
-    StepVerifier.create(serverResumeCalculator.calculate(1, 3, 4, 23))
-        .expectError(ResumeStateException.class)
-        .verify(Duration.ofSeconds(1));
+    long position = ResumableDuplexConnection.calculateRemoteImpliedPos(1, 3, 4, 23);
+    Assertions.assertEquals(-1, position);
   }
 
   @Test
   void serverResumeErrorServerState() {
-    StepVerifier.create(serverResumeCalculator.calculate(4, 42, 4, 1))
-        .expectError(ResumeStateException.class)
-        .verify(Duration.ofSeconds(1));
+    long position = ResumableDuplexConnection.calculateRemoteImpliedPos(4, 42, 4, 1);
+    Assertions.assertEquals(-1, position);
   }
 }

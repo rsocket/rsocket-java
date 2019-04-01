@@ -35,7 +35,6 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
   private static final Logger logger = LoggerFactory.getLogger(ResumableDuplexConnection.class);
 
   private final String tag;
-  private final ResumedFramesCalculator resumedFramesCalculator;
   private final ResumableFramesStore resumableFramesStore;
   private final Duration resumeStreamTimeout;
 
@@ -66,11 +65,9 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
   ResumableDuplexConnection(
       String tag,
       ResumeAwareConnection duplexConnection,
-      ResumedFramesCalculator resumedFramesCalculator,
       ResumableFramesStore resumableFramesStore,
       Duration resumeStreamTimeout) {
     this.tag = tag;
-    this.resumedFramesCalculator = resumedFramesCalculator;
     this.resumableFramesStore = resumableFramesStore;
     this.resumeStreamTimeout = resumeStreamTimeout;
 
@@ -242,9 +239,7 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
     long localPosition = position();
     long localImpliedPosition = impliedPosition();
 
-    logger.debug(
-        "Resumption start. Calculating implied pos using: {}",
-        resumedFramesCalculator.getClass().getSimpleName());
+    logger.debug("Resumption start");
     logger.debug(
         "Resumption states. local: [pos: {}, impliedPos: {}], remote: [pos: {}, impliedPos: {}]",
         localPosition,
@@ -252,17 +247,26 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
         remotePosition,
         remoteImpliedPosition);
 
-    Mono<Long> res =
-        resumedFramesCalculator.calculate(
+    long remoteImpliedPos =
+        calculateRemoteImpliedPos(
             localPosition, localImpliedPosition,
             remotePosition, remoteImpliedPosition);
-    Mono<Long> localImpliedPos =
-        res.doOnSuccess(notUsed -> state = State.RESUME)
-            .doOnSuccess(this::releaseFramesToPosition)
-            .map(remoteImpliedPos -> localImpliedPosition);
+
+    Mono<Long> impliedPositionOrError;
+    if (remoteImpliedPos >= 0) {
+      state = State.RESUME;
+      releaseFramesToPosition(remoteImpliedPos);
+      impliedPositionOrError = Mono.just(localImpliedPosition);
+    } else {
+      impliedPositionOrError =
+          Mono.error(
+              new ResumeStateException(
+                  localPosition, localImpliedPosition,
+                  remotePosition, remoteImpliedPos));
+    }
 
     sendResumeFrame
-        .apply(localImpliedPos)
+        .apply(impliedPositionOrError)
         .then(
             streamResumedFrames(
                     resumableFramesStore
@@ -272,6 +276,15 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
                 .doOnError(err -> dispose()))
         .onErrorResume(err -> Mono.empty())
         .subscribe();
+  }
+
+  static long calculateRemoteImpliedPos(
+      long pos, long impliedPos, long remotePos, long remoteImpliedPos) {
+    if (remotePos <= impliedPos && pos <= remoteImpliedPos) {
+      return remoteImpliedPos;
+    } else {
+      return -1L;
+    }
   }
 
   private void doResumeComplete() {
