@@ -32,10 +32,10 @@ public class InMemoryResumableFramesStore implements ResumableFramesStore {
   private static final long SAVE_REQUEST_SIZE = Long.MAX_VALUE;
 
   private final MonoProcessor<Void> disposed = MonoProcessor.create();
-  private volatile long position;
-  private volatile long impliedPosition;
-  private volatile int cacheSize;
-  private final Queue<ByteBuf> cachedFrames;
+  volatile long position;
+  volatile long impliedPosition;
+  volatile int cacheSize;
+  final Queue<ByteBuf> cachedFrames;
   private final String tag;
   private final int cacheLimit;
   private volatile int upstreamFrameRefCnt;
@@ -154,7 +154,7 @@ public class InMemoryResumableFramesStore implements ResumableFramesStore {
 
   /*this method and releaseTailFrame() won't be called concurrently,
    * so non-atomic on volatile is safe*/
-  private void saveFrame(ByteBuf frame) {
+  void saveFrame(ByteBuf frame) {
     if (upstreamFrameRefCnt == 0) {
       upstreamFrameRefCnt = frame.refCnt();
     }
@@ -172,6 +172,8 @@ public class InMemoryResumableFramesStore implements ResumableFramesStore {
     if (availableSize >= frameSize) {
       cachedFrames.offer(frame.retain());
       cacheSize += frameSize;
+    } else {
+      position += frameSize;
     }
   }
 
