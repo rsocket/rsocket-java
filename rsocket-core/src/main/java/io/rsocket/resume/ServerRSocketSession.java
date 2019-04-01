@@ -96,8 +96,13 @@ public class ServerRSocketSession implements RSocketSession<ResumeAwareConnectio
   @Override
   public ServerRSocketSession resumeWith(ByteBuf resumeFrame) {
     logger.debug("Resume FRAME received");
+    long remotePos = remotePos(resumeFrame);
+    long remoteImpliedPos = remoteImpliedPos(resumeFrame);
+    resumeFrame.release();
+
     resumableConnection.resume(
-        stateFromFrame(resumeFrame),
+        remotePos,
+        remoteImpliedPos,
         pos ->
             pos.flatMap(
                     impliedPos -> sendFrame(ResumeOkFrameFlyweight.encode(allocator, impliedPos)))
@@ -135,11 +140,12 @@ public class ServerRSocketSession implements RSocketSession<ResumeAwareConnectio
     return resumableConnection.sendOne(frame).onErrorResume(e -> Mono.empty());
   }
 
-  private static ResumptionState stateFromFrame(ByteBuf resumeFrame) {
-    long peerPos = ResumeFrameFlyweight.firstAvailableClientPos(resumeFrame);
-    long peerImpliedPos = ResumeFrameFlyweight.lastReceivedServerPos(resumeFrame);
-    resumeFrame.release();
-    return ResumptionState.fromClient(peerPos, peerImpliedPos);
+  private static long remotePos(ByteBuf resumeFrame) {
+    return ResumeFrameFlyweight.firstAvailableClientPos(resumeFrame);
+  }
+
+  private static long remoteImpliedPos(ByteBuf resumeFrame) {
+    return ResumeFrameFlyweight.lastReceivedServerPos(resumeFrame);
   }
 
   private static RejectedResumeException errorFrameThrowable(Throwable err) {
@@ -148,8 +154,11 @@ public class ServerRSocketSession implements RSocketSession<ResumeAwareConnectio
       ResumeStateException resumeException = ((ResumeStateException) err);
       msg =
           String.format(
-              "resumption_pos=[ remote: %s, local: %s]",
-              resumeException.remoteState(), resumeException.localState());
+              "resumption_pos=[ remote: { pos: %d, impliedPos: %d }, local: { pos: %d, impliedPos: %d }]",
+              resumeException.getRemotePos(),
+              resumeException.getRemoteImpliedPos(),
+              resumeException.getLocalPos(),
+              resumeException.getLocalImpliedPos());
     } else {
       msg = String.format("resume_internal_error: %s", err.getMessage());
     }

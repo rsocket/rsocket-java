@@ -119,9 +119,9 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
   /*after receiving RESUME (Server) or RESUME_OK (Client)
   calculate and send resume frames */
   public void resume(
-      ResumptionState peerResumptionState, Function<Mono<Long>, Mono<Void>> resumeFrameSent) {
+      long remotePos, long remoteImpliedPos, Function<Mono<Long>, Mono<Void>> resumeFrameSent) {
     /*race between sendFrame and doResume may lead to duplicate frames on resume store*/
-    actions.onNext(new Resume(peerResumptionState, resumeFrameSent));
+    actions.onNext(new Resume(remotePos, remoteImpliedPos, resumeFrameSent));
   }
 
   @Override
@@ -150,6 +150,10 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
                       }
                     })
                 .onErrorResume(err -> Mono.never()));
+  }
+
+  public long position() {
+    return resumableFramesStore.framePosition();
   }
 
   @Override
@@ -209,11 +213,6 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
     }
   }
 
-  ResumptionState state() {
-    return new ResumptionState(
-        resumableFramesStore.framePosition(), resumableFramesStore.frameImpliedPosition());
-  }
-
   Flux<Throwable> connectionErrors() {
     return connectionErrors;
   }
@@ -237,20 +236,30 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
   }
 
   private void doResume(
-      ResumptionState peerResumptionState, Function<Mono<Long>, Mono<Void>> sendResumeFrame) {
-    ResumptionState localResumptionState = state();
+      long remotePosition,
+      long remoteImpliedPosition,
+      Function<Mono<Long>, Mono<Void>> sendResumeFrame) {
+    long localPosition = position();
+    long localImpliedPosition = impliedPosition();
 
     logger.debug(
         "Resumption start. Calculating implied pos using: {}",
         resumedFramesCalculator.getClass().getSimpleName());
     logger.debug(
-        "Resumption states. local: {}, remote: {}", localResumptionState, peerResumptionState);
+        "Resumption states. local: [pos: {}, impliedPos: {}], remote: [pos: {}, impliedPos: {}]",
+        localPosition,
+        localImpliedPosition,
+        remotePosition,
+        remoteImpliedPosition);
 
-    Mono<Long> res = resumedFramesCalculator.calculate(localResumptionState, peerResumptionState);
+    Mono<Long> res =
+        resumedFramesCalculator.calculate(
+            localPosition, localImpliedPosition,
+            remotePosition, remoteImpliedPosition);
     Mono<Long> localImpliedPos =
         res.doOnSuccess(notUsed -> state = State.RESUME)
             .doOnSuccess(this::releaseFramesToPosition)
-            .map(remoteImpliedPos -> localResumptionState.impliedPosition());
+            .map(remoteImpliedPos -> localImpliedPosition);
 
     sendResumeFrame
         .apply(localImpliedPos)
@@ -355,18 +364,20 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
   }
 
   class Resume implements Runnable {
-    private final ResumptionState peerResumptionState;
+    private final long remotePos;
+    private final long remoteImpliedPos;
     private final Function<Mono<Long>, Mono<Void>> resumeFrameSent;
 
     public Resume(
-        ResumptionState peerResumptionState, Function<Mono<Long>, Mono<Void>> resumeFrameSent) {
-      this.peerResumptionState = peerResumptionState;
+        long remotePos, long remoteImpliedPos, Function<Mono<Long>, Mono<Void>> resumeFrameSent) {
+      this.remotePos = remotePos;
+      this.remoteImpliedPos = remoteImpliedPos;
       this.resumeFrameSent = resumeFrameSent;
     }
 
     @Override
     public void run() {
-      doResume(peerResumptionState, resumeFrameSent);
+      doResume(remotePos, remoteImpliedPos, resumeFrameSent);
     }
   }
 

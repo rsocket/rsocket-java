@@ -34,9 +34,7 @@ public class ResumeCalculatorTest {
 
   @Test
   void clientResumeSuccess() {
-    ResumptionState local = ResumptionState.fromClient(1, 42);
-    ResumptionState remote = ResumptionState.fromServer(3);
-    StepVerifier.create(clientResumeCalculator.calculate(local, remote))
+    StepVerifier.create(clientResumeCalculator.calculate(1, 42, -1, 3))
         .expectNext(3L)
         .expectComplete()
         .verify(Duration.ofSeconds(1));
@@ -44,18 +42,14 @@ public class ResumeCalculatorTest {
 
   @Test
   void clientResumeError() {
-    ResumptionState local = ResumptionState.fromClient(4, 42);
-    ResumptionState remote = ResumptionState.fromServer(3);
-    StepVerifier.create(clientResumeCalculator.calculate(local, remote))
+    StepVerifier.create(clientResumeCalculator.calculate(4, 42, -1, 3))
         .expectError(ResumeStateException.class)
         .verify(Duration.ofSeconds(1));
   }
 
   @Test
   void serverResumeSuccess() {
-    ResumptionState local = ResumptionState.fromClient(1, 42);
-    ResumptionState remote = ResumptionState.fromClient(4, 23);
-    StepVerifier.create(serverResumeCalculator.calculate(local, remote))
+    StepVerifier.create(serverResumeCalculator.calculate(1, 42, 4, 23))
         .expectNext(23L)
         .expectComplete()
         .verify(Duration.ofSeconds(1));
@@ -63,18 +57,14 @@ public class ResumeCalculatorTest {
 
   @Test
   void serverResumeErrorClientState() {
-    ResumptionState local = ResumptionState.fromClient(1, 3);
-    ResumptionState remote = ResumptionState.fromClient(4, 23);
-    StepVerifier.create(serverResumeCalculator.calculate(local, remote))
+    StepVerifier.create(serverResumeCalculator.calculate(1, 3, 4, 23))
         .expectError(ResumeStateException.class)
         .verify(Duration.ofSeconds(1));
   }
 
   @Test
   void serverResumeErrorServerState() {
-    ResumptionState local = ResumptionState.fromClient(4, 42);
-    ResumptionState remote = ResumptionState.fromClient(4, 1);
-    StepVerifier.create(serverResumeCalculator.calculate(local, remote))
+    StepVerifier.create(serverResumeCalculator.calculate(4, 42, 4, 1))
         .expectError(ResumeStateException.class)
         .verify(Duration.ofSeconds(1));
   }

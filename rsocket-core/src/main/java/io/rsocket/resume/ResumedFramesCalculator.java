@@ -23,30 +23,39 @@ interface ResumedFramesCalculator {
   ResumedFramesCalculator ofClient = new ClientResumedFramesCalculator();
   ResumedFramesCalculator ofServer = new ServerResumedFramesCalculator();
 
-  Mono<Long> calculate(ResumptionState local, ResumptionState remote);
+  Mono<Long> calculate(long localPos, long localImpliedPos, long remotePos, long remoteImpliedPos);
 
   class ClientResumedFramesCalculator implements ResumedFramesCalculator {
 
+    /*ResumptionState clientState, ResumptionState serverState*/
     @Override
-    public Mono<Long> calculate(ResumptionState clientState, ResumptionState serverState) {
-      long serverImplied = serverState.impliedPosition();
-      if (serverImplied >= clientState.position()) {
-        return Mono.just(serverImplied);
+    public Mono<Long> calculate(
+        long clientPos, long clientImpliedPos, long serverPos, long serverImpliedPos) {
+      if (serverImpliedPos >= clientPos) {
+        return Mono.just(serverImpliedPos);
       } else {
-        return Mono.error(new ResumeStateException(clientState, serverState));
+        return Mono.error(
+            new ResumeStateException(
+                clientPos, clientImpliedPos,
+                serverPos, serverImpliedPos));
       }
     }
   }
 
   class ServerResumedFramesCalculator implements ResumedFramesCalculator {
 
+    /*ResumptionState serverState, ResumptionState clientState*/
     @Override
-    public Mono<Long> calculate(ResumptionState serverState, ResumptionState clientState) {
-      boolean clientStateValid = clientState.position() <= serverState.impliedPosition();
-      boolean serverStateValid = serverState.position() <= clientState.impliedPosition();
+    public Mono<Long> calculate(
+        long serverPos, long serverImpliedPos, long clientPos, long clientImpliedPos) {
+      boolean clientStateValid = clientPos <= serverImpliedPos;
+      boolean serverStateValid = serverPos <= clientImpliedPos;
       return clientStateValid && serverStateValid
-          ? Mono.just(clientState.impliedPosition())
-          : Mono.error(new ResumeStateException(serverState, clientState));
+          ? Mono.just(clientImpliedPos)
+          : Mono.error(
+              new ResumeStateException(
+                  serverPos, serverImpliedPos,
+                  clientPos, clientImpliedPos));
     }
   }
 }

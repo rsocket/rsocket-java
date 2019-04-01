@@ -81,19 +81,20 @@ public class ClientRSocketSession implements RSocketSession<Mono<? extends Resum
             multiplexer -> {
               /*reconnect resumable connection*/
               reconnect(multiplexer.asClientServerConnection());
-
-              ResumptionState state = resumableConnection.state();
+              long impliedPosition = resumableConnection.impliedPosition();
+              long position = resumableConnection.position();
               logger.debug(
-                  "Client ResumableConnection reconnected. Sending RESUME frame with state: {}",
-                  state);
+                  "Client ResumableConnection reconnected. Sending RESUME frame with state: [impliedPos: {}, pos: {}]",
+                  impliedPosition,
+                  position);
               /*Connection is established again: send RESUME frame to server, listen for RESUME_OK*/
               sendFrame(
                       ResumeFrameFlyweight.encode(
                           allocator,
                           /*retain so token is not released once sent as part of resume frame*/
                           resumeToken.retain(),
-                          state.impliedPosition(),
-                          state.position()))
+                          impliedPosition,
+                          position))
                   .then(multiplexer.asSetupConnection().receive().next())
                   .subscribe(this::resumeWith);
             },
@@ -112,9 +113,13 @@ public class ClientRSocketSession implements RSocketSession<Mono<? extends Resum
   @Override
   public ClientRSocketSession resumeWith(ByteBuf resumeOkFrame) {
     logger.debug("ResumeOK FRAME received");
-    ResumptionState resumptionState = stateFromFrame(resumeOkFrame);
+    long remotePos = remotePos(resumeOkFrame);
+    long remoteImpliedPos = remoteImpliedPos(resumeOkFrame);
+    resumeOkFrame.release();
+
     resumableConnection.resume(
-        resumptionState,
+        remotePos,
+        remoteImpliedPos,
         pos ->
             pos.then()
                 /*Resumption is impossible: send CONNECTION_ERROR*/
@@ -122,9 +127,7 @@ public class ClientRSocketSession implements RSocketSession<Mono<? extends Resum
                     err ->
                         sendFrame(
                                 ErrorFrameFlyweight.encode(
-                                    allocator,
-                                    0,
-                                    errorFrameThrowable(resumptionState.impliedPosition())))
+                                    allocator, 0, errorFrameThrowable(remoteImpliedPos)))
                             .then(Mono.fromRunnable(resumableConnection::dispose))
                             /*Resumption is impossible: no need to return control to ResumableConnection*/
                             .then(Mono.never())));
@@ -156,10 +159,12 @@ public class ClientRSocketSession implements RSocketSession<Mono<? extends Resum
     return resumableConnection.sendOne(frame).onErrorResume(err -> Mono.empty());
   }
 
-  private static ResumptionState stateFromFrame(ByteBuf resumeOkFrame) {
-    long impliedPos = ResumeOkFrameFlyweight.lastReceivedClientPos(resumeOkFrame);
-    resumeOkFrame.release();
-    return ResumptionState.fromServer(impliedPos);
+  private static long remoteImpliedPos(ByteBuf resumeOkFrame) {
+    return ResumeOkFrameFlyweight.lastReceivedClientPos(resumeOkFrame);
+  }
+
+  private static long remotePos(ByteBuf resumeOkFrame) {
+    return -1;
   }
 
   private static ConnectionErrorException errorFrameThrowable(long impliedPos) {
