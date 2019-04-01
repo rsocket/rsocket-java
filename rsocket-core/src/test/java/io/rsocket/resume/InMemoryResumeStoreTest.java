@@ -2,11 +2,10 @@ package io.rsocket.resume;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
+import java.util.Arrays;
 import org.junit.Assert;
 import org.junit.jupiter.api.Test;
 import reactor.core.publisher.Flux;
-
-import java.util.Arrays;
 
 public class InMemoryResumeStoreTest {
 
@@ -81,13 +80,14 @@ public class InMemoryResumeStoreTest {
   private int size(ByteBuf... byteBufs) {
     return Arrays.stream(byteBufs).mapToInt(ByteBuf::readableBytes).sum();
   }
+
   private static InMemoryResumableFramesStore inMemoryStore(int size) {
     return new InMemoryResumableFramesStore("test", size);
   }
 
   private static ByteBuf frameMock(int size) {
     byte[] bytes = new byte[size];
-    Arrays.fill(bytes,(byte)7);
+    Arrays.fill(bytes, (byte) 7);
     return Unpooled.wrappedBuffer(bytes);
   }
 }
