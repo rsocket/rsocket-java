@@ -23,7 +23,6 @@ import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 import java.net.InetSocketAddress;
 import java.util.Collections;
 import java.util.function.BiFunction;
-
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -45,17 +44,15 @@ final class WebsocketServerTransportTest {
 
     WebsocketServerTransport serverTransport = WebsocketServerTransport.create(httpServer);
 
-    serverTransport.start(c -> Mono.empty(), 0)
-                   .subscribe();
+    serverTransport.start(c -> Mono.empty(), 0).subscribe();
 
     HttpServerRequest httpServerRequest = Mockito.mock(HttpServerRequest.class);
     HttpServerResponse httpServerResponse = Mockito.mock(HttpServerResponse.class);
 
     captor.getValue().apply(httpServerRequest, httpServerResponse);
 
-    Mockito.verify(httpServerResponse).sendWebsocket(Mockito.nullable(String.class),
-        Mockito.eq(FRAME_MAX_SIZE), Mockito.any());
-
+    Mockito.verify(httpServerResponse)
+        .sendWebsocket(Mockito.nullable(String.class), Mockito.eq(FRAME_MAX_SIZE), Mockito.any());
   }
 
   @Test
@@ -67,21 +64,20 @@ final class WebsocketServerTransportTest {
 
     WebsocketServerTransport serverTransport = WebsocketServerTransport.create(httpServer);
 
-    serverTransport.start(c -> Mono.empty(), 1000)
-                   .subscribe();
+    serverTransport.start(c -> Mono.empty(), 1000).subscribe();
 
     HttpServerRequest httpServerRequest = Mockito.mock(HttpServerRequest.class);
     HttpServerResponse httpServerResponse = Mockito.mock(HttpServerResponse.class);
 
     captor.getValue().apply(httpServerRequest, httpServerResponse);
 
-    Mockito.verify(httpServerResponse).sendWebsocket(Mockito.nullable(String.class),
-        Mockito.eq(65536), Mockito.any());
-
+    Mockito.verify(httpServerResponse)
+        .sendWebsocket(Mockito.nullable(String.class), Mockito.eq(65536), Mockito.any());
   }
 
   @Test
-  public void testThatSetupWithSpecifiedFrameSizeButHigherThanWsDefaultShouldSetToSpecifiedFrameSize() {
+  public void
+      testThatSetupWithSpecifiedFrameSizeButHigherThanWsDefaultShouldSetToSpecifiedFrameSize() {
     ArgumentCaptor<BiFunction> captor = ArgumentCaptor.forClass(BiFunction.class);
     HttpServer httpServer = Mockito.spy(HttpServer.create());
     Mockito.doAnswer(a -> httpServer).when(httpServer).handle(captor.capture());
@@ -89,17 +85,15 @@ final class WebsocketServerTransportTest {
 
     WebsocketServerTransport serverTransport = WebsocketServerTransport.create(httpServer);
 
-    serverTransport.start(c -> Mono.empty(), 65536 + 1000)
-                   .subscribe();
+    serverTransport.start(c -> Mono.empty(), 65536 + 1000).subscribe();
 
     HttpServerRequest httpServerRequest = Mockito.mock(HttpServerRequest.class);
     HttpServerResponse httpServerResponse = Mockito.mock(HttpServerResponse.class);
 
     captor.getValue().apply(httpServerRequest, httpServerResponse);
 
-    Mockito.verify(httpServerResponse).sendWebsocket(Mockito.nullable(String.class),
-        Mockito.eq(65536 + 1000), Mockito.any());
-
+    Mockito.verify(httpServerResponse)
+        .sendWebsocket(Mockito.nullable(String.class), Mockito.eq(65536 + 1000), Mockito.any());
   }
 
   @DisplayName("creates server with BindAddress")

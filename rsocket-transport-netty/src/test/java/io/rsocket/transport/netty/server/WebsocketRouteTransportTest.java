@@ -16,21 +16,18 @@
 
 package io.rsocket.transport.netty.server;
 
-import java.util.function.BiFunction;
-import java.util.function.Consumer;
-import java.util.function.Predicate;
-
 import static io.rsocket.frame.FrameUtil.FRAME_MAX_SIZE;
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
+import java.util.function.BiFunction;
+import java.util.function.Consumer;
+import java.util.function.Predicate;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import reactor.core.publisher.Mono;
 import reactor.netty.http.server.HttpServer;
-import reactor.netty.http.server.HttpServerRequest;
-import reactor.netty.http.server.HttpServerResponse;
 import reactor.netty.http.server.HttpServerRoutes;
 import reactor.test.StepVerifier;
 
@@ -44,14 +41,19 @@ final class WebsocketRouteTransportTest {
     Mockito.doAnswer(a -> httpServer).when(httpServer).route(captor.capture());
     Mockito.doAnswer(a -> Mono.empty()).when(httpServer).bind();
 
-    WebsocketRouteTransport serverTransport = new WebsocketRouteTransport(httpServer, (r) -> {}, "");
+    WebsocketRouteTransport serverTransport =
+        new WebsocketRouteTransport(httpServer, (r) -> {}, "");
 
-    serverTransport.start(c -> Mono.empty(), 0)
-                   .subscribe();
+    serverTransport.start(c -> Mono.empty(), 0).subscribe();
 
     captor.getValue().accept(routes);
 
-    Mockito.verify(routes).ws(Mockito.any(Predicate.class), Mockito.any(BiFunction.class), Mockito.nullable(String.class), Mockito.eq(FRAME_MAX_SIZE));
+    Mockito.verify(routes)
+        .ws(
+            Mockito.any(Predicate.class),
+            Mockito.any(BiFunction.class),
+            Mockito.nullable(String.class),
+            Mockito.eq(FRAME_MAX_SIZE));
   }
 
   @Test
@@ -62,35 +64,43 @@ final class WebsocketRouteTransportTest {
     Mockito.doAnswer(a -> httpServer).when(httpServer).route(captor.capture());
     Mockito.doAnswer(a -> Mono.empty()).when(httpServer).bind();
 
-    WebsocketRouteTransport serverTransport = new WebsocketRouteTransport(httpServer, (r) -> {}, "");
+    WebsocketRouteTransport serverTransport =
+        new WebsocketRouteTransport(httpServer, (r) -> {}, "");
 
-    serverTransport.start(c -> Mono.empty(), 1000)
-                   .subscribe();
+    serverTransport.start(c -> Mono.empty(), 1000).subscribe();
 
     captor.getValue().accept(routes);
 
-    Mockito.verify(routes).ws(Mockito.any(Predicate.class), Mockito.any(BiFunction.class), Mockito.nullable(String.class), Mockito.eq(65536));
+    Mockito.verify(routes)
+        .ws(
+            Mockito.any(Predicate.class),
+            Mockito.any(BiFunction.class),
+            Mockito.nullable(String.class),
+            Mockito.eq(65536));
   }
 
   @Test
-  public void testThatSetupWithSpecifiedFrameSizeButHigherThanWsDefaultShouldSetToSpecifiedFrameSize() {
+  public void
+      testThatSetupWithSpecifiedFrameSizeButHigherThanWsDefaultShouldSetToSpecifiedFrameSize() {
     ArgumentCaptor<Consumer> captor = ArgumentCaptor.forClass(Consumer.class);
     HttpServer httpServer = Mockito.spy(HttpServer.create());
     HttpServerRoutes routes = Mockito.mock(HttpServerRoutes.class);
     Mockito.doAnswer(a -> httpServer).when(httpServer).route(captor.capture());
     Mockito.doAnswer(a -> Mono.empty()).when(httpServer).bind();
 
-    WebsocketRouteTransport serverTransport = new WebsocketRouteTransport(httpServer, (r) -> {}, "");
+    WebsocketRouteTransport serverTransport =
+        new WebsocketRouteTransport(httpServer, (r) -> {}, "");
 
-    serverTransport.start(c -> Mono.empty(), 65536 + 1000)
-                   .subscribe();
+    serverTransport.start(c -> Mono.empty(), 65536 + 1000).subscribe();
 
     captor.getValue().accept(routes);
 
-    Mockito.verify(routes).ws(Mockito.any(Predicate.class),
-        Mockito.any(BiFunction.class), Mockito.nullable(String.class),
-        Mockito.eq(65536 + 1000));
-
+    Mockito.verify(routes)
+        .ws(
+            Mockito.any(Predicate.class),
+            Mockito.any(BiFunction.class),
+            Mockito.nullable(String.class),
+            Mockito.eq(65536 + 1000));
   }
 
   @DisplayName("creates server")
