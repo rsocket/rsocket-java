@@ -52,7 +52,8 @@ final class WebsocketServerTransportTest {
     captor.getValue().apply(httpServerRequest, httpServerResponse);
 
     Mockito.verify(httpServerResponse)
-        .sendWebsocket(Mockito.nullable(String.class), Mockito.eq(FRAME_LENGTH_MASK), Mockito.any());
+        .sendWebsocket(
+            Mockito.nullable(String.class), Mockito.eq(FRAME_LENGTH_MASK), Mockito.any());
   }
 
   @Test
@@ -72,7 +73,8 @@ final class WebsocketServerTransportTest {
     captor.getValue().apply(httpServerRequest, httpServerResponse);
 
     Mockito.verify(httpServerResponse)
-        .sendWebsocket(Mockito.nullable(String.class), Mockito.eq(FRAME_LENGTH_MASK), Mockito.any());
+        .sendWebsocket(
+            Mockito.nullable(String.class), Mockito.eq(FRAME_LENGTH_MASK), Mockito.any());
   }
 
   @Test
@@ -93,7 +95,8 @@ final class WebsocketServerTransportTest {
     captor.getValue().apply(httpServerRequest, httpServerResponse);
 
     Mockito.verify(httpServerResponse)
-        .sendWebsocket(Mockito.nullable(String.class), Mockito.eq(FRAME_LENGTH_MASK), Mockito.any());
+        .sendWebsocket(
+            Mockito.nullable(String.class), Mockito.eq(FRAME_LENGTH_MASK), Mockito.any());
   }
 
   @DisplayName("creates server with BindAddress")
