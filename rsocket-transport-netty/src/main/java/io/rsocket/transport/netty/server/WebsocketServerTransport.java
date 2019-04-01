@@ -16,6 +16,8 @@
 
 package io.rsocket.transport.netty.server;
 
+import static io.rsocket.frame.FrameUtil.FRAME_MAX_SIZE;
+
 import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.DuplexConnection;
 import io.rsocket.fragmentation.FragmentationDuplexConnection;
@@ -38,6 +40,8 @@ import reactor.netty.http.server.HttpServer;
  */
 public final class WebsocketServerTransport
     implements ServerTransport<CloseableChannel>, TransportHeaderAware {
+
+  private static final int DEFAULT_FRAME_SIZE = 65536;
 
   private final HttpServer server;
 
@@ -114,6 +118,8 @@ public final class WebsocketServerTransport
             (request, response) -> {
               transportHeaders.get().forEach(response::addHeader);
               return response.sendWebsocket(
+                  null,
+                  Math.max(DEFAULT_FRAME_SIZE, mtu == 0 ? FRAME_MAX_SIZE : mtu),
                   (in, out) -> {
                     DuplexConnection connection = new WebsocketDuplexConnection((Connection) in);
                     if (mtu > 0) {

@@ -5,6 +5,8 @@ import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
 
 public class FrameUtil {
+  public static final int FRAME_MAX_SIZE = 16_777_215;
+
   private FrameUtil() {}
 
   public static String toString(ByteBuf frame) {

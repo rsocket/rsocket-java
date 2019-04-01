@@ -16,20 +16,87 @@
 
 package io.rsocket.transport.netty.client;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatNullPointerException;
-
-import io.rsocket.transport.netty.server.WebsocketServerTransport;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.util.Collections;
+import java.util.function.BiFunction;
+import java.util.function.Function;
+
+import io.rsocket.transport.netty.server.WebsocketServerTransport;
+import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.reactivestreams.Publisher;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.netty.ByteBufFlux;
+import reactor.netty.Connection;
 import reactor.netty.http.client.HttpClient;
+import reactor.netty.http.client.HttpClientRequest;
+import reactor.netty.http.server.HttpServer;
+import reactor.netty.http.server.HttpServerRequest;
+import reactor.netty.http.server.HttpServerResponse;
+import reactor.netty.http.websocket.WebsocketInbound;
+import reactor.netty.http.websocket.WebsocketOutbound;
 import reactor.test.StepVerifier;
 
+import static io.rsocket.frame.FrameUtil.FRAME_MAX_SIZE;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatNullPointerException;
+
+@ExtendWith(MockitoExtension.class)
 final class WebsocketClientTransportTest {
+
+  @Test
+  public void testThatSetupWithUnSpecifiedFrameSizeShouldSetMaxFrameSize() {
+    ArgumentCaptor<Integer> captor = ArgumentCaptor.forClass(Integer.class);
+    HttpClient httpClient = Mockito.spy(HttpClient.create());
+    Mockito.doAnswer(a -> httpClient).when(httpClient).headers(Mockito.any());
+    Mockito.doCallRealMethod().when(httpClient).websocket(captor.capture());
+
+    WebsocketClientTransport clientTransport = WebsocketClientTransport.create(httpClient, "");
+
+    clientTransport.connect(0)
+                   .subscribe();
+
+    Assertions.assertThat(captor.getValue()).isEqualTo(FRAME_MAX_SIZE);
+
+  }
+
+  @Test
+  public void testThatSetupWithSpecifiedFrameSizeButLowerThanWsDefaultShouldSetToWsDefault() {
+    ArgumentCaptor<Integer> captor = ArgumentCaptor.forClass(Integer.class);
+    HttpClient httpClient = Mockito.spy(HttpClient.create());
+    Mockito.doAnswer(a -> httpClient).when(httpClient).headers(Mockito.any());
+    Mockito.doCallRealMethod().when(httpClient).websocket(captor.capture());
+
+    WebsocketClientTransport clientTransport = WebsocketClientTransport.create(httpClient, "");
+
+    clientTransport.connect(65536-10000)
+                   .subscribe();
+
+    Assertions.assertThat(captor.getValue()).isEqualTo(65536);
+
+  }
+
+  @Test
+  public void testThatSetupWithSpecifiedFrameSizeButHigherThanWsDefaultShouldSetToSpecifiedFrameSize() {
+    ArgumentCaptor<Integer> captor = ArgumentCaptor.forClass(Integer.class);
+    HttpClient httpClient = Mockito.spy(HttpClient.create());
+    Mockito.doAnswer(a -> httpClient).when(httpClient).headers(Mockito.any());
+    Mockito.doCallRealMethod().when(httpClient).websocket(captor.capture());
+
+    WebsocketClientTransport clientTransport = WebsocketClientTransport.create(httpClient, "");
+
+    clientTransport.connect(65536+10000)
+                   .subscribe();
+
+    Assertions.assertThat(captor.getValue()).isEqualTo(65536+10000);
+  }
 
   @DisplayName("connects to server")
   @Test
