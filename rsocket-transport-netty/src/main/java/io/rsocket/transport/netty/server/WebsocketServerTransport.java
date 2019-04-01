@@ -16,7 +16,7 @@
 
 package io.rsocket.transport.netty.server;
 
-import static io.rsocket.frame.FrameUtil.FRAME_MAX_SIZE;
+import static io.rsocket.frame.FrameLengthFlyweight.FRAME_LENGTH_MASK;
 
 import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.DuplexConnection;
@@ -119,7 +119,7 @@ public final class WebsocketServerTransport
               transportHeaders.get().forEach(response::addHeader);
               return response.sendWebsocket(
                   null,
-                  Math.max(DEFAULT_FRAME_SIZE, mtu == 0 ? FRAME_MAX_SIZE : mtu),
+                  Math.max(DEFAULT_FRAME_SIZE, mtu == 0 ? FRAME_LENGTH_MASK : mtu),
                   (in, out) -> {
                     DuplexConnection connection = new WebsocketDuplexConnection((Connection) in);
                     if (mtu > 0) {

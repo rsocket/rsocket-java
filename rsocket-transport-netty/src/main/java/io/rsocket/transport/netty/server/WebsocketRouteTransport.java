@@ -16,7 +16,7 @@
 
 package io.rsocket.transport.netty.server;
 
-import static io.rsocket.frame.FrameUtil.FRAME_MAX_SIZE;
+import static io.rsocket.frame.FrameLengthFlyweight.FRAME_LENGTH_MASK;
 
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.handler.codec.http.HttpMethod;
@@ -87,7 +87,7 @@ public final class WebsocketRouteTransport implements ServerTransport<Closeable>
                     return acceptor.apply(connection).then(out.neverComplete());
                   },
                   null,
-                  Math.max(DEFAULT_FRAME_SIZE, mtu == 0 ? FRAME_MAX_SIZE : mtu));
+                  Math.max(DEFAULT_FRAME_SIZE, mtu == 0 ? FRAME_LENGTH_MASK : mtu));
             })
         .bind()
         .map(CloseableChannel::new);
@@ -99,14 +99,10 @@ public final class WebsocketRouteTransport implements ServerTransport<Closeable>
     private static final String FULL_SPLAT_REPLACEMENT = ".*";
 
     private static final Pattern NAME_SPLAT_PATTERN = Pattern.compile("\\{([^/]+?)\\}[\\*][\\*]");
-    // JDK 6 doesn't support named capture groups
     private static final String NAME_SPLAT_REPLACEMENT = "(?<%NAME%>.*)";
-    // private static final String  NAME_SPLAT_REPLACEMENT = "(.*)";
 
     private static final Pattern NAME_PATTERN = Pattern.compile("\\{([^/]+?)\\}");
-    // JDK 6 doesn't support named capture groups
     private static final String NAME_REPLACEMENT = "(?<%NAME%>[^\\/]*)";
-    // private static final String  NAME_REPLACEMENT = "([^\\/]*)";
 
     private final List<String> pathVariables = new ArrayList<>();
     private final HashMap<String, Matcher> matchers = new HashMap<>();
