@@ -16,6 +16,7 @@
 
 package io.rsocket.transport.netty.client;
 
+import static io.rsocket.frame.FrameLengthFlyweight.FRAME_LENGTH_MASK;
 import static io.rsocket.transport.netty.UriUtils.getPort;
 import static io.rsocket.transport.netty.UriUtils.isSecure;
 
@@ -42,6 +43,7 @@ import reactor.netty.tcp.TcpClient;
  */
 public final class WebsocketClientTransport implements ClientTransport, TransportHeaderAware {
 
+  private static final int DEFAULT_FRAME_SIZE = 65536;
   private static final String DEFAULT_PATH = "/";
 
   private final HttpClient client;
@@ -151,7 +153,7 @@ public final class WebsocketClientTransport implements ClientTransport, Transpor
   public Mono<DuplexConnection> connect(int mtu) {
     return client
         .headers(headers -> transportHeaders.get().forEach(headers::set))
-        .websocket()
+        .websocket(FRAME_LENGTH_MASK)
         .uri(path)
         .connect()
         .map(

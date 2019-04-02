@@ -35,7 +35,7 @@ subprojects {
     ext['netty.version'] = '4.1.31.Final'
     ext['netty-boringssl.version'] = '2.0.18.Final'
     ext['hdrhistogram.version'] = '2.1.10'
-    ext['mockito.version'] = '2.23.0'
+    ext['mockito.version'] = '2.25.1'
     ext['slf4j.version'] = '1.7.25'
     ext['jmh.version'] = '1.21'
     ext['junit.version'] = '5.1.0'
@@ -60,8 +60,12 @@ subprojects {
             dependency "io.micrometer:micrometer-core:${ext['micrometer.version']}"
             dependency "org.assertj:assertj-core:${ext['assertj.version']}"
             dependency "org.hdrhistogram:HdrHistogram:${ext['hdrhistogram.version']}"
-            dependency "org.mockito:mockito-core:${ ext['mockito.version']}"
             dependency "org.slf4j:slf4j-api:${ext['slf4j.version']}"
+            
+            dependencySet(group: 'org.mockito', version: ext['mockito.version']) {
+                entry 'mockito-junit-jupiter'
+                entry 'mockito-core'
+            }
 
             dependencySet(group: 'org.junit.jupiter', version: ext['junit.version']) {
                 entry 'junit-jupiter-api'

@@ -5,6 +5,7 @@ import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
 
 public class FrameUtil {
+
   private FrameUtil() {}
 
   public static String toString(ByteBuf frame) {
