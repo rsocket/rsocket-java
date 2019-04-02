@@ -281,8 +281,6 @@ public class RSocketFactory {
                           errorConsumer,
                           StreamIdSupplier.clientSupplier());
 
-                  rSocketClient.onClose().doFinally(s -> resumeToken.release()).subscribe();
-
                   RSocket wrappedRSocketClient = plugins.applyClient(rSocketClient);
 
                   RSocket unwrappedServerSocket = acceptor.get().apply(wrappedRSocketClient);

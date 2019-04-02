@@ -48,6 +48,9 @@ public class ClientRSocketSession
         new ResumableDuplexConnection(
             "client", duplexConnection, config.resumeStore(), config.resumeStreamTimeout());
 
+    /*session completed: release token initially retained in resumeToken(ByteBuf)*/
+    onClose().doFinally(s -> resumeToken.release()).subscribe();
+
     resumableConnection
         .connectionErrors()
         .flatMap(

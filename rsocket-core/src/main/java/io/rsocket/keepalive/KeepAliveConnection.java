@@ -31,7 +31,9 @@ import java.time.Duration;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import org.reactivestreams.Publisher;
-import reactor.core.publisher.*;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+import reactor.core.publisher.MonoProcessor;
 
 public class KeepAliveConnection extends DuplexConnectionProxy
     implements ResumePositionsConnection {
@@ -126,12 +128,15 @@ public class KeepAliveConnection extends DuplexConnectionProxy
   }
 
   @Override
-  public void dispose() {
-    KeepAliveHandler keepAliveHandler = keepAliveHandlerReady.peek();
-    if (keepAliveHandler != null) {
-      keepAliveHandler.dispose();
-    }
-    super.dispose();
+  public Mono<Void> onClose() {
+    return super.onClose()
+        .doFinally(
+            s -> {
+              KeepAliveHandler keepAliveHandler = keepAliveHandlerReady.peek();
+              if (keepAliveHandler != null) {
+                keepAliveHandler.dispose();
+              }
+            });
   }
 
   @Override
