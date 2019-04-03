@@ -344,8 +344,7 @@ public class RSocketFactory {
                     KeepAliveConnection.ofClient(
                         allocator,
                         connection,
-                        notUsed ->
-                            Mono.just(new KeepAliveData(keepAliveTickPeriod(), keepAliveTimeout())),
+                        notUsed -> new KeepAliveData(keepAliveTickPeriod(), keepAliveTimeout()),
                         errorConsumer));
       }
     }
@@ -454,7 +453,7 @@ public class RSocketFactory {
       private Mono<Void> acceptor(ServerSetup serverSetup, DuplexConnection connection) {
         connection =
             KeepAliveConnection.ofServer(
-                allocator, connection, serverSetup.keepAliveData(), errorConsumer);
+                allocator, connection, serverSetup::keepAliveData, errorConsumer);
         ClientServerInputMultiplexer multiplexer =
             new ClientServerInputMultiplexer(connection, plugins);
 

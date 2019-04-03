@@ -29,6 +29,7 @@ import io.rsocket.resume.*;
 import io.rsocket.util.ConnectionUtils;
 import java.time.Duration;
 import java.util.function.Function;
+import javax.annotation.Nullable;
 import reactor.core.publisher.Mono;
 
 public interface ServerSetup {
@@ -42,7 +43,8 @@ public interface ServerSetup {
   Mono<Void> acceptRSocketResume(ByteBuf frame, ClientServerInputMultiplexer multiplexer);
 
   /*get KEEP-ALIVE timings based on start frame: SETUP (directly) /RESUME (lookup by resume token)*/
-  Function<ByteBuf, Mono<KeepAliveData>> keepAliveData();
+  @Nullable
+  KeepAliveData keepAliveData(ByteBuf frame);
 
   default void dispose() {}
 
@@ -83,17 +85,14 @@ public interface ServerSetup {
     }
 
     @Override
-    public Function<ByteBuf, Mono<KeepAliveData>> keepAliveData() {
-      return frame -> {
-        if (FrameHeaderFlyweight.frameType(frame) == FrameType.SETUP) {
-          return Mono.just(
-              new KeepAliveData(
-                  SetupFrameFlyweight.keepAliveInterval(frame),
-                  SetupFrameFlyweight.keepAliveMaxLifetime(frame)));
-        } else {
-          return Mono.never();
-        }
-      };
+    public KeepAliveData keepAliveData(ByteBuf frame) {
+      if (FrameHeaderFlyweight.frameType(frame) == FrameType.SETUP) {
+        return new KeepAliveData(
+            SetupFrameFlyweight.keepAliveInterval(frame),
+            SetupFrameFlyweight.keepAliveMaxLifetime(frame));
+      } else {
+        return null;
+      }
     }
 
     private Mono<Void> sendError(ClientServerInputMultiplexer multiplexer, Exception exception) {
@@ -104,7 +103,9 @@ public interface ServerSetup {
   class ResumableServerSetup implements ServerSetup {
     private final ByteBufAllocator allocator;
     private final SessionManager sessionManager;
-    private final ServerResumeConfiguration resumeConfig;
+    private final Duration resumeSessionDuration;
+    private final Duration resumeStreamTimeout;
+    private final Function<? super ByteBuf, ? extends ResumableFramesStore> resumeStoreFactory;
 
     public ResumableServerSetup(
         ByteBufAllocator allocator,
@@ -114,9 +115,9 @@ public interface ServerSetup {
         Function<? super ByteBuf, ? extends ResumableFramesStore> resumeStoreFactory) {
       this.allocator = allocator;
       this.sessionManager = sessionManager;
-      this.resumeConfig =
-          new ServerResumeConfiguration(
-              resumeSessionDuration, resumeStreamTimeout, resumeStoreFactory);
+      this.resumeSessionDuration = resumeSessionDuration;
+      this.resumeStreamTimeout = resumeStreamTimeout;
+      this.resumeStoreFactory = resumeStoreFactory;
     }
 
     @Override
@@ -137,11 +138,13 @@ public interface ServerSetup {
             sessionManager
                 .save(
                     new ServerRSocketSession(
-                        allocator,
                         multiplexer.asClientServerConnection(),
-                        resumeConfig,
-                        keepAliveData,
-                        resumeToken))
+                        allocator,
+                        resumeSessionDuration,
+                        resumeStreamTimeout,
+                        resumeStoreFactory,
+                        resumeToken,
+                        keepAliveData))
                 .resumableConnection();
         return then.apply(new ClientServerInputMultiplexer(resumableConnection));
       } else {
@@ -151,41 +154,37 @@ public interface ServerSetup {
 
     @Override
     public Mono<Void> acceptRSocketResume(ByteBuf frame, ClientServerInputMultiplexer multiplexer) {
-      return sessionManager
-          .get(ResumeFrameFlyweight.token(frame))
-          .map(
-              session ->
-                  session
-                      .continueWith(multiplexer.asClientServerConnection())
-                      .resumeWith(frame)
-                      .onClose()
-                      .then())
-          .orElseGet(
-              () ->
-                  sendError(multiplexer, new RejectedResumeException("unknown resume token"))
-                      .doFinally(
-                          s -> {
-                            frame.release();
-                            multiplexer.dispose();
-                          }));
+      ServerRSocketSession session = sessionManager.get(ResumeFrameFlyweight.token(frame));
+      if (session != null) {
+        return session
+            .continueWith(multiplexer.asClientServerConnection())
+            .resumeWith(frame)
+            .onClose()
+            .then();
+      } else {
+        return sendError(multiplexer, new RejectedResumeException("unknown resume token"))
+            .doFinally(
+                s -> {
+                  frame.release();
+                  multiplexer.dispose();
+                });
+      }
     }
 
     @Override
-    public Function<ByteBuf, Mono<KeepAliveData>> keepAliveData() {
-      return frame -> {
-        if (FrameHeaderFlyweight.frameType(frame) == FrameType.SETUP) {
-          return Mono.just(
-              new KeepAliveData(
-                  SetupFrameFlyweight.keepAliveInterval(frame),
-                  SetupFrameFlyweight.keepAliveMaxLifetime(frame)));
+    public KeepAliveData keepAliveData(ByteBuf frame) {
+      if (FrameHeaderFlyweight.frameType(frame) == FrameType.SETUP) {
+        return new KeepAliveData(
+            SetupFrameFlyweight.keepAliveInterval(frame),
+            SetupFrameFlyweight.keepAliveMaxLifetime(frame));
+      } else {
+        ServerRSocketSession session = sessionManager.get(ResumeFrameFlyweight.token(frame));
+        if (session != null) {
+          return session.keepAliveData();
         } else {
-          return sessionManager
-              .get(ResumeFrameFlyweight.token(frame))
-              .map(ServerRSocketSession::keepAliveData)
-              .map(Mono::just)
-              .orElseGet(Mono::never);
+          return null;
         }
-      };
+      }
     }
 
     private Mono<Void> sendError(ClientServerInputMultiplexer multiplexer, Exception exception) {

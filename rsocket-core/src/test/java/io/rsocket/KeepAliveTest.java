@@ -48,7 +48,7 @@ public class KeepAliveTest {
   private static final int TIMEOUT = 700;
 
   private TestDuplexConnection testConnection;
-  private Function<ByteBuf, Mono<KeepAliveData>> timingsProvider;
+  private Function<ByteBuf, KeepAliveData> timingsProvider;
   private List<Throwable> errors;
   private Consumer<Throwable> errorConsumer;
   private KeepAliveConnection clientConnection;
@@ -60,7 +60,7 @@ public class KeepAliveTest {
     allocator = ByteBufAllocator.DEFAULT;
     testConnection = new TestDuplexConnection();
 
-    timingsProvider = f -> Mono.just(new KeepAliveData(TICK_PERIOD, TIMEOUT));
+    timingsProvider = f -> new KeepAliveData(TICK_PERIOD, TIMEOUT);
     errors = new ArrayList<>();
     errorConsumer = errors::add;
 

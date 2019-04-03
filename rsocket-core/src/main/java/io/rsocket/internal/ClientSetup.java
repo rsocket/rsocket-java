@@ -21,7 +21,9 @@ import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
 import io.rsocket.DuplexConnection;
 import io.rsocket.keepalive.KeepAliveConnection;
-import io.rsocket.resume.*;
+import io.rsocket.resume.ClientRSocketSession;
+import io.rsocket.resume.ResumableFramesStore;
+import io.rsocket.resume.ResumeStrategy;
 import java.time.Duration;
 import java.util.function.Supplier;
 import reactor.core.publisher.Mono;
@@ -48,34 +50,41 @@ public interface ClientSetup {
 
   class ResumableClientSetup implements ClientSetup {
     private final ByteBuf resumeToken;
-    private final ClientResumeConfiguration config;
     private final ByteBufAllocator allocator;
-    private final Mono<KeepAliveConnection> newConnection;
+    private final Mono<KeepAliveConnection> newConnectionFactory;
+    private final Duration resumeSessionDuration;
+    private final Supplier<ResumeStrategy> resumeStrategySupplier;
+    private final ResumableFramesStore resumableFramesStore;
+    private final Duration resumeStreamTimeout;
 
     public ResumableClientSetup(
         ByteBufAllocator allocator,
-        Mono<KeepAliveConnection> newConnection,
+        Mono<KeepAliveConnection> newConnectionFactory,
         ByteBuf resumeToken,
         ResumableFramesStore resumableFramesStore,
         Duration resumeSessionDuration,
         Duration resumeStreamTimeout,
         Supplier<ResumeStrategy> resumeStrategySupplier) {
       this.allocator = allocator;
-      this.newConnection = newConnection;
+      this.newConnectionFactory = newConnectionFactory;
       this.resumeToken = resumeToken;
-      this.config =
-          new ClientResumeConfiguration(
-              resumeSessionDuration,
-              resumeStrategySupplier,
-              resumableFramesStore,
-              resumeStreamTimeout);
+      this.resumeSessionDuration = resumeSessionDuration;
+      this.resumeStrategySupplier = resumeStrategySupplier;
+      this.resumableFramesStore = resumableFramesStore;
+      this.resumeStreamTimeout = resumeStreamTimeout;
     }
 
     @Override
     public DuplexConnection wrappedConnection(KeepAliveConnection connection) {
       ClientRSocketSession rSocketSession =
-          new ClientRSocketSession(allocator, connection, config)
-              .continueWith(newConnection)
+          new ClientRSocketSession(
+                  connection,
+                  allocator,
+                  resumeSessionDuration,
+                  resumeStrategySupplier,
+                  resumableFramesStore,
+                  resumeStreamTimeout)
+              .continueWith(newConnectionFactory)
               .resumeToken(resumeToken);
 
       return rSocketSession.resumableConnection();

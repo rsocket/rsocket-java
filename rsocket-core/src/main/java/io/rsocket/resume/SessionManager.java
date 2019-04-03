@@ -18,8 +18,8 @@ package io.rsocket.resume;
 
 import io.netty.buffer.ByteBuf;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import javax.annotation.Nullable;
 
 public class SessionManager {
   private boolean isDisposed;
@@ -46,8 +46,9 @@ public class SessionManager {
     return session;
   }
 
-  public Optional<ServerRSocketSession> get(ByteBuf resumeToken) {
-    return Optional.ofNullable(sessions.get(resumeToken));
+  @Nullable
+  public ServerRSocketSession get(ByteBuf resumeToken) {
+    return sessions.get(resumeToken);
   }
 
   public void dispose() {

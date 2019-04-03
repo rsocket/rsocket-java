@@ -24,8 +24,9 @@ import io.rsocket.frame.ErrorFrameFlyweight;
 import io.rsocket.frame.ResumeFrameFlyweight;
 import io.rsocket.frame.ResumeOkFrameFlyweight;
 import io.rsocket.internal.ClientServerInputMultiplexer;
-import java.util.Objects;
+import java.time.Duration;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Mono;
@@ -40,13 +41,16 @@ public class ClientRSocketSession
   private final ByteBufAllocator allocator;
 
   public ClientRSocketSession(
-      ByteBufAllocator allocator,
       ResumePositionsConnection duplexConnection,
-      ClientResumeConfiguration config) {
-    this.allocator = Objects.requireNonNull(allocator);
+      ByteBufAllocator allocator,
+      Duration resumeSessionDuration,
+      Supplier<ResumeStrategy> resumeStrategy,
+      ResumableFramesStore resumableFramesStore,
+      Duration resumeStreamTimeout) {
+    this.allocator = allocator;
     this.resumableConnection =
         new ResumableDuplexConnection(
-            "client", duplexConnection, config.resumeStore(), config.resumeStreamTimeout());
+            "client", duplexConnection, resumableFramesStore, resumeStreamTimeout);
 
     /*session completed: release token initially retained in resumeToken(ByteBuf)*/
     onClose().doFinally(s -> resumeToken.release()).subscribe();
@@ -56,8 +60,8 @@ public class ClientRSocketSession
         .flatMap(
             err -> {
               logger.debug("Client session connection error. Starting new connection");
-              ResumeStrategy reconnectOnError = config.resumptionStrategy().get();
-              ClientResume clientResume = new ClientResume(config.sessionDuration(), resumeToken);
+              ResumeStrategy reconnectOnError = resumeStrategy.get();
+              ClientResume clientResume = new ClientResume(resumeSessionDuration, resumeToken);
               AtomicBoolean once = new AtomicBoolean();
               return newConnection
                   .delaySubscription(
@@ -74,7 +78,7 @@ public class ClientRSocketSession
                                   retryErr ->
                                       Mono.from(reconnectOnError.apply(clientResume, retryErr))
                                           .doOnNext(v -> logger.debug("Retrying with: {}", v))))
-                  .timeout(config.sessionDuration());
+                  .timeout(resumeSessionDuration);
             })
         .map(ClientServerInputMultiplexer::new)
         .subscribe(

@@ -30,6 +30,7 @@ import io.rsocket.util.Function3;
 import java.time.Duration;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import javax.annotation.Nullable;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -40,7 +41,7 @@ public class KeepAliveConnection extends DuplexConnectionProxy
 
   private final MonoProcessor<KeepAliveHandler> keepAliveHandlerReady = MonoProcessor.create();
   private final ByteBufAllocator allocator;
-  private final Function<ByteBuf, Mono<KeepAliveData>> keepAliveData;
+  private final Function<ByteBuf, KeepAliveData> keepAliveData;
   private final Function3<ByteBufAllocator, Duration, Duration, KeepAliveHandler>
       keepAliveHandlerFactory;
   private final Consumer<Throwable> errorConsumer;
@@ -50,7 +51,7 @@ public class KeepAliveConnection extends DuplexConnectionProxy
   public static KeepAliveConnection ofClient(
       ByteBufAllocator allocator,
       DuplexConnection duplexConnection,
-      Function<ByteBuf, Mono<KeepAliveData>> keepAliveData,
+      Function<ByteBuf, KeepAliveData> keepAliveData,
       Consumer<Throwable> errorConsumer) {
 
     return new KeepAliveConnection(
@@ -60,7 +61,7 @@ public class KeepAliveConnection extends DuplexConnectionProxy
   public static KeepAliveConnection ofServer(
       ByteBufAllocator allocator,
       DuplexConnection duplexConnection,
-      Function<ByteBuf, Mono<KeepAliveData>> keepAliveData,
+      Function<ByteBuf, KeepAliveData> keepAliveData,
       Consumer<Throwable> errorConsumer) {
 
     return new KeepAliveConnection(
@@ -70,7 +71,7 @@ public class KeepAliveConnection extends DuplexConnectionProxy
   private KeepAliveConnection(
       ByteBufAllocator allocator,
       DuplexConnection duplexConnection,
-      Function<ByteBuf, Mono<KeepAliveData>> keepAliveData,
+      Function<ByteBuf, KeepAliveData> keepAliveData,
       Function3<ByteBufAllocator, Duration, Duration, KeepAliveHandler> keepAliveHandlerFactory,
       Consumer<Throwable> errorConsumer) {
     super(duplexConnection);
@@ -106,7 +107,7 @@ public class KeepAliveConnection extends DuplexConnectionProxy
             .doOnNext(
                 f -> {
                   if (isStartFrame(f)) {
-                    keepAliveHandler(keepAliveData.apply(f)).subscribe(keepAliveHandlerReady);
+                    startKeepAliveHandler(keepAliveData.apply(f));
                   }
                 }));
   }
@@ -122,7 +123,7 @@ public class KeepAliveConnection extends DuplexConnectionProxy
                   resumeStateHolder.onImpliedPosition(receivedPos);
                 }
               } else if (isStartFrame(f)) {
-                keepAliveHandler(keepAliveData.apply(f)).subscribe(keepAliveHandlerReady);
+                startKeepAliveHandler(keepAliveData.apply(f));
               }
             });
   }
@@ -158,8 +159,11 @@ public class KeepAliveConnection extends DuplexConnectionProxy
     return FrameHeaderFlyweight.frameType(frame) == FrameType.KEEPALIVE;
   }
 
-  private Mono<KeepAliveHandler> keepAliveHandler(Mono<KeepAliveData> keepAliveData) {
-    return keepAliveData.map(
-        kad -> keepAliveHandlerFactory.apply(allocator, kad.getTickPeriod(), kad.getTimeout()));
+  private void startKeepAliveHandler(@Nullable KeepAliveData kad) {
+    if (kad != null) {
+      KeepAliveHandler handler =
+          keepAliveHandlerFactory.apply(allocator, kad.getTickPeriod(), kad.getTimeout());
+      keepAliveHandlerReady.onNext(handler);
+    }
   }
 }

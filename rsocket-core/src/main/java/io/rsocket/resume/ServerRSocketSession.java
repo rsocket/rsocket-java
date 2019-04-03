@@ -24,7 +24,8 @@ import io.rsocket.frame.ErrorFrameFlyweight;
 import io.rsocket.frame.ResumeFrameFlyweight;
 import io.rsocket.frame.ResumeOkFrameFlyweight;
 import io.rsocket.internal.KeepAliveData;
-import java.util.Objects;
+import java.time.Duration;
+import java.util.function.Function;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.FluxProcessor;
@@ -43,20 +44,19 @@ public class ServerRSocketSession implements RSocketSession<ResumePositionsConne
   private final ByteBuf resumeToken;
 
   public ServerRSocketSession(
-      ByteBufAllocator allocator,
       ResumePositionsConnection duplexConnection,
-      ServerResumeConfiguration config,
-      KeepAliveData keepAliveData,
-      ByteBuf resumeToken) {
-    this.allocator = Objects.requireNonNull(allocator);
-    this.keepAliveData = Objects.requireNonNull(keepAliveData);
-    this.resumeToken = Objects.requireNonNull(resumeToken);
+      ByteBufAllocator allocator,
+      Duration resumeSessionDuration,
+      Duration resumeStreamTimeout,
+      Function<? super ByteBuf, ? extends ResumableFramesStore> resumeStoreFactory,
+      ByteBuf resumeToken,
+      KeepAliveData keepAliveData) {
+    this.allocator = allocator;
+    this.keepAliveData = keepAliveData;
+    this.resumeToken = resumeToken;
     this.resumableConnection =
         new ResumableDuplexConnection(
-            "server",
-            duplexConnection,
-            config.resumeStoreFactory().apply(resumeToken),
-            config.resumeStreamTimeout());
+            "server", duplexConnection, resumeStoreFactory.apply(resumeToken), resumeStreamTimeout);
 
     Mono<ResumePositionsConnection> timeout =
         resumableConnection
@@ -67,7 +67,7 @@ public class ServerRSocketSession implements RSocketSession<ResumePositionsConne
                   return newConnections
                       .next()
                       .doOnNext(c -> logger.debug("Connection after error: {}", c))
-                      .timeout(config.sessionDuration());
+                      .timeout(resumeSessionDuration);
                 })
             .then()
             .cast(ResumePositionsConnection.class);
