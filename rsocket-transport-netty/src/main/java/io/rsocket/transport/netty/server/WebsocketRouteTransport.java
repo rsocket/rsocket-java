@@ -30,13 +30,17 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.reactivestreams.Publisher;
 import reactor.core.publisher.Mono;
 import reactor.netty.Connection;
 import reactor.netty.http.server.HttpServer;
 import reactor.netty.http.server.HttpServerRoutes;
+import reactor.netty.http.websocket.WebsocketInbound;
+import reactor.netty.http.websocket.WebsocketOutbound;
 
 /**
  * An implementation of {@link ServerTransport} that connects via Websocket and listens on specified
@@ -75,20 +79,44 @@ public final class WebsocketRouteTransport implements ServerTransport<Closeable>
               routesBuilder.accept(routes);
               routes.ws(
                   hsr -> hsr.method().equals(HttpMethod.GET) && template.matches(hsr.uri()),
-                  (in, out) -> {
-                    DuplexConnection connection = new WebsocketDuplexConnection((Connection) in);
-                    if (mtu > 0) {
-                      connection =
-                          new FragmentationDuplexConnection(
-                              connection, ByteBufAllocator.DEFAULT, mtu, false);
-                    }
-                    return acceptor.apply(connection).then(out.neverComplete());
-                  },
+                  newHandler(acceptor, mtu),
                   null,
                   FRAME_LENGTH_MASK);
             })
         .bind()
         .map(CloseableChannel::new);
+  }
+
+  /**
+   * Creates a new Websocket handler
+   *
+   * @param acceptor the {@link ConnectionAcceptor} to use with the handler
+   * @return a new Websocket handler
+   * @throws NullPointerException if {@code acceptor} is {@code null}
+   */
+  public static BiFunction<WebsocketInbound, WebsocketOutbound, Publisher<Void>> newHandler(
+      ConnectionAcceptor acceptor) {
+    return newHandler(acceptor, 0);
+  }
+
+  /**
+   * Creates a new Websocket handler
+   *
+   * @param acceptor the {@link ConnectionAcceptor} to use with the handler
+   * @param mtu the fragment size
+   * @return a new Websocket handler
+   * @throws NullPointerException if {@code acceptor} is {@code null}
+   */
+  public static BiFunction<WebsocketInbound, WebsocketOutbound, Publisher<Void>> newHandler(
+      ConnectionAcceptor acceptor, int mtu) {
+    return (in, out) -> {
+      DuplexConnection connection = new WebsocketDuplexConnection((Connection) in);
+      if (mtu > 0) {
+        connection =
+            new FragmentationDuplexConnection(connection, ByteBufAllocator.DEFAULT, mtu, false);
+      }
+      return acceptor.apply(connection).then(out.neverComplete());
+    };
   }
 
   static final class UriPathTemplate {
