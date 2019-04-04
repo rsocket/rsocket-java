@@ -22,42 +22,38 @@ import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.RSocketFactory;
 import io.rsocket.SocketAcceptor;
-import io.rsocket.frame.decoder.PayloadDecoder;
-import io.rsocket.transport.local.LocalClientTransport;
-import io.rsocket.transport.local.LocalServerTransport;
-import io.rsocket.util.ByteBufPayload;
+import io.rsocket.transport.netty.client.TcpClientTransport;
+import io.rsocket.transport.netty.server.TcpServerTransport;
+import io.rsocket.util.DefaultPayload;
 import java.time.Duration;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Schedulers;
 
 public final class ChannelEchoClient {
-  static final Payload payload1 = ByteBufPayload.create("Hello ");
 
   public static void main(String[] args) {
     RSocketFactory.receive()
-        .frameDecoder(PayloadDecoder.ZERO_COPY)
         .acceptor(new SocketAcceptorImpl())
-        .transport(LocalServerTransport.create("localhost"))
+        .transport(TcpServerTransport.create("localhost", 7000))
         .start()
         .subscribe();
 
     RSocket socket =
         RSocketFactory.connect()
-            .keepAliveAckTimeout(Duration.ofMinutes(10))
-            .frameDecoder(PayloadDecoder.ZERO_COPY)
-            .transport(LocalClientTransport.create("localhost"))
+            .transport(TcpClientTransport.create("localhost", 7000))
             .start()
             .block();
 
-    Flux.range(0, 100000000)
-        .concatMap(i -> socket.fireAndForget(payload1.retain()))
-        //        .doOnNext(p -> {
-        ////            System.out.println(p.getDataUtf8());
-        //            p.release();
-        //        })
-        .blockLast();
+    socket
+        .requestChannel(
+            Flux.interval(Duration.ofMillis(1000)).map(i -> DefaultPayload.create("Hello")))
+        .map(Payload::getDataUtf8)
+        .doOnNext(System.out::println)
+        .take(10)
+        .doFinally(signalType -> socket.dispose())
+        .then()
+        .block();
   }
 
   private static class SocketAcceptorImpl implements SocketAcceptor {
@@ -65,22 +61,12 @@ public final class ChannelEchoClient {
     public Mono<RSocket> accept(ConnectionSetupPayload setupPayload, RSocket reactiveSocket) {
       return Mono.just(
           new AbstractRSocket() {
-
-            @Override
-            public Mono<Void> fireAndForget(Payload payload) {
-              //                  System.out.println(payload.getDataUtf8());
-              payload.release();
-              return Mono.empty();
-            }
-
-            @Override
-            public Mono<Payload> requestResponse(Payload payload) {
-              return Mono.just(payload);
-            }
-
             @Override
             public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
-              return Flux.from(payloads).subscribeOn(Schedulers.single());
+              return Flux.from(payloads)
+                  .map(Payload::getDataUtf8)
+                  .map(s -> "Echo: " + s)
+                  .map(DefaultPayload::create);
             }
           });
     }

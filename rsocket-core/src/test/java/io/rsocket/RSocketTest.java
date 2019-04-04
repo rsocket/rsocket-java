@@ -85,12 +85,6 @@ public class RSocketTest {
   }
 
   @Test(timeout = 2000)
-  public void testStream() throws Exception {
-    Flux<Payload> responses = rule.crs.requestStream(DefaultPayload.create("Payload In"));
-    StepVerifier.create(responses).expectNextCount(10).expectComplete().verify();
-  }
-
-  @Test(timeout = 2000)
   public void testChannel() throws Exception {
     Flux<Payload> requests =
         Flux.range(0, 10).map(i -> DefaultPayload.create("streaming in -> " + i));
@@ -142,9 +136,7 @@ public class RSocketTest {
 
                 @Override
                 public Flux<Payload> requestStream(Payload payload) {
-                  return Flux.range(1, 10)
-                      .map(
-                          i -> DefaultPayload.create("server got -> [" + payload.toString() + "]"));
+                  return Flux.never();
                 }
 
                 @Override

@@ -20,8 +20,8 @@ plugins {
     id 'com.github.sherter.google-java-format' version '0.7.1' apply false
     id 'com.jfrog.artifactory' version '4.7.3' apply false
     id 'com.jfrog.bintray' version '1.8.4' apply false
-    id 'me.champeau.gradle.jmh' version '0.4.8' apply false
-    id 'io.spring.dependency-management' version '1.0.7.RELEASE' apply false
+    id 'me.champeau.gradle.jmh' version '0.4.7' apply false
+    id 'io.spring.dependency-management' version '1.0.6.RELEASE' apply false
     id 'io.morethan.jmhreport' version '0.9.0' apply false
 }
 

@@ -24,6 +24,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.Unpooled;
+import io.netty.util.ReferenceCountUtil;
 import io.rsocket.DuplexConnection;
 import io.rsocket.frame.*;
 import io.rsocket.util.DefaultPayload;
@@ -124,6 +125,7 @@ final class FragmentationDuplexConnectionTest {
         .assertNext(
             byteBuf -> {
               Assert.assertEquals(data, RequestResponseFrameFlyweight.data(byteBuf));
+              ReferenceCountUtil.safeRelease(byteBuf);
             })
         .verifyComplete();
   }

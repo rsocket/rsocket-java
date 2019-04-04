@@ -73,13 +73,12 @@ final class LocalDuplexConnection implements DuplexConnection {
   public Mono<Void> send(Publisher<ByteBuf> frames) {
     Objects.requireNonNull(frames, "frames must not be null");
 
-    return Flux.from(frames).doOnNext(out::onNext).then();
-  }
-
-  @Override
-  public Mono<Void> sendOne(ByteBuf frame) {
-    Objects.requireNonNull(frame, "frame must not be null");
-    out.onNext(frame);
-    return Mono.empty();
+    return Flux.from(frames)
+        .doOnNext(
+            byteBuf -> {
+              byteBuf.retain();
+              out.onNext(byteBuf);
+            })
+        .then();
   }
 }

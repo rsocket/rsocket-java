@@ -29,14 +29,12 @@ import io.rsocket.internal.UnicastMonoProcessor;
 import java.nio.channels.ClosedChannelException;
 import java.util.Collections;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.function.Consumer;
-import java.util.function.LongConsumer;
-import java.util.function.Supplier;
 import org.reactivestreams.Processor;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
-import reactor.core.publisher.BaseSubscriber;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.SignalType;
@@ -75,14 +73,14 @@ class RSocketClient implements RSocket {
 
     connection.onClose().doFinally(signalType -> terminate()).subscribe(null, errorConsumer);
 
-    sendProcessor
-        .doOnRequest(
-            r -> {
-              for (LimitableRequestPublisher lrp : senders.values()) {
-                lrp.increaseInternalLimit(r);
-              }
-            })
-        .transform(connection::send)
+    connection
+        .send(
+            sendProcessor.doOnRequest(
+                r -> {
+                  for (LimitableRequestPublisher lrp : senders.values()) {
+                    lrp.increaseInternalLimit(r);
+                  }
+                }))
         .doFinally(this::handleSendProcessorCancel)
         .subscribe(null, this::handleSendProcessorError);
 
@@ -171,224 +169,223 @@ class RSocketClient implements RSocket {
   }
 
   private Mono<Void> handleFireAndForget(Payload payload) {
-    return lifecycle.active(
-        () -> {
-          final int streamId = streamIdSupplier.nextStreamId();
-          ByteBuf requestFrame =
-              RequestFireAndForgetFrameFlyweight.encode(
-                  allocator,
-                  streamId,
-                  false,
-                  payload.hasMetadata() ? payload.sliceMetadata().retain() : null,
-                  payload.sliceData().retain());
-          payload.release();
-          sendProcessor.onNext(requestFrame);
-        });
-  }
-
-  private Mono<Payload> handleRequestResponse(final Payload payload) {
-    return lifecycle.activeMono(
-        () -> {
-          int streamId = streamIdSupplier.nextStreamId();
-          final UnboundedProcessor<ByteBuf> sendProcessor = this.sendProcessor;
-          final ByteBuf requestFrame =
-              RequestResponseFrameFlyweight.encode(
-                  allocator,
-                  streamId,
-                  false,
-                  payload.sliceMetadata().retain(),
-                  payload.sliceData().retain());
-
-          payload.release();
-
-          UnicastMonoProcessor<Payload> receiver = UnicastMonoProcessor.create();
-          receivers.put(streamId, receiver);
-
-          sendProcessor.onNext(requestFrame);
-          return receiver
-              .doOnError(
-                  t -> sendProcessor.onNext(ErrorFrameFlyweight.encode(allocator, streamId, t)))
-              .doFinally(
-                  s -> {
-                    if (s == SignalType.CANCEL) {
-                      sendProcessor.onNext(CancelFrameFlyweight.encode(allocator, streamId));
-                    }
-
-                    receivers.remove(streamId);
-                  });
-        });
+    return lifecycle
+        .active()
+        .then(
+            Mono.fromRunnable(
+                () -> {
+                  final int streamId = streamIdSupplier.nextStreamId();
+                  ByteBuf requestFrame =
+                      RequestFireAndForgetFrameFlyweight.encode(
+                          allocator,
+                          streamId,
+                          false,
+                          payload.hasMetadata() ? payload.sliceMetadata().retain() : null,
+                          payload.sliceData().retain());
+                  payload.release();
+                  sendProcessor.onNext(requestFrame);
+                }));
   }
 
   private Flux<Payload> handleRequestStream(final Payload payload) {
-    return lifecycle.activeFlux(
-        () -> {
-          int streamId = streamIdSupplier.nextStreamId();
+    return lifecycle
+        .active()
+        .thenMany(
+            Flux.defer(
+                () -> {
+                  int streamId = streamIdSupplier.nextStreamId();
 
-          final UnboundedProcessor<ByteBuf> sendProcessor = this.sendProcessor;
-          final UnicastProcessor<Payload> receiver = UnicastProcessor.create();
+                  UnicastProcessor<Payload> receiver = UnicastProcessor.create();
+                  receivers.put(streamId, receiver);
 
-          receivers.put(streamId, receiver);
+                  AtomicBoolean first = new AtomicBoolean(false);
 
-          return receiver
-              .doOnRequest(
-                  new LongConsumer() {
+                  return receiver
+                      .doOnRequest(
+                          n -> {
+                            if (first.compareAndSet(false, true) && !receiver.isDisposed()) {
+                              sendProcessor.onNext(
+                                  RequestStreamFrameFlyweight.encode(
+                                      allocator,
+                                      streamId,
+                                      false,
+                                      n,
+                                      payload.sliceMetadata().retain(),
+                                      payload.sliceData().retain()));
+                            } else if (contains(streamId) && !receiver.isDisposed()) {
+                              sendProcessor.onNext(
+                                  RequestNFrameFlyweight.encode(allocator, streamId, n));
+                            }
+                            sendProcessor.drain();
+                          })
+                      .doOnError(
+                          t -> {
+                            if (contains(streamId) && !receiver.isDisposed()) {
+                              sendProcessor.onNext(
+                                  ErrorFrameFlyweight.encode(allocator, streamId, t));
+                            }
+                          })
+                      .doOnCancel(
+                          () -> {
+                            if (contains(streamId) && !receiver.isDisposed()) {
+                              sendProcessor.onNext(
+                                  CancelFrameFlyweight.encode(allocator, streamId));
+                            }
+                          })
+                      .doFinally(
+                          s -> {
+                            receivers.remove(streamId);
+                          });
+                }));
+  }
 
-                    // No need to make it atomic; See
-                    // https://github.com/reactive-streams/reactive-streams-jvm#2.7
-                    boolean firstRequest = true;
+  private Mono<Payload> handleRequestResponse(final Payload payload) {
+    return lifecycle
+        .active()
+        .then(
+            Mono.defer(
+                () -> {
+                  int streamId = streamIdSupplier.nextStreamId();
+                  ByteBuf requestFrame =
+                      RequestResponseFrameFlyweight.encode(
+                          allocator,
+                          streamId,
+                          false,
+                          payload.sliceMetadata().retain(),
+                          payload.sliceData().retain());
+                  payload.release();
 
-                    @Override
-                    public void accept(long n) {
-                      if (firstRequest && !receiver.isDisposed()) {
-                        firstRequest = false;
-                        sendProcessor.onNext(
-                            RequestStreamFrameFlyweight.encode(
-                                allocator,
-                                streamId,
-                                false,
-                                n,
-                                payload.sliceMetadata().retain(),
-                                payload.sliceData().retain()));
-                        payload.release();
-                      } else if (contains(streamId) && !receiver.isDisposed()) {
-                        sendProcessor.onNext(RequestNFrameFlyweight.encode(allocator, streamId, n));
-                      }
-                    }
-                  })
-              .doOnError(
-                  t -> {
-                    if (contains(streamId) && !receiver.isDisposed()) {
-                      sendProcessor.onNext(ErrorFrameFlyweight.encode(allocator, streamId, t));
-                    }
-                  })
-              .doOnCancel(
-                  () -> {
-                    if (contains(streamId) && !receiver.isDisposed()) {
-                      sendProcessor.onNext(CancelFrameFlyweight.encode(allocator, streamId));
-                    }
-                  })
-              .doFinally(s -> receivers.remove(streamId));
-        });
+                  UnicastMonoProcessor<Payload> receiver = UnicastMonoProcessor.create();
+                  receivers.put(streamId, receiver);
+
+                  sendProcessor.onNext(requestFrame);
+                  return receiver
+                      .doOnError(
+                          t ->
+                              sendProcessor.onNext(
+                                  ErrorFrameFlyweight.encode(allocator, streamId, t)))
+                      .doFinally(
+                          s -> {
+                            if (s == SignalType.CANCEL) {
+                              sendProcessor.onNext(
+                                  CancelFrameFlyweight.encode(allocator, streamId));
+                            }
+
+                            receivers.remove(streamId);
+                          });
+                }));
   }
 
   private Flux<Payload> handleChannel(Flux<Payload> request) {
-    return lifecycle.activeFlux(
-        () -> {
-          final UnboundedProcessor<ByteBuf> sendProcessor = this.sendProcessor;
-          final UnicastProcessor<Payload> receiver = UnicastProcessor.create();
-          final int streamId = streamIdSupplier.nextStreamId();
+    return lifecycle
+        .active()
+        .thenMany(
+            Flux.defer(
+                () -> {
+                  final UnicastProcessor<Payload> receiver = UnicastProcessor.create();
+                  final int streamId = streamIdSupplier.nextStreamId();
+                  final AtomicBoolean firstRequest = new AtomicBoolean(true);
 
-          return receiver
-              .doOnRequest(
-                  new LongConsumer() {
+                  return receiver
+                      .doOnRequest(
+                          n -> {
+                            if (firstRequest.compareAndSet(true, false)) {
+                              final AtomicBoolean firstPayload = new AtomicBoolean(true);
+                              final Flux<ByteBuf> requestFrames =
+                                  request
+                                      .transform(
+                                          f -> {
+                                            LimitableRequestPublisher<Payload> wrapped =
+                                                LimitableRequestPublisher.wrap(
+                                                    f, sendProcessor.available());
+                                            // Need to set this to one for first the frame
+                                            wrapped.increaseRequestLimit(1);
+                                            senders.put(streamId, wrapped);
+                                            receivers.put(streamId, receiver);
 
-                    // No need to make it atomic; See
-                    // https://github.com/reactive-streams/reactive-streams-jvm#2.7
-                    boolean firstRequest = true;
+                                            return wrapped;
+                                          })
+                                      .map(
+                                          payload -> {
+                                            final ByteBuf requestFrame;
+                                            if (firstPayload.compareAndSet(true, false)) {
+                                              requestFrame =
+                                                  RequestChannelFrameFlyweight.encode(
+                                                      allocator,
+                                                      streamId,
+                                                      false,
+                                                      false,
+                                                      n,
+                                                      payload.sliceMetadata().retain(),
+                                                      payload.sliceData().retain());
+                                            } else {
+                                              requestFrame =
+                                                  PayloadFrameFlyweight.encode(
+                                                      allocator, streamId, false, false, true,
+                                                      payload);
+                                            }
+                                            return requestFrame;
+                                          })
+                                      .doOnComplete(
+                                          () -> {
+                                            if (contains(streamId) && !receiver.isDisposed()) {
+                                              sendProcessor.onNext(
+                                                  PayloadFrameFlyweight.encodeComplete(
+                                                      allocator, streamId));
+                                            }
+                                            if (firstPayload.get()) {
+                                              receiver.onComplete();
+                                            }
+                                          });
 
-                    @Override
-                    public void accept(long n) {
-                      if (firstRequest) {
-                        firstRequest = false;
-                        request
-                            .transform(
-                                f -> {
-                                  LimitableRequestPublisher<Payload> wrapped =
-                                      LimitableRequestPublisher.wrap(f, sendProcessor.available());
-                                  // Need to set this to one for first the frame
-                                  wrapped.request(1);
-                                  senders.put(streamId, wrapped);
-                                  receivers.put(streamId, receiver);
-
-                                  return wrapped;
-                                })
-                            .subscribe(
-                                new BaseSubscriber<Payload>() {
-
-                                  // no need to make it atomic; See
-                                  // https://github.com/reactive-streams/reactive-streams-jvm#1.3
-                                  boolean firstPayload = true;
-
-                                  @Override
-                                  protected void hookOnNext(Payload payload) {
-                                    final ByteBuf frame;
-
-                                    if (firstPayload) {
-                                      firstPayload = false;
-                                      frame =
-                                          RequestChannelFrameFlyweight.encode(
-                                              allocator,
-                                              streamId,
-                                              false,
-                                              false,
-                                              n,
-                                              payload.sliceMetadata().retain(),
-                                              payload.sliceData().retain());
-                                    } else {
-                                      frame =
-                                          PayloadFrameFlyweight.encode(
-                                              allocator, streamId, false, false, true, payload);
-                                    }
-
-                                    sendProcessor.onNext(frame);
-                                    payload.release();
-                                  }
-
-                                  @Override
-                                  protected void hookOnComplete() {
-                                    if (contains(streamId) && !receiver.isDisposed()) {
-                                      sendProcessor.onNext(
-                                          PayloadFrameFlyweight.encodeComplete(
-                                              allocator, streamId));
-                                    }
-                                    if (firstPayload) {
-                                      receiver.onComplete();
-                                    }
-                                  }
-
-                                  @Override
-                                  protected void hookOnError(Throwable t) {
+                              requestFrames.subscribe(
+                                  sendProcessor::onNext,
+                                  t -> {
                                     errorConsumer.accept(t);
                                     receiver.dispose();
-                                  }
-                                });
-                      } else {
-                        if (contains(streamId) && !receiver.isDisposed()) {
-                          sendProcessor.onNext(
-                              RequestNFrameFlyweight.encode(allocator, streamId, n));
-                        }
-                      }
-                    }
-                  })
-              .doOnError(
-                  t -> {
-                    if (contains(streamId) && !receiver.isDisposed()) {
-                      sendProcessor.onNext(ErrorFrameFlyweight.encode(allocator, streamId, t));
-                    }
-                  })
-              .doOnCancel(
-                  () -> {
-                    if (contains(streamId) && !receiver.isDisposed()) {
-                      sendProcessor.onNext(CancelFrameFlyweight.encode(allocator, streamId));
-                    }
-                  })
-              .doFinally(
-                  s -> {
-                    receivers.remove(streamId);
-                    LimitableRequestPublisher sender = senders.remove(streamId);
-                    if (sender != null) {
-                      sender.cancel();
-                    }
-                  });
-        });
+                                  });
+                            } else {
+                              if (contains(streamId) && !receiver.isDisposed()) {
+                                sendProcessor.onNext(
+                                    RequestNFrameFlyweight.encode(allocator, streamId, n));
+                              }
+                            }
+                          })
+                      .doOnError(
+                          t -> {
+                            if (contains(streamId) && !receiver.isDisposed()) {
+                              sendProcessor.onNext(
+                                  ErrorFrameFlyweight.encode(allocator, streamId, t));
+                            }
+                          })
+                      .doOnCancel(
+                          () -> {
+                            if (contains(streamId) && !receiver.isDisposed()) {
+                              sendProcessor.onNext(
+                                  CancelFrameFlyweight.encode(allocator, streamId));
+                            }
+                          })
+                      .doFinally(
+                          s -> {
+                            receivers.remove(streamId);
+                            LimitableRequestPublisher sender = senders.remove(streamId);
+                            if (sender != null) {
+                              sender.cancel();
+                            }
+                          });
+                }));
   }
 
   private Mono<Void> handleMetadataPush(Payload payload) {
-    return lifecycle.active(
-        () -> {
-          sendProcessor.onNext(
-              MetadataPushFrameFlyweight.encode(allocator, payload.sliceMetadata().retain()));
-        });
+    return lifecycle
+        .active()
+        .then(
+            Mono.fromRunnable(
+                () -> {
+                  sendProcessor.onNext(
+                      MetadataPushFrameFlyweight.encode(
+                          allocator, payload.sliceMetadata().retain()));
+                }));
   }
 
   private boolean contains(int streamId) {
@@ -493,7 +490,8 @@ class RSocketClient implements RSocket {
             LimitableRequestPublisher sender = senders.get(streamId);
             if (sender != null) {
               int n = RequestNFrameFlyweight.requestN(frame);
-              sender.request(n >= Integer.MAX_VALUE ? Long.MAX_VALUE : n);
+              sender.increaseRequestLimit(n);
+              sendProcessor.drain();
             }
             break;
           }
@@ -539,36 +537,13 @@ class RSocketClient implements RSocket {
             Lifecycle.class, Throwable.class, "terminationError");
     private volatile Throwable terminationError;
 
-    public Mono<Void> active(Runnable runnable) {
+    public Mono<Void> active() {
       return Mono.create(
           sink -> {
             if (terminationError == null) {
-              runnable.run();
               sink.success();
             } else {
               sink.error(terminationError);
-            }
-          });
-    }
-
-    public <T> Mono<T> activeMono(Supplier<? extends Mono<? extends T>> supplier) {
-      return Mono.defer(
-          () -> {
-            if (terminationError == null) {
-              return supplier.get();
-            } else {
-              return Mono.error(terminationError);
-            }
-          });
-    }
-
-    public <T> Flux<T> activeFlux(Supplier<? extends Flux<T>> supplier) {
-      return Flux.defer(
-          () -> {
-            if (terminationError == null) {
-              return supplier.get();
-            } else {
-              return Flux.error(terminationError);
             }
           });
     }

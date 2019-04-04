@@ -19,8 +19,6 @@ dependencies {
     jmh configurations.implementation
     jmh 'org.openjdk.jmh:jmh-core'
     jmh 'org.openjdk.jmh:jmh-generator-annprocess'
-    jmh 'io.projectreactor:reactor-test'
-    jmh project(':rsocket-transport-local')
 }
 
 jmhCompileGeneratedClasses.enabled = false
