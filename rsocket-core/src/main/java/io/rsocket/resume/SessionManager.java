@@ -22,7 +22,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import javax.annotation.Nullable;
 
 public class SessionManager {
-  private boolean isDisposed;
+  private volatile boolean isDisposed;
   private final Map<ByteBuf, ServerRSocketSession> sessions = new ConcurrentHashMap<>();
 
   public ServerRSocketSession save(ServerRSocketSession session) {
@@ -34,14 +34,17 @@ public class SessionManager {
           .onClose()
           .doOnSuccess(
               v -> {
-                sessions.remove(token);
+                if (isDisposed || sessions.get(token) == session) {
+                  sessions.remove(token);
+                }
                 token.release();
               })
           .subscribe();
-      ServerRSocketSession prev = sessions.put(token, session);
-      if (prev != null) {
-        prev.dispose();
+      ServerRSocketSession prevSession = sessions.remove(token);
+      if (prevSession != null) {
+        prevSession.dispose();
       }
+      sessions.put(token, session);
     }
     return session;
   }

@@ -50,13 +50,18 @@ public class ServerRSocketSession implements RSocketSession<ResumePositionsConne
       Duration resumeStreamTimeout,
       Function<? super ByteBuf, ? extends ResumableFramesStore> resumeStoreFactory,
       ByteBuf resumeToken,
-      KeepAliveData keepAliveData) {
+      KeepAliveData keepAliveData,
+      boolean cleanupStoreOnKeepAlive) {
     this.allocator = allocator;
     this.keepAliveData = keepAliveData;
     this.resumeToken = resumeToken;
     this.resumableConnection =
         new ResumableDuplexConnection(
-            "server", duplexConnection, resumeStoreFactory.apply(resumeToken), resumeStreamTimeout);
+            "server",
+            duplexConnection,
+            resumeStoreFactory.apply(resumeToken),
+            resumeStreamTimeout,
+            cleanupStoreOnKeepAlive);
 
     Mono<ResumePositionsConnection> timeout =
         resumableConnection

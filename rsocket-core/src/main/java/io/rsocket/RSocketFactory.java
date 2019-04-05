@@ -107,6 +107,7 @@ public class RSocketFactory {
     private String dataMimeType = "application/binary";
 
     private boolean resumeEnabled;
+    private boolean resumeCleanupStoreOnKeepAlive;
     private Supplier<ByteBuf> resumeTokenSupplier = ResumeFrameFlyweight::generateResumeToken;
     private Function<? super ByteBuf, ? extends ResumableFramesStore> resumeStoreFactory =
         token -> new InMemoryResumableFramesStore("client", 100_000);
@@ -216,6 +217,11 @@ public class RSocketFactory {
 
     public ClientRSocketFactory resumeStrategy(Supplier<ResumeStrategy> resumeStrategy) {
       this.resumeStrategySupplier = Objects.requireNonNull(resumeStrategy);
+      return this;
+    }
+
+    public ClientRSocketFactory resumeCleanupOnKeepAlive() {
+      resumeCleanupStoreOnKeepAlive = true;
       return this;
     }
 
@@ -329,7 +335,8 @@ public class RSocketFactory {
               resumeStoreFactory.apply(resumeToken),
               resumeSessionDuration,
               resumeStreamTimeout,
-              resumeStrategySupplier);
+              resumeStrategySupplier,
+              resumeCleanupStoreOnKeepAlive);
         } else {
           return new ClientSetup.DefaultClientSetup();
         }
@@ -363,6 +370,7 @@ public class RSocketFactory {
         token -> new InMemoryResumableFramesStore("server", 100_000);
 
     private ByteBufAllocator allocator = ByteBufAllocator.DEFAULT;
+    private boolean resumeCleanupStoreOnKeepAlive;
 
     private ServerRSocketFactory() {}
 
@@ -425,6 +433,11 @@ public class RSocketFactory {
 
     public ServerRSocketFactory resumeStreamTimeout(Duration resumeStreamTimeout) {
       this.resumeStreamTimeout = Objects.requireNonNull(resumeStreamTimeout);
+      return this;
+    }
+
+    public ServerRSocketFactory resumeCleanupOnKeepAlive() {
+      resumeCleanupStoreOnKeepAlive = true;
       return this;
     }
 
@@ -557,7 +570,8 @@ public class RSocketFactory {
                 new SessionManager(),
                 resumeSessionDuration,
                 resumeStreamTimeout,
-                resumeStoreFactory)
+                resumeStoreFactory,
+                resumeCleanupStoreOnKeepAlive)
             : new ServerSetup.DefaultServerSetup(allocator);
       }
 

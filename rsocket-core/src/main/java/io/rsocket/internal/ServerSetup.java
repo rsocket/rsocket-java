@@ -106,18 +106,21 @@ public interface ServerSetup {
     private final Duration resumeSessionDuration;
     private final Duration resumeStreamTimeout;
     private final Function<? super ByteBuf, ? extends ResumableFramesStore> resumeStoreFactory;
+    private final boolean cleanupStoreOnKeepAlive;
 
     public ResumableServerSetup(
         ByteBufAllocator allocator,
         SessionManager sessionManager,
         Duration resumeSessionDuration,
         Duration resumeStreamTimeout,
-        Function<? super ByteBuf, ? extends ResumableFramesStore> resumeStoreFactory) {
+        Function<? super ByteBuf, ? extends ResumableFramesStore> resumeStoreFactory,
+        boolean cleanupStoreOnKeepAlive) {
       this.allocator = allocator;
       this.sessionManager = sessionManager;
       this.resumeSessionDuration = resumeSessionDuration;
       this.resumeStreamTimeout = resumeStreamTimeout;
       this.resumeStoreFactory = resumeStoreFactory;
+      this.cleanupStoreOnKeepAlive = cleanupStoreOnKeepAlive;
     }
 
     @Override
@@ -144,7 +147,8 @@ public interface ServerSetup {
                         resumeStreamTimeout,
                         resumeStoreFactory,
                         resumeToken,
-                        keepAliveData))
+                        keepAliveData,
+                        cleanupStoreOnKeepAlive))
                 .resumableConnection();
         return then.apply(new ClientServerInputMultiplexer(resumableConnection));
       } else {

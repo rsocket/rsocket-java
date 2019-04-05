@@ -46,11 +46,16 @@ public class ClientRSocketSession
       Duration resumeSessionDuration,
       Supplier<ResumeStrategy> resumeStrategy,
       ResumableFramesStore resumableFramesStore,
-      Duration resumeStreamTimeout) {
+      Duration resumeStreamTimeout,
+      boolean cleanupStoreOnKeepAlive) {
     this.allocator = allocator;
     this.resumableConnection =
         new ResumableDuplexConnection(
-            "client", duplexConnection, resumableFramesStore, resumeStreamTimeout);
+            "client",
+            duplexConnection,
+            resumableFramesStore,
+            resumeStreamTimeout,
+            cleanupStoreOnKeepAlive);
 
     /*session completed: release token initially retained in resumeToken(ByteBuf)*/
     onClose().doFinally(s -> resumeToken.release()).subscribe();

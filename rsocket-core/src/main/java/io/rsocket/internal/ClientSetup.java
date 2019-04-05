@@ -56,6 +56,7 @@ public interface ClientSetup {
     private final Supplier<ResumeStrategy> resumeStrategySupplier;
     private final ResumableFramesStore resumableFramesStore;
     private final Duration resumeStreamTimeout;
+    private final boolean cleanupStoreOnKeepAlive;
 
     public ResumableClientSetup(
         ByteBufAllocator allocator,
@@ -64,7 +65,8 @@ public interface ClientSetup {
         ResumableFramesStore resumableFramesStore,
         Duration resumeSessionDuration,
         Duration resumeStreamTimeout,
-        Supplier<ResumeStrategy> resumeStrategySupplier) {
+        Supplier<ResumeStrategy> resumeStrategySupplier,
+        boolean cleanupStoreOnKeepAlive) {
       this.allocator = allocator;
       this.newConnectionFactory = newConnectionFactory;
       this.resumeToken = resumeToken;
@@ -72,6 +74,7 @@ public interface ClientSetup {
       this.resumeStrategySupplier = resumeStrategySupplier;
       this.resumableFramesStore = resumableFramesStore;
       this.resumeStreamTimeout = resumeStreamTimeout;
+      this.cleanupStoreOnKeepAlive = cleanupStoreOnKeepAlive;
     }
 
     @Override
@@ -83,7 +86,8 @@ public interface ClientSetup {
                   resumeSessionDuration,
                   resumeStrategySupplier,
                   resumableFramesStore,
-                  resumeStreamTimeout)
+                  resumeStreamTimeout,
+                  cleanupStoreOnKeepAlive)
               .continueWith(newConnectionFactory)
               .resumeToken(resumeToken);
 
