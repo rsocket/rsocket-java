@@ -79,6 +79,19 @@ public final class FrameHeaderFlyweight {
     return (flags(byteBuf) & FLAGS_M) == FLAGS_M;
   }
 
+  /**
+   * faster version of {@link #frameType(ByteBuf)} which does not replace PAYLOAD with synthetic
+   * type
+   */
+  public static FrameType nativeFrameType(ByteBuf byteBuf) {
+    byteBuf.markReaderIndex();
+    byteBuf.skipBytes(Integer.BYTES);
+    int typeAndFlags = byteBuf.readShort() & 0xFFFF;
+    FrameType result = FrameType.fromEncodedType(typeAndFlags >> FRAME_TYPE_SHIFT);
+    byteBuf.resetReaderIndex();
+    return result;
+  }
+
   public static FrameType frameType(ByteBuf byteBuf) {
     byteBuf.markReaderIndex();
     byteBuf.skipBytes(Integer.BYTES);

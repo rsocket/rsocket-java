@@ -47,6 +47,7 @@ public class KeepAliveConnection extends DuplexConnectionProxy
   private final Consumer<Throwable> errorConsumer;
   private volatile KeepAliveHandler keepAliveHandler;
   private volatile ResumeStateHolder resumeStateHolder;
+  private volatile boolean keepAliveHandlerStarted;
 
   public static KeepAliveConnection ofClient(
       ByteBufAllocator allocator,
@@ -102,14 +103,7 @@ public class KeepAliveConnection extends DuplexConnectionProxy
 
   @Override
   public Mono<Void> send(Publisher<ByteBuf> frames) {
-    return super.send(
-        Flux.from(frames)
-            .doOnNext(
-                f -> {
-                  if (isStartFrame(f)) {
-                    startKeepAliveHandler(keepAliveData.apply(f));
-                  }
-                }));
+    return super.send(Flux.from(frames).doOnNext(this::startKeepAliveHandlerOnce));
   }
 
   @Override
@@ -119,11 +113,14 @@ public class KeepAliveConnection extends DuplexConnectionProxy
             f -> {
               if (isKeepAliveFrame(f)) {
                 long receivedPos = keepAliveHandler.receive(f);
-                if (isResumeRequested() && receivedPos > 0) {
-                  resumeStateHolder.onImpliedPosition(receivedPos);
+                if (receivedPos > 0) {
+                  ResumeStateHolder h = this.resumeStateHolder;
+                  if (h != null) {
+                    h.onImpliedPosition(receivedPos);
+                  }
                 }
-              } else if (isStartFrame(f)) {
-                startKeepAliveHandler(keepAliveData.apply(f));
+              } else {
+                startKeepAliveHandlerOnce(f);
               }
             });
   }
@@ -146,13 +143,16 @@ public class KeepAliveConnection extends DuplexConnectionProxy
     keepAliveHandlerReady.subscribe(h -> h.resumeState(resumeStateHolder));
   }
 
-  private boolean isResumeRequested() {
-    return keepAliveHandler.hasResumeState();
+  private void startKeepAliveHandlerOnce(ByteBuf f) {
+    if (!keepAliveHandlerStarted && isStartFrame(f)) {
+      keepAliveHandlerStarted = true;
+      startKeepAliveHandler(keepAliveData.apply(f));
+    }
   }
 
   private static boolean isStartFrame(ByteBuf frame) {
-    return FrameHeaderFlyweight.frameType(frame) == FrameType.SETUP
-        || FrameHeaderFlyweight.frameType(frame) == FrameType.RESUME;
+    FrameType frameType = FrameHeaderFlyweight.frameType(frame);
+    return frameType == FrameType.SETUP || frameType == FrameType.RESUME;
   }
 
   private static boolean isKeepAliveFrame(ByteBuf frame) {

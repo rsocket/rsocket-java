@@ -205,7 +205,7 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
 
   private void sendFrame(ByteBuf f) {
     /*resuming from store so no need to save again*/
-    if (isResumableFrame(f) && state != State.RESUME) {
+    if (state != State.RESUME && isResumableFrame(f)) {
       resumeSaveFrames.onNext(f);
     }
     /*filter frames coming from upstream before actual resumption began,
@@ -337,7 +337,7 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
   }
 
   static boolean isResumableFrame(ByteBuf frame) {
-    switch (FrameHeaderFlyweight.frameType(frame)) {
+    switch (FrameHeaderFlyweight.nativeFrameType(frame)) {
       case REQUEST_CHANNEL:
       case REQUEST_STREAM:
       case REQUEST_RESPONSE:
@@ -345,8 +345,7 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
       case REQUEST_N:
       case CANCEL:
       case ERROR:
-      case NEXT:
-      case NEXT_COMPLETE:
+      case PAYLOAD:
         return true;
       default:
         return false;

@@ -92,10 +92,6 @@ abstract class KeepAliveHandler implements Disposable {
     this.resumeStateHolder = resumeStateHolder;
   }
 
-  public boolean hasResumeState() {
-    return resumeStateHolder != null;
-  }
-
   public Flux<ByteBuf> send() {
     return sent;
   }
