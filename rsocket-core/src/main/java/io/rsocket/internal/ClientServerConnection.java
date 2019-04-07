@@ -17,12 +17,11 @@
 package io.rsocket.internal;
 
 import io.rsocket.DuplexConnection;
-import io.rsocket.resume.ResumeAwareConnection;
+import io.rsocket.resume.ResumePositionsConnection;
 import io.rsocket.resume.ResumeStateHolder;
 import io.rsocket.util.DuplexConnectionProxy;
-import reactor.core.publisher.Flux;
 
-class ClientServerConnection extends DuplexConnectionProxy implements ResumeAwareConnection {
+class ClientServerConnection extends DuplexConnectionProxy implements ResumePositionsConnection {
 
   private final DuplexConnection resumeAware;
 
@@ -32,9 +31,9 @@ class ClientServerConnection extends DuplexConnectionProxy implements ResumeAwar
   }
 
   @Override
-  public Flux<Long> receiveResumePositions(ResumeStateHolder resumeStateHolder) {
-    return resumeAware instanceof ResumeAwareConnection
-        ? ((ResumeAwareConnection) resumeAware).receiveResumePositions(resumeStateHolder)
-        : Flux.never();
+  public void acceptResumeState(ResumeStateHolder resumeStateHolder) {
+    if (resumeAware instanceof ResumePositionsConnection) {
+      ((ResumePositionsConnection) resumeAware).acceptResumeState(resumeStateHolder);
+    }
   }
 }

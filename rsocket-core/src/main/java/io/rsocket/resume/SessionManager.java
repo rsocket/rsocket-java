@@ -16,35 +16,46 @@
 
 package io.rsocket.resume;
 
+import io.netty.buffer.ByteBuf;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import javax.annotation.Nullable;
 
 public class SessionManager {
-  private boolean isDisposed;
-  private final Map<ResumeToken, ServerRSocketSession> sessions = new ConcurrentHashMap<>();
+  private volatile boolean isDisposed;
+  private final Map<ByteBuf, ServerRSocketSession> sessions = new ConcurrentHashMap<>();
 
   public ServerRSocketSession save(ServerRSocketSession session) {
     if (isDisposed) {
       session.dispose();
     } else {
-      ResumeToken token = session.token();
-      session.onClose().doOnSuccess(v -> sessions.remove(token)).subscribe();
-      ServerRSocketSession prev = sessions.put(token, session);
-      if (prev != null) {
-        prev.dispose();
+      ByteBuf token = session.token().retain();
+      session
+          .onClose()
+          .doOnSuccess(
+              v -> {
+                if (isDisposed || sessions.get(token) == session) {
+                  sessions.remove(token);
+                }
+                token.release();
+              })
+          .subscribe();
+      ServerRSocketSession prevSession = sessions.remove(token);
+      if (prevSession != null) {
+        prevSession.dispose();
       }
+      sessions.put(token, session);
     }
     return session;
   }
 
-  public Optional<ServerRSocketSession> get(ResumeToken resumeToken) {
-    return Optional.ofNullable(sessions.get(resumeToken));
+  @Nullable
+  public ServerRSocketSession get(ByteBuf resumeToken) {
+    return sessions.get(resumeToken);
   }
 
   public void dispose() {
     isDisposed = true;
     sessions.values().forEach(ServerRSocketSession::dispose);
-    sessions.clear();
   }
 }

@@ -20,10 +20,11 @@ import io.netty.buffer.ByteBuf;
 import io.rsocket.Closeable;
 import io.rsocket.DuplexConnection;
 import io.rsocket.frame.FrameHeaderFlyweight;
-import io.rsocket.internal.UnboundedProcessor;
 import java.nio.channels.ClosedChannelException;
 import java.time.Duration;
+import java.util.Queue;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import org.reactivestreams.Publisher;
 import org.slf4j.Logger;
@@ -31,24 +32,25 @@ import org.slf4j.LoggerFactory;
 import reactor.core.Disposable;
 import reactor.core.Disposables;
 import reactor.core.publisher.*;
+import reactor.util.concurrent.Queues;
 
 class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
   private static final Logger logger = LoggerFactory.getLogger(ResumableDuplexConnection.class);
 
   private final String tag;
-  private final ResumedFramesCalculator resumedFramesCalculator;
   private final ResumableFramesStore resumableFramesStore;
   private final Duration resumeStreamTimeout;
+  private final boolean cleanupOnKeepAlive;
 
   private final ReplayProcessor<DuplexConnection> connections = ReplayProcessor.create(1);
   private final EmitterProcessor<Throwable> connectionErrors = EmitterProcessor.create();
-  private volatile ResumeAwareConnection curConnection;
+  private volatile ResumePositionsConnection curConnection;
   /*used instead of EmitterProcessor because its autocancel=false capability had no expected effect*/
   private final FluxProcessor<ByteBuf, ByteBuf> downStreamFrames = ReplayProcessor.create(0);
   private final FluxProcessor<ByteBuf, ByteBuf> resumeSaveFrames = EmitterProcessor.create();
   private final MonoProcessor<Void> resumeSaveCompleted = MonoProcessor.create();
-
-  private final UnboundedProcessor<Object> actions = new UnboundedProcessor<>();
+  private final Queue<Object> actions = Queues.unboundedMultiproducer().get();
+  private final AtomicInteger actionsWip = new AtomicInteger();
 
   private final Mono<Void> framesSent;
   private final RequestListener downStreamRequestListener = new RequestListener();
@@ -56,26 +58,25 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
   private final UnicastProcessor<Flux<ByteBuf>> upstreams = UnicastProcessor.create();
   private final UpstreamFramesSubscriber upstreamSubscriber =
       new UpstreamFramesSubscriber(
-          128,
+          Queues.SMALL_BUFFER_SIZE,
           downStreamRequestListener.requests(),
           resumeSaveStreamRequestListener.requests(),
-          actions::onNext);
+          this::dispatch);
 
-  private volatile State state;
-  private volatile Disposable impliedPosDisposable = Disposables.disposed();
+  private volatile int state;
   private volatile Disposable resumedStreamDisposable = Disposables.disposed();
   private final AtomicBoolean disposed = new AtomicBoolean();
 
   ResumableDuplexConnection(
       String tag,
-      ResumeAwareConnection duplexConnection,
-      ResumedFramesCalculator resumedFramesCalculator,
+      ResumePositionsConnection duplexConnection,
       ResumableFramesStore resumableFramesStore,
-      Duration resumeStreamTimeout) {
+      Duration resumeStreamTimeout,
+      boolean cleanupOnKeepAlive) {
     this.tag = tag;
-    this.resumedFramesCalculator = resumedFramesCalculator;
     this.resumableFramesStore = resumableFramesStore;
     this.resumeStreamTimeout = resumeStreamTimeout;
+    this.cleanupOnKeepAlive = cleanupOnKeepAlive;
 
     resumableFramesStore
         .saveFrames(resumeSaveStreamRequestListener.apply(resumeSaveFrames))
@@ -98,37 +99,32 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
             .then()
             .cache();
 
-    Flux<Object> acts = actions.publish().autoConnect(4);
-    acts.ofType(ByteBuf.class).subscribe(this::sendFrame);
-    acts.ofType(ResumeStart.class).subscribe(ResumeStart::run);
-    acts.ofType(Resume.class).subscribe(Resume::run);
-    acts.ofType(ResumeComplete.class).subscribe(ResumeComplete::run);
-
     reconnect(duplexConnection);
   }
 
   /*reconnected by session after error. After this downstream can receive frames,
    * but sending in suppressed until resume() is called*/
-  public void reconnect(ResumeAwareConnection connection) {
+  public void reconnect(ResumePositionsConnection connection) {
     if (curConnection == null) {
       logger.debug("{} Resumable duplex connection started with connection: {}", tag, connection);
       state = State.CONNECTED;
       onNewConnection(connection);
+      acceptRemoteResumePositions();
     } else {
       logger.debug(
           "{} Resumable duplex connection reconnected with connection: {}", tag, connection);
       /*race between sendFrame and doResumeStart may lead to ongoing upstream frames
       written before resume complete*/
-      actions.onNext(new ResumeStart(connection));
+      dispatch(new ResumeStart(connection));
     }
   }
 
   /*after receiving RESUME (Server) or RESUME_OK (Client)
   calculate and send resume frames */
   public void resume(
-      ResumptionState peerResumptionState, Function<Mono<Long>, Mono<Void>> resumeFrameSent) {
+      long remotePos, long remoteImpliedPos, Function<Mono<Long>, Mono<Void>> resumeFrameSent) {
     /*race between sendFrame and doResume may lead to duplicate frames on resume store*/
-    actions.onNext(new Resume(peerResumptionState, resumeFrameSent));
+    dispatch(new Resume(remotePos, remoteImpliedPos, resumeFrameSent));
   }
 
   @Override
@@ -138,11 +134,8 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
 
   @Override
   public Mono<Void> send(Publisher<ByteBuf> frames) {
-    return Mono.defer(
-        () -> {
-          upstreams.onNext(Flux.from(frames));
-          return framesSent;
-        });
+    upstreams.onNext(Flux.from(frames));
+    return framesSent;
   }
 
   @Override
@@ -153,15 +146,27 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
                 .doOnNext(
                     f -> {
                       if (isResumableFrame(f)) {
-                        resumableFramesStore.resumableFrameReceived();
+                        resumableFramesStore.resumableFrameReceived(f);
                       }
                     })
                 .onErrorResume(err -> Mono.never()));
   }
 
+  public long position() {
+    return resumableFramesStore.framePosition();
+  }
+
   @Override
   public long impliedPosition() {
     return resumableFramesStore.frameImpliedPosition();
+  }
+
+  @Override
+  public void onImpliedPosition(long remoteImpliedPos) {
+    logger.debug("Got remote position from keep-alive: {}", remoteImpliedPos);
+    if (cleanupOnKeepAlive) {
+      dispatch(new ReleaseFrames(remoteImpliedPos));
+    }
   }
 
   @Override
@@ -179,7 +184,6 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
       resumeSaveFrames.onComplete();
       curConnection.dispose();
       upstreamSubscriber.dispose();
-      impliedPosDisposable.dispose();
       resumedStreamDisposable.dispose();
       resumableFramesStore.dispose();
     }
@@ -196,17 +200,12 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
   }
 
   private void acceptRemoteResumePositions() {
-    impliedPosDisposable.dispose();
-    impliedPosDisposable =
-        curConnection
-            .receiveResumePositions(this)
-            .doOnNext(l -> logger.debug("Got remote position from keep-alive: {}", l))
-            .subscribe(this::releaseFramesToPosition);
+    curConnection.acceptResumeState(this);
   }
 
   private void sendFrame(ByteBuf f) {
     /*resuming from store so no need to save again*/
-    if (isResumableFrame(f) && state != State.RESUME) {
+    if (state != State.RESUME && isResumableFrame(f)) {
       resumeSaveFrames.onNext(f);
     }
     /*filter frames coming from upstream before actual resumption began,
@@ -216,16 +215,25 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
     }
   }
 
-  ResumptionState state() {
-    return new ResumptionState(
-        resumableFramesStore.framePosition(), resumableFramesStore.frameImpliedPosition());
-  }
-
   Flux<Throwable> connectionErrors() {
     return connectionErrors;
   }
 
-  private void doResumeStart(ResumeAwareConnection connection) {
+  private void dispatch(Object action) {
+    actions.offer(action);
+    if (actionsWip.getAndIncrement() == 0) {
+      do {
+        Object a = actions.poll();
+        if (a instanceof ByteBuf) {
+          sendFrame((ByteBuf) a);
+        } else {
+          ((Runnable) a).run();
+        }
+      } while (actionsWip.decrementAndGet() != 0);
+    }
+  }
+
+  private void doResumeStart(ResumePositionsConnection connection) {
     state = State.RESUME_STARTED;
     resumedStreamDisposable.dispose();
     upstreamSubscriber.resumeStart();
@@ -233,32 +241,58 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
   }
 
   private void doResume(
-      ResumptionState peerResumptionState, Function<Mono<Long>, Mono<Void>> sendResumeFrame) {
-    ResumptionState localResumptionState = state();
+      long remotePosition,
+      long remoteImpliedPosition,
+      Function<Mono<Long>, Mono<Void>> sendResumeFrame) {
+    long localPosition = position();
+    long localImpliedPosition = impliedPosition();
 
+    logger.debug("Resumption start");
     logger.debug(
-        "Resumption start. Calculating implied pos using: {}",
-        resumedFramesCalculator.getClass().getSimpleName());
-    logger.debug(
-        "Resumption states. local: {}, remote: {}", localResumptionState, peerResumptionState);
+        "Resumption states. local: [pos: {}, impliedPos: {}], remote: [pos: {}, impliedPos: {}]",
+        localPosition,
+        localImpliedPosition,
+        remotePosition,
+        remoteImpliedPosition);
 
-    Mono<Long> res = resumedFramesCalculator.calculate(localResumptionState, peerResumptionState);
-    Mono<Long> localImpliedPos =
-        res.doOnSuccess(notUsed -> state = State.RESUME)
-            .doOnSuccess(this::releaseFramesToPosition)
-            .map(remoteImpliedPos -> localResumptionState.impliedPosition());
+    long remoteImpliedPos =
+        calculateRemoteImpliedPos(
+            localPosition, localImpliedPosition,
+            remotePosition, remoteImpliedPosition);
+
+    Mono<Long> impliedPositionOrError;
+    if (remoteImpliedPos >= 0) {
+      state = State.RESUME;
+      releaseFramesToPosition(remoteImpliedPos);
+      impliedPositionOrError = Mono.just(localImpliedPosition);
+    } else {
+      impliedPositionOrError =
+          Mono.error(
+              new ResumeStateException(
+                  localPosition, localImpliedPosition,
+                  remotePosition, remoteImpliedPosition));
+    }
 
     sendResumeFrame
-        .apply(localImpliedPos)
+        .apply(impliedPositionOrError)
         .then(
             streamResumedFrames(
                     resumableFramesStore
                         .resumeStream()
                         .timeout(resumeStreamTimeout)
-                        .doFinally(s -> actions.onNext(new ResumeComplete())))
+                        .doFinally(s -> dispatch(new ResumeComplete())))
                 .doOnError(err -> dispose()))
         .onErrorResume(err -> Mono.empty())
         .subscribe();
+  }
+
+  static long calculateRemoteImpliedPos(
+      long pos, long impliedPos, long remotePos, long remoteImpliedPos) {
+    if (remotePos <= impliedPos && pos <= remoteImpliedPos) {
+      return remoteImpliedPos;
+    } else {
+      return -1L;
+    }
   }
 
   private void doResumeComplete() {
@@ -273,14 +307,14 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
         s -> {
           ResumeFramesSubscriber subscriber =
               new ResumeFramesSubscriber(
-                  downStreamRequestListener.requests(), actions::onNext, s::error, s::success);
+                  downStreamRequestListener.requests(), this::dispatch, s::error, s::success);
           s.onDispose(subscriber);
           resumedStreamDisposable = subscriber;
           frames.subscribe(subscriber);
         });
   }
 
-  private void onNewConnection(ResumeAwareConnection connection) {
+  private void onNewConnection(ResumePositionsConnection connection) {
     curConnection = connection;
     connection.onClose().doFinally(v -> disconnect(connection)).subscribe();
     connections.onNext(connection);
@@ -288,7 +322,7 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
 
   private void disconnect(DuplexConnection connection) {
     /*do not report late disconnects on old connection if new one is available*/
-    if (curConnection == connection && state.isActive()) {
+    if (curConnection == connection && state != State.DISCONNECTED) {
       Throwable err = new ClosedChannelException();
       state = State.DISCONNECTED;
       logger.debug("{} Inner connection disconnected: {}", tag, err.getClass().getSimpleName());
@@ -298,12 +332,12 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
 
   /*remove frames confirmed by implied pos,
   set current pos accordingly*/
-  private void releaseFramesToPosition(Long remoteImpliedPos) {
+  private void releaseFramesToPosition(long remoteImpliedPos) {
     resumableFramesStore.releaseFrames(remoteImpliedPos);
   }
 
   static boolean isResumableFrame(ByteBuf frame) {
-    switch (FrameHeaderFlyweight.frameType(frame)) {
+    switch (FrameHeaderFlyweight.nativeFrameType(frame)) {
       case REQUEST_CHANNEL:
       case REQUEST_STREAM:
       case REQUEST_RESPONSE:
@@ -311,36 +345,25 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
       case REQUEST_N:
       case CANCEL:
       case ERROR:
-      case NEXT:
-      case NEXT_COMPLETE:
+      case PAYLOAD:
         return true;
       default:
         return false;
     }
   }
 
-  private enum State {
-    CONNECTED(true),
-    RESUME_STARTED(true),
-    RESUME(true),
-    RESUME_COMPLETED(true),
-    DISCONNECTED(false);
-
-    private final boolean active;
-
-    State(boolean active) {
-      this.active = active;
-    }
-
-    public boolean isActive() {
-      return active;
-    }
+  static class State {
+    static int CONNECTED = 0;
+    static int RESUME_STARTED = 1;
+    static int RESUME = 2;
+    static int RESUME_COMPLETED = 3;
+    static int DISCONNECTED = 4;
   }
 
   class ResumeStart implements Runnable {
-    private ResumeAwareConnection connection;
+    private ResumePositionsConnection connection;
 
-    public ResumeStart(ResumeAwareConnection connection) {
+    public ResumeStart(ResumePositionsConnection connection) {
       this.connection = connection;
     }
 
@@ -351,18 +374,20 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
   }
 
   class Resume implements Runnable {
-    private final ResumptionState peerResumptionState;
+    private final long remotePos;
+    private final long remoteImpliedPos;
     private final Function<Mono<Long>, Mono<Void>> resumeFrameSent;
 
     public Resume(
-        ResumptionState peerResumptionState, Function<Mono<Long>, Mono<Void>> resumeFrameSent) {
-      this.peerResumptionState = peerResumptionState;
+        long remotePos, long remoteImpliedPos, Function<Mono<Long>, Mono<Void>> resumeFrameSent) {
+      this.remotePos = remotePos;
+      this.remoteImpliedPos = remoteImpliedPos;
       this.resumeFrameSent = resumeFrameSent;
     }
 
     @Override
     public void run() {
-      doResume(peerResumptionState, resumeFrameSent);
+      doResume(remotePos, remoteImpliedPos, resumeFrameSent);
     }
   }
 
@@ -371,6 +396,19 @@ class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
     @Override
     public void run() {
       doResumeComplete();
+    }
+  }
+
+  private class ReleaseFrames implements Runnable {
+    private final long remoteImpliedPos;
+
+    public ReleaseFrames(long remoteImpliedPos) {
+      this.remoteImpliedPos = remoteImpliedPos;
+    }
+
+    @Override
+    public void run() {
+      releaseFramesToPosition(remoteImpliedPos);
     }
   }
 }

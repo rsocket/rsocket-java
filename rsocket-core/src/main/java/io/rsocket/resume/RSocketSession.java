@@ -23,7 +23,7 @@ import reactor.core.publisher.Mono;
 
 public interface RSocketSession<T> extends Closeable {
 
-  ResumeToken token();
+  ByteBuf token();
 
   DuplexConnection resumableConnection();
 
@@ -31,7 +31,7 @@ public interface RSocketSession<T> extends Closeable {
 
   RSocketSession resumeWith(ByteBuf resumeFrame);
 
-  void reconnect(ResumeAwareConnection connection);
+  void reconnect(ResumePositionsConnection connection);
 
   @Override
   default Mono<Void> onClose() {

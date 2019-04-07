@@ -34,13 +34,14 @@ class SetupFrameFlyweightTest {
     Arrays.fill(tokenBytes, (byte) 1);
     ByteBuf metadata = Unpooled.wrappedBuffer(new byte[] {1, 2, 3, 4});
     ByteBuf data = Unpooled.wrappedBuffer(new byte[] {5, 4, 3});
+    ByteBuf token = Unpooled.wrappedBuffer(tokenBytes);
     ByteBuf frame =
         SetupFrameFlyweight.encode(
             ByteBufAllocator.DEFAULT,
             true,
             5,
             500,
-            Unpooled.wrappedBuffer(tokenBytes),
+            token,
             "metadata_type",
             "data_type",
             metadata,
@@ -49,7 +50,7 @@ class SetupFrameFlyweightTest {
     assertEquals(FrameType.SETUP, FrameHeaderFlyweight.frameType(frame));
     assertTrue(SetupFrameFlyweight.honorLease(frame));
     assertTrue(SetupFrameFlyweight.resumeEnabled(frame));
-    assertArrayEquals(tokenBytes, SetupFrameFlyweight.resumeToken(frame));
+    assertEquals(token, SetupFrameFlyweight.resumeToken(frame));
     assertEquals("metadata_type", SetupFrameFlyweight.metadataMimeType(frame));
     assertEquals("data_type", SetupFrameFlyweight.dataMimeType(frame));
     assertEquals(metadata, SetupFrameFlyweight.metadata(frame));

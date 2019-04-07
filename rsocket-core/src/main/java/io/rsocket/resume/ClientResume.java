@@ -16,13 +16,14 @@
 
 package io.rsocket.resume;
 
+import io.netty.buffer.ByteBuf;
 import java.time.Duration;
 
 class ClientResume {
   private final Duration sessionDuration;
-  private final ResumeToken resumeToken;
+  private final ByteBuf resumeToken;
 
-  public ClientResume(Duration sessionDuration, ResumeToken resumeToken) {
+  public ClientResume(Duration sessionDuration, ByteBuf resumeToken) {
     this.sessionDuration = sessionDuration;
     this.resumeToken = resumeToken;
   }
@@ -31,7 +32,7 @@ class ClientResume {
     return sessionDuration;
   }
 
-  public ResumeToken resumeToken() {
+  public ByteBuf resumeToken() {
     return resumeToken;
   }
 }

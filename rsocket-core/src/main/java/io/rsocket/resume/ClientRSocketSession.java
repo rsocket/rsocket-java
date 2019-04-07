@@ -24,40 +24,49 @@ import io.rsocket.frame.ErrorFrameFlyweight;
 import io.rsocket.frame.ResumeFrameFlyweight;
 import io.rsocket.frame.ResumeOkFrameFlyweight;
 import io.rsocket.internal.ClientServerInputMultiplexer;
-import java.util.Objects;
+import java.time.Duration;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Mono;
 
-public class ClientRSocketSession implements RSocketSession<Mono<? extends ResumeAwareConnection>> {
+public class ClientRSocketSession
+    implements RSocketSession<Mono<? extends ResumePositionsConnection>> {
   private static final Logger logger = LoggerFactory.getLogger(ClientRSocketSession.class);
 
   private final ResumableDuplexConnection resumableConnection;
-  private volatile Mono<? extends ResumeAwareConnection> newConnection;
-  private volatile ResumeToken resumeToken;
+  private volatile Mono<? extends ResumePositionsConnection> newConnection;
+  private volatile ByteBuf resumeToken;
   private final ByteBufAllocator allocator;
 
   public ClientRSocketSession(
+      ResumePositionsConnection duplexConnection,
       ByteBufAllocator allocator,
-      ResumeAwareConnection duplexConnection,
-      ClientResumeConfiguration config) {
-    this.allocator = Objects.requireNonNull(allocator);
+      Duration resumeSessionDuration,
+      Supplier<ResumeStrategy> resumeStrategy,
+      ResumableFramesStore resumableFramesStore,
+      Duration resumeStreamTimeout,
+      boolean cleanupStoreOnKeepAlive) {
+    this.allocator = allocator;
     this.resumableConnection =
         new ResumableDuplexConnection(
             "client",
             duplexConnection,
-            ResumedFramesCalculator.ofClient,
-            config.resumeStore(),
-            config.resumeStreamTimeout());
+            resumableFramesStore,
+            resumeStreamTimeout,
+            cleanupStoreOnKeepAlive);
+
+    /*session completed: release token initially retained in resumeToken(ByteBuf)*/
+    onClose().doFinally(s -> resumeToken.release()).subscribe();
 
     resumableConnection
         .connectionErrors()
         .flatMap(
             err -> {
               logger.debug("Client session connection error. Starting new connection");
-              ResumeStrategy reconnectOnError = config.resumptionStrategy().get();
-              ClientResume clientResume = new ClientResume(config.sessionDuration(), resumeToken);
+              ResumeStrategy reconnectOnError = resumeStrategy.get();
+              ClientResume clientResume = new ClientResume(resumeSessionDuration, resumeToken);
               AtomicBoolean once = new AtomicBoolean();
               return newConnection
                   .delaySubscription(
@@ -74,25 +83,27 @@ public class ClientRSocketSession implements RSocketSession<Mono<? extends Resum
                                   retryErr ->
                                       Mono.from(reconnectOnError.apply(clientResume, retryErr))
                                           .doOnNext(v -> logger.debug("Retrying with: {}", v))))
-                  .timeout(config.sessionDuration());
+                  .timeout(resumeSessionDuration);
             })
         .map(ClientServerInputMultiplexer::new)
         .subscribe(
             multiplexer -> {
               /*reconnect resumable connection*/
               reconnect(multiplexer.asClientServerConnection());
-
-              ResumptionState state = resumableConnection.state();
+              long impliedPosition = resumableConnection.impliedPosition();
+              long position = resumableConnection.position();
               logger.debug(
-                  "Client ResumableConnection reconnected. Sending RESUME frame with state: {}",
-                  state);
+                  "Client ResumableConnection reconnected. Sending RESUME frame with state: [impliedPos: {}, pos: {}]",
+                  impliedPosition,
+                  position);
               /*Connection is established again: send RESUME frame to server, listen for RESUME_OK*/
               sendFrame(
                       ResumeFrameFlyweight.encode(
                           allocator,
-                          resumeToken.toByteArray(),
-                          state.impliedPosition(),
-                          state.position()))
+                          /*retain so token is not released once sent as part of resume frame*/
+                          resumeToken.retain(),
+                          impliedPosition,
+                          position))
                   .then(multiplexer.asSetupConnection().receive().next())
                   .subscribe(this::resumeWith);
             },
@@ -103,7 +114,8 @@ public class ClientRSocketSession implements RSocketSession<Mono<? extends Resum
   }
 
   @Override
-  public ClientRSocketSession continueWith(Mono<? extends ResumeAwareConnection> newConnection) {
+  public ClientRSocketSession continueWith(
+      Mono<? extends ResumePositionsConnection> newConnection) {
     this.newConnection = newConnection;
     return this;
   }
@@ -111,9 +123,13 @@ public class ClientRSocketSession implements RSocketSession<Mono<? extends Resum
   @Override
   public ClientRSocketSession resumeWith(ByteBuf resumeOkFrame) {
     logger.debug("ResumeOK FRAME received");
-    ResumptionState resumptionState = stateFromFrame(resumeOkFrame);
+    long remotePos = remotePos(resumeOkFrame);
+    long remoteImpliedPos = remoteImpliedPos(resumeOkFrame);
+    resumeOkFrame.release();
+
     resumableConnection.resume(
-        resumptionState,
+        remotePos,
+        remoteImpliedPos,
         pos ->
             pos.then()
                 /*Resumption is impossible: send CONNECTION_ERROR*/
@@ -121,22 +137,21 @@ public class ClientRSocketSession implements RSocketSession<Mono<? extends Resum
                     err ->
                         sendFrame(
                                 ErrorFrameFlyweight.encode(
-                                    allocator,
-                                    0,
-                                    errorFrameThrowable(resumptionState.impliedPosition())))
+                                    allocator, 0, errorFrameThrowable(remoteImpliedPos)))
                             .then(Mono.fromRunnable(resumableConnection::dispose))
                             /*Resumption is impossible: no need to return control to ResumableConnection*/
                             .then(Mono.never())));
     return this;
   }
 
-  public ClientRSocketSession resumeWith(ResumeToken resumeToken) {
-    this.resumeToken = resumeToken;
+  public ClientRSocketSession resumeToken(ByteBuf resumeToken) {
+    /*retain so token is not released once sent as part of setup frame*/
+    this.resumeToken = resumeToken.retain();
     return this;
   }
 
   @Override
-  public void reconnect(ResumeAwareConnection connection) {
+  public void reconnect(ResumePositionsConnection connection) {
     resumableConnection.reconnect(connection);
   }
 
@@ -146,7 +161,7 @@ public class ClientRSocketSession implements RSocketSession<Mono<? extends Resum
   }
 
   @Override
-  public ResumeToken token() {
+  public ByteBuf token() {
     return resumeToken;
   }
 
@@ -154,10 +169,12 @@ public class ClientRSocketSession implements RSocketSession<Mono<? extends Resum
     return resumableConnection.sendOne(frame).onErrorResume(err -> Mono.empty());
   }
 
-  private static ResumptionState stateFromFrame(ByteBuf resumeOkFrame) {
-    long impliedPos = ResumeOkFrameFlyweight.lastReceivedClientPos(resumeOkFrame);
-    resumeOkFrame.release();
-    return ResumptionState.fromServer(impliedPos);
+  private static long remoteImpliedPos(ByteBuf resumeOkFrame) {
+    return ResumeOkFrameFlyweight.lastReceivedClientPos(resumeOkFrame);
+  }
+
+  private static long remotePos(ByteBuf resumeOkFrame) {
+    return -1;
   }
 
   private static ConnectionErrorException errorFrameThrowable(long impliedPos) {

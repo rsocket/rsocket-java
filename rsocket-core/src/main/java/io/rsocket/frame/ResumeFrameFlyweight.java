@@ -18,20 +18,24 @@ package io.rsocket.frame;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
+import io.netty.buffer.Unpooled;
+import java.util.UUID;
 
 public class ResumeFrameFlyweight {
   static final int CURRENT_VERSION = SetupFrameFlyweight.CURRENT_VERSION;
 
   public static ByteBuf encode(
-      final ByteBufAllocator allocator,
-      byte[] token,
+      ByteBufAllocator allocator,
+      ByteBuf token,
       long lastReceivedServerPos,
       long firstAvailableClientPos) {
 
     ByteBuf byteBuf = FrameHeaderFlyweight.encodeStreamZero(allocator, FrameType.RESUME, 0);
     byteBuf.writeInt(CURRENT_VERSION);
-    byteBuf.writeShort(token.length);
+    token.markReaderIndex();
+    byteBuf.writeShort(token.readableBytes());
     byteBuf.writeBytes(token);
+    token.resetReaderIndex();
     byteBuf.writeLong(lastReceivedServerPos);
     byteBuf.writeLong(firstAvailableClientPos);
 
@@ -49,7 +53,7 @@ public class ResumeFrameFlyweight {
     return version;
   }
 
-  public static byte[] token(ByteBuf byteBuf) {
+  public static ByteBuf token(ByteBuf byteBuf) {
     FrameHeaderFlyweight.ensureFrameType(FrameType.RESUME, byteBuf);
 
     byteBuf.markReaderIndex();
@@ -58,8 +62,7 @@ public class ResumeFrameFlyweight {
     byteBuf.skipBytes(tokenPos);
     // token
     int tokenLength = byteBuf.readShort() & 0xFFFF;
-    byte[] token = new byte[tokenLength];
-    byteBuf.readBytes(token);
+    ByteBuf token = byteBuf.readSlice(tokenLength);
     byteBuf.resetReaderIndex();
 
     return token;
@@ -97,5 +100,13 @@ public class ResumeFrameFlyweight {
     byteBuf.resetReaderIndex();
 
     return firstAvailableClientPos;
+  }
+
+  public static ByteBuf generateResumeToken() {
+    UUID uuid = UUID.randomUUID();
+    ByteBuf bb = Unpooled.buffer(16);
+    bb.writeLong(uuid.getMostSignificantBits());
+    bb.writeLong(uuid.getLeastSignificantBits());
+    return bb;
   }
 }

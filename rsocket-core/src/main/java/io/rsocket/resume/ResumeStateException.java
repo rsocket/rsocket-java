@@ -18,19 +18,32 @@ package io.rsocket.resume;
 
 class ResumeStateException extends RuntimeException {
   private static final long serialVersionUID = -5393753463377588732L;
-  private final ResumptionState local;
-  private final ResumptionState remote;
+  private final long localPos;
+  private final long localImpliedPos;
+  private final long remotePos;
+  private final long remoteImpliedPos;
 
-  public ResumeStateException(ResumptionState local, ResumptionState remote) {
-    this.local = local;
-    this.remote = remote;
+  public ResumeStateException(
+      long localPos, long localImpliedPos, long remotePos, long remoteImpliedPos) {
+    this.localPos = localPos;
+    this.localImpliedPos = localImpliedPos;
+    this.remotePos = remotePos;
+    this.remoteImpliedPos = remoteImpliedPos;
   }
 
-  public ResumptionState localState() {
-    return local;
+  public long getLocalPos() {
+    return localPos;
   }
 
-  public ResumptionState remoteState() {
-    return remote;
+  public long getLocalImpliedPos() {
+    return localImpliedPos;
+  }
+
+  public long getRemotePos() {
+    return remotePos;
+  }
+
+  public long getRemoteImpliedPos() {
+    return remoteImpliedPos;
   }
 }

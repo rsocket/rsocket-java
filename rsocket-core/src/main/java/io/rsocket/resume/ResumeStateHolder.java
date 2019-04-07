@@ -19,4 +19,6 @@ package io.rsocket.resume;
 public interface ResumeStateHolder {
 
   long impliedPosition();
+
+  void onImpliedPosition(long remoteImpliedPos);
 }

@@ -23,33 +23,36 @@ import io.rsocket.exceptions.ConnectionErrorException;
 import io.rsocket.frame.FrameHeaderFlyweight;
 import io.rsocket.frame.FrameType;
 import io.rsocket.internal.KeepAliveData;
-import io.rsocket.resume.ResumeAwareConnection;
+import io.rsocket.resume.ResumePositionsConnection;
 import io.rsocket.resume.ResumeStateHolder;
 import io.rsocket.util.DuplexConnectionProxy;
 import io.rsocket.util.Function3;
 import java.time.Duration;
-import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import javax.annotation.Nullable;
 import org.reactivestreams.Publisher;
-import reactor.core.publisher.*;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+import reactor.core.publisher.MonoProcessor;
 
-public class KeepAliveConnection extends DuplexConnectionProxy implements ResumeAwareConnection {
+public class KeepAliveConnection extends DuplexConnectionProxy
+    implements ResumePositionsConnection {
 
   private final MonoProcessor<KeepAliveHandler> keepAliveHandlerReady = MonoProcessor.create();
   private final ByteBufAllocator allocator;
-  private final Function<ByteBuf, Mono<KeepAliveData>> keepAliveData;
+  private final Function<ByteBuf, KeepAliveData> keepAliveData;
   private final Function3<ByteBufAllocator, Duration, Duration, KeepAliveHandler>
       keepAliveHandlerFactory;
   private final Consumer<Throwable> errorConsumer;
-  private final UnicastProcessor<ByteBuf> keepAliveFrames = UnicastProcessor.create();
-  private final EmitterProcessor<Long> lastReceivedPositions = EmitterProcessor.create();
   private volatile KeepAliveHandler keepAliveHandler;
+  private volatile ResumeStateHolder resumeStateHolder;
+  private volatile boolean keepAliveHandlerStarted;
 
   public static KeepAliveConnection ofClient(
       ByteBufAllocator allocator,
       DuplexConnection duplexConnection,
-      Function<ByteBuf, Mono<KeepAliveData>> keepAliveData,
+      Function<ByteBuf, KeepAliveData> keepAliveData,
       Consumer<Throwable> errorConsumer) {
 
     return new KeepAliveConnection(
@@ -59,7 +62,7 @@ public class KeepAliveConnection extends DuplexConnectionProxy implements Resume
   public static KeepAliveConnection ofServer(
       ByteBufAllocator allocator,
       DuplexConnection duplexConnection,
-      Function<ByteBuf, Mono<KeepAliveData>> keepAliveData,
+      Function<ByteBuf, KeepAliveData> keepAliveData,
       Consumer<Throwable> errorConsumer) {
 
     return new KeepAliveConnection(
@@ -69,7 +72,7 @@ public class KeepAliveConnection extends DuplexConnectionProxy implements Resume
   private KeepAliveConnection(
       ByteBufAllocator allocator,
       DuplexConnection duplexConnection,
-      Function<ByteBuf, Mono<KeepAliveData>> keepAliveData,
+      Function<ByteBuf, KeepAliveData> keepAliveData,
       Function3<ByteBufAllocator, Duration, Duration, KeepAliveHandler> keepAliveHandlerFactory,
       Consumer<Throwable> errorConsumer) {
     super(duplexConnection);
@@ -82,7 +85,8 @@ public class KeepAliveConnection extends DuplexConnectionProxy implements Resume
 
   private void startKeepAlives(KeepAliveHandler keepAliveHandler) {
     this.keepAliveHandler = keepAliveHandler;
-    send(keepAliveFrames).subscribe(null, err -> keepAliveHandler.dispose());
+
+    send(keepAliveHandler.send()).subscribe(null, err -> keepAliveHandler.dispose());
 
     keepAliveHandler
         .timeout()
@@ -94,20 +98,12 @@ public class KeepAliveConnection extends DuplexConnectionProxy implements Resume
               errorConsumer.accept(err);
               dispose();
             });
-    keepAliveHandler.send().subscribe(keepAliveFrames::onNext);
     keepAliveHandler.start();
   }
 
   @Override
   public Mono<Void> send(Publisher<ByteBuf> frames) {
-    return super.send(
-        Flux.from(frames)
-            .doOnNext(
-                f -> {
-                  if (isStartFrame(f)) {
-                    keepAliveHandler(keepAliveData.apply(f)).subscribe(keepAliveHandlerReady);
-                  }
-                }));
+    return super.send(Flux.from(frames).doOnNext(this::startKeepAliveHandlerOnce));
   }
 
   @Override
@@ -117,11 +113,14 @@ public class KeepAliveConnection extends DuplexConnectionProxy implements Resume
             f -> {
               if (isKeepAliveFrame(f)) {
                 long receivedPos = keepAliveHandler.receive(f);
-                if (isResumeRequested() && receivedPos > 0) {
-                  lastReceivedPositions.onNext(receivedPos);
+                if (receivedPos > 0) {
+                  ResumeStateHolder h = this.resumeStateHolder;
+                  if (h != null) {
+                    h.onImpliedPosition(receivedPos);
+                  }
                 }
-              } else if (isStartFrame(f)) {
-                keepAliveHandler(keepAliveData.apply(f)).subscribe(keepAliveHandlerReady);
+              } else {
+                startKeepAliveHandlerOnce(f);
               }
             });
   }
@@ -129,36 +128,42 @@ public class KeepAliveConnection extends DuplexConnectionProxy implements Resume
   @Override
   public Mono<Void> onClose() {
     return super.onClose()
-        .then(Mono.fromRunnable(lastReceivedPositions::onComplete))
-        .then(
-            Mono.fromRunnable(
-                () ->
-                    Optional.ofNullable(keepAliveHandlerReady.peek())
-                        .ifPresent(KeepAliveHandler::dispose)));
+        .doFinally(
+            s -> {
+              KeepAliveHandler keepAliveHandler = keepAliveHandlerReady.peek();
+              if (keepAliveHandler != null) {
+                keepAliveHandler.dispose();
+              }
+            });
   }
 
   @Override
-  public Flux<Long> receiveResumePositions(ResumeStateHolder resumeStateHolder) {
-    return keepAliveHandlerReady
-        .doOnNext(h -> h.resumeState(resumeStateHolder))
-        .thenMany(lastReceivedPositions);
+  public void acceptResumeState(ResumeStateHolder resumeStateHolder) {
+    this.resumeStateHolder = resumeStateHolder;
+    keepAliveHandlerReady.subscribe(h -> h.resumeState(resumeStateHolder));
   }
 
-  private boolean isResumeRequested() {
-    return keepAliveHandler.hasResumeState();
+  private void startKeepAliveHandlerOnce(ByteBuf f) {
+    if (!keepAliveHandlerStarted && isStartFrame(f)) {
+      keepAliveHandlerStarted = true;
+      startKeepAliveHandler(keepAliveData.apply(f));
+    }
   }
 
   private static boolean isStartFrame(ByteBuf frame) {
-    return FrameHeaderFlyweight.frameType(frame) == FrameType.SETUP
-        || FrameHeaderFlyweight.frameType(frame) == FrameType.RESUME;
+    FrameType frameType = FrameHeaderFlyweight.frameType(frame);
+    return frameType == FrameType.SETUP || frameType == FrameType.RESUME;
   }
 
   private static boolean isKeepAliveFrame(ByteBuf frame) {
     return FrameHeaderFlyweight.frameType(frame) == FrameType.KEEPALIVE;
   }
 
-  private Mono<KeepAliveHandler> keepAliveHandler(Mono<KeepAliveData> keepAliveData) {
-    return keepAliveData.map(
-        kad -> keepAliveHandlerFactory.apply(allocator, kad.getTickPeriod(), kad.getTimeout()));
+  private void startKeepAliveHandler(@Nullable KeepAliveData kad) {
+    if (kad != null) {
+      KeepAliveHandler handler =
+          keepAliveHandlerFactory.apply(allocator, kad.getTickPeriod(), kad.getTimeout());
+      keepAliveHandlerReady.onNext(handler);
+    }
   }
 }

@@ -21,6 +21,7 @@ import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.exceptions.InvalidSetupException;
 import io.rsocket.exceptions.RejectedSetupException;
 import io.rsocket.frame.FrameHeaderFlyweight;
+import io.rsocket.frame.ResumeFrameFlyweight;
 import io.rsocket.frame.SetupFrameFlyweight;
 import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.internal.ClientServerInputMultiplexer;
@@ -106,9 +107,10 @@ public class RSocketFactory {
     private String dataMimeType = "application/binary";
 
     private boolean resumeEnabled;
-    private Supplier<ResumeToken> resumeTokenSupplier = ResumeToken::generate;
-    private Function<? super ResumeToken, ? extends ResumableFramesStore> resumeStoreFactory =
-        token -> new InMemoryResumableFramesStore("client", 1024);
+    private boolean resumeCleanupStoreOnKeepAlive;
+    private Supplier<ByteBuf> resumeTokenSupplier = ResumeFrameFlyweight::generateResumeToken;
+    private Function<? super ByteBuf, ? extends ResumableFramesStore> resumeStoreFactory =
+        token -> new InMemoryResumableFramesStore("client", 100_000);
     private Duration resumeSessionDuration = Duration.ofMinutes(2);
     private Duration resumeStreamTimeout = Duration.ofSeconds(10);
     private Supplier<ResumeStrategy> resumeStrategySupplier =
@@ -192,13 +194,13 @@ public class RSocketFactory {
       return this;
     }
 
-    public ClientRSocketFactory resumeToken(Supplier<ResumeToken> resumeTokenSupplier) {
+    public ClientRSocketFactory resumeToken(Supplier<ByteBuf> resumeTokenSupplier) {
       this.resumeTokenSupplier = Objects.requireNonNull(resumeTokenSupplier);
       return this;
     }
 
     public ClientRSocketFactory resumeStore(
-        Function<? super ResumeToken, ? extends ResumableFramesStore> resumeStoreFactory) {
+        Function<? super ByteBuf, ? extends ResumableFramesStore> resumeStoreFactory) {
       this.resumeStoreFactory = resumeStoreFactory;
       return this;
     }
@@ -215,6 +217,11 @@ public class RSocketFactory {
 
     public ClientRSocketFactory resumeStrategy(Supplier<ResumeStrategy> resumeStrategy) {
       this.resumeStrategySupplier = Objects.requireNonNull(resumeStrategy);
+      return this;
+    }
+
+    public ClientRSocketFactory resumeCleanupOnKeepAlive() {
+      resumeCleanupStoreOnKeepAlive = true;
       return this;
     }
 
@@ -267,6 +274,7 @@ public class RSocketFactory {
                 connection -> {
                   ClientSetup clientSetup = clientSetup();
                   DuplexConnection wrappedConnection = clientSetup.wrappedConnection(connection);
+                  ByteBuf resumeToken = clientSetup.resumeToken();
 
                   ClientServerInputMultiplexer multiplexer =
                       new ClientServerInputMultiplexer(wrappedConnection, plugins);
@@ -299,7 +307,7 @@ public class RSocketFactory {
                           false,
                           (int) keepAliveTickPeriod(),
                           (int) keepAliveTimeout(),
-                          clientSetup.resumeToken().toByteBuf(),
+                          resumeToken,
                           metadataMimeType,
                           dataMimeType,
                           setupPayload.sliceMetadata(),
@@ -319,7 +327,7 @@ public class RSocketFactory {
 
       private ClientSetup clientSetup() {
         if (resumeEnabled) {
-          ResumeToken resumeToken = resumeTokenSupplier.get();
+          ByteBuf resumeToken = resumeTokenSupplier.get();
           return new ClientSetup.ResumableClientSetup(
               allocator,
               newConnection(),
@@ -327,7 +335,8 @@ public class RSocketFactory {
               resumeStoreFactory.apply(resumeToken),
               resumeSessionDuration,
               resumeStreamTimeout,
-              resumeStrategySupplier);
+              resumeStrategySupplier,
+              resumeCleanupStoreOnKeepAlive);
         } else {
           return new ClientSetup.DefaultClientSetup();
         }
@@ -342,8 +351,7 @@ public class RSocketFactory {
                     KeepAliveConnection.ofClient(
                         allocator,
                         connection,
-                        notUsed ->
-                            Mono.just(new KeepAliveData(keepAliveTickPeriod(), keepAliveTimeout())),
+                        notUsed -> new KeepAliveData(keepAliveTickPeriod(), keepAliveTimeout()),
                         errorConsumer));
       }
     }
@@ -358,10 +366,11 @@ public class RSocketFactory {
     private boolean resumeSupported;
     private Duration resumeSessionDuration = Duration.ofSeconds(120);
     private Duration resumeStreamTimeout = Duration.ofSeconds(10);
-    private Function<? super ResumeToken, ? extends ResumableFramesStore> resumeStoreFactory =
-        token -> new InMemoryResumableFramesStore("server", 1024);
+    private Function<? super ByteBuf, ? extends ResumableFramesStore> resumeStoreFactory =
+        token -> new InMemoryResumableFramesStore("server", 100_000);
 
     private ByteBufAllocator allocator = ByteBufAllocator.DEFAULT;
+    private boolean resumeCleanupStoreOnKeepAlive;
 
     private ServerRSocketFactory() {}
 
@@ -412,7 +421,7 @@ public class RSocketFactory {
     }
 
     public ServerRSocketFactory resumeStore(
-        Function<? super ResumeToken, ? extends ResumableFramesStore> resumeStoreFactory) {
+        Function<? super ByteBuf, ? extends ResumableFramesStore> resumeStoreFactory) {
       this.resumeStoreFactory = resumeStoreFactory;
       return this;
     }
@@ -424,6 +433,11 @@ public class RSocketFactory {
 
     public ServerRSocketFactory resumeStreamTimeout(Duration resumeStreamTimeout) {
       this.resumeStreamTimeout = Objects.requireNonNull(resumeStreamTimeout);
+      return this;
+    }
+
+    public ServerRSocketFactory resumeCleanupOnKeepAlive() {
+      resumeCleanupStoreOnKeepAlive = true;
       return this;
     }
 
@@ -452,7 +466,7 @@ public class RSocketFactory {
       private Mono<Void> acceptor(ServerSetup serverSetup, DuplexConnection connection) {
         connection =
             KeepAliveConnection.ofServer(
-                allocator, connection, serverSetup.keepAliveData(), errorConsumer);
+                allocator, connection, serverSetup::keepAliveData, errorConsumer);
         ClientServerInputMultiplexer multiplexer =
             new ClientServerInputMultiplexer(connection, plugins);
 
@@ -556,7 +570,8 @@ public class RSocketFactory {
                 new SessionManager(),
                 resumeSessionDuration,
                 resumeStreamTimeout,
-                resumeStoreFactory)
+                resumeStoreFactory,
+                resumeCleanupStoreOnKeepAlive)
             : new ServerSetup.DefaultServerSetup(allocator);
       }
 
