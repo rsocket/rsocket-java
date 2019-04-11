@@ -35,23 +35,28 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 public class FragmentTest {
-  private static final int frameSize = 128;
+  private static final int frameSize = 64;
   private AbstractRSocket handler;
   private CloseableChannel server;
   private String message = null;
   private String metaData = null;
+  private String responseMessage = null;
 
   @BeforeEach
   public void startup() {
     int randomPort = ThreadLocalRandom.current().nextInt(10_000, 20_000);
     StringBuilder message = new StringBuilder();
+    StringBuilder responseMessage = new StringBuilder();
     StringBuilder metaData = new StringBuilder();
     for (int i = 0; i < 100; i++) {
-      message.append("RESPONSE ");
+      message.append("REQUEST ");
+      responseMessage.append("RESPONSE ");
       metaData.append("METADATA ");
     }
     this.message = message.toString();
+    this.responseMessage = responseMessage.toString();
     this.metaData = metaData.toString();
+
     TcpServerTransport serverTransport = TcpServerTransport.create(randomPort);
     server =
         RSocketFactory.receive()
@@ -88,7 +93,7 @@ public class FragmentTest {
             System.out.println("request message:   " + request);
             System.out.println("request metadata:  " + metaData);
 
-            return Flux.just(DefaultPayload.create(request));
+            return Flux.just(DefaultPayload.create(responseMessage));
           }
         };
 
@@ -100,7 +105,7 @@ public class FragmentTest {
     System.out.println("response message:  " + payload.getDataUtf8());
     System.out.println("response metadata: " + payload.getMetadataUtf8());
 
-    assertThat(message).isEqualTo(payload.getDataUtf8());
+    assertThat(responseMessage).isEqualTo(payload.getDataUtf8());
   }
 
   @Test
@@ -116,7 +121,7 @@ public class FragmentTest {
             System.out.println("request message:   " + request);
             System.out.println("request metadata:  " + metaData);
 
-            return Flux.just(DefaultPayload.create(request));
+            return Flux.just(DefaultPayload.create(responseMessage));
           }
         };
 
@@ -128,11 +133,12 @@ public class FragmentTest {
     System.out.println("response message:  " + payload.getDataUtf8());
     System.out.println("response metadata: " + payload.getMetadataUtf8());
 
-    assertThat(message).isEqualTo(payload.getDataUtf8());
+    assertThat(responseMessage).isEqualTo(payload.getDataUtf8());
   }
 
   @Test
   void testFragmentBothMetaData() {
+    Payload responsePayload = DefaultPayload.create(responseMessage);
     System.out.println(
         "-------------------------------------------------testFragmentBothMetaData-------------------------------------------------");
     handler =
@@ -144,7 +150,7 @@ public class FragmentTest {
             System.out.println("request message:   " + request);
             System.out.println("request metadata:  " + metaData);
 
-            return Flux.just(DefaultPayload.create(request, metaData));
+            return Flux.just(DefaultPayload.create(responseMessage, metaData));
           }
 
           @Override
@@ -154,7 +160,7 @@ public class FragmentTest {
             System.out.println("request message:   " + request);
             System.out.println("request metadata:  " + metaData);
 
-            return Mono.just(DefaultPayload.create(request, metaData));
+            return Mono.just(DefaultPayload.create(responseMessage, metaData));
           }
         };
 
@@ -166,6 +172,6 @@ public class FragmentTest {
     System.out.println("response message:  " + payload.getDataUtf8());
     System.out.println("response metadata: " + payload.getMetadataUtf8());
 
-    assertThat(message).isEqualTo(payload.getDataUtf8());
+    assertThat(responseMessage).isEqualTo(payload.getDataUtf8());
   }
 }

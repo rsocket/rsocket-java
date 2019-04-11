@@ -172,23 +172,23 @@ final class FrameReassembler extends AtomicBoolean implements Disposable {
       CompositeByteBuf metadata = getMetadata(streamId);
       switch (frameType) {
         case REQUEST_FNF:
-          metadata.addComponents(true, RequestFireAndForgetFrameFlyweight.metadata(frame));
+          metadata.addComponents(true, RequestFireAndForgetFrameFlyweight.metadata(frame).retain());
           break;
         case REQUEST_STREAM:
-          metadata.addComponents(true, RequestStreamFrameFlyweight.metadata(frame));
+          metadata.addComponents(true, RequestStreamFrameFlyweight.metadata(frame).retain());
           break;
         case REQUEST_RESPONSE:
-          metadata.addComponents(true, RequestResponseFrameFlyweight.metadata(frame));
+          metadata.addComponents(true, RequestResponseFrameFlyweight.metadata(frame).retain());
           break;
         case REQUEST_CHANNEL:
-          metadata.addComponents(true, RequestChannelFrameFlyweight.metadata(frame));
+          metadata.addComponents(true, RequestChannelFrameFlyweight.metadata(frame).retain());
           break;
           // Payload and synthetic types
         case PAYLOAD:
         case NEXT:
         case NEXT_COMPLETE:
         case COMPLETE:
-          metadata.addComponents(true, PayloadFrameFlyweight.metadata(frame));
+          metadata.addComponents(true, PayloadFrameFlyweight.metadata(frame).retain());
           break;
         default:
           throw new IllegalStateException("unsupported fragment type");
@@ -198,23 +198,23 @@ final class FrameReassembler extends AtomicBoolean implements Disposable {
     ByteBuf data;
     switch (frameType) {
       case REQUEST_FNF:
-        data = RequestFireAndForgetFrameFlyweight.data(frame);
+        data = RequestFireAndForgetFrameFlyweight.data(frame).retain();
         break;
       case REQUEST_STREAM:
-        data = RequestStreamFrameFlyweight.data(frame);
+        data = RequestStreamFrameFlyweight.data(frame).retain();
         break;
       case REQUEST_RESPONSE:
-        data = RequestResponseFrameFlyweight.data(frame);
+        data = RequestResponseFrameFlyweight.data(frame).retain();
         break;
       case REQUEST_CHANNEL:
-        data = RequestChannelFrameFlyweight.data(frame);
+        data = RequestChannelFrameFlyweight.data(frame).retain();
         break;
         // Payload and synthetic types
       case PAYLOAD:
       case NEXT:
       case NEXT_COMPLETE:
       case COMPLETE:
-        data = PayloadFrameFlyweight.data(frame);
+        data = PayloadFrameFlyweight.data(frame).retain();
         break;
       default:
         throw new IllegalStateException("unsupported fragment type");
@@ -243,10 +243,10 @@ final class FrameReassembler extends AtomicBoolean implements Disposable {
 
       boolean hasFollows = FrameHeaderFlyweight.hasFollows(frame);
 
-      if (!hasFollows) {
-        handleNoFollowsFlag(frame, sink, streamId);
-      } else {
+      if (hasFollows) {
         handleFollowsFlag(frame, streamId, frameType);
+      } else {
+        handleNoFollowsFlag(frame, sink, streamId);
       }
 
     } catch (Throwable t) {
