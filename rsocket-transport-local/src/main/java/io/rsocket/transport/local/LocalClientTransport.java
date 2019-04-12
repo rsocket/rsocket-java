@@ -81,7 +81,7 @@ public final class LocalClientTransport implements ClientTransport {
       return connect.map(
           duplexConnection ->
               new FragmentationDuplexConnection(
-                  duplexConnection, ByteBufAllocator.DEFAULT, mtu, false));
+                  duplexConnection, ByteBufAllocator.DEFAULT, mtu, false, "client"));
     } else {
       return connect;
     }

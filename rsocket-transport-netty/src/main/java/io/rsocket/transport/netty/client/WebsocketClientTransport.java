@@ -162,7 +162,7 @@ public final class WebsocketClientTransport implements ClientTransport, Transpor
               if (mtu > 0) {
                 connection =
                     new FragmentationDuplexConnection(
-                        connection, ByteBufAllocator.DEFAULT, mtu, false);
+                        connection, ByteBufAllocator.DEFAULT, mtu, false, "client");
               }
               return connection;
             });

@@ -123,7 +123,7 @@ public final class WebsocketServerTransport
                     if (mtu > 0) {
                       connection =
                           new FragmentationDuplexConnection(
-                              connection, ByteBufAllocator.DEFAULT, mtu, false);
+                              connection, ByteBufAllocator.DEFAULT, mtu, false, "server");
                     }
                     return acceptor.apply(connection).then(out.neverComplete());
                   });

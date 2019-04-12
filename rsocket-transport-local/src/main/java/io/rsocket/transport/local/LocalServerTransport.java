@@ -164,7 +164,7 @@ public final class LocalServerTransport implements ServerTransport<Closeable> {
       if (mtu > 0) {
         duplexConnection =
             new FragmentationDuplexConnection(
-                duplexConnection, ByteBufAllocator.DEFAULT, mtu, false);
+                duplexConnection, ByteBufAllocator.DEFAULT, mtu, false, "server");
       }
 
       acceptor.apply(duplexConnection).subscribe();
