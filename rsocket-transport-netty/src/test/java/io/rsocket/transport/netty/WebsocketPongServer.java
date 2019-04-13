@@ -17,6 +17,7 @@
 package io.rsocket.transport.netty;
 
 import io.rsocket.RSocketFactory;
+import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.test.PingHandler;
 import io.rsocket.transport.netty.server.WebsocketServerTransport;
 
@@ -24,6 +25,7 @@ public final class WebsocketPongServer {
 
   public static void main(String... args) {
     RSocketFactory.receive()
+        .frameDecoder(PayloadDecoder.ZERO_COPY)
         .acceptor(new PingHandler())
         .transport(WebsocketServerTransport.create(7878))
         .start()

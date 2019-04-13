@@ -24,7 +24,11 @@ public class LeaseFlyweight {
             .writeInt(ttl)
             .writeInt(numRequests);
 
-    return DataAndMetadataFlyweight.encodeOnlyMetadata(allocator, header, metadata);
+    if (metadata == null) {
+      return header;
+    } else {
+      return DataAndMetadataFlyweight.encodeOnlyMetadata(allocator, header, metadata);
+    }
   }
 
   public static int ttl(final ByteBuf byteBuf) {
