@@ -18,6 +18,7 @@ package io.rsocket.transport.netty;
 
 import io.rsocket.RSocket;
 import io.rsocket.RSocketFactory;
+import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.test.PingClient;
 import io.rsocket.transport.netty.client.WebsocketClientTransport;
 import java.time.Duration;
@@ -28,7 +29,10 @@ public final class WebsocketPing {
 
   public static void main(String... args) {
     Mono<RSocket> client =
-        RSocketFactory.connect().transport(WebsocketClientTransport.create(7878)).start();
+        RSocketFactory.connect()
+            .frameDecoder(PayloadDecoder.ZERO_COPY)
+            .transport(WebsocketClientTransport.create(7878))
+            .start();
 
     PingClient pingClient = new PingClient(client);
 

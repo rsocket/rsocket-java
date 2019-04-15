@@ -31,6 +31,8 @@ public class FragmentationIntegrationTest {
         PayloadFrameFlyweight.encodeNextComplete(allocator, 2, DefaultPayload.create(data));
     System.out.println(FrameUtil.toString(frame));
 
+    frame.retain();
+
     Publisher<ByteBuf> fragments =
         FrameFragmenter.fragmentFrame(
             allocator, 64, frame, FrameHeaderFlyweight.frameType(frame), false);
