@@ -3,7 +3,7 @@ package io.rsocket.frame;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
-import io.rsocket.buffer.TupleByteBuffs;
+import io.rsocket.buffer.TupleByteBuf;
 
 class DataAndMetadataFlyweight {
   public static final int FRAME_LENGTH_MASK = 0xFFFFFF;
@@ -33,11 +33,11 @@ class DataAndMetadataFlyweight {
 
   static ByteBuf encodeOnlyMetadata(
       ByteBufAllocator allocator, final ByteBuf header, ByteBuf metadata) {
-    return TupleByteBuffs.of(allocator, header, metadata);
+    return TupleByteBuf.of(allocator, header, metadata);
   }
 
   static ByteBuf encodeOnlyData(ByteBufAllocator allocator, final ByteBuf header, ByteBuf data) {
-    return TupleByteBuffs.of(allocator, header, data);
+    return TupleByteBuf.of(allocator, header, data);
   }
 
   static ByteBuf encode(
@@ -46,7 +46,7 @@ class DataAndMetadataFlyweight {
     int length = metadata.readableBytes();
     encodeLength(header, length);
 
-    return TupleByteBuffs.of(allocator, header, metadata, data);
+    return TupleByteBuf.of(allocator, header, metadata, data);
   }
 
   static ByteBuf metadataWithoutMarking(ByteBuf byteBuf, boolean hasMetadata) {

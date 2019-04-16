@@ -4,9 +4,9 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import java.util.Objects;
 
-public abstract class TupleByteBuffs {
+public abstract class TupleByteBuf {
 
-  private TupleByteBuffs() {}
+  private TupleByteBuf() {}
 
   public static ByteBuf of(ByteBuf one, ByteBuf two) {
     return of(ByteBufAllocator.DEFAULT, one, two);
