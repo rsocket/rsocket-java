@@ -21,7 +21,6 @@ import io.netty.buffer.ByteBufAllocator;
 import io.netty.util.ReferenceCountUtil;
 import io.netty.util.collection.IntObjectHashMap;
 import io.rsocket.exceptions.ApplicationErrorException;
-import io.rsocket.exceptions.ConnectionErrorException;
 import io.rsocket.frame.*;
 import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.internal.LimitableRequestPublisher;
@@ -35,35 +34,27 @@ import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 import reactor.core.Disposable;
 import reactor.core.Exceptions;
+import reactor.core.publisher.BaseSubscriber;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.SignalType;
 import reactor.core.publisher.UnicastProcessor;
 
 /** Server side RSocket. Receives {@link ByteBuf}s from a {@link RSocketClient} */
-class RSocketServer implements RSocket {
+class RSocketServer implements ResponderRSocket {
 
   private final DuplexConnection connection;
   private final RSocket requestHandler;
+  private final ResponderRSocket responderRSocket;
   private final PayloadDecoder payloadDecoder;
   private final Consumer<Throwable> errorConsumer;
 
+  private final Map<Integer, LimitableRequestPublisher> sendingLimitableSubscriptions;
   private final Map<Integer, Subscription> sendingSubscriptions;
   private final Map<Integer, Processor<Payload, Payload>> channelProcessors;
 
   private final UnboundedProcessor<ByteBuf> sendProcessor;
   private final ByteBufAllocator allocator;
-  private KeepAliveHandler keepAliveHandler;
-
-  /*client responder*/
-  RSocketServer(
-      ByteBufAllocator allocator,
-      DuplexConnection connection,
-      RSocket requestHandler,
-      PayloadDecoder payloadDecoder,
-      Consumer<Throwable> errorConsumer) {
-    this(allocator, connection, requestHandler, payloadDecoder, errorConsumer, 0, 0);
-  }
 
   /*server responder*/
   RSocketServer(
@@ -71,14 +62,17 @@ class RSocketServer implements RSocket {
       DuplexConnection connection,
       RSocket requestHandler,
       PayloadDecoder payloadDecoder,
-      Consumer<Throwable> errorConsumer,
-      long tickPeriod,
-      long ackTimeout) {
+      Consumer<Throwable> errorConsumer) {
     this.allocator = allocator;
     this.connection = connection;
+
     this.requestHandler = requestHandler;
+    this.responderRSocket =
+        (requestHandler instanceof ResponderRSocket) ? (ResponderRSocket) requestHandler : null;
+
     this.payloadDecoder = payloadDecoder;
     this.errorConsumer = errorConsumer;
+    this.sendingLimitableSubscriptions = Collections.synchronizedMap(new IntObjectHashMap<>());
     this.sendingSubscriptions = Collections.synchronizedMap(new IntObjectHashMap<>());
     this.channelProcessors = Collections.synchronizedMap(new IntObjectHashMap<>());
 
@@ -86,8 +80,14 @@ class RSocketServer implements RSocket {
     // connections
     this.sendProcessor = new UnboundedProcessor<>();
 
-    connection
-        .send(sendProcessor)
+    sendProcessor
+        .doOnRequest(
+            r -> {
+              for (LimitableRequestPublisher lrp : sendingLimitableSubscriptions.values()) {
+                lrp.increaseInternalLimit(r);
+              }
+            })
+        .transform(connection::send)
         .doFinally(this::handleSendProcessorCancel)
         .subscribe(null, this::handleSendProcessorError);
 
@@ -101,28 +101,21 @@ class RSocketServer implements RSocket {
               receiveDisposable.dispose();
             })
         .subscribe(null, errorConsumer);
-
-    if (tickPeriod != 0) {
-      keepAliveHandler =
-          KeepAliveHandler.ofServer(new KeepAliveHandler.KeepAlive(tickPeriod, ackTimeout));
-
-      keepAliveHandler
-          .timeout()
-          .subscribe(
-              keepAlive -> {
-                String message =
-                    String.format("No keep-alive acks for %d ms", keepAlive.getTimeoutMillis());
-                errorConsumer.accept(new ConnectionErrorException(message));
-                connection.dispose();
-              });
-      keepAliveHandler.send().subscribe(sendProcessor::onNext);
-    } else {
-      keepAliveHandler = null;
-    }
   }
 
   private void handleSendProcessorError(Throwable t) {
     sendingSubscriptions
+        .values()
+        .forEach(
+            subscription -> {
+              try {
+                subscription.cancel();
+              } catch (Throwable e) {
+                errorConsumer.accept(e);
+              }
+            });
+
+    sendingLimitableSubscriptions
         .values()
         .forEach(
             subscription -> {
@@ -151,6 +144,17 @@ class RSocketServer implements RSocket {
     }
 
     sendingSubscriptions
+        .values()
+        .forEach(
+            subscription -> {
+              try {
+                subscription.cancel();
+              } catch (Throwable e) {
+                errorConsumer.accept(e);
+              }
+            });
+
+    sendingLimitableSubscriptions
         .values()
         .forEach(
             subscription -> {
@@ -210,6 +214,15 @@ class RSocketServer implements RSocket {
   }
 
   @Override
+  public Flux<Payload> requestChannel(Payload payload, Publisher<Payload> payloads) {
+    try {
+      return responderRSocket.requestChannel(payload, payloads);
+    } catch (Throwable t) {
+      return Flux.error(t);
+    }
+  }
+
+  @Override
   public Mono<Void> metadataPush(Payload payload) {
     try {
       return requestHandler.metadataPush(payload);
@@ -234,9 +247,6 @@ class RSocketServer implements RSocket {
   }
 
   private void cleanup() {
-    if (keepAliveHandler != null) {
-      keepAliveHandler.dispose();
-    }
     cleanUpSendingSubscriptions();
     cleanUpChannelProcessors();
 
@@ -247,6 +257,9 @@ class RSocketServer implements RSocket {
   private synchronized void cleanUpSendingSubscriptions() {
     sendingSubscriptions.values().forEach(Subscription::cancel);
     sendingSubscriptions.clear();
+
+    sendingLimitableSubscriptions.values().forEach(Subscription::cancel);
+    sendingLimitableSubscriptions.clear();
   }
 
   private synchronized void cleanUpChannelProcessors() {
@@ -270,7 +283,8 @@ class RSocketServer implements RSocket {
           handleCancelFrame(streamId);
           break;
         case KEEPALIVE:
-          handleKeepAliveFrame(frame);
+          // KeepAlive is handled by corresponding connection interceptor,
+          // just release its frame here
           break;
         case REQUEST_N:
           handleRequestN(streamId, frame);
@@ -339,37 +353,73 @@ class RSocketServer implements RSocket {
   }
 
   private void handleFireAndForget(int streamId, Mono<Void> result) {
-    result
-        .doOnSubscribe(subscription -> sendingSubscriptions.put(streamId, subscription))
-        .doFinally(signalType -> sendingSubscriptions.remove(streamId))
-        .subscribe(null, errorConsumer);
+    result.subscribe(
+        new BaseSubscriber<Void>() {
+          @Override
+          protected void hookOnSubscribe(Subscription subscription) {
+            sendingSubscriptions.put(streamId, subscription);
+            subscription.request(Long.MAX_VALUE);
+          }
+
+          @Override
+          protected void hookOnError(Throwable throwable) {
+            errorConsumer.accept(throwable);
+          }
+
+          @Override
+          protected void hookFinally(SignalType type) {
+            sendingSubscriptions.remove(streamId);
+          }
+        });
   }
 
   private void handleRequestResponse(int streamId, Mono<Payload> response) {
-    response
-        .doOnSubscribe(subscription -> sendingSubscriptions.put(streamId, subscription))
-        .map(
-            payload -> {
-              ByteBuf byteBuf = null;
-              try {
-                byteBuf = PayloadFrameFlyweight.encodeNextComplete(allocator, streamId, payload);
-              } catch (Throwable t) {
-                if (byteBuf != null) {
-                  ReferenceCountUtil.safeRelease(byteBuf);
-                  ReferenceCountUtil.safeRelease(payload);
-                }
-              }
+    response.subscribe(
+        new BaseSubscriber<Payload>() {
+          private boolean isEmpty = true;
+
+          @Override
+          protected void hookOnSubscribe(Subscription subscription) {
+            sendingSubscriptions.put(streamId, subscription);
+            subscription.request(Long.MAX_VALUE);
+          }
+
+          @Override
+          protected void hookOnNext(Payload payload) {
+            if (isEmpty) {
+              isEmpty = false;
+            }
+
+            ByteBuf byteBuf;
+            try {
+              byteBuf = PayloadFrameFlyweight.encodeNextComplete(allocator, streamId, payload);
+            } catch (Throwable t) {
               payload.release();
-              return byteBuf;
-            })
-        .switchIfEmpty(
-            Mono.fromCallable(() -> PayloadFrameFlyweight.encodeComplete(allocator, streamId)))
-        .doFinally(signalType -> sendingSubscriptions.remove(streamId))
-        .subscribe(
-            t1 -> {
-              sendProcessor.onNext(t1);
-            },
-            t -> handleError(streamId, t));
+              throw Exceptions.propagate(t);
+            }
+
+            payload.release();
+
+            sendProcessor.onNext(byteBuf);
+          }
+
+          @Override
+          protected void hookOnError(Throwable throwable) {
+            handleError(streamId, throwable);
+          }
+
+          @Override
+          protected void hookOnComplete() {
+            if (isEmpty) {
+              sendProcessor.onNext(PayloadFrameFlyweight.encodeComplete(allocator, streamId));
+            }
+          }
+
+          @Override
+          protected void hookFinally(SignalType type) {
+            sendingSubscriptions.remove(streamId);
+          }
+        });
   }
 
   private void handleStream(int streamId, Flux<Payload> response, int initialRequestN) {
@@ -377,29 +427,45 @@ class RSocketServer implements RSocket {
         .transform(
             frameFlux -> {
               LimitableRequestPublisher<Payload> payloads =
-                  LimitableRequestPublisher.wrap(frameFlux);
-              sendingSubscriptions.put(streamId, payloads);
-              payloads.increaseRequestLimit(initialRequestN);
+                  LimitableRequestPublisher.wrap(frameFlux, sendProcessor.available());
+              sendingLimitableSubscriptions.put(streamId, payloads);
+              payloads.request(
+                  initialRequestN >= Integer.MAX_VALUE ? Long.MAX_VALUE : initialRequestN);
               return payloads;
             })
-        .doFinally(signalType -> sendingSubscriptions.remove(streamId))
         .subscribe(
-            payload -> {
-              ByteBuf byteBuf = null;
-              try {
-                byteBuf = PayloadFrameFlyweight.encodeNext(allocator, streamId, payload);
-              } catch (Throwable t) {
-                if (byteBuf != null) {
-                  ReferenceCountUtil.safeRelease(byteBuf);
-                  ReferenceCountUtil.safeRelease(payload);
+            new BaseSubscriber<Payload>() {
+
+              @Override
+              protected void hookOnNext(Payload payload) {
+                ByteBuf byteBuf;
+                try {
+                  byteBuf = PayloadFrameFlyweight.encodeNext(allocator, streamId, payload);
+                } catch (Throwable t) {
+                  payload.release();
+                  throw Exceptions.propagate(t);
                 }
-                throw Exceptions.propagate(t);
+
+                payload.release();
+
+                sendProcessor.onNext(byteBuf);
               }
-              payload.release();
-              sendProcessor.onNext(byteBuf);
-            },
-            t -> handleError(streamId, t),
-            () -> sendProcessor.onNext(PayloadFrameFlyweight.encodeComplete(allocator, streamId)));
+
+              @Override
+              protected void hookOnComplete() {
+                sendProcessor.onNext(PayloadFrameFlyweight.encodeComplete(allocator, streamId));
+              }
+
+              @Override
+              protected void hookOnError(Throwable throwable) {
+                handleError(streamId, throwable);
+              }
+
+              @Override
+              protected void hookFinally(SignalType type) {
+                sendingLimitableSubscriptions.remove(streamId);
+              }
+            });
   }
 
   private void handleChannel(int streamId, Payload payload, int initialRequestN) {
@@ -420,17 +486,20 @@ class RSocketServer implements RSocket {
     // and any later payload can be processed
     frames.onNext(payload);
 
-    handleStream(streamId, requestChannel(payloads), initialRequestN);
-  }
-
-  private void handleKeepAliveFrame(ByteBuf frame) {
-    if (keepAliveHandler != null) {
-      keepAliveHandler.receive(frame);
+    if (responderRSocket != null) {
+      handleStream(streamId, requestChannel(payload, payloads), initialRequestN);
+    } else {
+      handleStream(streamId, requestChannel(payloads), initialRequestN);
     }
   }
 
   private void handleCancelFrame(int streamId) {
     Subscription subscription = sendingSubscriptions.remove(streamId);
+
+    if (subscription == null) {
+      subscription = sendingLimitableSubscriptions.get(streamId);
+    }
+
     if (subscription != null) {
       subscription.cancel();
     }
@@ -442,7 +511,12 @@ class RSocketServer implements RSocket {
   }
 
   private void handleRequestN(int streamId, ByteBuf frame) {
-    final Subscription subscription = sendingSubscriptions.get(streamId);
+    Subscription subscription = sendingSubscriptions.get(streamId);
+
+    if (subscription == null) {
+      subscription = sendingLimitableSubscriptions.get(streamId);
+    }
+
     if (subscription != null) {
       int n = RequestNFrameFlyweight.requestN(frame);
       subscription.request(n >= Integer.MAX_VALUE ? Long.MAX_VALUE : n);

@@ -22,7 +22,9 @@ public class ExtensionFrameFlyweight {
 
     ByteBuf header = FrameHeaderFlyweight.encode(allocator, streamId, FrameType.EXT, flags);
     header.writeInt(extendedType);
-    if (metadata != null) {
+    if (data == null && metadata == null) {
+      return header;
+    } else if (metadata != null) {
       return DataAndMetadataFlyweight.encode(allocator, header, metadata, data);
     } else {
       return DataAndMetadataFlyweight.encodeOnlyData(allocator, header, data);

@@ -20,6 +20,7 @@ import static io.rsocket.fragmentation.FrameFragmenter.fragmentFrame;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
+import io.netty.buffer.ByteBufUtil;
 import io.rsocket.DuplexConnection;
 import io.rsocket.frame.FrameHeaderFlyweight;
 import io.rsocket.frame.FrameLengthFlyweight;
@@ -46,9 +47,14 @@ public final class FragmentationDuplexConnection implements DuplexConnection {
   private final ByteBufAllocator allocator;
   private final FrameReassembler frameReassembler;
   private final boolean encodeLength;
+  private final String type;
 
   public FragmentationDuplexConnection(
-      DuplexConnection delegate, ByteBufAllocator allocator, int mtu, boolean encodeLength) {
+      DuplexConnection delegate,
+      ByteBufAllocator allocator,
+      int mtu,
+      boolean encodeLength,
+      String type) {
     Objects.requireNonNull(delegate, "delegate must not be null");
     Objects.requireNonNull(allocator, "byteBufAllocator must not be null");
     if (mtu < MIN_MTU_SIZE) {
@@ -59,6 +65,7 @@ public final class FragmentationDuplexConnection implements DuplexConnection {
     this.delegate = delegate;
     this.mtu = mtu;
     this.frameReassembler = new FrameReassembler(allocator);
+    this.type = type;
 
     delegate.onClose().doFinally(s -> frameReassembler.dispose()).subscribe();
   }
@@ -77,7 +84,23 @@ public final class FragmentationDuplexConnection implements DuplexConnection {
     FrameType frameType = FrameHeaderFlyweight.frameType(frame);
     int readableBytes = frame.readableBytes();
     if (shouldFragment(frameType, readableBytes)) {
-      return delegate.send(fragmentFrame(allocator, mtu, frame, frameType, encodeLength));
+      if (logger.isDebugEnabled()) {
+        return delegate.send(
+            Flux.from(fragmentFrame(allocator, mtu, frame, frameType, encodeLength))
+                .doOnNext(
+                    byteBuf -> {
+                      ByteBuf frame1 = FrameLengthFlyweight.frame(byteBuf);
+                      logger.debug(
+                          "{} - stream id {} - frame type {} - \n {}",
+                          type,
+                          FrameHeaderFlyweight.streamId(frame1),
+                          FrameHeaderFlyweight.frameType(frame1),
+                          ByteBufUtil.prettyHexDump(frame1));
+                    }));
+      } else {
+        return delegate.send(
+            Flux.from(fragmentFrame(allocator, mtu, frame, frameType, encodeLength)));
+      }
     } else {
       return delegate.sendOne(encode(frame));
     }

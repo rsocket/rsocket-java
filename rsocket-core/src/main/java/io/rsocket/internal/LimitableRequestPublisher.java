@@ -16,7 +16,7 @@
 
 package io.rsocket.internal;
 
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import javax.annotation.Nullable;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
@@ -27,25 +27,33 @@ import reactor.core.publisher.Operators;
 
 /** */
 public class LimitableRequestPublisher<T> extends Flux<T> implements Subscription {
+
+  private static final int NOT_CANCELED_STATE = 0;
+  private static final int CANCELED_STATE = 1;
+
   private final Publisher<T> source;
 
-  private final AtomicBoolean canceled;
+  private volatile int canceled;
+  private static final AtomicIntegerFieldUpdater<LimitableRequestPublisher> CANCELED =
+      AtomicIntegerFieldUpdater.newUpdater(LimitableRequestPublisher.class, "canceled");
+
+  private final long prefetch;
 
   private long internalRequested;
 
   private long externalRequested;
 
-  private volatile boolean subscribed;
+  private boolean subscribed;
 
-  private volatile @Nullable Subscription internalSubscription;
+  private @Nullable Subscription internalSubscription;
 
-  private LimitableRequestPublisher(Publisher<T> source) {
+  private LimitableRequestPublisher(Publisher<T> source, long prefetch) {
     this.source = source;
-    this.canceled = new AtomicBoolean();
+    this.prefetch = prefetch;
   }
 
-  public static <T> LimitableRequestPublisher<T> wrap(Publisher<T> source) {
-    return new LimitableRequestPublisher<>(source);
+  public static <T> LimitableRequestPublisher<T> wrap(Publisher<T> source, long prefetch) {
+    return new LimitableRequestPublisher<>(source, prefetch);
   }
 
   @Override
@@ -57,14 +65,20 @@ public class LimitableRequestPublisher<T> extends Flux<T> implements Subscriptio
 
       subscribed = true;
     }
+    final InnerOperator s = new InnerOperator(destination);
 
-    destination.onSubscribe(new InnerSubscription());
-    source.subscribe(new InnerSubscriber(destination));
+    destination.onSubscribe(s);
+    source.subscribe(s);
+    increaseInternalLimit(prefetch);
   }
 
-  public void increaseRequestLimit(long n) {
+  public void increaseInternalLimit(long n) {
     synchronized (this) {
-      externalRequested = Operators.addCap(n, externalRequested);
+      long requested = internalRequested;
+      if (requested == Long.MAX_VALUE) {
+        return;
+      }
+      internalRequested = Operators.addCap(n, requested);
     }
 
     requestN();
@@ -72,38 +86,72 @@ public class LimitableRequestPublisher<T> extends Flux<T> implements Subscriptio
 
   @Override
   public void request(long n) {
-    increaseRequestLimit(n);
+    synchronized (this) {
+      long requested = externalRequested;
+      if (requested == Long.MAX_VALUE) {
+        return;
+      }
+      externalRequested = Operators.addCap(n, requested);
+    }
+
+    requestN();
   }
 
   private void requestN() {
     long r;
+    final Subscription s;
+
     synchronized (this) {
-      if (internalSubscription == null) {
+      s = internalSubscription;
+      if (s == null) {
         return;
       }
 
-      r = Math.min(internalRequested, externalRequested);
-      externalRequested -= r;
-      internalRequested -= r;
+      long er = externalRequested;
+      long ir = internalRequested;
+
+      if (er != Long.MAX_VALUE || ir != Long.MAX_VALUE) {
+        r = Math.min(ir, er);
+        if (er != Long.MAX_VALUE) {
+          externalRequested -= r;
+        }
+        if (ir != Long.MAX_VALUE) {
+          internalRequested -= r;
+        }
+      } else {
+        r = Long.MAX_VALUE;
+      }
     }
 
     if (r > 0) {
-      internalSubscription.request(r);
+      s.request(r);
     }
   }
 
   public void cancel() {
-    if (canceled.compareAndSet(false, true) && internalSubscription != null) {
-      internalSubscription.cancel();
-      internalSubscription = null;
-      subscribed = false;
+    if (!isCanceled() && CANCELED.compareAndSet(this, NOT_CANCELED_STATE, CANCELED_STATE)) {
+      Subscription s;
+
+      synchronized (this) {
+        s = internalSubscription;
+        internalSubscription = null;
+        subscribed = false;
+      }
+
+      if (s != null) {
+        s.cancel();
+      }
     }
   }
 
-  private class InnerSubscriber implements Subscriber<T> {
-    Subscriber<? super T> destination;
+  private boolean isCanceled() {
+    return canceled == 1;
+  }
 
-    private InnerSubscriber(Subscriber<? super T> destination) {
+  private class InnerOperator implements CoreSubscriber<T>, Subscription {
+    final Subscriber<? super T> destination;
+
+    private InnerOperator(Subscriber<? super T> destination) {
       this.destination = destination;
     }
 
@@ -112,7 +160,7 @@ public class LimitableRequestPublisher<T> extends Flux<T> implements Subscriptio
       synchronized (LimitableRequestPublisher.this) {
         LimitableRequestPublisher.this.internalSubscription = s;
 
-        if (canceled.get()) {
+        if (isCanceled()) {
           s.cancel();
           subscribed = false;
           LimitableRequestPublisher.this.internalSubscription = null;
@@ -140,17 +188,9 @@ public class LimitableRequestPublisher<T> extends Flux<T> implements Subscriptio
     public void onComplete() {
       destination.onComplete();
     }
-  }
 
-  private class InnerSubscription implements Subscription {
     @Override
-    public void request(long n) {
-      synchronized (LimitableRequestPublisher.this) {
-        internalRequested = Operators.addCap(n, internalRequested);
-      }
-
-      requestN();
-    }
+    public void request(long n) {}
 
     @Override
     public void cancel() {

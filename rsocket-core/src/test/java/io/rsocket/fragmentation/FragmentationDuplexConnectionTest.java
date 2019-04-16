@@ -24,7 +24,6 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.Unpooled;
-import io.netty.util.ReferenceCountUtil;
 import io.rsocket.DuplexConnection;
 import io.rsocket.frame.*;
 import io.rsocket.util.DefaultPayload;
@@ -62,7 +61,9 @@ final class FragmentationDuplexConnectionTest {
   void constructorInvalidMaxFragmentSize() {
     assertThatIllegalArgumentException()
         .isThrownBy(
-            () -> new FragmentationDuplexConnection(delegate, allocator, Integer.MIN_VALUE, false))
+            () ->
+                new FragmentationDuplexConnection(
+                    delegate, allocator, Integer.MIN_VALUE, false, ""))
         .withMessage("smallest allowed mtu size is 64 bytes");
   }
 
@@ -70,7 +71,7 @@ final class FragmentationDuplexConnectionTest {
   @Test
   void constructorMtuLessThanMin() {
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> new FragmentationDuplexConnection(delegate, allocator, 2, false))
+        .isThrownBy(() -> new FragmentationDuplexConnection(delegate, allocator, 2, false, ""))
         .withMessage("smallest allowed mtu size is 64 bytes");
   }
 
@@ -78,7 +79,7 @@ final class FragmentationDuplexConnectionTest {
   @Test
   void constructorNullByteBufAllocator() {
     assertThatNullPointerException()
-        .isThrownBy(() -> new FragmentationDuplexConnection(delegate, null, 64, false))
+        .isThrownBy(() -> new FragmentationDuplexConnection(delegate, null, 64, false, ""))
         .withMessage("byteBufAllocator must not be null");
   }
 
@@ -86,7 +87,7 @@ final class FragmentationDuplexConnectionTest {
   @Test
   void constructorNullDelegate() {
     assertThatNullPointerException()
-        .isThrownBy(() -> new FragmentationDuplexConnection(null, allocator, 64, false))
+        .isThrownBy(() -> new FragmentationDuplexConnection(null, allocator, 64, false, ""))
         .withMessage("delegate must not be null");
   }
 
@@ -119,13 +120,12 @@ final class FragmentationDuplexConnectionTest {
     when(delegate.receive()).thenReturn(Flux.fromIterable(byteBufs));
     when(delegate.onClose()).thenReturn(Mono.never());
 
-    new FragmentationDuplexConnection(delegate, allocator, 1030, false)
+    new FragmentationDuplexConnection(delegate, allocator, 1030, false, "")
         .receive()
         .as(StepVerifier::create)
         .assertNext(
             byteBuf -> {
               Assert.assertEquals(data, RequestResponseFrameFlyweight.data(byteBuf));
-              ReferenceCountUtil.safeRelease(byteBuf);
             })
         .verifyComplete();
   }
@@ -183,7 +183,7 @@ final class FragmentationDuplexConnectionTest {
     when(delegate.receive()).thenReturn(Flux.fromIterable(byteBufs));
     when(delegate.onClose()).thenReturn(Mono.never());
 
-    new FragmentationDuplexConnection(delegate, allocator, 1030, false)
+    new FragmentationDuplexConnection(delegate, allocator, 1030, false, "")
         .receive()
         .as(StepVerifier::create)
         .assertNext(
@@ -251,7 +251,7 @@ final class FragmentationDuplexConnectionTest {
     when(delegate.receive()).thenReturn(Flux.fromIterable(byteBufs));
     when(delegate.onClose()).thenReturn(Mono.never());
 
-    new FragmentationDuplexConnection(delegate, allocator, 1030, false)
+    new FragmentationDuplexConnection(delegate, allocator, 1030, false, "")
         .receive()
         .as(StepVerifier::create)
         .assertNext(
@@ -272,7 +272,7 @@ final class FragmentationDuplexConnectionTest {
     when(delegate.receive()).thenReturn(Flux.just(encode));
     when(delegate.onClose()).thenReturn(Mono.never());
 
-    new FragmentationDuplexConnection(delegate, allocator, 1030, false)
+    new FragmentationDuplexConnection(delegate, allocator, 1030, false, "")
         .receive()
         .as(StepVerifier::create)
         .assertNext(
@@ -291,7 +291,7 @@ final class FragmentationDuplexConnectionTest {
     when(delegate.receive()).thenReturn(Flux.just(encode));
     when(delegate.onClose()).thenReturn(Mono.never());
 
-    new FragmentationDuplexConnection(delegate, allocator, 1030, false)
+    new FragmentationDuplexConnection(delegate, allocator, 1030, false, "")
         .receive()
         .as(StepVerifier::create)
         .assertNext(
@@ -310,7 +310,7 @@ final class FragmentationDuplexConnectionTest {
 
     when(delegate.onClose()).thenReturn(Mono.never());
 
-    new FragmentationDuplexConnection(delegate, allocator, 64, false).sendOne(encode.retain());
+    new FragmentationDuplexConnection(delegate, allocator, 64, false, "").sendOne(encode.retain());
 
     verify(delegate).send(publishers.capture());
 

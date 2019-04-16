@@ -11,7 +11,7 @@ import java.nio.ByteBuffer;
 class DefaultPayloadDecoder implements PayloadDecoder {
 
   @Override
-  public Payload apply(ByteBuf byteBuf) {
+  public synchronized Payload apply(ByteBuf byteBuf) {
     ByteBuf m;
     ByteBuf d;
     FrameType type = FrameHeaderFlyweight.frameType(byteBuf);

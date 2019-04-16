@@ -2,10 +2,10 @@ package io.rsocket.transport.netty;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
-import io.netty.channel.ChannelPromise;
 import io.netty.channel.EventLoop;
 import io.netty.util.ReferenceCountUtil;
 import io.netty.util.ReferenceCounted;
+import java.nio.channels.ClosedChannelException;
 import java.util.Queue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
@@ -18,6 +18,7 @@ import reactor.core.CoreSubscriber;
 import reactor.core.Fuseable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Operators;
+import reactor.netty.FutureMono;
 import reactor.util.concurrent.Queues;
 
 class SendPublisher<V extends ReferenceCounted> extends Flux<ByteBuf> {
@@ -83,26 +84,22 @@ class SendPublisher<V extends ReferenceCounted> extends Flux<ByteBuf> {
     fuse = queue instanceof Fuseable.QueueSubscription;
   }
 
-  private ChannelPromise writeCleanupPromise(V poll) {
-    return channel
-        .newPromise()
-        .addListener(
-            future -> {
-              if (requested != Long.MAX_VALUE) {
-                requested--;
-              }
-              requestedUpstream--;
-              pending--;
+  @SuppressWarnings("unchecked")
+  private void writeCleanup(V poll) {
+    if (requested != Long.MAX_VALUE) {
+      requested--;
+    }
+    requestedUpstream--;
+    pending--;
 
-              InnerSubscriber is = (InnerSubscriber) INNER_SUBSCRIBER.get(SendPublisher.this);
-              if (is != null) {
-                is.tryRequestMoreUpstream();
-                tryComplete(is);
-              }
-              if (poll.refCnt() > 0) {
-                ReferenceCountUtil.safeRelease(poll);
-              }
-            });
+    InnerSubscriber is = (InnerSubscriber) INNER_SUBSCRIBER.get(SendPublisher.this);
+    if (is != null) {
+      is.tryRequestMoreUpstream();
+      tryComplete(is);
+    }
+    if (poll.refCnt() > 0) {
+      ReferenceCountUtil.safeRelease(poll);
+    }
   }
 
   private void tryComplete(InnerSubscriber is) {
@@ -141,6 +138,9 @@ class SendPublisher<V extends ReferenceCounted> extends Flux<ByteBuf> {
 
     private InnerSubscriber(CoreSubscriber<? super ByteBuf> destination) {
       this.destination = destination;
+      FutureMono.from(channel.closeFuture())
+          .doFinally(s -> onError(new ClosedChannelException()))
+          .subscribe();
     }
 
     @Override
@@ -167,8 +167,10 @@ class SendPublisher<V extends ReferenceCounted> extends Flux<ByteBuf> {
           s.cancel();
           destination.onError(t);
         } finally {
-          if (!queue.isEmpty()) {
-            queue.forEach(ReferenceCountUtil::safeRelease);
+          ByteBuf byteBuf = queue.poll();
+          while (byteBuf != null) {
+            ReferenceCountUtil.safeRelease(byteBuf);
+            byteBuf = queue.poll();
           }
         }
       }
@@ -200,7 +202,7 @@ class SendPublisher<V extends ReferenceCounted> extends Flux<ByteBuf> {
     }
 
     private void tryDrain() {
-      if (wip == 0 && terminated == 0 && WIP.getAndIncrement(SendPublisher.this) == 0) {
+      if (terminated == 0 && WIP.getAndIncrement(SendPublisher.this) == 0) {
         try {
           if (eventLoop.inEventLoop()) {
             drain();
@@ -228,11 +230,29 @@ class SendPublisher<V extends ReferenceCounted> extends Flux<ByteBuf> {
               int readableBytes = sizeOf.size(poll);
               pending++;
               if (channel.isWritable() && readableBytes <= channel.bytesBeforeUnwritable()) {
-                channel.write(poll, writeCleanupPromise(poll));
+                channel
+                    .write(poll)
+                    .addListener(
+                        future -> {
+                          if (future.cause() != null) {
+                            onError(future.cause());
+                          } else {
+                            writeCleanup(poll);
+                          }
+                        });
                 scheduleFlush = true;
               } else {
                 scheduleFlush = false;
-                channel.writeAndFlush(poll, writeCleanupPromise(poll));
+                channel
+                    .writeAndFlush(poll)
+                    .addListener(
+                        future -> {
+                          if (future.cause() != null) {
+                            onError(future.cause());
+                          } else {
+                            writeCleanup(poll);
+                          }
+                        });
               }
 
               tryRequestMoreUpstream();

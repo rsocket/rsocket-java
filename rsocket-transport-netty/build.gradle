@@ -36,6 +36,8 @@ dependencies {
     testImplementation project(':rsocket-test')
     testImplementation 'io.projectreactor:reactor-test'
     testImplementation 'org.assertj:assertj-core'
+    testImplementation 'org.mockito:mockito-core'
+    testImplementation 'org.mockito:mockito-junit-jupiter'
     testImplementation 'org.junit.jupiter:junit-jupiter-api'
     testImplementation 'org.junit.jupiter:junit-jupiter-params'
 

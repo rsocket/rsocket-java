@@ -16,6 +16,8 @@
 
 package io.rsocket.transport.netty.server;
 
+import static io.rsocket.frame.FrameLengthFlyweight.FRAME_LENGTH_MASK;
+
 import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.DuplexConnection;
 import io.rsocket.fragmentation.FragmentationDuplexConnection;
@@ -114,12 +116,14 @@ public final class WebsocketServerTransport
             (request, response) -> {
               transportHeaders.get().forEach(response::addHeader);
               return response.sendWebsocket(
+                  null,
+                  FRAME_LENGTH_MASK,
                   (in, out) -> {
                     DuplexConnection connection = new WebsocketDuplexConnection((Connection) in);
                     if (mtu > 0) {
                       connection =
                           new FragmentationDuplexConnection(
-                              connection, ByteBufAllocator.DEFAULT, mtu, false);
+                              connection, ByteBufAllocator.DEFAULT, mtu, false, "server");
                     }
                     return acceptor.apply(connection).then(out.neverComplete());
                   });

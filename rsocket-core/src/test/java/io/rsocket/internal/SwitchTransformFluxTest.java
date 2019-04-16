@@ -11,6 +11,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import org.junit.Assert;
 import org.junit.Assume;
+import org.junit.Ignore;
 import org.junit.Test;
 import reactor.core.CoreSubscriber;
 import reactor.core.publisher.Flux;
@@ -20,6 +21,7 @@ import reactor.test.publisher.TestPublisher;
 import reactor.test.util.RaceTestUtils;
 import reactor.util.context.Context;
 
+@Ignore
 public class SwitchTransformFluxTest {
 
   @Test

@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2015-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,22 +16,9 @@
 
 package io.rsocket.resume;
 
-import static org.junit.Assert.assertEquals;
+public interface ResumeStateHolder {
 
-import java.util.UUID;
-import org.junit.Test;
+  long impliedPosition();
 
-public class ResumeTokenTest {
-  @Test
-  public void testFromUuid() {
-    UUID x = UUID.fromString("3bac9870-3873-403a-99f4-9728aa8c7860");
-
-    ResumeToken t = ResumeToken.bytes(ResumeToken.getBytesFromUUID(x));
-    ResumeToken t2 = ResumeToken.bytes(ResumeToken.getBytesFromUUID(x));
-
-    assertEquals("3bac98703873403a99f49728aa8c7860", t.toString());
-
-    assertEquals(t.hashCode(), t2.hashCode());
-    assertEquals(t, t2);
-  }
+  void onImpliedPosition(long remoteImpliedPos);
 }

@@ -142,7 +142,6 @@ public class SetupRejectionTest {
           SetupFrameFlyweight.encode(
               ByteBufAllocator.DEFAULT,
               false,
-              false,
               0,
               42,
               "mdMime",

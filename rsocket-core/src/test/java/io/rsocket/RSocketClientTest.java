@@ -28,13 +28,17 @@ import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.exceptions.ApplicationErrorException;
 import io.rsocket.exceptions.RejectedSetupException;
 import io.rsocket.frame.*;
+import io.rsocket.test.util.TestDuplexConnection;
 import io.rsocket.test.util.TestSubscriber;
 import io.rsocket.util.DefaultPayload;
 import io.rsocket.util.EmptyPayload;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.stream.Collectors;
+import org.assertj.core.api.Assertions;
 import org.junit.Rule;
 import org.junit.Test;
 import org.reactivestreams.Publisher;
@@ -44,15 +48,11 @@ import reactor.core.publisher.BaseSubscriber;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
+import reactor.core.publisher.UnicastProcessor;
 
 public class RSocketClientTest {
 
   @Rule public final ClientSocketRule rule = new ClientSocketRule();
-
-  @Test(timeout = 2_000)
-  public void testKeepAlive() throws Exception {
-    assertThat("Unexpected frame sent.", frameType(rule.connection.awaitSend()), is(KEEPALIVE));
-  }
 
   @Test(timeout = 2_000)
   public void testInvalidFrameOnStream0() {
@@ -194,6 +194,52 @@ public class RSocketClientTest {
         .blockFirst();
   }
 
+  @Test
+  public void testChannelRequestServerSideCancellation() {
+    MonoProcessor<Payload> cancelled = MonoProcessor.create();
+    UnicastProcessor<Payload> request = UnicastProcessor.create();
+    request.onNext(EmptyPayload.INSTANCE);
+    rule.socket.requestChannel(request).subscribe(cancelled);
+    int streamId = rule.getStreamIdForRequestType(REQUEST_CHANNEL);
+    rule.connection.addToReceivedBuffer(
+        CancelFrameFlyweight.encode(ByteBufAllocator.DEFAULT, streamId));
+    rule.connection.addToReceivedBuffer(
+        PayloadFrameFlyweight.encodeComplete(ByteBufAllocator.DEFAULT, streamId));
+    Flux.first(
+            cancelled,
+            Flux.error(new IllegalStateException("Channel request not cancelled"))
+                .delaySubscription(Duration.ofSeconds(1)))
+        .blockFirst();
+
+    Assertions.assertThat(request.isDisposed()).isTrue();
+  }
+
+  @Test(timeout = 2_000)
+  @SuppressWarnings("unchecked")
+  public void
+      testClientSideRequestChannelShouldNotHangInfinitelySendingElementsAndShouldProduceDataValuingConnectionBackpressure() {
+    final Queue<Long> requests = new ConcurrentLinkedQueue<>();
+    rule.connection.dispose();
+    rule.connection = new TestDuplexConnection();
+    rule.connection.setInitialSendRequestN(256);
+    rule.init();
+
+    rule.socket
+        .requestChannel(
+            Flux.<Payload>generate(s -> s.next(EmptyPayload.INSTANCE)).doOnRequest(requests::add))
+        .subscribe();
+
+    int streamId = rule.getStreamIdForRequestType(REQUEST_CHANNEL);
+
+    assertThat("Unexpected error.", rule.errors, is(empty()));
+
+    rule.connection.addToReceivedBuffer(
+        RequestNFrameFlyweight.encode(ByteBufAllocator.DEFAULT, streamId, 2));
+    rule.connection.addToReceivedBuffer(
+        RequestNFrameFlyweight.encode(ByteBufAllocator.DEFAULT, streamId, Integer.MAX_VALUE));
+    Assertions.assertThat(requests).containsOnly(1L, 2L, 253L);
+  }
+
   public int sendRequestResponse(Publisher<Payload> response) {
     Subscriber<Payload> sub = TestSubscriber.create();
     response.subscribe(sub);
@@ -214,10 +260,7 @@ public class RSocketClientTest {
           connection,
           DefaultPayload::create,
           throwable -> errors.add(throwable),
-          StreamIdSupplier.clientSupplier(),
-          Duration.ofMillis(100),
-          Duration.ofMillis(10_000),
-          4);
+          StreamIdSupplier.clientSupplier());
     }
 
     public int getStreamIdForRequestType(FrameType expectedFrameType) {

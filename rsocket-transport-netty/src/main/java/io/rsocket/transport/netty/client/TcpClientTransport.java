@@ -101,7 +101,11 @@ public final class TcpClientTransport implements ClientTransport {
             c -> {
               if (mtu > 0) {
                 return new FragmentationDuplexConnection(
-                    new TcpDuplexConnection(c, false), ByteBufAllocator.DEFAULT, mtu, true);
+                    new TcpDuplexConnection(c, false),
+                    ByteBufAllocator.DEFAULT,
+                    mtu,
+                    true,
+                    "client");
               } else {
                 return new TcpDuplexConnection(c);
               }

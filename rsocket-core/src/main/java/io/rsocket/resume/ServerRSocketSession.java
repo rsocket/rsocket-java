@@ -1,0 +1,171 @@
+/*
+ * Copyright 2015-2019 the original author or authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package io.rsocket.resume;
+
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufAllocator;
+import io.rsocket.DuplexConnection;
+import io.rsocket.exceptions.RejectedResumeException;
+import io.rsocket.frame.ErrorFrameFlyweight;
+import io.rsocket.frame.ResumeFrameFlyweight;
+import io.rsocket.frame.ResumeOkFrameFlyweight;
+import io.rsocket.internal.KeepAliveData;
+import java.time.Duration;
+import java.util.function.Function;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import reactor.core.publisher.FluxProcessor;
+import reactor.core.publisher.Mono;
+import reactor.core.publisher.ReplayProcessor;
+
+public class ServerRSocketSession implements RSocketSession<ResumePositionsConnection> {
+  private static final Logger logger = LoggerFactory.getLogger(ServerRSocketSession.class);
+
+  private final ResumableDuplexConnection resumableConnection;
+  /*used instead of EmitterProcessor because its autocancel=false capability had no expected effect*/
+  private final FluxProcessor<ResumePositionsConnection, ResumePositionsConnection> newConnections =
+      ReplayProcessor.create(0);
+  private final ByteBufAllocator allocator;
+  private final KeepAliveData keepAliveData;
+  private final ByteBuf resumeToken;
+
+  public ServerRSocketSession(
+      ResumePositionsConnection duplexConnection,
+      ByteBufAllocator allocator,
+      Duration resumeSessionDuration,
+      Duration resumeStreamTimeout,
+      Function<? super ByteBuf, ? extends ResumableFramesStore> resumeStoreFactory,
+      ByteBuf resumeToken,
+      KeepAliveData keepAliveData,
+      boolean cleanupStoreOnKeepAlive) {
+    this.allocator = allocator;
+    this.keepAliveData = keepAliveData;
+    this.resumeToken = resumeToken;
+    this.resumableConnection =
+        new ResumableDuplexConnection(
+            "server",
+            duplexConnection,
+            resumeStoreFactory.apply(resumeToken),
+            resumeStreamTimeout,
+            cleanupStoreOnKeepAlive);
+
+    Mono<ResumePositionsConnection> timeout =
+        resumableConnection
+            .connectionErrors()
+            .flatMap(
+                err -> {
+                  logger.debug("Starting session timeout due to error: {}", err);
+                  return newConnections
+                      .next()
+                      .doOnNext(c -> logger.debug("Connection after error: {}", c))
+                      .timeout(resumeSessionDuration);
+                })
+            .then()
+            .cast(ResumePositionsConnection.class);
+
+    newConnections
+        .mergeWith(timeout)
+        .subscribe(
+            connection -> {
+              reconnect(connection);
+              logger.debug("Server ResumableConnection reconnected: {}", connection);
+            },
+            err -> {
+              logger.debug("Server ResumableConnection reconnect timeout");
+              resumableConnection.dispose();
+            });
+  }
+
+  @Override
+  public ServerRSocketSession continueWith(ResumePositionsConnection newConnection) {
+    logger.debug("Server continued with connection: {}", newConnection);
+    newConnections.onNext(newConnection);
+    return this;
+  }
+
+  @Override
+  public ServerRSocketSession resumeWith(ByteBuf resumeFrame) {
+    logger.debug("Resume FRAME received");
+    long remotePos = remotePos(resumeFrame);
+    long remoteImpliedPos = remoteImpliedPos(resumeFrame);
+    resumeFrame.release();
+
+    resumableConnection.resume(
+        remotePos,
+        remoteImpliedPos,
+        pos ->
+            pos.flatMap(
+                    impliedPos -> sendFrame(ResumeOkFrameFlyweight.encode(allocator, impliedPos)))
+                .onErrorResume(
+                    err ->
+                        sendFrame(
+                                ErrorFrameFlyweight.encode(allocator, 0, errorFrameThrowable(err)))
+                            .then(Mono.fromRunnable(resumableConnection::dispose))
+                            /*Resumption is impossible: no need to return control to ResumableConnection*/
+                            .then(Mono.never())));
+    return this;
+  }
+
+  @Override
+  public void reconnect(ResumePositionsConnection connection) {
+    resumableConnection.reconnect(connection);
+  }
+
+  @Override
+  public DuplexConnection resumableConnection() {
+    return resumableConnection;
+  }
+
+  @Override
+  public ByteBuf token() {
+    return resumeToken;
+  }
+
+  public KeepAliveData keepAliveData() {
+    return keepAliveData;
+  }
+
+  private Mono<Void> sendFrame(ByteBuf frame) {
+    logger.debug("Sending Resume frame: {}", frame);
+    return resumableConnection.sendOne(frame).onErrorResume(e -> Mono.empty());
+  }
+
+  private static long remotePos(ByteBuf resumeFrame) {
+    return ResumeFrameFlyweight.firstAvailableClientPos(resumeFrame);
+  }
+
+  private static long remoteImpliedPos(ByteBuf resumeFrame) {
+    return ResumeFrameFlyweight.lastReceivedServerPos(resumeFrame);
+  }
+
+  private static RejectedResumeException errorFrameThrowable(Throwable err) {
+    String msg;
+    if (err instanceof ResumeStateException) {
+      ResumeStateException resumeException = ((ResumeStateException) err);
+      msg =
+          String.format(
+              "resumption_pos=[ remote: { pos: %d, impliedPos: %d }, local: { pos: %d, impliedPos: %d }]",
+              resumeException.getRemotePos(),
+              resumeException.getRemoteImpliedPos(),
+              resumeException.getLocalPos(),
+              resumeException.getLocalImpliedPos());
+    } else {
+      msg = String.format("resume_internal_error: %s", err.getMessage());
+    }
+    return new RejectedResumeException(msg);
+  }
+}

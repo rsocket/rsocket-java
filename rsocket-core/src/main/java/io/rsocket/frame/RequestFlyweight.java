@@ -53,7 +53,9 @@ class RequestFlyweight {
       header.writeInt(requestN);
     }
 
-    if (metadata != null) {
+    if (data == null && metadata == null) {
+      return header;
+    } else if (metadata != null) {
       return DataAndMetadataFlyweight.encode(allocator, header, metadata, data);
     } else {
       return DataAndMetadataFlyweight.encodeOnlyData(allocator, header, data);

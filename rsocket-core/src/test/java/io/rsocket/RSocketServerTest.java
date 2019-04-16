@@ -29,12 +29,17 @@ import io.rsocket.test.util.TestSubscriber;
 import io.rsocket.util.DefaultPayload;
 import io.rsocket.util.EmptyPayload;
 import java.util.Collection;
+import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.assertj.core.api.Assertions;
 import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
+import org.mockito.Mockito;
+import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 public class RSocketServerTest {
@@ -106,6 +111,89 @@ public class RSocketServerTest {
     assertThat("Subscription not cancelled.", cancelled.get(), is(true));
   }
 
+  @Test(timeout = 2_000)
+  @SuppressWarnings("unchecked")
+  public void
+      testServerSideRequestStreamShouldNotHangInfinitelySendingElementsAndShouldProduceDataValuingConnectionBackpressure() {
+    final int streamId = 5;
+    final Queue<Object> received = new ConcurrentLinkedQueue<>();
+    final Queue<Long> requests = new ConcurrentLinkedQueue<>();
+
+    rule.setAcceptingSocket(
+        new AbstractRSocket() {
+          @Override
+          public Flux<Payload> requestStream(Payload payload) {
+            return Flux.<Payload>generate(s -> s.next(payload.retain())).doOnRequest(requests::add);
+          }
+        },
+        256);
+
+    rule.sendRequest(streamId, FrameType.REQUEST_STREAM);
+
+    assertThat("Unexpected error.", rule.errors, is(empty()));
+
+    Subscriber next = rule.connection.getSendSubscribers().iterator().next();
+
+    Mockito.doAnswer(
+            invocation -> {
+              received.add(invocation.getArgument(0));
+
+              if (received.size() == 256) {
+                throw new RuntimeException();
+              }
+
+              return null;
+            })
+        .when(next)
+        .onNext(Mockito.any());
+
+    rule.connection.addToReceivedBuffer(
+        RequestNFrameFlyweight.encode(ByteBufAllocator.DEFAULT, streamId, Integer.MAX_VALUE));
+    Assertions.assertThat(requests).containsOnly(1L, 2L, 253L);
+  }
+
+  @Test(timeout = 2_000)
+  @SuppressWarnings("unchecked")
+  public void
+      testServerSideRequestChannelShouldNotHangInfinitelySendingElementsAndShouldProduceDataValuingConnectionBackpressure() {
+    final int streamId = 5;
+    final Queue<Object> received = new ConcurrentLinkedQueue<>();
+    final Queue<Long> requests = new ConcurrentLinkedQueue<>();
+
+    rule.setAcceptingSocket(
+        new AbstractRSocket() {
+          @Override
+          public Flux<Payload> requestChannel(Publisher<Payload> payload) {
+            return Flux.<Payload>generate(s -> s.next(EmptyPayload.INSTANCE))
+                .doOnRequest(requests::add);
+          }
+        },
+        256);
+
+    rule.sendRequest(streamId, FrameType.REQUEST_CHANNEL);
+
+    assertThat("Unexpected error.", rule.errors, is(empty()));
+
+    Subscriber next = rule.connection.getSendSubscribers().iterator().next();
+
+    Mockito.doAnswer(
+            invocation -> {
+              received.add(invocation.getArgument(0));
+
+              if (received.size() == 256) {
+                throw new RuntimeException();
+              }
+
+              return null;
+            })
+        .when(next)
+        .onNext(Mockito.any());
+
+    rule.connection.addToReceivedBuffer(
+        RequestNFrameFlyweight.encode(ByteBufAllocator.DEFAULT, streamId, Integer.MAX_VALUE));
+    Assertions.assertThat(requests).containsOnly(1L, 2L, 253L);
+  }
+
   public static class ServerSocketRule extends AbstractSocketRule<RSocketServer> {
 
     private RSocket acceptingSocket;
@@ -130,6 +218,15 @@ public class RSocketServerTest {
       super.init();
     }
 
+    public void setAcceptingSocket(RSocket acceptingSocket, int prefetch) {
+      this.acceptingSocket = acceptingSocket;
+      connection = new TestDuplexConnection();
+      connection.setInitialSendRequestN(prefetch);
+      connectSub = TestSubscriber.create();
+      errors = new ConcurrentLinkedQueue<>();
+      super.init();
+    }
+
     @Override
     protected RSocketServer newRSocket() {
       return new RSocketServer(
@@ -144,6 +241,11 @@ public class RSocketServerTest {
       ByteBuf request;
 
       switch (frameType) {
+        case REQUEST_CHANNEL:
+          request =
+              RequestChannelFrameFlyweight.encode(
+                  ByteBufAllocator.DEFAULT, streamId, false, false, 1, EmptyPayload.INSTANCE);
+          break;
         case REQUEST_STREAM:
           request =
               RequestStreamFrameFlyweight.encode(
