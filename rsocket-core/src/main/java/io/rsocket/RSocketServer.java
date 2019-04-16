@@ -16,15 +16,22 @@
 
 package io.rsocket;
 
+import static io.rsocket.keepalive.KeepAliveSupport.KeepAlive;
+import static io.rsocket.keepalive.KeepAliveSupport.ServerKeepAliveSupport;
+
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.util.ReferenceCountUtil;
 import io.netty.util.collection.IntObjectHashMap;
 import io.rsocket.exceptions.ApplicationErrorException;
+import io.rsocket.exceptions.ConnectionErrorException;
 import io.rsocket.frame.*;
 import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.internal.LimitableRequestPublisher;
 import io.rsocket.internal.UnboundedProcessor;
+import io.rsocket.keepalive.KeepAliveFramesAcceptor;
+import io.rsocket.keepalive.KeepAliveHandler;
+import io.rsocket.keepalive.KeepAliveSupport;
 import java.util.Collections;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -34,11 +41,7 @@ import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 import reactor.core.Disposable;
 import reactor.core.Exceptions;
-import reactor.core.publisher.BaseSubscriber;
-import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
-import reactor.core.publisher.SignalType;
-import reactor.core.publisher.UnicastProcessor;
+import reactor.core.publisher.*;
 
 /** Server side RSocket. Receives {@link ByteBuf}s from a {@link RSocketClient} */
 class RSocketServer implements ResponderRSocket {
@@ -55,6 +58,17 @@ class RSocketServer implements ResponderRSocket {
 
   private final UnboundedProcessor<ByteBuf> sendProcessor;
   private final ByteBufAllocator allocator;
+  private final KeepAliveFramesAcceptor keepAliveFramesAcceptor;
+
+  /*client responder*/
+  RSocketServer(
+      ByteBufAllocator allocator,
+      DuplexConnection connection,
+      RSocket requestHandler,
+      PayloadDecoder payloadDecoder,
+      Consumer<Throwable> errorConsumer) {
+    this(allocator, connection, requestHandler, payloadDecoder, errorConsumer, 0, 0, null);
+  }
 
   /*server responder*/
   RSocketServer(
@@ -62,7 +76,10 @@ class RSocketServer implements ResponderRSocket {
       DuplexConnection connection,
       RSocket requestHandler,
       PayloadDecoder payloadDecoder,
-      Consumer<Throwable> errorConsumer) {
+      Consumer<Throwable> errorConsumer,
+      int keepAliveTickPeriod,
+      int keepAliveAckTimeout,
+      KeepAliveHandler keepAliveHandler) {
     this.allocator = allocator;
     this.connection = connection;
 
@@ -101,6 +118,22 @@ class RSocketServer implements ResponderRSocket {
               receiveDisposable.dispose();
             })
         .subscribe(null, errorConsumer);
+
+    if (keepAliveTickPeriod != 0 && keepAliveHandler != null) {
+      KeepAliveSupport keepAliveSupport =
+          new ServerKeepAliveSupport(allocator, keepAliveTickPeriod, keepAliveAckTimeout);
+      keepAliveFramesAcceptor =
+          keepAliveHandler.start(keepAliveSupport, sendProcessor::onNext, this::terminate);
+    } else {
+      keepAliveFramesAcceptor = null;
+    }
+  }
+
+  private void terminate(KeepAlive keepAlive) {
+    String message =
+        String.format("No keep-alive acks for %d ms", keepAlive.getTimeout().toMillis());
+    errorConsumer.accept(new ConnectionErrorException(message));
+    connection.dispose();
   }
 
   private void handleSendProcessorError(Throwable t) {
@@ -247,6 +280,9 @@ class RSocketServer implements ResponderRSocket {
   }
 
   private void cleanup() {
+    if (keepAliveFramesAcceptor != null) {
+      keepAliveFramesAcceptor.dispose();
+    }
     cleanUpSendingSubscriptions();
     cleanUpChannelProcessors();
 
@@ -283,8 +319,7 @@ class RSocketServer implements ResponderRSocket {
           handleCancelFrame(streamId);
           break;
         case KEEPALIVE:
-          // KeepAlive is handled by corresponding connection interceptor,
-          // just release its frame here
+          handleKeepAliveFrame(frame);
           break;
         case REQUEST_N:
           handleRequestN(streamId, frame);
@@ -490,6 +525,12 @@ class RSocketServer implements ResponderRSocket {
       handleStream(streamId, requestChannel(payload, payloads), initialRequestN);
     } else {
       handleStream(streamId, requestChannel(payloads), initialRequestN);
+    }
+  }
+
+  private void handleKeepAliveFrame(ByteBuf frame) {
+    if (keepAliveFramesAcceptor != null) {
+      keepAliveFramesAcceptor.receive(frame);
     }
   }
 
