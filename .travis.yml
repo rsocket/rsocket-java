@@ -29,12 +29,6 @@ env:
 
 script: ci/travis.sh
 
-addons:
-  apt:
-    packages:
-    - oracle-java8-installer
-    # - oracle-java9-installer
-
 before_cache:
 - rm -f  $HOME/.gradle/caches/modules-2/modules-2.lock
 - rm -fr $HOME/.gradle/caches/*/plugin-resolution/
