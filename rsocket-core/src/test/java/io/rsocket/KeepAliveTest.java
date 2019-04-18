@@ -16,221 +16,189 @@
 
 package io.rsocket;
 
+import static io.rsocket.keepalive.KeepAliveHandler.DefaultKeepAliveHandler;
+
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
-import io.netty.util.ReferenceCountUtil;
 import io.rsocket.exceptions.ConnectionErrorException;
 import io.rsocket.frame.FrameHeaderFlyweight;
 import io.rsocket.frame.FrameType;
 import io.rsocket.frame.KeepAliveFrameFlyweight;
-import io.rsocket.frame.SetupFrameFlyweight;
-import io.rsocket.internal.KeepAliveData;
-import io.rsocket.keepalive.KeepAliveConnection;
-import io.rsocket.resume.ResumeStateHolder;
 import io.rsocket.test.util.TestDuplexConnection;
-import java.nio.charset.StandardCharsets;
+import io.rsocket.util.DefaultPayload;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
 import java.util.List;
 import java.util.function.Consumer;
-import java.util.function.Function;
-import java.util.stream.Collectors;
+import java.util.function.Supplier;
+import java.util.stream.Stream;
 import org.assertj.core.api.Assertions;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.test.StepVerifier;
 
 public class KeepAliveTest {
-  private static final int TICK_PERIOD = 100;
-  private static final int TIMEOUT = 700;
+  private static final int KEEP_ALIVE_INTERVAL = 100;
+  private static final int KEEP_ALIVE_TIMEOUT = 1000;
 
-  private TestDuplexConnection testConnection;
-  private Function<ByteBuf, KeepAliveData> timingsProvider;
-  private List<Throwable> errors;
-  private Consumer<Throwable> errorConsumer;
-  private KeepAliveConnection clientConnection;
-  private KeepAliveConnection serverConnection;
-  private ByteBufAllocator allocator;
-
-  @BeforeEach
-  void setUp() {
-    allocator = ByteBufAllocator.DEFAULT;
-    testConnection = new TestDuplexConnection();
-
-    timingsProvider = f -> new KeepAliveData(TICK_PERIOD, TIMEOUT);
-    errors = new ArrayList<>();
-    errorConsumer = errors::add;
-
-    clientConnection =
-        KeepAliveConnection.ofClient(allocator, testConnection, timingsProvider, errorConsumer);
-    serverConnection =
-        KeepAliveConnection.ofServer(allocator, testConnection, timingsProvider, errorConsumer);
+  static Stream<Supplier<TestData>> testData() {
+    return Stream.of(
+        requester(KEEP_ALIVE_INTERVAL, KEEP_ALIVE_TIMEOUT),
+        responder(KEEP_ALIVE_INTERVAL, KEEP_ALIVE_TIMEOUT));
   }
 
-  @Test
-  void clientNoFramesBeforeSetup() {
+  static Supplier<TestData> requester(int tickPeriod, int timeout) {
+    return () -> {
+      TestDuplexConnection connection = new TestDuplexConnection();
+      Errors errors = new Errors();
+      RSocketClient rSocket =
+          new RSocketClient(
+              ByteBufAllocator.DEFAULT,
+              connection,
+              DefaultPayload::create,
+              errors,
+              StreamIdSupplier.clientSupplier(),
+              tickPeriod,
+              timeout,
+              new DefaultKeepAliveHandler());
+      return new TestData(rSocket, errors, connection);
+    };
+  }
 
-    Mono.delay(Duration.ofSeconds(1)).block();
+  static Supplier<TestData> responder(int tickPeriod, int timeout) {
+    return () -> {
+      TestDuplexConnection connection = new TestDuplexConnection();
+      AbstractRSocket handler = new AbstractRSocket() {};
+      Errors errors = new Errors();
+      RSocketServer rSocket =
+          new RSocketServer(
+              ByteBufAllocator.DEFAULT,
+              connection,
+              handler,
+              DefaultPayload::create,
+              errors,
+              tickPeriod,
+              timeout,
+              new DefaultKeepAliveHandler());
+      return new TestData(rSocket, errors, connection);
+    };
+  }
 
+  @ParameterizedTest
+  @MethodSource("testData")
+  void rSocketNotDisposedOnPresentKeepAlives(Supplier<TestData> testDataSupplier) {
+    TestData testData = testDataSupplier.get();
+    TestDuplexConnection connection = testData.connection();
+
+    Flux.interval(Duration.ofMillis(100))
+        .subscribe(
+            n ->
+                connection.addToReceivedBuffer(
+                    KeepAliveFrameFlyweight.encode(
+                        ByteBufAllocator.DEFAULT, true, 0, Unpooled.EMPTY_BUFFER)));
+
+    Mono.delay(Duration.ofMillis(1500)).block();
+
+    RSocket rSocket = testData.rSocket();
+    List<Throwable> errors = testData.errors().errors();
+
+    Assertions.assertThat(rSocket.isDisposed()).isFalse();
     Assertions.assertThat(errors).isEmpty();
-    Assertions.assertThat(clientConnection.isDisposed()).isFalse();
-    Assertions.assertThat(clientConnection.availability()).isEqualTo(testConnection.availability());
-    Assertions.assertThat(testConnection.getSent()).isEmpty();
   }
 
-  @Test
-  void clientFramesAfterSetup() {
-    clientConnection.sendOne(setupFrame()).subscribe();
+  @ParameterizedTest
+  @MethodSource("testData")
+  void rSocketDisposedOnMissingKeepAlives(Supplier<TestData> testDataSupplier) {
+    TestData testData = testDataSupplier.get();
+    RSocket rSocket = testData.rSocket();
 
-    Mono.delay(Duration.ofMillis(500)).block();
+    Mono.delay(Duration.ofMillis(1500)).block();
 
-    Assertions.assertThat(errors).isEmpty();
-    Assertions.assertThat(clientConnection.isDisposed()).isFalse();
-    Collection<ByteBuf> sent = testConnection.getSent();
-    Collection<ByteBuf> sentAfterSetup =
-        sent.stream().filter(f -> frameType(f) != FrameType.SETUP).collect(Collectors.toList());
-
-    Assertions.assertThat(sentAfterSetup).isNotEmpty();
-    sentAfterSetup.forEach(
-        f -> {
-          Assertions.assertThat(frameType(f)).isEqualTo(FrameType.KEEPALIVE);
-          Assertions.assertThat(KeepAliveFrameFlyweight.respondFlag(f)).isEqualTo(true);
-          Assertions.assertThat(KeepAliveFrameFlyweight.lastPosition(f)).isEqualTo(0);
-        });
-
-    sent.forEach(ReferenceCountUtil::safeRelease);
-  }
-
-  @Test
-  void clientCloseOnMissingKeepalives() {
-    clientConnection.sendOne(setupFrame()).subscribe();
-
-    Mono.delay(Duration.ofSeconds(1)).block();
-
+    List<Throwable> errors = testData.errors().errors();
+    Assertions.assertThat(rSocket.isDisposed()).isTrue();
     Assertions.assertThat(errors).hasSize(1);
-    Throwable err = errors.get(0);
-    Assertions.assertThat(err).isExactlyInstanceOf(ConnectionErrorException.class);
-    Assertions.assertThat(err.getMessage()).isEqualTo("No keep-alive acks for 700 ms");
-    Assertions.assertThat(clientConnection.isDisposed()).isTrue();
-
-    testConnection.getSent().forEach(ReferenceCountUtil::safeRelease);
+    Throwable throwable = errors.get(0);
+    Assertions.assertThat(throwable).isInstanceOf(ConnectionErrorException.class);
   }
 
   @Test
-  void clientResumptionState() {
-    TestResumeStateHolder resumeStateHolder = new TestResumeStateHolder();
-    clientConnection.acceptResumeState(resumeStateHolder);
+  void clientRequesterSendsKeepAlives() {
+    TestData testData = requester(100, 1000).get();
+    TestDuplexConnection connection = testData.connection();
 
-    clientConnection.sendOne(setupFrame()).subscribe();
-    clientConnection.receive().subscribe();
-
-    testConnection.addToReceivedBuffer(keepAliveFrame(false, 1));
-    testConnection.addToReceivedBuffer(keepAliveFrame(false, 2));
-    testConnection.addToReceivedBuffer(keepAliveFrame(false, 3));
-
-    Mono.delay(Duration.ofMillis(500)).block();
-
-    List<Long> receivedPositions = resumeStateHolder.receivedImpliedPositions();
-
-    Collection<ByteBuf> sent = testConnection.getSent();
-    List<Long> sentPositions =
-        sent.stream()
-            .filter(f -> frameType(f) != FrameType.SETUP)
-            .map(KeepAliveFrameFlyweight::lastPosition)
-            .limit(4)
-            .collect(Collectors.toList());
-
-    Assertions.assertThat(sentPositions).isEqualTo(Arrays.asList(1L, 5L, 6L, 8L));
-    Assertions.assertThat(receivedPositions).isEqualTo(Arrays.asList(1L, 2L, 3L));
-
-    sent.forEach(ReferenceCountUtil::safeRelease);
+    StepVerifier.create(Flux.from(connection.getSentAsPublisher()).take(3))
+        .expectNextMatches(this::keepAliveFrameWithRespondFlag)
+        .expectNextMatches(this::keepAliveFrameWithRespondFlag)
+        .expectNextMatches(this::keepAliveFrameWithRespondFlag)
+        .expectComplete()
+        .verify(Duration.ofSeconds(5));
   }
 
   @Test
-  void serverFrames() {
-    serverConnection.sendOne(setupFrame()).subscribe();
-    serverConnection.receive().subscribe();
-    testConnection.addToReceivedBuffer(keepAliveFrame(true, 0));
+  void serverResponderSendsKeepAlives() {
+    TestData testData = responder(100, 1000).get();
+    TestDuplexConnection connection = testData.connection();
+    Mono.delay(Duration.ofMillis(100))
+        .subscribe(
+            l ->
+                connection.addToReceivedBuffer(
+                    KeepAliveFrameFlyweight.encode(
+                        ByteBufAllocator.DEFAULT, true, 0, Unpooled.EMPTY_BUFFER)));
 
-    Assertions.assertThat(errors).isEmpty();
-    Assertions.assertThat(clientConnection.isDisposed()).isFalse();
-
-    Collection<ByteBuf> sent = testConnection.getSent();
-    Collection<ByteBuf> sentAfterSetup =
-        sent.stream().filter(f -> frameType(f) != FrameType.SETUP).collect(Collectors.toList());
-    Assertions.assertThat(sentAfterSetup).isNotEmpty();
-
-    sentAfterSetup.forEach(
-        f -> {
-          Assertions.assertThat(frameType(f)).isEqualTo(FrameType.KEEPALIVE);
-          Assertions.assertThat(KeepAliveFrameFlyweight.respondFlag(f)).isEqualTo(false);
-          Assertions.assertThat(KeepAliveFrameFlyweight.lastPosition(f)).isEqualTo(0);
-        });
-
-    sent.forEach(ReferenceCountUtil::safeRelease);
+    StepVerifier.create(Flux.from(connection.getSentAsPublisher()).take(1))
+        .expectNextMatches(this::keepAliveFrameWithoutRespondFlag)
+        .expectComplete()
+        .verify(Duration.ofSeconds(5));
   }
 
-  @Test
-  void serverCloseOnMissingKeepalives() {
-    serverConnection.sendOne(setupFrame()).subscribe();
-
-    Mono.delay(Duration.ofSeconds(1)).block();
-
-    Assertions.assertThat(errors).hasSize(1);
-    Throwable err = errors.get(0);
-    Assertions.assertThat(err).isExactlyInstanceOf(ConnectionErrorException.class);
-    Assertions.assertThat(err.getMessage()).isEqualTo("No keep-alive acks for 700 ms");
-    Assertions.assertThat(clientConnection.isDisposed()).isTrue();
-
-    testConnection.getSent().forEach(ReferenceCountUtil::safeRelease);
+  private boolean keepAliveFrameWithRespondFlag(ByteBuf frame) {
+    return FrameHeaderFlyweight.frameType(frame) == FrameType.KEEPALIVE
+        && KeepAliveFrameFlyweight.respondFlag(frame);
   }
 
-  private ByteBuf keepAliveFrame(boolean respond, int pos) {
-    return KeepAliveFrameFlyweight.encode(allocator, respond, pos, Unpooled.EMPTY_BUFFER);
+  private boolean keepAliveFrameWithoutRespondFlag(ByteBuf frame) {
+    return FrameHeaderFlyweight.frameType(frame) == FrameType.KEEPALIVE
+        && !KeepAliveFrameFlyweight.respondFlag(frame);
   }
 
-  private ByteBuf setupFrame() {
-    return SetupFrameFlyweight.encode(
-        allocator,
-        false,
-        TICK_PERIOD,
-        TIMEOUT,
-        "metadataType",
-        "dataType",
-        byteBuf("metadata"),
-        byteBuf("data"));
-  }
+  static class TestData {
+    private final RSocket rSocket;
+    private final Errors errors;
+    private final TestDuplexConnection connection;
 
-  private ByteBuf byteBuf(String msg) {
-    return Unpooled.wrappedBuffer(msg.getBytes(StandardCharsets.UTF_8));
-  }
-
-  private static FrameType frameType(ByteBuf frame) {
-    return FrameHeaderFlyweight.frameType(frame);
-  }
-
-  private static class TestResumeStateHolder implements ResumeStateHolder {
-    private final List<Long> sentPositions = Arrays.asList(1L, 5L, 6L, 8L);
-    private final List<Long> receivedPositions = new ArrayList<>();
-    private int counter = 0;
-
-    @Override
-    public long impliedPosition() {
-      long res = sentPositions.get(counter);
-      counter = Math.min(counter + 1, sentPositions.size() - 1);
-      return res;
+    public TestData(RSocket rSocket, Errors errors, TestDuplexConnection connection) {
+      this.rSocket = rSocket;
+      this.errors = errors;
+      this.connection = connection;
     }
 
-    @Override
-    public void onImpliedPosition(long remoteImpliedPos) {
-      receivedPositions.add(remoteImpliedPos);
+    public TestDuplexConnection connection() {
+      return connection;
     }
 
-    public List<Long> receivedImpliedPositions() {
-      return receivedPositions;
+    public RSocket rSocket() {
+      return rSocket;
+    }
+
+    public Errors errors() {
+      return errors;
+    }
+  }
+
+  static class Errors implements Consumer<Throwable> {
+    private final List<Throwable> errors = new ArrayList<>();
+
+    @Override
+    public void accept(Throwable throwable) {
+      errors.add(throwable);
+    }
+
+    public List<Throwable> errors() {
+      return new ArrayList<>(errors);
     }
   }
 }

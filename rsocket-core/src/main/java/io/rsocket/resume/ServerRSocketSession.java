@@ -23,7 +23,6 @@ import io.rsocket.exceptions.RejectedResumeException;
 import io.rsocket.frame.ErrorFrameFlyweight;
 import io.rsocket.frame.ResumeFrameFlyweight;
 import io.rsocket.frame.ResumeOkFrameFlyweight;
-import io.rsocket.internal.KeepAliveData;
 import java.time.Duration;
 import java.util.function.Function;
 import org.slf4j.Logger;
@@ -32,28 +31,25 @@ import reactor.core.publisher.FluxProcessor;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.ReplayProcessor;
 
-public class ServerRSocketSession implements RSocketSession<ResumePositionsConnection> {
+public class ServerRSocketSession implements RSocketSession<DuplexConnection> {
   private static final Logger logger = LoggerFactory.getLogger(ServerRSocketSession.class);
 
   private final ResumableDuplexConnection resumableConnection;
   /*used instead of EmitterProcessor because its autocancel=false capability had no expected effect*/
-  private final FluxProcessor<ResumePositionsConnection, ResumePositionsConnection> newConnections =
+  private final FluxProcessor<DuplexConnection, DuplexConnection> newConnections =
       ReplayProcessor.create(0);
   private final ByteBufAllocator allocator;
-  private final KeepAliveData keepAliveData;
   private final ByteBuf resumeToken;
 
   public ServerRSocketSession(
-      ResumePositionsConnection duplexConnection,
+      DuplexConnection duplexConnection,
       ByteBufAllocator allocator,
       Duration resumeSessionDuration,
       Duration resumeStreamTimeout,
       Function<? super ByteBuf, ? extends ResumableFramesStore> resumeStoreFactory,
       ByteBuf resumeToken,
-      KeepAliveData keepAliveData,
       boolean cleanupStoreOnKeepAlive) {
     this.allocator = allocator;
-    this.keepAliveData = keepAliveData;
     this.resumeToken = resumeToken;
     this.resumableConnection =
         new ResumableDuplexConnection(
@@ -63,7 +59,7 @@ public class ServerRSocketSession implements RSocketSession<ResumePositionsConne
             resumeStreamTimeout,
             cleanupStoreOnKeepAlive);
 
-    Mono<ResumePositionsConnection> timeout =
+    Mono<DuplexConnection> timeout =
         resumableConnection
             .connectionErrors()
             .flatMap(
@@ -75,7 +71,7 @@ public class ServerRSocketSession implements RSocketSession<ResumePositionsConne
                       .timeout(resumeSessionDuration);
                 })
             .then()
-            .cast(ResumePositionsConnection.class);
+            .cast(DuplexConnection.class);
 
     newConnections
         .mergeWith(timeout)
@@ -91,9 +87,9 @@ public class ServerRSocketSession implements RSocketSession<ResumePositionsConne
   }
 
   @Override
-  public ServerRSocketSession continueWith(ResumePositionsConnection newConnection) {
-    logger.debug("Server continued with connection: {}", newConnection);
-    newConnections.onNext(newConnection);
+  public ServerRSocketSession continueWith(DuplexConnection connectionFactory) {
+    logger.debug("Server continued with connection: {}", connectionFactory);
+    newConnections.onNext(connectionFactory);
     return this;
   }
 
@@ -121,22 +117,18 @@ public class ServerRSocketSession implements RSocketSession<ResumePositionsConne
   }
 
   @Override
-  public void reconnect(ResumePositionsConnection connection) {
+  public void reconnect(DuplexConnection connection) {
     resumableConnection.reconnect(connection);
   }
 
   @Override
-  public DuplexConnection resumableConnection() {
+  public ResumableDuplexConnection resumableConnection() {
     return resumableConnection;
   }
 
   @Override
   public ByteBuf token() {
     return resumeToken;
-  }
-
-  public KeepAliveData keepAliveData() {
-    return keepAliveData;
   }
 
   private Mono<Void> sendFrame(ByteBuf frame) {

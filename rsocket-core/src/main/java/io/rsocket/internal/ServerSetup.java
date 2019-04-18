@@ -16,35 +16,30 @@
 
 package io.rsocket.internal;
 
+import static io.rsocket.keepalive.KeepAliveHandler.*;
+
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
-import io.rsocket.DuplexConnection;
 import io.rsocket.exceptions.RejectedResumeException;
 import io.rsocket.exceptions.UnsupportedSetupException;
-import io.rsocket.frame.FrameHeaderFlyweight;
-import io.rsocket.frame.FrameType;
 import io.rsocket.frame.ResumeFrameFlyweight;
 import io.rsocket.frame.SetupFrameFlyweight;
+import io.rsocket.keepalive.KeepAliveHandler;
 import io.rsocket.resume.*;
 import io.rsocket.util.ConnectionUtils;
 import java.time.Duration;
+import java.util.function.BiFunction;
 import java.util.function.Function;
-import javax.annotation.Nullable;
 import reactor.core.publisher.Mono;
 
 public interface ServerSetup {
-  /*accept connection as SETUP*/
+
   Mono<Void> acceptRSocketSetup(
       ByteBuf frame,
       ClientServerInputMultiplexer multiplexer,
-      Function<ClientServerInputMultiplexer, Mono<Void>> then);
+      BiFunction<KeepAliveHandler, ClientServerInputMultiplexer, Mono<Void>> then);
 
-  /*accept connection as RESUME*/
   Mono<Void> acceptRSocketResume(ByteBuf frame, ClientServerInputMultiplexer multiplexer);
-
-  /*get KEEP-ALIVE timings based on start frame: SETUP (directly) /RESUME (lookup by resume token)*/
-  @Nullable
-  KeepAliveData keepAliveData(ByteBuf frame);
 
   default void dispose() {}
 
@@ -59,7 +54,7 @@ public interface ServerSetup {
     public Mono<Void> acceptRSocketSetup(
         ByteBuf frame,
         ClientServerInputMultiplexer multiplexer,
-        Function<ClientServerInputMultiplexer, Mono<Void>> then) {
+        BiFunction<KeepAliveHandler, ClientServerInputMultiplexer, Mono<Void>> then) {
 
       if (SetupFrameFlyweight.resumeEnabled(frame)) {
         return sendError(multiplexer, new UnsupportedSetupException("resume not supported"))
@@ -69,7 +64,7 @@ public interface ServerSetup {
                   multiplexer.dispose();
                 });
       } else {
-        return then.apply(multiplexer);
+        return then.apply(new DefaultKeepAliveHandler(), multiplexer);
       }
     }
 
@@ -82,17 +77,6 @@ public interface ServerSetup {
                 frame.release();
                 multiplexer.dispose();
               });
-    }
-
-    @Override
-    public KeepAliveData keepAliveData(ByteBuf frame) {
-      if (FrameHeaderFlyweight.frameType(frame) == FrameType.SETUP) {
-        return new KeepAliveData(
-            SetupFrameFlyweight.keepAliveInterval(frame),
-            SetupFrameFlyweight.keepAliveMaxLifetime(frame));
-      } else {
-        return null;
-      }
     }
 
     private Mono<Void> sendError(ClientServerInputMultiplexer multiplexer, Exception exception) {
@@ -127,17 +111,12 @@ public interface ServerSetup {
     public Mono<Void> acceptRSocketSetup(
         ByteBuf frame,
         ClientServerInputMultiplexer multiplexer,
-        Function<ClientServerInputMultiplexer, Mono<Void>> then) {
+        BiFunction<KeepAliveHandler, ClientServerInputMultiplexer, Mono<Void>> then) {
 
       if (SetupFrameFlyweight.resumeEnabled(frame)) {
         ByteBuf resumeToken = SetupFrameFlyweight.resumeToken(frame);
 
-        KeepAliveData keepAliveData =
-            new KeepAliveData(
-                SetupFrameFlyweight.keepAliveInterval(frame),
-                SetupFrameFlyweight.keepAliveMaxLifetime(frame));
-
-        DuplexConnection resumableConnection =
+        ResumableDuplexConnection connection =
             sessionManager
                 .save(
                     new ServerRSocketSession(
@@ -147,12 +126,13 @@ public interface ServerSetup {
                         resumeStreamTimeout,
                         resumeStoreFactory,
                         resumeToken,
-                        keepAliveData,
                         cleanupStoreOnKeepAlive))
                 .resumableConnection();
-        return then.apply(new ClientServerInputMultiplexer(resumableConnection));
+        return then.apply(
+            new ResumableKeepAliveHandler(connection),
+            new ClientServerInputMultiplexer(connection));
       } else {
-        return then.apply(multiplexer);
+        return then.apply(new DefaultKeepAliveHandler(), multiplexer);
       }
     }
 
@@ -172,22 +152,6 @@ public interface ServerSetup {
                   frame.release();
                   multiplexer.dispose();
                 });
-      }
-    }
-
-    @Override
-    public KeepAliveData keepAliveData(ByteBuf frame) {
-      if (FrameHeaderFlyweight.frameType(frame) == FrameType.SETUP) {
-        return new KeepAliveData(
-            SetupFrameFlyweight.keepAliveInterval(frame),
-            SetupFrameFlyweight.keepAliveMaxLifetime(frame));
-      } else {
-        ServerRSocketSession session = sessionManager.get(ResumeFrameFlyweight.token(frame));
-        if (session != null) {
-          return session.keepAliveData();
-        } else {
-          return null;
-        }
       }
     }
 

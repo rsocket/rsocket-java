@@ -16,12 +16,15 @@
 
 package io.rsocket.internal;
 
+import static io.rsocket.keepalive.KeepAliveHandler.*;
+
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
 import io.rsocket.DuplexConnection;
-import io.rsocket.keepalive.KeepAliveConnection;
+import io.rsocket.keepalive.KeepAliveHandler;
 import io.rsocket.resume.ClientRSocketSession;
+import io.rsocket.resume.ResumableDuplexConnection;
 import io.rsocket.resume.ResumableFramesStore;
 import io.rsocket.resume.ResumeStrategy;
 import java.time.Duration;
@@ -29,17 +32,28 @@ import java.util.function.Supplier;
 import reactor.core.publisher.Mono;
 
 public interface ClientSetup {
-  /*Provide different connections for SETUP / RESUME cases*/
-  DuplexConnection wrappedConnection(KeepAliveConnection duplexConnection);
 
-  /*Provide different resume tokens for SETUP / RESUME cases*/
+  DuplexConnection connection();
+
+  KeepAliveHandler keepAliveHandler();
+
   ByteBuf resumeToken();
 
   class DefaultClientSetup implements ClientSetup {
+    private final DuplexConnection connection;
+
+    public DefaultClientSetup(DuplexConnection connection) {
+      this.connection = connection;
+    }
 
     @Override
-    public DuplexConnection wrappedConnection(KeepAliveConnection connection) {
+    public DuplexConnection connection() {
       return connection;
+    }
+
+    @Override
+    public KeepAliveHandler keepAliveHandler() {
+      return new DefaultKeepAliveHandler();
     }
 
     @Override
@@ -50,35 +64,20 @@ public interface ClientSetup {
 
   class ResumableClientSetup implements ClientSetup {
     private final ByteBuf resumeToken;
-    private final ByteBufAllocator allocator;
-    private final Mono<KeepAliveConnection> newConnectionFactory;
-    private final Duration resumeSessionDuration;
-    private final Supplier<ResumeStrategy> resumeStrategySupplier;
-    private final ResumableFramesStore resumableFramesStore;
-    private final Duration resumeStreamTimeout;
-    private final boolean cleanupStoreOnKeepAlive;
+    private final ResumableDuplexConnection duplexConnection;
+    private final ResumableKeepAliveHandler keepAliveHandler;
 
     public ResumableClientSetup(
         ByteBufAllocator allocator,
-        Mono<KeepAliveConnection> newConnectionFactory,
+        DuplexConnection connection,
+        Mono<DuplexConnection> newConnectionFactory,
         ByteBuf resumeToken,
         ResumableFramesStore resumableFramesStore,
         Duration resumeSessionDuration,
         Duration resumeStreamTimeout,
         Supplier<ResumeStrategy> resumeStrategySupplier,
         boolean cleanupStoreOnKeepAlive) {
-      this.allocator = allocator;
-      this.newConnectionFactory = newConnectionFactory;
-      this.resumeToken = resumeToken;
-      this.resumeSessionDuration = resumeSessionDuration;
-      this.resumeStrategySupplier = resumeStrategySupplier;
-      this.resumableFramesStore = resumableFramesStore;
-      this.resumeStreamTimeout = resumeStreamTimeout;
-      this.cleanupStoreOnKeepAlive = cleanupStoreOnKeepAlive;
-    }
 
-    @Override
-    public DuplexConnection wrappedConnection(KeepAliveConnection connection) {
       ClientRSocketSession rSocketSession =
           new ClientRSocketSession(
                   connection,
@@ -90,8 +89,19 @@ public interface ClientSetup {
                   cleanupStoreOnKeepAlive)
               .continueWith(newConnectionFactory)
               .resumeToken(resumeToken);
+      this.duplexConnection = rSocketSession.resumableConnection();
+      this.keepAliveHandler = new ResumableKeepAliveHandler(duplexConnection);
+      this.resumeToken = resumeToken;
+    }
 
-      return rSocketSession.resumableConnection();
+    @Override
+    public DuplexConnection connection() {
+      return duplexConnection;
+    }
+
+    @Override
+    public KeepAliveHandler keepAliveHandler() {
+      return keepAliveHandler;
     }
 
     @Override

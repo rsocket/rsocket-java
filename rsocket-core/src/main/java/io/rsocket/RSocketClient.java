@@ -16,16 +16,23 @@
 
 package io.rsocket;
 
+import static io.rsocket.keepalive.KeepAliveSupport.ClientKeepAliveSupport;
+import static io.rsocket.keepalive.KeepAliveSupport.KeepAlive;
+
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.util.ReferenceCountUtil;
 import io.netty.util.collection.IntObjectHashMap;
+import io.rsocket.exceptions.ConnectionErrorException;
 import io.rsocket.exceptions.Exceptions;
 import io.rsocket.frame.*;
 import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.internal.LimitableRequestPublisher;
 import io.rsocket.internal.UnboundedProcessor;
 import io.rsocket.internal.UnicastMonoProcessor;
+import io.rsocket.keepalive.KeepAliveFramesAcceptor;
+import io.rsocket.keepalive.KeepAliveHandler;
+import io.rsocket.keepalive.KeepAliveSupport;
 import java.nio.channels.ClosedChannelException;
 import java.util.Collections;
 import java.util.Map;
@@ -36,11 +43,7 @@ import java.util.function.Supplier;
 import org.reactivestreams.Processor;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
-import reactor.core.publisher.BaseSubscriber;
-import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
-import reactor.core.publisher.SignalType;
-import reactor.core.publisher.UnicastProcessor;
+import reactor.core.publisher.*;
 
 /** Client Side of a RSocket socket. Sends {@link ByteBuf}s to a {@link RSocketServer} */
 class RSocketClient implements RSocket {
@@ -54,6 +57,7 @@ class RSocketClient implements RSocket {
   private final UnboundedProcessor<ByteBuf> sendProcessor;
   private final Lifecycle lifecycle = new Lifecycle();
   private final ByteBufAllocator allocator;
+  private final KeepAliveFramesAcceptor keepAliveFramesAcceptor;
 
   /*client requester*/
   RSocketClient(
@@ -61,7 +65,10 @@ class RSocketClient implements RSocket {
       DuplexConnection connection,
       PayloadDecoder payloadDecoder,
       Consumer<Throwable> errorConsumer,
-      StreamIdSupplier streamIdSupplier) {
+      StreamIdSupplier streamIdSupplier,
+      int keepAliveTickPeriod,
+      int keepAliveAckTimeout,
+      KeepAliveHandler keepAliveHandler) {
     this.allocator = allocator;
     this.connection = connection;
     this.payloadDecoder = payloadDecoder;
@@ -87,6 +94,34 @@ class RSocketClient implements RSocket {
         .subscribe(null, this::handleSendProcessorError);
 
     connection.receive().subscribe(this::handleIncomingFrames, errorConsumer);
+
+    if (keepAliveTickPeriod != 0 && keepAliveHandler != null) {
+      KeepAliveSupport keepAliveSupport =
+          new ClientKeepAliveSupport(allocator, keepAliveTickPeriod, keepAliveAckTimeout);
+      this.keepAliveFramesAcceptor =
+          keepAliveHandler.start(keepAliveSupport, sendProcessor::onNext, this::terminate);
+    } else {
+      keepAliveFramesAcceptor = null;
+    }
+  }
+
+  /*server requester*/
+  RSocketClient(
+      ByteBufAllocator allocator,
+      DuplexConnection connection,
+      PayloadDecoder payloadDecoder,
+      Consumer<Throwable> errorConsumer,
+      StreamIdSupplier streamIdSupplier) {
+    this(allocator, connection, payloadDecoder, errorConsumer, streamIdSupplier, 0, 0, null);
+  }
+
+  private void terminate(KeepAlive keepAlive) {
+    String message =
+        String.format("No keep-alive acks for %d ms", keepAlive.getTimeout().toMillis());
+    ConnectionErrorException err = new ConnectionErrorException(message);
+    lifecycle.setTerminationError(err);
+    errorConsumer.accept(err);
+    connection.dispose();
   }
 
   private void handleSendProcessorError(Throwable t) {
@@ -398,6 +433,9 @@ class RSocketClient implements RSocket {
   protected void terminate() {
     lifecycle.setTerminationError(new ClosedChannelException());
 
+    if (keepAliveFramesAcceptor != null) {
+      keepAliveFramesAcceptor.dispose();
+    }
     try {
       receivers.values().forEach(this::cleanUpSubscriber);
       senders.values().forEach(this::cleanUpLimitableRequestPublisher);
@@ -452,8 +490,9 @@ class RSocketClient implements RSocket {
       case LEASE:
         break;
       case KEEPALIVE:
-        // KeepAlive is handled by corresponding connection interceptor,
-        // just release its frame here
+        if (keepAliveFramesAcceptor != null) {
+          keepAliveFramesAcceptor.receive(frame);
+        }
         break;
       default:
         // Ignore unknown frames. Throwing an error will close the socket.
