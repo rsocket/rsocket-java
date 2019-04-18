@@ -374,10 +374,11 @@ public abstract class LoadBalancedRSocketMono extends Mono<RSocket>
   }
 
   private synchronized RSocket select() {
+    refreshSockets();
+
     if (activeSockets.isEmpty()) {
       return FAILING_REACTIVE_SOCKET;
     }
-    refreshSockets();
 
     int size = activeSockets.size();
     if (size == 1) {
