@@ -207,7 +207,7 @@ class SendPublisher<V extends ReferenceCounted> extends Flux<ByteBuf> {
     }
 
     private void tryDrain() {
-      if (wip == 0 && terminated == 0 && WIP.getAndIncrement(SendPublisher.this) == 0) {
+      if (terminated == 0 && WIP.getAndIncrement(SendPublisher.this) == 0) {
         try {
           if (eventLoop.inEventLoop()) {
             drain();
