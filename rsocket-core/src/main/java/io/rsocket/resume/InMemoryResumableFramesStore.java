@@ -84,24 +84,22 @@ public class InMemoryResumableFramesStore implements ResumableFramesStore {
 
   @Override
   public Flux<ByteBuf> resumeStream() {
-    return Flux.create(
-        s -> {
-          int size = cachedFrames.size();
-          int refCnt = upstreamFrameRefCnt;
-          logger.debug("{} Resuming stream size: {}", tag, size);
-          /*spsc queue has no iterator - iterating by consuming*/
-          for (int i = 0; i < size; i++) {
+    return Flux.generate(
+        () -> new ResumeStreamState(cachedFrames.size(), upstreamFrameRefCnt),
+        (state, sink) -> {
+          if (state.next()) {
+            /*spsc queue has no iterator - iterating by consuming*/
             ByteBuf frame = cachedFrames.poll();
-            /*in the event of connection termination some frames
-             * are not released on DuplexConnection*/
-            if (frame.refCnt() == refCnt) {
+            if (state.shouldRetain(frame)) {
               frame.retain();
             }
             cachedFrames.offer(frame);
-            s.next(frame);
+            sink.next(frame);
+          } else {
+            sink.complete();
+            logger.debug("{} Resuming stream completed", tag);
           }
-          s.complete();
-          logger.debug("{} Resuming stream completed", tag);
+          return state;
         });
   }
 
@@ -177,11 +175,35 @@ public class InMemoryResumableFramesStore implements ResumableFramesStore {
     }
   }
 
-  private static Queue<ByteBuf> cachedFramesQueue(int size) {
+  static class ResumeStreamState {
+    private final int cacheSize;
+    private final int expectedRefCnt;
+    private int cacheCounter;
+
+    public ResumeStreamState(int cacheSize, int expectedRefCnt) {
+      this.cacheSize = cacheSize;
+      this.expectedRefCnt = expectedRefCnt;
+    }
+
+    public boolean next() {
+      if (cacheCounter < cacheSize) {
+        cacheCounter++;
+        return true;
+      } else {
+        return false;
+      }
+    }
+
+    public boolean shouldRetain(ByteBuf frame) {
+      return frame.refCnt() == expectedRefCnt;
+    }
+  }
+
+  static Queue<ByteBuf> cachedFramesQueue(int size) {
     return Queues.<ByteBuf>get(size).get();
   }
 
-  private class FramesSubscriber implements Subscriber<ByteBuf> {
+  class FramesSubscriber implements Subscriber<ByteBuf> {
     private final long firstRequestSize;
     private final long refillSize;
     private int received;
