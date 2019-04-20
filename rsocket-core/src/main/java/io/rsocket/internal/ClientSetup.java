@@ -53,7 +53,7 @@ public interface ClientSetup {
 
     @Override
     public KeepAliveHandler keepAliveHandler() {
-      return new DefaultKeepAliveHandler();
+      return new DefaultKeepAliveHandler(connection);
     }
 
     @Override

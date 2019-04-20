@@ -27,7 +27,7 @@ import java.util.function.Consumer;
 import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 
-public abstract class KeepAliveSupport implements Disposable, KeepAliveFramesAcceptor {
+public abstract class KeepAliveSupport implements KeepAliveFramesAcceptor {
   final ByteBufAllocator allocator;
   private final Duration keepAliveInterval;
   private final Duration keepAliveTimeout;
@@ -50,13 +50,16 @@ public abstract class KeepAliveSupport implements Disposable, KeepAliveFramesAcc
 
   public KeepAliveSupport start() {
     this.lastReceivedMillis = System.currentTimeMillis();
-    startTicks();
+    if (started.compareAndSet(false, true)) {
+      ticksDisposable = Flux.interval(keepAliveInterval).subscribe(v -> onIntervalTick());
+    }
     return this;
   }
 
-  @Override
-  public void dispose() {
-    stopTicks();
+  public void stop() {
+    if (started.compareAndSet(true, false)) {
+      ticksDisposable.dispose();
+    }
   }
 
   @Override
@@ -106,7 +109,7 @@ public abstract class KeepAliveSupport implements Disposable, KeepAliveFramesAcc
       if (onTimeout != null) {
         onTimeout.accept(new KeepAlive(keepAliveInterval, keepAliveTimeout));
       }
-      stopTicks();
+      stop();
     }
   }
 
@@ -116,18 +119,6 @@ public abstract class KeepAliveSupport implements Disposable, KeepAliveFramesAcc
 
   long remoteLastReceivedPosition(ByteBuf keepAliveFrame) {
     return KeepAliveFrameFlyweight.lastPosition(keepAliveFrame);
-  }
-
-  void startTicks() {
-    if (started.compareAndSet(false, true)) {
-      ticksDisposable = Flux.interval(keepAliveInterval).subscribe(v -> onIntervalTick());
-    }
-  }
-
-  void stopTicks() {
-    if (started.compareAndSet(true, false)) {
-      ticksDisposable.dispose();
-    }
   }
 
   public static final class ServerKeepAliveSupport extends KeepAliveSupport {

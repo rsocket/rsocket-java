@@ -17,6 +17,7 @@
 package io.rsocket;
 
 import static io.rsocket.keepalive.KeepAliveHandler.DefaultKeepAliveHandler;
+import static io.rsocket.keepalive.KeepAliveHandler.ResumableKeepAliveHandler;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
@@ -25,6 +26,8 @@ import io.rsocket.exceptions.ConnectionErrorException;
 import io.rsocket.frame.FrameHeaderFlyweight;
 import io.rsocket.frame.FrameType;
 import io.rsocket.frame.KeepAliveFrameFlyweight;
+import io.rsocket.resume.InMemoryResumableFramesStore;
+import io.rsocket.resume.ResumableDuplexConnection;
 import io.rsocket.test.util.TestDuplexConnection;
 import io.rsocket.util.DefaultPayload;
 import java.time.Duration;
@@ -44,14 +47,21 @@ import reactor.test.StepVerifier;
 public class KeepAliveTest {
   private static final int KEEP_ALIVE_INTERVAL = 100;
   private static final int KEEP_ALIVE_TIMEOUT = 1000;
+  private static final int RESUMABLE_KEEP_ALIVE_TIMEOUT = 200;
 
-  static Stream<Supplier<TestData>> testData() {
+  static Stream<Supplier<RSocketState>> rSocketStates() {
     return Stream.of(
         requester(KEEP_ALIVE_INTERVAL, KEEP_ALIVE_TIMEOUT),
         responder(KEEP_ALIVE_INTERVAL, KEEP_ALIVE_TIMEOUT));
   }
 
-  static Supplier<TestData> requester(int tickPeriod, int timeout) {
+  static Stream<Supplier<ResumableRSocketState>> resumableRSocketStates() {
+    return Stream.of(
+        resumableRequester(KEEP_ALIVE_INTERVAL, RESUMABLE_KEEP_ALIVE_TIMEOUT),
+        resumableResponder(KEEP_ALIVE_INTERVAL, RESUMABLE_KEEP_ALIVE_TIMEOUT));
+  }
+
+  static Supplier<RSocketState> requester(int tickPeriod, int timeout) {
     return () -> {
       TestDuplexConnection connection = new TestDuplexConnection();
       Errors errors = new Errors();
@@ -64,12 +74,12 @@ public class KeepAliveTest {
               StreamIdSupplier.clientSupplier(),
               tickPeriod,
               timeout,
-              new DefaultKeepAliveHandler());
-      return new TestData(rSocket, errors, connection);
+              new DefaultKeepAliveHandler(connection));
+      return new RSocketState(rSocket, errors, connection);
     };
   }
 
-  static Supplier<TestData> responder(int tickPeriod, int timeout) {
+  static Supplier<RSocketState> responder(int tickPeriod, int timeout) {
     return () -> {
       TestDuplexConnection connection = new TestDuplexConnection();
       AbstractRSocket handler = new AbstractRSocket() {};
@@ -83,16 +93,68 @@ public class KeepAliveTest {
               errors,
               tickPeriod,
               timeout,
-              new DefaultKeepAliveHandler());
-      return new TestData(rSocket, errors, connection);
+              new DefaultKeepAliveHandler(connection));
+      return new RSocketState(rSocket, errors, connection);
+    };
+  }
+
+  static Supplier<ResumableRSocketState> resumableRequester(int tickPeriod, int timeout) {
+    return () -> {
+      TestDuplexConnection connection = new TestDuplexConnection();
+      ResumableDuplexConnection resumableConnection =
+          new ResumableDuplexConnection(
+              "test",
+              connection,
+              new InMemoryResumableFramesStore("test", 10_000),
+              Duration.ofSeconds(10),
+              false);
+
+      Errors errors = new Errors();
+      RSocketClient rSocket =
+          new RSocketClient(
+              ByteBufAllocator.DEFAULT,
+              resumableConnection,
+              DefaultPayload::create,
+              errors,
+              StreamIdSupplier.clientSupplier(),
+              tickPeriod,
+              timeout,
+              new ResumableKeepAliveHandler(resumableConnection));
+      return new ResumableRSocketState(rSocket, errors, connection, resumableConnection);
+    };
+  }
+
+  static Supplier<ResumableRSocketState> resumableResponder(int tickPeriod, int timeout) {
+    return () -> {
+      AbstractRSocket handler = new AbstractRSocket() {};
+      TestDuplexConnection connection = new TestDuplexConnection();
+      ResumableDuplexConnection resumableConnection =
+          new ResumableDuplexConnection(
+              "test",
+              connection,
+              new InMemoryResumableFramesStore("test", 10_000),
+              Duration.ofSeconds(10),
+              false);
+      Errors errors = new Errors();
+      RSocketServer rSocket =
+          new RSocketServer(
+              ByteBufAllocator.DEFAULT,
+              resumableConnection,
+              handler,
+              DefaultPayload::create,
+              errors,
+              tickPeriod,
+              timeout,
+              new ResumableKeepAliveHandler(resumableConnection));
+      return new ResumableRSocketState(rSocket, errors, connection, resumableConnection);
     };
   }
 
   @ParameterizedTest
-  @MethodSource("testData")
-  void rSocketNotDisposedOnPresentKeepAlives(Supplier<TestData> testDataSupplier) {
-    TestData testData = testDataSupplier.get();
-    TestDuplexConnection connection = testData.connection();
+  @MethodSource("rSocketStates")
+  void rSocketNotDisposedOnPresentKeepAlives(Supplier<RSocketState> testDataSupplier) {
+    RSocketState RSocketState = testDataSupplier.get();
+    TestDuplexConnection connection = RSocketState.connection();
 
     Flux.interval(Duration.ofMillis(100))
         .subscribe(
@@ -103,22 +165,33 @@ public class KeepAliveTest {
 
     Mono.delay(Duration.ofMillis(1500)).block();
 
-    RSocket rSocket = testData.rSocket();
-    List<Throwable> errors = testData.errors().errors();
+    RSocket rSocket = RSocketState.rSocket();
+    List<Throwable> errors = RSocketState.errors().errors();
 
     Assertions.assertThat(rSocket.isDisposed()).isFalse();
     Assertions.assertThat(errors).isEmpty();
   }
 
   @ParameterizedTest
-  @MethodSource("testData")
-  void rSocketDisposedOnMissingKeepAlives(Supplier<TestData> testDataSupplier) {
-    TestData testData = testDataSupplier.get();
-    RSocket rSocket = testData.rSocket();
+  @MethodSource("rSocketStates")
+  void noKeepAlivesSentAfterRSocketDispose(Supplier<RSocketState> testDataSupplier) {
+    RSocketState RSocketState = testDataSupplier.get();
+    RSocketState.rSocket().dispose();
+    StepVerifier.create(
+            Flux.from(RSocketState.connection().getSentAsPublisher()).take(Duration.ofMillis(500)))
+        .expectComplete()
+        .verify(Duration.ofSeconds(1));
+  }
+
+  @ParameterizedTest
+  @MethodSource("rSocketStates")
+  void rSocketDisposedOnMissingKeepAlives(Supplier<RSocketState> testDataSupplier) {
+    RSocketState rSocketState = testDataSupplier.get();
+    RSocket rSocket = rSocketState.rSocket();
 
     Mono.delay(Duration.ofMillis(1500)).block();
 
-    List<Throwable> errors = testData.errors().errors();
+    List<Throwable> errors = rSocketState.errors().errors();
     Assertions.assertThat(rSocket.isDisposed()).isTrue();
     Assertions.assertThat(errors).hasSize(1);
     Throwable throwable = errors.get(0);
@@ -127,8 +200,8 @@ public class KeepAliveTest {
 
   @Test
   void clientRequesterSendsKeepAlives() {
-    TestData testData = requester(100, 1000).get();
-    TestDuplexConnection connection = testData.connection();
+    RSocketState RSocketState = requester(100, 1000).get();
+    TestDuplexConnection connection = RSocketState.connection();
 
     StepVerifier.create(Flux.from(connection.getSentAsPublisher()).take(3))
         .expectNextMatches(this::keepAliveFrameWithRespondFlag)
@@ -140,8 +213,8 @@ public class KeepAliveTest {
 
   @Test
   void serverResponderSendsKeepAlives() {
-    TestData testData = responder(100, 1000).get();
-    TestDuplexConnection connection = testData.connection();
+    RSocketState RSocketState = responder(100, 1000).get();
+    TestDuplexConnection connection = RSocketState.connection();
     Mono.delay(Duration.ofMillis(100))
         .subscribe(
             l ->
@@ -155,22 +228,81 @@ public class KeepAliveTest {
         .verify(Duration.ofSeconds(5));
   }
 
+  @Test
+  void resumableRequesterNoKeepAlivesAfterDisconnect() {
+    ResumableRSocketState rSocketState =
+        resumableRequester(KEEP_ALIVE_INTERVAL, KEEP_ALIVE_TIMEOUT).get();
+    TestDuplexConnection testConnection = rSocketState.connection();
+    ResumableDuplexConnection resumableDuplexConnection = rSocketState.resumableDuplexConnection();
+
+    resumableDuplexConnection.disconnect();
+
+    StepVerifier.create(Flux.from(testConnection.getSentAsPublisher()).take(Duration.ofMillis(500)))
+        .expectComplete()
+        .verify(Duration.ofSeconds(5));
+  }
+
+  @Test
+  void resumableRequesterKeepAlivesAfterReconnect() {
+    ResumableRSocketState rSocketState =
+        resumableRequester(KEEP_ALIVE_INTERVAL, KEEP_ALIVE_TIMEOUT).get();
+    ResumableDuplexConnection resumableDuplexConnection = rSocketState.resumableDuplexConnection();
+    resumableDuplexConnection.disconnect();
+    TestDuplexConnection newTestConnection = new TestDuplexConnection();
+    resumableDuplexConnection.reconnect(newTestConnection);
+    resumableDuplexConnection.resume(0, 0, ignored -> Mono.empty());
+
+    StepVerifier.create(Flux.from(newTestConnection.getSentAsPublisher()).take(1))
+        .expectNextMatches(this::keepAliveFrame)
+        .expectComplete()
+        .verify(Duration.ofSeconds(5));
+  }
+
+  @Test
+  void resumableRequesterNoKeepAlivesAfterDispose() {
+    ResumableRSocketState rSocketState =
+        resumableRequester(KEEP_ALIVE_INTERVAL, KEEP_ALIVE_TIMEOUT).get();
+    rSocketState.rSocket().dispose();
+    StepVerifier.create(
+            Flux.from(rSocketState.connection().getSentAsPublisher()).take(Duration.ofMillis(500)))
+        .expectComplete()
+        .verify(Duration.ofSeconds(5));
+  }
+
+  @ParameterizedTest
+  @MethodSource("resumableRSocketStates")
+  void resumableRSocketsNotDisposedOnMissingKeepAlives(
+      Supplier<ResumableRSocketState> testDataSupplier) {
+    ResumableRSocketState rSocketState = testDataSupplier.get();
+    RSocket rSocket = rSocketState.rSocket();
+    List<Throwable> errors = rSocketState.errors().errors();
+    TestDuplexConnection connection = rSocketState.connection();
+
+    Mono.delay(Duration.ofMillis(500)).block();
+
+    Assertions.assertThat(rSocket.isDisposed()).isFalse();
+    Assertions.assertThat(errors).hasSize(0);
+    Assertions.assertThat(connection.isDisposed()).isTrue();
+  }
+
+  private boolean keepAliveFrame(ByteBuf frame) {
+    return FrameHeaderFlyweight.frameType(frame) == FrameType.KEEPALIVE;
+  }
+
   private boolean keepAliveFrameWithRespondFlag(ByteBuf frame) {
-    return FrameHeaderFlyweight.frameType(frame) == FrameType.KEEPALIVE
-        && KeepAliveFrameFlyweight.respondFlag(frame);
+    return keepAliveFrame(frame) && KeepAliveFrameFlyweight.respondFlag(frame);
   }
 
   private boolean keepAliveFrameWithoutRespondFlag(ByteBuf frame) {
-    return FrameHeaderFlyweight.frameType(frame) == FrameType.KEEPALIVE
-        && !KeepAliveFrameFlyweight.respondFlag(frame);
+    return keepAliveFrame(frame) && !KeepAliveFrameFlyweight.respondFlag(frame);
   }
 
-  static class TestData {
+  static class RSocketState {
     private final RSocket rSocket;
     private final Errors errors;
     private final TestDuplexConnection connection;
 
-    public TestData(RSocket rSocket, Errors errors, TestDuplexConnection connection) {
+    public RSocketState(RSocket rSocket, Errors errors, TestDuplexConnection connection) {
       this.rSocket = rSocket;
       this.errors = errors;
       this.connection = connection;
@@ -178,6 +310,40 @@ public class KeepAliveTest {
 
     public TestDuplexConnection connection() {
       return connection;
+    }
+
+    public RSocket rSocket() {
+      return rSocket;
+    }
+
+    public Errors errors() {
+      return errors;
+    }
+  }
+
+  static class ResumableRSocketState {
+    private final RSocket rSocket;
+    private final Errors errors;
+    private final TestDuplexConnection connection;
+    private final ResumableDuplexConnection resumableDuplexConnection;
+
+    public ResumableRSocketState(
+        RSocket rSocket,
+        Errors errors,
+        TestDuplexConnection connection,
+        ResumableDuplexConnection resumableDuplexConnection) {
+      this.rSocket = rSocket;
+      this.errors = errors;
+      this.connection = connection;
+      this.resumableDuplexConnection = resumableDuplexConnection;
+    }
+
+    public TestDuplexConnection connection() {
+      return connection;
+    }
+
+    public ResumableDuplexConnection resumableDuplexConnection() {
+      return resumableDuplexConnection;
     }
 
     public RSocket rSocket() {

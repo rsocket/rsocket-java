@@ -280,9 +280,6 @@ class RSocketServer implements ResponderRSocket {
   }
 
   private void cleanup() {
-    if (keepAliveFramesAcceptor != null) {
-      keepAliveFramesAcceptor.dispose();
-    }
     cleanUpSendingSubscriptions();
     cleanUpChannelProcessors();
 
