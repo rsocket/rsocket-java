@@ -64,7 +64,7 @@ public interface ServerSetup {
                   multiplexer.dispose();
                 });
       } else {
-        return then.apply(new DefaultKeepAliveHandler(), multiplexer);
+        return then.apply(new DefaultKeepAliveHandler(multiplexer), multiplexer);
       }
     }
 
@@ -132,7 +132,7 @@ public interface ServerSetup {
             new ResumableKeepAliveHandler(connection),
             new ClientServerInputMultiplexer(connection));
       } else {
-        return then.apply(new DefaultKeepAliveHandler(), multiplexer);
+        return then.apply(new DefaultKeepAliveHandler(multiplexer), multiplexer);
       }
     }
 

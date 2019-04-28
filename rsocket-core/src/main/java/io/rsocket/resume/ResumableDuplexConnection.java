@@ -36,6 +36,7 @@ import reactor.util.concurrent.Queues;
 
 public class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
   private static final Logger logger = LoggerFactory.getLogger(ResumableDuplexConnection.class);
+  private static final Throwable closedChannelException = new ClosedChannelException();
 
   private final String tag;
   private final ResumableFramesStore resumableFramesStore;
@@ -64,11 +65,12 @@ public class ResumableDuplexConnection implements DuplexConnection, ResumeStateH
           resumeSaveStreamRequestListener.requests(),
           this::dispatch);
 
-  private volatile Runnable onResumedAction;
+  private volatile Runnable onResume;
+  private volatile Runnable onDisconnect;
   private volatile int state;
   private volatile Disposable resumedStreamDisposable = Disposables.disposed();
 
-  ResumableDuplexConnection(
+  public ResumableDuplexConnection(
       String tag,
       DuplexConnection duplexConnection,
       ResumableFramesStore resumableFramesStore,
@@ -110,8 +112,12 @@ public class ResumableDuplexConnection implements DuplexConnection, ResumeStateH
     }
   }
 
-  public void onResumed(Runnable onResumedAction) {
-    this.onResumedAction = onResumedAction;
+  public void onDisconnect(Runnable onDisconnectAction) {
+    this.onDisconnect = onDisconnectAction;
+  }
+
+  public void onResume(Runnable onResumeAction) {
+    this.onResume = onResumeAction;
   }
 
   /*reconnected by session after error. After this downstream can receive frames,
@@ -284,9 +290,9 @@ public class ResumableDuplexConnection implements DuplexConnection, ResumeStateH
         .apply(impliedPositionOrError)
         .doOnSuccess(
             v -> {
-              Runnable a = this.onResumedAction;
-              if (a != null) {
-                a.run();
+              Runnable r = this.onResume;
+              if (r != null) {
+                r.run();
               }
             })
         .then(
@@ -336,10 +342,17 @@ public class ResumableDuplexConnection implements DuplexConnection, ResumeStateH
   private void disconnect(DuplexConnection connection) {
     /*do not report late disconnects on old connection if new one is available*/
     if (curConnection == connection && state != State.DISCONNECTED) {
-      Throwable err = new ClosedChannelException();
+      connection.dispose();
       state = State.DISCONNECTED;
-      logger.debug("{} Inner connection disconnected: {}", tag, err.getClass().getSimpleName());
-      connectionErrors.onNext(err);
+      logger.debug(
+          "{} Inner connection disconnected: {}",
+          tag,
+          closedChannelException.getClass().getSimpleName());
+      connectionErrors.onNext(closedChannelException);
+      Runnable r = this.onDisconnect;
+      if (r != null) {
+        r.run();
+      }
     }
   }
 

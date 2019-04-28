@@ -1,6 +1,7 @@
 package io.rsocket.keepalive;
 
 import io.netty.buffer.ByteBuf;
+import io.rsocket.Closeable;
 import io.rsocket.keepalive.KeepAliveSupport.KeepAlive;
 import io.rsocket.resume.ResumableDuplexConnection;
 import java.util.function.Consumer;
@@ -13,12 +14,18 @@ public interface KeepAliveHandler {
       Consumer<KeepAlive> onTimeout);
 
   class DefaultKeepAliveHandler implements KeepAliveHandler {
+    private final Closeable duplexConnection;
+
+    public DefaultKeepAliveHandler(Closeable duplexConnection) {
+      this.duplexConnection = duplexConnection;
+    }
 
     @Override
     public KeepAliveFramesAcceptor start(
         KeepAliveSupport keepAliveSupport,
         Consumer<ByteBuf> onSendKeepAliveFrame,
         Consumer<KeepAlive> onTimeout) {
+      duplexConnection.onClose().subscribe(v -> keepAliveSupport.stop());
       return keepAliveSupport
           .onSendKeepAliveFrame(onSendKeepAliveFrame)
           .onTimeout(onTimeout)
@@ -38,7 +45,8 @@ public interface KeepAliveHandler {
         KeepAliveSupport keepAliveSupport,
         Consumer<ByteBuf> onSendKeepAliveFrame,
         Consumer<KeepAlive> onTimeout) {
-      resumableDuplexConnection.onResumed(keepAliveSupport::start);
+      resumableDuplexConnection.onResume(keepAliveSupport::start);
+      resumableDuplexConnection.onDisconnect(keepAliveSupport::stop);
       return keepAliveSupport
           .resumeState(resumableDuplexConnection)
           .onSendKeepAliveFrame(onSendKeepAliveFrame)

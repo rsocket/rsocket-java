@@ -433,9 +433,6 @@ class RSocketClient implements RSocket {
   protected void terminate() {
     lifecycle.setTerminationError(new ClosedChannelException());
 
-    if (keepAliveFramesAcceptor != null) {
-      keepAliveFramesAcceptor.dispose();
-    }
     try {
       receivers.values().forEach(this::cleanUpSubscriber);
       senders.values().forEach(this::cleanUpLimitableRequestPublisher);
