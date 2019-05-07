@@ -16,9 +16,13 @@
 ---
 language: java
 
-jdk:
-- oraclejdk8
-# - oraclejdk9
+matrix:
+  include:
+    - jdk: oraclejdk8
+    - jdk: openjdk11
+      env: SKIP_RELEASE=true
+    - jdk: openjdk12
+      env: SKIP_RELEASE=true
 
 env:
   global:
@@ -37,4 +41,3 @@ cache:
   directories:
   - $HOME/.gradle/caches/
   - $HOME/.gradle/wrapper/
-
