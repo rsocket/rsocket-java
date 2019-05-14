@@ -2,9 +2,8 @@ package io.rsocket.examples.transport.tcp.resume;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
-import java.io.*;
-
 import io.rsocket.Payload;
+import java.io.*;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 import reactor.core.publisher.Flux;
