@@ -88,6 +88,10 @@ public class LimitableRequestPublisher<T> extends Flux<T> implements Subscriptio
     requestN();
   }
 
+  public synchronized long getInternalRequested() {
+    return internalRequested;
+  }
+
   @Override
   public void request(long n) {
     synchronized (this) {

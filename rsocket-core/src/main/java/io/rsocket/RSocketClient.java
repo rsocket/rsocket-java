@@ -18,16 +18,17 @@ package io.rsocket;
 
 import static io.rsocket.keepalive.KeepAliveSupport.ClientKeepAliveSupport;
 import static io.rsocket.keepalive.KeepAliveSupport.KeepAlive;
+import static io.rsocket.util.BackpressureUtils.shareRequest;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.util.ReferenceCountUtil;
-import io.netty.util.collection.IntObjectHashMap;
 import io.rsocket.exceptions.ConnectionErrorException;
 import io.rsocket.exceptions.Exceptions;
 import io.rsocket.frame.*;
 import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.internal.LimitableRequestPublisher;
+import io.rsocket.internal.SynchronizedIntObjectHashMap;
 import io.rsocket.internal.UnboundedProcessor;
 import io.rsocket.internal.UnicastMonoProcessor;
 import io.rsocket.keepalive.KeepAliveFramesAcceptor;
@@ -52,8 +53,8 @@ class RSocketClient implements RSocket {
   private final PayloadDecoder payloadDecoder;
   private final Consumer<Throwable> errorConsumer;
   private final StreamIdSupplier streamIdSupplier;
-  private final Map<Integer, LimitableRequestPublisher> senders;
-  private final Map<Integer, Processor<Payload, Payload>> receivers;
+  private final SynchronizedIntObjectHashMap<Processor<Payload, Payload>> receivers;
+  private final SynchronizedIntObjectHashMap<LimitableRequestPublisher> senders;
   private final UnboundedProcessor<ByteBuf> sendProcessor;
   private final Lifecycle lifecycle = new Lifecycle();
   private final ByteBufAllocator allocator;
@@ -74,15 +75,17 @@ class RSocketClient implements RSocket {
     this.payloadDecoder = payloadDecoder;
     this.errorConsumer = errorConsumer;
     this.streamIdSupplier = streamIdSupplier;
-    this.senders = Collections.synchronizedMap(new IntObjectHashMap<>());
-    this.receivers = Collections.synchronizedMap(new IntObjectHashMap<>());
+    this.senders = new SynchronizedIntObjectHashMap<>();
+    this.receivers = new SynchronizedIntObjectHashMap<>();
 
     // DO NOT Change the order here. The Send processor must be subscribed to before receiving
     this.sendProcessor = new UnboundedProcessor<>();
 
     connection.onClose().doFinally(signalType -> terminate()).subscribe(null, errorConsumer);
-    connection
-        .send(sendProcessor)
+
+    sendProcessor
+        .doOnRequest(r -> shareRequest(r, senders))
+        .transform(connection::send)
         .doFinally(this::handleSendProcessorCancel)
         .subscribe(null, this::handleSendProcessorError);
 
@@ -322,7 +325,7 @@ class RSocketClient implements RSocket {
                             .transform(
                                 f -> {
                                   LimitableRequestPublisher<Payload> wrapped =
-                                      LimitableRequestPublisher.wrap(f);
+                                      LimitableRequestPublisher.wrap(f, sendProcessor.available());
                                   // Need to set this to one for first the frame
                                   wrapped.request(1);
                                   senders.put(streamId, wrapped);
