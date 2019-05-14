@@ -116,6 +116,10 @@ subprojects {
 
             systemProperty "io.netty.leakDetection.level", "ADVANCED"
         }
+        
+        tasks.named("javadoc").configure {
+            onlyIf { System.getenv('SKIP_RELEASE') != "true" }
+        }
     }
 
     plugins.withType(JavaLibraryPlugin) {
