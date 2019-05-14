@@ -89,7 +89,13 @@ public final class FragmentationDuplexConnection implements DuplexConnection {
             Flux.from(fragmentFrame(allocator, mtu, frame, frameType, encodeLength))
                 .doOnNext(
                     byteBuf -> {
-                      ByteBuf frame1 = FrameLengthFlyweight.frame(byteBuf);
+                      ByteBuf frame1;
+                      if (encodeLength) {
+                        frame1 = FrameLengthFlyweight.frame(byteBuf);
+                      } else {
+                        frame1 = byteBuf;
+                      }
+
                       logger.debug(
                           "{} - stream id {} - frame type {} - \n {}",
                           type,

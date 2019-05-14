@@ -21,7 +21,7 @@ public class InteractionsLoadTest {
   @Test
   @SlowTest
   public void channel() {
-    TcpServerTransport serverTransport = TcpServerTransport.create(0);
+    TcpServerTransport serverTransport = TcpServerTransport.create("localhost", 0);
 
     CloseableChannel server =
         RSocketFactory.receive()

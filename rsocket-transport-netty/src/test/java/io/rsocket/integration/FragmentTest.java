@@ -57,7 +57,7 @@ public class FragmentTest {
     this.responseMessage = responseMessage.toString();
     this.metaData = metaData.toString();
 
-    TcpServerTransport serverTransport = TcpServerTransport.create(randomPort);
+    TcpServerTransport serverTransport = TcpServerTransport.create("localhost", randomPort);
     server =
         RSocketFactory.receive()
             .fragment(frameSize)
