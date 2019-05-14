@@ -25,7 +25,7 @@ public interface KeepAliveHandler {
         KeepAliveSupport keepAliveSupport,
         Consumer<ByteBuf> onSendKeepAliveFrame,
         Consumer<KeepAlive> onTimeout) {
-      duplexConnection.onClose().subscribe(v -> keepAliveSupport.stop());
+      duplexConnection.onClose().doFinally(s -> keepAliveSupport.stop()).subscribe();
       return keepAliveSupport
           .onSendKeepAliveFrame(onSendKeepAliveFrame)
           .onTimeout(onTimeout)
