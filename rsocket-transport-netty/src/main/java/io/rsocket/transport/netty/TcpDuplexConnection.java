@@ -85,7 +85,7 @@ public final class TcpDuplexConnection extends BaseDuplexConnection {
 
   private ByteBuf encode(ByteBuf frame) {
     if (encodeLength) {
-      return FrameLengthFlyweight.encode(allocator, frame.readableBytes(), frame).retain();
+      return FrameLengthFlyweight.encode(allocator, frame.readableBytes(), frame);
     } else {
       return frame;
     }

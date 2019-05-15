@@ -70,12 +70,8 @@ public final class WebsocketDuplexConnection extends BaseDuplexConnection {
   @Override
   public Mono<Void> send(Publisher<ByteBuf> frames) {
     if (frames instanceof Mono) {
-      return connection.outbound().sendObject(((Mono<ByteBuf>)frames).map(this::toBinaryWebSocketFrame)).then();
+      return connection.outbound().sendObject(((Mono<ByteBuf>)frames).map(BinaryWebSocketFrame::new)).then();
     }
-    return connection.outbound().sendObject(Flux.from(frames).map(this::toBinaryWebSocketFrame)).then();
-  }
-
-  private BinaryWebSocketFrame toBinaryWebSocketFrame(ByteBuf frame) {
-    return new BinaryWebSocketFrame(frame.retain());
+    return connection.outbound().sendObject(Flux.from(frames).map(BinaryWebSocketFrame::new)).then();
   }
 }
