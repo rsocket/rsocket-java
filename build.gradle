@@ -33,7 +33,7 @@ subprojects {
     ext['logback.version'] = '1.2.3'
     ext['findbugs.version'] = '3.0.2'
     ext['netty.version'] = '4.1.36.Final'
-    ext['netty-boringssl.version'] = '2.0.18.Final'
+    ext['netty-boringssl.version'] = '2.0.25.Final'
     ext['hdrhistogram.version'] = '2.1.10'
     ext['mockito.version'] = '2.25.1'
     ext['slf4j.version'] = '1.7.25'
