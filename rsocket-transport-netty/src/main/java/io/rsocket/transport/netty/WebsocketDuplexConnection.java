@@ -21,11 +21,9 @@ import io.rsocket.DuplexConnection;
 import io.rsocket.internal.BaseDuplexConnection;
 import java.util.Objects;
 import org.reactivestreams.Publisher;
-import reactor.core.Fuseable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.netty.Connection;
-import reactor.util.concurrent.Queues;
 
 /**
  * An implementation of {@link DuplexConnection} that connects via a Websocket.
@@ -70,8 +68,14 @@ public final class WebsocketDuplexConnection extends BaseDuplexConnection {
   @Override
   public Mono<Void> send(Publisher<ByteBuf> frames) {
     if (frames instanceof Mono) {
-      return connection.outbound().sendObject(((Mono<ByteBuf>)frames).map(BinaryWebSocketFrame::new)).then();
+      return connection
+          .outbound()
+          .sendObject(((Mono<ByteBuf>) frames).map(BinaryWebSocketFrame::new))
+          .then();
     }
-    return connection.outbound().sendObject(Flux.from(frames).map(BinaryWebSocketFrame::new)).then();
+    return connection
+        .outbound()
+        .sendObject(Flux.from(frames).map(BinaryWebSocketFrame::new))
+        .then();
   }
 }

@@ -23,7 +23,6 @@ import io.rsocket.frame.FrameLengthFlyweight;
 import io.rsocket.internal.BaseDuplexConnection;
 import java.util.Objects;
 import org.reactivestreams.Publisher;
-import reactor.core.Fuseable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.netty.Connection;
@@ -78,7 +77,7 @@ public final class TcpDuplexConnection extends BaseDuplexConnection {
   @Override
   public Mono<Void> send(Publisher<ByteBuf> frames) {
     if (frames instanceof Mono) {
-      return connection.outbound().sendObject(((Mono<ByteBuf>)frames).map(this::encode)).then();
+      return connection.outbound().sendObject(((Mono<ByteBuf>) frames).map(this::encode)).then();
     }
     return connection.outbound().send(Flux.from(frames).map(this::encode)).then();
   }
