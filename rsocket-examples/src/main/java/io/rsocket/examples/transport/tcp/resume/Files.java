@@ -101,18 +101,13 @@ class Files {
 
     public FileState consumeNext(SynchronousSink<ByteBuf> sink) {
       if (inputStream == null) {
-        try {
-          InputStream in = getClass().getClassLoader().getResourceAsStream(fileName);
-          if (in == null) {
-            sink.error(new FileNotFoundException(fileName));
-            return this;
-          }
-          this.inputStream = new BufferedInputStream(in);
-          this.chunkBytes = new byte[chunkSizeBytes];
-        } catch (Exception e) {
-          sink.error(e);
+        InputStream in = getClass().getClassLoader().getResourceAsStream(fileName);
+        if (in == null) {
+          sink.error(new FileNotFoundException(fileName));
           return this;
         }
+        this.inputStream = new BufferedInputStream(in);
+        this.chunkBytes = new byte[chunkSizeBytes];
       }
       try {
         int consumedBytes = inputStream.read(chunkBytes);
