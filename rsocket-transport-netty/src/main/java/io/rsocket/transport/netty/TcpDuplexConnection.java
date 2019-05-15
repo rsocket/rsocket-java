@@ -77,25 +77,10 @@ public final class TcpDuplexConnection extends BaseDuplexConnection {
 
   @Override
   public Mono<Void> send(Publisher<ByteBuf> frames) {
-    return Flux.from(frames)
-        .transform(
-            frameFlux -> {
-              if (frameFlux instanceof Fuseable.QueueSubscription) {
-                Fuseable.QueueSubscription<ByteBuf> queueSubscription =
-                    (Fuseable.QueueSubscription<ByteBuf>) frameFlux;
-                queueSubscription.requestFusion(Fuseable.ASYNC);
-                return new SendPublisher<>(
-                    queueSubscription,
-                    frameFlux,
-                    connection.channel(),
-                    this::encode,
-                    ByteBuf::readableBytes);
-              } else {
-                return new SendPublisher<>(
-                    frameFlux, connection.channel(), this::encode, ByteBuf::readableBytes);
-              }
-            })
-        .then();
+    if (frames instanceof Mono) {
+      return connection.outbound().sendObject(((Mono<ByteBuf>)frames).map(this::encode)).then();
+    }
+    return connection.outbound().send(Flux.from(frames).map(this::encode)).then();
   }
 
   private ByteBuf encode(ByteBuf frame) {

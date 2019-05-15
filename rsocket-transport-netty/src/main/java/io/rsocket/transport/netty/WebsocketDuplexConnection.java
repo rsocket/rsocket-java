@@ -69,29 +69,10 @@ public final class WebsocketDuplexConnection extends BaseDuplexConnection {
 
   @Override
   public Mono<Void> send(Publisher<ByteBuf> frames) {
-    return Flux.from(frames)
-        .transform(
-            frameFlux -> {
-              if (frameFlux instanceof Fuseable.QueueSubscription) {
-                Fuseable.QueueSubscription<ByteBuf> queueSubscription =
-                    (Fuseable.QueueSubscription<ByteBuf>) frameFlux;
-                queueSubscription.requestFusion(Fuseable.ASYNC);
-                return new SendPublisher<>(
-                    queueSubscription,
-                    frameFlux,
-                    connection.channel(),
-                    this::toBinaryWebSocketFrame,
-                    binaryWebSocketFrame -> binaryWebSocketFrame.content().readableBytes());
-              } else {
-                return new SendPublisher<>(
-                    Queues.<ByteBuf>small().get(),
-                    frameFlux,
-                    connection.channel(),
-                    this::toBinaryWebSocketFrame,
-                    binaryWebSocketFrame -> binaryWebSocketFrame.content().readableBytes());
-              }
-            })
-        .then();
+    if (frames instanceof Mono) {
+      return connection.outbound().sendObject(((Mono<ByteBuf>)frames).map(this::toBinaryWebSocketFrame)).then();
+    }
+    return connection.outbound().sendObject(Flux.from(frames).map(this::toBinaryWebSocketFrame)).then();
   }
 
   private BinaryWebSocketFrame toBinaryWebSocketFrame(ByteBuf frame) {
