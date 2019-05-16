@@ -1,19 +1,19 @@
-package io.rsocket.frame;
+package io.rsocket.metadata;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.CompositeByteBuf;
 import io.netty.util.CharsetUtil;
-import io.rsocket.metadata.WellKnownMimeType;
 import org.junit.jupiter.api.Test;
 
-import java.util.Map;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 
-class StreamMetadataFlyweightTest {
+class CompositeMetadataFlyweightTest {
 
     static String toHeaderBits(ByteBuf encoded) {
         encoded.markReaderIndex();
@@ -28,13 +28,13 @@ class StreamMetadataFlyweightTest {
     void knownMimeHeaderZero_avro() {
         WellKnownMimeType mime = WellKnownMimeType.APPLICATION_AVRO;
         assertThat(mime.getIdentifier()).as("AVRO identifier").isZero();
-        ByteBuf encoded = StreamMetadataFlyweight.encodeMetadataHeader(ByteBufAllocator.DEFAULT, mime, 0);
+        ByteBuf encoded = CompositeMetadataFlyweight.encodeMetadataHeader(ByteBufAllocator.DEFAULT, mime, 0);
 
         assertThat(toHeaderBits(encoded))
                 .startsWith("1")
                 .isEqualTo("10000000");
 
-        String decoded = StreamMetadataFlyweight.decodeMimeFromMetadataHeader(encoded);
+        String decoded = CompositeMetadataFlyweight.decodeMimeFromMetadataHeader(encoded);
 
         assertThat(decoded).isEqualTo(mime.toString());
     }
@@ -43,13 +43,13 @@ class StreamMetadataFlyweightTest {
     void knownMimeHeader127_compositeMetadata() {
         WellKnownMimeType mime = WellKnownMimeType.MESSAGE_RSOCKET_COMPOSITE_METADATA;
         assertThat(mime.getIdentifier()).as("COMPOSITE METADATA identifier").isEqualTo((byte) 127);
-        ByteBuf encoded = StreamMetadataFlyweight.encodeMetadataHeader(ByteBufAllocator.DEFAULT, mime, 0);
+        ByteBuf encoded = CompositeMetadataFlyweight.encodeMetadataHeader(ByteBufAllocator.DEFAULT, mime, 0);
 
         assertThat(toHeaderBits(encoded))
                 .startsWith("1")
                 .isEqualTo("11111111");
 
-        String decoded = StreamMetadataFlyweight.decodeMimeFromMetadataHeader(encoded);
+        String decoded = CompositeMetadataFlyweight.decodeMimeFromMetadataHeader(encoded);
 
         assertThat(decoded).isEqualTo(mime.toString());
     }
@@ -57,13 +57,13 @@ class StreamMetadataFlyweightTest {
     @Test
     void customMimeHeaderLengthOne() {
         String mimeString ="w";
-        ByteBuf encoded = StreamMetadataFlyweight.encodeMetadataHeader(ByteBufAllocator.DEFAULT, mimeString, 0);
+        ByteBuf encoded = CompositeMetadataFlyweight.encodeMetadataHeader(ByteBufAllocator.DEFAULT, mimeString, 0);
 
         assertThat(toHeaderBits(encoded))
                 .startsWith("0")
                 .isEqualTo("00000000");
 
-        String decoded = StreamMetadataFlyweight.decodeMimeFromMetadataHeader(encoded);
+        String decoded = CompositeMetadataFlyweight.decodeMimeFromMetadataHeader(encoded);
 
         assertThat(decoded).isEqualTo(mimeString);
     }
@@ -75,13 +75,13 @@ class StreamMetadataFlyweightTest {
             builder.append('a');
         }
         String longString = builder.toString();
-        ByteBuf encoded = StreamMetadataFlyweight.encodeMetadataHeader(ByteBufAllocator.DEFAULT, longString, 0);
+        ByteBuf encoded = CompositeMetadataFlyweight.encodeMetadataHeader(ByteBufAllocator.DEFAULT, longString, 0);
 
         assertThat(toHeaderBits(encoded))
                 .startsWith("0")
                 .isEqualTo("01111110");
 
-        String decoded = StreamMetadataFlyweight.decodeMimeFromMetadataHeader(encoded);
+        String decoded = CompositeMetadataFlyweight.decodeMimeFromMetadataHeader(encoded);
 
         assertThat(decoded).isEqualTo(longString);
     }
@@ -93,13 +93,13 @@ class StreamMetadataFlyweightTest {
             builder.append('a');
         }
         String longString = builder.toString();
-        ByteBuf encoded = StreamMetadataFlyweight.encodeMetadataHeader(ByteBufAllocator.DEFAULT, longString, 0);
+        ByteBuf encoded = CompositeMetadataFlyweight.encodeMetadataHeader(ByteBufAllocator.DEFAULT, longString, 0);
 
         assertThat(toHeaderBits(encoded))
                 .startsWith("0")
                 .isEqualTo("01111111");
 
-        String decoded = StreamMetadataFlyweight.decodeMimeFromMetadataHeader(encoded);
+        String decoded = CompositeMetadataFlyweight.decodeMimeFromMetadataHeader(encoded);
 
         assertThat(decoded).isEqualTo(longString);
     }
@@ -112,7 +112,7 @@ class StreamMetadataFlyweightTest {
         }
 
         assertThatIllegalArgumentException()
-                .isThrownBy(() -> StreamMetadataFlyweight.encodeMetadataHeader(ByteBufAllocator.DEFAULT, builder.toString(), 0))
+                .isThrownBy(() -> CompositeMetadataFlyweight.encodeMetadataHeader(ByteBufAllocator.DEFAULT, builder.toString(), 0))
                 .withMessage("custom mime type must have a strictly positive length that fits on 7 unsigned bits, ie 1-128");
     }
 
@@ -121,49 +121,49 @@ class StreamMetadataFlyweightTest {
         String mimeNotAscii = "mime/typé";
 
         assertThatIllegalArgumentException()
-                .isThrownBy(() -> StreamMetadataFlyweight.encodeMetadataHeader(ByteBufAllocator.DEFAULT, mimeNotAscii, 0))
+                .isThrownBy(() -> CompositeMetadataFlyweight.encodeMetadataHeader(ByteBufAllocator.DEFAULT, mimeNotAscii, 0))
                 .withMessage("custom mime type must be US_ASCII characters only");
     }
 
     @Test
     void customMimeHeaderLength0_encodingFails() {
         assertThatIllegalArgumentException()
-                .isThrownBy(() -> StreamMetadataFlyweight.encodeMetadataHeader(ByteBufAllocator.DEFAULT, "", 0))
+                .isThrownBy(() -> CompositeMetadataFlyweight.encodeMetadataHeader(ByteBufAllocator.DEFAULT, "", 0))
                 .withMessage("custom mime type must have a strictly positive length that fits on 7 unsigned bits, ie 1-128");
     }
 
     @Test
     void decodeMetadataLengthFromUntouchedWithKnownMime() {
-        ByteBuf encoded = StreamMetadataFlyweight.encodeMetadataHeader(ByteBufAllocator.DEFAULT, WellKnownMimeType.APPLICATION_GZIP, 12);
+        ByteBuf encoded = CompositeMetadataFlyweight.encodeMetadataHeader(ByteBufAllocator.DEFAULT, WellKnownMimeType.APPLICATION_GZIP, 12);
 
-        assertThat(StreamMetadataFlyweight.decodeMetadataLengthFromMetadataHeader(encoded))
+        assertThat(CompositeMetadataFlyweight.decodeMetadataLengthFromMetadataHeader(encoded))
                 .withFailMessage("should not correctly decode if not at correct reader index")
                 .isNotEqualTo(12);
     }
 
     @Test
     void decodeMetadataLengthFromMimeDecodedWithKnownMime() {
-        ByteBuf encoded = StreamMetadataFlyweight.encodeMetadataHeader(ByteBufAllocator.DEFAULT, WellKnownMimeType.APPLICATION_GZIP, 12);
-        StreamMetadataFlyweight.decodeMimeFromMetadataHeader(encoded);
+        ByteBuf encoded = CompositeMetadataFlyweight.encodeMetadataHeader(ByteBufAllocator.DEFAULT, WellKnownMimeType.APPLICATION_GZIP, 12);
+        CompositeMetadataFlyweight.decodeMimeFromMetadataHeader(encoded);
 
-        assertThat(StreamMetadataFlyweight.decodeMetadataLengthFromMetadataHeader(encoded)).isEqualTo(12);
+        assertThat(CompositeMetadataFlyweight.decodeMetadataLengthFromMetadataHeader(encoded)).isEqualTo(12);
     }
 
     @Test
     void decodeMetadataLengthFromUntouchedWithCustomMime() {
-        ByteBuf encoded = StreamMetadataFlyweight.encodeMetadataHeader(ByteBufAllocator.DEFAULT, "foo/bar", 12);
+        ByteBuf encoded = CompositeMetadataFlyweight.encodeMetadataHeader(ByteBufAllocator.DEFAULT, "foo/bar", 12);
 
-        assertThat(StreamMetadataFlyweight.decodeMetadataLengthFromMetadataHeader(encoded))
+        assertThat(CompositeMetadataFlyweight.decodeMetadataLengthFromMetadataHeader(encoded))
                 .withFailMessage("should not correctly decode if not at correct reader index")
                 .isNotEqualTo(12);
     }
 
     @Test
     void decodeMetadataLengthFromMimeDecodedWithCustomMime() {
-        ByteBuf encoded = StreamMetadataFlyweight.encodeMetadataHeader(ByteBufAllocator.DEFAULT, "foo/bar", 12);
-        StreamMetadataFlyweight.decodeMimeFromMetadataHeader(encoded);
+        ByteBuf encoded = CompositeMetadataFlyweight.encodeMetadataHeader(ByteBufAllocator.DEFAULT, "foo/bar", 12);
+        CompositeMetadataFlyweight.decodeMimeFromMetadataHeader(encoded);
 
-        assertThat(StreamMetadataFlyweight.decodeMetadataLengthFromMetadataHeader(encoded)).isEqualTo(12);
+        assertThat(CompositeMetadataFlyweight.decodeMetadataLengthFromMetadataHeader(encoded)).isEqualTo(12);
     }
 
     @Test
@@ -185,8 +185,8 @@ class StreamMetadataFlyweightTest {
         int metadataLength2 = metadata2.readableBytes();
 
         CompositeByteBuf compositeMetadata = ByteBufAllocator.DEFAULT.compositeBuffer();
-        StreamMetadataFlyweight.addMetadata(compositeMetadata, ByteBufAllocator.DEFAULT, mimeType1, metadata1);
-        StreamMetadataFlyweight.addMetadata(compositeMetadata, ByteBufAllocator.DEFAULT, mimeType2, metadata2);
+        CompositeMetadataFlyweight.addMetadata(compositeMetadata, ByteBufAllocator.DEFAULT, mimeType1, metadata1);
+        CompositeMetadataFlyweight.addMetadata(compositeMetadata, ByteBufAllocator.DEFAULT, mimeType2, metadata2);
         System.out.println(ByteBufUtil.prettyHexDump(compositeMetadata));
 
         compositeMetadata.readByte(); //ignore the "know mime + ID" byte for now
@@ -243,27 +243,42 @@ class StreamMetadataFlyweightTest {
         metadata2.writeChar('W');
 
         CompositeByteBuf compositeMetadata = ByteBufAllocator.DEFAULT.compositeBuffer();
-        StreamMetadataFlyweight.addMetadata(compositeMetadata, ByteBufAllocator.DEFAULT, mimeType1, metadata1);
-        StreamMetadataFlyweight.addMetadata(compositeMetadata, ByteBufAllocator.DEFAULT, mimeType2, metadata2);
+        CompositeMetadataFlyweight.addMetadata(compositeMetadata, ByteBufAllocator.DEFAULT, mimeType1, metadata1);
+        CompositeMetadataFlyweight.addMetadata(compositeMetadata, ByteBufAllocator.DEFAULT, mimeType2, metadata2);
 
-        Map<String, ByteBuf> decoded = StreamMetadataFlyweight.decodeToMap(compositeMetadata, false);
+        Object[] decoded = CompositeMetadataFlyweight.decodeNext(compositeMetadata, false);
+        assertThat(decoded).as("first decode").hasSize(2);
 
-        assertThat(decoded)
-                .as("decoded keys")
-                .containsOnlyKeys(WellKnownMimeType.APPLICATION_PDF.getMime(), "application/custom");
+        assertThat(decoded[0])
+                .as("first mime")
+                .isInstanceOf(String.class)
+                .isEqualTo(WellKnownMimeType.APPLICATION_PDF.getMime());
 
-        ByteBuf decoded1 = decoded.get(WellKnownMimeType.APPLICATION_PDF.getMime());
-        ByteBuf decoded2 = decoded.get("application/custom");
-
-        assertThat(decoded1.toString(CharsetUtil.UTF_8))
-                .as("metadata1 decoded")
+        assertThat((ByteBuf) decoded[1])
+                .as("first content")
+                .isEqualByComparingTo(metadata1)
+                .extracting(o -> o.toString(CharsetUtil.UTF_8))
                 .isEqualTo("abcdefghijkl");
 
-        System.out.println(ByteBufUtil.hexDump(decoded2));
 
-        assertThat(decoded2)
-                .as("metadata2 decoded")
+        decoded = CompositeMetadataFlyweight.decodeNext(compositeMetadata, false);
+
+        assertThat(decoded).as("second decode").hasSize(2);
+
+        assertThat(decoded[0])
+                .as("second mime")
+                .isInstanceOf(String.class)
+                .isEqualTo("application/custom");
+
+        assertThat(decoded[1]).isInstanceOf(ByteBuf.class);
+        ByteBuf secondBuffer = (ByteBuf) decoded[1];
+        System.out.println(ByteBufUtil.hexDump(secondBuffer));
+
+        assertThat(secondBuffer)
+                .as("second content")
                 .isEqualByComparingTo(metadata2);
+
+        assertThat(CompositeMetadataFlyweight.decodeNext(compositeMetadata, false)).isEmpty();
     }
 
     @Test
@@ -283,16 +298,22 @@ class StreamMetadataFlyweightTest {
         metadata2.writeChar('W');
 
         CompositeByteBuf compositeMetadata = ByteBufAllocator.DEFAULT.compositeBuffer();
-        StreamMetadataFlyweight.addMetadata(compositeMetadata, ByteBufAllocator.DEFAULT, mimeType1, metadata1);
-        StreamMetadataFlyweight.addMetadata(compositeMetadata, ByteBufAllocator.DEFAULT, mimeType2, metadata2);
+        CompositeMetadataFlyweight.addMetadata(compositeMetadata, ByteBufAllocator.DEFAULT, mimeType1, metadata1);
+        CompositeMetadataFlyweight.addMetadata(compositeMetadata, ByteBufAllocator.DEFAULT, mimeType2, metadata2);
 
-        Map<String, ByteBuf> decoded = StreamMetadataFlyweight.decodeToMap(compositeMetadata, true);
+        List<ByteBuf> bufs = new ArrayList<>();
+        Object[] decoded;
+        do {
+            decoded = CompositeMetadataFlyweight.decodeNext(compositeMetadata, true);
+            if (decoded.length == 2) {
+                bufs.add((ByteBuf) decoded[1]);
+            }
+        } while(decoded.length > 0);
 
-        assertThat(decoded).allSatisfy((key, buf) ->
-                assertThat(buf.refCnt())
-                        .as("metadata buffer retained for " + key)
-                        .isGreaterThan(1)
-        );
+        assertThat(bufs)
+                .as("metadata buffers retained")
+                .allSatisfy(buf -> assertThat(buf.refCnt())
+                        .isGreaterThan(1));
     }
 
     @Test
@@ -312,16 +333,22 @@ class StreamMetadataFlyweightTest {
         metadata2.writeChar('W');
 
         CompositeByteBuf compositeMetadata = ByteBufAllocator.DEFAULT.compositeBuffer();
-        StreamMetadataFlyweight.addMetadata(compositeMetadata, ByteBufAllocator.DEFAULT, mimeType1, metadata1);
-        StreamMetadataFlyweight.addMetadata(compositeMetadata, ByteBufAllocator.DEFAULT, mimeType2, metadata2);
+        CompositeMetadataFlyweight.addMetadata(compositeMetadata, ByteBufAllocator.DEFAULT, mimeType1, metadata1);
+        CompositeMetadataFlyweight.addMetadata(compositeMetadata, ByteBufAllocator.DEFAULT, mimeType2, metadata2);
 
-        Map<String, ByteBuf> decoded = StreamMetadataFlyweight.decodeToMap(compositeMetadata, false);
+        List<ByteBuf> bufs = new ArrayList<>();
+        Object[] decoded;
+        do {
+            decoded = CompositeMetadataFlyweight.decodeNext(compositeMetadata, false);
+            if (decoded.length == 2) {
+                bufs.add((ByteBuf) decoded[1]);
+            }
+        } while(decoded.length > 0);
 
-        assertThat(decoded).allSatisfy((key, buf) ->
-                assertThat(buf.refCnt())
-                        .as("metadata buffer not retained for " + key)
-                        .isOne()
-        );
+        assertThat(bufs)
+                .as("metadata buffers not retained")
+                .allSatisfy(buf -> assertThat(buf.refCnt())
+                        .isOne());
     }
 
 }

@@ -1,23 +1,19 @@
-package io.rsocket.frame;
+package io.rsocket.metadata;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.CompositeByteBuf;
 import io.netty.util.CharsetUtil;
-import io.rsocket.metadata.WellKnownMimeType;
 import io.rsocket.util.NumberUtils;
 
-import java.util.HashMap;
-import java.util.Map;
-
-class StreamMetadataFlyweight {
+class CompositeMetadataFlyweight {
 
 
     private static final int STREAM_METADATA_KNOWN_MASK = 0x80; // 1000 0000
     private static final byte STREAM_METADATA_LENGTH_MASK = 0x7F; // 0111 1111
 
-    private StreamMetadataFlyweight() {}
+    private CompositeMetadataFlyweight() {}
 
     /**
      * Decode the next mime type information from a composite metadata buffer which {@link ByteBuf#readerIndex()} is
@@ -149,22 +145,25 @@ class StreamMetadataFlyweight {
     }
 
     /**
-     * Decode composite metadata information into a {@link Map} of {@link String} mime types to {@link ByteBuf} metadata
-     * values.
+     * Decode the next composite metadata piece from a composite metadata buffer into an {@link Object} array which
+     * holds two elements: the {@link String} mime types and the {@link ByteBuf} metadata value.
+     * The array is empty if the composite metadata buffer has been entirely decoded, but generally this method shouldn't
+     * be called if the buffer's {@link ByteBuf#isReadable()} method returns {@code false}.
      *
-     * @param compositeMetadata the {@link ByteBuf} that contains information for one or more metadata mime-value pairs.
+     * @param compositeMetadata the {@link ByteBuf} that contains information for one or more metadata mime-value pairs,
+     *                          with its reader index set at the start of next metadata piece (or end of the buffer if
+     *                          fully decoded)
      * @param retainMetadataSlices should metadata value {@link ByteBuf} be {@link ByteBuf#retain() retained} when decoded?
-     * @return the decoded composite metadata
+     * @return the decoded piece of composite metadata, or an empty Object array if no more metadata is in the composite
      */
-    public static Map<String, ByteBuf> decodeToMap(ByteBuf compositeMetadata, boolean retainMetadataSlices) {
-        Map<String, ByteBuf> map = new HashMap<>();
-        while (compositeMetadata.isReadable()) {
+    static Object[] decodeNext(ByteBuf compositeMetadata, boolean retainMetadataSlices) {
+        if (compositeMetadata.isReadable()) {
             String mime = decodeMimeFromMetadataHeader(compositeMetadata);
             int length = decodeMetadataLengthFromMetadataHeader(compositeMetadata);
-
             ByteBuf metadata = retainMetadataSlices ? compositeMetadata.readRetainedSlice(length) : compositeMetadata.readSlice(length);
-            map.put(mime, metadata);
+
+            return new Object[] {mime, metadata};
         }
-        return map;
+        return new Object[0];
     }
 }
