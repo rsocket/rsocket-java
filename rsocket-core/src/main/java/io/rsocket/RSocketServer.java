@@ -556,10 +556,10 @@ class RSocketServer implements ResponderRSocket {
 
       if (limitableSubscription != null) {
         limitableSubscription.cancel();
-        long requested = limitableSubscription.getInternalRequested();
-        if (requested > 0) {
-          shareRequest(requested, sendingLimitableSubscriptions);
-        }
+        //        long requested = limitableSubscription.getInternalRequested();
+        //        if (requested > 0) {
+        //          shareRequest(requested, sendingLimitableSubscriptions);
+        //        }
       }
     } else {
       subscription.cancel();

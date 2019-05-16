@@ -2,7 +2,6 @@ package io.rsocket.util;
 
 import io.rsocket.internal.LimitableRequestPublisher;
 import io.rsocket.internal.SynchronizedIntObjectHashMap;
-import java.util.concurrent.ThreadLocalRandom;
 
 public class BackpressureUtils {
 
@@ -10,33 +9,17 @@ public class BackpressureUtils {
       long requested,
       SynchronizedIntObjectHashMap<LimitableRequestPublisher> limitableSubscriptions) {
     try {
-
       if (limitableSubscriptions.isEmpty()) {
         return;
       }
-      ThreadLocalRandom threadLocalRandom = ThreadLocalRandom.current();
       Object[] activeSubscriptions;
-      int size;
-      synchronized (limitableSubscriptions) {
-        activeSubscriptions = limitableSubscriptions.getValuesCopy();
-        size = limitableSubscriptions.size();
-      }
+      activeSubscriptions = limitableSubscriptions.getValuesCopy();
       int length = activeSubscriptions.length;
-      int randomStartIndex = threadLocalRandom.nextInt(0, size);
-      long requestPerItem = requested / size;
 
-      requestPerItem = requestPerItem == 0 ? 1L : requestPerItem;
-
-      for (int i = 0; i < length && requested >= 0; i++) {
-        LimitableRequestPublisher lrp =
-            (LimitableRequestPublisher) activeSubscriptions[randomStartIndex];
+      for (int i = 0; i < length; i++) {
+        LimitableRequestPublisher lrp = (LimitableRequestPublisher) activeSubscriptions[i];
         if (lrp != null) {
-          lrp.increaseInternalLimit(requestPerItem);
-          requested -= requestPerItem;
-        }
-        randomStartIndex++;
-        if (randomStartIndex == length) {
-          randomStartIndex = 0;
+          lrp.increaseInternalLimit(requested);
         }
       }
     } catch (Throwable e) {
