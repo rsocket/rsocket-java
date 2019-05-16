@@ -19,7 +19,7 @@ package io.rsocket.resume;
 import io.netty.buffer.ByteBuf;
 import java.time.Duration;
 
-class ClientResume {
+public class ClientResume {
   private final Duration sessionDuration;
   private final ByteBuf resumeToken;
 
