@@ -42,6 +42,7 @@ import io.rsocket.util.ConnectionUtils;
 import io.rsocket.util.EmptyPayload;
 import java.time.Duration;
 import java.util.Objects;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -93,6 +94,8 @@ public class RSocketFactory {
   public static class ClientRSocketFactory implements ClientTransportAcceptor {
     private Supplier<Function<RSocket, RSocket>> acceptor =
         () -> rSocket -> new AbstractRSocket() {};
+
+    private BiFunction<ConnectionSetupPayload, RSocket, RSocket> biAcceptor;
 
     private Consumer<Throwable> errorConsumer = Throwable::printStackTrace;
     private int mtu = 0;
@@ -242,6 +245,12 @@ public class RSocketFactory {
       return StartClient::new;
     }
 
+    public ClientTransportAcceptor acceptor(
+        BiFunction<ConnectionSetupPayload, RSocket, RSocket> biAcceptor) {
+      this.biAcceptor = biAcceptor;
+      return StartClient::new;
+    }
+
     public ClientRSocketFactory fragment(int mtu) {
       this.mtu = mtu;
       return this;
@@ -293,20 +302,6 @@ public class RSocketFactory {
                           keepAliveTimeout(),
                           keepAliveHandler);
 
-                  RSocket wrappedRSocketClient = plugins.applyClient(rSocketClient);
-
-                  RSocket unwrappedServerSocket = acceptor.get().apply(wrappedRSocketClient);
-
-                  RSocket wrappedRSocketServer = plugins.applyServer(unwrappedServerSocket);
-
-                  RSocketServer rSocketServer =
-                      new RSocketServer(
-                          allocator,
-                          multiplexer.asServerConnection(),
-                          wrappedRSocketServer,
-                          payloadDecoder,
-                          errorConsumer);
-
                   ByteBuf setupFrame =
                       SetupFrameFlyweight.encode(
                           allocator,
@@ -318,6 +313,26 @@ public class RSocketFactory {
                           dataMimeType,
                           setupPayload.sliceMetadata(),
                           setupPayload.sliceData());
+
+                  RSocket wrappedRSocketClient = plugins.applyClient(rSocketClient);
+
+                  RSocket unwrappedServerSocket;
+                  if (biAcceptor != null) {
+                    ConnectionSetupPayload setup = ConnectionSetupPayload.create(setupFrame);
+                    unwrappedServerSocket = biAcceptor.apply(setup, wrappedRSocketClient);
+                  } else {
+                    unwrappedServerSocket = acceptor.get().apply(wrappedRSocketClient);
+                  }
+
+                  RSocket wrappedRSocketServer = plugins.applyServer(unwrappedServerSocket);
+
+                  RSocketServer rSocketServer =
+                      new RSocketServer(
+                          allocator,
+                          multiplexer.asServerConnection(),
+                          wrappedRSocketServer,
+                          payloadDecoder,
+                          errorConsumer);
 
                   return wrappedConnection.sendOne(setupFrame).thenReturn(wrappedRSocketClient);
                 });
