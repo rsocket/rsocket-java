@@ -17,6 +17,9 @@
 package io.rsocket.transport.netty.server;
 
 import io.netty.buffer.ByteBufAllocator;
+import io.netty.channel.group.ChannelGroup;
+import io.netty.channel.group.DefaultChannelGroup;
+import io.netty.util.concurrent.DefaultEventExecutor;
 import io.rsocket.DuplexConnection;
 import io.rsocket.fragmentation.FragmentationDuplexConnection;
 import io.rsocket.transport.ClientTransport;
@@ -94,10 +97,11 @@ public final class TcpServerTransport implements ServerTransport<CloseableChanne
   @Override
   public Mono<CloseableChannel> start(ConnectionAcceptor acceptor, int mtu) {
     Objects.requireNonNull(acceptor, "acceptor must not be null");
-
+    ChannelGroup group = new DefaultChannelGroup(new DefaultEventExecutor());
     return server
         .doOnConnection(
             c -> {
+              group.add(c.channel());
               c.addHandlerLast(new RSocketLengthCodec());
               DuplexConnection connection;
               if (mtu > 0) {
@@ -114,6 +118,9 @@ public final class TcpServerTransport implements ServerTransport<CloseableChanne
               acceptor.apply(connection).then(Mono.<Void>never()).subscribe(c.disposeSubscriber());
             })
         .bind()
+        .doOnNext(
+            disposableChannel ->
+                disposableChannel.channel().closeFuture().addListener(f -> group.close()))
         .map(CloseableChannel::new);
   }
 }
