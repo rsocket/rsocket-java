@@ -99,11 +99,8 @@ class RSocketServer implements ResponderRSocket {
 
     sendProcessor
         .doOnRequest(
-            r -> {
-              for (LimitableRequestPublisher lrp : sendingLimitableSubscriptions.values()) {
-                lrp.increaseInternalLimit(r);
-              }
-            })
+            r ->
+                sendingLimitableSubscriptions.values().forEach(lrp -> lrp.increaseInternalLimit(r)))
         .transform(connection::send)
         .doFinally(this::handleSendProcessorCancel)
         .subscribe(null, this::handleSendProcessorError);
@@ -535,7 +532,7 @@ class RSocketServer implements ResponderRSocket {
     Subscription subscription = sendingSubscriptions.remove(streamId);
 
     if (subscription == null) {
-      subscription = sendingLimitableSubscriptions.get(streamId);
+      subscription = sendingLimitableSubscriptions.remove(streamId);
     }
 
     if (subscription != null) {
