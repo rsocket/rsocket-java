@@ -39,6 +39,7 @@ import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.stream.Collectors;
 import org.assertj.core.api.Assertions;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.reactivestreams.Publisher;
@@ -214,6 +215,7 @@ public class RSocketClientTest {
     Assertions.assertThat(request.isDisposed()).isTrue();
   }
 
+  @Ignore
   @Test(timeout = 2_000)
   @SuppressWarnings("unchecked")
   public void
