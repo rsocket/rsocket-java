@@ -319,16 +319,14 @@ class RSocketServer implements ResponderRSocket {
           handleRequestN(streamId, frame);
           break;
         case REQUEST_STREAM:
-          handleStream(
-              streamId,
-              requestStream(payloadDecoder.apply(frame)),
-              RequestStreamFrameFlyweight.initialRequestN(frame));
+          int streamInitialRequestN = RequestStreamFrameFlyweight.initialRequestN(frame);
+          Payload streamPayload = payloadDecoder.apply(frame);
+          handleStream(streamId, requestStream(streamPayload), streamInitialRequestN);
           break;
         case REQUEST_CHANNEL:
-          handleChannel(
-              streamId,
-              payloadDecoder.apply(frame),
-              RequestChannelFrameFlyweight.initialRequestN(frame));
+          int channelInitialRequestN = RequestChannelFrameFlyweight.initialRequestN(frame);
+          Payload channelPayload = payloadDecoder.apply(frame);
+          handleChannel(streamId, channelPayload, channelInitialRequestN);
           break;
         case METADATA_PUSH:
           metadataPush(payloadDecoder.apply(frame));
