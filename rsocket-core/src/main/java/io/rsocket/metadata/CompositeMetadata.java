@@ -47,12 +47,28 @@ public interface CompositeMetadata {
     static CompositeMetadata decode(ByteBuf buffer) {
         List<Entry> entries = new ArrayList<>();
         while (buffer.isReadable()) {
-            Object[] entry = CompositeMetadataFlyweight.decodeNext(buffer, true);
-            String mime = (String) entry[0];
-            ByteBuf buf = (ByteBuf) entry[1];
-            entries.add(new DefaultEntry(mime, buf));
+            entries.add(decodeIncrementally(buffer, true));
         }
         return new DefaultCompositeMetadata(entries);
+    }
+
+    /**
+     * Incrementally decode the next metadata entry from a {@link ByteBuf} into an {@link Entry}.
+     * This is only possible on frame types used to initiate
+     * interactions, if the SETUP metadata mime type was {@link WellKnownMimeType#MESSAGE_RSOCKET_COMPOSITE_METADATA}.
+     * <p>
+     * Each entry {@link ByteBuf} is a  {@link ByteBuf#readSlice(int) slice} of the original buffer that can also be
+     * {@link ByteBuf#readRetainedSlice(int) retained} if needed.
+     *
+     * @param buffer the buffer to decode
+     * @param retainMetadataSlices should each slide be retained when read from the original buffer?
+     * @return the decoded {@link Entry}
+     */
+    static Entry decodeIncrementally(ByteBuf buffer, boolean retainMetadataSlices) {
+        Object[] entry = CompositeMetadataFlyweight.decodeNext(buffer, retainMetadataSlices);
+        String mime = (String) entry[0];
+        ByteBuf buf = (ByteBuf) entry[1];
+        return new DefaultEntry(mime, buf);
     }
 
     /**
