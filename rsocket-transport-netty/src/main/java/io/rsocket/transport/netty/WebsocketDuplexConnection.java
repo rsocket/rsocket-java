@@ -21,11 +21,9 @@ import io.rsocket.DuplexConnection;
 import io.rsocket.internal.BaseDuplexConnection;
 import java.util.Objects;
 import org.reactivestreams.Publisher;
-import reactor.core.Fuseable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.netty.Connection;
-import reactor.util.concurrent.Queues;
 
 /**
  * An implementation of {@link DuplexConnection} that connects via a Websocket.
@@ -69,32 +67,15 @@ public final class WebsocketDuplexConnection extends BaseDuplexConnection {
 
   @Override
   public Mono<Void> send(Publisher<ByteBuf> frames) {
-    return Flux.from(frames)
-        .transform(
-            frameFlux -> {
-              if (frameFlux instanceof Fuseable.QueueSubscription) {
-                Fuseable.QueueSubscription<ByteBuf> queueSubscription =
-                    (Fuseable.QueueSubscription<ByteBuf>) frameFlux;
-                queueSubscription.requestFusion(Fuseable.ASYNC);
-                return new SendPublisher<>(
-                    queueSubscription,
-                    frameFlux,
-                    connection.channel(),
-                    this::toBinaryWebSocketFrame,
-                    binaryWebSocketFrame -> binaryWebSocketFrame.content().readableBytes());
-              } else {
-                return new SendPublisher<>(
-                    Queues.<ByteBuf>small().get(),
-                    frameFlux,
-                    connection.channel(),
-                    this::toBinaryWebSocketFrame,
-                    binaryWebSocketFrame -> binaryWebSocketFrame.content().readableBytes());
-              }
-            })
+    if (frames instanceof Mono) {
+      return connection
+          .outbound()
+          .sendObject(((Mono<ByteBuf>) frames).map(BinaryWebSocketFrame::new))
+          .then();
+    }
+    return connection
+        .outbound()
+        .sendObject(Flux.from(frames).map(BinaryWebSocketFrame::new))
         .then();
-  }
-
-  private BinaryWebSocketFrame toBinaryWebSocketFrame(ByteBuf frame) {
-    return new BinaryWebSocketFrame(frame.retain());
   }
 }
