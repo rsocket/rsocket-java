@@ -97,14 +97,8 @@ class RSocketServer implements ResponderRSocket {
     // connections
     this.sendProcessor = new UnboundedProcessor<>();
 
-    sendProcessor
-        .doOnRequest(
-            r -> {
-              for (LimitableRequestPublisher lrp : sendingLimitableSubscriptions.values()) {
-                lrp.increaseInternalLimit(r);
-              }
-            })
-        .transform(connection::send)
+    connection
+        .send(sendProcessor)
         .doFinally(this::handleSendProcessorCancel)
         .subscribe(null, this::handleSendProcessorError);
 
@@ -322,16 +316,14 @@ class RSocketServer implements ResponderRSocket {
           handleRequestN(streamId, frame);
           break;
         case REQUEST_STREAM:
-          handleStream(
-              streamId,
-              requestStream(payloadDecoder.apply(frame)),
-              RequestStreamFrameFlyweight.initialRequestN(frame));
+          int streamInitialRequestN = RequestStreamFrameFlyweight.initialRequestN(frame);
+          Payload streamPayload = payloadDecoder.apply(frame);
+          handleStream(streamId, requestStream(streamPayload), streamInitialRequestN);
           break;
         case REQUEST_CHANNEL:
-          handleChannel(
-              streamId,
-              payloadDecoder.apply(frame),
-              RequestChannelFrameFlyweight.initialRequestN(frame));
+          int channelInitialRequestN = RequestChannelFrameFlyweight.initialRequestN(frame);
+          Payload channelPayload = payloadDecoder.apply(frame);
+          handleChannel(streamId, channelPayload, channelInitialRequestN);
           break;
         case METADATA_PUSH:
           metadataPush(payloadDecoder.apply(frame));
@@ -459,7 +451,7 @@ class RSocketServer implements ResponderRSocket {
         .transform(
             frameFlux -> {
               LimitableRequestPublisher<Payload> payloads =
-                  LimitableRequestPublisher.wrap(frameFlux, sendProcessor.available());
+                  LimitableRequestPublisher.wrap(frameFlux);
               sendingLimitableSubscriptions.put(streamId, payloads);
               payloads.request(
                   initialRequestN >= Integer.MAX_VALUE ? Long.MAX_VALUE : initialRequestN);
@@ -535,7 +527,7 @@ class RSocketServer implements ResponderRSocket {
     Subscription subscription = sendingSubscriptions.remove(streamId);
 
     if (subscription == null) {
-      subscription = sendingLimitableSubscriptions.get(streamId);
+      subscription = sendingLimitableSubscriptions.remove(streamId);
     }
 
     if (subscription != null) {
