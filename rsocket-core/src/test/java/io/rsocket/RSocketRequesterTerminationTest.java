@@ -1,6 +1,6 @@
 package io.rsocket;
 
-import io.rsocket.RSocketClientTest.ClientSocketRule;
+import io.rsocket.RSocketRequesterTest.ClientSocketRule;
 import io.rsocket.util.EmptyPayload;
 import java.nio.channels.ClosedChannelException;
 import java.time.Duration;
@@ -16,18 +16,18 @@ import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
 @RunWith(Parameterized.class)
-public class RSocketClientTerminationTest {
+public class RSocketRequesterTerminationTest {
 
   @Rule public final ClientSocketRule rule = new ClientSocketRule();
   private Function<RSocket, ? extends Publisher<?>> interaction;
 
-  public RSocketClientTerminationTest(Function<RSocket, ? extends Publisher<?>> interaction) {
+  public RSocketRequesterTerminationTest(Function<RSocket, ? extends Publisher<?>> interaction) {
     this.interaction = interaction;
   }
 
   @Test
   public void testCurrentStreamIsTerminatedOnConnectionClose() {
-    RSocketClient rSocket = rule.socket;
+    RSocketRequester rSocket = rule.socket;
 
     Mono.delay(Duration.ofSeconds(1)).doOnNext(v -> rule.connection.dispose()).subscribe();
 
@@ -38,7 +38,7 @@ public class RSocketClientTerminationTest {
 
   @Test
   public void testSubsequentStreamIsTerminatedAfterConnectionClose() {
-    RSocketClient rSocket = rule.socket;
+    RSocketRequester rSocket = rule.socket;
 
     rule.connection.dispose();
     StepVerifier.create(interaction.apply(rSocket))

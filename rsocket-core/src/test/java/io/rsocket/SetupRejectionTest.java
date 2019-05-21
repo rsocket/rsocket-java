@@ -49,8 +49,8 @@ public class SetupRejectionTest {
   void requesterStreamsTerminatedOnZeroErrorFrame() {
     TestDuplexConnection conn = new TestDuplexConnection();
     List<Throwable> errors = new ArrayList<>();
-    RSocketClient rSocket =
-        new RSocketClient(
+    RSocketRequester rSocket =
+        new RSocketRequester(
             ByteBufAllocator.DEFAULT,
             conn,
             DefaultPayload::create,
@@ -79,8 +79,8 @@ public class SetupRejectionTest {
   @Test
   void requesterNewStreamsTerminatedAfterZeroErrorFrame() {
     TestDuplexConnection conn = new TestDuplexConnection();
-    RSocketClient rSocket =
-        new RSocketClient(
+    RSocketRequester rSocket =
+        new RSocketRequester(
             ByteBufAllocator.DEFAULT,
             conn,
             DefaultPayload::create,

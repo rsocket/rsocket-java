@@ -45,8 +45,10 @@ import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import reactor.core.publisher.*;
 
-/** Client Side of a RSocket socket. Sends {@link ByteBuf}s to a {@link RSocketServer} */
-class RSocketClient implements RSocket {
+/**
+ * Requester Side of a RSocket socket. Sends {@link ByteBuf}s to a {@link RSocketResponder} of peer
+ */
+class RSocketRequester implements RSocket {
 
   private final DuplexConnection connection;
   private final PayloadDecoder payloadDecoder;
@@ -60,7 +62,7 @@ class RSocketClient implements RSocket {
   private final KeepAliveFramesAcceptor keepAliveFramesAcceptor;
 
   /*client requester*/
-  RSocketClient(
+  RSocketRequester(
       ByteBufAllocator allocator,
       DuplexConnection connection,
       PayloadDecoder payloadDecoder,
@@ -99,7 +101,7 @@ class RSocketClient implements RSocket {
   }
 
   /*server requester*/
-  RSocketClient(
+  RSocketRequester(
       ByteBufAllocator allocator,
       DuplexConnection connection,
       PayloadDecoder payloadDecoder,
