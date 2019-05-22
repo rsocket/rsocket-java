@@ -25,13 +25,13 @@ public interface RSocketSession<T> extends Closeable {
 
   ByteBuf token();
 
-  DuplexConnection resumableConnection();
+  ResumableDuplexConnection resumableConnection();
 
-  RSocketSession continueWith(T ResumeAwareConnectionFactory);
+  RSocketSession continueWith(T ConnectionFactory);
 
   RSocketSession resumeWith(ByteBuf resumeFrame);
 
-  void reconnect(ResumePositionsConnection connection);
+  void reconnect(DuplexConnection connection);
 
   @Override
   default Mono<Void> onClose() {

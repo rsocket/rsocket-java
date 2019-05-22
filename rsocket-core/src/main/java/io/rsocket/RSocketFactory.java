@@ -16,6 +16,9 @@
 
 package io.rsocket;
 
+import static io.rsocket.internal.ClientSetup.DefaultClientSetup;
+import static io.rsocket.internal.ClientSetup.ResumableClientSetup;
+
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.exceptions.InvalidSetupException;
@@ -26,9 +29,8 @@ import io.rsocket.frame.SetupFrameFlyweight;
 import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.internal.ClientServerInputMultiplexer;
 import io.rsocket.internal.ClientSetup;
-import io.rsocket.internal.KeepAliveData;
 import io.rsocket.internal.ServerSetup;
-import io.rsocket.keepalive.KeepAliveConnection;
+import io.rsocket.keepalive.KeepAliveHandler;
 import io.rsocket.plugins.DuplexConnectionInterceptor;
 import io.rsocket.plugins.PluginRegistry;
 import io.rsocket.plugins.Plugins;
@@ -40,6 +42,7 @@ import io.rsocket.util.ConnectionUtils;
 import io.rsocket.util.EmptyPayload;
 import java.time.Duration;
 import java.util.Objects;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -91,6 +94,8 @@ public class RSocketFactory {
   public static class ClientRSocketFactory implements ClientTransportAcceptor {
     private Supplier<Function<RSocket, RSocket>> acceptor =
         () -> rSocket -> new AbstractRSocket() {};
+
+    private BiFunction<ConnectionSetupPayload, RSocket, RSocket> biAcceptor;
 
     private Consumer<Throwable> errorConsumer = Throwable::printStackTrace;
     private int mtu = 0;
@@ -240,6 +245,12 @@ public class RSocketFactory {
       return StartClient::new;
     }
 
+    public ClientTransportAcceptor acceptor(
+        BiFunction<ConnectionSetupPayload, RSocket, RSocket> biAcceptor) {
+      this.biAcceptor = biAcceptor;
+      return StartClient::new;
+    }
+
     public ClientRSocketFactory fragment(int mtu) {
       this.mtu = mtu;
       return this;
@@ -272,9 +283,10 @@ public class RSocketFactory {
         return newConnection()
             .flatMap(
                 connection -> {
-                  ClientSetup clientSetup = clientSetup();
-                  DuplexConnection wrappedConnection = clientSetup.wrappedConnection(connection);
+                  ClientSetup clientSetup = clientSetup(connection);
                   ByteBuf resumeToken = clientSetup.resumeToken();
+                  KeepAliveHandler keepAliveHandler = clientSetup.keepAliveHandler();
+                  DuplexConnection wrappedConnection = clientSetup.connection();
 
                   ClientServerInputMultiplexer multiplexer =
                       new ClientServerInputMultiplexer(wrappedConnection, plugins);
@@ -285,11 +297,32 @@ public class RSocketFactory {
                           multiplexer.asClientConnection(),
                           payloadDecoder,
                           errorConsumer,
-                          StreamIdSupplier.clientSupplier());
+                          StreamIdSupplier.clientSupplier(),
+                          keepAliveTickPeriod(),
+                          keepAliveTimeout(),
+                          keepAliveHandler);
+
+                  ByteBuf setupFrame =
+                      SetupFrameFlyweight.encode(
+                          allocator,
+                          false,
+                          keepAliveTickPeriod(),
+                          keepAliveTimeout(),
+                          resumeToken,
+                          metadataMimeType,
+                          dataMimeType,
+                          setupPayload.sliceMetadata(),
+                          setupPayload.sliceData());
 
                   RSocket wrappedRSocketClient = plugins.applyClient(rSocketClient);
 
-                  RSocket unwrappedServerSocket = acceptor.get().apply(wrappedRSocketClient);
+                  RSocket unwrappedServerSocket;
+                  if (biAcceptor != null) {
+                    ConnectionSetupPayload setup = ConnectionSetupPayload.create(setupFrame);
+                    unwrappedServerSocket = biAcceptor.apply(setup, wrappedRSocketClient);
+                  } else {
+                    unwrappedServerSocket = acceptor.get().apply(wrappedRSocketClient);
+                  }
 
                   RSocket wrappedRSocketServer = plugins.applyServer(unwrappedServerSocket);
 
@@ -301,35 +334,24 @@ public class RSocketFactory {
                           payloadDecoder,
                           errorConsumer);
 
-                  ByteBuf setupFrame =
-                      SetupFrameFlyweight.encode(
-                          allocator,
-                          false,
-                          (int) keepAliveTickPeriod(),
-                          (int) keepAliveTimeout(),
-                          resumeToken,
-                          metadataMimeType,
-                          dataMimeType,
-                          setupPayload.sliceMetadata(),
-                          setupPayload.sliceData());
-
                   return wrappedConnection.sendOne(setupFrame).thenReturn(wrappedRSocketClient);
                 });
       }
 
-      private long keepAliveTickPeriod() {
-        return tickPeriod.toMillis();
+      private int keepAliveTickPeriod() {
+        return (int) tickPeriod.toMillis();
       }
 
-      private long keepAliveTimeout() {
-        return ackTimeout.toMillis() + tickPeriod.toMillis() * missedAcks;
+      private int keepAliveTimeout() {
+        return (int) (ackTimeout.toMillis() + tickPeriod.toMillis() * missedAcks);
       }
 
-      private ClientSetup clientSetup() {
+      private ClientSetup clientSetup(DuplexConnection startConnection) {
         if (resumeEnabled) {
           ByteBuf resumeToken = resumeTokenSupplier.get();
-          return new ClientSetup.ResumableClientSetup(
+          return new ResumableClientSetup(
               allocator,
+              startConnection,
               newConnection(),
               resumeToken,
               resumeStoreFactory.apply(resumeToken),
@@ -338,21 +360,12 @@ public class RSocketFactory {
               resumeStrategySupplier,
               resumeCleanupStoreOnKeepAlive);
         } else {
-          return new ClientSetup.DefaultClientSetup();
+          return new DefaultClientSetup(startConnection);
         }
       }
 
-      private Mono<KeepAliveConnection> newConnection() {
-        return transportClient
-            .get()
-            .connect(mtu)
-            .map(
-                connection ->
-                    KeepAliveConnection.ofClient(
-                        allocator,
-                        connection,
-                        notUsed -> new KeepAliveData(keepAliveTickPeriod(), keepAliveTimeout()),
-                        errorConsumer));
+      private Mono<DuplexConnection> newConnection() {
+        return transportClient.get().connect(mtu);
       }
     }
   }
@@ -464,9 +477,6 @@ public class RSocketFactory {
       }
 
       private Mono<Void> acceptor(ServerSetup serverSetup, DuplexConnection connection) {
-        connection =
-            KeepAliveConnection.ofServer(
-                allocator, connection, serverSetup::keepAliveData, errorConsumer);
         ClientServerInputMultiplexer multiplexer =
             new ClientServerInputMultiplexer(connection, plugins);
 
@@ -512,7 +522,7 @@ public class RSocketFactory {
         return serverSetup.acceptRSocketSetup(
             setupFrame,
             multiplexer,
-            wrappedMultiplexer -> {
+            (keepAliveHandler, wrappedMultiplexer) -> {
               ConnectionSetupPayload setupPayload = ConnectionSetupPayload.create(setupFrame);
 
               RSocketClient rSocketClient =
@@ -539,7 +549,10 @@ public class RSocketFactory {
                                 wrappedMultiplexer.asClientConnection(),
                                 wrappedRSocketServer,
                                 payloadDecoder,
-                                errorConsumer);
+                                errorConsumer,
+                                setupPayload.keepAliveInterval(),
+                                setupPayload.keepAliveMaxLifetime(),
+                                keepAliveHandler);
                       })
                   .doFinally(signalType -> setupPayload.release())
                   .then();

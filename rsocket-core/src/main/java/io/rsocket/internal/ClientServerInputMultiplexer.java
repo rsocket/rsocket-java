@@ -23,7 +23,6 @@ import io.rsocket.frame.FrameHeaderFlyweight;
 import io.rsocket.frame.FrameUtil;
 import io.rsocket.plugins.DuplexConnectionInterceptor.Type;
 import io.rsocket.plugins.PluginRegistry;
-import io.rsocket.resume.ResumePositionsConnection;
 import org.reactivestreams.Publisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -52,7 +51,7 @@ public class ClientServerInputMultiplexer implements Closeable {
   private final DuplexConnection serverConnection;
   private final DuplexConnection clientConnection;
   private final DuplexConnection source;
-  private final ResumePositionsConnection clientServerConnection;
+  private final DuplexConnection clientServerConnection;
 
   public ClientServerInputMultiplexer(DuplexConnection source) {
     this(source, emptyPluginRegistry);
@@ -71,8 +70,7 @@ public class ClientServerInputMultiplexer implements Closeable {
         plugins.applyConnection(Type.SERVER, new InternalDuplexConnection(source, server));
     clientConnection =
         plugins.applyConnection(Type.CLIENT, new InternalDuplexConnection(source, client));
-    clientServerConnection =
-        new ClientServerConnection(new InternalDuplexConnection(source, client, server), source);
+    clientServerConnection = new InternalDuplexConnection(source, client, server);
 
     source
         .receive()
@@ -115,7 +113,7 @@ public class ClientServerInputMultiplexer implements Closeable {
             });
   }
 
-  public ResumePositionsConnection asClientServerConnection() {
+  public DuplexConnection asClientServerConnection() {
     return clientServerConnection;
   }
 

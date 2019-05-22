@@ -29,11 +29,11 @@ subprojects {
     apply plugin: 'io.spring.dependency-management'
     apply plugin: 'com.github.sherter.google-java-format'
 
-    ext['reactor-bom.version'] = 'Californium-SR5'
+    ext['reactor-bom.version'] = 'Californium-SR8'
     ext['logback.version'] = '1.2.3'
     ext['findbugs.version'] = '3.0.2'
-    ext['netty.version'] = '4.1.31.Final'
-    ext['netty-boringssl.version'] = '2.0.18.Final'
+    ext['netty.version'] = '4.1.36.Final'
+    ext['netty-boringssl.version'] = '2.0.25.Final'
     ext['hdrhistogram.version'] = '2.1.10'
     ext['mockito.version'] = '2.25.1'
     ext['slf4j.version'] = '1.7.25'
@@ -115,6 +115,10 @@ subprojects {
             useJUnitPlatform()
 
             systemProperty "io.netty.leakDetection.level", "ADVANCED"
+        }
+        
+        tasks.named("javadoc").configure {
+            onlyIf { System.getenv('SKIP_RELEASE') != "true" }
         }
     }
 

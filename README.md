@@ -23,10 +23,10 @@ Example:
 
 ```groovy
 dependencies {
-    implementation 'io.rsocket:rsocket-core:0.11.14'
-    implementation 'io.rsocket:rsocket-transport-netty:0.11.14'
-//    implementation 'io.rsocket:rsocket-core:0.11.15.BUILD-SNAPSHOT'
-//    implementation 'io.rsocket:rsocket-transport-netty:0.11.15.BUILD-SNAPSHOT'
+    implementation 'io.rsocket:rsocket-core:0.12.2-RC2'
+    implementation 'io.rsocket:rsocket-transport-netty:0.12.2-RC2'
+//    implementation 'io.rsocket:rsocket-core:0.12.2-RC3-SNAPSHOT'
+//    implementation 'io.rsocket:rsocket-transport-netty:0.12.2-RC3-SNAPSHOT'
 }
 ```
 
@@ -91,7 +91,7 @@ or you will get a memory leak. Used correctly this will reduce latency and incre
 ```java
 RSocketFactory.receive()
         // Enable Zero Copy
-        .payloadDecoder(Frame::retain)
+        .frameDecoder(PayloadDecoder.ZERO_COPY)
         .acceptor(new PingHandler())
         .transport(TcpServerTransport.create(7878))
         .start()
@@ -105,7 +105,7 @@ RSocketFactory.receive()
 Mono<RSocket> client =
         RSocketFactory.connect()
             // Enable Zero Copy
-            .payloadDecoder(Frame::retain)
+            .frameDecoder(PayloadDecoder.ZERO_COPY)
             .transport(TcpClientTransport.create(7878))
             .start();
 ```

@@ -55,6 +55,9 @@ if (project.hasProperty('bintrayUser') && project.hasProperty('bintrayKey') &&
                     }
                 }
             }
+            tasks.named("bintrayUpload").configure {
+                onlyIf { System.getenv('SKIP_RELEASE') != "true" }
+            }
         }
     }
 }
