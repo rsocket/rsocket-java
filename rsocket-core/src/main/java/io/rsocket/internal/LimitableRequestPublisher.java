@@ -37,27 +37,42 @@ public class LimitableRequestPublisher<T> extends Flux<T> implements Subscriptio
   private static final AtomicIntegerFieldUpdater<LimitableRequestPublisher> CANCELED =
       AtomicIntegerFieldUpdater.newUpdater(LimitableRequestPublisher.class, "canceled");
 
-  private final long prefetch;
+  private final int prefetch;
+  private final int limit;
+
+  private int produced;
 
   private long internalRequested;
-
   private long externalRequested;
 
   private boolean subscribed;
 
   private @Nullable Subscription internalSubscription;
 
-  private LimitableRequestPublisher(Publisher<T> source, long prefetch) {
+  private LimitableRequestPublisher(Publisher<T> source, int prefetch) {
     this.source = source;
     this.prefetch = prefetch;
+    this.limit = prefetch / 2 + 1;
   }
 
-  public static <T> LimitableRequestPublisher<T> wrap(Publisher<T> source, long prefetch) {
+  public static <T> LimitableRequestPublisher<T> wrap(Publisher<T> source, int prefetch) {
     return new LimitableRequestPublisher<>(source, prefetch);
   }
 
-  public static <T> LimitableRequestPublisher<T> wrap(Publisher<T> source) {
-    return wrap(source, Long.MAX_VALUE);
+  public int getLimit() {
+    return limit;
+  }
+
+  public int getProduced() {
+    return produced;
+  }
+
+  public long getInternalRequested() {
+    return internalRequested;
+  }
+
+  public long getExternalRequested() {
+    return externalRequested;
   }
 
   @Override
@@ -73,23 +88,31 @@ public class LimitableRequestPublisher<T> extends Flux<T> implements Subscriptio
 
     destination.onSubscribe(s);
     source.subscribe(s);
-    increaseInternalLimit(prefetch);
+    internalRequest(prefetch == Integer.MAX_VALUE ? Long.MAX_VALUE : prefetch);
   }
 
-  public void increaseInternalLimit(long n) {
+  @Override
+  public int getPrefetch() {
+    return prefetch;
+  }
+
+  public void internalRequest(long n) {
+    int p;
+    long r;
+
     synchronized (this) {
+      p = produced;
       long requested = internalRequested;
       if (requested == Long.MAX_VALUE) {
         return;
       }
-      internalRequested = Operators.addCap(n, requested);
+      r = Operators.addCap(n, requested);
+      internalRequested = r;
     }
 
-    requestN();
-  }
-
-  public synchronized long getInternalRequested() {
-    return internalRequested;
+    if (p == 0 && r >= limit) {
+      requestN();
+    }
   }
 
   @Override
@@ -119,7 +142,15 @@ public class LimitableRequestPublisher<T> extends Flux<T> implements Subscriptio
       long ir = internalRequested;
 
       if (er != Long.MAX_VALUE || ir != Long.MAX_VALUE) {
-        r = Math.min(ir, er);
+        int limit = this.limit;
+        r = Math.min(ir, limit);
+
+        if (r != limit) {
+          return;
+        }
+
+        r = Math.min(r, er);
+
         if (er != Long.MAX_VALUE) {
           externalRequested -= r;
         }
@@ -182,6 +213,13 @@ public class LimitableRequestPublisher<T> extends Flux<T> implements Subscriptio
     public void onNext(T t) {
       try {
         destination.onNext(t);
+        int p = ++produced;
+
+        if (p == limit) {
+          produced = 0;
+          requestN();
+        }
+
       } catch (Throwable e) {
         onError(e);
       }

@@ -29,6 +29,7 @@ import io.rsocket.frame.*;
 import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.internal.LimitableRequestPublisher;
 import io.rsocket.internal.SynchronizedIntObjectHashMap;
+import io.rsocket.internal.SynchronizedObjectHashSet;
 import io.rsocket.internal.UnboundedProcessor;
 import io.rsocket.internal.UnicastMonoProcessor;
 import io.rsocket.keepalive.KeepAliveFramesAcceptor;
@@ -45,6 +46,7 @@ import org.reactivestreams.Processor;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import reactor.core.publisher.*;
+import reactor.util.concurrent.Queues;
 
 /** Client Side of a RSocket socket. Sends {@link ByteBuf}s to a {@link RSocketServer} */
 class RSocketClient implements RSocket {
@@ -55,6 +57,7 @@ class RSocketClient implements RSocket {
   private final StreamIdSupplier streamIdSupplier;
   private final SynchronizedIntObjectHashMap<Processor<Payload, Payload>> receivers;
   private final SynchronizedIntObjectHashMap<LimitableRequestPublisher> senders;
+  private final SynchronizedObjectHashSet<LimitableRequestPublisher> sendersAsASet;
   private final UnboundedProcessor<ByteBuf> sendProcessor;
   private final Lifecycle lifecycle = new Lifecycle();
   private final ByteBufAllocator allocator;
@@ -77,6 +80,7 @@ class RSocketClient implements RSocket {
     this.streamIdSupplier = streamIdSupplier;
     this.senders = new SynchronizedIntObjectHashMap<>();
     this.receivers = new SynchronizedIntObjectHashMap<>();
+    this.sendersAsASet = new SynchronizedObjectHashSet<>();
 
     // DO NOT Change the order here. The Send processor must be subscribed to before receiving
     this.sendProcessor = new UnboundedProcessor<>();
@@ -84,7 +88,7 @@ class RSocketClient implements RSocket {
     connection.onClose().doFinally(signalType -> terminate()).subscribe(null, errorConsumer);
 
     sendProcessor
-        .doOnRequest(r -> shareRequest(r, senders))
+        .doOnRequest(r -> shareRequest(r, sendersAsASet))
         .transform(connection::send)
         .doFinally(this::handleSendProcessorCancel)
         .subscribe(null, this::handleSendProcessorError);
@@ -325,10 +329,15 @@ class RSocketClient implements RSocket {
                             .transform(
                                 f -> {
                                   LimitableRequestPublisher<Payload> wrapped =
-                                      LimitableRequestPublisher.wrap(f, sendProcessor.available());
+                                      LimitableRequestPublisher.wrap(
+                                          f,
+                                          sendProcessor.available() == Long.MAX_VALUE
+                                              ? Integer.MAX_VALUE
+                                              : Queues.XS_BUFFER_SIZE);
                                   // Need to set this to one for first the frame
                                   wrapped.request(1);
                                   senders.put(streamId, wrapped);
+                                  sendersAsASet.add(wrapped);
                                   receivers.put(streamId, receiver);
 
                                   return wrapped;
@@ -408,6 +417,7 @@ class RSocketClient implements RSocket {
                     receivers.remove(streamId);
                     LimitableRequestPublisher sender = senders.remove(streamId);
                     if (sender != null) {
+                      sendersAsASet.remove(sender);
                       sender.cancel();
                     }
                   });
@@ -434,6 +444,7 @@ class RSocketClient implements RSocket {
       senders.values().forEach(this::cleanUpLimitableRequestPublisher);
     } finally {
       senders.clear();
+      sendersAsASet.clear();
       receivers.clear();
       sendProcessor.dispose();
     }
@@ -513,6 +524,7 @@ class RSocketClient implements RSocket {
           {
             LimitableRequestPublisher sender = senders.remove(streamId);
             if (sender != null) {
+              sendersAsASet.remove(sender);
               sender.cancel();
             }
             break;
