@@ -77,7 +77,7 @@ public class ClientRSocketSession implements RSocketSession<Mono<DuplexConnectio
                           errors
                               .doOnNext(
                                   retryErr ->
-                                      logger.debug("Resumption reconnection error: {}", retryErr))
+                                      logger.debug("Resumption reconnection error", retryErr))
                               .flatMap(
                                   retryErr ->
                                       Mono.from(reconnectOnError.apply(clientResume, retryErr))

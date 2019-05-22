@@ -64,7 +64,7 @@ public class ServerRSocketSession implements RSocketSession<DuplexConnection> {
             .connectionErrors()
             .flatMap(
                 err -> {
-                  logger.debug("Starting session timeout due to error: {}", err);
+                  logger.debug("Starting session timeout due to error", err);
                   return newConnections
                       .next()
                       .doOnNext(c -> logger.debug("Connection after error: {}", c))
