@@ -4,14 +4,15 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.*;
 
-/**
- * @author Simon Baslé
- */
 class WellKnownMimeTypeTest {
 
     @Test
     void fromIdMatchFromMimeType() {
         for (WellKnownMimeType mimeType : WellKnownMimeType.values()) {
+            if (mimeType == WellKnownMimeType.UNPARSEABLE_MIME_TYPE
+                    || mimeType == WellKnownMimeType.UNKNOWN_RESERVED_MIME_TYPE) {
+                continue;
+            }
             assertThat(WellKnownMimeType.fromMimeType(mimeType.toString()))
                     .as("mimeType string for " + mimeType.name())
                     .isSameAs(mimeType);
@@ -24,30 +25,34 @@ class WellKnownMimeTypeTest {
 
     @Test
     void fromIdNegative() {
-        assertThatIllegalArgumentException().isThrownBy(() ->
-                WellKnownMimeType.fromId(-1))
-                .withMessage("WellKnownMimeType IDs are between 0 and 127, inclusive");
+        assertThat(WellKnownMimeType.fromId(-1))
+                .isSameAs(WellKnownMimeType.fromId(-2))
+                .isSameAs(WellKnownMimeType.fromId(-12))
+                .isSameAs(WellKnownMimeType.UNPARSEABLE_MIME_TYPE);
     }
 
     @Test
     void fromIdGreaterThan127() {
-        assertThatIllegalArgumentException().isThrownBy(() ->
-                WellKnownMimeType.fromId(128))
-                .withMessage("WellKnownMimeType IDs are between 0 and 127, inclusive");
+        assertThat(WellKnownMimeType.fromId(128))
+                .isSameAs(WellKnownMimeType.UNPARSEABLE_MIME_TYPE);
     }
 
     @Test
     void fromIdReserved() {
-        assertThatIllegalStateException().isThrownBy(() ->
-                WellKnownMimeType.fromId(120))
-                .withMessage("120 is between 0 and 127 yet no WellKnownMimeType found");
+        assertThat(WellKnownMimeType.fromId(120))
+                .isSameAs(WellKnownMimeType.UNKNOWN_RESERVED_MIME_TYPE);
     }
 
     @Test
     void fromMimeTypeUnknown() {
-        assertThatIllegalArgumentException().isThrownBy(() ->
-                WellKnownMimeType.fromMimeType("foo/bar"))
-                .withMessage("not a WellKnownMimeType: foo/bar");
+        assertThat(WellKnownMimeType.fromMimeType("foo/bar"))
+                .isSameAs(WellKnownMimeType.UNPARSEABLE_MIME_TYPE);
+    }
+
+    @Test
+    void fromMimeTypeUnkwnowReservedStillReturnsUnparseable() {
+        assertThat(WellKnownMimeType.fromMimeType(WellKnownMimeType.UNKNOWN_RESERVED_MIME_TYPE.getMime()))
+                .isSameAs(WellKnownMimeType.UNPARSEABLE_MIME_TYPE);
     }
 
 }

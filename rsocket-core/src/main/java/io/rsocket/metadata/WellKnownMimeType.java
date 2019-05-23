@@ -3,9 +3,12 @@ package io.rsocket.metadata;
 /**
  * Enumeration of Well Known Mime Types, as defined in the eponymous extension. Such mime types
  * are used in composite metadata (which can include routing and/or tracing metadata).
+ * Per specification, identifiers are between 0 and 127 (inclusive).
  */
 public enum WellKnownMimeType {
 
+    UNPARSEABLE_MIME_TYPE("UNPARSEABLE_MIME_TYPE_DO_NOT_USE", (byte) -2),
+    UNKNOWN_RESERVED_MIME_TYPE("UNKNOWN_YET_RESERVED_DO_NOT_USE", (byte) -1),
     APPLICATION_AVRO("application/avro", (byte)0),
     APPLICATION_CBOR("application/cbor", (byte)1),
     APPLICATION_GRAPHQL("application/graphql", (byte)2),
@@ -53,7 +56,6 @@ public enum WellKnownMimeType {
     private final byte identifier;
 
     WellKnownMimeType(String str, byte identifier) {
-        if (identifier < 0)  throw new IllegalArgumentException("identifier must be between 0 and 127, inclusive");
         this.str = str;
         this.identifier = identifier;
     }
@@ -81,39 +83,48 @@ public enum WellKnownMimeType {
     }
 
     /**
-     * Find the {@link WellKnownMimeType} for the given {@link String} representation. If the representation if
-     * {@code null} or doesn't match a {@link WellKnownMimeType}, an {@link IllegalArgumentException} is thrown.
+     * Find the {@link WellKnownMimeType} for the given {@link String} representation.
+     * If the representation is {@code null} or doesn't match a {@link WellKnownMimeType}, the
+     * {@link #UNPARSEABLE_MIME_TYPE} is returned.
+     *
      * @param mimeType the looked up mime type
-     * @return the {@link WellKnownMimeType}
-     * @throws IllegalArgumentException if the requested type is unknown or null
+     * @return the matching {@link WellKnownMimeType}, or {@link #UNPARSEABLE_MIME_TYPE} if none matches
      */
     public static WellKnownMimeType fromMimeType(String mimeType) {
         if (mimeType == null) throw new IllegalArgumentException("type must be non-null");
+
+        //force UNPARSEABLE if by chance UNKNOWN_RESERVED_MIME_TYPE's text has been used
+        if (mimeType.equals(UNKNOWN_RESERVED_MIME_TYPE.str)) {
+            return UNPARSEABLE_MIME_TYPE;
+        }
+
         for (WellKnownMimeType value : values()) {
             if (mimeType.equals(value.str)) {
                 return value;
             }
         }
-        throw new IllegalArgumentException("not a WellKnownMimeType: " + mimeType);
+        return UNPARSEABLE_MIME_TYPE;
     }
 
     /**
      * Find the {@link WellKnownMimeType} for the given ID (as an int). Valid IDs are defined to be integers between 0
-     * and 127, inclusive. However some IDs in that are still only reserved and don't have a type associated yet: this
-     * method throws an {@link IllegalStateException} when passing such a ID.
+     * and 127, inclusive. IDs outside of this range will produce the {@link #UNPARSEABLE_MIME_TYPE}.
+     * Additionally, some IDs in that range are still only reserved and don't have a type associated yet: this
+     * method returns the {@link #UNKNOWN_RESERVED_MIME_TYPE} when passing such a ID, which lets call sites potentially
+     * detect this and keep the original representation when transmitting the associated metadata buffer.
      *
      * @param id the looked up id
-     * @return the {@link WellKnownMimeType}
-     * @throws IllegalArgumentException if the requested id is out of the specification's range
-     * @throws IllegalStateException if the requested id is one that is merely reserved
+     * @return the {@link WellKnownMimeType}, or {@link #UNKNOWN_RESERVED_MIME_TYPE} if the id is out of the
+     * specification's range, or {@link #UNKNOWN_RESERVED_MIME_TYPE} if the id is one that is merely reserved but
+     * unknown to this implementation.
      */
     public static WellKnownMimeType fromId(int id) {
         if (id < 0 || id > 127) {
-            throw new IllegalArgumentException("WellKnownMimeType IDs are between 0 and 127, inclusive");
+            return UNPARSEABLE_MIME_TYPE;
         }
         for (WellKnownMimeType value : values()) {
             if (value.getIdentifier() == id) return value;
         }
-        throw new IllegalStateException(id + " is between 0 and 127 yet no WellKnownMimeType found");
+        return UNKNOWN_RESERVED_MIME_TYPE;
     }
 }
