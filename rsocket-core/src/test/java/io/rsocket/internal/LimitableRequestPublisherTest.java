@@ -15,10 +15,10 @@ class LimitableRequestPublisherTest {
   public void requestLimitRacingTest() throws InterruptedException {
     Queue<Long> requests = new ArrayDeque<>(10000);
     LimitableRequestPublisher<Object> limitableRequestPublisher =
-        LimitableRequestPublisher.wrap(DirectProcessor.create().doOnRequest(requests::add), 0);
+        LimitableRequestPublisher.wrap(DirectProcessor.create().doOnRequest(requests::add), 32);
 
     Runnable request1 = () -> limitableRequestPublisher.request(1);
-    Runnable request2 = () -> limitableRequestPublisher.increaseInternalLimit(2);
+    Runnable request2 = () -> limitableRequestPublisher.internalRequest(2);
 
     limitableRequestPublisher.subscribe();
 

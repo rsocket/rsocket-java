@@ -52,7 +52,7 @@ public class LimitableRequestPublisher<T> extends Flux<T> implements Subscriptio
   private LimitableRequestPublisher(Publisher<T> source, int prefetch) {
     this.source = source;
     this.prefetch = prefetch;
-    this.limit = prefetch / 2 + 1;
+    this.limit = prefetch >> 2;
   }
 
   public static <T> LimitableRequestPublisher<T> wrap(Publisher<T> source, int prefetch) {
@@ -110,7 +110,7 @@ public class LimitableRequestPublisher<T> extends Flux<T> implements Subscriptio
       internalRequested = r;
     }
 
-    if (p == 0 && r >= limit) {
+    if (r >= limit) {
       requestN();
     }
   }

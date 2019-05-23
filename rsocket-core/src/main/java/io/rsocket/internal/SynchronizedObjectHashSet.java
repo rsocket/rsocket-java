@@ -201,7 +201,8 @@ public class SynchronizedObjectHashSet<T> extends AbstractSet<T> implements Seri
     final T[] tempValues = (T[]) new Object[newCapacity];
     Arrays.fill(tempValues, MISSING_VALUE);
 
-    for (int i = 0; i < size; i++) {
+    int length = values.length();
+    for (int i = 0; i < length; i++) {
       T value = values.get(i);
       if (value != MISSING_VALUE) {
         int newHash = value.hashCode() & mask;
@@ -309,7 +310,8 @@ public class SynchronizedObjectHashSet<T> extends AbstractSet<T> implements Seri
   @SuppressWarnings("unchecked")
   public synchronized void clear() {
     if (size > 0) {
-      for (int i = 0; i < size; i++) {
+      int lenght = values.length();
+      for (int i = 0; i < lenght; i++) {
         values.set(i, (T) MISSING_VALUE);
       }
       size = 0;
@@ -424,7 +426,8 @@ public class SynchronizedObjectHashSet<T> extends AbstractSet<T> implements Seri
     final StringBuilder sb = new StringBuilder();
     sb.append('{');
 
-    for (int i = 0; i < size; i++) {
+    int length = values.length();
+    for (int i = 0; i < length; i++) {
       T value = values.get(i);
       if (value != MISSING_VALUE) {
         sb.append(value).append(", ");
@@ -476,7 +479,8 @@ public class SynchronizedObjectHashSet<T> extends AbstractSet<T> implements Seri
   public synchronized int hashCode() {
     int hashCode = 0;
 
-    for (int i = 0; i < size; i++) {
+    int length = values.length();
+    for (int i = 0; i < length; i++) {
       T value = values.get(i);
       if (value != MISSING_VALUE) {
         hashCode += value.hashCode();

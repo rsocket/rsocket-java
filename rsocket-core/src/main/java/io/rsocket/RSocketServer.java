@@ -445,7 +445,7 @@ class RSocketServer implements ResponderRSocket {
                       frameFlux,
                       sendProcessor.available() == Long.MAX_VALUE
                           ? Integer.MAX_VALUE
-                          : Queues.XS_BUFFER_SIZE);
+                          : Queues.SMALL_BUFFER_SIZE);
               sendingSubscriptions.put(streamId, payloads);
               sendingLimitableSubscriptions.add(payloads);
               payloads.request(
@@ -485,11 +485,10 @@ class RSocketServer implements ResponderRSocket {
                 LimitableRequestPublisher subscription =
                     (LimitableRequestPublisher) sendingSubscriptions.remove(streamId);
                 sendingLimitableSubscriptions.remove(subscription);
-
-                //                long requested = subscription.getInternalRequested();
-                //                if (requested > 0) {
-                //                  shareRequest(requested, sendingLimitableSubscriptions);
-                //                }
+                long requested = subscription.getInternalRequested();
+                if (requested > 0) {
+                  shareRequest(requested, sendingLimitableSubscriptions);
+                }
               }
             });
   }
@@ -534,13 +533,11 @@ class RSocketServer implements ResponderRSocket {
       if (subscription instanceof LimitableRequestPublisher) {
         sendingLimitableSubscriptions.remove(subscription);
 
-        //      if (limitableSubscription != null) {
-        //        limitableSubscription.cancel();
-        //        //        long requested = limitableSubscription.getInternalRequested();
-        //        //        if (requested > 0) {
-        //        //          shareRequest(requested, sendingLimitableSubscriptions);
-        //        //        }
-        //      }
+        long requested =
+            ((LimitableRequestPublisher) subscription).getInternalRequested();
+        if (requested > 0) {
+          shareRequest(requested, sendingLimitableSubscriptions);
+        }
       }
     }
   }

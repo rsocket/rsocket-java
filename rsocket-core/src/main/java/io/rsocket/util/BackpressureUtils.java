@@ -27,29 +27,32 @@ public class BackpressureUtils {
         }
       } else {
 
-        long prefetch = requested > length ? requested / length : 1;
-
         int i = ThreadLocalRandom.current().nextInt(0, length);
         int count = 0;
+        boolean any = false;
 
-        while (requested <= 0) {
+        long minimumPrefetch = requested > length ? requested / length : 1;
+
+        while (requested > 0) {
           LimitableRequestPublisher subscription = values.get(i);
 
           if (subscription != null) {
+            any = true;
             if ((subscription.getExternalRequested() != 0
-                    && subscription.getExternalRequested() <= subscription.getLimit())
+                    && subscription.getInternalRequested() == 0)
                 || count >= length) {
-              subscription.internalRequest(prefetch);
+              int prefetch = subscription.getLimit();
+              subscription.internalRequest(minimumPrefetch > prefetch ? minimumPrefetch : prefetch);
               requested -= prefetch;
-
-              if (requested < prefetch) {
-                prefetch = requested;
-              }
             }
           }
 
           count++;
           i = ++i % length;
+
+          if (count >= length && !any) {
+            return;
+          }
         }
       }
 
