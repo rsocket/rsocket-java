@@ -24,6 +24,22 @@ public interface CompositeMetadata {
     interface Entry {
 
         /**
+         * A <i>passthrough</i> entry is one for which the {@link #getMimeType()} could not be decoded.
+         * This is usually because it was compressed on the wire, but using an id that is still just "reserved for
+         * future use" in this implementation.
+         * <p>
+         * Still, another actor on the network might be able to interpret such an entry, which should thus be
+         * re-encoded as it was when forwarding the frame.
+         * <p>
+         * The {@link #getMetadata()} exposes the raw content buffer of the entry (as any other entry).
+         *
+         * @return true if this entry should be ignored but passed through as is during re-encoding
+         */
+        default boolean isPassthrough() {
+            return false;
+        }
+
+        /**
          * @return the mime type for this entry
          */
         String getMimeType();
@@ -66,72 +82,62 @@ public interface CompositeMetadata {
      */
     static Entry decodeIncrementally(ByteBuf buffer, boolean retainMetadataSlices) {
         Object[] entry = CompositeMetadataFlyweight.decodeNext(buffer, retainMetadataSlices);
-        String mime = (String) entry[0];
+        Object mime = entry[0];
         ByteBuf buf = (ByteBuf) entry[1];
-        return new DefaultEntry(mime, buf);
-    }
-
-    /**
-     * Encode the next part of a composite metadata into a pre-existing {@link CompositeByteBuf} (which can be empty if
-     * the first part is being encoded).
-     * <p>
-     * This method moves the composite buffer's {@link ByteBuf#writerIndex()}, and internally allocates one buffer for
-     * the metadata header using the provided {@link ByteBufAllocator}. The mime type is compressed using the
-     * {@link WellKnownMimeType}'s identifier.
-     *
-     * @param allocator the {@link ByteBufAllocator} to use to encode the metadata headers (mime type id, metadata length)
-     * @param compositeMetadataBuffer the composite buffer to which this metadata piece is added
-     * @param mimeType the {@link WellKnownMimeType} to use
-     * @param contentBuffer the metadata content
-     */
-    static void encode(ByteBufAllocator allocator, CompositeByteBuf compositeMetadataBuffer, WellKnownMimeType mimeType, ByteBuf contentBuffer) {
-        CompositeMetadataFlyweight.addMetadata(compositeMetadataBuffer, allocator, mimeType, contentBuffer);
-    }
-
-    /**
-     * Encode the next part of a composite metadata into a pre-existing {@link CompositeByteBuf} (which can be empty if
-     * the first part is being encoded).
-     * <p>
-     * This method moves the composite buffer's {@link ByteBuf#writerIndex()}, and internally allocates one buffer for
-     * the metadata header using the provided {@link ByteBufAllocator}. The mime type is NOT compressed, even if it
-     * matches a {@link WellKnownMimeType}, see {@link #encode(ByteBufAllocator, CompositeByteBuf, String, ByteBuf)}.
-     *
-     * @param allocator the {@link ByteBufAllocator} to use to encode the metadata headers (mime type length, mime type, metadata length)
-     * @param compositeMetadataBuffer the composite buffer to which this metadata piece is added
-     * @param customMimeType the custom mime type to use (always encoded as length + string)
-     * @param contentBuffer the metadata content
-     * @see #encode(ByteBufAllocator, CompositeByteBuf, String, ByteBuf)
-     */
-    static void encodeWithoutMimeCompression(ByteBufAllocator allocator, CompositeByteBuf compositeMetadataBuffer, String customMimeType, ByteBuf contentBuffer) {
-        CompositeMetadataFlyweight.addMetadata(compositeMetadataBuffer, allocator, customMimeType, contentBuffer);
-    }
-
-    /**
-     * Encode the next part of a composite metadata into a pre-existing {@link CompositeByteBuf} (which can be empty if
-     * the first part is being encoded), with attempted mime type compression.
-     * <p>
-     * This method moves the composite buffer's {@link ByteBuf#writerIndex()}, and internally allocates one buffer for
-     * the metadata header using the provided {@link ByteBufAllocator}. Compression of the mime type is attempted, by
-     * first trying to find a matching {@link WellKnownMimeType} and using its identifier instead of a length + type
-     * encoding. Use {@link #encode(ByteBufAllocator, CompositeByteBuf, WellKnownMimeType, ByteBuf)} directly if you
-     * already know the {@link WellKnownMimeType} value to use.
-     *
-     * @param allocator the {@link ByteBufAllocator} to use to encode the metadata headers: (mime type length+mime type)
-     *                  OR mime type id, metadata length
-     * @param compositeMetadataBuffer the composite buffer to which this metadata piece is added
-     * @param customOrKnownMimeType the custom mime type to use (only encoded as length+string if no {@link WellKnownMimeType} can be found)
-     * @param contentBuffer the metadata content
-     */
-    static void encode(ByteBufAllocator allocator, CompositeByteBuf compositeMetadataBuffer, String customOrKnownMimeType, ByteBuf contentBuffer) {
-        WellKnownMimeType knownType;
-        try {
-            knownType = WellKnownMimeType.fromMimeType(customOrKnownMimeType);
+        if (mime instanceof WellKnownMimeType) {
+            return new CompressedTypeEntry((WellKnownMimeType) mime, buf);
         }
-        catch (IllegalArgumentException iae) {
-            CompositeMetadataFlyweight.addMetadata(compositeMetadataBuffer, allocator, customOrKnownMimeType, contentBuffer);
-            return;
+        if (mime instanceof Byte) {
+            return new UnknownCompressedTypeEntry((Byte) mime, buf);
         }
-        CompositeMetadataFlyweight.addMetadata(compositeMetadataBuffer, allocator, knownType, contentBuffer);
+        return new CustomTypeEntry((String) mime, buf);
+    }
+
+    /**
+     * Encode a {@link CompositeMetadata} into a new {@link CompositeByteBuf}.
+     * <p>
+     * This method moves the buffer's {@link ByteBuf#writerIndex()}.
+     * It uses the existing content {@link ByteBuf} of each {@link Entry}, but allocates a new buffer for each metadata
+     * header using the provided {@link ByteBufAllocator}.
+     *
+     * @param allocator the {@link ByteBufAllocator} to use when a new buffer is needed
+     * @param metadata the {@link CompositeMetadata} to encode
+     * @return a {@link CompositeByteBuf} that represents the {@link CompositeMetadata}
+     */
+    static CompositeByteBuf encode(ByteBufAllocator allocator, CompositeMetadata metadata) {
+        CompositeByteBuf compositeMetadataBuffer = allocator.compositeBuffer();
+        for (Entry entry : metadata.getAll()) {
+            encodeIncrementally(allocator, compositeMetadataBuffer, entry);
+        }
+        return compositeMetadataBuffer;
+    }
+
+    /**
+     * Incrementally encode a {@link CompositeMetadata} by encoding a provided {@link Entry} into a pre-existing
+     * {@link CompositeByteBuf} (which can be empty if it is the first entry that is being encoded).
+     * <p>
+     * This method moves the composite buffer's {@link ByteBuf#writerIndex()}, and internally allocates one buffer for
+     * the metadata header using the provided {@link ByteBufAllocator}.
+     * <p>
+     * If the mime type is either a {@link WellKnownMimeType} or a {@link WellKnownMimeType#UNKNOWN_RESERVED_MIME_TYPE},
+     * it is compressed using the identifier. Otherwise, the {@link String} length + mime type are encoded.
+     *
+     * @param allocator the {@link ByteBufAllocator} to use to encode the metadata headers (mime type id/length+string, metadata length)
+     * @param compositeMetadataBuffer the composite buffer to which this metadata piece is added
+     * @param metadataEntry the {@link Entry} to encode
+     */
+    static void encodeIncrementally(ByteBufAllocator allocator, CompositeByteBuf compositeMetadataBuffer, Entry metadataEntry) {
+        if (metadataEntry instanceof UnknownCompressedTypeEntry) {
+            byte id = ((UnknownCompressedTypeEntry) metadataEntry).getUnknownReservedId();
+            CompositeMetadataFlyweight.addMetadata(compositeMetadataBuffer, allocator, id, metadataEntry.getMetadata());
+        }
+        else if (metadataEntry instanceof CompressedTypeEntry) {
+            WellKnownMimeType mimeType = ((CompressedTypeEntry) metadataEntry).mimeType;
+            CompositeMetadataFlyweight.addMetadata(compositeMetadataBuffer, allocator, mimeType, metadataEntry.getMetadata());
+        }
+        else {
+            CompositeMetadataFlyweight.addMetadata(compositeMetadataBuffer, allocator, metadataEntry.getMimeType(), metadataEntry.getMetadata());
+        }
     }
 
     /**
@@ -163,6 +169,14 @@ public interface CompositeMetadata {
     List<Entry> getAll(String mimeTypeKey);
 
     /**
+     * Get all entries in the composite, to the exclusion of entries which mime type cannot be parsed,
+     * but were marked as {@link Entry#isPassthrough()} during decoding.
+     *
+     * @return an unmodifiable {@link List} of all the (parseable) entries in the composite
+     */
+    List<Entry> getAllParseable();
+
+    /**
      * Get all entries in the composite. Entries are presented in an unmodifiable {@link List} in the
      * order they appeared in on the wire.
      *
@@ -181,7 +195,7 @@ public interface CompositeMetadata {
 
         List<Entry> entries;
 
-        private DefaultCompositeMetadata(List<Entry> entries) {
+        DefaultCompositeMetadata(List<Entry> entries) {
             this.entries = Collections.unmodifiableList(entries);
         }
 
@@ -208,7 +222,18 @@ public interface CompositeMetadata {
                     forMimeType.add(entry);
                 }
             }
-            return forMimeType;
+            return Collections.unmodifiableList(forMimeType);
+        }
+
+        @Override
+        public List<Entry> getAllParseable() {
+            List<Entry> notPassthrough = new ArrayList<>();
+            for (Entry entry : entries) {
+                if (!entry.isPassthrough()) {
+                    notPassthrough.add(entry);
+                }
+            }
+            return Collections.unmodifiableList(notPassthrough);
         }
 
         @Override
@@ -222,12 +247,12 @@ public interface CompositeMetadata {
         }
     }
 
-    final class DefaultEntry implements Entry {
+    final class CustomTypeEntry implements Entry {
 
         private final String mimeType;
         private final ByteBuf content;
 
-        DefaultEntry(String mimeType, ByteBuf content) {
+        CustomTypeEntry(String mimeType, ByteBuf content) {
             this.mimeType = mimeType;
             this.content = content;
         }
@@ -235,6 +260,61 @@ public interface CompositeMetadata {
         @Override
         public String getMimeType() {
             return this.mimeType;
+        }
+
+        @Override
+        public ByteBuf getMetadata() {
+            return this.content;
+        }
+    }
+
+    final class CompressedTypeEntry implements Entry {
+
+        private final WellKnownMimeType mimeType;
+        private final ByteBuf content;
+
+        CompressedTypeEntry(WellKnownMimeType mimeType, ByteBuf content) {
+            this.mimeType = mimeType;
+            this.content = content;
+        }
+
+        @Override
+        public String getMimeType() {
+            return this.mimeType.getMime();
+        }
+
+        @Override
+        public ByteBuf getMetadata() {
+            return this.content;
+        }
+    }
+
+    final class UnknownCompressedTypeEntry implements Entry {
+
+        private final byte identifier;
+        private final ByteBuf content;
+
+        UnknownCompressedTypeEntry(byte identifier, ByteBuf content) {
+           this.identifier = identifier;
+           this.content = content;
+        }
+
+        @Override
+        public boolean isPassthrough() {
+            return true;
+        }
+
+        @Override
+        public String getMimeType() {
+            return WellKnownMimeType.UNKNOWN_RESERVED_MIME_TYPE.getMime();
+        }
+
+        /**
+         * Return the compressed identifier that was used in the original decoded metadata, but couldn't be
+         * decoded because this implementation only knows this as "reserved for future use". The original
+         */
+        public byte getUnknownReservedId() {
+            return this.identifier;
         }
 
         @Override
