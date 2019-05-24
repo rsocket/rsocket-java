@@ -155,7 +155,7 @@ class CompositeMetadataTest {
         final Entry entry3 = new UnknownCompressedTypeEntry(id3,
                 ByteBufUtils.getRandomByteBuf(3));
 
-        CompositeMetadata compositeMetadata = new CompositeMetadata.DefaultCompositeMetadata(Arrays.asList(entry1, entry2, entry3));
+        CompositeMetadata compositeMetadata = new CompositeMetadata(Arrays.asList(entry1, entry2, entry3));
         CompositeByteBuf buf = CompositeMetadata.encode(ByteBufAllocator.DEFAULT, compositeMetadata);
 
         assertThat(buf.readByte())
@@ -197,7 +197,7 @@ class CompositeMetadataTest {
         ByteBuf noMatch = ByteBufUtils.getRandomByteBuf(2);
         ByteBuf match1 = ByteBufUtils.getRandomByteBuf(2);
         ByteBuf match2 = ByteBufUtils.getRandomByteBuf(2);
-        CompositeMetadata metadata = new CompositeMetadata.DefaultCompositeMetadata(Arrays.asList(
+        CompositeMetadata metadata = new CompositeMetadata(Arrays.asList(
                 new CustomTypeEntry("noMatch", noMatch),
                 new CustomTypeEntry("match", match1),
                 new CustomTypeEntry("match", match2)
@@ -213,7 +213,7 @@ class CompositeMetadataTest {
     void getForTypeWithNoMatch() {
         ByteBuf noMatch1 = ByteBufUtils.getRandomByteBuf(2);
         ByteBuf noMatch2 = ByteBufUtils.getRandomByteBuf(2);
-        CompositeMetadata metadata = new CompositeMetadata.DefaultCompositeMetadata(Arrays.asList(
+        CompositeMetadata metadata = new CompositeMetadata(Arrays.asList(
                 new CustomTypeEntry("noMatch1", noMatch1),
                 new CustomTypeEntry("noMatch2", noMatch2)
         ));
@@ -227,7 +227,7 @@ class CompositeMetadataTest {
     void getAllForTypeIsUnmodifiable() {
         ByteBuf match1 = ByteBufUtils.getRandomByteBuf(2);
         ByteBuf match2 = ByteBufUtils.getRandomByteBuf(2);
-        CompositeMetadata metadata = new CompositeMetadata.DefaultCompositeMetadata(Arrays.asList(
+        CompositeMetadata metadata = new CompositeMetadata(Arrays.asList(
                 new CustomTypeEntry("match1", match1),
                 new CustomTypeEntry("match2", match2)
         ));
@@ -242,7 +242,7 @@ class CompositeMetadataTest {
         final Entry entry2 = new CompressedTypeEntry(WellKnownMimeType.APPLICATION_GZIP, ByteBufUtils.getRandomByteBuf(2));
         final Entry entry3 = new UnknownCompressedTypeEntry((byte) 120, ByteBufUtils.getRandomByteBuf(2));
 
-        CompositeMetadata metadata = new CompositeMetadata.DefaultCompositeMetadata(
+        CompositeMetadata metadata = new CompositeMetadata(
                 Arrays.asList(entry1, entry2, entry3));
 
         assertThat(metadata.getAll())

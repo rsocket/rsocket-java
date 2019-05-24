@@ -15,13 +15,13 @@ import java.util.List;
  * alternative is recommended. Both this method and the {@link #getAll()} method return a read-only view of the
  * composite.
  */
-public interface CompositeMetadata {
+public final class CompositeMetadata {
 
     /**
      * An entry in a {@link CompositeMetadata}, which exposes the {@link #getMimeType() mime type} and {@link ByteBuf}
      * {@link #getMetadata() content} of the metadata entry.
      */
-    interface Entry {
+    public interface Entry {
 
         /**
          * A <i>passthrough</i> entry is one for which the {@link #getMimeType()} could not be decoded.
@@ -60,12 +60,12 @@ public interface CompositeMetadata {
      * @param buffer the buffer to decode
      * @return the decoded {@link CompositeMetadata}
      */
-    static CompositeMetadata decode(ByteBuf buffer) {
+    public static CompositeMetadata decode(ByteBuf buffer) {
         List<Entry> entries = new ArrayList<>();
         while (buffer.isReadable()) {
             entries.add(decodeIncrementally(buffer, true));
         }
-        return new DefaultCompositeMetadata(entries);
+        return new CompositeMetadata(entries);
     }
 
     /**
@@ -80,7 +80,7 @@ public interface CompositeMetadata {
      * @param retainMetadataSlices should each slide be retained when read from the original buffer?
      * @return the decoded {@link Entry}
      */
-    static Entry decodeIncrementally(ByteBuf buffer, boolean retainMetadataSlices) {
+    public static Entry decodeIncrementally(ByteBuf buffer, boolean retainMetadataSlices) {
         Object[] entry = CompositeMetadataFlyweight.decodeNext(buffer, retainMetadataSlices);
         Object mime = entry[0];
         ByteBuf buf = (ByteBuf) entry[1];
@@ -104,7 +104,7 @@ public interface CompositeMetadata {
      * @param metadata the {@link CompositeMetadata} to encode
      * @return a {@link CompositeByteBuf} that represents the {@link CompositeMetadata}
      */
-    static CompositeByteBuf encode(ByteBufAllocator allocator, CompositeMetadata metadata) {
+    public static CompositeByteBuf encode(ByteBufAllocator allocator, CompositeMetadata metadata) {
         CompositeByteBuf compositeMetadataBuffer = allocator.compositeBuffer();
         for (Entry entry : metadata.getAll()) {
             encodeIncrementally(allocator, compositeMetadataBuffer, entry);
@@ -126,7 +126,7 @@ public interface CompositeMetadata {
      * @param compositeMetadataBuffer the composite buffer to which this metadata piece is added
      * @param metadataEntry the {@link Entry} to encode
      */
-    static void encodeIncrementally(ByteBufAllocator allocator, CompositeByteBuf compositeMetadataBuffer, Entry metadataEntry) {
+    public static void encodeIncrementally(ByteBufAllocator allocator, CompositeByteBuf compositeMetadataBuffer, Entry metadataEntry) {
         if (metadataEntry instanceof UnknownCompressedTypeEntry) {
             byte id = ((UnknownCompressedTypeEntry) metadataEntry).getUnknownReservedId();
             CompositeMetadataFlyweight.addMetadata(compositeMetadataBuffer, allocator, id, metadataEntry.getMetadata());
@@ -140,6 +140,12 @@ public interface CompositeMetadata {
         }
     }
 
+    List<Entry> entries;
+
+    CompositeMetadata(List<Entry> entries) {
+        this.entries = Collections.unmodifiableList(entries);
+    }
+
     /**
      * Get the first {@link CompositeMetadata.Entry} that matches the given mime type, or null if no such
      * entry exist.
@@ -147,7 +153,14 @@ public interface CompositeMetadata {
      * @param mimeTypeKey the mime type to look up
      * @return the metadata entry
      */
-    Entry get(String mimeTypeKey);
+    public Entry get(String mimeTypeKey) {
+        for (Entry entry : entries) {
+            if (mimeTypeKey.equals(entry.getMimeType())) {
+                return entry;
+            }
+        }
+        return null;
+    }
 
     /**
      * Get the {@link CompositeMetadata.Entry} at the given 0-based index. This is equivalent to
@@ -157,7 +170,9 @@ public interface CompositeMetadata {
      * @return the metadata entry
      * @throws IndexOutOfBoundsException if the index is negative or greater than or equal to {@link #size()}
      */
-    Entry get(int index);
+    public Entry get(int index) {
+        return entries.get(index);
+    }
 
     /**
      * Get all entries that match the given mime type. An empty list is returned if no such entry exists.
@@ -166,7 +181,15 @@ public interface CompositeMetadata {
      * @param mimeTypeKey the mime type to look up
      * @return an unmodifiable {@link List} of matching entries in the composite
      */
-    List<Entry> getAll(String mimeTypeKey);
+    public List<Entry> getAll(String mimeTypeKey) {
+        List<Entry> forMimeType = new ArrayList<>();
+        for (Entry entry : entries) {
+            if (mimeTypeKey.equals(entry.getMimeType())) {
+                forMimeType.add(entry);
+            }
+        }
+        return Collections.unmodifiableList(forMimeType);
+    }
 
     /**
      * Get all entries in the composite, to the exclusion of entries which mime type cannot be parsed,
@@ -174,7 +197,15 @@ public interface CompositeMetadata {
      *
      * @return an unmodifiable {@link List} of all the (parseable) entries in the composite
      */
-    List<Entry> getAllParseable();
+    public List<Entry> getAllParseable() {
+        List<Entry> notPassthrough = new ArrayList<>();
+        for (Entry entry : entries) {
+            if (!entry.isPassthrough()) {
+                notPassthrough.add(entry);
+            }
+        }
+        return Collections.unmodifiableList(notPassthrough);
+    }
 
     /**
      * Get all entries in the composite. Entries are presented in an unmodifiable {@link List} in the
@@ -182,72 +213,20 @@ public interface CompositeMetadata {
      *
      * @return an unmodifiable {@link List} of all the entries in the composite
      */
-    List<Entry> getAll();
+    public List<Entry> getAll() {
+        return this.entries; //initially wrapped in Collections.unmodifiableList, so safe to return
+    }
 
     /**
      * Get the number of entries in this composite.
      *
      * @return the size of the metadata composite
      */
-    int size();
-
-    final class DefaultCompositeMetadata implements CompositeMetadata {
-
-        List<Entry> entries;
-
-        DefaultCompositeMetadata(List<Entry> entries) {
-            this.entries = Collections.unmodifiableList(entries);
-        }
-
-        @Override
-        public Entry get(String mimeTypeKey) {
-            for (Entry entry : entries) {
-                if (mimeTypeKey.equals(entry.getMimeType())) {
-                    return entry;
-                }
-            }
-            return null;
-        }
-
-        @Override
-        public Entry get(int index) {
-            return entries.get(index);
-        }
-
-        @Override
-        public List<Entry> getAll(String mimeTypeKey) {
-            List<Entry> forMimeType = new ArrayList<>();
-            for (Entry entry : entries) {
-                if (mimeTypeKey.equals(entry.getMimeType())) {
-                    forMimeType.add(entry);
-                }
-            }
-            return Collections.unmodifiableList(forMimeType);
-        }
-
-        @Override
-        public List<Entry> getAllParseable() {
-            List<Entry> notPassthrough = new ArrayList<>();
-            for (Entry entry : entries) {
-                if (!entry.isPassthrough()) {
-                    notPassthrough.add(entry);
-                }
-            }
-            return Collections.unmodifiableList(notPassthrough);
-        }
-
-        @Override
-        public List<Entry> getAll() {
-            return this.entries; //initially wrapped in Collections.unmodifiableList, so safe to return
-        }
-
-        @Override
-        public int size() {
-            return entries.size();
-        }
+    public int size() {
+        return entries.size();
     }
 
-    final class CustomTypeEntry implements Entry {
+    static final class CustomTypeEntry implements Entry {
 
         private final String mimeType;
         private final ByteBuf content;
@@ -268,7 +247,7 @@ public interface CompositeMetadata {
         }
     }
 
-    final class CompressedTypeEntry implements Entry {
+    static final class CompressedTypeEntry implements Entry {
 
         private final WellKnownMimeType mimeType;
         private final ByteBuf content;
@@ -289,7 +268,11 @@ public interface CompositeMetadata {
         }
     }
 
-    final class UnknownCompressedTypeEntry implements Entry {
+    /**
+     * A {@link Entry#isPassthrough() pass-through} {@link Entry} that encapsulates a
+     * compressed-mime metadata that couldn't be recognized.
+     */
+    public static final class UnknownCompressedTypeEntry implements Entry {
 
         private final byte identifier;
         private final ByteBuf content;
