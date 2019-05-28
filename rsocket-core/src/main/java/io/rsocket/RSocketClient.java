@@ -326,12 +326,19 @@ class RSocketClient implements RSocket {
                         request
                             .transform(
                                 f -> {
-                                  LimitableRequestPublisher<Payload> wrapped =
-                                      LimitableRequestPublisher.wrap(
-                                          f,
-                                          sendProcessor.available() == Long.MAX_VALUE
-                                              ? Integer.MAX_VALUE
-                                              : Queues.SMALL_BUFFER_SIZE);
+                                  long available = sendProcessor.available();
+                                  LimitableRequestPublisher<Payload> wrapped;
+                                  if (available == Long.MAX_VALUE) {
+                                    wrapped = LimitableRequestPublisher.wrap(f, Integer.MAX_VALUE);
+                                  } else {
+                                    long prefetch = Math.max(available, Queues.XS_BUFFER_SIZE);
+                                    wrapped =
+                                        LimitableRequestPublisher.wrap(f, Queues.XS_BUFFER_SIZE);
+                                    if (prefetch > Queues.XS_BUFFER_SIZE) {
+                                      long firstRequest = prefetch - Queues.XS_BUFFER_SIZE;
+                                      wrapped.internalRequest(firstRequest);
+                                    }
+                                  }
                                   // Need to set this to one for first the frame
                                   wrapped.request(1);
                                   senders.put(streamId, wrapped);
@@ -418,9 +425,7 @@ class RSocketClient implements RSocket {
                       sendersAsASet.remove(sender);
                       sender.cancel();
                       long requested = sender.getInternalRequested();
-                      if (requested > 0) {
-                        shareRequest(requested, sendersAsASet);
-                      }
+                      shareRequest(Math.max(sender.getLimit(), requested), sendersAsASet);
                     }
                   });
         });
@@ -529,9 +534,7 @@ class RSocketClient implements RSocket {
               sendersAsASet.remove(sender);
               sender.cancel();
               long requested = sender.getInternalRequested();
-              if (requested > 0) {
-                shareRequest(requested, sendersAsASet);
-              }
+              shareRequest(Math.max(sender.getLimit(), requested), sendersAsASet);
             }
             break;
           }

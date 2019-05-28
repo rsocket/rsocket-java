@@ -24,7 +24,6 @@ import io.rsocket.transport.local.LocalClientTransport;
 import io.rsocket.transport.local.LocalServerTransport;
 import io.rsocket.util.DefaultPayload;
 import java.time.Duration;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import org.junit.Test;
 import reactor.core.publisher.Flux;
@@ -124,12 +123,11 @@ public class TestingStreaming {
         .transport(clientSupplier)
         .start()
         .flatMapMany(
-            rSocket -> {
-              AtomicInteger count = new AtomicInteger();
-              return Flux.range(1, 100)
-                  .flatMap(
-                      i -> rSocket.requestStream(DefaultPayload.create("i -> " + i)).take(100), 1);
-            });
+            rSocket ->
+                Flux.range(1, 100)
+                    .flatMap(
+                        i -> rSocket.requestStream(DefaultPayload.create("i -> " + i)).take(100),
+                        1));
   }
 
   @Test

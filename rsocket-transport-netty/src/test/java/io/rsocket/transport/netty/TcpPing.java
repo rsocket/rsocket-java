@@ -89,7 +89,7 @@ public final class TcpPing {
         clientRSocketFactory
             .frameDecoder(PayloadDecoder.ZERO_COPY)
             .keepAlive(Duration.ofMinutes(1), Duration.ofMinutes(30), 3)
-            .transport(TcpClientTransport.create(port))
+            .transport(TcpClientTransport.create("localhost", port))
             .start();
 
     return new PingClient(rSocket);

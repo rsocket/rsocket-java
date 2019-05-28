@@ -31,7 +31,7 @@ public class BackpressureUtils {
         int count = 0;
         boolean any = false;
 
-        long minimumPrefetch = requested > length ? requested / length : 1;
+        //        long minimumPrefetch = (requested << 8) > length ? requested / length : 1;
 
         while (requested > 0) {
           LimitableRequestPublisher subscription = values.get(i);
@@ -42,7 +42,7 @@ public class BackpressureUtils {
                     && subscription.getInternalRequested() == 0)
                 || count >= length) {
               int prefetch = subscription.getLimit();
-              subscription.internalRequest(minimumPrefetch > prefetch ? minimumPrefetch : prefetch);
+              subscription.internalRequest(prefetch);
               requested -= prefetch;
             }
           }
@@ -50,8 +50,11 @@ public class BackpressureUtils {
           count++;
           i = ++i % length;
 
-          if (count >= length && !any) {
-            return;
+          if (count % length == 0) {
+            if (!any) {
+              return;
+            }
+            any = false;
           }
         }
       }

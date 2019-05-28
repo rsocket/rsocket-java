@@ -17,6 +17,7 @@
 package io.rsocket.internal;
 
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
+import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 import javax.annotation.Nullable;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
@@ -42,8 +43,17 @@ public class LimitableRequestPublisher<T> extends Flux<T> implements Subscriptio
 
   private int produced;
 
-  private long internalRequested;
-  private long externalRequested;
+  private volatile long internalRequested;
+  private static final AtomicLongFieldUpdater<LimitableRequestPublisher> INTERNAL_REQUESTED =
+      AtomicLongFieldUpdater.newUpdater(LimitableRequestPublisher.class, "internalRequested");
+
+  private volatile long externalRequested;
+  private static final AtomicLongFieldUpdater<LimitableRequestPublisher> EXTERNAL_REQUESTED =
+      AtomicLongFieldUpdater.newUpdater(LimitableRequestPublisher.class, "externalRequested");
+
+  private volatile int wip;
+  private static final AtomicIntegerFieldUpdater<LimitableRequestPublisher> WIP =
+      AtomicIntegerFieldUpdater.newUpdater(LimitableRequestPublisher.class, "wip");
 
   private boolean subscribed;
 
@@ -61,10 +71,6 @@ public class LimitableRequestPublisher<T> extends Flux<T> implements Subscriptio
 
   public int getLimit() {
     return limit;
-  }
-
-  public int getProduced() {
-    return produced;
   }
 
   public long getInternalRequested() {
@@ -97,73 +103,57 @@ public class LimitableRequestPublisher<T> extends Flux<T> implements Subscriptio
   }
 
   public void internalRequest(long n) {
-    int p;
-    long r;
-
-    synchronized (this) {
-      p = produced;
-      long requested = internalRequested;
-      if (requested == Long.MAX_VALUE) {
-        return;
-      }
-      r = Operators.addCap(n, requested);
-      internalRequested = r;
-    }
-
-    if (r >= limit) {
-      requestN();
-    }
+    Operators.addCap(INTERNAL_REQUESTED, this, n);
+    requestN();
   }
 
   @Override
   public void request(long n) {
-    synchronized (this) {
-      long requested = externalRequested;
-      if (requested == Long.MAX_VALUE) {
-        return;
-      }
-      externalRequested = Operators.addCap(n, requested);
-    }
-
+    //    if (Operators.addCap(EXTERNAL_REQUESTED, this, n) == 0) {
+    Operators.addCap(EXTERNAL_REQUESTED, this, n);
     requestN();
+    //    }
   }
 
   private void requestN() {
-    long r;
-    final Subscription s;
-
-    synchronized (this) {
-      s = internalSubscription;
-      if (s == null) {
-        return;
-      }
-
-      long er = externalRequested;
-      long ir = internalRequested;
-
-      if (er != Long.MAX_VALUE || ir != Long.MAX_VALUE) {
-        int limit = this.limit;
-        r = Math.min(ir, limit);
-
-        if (r != limit) {
-          return;
-        }
-
-        r = Math.min(r, er);
-
-        if (er != Long.MAX_VALUE) {
-          externalRequested -= r;
-        }
-        if (ir != Long.MAX_VALUE) {
-          internalRequested -= r;
-        }
-      } else {
-        r = Long.MAX_VALUE;
-      }
+    if (WIP.getAndIncrement(this) > 0) {
+      return;
     }
 
-    if (r > 0) {
-      s.request(r);
+    long r;
+    final Subscription s = internalSubscription;
+    int missed = 1;
+
+    long er = externalRequested;
+    long ir = internalRequested;
+    int limit = this.limit;
+
+    while (true) {
+      if (s != null) {
+        if (er != Long.MAX_VALUE || ir != Long.MAX_VALUE) {
+          if (ir > limit) {
+            r = Math.min(ir, er);
+
+            if (er != Long.MAX_VALUE) {
+              er = EXTERNAL_REQUESTED.addAndGet(this, -r);
+            }
+            if (ir != Long.MAX_VALUE) {
+              ir = INTERNAL_REQUESTED.addAndGet(this, -r);
+            }
+
+            if (r > 0) {
+              s.request(r);
+            }
+          }
+        } else {
+          s.request(Long.MAX_VALUE);
+        }
+      }
+
+      missed = WIP.addAndGet(this, -missed);
+      if (missed == 0) {
+        break;
+      }
     }
   }
 

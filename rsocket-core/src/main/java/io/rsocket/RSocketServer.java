@@ -440,17 +440,23 @@ class RSocketServer implements ResponderRSocket {
     response
         .transform(
             frameFlux -> {
-              LimitableRequestPublisher<Payload> payloads =
-                  LimitableRequestPublisher.wrap(
-                      frameFlux,
-                      sendProcessor.available() == Long.MAX_VALUE
-                          ? Integer.MAX_VALUE
-                          : Queues.SMALL_BUFFER_SIZE);
-              sendingSubscriptions.put(streamId, payloads);
-              sendingLimitableSubscriptions.add(payloads);
-              payloads.request(
+              long available = sendProcessor.available();
+              LimitableRequestPublisher<Payload> wrapped;
+              if (available == Long.MAX_VALUE) {
+                wrapped = LimitableRequestPublisher.wrap(frameFlux, Integer.MAX_VALUE);
+              } else {
+                long prefetch = Math.max(available, Queues.XS_BUFFER_SIZE);
+                wrapped = LimitableRequestPublisher.wrap(frameFlux, Queues.XS_BUFFER_SIZE);
+                if (prefetch > Queues.XS_BUFFER_SIZE) {
+                  long firstRequest = prefetch - Queues.XS_BUFFER_SIZE;
+                  wrapped.internalRequest(firstRequest);
+                }
+              }
+              sendingSubscriptions.put(streamId, wrapped);
+              sendingLimitableSubscriptions.add(wrapped);
+              wrapped.request(
                   initialRequestN >= Integer.MAX_VALUE ? Long.MAX_VALUE : initialRequestN);
-              return payloads;
+              return wrapped;
             })
         .subscribe(
             new BaseSubscriber<Payload>() {
@@ -486,9 +492,8 @@ class RSocketServer implements ResponderRSocket {
                     (LimitableRequestPublisher) sendingSubscriptions.remove(streamId);
                 sendingLimitableSubscriptions.remove(subscription);
                 long requested = subscription.getInternalRequested();
-                if (requested > 0) {
-                  shareRequest(requested, sendingLimitableSubscriptions);
-                }
+                shareRequest(
+                    Math.max(subscription.getLimit(), requested), sendingLimitableSubscriptions);
               }
             });
   }
@@ -533,11 +538,10 @@ class RSocketServer implements ResponderRSocket {
       if (subscription instanceof LimitableRequestPublisher) {
         sendingLimitableSubscriptions.remove(subscription);
 
-        long requested =
-            ((LimitableRequestPublisher) subscription).getInternalRequested();
-        if (requested > 0) {
-          shareRequest(requested, sendingLimitableSubscriptions);
-        }
+        long requested = ((LimitableRequestPublisher) subscription).getInternalRequested();
+        shareRequest(
+            Math.max(((LimitableRequestPublisher) subscription).getLimit(), requested),
+            sendingLimitableSubscriptions);
       }
     }
   }
