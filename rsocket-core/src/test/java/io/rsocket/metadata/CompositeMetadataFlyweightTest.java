@@ -2,15 +2,15 @@ package io.rsocket.metadata;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
-import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.CompositeByteBuf;
 import io.netty.util.CharsetUtil;
+import io.rsocket.test.util.ByteBufUtils;
+import io.rsocket.util.NumberUtils;
 import org.junit.jupiter.api.Test;
 
-import java.util.ArrayList;
-import java.util.List;
-
-import static org.assertj.core.api.Assertions.*;
+import static io.rsocket.metadata.CompositeMetadataFlyweight.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 
 class CompositeMetadataFlyweightTest {
 
@@ -41,9 +41,31 @@ class CompositeMetadataFlyweightTest {
                 .isEqualTo("10000000")
                 .isEqualTo(byteToBitsString(mime.getIdentifier()).replaceFirst("0", "1"));
 
-        assertThat(CompositeMetadataFlyweight.decode3WaysMimeFromMetadataHeader(encoded))
-                .isInstanceOf(WellKnownMimeType.class)
-                .isSameAs(mime);
+        final ByteBuf[] byteBufs = decodeMimeAndContentBuffers(encoded, false);
+        assertThat(byteBufs)
+                .hasSize(2)
+                .doesNotContainNull();
+
+        ByteBuf header = byteBufs[0];
+        ByteBuf content = byteBufs[1];
+        header.markReaderIndex();
+
+        assertThat(header.readableBytes())
+                .as("metadata header size")
+                .isOne();
+
+        assertThat(byteToBitsString(header.readByte()))
+                .as("header bit representation")
+                .isEqualTo("10000000");
+
+        header.resetReaderIndex();
+        assertThat(decodeMimeIdFromMimeBuffer(header))
+                .as("decoded mime id")
+                .isEqualTo(mime.getIdentifier());
+
+        assertThat(content.readableBytes())
+                .as("no metadata content")
+                .isZero();
     }
 
     @Test
@@ -60,9 +82,31 @@ class CompositeMetadataFlyweightTest {
                 .isEqualTo("11111111")
                 .isEqualTo(byteToBitsString(mime.getIdentifier()).replaceFirst("0", "1"));
 
-        assertThat(CompositeMetadataFlyweight.decode3WaysMimeFromMetadataHeader(encoded))
-                .isInstanceOf(WellKnownMimeType.class)
-                .isSameAs(mime);
+        final ByteBuf[] byteBufs = decodeMimeAndContentBuffers(encoded, false);
+        assertThat(byteBufs)
+                .hasSize(2)
+                .doesNotContainNull();
+
+        ByteBuf header = byteBufs[0];
+        ByteBuf content = byteBufs[1];
+        header.markReaderIndex();
+
+        assertThat(header.readableBytes())
+                .as("metadata header size")
+                .isOne();
+
+        assertThat(byteToBitsString(header.readByte()))
+                .as("header bit representation")
+                .isEqualTo("11111111");
+
+        header.resetReaderIndex();
+        assertThat(decodeMimeIdFromMimeBuffer(header))
+                .as("decoded mime id")
+                .isEqualTo(mime.getIdentifier());
+
+        assertThat(content.readableBytes())
+                .as("no metadata content")
+                .isZero();
     }
 
     @Test
@@ -77,10 +121,31 @@ class CompositeMetadataFlyweightTest {
                 .startsWith("1")
                 .isEqualTo("11111000");
 
+        final ByteBuf[] byteBufs = decodeMimeAndContentBuffers(encoded, false);
+        assertThat(byteBufs)
+                .hasSize(2)
+                .doesNotContainNull();
 
-        assertThat(CompositeMetadataFlyweight.decode3WaysMimeFromMetadataHeader(encoded))
-                .isInstanceOf(Byte.class)
-                .isSameAs(mime);
+        ByteBuf header = byteBufs[0];
+        ByteBuf content = byteBufs[1];
+        header.markReaderIndex();
+
+        assertThat(header.readableBytes())
+                .as("metadata header size")
+                .isOne();
+
+        assertThat(byteToBitsString(header.readByte()))
+                .as("header bit representation")
+                .isEqualTo("11111000");
+
+        header.resetReaderIndex();
+        assertThat(decodeMimeIdFromMimeBuffer(header))
+                .as("decoded mime id")
+                .isEqualTo(mime);
+
+        assertThat(content.readableBytes())
+                .as("no metadata content")
+                .isZero();
     }
 
     @Test
@@ -92,9 +157,35 @@ class CompositeMetadataFlyweightTest {
                 .startsWith("0")
                 .isEqualTo("00000000");
 
-        assertThat(CompositeMetadataFlyweight.decode3WaysMimeFromMetadataHeader(encoded))
-                .isInstanceOf(String.class)
-                .isEqualTo(mimeString);
+        final ByteBuf[] byteBufs = decodeMimeAndContentBuffers(encoded, false);
+        assertThat(byteBufs)
+                .hasSize(2)
+                .doesNotContainNull();
+
+        ByteBuf header = byteBufs[0];
+        ByteBuf content = byteBufs[1];
+        header.markReaderIndex();
+
+        assertThat(header.readableBytes())
+                .as("metadata header size")
+                .isGreaterThan(1);
+
+        assertThat((int) header.readByte())
+                .as("mime length")
+                .isEqualTo(1 -1); //encoded as actual length - 1
+
+        assertThat(header.readCharSequence(1, CharsetUtil.US_ASCII))
+                .as("mime string")
+                .hasToString(mimeString);
+
+        header.resetReaderIndex();
+        assertThat(CompositeMetadataFlyweight.decodeMimeTypeFromMimeBuffer(header))
+                .as("decoded mime string")
+                .hasToString(mimeString);
+
+        assertThat(content.readableBytes())
+                .as("no metadata content")
+                .isZero();
     }
 
     @Test
@@ -106,9 +197,35 @@ class CompositeMetadataFlyweightTest {
                 .startsWith("0")
                 .isEqualTo("00000001");
 
-        assertThat(CompositeMetadataFlyweight.decode3WaysMimeFromMetadataHeader(encoded))
-                .isInstanceOf(String.class)
-                .isEqualTo(mimeString);
+        final ByteBuf[] byteBufs = decodeMimeAndContentBuffers(encoded, false);
+        assertThat(byteBufs)
+                .hasSize(2)
+                .doesNotContainNull();
+
+        ByteBuf header = byteBufs[0];
+        ByteBuf content = byteBufs[1];
+        header.markReaderIndex();
+
+        assertThat(header.readableBytes())
+                .as("metadata header size")
+                .isGreaterThan(1);
+
+        assertThat((int) header.readByte())
+                .as("mime length")
+                .isEqualTo(2 - 1); //encoded as actual length - 1
+
+        assertThat(header.readCharSequence(2, CharsetUtil.US_ASCII))
+                .as("mime string")
+                .hasToString(mimeString);
+
+        header.resetReaderIndex();
+        assertThat(CompositeMetadataFlyweight.decodeMimeTypeFromMimeBuffer(header))
+                .as("decoded mime string")
+                .hasToString(mimeString);
+
+        assertThat(content.readableBytes())
+                .as("no metadata content")
+                .isZero();
     }
 
     @Test
@@ -117,16 +234,42 @@ class CompositeMetadataFlyweightTest {
         for (int i = 0; i < 127; i++) {
             builder.append('a');
         }
-        String longString = builder.toString();
-        ByteBuf encoded = CompositeMetadataFlyweight.encodeMetadataHeader(ByteBufAllocator.DEFAULT, longString, 0);
+        String mimeString = builder.toString();
+        ByteBuf encoded = CompositeMetadataFlyweight.encodeMetadataHeader(ByteBufAllocator.DEFAULT, mimeString, 0);
 
         assertThat(toHeaderBits(encoded))
                 .startsWith("0")
                 .isEqualTo("01111110");
 
-        assertThat(CompositeMetadataFlyweight.decode3WaysMimeFromMetadataHeader(encoded))
-                .isInstanceOf(String.class)
-                .isEqualTo(longString);
+        final ByteBuf[] byteBufs = decodeMimeAndContentBuffers(encoded, false);
+        assertThat(byteBufs)
+                .hasSize(2)
+                .doesNotContainNull();
+
+        ByteBuf header = byteBufs[0];
+        ByteBuf content = byteBufs[1];
+        header.markReaderIndex();
+
+        assertThat(header.readableBytes())
+                .as("metadata header size")
+                .isGreaterThan(1);
+
+        assertThat((int) header.readByte())
+                .as("mime length")
+                .isEqualTo(127 - 1); //encoded as actual length - 1
+
+        assertThat(header.readCharSequence(127, CharsetUtil.US_ASCII))
+                .as("mime string")
+                .hasToString(mimeString);
+
+        header.resetReaderIndex();
+        assertThat(CompositeMetadataFlyweight.decodeMimeTypeFromMimeBuffer(header))
+                .as("decoded mime string")
+                .hasToString(mimeString);
+
+        assertThat(content.readableBytes())
+                .as("no metadata content")
+                .isZero();
     }
 
     @Test
@@ -135,16 +278,42 @@ class CompositeMetadataFlyweightTest {
         for (int i = 0; i < 128; i++) {
             builder.append('a');
         }
-        String longString = builder.toString();
-        ByteBuf encoded = CompositeMetadataFlyweight.encodeMetadataHeader(ByteBufAllocator.DEFAULT, longString, 0);
+        String mimeString = builder.toString();
+        ByteBuf encoded = CompositeMetadataFlyweight.encodeMetadataHeader(ByteBufAllocator.DEFAULT, mimeString, 0);
 
         assertThat(toHeaderBits(encoded))
                 .startsWith("0")
                 .isEqualTo("01111111");
 
-        assertThat(CompositeMetadataFlyweight.decode3WaysMimeFromMetadataHeader(encoded))
-                .isInstanceOf(String.class)
-                .isEqualTo(longString);
+        final ByteBuf[] byteBufs = decodeMimeAndContentBuffers(encoded, false);
+        assertThat(byteBufs)
+                .hasSize(2)
+                .doesNotContainNull();
+
+        ByteBuf header = byteBufs[0];
+        ByteBuf content = byteBufs[1];
+        header.markReaderIndex();
+
+        assertThat(header.readableBytes())
+                .as("metadata header size")
+                .isGreaterThan(1);
+
+        assertThat((int) header.readByte())
+                .as("mime length")
+                .isEqualTo(128 - 1); //encoded as actual length - 1
+
+        assertThat(header.readCharSequence(128, CharsetUtil.US_ASCII))
+                .as("mime string")
+                .hasToString(mimeString);
+
+        header.resetReaderIndex();
+        assertThat(CompositeMetadataFlyweight.decodeMimeTypeFromMimeBuffer(header))
+                .as("decoded mime string")
+                .hasToString(mimeString);
+
+        assertThat(content.readableBytes())
+                .as("no metadata content")
+                .isZero();
     }
 
     @Test
@@ -176,259 +345,187 @@ class CompositeMetadataFlyweightTest {
     }
 
     @Test
-    void decodeMetadataLengthFromUntouchedWithKnownMime() {
-        ByteBuf encoded = CompositeMetadataFlyweight.encodeMetadataHeader(ByteBufAllocator.DEFAULT, WellKnownMimeType.APPLICATION_GZIP.getIdentifier(), 12);
+    void decodeEntryTooShortForMimeLength() {
+        ByteBuf fakeEntry = ByteBufAllocator.DEFAULT.buffer();
+        fakeEntry.writeByte(120);
 
-        assertThat(CompositeMetadataFlyweight.decodeMetadataLengthFromMetadataHeader(encoded))
-                .withFailMessage("should not correctly decode if not at correct reader index")
-                .isNotEqualTo(12);
+        assertThat(decodeMimeAndContentBuffers(fakeEntry, false))
+                .isSameAs(METADATA_MALFORMED);
     }
 
     @Test
-    void decodeMetadataLengthFromMimeDecodedWithKnownMime() {
-        ByteBuf encoded = CompositeMetadataFlyweight.encodeMetadataHeader(ByteBufAllocator.DEFAULT, WellKnownMimeType.APPLICATION_GZIP.getIdentifier(), 12);
-        CompositeMetadataFlyweight.decode3WaysMimeFromMetadataHeader(encoded);
+    void decodeEntryHasNoContentLength() {
+        ByteBuf fakeEntry = ByteBufAllocator.DEFAULT.buffer();
+        fakeEntry.writeByte(0);
+        fakeEntry.writeCharSequence("w", CharsetUtil.US_ASCII);
 
-        assertThat(CompositeMetadataFlyweight.decodeMetadataLengthFromMetadataHeader(encoded)).isEqualTo(12);
+        assertThat(decodeMimeAndContentBuffers(fakeEntry, false))
+                .isSameAs(METADATA_MALFORMED);
     }
 
     @Test
-    void decodeMetadataLengthFromUntouchedWithCustomMime() {
-        ByteBuf encoded = CompositeMetadataFlyweight.encodeMetadataHeader(ByteBufAllocator.DEFAULT, "foo/bar", 12);
+    void decodeEntryTooShortForContentLength() {
+        ByteBuf fakeEntry = ByteBufAllocator.DEFAULT.buffer();
+        fakeEntry.writeByte(1);
+        fakeEntry.writeCharSequence("w", CharsetUtil.US_ASCII);
+        NumberUtils.encodeUnsignedMedium(fakeEntry, 456);
+        fakeEntry.writeChar('w');
 
-        assertThat(CompositeMetadataFlyweight.decodeMetadataLengthFromMetadataHeader(encoded))
-                .withFailMessage("should not correctly decode if not at correct reader index")
-                .isNotEqualTo(12);
+        assertThat(decodeMimeAndContentBuffers(fakeEntry, false))
+                .isSameAs(METADATA_MALFORMED);
     }
 
     @Test
-    void decodeMetadataLengthFromMimeDecodedWithCustomMime() {
-        ByteBuf encoded = CompositeMetadataFlyweight.encodeMetadataHeader(ByteBufAllocator.DEFAULT, "foo/bar", 12);
-        CompositeMetadataFlyweight.decode3WaysMimeFromMetadataHeader(encoded);
+    void decodeEntryAtEndOfBuffer() {
+        ByteBuf fakeEntry = ByteBufAllocator.DEFAULT.buffer();
 
-        assertThat(CompositeMetadataFlyweight.decodeMetadataLengthFromMetadataHeader(encoded)).isEqualTo(12);
+        assertThat(decodeMimeAndContentBuffers(fakeEntry, false))
+                .isSameAs(METADATA_BUFFERS_DONE);
     }
 
     @Test
-    void decodeMetadataLengthFromTooShortBuffer() {
-        ByteBuf buffer = ByteBufAllocator.DEFAULT.buffer();
-        buffer.writeShort(12);
+    void decodeIdMinusTwoWhenZeroByte() {
+        ByteBuf fakeIdBuffer = ByteBufAllocator.DEFAULT.buffer(0);
 
-        assertThatExceptionOfType(RuntimeException.class)
-                .isThrownBy(() -> CompositeMetadataFlyweight.decodeMetadataLengthFromMetadataHeader(buffer))
-                .withMessage("the given buffer should contain at least 3 readable bytes after decoding mime type");
+        assertThat(decodeMimeIdFromMimeBuffer(fakeIdBuffer))
+                .isEqualTo((WellKnownMimeType.UNPARSEABLE_MIME_TYPE.getIdentifier()));
     }
 
     @Test
-    void compositeMetadata() {
-        //metadata 1:
-        WellKnownMimeType mimeType1 = WellKnownMimeType.APPLICATION_PDF;
-        ByteBuf metadata1 = ByteBufAllocator.DEFAULT.buffer();
-        metadata1.writeCharSequence("abcdefghijkl", CharsetUtil.UTF_8);
-        int metadataLength1 = metadata1.readableBytes();
+    void decodeIdMinusTwoWhenMoreThanOneByte() {
+        ByteBuf fakeIdBuffer = ByteBufAllocator.DEFAULT.buffer(2);
+        fakeIdBuffer.writeInt(200);
 
-        //metadata 2:
-        String mimeType2 = "application/custom";
-        ByteBuf metadata2 = ByteBufAllocator.DEFAULT.buffer();
-        metadata2.writeChar('E');
-        metadata2.writeChar('∑');
-        metadata2.writeChar('é');
-        metadata2.writeBoolean(true);
-        metadata2.writeChar('W');
-        int metadataLength2 = metadata2.readableBytes();
-
-        CompositeByteBuf compositeMetadata = ByteBufAllocator.DEFAULT.compositeBuffer();
-        CompositeMetadataFlyweight.addMetadata(compositeMetadata, ByteBufAllocator.DEFAULT, mimeType1, metadata1);
-        CompositeMetadataFlyweight.addMetadata(compositeMetadata, ByteBufAllocator.DEFAULT, mimeType2, metadata2);
-        System.out.println(ByteBufUtil.prettyHexDump(compositeMetadata));
-
-        compositeMetadata.readByte(); //ignore the "know mime + ID" byte for now
-        assertThat(compositeMetadata.readUnsignedMedium())
-                .as("metadata1 length")
-                .isEqualTo(metadataLength1);
-        assertThat(compositeMetadata.readCharSequence(metadataLength1, CharsetUtil.UTF_8))
-                .as("metadata1 value").isEqualTo("abcdefghijkl");
-
-        int mimeLength = compositeMetadata.readByte() + 1;
-
-        assertThat(compositeMetadata.readCharSequence(mimeLength, CharsetUtil.US_ASCII).toString())
-                .as("metadata2 custom mime ")
-                .isEqualTo(mimeType2);
-        assertThat(compositeMetadata.readUnsignedMedium())
-                .as("metadata2 length")
-                .isEqualTo(metadataLength2);
-        assertThat(compositeMetadata.readChar())
-                .as("metadata2 value 1/5")
-                .isEqualTo('E');
-        assertThat(compositeMetadata.readChar())
-                .as("metadata2 value 2/5")
-                .isEqualTo('∑');
-
-        assertThat(compositeMetadata.readChar())
-                .as("metadata2 value 3/5")
-                .isEqualTo('é');
-        assertThat(compositeMetadata.readBoolean())
-                .as("metadata2 value 4/5")
-                .isTrue();
-        assertThat(compositeMetadata.readChar())
-                .as("metadata2 value 5/5")
-                .isEqualTo('W');
-
-        assertThat(compositeMetadata.readableBytes())
-                .as("reading composite metadata done")
-                .isZero();
+        assertThat(decodeMimeIdFromMimeBuffer(fakeIdBuffer))
+                .isEqualTo((WellKnownMimeType.UNPARSEABLE_MIME_TYPE.getIdentifier()));
     }
 
     @Test
-    void decodeCompositeMetadata() {
-        //metadata 1: well known
-        WellKnownMimeType mimeType1 = WellKnownMimeType.APPLICATION_PDF;
-        ByteBuf metadata1 = ByteBufAllocator.DEFAULT.buffer();
-        metadata1.writeCharSequence("abcdefghijkl", CharsetUtil.UTF_8);
+    void decodeStringNullIfLengthZero() {
+        ByteBuf fakeTypeBuffer = ByteBufAllocator.DEFAULT.buffer(2);
 
-        //metadata 2: custom
-        String mimeType2 = "application/custom";
-        ByteBuf metadata2 = ByteBufAllocator.DEFAULT.buffer();
-        metadata2.writeChar('E');
-        metadata2.writeChar('∑');
-        metadata2.writeChar('é');
-        metadata2.writeBoolean(true);
-        metadata2.writeChar('W');
-
-        //metadata 3: reserved but unknown
-        byte reserved = 120;
-        assertThat(WellKnownMimeType.fromId(reserved))
-                .as("ensure UNKNOWN RESERVED used in test")
-                .isSameAs(WellKnownMimeType.UNKNOWN_RESERVED_MIME_TYPE);
-        ByteBuf metadata3 = ByteBufAllocator.DEFAULT.buffer();
-        metadata3.writeByte(88);
-
-        CompositeByteBuf compositeMetadata = ByteBufAllocator.DEFAULT.compositeBuffer();
-        CompositeMetadataFlyweight.addMetadata(compositeMetadata, ByteBufAllocator.DEFAULT, mimeType1, metadata1);
-        CompositeMetadataFlyweight.addMetadata(compositeMetadata, ByteBufAllocator.DEFAULT, mimeType2, metadata2);
-        CompositeMetadataFlyweight.addMetadata(compositeMetadata, ByteBufAllocator.DEFAULT, reserved, metadata3);
-
-        Object[] decoded = CompositeMetadataFlyweight.decodeNext(compositeMetadata, false);
-        assertThat(decoded).as("first decode").hasSize(2);
-
-        assertThat(decoded[0])
-                .as("first mime")
-                .isInstanceOf(WellKnownMimeType.class)
-                .isEqualTo(WellKnownMimeType.APPLICATION_PDF);
-
-        assertThat((ByteBuf) decoded[1])
-                .as("first content")
-                .isEqualByComparingTo(metadata1)
-                .extracting(o -> o.toString(CharsetUtil.UTF_8))
-                .isEqualTo("abcdefghijkl");
-
-
-        decoded = CompositeMetadataFlyweight.decodeNext(compositeMetadata, false);
-
-        assertThat(decoded).as("second decode").hasSize(2);
-
-        assertThat(decoded[0])
-                .as("second mime")
-                .isInstanceOf(String.class)
-                .isEqualTo("application/custom");
-
-        assertThat(decoded[1]).isInstanceOf(ByteBuf.class);
-        ByteBuf secondBuffer = (ByteBuf) decoded[1];
-        System.out.println(ByteBufUtil.hexDump(secondBuffer));
-
-        assertThat(secondBuffer)
-                .as("second content")
-                .isEqualByComparingTo(metadata2);
-
-
-        decoded = CompositeMetadataFlyweight.decodeNext(compositeMetadata, false);
-
-        assertThat(decoded).as("third decode").hasSize(2);
-
-        assertThat(decoded[0])
-                .as("third mime")
-                .isInstanceOf(Byte.class)
-                .isEqualTo(reserved);
-
-        assertThat(decoded[1]).isInstanceOf(ByteBuf.class);
-        ByteBuf thirdBuffer = (ByteBuf) decoded[1];
-
-        assertThat(thirdBuffer)
-                .as("third content")
-                .matches(buf -> buf.readableBytes() == 1, "1 readable byte")
-                .matches(buf -> buf.readByte() == 88, "byte content 88");
-
-        assertThat(CompositeMetadataFlyweight.decodeNext(compositeMetadata, false)).isEmpty();
+        assertThat(decodeMimeTypeFromMimeBuffer(fakeTypeBuffer))
+                .isNull();
     }
 
     @Test
-    void decodeCompositeMetadataRetainSlices() {
-        //metadata 1:
-        WellKnownMimeType mimeType1 = WellKnownMimeType.APPLICATION_PDF;
-        ByteBuf metadata1 = ByteBufAllocator.DEFAULT.buffer();
-        metadata1.writeCharSequence("abcdefghijkl", CharsetUtil.UTF_8);
+    void decodeStringNullIfLengthOne() {
+        ByteBuf fakeTypeBuffer = ByteBufAllocator.DEFAULT.buffer(2);
+        fakeTypeBuffer.writeByte(1);
 
-        //metadata 2:
-        String mimeType2 = "application/custom";
-        ByteBuf metadata2 = ByteBufAllocator.DEFAULT.buffer();
-        metadata2.writeChar('E');
-        metadata2.writeChar('∑');
-        metadata2.writeChar('é');
-        metadata2.writeBoolean(true);
-        metadata2.writeChar('W');
-
-        CompositeByteBuf compositeMetadata = ByteBufAllocator.DEFAULT.compositeBuffer();
-        CompositeMetadataFlyweight.addMetadata(compositeMetadata, ByteBufAllocator.DEFAULT, mimeType1, metadata1);
-        CompositeMetadataFlyweight.addMetadata(compositeMetadata, ByteBufAllocator.DEFAULT, mimeType2, metadata2);
-
-        List<ByteBuf> bufs = new ArrayList<>();
-        Object[] decoded;
-        do {
-            decoded = CompositeMetadataFlyweight.decodeNext(compositeMetadata, true);
-            if (decoded.length == 2) {
-                bufs.add((ByteBuf) decoded[1]);
-            }
-        } while(decoded.length > 0);
-
-        assertThat(bufs)
-                .as("metadata buffers retained")
-                .allSatisfy(buf -> assertThat(buf.refCnt())
-                        .isGreaterThan(1));
+        assertThat(decodeMimeTypeFromMimeBuffer(fakeTypeBuffer))
+                .isNull();
     }
 
     @Test
-    void decodeCompositeMetadataNoRetainSlices() {
-        //metadata 1:
-        WellKnownMimeType mimeType1 = WellKnownMimeType.APPLICATION_PDF;
-        ByteBuf metadata1 = ByteBufAllocator.DEFAULT.buffer();
-        metadata1.writeCharSequence("abcdefghijkl", CharsetUtil.UTF_8);
+    void decodeTypeSkipsFirstByte() {
+        ByteBuf fakeTypeBuffer = ByteBufAllocator.DEFAULT.buffer(2);
+        fakeTypeBuffer.writeByte(128);
+        fakeTypeBuffer.writeCharSequence("example", CharsetUtil.US_ASCII);
 
-        //metadata 2:
-        String mimeType2 = "application/custom";
-        ByteBuf metadata2 = ByteBufAllocator.DEFAULT.buffer();
-        metadata2.writeChar('E');
-        metadata2.writeChar('∑');
-        metadata2.writeChar('é');
-        metadata2.writeBoolean(true);
-        metadata2.writeChar('W');
-
-        CompositeByteBuf compositeMetadata = ByteBufAllocator.DEFAULT.compositeBuffer();
-        CompositeMetadataFlyweight.addMetadata(compositeMetadata, ByteBufAllocator.DEFAULT, mimeType1, metadata1);
-        CompositeMetadataFlyweight.addMetadata(compositeMetadata, ByteBufAllocator.DEFAULT, mimeType2, metadata2);
-
-        List<ByteBuf> bufs = new ArrayList<>();
-        Object[] decoded;
-        do {
-            decoded = CompositeMetadataFlyweight.decodeNext(compositeMetadata, false);
-            if (decoded.length == 2) {
-                bufs.add((ByteBuf) decoded[1]);
-            }
-        } while(decoded.length > 0);
-
-        assertThat(bufs)
-                .as("metadata buffers not retained")
-                .allSatisfy(buf -> assertThat(buf.refCnt())
-                        .isOne());
+        assertThat(decodeMimeTypeFromMimeBuffer(fakeTypeBuffer))
+                .hasToString("example");
     }
+
+    @Test
+    void encodeMetadataKnownTypeDelegates() {
+        ByteBuf expected = CompositeMetadataFlyweight.encodeMetadataHeader(ByteBufAllocator.DEFAULT,
+                WellKnownMimeType.APPLICATION_OCTET_STREAM.getIdentifier(),
+                2);
+
+        CompositeByteBuf test = ByteBufAllocator.DEFAULT.compositeBuffer();
+
+        CompositeMetadataFlyweight.encodeAndAddMetadata(
+                test, ByteBufAllocator.DEFAULT,
+                WellKnownMimeType.APPLICATION_OCTET_STREAM,
+                ByteBufUtils.getRandomByteBuf(2));
+
+        assertThat((Iterable<? extends ByteBuf>) test)
+                .hasSize(2)
+                .first()
+                .isEqualTo(expected);
+    }
+
+    @Test
+    void encodeMetadataReservedTypeDelegates() {
+        ByteBuf expected = CompositeMetadataFlyweight.encodeMetadataHeader(ByteBufAllocator.DEFAULT,
+                (byte) 120,
+                2);
+
+        CompositeByteBuf test = ByteBufAllocator.DEFAULT.compositeBuffer();
+
+        CompositeMetadataFlyweight.encodeAndAddMetadata(
+                test, ByteBufAllocator.DEFAULT,
+                (byte) 120,
+                ByteBufUtils.getRandomByteBuf(2));
+
+        assertThat((Iterable<? extends ByteBuf>) test)
+                .hasSize(2)
+                .first()
+                .isEqualTo(expected);
+    }
+
+    @Test
+    void encodeMetadataCustomTypeDelegates() {
+        ByteBuf expected = CompositeMetadataFlyweight.encodeMetadataHeader(ByteBufAllocator.DEFAULT,
+                "foo", 2);
+
+        CompositeByteBuf test = ByteBufAllocator.DEFAULT.compositeBuffer();
+
+        CompositeMetadataFlyweight.encodeAndAddMetadata(
+                test, ByteBufAllocator.DEFAULT,
+                "foo",
+                ByteBufUtils.getRandomByteBuf(2));
+
+        assertThat((Iterable<? extends ByteBuf>) test)
+                .hasSize(2)
+                .first()
+                .isEqualTo(expected);
+    }
+
+//    @Test
+//    void decodeMetadataLengthFromUntouchedWithKnownMime() {
+//        ByteBuf encoded = CompositeMetadataFlyweight.encodeMetadataHeader(ByteBufAllocator.DEFAULT, WellKnownMimeType.APPLICATION_GZIP.getIdentifier(), 12);
+//
+//        assertThat(CompositeMetadataFlyweight.decodeMetadataLengthFromMetadataHeader(encoded))
+//                .withFailMessage("should not correctly decode if not at correct reader index")
+//                .isNotEqualTo(12);
+//    }
+//
+//    @Test
+//    void decodeMetadataLengthFromMimeDecodedWithKnownMime() {
+//        ByteBuf encoded = CompositeMetadataFlyweight.encodeMetadataHeader(ByteBufAllocator.DEFAULT, WellKnownMimeType.APPLICATION_GZIP.getIdentifier(), 12);
+//        CompositeMetadataFlyweight.decode3WaysMimeFromMetadataHeader(encoded);
+//
+//        assertThat(CompositeMetadataFlyweight.decodeMetadataLengthFromMetadataHeader(encoded)).isEqualTo(12);
+//    }
+//
+//    @Test
+//    void decodeMetadataLengthFromUntouchedWithCustomMime() {
+//        ByteBuf encoded = CompositeMetadataFlyweight.encodeMetadataHeader(ByteBufAllocator.DEFAULT, "foo/bar", 12);
+//
+//        assertThat(CompositeMetadataFlyweight.decodeMetadataLengthFromMetadataHeader(encoded))
+//                .withFailMessage("should not correctly decode if not at correct reader index")
+//                .isNotEqualTo(12);
+//    }
+//
+//    @Test
+//    void decodeMetadataLengthFromMimeDecodedWithCustomMime() {
+//        ByteBuf encoded = CompositeMetadataFlyweight.encodeMetadataHeader(ByteBufAllocator.DEFAULT, "foo/bar", 12);
+//        CompositeMetadataFlyweight.decode3WaysMimeFromMetadataHeader(encoded);
+//
+//        assertThat(CompositeMetadataFlyweight.decodeMetadataLengthFromMetadataHeader(encoded)).isEqualTo(12);
+//    }
+//
+//    @Test
+//    void decodeMetadataLengthFromTooShortBuffer() {
+//        ByteBuf buffer = ByteBufAllocator.DEFAULT.buffer();
+//        buffer.writeShort(12);
+//
+//        assertThatExceptionOfType(RuntimeException.class)
+//                .isThrownBy(() -> CompositeMetadataFlyweight.decodeMetadataLengthFromMetadataHeader(buffer))
+//                .withMessage("the given buffer should contain at least 3 readable bytes after decoding mime type");
+//    }
+
 
 }

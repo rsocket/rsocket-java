@@ -60,10 +60,10 @@ public final class CompositeMetadata {
      * @param buffer the buffer to decode
      * @return the decoded {@link CompositeMetadata}
      */
-    public static CompositeMetadata decode(ByteBuf buffer) {
+    public static CompositeMetadata decodeComposite(ByteBuf buffer) {
         List<Entry> entries = new ArrayList<>();
         while (buffer.isReadable()) {
-            entries.add(decodeIncrementally(buffer, true));
+            entries.add(decodeEntry(buffer, true));
         }
         return new CompositeMetadata(entries);
     }
@@ -80,17 +80,42 @@ public final class CompositeMetadata {
      * @param retainMetadataSlices should each slide be retained when read from the original buffer?
      * @return the decoded {@link Entry}
      */
-    public static Entry decodeIncrementally(ByteBuf buffer, boolean retainMetadataSlices) {
-        Object[] entry = CompositeMetadataFlyweight.decodeNext(buffer, retainMetadataSlices);
-        Object mime = entry[0];
-        ByteBuf buf = (ByteBuf) entry[1];
-        if (mime instanceof WellKnownMimeType) {
-            return new CompressedTypeEntry((WellKnownMimeType) mime, buf);
+    public static Entry decodeEntry(ByteBuf buffer, boolean retainMetadataSlices) {
+        ByteBuf[] entry = CompositeMetadataFlyweight.decodeMimeAndContentBuffers(buffer, retainMetadataSlices);
+        if (entry == CompositeMetadataFlyweight.METADATA_MALFORMED) {
+            throw new IllegalArgumentException("composite metadata entry buffer is too short to contain proper entry");
         }
-        if (mime instanceof Byte) {
-            return new UnknownCompressedTypeEntry((Byte) mime, buf);
+        if (entry == CompositeMetadataFlyweight.METADATA_BUFFERS_DONE) {
+            return null;
         }
-        return new CustomTypeEntry((String) mime, buf);
+
+        ByteBuf encodedHeader = entry[0];
+        ByteBuf metadataContent = entry[1];
+
+
+        //the flyweight already validated the size of the buffer,
+        //this is only to distinguish id vs custom type
+        if (encodedHeader.readableBytes() == 1) {
+            //id
+            byte id = CompositeMetadataFlyweight.decodeMimeIdFromMimeBuffer(encodedHeader);
+            WellKnownMimeType wkn = WellKnownMimeType.fromId(id);
+            if (wkn == WellKnownMimeType.UNPARSEABLE_MIME_TYPE) {
+                //should not happen due to flyweight's decodeEntry own guard
+                throw new IllegalStateException("composite metadata entry parsing failed on compressed mime id " + id);
+            }
+            if (wkn == WellKnownMimeType.UNKNOWN_RESERVED_MIME_TYPE) {
+                return new UnknownCompressedTypeEntry(id, metadataContent);
+            }
+            return new CompressedTypeEntry(wkn, metadataContent);
+        }
+        else {
+            CharSequence customMimeCharSequence = CompositeMetadataFlyweight.decodeMimeTypeFromMimeBuffer(encodedHeader);
+            if (customMimeCharSequence == null) {
+                //should not happen due to flyweight's decodeEntry own guard
+                throw new IllegalArgumentException("composite metadata entry parsing failed on custom type");
+            }
+            return new CustomTypeEntry(customMimeCharSequence.toString(), metadataContent);
+        }
     }
 
     /**
@@ -104,10 +129,10 @@ public final class CompositeMetadata {
      * @param metadata the {@link CompositeMetadata} to encode
      * @return a {@link CompositeByteBuf} that represents the {@link CompositeMetadata}
      */
-    public static CompositeByteBuf encode(ByteBufAllocator allocator, CompositeMetadata metadata) {
+    public static CompositeByteBuf encodeComposite(ByteBufAllocator allocator, CompositeMetadata metadata) {
         CompositeByteBuf compositeMetadataBuffer = allocator.compositeBuffer();
         for (Entry entry : metadata.getAll()) {
-            encodeIncrementally(allocator, compositeMetadataBuffer, entry);
+            encodeEntry(allocator, compositeMetadataBuffer, entry);
         }
         return compositeMetadataBuffer;
     }
@@ -126,17 +151,17 @@ public final class CompositeMetadata {
      * @param compositeMetadataBuffer the composite buffer to which this metadata piece is added
      * @param metadataEntry the {@link Entry} to encode
      */
-    public static void encodeIncrementally(ByteBufAllocator allocator, CompositeByteBuf compositeMetadataBuffer, Entry metadataEntry) {
+    public static void encodeEntry(ByteBufAllocator allocator, CompositeByteBuf compositeMetadataBuffer, Entry metadataEntry) {
         if (metadataEntry instanceof UnknownCompressedTypeEntry) {
             byte id = ((UnknownCompressedTypeEntry) metadataEntry).getUnknownReservedId();
-            CompositeMetadataFlyweight.addMetadata(compositeMetadataBuffer, allocator, id, metadataEntry.getMetadata());
+            CompositeMetadataFlyweight.encodeAndAddMetadata(compositeMetadataBuffer, allocator, id, metadataEntry.getMetadata());
         }
         else if (metadataEntry instanceof CompressedTypeEntry) {
             WellKnownMimeType mimeType = ((CompressedTypeEntry) metadataEntry).mimeType;
-            CompositeMetadataFlyweight.addMetadata(compositeMetadataBuffer, allocator, mimeType, metadataEntry.getMetadata());
+            CompositeMetadataFlyweight.encodeAndAddMetadata(compositeMetadataBuffer, allocator, mimeType, metadataEntry.getMetadata());
         }
         else {
-            CompositeMetadataFlyweight.addMetadata(compositeMetadataBuffer, allocator, metadataEntry.getMimeType(), metadataEntry.getMetadata());
+            CompositeMetadataFlyweight.encodeAndAddMetadata(compositeMetadataBuffer, allocator, metadataEntry.getMimeType(), metadataEntry.getMetadata());
         }
     }
 

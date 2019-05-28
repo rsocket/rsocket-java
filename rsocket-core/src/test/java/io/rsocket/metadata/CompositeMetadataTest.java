@@ -10,13 +10,13 @@ import io.rsocket.metadata.CompositeMetadata.CustomTypeEntry;
 import io.rsocket.metadata.CompositeMetadata.Entry;
 import io.rsocket.metadata.CompositeMetadata.UnknownCompressedTypeEntry;
 import io.rsocket.test.util.ByteBufUtils;
+import io.rsocket.util.NumberUtils;
 import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
 
 import static io.netty.util.CharsetUtil.UTF_8;
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
+import static org.assertj.core.api.Assertions.*;
 
 class CompositeMetadataTest {
 
@@ -45,11 +45,11 @@ class CompositeMetadataTest {
         metadata3.writeByte(88);
 
         CompositeByteBuf compositeMetadata = ByteBufAllocator.DEFAULT.compositeBuffer();
-        CompositeMetadataFlyweight.addMetadata(compositeMetadata, ByteBufAllocator.DEFAULT, mimeType1, metadata1);
-        CompositeMetadataFlyweight.addMetadata(compositeMetadata, ByteBufAllocator.DEFAULT, mimeType2, metadata2);
-        CompositeMetadataFlyweight.addMetadata(compositeMetadata, ByteBufAllocator.DEFAULT, reserved, metadata3);
+        CompositeMetadataFlyweight.encodeAndAddMetadata(compositeMetadata, ByteBufAllocator.DEFAULT, mimeType1, metadata1);
+        CompositeMetadataFlyweight.encodeAndAddMetadata(compositeMetadata, ByteBufAllocator.DEFAULT, mimeType2, metadata2);
+        CompositeMetadataFlyweight.encodeAndAddMetadata(compositeMetadata, ByteBufAllocator.DEFAULT, reserved, metadata3);
 
-        CompositeMetadata metadata = CompositeMetadata.decode(compositeMetadata);
+        CompositeMetadata metadata = CompositeMetadata.decodeComposite(compositeMetadata);
 
         assertThat(metadata.size()).as("size").isEqualTo(3);
 
@@ -84,7 +84,7 @@ class CompositeMetadataTest {
     }
 
     @Test
-    void encodeIncrementallyWellKnownMetadata() {
+    void encodeEntryWellKnownMetadata() {
         WellKnownMimeType type = WellKnownMimeType.fromId(5);
         //5 = 0b00000101
         byte expected = (byte) 0b10000101;
@@ -93,7 +93,7 @@ class CompositeMetadataTest {
         Entry entry = new CompressedTypeEntry(type, content);
 
         final CompositeByteBuf metadata = ByteBufAllocator.DEFAULT.compositeBuffer();
-        CompositeMetadata.encodeIncrementally(ByteBufAllocator.DEFAULT, metadata, entry);
+        CompositeMetadata.encodeEntry(ByteBufAllocator.DEFAULT, metadata, entry);
 
         assertThat(metadata.readByte())
                 .as("mime header")
@@ -103,14 +103,14 @@ class CompositeMetadataTest {
     }
 
     @Test
-    void encodeIncrementallyCustomMetadata() {
+    void encodeEntryCustomMetadata() {
         // length 3, encoded as length - 1 since 0 is not authorized
         byte expected = (byte) 2;
         ByteBuf content = ByteBufUtils.getRandomByteBuf(2);
         Entry entry = new CustomTypeEntry("foo", content);
 
         final CompositeByteBuf metadata = ByteBufAllocator.DEFAULT.compositeBuffer();
-        CompositeMetadata.encodeIncrementally(ByteBufAllocator.DEFAULT, metadata, entry);
+        CompositeMetadata.encodeEntry(ByteBufAllocator.DEFAULT, metadata, entry);
 
         assertThat(metadata.readByte())
                 .as("mime header")
@@ -122,7 +122,7 @@ class CompositeMetadataTest {
     }
 
     @Test
-    void encodeIncrementallyPassthroughMetadata() {
+    void encodeEntryPassthroughMetadata() {
         //120 = 0b01111000
         byte expected = (byte) 0b11111000;
 
@@ -130,7 +130,7 @@ class CompositeMetadataTest {
         UnknownCompressedTypeEntry entry = new UnknownCompressedTypeEntry((byte) 120, content);
 
         final CompositeByteBuf metadata = ByteBufAllocator.DEFAULT.compositeBuffer();
-        CompositeMetadata.encodeIncrementally(ByteBufAllocator.DEFAULT, metadata, entry);
+        CompositeMetadata.encodeEntry(ByteBufAllocator.DEFAULT, metadata, entry);
 
         assertThat(metadata.readByte())
                 .as("mime header")
@@ -140,7 +140,7 @@ class CompositeMetadataTest {
     }
 
     @Test
-    void encodeMetadata() {
+    void encodeCompositeMetadata() {
         final Entry entry1 = new CustomTypeEntry("foo",
                 ByteBufUtils.getRandomByteBuf(1));
 
@@ -156,7 +156,7 @@ class CompositeMetadataTest {
                 ByteBufUtils.getRandomByteBuf(3));
 
         CompositeMetadata compositeMetadata = new CompositeMetadata(Arrays.asList(entry1, entry2, entry3));
-        CompositeByteBuf buf = CompositeMetadata.encode(ByteBufAllocator.DEFAULT, compositeMetadata);
+        CompositeByteBuf buf = CompositeMetadata.encodeComposite(ByteBufAllocator.DEFAULT, compositeMetadata);
 
         assertThat(buf.readByte())
                 .as("meta1 mime length")
@@ -203,7 +203,10 @@ class CompositeMetadataTest {
                 new CustomTypeEntry("match", match2)
         ));
 
-        assertThat(metadata.get("match").getMetadata()).isSameAs(match1);
+        assertThat(metadata.get("match"))
+                .isNotNull()
+                .extracting(Entry::getMetadata)
+                .isSameAs(match1);
         assertThat(metadata.getAll("match"))
                 .flatExtracting(Entry::getMetadata)
                 .containsExactly(match1, match2);
@@ -253,4 +256,46 @@ class CompositeMetadataTest {
                 .containsExactly(entry1, entry2);
     }
 
+    @Test
+    void decodeEntryTooShortForMimeLength() {
+        ByteBuf fakeEntry = ByteBufAllocator.DEFAULT.buffer();
+        fakeEntry.writeByte(120);
+
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> CompositeMetadata.decodeEntry(fakeEntry, false))
+                .withMessage("composite metadata entry buffer is too short to contain proper entry");
+    }
+
+    @Test
+    void decodeEntryHasNoContentLength() {
+        ByteBuf fakeEntry = ByteBufAllocator.DEFAULT.buffer();
+        fakeEntry.writeByte(0);
+        fakeEntry.writeCharSequence("w", CharsetUtil.US_ASCII);
+
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> CompositeMetadata.decodeEntry(fakeEntry, false))
+                .withMessage("composite metadata entry buffer is too short to contain proper entry");
+    }
+
+    @Test
+    void decodeEntryTooShortForContentLength() {
+        ByteBuf fakeEntry = ByteBufAllocator.DEFAULT.buffer();
+        fakeEntry.writeByte(1);
+        fakeEntry.writeCharSequence("w", CharsetUtil.US_ASCII);
+        NumberUtils.encodeUnsignedMedium(fakeEntry, 456);
+        fakeEntry.writeChar('w');
+
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> CompositeMetadata.decodeEntry(fakeEntry, false))
+                .withMessage("composite metadata entry buffer is too short to contain proper entry");
+    }
+
+    @Test
+    void decodeEntryOnDoneBufferReturnsNull() {
+        ByteBuf fakeBuffer = ByteBufUtils.getRandomByteBuf(0);
+
+        assertThat(CompositeMetadata.decodeEntry(fakeBuffer, false))
+                .as("empty entry")
+                .isNull();
+    }
 }
