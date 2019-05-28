@@ -27,7 +27,6 @@ import java.time.Duration;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import org.junit.Ignore;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -115,19 +114,19 @@ public interface TransportTest {
         .verify(getTimeout());
   }
 
-//  @DisplayName("makes 1 requestChannel request with 200,000 payloads")
-//  @Test
-//  @Ignore
-//  default void requestChannel200_000() {
-//    Flux<Payload> payloads = Flux.range(0, 200_000).map(this::createTestPayload);
-//
-//    getClient()
-//        .requestChannel(payloads)
-//        .as(StepVerifier::create)
-//        .expectNextCount(200_000)
-//        .expectComplete()
-//        .verify(getTimeout());
-//  }
+  //  @DisplayName("makes 1 requestChannel request with 200,000 payloads")
+  //  @Test
+  //  @Ignore
+  //  default void requestChannel200_000() {
+  //    Flux<Payload> payloads = Flux.range(0, 200_000).map(this::createTestPayload);
+  //
+  //    getClient()
+  //        .requestChannel(payloads)
+  //        .as(StepVerifier::create)
+  //        .expectNextCount(200_000)
+  //        .expectComplete()
+  //        .verify(getTimeout());
+  //  }
 
   @DisplayName("makes 1 requestChannel request with 20,000 payloads")
   @Test
