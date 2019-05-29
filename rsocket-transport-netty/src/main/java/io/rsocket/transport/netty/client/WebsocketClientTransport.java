@@ -16,6 +16,7 @@
 
 package io.rsocket.transport.netty.client;
 
+import static io.rsocket.frame.FrameHeaderFlyweight.FRAME_LENGTH_MASK;
 import static io.rsocket.transport.netty.UriUtils.getPort;
 import static io.rsocket.transport.netty.UriUtils.isSecure;
 
@@ -137,7 +138,7 @@ public final class WebsocketClientTransport implements ClientTransport, Transpor
   public Mono<DuplexConnection> connect() {
     return client
         .headers(headers -> transportHeaders.get().forEach(headers::set))
-        .websocket()
+        .websocket(FRAME_LENGTH_MASK)
         .uri(path)
         .connect()
         .map(WebsocketDuplexConnection::new);

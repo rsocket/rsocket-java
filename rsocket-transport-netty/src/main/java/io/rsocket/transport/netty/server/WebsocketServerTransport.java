@@ -16,6 +16,8 @@
 
 package io.rsocket.transport.netty.server;
 
+import static io.rsocket.frame.FrameHeaderFlyweight.FRAME_LENGTH_MASK;
+
 import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.ServerTransport;
 import io.rsocket.transport.TransportHeaderAware;
@@ -108,7 +110,8 @@ public final class WebsocketServerTransport
         .handle(
             (request, response) -> {
               transportHeaders.get().forEach(response::addHeader);
-              return response.sendWebsocket(WebsocketRouteTransport.newHandler(acceptor));
+              return response.sendWebsocket(
+                  null, FRAME_LENGTH_MASK, WebsocketRouteTransport.newHandler(acceptor));
             })
         .bind()
         .map(CloseableChannel::new);

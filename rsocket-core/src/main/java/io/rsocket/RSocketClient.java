@@ -23,11 +23,6 @@ import io.rsocket.framing.FrameType;
 import io.rsocket.internal.LimitableRequestPublisher;
 import io.rsocket.internal.UnboundedProcessor;
 import io.rsocket.internal.UnicastMonoProcessor;
-import org.reactivestreams.Processor;
-import org.reactivestreams.Publisher;
-import org.reactivestreams.Subscriber;
-import reactor.core.publisher.*;
-
 import java.nio.channels.ClosedChannelException;
 import java.time.Duration;
 import java.util.Collections;
@@ -489,10 +484,10 @@ class RSocketClient implements RSocket {
           {
             LimitableRequestPublisher sender = senders.remove(streamId);
             if (sender != null) {
-            sender.cancel();
+              sender.cancel();
+            }
+            break;
           }
-          break;
-        }
         case NEXT:
           receiver.onNext(frameDecoder.apply(frame));
           break;

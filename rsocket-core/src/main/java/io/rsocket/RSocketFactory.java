@@ -305,9 +305,7 @@ public class RSocketFactory {
 
       @Override
       public Mono<T> start() {
-        return transportServer
-            .get()
-            .start(this::acceptor);
+        return transportServer.get().start(this::acceptor);
       }
 
       @Override

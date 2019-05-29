@@ -16,6 +16,7 @@
 
 package io.rsocket.transport.netty.client;
 
+import static io.rsocket.frame.FrameHeaderFlyweight.FRAME_LENGTH_MASK;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
@@ -23,13 +24,33 @@ import io.rsocket.transport.netty.server.WebsocketServerTransport;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.util.Collections;
+import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
+import org.mockito.junit.jupiter.MockitoExtension;
 import reactor.core.publisher.Mono;
 import reactor.netty.http.client.HttpClient;
 import reactor.test.StepVerifier;
 
+@ExtendWith(MockitoExtension.class)
 final class WebsocketClientTransportTest {
+
+  @Test
+  public void testThatSetupWithUnSpecifiedFrameSizeShouldSetMaxFrameSize() {
+    ArgumentCaptor<Integer> captor = ArgumentCaptor.forClass(Integer.class);
+    HttpClient httpClient = Mockito.spy(HttpClient.create());
+    Mockito.doAnswer(a -> httpClient).when(httpClient).headers(Mockito.any());
+    Mockito.doCallRealMethod().when(httpClient).websocket(captor.capture());
+
+    WebsocketClientTransport clientTransport = WebsocketClientTransport.create(httpClient, "/");
+
+    clientTransport.connect().subscribe();
+
+    Assertions.assertThat(captor.getValue()).isEqualTo(FRAME_LENGTH_MASK);
+  }
 
   @DisplayName("connects to server")
   @Test

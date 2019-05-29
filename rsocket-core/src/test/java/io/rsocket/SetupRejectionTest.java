@@ -15,7 +15,6 @@ import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-
 import org.junit.jupiter.api.Test;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.UnicastProcessor;
@@ -61,9 +60,9 @@ public class SetupRejectionTest {
           TimeUnit.MILLISECONDS);
 
       StepVerifier.create(rSocket.requestResponse(DefaultPayload.create("test")))
-                  .expectErrorMatches(
-                      err -> err instanceof RejectedSetupException && errorMsg.equals(err.getMessage()))
-                  .verify(Duration.ofSeconds(5));
+          .expectErrorMatches(
+              err -> err instanceof RejectedSetupException && errorMsg.equals(err.getMessage()))
+          .verify(Duration.ofSeconds(5));
 
       assertThat(errors).hasSize(1);
       assertThat(rSocket.isDisposed()).isTrue();
