@@ -151,21 +151,23 @@ public final class WebsocketClientTransport implements ClientTransport, Transpor
 
   @Override
   public Mono<DuplexConnection> connect(int mtu) {
-    return client
-        .headers(headers -> transportHeaders.get().forEach(headers::set))
-        .websocket(FRAME_LENGTH_MASK)
-        .uri(path)
-        .connect()
-        .map(
-            c -> {
-              DuplexConnection connection = new WebsocketDuplexConnection(c);
-              if (mtu > 0) {
-                connection =
-                    new FragmentationDuplexConnection(
-                        connection, ByteBufAllocator.DEFAULT, mtu, false, "client");
-              }
-              return connection;
-            });
+    return FragmentationDuplexConnection.checkMtu(mtu)
+        .then(
+            client
+                .headers(headers -> transportHeaders.get().forEach(headers::set))
+                .websocket(FRAME_LENGTH_MASK)
+                .uri(path)
+                .connect()
+                .map(
+                    c -> {
+                      DuplexConnection connection = new WebsocketDuplexConnection(c);
+                      if (mtu > 0) {
+                        connection =
+                            new FragmentationDuplexConnection(
+                                connection, ByteBufAllocator.DEFAULT, mtu, false, "client");
+                      }
+                      return connection;
+                    }));
   }
 
   @Override
