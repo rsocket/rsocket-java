@@ -20,7 +20,7 @@ import org.mockito.Mockito;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
-class FragmentationIntegrationTest {
+class RSocketFactoryNettyTransportFragmentationTest {
 
   @ParameterizedTest
   @MethodSource("serverTransportProvider")
