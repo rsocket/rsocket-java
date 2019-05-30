@@ -24,14 +24,14 @@ import java.util.List;
 public class PluginRegistry {
   private List<DuplexConnectionInterceptor> connections = new ArrayList<>();
   private List<RSocketInterceptor> requesters = new ArrayList<>();
-  private List<RSocketInterceptor> handlers = new ArrayList<>();
+  private List<RSocketInterceptor> responders = new ArrayList<>();
 
   public PluginRegistry() {}
 
   public PluginRegistry(PluginRegistry defaults) {
     this.connections.addAll(defaults.connections);
     this.requesters.addAll(defaults.requesters);
-    this.handlers.addAll(defaults.handlers);
+    this.responders.addAll(defaults.responders);
   }
 
   public void addConnectionPlugin(DuplexConnectionInterceptor interceptor) {
@@ -48,14 +48,14 @@ public class PluginRegistry {
     requesters.add(interceptor);
   }
 
-  /** Deprecated. Use {@link #addHandlerPlugin(RSocketInterceptor)} instead */
+  /** Deprecated. Use {@link #addResponderPlugin(RSocketInterceptor)} instead */
   @Deprecated
   public void addServerPlugin(RSocketInterceptor interceptor) {
-    addHandlerPlugin(interceptor);
+    addResponderPlugin(interceptor);
   }
 
-  public void addHandlerPlugin(RSocketInterceptor interceptor) {
-    handlers.add(interceptor);
+  public void addResponderPlugin(RSocketInterceptor interceptor) {
+    responders.add(interceptor);
   }
 
   /** Deprecated. Use {@link #applyRequester(RSocket)} instead */
@@ -72,14 +72,14 @@ public class PluginRegistry {
     return rSocket;
   }
 
-  /** Deprecated. Use {@link #applyHandler(RSocket)} instead */
+  /** Deprecated. Use {@link #applyResponder(RSocket)} instead */
   @Deprecated
   public RSocket applyServer(RSocket rSocket) {
-    return applyHandler(rSocket);
+    return applyResponder(rSocket);
   }
 
-  public RSocket applyHandler(RSocket rSocket) {
-    for (RSocketInterceptor i : handlers) {
+  public RSocket applyResponder(RSocket rSocket) {
+    for (RSocketInterceptor i : responders) {
       rSocket = i.apply(rSocket);
     }
 

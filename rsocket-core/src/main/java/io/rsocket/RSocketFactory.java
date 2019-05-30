@@ -145,14 +145,14 @@ public class RSocketFactory {
       return this;
     }
 
-    /** Deprecated. Use {@link #addHandlerPlugin(RSocketInterceptor)} instead */
+    /** Deprecated. Use {@link #addResponderPlugin(RSocketInterceptor)} instead */
     @Deprecated
     public ClientRSocketFactory addServerPlugin(RSocketInterceptor interceptor) {
-      return addHandlerPlugin(interceptor);
+      return addResponderPlugin(interceptor);
     }
 
-    public ClientRSocketFactory addHandlerPlugin(RSocketInterceptor interceptor) {
-      plugins.addHandlerPlugin(interceptor);
+    public ClientRSocketFactory addResponderPlugin(RSocketInterceptor interceptor) {
+      plugins.addResponderPlugin(interceptor);
       return this;
     }
 
@@ -335,7 +335,7 @@ public class RSocketFactory {
                     rSocketHandler = acceptor.get().apply(wrappedRSocketRequester);
                   }
 
-                  RSocket wrappedRSocketHandler = plugins.applyHandler(rSocketHandler);
+                  RSocket wrappedRSocketHandler = plugins.applyResponder(rSocketHandler);
 
                   RSocketResponder rSocketResponder =
                       new RSocketResponder(
@@ -419,14 +419,14 @@ public class RSocketFactory {
       return this;
     }
 
-    /** Deprecated. Use {@link #addHandlerPlugin(RSocketInterceptor)} instead */
+    /** Deprecated. Use {@link #addResponderPlugin(RSocketInterceptor)} instead */
     @Deprecated
     public ServerRSocketFactory addServerPlugin(RSocketInterceptor interceptor) {
-      return addHandlerPlugin(interceptor);
+      return addResponderPlugin(interceptor);
     }
 
-    public ServerRSocketFactory addHandlerPlugin(RSocketInterceptor interceptor) {
-      plugins.addHandlerPlugin(interceptor);
+    public ServerRSocketFactory addResponderPlugin(RSocketInterceptor interceptor) {
+      plugins.addResponderPlugin(interceptor);
       return this;
     }
 
@@ -563,7 +563,7 @@ public class RSocketFactory {
                       err -> sendError(multiplexer, rejectedSetupError(err)).then(Mono.error(err)))
                   .doOnNext(
                       rSocketHandler -> {
-                        RSocket wrappedRSocketHandler = plugins.applyHandler(rSocketHandler);
+                        RSocket wrappedRSocketHandler = plugins.applyResponder(rSocketHandler);
 
                         RSocketResponder rSocketResponder =
                             new RSocketResponder(
