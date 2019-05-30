@@ -111,27 +111,28 @@ public final class WebsocketServerTransport
   public Mono<CloseableChannel> start(ConnectionAcceptor acceptor, int mtu) {
     Objects.requireNonNull(acceptor, "acceptor must not be null");
 
-    return FragmentationDuplexConnection.checkMtu(mtu)
-        .then(
-            server
-                .handle(
-                    (request, response) -> {
-                      transportHeaders.get().forEach(response::addHeader);
-                      return response.sendWebsocket(
-                          null,
-                          FRAME_LENGTH_MASK,
-                          (in, out) -> {
-                            DuplexConnection connection =
-                                new WebsocketDuplexConnection((Connection) in);
-                            if (mtu > 0) {
-                              connection =
-                                  new FragmentationDuplexConnection(
-                                      connection, ByteBufAllocator.DEFAULT, mtu, false, "server");
-                            }
-                            return acceptor.apply(connection).then(out.neverComplete());
-                          });
-                    })
-                .bind()
-                .map(CloseableChannel::new));
+    Mono<CloseableChannel> isError = FragmentationDuplexConnection.checkMtu(mtu);
+    return isError != null
+        ? isError
+        : server
+            .handle(
+                (request, response) -> {
+                  transportHeaders.get().forEach(response::addHeader);
+                  return response.sendWebsocket(
+                      null,
+                      FRAME_LENGTH_MASK,
+                      (in, out) -> {
+                        DuplexConnection connection =
+                            new WebsocketDuplexConnection((Connection) in);
+                        if (mtu > 0) {
+                          connection =
+                              new FragmentationDuplexConnection(
+                                  connection, ByteBufAllocator.DEFAULT, mtu, false, "server");
+                        }
+                        return acceptor.apply(connection).then(out.neverComplete());
+                      });
+                })
+            .bind()
+            .map(CloseableChannel::new);
   }
 }

@@ -26,6 +26,7 @@ import io.rsocket.frame.FrameHeaderFlyweight;
 import io.rsocket.frame.FrameLengthFlyweight;
 import io.rsocket.frame.FrameType;
 import java.util.Objects;
+import javax.annotation.Nullable;
 import org.reactivestreams.Publisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -71,13 +72,15 @@ public final class FragmentationDuplexConnection implements DuplexConnection {
     return frameType.isFragmentable() && readableBytes > mtu;
   }
 
-  public static Mono<Void> checkMtu(int mtu) {
+  /*TODO this is nullable and not returning empty to workaround javac 11.0.3 compiler issue on ubuntu (at least) */
+  @Nullable
+  public static <T> Mono<T> checkMtu(int mtu) {
     if (isInsufficientMtu(mtu)) {
       String msg =
           String.format("smallest allowed mtu size is %d bytes, provided: %d", MIN_MTU_SIZE, mtu);
       return Mono.error(new IllegalArgumentException(msg));
     } else {
-      return Mono.empty();
+      return null;
     }
   }
 

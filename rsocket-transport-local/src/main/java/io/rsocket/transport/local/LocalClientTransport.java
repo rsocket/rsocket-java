@@ -76,7 +76,8 @@ public final class LocalClientTransport implements ClientTransport {
 
   @Override
   public Mono<DuplexConnection> connect(int mtu) {
-    Mono<DuplexConnection> connect = FragmentationDuplexConnection.checkMtu(mtu).then(connect());
+    Mono<DuplexConnection> isError = FragmentationDuplexConnection.checkMtu(mtu);
+    Mono<DuplexConnection> connect = isError != null ? isError : connect();
     if (mtu > 0) {
       return connect.map(
           duplexConnection ->
