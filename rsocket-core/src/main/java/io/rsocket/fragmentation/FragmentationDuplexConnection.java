@@ -92,7 +92,7 @@ public final class FragmentationDuplexConnection implements DuplexConnection {
   }
 
   private static boolean isInsufficientMtu(int mtu) {
-    return mtu > 0 && mtu < MIN_MTU_SIZE;
+    return mtu > 0 && mtu < MIN_MTU_SIZE || mtu < 0;
   }
 
   @Override
@@ -129,7 +129,7 @@ public final class FragmentationDuplexConnection implements DuplexConnection {
 
   private ByteBuf encode(ByteBuf frame) {
     if (encodeLength) {
-      return FrameLengthFlyweight.encode(allocator, frame.readableBytes(), frame).retain();
+      return FrameLengthFlyweight.encode(allocator, frame.readableBytes(), frame);
     } else {
       return frame;
     }
