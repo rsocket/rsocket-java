@@ -221,9 +221,7 @@ final class FrameReassembler extends AtomicBoolean implements Disposable {
         throw new IllegalStateException("unsupported fragment type");
     }
 
-    if (data != Unpooled.EMPTY_BUFFER) {
-      getData(streamId).addComponents(true, data);
-    }
+    getData(streamId).addComponents(true, data);
     frame.release();
   }
 
