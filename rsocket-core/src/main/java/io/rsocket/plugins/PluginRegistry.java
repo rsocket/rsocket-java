@@ -23,39 +23,63 @@ import java.util.List;
 
 public class PluginRegistry {
   private List<DuplexConnectionInterceptor> connections = new ArrayList<>();
-  private List<RSocketInterceptor> clients = new ArrayList<>();
-  private List<RSocketInterceptor> servers = new ArrayList<>();
+  private List<RSocketInterceptor> requesters = new ArrayList<>();
+  private List<RSocketInterceptor> responders = new ArrayList<>();
 
   public PluginRegistry() {}
 
   public PluginRegistry(PluginRegistry defaults) {
     this.connections.addAll(defaults.connections);
-    this.clients.addAll(defaults.clients);
-    this.servers.addAll(defaults.servers);
+    this.requesters.addAll(defaults.requesters);
+    this.responders.addAll(defaults.responders);
   }
 
   public void addConnectionPlugin(DuplexConnectionInterceptor interceptor) {
     connections.add(interceptor);
   }
 
+  /** Deprecated. Use {@link #addRequesterPlugin(RSocketInterceptor)} instead */
+  @Deprecated
   public void addClientPlugin(RSocketInterceptor interceptor) {
-    clients.add(interceptor);
+    addRequesterPlugin(interceptor);
   }
 
+  public void addRequesterPlugin(RSocketInterceptor interceptor) {
+    requesters.add(interceptor);
+  }
+
+  /** Deprecated. Use {@link #addResponderPlugin(RSocketInterceptor)} instead */
+  @Deprecated
   public void addServerPlugin(RSocketInterceptor interceptor) {
-    servers.add(interceptor);
+    addResponderPlugin(interceptor);
   }
 
+  public void addResponderPlugin(RSocketInterceptor interceptor) {
+    responders.add(interceptor);
+  }
+
+  /** Deprecated. Use {@link #applyRequester(RSocket)} instead */
+  @Deprecated
   public RSocket applyClient(RSocket rSocket) {
-    for (RSocketInterceptor i : clients) {
+    return applyRequester(rSocket);
+  }
+
+  public RSocket applyRequester(RSocket rSocket) {
+    for (RSocketInterceptor i : requesters) {
       rSocket = i.apply(rSocket);
     }
 
     return rSocket;
   }
 
+  /** Deprecated. Use {@link #applyResponder(RSocket)} instead */
+  @Deprecated
   public RSocket applyServer(RSocket rSocket) {
-    for (RSocketInterceptor i : servers) {
+    return applyResponder(rSocket);
+  }
+
+  public RSocket applyResponder(RSocket rSocket) {
+    for (RSocketInterceptor i : responders) {
       rSocket = i.apply(rSocket);
     }
 
