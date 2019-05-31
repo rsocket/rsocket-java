@@ -107,17 +107,20 @@ public final class LocalServerTransport implements ServerTransport<Closeable> {
   public Mono<Closeable> start(ConnectionAcceptor acceptor, int mtu) {
     Objects.requireNonNull(acceptor, "acceptor must not be null");
 
-    return Mono.create(
-        sink -> {
-          ServerDuplexConnectionAcceptor serverDuplexConnectionAcceptor =
-              new ServerDuplexConnectionAcceptor(name, acceptor, mtu);
+    Mono<Closeable> isError = FragmentationDuplexConnection.checkMtu(mtu);
+    return isError != null
+        ? isError
+        : Mono.create(
+            sink -> {
+              ServerDuplexConnectionAcceptor serverDuplexConnectionAcceptor =
+                  new ServerDuplexConnectionAcceptor(name, acceptor, mtu);
 
-          if (registry.putIfAbsent(name, serverDuplexConnectionAcceptor) != null) {
-            throw new IllegalStateException("name already registered: " + name);
-          }
+              if (registry.putIfAbsent(name, serverDuplexConnectionAcceptor) != null) {
+                throw new IllegalStateException("name already registered: " + name);
+              }
 
-          sink.success(serverDuplexConnectionAcceptor);
-        });
+              sink.success(serverDuplexConnectionAcceptor);
+            });
   }
 
   /**

@@ -94,26 +94,31 @@ public final class TcpServerTransport implements ServerTransport<CloseableChanne
   @Override
   public Mono<CloseableChannel> start(ConnectionAcceptor acceptor, int mtu) {
     Objects.requireNonNull(acceptor, "acceptor must not be null");
-
-    return server
-        .doOnConnection(
-            c -> {
-              c.addHandlerLast(new RSocketLengthCodec());
-              DuplexConnection connection;
-              if (mtu > 0) {
-                connection =
-                    new FragmentationDuplexConnection(
-                        new TcpDuplexConnection(c, false),
-                        ByteBufAllocator.DEFAULT,
-                        mtu,
-                        true,
-                        "server");
-              } else {
-                connection = new TcpDuplexConnection(c);
-              }
-              acceptor.apply(connection).then(Mono.<Void>never()).subscribe(c.disposeSubscriber());
-            })
-        .bind()
-        .map(CloseableChannel::new);
+    Mono<CloseableChannel> isError = FragmentationDuplexConnection.checkMtu(mtu);
+    return isError != null
+        ? isError
+        : server
+            .doOnConnection(
+                c -> {
+                  c.addHandlerLast(new RSocketLengthCodec());
+                  DuplexConnection connection;
+                  if (mtu > 0) {
+                    connection =
+                        new FragmentationDuplexConnection(
+                            new TcpDuplexConnection(c, false),
+                            ByteBufAllocator.DEFAULT,
+                            mtu,
+                            true,
+                            "server");
+                  } else {
+                    connection = new TcpDuplexConnection(c);
+                  }
+                  acceptor
+                      .apply(connection)
+                      .then(Mono.<Void>never())
+                      .subscribe(c.disposeSubscriber());
+                })
+            .bind()
+            .map(CloseableChannel::new);
   }
 }
