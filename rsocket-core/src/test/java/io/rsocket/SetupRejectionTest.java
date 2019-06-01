@@ -17,6 +17,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 import reactor.core.publisher.Mono;
+import reactor.core.publisher.MonoProcessor;
 import reactor.core.publisher.UnicastProcessor;
 import reactor.test.StepVerifier;
 
@@ -54,15 +55,21 @@ public class SetupRejectionTest {
 
       String errorMsg = "error";
 
+      MonoProcessor processor = MonoProcessor.create();
       scheduler.schedule(
-          () -> conn.addToReceivedBuffer(Frame.Error.from(0, new RejectedSetupException(errorMsg))),
+          () -> {
+            conn.addToReceivedBuffer(Frame.Error.from(0,
+                new RejectedSetupException(errorMsg)));
+            processor.onComplete();
+          },
           100,
           TimeUnit.MILLISECONDS);
 
-      StepVerifier.create(rSocket.requestResponse(DefaultPayload.create("test")))
+      StepVerifier.create(rSocket.requestResponse(DefaultPayload.create("test"))
+                                 .delaySubscription(processor))
           .expectErrorMatches(
               err -> err instanceof RejectedSetupException && errorMsg.equals(err.getMessage()))
-          .verify(Duration.ofSeconds(50));
+          .verify(Duration.ofSeconds(5));
 
       assertThat(errors).hasSize(1);
       assertThat(rSocket.isDisposed()).isTrue();
@@ -86,7 +93,7 @@ public class SetupRejectionTest {
                 .delaySubscription(Duration.ofMillis(100)))
         .expectErrorMatches(
             err -> err instanceof RejectedSetupException && "error".equals(err.getMessage()))
-        .verify(Duration.ofSeconds(50));
+        .verify(Duration.ofSeconds(5));
   }
 
   private static class RejectingAcceptor implements SocketAcceptor {
