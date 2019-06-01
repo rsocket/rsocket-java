@@ -86,7 +86,7 @@ public class SetupRejectionTest {
                 .delaySubscription(Duration.ofMillis(100)))
         .expectErrorMatches(
             err -> err instanceof RejectedSetupException && "error".equals(err.getMessage()))
-        .verify(Duration.ofSeconds(5));
+        .verify(Duration.ofSeconds(50));
   }
 
   private static class RejectingAcceptor implements SocketAcceptor {
