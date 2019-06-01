@@ -62,7 +62,7 @@ public class SetupRejectionTest {
       StepVerifier.create(rSocket.requestResponse(DefaultPayload.create("test")))
           .expectErrorMatches(
               err -> err instanceof RejectedSetupException && errorMsg.equals(err.getMessage()))
-          .verify(Duration.ofSeconds(5));
+          .verify(Duration.ofSeconds(50));
 
       assertThat(errors).hasSize(1);
       assertThat(rSocket.isDisposed()).isTrue();
