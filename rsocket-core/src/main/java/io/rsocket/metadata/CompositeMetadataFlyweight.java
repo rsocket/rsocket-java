@@ -8,6 +8,11 @@ import io.netty.util.CharsetUtil;
 import io.rsocket.util.NumberUtils;
 import reactor.util.annotation.Nullable;
 
+/**
+ * A flyweight class that can be used to encode/decode composite metadata information to/from {@link ByteBuf}.
+ * This is intended for low-level efficient manipulation of such buffers, but each composite metadata entry can be also
+ * manipulated as an higher abstraction {@link Entry} class, which provides its own encoding and decoding primitives.
+ */
 public class CompositeMetadataFlyweight {
 
     static final int STREAM_METADATA_KNOWN_MASK = 0x80; // 1000 0000
@@ -34,7 +39,29 @@ public class CompositeMetadataFlyweight {
 
     private CompositeMetadataFlyweight() {}
 
-    //TODO document how to go from ByteBuf to id/string mime and distinguish
+    /**
+     * Decode the next metadata entry (a mime header + content pair of {@link ByteBuf}) from a {@link ByteBuf} that contains
+     * at least enough bytes for one more such entry.
+     * The header buffer is either:
+     * <ul>
+     *     <li>
+     *         made up of a single byte: this represents an encoded mime id, which can be further decoded using {@link #decodeMimeIdFromMimeBuffer(ByteBuf)}
+     *     </li>
+     *     <li>
+     *         made up of 2 or more bytes: this represents an encoded mime String + its length, which can be further decoded
+     *         using {@link #decodeMimeTypeFromMimeBuffer(ByteBuf)}. Note the encoded length, in the first byte, is skipped
+     *         by this decoding method because the remaining length of the buffer is that of the mime string.
+     *     </li>
+     * </ul>
+     * Moreover, if the source buffer is empty of readable bytes it is assumed that the composite has been decoded entirely
+     * and the {@link #METADATA_BUFFERS_DONE} constant is returned. If the buffer contains <i>some</i> readable bytes but
+     * not enough for a correct representation of an entry, the {@link #METADATA_MALFORMED} constant is returned.
+     *
+     * @param compositeMetadata the source {@link ByteBuf} that originally contains one or more metadata entries
+     * @param retainSlices should produced metadata entry buffers {@link ByteBuf#slice() slices} be {@link ByteBuf#retainedSlice() retained}?
+     * @return a {@link ByteBuf} slice array of length 2 containing the mime header buffer and the content buffer, or one
+     * of the zero-length error constant arrays
+     */
     public static ByteBuf[] decodeMimeAndContentBuffers(ByteBuf compositeMetadata, boolean retainSlices) {
         if (compositeMetadata.isReadable()) {
             ByteBuf mime;
@@ -89,8 +116,18 @@ public class CompositeMetadataFlyweight {
         return METADATA_BUFFERS_DONE;
     }
 
-    //TODO document how to check buffer is indeed an id
-    //TODO document error conditions
+    /**
+     * Decode a {@code byte} compressed mime id from a {@link ByteBuf}, assuming said buffer properly contains such an id.
+     * <p>
+     * The buffer must have exactly one readable byte, which is assumed to have been tested for mime id encoding via
+     * the {@link #STREAM_METADATA_KNOWN_MASK} mask ({@code firstByte & STREAM_METADATA_KNOWN_MASK) == STREAM_METADATA_KNOWN_MASK}).
+     * <p>
+     * If there is no readable byte, the negative identifier of {@link WellKnownMimeType#UNPARSEABLE_MIME_TYPE} is returned.
+     *
+     * @param mimeBuffer the buffer that should next contain the compressed mime id byte
+     * @return the compressed mime id, between 0 and 127, or a negative id if the input is invalid
+     * @see #decodeMimeTypeFromMimeBuffer(ByteBuf)
+     */
     public static byte decodeMimeIdFromMimeBuffer(ByteBuf mimeBuffer) {
         if (mimeBuffer.readableBytes() != 1) {
             return WellKnownMimeType.UNPARSEABLE_MIME_TYPE.getIdentifier();
@@ -98,7 +135,21 @@ public class CompositeMetadataFlyweight {
         return (byte) (mimeBuffer.readByte() & STREAM_METADATA_LENGTH_MASK);
     }
 
-    //TODO document error conditions
+    /**
+     * Decode a {@link CharSequence} custome mime type from a {@link ByteBuf}, assuming said buffer properly contains such
+     * a mime type.
+     * <p>
+     * The buffer must at least have two readable bytes, which distinguishes it from the {@link #decodeMimeIdFromMimeBuffer(ByteBuf) compressed id}
+     * case. The first byte is a size and the remaining bytes must correspond to the {@link CharSequence}, encoded fully
+     * in US_ASCII. As a result, the first byte can simply be skipped, and the remaining of the buffer be decoded to
+     * the mime type.
+     * <p>
+     * If the mime header buffer is less than 2 bytes long, returns {@code null}.
+     *
+     * @param flyweightMimeBuffer the mime header {@link ByteBuf} that contains length + custom mime type
+     * @return the decoded custom mime type, as a {@link CharSequence}, or null if the input is invalid
+     * @see #decodeMimeIdFromMimeBuffer(ByteBuf)
+     */
     @Nullable
     public static CharSequence decodeMimeTypeFromMimeBuffer(ByteBuf flyweightMimeBuffer) {
         if (flyweightMimeBuffer.readableBytes() < 2) {
