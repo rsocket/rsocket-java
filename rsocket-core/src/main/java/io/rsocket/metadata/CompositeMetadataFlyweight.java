@@ -267,8 +267,19 @@ public class CompositeMetadataFlyweight {
     /**
      * An entry in a Composite Metadata, which exposes the {@link #getMimeType() mime type} and {@link ByteBuf}
      * {@link #getMetadata() content} of the metadata entry.
+     * <p>
+     * There is one case where the entry cannot really be used other than by forwarding it to another client: when the
+     * mime type is represented as a compressed {@code byte} id, but said id is only identified as "reserved" in the
+     * current implementation ({@link WellKnownMimeType#UNKNOWN_RESERVED_MIME_TYPE}).
+     * In that case, the corresponding {@link Entry} should reflect that by having a {@code null} {@link #getMimeType()}
+     * along a positive {@link #getMimeId()}.
+     * <p>
+     * Non-null {@link #getMimeType()} along with positive {@link #getMimeId()} denote a compressed mime metadata entry,
+     * whereas the same with a negative {@link #getMimeId()} would denote a custom mime type metadata entry.
+     * <p>
+     * In all three cases, the {@link #getMetadata()} expose the content of the metadata entry as a raw {@link ByteBuf}.
      */
-    public interface Entry {
+    public static class Entry {
 
         /**
          * Create an {@link Entry} from a {@link WellKnownMimeType}. This will be encoded in a compressed format that
@@ -279,7 +290,7 @@ public class CompositeMetadataFlyweight {
          * @return the new entry
          */
         public static Entry wellKnownMime(WellKnownMimeType mimeType, ByteBuf metadataContentBuffer) {
-            return new CompressedTypeEntry(mimeType, metadataContentBuffer);
+            return new Entry(mimeType.getMime(), mimeType.getIdentifier(), metadataContentBuffer);
         }
 
         /**
@@ -291,7 +302,7 @@ public class CompositeMetadataFlyweight {
          * @return the new entry
          */
         public static Entry customMime(String mimeType, ByteBuf metadataContentBuffer) {
-            return new CustomTypeEntry(mimeType, metadataContentBuffer);
+            return new Entry(mimeType, (byte) -1, metadataContentBuffer);
         }
 
         /**
@@ -309,7 +320,7 @@ public class CompositeMetadataFlyweight {
          * @see #wellKnownMime(WellKnownMimeType, ByteBuf)
          */
         public static Entry rawCompressedMime(byte mimeCode, ByteBuf metadataContentBuffer) {
-            return new UnknownCompressedTypeEntry(mimeCode, metadataContentBuffer);
+            return new Entry(null, mimeCode, metadataContentBuffer);
         }
 
         /**
@@ -348,9 +359,9 @@ public class CompositeMetadataFlyweight {
                     throw new IllegalStateException("composite metadata entry parsing failed on compressed mime id " + id);
                 }
                 if (wkn == WellKnownMimeType.UNKNOWN_RESERVED_MIME_TYPE) {
-                    return new UnknownCompressedTypeEntry(id, metadataContent);
+                    return new Entry(null, id, metadataContent);
                 }
-                return new CompressedTypeEntry(wkn, metadataContent);
+                return new Entry(wkn.getMime(), wkn.getIdentifier(), metadataContent);
             }
             else {
                 CharSequence customMimeCharSequence = decodeMimeTypeFromMimeBuffer(encodedHeader);
@@ -358,36 +369,46 @@ public class CompositeMetadataFlyweight {
                     //should not happen due to flyweight's decodeEntry own guard
                     throw new IllegalArgumentException("composite metadata entry parsing failed on custom type");
                 }
-                return new CustomTypeEntry(customMimeCharSequence.toString(), metadataContent);
+                return new Entry(customMimeCharSequence.toString(), (byte) -1, metadataContent);
             }
         }
 
-        /**
-         * A <i>passthrough</i> entry is one for which the {@link #getMimeType()} could not be decoded.
-         * This is usually because it was compressed on the wire, but using an id that is still just "reserved for
-         * future use" in this implementation.
-         * <p>
-         * Still, another actor on the network might be able to interpret such an entry, which should thus be
-         * re-encoded as it was when forwarding the frame.
-         * <p>
-         * The {@link #getMetadata()} exposes the raw content buffer of the entry (as any other entry).
-         *
-         * @return true if this entry should be ignored but passed through as is during re-encoding
-         */
-        default boolean isPassthrough() {
-            return false;
+        private final String mimeString;
+        private final byte mimeCode;
+        private final ByteBuf content;
+
+        public Entry(@Nullable String mimeString, byte mimeCode, ByteBuf content) {
+            this.mimeString = mimeString;
+            this.mimeCode = mimeCode;
+            this.content = content;
         }
 
         /**
-         * @return the mime type for this entry
+         * Returns the mime type {@link String} representation if there is one.
+         * <p>
+         * A {@code null} value should only occur with a positive {@link #getMimeId()},
+         * denoting an entry that is compressed but unparseable (see {@link #rawCompressedMime(byte, ByteBuf)}).
+         *
+         * @return the mime type for this entry, or null
          */
         @Nullable
-        String getMimeType();
+        public String getMimeType() {
+            return this.mimeString;
+        }
+
+        /**
+         * @return the compressed mime id byte if relevant (0-127), or -1 if not
+         */
+        public byte getMimeId() {
+            return this.mimeCode;
+        }
 
         /**
          * @return the metadata content of this entry
          */
-        ByteBuf getMetadata();
+        public ByteBuf getMetadata() {
+            return this.content;
+        }
 
         /**
          * Encode this {@link Entry} into a {@link CompositeByteBuf} representing a composite metadata.
@@ -396,101 +417,15 @@ public class CompositeMetadataFlyweight {
          * @param compositeByteBuf the {@link CompositeByteBuf} to hold the components of the whole composite metadata
          * @param byteBufAllocator the {@link ByteBufAllocator} to use to allocate new buffers as needed
          */
-        default void encodeInto(CompositeByteBuf compositeByteBuf, ByteBufAllocator byteBufAllocator) {
-            if (this instanceof CompressedTypeEntry) {
-                CompressedTypeEntry cte = (CompressedTypeEntry) this;
+        public void encodeInto(CompositeByteBuf compositeByteBuf, ByteBufAllocator byteBufAllocator) {
+            if (this.mimeCode >= 0) {
                 encodeAndAddMetadata(compositeByteBuf, byteBufAllocator,
-                        cte.mimeType, cte.content);
-            }
-            else if (this instanceof UnknownCompressedTypeEntry) {
-                UnknownCompressedTypeEntry ucte = (UnknownCompressedTypeEntry) this;
-                encodeAndAddMetadata(compositeByteBuf, byteBufAllocator,
-                        (byte) ucte.identifier, ucte.content);
+                        this.mimeCode, this.content);
             }
             else {
                 encodeAndAddMetadata(compositeByteBuf, byteBufAllocator,
-                        getMimeType(), getMetadata());
+                        this.mimeString, this.content);
             }
-        }
-    }
-
-    static final class CustomTypeEntry implements Entry {
-
-        private final String mimeType;
-        private final ByteBuf content;
-
-        CustomTypeEntry(String mimeType, ByteBuf content) {
-            this.mimeType = mimeType;
-            this.content = content;
-        }
-
-        @Override
-        public String getMimeType() {
-            return this.mimeType;
-        }
-
-        @Override
-        public ByteBuf getMetadata() {
-            return this.content;
-        }
-    }
-
-    static final class CompressedTypeEntry implements Entry {
-
-        private final WellKnownMimeType mimeType;
-        private final ByteBuf content;
-
-        CompressedTypeEntry(WellKnownMimeType mimeType, ByteBuf content) {
-            this.mimeType = mimeType;
-            this.content = content;
-        }
-
-        @Override
-        public String getMimeType() {
-            return this.mimeType.getMime();
-        }
-
-        @Override
-        public ByteBuf getMetadata() {
-            return this.content;
-        }
-    }
-
-    /**
-     * A {@link Entry#isPassthrough() pass-through} {@link Entry} that encapsulates a
-     * compressed-mime metadata that couldn't be recognized.
-     */
-    static final class UnknownCompressedTypeEntry implements Entry {
-
-        private final byte identifier;
-        private final ByteBuf content;
-
-        UnknownCompressedTypeEntry(byte identifier, ByteBuf content) {
-            this.identifier = identifier;
-            this.content = content;
-        }
-
-        @Override
-        public boolean isPassthrough() {
-            return true;
-        }
-
-        @Override
-        public String getMimeType() {
-            return WellKnownMimeType.UNKNOWN_RESERVED_MIME_TYPE.getMime();
-        }
-
-        /**
-         * Return the compressed identifier that was used in the original decoded metadata, but couldn't be
-         * decoded because this implementation only knows this as "reserved for future use". The original
-         */
-        public byte getUnknownReservedId() {
-            return this.identifier;
-        }
-
-        @Override
-        public ByteBuf getMetadata() {
-            return this.content;
         }
     }
 }
