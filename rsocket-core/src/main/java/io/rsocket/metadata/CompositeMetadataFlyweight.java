@@ -8,6 +8,9 @@ import io.netty.util.CharsetUtil;
 import io.rsocket.util.NumberUtils;
 import reactor.util.annotation.Nullable;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * A flyweight class that can be used to encode/decode composite metadata information to/from {@link ByteBuf}.
  * This is intended for low-level efficient manipulation of such buffers, but each composite metadata entry can be also
@@ -335,7 +338,7 @@ public class CompositeMetadataFlyweight {
          * @param retainMetadataSlices should each slide be retained when read from the original buffer?
          * @return the decoded {@link Entry}
          */
-        static Entry decodeEntry(ByteBuf buffer, boolean retainMetadataSlices) {
+        static Entry decode(ByteBuf buffer, boolean retainMetadataSlices) {
             ByteBuf[] entry = decodeMimeAndContentBuffers(buffer, retainMetadataSlices);
             if (entry == METADATA_MALFORMED) {
                 throw new IllegalArgumentException("composite metadata entry buffer is too short to contain proper entry");
@@ -355,7 +358,7 @@ public class CompositeMetadataFlyweight {
                 byte id = decodeMimeIdFromMimeBuffer(encodedHeader);
                 WellKnownMimeType wkn = WellKnownMimeType.fromId(id);
                 if (wkn == WellKnownMimeType.UNPARSEABLE_MIME_TYPE) {
-                    //should not happen due to flyweight's decodeEntry own guard
+                    //should not happen due to flyweight decodeMimeAndContentBuffer's own guard
                     throw new IllegalStateException("composite metadata entry parsing failed on compressed mime id " + id);
                 }
                 if (wkn == WellKnownMimeType.UNKNOWN_RESERVED_MIME_TYPE) {
@@ -366,11 +369,37 @@ public class CompositeMetadataFlyweight {
             else {
                 CharSequence customMimeCharSequence = decodeMimeTypeFromMimeBuffer(encodedHeader);
                 if (customMimeCharSequence == null) {
-                    //should not happen due to flyweight's decodeEntry own guard
+                    //should not happen due to flyweight decodeMimeAndContentBuffer's own guard
                     throw new IllegalArgumentException("composite metadata entry parsing failed on custom type");
                 }
                 return new Entry(customMimeCharSequence.toString(), (byte) -1, metadataContent);
             }
+        }
+
+        /**
+         * Decode all the metadata entries from a {@link ByteBuf} into a {@link List} of {@link Entry}.
+         * This is only possible on frame types used to initiate interactions, if the SETUP metadata mime type was
+         * {@link WellKnownMimeType#MESSAGE_RSOCKET_COMPOSITE_METADATA}.
+         * <p>
+         * Each entry's {@link Entry#getMetadata() content} is a {@link ByteBuf#readSlice(int) slice} of the original
+         * buffer that can also be {@link ByteBuf#readRetainedSlice(int) retained} if needed.
+         * <p>
+         * The buffer is assumed to contain just enough bytes to represent one or more entries (mime type compressed or
+         * not). The decoding stops when the buffer reaches 0 readable bytes, and fails if it contains bytes but not
+         * enough to correctly decode an entry.
+         *
+         * @param buffer the buffer to decode
+         * @param retainMetadataSlices should each slide be retained when read from the original buffer?
+         * @return the {@link List} of decoded {@link Entry}
+         */
+        static List<Entry> decodeAll(ByteBuf buffer, boolean retainMetadataSlices) {
+            List<Entry> list = new ArrayList<>();
+            Entry nextEntry = decode(buffer, retainMetadataSlices);
+            while (nextEntry != null) {
+                list.add(nextEntry);
+                nextEntry = decode(buffer, retainMetadataSlices);
+            }
+            return list;
         }
 
         private final String mimeString;
