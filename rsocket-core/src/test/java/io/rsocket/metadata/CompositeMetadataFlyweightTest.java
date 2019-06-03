@@ -172,7 +172,7 @@ class CompositeMetadataFlyweightTest {
 
         assertThat((int) header.readByte())
                 .as("mime length")
-                .isEqualTo(1 -1); //encoded as actual length - 1
+                .isZero(); //encoded as actual length - 1
 
         assertThat(header.readCharSequence(1, CharsetUtil.US_ASCII))
                 .as("mime string")
