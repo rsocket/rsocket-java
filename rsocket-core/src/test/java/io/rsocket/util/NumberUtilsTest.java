@@ -20,8 +20,6 @@ import static org.assertj.core.api.Assertions.*;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
-import io.netty.buffer.ByteBufUtil;
-import io.rsocket.test.util.ByteBufUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -166,17 +164,13 @@ final class NumberUtilsTest {
   @Test
   void encodeUnsignedMedium() {
     ByteBuf buffer = ByteBufAllocator.DEFAULT.buffer();
-    NumberUtils.encodeUnsignedMedium(buffer,129);
+    NumberUtils.encodeUnsignedMedium(buffer, 129);
     buffer.markReaderIndex();
 
-    assertThat(buffer.readUnsignedMedium())
-            .as("reading as unsigned medium")
-            .isEqualTo(129);
+    assertThat(buffer.readUnsignedMedium()).as("reading as unsigned medium").isEqualTo(129);
 
     buffer.resetReaderIndex();
-    assertThat(buffer.readMedium())
-            .as("reading as signed medium")
-            .isEqualTo(129);
+    assertThat(buffer.readMedium()).as("reading as signed medium").isEqualTo(129);
   }
 
   @Test
@@ -185,14 +179,9 @@ final class NumberUtilsTest {
     NumberUtils.encodeUnsignedMedium(buffer, 0xFFFFFC);
     buffer.markReaderIndex();
 
-    assertThat(buffer.readUnsignedMedium())
-            .as("reading as unsigned medium")
-            .isEqualTo(16777212);
+    assertThat(buffer.readUnsignedMedium()).as("reading as unsigned medium").isEqualTo(16777212);
 
     buffer.resetReaderIndex();
-    assertThat(buffer.readMedium())
-            .as("reading as signed medium")
-            .isEqualTo(-4);
+    assertThat(buffer.readMedium()).as("reading as signed medium").isEqualTo(-4);
   }
-
 }
