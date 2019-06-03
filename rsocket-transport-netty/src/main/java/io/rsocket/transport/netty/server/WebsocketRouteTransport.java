@@ -23,10 +23,10 @@ import io.rsocket.Closeable;
 import io.rsocket.transport.ServerTransport;
 import io.rsocket.transport.netty.WebsocketDuplexConnection;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
@@ -114,8 +114,7 @@ public final class WebsocketRouteTransport implements ServerTransport<Closeable>
     private static final String NAME_REPLACEMENT = "(?<%NAME%>[^\\/]*)";
 
     private final List<String> pathVariables = new ArrayList<>();
-    private final HashMap<String, Matcher> matchers = new HashMap<>();
-    private final HashMap<String, Map<String, String>> vars = new HashMap<>();
+    private final Map<String, Matcher> matchers = new ConcurrentHashMap<>();
 
     private final Pattern uriPattern;
 
@@ -176,46 +175,9 @@ public final class WebsocketRouteTransport implements ServerTransport<Closeable>
       return matcher(uri).matches();
     }
 
-    /**
-     * Matches the template against the given {@code uri} returning a map of path parameters
-     * extracted from the uri, keyed by the names in the template. If the uri does not match, or
-     * there are no path parameters, an empty map is returned.
-     *
-     * @param uri The uri to match
-     * @return the path parameters from the uri. Never {@code null}.
-     */
-    final Map<String, String> match(String uri) {
-      Map<String, String> pathParameters = vars.get(uri);
-      if (null != pathParameters) {
-        return pathParameters;
-      }
-
-      pathParameters = new HashMap<>();
-      Matcher m = matcher(uri);
-      if (m.matches()) {
-        int i = 1;
-        for (String name : pathVariables) {
-          String val = m.group(i++);
-          pathParameters.put(name, val);
-        }
-      }
-      synchronized (vars) {
-        vars.put(uri, pathParameters);
-      }
-
-      return pathParameters;
-    }
-
     private Matcher matcher(String uri) {
-      uri = filterQueryParams(uri);
-      Matcher m = matchers.get(uri);
-      if (null == m) {
-        m = uriPattern.matcher(uri);
-        synchronized (matchers) {
-          matchers.put(uri, m);
-        }
-      }
-      return m;
+      final String foundUri = filterQueryParams(uri);
+      return matchers.computeIfAbsent(uri, __ -> uriPattern.matcher(foundUri));
     }
   }
 }
