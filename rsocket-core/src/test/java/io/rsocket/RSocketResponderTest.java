@@ -146,7 +146,8 @@ public class RSocketResponderTest {
           connection,
           acceptingSocket,
           DefaultPayload::create,
-          throwable -> errors.add(throwable));
+          throwable -> errors.add(throwable),
+          null);
     }
 
     private void sendRequest(int streamId, FrameType frameType) {

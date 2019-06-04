@@ -231,7 +231,8 @@ public class RSocketRequesterTest {
           connection,
           DefaultPayload::create,
           throwable -> errors.add(throwable),
-          StreamIdSupplier.clientSupplier());
+          StreamIdSupplier.clientSupplier(),
+          null);
     }
 
     public int getStreamIdForRequestType(FrameType expectedFrameType) {

@@ -27,12 +27,11 @@ import io.rsocket.exceptions.ConnectionErrorException;
 import io.rsocket.exceptions.Exceptions;
 import io.rsocket.frame.*;
 import io.rsocket.frame.decoder.PayloadDecoder;
-import io.rsocket.internal.LimitableRequestPublisher;
-import io.rsocket.internal.UnboundedProcessor;
-import io.rsocket.internal.UnicastMonoProcessor;
+import io.rsocket.internal.*;
 import io.rsocket.keepalive.KeepAliveFramesAcceptor;
 import io.rsocket.keepalive.KeepAliveHandler;
 import io.rsocket.keepalive.KeepAliveSupport;
+import io.rsocket.lease.LeaseHandler;
 import java.nio.channels.ClosedChannelException;
 import java.util.Collections;
 import java.util.Map;
@@ -40,6 +39,7 @@ import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
 import java.util.function.Supplier;
+import javax.annotation.Nullable;
 import org.reactivestreams.Processor;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
@@ -54,10 +54,11 @@ class RSocketRequester implements RSocket {
   private final PayloadDecoder payloadDecoder;
   private final Consumer<Throwable> errorConsumer;
   private final StreamIdSupplier streamIdSupplier;
+  private LeaseHandler.Requester leaseHandler;
   private final Map<Integer, LimitableRequestPublisher> senders;
   private final Map<Integer, Processor<Payload, Payload>> receivers;
   private final UnboundedProcessor<ByteBuf> sendProcessor;
-  private final Lifecycle lifecycle = new Lifecycle();
+  private final Lifecycle lifecycle;
   private final ByteBufAllocator allocator;
   private final KeepAliveFramesAcceptor keepAliveFramesAcceptor;
 
@@ -70,12 +71,15 @@ class RSocketRequester implements RSocket {
       StreamIdSupplier streamIdSupplier,
       int keepAliveTickPeriod,
       int keepAliveAckTimeout,
-      KeepAliveHandler keepAliveHandler) {
+      @Nullable KeepAliveHandler keepAliveHandler,
+      @Nullable LeaseHandler.Requester leaseHandler) {
     this.allocator = allocator;
     this.connection = connection;
     this.payloadDecoder = payloadDecoder;
     this.errorConsumer = errorConsumer;
     this.streamIdSupplier = streamIdSupplier;
+    this.leaseHandler = leaseHandler;
+    this.lifecycle = new Lifecycle(leaseHandler);
     this.senders = Collections.synchronizedMap(new IntObjectHashMap<>());
     this.receivers = Collections.synchronizedMap(new IntObjectHashMap<>());
 
@@ -106,8 +110,18 @@ class RSocketRequester implements RSocket {
       DuplexConnection connection,
       PayloadDecoder payloadDecoder,
       Consumer<Throwable> errorConsumer,
-      StreamIdSupplier streamIdSupplier) {
-    this(allocator, connection, payloadDecoder, errorConsumer, streamIdSupplier, 0, 0, null);
+      StreamIdSupplier streamIdSupplier,
+      @Nullable LeaseHandler.Requester leaseHandler) {
+    this(
+        allocator,
+        connection,
+        payloadDecoder,
+        errorConsumer,
+        streamIdSupplier,
+        0,
+        0,
+        null,
+        leaseHandler);
   }
 
   private void terminate(KeepAlive keepAlive) {
@@ -182,7 +196,9 @@ class RSocketRequester implements RSocket {
 
   @Override
   public double availability() {
-    return connection.availability();
+    return leaseHandler != null
+        ? Math.min(connection.availability(), leaseHandler.availability())
+        : connection.availability();
   }
 
   @Override
@@ -263,8 +279,6 @@ class RSocketRequester implements RSocket {
               .doOnRequest(
                   new LongConsumer() {
 
-                    // No need to make it atomic; See
-                    // https://github.com/reactive-streams/reactive-streams-jvm#2.7
                     boolean firstRequest = true;
 
                     @Override
@@ -312,8 +326,6 @@ class RSocketRequester implements RSocket {
               .doOnRequest(
                   new LongConsumer() {
 
-                    // No need to make it atomic; See
-                    // https://github.com/reactive-streams/reactive-streams-jvm#2.7
                     boolean firstRequest = true;
 
                     @Override
@@ -335,8 +347,6 @@ class RSocketRequester implements RSocket {
                             .subscribe(
                                 new BaseSubscriber<Payload>() {
 
-                                  // no need to make it atomic; See
-                                  // https://github.com/reactive-streams/reactive-streams-jvm#1.3
                                   boolean firstPayload = true;
 
                                   @Override
@@ -414,11 +424,10 @@ class RSocketRequester implements RSocket {
   }
 
   private Mono<Void> handleMetadataPush(Payload payload) {
-    return lifecycle.active(
-        () -> {
-          sendProcessor.onNext(
-              MetadataPushFrameFlyweight.encode(allocator, payload.sliceMetadata().retain()));
-        });
+    return lifecycle.activeMetadataPush(
+        () ->
+            sendProcessor.onNext(
+                MetadataPushFrameFlyweight.encode(allocator, payload.sliceMetadata().retain())));
   }
 
   private boolean contains(int streamId) {
@@ -427,7 +436,6 @@ class RSocketRequester implements RSocket {
 
   protected void terminate() {
     lifecycle.setTerminationError(new ClosedChannelException());
-
     try {
       receivers.values().forEach(this::cleanUpSubscriber);
       senders.values().forEach(this::cleanUpLimitableRequestPublisher);
@@ -480,6 +488,12 @@ class RSocketRequester implements RSocket {
         connection.dispose();
         break;
       case LEASE:
+        if (leaseHandler != null) {
+          int timeToLiveMillis = LeaseFrameFlyweight.ttl(frame);
+          int numberOfRequests = LeaseFrameFlyweight.numRequests(frame);
+          ByteBuf metadata = LeaseFrameFlyweight.metadata(frame).retain();
+          leaseHandler.onReceiveLease(timeToLiveMillis, numberOfRequests, metadata);
+        }
         break;
       case KEEPALIVE:
         if (keepAliveFramesAcceptor != null) {
@@ -568,9 +582,14 @@ class RSocketRequester implements RSocket {
     private static final AtomicReferenceFieldUpdater<Lifecycle, Throwable> TERMINATION_ERROR =
         AtomicReferenceFieldUpdater.newUpdater(
             Lifecycle.class, Throwable.class, "terminationError");
+    private final LeaseHandler.Requester leaseHandler;
     private volatile Throwable terminationError;
 
-    public Mono<Void> active(Runnable runnable) {
+    public Lifecycle(@Nullable LeaseHandler.Requester leaseHandler) {
+      this.leaseHandler = leaseHandler;
+    }
+
+    public Mono<Void> activeMetadataPush(Runnable runnable) {
       return Mono.create(
           sink -> {
             if (terminationError == null) {
@@ -582,24 +601,66 @@ class RSocketRequester implements RSocket {
           });
     }
 
+    public Mono<Void> active(Runnable runnable) {
+      reserveLease();
+      return Mono.create(
+          new RequesterConsumer<MonoSink<Void>>() {
+
+            @Override
+            public void accept(MonoSink<Void> sink) {
+              if (terminationError == null) {
+                Throwable leaseError = useLease(isFirst());
+                if (leaseError != null) {
+                  sink.error(leaseError);
+                } else {
+                  runnable.run();
+                  sink.success();
+                }
+              } else {
+                sink.error(terminationError);
+              }
+            }
+          });
+    }
+
     public <T> Mono<T> activeMono(Supplier<? extends Mono<? extends T>> supplier) {
+      reserveLease();
       return Mono.defer(
-          () -> {
-            if (terminationError == null) {
-              return supplier.get();
-            } else {
-              return Mono.error(terminationError);
+          new RequesterSupplier<Mono<? extends T>>() {
+
+            @Override
+            public Mono<? extends T> get() {
+              if (terminationError == null) {
+                Throwable leaseError = useLease(isFirst());
+                if (leaseError != null) {
+                  return Mono.error(leaseError);
+                } else {
+                  return supplier.get();
+                }
+              } else {
+                return Mono.error(terminationError);
+              }
             }
           });
     }
 
     public <T> Flux<T> activeFlux(Supplier<? extends Flux<T>> supplier) {
+      reserveLease();
       return Flux.defer(
-          () -> {
-            if (terminationError == null) {
-              return supplier.get();
-            } else {
-              return Flux.error(terminationError);
+          new RequesterSupplier<Publisher<T>>() {
+
+            @Override
+            public Publisher<T> get() {
+              if (terminationError == null) {
+                Throwable leaseError = useLease(isFirst());
+                if (leaseError != null) {
+                  return Flux.error(leaseError);
+                } else {
+                  return supplier.get();
+                }
+              } else {
+                return Flux.error(terminationError);
+              }
             }
           });
     }
@@ -610,6 +671,20 @@ class RSocketRequester implements RSocket {
 
     public void setTerminationError(Throwable err) {
       TERMINATION_ERROR.compareAndSet(this, null, err);
+    }
+
+    private void reserveLease() {
+      if (leaseHandler != null) {
+        leaseHandler.reserveLease();
+      }
+    }
+
+    private Throwable useLease(boolean isFirst) {
+      if (leaseHandler != null) {
+        return isFirst ? leaseHandler.useLease() : leaseHandler.reserveAndUseLease();
+      } else {
+        return null;
+      }
     }
   }
 }

@@ -55,7 +55,8 @@ public class SetupRejectionTest {
             conn,
             DefaultPayload::create,
             errors::add,
-            StreamIdSupplier.clientSupplier());
+            StreamIdSupplier.clientSupplier(),
+            null);
 
     String errorMsg = "error";
 
@@ -85,7 +86,8 @@ public class SetupRejectionTest {
             conn,
             DefaultPayload::create,
             err -> {},
-            StreamIdSupplier.clientSupplier());
+            StreamIdSupplier.clientSupplier(),
+            null);
 
     conn.addToReceivedBuffer(
         ErrorFrameFlyweight.encode(

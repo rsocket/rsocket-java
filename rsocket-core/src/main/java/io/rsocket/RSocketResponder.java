@@ -25,6 +25,7 @@ import io.netty.util.ReferenceCountUtil;
 import io.netty.util.collection.IntObjectHashMap;
 import io.rsocket.exceptions.ApplicationErrorException;
 import io.rsocket.exceptions.ConnectionErrorException;
+import io.rsocket.exceptions.MissingLeaseException;
 import io.rsocket.frame.*;
 import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.internal.LimitableRequestPublisher;
@@ -32,9 +33,11 @@ import io.rsocket.internal.UnboundedProcessor;
 import io.rsocket.keepalive.KeepAliveFramesAcceptor;
 import io.rsocket.keepalive.KeepAliveHandler;
 import io.rsocket.keepalive.KeepAliveSupport;
+import io.rsocket.lease.LeaseHandler;
 import java.util.Collections;
 import java.util.Map;
 import java.util.function.Consumer;
+import javax.annotation.Nullable;
 import org.reactivestreams.Processor;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
@@ -51,6 +54,7 @@ class RSocketResponder implements ResponderRSocket {
   private final ResponderRSocket responderRSocket;
   private final PayloadDecoder payloadDecoder;
   private final Consumer<Throwable> errorConsumer;
+  private final LeaseHandler.Responder leaseHandler;
 
   private final Map<Integer, LimitableRequestPublisher> sendingLimitableSubscriptions;
   private final Map<Integer, Subscription> sendingSubscriptions;
@@ -66,8 +70,18 @@ class RSocketResponder implements ResponderRSocket {
       DuplexConnection connection,
       RSocket requestHandler,
       PayloadDecoder payloadDecoder,
-      Consumer<Throwable> errorConsumer) {
-    this(allocator, connection, requestHandler, payloadDecoder, errorConsumer, 0, 0, null);
+      Consumer<Throwable> errorConsumer,
+      @Nullable LeaseHandler.Responder responder) {
+    this(
+        allocator,
+        connection,
+        requestHandler,
+        payloadDecoder,
+        errorConsumer,
+        0,
+        0,
+        null,
+        responder);
   }
 
   /*server responder*/
@@ -79,7 +93,8 @@ class RSocketResponder implements ResponderRSocket {
       Consumer<Throwable> errorConsumer,
       int keepAliveTickPeriod,
       int keepAliveAckTimeout,
-      KeepAliveHandler keepAliveHandler) {
+      @Nullable KeepAliveHandler keepAliveHandler,
+      @Nullable LeaseHandler.Responder responderLeaseHandler) {
     this.allocator = allocator;
     this.connection = connection;
 
@@ -89,6 +104,7 @@ class RSocketResponder implements ResponderRSocket {
 
     this.payloadDecoder = payloadDecoder;
     this.errorConsumer = errorConsumer;
+    this.leaseHandler = responderLeaseHandler;
     this.sendingLimitableSubscriptions = Collections.synchronizedMap(new IntObjectHashMap<>());
     this.sendingSubscriptions = Collections.synchronizedMap(new IntObjectHashMap<>());
     this.channelProcessors = Collections.synchronizedMap(new IntObjectHashMap<>());
@@ -120,6 +136,10 @@ class RSocketResponder implements ResponderRSocket {
           keepAliveHandler.start(keepAliveSupport, sendProcessor::onNext, this::terminate);
     } else {
       keepAliveFramesAcceptor = null;
+    }
+
+    if (leaseHandler != null) {
+      leaseHandler.onSendLease(sendProcessor::onNext);
     }
   }
 
@@ -207,6 +227,12 @@ class RSocketResponder implements ResponderRSocket {
   @Override
   public Mono<Void> fireAndForget(Payload payload) {
     try {
+      if (leaseHandler != null) {
+        MissingLeaseException leaseError = leaseHandler.useLease();
+        if (leaseError != null) {
+          return Mono.error(leaseError);
+        }
+      }
       return requestHandler.fireAndForget(payload);
     } catch (Throwable t) {
       return Mono.error(t);
@@ -216,6 +242,13 @@ class RSocketResponder implements ResponderRSocket {
   @Override
   public Mono<Payload> requestResponse(Payload payload) {
     try {
+      if (leaseHandler != null) {
+        MissingLeaseException leaseError = leaseHandler.useLease();
+        if (leaseError != null) {
+          payload.release();
+          return Mono.error(leaseError);
+        }
+      }
       return requestHandler.requestResponse(payload);
     } catch (Throwable t) {
       return Mono.error(t);
@@ -225,6 +258,13 @@ class RSocketResponder implements ResponderRSocket {
   @Override
   public Flux<Payload> requestStream(Payload payload) {
     try {
+      if (leaseHandler != null) {
+        MissingLeaseException leaseError = leaseHandler.useLease();
+        if (leaseError != null) {
+          payload.release();
+          return Flux.error(leaseError);
+        }
+      }
       return requestHandler.requestStream(payload);
     } catch (Throwable t) {
       return Flux.error(t);
@@ -234,6 +274,12 @@ class RSocketResponder implements ResponderRSocket {
   @Override
   public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
     try {
+      if (leaseHandler != null) {
+        MissingLeaseException leaseError = leaseHandler.useLease();
+        if (leaseError != null) {
+          return Flux.error(leaseError);
+        }
+      }
       return requestHandler.requestChannel(payloads);
     } catch (Throwable t) {
       return Flux.error(t);
@@ -243,6 +289,13 @@ class RSocketResponder implements ResponderRSocket {
   @Override
   public Flux<Payload> requestChannel(Payload payload, Publisher<Payload> payloads) {
     try {
+      if (leaseHandler != null) {
+        MissingLeaseException leaseError = leaseHandler.useLease();
+        if (leaseError != null) {
+          payload.release();
+          return Flux.error(leaseError);
+        }
+      }
       return responderRSocket.requestChannel(payload, payloads);
     } catch (Throwable t) {
       return Flux.error(t);
@@ -274,6 +327,10 @@ class RSocketResponder implements ResponderRSocket {
   }
 
   private void cleanup() {
+    if (leaseHandler != null) {
+      leaseHandler.dispose();
+    }
+
     cleanUpSendingSubscriptions();
     cleanUpChannelProcessors();
 
@@ -332,8 +389,12 @@ class RSocketResponder implements ResponderRSocket {
           // TODO: Hook in receiving socket.
           break;
         case LEASE:
-          // Lease must not be received here as this is the server end of the socket which sends
-          // leases.
+          if (leaseHandler != null) {
+            int timeToLiveMillis = LeaseFrameFlyweight.ttl(frame);
+            int numberOfRequests = LeaseFrameFlyweight.numRequests(frame);
+            ByteBuf metadata = LeaseFrameFlyweight.metadata(frame).retain();
+            leaseHandler.onReceiveLease(timeToLiveMillis, numberOfRequests, metadata);
+          }
           break;
         case NEXT:
           receiver = channelProcessors.get(streamId);

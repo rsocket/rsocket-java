@@ -168,7 +168,8 @@ public class RSocketTest {
               serverConnection,
               requestAcceptor,
               DefaultPayload::create,
-              throwable -> serverErrors.add(throwable));
+              throwable -> serverErrors.add(throwable),
+              null);
 
       crs =
           new RSocketRequester(
@@ -176,7 +177,8 @@ public class RSocketTest {
               clientConnection,
               DefaultPayload::create,
               throwable -> clientErrors.add(throwable),
-              StreamIdSupplier.clientSupplier());
+              StreamIdSupplier.clientSupplier(),
+              null);
     }
 
     public void setRequestAcceptor(RSocket requestAcceptor) {

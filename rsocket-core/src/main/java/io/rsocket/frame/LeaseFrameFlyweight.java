@@ -5,7 +5,7 @@ import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
 import javax.annotation.Nullable;
 
-public class LeaseFlyweight {
+public class LeaseFrameFlyweight {
 
   public static ByteBuf encode(
       final ByteBufAllocator allocator,

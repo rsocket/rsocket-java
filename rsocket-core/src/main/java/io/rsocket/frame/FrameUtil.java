@@ -65,7 +65,7 @@ public class FrameUtil {
           metadata = SetupFrameFlyweight.metadata(frame);
           break;
         case LEASE:
-          metadata = LeaseFlyweight.metadata(frame);
+          metadata = LeaseFrameFlyweight.metadata(frame);
           break;
         default:
           return Unpooled.EMPTY_BUFFER;
