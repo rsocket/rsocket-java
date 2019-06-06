@@ -442,58 +442,28 @@ class CompositeMetadataFlyweightTest {
     assertThat((Iterable<? extends ByteBuf>) test).hasSize(2).first().isEqualTo(expected);
   }
 
-  //    @Test
-  //    void decodeMetadataLengthFromUntouchedWithKnownMime() {
-  //        ByteBuf encoded =
-  // CompositeMetadataFlyweight.encodeMetadataHeader(ByteBufAllocator.DEFAULT,
-  // WellKnownMimeType.APPLICATION_GZIP.getIdentifier(), 12);
-  //
-  //        assertThat(CompositeMetadataFlyweight.decodeMetadataLengthFromMetadataHeader(encoded))
-  //                .withFailMessage("should not correctly decode if not at correct reader index")
-  //                .isNotEqualTo(12);
-  //    }
-  //
-  //    @Test
-  //    void decodeMetadataLengthFromMimeDecodedWithKnownMime() {
-  //        ByteBuf encoded =
-  // CompositeMetadataFlyweight.encodeMetadataHeader(ByteBufAllocator.DEFAULT,
-  // WellKnownMimeType.APPLICATION_GZIP.getIdentifier(), 12);
-  //        CompositeMetadataFlyweight.decode3WaysMimeFromMetadataHeader(encoded);
-  //
-  //
-  // assertThat(CompositeMetadataFlyweight.decodeMetadataLengthFromMetadataHeader(encoded)).isEqualTo(12);
-  //    }
-  //
-  //    @Test
-  //    void decodeMetadataLengthFromUntouchedWithCustomMime() {
-  //        ByteBuf encoded =
-  // CompositeMetadataFlyweight.encodeMetadataHeader(ByteBufAllocator.DEFAULT, "foo/bar", 12);
-  //
-  //        assertThat(CompositeMetadataFlyweight.decodeMetadataLengthFromMetadataHeader(encoded))
-  //                .withFailMessage("should not correctly decode if not at correct reader index")
-  //                .isNotEqualTo(12);
-  //    }
-  //
-  //    @Test
-  //    void decodeMetadataLengthFromMimeDecodedWithCustomMime() {
-  //        ByteBuf encoded =
-  // CompositeMetadataFlyweight.encodeMetadataHeader(ByteBufAllocator.DEFAULT, "foo/bar", 12);
-  //        CompositeMetadataFlyweight.decode3WaysMimeFromMetadataHeader(encoded);
-  //
-  //
-  // assertThat(CompositeMetadataFlyweight.decodeMetadataLengthFromMetadataHeader(encoded)).isEqualTo(12);
-  //    }
-  //
-  //    @Test
-  //    void decodeMetadataLengthFromTooShortBuffer() {
-  //        ByteBuf buffer = Unpooled.buffer();
-  //        buffer.writeShort(12);
-  //
-  //        assertThatExceptionOfType(RuntimeException.class)
-  //                .isThrownBy(() ->
-  // CompositeMetadataFlyweight.decodeMetadataLengthFromMetadataHeader(buffer))
-  //                .withMessage("the given buffer should contain at least 3 readable bytes after
-  // decoding mime type");
-  //    }
+  @Test
+  void encodeTryCompressWithCustomType() {
+    ByteBuf metadata = ByteBufUtils.getRandomByteBuf(2);
+    CompositeByteBuf target = UnpooledByteBufAllocator.DEFAULT.compositeBuffer();
 
+    CompositeMetadataFlyweight.encodeAndAddMetadataWithCompression(
+        target, UnpooledByteBufAllocator.DEFAULT, "custom/example", metadata);
+
+    assertThat(target.readableBytes()).as("readableBytes 1 + 14 + 3 + 2").isEqualTo(20);
+  }
+
+  @Test
+  void encodeTryCompressWithCompressableType() {
+    ByteBuf metadata = ByteBufUtils.getRandomByteBuf(2);
+    CompositeByteBuf target = UnpooledByteBufAllocator.DEFAULT.compositeBuffer();
+
+    CompositeMetadataFlyweight.encodeAndAddMetadataWithCompression(
+        target,
+        UnpooledByteBufAllocator.DEFAULT,
+        WellKnownMimeType.APPLICATION_AVRO.getMime(),
+        metadata);
+
+    assertThat(target.readableBytes()).as("readableBytes 1 + 3 + 2").isEqualTo(6);
+  }
 }

@@ -236,7 +236,44 @@ public class CompositeMetadataFlyweight {
 
   /**
    * Encode a new sub-metadata information into a composite metadata {@link CompositeByteBuf
-   * buffer}.
+   * buffer}, first verifying if the passed {@link String} matches a {@link WellKnownMimeType} (in
+   * which case it will be encoded in a compressed fashion using the mime id of that type).
+   *
+   * <p>Prefer using {@link #encodeAndAddMetadata(CompositeByteBuf, ByteBufAllocator, String,
+   * ByteBuf)} if you already know that the mime type is not a {@link WellKnownMimeType}.
+   *
+   * @param compositeMetaData the buffer that will hold all composite metadata information.
+   * @param allocator the {@link ByteBufAllocator} to use to create intermediate buffers as needed.
+   * @param mimeType the mime type to encode, as a {@link String}. well known mime types are
+   *     compressed.
+   * @param metadata the metadata value to encode.
+   * @see #encodeAndAddMetadata(CompositeByteBuf, ByteBufAllocator, WellKnownMimeType, ByteBuf)
+   */
+  // see #encodeMetadataHeader(ByteBufAllocator, String, int)
+  public static void encodeAndAddMetadataWithCompression(
+      CompositeByteBuf compositeMetaData,
+      ByteBufAllocator allocator,
+      String mimeType,
+      ByteBuf metadata) {
+    WellKnownMimeType wkn = WellKnownMimeType.fromMimeType(mimeType);
+    if (wkn == WellKnownMimeType.UNPARSEABLE_MIME_TYPE) {
+      compositeMetaData.addComponents(
+          true, encodeMetadataHeader(allocator, mimeType, metadata.readableBytes()), metadata);
+    } else {
+      compositeMetaData.addComponents(
+          true,
+          encodeMetadataHeader(allocator, wkn.getIdentifier(), metadata.readableBytes()),
+          metadata);
+    }
+  }
+
+  /**
+   * Encode a new sub-metadata information into a composite metadata {@link CompositeByteBuf
+   * buffer}, without checking if the {@link String} can be matched with a well known compressable
+   * mime type. Prefer using this method and {@link #encodeAndAddMetadata(CompositeByteBuf,
+   * ByteBufAllocator, WellKnownMimeType, ByteBuf)} if you know in advance whether or not the mime
+   * is well known. Otherwise use {@link #encodeAndAddMetadataWithCompression(CompositeByteBuf,
+   * ByteBufAllocator, String, ByteBuf)}
    *
    * @param compositeMetaData the buffer that will hold all composite metadata information.
    * @param allocator the {@link ByteBufAllocator} to use to create intermediate buffers as needed.
