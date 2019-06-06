@@ -6,15 +6,12 @@ import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.CompositeByteBuf;
 import io.netty.util.CharsetUtil;
 import io.rsocket.util.NumberUtils;
-import java.util.ArrayList;
-import java.util.List;
 import reactor.util.annotation.Nullable;
 
 /**
  * A flyweight class that can be used to encode/decode composite metadata information to/from {@link
- * ByteBuf}. This is intended for low-level efficient manipulation of such buffers, but each
- * composite metadata entry can be also manipulated as an higher abstraction {@link Entry} class,
- * which provides its own encoding and decoding primitives.
+ * ByteBuf}. This is intended for low-level efficient manipulation of such buffers. See {@link
+ * CompositeMetadata} for an Iterator-like approach to decoding entries.
  */
 public class CompositeMetadataFlyweight {
 
@@ -31,12 +28,6 @@ public class CompositeMetadataFlyweight {
    * empty, which generally means that no more entries are present in the buffer.
    */
   public static final ByteBuf[] METADATA_BUFFERS_DONE = new ByteBuf[0];
-  /**
-   * Denotes that an attempt at higher level decoding of an entry components failed because the
-   * input buffer was completely empty, which generally means that no more entries are present in
-   * the buffer.
-   */
-  static final Object[] METADATA_ENTRIES_DONE = new Object[0];
 
   private CompositeMetadataFlyweight() {}
 
@@ -303,199 +294,5 @@ public class CompositeMetadataFlyweight {
         true,
         encodeMetadataHeader(allocator, unknownCompressedMimeType, metadata.readableBytes()),
         metadata);
-  }
-
-  // === ENTRY ===
-
-  /**
-   * An entry in a Composite Metadata, which exposes the {@link #getMimeType() mime type} and {@link
-   * ByteBuf} {@link #getMetadata() content} of the metadata entry.
-   *
-   * <p>There is one case where the entry cannot really be used other than by forwarding it to
-   * another client: when the mime type is represented as a compressed {@code byte} id, but said id
-   * is only identified as "reserved" in the current implementation ({@link
-   * WellKnownMimeType#UNKNOWN_RESERVED_MIME_TYPE}). In that case, the corresponding {@link Entry}
-   * should reflect that by having a {@code null} {@link #getMimeType()} along a positive {@link
-   * #getMimeId()}.
-   *
-   * <p>Non-null {@link #getMimeType()} along with positive {@link #getMimeId()} denote a compressed
-   * mime metadata entry, whereas the same with a negative {@link #getMimeId()} would denote a
-   * custom mime type metadata entry.
-   *
-   * <p>In all three cases, the {@link #getMetadata()} expose the content of the metadata entry as a
-   * raw {@link ByteBuf}.
-   */
-  public static class Entry {
-
-    /**
-     * Create an {@link Entry} from a {@link WellKnownMimeType}. This will be encoded in a
-     * compressed format that uses the {@link WellKnownMimeType#getIdentifier() mime identifier}.
-     *
-     * @param mimeType the {@link WellKnownMimeType} to use for the entry
-     * @param metadataContentBuffer the content {@link ByteBuf} to use for the entry
-     * @return the new entry
-     */
-    public static Entry wellKnownMime(WellKnownMimeType mimeType, ByteBuf metadataContentBuffer) {
-      return new Entry(mimeType.getMime(), mimeType.getIdentifier(), metadataContentBuffer);
-    }
-
-    /**
-     * Create an {@link Entry} from a custom mime type represented as an US-ASCII only {@link
-     * String}. The whole literal mime type will thus be encoded.
-     *
-     * @param mimeType the custom mime type {@link String}
-     * @param metadataContentBuffer the content {@link ByteBuf} to use for the entry
-     * @return the new entry
-     */
-    public static Entry customMime(String mimeType, ByteBuf metadataContentBuffer) {
-      return new Entry(mimeType, (byte) -1, metadataContentBuffer);
-    }
-
-    /**
-     * Create an {@link Entry} from an unrecognized yet valid "well-known" mime type, ie. a {@code
-     * byte} that would map to {@link WellKnownMimeType#UNKNOWN_RESERVED_MIME_TYPE}. Prefer using
-     * {@link #wellKnownMime(WellKnownMimeType, ByteBuf)} if the mime code is recognizable by this
-     * client.
-     *
-     * <p>This case would usually be encountered when decoding a composite metadata entry from a
-     * remote that uses a more recent version of the {@link WellKnownMimeType} extension, and this
-     * method can be useful to create an unprocessed entry in such a case, ensuring no information
-     * is lost when forwarding frames.
-     *
-     * @param mimeCode the reserved but unrecognized compressed mime type {@code byte}
-     * @param metadataContentBuffer the content {@link ByteBuf} to use for the entry
-     * @return the new entry
-     * @see #wellKnownMime(WellKnownMimeType, ByteBuf)
-     */
-    public static Entry rawCompressedMime(byte mimeCode, ByteBuf metadataContentBuffer) {
-      return new Entry(null, mimeCode, metadataContentBuffer);
-    }
-
-    /**
-     * Incrementally decode the next metadata entry from a {@link ByteBuf} into an {@link Entry}.
-     * This is only possible on frame types used to initiate interactions, if the SETUP metadata
-     * mime type was {@link WellKnownMimeType#MESSAGE_RSOCKET_COMPOSITE_METADATA}.
-     *
-     * <p>Each entry {@link ByteBuf} is a {@link ByteBuf#readSlice(int) slice} of the original
-     * buffer that can also be {@link ByteBuf#readRetainedSlice(int) retained} if needed.
-     *
-     * @param buffer the buffer to decode
-     * @param retainMetadataSlices should each slide be retained when read from the original buffer?
-     * @return the decoded {@link Entry}
-     */
-    static Entry decode(ByteBuf buffer, boolean retainMetadataSlices) {
-      ByteBuf[] entry = decodeMimeAndContentBuffers(buffer, retainMetadataSlices);
-      if (entry == METADATA_MALFORMED) {
-        throw new IllegalArgumentException(
-            "composite metadata entry buffer is too short to contain proper entry");
-      }
-      if (entry == METADATA_BUFFERS_DONE) {
-        return null;
-      }
-
-      ByteBuf encodedHeader = entry[0];
-      ByteBuf metadataContent = entry[1];
-
-      // the flyweight already validated the size of the buffer,
-      // this is only to distinguish id vs custom type
-      if (encodedHeader.readableBytes() == 1) {
-        // id
-        byte id = decodeMimeIdFromMimeBuffer(encodedHeader);
-        WellKnownMimeType wkn = WellKnownMimeType.fromId(id);
-        if (wkn == WellKnownMimeType.UNPARSEABLE_MIME_TYPE) {
-          // should not happen due to flyweight decodeMimeAndContentBuffer's own guard
-          throw new IllegalStateException(
-              "composite metadata entry parsing failed on compressed mime id " + id);
-        }
-        if (wkn == WellKnownMimeType.UNKNOWN_RESERVED_MIME_TYPE) {
-          return new Entry(null, id, metadataContent);
-        }
-        return new Entry(wkn.getMime(), wkn.getIdentifier(), metadataContent);
-      } else {
-        CharSequence customMimeCharSequence = decodeMimeTypeFromMimeBuffer(encodedHeader);
-        if (customMimeCharSequence == null) {
-          // should not happen due to flyweight decodeMimeAndContentBuffer's own guard
-          throw new IllegalArgumentException(
-              "composite metadata entry parsing failed on custom type");
-        }
-        return new Entry(customMimeCharSequence.toString(), (byte) -1, metadataContent);
-      }
-    }
-
-    /**
-     * Decode all the metadata entries from a {@link ByteBuf} into a {@link List} of {@link Entry}.
-     * This is only possible on frame types used to initiate interactions, if the SETUP metadata
-     * mime type was {@link WellKnownMimeType#MESSAGE_RSOCKET_COMPOSITE_METADATA}.
-     *
-     * <p>Each entry's {@link Entry#getMetadata() content} is a {@link ByteBuf#readSlice(int) slice}
-     * of the original buffer that can also be {@link ByteBuf#readRetainedSlice(int) retained} if
-     * needed.
-     *
-     * <p>The buffer is assumed to contain just enough bytes to represent one or more entries (mime
-     * type compressed or not). The decoding stops when the buffer reaches 0 readable bytes, and
-     * fails if it contains bytes but not enough to correctly decode an entry.
-     *
-     * @param buffer the buffer to decode
-     * @param retainMetadataSlices should each slide be retained when read from the original buffer?
-     * @return the {@link List} of decoded {@link Entry}
-     */
-    static List<Entry> decodeAll(ByteBuf buffer, boolean retainMetadataSlices) {
-      List<Entry> list = new ArrayList<>();
-      Entry nextEntry = decode(buffer, retainMetadataSlices);
-      while (nextEntry != null) {
-        list.add(nextEntry);
-        nextEntry = decode(buffer, retainMetadataSlices);
-      }
-      return list;
-    }
-
-    private final String mimeString;
-    private final byte mimeCode;
-    private final ByteBuf content;
-
-    public Entry(@Nullable String mimeString, byte mimeCode, ByteBuf content) {
-      this.mimeString = mimeString;
-      this.mimeCode = mimeCode;
-      this.content = content;
-    }
-
-    /**
-     * Returns the mime type {@link String} representation if there is one.
-     *
-     * <p>A {@code null} value should only occur with a positive {@link #getMimeId()}, denoting an
-     * entry that is compressed but unparseable (see {@link #rawCompressedMime(byte, ByteBuf)}).
-     *
-     * @return the mime type for this entry, or null
-     */
-    @Nullable
-    public String getMimeType() {
-      return this.mimeString;
-    }
-
-    /** @return the compressed mime id byte if relevant (0-127), or -1 if not */
-    public byte getMimeId() {
-      return this.mimeCode;
-    }
-
-    /** @return the metadata content of this entry */
-    public ByteBuf getMetadata() {
-      return this.content;
-    }
-
-    /**
-     * Encode this {@link Entry} into a {@link CompositeByteBuf} representing a composite metadata.
-     * This buffer may already hold components for previous {@link Entry entries}.
-     *
-     * @param compositeByteBuf the {@link CompositeByteBuf} to hold the components of the whole
-     *     composite metadata
-     * @param byteBufAllocator the {@link ByteBufAllocator} to use to allocate new buffers as needed
-     */
-    public void encodeInto(CompositeByteBuf compositeByteBuf, ByteBufAllocator byteBufAllocator) {
-      if (this.mimeCode >= 0) {
-        encodeAndAddMetadata(compositeByteBuf, byteBufAllocator, this.mimeCode, this.content);
-      } else {
-        encodeAndAddMetadata(compositeByteBuf, byteBufAllocator, this.mimeString, this.content);
-      }
-    }
   }
 }
