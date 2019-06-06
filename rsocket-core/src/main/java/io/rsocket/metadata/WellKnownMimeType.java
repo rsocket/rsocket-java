@@ -1,5 +1,7 @@
 package io.rsocket.metadata;
 
+import java.util.Arrays;
+
 /**
  * Enumeration of Well Known Mime Types, as defined in the eponymous extension. Such mime types are
  * used in composite metadata (which can include routing and/or tracing metadata). Per
@@ -50,6 +52,20 @@ public enum WellKnownMimeType {
   MESSAGE_RSOCKET_TRACING_ZIPKIN("message/x.rsocket.tracing-zipkin.v0", (byte) 125),
   MESSAGE_RSOCKET_ROUTING("message/x.rsocket.routing.v0", (byte) 126),
   MESSAGE_RSOCKET_COMPOSITE_METADATA("message/x.rsocket.composite-metadata.v0", (byte) 127);
+
+  private static final WellKnownMimeType[] TYPES_BY_MIME_ID;
+
+  static {
+    // precompute an array of all valid mime ids, filling the blanks with the RESERVED enum
+    TYPES_BY_MIME_ID = new WellKnownMimeType[128]; // 0-127 inclusive
+    Arrays.fill(TYPES_BY_MIME_ID, UNKNOWN_RESERVED_MIME_TYPE);
+
+    for (WellKnownMimeType value : values()) {
+      if (value.getIdentifier() >= 0) {
+        TYPES_BY_MIME_ID[value.getIdentifier()] = value;
+      }
+    }
+  }
 
   private final String str;
   private final byte identifier;
@@ -120,9 +136,6 @@ public enum WellKnownMimeType {
     if (id < 0 || id > 127) {
       return UNPARSEABLE_MIME_TYPE;
     }
-    for (WellKnownMimeType value : values()) {
-      if (value.getIdentifier() == id) return value;
-    }
-    return UNKNOWN_RESERVED_MIME_TYPE;
+    return TYPES_BY_MIME_ID[id];
   }
 }
