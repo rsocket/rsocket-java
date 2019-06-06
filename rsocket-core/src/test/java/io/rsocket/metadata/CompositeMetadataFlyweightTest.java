@@ -323,7 +323,7 @@ class CompositeMetadataFlyweightTest {
 
   @Test
   void decodeEntryTooShortForMimeLength() {
-    ByteBuf fakeEntry = ByteBufAllocator.DEFAULT.buffer();
+    ByteBuf fakeEntry = Unpooled.buffer();
     fakeEntry.writeByte(120);
 
     assertThat(decodeMimeAndContentBuffers(fakeEntry, false)).isSameAs(METADATA_MALFORMED);
@@ -331,7 +331,7 @@ class CompositeMetadataFlyweightTest {
 
   @Test
   void decodeEntryHasNoContentLength() {
-    ByteBuf fakeEntry = ByteBufAllocator.DEFAULT.buffer();
+    ByteBuf fakeEntry = Unpooled.buffer();
     fakeEntry.writeByte(0);
     fakeEntry.writeCharSequence("w", CharsetUtil.US_ASCII);
 
@@ -340,7 +340,7 @@ class CompositeMetadataFlyweightTest {
 
   @Test
   void decodeEntryTooShortForContentLength() {
-    ByteBuf fakeEntry = ByteBufAllocator.DEFAULT.buffer();
+    ByteBuf fakeEntry = Unpooled.buffer();
     fakeEntry.writeByte(1);
     fakeEntry.writeCharSequence("w", CharsetUtil.US_ASCII);
     NumberUtils.encodeUnsignedMedium(fakeEntry, 456);
@@ -351,14 +351,14 @@ class CompositeMetadataFlyweightTest {
 
   @Test
   void decodeEntryAtEndOfBuffer() {
-    ByteBuf fakeEntry = ByteBufAllocator.DEFAULT.buffer();
+    ByteBuf fakeEntry = Unpooled.buffer();
 
     assertThat(decodeMimeAndContentBuffers(fakeEntry, false)).isSameAs(METADATA_BUFFERS_DONE);
   }
 
   @Test
   void decodeIdMinusTwoWhenZeroByte() {
-    ByteBuf fakeIdBuffer = ByteBufAllocator.DEFAULT.buffer(0);
+    ByteBuf fakeIdBuffer = Unpooled.buffer(0);
 
     assertThat(decodeMimeIdFromMimeBuffer(fakeIdBuffer))
         .isEqualTo((WellKnownMimeType.UNPARSEABLE_MIME_TYPE.getIdentifier()));
@@ -366,7 +366,7 @@ class CompositeMetadataFlyweightTest {
 
   @Test
   void decodeIdMinusTwoWhenMoreThanOneByte() {
-    ByteBuf fakeIdBuffer = ByteBufAllocator.DEFAULT.buffer(2);
+    ByteBuf fakeIdBuffer = Unpooled.buffer(2);
     fakeIdBuffer.writeInt(200);
 
     assertThat(decodeMimeIdFromMimeBuffer(fakeIdBuffer))
@@ -375,14 +375,14 @@ class CompositeMetadataFlyweightTest {
 
   @Test
   void decodeStringNullIfLengthZero() {
-    ByteBuf fakeTypeBuffer = ByteBufAllocator.DEFAULT.buffer(2);
+    ByteBuf fakeTypeBuffer = Unpooled.buffer(2);
 
     assertThat(decodeMimeTypeFromMimeBuffer(fakeTypeBuffer)).isNull();
   }
 
   @Test
   void decodeStringNullIfLengthOne() {
-    ByteBuf fakeTypeBuffer = ByteBufAllocator.DEFAULT.buffer(2);
+    ByteBuf fakeTypeBuffer = Unpooled.buffer(2);
     fakeTypeBuffer.writeByte(1);
 
     assertThat(decodeMimeTypeFromMimeBuffer(fakeTypeBuffer)).isNull();
@@ -390,7 +390,7 @@ class CompositeMetadataFlyweightTest {
 
   @Test
   void decodeTypeSkipsFirstByte() {
-    ByteBuf fakeTypeBuffer = ByteBufAllocator.DEFAULT.buffer(2);
+    ByteBuf fakeTypeBuffer = Unpooled.buffer(2);
     fakeTypeBuffer.writeByte(128);
     fakeTypeBuffer.writeCharSequence("example", CharsetUtil.US_ASCII);
 
@@ -486,7 +486,7 @@ class CompositeMetadataFlyweightTest {
   //
   //    @Test
   //    void decodeMetadataLengthFromTooShortBuffer() {
-  //        ByteBuf buffer = ByteBufAllocator.DEFAULT.buffer();
+  //        ByteBuf buffer = Unpooled.buffer();
   //        buffer.writeShort(12);
   //
   //        assertThatExceptionOfType(RuntimeException.class)

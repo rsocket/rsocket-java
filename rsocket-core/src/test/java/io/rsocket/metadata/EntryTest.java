@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.CompositeByteBuf;
+import io.netty.buffer.Unpooled;
 import io.netty.util.CharsetUtil;
 import io.rsocket.metadata.CompositeMetadataFlyweight.Entry;
 import io.rsocket.test.util.ByteBufUtils;
@@ -66,7 +67,7 @@ class EntryTest {
 
   @Test
   void decodeEntryTooShortForMimeLength() {
-    ByteBuf fakeEntry = ByteBufAllocator.DEFAULT.buffer();
+    ByteBuf fakeEntry = Unpooled.buffer();
     fakeEntry.writeByte(120);
 
     assertThatIllegalArgumentException()
@@ -76,7 +77,7 @@ class EntryTest {
 
   @Test
   void decodeEntryHasNoContentLength() {
-    ByteBuf fakeEntry = ByteBufAllocator.DEFAULT.buffer();
+    ByteBuf fakeEntry = Unpooled.buffer();
     fakeEntry.writeByte(0);
     fakeEntry.writeCharSequence("w", CharsetUtil.US_ASCII);
 
@@ -87,7 +88,7 @@ class EntryTest {
 
   @Test
   void decodeEntryTooShortForContentLength() {
-    ByteBuf fakeEntry = ByteBufAllocator.DEFAULT.buffer();
+    ByteBuf fakeEntry = Unpooled.buffer();
     fakeEntry.writeByte(1);
     fakeEntry.writeCharSequence("w", CharsetUtil.US_ASCII);
     NumberUtils.encodeUnsignedMedium(fakeEntry, 456);
@@ -109,12 +110,12 @@ class EntryTest {
   void decodeThreeEntries() {
     // metadata 1: well known
     WellKnownMimeType mimeType1 = WellKnownMimeType.APPLICATION_PDF;
-    ByteBuf metadata1 = ByteBufAllocator.DEFAULT.buffer();
+    ByteBuf metadata1 = Unpooled.buffer();
     metadata1.writeCharSequence("abcdefghijkl", CharsetUtil.UTF_8);
 
     // metadata 2: custom
     String mimeType2 = "application/custom";
-    ByteBuf metadata2 = ByteBufAllocator.DEFAULT.buffer();
+    ByteBuf metadata2 = Unpooled.buffer();
     metadata2.writeChar('E');
     metadata2.writeChar('∑');
     metadata2.writeChar('é');
@@ -126,7 +127,7 @@ class EntryTest {
     assertThat(WellKnownMimeType.fromId(reserved))
         .as("ensure UNKNOWN RESERVED used in test")
         .isSameAs(WellKnownMimeType.UNKNOWN_RESERVED_MIME_TYPE);
-    ByteBuf metadata3 = ByteBufAllocator.DEFAULT.buffer();
+    ByteBuf metadata3 = Unpooled.buffer();
     metadata3.writeByte(88);
 
     CompositeByteBuf compositeMetadata = ByteBufAllocator.DEFAULT.compositeBuffer();
@@ -180,12 +181,12 @@ class EntryTest {
   void decodeAllEntries() {
     // metadata 1: well known
     WellKnownMimeType mimeType1 = WellKnownMimeType.APPLICATION_PDF;
-    ByteBuf metadata1 = ByteBufAllocator.DEFAULT.buffer();
+    ByteBuf metadata1 = Unpooled.buffer();
     metadata1.writeCharSequence("abcdefghijkl", CharsetUtil.UTF_8);
 
     // metadata 2: custom
     String mimeType2 = "application/custom";
-    ByteBuf metadata2 = ByteBufAllocator.DEFAULT.buffer();
+    ByteBuf metadata2 = Unpooled.buffer();
     metadata2.writeChar('E');
     metadata2.writeChar('∑');
     metadata2.writeChar('é');
@@ -197,7 +198,7 @@ class EntryTest {
     assertThat(WellKnownMimeType.fromId(reserved))
         .as("ensure UNKNOWN RESERVED used in test")
         .isSameAs(WellKnownMimeType.UNKNOWN_RESERVED_MIME_TYPE);
-    ByteBuf metadata3 = ByteBufAllocator.DEFAULT.buffer();
+    ByteBuf metadata3 = Unpooled.buffer();
     metadata3.writeByte(88);
 
     CompositeByteBuf compositeMetadata = ByteBufAllocator.DEFAULT.compositeBuffer();
@@ -256,7 +257,7 @@ class EntryTest {
     CompositeByteBuf compositeByteBuf = ByteBufAllocator.DEFAULT.compositeBuffer();
     // encode a first valid metadata
     WellKnownMimeType mimeType1 = WellKnownMimeType.APPLICATION_PDF;
-    ByteBuf metadata1 = ByteBufAllocator.DEFAULT.buffer();
+    ByteBuf metadata1 = Unpooled.buffer();
     metadata1.writeCharSequence("abcdefghijkl", CharsetUtil.UTF_8);
     CompositeMetadataFlyweight.encodeAndAddMetadata(
         compositeByteBuf, ByteBufAllocator.DEFAULT, mimeType1, metadata1);
