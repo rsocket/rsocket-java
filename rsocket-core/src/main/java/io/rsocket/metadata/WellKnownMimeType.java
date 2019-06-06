@@ -1,6 +1,8 @@
 package io.rsocket.metadata;
 
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Enumeration of Well Known Mime Types, as defined in the eponymous extension. Such mime types are
@@ -53,16 +55,20 @@ public enum WellKnownMimeType {
   MESSAGE_RSOCKET_ROUTING("message/x.rsocket.routing.v0", (byte) 126),
   MESSAGE_RSOCKET_COMPOSITE_METADATA("message/x.rsocket.composite-metadata.v0", (byte) 127);
 
-  private static final WellKnownMimeType[] TYPES_BY_MIME_ID;
+  static final WellKnownMimeType[] TYPES_BY_MIME_ID;
+  static final Map<String, WellKnownMimeType> TYPES_BY_MIME_STRING;
 
   static {
     // precompute an array of all valid mime ids, filling the blanks with the RESERVED enum
     TYPES_BY_MIME_ID = new WellKnownMimeType[128]; // 0-127 inclusive
     Arrays.fill(TYPES_BY_MIME_ID, UNKNOWN_RESERVED_MIME_TYPE);
+    // also prepare a Map of the types by mime string
+    TYPES_BY_MIME_STRING = new HashMap<>(128);
 
     for (WellKnownMimeType value : values()) {
       if (value.getIdentifier() >= 0) {
         TYPES_BY_MIME_ID[value.getIdentifier()] = value;
+        TYPES_BY_MIME_STRING.put(value.getMime(), value);
       }
     }
   }
@@ -111,12 +117,7 @@ public enum WellKnownMimeType {
       return UNPARSEABLE_MIME_TYPE;
     }
 
-    for (WellKnownMimeType value : values()) {
-      if (mimeType.equals(value.str)) {
-        return value;
-      }
-    }
-    return UNPARSEABLE_MIME_TYPE;
+    return TYPES_BY_MIME_STRING.getOrDefault(mimeType, UNPARSEABLE_MIME_TYPE);
   }
 
   /**
