@@ -211,27 +211,36 @@ public class CompositeMetadataFlyweight {
    */
   static ByteBuf encodeMetadataHeader(
       ByteBufAllocator allocator, String customMime, int metadataLength) {
-    ByteBuf mimeBuffer = allocator.buffer(customMime.length());
-    mimeBuffer.writeCharSequence(customMime, CharsetUtil.UTF_8);
-    if (!ByteBufUtil.isText(mimeBuffer, CharsetUtil.US_ASCII)) {
+    ByteBuf metadataHeader = allocator.buffer(4 + customMime.length());
+    // reserve 1 byte for the customMime length
+    int writerIndexInitial = metadataHeader.writerIndex();
+    metadataHeader.writerIndex(writerIndexInitial + 1);
+
+    // write the custom mime in UTF8 but validate it is all ASCII-compatible
+    // (which produces the right result since ASCII chars are still encoded on 1 byte in UTF8)
+    int customMimeLength = ByteBufUtil.writeUtf8(metadataHeader, customMime);
+    if (!ByteBufUtil.isText(metadataHeader, CharsetUtil.US_ASCII)) {
+      metadataHeader.release();
       throw new IllegalArgumentException("custom mime type must be US_ASCII characters only");
     }
-    int ml = mimeBuffer.readableBytes();
-    if (ml < 1 || ml > 128) {
+    if (customMimeLength < 1 || customMimeLength > 128) {
+      metadataHeader.release();
       throw new IllegalArgumentException(
           "custom mime type must have a strictly positive length that fits on 7 unsigned bits, ie 1-128");
     }
-    ml--;
+    metadataHeader.markWriterIndex();
 
-    ByteBuf mimeLength = allocator.buffer(1, 1);
-    mimeLength.writeByte((byte) ml);
+    // go back to beginning and write the length
+    // encoded length is one less than actual length, since 0 is never a valid length, which gives
+    // wider representation range
+    metadataHeader.writerIndex(writerIndexInitial);
+    metadataHeader.writeByte(customMimeLength - 1);
 
-    ByteBuf metadataLengthBuffer = allocator.buffer(3, 3);
-    NumberUtils.encodeUnsignedMedium(metadataLengthBuffer, metadataLength);
+    // go back to post-mime type and write the metadata content length
+    metadataHeader.resetWriterIndex();
+    NumberUtils.encodeUnsignedMedium(metadataHeader, metadataLength);
 
-    return allocator
-        .compositeBuffer()
-        .addComponents(true, mimeLength, mimeBuffer, metadataLengthBuffer);
+    return metadataHeader;
   }
 
   /**

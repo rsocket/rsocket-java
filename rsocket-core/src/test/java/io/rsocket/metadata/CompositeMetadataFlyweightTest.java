@@ -4,9 +4,7 @@ import static io.rsocket.metadata.CompositeMetadataFlyweight.*;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.ByteBufAllocator;
-import io.netty.buffer.CompositeByteBuf;
+import io.netty.buffer.*;
 import io.netty.util.CharsetUtil;
 import io.rsocket.test.util.ByteBufUtils;
 import io.rsocket.util.NumberUtils;
@@ -138,6 +136,7 @@ class CompositeMetadataFlyweightTest {
     ByteBuf encoded =
         CompositeMetadataFlyweight.encodeMetadataHeader(ByteBufAllocator.DEFAULT, mimeString, 0);
 
+    // remember actual length = encoded length + 1
     assertThat(toHeaderBits(encoded)).startsWith("0").isEqualTo("00000000");
 
     final ByteBuf[] byteBufs = decodeMimeAndContentBuffers(encoded, false);
@@ -169,6 +168,7 @@ class CompositeMetadataFlyweightTest {
     ByteBuf encoded =
         CompositeMetadataFlyweight.encodeMetadataHeader(ByteBufAllocator.DEFAULT, mimeString, 0);
 
+    // remember actual length = encoded length + 1
     assertThat(toHeaderBits(encoded)).startsWith("0").isEqualTo("00000001");
 
     final ByteBuf[] byteBufs = decodeMimeAndContentBuffers(encoded, false);
@@ -206,6 +206,7 @@ class CompositeMetadataFlyweightTest {
     ByteBuf encoded =
         CompositeMetadataFlyweight.encodeMetadataHeader(ByteBufAllocator.DEFAULT, mimeString, 0);
 
+    // remember actual length = encoded length + 1
     assertThat(toHeaderBits(encoded)).startsWith("0").isEqualTo("01111110");
 
     final ByteBuf[] byteBufs = decodeMimeAndContentBuffers(encoded, false);
@@ -243,6 +244,7 @@ class CompositeMetadataFlyweightTest {
     ByteBuf encoded =
         CompositeMetadataFlyweight.encodeMetadataHeader(ByteBufAllocator.DEFAULT, mimeString, 0);
 
+    // remember actual length = encoded length + 1
     assertThat(toHeaderBits(encoded)).startsWith("0").isEqualTo("01111111");
 
     final ByteBuf[] byteBufs = decodeMimeAndContentBuffers(encoded, false);
@@ -287,9 +289,21 @@ class CompositeMetadataFlyweightTest {
   }
 
   @Test
-  void customMimeHeaderNonAscii_encodingFails() {
+  void customMimeHeaderLatin1_encodingFails() {
     String mimeNotAscii = "mime/typé";
 
+    assertThatIllegalArgumentException()
+        .isThrownBy(
+            () ->
+                CompositeMetadataFlyweight.encodeMetadataHeader(
+                    ByteBufAllocator.DEFAULT, mimeNotAscii, 0))
+        .withMessage("custom mime type must be US_ASCII characters only");
+  }
+
+  @Test
+  void customMimeHeaderUtf8_encodingFails() {
+    String mimeNotAscii =
+        "mime/tyࠒe"; // this is the SAMARITAN LETTER QUF u+0812 represented on 3 bytes
     assertThatIllegalArgumentException()
         .isThrownBy(
             () ->
