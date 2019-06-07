@@ -41,7 +41,7 @@ class CompositeMetadataFlyweightTest {
         .isEqualTo("10000000")
         .isEqualTo(byteToBitsString(mime.getIdentifier()).replaceFirst("0", "1"));
 
-    final ByteBuf[] byteBufs = decodeMimeAndContentBuffers(encoded, false);
+    final ByteBuf[] byteBufs = decodeMimeAndContentBuffersSlices(encoded, 0, false);
     assertThat(byteBufs).hasSize(2).doesNotContainNull();
 
     ByteBuf header = byteBufs[0];
@@ -78,7 +78,7 @@ class CompositeMetadataFlyweightTest {
         .isEqualTo("11111111")
         .isEqualTo(byteToBitsString(mime.getIdentifier()).replaceFirst("0", "1"));
 
-    final ByteBuf[] byteBufs = decodeMimeAndContentBuffers(encoded, false);
+    final ByteBuf[] byteBufs = decodeMimeAndContentBuffersSlices(encoded, 0, false);
     assertThat(byteBufs).hasSize(2).doesNotContainNull();
 
     ByteBuf header = byteBufs[0];
@@ -111,7 +111,7 @@ class CompositeMetadataFlyweightTest {
 
     assertThat(toHeaderBits(encoded)).startsWith("1").isEqualTo("11111000");
 
-    final ByteBuf[] byteBufs = decodeMimeAndContentBuffers(encoded, false);
+    final ByteBuf[] byteBufs = decodeMimeAndContentBuffersSlices(encoded, 0, false);
     assertThat(byteBufs).hasSize(2).doesNotContainNull();
 
     ByteBuf header = byteBufs[0];
@@ -139,7 +139,7 @@ class CompositeMetadataFlyweightTest {
     // remember actual length = encoded length + 1
     assertThat(toHeaderBits(encoded)).startsWith("0").isEqualTo("00000000");
 
-    final ByteBuf[] byteBufs = decodeMimeAndContentBuffers(encoded, false);
+    final ByteBuf[] byteBufs = decodeMimeAndContentBuffersSlices(encoded, 0, false);
     assertThat(byteBufs).hasSize(2).doesNotContainNull();
 
     ByteBuf header = byteBufs[0];
@@ -171,7 +171,7 @@ class CompositeMetadataFlyweightTest {
     // remember actual length = encoded length + 1
     assertThat(toHeaderBits(encoded)).startsWith("0").isEqualTo("00000001");
 
-    final ByteBuf[] byteBufs = decodeMimeAndContentBuffers(encoded, false);
+    final ByteBuf[] byteBufs = decodeMimeAndContentBuffersSlices(encoded, 0, false);
     assertThat(byteBufs).hasSize(2).doesNotContainNull();
 
     ByteBuf header = byteBufs[0];
@@ -209,7 +209,7 @@ class CompositeMetadataFlyweightTest {
     // remember actual length = encoded length + 1
     assertThat(toHeaderBits(encoded)).startsWith("0").isEqualTo("01111110");
 
-    final ByteBuf[] byteBufs = decodeMimeAndContentBuffers(encoded, false);
+    final ByteBuf[] byteBufs = decodeMimeAndContentBuffersSlices(encoded, 0, false);
     assertThat(byteBufs).hasSize(2).doesNotContainNull();
 
     ByteBuf header = byteBufs[0];
@@ -247,7 +247,7 @@ class CompositeMetadataFlyweightTest {
     // remember actual length = encoded length + 1
     assertThat(toHeaderBits(encoded)).startsWith("0").isEqualTo("01111111");
 
-    final ByteBuf[] byteBufs = decodeMimeAndContentBuffers(encoded, false);
+    final ByteBuf[] byteBufs = decodeMimeAndContentBuffersSlices(encoded, 0, false);
     assertThat(byteBufs).hasSize(2).doesNotContainNull();
 
     ByteBuf header = byteBufs[0];
@@ -326,7 +326,7 @@ class CompositeMetadataFlyweightTest {
     ByteBuf fakeEntry = Unpooled.buffer();
     fakeEntry.writeByte(120);
 
-    assertThat(decodeMimeAndContentBuffers(fakeEntry, false)).isSameAs(METADATA_MALFORMED);
+    assertThat(decodeMimeAndContentBuffersSlices(fakeEntry, 0, false)).isSameAs(METADATA_MALFORMED);
   }
 
   @Test
@@ -335,7 +335,7 @@ class CompositeMetadataFlyweightTest {
     fakeEntry.writeByte(0);
     fakeEntry.writeCharSequence("w", CharsetUtil.US_ASCII);
 
-    assertThat(decodeMimeAndContentBuffers(fakeEntry, false)).isSameAs(METADATA_MALFORMED);
+    assertThat(decodeMimeAndContentBuffersSlices(fakeEntry, 0, false)).isSameAs(METADATA_MALFORMED);
   }
 
   @Test
@@ -346,14 +346,15 @@ class CompositeMetadataFlyweightTest {
     NumberUtils.encodeUnsignedMedium(fakeEntry, 456);
     fakeEntry.writeChar('w');
 
-    assertThat(decodeMimeAndContentBuffers(fakeEntry, false)).isSameAs(METADATA_MALFORMED);
+    assertThat(decodeMimeAndContentBuffersSlices(fakeEntry, 0, false)).isSameAs(METADATA_MALFORMED);
   }
 
   @Test
   void decodeEntryAtEndOfBuffer() {
     ByteBuf fakeEntry = Unpooled.buffer();
 
-    assertThat(decodeMimeAndContentBuffers(fakeEntry, false)).isSameAs(METADATA_BUFFERS_DONE);
+    assertThat(decodeMimeAndContentBuffersSlices(fakeEntry, 0, false))
+        .isSameAs(METADATA_BUFFERS_DONE);
   }
 
   @Test

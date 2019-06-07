@@ -34,6 +34,7 @@ public final class CompositeMetadata {
   private byte id;
   private @Nullable String mime;
   private ByteBuf content;
+  private int nextEntryIndex;
 
   /**
    * Wrap a composite metadata {@link ByteBuf} to allow incremental decoding of its entries. Each
@@ -46,6 +47,10 @@ public final class CompositeMetadata {
   public CompositeMetadata(ByteBuf fullCompositeMetadataBuffer, boolean retainSlices) {
     this.source = fullCompositeMetadataBuffer;
     this.retainSlices = retainSlices;
+    this.id = -1;
+    this.mime = null;
+    this.content = null;
+    this.nextEntryIndex = 0;
   }
 
   /**
@@ -65,7 +70,7 @@ public final class CompositeMetadata {
    * @return true if the source buffer still has readable bytes
    */
   public boolean hasNext() {
-    return source.isReadable();
+    return source.writerIndex() - nextEntryIndex > 0;
   }
 
   private void reset() {
@@ -86,7 +91,8 @@ public final class CompositeMetadata {
   public void decodeNext() {
     reset();
     ByteBuf[] decoded =
-        CompositeMetadataFlyweight.decodeMimeAndContentBuffers(source, retainSlices);
+        CompositeMetadataFlyweight.decodeMimeAndContentBuffersSlices(
+            source, nextEntryIndex, retainSlices);
     if (decoded == CompositeMetadataFlyweight.METADATA_MALFORMED) {
       throw new IllegalArgumentException(
           "composite metadata entry buffer is too short to contain proper entry");
@@ -97,6 +103,9 @@ public final class CompositeMetadata {
 
     ByteBuf header = decoded[0];
     this.content = decoded[1];
+    // move the nextEntryIndex
+    this.nextEntryIndex =
+        CompositeMetadataFlyweight.computeNextEntryIndex(this.nextEntryIndex, header, content);
 
     if (header.readableBytes() == 1) {
       this.id = CompositeMetadataFlyweight.decodeMimeIdFromMimeBuffer(header);

@@ -33,8 +33,14 @@ public class CompositeMetadataFlyweight {
 
   /**
    * Decode the next metadata entry (a mime header + content pair of {@link ByteBuf}) from a {@link
-   * ByteBuf} that contains at least enough bytes for one more such entry. The header buffer is
-   * either:
+   * ByteBuf} that contains at least enough bytes for one more such entry. These buffers are
+   * actually slices of the full metadata buffer, and this method doesn't move the full metadata
+   * buffer's {@link ByteBuf#readerIndex()}. As such, it requires the user to provide an {@code
+   * index} to read from. The next index is computed by calling {@link #computeNextEntryIndex(int,
+   * ByteBuf, ByteBuf)}. Size of the first buffer (the "header buffer") drives which decoding method
+   * should be further applied to it.
+   *
+   * <p>The header buffer is either:
    *
    * <ul>
    *   <li>made up of a single byte: this represents an encoded mime id, which can be further
@@ -52,13 +58,19 @@ public class CompositeMetadataFlyweight {
    *
    * @param compositeMetadata the source {@link ByteBuf} that originally contains one or more
    *     metadata entries
+   * @param entryIndex the {@link ByteBuf#readerIndex()} to start decoding from. original reader
+   *     index is kept on the source buffer
    * @param retainSlices should produced metadata entry buffers {@link ByteBuf#slice() slices} be
    *     {@link ByteBuf#retainedSlice() retained}?
-   * @return a {@link ByteBuf} slice array of length 2 containing the mime header buffer and the
-   *     content buffer, or one of the zero-length error constant arrays
+   * @return a {@link ByteBuf} array of length 2 containing the mime header buffer
+   *     <strong>slice</strong> and the content buffer <strong>slice</strong>, or one of the
+   *     zero-length error constant arrays
    */
-  public static ByteBuf[] decodeMimeAndContentBuffers(
-      ByteBuf compositeMetadata, boolean retainSlices) {
+  public static ByteBuf[] decodeMimeAndContentBuffersSlices(
+      ByteBuf compositeMetadata, int entryIndex, boolean retainSlices) {
+    compositeMetadata.markReaderIndex();
+    compositeMetadata.readerIndex(entryIndex);
+
     if (compositeMetadata.isReadable()) {
       ByteBuf mime;
       int ridx = compositeMetadata.readerIndex();
@@ -90,6 +102,7 @@ public class CompositeMetadataFlyweight {
           // which was already skipped in initial read
           compositeMetadata.skipBytes(mimeLength);
         } else {
+          compositeMetadata.resetReaderIndex();
           return METADATA_MALFORMED;
         }
       }
@@ -102,15 +115,27 @@ public class CompositeMetadataFlyweight {
               retainSlices
                   ? compositeMetadata.readRetainedSlice(metadataLength)
                   : compositeMetadata.readSlice(metadataLength);
+          compositeMetadata.resetReaderIndex();
           return new ByteBuf[] {mime, metadata};
         } else {
+          compositeMetadata.resetReaderIndex();
           return METADATA_MALFORMED;
         }
       } else {
+        compositeMetadata.resetReaderIndex();
         return METADATA_MALFORMED;
       }
     }
+    compositeMetadata.resetReaderIndex();
     return METADATA_BUFFERS_DONE;
+  }
+
+  public static int computeNextEntryIndex(
+      int currentEntryIndex, ByteBuf headerSlice, ByteBuf contentSlice) {
+    return currentEntryIndex
+        + headerSlice.readableBytes() // this includes the mime length byte
+        + 3 // 3 bytes of the content length, which are excluded from the slice
+        + contentSlice.readableBytes();
   }
 
   /**
