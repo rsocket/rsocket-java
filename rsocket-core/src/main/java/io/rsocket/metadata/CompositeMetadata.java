@@ -168,9 +168,8 @@ public final class CompositeMetadata implements Iterable<Entry> {
     }
 
     /**
-     * {@inheritDoc}
-     * Since this entry represents a compressed id that couldn't be decoded, this
-     * is always {@code null}.
+     * {@inheritDoc} Since this entry represents a compressed id that couldn't be decoded, this is
+     * always {@code null}.
      */
     @Override
     public String getMimeType() {
@@ -178,8 +177,8 @@ public final class CompositeMetadata implements Iterable<Entry> {
     }
 
     /**
-     * Returns the reserved, but unknown {@link WellKnownMimeType} for this entry.
-     * Range is 0-127 (inclusive).
+     * Returns the reserved, but unknown {@link WellKnownMimeType} for this entry. Range is 0-127
+     * (inclusive).
      *
      * @return the reserved, but unknown {@link WellKnownMimeType} for this entry
      */
