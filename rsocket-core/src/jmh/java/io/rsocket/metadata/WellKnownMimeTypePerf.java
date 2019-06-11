@@ -10,7 +10,7 @@ import org.openjdk.jmh.infra.Blackhole;
 @State(Scope.Thread)
 public class WellKnownMimeTypePerf {
 
-  // this is the old values() looping implementation of fromId
+  // this is the old values() looping implementation of fromIdentifier
   private WellKnownMimeType fromIdValuesLoop(int id) {
     if (id < 0 || id > 127) {
       return WellKnownMimeType.UNPARSEABLE_MIME_TYPE;
@@ -23,10 +23,10 @@ public class WellKnownMimeTypePerf {
     return WellKnownMimeType.UNKNOWN_RESERVED_MIME_TYPE;
   }
 
-  // this is the core of the old values() looping implementation of fromMimeType
+  // this is the core of the old values() looping implementation of fromString
   private WellKnownMimeType fromStringValuesLoop(String mimeType) {
     for (WellKnownMimeType value : WellKnownMimeType.values()) {
-      if (mimeType.equals(value.getMime())) {
+      if (mimeType.equals(value.getString())) {
         return value;
       }
     }
@@ -36,18 +36,18 @@ public class WellKnownMimeTypePerf {
   @Benchmark
   public void fromIdArrayLookup(final Blackhole bh) {
     // negative lookup
-    bh.consume(WellKnownMimeType.fromId(-10));
-    bh.consume(WellKnownMimeType.fromId(-1));
+    bh.consume(WellKnownMimeType.fromIdentifier(-10));
+    bh.consume(WellKnownMimeType.fromIdentifier(-1));
     // too large lookup
-    bh.consume(WellKnownMimeType.fromId(129));
+    bh.consume(WellKnownMimeType.fromIdentifier(129));
     // first lookup
-    bh.consume(WellKnownMimeType.fromId(0));
+    bh.consume(WellKnownMimeType.fromIdentifier(0));
     // middle lookup
-    bh.consume(WellKnownMimeType.fromId(37));
+    bh.consume(WellKnownMimeType.fromIdentifier(37));
     // reserved lookup
-    bh.consume(WellKnownMimeType.fromId(63));
+    bh.consume(WellKnownMimeType.fromIdentifier(63));
     // last lookup
-    bh.consume(WellKnownMimeType.fromId(127));
+    bh.consume(WellKnownMimeType.fromIdentifier(127));
   }
 
   @Benchmark
@@ -70,15 +70,15 @@ public class WellKnownMimeTypePerf {
   @Benchmark
   public void fromStringMapLookup(final Blackhole bh) {
     // unknown lookup
-    bh.consume(WellKnownMimeType.fromMimeType("foo/bar"));
+    bh.consume(WellKnownMimeType.fromString("foo/bar"));
     // first lookup
-    bh.consume(WellKnownMimeType.fromMimeType(WellKnownMimeType.APPLICATION_AVRO.getMime()));
+    bh.consume(WellKnownMimeType.fromString(WellKnownMimeType.APPLICATION_AVRO.getString()));
     // middle lookup
-    bh.consume(WellKnownMimeType.fromMimeType(WellKnownMimeType.VIDEO_VP8.getMime()));
+    bh.consume(WellKnownMimeType.fromString(WellKnownMimeType.VIDEO_VP8.getString()));
     // last lookup
     bh.consume(
-        WellKnownMimeType.fromMimeType(
-            WellKnownMimeType.MESSAGE_RSOCKET_COMPOSITE_METADATA.getMime()));
+        WellKnownMimeType.fromString(
+            WellKnownMimeType.MESSAGE_RSOCKET_COMPOSITE_METADATA.getString()));
   }
 
   @Benchmark
@@ -86,11 +86,11 @@ public class WellKnownMimeTypePerf {
     // unknown lookup
     bh.consume(fromStringValuesLoop("foo/bar"));
     // first lookup
-    bh.consume(fromStringValuesLoop(WellKnownMimeType.APPLICATION_AVRO.getMime()));
+    bh.consume(fromStringValuesLoop(WellKnownMimeType.APPLICATION_AVRO.getString()));
     // middle lookup
-    bh.consume(fromStringValuesLoop(WellKnownMimeType.VIDEO_VP8.getMime()));
+    bh.consume(fromStringValuesLoop(WellKnownMimeType.VIDEO_VP8.getString()));
     // last lookup
     bh.consume(
-        fromStringValuesLoop(WellKnownMimeType.MESSAGE_RSOCKET_COMPOSITE_METADATA.getMime()));
+        fromStringValuesLoop(WellKnownMimeType.MESSAGE_RSOCKET_COMPOSITE_METADATA.getString()));
   }
 }

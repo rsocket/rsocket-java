@@ -1,3 +1,19 @@
+/*
+ * Copyright 2015-2018 the original author or authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package io.rsocket.metadata;
 
 import io.netty.buffer.ByteBuf;
@@ -16,20 +32,18 @@ import reactor.util.annotation.Nullable;
 public class CompositeMetadataFlyweight {
 
   static final int STREAM_METADATA_KNOWN_MASK = 0x80; // 1000 0000
+
   static final byte STREAM_METADATA_LENGTH_MASK = 0x7F; // 0111 1111
 
-  /**
-   * Denotes that an attempt at 0-garbage decoding failed because the input buffer didn't have
-   * enough bytes to represent a complete metadata entry, only part of the bytes.
-   */
-  public static final ByteBuf[] METADATA_MALFORMED = new ByteBuf[0];
-  /**
-   * Denotes that an attempt at garbage-free decoding failed because the input buffer was completely
-   * empty, which generally means that no more entries are present in the buffer.
-   */
-  public static final ByteBuf[] METADATA_BUFFERS_DONE = new ByteBuf[0];
-
   private CompositeMetadataFlyweight() {}
+
+  public static int computeNextEntryIndex(
+      int currentEntryIndex, ByteBuf headerSlice, ByteBuf contentSlice) {
+    return currentEntryIndex
+        + headerSlice.readableBytes() // this includes the mime length byte
+        + 3 // 3 bytes of the content length, which are excluded from the slice
+        + contentSlice.readableBytes();
+  }
 
   /**
    * Decode the next metadata entry (a mime header + content pair of {@link ByteBuf}) from a {@link
@@ -50,11 +64,6 @@ public class CompositeMetadataFlyweight {
    *       encoded length, in the first byte, is skipped by this decoding method because the
    *       remaining length of the buffer is that of the mime string.
    * </ul>
-   *
-   * Moreover, if the source buffer is empty of readable bytes it is assumed that the composite has
-   * been decoded entirely and the {@link #METADATA_BUFFERS_DONE} constant is returned. If the
-   * buffer contains <i>some</i> readable bytes but not enough for a correct representation of an
-   * entry, the {@link #METADATA_MALFORMED} constant is returned.
    *
    * @param compositeMetadata the source {@link ByteBuf} that originally contains one or more
    *     metadata entries
@@ -103,7 +112,7 @@ public class CompositeMetadataFlyweight {
           compositeMetadata.skipBytes(mimeLength);
         } else {
           compositeMetadata.resetReaderIndex();
-          return METADATA_MALFORMED;
+          throw new IllegalStateException("metadata is malformed");
         }
       }
 
@@ -119,23 +128,16 @@ public class CompositeMetadataFlyweight {
           return new ByteBuf[] {mime, metadata};
         } else {
           compositeMetadata.resetReaderIndex();
-          return METADATA_MALFORMED;
+          throw new IllegalStateException("metadata is malformed");
         }
       } else {
         compositeMetadata.resetReaderIndex();
-        return METADATA_MALFORMED;
+        throw new IllegalStateException("metadata is malformed");
       }
     }
     compositeMetadata.resetReaderIndex();
-    return METADATA_BUFFERS_DONE;
-  }
-
-  public static int computeNextEntryIndex(
-      int currentEntryIndex, ByteBuf headerSlice, ByteBuf contentSlice) {
-    return currentEntryIndex
-        + headerSlice.readableBytes() // this includes the mime length byte
-        + 3 // 3 bytes of the content length, which are excluded from the slice
-        + contentSlice.readableBytes();
+    throw new IllegalArgumentException(
+        String.format("entry index %d is larger than buffer size", entryIndex));
   }
 
   /**
@@ -181,7 +183,7 @@ public class CompositeMetadataFlyweight {
   @Nullable
   public static CharSequence decodeMimeTypeFromMimeBuffer(ByteBuf flyweightMimeBuffer) {
     if (flyweightMimeBuffer.readableBytes() < 2) {
-      return null;
+      throw new IllegalStateException("unable to decode explicit MIME type");
     }
     // the encoded length is assumed to be kept at the start of the buffer
     // but also assumed to be irrelevant because the rest of the slice length
@@ -192,25 +194,123 @@ public class CompositeMetadataFlyweight {
   }
 
   /**
-   * Encode a {@link WellKnownMimeType well known mime type} and a metadata value length into a
-   * newly allocated {@link ByteBuf}.
+   * Encode a new sub-metadata information into a composite metadata {@link CompositeByteBuf
+   * buffer}, without checking if the {@link String} can be matched with a well known compressable
+   * mime type. Prefer using this method and {@link #encodeAndAddMetadata(CompositeByteBuf,
+   * ByteBufAllocator, WellKnownMimeType, ByteBuf)} if you know in advance whether or not the mime
+   * is well known. Otherwise use {@link #encodeAndAddMetadataWithCompression(CompositeByteBuf,
+   * ByteBufAllocator, String, ByteBuf)}
    *
-   * <p>This compact representation encodes the mime type via its ID on a single byte, and the
-   * unsigned value length on 3 additional bytes.
-   *
-   * @param allocator the {@link ByteBufAllocator} to use to create the buffer.
-   * @param mimeType a byte identifier of a {@link WellKnownMimeType} to encode.
-   * @param metadataLength the metadata length to append to the buffer as an unsigned 24 bits
-   *     integer.
-   * @return the encoded mime and metadata length information
+   * @param compositeMetaData the buffer that will hold all composite metadata information.
+   * @param allocator the {@link ByteBufAllocator} to use to create intermediate buffers as needed.
+   * @param customMimeType the custom mime type to encode.
+   * @param metadata the metadata value to encode.
    */
-  static ByteBuf encodeMetadataHeader(
-      ByteBufAllocator allocator, byte mimeType, int metadataLength) {
-    ByteBuf buffer = allocator.buffer(4, 4).writeByte(mimeType | STREAM_METADATA_KNOWN_MASK);
+  // see #encodeMetadataHeader(ByteBufAllocator, String, int)
+  public static void encodeAndAddMetadata(
+      CompositeByteBuf compositeMetaData,
+      ByteBufAllocator allocator,
+      String customMimeType,
+      ByteBuf metadata) {
+    compositeMetaData.addComponents(
+        true, encodeMetadataHeader(allocator, customMimeType, metadata.readableBytes()), metadata);
+  }
 
-    NumberUtils.encodeUnsignedMedium(buffer, metadataLength);
+  /**
+   * Encode a new sub-metadata information into a composite metadata {@link CompositeByteBuf
+   * buffer}.
+   *
+   * @param compositeMetaData the buffer that will hold all composite metadata information.
+   * @param allocator the {@link ByteBufAllocator} to use to create intermediate buffers as needed.
+   * @param knownMimeType the {@link WellKnownMimeType} to encode.
+   * @param metadata the metadata value to encode.
+   */
+  // see #encodeMetadataHeader(ByteBufAllocator, byte, int)
+  public static void encodeAndAddMetadata(
+      CompositeByteBuf compositeMetaData,
+      ByteBufAllocator allocator,
+      WellKnownMimeType knownMimeType,
+      ByteBuf metadata) {
+    compositeMetaData.addComponents(
+        true,
+        encodeMetadataHeader(allocator, knownMimeType.getIdentifier(), metadata.readableBytes()),
+        metadata);
+  }
 
-    return buffer;
+  /**
+   * Encode a new sub-metadata information into a composite metadata {@link CompositeByteBuf
+   * buffer}, first verifying if the passed {@link String} matches a {@link WellKnownMimeType} (in
+   * which case it will be encoded in a compressed fashion using the mime id of that type).
+   *
+   * <p>Prefer using {@link #encodeAndAddMetadata(CompositeByteBuf, ByteBufAllocator, String,
+   * ByteBuf)} if you already know that the mime type is not a {@link WellKnownMimeType}.
+   *
+   * @param compositeMetaData the buffer that will hold all composite metadata information.
+   * @param allocator the {@link ByteBufAllocator} to use to create intermediate buffers as needed.
+   * @param mimeType the mime type to encode, as a {@link String}. well known mime types are
+   *     compressed.
+   * @param metadata the metadata value to encode.
+   * @see #encodeAndAddMetadata(CompositeByteBuf, ByteBufAllocator, WellKnownMimeType, ByteBuf)
+   */
+  // see #encodeMetadataHeader(ByteBufAllocator, String, int)
+  public static void encodeAndAddMetadataWithCompression(
+      CompositeByteBuf compositeMetaData,
+      ByteBufAllocator allocator,
+      String mimeType,
+      ByteBuf metadata) {
+    WellKnownMimeType wkn = WellKnownMimeType.fromString(mimeType);
+    if (wkn == WellKnownMimeType.UNPARSEABLE_MIME_TYPE) {
+      compositeMetaData.addComponents(
+          true, encodeMetadataHeader(allocator, mimeType, metadata.readableBytes()), metadata);
+    } else {
+      compositeMetaData.addComponents(
+          true,
+          encodeMetadataHeader(allocator, wkn.getIdentifier(), metadata.readableBytes()),
+          metadata);
+    }
+  }
+
+  /**
+   * Returns whether there is another entry available at a given index
+   *
+   * @param compositeMetadata the buffer to inspect
+   * @param entryIndex the index to check at
+   * @return whether there is another entry available at a given index
+   */
+  public static boolean hasEntry(ByteBuf compositeMetadata, int entryIndex) {
+    return compositeMetadata.writerIndex() - entryIndex > 0;
+  }
+
+  /**
+   * Returns whether the header represents a well-known MIME type.
+   *
+   * @param header the header to inspect
+   * @return whether the header represents a well-known MIME type
+   */
+  public static boolean isWellKnownMimeType(ByteBuf header) {
+    return header.readableBytes() == 1;
+  }
+
+  /**
+   * Encode a new sub-metadata information into a composite metadata {@link CompositeByteBuf
+   * buffer}.
+   *
+   * @param compositeMetaData the buffer that will hold all composite metadata information.
+   * @param allocator the {@link ByteBufAllocator} to use to create intermediate buffers as needed.
+   * @param unknownCompressedMimeType the id of the {@link
+   *     WellKnownMimeType#UNKNOWN_RESERVED_MIME_TYPE} to encode.
+   * @param metadata the metadata value to encode.
+   */
+  // see #encodeMetadataHeader(ByteBufAllocator, byte, int)
+  static void encodeAndAddMetadata(
+      CompositeByteBuf compositeMetaData,
+      ByteBufAllocator allocator,
+      byte unknownCompressedMimeType,
+      ByteBuf metadata) {
+    compositeMetaData.addComponents(
+        true,
+        encodeMetadataHeader(allocator, unknownCompressedMimeType, metadata.readableBytes()),
+        metadata);
   }
 
   /**
@@ -260,101 +360,24 @@ public class CompositeMetadataFlyweight {
   }
 
   /**
-   * Encode a new sub-metadata information into a composite metadata {@link CompositeByteBuf
-   * buffer}, first verifying if the passed {@link String} matches a {@link WellKnownMimeType} (in
-   * which case it will be encoded in a compressed fashion using the mime id of that type).
+   * Encode a {@link WellKnownMimeType well known mime type} and a metadata value length into a
+   * newly allocated {@link ByteBuf}.
    *
-   * <p>Prefer using {@link #encodeAndAddMetadata(CompositeByteBuf, ByteBufAllocator, String,
-   * ByteBuf)} if you already know that the mime type is not a {@link WellKnownMimeType}.
+   * <p>This compact representation encodes the mime type via its ID on a single byte, and the
+   * unsigned value length on 3 additional bytes.
    *
-   * @param compositeMetaData the buffer that will hold all composite metadata information.
-   * @param allocator the {@link ByteBufAllocator} to use to create intermediate buffers as needed.
-   * @param mimeType the mime type to encode, as a {@link String}. well known mime types are
-   *     compressed.
-   * @param metadata the metadata value to encode.
-   * @see #encodeAndAddMetadata(CompositeByteBuf, ByteBufAllocator, WellKnownMimeType, ByteBuf)
+   * @param allocator the {@link ByteBufAllocator} to use to create the buffer.
+   * @param mimeType a byte identifier of a {@link WellKnownMimeType} to encode.
+   * @param metadataLength the metadata length to append to the buffer as an unsigned 24 bits
+   *     integer.
+   * @return the encoded mime and metadata length information
    */
-  // see #encodeMetadataHeader(ByteBufAllocator, String, int)
-  public static void encodeAndAddMetadataWithCompression(
-      CompositeByteBuf compositeMetaData,
-      ByteBufAllocator allocator,
-      String mimeType,
-      ByteBuf metadata) {
-    WellKnownMimeType wkn = WellKnownMimeType.fromMimeType(mimeType);
-    if (wkn == WellKnownMimeType.UNPARSEABLE_MIME_TYPE) {
-      compositeMetaData.addComponents(
-          true, encodeMetadataHeader(allocator, mimeType, metadata.readableBytes()), metadata);
-    } else {
-      compositeMetaData.addComponents(
-          true,
-          encodeMetadataHeader(allocator, wkn.getIdentifier(), metadata.readableBytes()),
-          metadata);
-    }
-  }
+  static ByteBuf encodeMetadataHeader(
+      ByteBufAllocator allocator, byte mimeType, int metadataLength) {
+    ByteBuf buffer = allocator.buffer(4, 4).writeByte(mimeType | STREAM_METADATA_KNOWN_MASK);
 
-  /**
-   * Encode a new sub-metadata information into a composite metadata {@link CompositeByteBuf
-   * buffer}, without checking if the {@link String} can be matched with a well known compressable
-   * mime type. Prefer using this method and {@link #encodeAndAddMetadata(CompositeByteBuf,
-   * ByteBufAllocator, WellKnownMimeType, ByteBuf)} if you know in advance whether or not the mime
-   * is well known. Otherwise use {@link #encodeAndAddMetadataWithCompression(CompositeByteBuf,
-   * ByteBufAllocator, String, ByteBuf)}
-   *
-   * @param compositeMetaData the buffer that will hold all composite metadata information.
-   * @param allocator the {@link ByteBufAllocator} to use to create intermediate buffers as needed.
-   * @param customMimeType the custom mime type to encode.
-   * @param metadata the metadata value to encode.
-   */
-  // see #encodeMetadataHeader(ByteBufAllocator, String, int)
-  public static void encodeAndAddMetadata(
-      CompositeByteBuf compositeMetaData,
-      ByteBufAllocator allocator,
-      String customMimeType,
-      ByteBuf metadata) {
-    compositeMetaData.addComponents(
-        true, encodeMetadataHeader(allocator, customMimeType, metadata.readableBytes()), metadata);
-  }
+    NumberUtils.encodeUnsignedMedium(buffer, metadataLength);
 
-  /**
-   * Encode a new sub-metadata information into a composite metadata {@link CompositeByteBuf
-   * buffer}.
-   *
-   * @param compositeMetaData the buffer that will hold all composite metadata information.
-   * @param allocator the {@link ByteBufAllocator} to use to create intermediate buffers as needed.
-   * @param knownMimeType the {@link WellKnownMimeType} to encode.
-   * @param metadata the metadata value to encode.
-   */
-  // see #encodeMetadataHeader(ByteBufAllocator, byte, int)
-  public static void encodeAndAddMetadata(
-      CompositeByteBuf compositeMetaData,
-      ByteBufAllocator allocator,
-      WellKnownMimeType knownMimeType,
-      ByteBuf metadata) {
-    compositeMetaData.addComponents(
-        true,
-        encodeMetadataHeader(allocator, knownMimeType.getIdentifier(), metadata.readableBytes()),
-        metadata);
-  }
-
-  /**
-   * Encode a new sub-metadata information into a composite metadata {@link CompositeByteBuf
-   * buffer}.
-   *
-   * @param compositeMetaData the buffer that will hold all composite metadata information.
-   * @param allocator the {@link ByteBufAllocator} to use to create intermediate buffers as needed.
-   * @param unknownCompressedMimeType the id of the {@link
-   *     WellKnownMimeType#UNKNOWN_RESERVED_MIME_TYPE} to encode.
-   * @param metadata the metadata value to encode.
-   */
-  // see #encodeMetadataHeader(ByteBufAllocator, byte, int)
-  static void encodeAndAddMetadata(
-      CompositeByteBuf compositeMetaData,
-      ByteBufAllocator allocator,
-      byte unknownCompressedMimeType,
-      ByteBuf metadata) {
-    compositeMetaData.addComponents(
-        true,
-        encodeMetadataHeader(allocator, unknownCompressedMimeType, metadata.readableBytes()),
-        metadata);
+    return buffer;
   }
 }

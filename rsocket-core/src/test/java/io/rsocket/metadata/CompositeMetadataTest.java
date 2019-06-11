@@ -1,29 +1,39 @@
+/*
+ * Copyright 2015-2018 the original author or authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package io.rsocket.metadata;
 
-import static org.assertj.core.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
+import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.util.CharsetUtil;
+import io.rsocket.metadata.CompositeMetadata.Entry;
+import io.rsocket.metadata.CompositeMetadata.ReservedMimeTypeEntry;
+import io.rsocket.metadata.CompositeMetadata.WellKnownMimeTypeEntry;
 import io.rsocket.test.util.ByteBufUtils;
 import io.rsocket.util.NumberUtils;
-import java.util.NoSuchElementException;
+import java.util.Iterator;
 import org.junit.jupiter.api.Test;
 
 class CompositeMetadataTest {
-
-  @Test
-  void decodeEntryTooShortForMimeLength() {
-    ByteBuf fakeEntry = Unpooled.buffer();
-    fakeEntry.writeByte(120);
-    CompositeMetadata compositeMetadata = new CompositeMetadata(fakeEntry, false);
-
-    assertThatIllegalArgumentException()
-        .isThrownBy(compositeMetadata::decodeNext)
-        .withMessage("composite metadata entry buffer is too short to contain proper entry");
-  }
 
   @Test
   void decodeEntryHasNoContentLength() {
@@ -32,9 +42,19 @@ class CompositeMetadataTest {
     fakeEntry.writeCharSequence("w", CharsetUtil.US_ASCII);
     CompositeMetadata compositeMetadata = new CompositeMetadata(fakeEntry, false);
 
+    assertThatIllegalStateException()
+        .isThrownBy(() -> compositeMetadata.iterator().next())
+        .withMessage("metadata is malformed");
+  }
+
+  @Test
+  void decodeEntryOnDoneBufferThrowsIllegalArgument() {
+    ByteBuf fakeBuffer = ByteBufUtils.getRandomByteBuf(0);
+    CompositeMetadata compositeMetadata = new CompositeMetadata(fakeBuffer, false);
+
     assertThatIllegalArgumentException()
-        .isThrownBy(compositeMetadata::decodeNext)
-        .withMessage("composite metadata entry buffer is too short to contain proper entry");
+        .isThrownBy(() -> compositeMetadata.iterator().next())
+        .withMessage("entry index 0 is larger than buffer size");
   }
 
   @Test
@@ -46,19 +66,20 @@ class CompositeMetadataTest {
     fakeEntry.writeChar('w');
     CompositeMetadata compositeMetadata = new CompositeMetadata(fakeEntry, false);
 
-    assertThatIllegalArgumentException()
-        .isThrownBy(compositeMetadata::decodeNext)
-        .withMessage("composite metadata entry buffer is too short to contain proper entry");
+    assertThatIllegalStateException()
+        .isThrownBy(() -> compositeMetadata.iterator().next())
+        .withMessage("metadata is malformed");
   }
 
   @Test
-  void decodeEntryOnDoneBufferThrowsNoSuchElement() {
-    ByteBuf fakeBuffer = ByteBufUtils.getRandomByteBuf(0);
-    CompositeMetadata compositeMetadata = new CompositeMetadata(fakeBuffer, false);
+  void decodeEntryTooShortForMimeLength() {
+    ByteBuf fakeEntry = Unpooled.buffer();
+    fakeEntry.writeByte(120);
+    CompositeMetadata compositeMetadata = new CompositeMetadata(fakeEntry, false);
 
-    assertThatExceptionOfType(NoSuchElementException.class)
-        .isThrownBy(compositeMetadata::decodeNext)
-        .withMessage("composite metadata has no more entries");
+    assertThatIllegalStateException()
+        .isThrownBy(() -> compositeMetadata.iterator().next())
+        .withMessage("metadata is malformed");
   }
 
   @Test
@@ -79,7 +100,7 @@ class CompositeMetadataTest {
 
     // metadata 3: reserved but unknown
     byte reserved = 120;
-    assertThat(WellKnownMimeType.fromId(reserved))
+    assertThat(WellKnownMimeType.fromIdentifier(reserved))
         .as("ensure UNKNOWN RESERVED used in test")
         .isSameAs(WellKnownMimeType.UNKNOWN_RESERVED_MIME_TYPE);
     ByteBuf metadata3 = Unpooled.buffer();
@@ -93,53 +114,44 @@ class CompositeMetadataTest {
     CompositeMetadataFlyweight.encodeAndAddMetadata(
         compositeMetadataBuffer, ByteBufAllocator.DEFAULT, reserved, metadata3);
 
-    CompositeMetadata compositeMetadata = new CompositeMetadata(compositeMetadataBuffer, true);
+    Iterator<Entry> iterator = new CompositeMetadata(compositeMetadataBuffer, true).iterator();
 
-    compositeMetadata.decodeNext();
-    assertThat(compositeMetadata)
+    assertThat(iterator.next())
         .as("entry1")
         .isNotNull()
         .satisfies(
             e ->
-                assertThat(e.getCurrentMimeType())
-                    .as("entry1 mime type")
-                    .isEqualTo(mimeType1.getMime()))
+                assertThat(e.getMimeType()).as("entry1 mime type").isEqualTo(mimeType1.getString()))
         .satisfies(
             e ->
-                assertThat(e.getCurrentMimeId())
+                assertThat(((WellKnownMimeTypeEntry) e).getType())
                     .as("entry1 mime id")
-                    .isEqualTo((byte) mimeType1.getIdentifier()))
+                    .isEqualTo(WellKnownMimeType.APPLICATION_PDF))
         .satisfies(
             e ->
-                assertThat(e.getCurrentContent().toString(CharsetUtil.UTF_8))
+                assertThat(e.getContent().toString(CharsetUtil.UTF_8))
                     .as("entry1 decoded")
                     .isEqualTo("abcdefghijkl"));
 
-    compositeMetadata.decodeNext();
-    assertThat(compositeMetadata)
+    assertThat(iterator.next())
         .as("entry2")
         .isNotNull()
+        .satisfies(e -> assertThat(e.getMimeType()).as("entry2 mime type").isEqualTo(mimeType2))
         .satisfies(
-            e -> assertThat(e.getCurrentMimeType()).as("entry2 mime type").isEqualTo(mimeType2))
-        .satisfies(e -> assertThat(e.getCurrentMimeId()).as("entry2 mime id").isEqualTo((byte) -1))
-        .satisfies(
-            e ->
-                assertThat(e.getCurrentContent())
-                    .as("entry2 decoded")
-                    .isEqualByComparingTo(metadata2));
+            e -> assertThat(e.getContent()).as("entry2 decoded").isEqualByComparingTo(metadata2));
 
-    compositeMetadata.decodeNext();
-    assertThat(compositeMetadata)
+    assertThat(iterator.next())
         .as("entry3")
         .isNotNull()
-        .satisfies(e -> assertThat(e.getCurrentMimeType()).as("entry3 mime type").isNull())
-        .satisfies(e -> assertThat(e.getCurrentMimeId()).as("entry3 mime id").isEqualTo(reserved))
+        .satisfies(e -> assertThat(e.getMimeType()).as("entry3 mime type").isNull())
         .satisfies(
             e ->
-                assertThat(e.getCurrentContent())
-                    .as("entry3 decoded")
-                    .isEqualByComparingTo(metadata3));
+                assertThat(((ReservedMimeTypeEntry) e).getType())
+                    .as("entry3 mime id")
+                    .isEqualTo(reserved))
+        .satisfies(
+            e -> assertThat(e.getContent()).as("entry3 decoded").isEqualByComparingTo(metadata3));
 
-    assertThat(compositeMetadata.hasNext()).as("has no more than 3 entries").isFalse();
+    assertThat(iterator.hasNext()).as("has no more than 3 entries").isFalse();
   }
 }
