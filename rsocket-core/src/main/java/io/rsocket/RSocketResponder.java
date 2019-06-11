@@ -43,8 +43,8 @@ import reactor.core.Disposable;
 import reactor.core.Exceptions;
 import reactor.core.publisher.*;
 
-/** Server side RSocket. Receives {@link ByteBuf}s from a {@link RSocketClient} */
-class RSocketServer implements ResponderRSocket {
+/** Responder side of RSocket. Receives {@link ByteBuf}s from a peer's {@link RSocketRequester} */
+class RSocketResponder implements ResponderRSocket {
 
   private final DuplexConnection connection;
   private final RSocket requestHandler;
@@ -61,7 +61,7 @@ class RSocketServer implements ResponderRSocket {
   private final KeepAliveFramesAcceptor keepAliveFramesAcceptor;
 
   /*client responder*/
-  RSocketServer(
+  RSocketResponder(
       ByteBufAllocator allocator,
       DuplexConnection connection,
       RSocket requestHandler,
@@ -71,7 +71,7 @@ class RSocketServer implements ResponderRSocket {
   }
 
   /*server responder*/
-  RSocketServer(
+  RSocketResponder(
       ByteBufAllocator allocator,
       DuplexConnection connection,
       RSocket requestHandler,

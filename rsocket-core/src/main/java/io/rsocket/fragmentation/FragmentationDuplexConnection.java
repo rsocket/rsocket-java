@@ -26,6 +26,7 @@ import io.rsocket.frame.FrameHeaderFlyweight;
 import io.rsocket.frame.FrameLengthFlyweight;
 import io.rsocket.frame.FrameType;
 import java.util.Objects;
+import javax.annotation.Nullable;
 import org.reactivestreams.Publisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -57,13 +58,10 @@ public final class FragmentationDuplexConnection implements DuplexConnection {
       String type) {
     Objects.requireNonNull(delegate, "delegate must not be null");
     Objects.requireNonNull(allocator, "byteBufAllocator must not be null");
-    if (mtu < MIN_MTU_SIZE) {
-      throw new IllegalArgumentException("smallest allowed mtu size is " + MIN_MTU_SIZE + " bytes");
-    }
     this.encodeLength = encodeLength;
     this.allocator = allocator;
     this.delegate = delegate;
-    this.mtu = mtu;
+    this.mtu = assertMtu(mtu);
     this.frameReassembler = new FrameReassembler(allocator);
     this.type = type;
 
@@ -72,6 +70,32 @@ public final class FragmentationDuplexConnection implements DuplexConnection {
 
   private boolean shouldFragment(FrameType frameType, int readableBytes) {
     return frameType.isFragmentable() && readableBytes > mtu;
+  }
+
+  /*TODO this is nullable and not returning empty to workaround javac 11.0.3 compiler issue on ubuntu (at least) */
+  @Nullable
+  public static <T> Mono<T> checkMtu(int mtu) {
+    if (isInsufficientMtu(mtu)) {
+      String msg =
+          String.format("smallest allowed mtu size is %d bytes, provided: %d", MIN_MTU_SIZE, mtu);
+      return Mono.error(new IllegalArgumentException(msg));
+    } else {
+      return null;
+    }
+  }
+
+  private static int assertMtu(int mtu) {
+    if (isInsufficientMtu(mtu)) {
+      String msg =
+          String.format("smallest allowed mtu size is %d bytes, provided: %d", MIN_MTU_SIZE, mtu);
+      throw new IllegalArgumentException(msg);
+    } else {
+      return mtu;
+    }
+  }
+
+  private static boolean isInsufficientMtu(int mtu) {
+    return mtu > 0 && mtu < MIN_MTU_SIZE || mtu < 0;
   }
 
   @Override
@@ -89,13 +113,13 @@ public final class FragmentationDuplexConnection implements DuplexConnection {
             Flux.from(fragmentFrame(allocator, mtu, frame, frameType, encodeLength))
                 .doOnNext(
                     byteBuf -> {
-                      ByteBuf frame1 = FrameLengthFlyweight.frame(byteBuf);
+                      ByteBuf f = encodeLength ? FrameLengthFlyweight.frame(byteBuf) : byteBuf;
                       logger.debug(
                           "{} - stream id {} - frame type {} - \n {}",
                           type,
-                          FrameHeaderFlyweight.streamId(frame1),
-                          FrameHeaderFlyweight.frameType(frame1),
-                          ByteBufUtil.prettyHexDump(frame1));
+                          FrameHeaderFlyweight.streamId(f),
+                          FrameHeaderFlyweight.frameType(f),
+                          ByteBufUtil.prettyHexDump(f));
                     }));
       } else {
         return delegate.send(
@@ -108,7 +132,7 @@ public final class FragmentationDuplexConnection implements DuplexConnection {
 
   private ByteBuf encode(ByteBuf frame) {
     if (encodeLength) {
-      return FrameLengthFlyweight.encode(allocator, frame.readableBytes(), frame).retain();
+      return FrameLengthFlyweight.encode(allocator, frame.readableBytes(), frame);
     } else {
       return frame;
     }

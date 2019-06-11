@@ -65,8 +65,8 @@ public class KeepAliveTest {
     return () -> {
       TestDuplexConnection connection = new TestDuplexConnection();
       Errors errors = new Errors();
-      RSocketClient rSocket =
-          new RSocketClient(
+      RSocketRequester rSocket =
+          new RSocketRequester(
               ByteBufAllocator.DEFAULT,
               connection,
               DefaultPayload::create,
@@ -84,8 +84,8 @@ public class KeepAliveTest {
       TestDuplexConnection connection = new TestDuplexConnection();
       AbstractRSocket handler = new AbstractRSocket() {};
       Errors errors = new Errors();
-      RSocketServer rSocket =
-          new RSocketServer(
+      RSocketResponder rSocket =
+          new RSocketResponder(
               ByteBufAllocator.DEFAULT,
               connection,
               handler,
@@ -110,8 +110,8 @@ public class KeepAliveTest {
               false);
 
       Errors errors = new Errors();
-      RSocketClient rSocket =
-          new RSocketClient(
+      RSocketRequester rSocket =
+          new RSocketRequester(
               ByteBufAllocator.DEFAULT,
               resumableConnection,
               DefaultPayload::create,
@@ -136,8 +136,8 @@ public class KeepAliveTest {
               Duration.ofSeconds(10),
               false);
       Errors errors = new Errors();
-      RSocketServer rSocket =
-          new RSocketServer(
+      RSocketResponder rSocket =
+          new RSocketResponder(
               ByteBufAllocator.DEFAULT,
               resumableConnection,
               handler,

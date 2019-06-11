@@ -70,7 +70,7 @@ public class FrameUtil {
         default:
           return Unpooled.EMPTY_BUFFER;
       }
-      return metadata.retain();
+      return metadata;
     } else {
       return Unpooled.EMPTY_BUFFER;
     }

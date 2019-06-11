@@ -94,21 +94,24 @@ public final class TcpClientTransport implements ClientTransport {
 
   @Override
   public Mono<DuplexConnection> connect(int mtu) {
-    return client
-        .doOnConnected(c -> c.addHandlerLast(new RSocketLengthCodec()))
-        .connect()
-        .map(
-            c -> {
-              if (mtu > 0) {
-                return new FragmentationDuplexConnection(
-                    new TcpDuplexConnection(c, false),
-                    ByteBufAllocator.DEFAULT,
-                    mtu,
-                    true,
-                    "client");
-              } else {
-                return new TcpDuplexConnection(c);
-              }
-            });
+    Mono<DuplexConnection> isError = FragmentationDuplexConnection.checkMtu(mtu);
+    return isError != null
+        ? isError
+        : client
+            .doOnConnected(c -> c.addHandlerLast(new RSocketLengthCodec()))
+            .connect()
+            .map(
+                c -> {
+                  if (mtu > 0) {
+                    return new FragmentationDuplexConnection(
+                        new TcpDuplexConnection(c, false),
+                        ByteBufAllocator.DEFAULT,
+                        mtu,
+                        true,
+                        "client");
+                  } else {
+                    return new TcpDuplexConnection(c);
+                  }
+                });
   }
 }

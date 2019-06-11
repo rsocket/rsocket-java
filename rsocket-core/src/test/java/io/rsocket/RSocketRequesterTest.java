@@ -47,7 +47,7 @@ import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
 import reactor.core.publisher.UnicastProcessor;
 
-public class RSocketClientTest {
+public class RSocketRequesterTest {
 
   @Rule public final ClientSocketRule rule = new ClientSocketRule();
 
@@ -223,10 +223,10 @@ public class RSocketClientTest {
     return streamId;
   }
 
-  public static class ClientSocketRule extends AbstractSocketRule<RSocketClient> {
+  public static class ClientSocketRule extends AbstractSocketRule<RSocketRequester> {
     @Override
-    protected RSocketClient newRSocket() {
-      return new RSocketClient(
+    protected RSocketRequester newRSocket() {
+      return new RSocketRequester(
           ByteBufAllocator.DEFAULT,
           connection,
           DefaultPayload::create,

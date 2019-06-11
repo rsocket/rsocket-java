@@ -151,6 +151,7 @@ final class FrameReassembler extends AtomicBoolean implements Disposable {
         ByteBuf assembledFrame = FragmentationFlyweight.encode(allocator, header, data);
         sink.next(assembledFrame);
       }
+      frame.release();
     } else {
       sink.next(frame);
     }
@@ -220,9 +221,8 @@ final class FrameReassembler extends AtomicBoolean implements Disposable {
         throw new IllegalStateException("unsupported fragment type");
     }
 
-    if (data != Unpooled.EMPTY_BUFFER) {
-      getData(streamId).addComponents(true, data);
-    }
+    getData(streamId).addComponents(true, data);
+    frame.release();
   }
 
   void reassembleFrame(ByteBuf frame, SynchronousSink<ByteBuf> sink) {
@@ -259,25 +259,21 @@ final class FrameReassembler extends AtomicBoolean implements Disposable {
     ByteBuf metadata;
     CompositeByteBuf cm = removeMetadata(streamId);
     if (cm != null) {
-      ByteBuf m = PayloadFrameFlyweight.metadata(frame);
-      metadata = cm.addComponents(true, m);
+      metadata = cm.addComponents(true, PayloadFrameFlyweight.metadata(frame).retain());
     } else {
-      metadata = PayloadFrameFlyweight.metadata(frame);
+      metadata = PayloadFrameFlyweight.metadata(frame).retain();
     }
 
     ByteBuf data = assembleData(frame, streamId);
 
-    return FragmentationFlyweight.encode(allocator, header, metadata.retain(), data);
+    return FragmentationFlyweight.encode(allocator, header, metadata, data);
   }
 
   private ByteBuf assembleData(ByteBuf frame, int streamId) {
     ByteBuf data;
     CompositeByteBuf cd = removeData(streamId);
     if (cd != null) {
-      ByteBuf d = PayloadFrameFlyweight.data(frame);
-      if (d != null) {
-        cd.addComponents(true, d);
-      }
+      cd.addComponents(true, PayloadFrameFlyweight.data(frame).retain());
       data = cd;
     } else {
       data = Unpooled.EMPTY_BUFFER;

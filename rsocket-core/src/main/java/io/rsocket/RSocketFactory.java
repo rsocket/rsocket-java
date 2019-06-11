@@ -134,14 +134,25 @@ public class RSocketFactory {
       plugins.addConnectionPlugin(interceptor);
       return this;
     }
-
+    /** Deprecated. Use {@link #addRequesterPlugin(RSocketInterceptor)} instead */
+    @Deprecated
     public ClientRSocketFactory addClientPlugin(RSocketInterceptor interceptor) {
-      plugins.addClientPlugin(interceptor);
+      return addRequesterPlugin(interceptor);
+    }
+
+    public ClientRSocketFactory addRequesterPlugin(RSocketInterceptor interceptor) {
+      plugins.addRequesterPlugin(interceptor);
       return this;
     }
 
+    /** Deprecated. Use {@link #addResponderPlugin(RSocketInterceptor)} instead */
+    @Deprecated
     public ClientRSocketFactory addServerPlugin(RSocketInterceptor interceptor) {
-      plugins.addServerPlugin(interceptor);
+      return addResponderPlugin(interceptor);
+    }
+
+    public ClientRSocketFactory addResponderPlugin(RSocketInterceptor interceptor) {
+      plugins.addResponderPlugin(interceptor);
       return this;
     }
 
@@ -291,8 +302,8 @@ public class RSocketFactory {
                   ClientServerInputMultiplexer multiplexer =
                       new ClientServerInputMultiplexer(wrappedConnection, plugins);
 
-                  RSocketClient rSocketClient =
-                      new RSocketClient(
+                  RSocketRequester rSocketRequester =
+                      new RSocketRequester(
                           allocator,
                           multiplexer.asClientConnection(),
                           payloadDecoder,
@@ -314,27 +325,27 @@ public class RSocketFactory {
                           setupPayload.sliceMetadata(),
                           setupPayload.sliceData());
 
-                  RSocket wrappedRSocketClient = plugins.applyClient(rSocketClient);
+                  RSocket wrappedRSocketRequester = plugins.applyRequester(rSocketRequester);
 
-                  RSocket unwrappedServerSocket;
+                  RSocket rSocketHandler;
                   if (biAcceptor != null) {
                     ConnectionSetupPayload setup = ConnectionSetupPayload.create(setupFrame);
-                    unwrappedServerSocket = biAcceptor.apply(setup, wrappedRSocketClient);
+                    rSocketHandler = biAcceptor.apply(setup, wrappedRSocketRequester);
                   } else {
-                    unwrappedServerSocket = acceptor.get().apply(wrappedRSocketClient);
+                    rSocketHandler = acceptor.get().apply(wrappedRSocketRequester);
                   }
 
-                  RSocket wrappedRSocketServer = plugins.applyServer(unwrappedServerSocket);
+                  RSocket wrappedRSocketHandler = plugins.applyResponder(rSocketHandler);
 
-                  RSocketServer rSocketServer =
-                      new RSocketServer(
+                  RSocketResponder rSocketResponder =
+                      new RSocketResponder(
                           allocator,
                           multiplexer.asServerConnection(),
-                          wrappedRSocketServer,
+                          wrappedRSocketHandler,
                           payloadDecoder,
                           errorConsumer);
 
-                  return wrappedConnection.sendOne(setupFrame).thenReturn(wrappedRSocketClient);
+                  return wrappedConnection.sendOne(setupFrame).thenReturn(wrappedRSocketRequester);
                 });
       }
 
@@ -397,14 +408,25 @@ public class RSocketFactory {
       plugins.addConnectionPlugin(interceptor);
       return this;
     }
-
+    /** Deprecated. Use {@link #addRequesterPlugin(RSocketInterceptor)} instead */
+    @Deprecated
     public ServerRSocketFactory addClientPlugin(RSocketInterceptor interceptor) {
-      plugins.addClientPlugin(interceptor);
+      return addRequesterPlugin(interceptor);
+    }
+
+    public ServerRSocketFactory addRequesterPlugin(RSocketInterceptor interceptor) {
+      plugins.addRequesterPlugin(interceptor);
       return this;
     }
 
+    /** Deprecated. Use {@link #addResponderPlugin(RSocketInterceptor)} instead */
+    @Deprecated
     public ServerRSocketFactory addServerPlugin(RSocketInterceptor interceptor) {
-      plugins.addServerPlugin(interceptor);
+      return addResponderPlugin(interceptor);
+    }
+
+    public ServerRSocketFactory addResponderPlugin(RSocketInterceptor interceptor) {
+      plugins.addResponderPlugin(interceptor);
       return this;
     }
 
@@ -525,29 +547,29 @@ public class RSocketFactory {
             (keepAliveHandler, wrappedMultiplexer) -> {
               ConnectionSetupPayload setupPayload = ConnectionSetupPayload.create(setupFrame);
 
-              RSocketClient rSocketClient =
-                  new RSocketClient(
+              RSocketRequester rSocketRequester =
+                  new RSocketRequester(
                       allocator,
                       wrappedMultiplexer.asServerConnection(),
                       payloadDecoder,
                       errorConsumer,
                       StreamIdSupplier.serverSupplier());
 
-              RSocket wrappedRSocketClient = plugins.applyClient(rSocketClient);
+              RSocket wrappedRSocketRequester = plugins.applyRequester(rSocketRequester);
 
               return acceptor
-                  .accept(setupPayload, wrappedRSocketClient)
+                  .accept(setupPayload, wrappedRSocketRequester)
                   .onErrorResume(
                       err -> sendError(multiplexer, rejectedSetupError(err)).then(Mono.error(err)))
                   .doOnNext(
-                      unwrappedServerSocket -> {
-                        RSocket wrappedRSocketServer = plugins.applyServer(unwrappedServerSocket);
+                      rSocketHandler -> {
+                        RSocket wrappedRSocketHandler = plugins.applyResponder(rSocketHandler);
 
-                        RSocketServer rSocketServer =
-                            new RSocketServer(
+                        RSocketResponder rSocketResponder =
+                            new RSocketResponder(
                                 allocator,
                                 wrappedMultiplexer.asClientConnection(),
-                                wrappedRSocketServer,
+                                wrappedRSocketHandler,
                                 payloadDecoder,
                                 errorConsumer,
                                 setupPayload.keepAliveInterval(),
