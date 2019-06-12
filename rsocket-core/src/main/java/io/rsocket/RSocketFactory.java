@@ -553,7 +553,10 @@ public class RSocketFactory {
                       wrappedMultiplexer.asServerConnection(),
                       payloadDecoder,
                       errorConsumer,
-                      StreamIdSupplier.serverSupplier());
+                      StreamIdSupplier.serverSupplier(),
+                      setupPayload.keepAliveInterval(),
+                      setupPayload.keepAliveMaxLifetime(),
+                      keepAliveHandler);
 
               RSocket wrappedRSocketRequester = plugins.applyRequester(rSocketRequester);
 
@@ -571,10 +574,7 @@ public class RSocketFactory {
                                 wrappedMultiplexer.asClientConnection(),
                                 wrappedRSocketHandler,
                                 payloadDecoder,
-                                errorConsumer,
-                                setupPayload.keepAliveInterval(),
-                                setupPayload.keepAliveMaxLifetime(),
-                                keepAliveHandler);
+                                errorConsumer);
                       })
                   .doFinally(signalType -> setupPayload.release())
                   .then();

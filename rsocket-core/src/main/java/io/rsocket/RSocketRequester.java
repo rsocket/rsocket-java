@@ -61,7 +61,6 @@ class RSocketRequester implements RSocket {
   private final ByteBufAllocator allocator;
   private final KeepAliveFramesAcceptor keepAliveFramesAcceptor;
 
-  /*client requester*/
   RSocketRequester(
       ByteBufAllocator allocator,
       DuplexConnection connection,
@@ -100,7 +99,7 @@ class RSocketRequester implements RSocket {
     }
   }
 
-  /*server requester*/
+  /*for testing only*/
   RSocketRequester(
       ByteBufAllocator allocator,
       DuplexConnection connection,
