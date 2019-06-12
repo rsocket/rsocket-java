@@ -285,7 +285,7 @@ class RSocketResponder implements ResponderRSocket {
           handleChannel(streamId, channelPayload, channelInitialRequestN);
           break;
         case METADATA_PUSH:
-          metadataPush(payloadDecoder.apply(frame));
+          handleMetadataPush(metadataPush(payloadDecoder.apply(frame)));
           break;
         case PAYLOAD:
           // TODO: Hook in receiving socket.
@@ -474,6 +474,21 @@ class RSocketResponder implements ResponderRSocket {
     } else {
       handleStream(streamId, requestChannel(payloads), initialRequestN);
     }
+  }
+
+  private void handleMetadataPush(Mono<Void> result) {
+    result.subscribe(
+        new BaseSubscriber<Void>() {
+          @Override
+          protected void hookOnSubscribe(Subscription subscription) {
+            subscription.request(Long.MAX_VALUE);
+          }
+
+          @Override
+          protected void hookOnError(Throwable throwable) {
+            errorConsumer.accept(throwable);
+          }
+        });
   }
 
   private void handleCancelFrame(int streamId) {
