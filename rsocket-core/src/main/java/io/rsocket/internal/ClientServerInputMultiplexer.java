@@ -20,7 +20,6 @@ import io.netty.buffer.ByteBuf;
 import io.rsocket.Closeable;
 import io.rsocket.DuplexConnection;
 import io.rsocket.frame.FrameHeaderFlyweight;
-import io.rsocket.frame.FrameType;
 import io.rsocket.frame.FrameUtil;
 import io.rsocket.plugins.DuplexConnectionInterceptor.Type;
 import io.rsocket.plugins.PluginRegistry;
@@ -81,15 +80,19 @@ public class ClientServerInputMultiplexer implements Closeable {
               int streamId = FrameHeaderFlyweight.streamId(frame);
               final Type type;
               if (streamId == 0) {
-                FrameType frameType = FrameHeaderFlyweight.frameType(frame);
-                if (isSetup(frameType)) {
-                  type = Type.SETUP;
-                } else {
-                  if (isRequesterFrame(frameType)) {
+                switch (FrameHeaderFlyweight.frameType(frame)) {
+                  case SETUP:
+                  case RESUME:
+                  case RESUME_OK:
+                    type = Type.SETUP;
+                    break;
+                  case LEASE:
+                  case KEEPALIVE:
+                  case ERROR:
                     type = isClient ? Type.CLIENT : Type.SERVER;
-                  } else {
+                    break;
+                  default:
                     type = isClient ? Type.SERVER : Type.CLIENT;
-                  }
                 }
               } else if ((streamId & 0b1) == 0) {
                 type = Type.SERVER;
@@ -149,29 +152,6 @@ public class ClientServerInputMultiplexer implements Closeable {
   @Override
   public Mono<Void> onClose() {
     return source.onClose();
-  }
-
-  private static boolean isSetup(FrameType frameType) {
-    switch (frameType) {
-      case SETUP:
-      case RESUME:
-      case RESUME_OK:
-        return true;
-      default:
-        return false;
-    }
-  }
-
-  /* incoming frames going to Requester regardless side of connection */
-  private static boolean isRequesterFrame(FrameType frameType) {
-    switch (frameType) {
-      case LEASE:
-      case KEEPALIVE:
-      case ERROR:
-        return true;
-      default:
-        return false;
-    }
   }
 
   private static class InternalDuplexConnection implements DuplexConnection {
