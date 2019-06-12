@@ -300,7 +300,7 @@ public class RSocketFactory {
                   DuplexConnection wrappedConnection = clientSetup.connection();
 
                   ClientServerInputMultiplexer multiplexer =
-                      new ClientServerInputMultiplexer(wrappedConnection, plugins);
+                      new ClientServerInputMultiplexer(wrappedConnection, plugins, true);
 
                   RSocketRequester rSocketRequester =
                       new RSocketRequester(
@@ -500,7 +500,7 @@ public class RSocketFactory {
 
       private Mono<Void> acceptor(ServerSetup serverSetup, DuplexConnection connection) {
         ClientServerInputMultiplexer multiplexer =
-            new ClientServerInputMultiplexer(connection, plugins);
+            new ClientServerInputMultiplexer(connection, plugins, false);
 
         return multiplexer
             .asSetupConnection()

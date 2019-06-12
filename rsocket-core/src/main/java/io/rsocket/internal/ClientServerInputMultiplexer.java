@@ -20,6 +20,7 @@ import io.netty.buffer.ByteBuf;
 import io.rsocket.Closeable;
 import io.rsocket.DuplexConnection;
 import io.rsocket.frame.FrameHeaderFlyweight;
+import io.rsocket.frame.FrameType;
 import io.rsocket.frame.FrameUtil;
 import io.rsocket.plugins.DuplexConnectionInterceptor.Type;
 import io.rsocket.plugins.PluginRegistry;
@@ -54,10 +55,11 @@ public class ClientServerInputMultiplexer implements Closeable {
   private final DuplexConnection clientServerConnection;
 
   public ClientServerInputMultiplexer(DuplexConnection source) {
-    this(source, emptyPluginRegistry);
+    this(source, emptyPluginRegistry, false);
   }
 
-  public ClientServerInputMultiplexer(DuplexConnection source, PluginRegistry plugins) {
+  public ClientServerInputMultiplexer(
+      DuplexConnection source, PluginRegistry plugins, boolean isClient) {
     this.source = source;
     final MonoProcessor<Flux<ByteBuf>> setup = MonoProcessor.create();
     final MonoProcessor<Flux<ByteBuf>> server = MonoProcessor.create();
@@ -79,10 +81,15 @@ public class ClientServerInputMultiplexer implements Closeable {
               int streamId = FrameHeaderFlyweight.streamId(frame);
               final Type type;
               if (streamId == 0) {
-                if (isSetup(frame)) {
+                FrameType frameType = FrameHeaderFlyweight.frameType(frame);
+                if (isSetup(frameType)) {
                   type = Type.SETUP;
                 } else {
-                  type = Type.CLIENT;
+                  if (isRequesterFrame(frameType)) {
+                    type = isClient ? Type.CLIENT : Type.SERVER;
+                  } else {
+                    type = isClient ? Type.SERVER : Type.CLIENT;
+                  }
                 }
               } else if ((streamId & 0b1) == 0) {
                 type = Type.SERVER;
@@ -144,11 +151,23 @@ public class ClientServerInputMultiplexer implements Closeable {
     return source.onClose();
   }
 
-  private static boolean isSetup(ByteBuf frame) {
-    switch (FrameHeaderFlyweight.frameType(frame)) {
+  private static boolean isSetup(FrameType frameType) {
+    switch (frameType) {
       case SETUP:
       case RESUME:
       case RESUME_OK:
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  /* incoming frames going to Requester regardless side of connection */
+  private static boolean isRequesterFrame(FrameType frameType) {
+    switch (frameType) {
+      case LEASE:
+      case KEEPALIVE:
+      case ERROR:
         return true;
       default:
         return false;
