@@ -54,10 +54,11 @@ public class ClientServerInputMultiplexer implements Closeable {
   private final DuplexConnection clientServerConnection;
 
   public ClientServerInputMultiplexer(DuplexConnection source) {
-    this(source, emptyPluginRegistry);
+    this(source, emptyPluginRegistry, false);
   }
 
-  public ClientServerInputMultiplexer(DuplexConnection source, PluginRegistry plugins) {
+  public ClientServerInputMultiplexer(
+      DuplexConnection source, PluginRegistry plugins, boolean isClient) {
     this.source = source;
     final MonoProcessor<Flux<ByteBuf>> setup = MonoProcessor.create();
     final MonoProcessor<Flux<ByteBuf>> server = MonoProcessor.create();
@@ -79,10 +80,19 @@ public class ClientServerInputMultiplexer implements Closeable {
               int streamId = FrameHeaderFlyweight.streamId(frame);
               final Type type;
               if (streamId == 0) {
-                if (isSetup(frame)) {
-                  type = Type.SETUP;
-                } else {
-                  type = Type.CLIENT;
+                switch (FrameHeaderFlyweight.frameType(frame)) {
+                  case SETUP:
+                  case RESUME:
+                  case RESUME_OK:
+                    type = Type.SETUP;
+                    break;
+                  case LEASE:
+                  case KEEPALIVE:
+                  case ERROR:
+                    type = isClient ? Type.CLIENT : Type.SERVER;
+                    break;
+                  default:
+                    type = isClient ? Type.SERVER : Type.CLIENT;
                 }
               } else if ((streamId & 0b1) == 0) {
                 type = Type.SERVER;
@@ -142,17 +152,6 @@ public class ClientServerInputMultiplexer implements Closeable {
   @Override
   public Mono<Void> onClose() {
     return source.onClose();
-  }
-
-  private static boolean isSetup(ByteBuf frame) {
-    switch (FrameHeaderFlyweight.frameType(frame)) {
-      case SETUP:
-      case RESUME:
-      case RESUME_OK:
-        return true;
-      default:
-        return false;
-    }
   }
 
   private static class InternalDuplexConnection implements DuplexConnection {

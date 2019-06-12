@@ -300,7 +300,7 @@ public class RSocketFactory {
                   DuplexConnection wrappedConnection = clientSetup.connection();
 
                   ClientServerInputMultiplexer multiplexer =
-                      new ClientServerInputMultiplexer(wrappedConnection, plugins);
+                      new ClientServerInputMultiplexer(wrappedConnection, plugins, true);
 
                   RSocketRequester rSocketRequester =
                       new RSocketRequester(
@@ -500,7 +500,7 @@ public class RSocketFactory {
 
       private Mono<Void> acceptor(ServerSetup serverSetup, DuplexConnection connection) {
         ClientServerInputMultiplexer multiplexer =
-            new ClientServerInputMultiplexer(connection, plugins);
+            new ClientServerInputMultiplexer(connection, plugins, false);
 
         return multiplexer
             .asSetupConnection()
@@ -553,7 +553,10 @@ public class RSocketFactory {
                       wrappedMultiplexer.asServerConnection(),
                       payloadDecoder,
                       errorConsumer,
-                      StreamIdSupplier.serverSupplier());
+                      StreamIdSupplier.serverSupplier(),
+                      setupPayload.keepAliveInterval(),
+                      setupPayload.keepAliveMaxLifetime(),
+                      keepAliveHandler);
 
               RSocket wrappedRSocketRequester = plugins.applyRequester(rSocketRequester);
 
@@ -571,10 +574,7 @@ public class RSocketFactory {
                                 wrappedMultiplexer.asClientConnection(),
                                 wrappedRSocketHandler,
                                 payloadDecoder,
-                                errorConsumer,
-                                setupPayload.keepAliveInterval(),
-                                setupPayload.keepAliveMaxLifetime(),
-                                keepAliveHandler);
+                                errorConsumer);
                       })
                   .doFinally(signalType -> setupPayload.release())
                   .then();
