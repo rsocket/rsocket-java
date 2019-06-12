@@ -27,7 +27,7 @@ import reactor.core.publisher.Flux;
  * Statistics of responder lease represented as rolling set of sliding windows sampled at given
  * intervals
  */
-public class SlidingWindowLeaseStats {
+public class LeaseStats {
   private final AtomicBoolean isStarted = new AtomicBoolean();
   private volatile Lease lease = LeaseImpl.empty();
   private volatile Disposable nextWindowDisposable;
@@ -45,9 +45,9 @@ public class SlidingWindowLeaseStats {
    * @param lease target for this stats. Must be non null, may be empty
    * @param windowMillis window duration in millis. Must be positive
    * @param windowCount number of windows to maintain. Must be positive
-   * @return this SlidingWindowLeaseStats
+   * @return this LeaseStats
    */
-  public SlidingWindowLeaseStats start(Lease lease, long windowMillis, int windowCount) {
+  public LeaseStats start(Lease lease, long windowMillis, int windowCount) {
     if (isStarted.compareAndSet(false, true)) {
       requirePositive(windowMillis);
       requirePositive(windowCount);
@@ -77,9 +77,9 @@ public class SlidingWindowLeaseStats {
   /**
    * Stop gathering new statistics with given window duration and count. Must be in started state
    *
-   * @return this SlidingWindowLeaseStats
+   * @return this LeaseStats
    */
-  public SlidingWindowLeaseStats stop() {
+  public LeaseStats stop() {
     if (isStarted.compareAndSet(true, false)) {
       nextWindowDisposable.dispose();
       return this;
