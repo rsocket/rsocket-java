@@ -326,7 +326,7 @@ public class RSocketFactory {
                   DuplexConnection wrappedConnection = clientSetup.connection();
 
                   ClientServerInputMultiplexer multiplexer =
-                      new ClientServerInputMultiplexer(wrappedConnection, plugins);
+                      new ClientServerInputMultiplexer(wrappedConnection, plugins, true);
 
                   boolean isLeaseEnabled = leaseEnabled;
                   RequesterLeaseHandler requesterLeaseHandler =
@@ -572,7 +572,7 @@ public class RSocketFactory {
 
       private Mono<Void> acceptor(ServerSetup serverSetup, DuplexConnection connection) {
         ClientServerInputMultiplexer multiplexer =
-            new ClientServerInputMultiplexer(connection, plugins);
+            new ClientServerInputMultiplexer(connection, plugins, false);
 
         return multiplexer
             .asSetupConnection()
@@ -672,9 +672,6 @@ public class RSocketFactory {
                                 wrappedRSocketHandler,
                                 payloadDecoder,
                                 errorConsumer,
-                                setupPayload.keepAliveInterval(),
-                                setupPayload.keepAliveMaxLifetime(),
-                                keepAliveHandler,
                                 responderLeaseHandler);
                       })
                   .doFinally(signalType -> setupPayload.release())

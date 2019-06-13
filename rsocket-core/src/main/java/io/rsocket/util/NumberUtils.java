@@ -16,6 +16,7 @@
 
 package io.rsocket.util;
 
+import io.netty.buffer.ByteBuf;
 import java.util.Objects;
 
 public final class NumberUtils {
@@ -142,5 +143,22 @@ public final class NumberUtils {
     }
 
     return i;
+  }
+
+  /**
+   * Encode an unsigned medium integer on 3 bytes / 24 bits. This can be decoded directly by the
+   * {@link ByteBuf#readUnsignedMedium()} method.
+   *
+   * @param byteBuf the {@link ByteBuf} into which to write the bits
+   * @param i the medium integer to encode
+   * @see #requireUnsignedMedium(int)
+   */
+  public static void encodeUnsignedMedium(ByteBuf byteBuf, int i) {
+    requireUnsignedMedium(i);
+    // Write each byte separately in reverse order, this mean we can write 1 << 23 without
+    // overflowing.
+    byteBuf.writeByte(i >> 16);
+    byteBuf.writeByte(i >> 8);
+    byteBuf.writeByte(i);
   }
 }
