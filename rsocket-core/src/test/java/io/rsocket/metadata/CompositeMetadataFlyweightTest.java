@@ -525,29 +525,30 @@ class CompositeMetadataFlyweightTest {
     badBuf.writerIndex(0);
     assertThat(badBuf.readerIndex()).isZero();
 
-    ByteBufAllocator allocator = new AbstractByteBufAllocator() {
-      @Override
-      public boolean isDirectBufferPooled() {
-        return false;
-      }
+    ByteBufAllocator allocator =
+        new AbstractByteBufAllocator() {
+          @Override
+          public boolean isDirectBufferPooled() {
+            return false;
+          }
 
-      @Override
-      protected ByteBuf newHeapBuffer(int initialCapacity, int maxCapacity) {
-        return badBuf;
-      }
+          @Override
+          protected ByteBuf newHeapBuffer(int initialCapacity, int maxCapacity) {
+            return badBuf;
+          }
 
-      @Override
-      protected ByteBuf newDirectBuffer(int initialCapacity, int maxCapacity) {
-        return badBuf;
-      }
-    };
+          @Override
+          protected ByteBuf newDirectBuffer(int initialCapacity, int maxCapacity) {
+            return badBuf;
+          }
+        };
 
-    assertThatCode(() -> CompositeMetadataFlyweight.encodeMetadataHeader(allocator, "custom/type", 0))
-            .doesNotThrowAnyException();
+    assertThatCode(
+            () -> CompositeMetadataFlyweight.encodeMetadataHeader(allocator, "custom/type", 0))
+        .doesNotThrowAnyException();
 
     assertThat(badBuf.readByte()).isEqualTo((byte) 10);
-    assertThat(badBuf.readCharSequence(11, CharsetUtil.UTF_8))
-            .hasToString("custom/type");
+    assertThat(badBuf.readCharSequence(11, CharsetUtil.UTF_8)).hasToString("custom/type");
     assertThat(badBuf.readUnsignedMedium()).isEqualTo(0);
   }
 }
