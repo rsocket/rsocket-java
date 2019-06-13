@@ -16,7 +16,25 @@
 
 package io.rsocket.lease;
 
-public abstract class LeaseOptions {
+public class LeaseOptions {
+  private boolean enableStats;
+  private int statsWindowCount = 10;
 
-  abstract void responderLeaseEvents(LeaseEventsListener leaseEventsListener);
+  public LeaseOptions enableStats() {
+    this.enableStats = true;
+    return this;
+  }
+
+  public LeaseOptions statsWindowCount(int statsWindowCount) {
+    this.statsWindowCount = statsWindowCount;
+    return this;
+  }
+
+  public boolean isStatsEnabled() {
+    return enableStats;
+  }
+
+  public int statsWindowCount() {
+    return statsWindowCount;
+  }
 }

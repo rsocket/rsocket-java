@@ -17,10 +17,21 @@
 package io.rsocket.lease;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
+import io.rsocket.Availability;
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 /** A contract for RSocket lease, which is sent by a request acceptor and is time bound. */
-public interface Lease {
+public interface Lease extends Availability {
+
+  static Lease create(int timeToLiveMillis, int numberOfRequests, @Nullable ByteBuf metadata) {
+    return LeaseImpl.create(timeToLiveMillis, numberOfRequests, metadata);
+  }
+
+  static Lease create(int timeToLiveMillis, int numberOfRequests) {
+    return create(timeToLiveMillis, numberOfRequests, Unpooled.EMPTY_BUFFER);
+  }
 
   /**
    * Number of requests allowed by this lease.

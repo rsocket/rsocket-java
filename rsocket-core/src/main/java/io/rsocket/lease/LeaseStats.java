@@ -29,10 +29,14 @@ import reactor.core.publisher.Flux;
  */
 public class LeaseStats {
   private final AtomicBoolean isStarted = new AtomicBoolean();
-  private volatile Lease lease = LeaseImpl.empty();
+  private volatile Lease lease;
   private volatile Disposable nextWindowDisposable;
   private volatile CircularBuffer<SlidingWindow> windows;
   private volatile long startMillis;
+
+  public LeaseStats(Lease lease) {
+    this.lease = lease;
+  }
 
   /** @return lease these stats are associated with */
   public Lease lease() {
@@ -47,11 +51,11 @@ public class LeaseStats {
    * @param windowCount number of windows to maintain. Must be positive
    * @return this LeaseStats
    */
-  public LeaseStats start(Lease lease, long windowMillis, int windowCount) {
+  LeaseStats start(Lease lease, long windowMillis, int windowCount) {
     if (isStarted.compareAndSet(false, true)) {
       requirePositive(windowMillis);
       requirePositive(windowCount);
-      this.lease = Objects.requireNonNull(lease, "lease");
+      this.lease = Objects.requireNonNull(lease, "leaseSender");
       this.startMillis = System.currentTimeMillis();
       if (!lease.isEmpty()) {
         CircularBuffer<SlidingWindow> w = this.windows;
@@ -79,7 +83,7 @@ public class LeaseStats {
    *
    * @return this LeaseStats
    */
-  public LeaseStats stop() {
+  LeaseStats stop() {
     if (isStarted.compareAndSet(true, false)) {
       nextWindowDisposable.dispose();
       return this;

@@ -31,7 +31,7 @@ import io.rsocket.internal.*;
 import io.rsocket.keepalive.KeepAliveFramesAcceptor;
 import io.rsocket.keepalive.KeepAliveHandler;
 import io.rsocket.keepalive.KeepAliveSupport;
-import io.rsocket.lease.LeaseHandler;
+import io.rsocket.lease.RequesterLeaseHandler;
 import java.nio.channels.ClosedChannelException;
 import java.util.Collections;
 import java.util.Map;
@@ -54,11 +54,11 @@ class RSocketRequester implements RSocket {
   private final PayloadDecoder payloadDecoder;
   private final Consumer<Throwable> errorConsumer;
   private final StreamIdSupplier streamIdSupplier;
-  private LeaseHandler.Requester leaseHandler;
   private final Map<Integer, LimitableRequestPublisher> senders;
   private final Map<Integer, Processor<Payload, Payload>> receivers;
   private final UnboundedProcessor<ByteBuf> sendProcessor;
   private final Lifecycle lifecycle;
+  private final RequesterLeaseHandler leaseHandler;
   private final ByteBufAllocator allocator;
   private final KeepAliveFramesAcceptor keepAliveFramesAcceptor;
 
@@ -72,14 +72,14 @@ class RSocketRequester implements RSocket {
       int keepAliveTickPeriod,
       int keepAliveAckTimeout,
       @Nullable KeepAliveHandler keepAliveHandler,
-      @Nullable LeaseHandler.Requester leaseHandler) {
+      RequesterLeaseHandler leaseHandler) {
     this.allocator = allocator;
     this.connection = connection;
     this.payloadDecoder = payloadDecoder;
     this.errorConsumer = errorConsumer;
     this.streamIdSupplier = streamIdSupplier;
-    this.leaseHandler = leaseHandler;
     this.lifecycle = new Lifecycle(leaseHandler);
+    this.leaseHandler = leaseHandler;
     this.senders = Collections.synchronizedMap(new IntObjectHashMap<>());
     this.receivers = Collections.synchronizedMap(new IntObjectHashMap<>());
 
@@ -111,7 +111,7 @@ class RSocketRequester implements RSocket {
       PayloadDecoder payloadDecoder,
       Consumer<Throwable> errorConsumer,
       StreamIdSupplier streamIdSupplier,
-      @Nullable LeaseHandler.Requester leaseHandler) {
+      RequesterLeaseHandler leaseHandler) {
     this(
         allocator,
         connection,
@@ -196,9 +196,7 @@ class RSocketRequester implements RSocket {
 
   @Override
   public double availability() {
-    return leaseHandler != null
-        ? Math.min(connection.availability(), leaseHandler.availability())
-        : connection.availability();
+    return Math.min(connection.availability(), leaseHandler.availability());
   }
 
   @Override
@@ -488,12 +486,7 @@ class RSocketRequester implements RSocket {
         connection.dispose();
         break;
       case LEASE:
-        if (leaseHandler != null) {
-          int timeToLiveMillis = LeaseFrameFlyweight.ttl(frame);
-          int numberOfRequests = LeaseFrameFlyweight.numRequests(frame);
-          ByteBuf metadata = LeaseFrameFlyweight.metadata(frame).retain();
-          leaseHandler.onReceiveLease(timeToLiveMillis, numberOfRequests, metadata);
-        }
+        leaseHandler.receive(frame);
         break;
       case KEEPALIVE:
         if (keepAliveFramesAcceptor != null) {
@@ -582,10 +575,10 @@ class RSocketRequester implements RSocket {
     private static final AtomicReferenceFieldUpdater<Lifecycle, Throwable> TERMINATION_ERROR =
         AtomicReferenceFieldUpdater.newUpdater(
             Lifecycle.class, Throwable.class, "terminationError");
-    private final LeaseHandler.Requester leaseHandler;
+    private final RequesterLeaseHandler leaseHandler;
     private volatile Throwable terminationError;
 
-    public Lifecycle(@Nullable LeaseHandler.Requester leaseHandler) {
+    public Lifecycle(RequesterLeaseHandler leaseHandler) {
       this.leaseHandler = leaseHandler;
     }
 
@@ -602,65 +595,47 @@ class RSocketRequester implements RSocket {
     }
 
     public Mono<Void> active(Runnable runnable) {
-      reserveLease();
       return Mono.create(
-          new RequesterConsumer<MonoSink<Void>>() {
-
-            @Override
-            public void accept(MonoSink<Void> sink) {
-              if (terminationError == null) {
-                Throwable leaseError = useLease(isFirst());
-                if (leaseError != null) {
-                  sink.error(leaseError);
-                } else {
-                  runnable.run();
-                  sink.success();
-                }
+          sink -> {
+            if (terminationError == null) {
+              if (leaseHandler.useLease()) {
+                runnable.run();
+                sink.success();
               } else {
-                sink.error(terminationError);
+                sink.error(leaseHandler.leaseError());
               }
+            } else {
+              sink.error(terminationError);
             }
           });
     }
 
     public <T> Mono<T> activeMono(Supplier<? extends Mono<? extends T>> supplier) {
-      reserveLease();
       return Mono.defer(
-          new RequesterSupplier<Mono<? extends T>>() {
-
-            @Override
-            public Mono<? extends T> get() {
-              if (terminationError == null) {
-                Throwable leaseError = useLease(isFirst());
-                if (leaseError != null) {
-                  return Mono.error(leaseError);
-                } else {
-                  return supplier.get();
-                }
+          () -> {
+            if (terminationError == null) {
+              if (leaseHandler.useLease()) {
+                return supplier.get();
               } else {
-                return Mono.error(terminationError);
+                return Mono.error(leaseHandler.leaseError());
               }
+            } else {
+              return Mono.error(terminationError);
             }
           });
     }
 
     public <T> Flux<T> activeFlux(Supplier<? extends Flux<T>> supplier) {
-      reserveLease();
       return Flux.defer(
-          new RequesterSupplier<Publisher<T>>() {
-
-            @Override
-            public Publisher<T> get() {
-              if (terminationError == null) {
-                Throwable leaseError = useLease(isFirst());
-                if (leaseError != null) {
-                  return Flux.error(leaseError);
-                } else {
-                  return supplier.get();
-                }
+          () -> {
+            if (terminationError == null) {
+              if (leaseHandler.useLease()) {
+                return supplier.get();
               } else {
-                return Flux.error(terminationError);
+                return Flux.error(leaseHandler.leaseError());
               }
+            } else {
+              return Flux.error(terminationError);
             }
           });
     }
@@ -671,20 +646,6 @@ class RSocketRequester implements RSocket {
 
     public void setTerminationError(Throwable err) {
       TERMINATION_ERROR.compareAndSet(this, null, err);
-    }
-
-    private void reserveLease() {
-      if (leaseHandler != null) {
-        leaseHandler.reserveLease();
-      }
-    }
-
-    private Throwable useLease(boolean isFirst) {
-      if (leaseHandler != null) {
-        return isFirst ? leaseHandler.useLease() : leaseHandler.reserveAndUseLease();
-      } else {
-        return null;
-      }
     }
   }
 }

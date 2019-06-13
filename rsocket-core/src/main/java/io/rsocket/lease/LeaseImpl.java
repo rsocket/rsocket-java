@@ -22,10 +22,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-class LeaseImpl implements Lease {
+public class LeaseImpl implements Lease {
   private final int timeToLiveMillis;
   private final AtomicInteger allowedRequests;
-  private final AtomicInteger availableRequests;
   private final AtomicInteger rejectedRequests = new AtomicInteger();
   private final int startingAllowedRequests;
   private final ByteBuf metadata;
@@ -36,13 +35,20 @@ class LeaseImpl implements Lease {
     return new LeaseImpl(timeToLiveMillis, numberOfRequests, metadata);
   }
 
+  static LeaseImpl create(Lease lease) {
+    if (lease instanceof LeaseImpl) {
+      return (LeaseImpl) lease;
+    } else {
+      return create(lease.getTimeToLiveMillis(), lease.getAllowedRequests(), lease.getMetadata());
+    }
+  }
+
   static LeaseImpl empty() {
     return new LeaseImpl(0, 0, null);
   }
 
   private LeaseImpl(int timeToLiveMillis, int allowedRequests, @Nullable ByteBuf metadata) {
     this.allowedRequests = new AtomicInteger(allowedRequests);
-    this.availableRequests = new AtomicInteger(allowedRequests);
     this.startingAllowedRequests = allowedRequests;
     this.timeToLiveMillis = timeToLiveMillis;
     this.metadata = metadata == null ? Unpooled.EMPTY_BUFFER : metadata;
@@ -56,10 +62,6 @@ class LeaseImpl implements Lease {
   @Override
   public int getAllowedRequests() {
     return Math.max(0, allowedRequests.get());
-  }
-
-  public int getAvailableRequests() {
-    return availableRequests.get();
   }
 
   @Override
@@ -88,29 +90,28 @@ class LeaseImpl implements Lease {
     return !isEmpty() && getAllowedRequests() > 0 && !isExpired();
   }
 
-  /** reserves Lease on requester method invocation */
-  public void reserve() {
-    availableRequests.accumulateAndGet(1, (cur, update) -> Math.max(0, cur - update));
-  }
-
   /**
    * try use 1 allowed request of Lease
    *
    * @return true if used successfully, false if Lease is expired or no allowed requests available
    */
   public boolean use() {
-    if (checkExpired()) {
+    if (isExpired()) {
+      rejectedRequests.incrementAndGet();
       return false;
     }
-    return checkAllowedRequests();
+    int remaining =
+        allowedRequests.accumulateAndGet(1, (cur, update) -> Math.max(-1, cur - update));
+    boolean success = remaining >= 0;
+    if (!success) {
+      rejectedRequests.incrementAndGet();
+    }
+    return success;
   }
 
-  public boolean reserveAndUse() {
-    if (checkExpired()) {
-      return false;
-    }
-    reserve();
-    return checkAllowedRequests();
+  @Override
+  public double availability() {
+    return isValid() ? getAllowedRequests() / (double) getStartingAllowedRequests() : 0.0;
   }
 
   @Override
@@ -130,24 +131,6 @@ class LeaseImpl implements Lease {
         + ", remainingTimeToLiveMillis="
         + getRemainingTimeToLiveMillis(now)
         + '}';
-  }
-
-  private boolean checkAllowedRequests() {
-    int remaining =
-        allowedRequests.accumulateAndGet(1, (cur, update) -> Math.max(-1, cur - update));
-    boolean success = remaining >= 0;
-    if (!success) {
-      rejectedRequests.incrementAndGet();
-    }
-    return success;
-  }
-
-  private boolean checkExpired() {
-    if (isExpired()) {
-      rejectedRequests.incrementAndGet();
-      return true;
-    }
-    return false;
   }
 
   private static long now() {

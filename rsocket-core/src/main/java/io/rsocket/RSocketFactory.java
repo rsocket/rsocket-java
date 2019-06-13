@@ -31,9 +31,7 @@ import io.rsocket.internal.ClientServerInputMultiplexer;
 import io.rsocket.internal.ClientSetup;
 import io.rsocket.internal.ServerSetup;
 import io.rsocket.keepalive.KeepAliveHandler;
-import io.rsocket.lease.LeaseOptions;
-import io.rsocket.lease.LeaseSupport;
-import io.rsocket.lease.Leases;
+import io.rsocket.lease.*;
 import io.rsocket.plugins.DuplexConnectionInterceptor;
 import io.rsocket.plugins.PluginRegistry;
 import io.rsocket.plugins.Plugins;
@@ -46,6 +44,7 @@ import io.rsocket.util.EmptyPayload;
 import java.time.Duration;
 import java.util.Objects;
 import java.util.function.*;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 /** Factory for creating RSocket clients and servers. */
@@ -92,6 +91,8 @@ public class RSocketFactory {
   }
 
   public static class ClientRSocketFactory implements ClientTransportAcceptor {
+    private static final String CLIENT_TAG = "client";
+
     private Supplier<Function<RSocket, RSocket>> acceptor =
         () -> rSocket -> new AbstractRSocket() {};
 
@@ -115,15 +116,19 @@ public class RSocketFactory {
     private boolean resumeCleanupStoreOnKeepAlive;
     private Supplier<ByteBuf> resumeTokenSupplier = ResumeFrameFlyweight::generateResumeToken;
     private Function<? super ByteBuf, ? extends ResumableFramesStore> resumeStoreFactory =
-        token -> new InMemoryResumableFramesStore("client", 100_000);
+        token -> new InMemoryResumableFramesStore(CLIENT_TAG, 100_000);
     private Duration resumeSessionDuration = Duration.ofMinutes(2);
     private Duration resumeStreamTimeout = Duration.ofSeconds(10);
     private Supplier<ResumeStrategy> resumeStrategySupplier =
         () ->
             new ExponentialBackoffResumeStrategy(Duration.ofSeconds(1), Duration.ofSeconds(16), 2);
 
+    private boolean leaseEnabled;
+    private Function<LeaseStats, Flux<Lease>> leaseSender = leaseStats -> Flux.never();
+    private Consumer<Flux<Lease>> leaseReceiver = lease -> {};
+    private LeaseOptions leaseOptions = new LeaseOptions();
+
     private ByteBufAllocator allocator = ByteBufAllocator.DEFAULT;
-    private BiConsumer<Leases, LeaseOptions> leaseSenderConsumer;
 
     public ClientRSocketFactory byteBufAllocator(ByteBufAllocator allocator) {
       Objects.requireNonNull(allocator);
@@ -206,8 +211,23 @@ public class RSocketFactory {
       return this;
     }
 
-    public ClientRSocketFactory lease(BiConsumer<Leases, LeaseOptions> leaseSenderConsumer) {
-      this.leaseSenderConsumer = leaseSenderConsumer;
+    public ClientRSocketFactory lease() {
+      this.leaseEnabled = true;
+      return this;
+    }
+
+    public ClientRSocketFactory leaseSender(Function<LeaseStats, Flux<Lease>> leaseSender) {
+      this.leaseSender = Objects.requireNonNull(leaseSender);
+      return this;
+    }
+
+    public ClientRSocketFactory leaseReceiver(Consumer<Flux<Lease>> leaseReceiver) {
+      this.leaseReceiver = Objects.requireNonNull(leaseReceiver);
+      return this;
+    }
+
+    public ClientRSocketFactory leaseOptions(Consumer<LeaseOptions> leaseOptionsConsumer) {
+      Objects.requireNonNull(leaseOptionsConsumer).accept(leaseOptions);
       return this;
     }
 
@@ -308,9 +328,11 @@ public class RSocketFactory {
                   ClientServerInputMultiplexer multiplexer =
                       new ClientServerInputMultiplexer(wrappedConnection, plugins);
 
-                  boolean isLeaseEnabled = leaseSenderConsumer != null;
-
-                  LeaseSupport leaseSupport = new LeaseSupport(isLeaseEnabled, "client", allocator);
+                  boolean isLeaseEnabled = leaseEnabled;
+                  RequesterLeaseHandler requesterLeaseHandler =
+                      isLeaseEnabled
+                          ? new RSocketRequesterLeaseHandler(CLIENT_TAG, leaseReceiver)
+                          : RequesterLeaseHandler.Noop;
 
                   RSocketRequester rSocketRequester =
                       new RSocketRequester(
@@ -322,7 +344,7 @@ public class RSocketFactory {
                           keepAliveTickPeriod(),
                           keepAliveTimeout(),
                           keepAliveHandler,
-                          leaseSupport.requesterHandler());
+                          requesterLeaseHandler);
 
                   ByteBuf setupFrame =
                       SetupFrameFlyweight.encode(
@@ -348,6 +370,16 @@ public class RSocketFactory {
 
                   RSocket wrappedRSocketHandler = plugins.applyResponder(rSocketHandler);
 
+                  ResponderLeaseHandler responderLeaseHandler =
+                      isLeaseEnabled
+                          ? new RSocketResponderLeaseHandler(
+                              CLIENT_TAG,
+                              allocator,
+                              leaseSender,
+                              errorConsumer,
+                              leaseOptions.statsWindowCount())
+                          : ResponderLeaseHandler.Noop;
+
                   RSocketResponder rSocketResponder =
                       new RSocketResponder(
                           allocator,
@@ -355,12 +387,9 @@ public class RSocketFactory {
                           wrappedRSocketHandler,
                           payloadDecoder,
                           errorConsumer,
-                          leaseSupport.responderHandler());
+                          responderLeaseHandler);
 
-                  return wrappedConnection
-                      .sendOne(setupFrame)
-                      .thenReturn(wrappedRSocketRequester)
-                      .doOnSuccess(ignored -> leaseSupport.supplyLeaseSender(leaseSenderConsumer));
+                  return wrappedConnection.sendOne(setupFrame).thenReturn(wrappedRSocketRequester);
                 });
       }
 
@@ -397,20 +426,27 @@ public class RSocketFactory {
   }
 
   public static class ServerRSocketFactory {
+    private static final String SERVER_TAG = "server";
+
     private SocketAcceptor acceptor;
     private PayloadDecoder payloadDecoder = PayloadDecoder.DEFAULT;
     private Consumer<Throwable> errorConsumer = Throwable::printStackTrace;
     private int mtu = 0;
     private PluginRegistry plugins = new PluginRegistry(Plugins.defaultPlugins());
+
     private boolean resumeSupported;
     private Duration resumeSessionDuration = Duration.ofSeconds(120);
     private Duration resumeStreamTimeout = Duration.ofSeconds(10);
     private Function<? super ByteBuf, ? extends ResumableFramesStore> resumeStoreFactory =
-        token -> new InMemoryResumableFramesStore("server", 100_000);
+        token -> new InMemoryResumableFramesStore(SERVER_TAG, 100_000);
+
+    private boolean leaseEnabled;
+    private Function<LeaseStats, Flux<Lease>> leaseSender = leaseStats -> Flux.never();
+    private Consumer<Flux<Lease>> leaseReceiver = lease -> {};
+    private LeaseOptions leaseOptions = new LeaseOptions();
 
     private ByteBufAllocator allocator = ByteBufAllocator.DEFAULT;
     private boolean resumeCleanupStoreOnKeepAlive;
-    private BiConsumer<Leases, LeaseOptions> leaseSenderConsumer;
 
     private ServerRSocketFactory() {}
 
@@ -466,8 +502,23 @@ public class RSocketFactory {
       return this;
     }
 
-    public ServerRSocketFactory lease(BiConsumer<Leases, LeaseOptions> leaseSenderConsumer) {
-      this.leaseSenderConsumer = leaseSenderConsumer;
+    public ServerRSocketFactory lease() {
+      this.leaseEnabled = true;
+      return this;
+    }
+
+    public ServerRSocketFactory leaseSender(Function<LeaseStats, Flux<Lease>> leaseSender) {
+      this.leaseSender = Objects.requireNonNull(leaseSender);
+      return this;
+    }
+
+    public ServerRSocketFactory leaseReceiver(Consumer<Flux<Lease>> leaseReceiver) {
+      this.leaseReceiver = Objects.requireNonNull(leaseReceiver);
+      return this;
+    }
+
+    public ServerRSocketFactory leaseOptions(Consumer<LeaseOptions> leaseOptionsConsumer) {
+      Objects.requireNonNull(leaseOptionsConsumer).accept(leaseOptions);
       return this;
     }
 
@@ -563,10 +614,10 @@ public class RSocketFactory {
                   });
         }
 
-        boolean isLeaseEnabled = leaseSenderConsumer != null;
+        boolean isLeaseEnabled = leaseEnabled;
 
         if (SetupFrameFlyweight.honorLease(setupFrame) && !isLeaseEnabled) {
-          return sendError(multiplexer, new InvalidSetupException("lease is not supported"))
+          return sendError(multiplexer, new InvalidSetupException("leaseSender is not supported"))
               .doFinally(
                   signalType -> {
                     setupFrame.release();
@@ -574,13 +625,16 @@ public class RSocketFactory {
                   });
         }
 
-        LeaseSupport leaseSupport = new LeaseSupport(isLeaseEnabled, "server", allocator);
-
         return serverSetup.acceptRSocketSetup(
             setupFrame,
             multiplexer,
             (keepAliveHandler, wrappedMultiplexer) -> {
               ConnectionSetupPayload setupPayload = ConnectionSetupPayload.create(setupFrame);
+
+              RequesterLeaseHandler requesterLeaseHandler =
+                  isLeaseEnabled
+                      ? new RSocketRequesterLeaseHandler(SERVER_TAG, leaseReceiver)
+                      : RequesterLeaseHandler.Noop;
 
               RSocketRequester rSocketRequester =
                   new RSocketRequester(
@@ -589,7 +643,7 @@ public class RSocketFactory {
                       payloadDecoder,
                       errorConsumer,
                       StreamIdSupplier.serverSupplier(),
-                      leaseSupport.requesterHandler());
+                      requesterLeaseHandler);
 
               RSocket wrappedRSocketRequester = plugins.applyRequester(rSocketRequester);
 
@@ -601,6 +655,16 @@ public class RSocketFactory {
                       rSocketHandler -> {
                         RSocket wrappedRSocketHandler = plugins.applyResponder(rSocketHandler);
 
+                        ResponderLeaseHandler responderLeaseHandler =
+                            isLeaseEnabled
+                                ? new RSocketResponderLeaseHandler(
+                                    SERVER_TAG,
+                                    allocator,
+                                    leaseSender,
+                                    errorConsumer,
+                                    leaseOptions.statsWindowCount())
+                                : ResponderLeaseHandler.Noop;
+
                         RSocketResponder rSocketResponder =
                             new RSocketResponder(
                                 allocator,
@@ -611,9 +675,8 @@ public class RSocketFactory {
                                 setupPayload.keepAliveInterval(),
                                 setupPayload.keepAliveMaxLifetime(),
                                 keepAliveHandler,
-                                leaseSupport.responderHandler());
+                                responderLeaseHandler);
                       })
-                  .doOnSuccess(ignored -> leaseSupport.supplyLeaseSender(leaseSenderConsumer))
                   .doFinally(signalType -> setupPayload.release())
                   .then();
             });
