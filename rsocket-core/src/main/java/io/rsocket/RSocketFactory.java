@@ -504,6 +504,11 @@ public class RSocketFactory {
       return this;
     }
 
+    public ServerRSocketFactory lease() {
+      this.leaseEnabled = true;
+      return this;
+    }
+
     public ServerRSocketFactory leaseOptions(Consumer<LeaseOptions> leaseOptionsConsumer) {
       Objects.requireNonNull(leaseOptionsConsumer).accept(leaseOptions);
       return this;
