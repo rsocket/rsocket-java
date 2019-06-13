@@ -433,6 +433,7 @@ class RSocketRequester implements RSocket {
 
   protected void terminate() {
     lifecycle.setTerminationError(new ClosedChannelException());
+    leaseHandler.dispose();
     try {
       receivers.values().forEach(this::cleanUpSubscriber);
       senders.values().forEach(this::cleanUpLimitableRequestPublisher);

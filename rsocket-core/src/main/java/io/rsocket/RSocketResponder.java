@@ -25,10 +25,10 @@ import io.rsocket.frame.*;
 import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.internal.LimitableRequestPublisher;
 import io.rsocket.internal.UnboundedProcessor;
+import io.rsocket.lease.ResponderLeaseHandler;
 import java.util.Collections;
 import java.util.Map;
 import java.util.function.Consumer;
-import javax.annotation.Nullable;
 import org.reactivestreams.Processor;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
@@ -60,8 +60,7 @@ class RSocketResponder implements ResponderRSocket {
       RSocket requestHandler,
       PayloadDecoder payloadDecoder,
       Consumer<Throwable> errorConsumer,
-      ResponderLeaseHandler leaseHandler
-      ) {
+      ResponderLeaseHandler leaseHandler) {
     this.allocator = allocator;
     this.connection = connection;
 

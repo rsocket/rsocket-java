@@ -26,6 +26,7 @@ import io.rsocket.exceptions.ConnectionErrorException;
 import io.rsocket.frame.FrameHeaderFlyweight;
 import io.rsocket.frame.FrameType;
 import io.rsocket.frame.KeepAliveFrameFlyweight;
+import io.rsocket.lease.RequesterLeaseHandler;
 import io.rsocket.resume.InMemoryResumableFramesStore;
 import io.rsocket.resume.ResumableDuplexConnection;
 import io.rsocket.test.util.TestDuplexConnection;
@@ -61,7 +62,8 @@ public class KeepAliveTest {
             StreamIdSupplier.clientSupplier(),
             tickPeriod,
             timeout,
-            new DefaultKeepAliveHandler(connection));
+            new DefaultKeepAliveHandler(connection),
+            RequesterLeaseHandler.Noop);
     return new RSocketState(rSocket, errors, connection);
   }
 
@@ -85,7 +87,8 @@ public class KeepAliveTest {
             StreamIdSupplier.clientSupplier(),
             tickPeriod,
             timeout,
-            new ResumableKeepAliveHandler(resumableConnection));
+            new ResumableKeepAliveHandler(resumableConnection),
+            RequesterLeaseHandler.Noop);
     return new ResumableRSocketState(rSocket, errors, connection, resumableConnection);
   }
 
@@ -106,7 +109,7 @@ public class KeepAliveTest {
                     KeepAliveFrameFlyweight.encode(
                         ByteBufAllocator.DEFAULT, true, 0, Unpooled.EMPTY_BUFFER)));
 
-    Mono.delay(Duration.ofMillis(1500)).block();
+    Mono.delay(Duration.ofMillis(2000)).block();
 
     RSocket rSocket = requesterState.rSocket();
     List<Throwable> errors = requesterState.errors().errors();
@@ -129,7 +132,7 @@ public class KeepAliveTest {
   void rSocketDisposedOnMissingKeepAlives() {
     RSocket rSocket = requesterState.rSocket();
 
-    Mono.delay(Duration.ofMillis(1500)).block();
+    Mono.delay(Duration.ofMillis(2000)).block();
 
     List<Throwable> errors = requesterState.errors().errors();
     Assertions.assertThat(rSocket.isDisposed()).isTrue();

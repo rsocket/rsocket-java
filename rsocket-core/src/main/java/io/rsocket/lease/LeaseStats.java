@@ -55,7 +55,7 @@ public class LeaseStats {
     if (isStarted.compareAndSet(false, true)) {
       requirePositive(windowMillis);
       requirePositive(windowCount);
-      this.lease = Objects.requireNonNull(lease, "leaseSender");
+      this.lease = Objects.requireNonNull(lease, "lease");
       this.startMillis = System.currentTimeMillis();
       if (!lease.isEmpty()) {
         CircularBuffer<SlidingWindow> w = this.windows;

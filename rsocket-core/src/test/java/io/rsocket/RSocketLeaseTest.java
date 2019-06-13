@@ -75,10 +75,9 @@ class RSocketLeaseTest {
     PayloadDecoder payloadDecoder = PayloadDecoder.DEFAULT;
     byteBufAllocator = UnpooledByteBufAllocator.DEFAULT;
 
-    requesterLeaseHandler = new RSocketRequesterLeaseHandler(TAG, leases -> leaseReceiver = leases);
+    requesterLeaseHandler = new RequesterLeaseHandler.Impl(TAG, leases -> leaseReceiver = leases);
     responderLeaseHandler =
-        new RSocketResponderLeaseHandler(
-            TAG, byteBufAllocator, stats -> leaseSender, err -> {}, 10);
+        new ResponderLeaseHandler.Impl(TAG, byteBufAllocator, stats -> leaseSender, err -> {}, 10);
 
     rSocketRequester =
         new RSocketRequester(
@@ -135,8 +134,7 @@ class RSocketLeaseTest {
     Assertions.assertThat(sent).hasSize(1);
     ByteBuf error = sent.iterator().next();
     Assertions.assertThat(FrameHeaderFlyweight.frameType(error)).isEqualTo(ERROR);
-    Assertions.assertThat(Exceptions.from(error).getMessage())
-        .isEqualTo("leaseSender is not supported");
+    Assertions.assertThat(Exceptions.from(error).getMessage()).isEqualTo("lease is not supported");
   }
 
   @Test

@@ -28,6 +28,7 @@ import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.exceptions.ApplicationErrorException;
 import io.rsocket.exceptions.RejectedSetupException;
 import io.rsocket.frame.*;
+import io.rsocket.lease.RequesterLeaseHandler;
 import io.rsocket.test.util.TestSubscriber;
 import io.rsocket.util.DefaultPayload;
 import io.rsocket.util.EmptyPayload;
@@ -232,7 +233,7 @@ public class RSocketRequesterTest {
           DefaultPayload::create,
           throwable -> errors.add(throwable),
           StreamIdSupplier.clientSupplier(),
-          null);
+          RequesterLeaseHandler.Noop);
     }
 
     public int getStreamIdForRequestType(FrameType expectedFrameType) {

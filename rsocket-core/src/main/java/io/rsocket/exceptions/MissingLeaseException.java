@@ -23,7 +23,7 @@ public class MissingLeaseException extends RejectedException {
 
   static String leaseMessage(@Nullable Lease lease, String tag) {
     if (lease == null) {
-      return String.format("[%s] Missing leaseSender", tag);
+      return String.format("[%s] Missing leases", tag);
     }
     if (lease.isEmpty()) {
       return String.format("[%s] Lease was not received yet", tag);
@@ -31,7 +31,6 @@ public class MissingLeaseException extends RejectedException {
     boolean expired = lease.isExpired();
     int allowedRequests = lease.getAllowedRequests();
     return String.format(
-        "[%s] Missing leaseSender. Expired: %b, allowedRequests: %d",
-        tag, expired, allowedRequests);
+        "[%s] Missing leases. Expired: %b, allowedRequests: %d", tag, expired, allowedRequests);
   }
 }

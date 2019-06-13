@@ -11,6 +11,7 @@ import io.rsocket.frame.ErrorFrameFlyweight;
 import io.rsocket.frame.FrameHeaderFlyweight;
 import io.rsocket.frame.FrameType;
 import io.rsocket.frame.SetupFrameFlyweight;
+import io.rsocket.lease.RequesterLeaseHandler;
 import io.rsocket.test.util.TestDuplexConnection;
 import io.rsocket.transport.ServerTransport;
 import io.rsocket.util.DefaultPayload;
@@ -56,7 +57,7 @@ public class SetupRejectionTest {
             DefaultPayload::create,
             errors::add,
             StreamIdSupplier.clientSupplier(),
-            null);
+            RequesterLeaseHandler.Noop);
 
     String errorMsg = "error";
 
@@ -87,7 +88,7 @@ public class SetupRejectionTest {
             DefaultPayload::create,
             err -> {},
             StreamIdSupplier.clientSupplier(),
-            null);
+            RequesterLeaseHandler.Noop);
 
     conn.addToReceivedBuffer(
         ErrorFrameFlyweight.encode(

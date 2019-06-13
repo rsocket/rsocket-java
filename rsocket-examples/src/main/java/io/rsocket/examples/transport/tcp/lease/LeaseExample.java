@@ -8,6 +8,7 @@ import io.rsocket.RSocket;
 import io.rsocket.RSocketFactory;
 import io.rsocket.lease.Lease;
 import io.rsocket.lease.LeaseStats;
+import io.rsocket.lease.Leases;
 import io.rsocket.transport.netty.client.TcpClientTransport;
 import io.rsocket.transport.netty.server.CloseableChannel;
 import io.rsocket.transport.netty.server.TcpServerTransport;
@@ -24,25 +25,25 @@ public class LeaseExample {
 
   public static void main(String[] args) {
 
-    LeaseSender serverLeaseSender = new LeaseSender(SERVER_TAG);
-    LeaseReceiver serverLeaseReceiver = new LeaseReceiver(SERVER_TAG);
     CloseableChannel server =
         RSocketFactory.receive()
-            .lease()
-            .leaseSender(serverLeaseSender)
-            .leaseReceiver(serverLeaseReceiver)
+            .lease(
+                () ->
+                    Leases.create()
+                        .sender(new LeaseSender(SERVER_TAG, 7_000, 5))
+                        .receiver(new LeaseReceiver(SERVER_TAG)))
             .acceptor((setup, sendingRSocket) -> Mono.just(new ServerAcceptor(sendingRSocket)))
             .transport(TcpServerTransport.create("localhost", 7000))
             .start()
             .block();
 
-    LeaseSender clientLeaseSender = new LeaseSender(CLIENT_TAG);
-    LeaseReceiver clientLeaseReceiver = new LeaseReceiver(CLIENT_TAG);
     RSocket clientRSocket =
         RSocketFactory.connect()
-            .lease()
-            .leaseSender(clientLeaseSender)
-            .leaseReceiver(clientLeaseReceiver)
+            .lease(
+                () ->
+                    Leases.create()
+                        .sender(new LeaseSender(CLIENT_TAG, 3_000, 5))
+                        .receiver(new LeaseReceiver(CLIENT_TAG)))
             .acceptor(rSocket -> new ClientAcceptor())
             .transport(TcpClientTransport.create(server.address()))
             .start()
@@ -65,9 +66,13 @@ public class LeaseExample {
 
   private static class LeaseSender implements Function<LeaseStats, Flux<Lease>> {
     private final String tag;
+    private final int ttlMillis;
+    private final int allowedRequests;
 
-    public LeaseSender(String tag) {
+    public LeaseSender(String tag, int ttlMillis, int allowedRequests) {
       this.tag = tag;
+      this.ttlMillis = ttlMillis;
+      this.allowedRequests = allowedRequests;
     }
 
     @Override
@@ -78,9 +83,9 @@ public class LeaseExample {
               tick -> {
                 System.out.println(
                     String.format(
-                        "%s responder sends new leaseSender, current: %s",
+                        "%s responder sends new leases, current: %s",
                         tag, leaseStats.lease().toString()));
-                return Lease.create(3_000, 5);
+                return Lease.create(ttlMillis, allowedRequests);
               });
     }
   }
@@ -98,7 +103,7 @@ public class LeaseExample {
           l ->
               System.out.println(
                   String.format(
-                      "%s received leaseSender - ttl: %d, requests: %d",
+                      "%s received leases - ttl: %d, requests: %d",
                       tag, l.getTimeToLiveMillis(), l.getAllowedRequests())));
     }
   }

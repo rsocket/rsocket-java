@@ -17,21 +17,14 @@
 package io.rsocket.lease;
 
 public class LeaseOptions {
-  private boolean enableStats;
   private int statsWindowCount = 10;
 
-  public LeaseOptions enableStats() {
-    this.enableStats = true;
-    return this;
-  }
-
   public LeaseOptions statsWindowCount(int statsWindowCount) {
+    if (statsWindowCount <= 0) {
+      throw new IllegalArgumentException("Stats window count must be positive");
+    }
     this.statsWindowCount = statsWindowCount;
     return this;
-  }
-
-  public boolean isStatsEnabled() {
-    return enableStats;
   }
 
   public int statsWindowCount() {
