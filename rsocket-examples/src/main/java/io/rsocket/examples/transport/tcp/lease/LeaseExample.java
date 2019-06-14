@@ -14,6 +14,7 @@ import io.rsocket.transport.netty.server.CloseableChannel;
 import io.rsocket.transport.netty.server.TcpServerTransport;
 import io.rsocket.util.DefaultPayload;
 import java.util.Date;
+import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import reactor.core.publisher.Flux;
@@ -21,7 +22,7 @@ import reactor.core.publisher.Mono;
 
 public class LeaseExample {
   private static final String SERVER_TAG = "server";
-  public static final String CLIENT_TAG = "client";
+  private static final String CLIENT_TAG = "client";
 
   public static void main(String[] args) {
 
@@ -29,9 +30,10 @@ public class LeaseExample {
         RSocketFactory.receive()
             .lease(
                 () ->
-                    Leases.create()
+                    Leases.<NoopStats>create()
                         .sender(new LeaseSender(SERVER_TAG, 7_000, 5))
-                        .receiver(new LeaseReceiver(SERVER_TAG)))
+                        .receiver(new LeaseReceiver(SERVER_TAG))
+                        .stats(new NoopStats()))
             .acceptor((setup, sendingRSocket) -> Mono.just(new ServerAcceptor(sendingRSocket)))
             .transport(TcpServerTransport.create("localhost", 7000))
             .start()
@@ -41,7 +43,7 @@ public class LeaseExample {
         RSocketFactory.connect()
             .lease(
                 () ->
-                    Leases.create()
+                    Leases.<NoopStats>create()
                         .sender(new LeaseSender(CLIENT_TAG, 3_000, 5))
                         .receiver(new LeaseReceiver(CLIENT_TAG)))
             .acceptor(rSocket -> new ClientAcceptor())
@@ -64,7 +66,7 @@ public class LeaseExample {
     server.dispose();
   }
 
-  private static class LeaseSender implements Function<LeaseStats, Flux<Lease>> {
+  private static class LeaseSender implements Function<Optional<NoopStats>, Flux<Lease>> {
     private final String tag;
     private final int ttlMillis;
     private final int allowedRequests;
@@ -76,15 +78,17 @@ public class LeaseExample {
     }
 
     @Override
-    public Flux<Lease> apply(LeaseStats leaseStats) {
+    public Flux<Lease> apply(Optional<NoopStats> leaseStats) {
+      System.out.println(
+          String.format("%s stats are %s", tag, leaseStats.isPresent() ? "present" : "absent"));
       return Flux.interval(ofSeconds(1), ofSeconds(10))
           .onBackpressureLatest()
           .map(
               tick -> {
                 System.out.println(
                     String.format(
-                        "%s responder sends new leases, current: %s",
-                        tag, leaseStats.lease().toString()));
+                        "%s responder sends new leases: ttl: %d, requests: %d",
+                        tag, ttlMillis, allowedRequests));
                 return Lease.create(ttlMillis, allowedRequests);
               });
     }
@@ -106,6 +110,12 @@ public class LeaseExample {
                       "%s received leases - ttl: %d, requests: %d",
                       tag, l.getTimeToLiveMillis(), l.getAllowedRequests())));
     }
+  }
+
+  private static class NoopStats implements LeaseStats {
+
+    @Override
+    public void onEvent(EventType eventType) {}
   }
 
   private static class ClientAcceptor extends AbstractRSocket {

@@ -1,3 +1,19 @@
+/*
+ * Copyright 2015-2019 the original author or authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package io.rsocket.lease;
 
 import io.netty.buffer.ByteBuf;
@@ -5,8 +21,10 @@ import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.Availability;
 import io.rsocket.exceptions.MissingLeaseException;
 import io.rsocket.frame.LeaseFrameFlyweight;
+import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import javax.annotation.Nullable;
 import reactor.core.Disposable;
 import reactor.core.Disposables;
 import reactor.core.publisher.Flux;
@@ -19,37 +37,40 @@ public interface ResponderLeaseHandler extends Availability {
 
   Disposable send(Consumer<ByteBuf> leaseFrameSender);
 
-  final class Impl implements ResponderLeaseHandler {
+  final class Impl<T extends LeaseStats> implements ResponderLeaseHandler {
     private volatile LeaseImpl currentLease = LeaseImpl.empty();
-    private final LeaseStats leaseStats = new LeaseStats(currentLease);
     private final String tag;
     private final ByteBufAllocator allocator;
-    private final Function<LeaseStats, Flux<Lease>> leaseSender;
+    private final Function<Optional<T>, Flux<Lease>> leaseSender;
     private final Consumer<Throwable> errorConsumer;
-    private final int windowsCount;
+    private final Optional<T> leaseStatsOption;
+    private final T leaseStats;
 
     public Impl(
         String tag,
         ByteBufAllocator allocator,
-        Function<LeaseStats, Flux<Lease>> leaseSender,
+        Function<Optional<T>, Flux<Lease>> leaseSender,
         Consumer<Throwable> errorConsumer,
-        int statsWindowsCount) {
+        Optional<T> leaseStatsOption) {
       this.tag = tag;
       this.allocator = allocator;
       this.leaseSender = leaseSender;
       this.errorConsumer = errorConsumer;
-      this.windowsCount = statsWindowsCount;
+      this.leaseStatsOption = leaseStatsOption;
+      this.leaseStats = leaseStatsOption.orElse(null);
     }
 
     @Override
     public boolean useLease() {
-      return currentLease.use();
+      boolean success = currentLease.use();
+      onUseEvent(success, leaseStats);
+      return success;
     }
 
     @Override
     public Exception leaseError() {
-      LeaseImpl l = this.currentLease;
-      String t = this.tag;
+      LeaseImpl l = currentLease;
+      String t = tag;
       if (!l.isValid()) {
         return new MissingLeaseException(l, t);
       } else {
@@ -60,19 +81,12 @@ public interface ResponderLeaseHandler extends Availability {
     @Override
     public Disposable send(Consumer<ByteBuf> leaseFrameSender) {
       return leaseSender
-          .apply(leaseStats)
+          .apply(leaseStatsOption)
+          .doOnTerminate(this::onTerminateEvent)
           .subscribe(
               lease -> {
-                boolean isEmpty = currentLease.isEmpty();
                 currentLease = LeaseImpl.create(lease);
-                if (!isEmpty) {
-                  leaseStats.stop();
-                }
-                leaseStats.start(
-                    lease, Math.max(100, lease.getTimeToLiveMillis() / windowsCount), windowsCount);
-
-                ByteBuf leaseFrame = createLeaseFrame(lease);
-                leaseFrameSender.accept(leaseFrame);
+                leaseFrameSender.accept(createLeaseFrame(lease));
               },
               errorConsumer);
     }
@@ -86,9 +100,24 @@ public interface ResponderLeaseHandler extends Availability {
       return LeaseFrameFlyweight.encode(
           allocator, lease.getTimeToLiveMillis(), lease.getAllowedRequests(), lease.getMetadata());
     }
+
+    private void onTerminateEvent() {
+      T ls = leaseStats;
+      if (ls != null) {
+        ls.onEvent(LeaseStats.EventType.TERMINATE);
+      }
+    }
+
+    private void onUseEvent(boolean success, @Nullable T ls) {
+      if (ls != null) {
+        LeaseStats.EventType eventType =
+            success ? LeaseStats.EventType.ACCEPT : LeaseStats.EventType.REJECT;
+        ls.onEvent(eventType);
+      }
+    }
   }
 
-  ResponderLeaseHandler Noop =
+  ResponderLeaseHandler None =
       new ResponderLeaseHandler() {
         @Override
         public boolean useLease() {

@@ -50,24 +50,6 @@ public interface Lease extends Availability {
   }
 
   /**
-   * Number of successful requests allowed by this lease.
-   *
-   * @return Number of successful requests allowed by this lease.
-   */
-  default int getSuccessfulRequests() {
-    return getStartingAllowedRequests() - getAllowedRequests();
-  }
-
-  /**
-   * Number of requests rejected due to missing lease.
-   *
-   * @return Number of requests rejected due to missing lease.
-   */
-  default int getRejectedRequests() {
-    throw new UnsupportedOperationException("Not implemented");
-  }
-
-  /**
    * Number of milliseconds that this lease is valid from the time it is received.
    *
    * @return Number of milliseconds that this lease is valid from the time it is received.

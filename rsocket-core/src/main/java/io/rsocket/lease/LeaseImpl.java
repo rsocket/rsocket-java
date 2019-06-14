@@ -25,7 +25,6 @@ import javax.annotation.Nullable;
 public class LeaseImpl implements Lease {
   private final int timeToLiveMillis;
   private final AtomicInteger allowedRequests;
-  private final AtomicInteger rejectedRequests = new AtomicInteger();
   private final int startingAllowedRequests;
   private final ByteBuf metadata;
   private final long expiry;
@@ -65,11 +64,6 @@ public class LeaseImpl implements Lease {
   }
 
   @Override
-  public int getRejectedRequests() {
-    return rejectedRequests.get();
-  }
-
-  @Override
   public int getStartingAllowedRequests() {
     return startingAllowedRequests;
   }
@@ -97,16 +91,11 @@ public class LeaseImpl implements Lease {
    */
   public boolean use() {
     if (isExpired()) {
-      rejectedRequests.incrementAndGet();
       return false;
     }
     int remaining =
         allowedRequests.accumulateAndGet(1, (cur, update) -> Math.max(-1, cur - update));
-    boolean success = remaining >= 0;
-    if (!success) {
-      rejectedRequests.incrementAndGet();
-    }
-    return success;
+    return remaining >= 0;
   }
 
   @Override
@@ -124,8 +113,6 @@ public class LeaseImpl implements Lease {
         + getAllowedRequests()
         + ", startingAllowedRequests="
         + startingAllowedRequests
-        + ", rejectedRequests="
-        + rejectedRequests
         + ", expired="
         + isExpired(now)
         + ", remainingTimeToLiveMillis="

@@ -63,7 +63,7 @@ public class KeepAliveTest {
             tickPeriod,
             timeout,
             new DefaultKeepAliveHandler(connection),
-            RequesterLeaseHandler.Noop);
+            RequesterLeaseHandler.None);
     return new RSocketState(rSocket, errors, connection);
   }
 
@@ -88,7 +88,7 @@ public class KeepAliveTest {
             tickPeriod,
             timeout,
             new ResumableKeepAliveHandler(resumableConnection),
-            RequesterLeaseHandler.Noop);
+            RequesterLeaseHandler.None);
     return new ResumableRSocketState(rSocket, errors, connection, resumableConnection);
   }
 

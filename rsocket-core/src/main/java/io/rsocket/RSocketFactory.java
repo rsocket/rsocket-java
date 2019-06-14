@@ -41,6 +41,7 @@ import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.ServerTransport;
 import io.rsocket.util.ConnectionUtils;
 import io.rsocket.util.EmptyPayload;
+import io.rsocket.util.MultiSubscriberRSocket;
 import java.time.Duration;
 import java.util.Objects;
 import java.util.function.*;
@@ -91,7 +92,6 @@ public class RSocketFactory {
 
   public static class ClientRSocketFactory implements ClientTransportAcceptor {
     private static final String CLIENT_TAG = "client";
-    private static final Leases DEFAULT_LEASES = new Leases();
 
     private Supplier<Function<RSocket, RSocket>> acceptor =
         () -> rSocket -> new AbstractRSocket() {};
@@ -123,9 +123,9 @@ public class RSocketFactory {
         () ->
             new ExponentialBackoffResumeStrategy(Duration.ofSeconds(1), Duration.ofSeconds(16), 2);
 
+    private boolean multiSubscriberRequester = true;
     private boolean leaseEnabled;
-    private Supplier<Leases> leasesSupplier = () -> DEFAULT_LEASES;
-    private LeaseOptions leaseOptions = new LeaseOptions();
+    private Supplier<Leases<?>> leasesSupplier = Leases::new;
 
     private ByteBufAllocator allocator = ByteBufAllocator.DEFAULT;
 
@@ -210,7 +210,7 @@ public class RSocketFactory {
       return this;
     }
 
-    public ClientRSocketFactory lease(Supplier<Leases> leasesSupplier) {
+    public ClientRSocketFactory lease(Supplier<Leases<? extends LeaseStats>> leasesSupplier) {
       this.leaseEnabled = true;
       this.leasesSupplier = Objects.requireNonNull(leasesSupplier);
       return this;
@@ -221,8 +221,8 @@ public class RSocketFactory {
       return this;
     }
 
-    public ClientRSocketFactory leaseOptions(Consumer<LeaseOptions> leaseOptionsConsumer) {
-      Objects.requireNonNull(leaseOptionsConsumer).accept(leaseOptions);
+    public ClientRSocketFactory singleSubscriberRequester() {
+      this.multiSubscriberRequester = false;
       return this;
     }
 
@@ -324,13 +324,13 @@ public class RSocketFactory {
                       new ClientServerInputMultiplexer(wrappedConnection, plugins, true);
 
                   boolean isLeaseEnabled = leaseEnabled;
-                  Leases leases = leasesSupplier.get();
+                  Leases<?> leases = leasesSupplier.get();
                   RequesterLeaseHandler requesterLeaseHandler =
                       isLeaseEnabled
                           ? new RequesterLeaseHandler.Impl(CLIENT_TAG, leases.receiver())
-                          : RequesterLeaseHandler.Noop;
+                          : RequesterLeaseHandler.None;
 
-                  RSocketRequester rSocketRequester =
+                  RSocket rSocketRequester =
                       new RSocketRequester(
                           allocator,
                           multiplexer.asClientConnection(),
@@ -341,6 +341,10 @@ public class RSocketFactory {
                           keepAliveTimeout(),
                           keepAliveHandler,
                           requesterLeaseHandler);
+
+                  if (multiSubscriberRequester) {
+                    rSocketRequester = new MultiSubscriberRSocket(rSocketRequester);
+                  }
 
                   ByteBuf setupFrame =
                       SetupFrameFlyweight.encode(
@@ -368,15 +372,11 @@ public class RSocketFactory {
 
                   ResponderLeaseHandler responderLeaseHandler =
                       isLeaseEnabled
-                          ? new ResponderLeaseHandler.Impl(
-                              CLIENT_TAG,
-                              allocator,
-                              leases.sender(),
-                              errorConsumer,
-                              leaseOptions.statsWindowCount())
-                          : ResponderLeaseHandler.Noop;
+                          ? new ResponderLeaseHandler.Impl<>(
+                              CLIENT_TAG, allocator, leases.sender(), errorConsumer, leases.stats())
+                          : ResponderLeaseHandler.None;
 
-                  RSocketResponder rSocketResponder =
+                  RSocket rSocketResponder =
                       new RSocketResponder(
                           allocator,
                           multiplexer.asServerConnection(),
@@ -423,7 +423,6 @@ public class RSocketFactory {
 
   public static class ServerRSocketFactory {
     private static final String SERVER_TAG = "server";
-    private static final Leases DEFAULT_LEASES = new Leases();
 
     private SocketAcceptor acceptor;
     private PayloadDecoder payloadDecoder = PayloadDecoder.DEFAULT;
@@ -437,9 +436,9 @@ public class RSocketFactory {
     private Function<? super ByteBuf, ? extends ResumableFramesStore> resumeStoreFactory =
         token -> new InMemoryResumableFramesStore(SERVER_TAG, 100_000);
 
+    private boolean multiSubscriberRequester = true;
     private boolean leaseEnabled;
-    private Supplier<Leases> leasesSupplier = () -> DEFAULT_LEASES;
-    private LeaseOptions leaseOptions = new LeaseOptions();
+    private Supplier<Leases<?>> leasesSupplier = Leases::new;
 
     private ByteBufAllocator allocator = ByteBufAllocator.DEFAULT;
     private boolean resumeCleanupStoreOnKeepAlive;
@@ -498,7 +497,7 @@ public class RSocketFactory {
       return this;
     }
 
-    public ServerRSocketFactory lease(Supplier<Leases> leasesSupplier) {
+    public ServerRSocketFactory lease(Supplier<Leases<?>> leasesSupplier) {
       this.leaseEnabled = true;
       this.leasesSupplier = Objects.requireNonNull(leasesSupplier);
       return this;
@@ -509,8 +508,8 @@ public class RSocketFactory {
       return this;
     }
 
-    public ServerRSocketFactory leaseOptions(Consumer<LeaseOptions> leaseOptionsConsumer) {
-      Objects.requireNonNull(leaseOptionsConsumer).accept(leaseOptions);
+    public ServerRSocketFactory singleSubscriberRequester() {
+      this.multiSubscriberRequester = false;
       return this;
     }
 
@@ -623,13 +622,13 @@ public class RSocketFactory {
             (keepAliveHandler, wrappedMultiplexer) -> {
               ConnectionSetupPayload setupPayload = ConnectionSetupPayload.create(setupFrame);
 
-              Leases leases = leasesSupplier.get();
+              Leases<?> leases = leasesSupplier.get();
               RequesterLeaseHandler requesterLeaseHandler =
                   isLeaseEnabled
                       ? new RequesterLeaseHandler.Impl(SERVER_TAG, leases.receiver())
-                      : RequesterLeaseHandler.Noop;
+                      : RequesterLeaseHandler.None;
 
-              RSocketRequester rSocketRequester =
+              RSocket rSocketRequester =
                   new RSocketRequester(
                       allocator,
                       wrappedMultiplexer.asServerConnection(),
@@ -641,6 +640,9 @@ public class RSocketFactory {
                       keepAliveHandler,
                       requesterLeaseHandler);
 
+              if (multiSubscriberRequester) {
+                rSocketRequester = new MultiSubscriberRSocket(rSocketRequester);
+              }
               RSocket wrappedRSocketRequester = plugins.applyRequester(rSocketRequester);
 
               return acceptor
@@ -653,15 +655,15 @@ public class RSocketFactory {
 
                         ResponderLeaseHandler responderLeaseHandler =
                             isLeaseEnabled
-                                ? new ResponderLeaseHandler.Impl(
+                                ? new ResponderLeaseHandler.Impl<>(
                                     SERVER_TAG,
                                     allocator,
                                     leases.sender(),
                                     errorConsumer,
-                                    leaseOptions.statsWindowCount())
-                                : ResponderLeaseHandler.Noop;
+                                    leases.stats())
+                                : ResponderLeaseHandler.None;
 
-                        RSocketResponder rSocketResponder =
+                        RSocket rSocketResponder =
                             new RSocketResponder(
                                 allocator,
                                 wrappedMultiplexer.asClientConnection(),

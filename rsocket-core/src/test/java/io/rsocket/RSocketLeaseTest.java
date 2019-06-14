@@ -32,7 +32,9 @@ import io.rsocket.frame.FrameType;
 import io.rsocket.frame.LeaseFrameFlyweight;
 import io.rsocket.frame.SetupFrameFlyweight;
 import io.rsocket.frame.decoder.PayloadDecoder;
+import io.rsocket.internal.ClientServerInputMultiplexer;
 import io.rsocket.lease.*;
+import io.rsocket.plugins.PluginRegistry;
 import io.rsocket.test.util.TestClientTransport;
 import io.rsocket.test.util.TestDuplexConnection;
 import io.rsocket.test.util.TestServerTransport;
@@ -42,11 +44,11 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Stream;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -59,7 +61,7 @@ import reactor.test.StepVerifier;
 class RSocketLeaseTest {
   private static final String TAG = "test";
 
-  private RSocketRequester rSocketRequester;
+  private RSocket rSocketRequester;
   private ResponderLeaseHandler responderLeaseHandler;
   private ByteBufAllocator byteBufAllocator;
   private TestDuplexConnection connection;
@@ -77,15 +79,21 @@ class RSocketLeaseTest {
 
     requesterLeaseHandler = new RequesterLeaseHandler.Impl(TAG, leases -> leaseReceiver = leases);
     responderLeaseHandler =
-        new ResponderLeaseHandler.Impl(TAG, byteBufAllocator, stats -> leaseSender, err -> {}, 10);
+        new ResponderLeaseHandler.Impl<>(
+            TAG, byteBufAllocator, stats -> leaseSender, err -> {}, Optional.empty());
 
+    ClientServerInputMultiplexer multiplexer =
+        new ClientServerInputMultiplexer(connection, new PluginRegistry(), true);
     rSocketRequester =
         new RSocketRequester(
             byteBufAllocator,
-            connection,
+            multiplexer.asClientConnection(),
             payloadDecoder,
             err -> {},
             StreamIdSupplier.clientSupplier(),
+            0,
+            0,
+            null,
             requesterLeaseHandler);
 
     RSocket mockRSocketHandler = mock(RSocket.class);
@@ -98,7 +106,7 @@ class RSocketLeaseTest {
     rSocketResponder =
         new RSocketResponder(
             byteBufAllocator,
-            connection,
+            multiplexer.asServerConnection(),
             mockRSocketHandler,
             payloadDecoder,
             err -> {},
@@ -179,11 +187,9 @@ class RSocketLeaseTest {
   void requesterDepletedAllowedLeaseRequestsAreRejected(
       Function<RSocket, Publisher<?>> interaction) {
     requesterLeaseHandler.receive(leaseFrame(5_000, 1, Unpooled.EMPTY_BUFFER));
+    interaction.apply(rSocketRequester);
 
-    Flux<?> requester = Flux.from(interaction.apply(rSocketRequester));
-    requester.subscribe();
-
-    requester
+    Flux.from(interaction.apply(rSocketRequester))
         .as(StepVerifier::create)
         .expectError(MissingLeaseException.class)
         .verify(Duration.ofSeconds(5));
@@ -196,8 +202,8 @@ class RSocketLeaseTest {
   void requesterExpiredLeaseRequestsAreRejected(Function<RSocket, Publisher<?>> interaction) {
     requesterLeaseHandler.receive(leaseFrame(50, 1, Unpooled.EMPTY_BUFFER));
 
-    Flux.from(interaction.apply(rSocketRequester))
-        .delaySubscription(Duration.ofMillis(100))
+    Flux.defer(() -> interaction.apply(rSocketRequester))
+        .delaySubscription(Duration.ofMillis(200))
         .as(StepVerifier::create)
         .expectError(MissingLeaseException.class)
         .verify(Duration.ofSeconds(5));
@@ -281,7 +287,6 @@ class RSocketLeaseTest {
         .isEqualTo(metadataContent);
   }
 
-  @Disabled
   @Test
   void receiveLease() {
     Collection<Lease> receivedLeases = new ArrayList<>();
@@ -294,7 +299,7 @@ class RSocketLeaseTest {
     int ttl = 5_000;
     int numberOfRequests = 2;
 
-    ByteBuf leaseFrame = leaseFrame(ttl, numberOfRequests, metadata);
+    ByteBuf leaseFrame = leaseFrame(ttl, numberOfRequests, metadata).retain(1);
 
     connection.addToReceivedBuffer(leaseFrame);
 
