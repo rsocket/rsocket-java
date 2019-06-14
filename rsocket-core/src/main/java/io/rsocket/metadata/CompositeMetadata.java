@@ -28,6 +28,10 @@ import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.CompositeByteBuf;
 import io.rsocket.metadata.CompositeMetadata.Entry;
 import java.util.Iterator;
+import java.util.Spliterator;
+import java.util.Spliterators;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 import reactor.util.annotation.Nullable;
 
 /**
@@ -62,6 +66,23 @@ public final class CompositeMetadata implements Iterable<Entry> {
     this.retainSlices = retainSlices;
   }
 
+  /**
+   * Turn this {@link CompositeMetadata} into a sequential {@link Stream}.
+   *
+   * @return the composite metadata sequential {@link Stream}
+   */
+  public Stream<Entry> stream() {
+    return StreamSupport.stream(
+        Spliterators.spliteratorUnknownSize(
+            iterator(), Spliterator.DISTINCT | Spliterator.NONNULL | Spliterator.ORDERED),
+        false);
+  }
+
+  /**
+   * An {@link Iterator} that lazily decodes {@link Entry} in this composite metadata.
+   *
+   * @return the composite metadata {@link Iterator}
+   */
   @Override
   public Iterator<Entry> iterator() {
     return new Iterator<Entry>() {
