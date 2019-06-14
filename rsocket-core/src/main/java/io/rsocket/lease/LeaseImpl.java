@@ -34,14 +34,6 @@ public class LeaseImpl implements Lease {
     return new LeaseImpl(timeToLiveMillis, numberOfRequests, metadata);
   }
 
-  static LeaseImpl create(Lease lease) {
-    if (lease instanceof LeaseImpl) {
-      return (LeaseImpl) lease;
-    } else {
-      return create(lease.getTimeToLiveMillis(), lease.getAllowedRequests(), lease.getMetadata());
-    }
-  }
-
   static LeaseImpl empty() {
     return new LeaseImpl(0, 0, null);
   }

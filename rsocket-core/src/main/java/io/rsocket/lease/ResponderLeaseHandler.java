@@ -85,7 +85,7 @@ public interface ResponderLeaseHandler extends Availability {
           .doOnTerminate(this::onTerminateEvent)
           .subscribe(
               lease -> {
-                currentLease = LeaseImpl.create(lease);
+                currentLease = create(lease);
                 leaseFrameSender.accept(createLeaseFrame(lease));
               },
               errorConsumer);
@@ -113,6 +113,15 @@ public interface ResponderLeaseHandler extends Availability {
         LeaseStats.EventType eventType =
             success ? LeaseStats.EventType.ACCEPT : LeaseStats.EventType.REJECT;
         ls.onEvent(eventType);
+      }
+    }
+
+    private static LeaseImpl create(Lease lease) {
+      if (lease instanceof LeaseImpl) {
+        return (LeaseImpl) lease;
+      } else {
+        return LeaseImpl.create(
+            lease.getTimeToLiveMillis(), lease.getAllowedRequests(), lease.getMetadata());
       }
     }
   }
