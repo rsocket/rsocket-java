@@ -197,6 +197,7 @@ class RSocketRequester implements RSocket {
   private Mono<Void> handleFireAndForget(Payload payload) {
     Throwable err = checkAvailable();
     if (err != null) {
+      payload.release();
       return Mono.error(err);
     }
 
@@ -217,6 +218,7 @@ class RSocketRequester implements RSocket {
   private Mono<Payload> handleRequestResponse(final Payload payload) {
     Throwable err = checkAvailable();
     if (err != null) {
+      payload.release();
       return Mono.error(err);
     }
 
@@ -251,6 +253,7 @@ class RSocketRequester implements RSocket {
   private Flux<Payload> handleRequestStream(final Payload payload) {
     Throwable err = checkAvailable();
     if (err != null) {
+      payload.release();
       return Flux.error(err);
     }
 
@@ -411,6 +414,7 @@ class RSocketRequester implements RSocket {
   private Mono<Void> handleMetadataPush(Payload payload) {
     Throwable err = this.terminationError;
     if (err != null) {
+      payload.release();
       return Mono.error(err);
     }
     sendProcessor.onNext(
