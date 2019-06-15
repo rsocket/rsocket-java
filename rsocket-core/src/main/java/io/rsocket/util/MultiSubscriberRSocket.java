@@ -46,4 +46,9 @@ public class MultiSubscriberRSocket extends RSocketProxy {
   public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
     return Flux.defer(() -> super.requestChannel(payloads));
   }
+
+  @Override
+  public Mono<Void> metadataPush(Payload payload) {
+    return Mono.defer(() -> super.metadataPush(payload));
+  }
 }
