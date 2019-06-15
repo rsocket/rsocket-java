@@ -32,16 +32,19 @@ import io.rsocket.keepalive.KeepAliveFramesAcceptor;
 import io.rsocket.keepalive.KeepAliveHandler;
 import io.rsocket.keepalive.KeepAliveSupport;
 import io.rsocket.lease.RequesterLeaseHandler;
+import io.rsocket.util.OnceConsumer;
 import java.nio.channels.ClosedChannelException;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import org.reactivestreams.Processor;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
+import org.reactivestreams.Subscription;
 import reactor.core.publisher.*;
 
 /**
@@ -202,17 +205,26 @@ class RSocketRequester implements RSocket {
     }
 
     final int streamId = streamIdSupplier.nextStreamId();
-    ByteBuf requestFrame =
-        RequestFireAndForgetFrameFlyweight.encode(
-            allocator,
-            streamId,
-            false,
-            payload.hasMetadata() ? payload.sliceMetadata().retain() : null,
-            payload.sliceData().retain());
-    payload.release();
-    sendProcessor.onNext(requestFrame);
 
-    return Mono.empty();
+    UnicastMonoProcessor<Void> result = UnicastMonoProcessor.create();
+    result.onComplete();
+
+    return result.doOnSubscribe(
+        new OnceConsumer<Subscription>() {
+          @Override
+          public void acceptOnce(@Nonnull Subscription subscription) {
+            ByteBuf requestFrame =
+                RequestFireAndForgetFrameFlyweight.encode(
+                    allocator,
+                    streamId,
+                    false,
+                    payload.hasMetadata() ? payload.sliceMetadata().retain() : null,
+                    payload.sliceData().retain());
+            payload.release();
+
+            sendProcessor.onNext(requestFrame);
+          }
+        });
   }
 
   private Mono<Payload> handleRequestResponse(final Payload payload) {
@@ -224,21 +236,27 @@ class RSocketRequester implements RSocket {
 
     int streamId = streamIdSupplier.nextStreamId();
     final UnboundedProcessor<ByteBuf> sendProcessor = this.sendProcessor;
-    final ByteBuf requestFrame =
-        RequestResponseFrameFlyweight.encode(
-            allocator,
-            streamId,
-            false,
-            payload.sliceMetadata().retain(),
-            payload.sliceData().retain());
-
-    payload.release();
 
     UnicastMonoProcessor<Payload> receiver = UnicastMonoProcessor.create();
     receivers.put(streamId, receiver);
 
-    sendProcessor.onNext(requestFrame);
     return receiver
+        .doOnSubscribe(
+            new OnceConsumer<Subscription>() {
+              @Override
+              public void acceptOnce(@Nonnull Subscription subscription) {
+                final ByteBuf requestFrame =
+                    RequestResponseFrameFlyweight.encode(
+                        allocator,
+                        streamId,
+                        false,
+                        payload.sliceMetadata().retain(),
+                        payload.sliceData().retain());
+                payload.release();
+
+                sendProcessor.onNext(requestFrame);
+              }
+            })
         .doOnError(t -> sendProcessor.onNext(ErrorFrameFlyweight.encode(allocator, streamId, t)))
         .doFinally(
             s -> {
@@ -417,9 +435,21 @@ class RSocketRequester implements RSocket {
       payload.release();
       return Mono.error(err);
     }
-    sendProcessor.onNext(
-        MetadataPushFrameFlyweight.encode(allocator, payload.sliceMetadata().retain()));
-    return Mono.empty();
+
+    UnicastMonoProcessor<Void> result = UnicastMonoProcessor.create();
+    result.onComplete();
+
+    return result.doOnSubscribe(
+        new OnceConsumer<Subscription>() {
+          @Override
+          public void acceptOnce(@Nonnull Subscription subscription) {
+            ByteBuf metadataPushFrame =
+                MetadataPushFrameFlyweight.encode(allocator, payload.sliceMetadata().retain());
+            payload.release();
+
+            sendProcessor.onNext(metadataPushFrame);
+          }
+        });
   }
 
   private Throwable checkAvailable() {
