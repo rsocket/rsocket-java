@@ -206,25 +206,23 @@ class RSocketRequester implements RSocket {
 
     final int streamId = streamIdSupplier.nextStreamId();
 
-    UnicastMonoProcessor<Void> result = UnicastMonoProcessor.create();
-    result.onComplete();
+    return emptyUnicastMono()
+        .doOnSubscribe(
+            new OnceConsumer<Subscription>() {
+              @Override
+              public void acceptOnce(@Nonnull Subscription subscription) {
+                ByteBuf requestFrame =
+                    RequestFireAndForgetFrameFlyweight.encode(
+                        allocator,
+                        streamId,
+                        false,
+                        payload.hasMetadata() ? payload.sliceMetadata().retain() : null,
+                        payload.sliceData().retain());
+                payload.release();
 
-    return result.doOnSubscribe(
-        new OnceConsumer<Subscription>() {
-          @Override
-          public void acceptOnce(@Nonnull Subscription subscription) {
-            ByteBuf requestFrame =
-                RequestFireAndForgetFrameFlyweight.encode(
-                    allocator,
-                    streamId,
-                    false,
-                    payload.hasMetadata() ? payload.sliceMetadata().retain() : null,
-                    payload.sliceData().retain());
-            payload.release();
-
-            sendProcessor.onNext(requestFrame);
-          }
-        });
+                sendProcessor.onNext(requestFrame);
+              }
+            });
   }
 
   private Mono<Payload> handleRequestResponse(final Payload payload) {
@@ -436,20 +434,24 @@ class RSocketRequester implements RSocket {
       return Mono.error(err);
     }
 
+    return emptyUnicastMono()
+        .doOnSubscribe(
+            new OnceConsumer<Subscription>() {
+              @Override
+              public void acceptOnce(@Nonnull Subscription subscription) {
+                ByteBuf metadataPushFrame =
+                    MetadataPushFrameFlyweight.encode(allocator, payload.sliceMetadata().retain());
+                payload.release();
+
+                sendProcessor.onNext(metadataPushFrame);
+              }
+            });
+  }
+
+  private static UnicastMonoProcessor<Void> emptyUnicastMono() {
     UnicastMonoProcessor<Void> result = UnicastMonoProcessor.create();
     result.onComplete();
-
-    return result.doOnSubscribe(
-        new OnceConsumer<Subscription>() {
-          @Override
-          public void acceptOnce(@Nonnull Subscription subscription) {
-            ByteBuf metadataPushFrame =
-                MetadataPushFrameFlyweight.encode(allocator, payload.sliceMetadata().retain());
-            payload.release();
-
-            sendProcessor.onNext(metadataPushFrame);
-          }
-        });
+    return result;
   }
 
   private Throwable checkAvailable() {
