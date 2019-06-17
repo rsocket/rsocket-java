@@ -28,9 +28,11 @@ import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.exceptions.ApplicationErrorException;
 import io.rsocket.exceptions.RejectedSetupException;
 import io.rsocket.frame.*;
+import io.rsocket.lease.RequesterLeaseHandler;
 import io.rsocket.test.util.TestSubscriber;
 import io.rsocket.util.DefaultPayload;
 import io.rsocket.util.EmptyPayload;
+import io.rsocket.util.MultiSubscriberRSocket;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -172,7 +174,8 @@ public class RSocketRequesterTest {
 
   @Test(timeout = 2_000)
   public void testLazyRequestResponse() {
-    Publisher<Payload> response = rule.socket.requestResponse(EmptyPayload.INSTANCE);
+    Publisher<Payload> response =
+        new MultiSubscriberRSocket(rule.socket).requestResponse(EmptyPayload.INSTANCE);
     int streamId = sendRequestResponse(response);
     rule.connection.clearSendReceiveBuffers();
     int streamId2 = sendRequestResponse(response);
@@ -231,7 +234,11 @@ public class RSocketRequesterTest {
           connection,
           DefaultPayload::create,
           throwable -> errors.add(throwable),
-          StreamIdSupplier.clientSupplier());
+          StreamIdSupplier.clientSupplier(),
+          0,
+          0,
+          null,
+          RequesterLeaseHandler.None);
     }
 
     public int getStreamIdForRequestType(FrameType expectedFrameType) {

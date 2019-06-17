@@ -204,7 +204,7 @@ public class ClientServerInputMultiplexerTest {
   }
 
   private ByteBuf leaseFrame() {
-    return LeaseFlyweight.encode(allocator, 1_000, 1, Unpooled.EMPTY_BUFFER);
+    return LeaseFrameFlyweight.encode(allocator, 1_000, 1, Unpooled.EMPTY_BUFFER);
   }
 
   private ByteBuf errorFrame(int i) {
