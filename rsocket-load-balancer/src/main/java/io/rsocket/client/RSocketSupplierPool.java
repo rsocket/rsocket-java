@@ -108,7 +108,9 @@ public class RSocketSupplierPool
   @Override
   public synchronized void accept(RSocketSupplier rSocketSupplier) {
     boolean contained = leasedSuppliers.remove(rSocketSupplier);
-    if (contained && !rSocketSupplier.isDisposed()) { // only added leasedSupplier back to factoryPool if it's still there
+    if (contained
+        && !rSocketSupplier
+            .isDisposed()) { // only added leasedSupplier back to factoryPool if it's still there
       factoryPool.add(rSocketSupplier);
     }
   }

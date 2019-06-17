@@ -581,7 +581,8 @@ public abstract class LoadBalancedRSocketMono extends Mono<RSocket>
               s -> {
                 pool.accept(factory);
                 activeSockets.remove(WeightedSocket.this);
-                logger.debug("Removed {} from factory {} from activeSockets", WeightedSocket.this, factory);
+                logger.debug(
+                    "Removed {} from factory {} from activeSockets", WeightedSocket.this, factory);
                 refreshSockets();
               })
           .subscribe();
@@ -591,7 +592,11 @@ public abstract class LoadBalancedRSocketMono extends Mono<RSocket>
           .retryBackoff(weightedSocketRetries, weightedSocketBackOff, weightedSocketMaxBackOff)
           .doOnError(
               throwable -> {
-                logger.error("error while connecting {} from factory {}", WeightedSocket.this, factory, throwable);
+                logger.error(
+                    "error while connecting {} from factory {}",
+                    WeightedSocket.this,
+                    factory,
+                    throwable);
                 WeightedSocket.this.dispose();
               })
           .subscribe(
@@ -601,7 +606,8 @@ public abstract class LoadBalancedRSocketMono extends Mono<RSocket>
                     .onClose()
                     .doFinally(
                         signalType -> {
-                          logger.info("RSocket {} from factory {} closed", WeightedSocket.this, factory);
+                          logger.info(
+                              "RSocket {} from factory {} closed", WeightedSocket.this, factory);
                           WeightedSocket.this.dispose();
                         })
                     .subscribe();
@@ -621,7 +627,10 @@ public abstract class LoadBalancedRSocketMono extends Mono<RSocket>
                     .onClose()
                     .doFinally(
                         signalType -> {
-                          logger.info("WeightedSocket {} from factory {} closed", WeightedSocket.this, factory);
+                          logger.info(
+                              "WeightedSocket {} from factory {} closed",
+                              WeightedSocket.this,
+                              factory);
                           rSocket.dispose();
                         })
                     .subscribe();
@@ -634,9 +643,13 @@ public abstract class LoadBalancedRSocketMono extends Mono<RSocket>
                 }*/
                 rSocketMono.onNext(rSocket);
                 availability = 1.0;
-                if (!WeightedSocket.this.isDisposed()) { // May be already disposed because of retryBackoff delay
+                if (!WeightedSocket.this
+                    .isDisposed()) { // May be already disposed because of retryBackoff delay
                   activeSockets.add(WeightedSocket.this);
-                  logger.debug("Added WeightedSocket {} from factory {} to activeSockets", WeightedSocket.this, factory);
+                  logger.debug(
+                      "Added WeightedSocket {} from factory {} to activeSockets",
+                      WeightedSocket.this,
+                      factory);
                 }
               });
     }
