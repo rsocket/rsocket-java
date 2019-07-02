@@ -27,7 +27,7 @@
     <logger name="io.rsocket.FrameLogger" level="INFO"/>
     <logger name="io.rsocket.fragmentation.FragmentationDuplexConnection" level="DEBUG"/>
 
-    <root level="INFO">
+    <root level="DEBUG">
         <appender-ref ref="STDOUT"/>
     </root>
 
