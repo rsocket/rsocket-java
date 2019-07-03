@@ -35,7 +35,7 @@ import reactor.test.StepVerifier;
 
 final class WebsocketServerTransportTest {
 
-  @Test
+  // @Test
   public void testThatSetupWithUnSpecifiedFrameSizeShouldSetMaxFrameSize() {
     ArgumentCaptor<BiFunction> captor = ArgumentCaptor.forClass(BiFunction.class);
     HttpServer httpServer = Mockito.spy(HttpServer.create());
@@ -56,7 +56,7 @@ final class WebsocketServerTransportTest {
             Mockito.nullable(String.class), Mockito.eq(FRAME_LENGTH_MASK), Mockito.any());
   }
 
-  @Test
+  // @Test
   public void testThatSetupWithSpecifiedFrameSizeButLowerThanWsDefaultShouldSetToWsDefault() {
     ArgumentCaptor<BiFunction> captor = ArgumentCaptor.forClass(BiFunction.class);
     HttpServer httpServer = Mockito.spy(HttpServer.create());
@@ -77,7 +77,7 @@ final class WebsocketServerTransportTest {
             Mockito.nullable(String.class), Mockito.eq(FRAME_LENGTH_MASK), Mockito.any());
   }
 
-  @Test
+  // @Test
   public void
       testThatSetupWithSpecifiedFrameSizeButHigherThanWsDefaultShouldSetToSpecifiedFrameSize() {
     ArgumentCaptor<BiFunction> captor = ArgumentCaptor.forClass(BiFunction.class);
