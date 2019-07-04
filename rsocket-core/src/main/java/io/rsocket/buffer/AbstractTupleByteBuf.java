@@ -54,23 +54,29 @@ abstract class AbstractTupleByteBuf extends AbstractReferenceCountedByteBuf {
   }
 
   @Override
-  protected byte _getByte(int index) {
+  protected byte _getByte(final int index) {
     long ri = calculateRelativeIndex(index);
     ByteBuf byteBuf = getPart(index);
 
-    index = (int) (ri & Integer.MAX_VALUE);
+    int calculatedIndex = (int) (ri & Integer.MAX_VALUE);
 
-    return byteBuf.getByte(index);
+    return byteBuf.getByte(calculatedIndex);
   }
 
   @Override
-  protected short _getShort(int index) {
+  protected short _getShort(final int index) {
     long ri = calculateRelativeIndex(index);
     ByteBuf byteBuf = getPart(index);
 
-    index = (int) (ri & Integer.MAX_VALUE);
+    final int calculatedIndex = (int) (ri & Integer.MAX_VALUE);
 
-    return byteBuf.getShort(index);
+    if (calculatedIndex + Short.BYTES <= byteBuf.writerIndex()) {
+      return byteBuf.getShort(calculatedIndex);
+    } else if (order() == ByteOrder.BIG_ENDIAN) {
+      return (short) ((_getByte(index) & 0xff) << 8 | _getByte(index + 1) & 0xff);
+    } else {
+      return (short) (_getByte(index) & 0xff | (_getByte(index + 1) & 0xff) << 8);
+    }
   }
 
   @Override
@@ -78,19 +84,31 @@ abstract class AbstractTupleByteBuf extends AbstractReferenceCountedByteBuf {
     long ri = calculateRelativeIndex(index);
     ByteBuf byteBuf = getPart(index);
 
-    index = (int) (ri & Integer.MAX_VALUE);
+    final int calculatedIndex = (int) (ri & Integer.MAX_VALUE);
 
-    return byteBuf.getShortLE(index);
+    if (calculatedIndex + Short.BYTES <= byteBuf.writerIndex()) {
+      return byteBuf.getShortLE(calculatedIndex);
+    } else if (order() == ByteOrder.BIG_ENDIAN) {
+      return (short) (_getByte(index) & 0xff | (_getByte(index + 1) & 0xff) << 8);
+    } else {
+      return (short) ((_getByte(index) & 0xff) << 8 | _getByte(index + 1) & 0xff);
+    }
   }
 
   @Override
-  protected int _getUnsignedMedium(int index) {
+  protected int _getUnsignedMedium(final int index) {
     long ri = calculateRelativeIndex(index);
     ByteBuf byteBuf = getPart(index);
 
-    index = (int) (ri & Integer.MAX_VALUE);
+    int calculatedIndex = (int) (ri & Integer.MAX_VALUE);
 
-    return byteBuf.getUnsignedMedium(index);
+    if (calculatedIndex + 3 <= byteBuf.writerIndex()) {
+      return byteBuf.getUnsignedMedium(calculatedIndex);
+    } else if (order() == ByteOrder.BIG_ENDIAN) {
+      return (_getShort(index) & 0xffff) << 8 | _getByte(index + 2) & 0xff;
+    } else {
+      return _getShort(index) & 0xFFFF | (_getByte(index + 2) & 0xFF) << 16;
+    }
   }
 
   @Override
@@ -98,49 +116,79 @@ abstract class AbstractTupleByteBuf extends AbstractReferenceCountedByteBuf {
     long ri = calculateRelativeIndex(index);
     ByteBuf byteBuf = getPart(index);
 
-    index = (int) (ri & Integer.MAX_VALUE);
+    int calculatedIndex = (int) (ri & Integer.MAX_VALUE);
 
-    return byteBuf.getUnsignedMediumLE(index);
+    if (calculatedIndex + 3 <= byteBuf.writerIndex()) {
+      return byteBuf.getUnsignedMediumLE(calculatedIndex);
+    } else if (order() == ByteOrder.BIG_ENDIAN) {
+      return _getShortLE(index) & 0xffff | (_getByte(index + 2) & 0xff) << 16;
+    } else {
+      return (_getShortLE(index) & 0xffff) << 8 | _getByte(index + 2) & 0xff;
+    }
   }
 
   @Override
-  protected int _getInt(int index) {
+  protected int _getInt(final int index) {
     long ri = calculateRelativeIndex(index);
     ByteBuf byteBuf = getPart(index);
 
-    index = (int) (ri & Integer.MAX_VALUE);
+    int calculatedIndex = (int) (ri & Integer.MAX_VALUE);
 
-    return byteBuf.getInt(index);
+    if (calculatedIndex + Integer.BYTES <= byteBuf.writerIndex()) {
+      return byteBuf.getInt(calculatedIndex);
+    } else if (order() == ByteOrder.BIG_ENDIAN) {
+      return (_getShort(index) & 0xffff) << 16 | _getShort(index + 2) & 0xffff;
+    } else {
+      return _getShort(index) & 0xFFFF | (_getShort(index + 2) & 0xFFFF) << 16;
+    }
   }
 
   @Override
-  protected int _getIntLE(int index) {
+  protected int _getIntLE(final int index) {
     long ri = calculateRelativeIndex(index);
     ByteBuf byteBuf = getPart(index);
 
-    index = (int) (ri & Integer.MAX_VALUE);
+    int calculatedIndex = (int) (ri & Integer.MAX_VALUE);
 
-    return byteBuf.getIntLE(index);
+    if (calculatedIndex + Integer.BYTES <= byteBuf.writerIndex()) {
+      return byteBuf.getIntLE(calculatedIndex);
+    } else if (order() == ByteOrder.BIG_ENDIAN) {
+      return _getShortLE(index) & 0xffff | (_getShortLE(index + 2) & 0xffff) << 16;
+    } else {
+      return (_getShortLE(index) & 0xffff) << 16 | _getShortLE(index + 2) & 0xffff;
+    }
   }
 
   @Override
-  protected long _getLong(int index) {
+  protected long _getLong(final int index) {
     long ri = calculateRelativeIndex(index);
     ByteBuf byteBuf = getPart(index);
 
-    index = (int) (ri & Integer.MAX_VALUE);
+    int calculatedIndex = (int) (ri & Integer.MAX_VALUE);
 
-    return byteBuf.getLong(index);
+    if (calculatedIndex + Long.BYTES <= byteBuf.writerIndex()) {
+      return byteBuf.getLong(calculatedIndex);
+    } else if (order() == ByteOrder.BIG_ENDIAN) {
+      return (_getInt(index) & 0xffffffffL) << 32 | _getInt(index + 4) & 0xffffffffL;
+    } else {
+      return _getInt(index) & 0xFFFFFFFFL | (_getInt(index + 4) & 0xFFFFFFFFL) << 32;
+    }
   }
 
   @Override
-  protected long _getLongLE(int index) {
+  protected long _getLongLE(final int index) {
     long ri = calculateRelativeIndex(index);
     ByteBuf byteBuf = getPart(index);
 
-    index = (int) (ri & Integer.MAX_VALUE);
+    int calculatedIndex = (int) (ri & Integer.MAX_VALUE);
 
-    return byteBuf.getLongLE(index);
+    if (calculatedIndex + Long.BYTES <= byteBuf.writerIndex()) {
+      return byteBuf.getLongLE(calculatedIndex);
+    } else if (order() == ByteOrder.BIG_ENDIAN) {
+      return (_getInt(index) & 0xffffffffL) << 32 | _getInt(index + 4) & 0xffffffffL;
+    } else {
+      return _getInt(index) & 0xFFFFFFFFL | (_getInt(index + 4) & 0xFFFFFFFFL) << 32;
+    }
   }
 
   @Override
