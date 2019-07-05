@@ -22,20 +22,21 @@ import static io.rsocket.keepalive.KeepAliveSupport.KeepAlive;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.util.ReferenceCountUtil;
-import io.netty.util.collection.IntObjectHashMap;
+import io.netty.util.collection.IntObjectMap;
 import io.rsocket.exceptions.ConnectionErrorException;
 import io.rsocket.exceptions.Exceptions;
 import io.rsocket.frame.*;
 import io.rsocket.frame.decoder.PayloadDecoder;
-import io.rsocket.internal.*;
+import io.rsocket.internal.LimitableRequestPublisher;
+import io.rsocket.internal.SynchronizedIntObjectHashMap;
+import io.rsocket.internal.UnboundedProcessor;
+import io.rsocket.internal.UnicastMonoProcessor;
 import io.rsocket.keepalive.KeepAliveFramesAcceptor;
 import io.rsocket.keepalive.KeepAliveHandler;
 import io.rsocket.keepalive.KeepAliveSupport;
 import io.rsocket.lease.RequesterLeaseHandler;
 import io.rsocket.util.OnceConsumer;
 import java.nio.channels.ClosedChannelException;
-import java.util.Collections;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
@@ -59,8 +60,8 @@ class RSocketRequester implements RSocket {
   private final PayloadDecoder payloadDecoder;
   private final Consumer<Throwable> errorConsumer;
   private final StreamIdSupplier streamIdSupplier;
-  private final Map<Integer, LimitableRequestPublisher> senders;
-  private final Map<Integer, Processor<Payload, Payload>> receivers;
+  private final IntObjectMap<LimitableRequestPublisher> senders;
+  private final IntObjectMap<Processor<Payload, Payload>> receivers;
   private final UnboundedProcessor<ByteBuf> sendProcessor;
   private final RequesterLeaseHandler leaseHandler;
   private final ByteBufAllocator allocator;
@@ -83,8 +84,8 @@ class RSocketRequester implements RSocket {
     this.errorConsumer = errorConsumer;
     this.streamIdSupplier = streamIdSupplier;
     this.leaseHandler = leaseHandler;
-    this.senders = Collections.synchronizedMap(new IntObjectHashMap<>());
-    this.receivers = Collections.synchronizedMap(new IntObjectHashMap<>());
+    this.senders = new SynchronizedIntObjectHashMap<>();
+    this.receivers = new SynchronizedIntObjectHashMap<>();
 
     // DO NOT Change the order here. The Send processor must be subscribed to before receiving
     this.sendProcessor = new UnboundedProcessor<>();

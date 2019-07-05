@@ -19,15 +19,14 @@ package io.rsocket;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.util.ReferenceCountUtil;
-import io.netty.util.collection.IntObjectHashMap;
+import io.netty.util.collection.IntObjectMap;
 import io.rsocket.exceptions.ApplicationErrorException;
 import io.rsocket.frame.*;
 import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.internal.LimitableRequestPublisher;
+import io.rsocket.internal.SynchronizedIntObjectHashMap;
 import io.rsocket.internal.UnboundedProcessor;
 import io.rsocket.lease.ResponderLeaseHandler;
-import java.util.Collections;
-import java.util.Map;
 import java.util.function.Consumer;
 import org.reactivestreams.Processor;
 import org.reactivestreams.Publisher;
@@ -47,9 +46,9 @@ class RSocketResponder implements ResponderRSocket {
   private final Consumer<Throwable> errorConsumer;
   private final ResponderLeaseHandler leaseHandler;
 
-  private final Map<Integer, LimitableRequestPublisher> sendingLimitableSubscriptions;
-  private final Map<Integer, Subscription> sendingSubscriptions;
-  private final Map<Integer, Processor<Payload, Payload>> channelProcessors;
+  private final IntObjectMap<LimitableRequestPublisher> sendingLimitableSubscriptions;
+  private final IntObjectMap<Subscription> sendingSubscriptions;
+  private final IntObjectMap<Processor<Payload, Payload>> channelProcessors;
 
   private final UnboundedProcessor<ByteBuf> sendProcessor;
   private final ByteBufAllocator allocator;
@@ -71,9 +70,9 @@ class RSocketResponder implements ResponderRSocket {
     this.payloadDecoder = payloadDecoder;
     this.errorConsumer = errorConsumer;
     this.leaseHandler = leaseHandler;
-    this.sendingLimitableSubscriptions = Collections.synchronizedMap(new IntObjectHashMap<>());
-    this.sendingSubscriptions = Collections.synchronizedMap(new IntObjectHashMap<>());
-    this.channelProcessors = Collections.synchronizedMap(new IntObjectHashMap<>());
+    this.sendingLimitableSubscriptions = new SynchronizedIntObjectHashMap<>();
+    this.sendingSubscriptions = new SynchronizedIntObjectHashMap<>();
+    this.channelProcessors = new SynchronizedIntObjectHashMap<>();
 
     // DO NOT Change the order here. The Send processor must be subscribed to before receiving
     // connections
