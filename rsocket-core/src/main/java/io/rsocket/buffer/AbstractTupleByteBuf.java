@@ -54,6 +54,17 @@ abstract class AbstractTupleByteBuf extends AbstractReferenceCountedByteBuf {
   }
 
   @Override
+  public ByteBuffer[] nioBuffers(int index, int length) {
+    checkIndex(index, length);
+    if (length == 0) {
+      return new ByteBuffer[] {EMPTY_NIO_BUFFER};
+    }
+    return _nioBuffers(index, length);
+  }
+
+  protected abstract ByteBuffer[] _nioBuffers(int index, int length);
+
+  @Override
   protected byte _getByte(final int index) {
     long ri = calculateRelativeIndex(index);
     ByteBuf byteBuf = getPart(index);
@@ -564,11 +575,6 @@ abstract class AbstractTupleByteBuf extends AbstractReferenceCountedByteBuf {
   @Override
   public long memoryAddress() {
     throw new UnsupportedOperationException();
-  }
-
-  @Override
-  public int compareTo(ByteBuf buffer) {
-    return 0;
   }
 
   @Override
