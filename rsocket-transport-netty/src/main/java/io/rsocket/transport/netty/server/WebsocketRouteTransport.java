@@ -20,7 +20,6 @@ import static io.rsocket.frame.FrameLengthFlyweight.FRAME_LENGTH_MASK;
 
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.handler.codec.http.HttpMethod;
-import io.rsocket.Closeable;
 import io.rsocket.DuplexConnection;
 import io.rsocket.fragmentation.FragmentationDuplexConnection;
 import io.rsocket.transport.ServerTransport;
@@ -46,7 +45,7 @@ import reactor.netty.http.websocket.WebsocketOutbound;
  * An implementation of {@link ServerTransport} that connects via Websocket and listens on specified
  * routes.
  */
-public final class WebsocketRouteTransport implements ServerTransport<Closeable> {
+public final class WebsocketRouteTransport extends NettyServerTransport {
 
   private final UriPathTemplate template;
 
@@ -70,10 +69,12 @@ public final class WebsocketRouteTransport implements ServerTransport<Closeable>
   }
 
   @Override
-  public Mono<Closeable> start(ConnectionAcceptor acceptor, int mtu) {
+  public Mono<CloseableChannel> start(ConnectionAcceptor acceptor, int mtu) {
     Objects.requireNonNull(acceptor, "acceptor must not be null");
 
     return server
+        .tcpConfiguration(
+            tcpServer -> tcpServer.doOnConnection(c -> connectionsGroup.add(c.channel())))
         .route(
             routes -> {
               routesBuilder.accept(routes);
@@ -84,7 +85,7 @@ public final class WebsocketRouteTransport implements ServerTransport<Closeable>
                   FRAME_LENGTH_MASK);
             })
         .bind()
-        .map(CloseableChannel::new);
+        .map(channel -> new CloseableChannel(channel, connectionsGroup));
   }
 
   /**

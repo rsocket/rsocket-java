@@ -19,6 +19,8 @@ package io.rsocket.transport.netty.server;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
+import io.netty.channel.group.DefaultChannelGroup;
+import io.netty.util.concurrent.DefaultEventExecutor;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -36,7 +38,7 @@ final class CloseableChannelTest {
   @Test
   void address() {
     channel
-        .map(CloseableChannel::new)
+        .map(CloseableChannelTest::closeableChannel)
         .map(CloseableChannel::address)
         .as(StepVerifier::create)
         .expectNextCount(1)
@@ -46,14 +48,18 @@ final class CloseableChannelTest {
   @DisplayName("creates instance")
   @Test
   void constructor() {
-    channel.map(CloseableChannel::new).as(StepVerifier::create).expectNextCount(1).verifyComplete();
+    channel
+        .map(CloseableChannelTest::closeableChannel)
+        .as(StepVerifier::create)
+        .expectNextCount(1)
+        .verifyComplete();
   }
 
   @DisplayName("constructor throws NullPointerException with null context")
   @Test
   void constructorNullContext() {
     assertThatNullPointerException()
-        .isThrownBy(() -> new CloseableChannel(null))
+        .isThrownBy(() -> CloseableChannelTest.closeableChannel(null))
         .withMessage("channel must not be null");
   }
 
@@ -64,7 +70,7 @@ final class CloseableChannelTest {
   @Test
   void dispose() {
     channel
-        .map(CloseableChannel::new)
+        .map(CloseableChannelTest::closeableChannel)
         .delayUntil(
             closeable -> {
               closeable.dispose();
@@ -73,5 +79,9 @@ final class CloseableChannelTest {
         .as(StepVerifier::create)
         .assertNext(closeable -> assertThat(closeable.isDisposed()).isTrue())
         .verifyComplete();
+  }
+
+  private static CloseableChannel closeableChannel(DisposableChannel channel) {
+    return new CloseableChannel(channel, new DefaultChannelGroup(new DefaultEventExecutor()));
   }
 }

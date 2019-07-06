@@ -31,8 +31,7 @@ import reactor.netty.tcp.TcpServer;
 /**
  * An implementation of {@link ServerTransport} that connects to a {@link ClientTransport} via TCP.
  */
-public final class TcpServerTransport implements ServerTransport<CloseableChannel> {
-
+public final class TcpServerTransport extends NettyServerTransport {
   private final TcpServer server;
 
   private TcpServerTransport(TcpServer server) {
@@ -100,6 +99,7 @@ public final class TcpServerTransport implements ServerTransport<CloseableChanne
         : server
             .doOnConnection(
                 c -> {
+                  connectionsGroup.add(c.channel());
                   c.addHandlerLast(new RSocketLengthCodec());
                   DuplexConnection connection;
                   if (mtu > 0) {
@@ -119,6 +119,6 @@ public final class TcpServerTransport implements ServerTransport<CloseableChanne
                       .subscribe(c.disposeSubscriber());
                 })
             .bind()
-            .map(CloseableChannel::new);
+            .map(channel -> new CloseableChannel(channel, connectionsGroup));
   }
 }

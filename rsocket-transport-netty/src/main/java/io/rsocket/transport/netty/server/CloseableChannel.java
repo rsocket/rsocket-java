@@ -16,11 +16,15 @@
 
 package io.rsocket.transport.netty.server;
 
+import io.netty.channel.group.ChannelGroup;
 import io.rsocket.Closeable;
 import java.net.InetSocketAddress;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 import reactor.core.publisher.Mono;
+import reactor.core.publisher.MonoProcessor;
 import reactor.netty.DisposableChannel;
+import reactor.netty.FutureMono;
 
 /**
  * An implementation of {@link Closeable} that wraps a {@link DisposableChannel}, enabling
@@ -28,7 +32,10 @@ import reactor.netty.DisposableChannel;
  */
 public final class CloseableChannel implements Closeable {
 
-  private DisposableChannel channel;
+  private final DisposableChannel channel;
+  private final ChannelGroup connectionsGroup;
+  private final MonoProcessor<Void> connectionsOnDispose = MonoProcessor.create();
+  private final AtomicBoolean isDisposed = new AtomicBoolean();
 
   /**
    * Creates a new instance
@@ -36,8 +43,9 @@ public final class CloseableChannel implements Closeable {
    * @param channel the {@link DisposableChannel} to wrap
    * @throws NullPointerException if {@code context} is {@code null}
    */
-  CloseableChannel(DisposableChannel channel) {
+  CloseableChannel(DisposableChannel channel, ChannelGroup connectionsGroup) {
     this.channel = Objects.requireNonNull(channel, "channel must not be null");
+    this.connectionsGroup = connectionsGroup;
   }
 
   /**
@@ -52,16 +60,23 @@ public final class CloseableChannel implements Closeable {
 
   @Override
   public void dispose() {
-    channel.dispose();
+    if (isDisposed.compareAndSet(false, true)) {
+      channel.dispose();
+      FutureMono.from(connectionsGroup.close())
+          .subscribe(
+              ignored -> {},
+              err -> connectionsOnDispose.onComplete(),
+              connectionsOnDispose::onComplete);
+    }
   }
 
   @Override
   public boolean isDisposed() {
-    return channel.isDisposed();
+    return isDisposed.get();
   }
 
   @Override
   public Mono<Void> onClose() {
-    return channel.onDispose();
+    return channel.onDispose().then(connectionsOnDispose);
   }
 }

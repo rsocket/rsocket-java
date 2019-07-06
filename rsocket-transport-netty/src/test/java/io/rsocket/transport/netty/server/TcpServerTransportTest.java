@@ -19,10 +19,25 @@ package io.rsocket.transport.netty.server;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
+import io.rsocket.AbstractRSocket;
+import io.rsocket.RSocket;
+import io.rsocket.RSocketFactory;
+import io.rsocket.transport.ClientTransport;
+import io.rsocket.transport.ServerTransport;
+import io.rsocket.transport.netty.client.TcpClientTransport;
+import io.rsocket.transport.netty.client.WebsocketClientTransport;
+import java.net.ConnectException;
 import java.net.InetSocketAddress;
+import java.time.Duration;
+import java.util.function.Function;
+import java.util.stream.Stream;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import reactor.core.publisher.Mono;
+import reactor.netty.http.server.HttpServer;
 import reactor.netty.tcp.TcpServer;
 import reactor.test.StepVerifier;
 
@@ -99,5 +114,66 @@ final class TcpServerTransportTest {
     assertThatNullPointerException()
         .isThrownBy(() -> TcpServerTransport.create(8000).start(null, 0))
         .withMessage("acceptor must not be null");
+  }
+
+  @DisplayName("server dispose leads to connections close")
+  @ParameterizedTest
+  @MethodSource("transportProvider")
+  void serverDisposeClosesConnections(Transports transports) {
+    CloseableChannel server =
+        RSocketFactory.receive()
+            .acceptor((setup, rSocket) -> Mono.just(new AbstractRSocket() {}))
+            .transport(transports.serverTransport)
+            .start()
+            .block();
+
+    Mono<RSocket> clientMono =
+        RSocketFactory.connect()
+            .transport(transports.clientTransport.apply(server.address()))
+            .start();
+    RSocket client = clientMono.block();
+
+    server.dispose();
+
+    Assertions.assertTrue(server.isDisposed());
+    server.onClose().as(StepVerifier::create).expectComplete().verify(Duration.ofSeconds(5));
+
+    client.onClose().as(StepVerifier::create).expectComplete().verify(Duration.ofSeconds(5));
+
+    clientMono
+        .as(StepVerifier::create)
+        .expectErrorMatches(
+            err ->
+                err instanceof ConnectException && err.getMessage().contains("Connection refused"))
+        .verify(Duration.ofSeconds(5));
+  }
+
+  static Stream<Transports> transportProvider() {
+    InetSocketAddress address = new InetSocketAddress("localhost", 0);
+
+    TcpServerTransport tcpServerTransport = TcpServerTransport.create(address);
+    WebsocketServerTransport wsServerTransport = WebsocketServerTransport.create(address);
+    WebsocketRouteTransport wsServerRouteTransport =
+        new WebsocketRouteTransport(
+            HttpServer.create().host(address.getHostName()).port(address.getPort()),
+            routes -> {},
+            "/");
+
+    return Stream.of(
+        new Transports(tcpServerTransport, TcpClientTransport::create),
+        new Transports(wsServerTransport, WebsocketClientTransport::create),
+        new Transports(wsServerRouteTransport, WebsocketClientTransport::create));
+  }
+
+  private static class Transports {
+    final ServerTransport<CloseableChannel> serverTransport;
+    final Function<InetSocketAddress, ClientTransport> clientTransport;
+
+    public Transports(
+        ServerTransport<CloseableChannel> serverTransport,
+        Function<InetSocketAddress, ClientTransport> clientTransport) {
+      this.serverTransport = serverTransport;
+      this.clientTransport = clientTransport;
+    }
   }
 }

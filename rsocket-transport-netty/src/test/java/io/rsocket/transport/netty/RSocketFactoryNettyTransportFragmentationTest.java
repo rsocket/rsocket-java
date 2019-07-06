@@ -116,7 +116,7 @@ class RSocketFactoryNettyTransportFragmentationTest {
     return mock;
   }
 
-  static Stream<? extends ServerTransport<CloseableChannel>> serverTransportProvider() {
+  static Stream<ServerTransport<CloseableChannel>> serverTransportProvider() {
     String host = "localhost";
     int port = 0;
     return Stream.of(

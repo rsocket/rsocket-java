@@ -46,8 +46,8 @@ import reactor.netty.http.server.HttpServer;
  * An implementation of {@link ServerTransport} that connects to a {@link ClientTransport} via a
  * Websocket.
  */
-public final class WebsocketServerTransport
-    implements ServerTransport<CloseableChannel>, TransportHeaderAware {
+public final class WebsocketServerTransport extends NettyServerTransport
+    implements TransportHeaderAware {
   private static final Logger logger = LoggerFactory.getLogger(WebsocketServerTransport.class);
 
   private final HttpServer server;
@@ -157,8 +157,9 @@ public final class WebsocketServerTransport
                       null,
                       FRAME_LENGTH_MASK,
                       (in, out) -> {
-                        DuplexConnection connection =
-                            new WebsocketDuplexConnection((Connection) in);
+                        Connection c = (Connection) in;
+                        connectionsGroup.add(c.channel());
+                        DuplexConnection connection = new WebsocketDuplexConnection(c);
                         if (mtu > 0) {
                           connection =
                               new FragmentationDuplexConnection(
@@ -168,6 +169,6 @@ public final class WebsocketServerTransport
                       });
                 })
             .bind()
-            .map(CloseableChannel::new);
+            .map(channel -> new CloseableChannel(channel, connectionsGroup));
   }
 }
