@@ -180,7 +180,7 @@ public interface MessagePassingQueue<T> {
 
   /**
    * Remove all available item from the queue and hand to consume. This should be semantically
-   * similar to: <code><br/>
+   * similar to: <code><br>
    * M m;</br>
    * while((m = relaxedPoll()) != null){</br>
    * c.accept(m);</br>
@@ -193,7 +193,7 @@ public interface MessagePassingQueue<T> {
   int drain(Consumer<T> c);
 
   /**
-   * Stuff the queue with elements from the supplier. Semantically similar to: <code><br/>
+   * Stuff the queue with elements from the supplier. Semantically similar to: <code><br>
    * while(relaxedOffer(s.get());</br>
    * </code> There's no strong commitment to the queue being full at the end of a fill. Called from
    * a producer thread subject to the restrictions appropriate to the implementation.
@@ -212,7 +212,7 @@ public interface MessagePassingQueue<T> {
    * <code>
    *   M m;
    *   int i = 0;
-   *   for(;i < limit && (m = relaxedPoll()) != null; i++){
+   *   for(;i < limit &amp;&amp; (m = relaxedPoll()) != null; i++){
    *     c.accept(m);
    *   }
    *   return i;
@@ -233,7 +233,7 @@ public interface MessagePassingQueue<T> {
    *
    * <pre>
    * <code>
-   *   for(int i=0; i < limit && relaxedOffer(s.get()); i++);</br>
+   *   for(int i=0; i < limit &amp;&amp; relaxedOffer(s.get()); i++);</br>
    * </code>
    * </pre>
    *
