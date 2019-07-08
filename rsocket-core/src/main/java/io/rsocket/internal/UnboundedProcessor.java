@@ -17,6 +17,7 @@
 package io.rsocket.internal;
 
 import io.netty.util.ReferenceCounted;
+import io.rsocket.internal.jctools.queues.MpscUnboundedArrayQueue;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
@@ -65,7 +66,7 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
   volatile boolean outputFused;
 
   public UnboundedProcessor() {
-    this.queue = Queues.<T>unboundedMultiproducer().get();
+    this.queue = new MpscUnboundedArrayQueue<>(Queues.SMALL_BUFFER_SIZE);
   }
 
   @Override
