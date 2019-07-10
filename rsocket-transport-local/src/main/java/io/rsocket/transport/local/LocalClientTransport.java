@@ -20,14 +20,13 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.DuplexConnection;
 import io.rsocket.fragmentation.FragmentationDuplexConnection;
+import io.rsocket.internal.UnboundedProcessor;
 import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.ServerTransport;
 import io.rsocket.transport.local.LocalServerTransport.ServerDuplexConnectionAcceptor;
 import java.util.Objects;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
-import reactor.core.publisher.UnicastProcessor;
-import reactor.util.concurrent.Queues;
 
 /**
  * An implementation of {@link ClientTransport} that connects to a {@link ServerTransport} in the
@@ -62,10 +61,8 @@ public final class LocalClientTransport implements ClientTransport {
             return Mono.error(new IllegalArgumentException("Could not find server: " + name));
           }
 
-          UnicastProcessor<ByteBuf> in =
-              UnicastProcessor.create(Queues.<ByteBuf>unboundedMultiproducer().get());
-          UnicastProcessor<ByteBuf> out =
-              UnicastProcessor.create(Queues.<ByteBuf>unboundedMultiproducer().get());
+          UnboundedProcessor<ByteBuf> in = new UnboundedProcessor<>();
+          UnboundedProcessor<ByteBuf> out = new UnboundedProcessor<>();
           MonoProcessor<Void> closeNotifier = MonoProcessor.create();
 
           server.accept(new LocalDuplexConnection(out, in, closeNotifier));

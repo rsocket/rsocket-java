@@ -7,19 +7,20 @@ import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-public class LeaseFlyweightTest {
+public class LeaseFrameFlyweightTest {
 
   @Test
   void leaseMetadata() {
     ByteBuf metadata = bytebuf("md");
     int ttl = 1;
     int numRequests = 42;
-    ByteBuf lease = LeaseFlyweight.encode(ByteBufAllocator.DEFAULT, ttl, numRequests, metadata);
+    ByteBuf lease =
+        LeaseFrameFlyweight.encode(ByteBufAllocator.DEFAULT, ttl, numRequests, metadata);
 
     Assertions.assertTrue(FrameHeaderFlyweight.hasMetadata(lease));
-    Assertions.assertEquals(ttl, LeaseFlyweight.ttl(lease));
-    Assertions.assertEquals(numRequests, LeaseFlyweight.numRequests(lease));
-    Assertions.assertEquals(metadata, LeaseFlyweight.metadata(lease));
+    Assertions.assertEquals(ttl, LeaseFrameFlyweight.ttl(lease));
+    Assertions.assertEquals(numRequests, LeaseFrameFlyweight.numRequests(lease));
+    Assertions.assertEquals(metadata, LeaseFrameFlyweight.metadata(lease));
     lease.release();
   }
 
@@ -27,12 +28,12 @@ public class LeaseFlyweightTest {
   void leaseAbsentMetadata() {
     int ttl = 1;
     int numRequests = 42;
-    ByteBuf lease = LeaseFlyweight.encode(ByteBufAllocator.DEFAULT, ttl, numRequests, null);
+    ByteBuf lease = LeaseFrameFlyweight.encode(ByteBufAllocator.DEFAULT, ttl, numRequests, null);
 
     Assertions.assertFalse(FrameHeaderFlyweight.hasMetadata(lease));
-    Assertions.assertEquals(ttl, LeaseFlyweight.ttl(lease));
-    Assertions.assertEquals(numRequests, LeaseFlyweight.numRequests(lease));
-    Assertions.assertEquals(0, LeaseFlyweight.metadata(lease).readableBytes());
+    Assertions.assertEquals(ttl, LeaseFrameFlyweight.ttl(lease));
+    Assertions.assertEquals(numRequests, LeaseFrameFlyweight.numRequests(lease));
+    Assertions.assertEquals(0, LeaseFrameFlyweight.metadata(lease).readableBytes());
     lease.release();
   }
 

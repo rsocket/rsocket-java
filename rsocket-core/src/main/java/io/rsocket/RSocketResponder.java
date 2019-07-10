@@ -16,24 +16,17 @@
 
 package io.rsocket;
 
-import static io.rsocket.keepalive.KeepAliveSupport.KeepAlive;
-import static io.rsocket.keepalive.KeepAliveSupport.ServerKeepAliveSupport;
-
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.util.ReferenceCountUtil;
-import io.netty.util.collection.IntObjectHashMap;
+import io.netty.util.collection.IntObjectMap;
 import io.rsocket.exceptions.ApplicationErrorException;
-import io.rsocket.exceptions.ConnectionErrorException;
 import io.rsocket.frame.*;
 import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.internal.LimitableRequestPublisher;
+import io.rsocket.internal.SynchronizedIntObjectHashMap;
 import io.rsocket.internal.UnboundedProcessor;
-import io.rsocket.keepalive.KeepAliveFramesAcceptor;
-import io.rsocket.keepalive.KeepAliveHandler;
-import io.rsocket.keepalive.KeepAliveSupport;
-import java.util.Collections;
-import java.util.Map;
+import io.rsocket.lease.ResponderLeaseHandler;
 import java.util.function.Consumer;
 import org.reactivestreams.Processor;
 import org.reactivestreams.Publisher;
@@ -51,35 +44,22 @@ class RSocketResponder implements ResponderRSocket {
   private final ResponderRSocket responderRSocket;
   private final PayloadDecoder payloadDecoder;
   private final Consumer<Throwable> errorConsumer;
+  private final ResponderLeaseHandler leaseHandler;
 
-  private final Map<Integer, LimitableRequestPublisher> sendingLimitableSubscriptions;
-  private final Map<Integer, Subscription> sendingSubscriptions;
-  private final Map<Integer, Processor<Payload, Payload>> channelProcessors;
+  private final IntObjectMap<LimitableRequestPublisher> sendingLimitableSubscriptions;
+  private final IntObjectMap<Subscription> sendingSubscriptions;
+  private final IntObjectMap<Processor<Payload, Payload>> channelProcessors;
 
   private final UnboundedProcessor<ByteBuf> sendProcessor;
   private final ByteBufAllocator allocator;
-  private final KeepAliveFramesAcceptor keepAliveFramesAcceptor;
 
-  /*client responder*/
-  RSocketResponder(
-      ByteBufAllocator allocator,
-      DuplexConnection connection,
-      RSocket requestHandler,
-      PayloadDecoder payloadDecoder,
-      Consumer<Throwable> errorConsumer) {
-    this(allocator, connection, requestHandler, payloadDecoder, errorConsumer, 0, 0, null);
-  }
-
-  /*server responder*/
   RSocketResponder(
       ByteBufAllocator allocator,
       DuplexConnection connection,
       RSocket requestHandler,
       PayloadDecoder payloadDecoder,
       Consumer<Throwable> errorConsumer,
-      int keepAliveTickPeriod,
-      int keepAliveAckTimeout,
-      KeepAliveHandler keepAliveHandler) {
+      ResponderLeaseHandler leaseHandler) {
     this.allocator = allocator;
     this.connection = connection;
 
@@ -89,9 +69,10 @@ class RSocketResponder implements ResponderRSocket {
 
     this.payloadDecoder = payloadDecoder;
     this.errorConsumer = errorConsumer;
-    this.sendingLimitableSubscriptions = Collections.synchronizedMap(new IntObjectHashMap<>());
-    this.sendingSubscriptions = Collections.synchronizedMap(new IntObjectHashMap<>());
-    this.channelProcessors = Collections.synchronizedMap(new IntObjectHashMap<>());
+    this.leaseHandler = leaseHandler;
+    this.sendingLimitableSubscriptions = new SynchronizedIntObjectHashMap<>();
+    this.sendingSubscriptions = new SynchronizedIntObjectHashMap<>();
+    this.channelProcessors = new SynchronizedIntObjectHashMap<>();
 
     // DO NOT Change the order here. The Send processor must be subscribed to before receiving
     // connections
@@ -103,6 +84,7 @@ class RSocketResponder implements ResponderRSocket {
         .subscribe(null, this::handleSendProcessorError);
 
     Disposable receiveDisposable = connection.receive().subscribe(this::handleFrame, errorConsumer);
+    Disposable sendLeaseDisposable = leaseHandler.send(sendProcessor::onNext);
 
     this.connection
         .onClose()
@@ -110,24 +92,9 @@ class RSocketResponder implements ResponderRSocket {
             s -> {
               cleanup();
               receiveDisposable.dispose();
+              sendLeaseDisposable.dispose();
             })
         .subscribe(null, errorConsumer);
-
-    if (keepAliveTickPeriod != 0 && keepAliveHandler != null) {
-      KeepAliveSupport keepAliveSupport =
-          new ServerKeepAliveSupport(allocator, keepAliveTickPeriod, keepAliveAckTimeout);
-      keepAliveFramesAcceptor =
-          keepAliveHandler.start(keepAliveSupport, sendProcessor::onNext, this::terminate);
-    } else {
-      keepAliveFramesAcceptor = null;
-    }
-  }
-
-  private void terminate(KeepAlive keepAlive) {
-    String message =
-        String.format("No keep-alive acks for %d ms", keepAlive.getTimeout().toMillis());
-    errorConsumer.accept(new ConnectionErrorException(message));
-    connection.dispose();
   }
 
   private void handleSendProcessorError(Throwable t) {
@@ -207,7 +174,12 @@ class RSocketResponder implements ResponderRSocket {
   @Override
   public Mono<Void> fireAndForget(Payload payload) {
     try {
-      return requestHandler.fireAndForget(payload);
+      if (leaseHandler.useLease()) {
+        return requestHandler.fireAndForget(payload);
+      } else {
+        payload.release();
+        return Mono.error(leaseHandler.leaseError());
+      }
     } catch (Throwable t) {
       return Mono.error(t);
     }
@@ -216,7 +188,12 @@ class RSocketResponder implements ResponderRSocket {
   @Override
   public Mono<Payload> requestResponse(Payload payload) {
     try {
-      return requestHandler.requestResponse(payload);
+      if (leaseHandler.useLease()) {
+        return requestHandler.requestResponse(payload);
+      } else {
+        payload.release();
+        return Mono.error(leaseHandler.leaseError());
+      }
     } catch (Throwable t) {
       return Mono.error(t);
     }
@@ -225,7 +202,12 @@ class RSocketResponder implements ResponderRSocket {
   @Override
   public Flux<Payload> requestStream(Payload payload) {
     try {
-      return requestHandler.requestStream(payload);
+      if (leaseHandler.useLease()) {
+        return requestHandler.requestStream(payload);
+      } else {
+        payload.release();
+        return Flux.error(leaseHandler.leaseError());
+      }
     } catch (Throwable t) {
       return Flux.error(t);
     }
@@ -234,7 +216,11 @@ class RSocketResponder implements ResponderRSocket {
   @Override
   public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
     try {
-      return requestHandler.requestChannel(payloads);
+      if (leaseHandler.useLease()) {
+        return requestHandler.requestChannel(payloads);
+      } else {
+        return Flux.error(leaseHandler.leaseError());
+      }
     } catch (Throwable t) {
       return Flux.error(t);
     }
@@ -243,7 +229,12 @@ class RSocketResponder implements ResponderRSocket {
   @Override
   public Flux<Payload> requestChannel(Payload payload, Publisher<Payload> payloads) {
     try {
-      return responderRSocket.requestChannel(payload, payloads);
+      if (leaseHandler.useLease()) {
+        return responderRSocket.requestChannel(payload, payloads);
+      } else {
+        payload.release();
+        return Flux.error(leaseHandler.leaseError());
+      }
     } catch (Throwable t) {
       return Flux.error(t);
     }
@@ -309,9 +300,6 @@ class RSocketResponder implements ResponderRSocket {
         case CANCEL:
           handleCancelFrame(streamId);
           break;
-        case KEEPALIVE:
-          handleKeepAliveFrame(frame);
-          break;
         case REQUEST_N:
           handleRequestN(streamId, frame);
           break;
@@ -326,14 +314,10 @@ class RSocketResponder implements ResponderRSocket {
           handleChannel(streamId, channelPayload, channelInitialRequestN);
           break;
         case METADATA_PUSH:
-          metadataPush(payloadDecoder.apply(frame));
+          handleMetadataPush(metadataPush(payloadDecoder.apply(frame)));
           break;
         case PAYLOAD:
           // TODO: Hook in receiving socket.
-          break;
-        case LEASE:
-          // Lease must not be received here as this is the server end of the socket which sends
-          // leases.
           break;
         case NEXT:
           receiver = channelProcessors.get(streamId);
@@ -363,6 +347,7 @@ class RSocketResponder implements ResponderRSocket {
         case SETUP:
           handleError(streamId, new IllegalStateException("Setup frame received post setup."));
           break;
+        case LEASE:
         default:
           handleError(
               streamId,
@@ -517,10 +502,19 @@ class RSocketResponder implements ResponderRSocket {
     }
   }
 
-  private void handleKeepAliveFrame(ByteBuf frame) {
-    if (keepAliveFramesAcceptor != null) {
-      keepAliveFramesAcceptor.receive(frame);
-    }
+  private void handleMetadataPush(Mono<Void> result) {
+    result.subscribe(
+        new BaseSubscriber<Void>() {
+          @Override
+          protected void hookOnSubscribe(Subscription subscription) {
+            subscription.request(Long.MAX_VALUE);
+          }
+
+          @Override
+          protected void hookOnError(Throwable throwable) {
+            errorConsumer.accept(throwable);
+          }
+        });
   }
 
   private void handleCancelFrame(int streamId) {

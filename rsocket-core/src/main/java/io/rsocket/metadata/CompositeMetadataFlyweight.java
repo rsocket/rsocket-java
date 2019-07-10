@@ -329,13 +329,15 @@ public class CompositeMetadataFlyweight {
       ByteBufAllocator allocator, String customMime, int metadataLength) {
     ByteBuf metadataHeader = allocator.buffer(4 + customMime.length());
     // reserve 1 byte for the customMime length
+    // /!\ careful not to read that first byte, which is random at this point
     int writerIndexInitial = metadataHeader.writerIndex();
     metadataHeader.writerIndex(writerIndexInitial + 1);
 
     // write the custom mime in UTF8 but validate it is all ASCII-compatible
     // (which produces the right result since ASCII chars are still encoded on 1 byte in UTF8)
     int customMimeLength = ByteBufUtil.writeUtf8(metadataHeader, customMime);
-    if (!ByteBufUtil.isText(metadataHeader, CharsetUtil.US_ASCII)) {
+    if (!ByteBufUtil.isText(
+        metadataHeader, metadataHeader.readerIndex() + 1, customMimeLength, CharsetUtil.US_ASCII)) {
       metadataHeader.release();
       throw new IllegalArgumentException("custom mime type must be US_ASCII characters only");
     }

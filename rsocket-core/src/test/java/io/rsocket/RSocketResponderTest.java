@@ -24,6 +24,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
 import io.rsocket.frame.*;
+import io.rsocket.lease.ResponderLeaseHandler;
 import io.rsocket.test.util.TestDuplexConnection;
 import io.rsocket.test.util.TestSubscriber;
 import io.rsocket.util.DefaultPayload;
@@ -146,7 +147,8 @@ public class RSocketResponderTest {
           connection,
           acceptingSocket,
           DefaultPayload::create,
-          throwable -> errors.add(throwable));
+          throwable -> errors.add(throwable),
+          ResponderLeaseHandler.None);
     }
 
     private void sendRequest(int streamId, FrameType frameType) {

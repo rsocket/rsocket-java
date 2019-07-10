@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2015-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,42 +17,53 @@
 package io.rsocket.lease;
 
 import io.netty.buffer.ByteBuf;
-import io.rsocket.frame.LeaseFlyweight;
-import reactor.util.annotation.Nullable;
+import io.netty.buffer.Unpooled;
+import java.util.concurrent.atomic.AtomicInteger;
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
-public final class LeaseImpl implements Lease {
-
-  private final int allowedRequests;
-  private final int ttl;
+public class LeaseImpl implements Lease {
+  private final int timeToLiveMillis;
+  private final AtomicInteger allowedRequests;
+  private final int startingAllowedRequests;
+  private final ByteBuf metadata;
   private final long expiry;
-  private final @Nullable ByteBuf metadata;
 
-  public LeaseImpl(int allowedRequests, int ttl) {
-    this(allowedRequests, ttl, null);
+  static LeaseImpl create(int timeToLiveMillis, int numberOfRequests, @Nullable ByteBuf metadata) {
+    assertLease(timeToLiveMillis, numberOfRequests);
+    return new LeaseImpl(timeToLiveMillis, numberOfRequests, metadata);
   }
 
-  public LeaseImpl(int allowedRequests, int ttl, ByteBuf metadata) {
-    this.allowedRequests = allowedRequests;
-    this.ttl = ttl;
-    expiry = System.currentTimeMillis() + ttl;
-    this.metadata = metadata;
+  static LeaseImpl empty() {
+    return new LeaseImpl(0, 0, null);
   }
 
-  public LeaseImpl(ByteBuf leaseFrame) {
-    this(
-        LeaseFlyweight.numRequests(leaseFrame),
-        LeaseFlyweight.ttl(leaseFrame),
-        LeaseFlyweight.metadata(leaseFrame));
+  private LeaseImpl(int timeToLiveMillis, int allowedRequests, @Nullable ByteBuf metadata) {
+    this.allowedRequests = new AtomicInteger(allowedRequests);
+    this.startingAllowedRequests = allowedRequests;
+    this.timeToLiveMillis = timeToLiveMillis;
+    this.metadata = metadata == null ? Unpooled.EMPTY_BUFFER : metadata;
+    this.expiry = timeToLiveMillis == 0 ? 0 : now() + timeToLiveMillis;
+  }
+
+  public int getTimeToLiveMillis() {
+    return timeToLiveMillis;
   }
 
   @Override
   public int getAllowedRequests() {
-    return allowedRequests;
+    return Math.max(0, allowedRequests.get());
   }
 
   @Override
-  public int getTtl() {
-    return ttl;
+  public int getStartingAllowedRequests() {
+    return startingAllowedRequests;
+  }
+
+  @Nonnull
+  @Override
+  public ByteBuf getMetadata() {
+    return metadata;
   }
 
   @Override
@@ -61,19 +72,56 @@ public final class LeaseImpl implements Lease {
   }
 
   @Override
-  public ByteBuf getMetadata() {
-    return metadata;
+  public boolean isValid() {
+    return !isEmpty() && getAllowedRequests() > 0 && !isExpired();
+  }
+
+  /**
+   * try use 1 allowed request of Lease
+   *
+   * @return true if used successfully, false if Lease is expired or no allowed requests available
+   */
+  public boolean use() {
+    if (isExpired()) {
+      return false;
+    }
+    int remaining =
+        allowedRequests.accumulateAndGet(1, (cur, update) -> Math.max(-1, cur - update));
+    return remaining >= 0;
+  }
+
+  @Override
+  public double availability() {
+    return isValid() ? getAllowedRequests() / (double) getStartingAllowedRequests() : 0.0;
   }
 
   @Override
   public String toString() {
+    long now = now();
     return "LeaseImpl{"
-        + "allowedRequests="
-        + allowedRequests
-        + ", ttl="
-        + ttl
-        + ", expiry="
-        + expiry
+        + "timeToLiveMillis="
+        + timeToLiveMillis
+        + ", allowedRequests="
+        + getAllowedRequests()
+        + ", startingAllowedRequests="
+        + startingAllowedRequests
+        + ", expired="
+        + isExpired(now)
+        + ", remainingTimeToLiveMillis="
+        + getRemainingTimeToLiveMillis(now)
         + '}';
+  }
+
+  private static long now() {
+    return System.currentTimeMillis();
+  }
+
+  private static void assertLease(int timeToLiveMillis, int numberOfRequests) {
+    if (numberOfRequests <= 0) {
+      throw new IllegalArgumentException("Number of requests must be positive");
+    }
+    if (timeToLiveMillis <= 0) {
+      throw new IllegalArgumentException("Time-to-live must be positive");
+    }
   }
 }

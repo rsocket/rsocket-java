@@ -19,15 +19,9 @@ package io.rsocket.metadata;
 import static io.rsocket.metadata.CompositeMetadataFlyweight.decodeMimeAndContentBuffersSlices;
 import static io.rsocket.metadata.CompositeMetadataFlyweight.decodeMimeIdFromMimeBuffer;
 import static io.rsocket.metadata.CompositeMetadataFlyweight.decodeMimeTypeFromMimeBuffer;
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
-import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
+import static org.assertj.core.api.Assertions.*;
 
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.ByteBufAllocator;
-import io.netty.buffer.CompositeByteBuf;
-import io.netty.buffer.Unpooled;
-import io.netty.buffer.UnpooledByteBufAllocator;
+import io.netty.buffer.*;
 import io.netty.util.CharsetUtil;
 import io.rsocket.test.util.ByteBufUtils;
 import io.rsocket.util.NumberUtils;
@@ -523,5 +517,38 @@ class CompositeMetadataFlyweightTest {
         .isEqualTo(mime.getIdentifier());
 
     assertThat(content.readableBytes()).as("no metadata content").isZero();
+  }
+
+  @Test
+  void encodeCustomHeaderAsciiCheckSkipsFirstByte() {
+    final ByteBuf badBuf = Unpooled.copiedBuffer("é00000000000", CharsetUtil.UTF_8);
+    badBuf.writerIndex(0);
+    assertThat(badBuf.readerIndex()).isZero();
+
+    ByteBufAllocator allocator =
+        new AbstractByteBufAllocator() {
+          @Override
+          public boolean isDirectBufferPooled() {
+            return false;
+          }
+
+          @Override
+          protected ByteBuf newHeapBuffer(int initialCapacity, int maxCapacity) {
+            return badBuf;
+          }
+
+          @Override
+          protected ByteBuf newDirectBuffer(int initialCapacity, int maxCapacity) {
+            return badBuf;
+          }
+        };
+
+    assertThatCode(
+            () -> CompositeMetadataFlyweight.encodeMetadataHeader(allocator, "custom/type", 0))
+        .doesNotThrowAnyException();
+
+    assertThat(badBuf.readByte()).isEqualTo((byte) 10);
+    assertThat(badBuf.readCharSequence(11, CharsetUtil.UTF_8)).hasToString("custom/type");
+    assertThat(badBuf.readUnsignedMedium()).isEqualTo(0);
   }
 }

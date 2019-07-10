@@ -279,7 +279,6 @@ public abstract class LoadBalancedRSocketMono extends Mono<RSocket>
       if (optional.isPresent()) {
         RSocketSupplier supplier = optional.get();
         WeightedSocket socket = new WeightedSocket(supplier, lowerQuantile, higherQuantile);
-        activeSockets.add(socket);
       } else {
         break;
       }
@@ -356,7 +355,8 @@ public abstract class LoadBalancedRSocketMono extends Mono<RSocket>
     }
 
     if (slowest != null) {
-      activeSockets.remove(slowest);
+      logger.debug("Disposing slowest WeightedSocket {}", slowest);
+      slowest.dispose();
     }
   }
 
@@ -461,7 +461,7 @@ public abstract class LoadBalancedRSocketMono extends Mono<RSocket>
 
   @Override
   public void dispose() {
-    synchronized (this) {;
+    synchronized (this) {
       activeSockets.forEach(WeightedSocket::dispose);
       activeSockets.clear();
       onClose.onComplete();
@@ -573,12 +573,16 @@ public abstract class LoadBalancedRSocketMono extends Mono<RSocket>
       this.interArrivalTime = new Ewma(1, TimeUnit.MINUTES, DEFAULT_INITIAL_INTER_ARRIVAL_TIME);
       this.pendingStreams = new AtomicLong();
 
+      logger.debug("Creating WeightedSocket {} from factory {}", WeightedSocket.this, factory);
+
       WeightedSocket.this
           .onClose()
           .doFinally(
               s -> {
                 pool.accept(factory);
                 activeSockets.remove(WeightedSocket.this);
+                logger.debug(
+                    "Removed {} from factory {} from activeSockets", WeightedSocket.this, factory);
                 refreshSockets();
               })
           .subscribe();
@@ -588,7 +592,11 @@ public abstract class LoadBalancedRSocketMono extends Mono<RSocket>
           .retryBackoff(weightedSocketRetries, weightedSocketBackOff, weightedSocketMaxBackOff)
           .doOnError(
               throwable -> {
-                logger.error("error while connecting {}", throwable);
+                logger.error(
+                    "error while connecting {} from factory {}",
+                    WeightedSocket.this,
+                    factory,
+                    throwable);
                 WeightedSocket.this.dispose();
               })
           .subscribe(
@@ -598,7 +606,8 @@ public abstract class LoadBalancedRSocketMono extends Mono<RSocket>
                     .onClose()
                     .doFinally(
                         signalType -> {
-                          System.out.println("RSocket closed");
+                          logger.info(
+                              "RSocket {} from factory {} closed", WeightedSocket.this, factory);
                           WeightedSocket.this.dispose();
                         })
                     .subscribe();
@@ -608,7 +617,7 @@ public abstract class LoadBalancedRSocketMono extends Mono<RSocket>
                     .onClose()
                     .doFinally(
                         signalType -> {
-                          System.out.println("Factory closed");
+                          logger.info("Factory {} closed", factory);
                           rSocket.dispose();
                         })
                     .subscribe();
@@ -618,20 +627,30 @@ public abstract class LoadBalancedRSocketMono extends Mono<RSocket>
                     .onClose()
                     .doFinally(
                         signalType -> {
-                          System.out.println("WeightedSocket closed");
+                          logger.info(
+                              "WeightedSocket {} from factory {} closed",
+                              WeightedSocket.this,
+                              factory);
                           rSocket.dispose();
                         })
                     .subscribe();
 
-                synchronized (LoadBalancedRSocketMono.this) {
+                /*synchronized (LoadBalancedRSocketMono.this) {
                   if (activeSockets.size() >= targetAperture) {
                     quickSlowestRS();
                     pendingSockets -= 1;
                   }
-                }
-
+                }*/
                 rSocketMono.onNext(rSocket);
                 availability = 1.0;
+                if (!WeightedSocket.this
+                    .isDisposed()) { // May be already disposed because of retryBackoff delay
+                  activeSockets.add(WeightedSocket.this);
+                  logger.debug(
+                      "Added WeightedSocket {} from factory {} to activeSockets",
+                      WeightedSocket.this,
+                      factory);
+                }
               });
     }
 
@@ -829,11 +848,11 @@ public abstract class LoadBalancedRSocketMono extends Mono<RSocket>
      */
     private class LatencySubscriber<U> implements Subscriber<U> {
       private final Subscriber<U> child;
-      private final LoadBalancedRSocketMono.WeightedSocket socket;
+      private final WeightedSocket socket;
       private final AtomicBoolean done;
       private long start;
 
-      LatencySubscriber(Subscriber<U> child, LoadBalancedRSocketMono.WeightedSocket socket) {
+      LatencySubscriber(Subscriber<U> child, WeightedSocket socket) {
         this.child = child;
         this.socket = socket;
         this.done = new AtomicBoolean(false);
@@ -893,9 +912,9 @@ public abstract class LoadBalancedRSocketMono extends Mono<RSocket>
      */
     private class CountingSubscriber<U> implements Subscriber<U> {
       private final Subscriber<U> child;
-      private final LoadBalancedRSocketMono.WeightedSocket socket;
+      private final WeightedSocket socket;
 
-      CountingSubscriber(Subscriber<U> child, LoadBalancedRSocketMono.WeightedSocket socket) {
+      CountingSubscriber(Subscriber<U> child, WeightedSocket socket) {
         this.child = child;
         this.socket = socket;
       }
@@ -916,8 +935,8 @@ public abstract class LoadBalancedRSocketMono extends Mono<RSocket>
         socket.pendingStreams.decrementAndGet();
         child.onError(t);
         if (t instanceof TransportException || t instanceof ClosedChannelException) {
-          activeSockets.remove(socket);
-          refreshSockets();
+          logger.debug("Disposing {} from activeSockets because of error {}", socket, t);
+          socket.dispose();
         }
       }
 

@@ -84,6 +84,9 @@ public class RSocketSupplierPool
     }
 
     factoryPool.addAll(added);
+    if (!added.isEmpty()) {
+      changed = true;
+    }
 
     if (changed && logger.isDebugEnabled()) {
       StringBuilder msgBuilder = new StringBuilder();
@@ -104,8 +107,10 @@ public class RSocketSupplierPool
 
   @Override
   public synchronized void accept(RSocketSupplier rSocketSupplier) {
-    leasedSuppliers.remove(rSocketSupplier);
-    if (!rSocketSupplier.isDisposed()) {
+    boolean contained = leasedSuppliers.remove(rSocketSupplier);
+    if (contained
+        && !rSocketSupplier
+            .isDisposed()) { // only added leasedSupplier back to factoryPool if it's still there
       factoryPool.add(rSocketSupplier);
     }
   }
@@ -119,6 +124,7 @@ public class RSocketSupplierPool
       if (rSocketSupplier.availability() > 0.0) {
         factoryPool.remove(0);
         leasedSuppliers.add(rSocketSupplier);
+        logger.debug("Added {} to leasedSuppliers", rSocketSupplier);
         optional = Optional.of(rSocketSupplier);
       }
     } else if (poolSize > 1) {
@@ -143,10 +149,12 @@ public class RSocketSupplierPool
       if (factory0.availability() > factory1.availability()) {
         factoryPool.remove(i0);
         leasedSuppliers.add(factory0);
+        logger.debug("Added {} to leasedSuppliers", factory0);
         optional = Optional.of(factory0);
       } else {
         factoryPool.remove(i1);
         leasedSuppliers.add(factory1);
+        logger.debug("Added {} to leasedSuppliers", factory1);
         optional = Optional.of(factory1);
       }
     }

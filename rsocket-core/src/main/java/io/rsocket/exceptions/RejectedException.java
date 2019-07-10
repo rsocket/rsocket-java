@@ -26,7 +26,7 @@ import io.rsocket.frame.ErrorType;
  * @see <a href="https://github.com/rsocket/rsocket/blob/master/Protocol.md#error-codes">Error
  *     Codes</a>
  */
-public final class RejectedException extends RSocketException implements Retryable {
+public class RejectedException extends RSocketException implements Retryable {
 
   private static final long serialVersionUID = 3926231092835143715L;
 

@@ -122,11 +122,7 @@ class Tuple3ByteBuf extends AbstractTupleByteBuf {
   }
 
   @Override
-  public ByteBuffer[] nioBuffers(int index, int length) {
-    if (length == 0) {
-      return new ByteBuffer[] {EMPTY_NIO_BUFFER};
-    }
-
+  public ByteBuffer[] _nioBuffers(int index, int length) {
     long ri = calculateRelativeIndex(index);
     index = (int) (ri & Integer.MAX_VALUE);
     switch ((int) ((ri & MASK) >>> 32L)) {

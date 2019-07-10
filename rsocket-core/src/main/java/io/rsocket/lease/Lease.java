@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2015-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,10 +17,21 @@
 package io.rsocket.lease;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
+import io.rsocket.Availability;
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 /** A contract for RSocket lease, which is sent by a request acceptor and is time bound. */
-public interface Lease {
+public interface Lease extends Availability {
+
+  static Lease create(int timeToLiveMillis, int numberOfRequests, @Nullable ByteBuf metadata) {
+    return LeaseImpl.create(timeToLiveMillis, numberOfRequests, metadata);
+  }
+
+  static Lease create(int timeToLiveMillis, int numberOfRequests) {
+    return create(timeToLiveMillis, numberOfRequests, Unpooled.EMPTY_BUFFER);
+  }
 
   /**
    * Number of requests allowed by this lease.
@@ -30,11 +41,30 @@ public interface Lease {
   int getAllowedRequests();
 
   /**
-   * Number of seconds that this lease is valid from the time it is received.
+   * Initial number of requests allowed by this lease.
    *
-   * @return Number of seconds that this lease is valid from the time it is received.
+   * @return initial number of requests allowed by this lease.
    */
-  int getTtl();
+  default int getStartingAllowedRequests() {
+    throw new UnsupportedOperationException("Not implemented");
+  }
+
+  /**
+   * Number of milliseconds that this lease is valid from the time it is received.
+   *
+   * @return Number of milliseconds that this lease is valid from the time it is received.
+   */
+  int getTimeToLiveMillis();
+
+  /**
+   * Number of milliseconds that this lease is still valid from now.
+   *
+   * @param now millis since epoch
+   * @return Number of milliseconds that this lease is still valid from now, or 0 if expired.
+   */
+  default int getRemainingTimeToLiveMillis(long now) {
+    return isEmpty() ? 0 : (int) Math.max(0, expiry() - now);
+  }
 
   /**
    * Absolute time since epoch at which this lease will expire.
@@ -48,7 +78,7 @@ public interface Lease {
    *
    * @return Metadata for the lease.
    */
-  @Nullable
+  @Nonnull
   ByteBuf getMetadata();
 
   /**
@@ -68,5 +98,15 @@ public interface Lease {
    */
   default boolean isExpired(long now) {
     return now > expiry();
+  }
+
+  /** Checks if the lease has not expired and there are allowed requests available */
+  default boolean isValid() {
+    return !isExpired() && getAllowedRequests() > 0;
+  }
+
+  /** Checks if the lease is empty(default value if no lease was received yet) */
+  default boolean isEmpty() {
+    return getAllowedRequests() == 0 && getTimeToLiveMillis() == 0;
   }
 }

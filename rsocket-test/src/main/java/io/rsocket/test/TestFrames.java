@@ -53,7 +53,7 @@ public final class TestFrames {
 
   /** @return {@link ByteBuf} representing test instance of Lease frame */
   public static ByteBuf createTestLeaseFrame() {
-    return LeaseFlyweight.encode(allocator, 1, 1, null);
+    return LeaseFrameFlyweight.encode(allocator, 1, 1, null);
   }
 
   /** @return {@link ByteBuf} representing test instance of Metadata-Push frame */

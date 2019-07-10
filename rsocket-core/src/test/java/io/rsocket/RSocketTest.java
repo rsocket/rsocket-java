@@ -24,6 +24,8 @@ import static org.mockito.Mockito.verify;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.exceptions.ApplicationErrorException;
+import io.rsocket.lease.RequesterLeaseHandler;
+import io.rsocket.lease.ResponderLeaseHandler;
 import io.rsocket.test.util.LocalDuplexConnection;
 import io.rsocket.test.util.TestSubscriber;
 import io.rsocket.util.DefaultPayload;
@@ -168,7 +170,8 @@ public class RSocketTest {
               serverConnection,
               requestAcceptor,
               DefaultPayload::create,
-              throwable -> serverErrors.add(throwable));
+              throwable -> serverErrors.add(throwable),
+              ResponderLeaseHandler.None);
 
       crs =
           new RSocketRequester(
@@ -176,7 +179,11 @@ public class RSocketTest {
               clientConnection,
               DefaultPayload::create,
               throwable -> clientErrors.add(throwable),
-              StreamIdSupplier.clientSupplier());
+              StreamIdSupplier.clientSupplier(),
+              0,
+              0,
+              null,
+              RequesterLeaseHandler.None);
     }
 
     public void setRequestAcceptor(RSocket requestAcceptor) {

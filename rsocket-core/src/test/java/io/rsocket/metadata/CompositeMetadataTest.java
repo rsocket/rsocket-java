@@ -31,6 +31,7 @@ import io.rsocket.metadata.CompositeMetadata.WellKnownMimeTypeEntry;
 import io.rsocket.test.util.ByteBufUtils;
 import io.rsocket.util.NumberUtils;
 import java.util.Iterator;
+import java.util.Spliterator;
 import org.junit.jupiter.api.Test;
 
 class CompositeMetadataTest {
@@ -153,5 +154,25 @@ class CompositeMetadataTest {
             e -> assertThat(e.getContent()).as("entry3 decoded").isEqualByComparingTo(metadata3));
 
     assertThat(iterator.hasNext()).as("has no more than 3 entries").isFalse();
+  }
+
+  @Test
+  void streamIsNotParallel() {
+    final CompositeMetadata metadata =
+        new CompositeMetadata(ByteBufUtils.getRandomByteBuf(5), false);
+
+    assertThat(metadata.stream().isParallel()).as("isParallel").isFalse();
+  }
+
+  @Test
+  void streamSpliteratorCharacteristics() {
+    final CompositeMetadata metadata =
+        new CompositeMetadata(ByteBufUtils.getRandomByteBuf(5), false);
+
+    assertThat(metadata.stream().spliterator())
+        .matches(s -> s.hasCharacteristics(Spliterator.ORDERED), "ORDERED")
+        .matches(s -> s.hasCharacteristics(Spliterator.DISTINCT), "DISTINCT")
+        .matches(s -> s.hasCharacteristics(Spliterator.NONNULL), "NONNULL")
+        .matches(s -> !s.hasCharacteristics(Spliterator.SIZED), "not SIZED");
   }
 }
