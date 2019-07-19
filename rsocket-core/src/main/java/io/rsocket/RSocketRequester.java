@@ -205,7 +205,7 @@ class RSocketRequester implements RSocket {
       return Mono.error(err);
     }
 
-    final int streamId = streamIdSupplier.nextStreamId();
+    final int streamId = streamIdSupplier.nextStreamId(receivers);
 
     return emptyUnicastMono()
         .doOnSubscribe(
@@ -233,7 +233,7 @@ class RSocketRequester implements RSocket {
       return Mono.error(err);
     }
 
-    int streamId = streamIdSupplier.nextStreamId();
+    int streamId = streamIdSupplier.nextStreamId(receivers);
     final UnboundedProcessor<ByteBuf> sendProcessor = this.sendProcessor;
 
     UnicastMonoProcessor<Payload> receiver = UnicastMonoProcessor.create();
@@ -274,7 +274,7 @@ class RSocketRequester implements RSocket {
       return Flux.error(err);
     }
 
-    int streamId = streamIdSupplier.nextStreamId();
+    int streamId = streamIdSupplier.nextStreamId(receivers);
 
     final UnboundedProcessor<ByteBuf> sendProcessor = this.sendProcessor;
     final UnicastProcessor<Payload> receiver = UnicastProcessor.create();
@@ -328,7 +328,7 @@ class RSocketRequester implements RSocket {
 
     final UnboundedProcessor<ByteBuf> sendProcessor = this.sendProcessor;
     final UnicastProcessor<Payload> receiver = UnicastProcessor.create();
-    final int streamId = streamIdSupplier.nextStreamId();
+    final int streamId = streamIdSupplier.nextStreamId(receivers);
 
     return receiver
         .doOnRequest(
