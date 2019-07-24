@@ -168,7 +168,7 @@ class Tuple3ByteBuf extends AbstractTupleByteBuf {
             threeBuffer = three.nioBuffers(threeReadIndex, length);
             ByteBuffer[] results = new ByteBuffer[twoBuffer.length + threeBuffer.length];
             System.arraycopy(twoBuffer, 0, results, 0, twoBuffer.length);
-            System.arraycopy(threeBuffer, 0, results, threeBuffer.length, twoBuffer.length);
+            System.arraycopy(threeBuffer, 0, results, twoBuffer.length, threeBuffer.length);
             return results;
           } else {
             return twoBuffer;
