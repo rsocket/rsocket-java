@@ -95,8 +95,8 @@ public class StreamIdSupplierTest {
     StreamIdSupplier s = new StreamIdSupplier(Integer.MAX_VALUE - 3);
 
     assertEquals(2147483646, s.nextStreamId(map));
-    assertEquals(0, s.nextStreamId(map));
     assertEquals(2, s.nextStreamId(map));
+    assertEquals(4, s.nextStreamId(map));
 
     s = new StreamIdSupplier(Integer.MAX_VALUE - 2);
 

@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.rsocket;
 
 import io.netty.util.collection.IntObjectMap;
@@ -43,7 +42,7 @@ final class StreamIdSupplier {
     int streamId;
     do {
       streamId = (int) STREAM_ID.addAndGet(this, 2) & MASK;
-    } while (streamIds.containsKey(streamId));
+    } while (streamId == 0 || streamIds.containsKey(streamId));
     return streamId;
   }
 
