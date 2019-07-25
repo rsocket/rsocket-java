@@ -60,10 +60,6 @@ public class RateLimitableRequestPublisher<T> extends Flux<T> implements Subscri
     return new RateLimitableRequestPublisher<>(source, prefetch);
   }
 
-  //  public static <T> RateLimitableRequestPublisher<T> wrap(Publisher<T> source) {
-  //    return wrap(source, Long.MAX_VALUE);
-  //  }
-
   @Override
   public void subscribe(CoreSubscriber<? super T> destination) {
     synchronized (this) {
@@ -103,16 +99,22 @@ public class RateLimitableRequestPublisher<T> extends Flux<T> implements Subscri
       }
 
       final long er = externalRequested;
+      final long p = prefetch;
+      final int pendingFulfil = pendingToFulfil;
 
-      if (er != Long.MAX_VALUE && prefetch != Integer.MAX_VALUE) {
+      if (er != Long.MAX_VALUE || p != Integer.MAX_VALUE) {
         // shortcut
-        if (pendingToFulfil == prefetch) {
+        if (pendingFulfil == p) {
           return;
         }
 
-        r = Math.min(prefetch - pendingToFulfil, er);
-        externalRequested -= r;
-        pendingToFulfil += r;
+        r = Math.min(p - pendingFulfil, er);
+        if (er != Long.MAX_VALUE) {
+          externalRequested -= r;
+        }
+        if (p != Integer.MAX_VALUE) {
+          pendingToFulfil += r;
+        }
       } else {
         r = Long.MAX_VALUE;
       }
@@ -169,49 +171,51 @@ public class RateLimitableRequestPublisher<T> extends Flux<T> implements Subscri
     public void onNext(T t) {
       try {
         destination.onNext(t);
-        deliveredElements++;
 
-        if (deliveredElements == limit) {
-          deliveredElements = 0;
+        if (prefetch == Integer.MAX_VALUE) {
+          return;
+        }
+
+        final long l = limit;
+        int d = deliveredElements + 1;
+
+        if (d == l) {
+          d = 0;
           final long r;
           final Subscription s;
 
           synchronized (RateLimitableRequestPublisher.this) {
+            long er = externalRequested;
             s = internalSubscription;
 
             if (s == null) {
               return;
             }
 
-            if (externalRequested >= limit) {
-              externalRequested -= limit;
+            if (er >= l) {
+              er -= l;
               // keep pendingToFulfil as is since it is eq to prefetch
-              r = limit;
+              r = l;
             } else {
-              pendingToFulfil -= limit;
-              if (externalRequested > 0) {
-                r = externalRequested;
-                externalRequested = 0;
+              pendingToFulfil -= l;
+              if (er > 0) {
+                r = er;
+                er = 0;
                 pendingToFulfil += r;
               } else {
                 r = 0;
               }
             }
+
+            externalRequested = er;
           }
 
           if (r > 0) {
             s.request(r);
           }
         }
-        //        else if (deliveredElements == pendingToFulfil) {
-        //          deliveredElements = 0;
-        //          synchronized (RateLimitableRequestPublisher.this) {
-        //            pendingToFulfil -= deliveredElements;
-        //            if (deliveredElements == pendingToFulfil) {
-        //              return;
-        //            }
-        //          }
-        //        }
+
+        deliveredElements = d;
       } catch (Throwable e) {
         onError(e);
       }

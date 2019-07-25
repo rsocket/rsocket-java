@@ -103,4 +103,38 @@ class RateLimitableRequestPublisherTest {
         .expectComplete()
         .verify(Duration.ofMillis(30000));
   }
+
+  @Test
+  public void testThatRequestLongMaxValueWillBeDeliveredInSeparateChunks() {
+    Flux<Integer> source =
+        Flux.range(0, 10000000)
+            .subscribeOn(Schedulers.parallel())
+            .doOnRequest(r -> Assertions.assertThat(r).isLessThanOrEqualTo(128));
+
+    RateLimitableRequestPublisher<Integer> rateLimitableRequestPublisher =
+        RateLimitableRequestPublisher.wrap(source, 128);
+
+    StepVerifier.create(rateLimitableRequestPublisher)
+        .then(() -> rateLimitableRequestPublisher.request(Long.MAX_VALUE))
+        .expectNextCount(10000000)
+        .expectComplete()
+        .verify(Duration.ofMillis(30000));
+  }
+
+  @Test
+  public void testThatRequestLongMaxWithIntegerMaxValuePrefetchWillBeDeliveredAsLongMaxValue() {
+    Flux<Integer> source =
+        Flux.range(0, 10000000)
+            .subscribeOn(Schedulers.parallel())
+            .doOnRequest(r -> Assertions.assertThat(r).isEqualTo(Long.MAX_VALUE));
+
+    RateLimitableRequestPublisher<Integer> rateLimitableRequestPublisher =
+        RateLimitableRequestPublisher.wrap(source, Integer.MAX_VALUE);
+
+    StepVerifier.create(rateLimitableRequestPublisher)
+        .then(() -> rateLimitableRequestPublisher.request(Long.MAX_VALUE))
+        .expectNextCount(10000000)
+        .expectComplete()
+        .verify(Duration.ofMillis(30000));
+  }
 }
