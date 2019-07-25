@@ -111,11 +111,10 @@ class RSocketRequesterSubscribersTest {
 
   static Stream<Function<RSocket, Publisher<?>>> allInteractions() {
     return Stream.of(
-        //        rSocket -> rSocket.fireAndForget(DefaultPayload.create("test")),
-        //        rSocket -> rSocket.requestResponse(DefaultPayload.create("test")),
-        //        rSocket -> rSocket.requestStream(DefaultPayload.create("test")),
-        rSocket -> rSocket.requestChannel(Mono.just(DefaultPayload.create("test")).log())
-        //        rSocket -> rSocket.metadataPush(DefaultPayload.create("test"))
-        );
+        rSocket -> rSocket.fireAndForget(DefaultPayload.create("test")),
+        rSocket -> rSocket.requestResponse(DefaultPayload.create("test")),
+        rSocket -> rSocket.requestStream(DefaultPayload.create("test")),
+        rSocket -> rSocket.requestChannel(Mono.just(DefaultPayload.create("test"))),
+        rSocket -> rSocket.metadataPush(DefaultPayload.create("test")));
   }
 }
