@@ -24,6 +24,7 @@ import io.netty.buffer.Unpooled;
 import io.rsocket.frame.*;
 import io.rsocket.plugins.PluginRegistry;
 import io.rsocket.test.util.TestDuplexConnection;
+import io.rsocket.util.DefaultPayload;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.Before;
 import org.junit.Test;
@@ -199,8 +200,7 @@ public class ClientServerInputMultiplexerTest {
         42,
         "application/octet-stream",
         "application/octet-stream",
-        Unpooled.EMPTY_BUFFER,
-        Unpooled.EMPTY_BUFFER);
+        DefaultPayload.create(Unpooled.EMPTY_BUFFER, Unpooled.EMPTY_BUFFER));
   }
 
   private ByteBuf leaseFrame() {

@@ -4,6 +4,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
+import io.rsocket.Payload;
 import java.nio.charset.StandardCharsets;
 
 public class SetupFrameFlyweight {
@@ -27,13 +28,12 @@ public class SetupFrameFlyweight {
 
   public static ByteBuf encode(
       final ByteBufAllocator allocator,
-      boolean lease,
+      final boolean lease,
       final int keepaliveInterval,
       final int maxLifetime,
       final String metadataMimeType,
       final String dataMimeType,
-      final ByteBuf metadata,
-      final ByteBuf data) {
+      final Payload setupPayload) {
     return encode(
         allocator,
         lease,
@@ -42,20 +42,21 @@ public class SetupFrameFlyweight {
         Unpooled.EMPTY_BUFFER,
         metadataMimeType,
         dataMimeType,
-        metadata,
-        data);
+        setupPayload);
   }
 
   public static ByteBuf encode(
       final ByteBufAllocator allocator,
-      boolean lease,
+      final boolean lease,
       final int keepaliveInterval,
       final int maxLifetime,
       final ByteBuf resumeToken,
       final String metadataMimeType,
       final String dataMimeType,
-      final ByteBuf metadata,
-      final ByteBuf data) {
+      final Payload setupPayload) {
+
+    ByteBuf metadata = setupPayload.hasMetadata() ? setupPayload.sliceMetadata() : null;
+    ByteBuf data = setupPayload.sliceData();
 
     int flags = 0;
 

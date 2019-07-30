@@ -124,8 +124,7 @@ class RSocketLeaseTest {
             30_000,
             "application/octet-stream",
             "application/octet-stream",
-            payload.sliceMetadata(),
-            payload.sliceData());
+            payload);
 
     TestServerTransport transport = new TestServerTransport();
     Closeable server =

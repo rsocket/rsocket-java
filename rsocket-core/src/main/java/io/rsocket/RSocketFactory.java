@@ -355,8 +355,7 @@ public class RSocketFactory {
                           resumeToken,
                           metadataMimeType,
                           dataMimeType,
-                          setupPayload.sliceMetadata(),
-                          setupPayload.sliceData());
+                          setupPayload);
 
                   RSocket wrappedRSocketRequester = plugins.applyRequester(rSocketRequester);
 
