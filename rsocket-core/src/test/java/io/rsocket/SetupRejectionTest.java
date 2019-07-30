@@ -149,14 +149,7 @@ public class SetupRejectionTest {
       Payload payload = DefaultPayload.create(DefaultPayload.EMPTY_BUFFER);
       ByteBuf setup =
           SetupFrameFlyweight.encode(
-              ByteBufAllocator.DEFAULT,
-              false,
-              0,
-              42,
-              "mdMime",
-              "dMime",
-              payload.sliceMetadata(),
-              payload.sliceData());
+              ByteBufAllocator.DEFAULT, false, 0, 42, "mdMime", "dMime", payload);
 
       conn.addToReceivedBuffer(setup);
     }
