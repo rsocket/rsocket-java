@@ -17,6 +17,7 @@
 package io.rsocket;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import io.netty.util.AbstractReferenceCounted;
 import io.rsocket.frame.FrameHeaderFlyweight;
 import io.rsocket.frame.SetupFrameFlyweight;
@@ -42,6 +43,10 @@ public abstract class ConnectionSetupPayload extends AbstractReferenceCounted im
   public abstract int getFlags();
 
   public abstract boolean willClientHonorLease();
+
+  public abstract boolean isResumeEnabled();
+
+  public abstract ByteBuf resumeToken();
 
   @Override
   public ConnectionSetupPayload retain() {
@@ -99,6 +104,18 @@ public abstract class ConnectionSetupPayload extends AbstractReferenceCounted im
     @Override
     public boolean willClientHonorLease() {
       return SetupFrameFlyweight.honorLease(setupFrame);
+    }
+
+    @Override
+    public boolean isResumeEnabled() {
+      return SetupFrameFlyweight.resumeEnabled(setupFrame);
+    }
+
+    @Override
+    public ByteBuf resumeToken() {
+      return isResumeEnabled()
+          ? SetupFrameFlyweight.resumeToken(setupFrame)
+          : Unpooled.EMPTY_BUFFER;
     }
 
     @Override
