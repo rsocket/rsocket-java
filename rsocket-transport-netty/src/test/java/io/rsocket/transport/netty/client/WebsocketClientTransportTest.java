@@ -57,16 +57,29 @@ final class WebsocketClientTransportTest {
   @Test
   @Disabled
   public void testThatSetupWithSpecifiedFrameSizeButLowerThanWsDefaultShouldSetToWsDefault() {
-    ArgumentCaptor<Integer> captor = ArgumentCaptor.forClass(Integer.class);
-    HttpClient httpClient = Mockito.spy(HttpClient.create());
-    Mockito.doAnswer(a -> httpClient).when(httpClient).headers(Mockito.any());
-    Mockito.doCallRealMethod().when(httpClient).websocket(captor.capture());
+      try {
 
-    WebsocketClientTransport clientTransport = WebsocketClientTransport.create(httpClient, "");
+          ArgumentCaptor<Integer> captor = ArgumentCaptor.forClass(Integer.class);
+          HttpClient httpClient = Mockito.spy(HttpClient.create());
+          Mockito.doAnswer(a -> httpClient)
+                 .when(httpClient)
+                 .headers(Mockito.any());
+          Mockito.doCallRealMethod()
+                 .when(httpClient)
+                 .websocket(captor.capture());
 
-    clientTransport.connect(65536 - 10000).subscribe();
+          WebsocketClientTransport clientTransport =
+              WebsocketClientTransport.create(httpClient, "");
 
-    Assertions.assertThat(captor.getValue()).isEqualTo(FRAME_LENGTH_MASK);
+          clientTransport.connect(65536 - 10000)
+                         .subscribe();
+
+          Assertions.assertThat(captor.getValue())
+                    .isEqualTo(FRAME_LENGTH_MASK);
+      } catch (Throwable e) {
+          e.printStackTrace();
+          throw e;
+      }
   }
 
   @Test
