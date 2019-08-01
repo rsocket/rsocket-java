@@ -26,7 +26,6 @@ import java.util.Collections;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import reactor.core.publisher.Mono;
 import reactor.netty.http.client.HttpClient;
@@ -38,7 +37,7 @@ final class WebsocketClientTransportTest {
   @Test
   public void testThatSetupWithUnSpecifiedFrameSizeShouldSetMaxFrameSize() {
     //    ArgumentCaptor<Integer> captor = ArgumentCaptor.forClass(Integer.class);
-    HttpClient httpClient = Mockito.spy(HttpClient.create());
+    HttpClient httpClient = HttpClient.create();
     //    Mockito.doAnswer(a -> httpClient).when(httpClient).headers(Mockito.any());
     //    Mockito.doCallRealMethod().when(httpClient).websocket(captor.capture());
 
@@ -74,7 +73,7 @@ final class WebsocketClientTransportTest {
   public void
       testThatSetupWithSpecifiedFrameSizeButHigherThanWsDefaultShouldSetToSpecifiedFrameSize() {
     //    ArgumentCaptor<Integer> captor = ArgumentCaptor.forClass(Integer.class);
-    HttpClient httpClient = Mockito.spy(HttpClient.create());
+    HttpClient httpClient = HttpClient.create();
     //    Mockito.doAnswer(a -> httpClient).when(httpClient).headers(Mockito.any());
     //    Mockito.doCallRealMethod().when(httpClient).websocket(captor.capture());
 
