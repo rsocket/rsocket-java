@@ -22,6 +22,7 @@ import io.netty.buffer.Unpooled;
 import io.rsocket.Payload;
 import io.rsocket.frame.*;
 import io.rsocket.util.DefaultPayload;
+import io.rsocket.util.EmptyPayload;
 
 /** Test instances of all frame types. */
 public final class TestFrames {
@@ -104,7 +105,6 @@ public final class TestFrames {
         Unpooled.EMPTY_BUFFER,
         "metadataType",
         "dataType",
-        null,
-        Unpooled.EMPTY_BUFFER);
+        EmptyPayload.INSTANCE);
   }
 }

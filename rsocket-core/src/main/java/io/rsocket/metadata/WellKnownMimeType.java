@@ -67,6 +67,9 @@ public enum WellKnownMimeType {
   VIDEO_H264("video/H264", (byte) 0x23),
   VIDEO_H265("video/H265", (byte) 0x24),
   VIDEO_VP8("video/VP8", (byte) 0x25),
+  APPLICATION_HESSIAN("application/x-hessian", (byte) 0x26),
+  APPLICATION_JAVA_OBJECT("application/x-java-object", (byte) 0x27),
+  APPLICATION_CLOUDEVENTS_JSON("application/cloudevents+json", (byte) 0x28),
 
   // ... reserved for future use ...
 

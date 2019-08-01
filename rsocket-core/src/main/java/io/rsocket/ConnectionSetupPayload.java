@@ -20,6 +20,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.util.AbstractReferenceCounted;
 import io.rsocket.frame.FrameHeaderFlyweight;
 import io.rsocket.frame.SetupFrameFlyweight;
+import javax.annotation.Nullable;
 
 /**
  * Exposed to server for determination of ResponderRSocket based on mime types and SETUP
@@ -42,6 +43,11 @@ public abstract class ConnectionSetupPayload extends AbstractReferenceCounted im
   public abstract int getFlags();
 
   public abstract boolean willClientHonorLease();
+
+  public abstract boolean isResumeEnabled();
+
+  @Nullable
+  public abstract ByteBuf resumeToken();
 
   @Override
   public ConnectionSetupPayload retain() {
@@ -99,6 +105,16 @@ public abstract class ConnectionSetupPayload extends AbstractReferenceCounted im
     @Override
     public boolean willClientHonorLease() {
       return SetupFrameFlyweight.honorLease(setupFrame);
+    }
+
+    @Override
+    public boolean isResumeEnabled() {
+      return SetupFrameFlyweight.resumeEnabled(setupFrame);
+    }
+
+    @Override
+    public ByteBuf resumeToken() {
+      return SetupFrameFlyweight.resumeToken(setupFrame);
     }
 
     @Override

@@ -38,6 +38,9 @@ import reactor.core.publisher.SynchronousSink;
  *     and Reassembly</a>
  */
 final class FrameReassembler extends AtomicBoolean implements Disposable {
+
+  private static final long serialVersionUID = -4394598098863449055L;
+
   private static final Logger logger = LoggerFactory.getLogger(FrameReassembler.class);
 
   final IntObjectMap<ByteBuf> headers;

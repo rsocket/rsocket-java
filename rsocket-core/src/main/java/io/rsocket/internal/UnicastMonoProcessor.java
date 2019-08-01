@@ -2,7 +2,6 @@ package io.rsocket.internal;
 
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
-import java.util.function.LongSupplier;
 import java.util.stream.Stream;
 import org.reactivestreams.Processor;
 import org.reactivestreams.Subscription;
@@ -17,12 +16,7 @@ import reactor.util.context.Context;
 import reactor.util.function.Tuple2;
 
 public class UnicastMonoProcessor<O> extends Mono<O>
-    implements Processor<O, O>,
-        CoreSubscriber<O>,
-        Disposable,
-        Subscription,
-        Scannable,
-        LongSupplier {
+    implements Processor<O, O>, CoreSubscriber<O>, Disposable, Subscription, Scannable {
 
   @SuppressWarnings("rawtypes")
   static final AtomicIntegerFieldUpdater<UnicastMonoProcessor> ONCE =
@@ -85,11 +79,6 @@ public class UnicastMonoProcessor<O> extends Mono<O>
   @Override
   public Stream<Tuple2<String, String>> tags() {
     return processor.tags();
-  }
-
-  @Override
-  public long getAsLong() {
-    return processor.getAsLong();
   }
 
   @Override

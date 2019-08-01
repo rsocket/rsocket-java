@@ -29,10 +29,10 @@ subprojects {
     apply plugin: 'io.spring.dependency-management'
     apply plugin: 'com.github.sherter.google-java-format'
 
-    ext['reactor-bom.version'] = 'Californium-SR8'
+    ext['reactor-bom.version'] = 'Dysprosium-M3'
     ext['logback.version'] = '1.2.3'
     ext['findbugs.version'] = '3.0.2'
-    ext['netty.version'] = '4.1.36.Final'
+    ext['netty.version'] = '4.1.37.Final'
     ext['netty-boringssl.version'] = '2.0.25.Final'
     ext['hdrhistogram.version'] = '2.1.10'
     ext['mockito.version'] = '2.25.1'
@@ -89,6 +89,7 @@ subprojects {
 
     repositories {
         mavenCentral()
+        maven { url 'http://repo.spring.io/milestone' } // temporary for Reactor Dysprosium
 
         if (version.endsWith('BUILD-SNAPSHOT') || project.hasProperty('platformVersion')) {
             maven { url 'http://repo.spring.io/libs-snapshot' }

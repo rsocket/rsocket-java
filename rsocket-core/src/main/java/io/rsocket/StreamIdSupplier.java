@@ -13,18 +13,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.rsocket;
 
-import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
+import io.netty.util.collection.IntObjectMap;
+import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 
 final class StreamIdSupplier {
+  private static final int MASK = 0x7FFFFFFF;
 
-  private static final AtomicIntegerFieldUpdater<StreamIdSupplier> STREAM_ID =
-      AtomicIntegerFieldUpdater.newUpdater(StreamIdSupplier.class, "streamId");
-  private volatile int streamId;
+  private static final AtomicLongFieldUpdater<StreamIdSupplier> STREAM_ID =
+      AtomicLongFieldUpdater.newUpdater(StreamIdSupplier.class, "streamId");
+  private volatile long streamId;
 
-  private StreamIdSupplier(int streamId) {
+  // Visible for testing
+  StreamIdSupplier(int streamId) {
     this.streamId = streamId;
   }
 
@@ -36,8 +38,12 @@ final class StreamIdSupplier {
     return new StreamIdSupplier(0);
   }
 
-  int nextStreamId() {
-    return STREAM_ID.addAndGet(this, 2);
+  int nextStreamId(IntObjectMap<?> streamIds) {
+    int streamId;
+    do {
+      streamId = (int) STREAM_ID.addAndGet(this, 2) & MASK;
+    } while (streamId == 0 || streamIds.containsKey(streamId));
+    return streamId;
   }
 
   boolean isBeforeOrCurrent(int streamId) {
