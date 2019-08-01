@@ -17,10 +17,10 @@
 package io.rsocket;
 
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
 import io.netty.util.AbstractReferenceCounted;
 import io.rsocket.frame.FrameHeaderFlyweight;
 import io.rsocket.frame.SetupFrameFlyweight;
+import javax.annotation.Nullable;
 
 /**
  * Exposed to server for determination of ResponderRSocket based on mime types and SETUP
@@ -46,6 +46,7 @@ public abstract class ConnectionSetupPayload extends AbstractReferenceCounted im
 
   public abstract boolean isResumeEnabled();
 
+  @Nullable
   public abstract ByteBuf resumeToken();
 
   @Override
@@ -113,9 +114,7 @@ public abstract class ConnectionSetupPayload extends AbstractReferenceCounted im
 
     @Override
     public ByteBuf resumeToken() {
-      return isResumeEnabled()
-          ? SetupFrameFlyweight.resumeToken(setupFrame)
-          : Unpooled.EMPTY_BUFFER;
+      return SetupFrameFlyweight.resumeToken(setupFrame);
     }
 
     @Override
