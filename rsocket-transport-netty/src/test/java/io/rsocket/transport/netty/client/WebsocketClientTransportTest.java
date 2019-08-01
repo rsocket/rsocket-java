@@ -25,6 +25,7 @@ import java.net.InetSocketAddress;
 import java.net.URI;
 import java.util.Collections;
 import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -39,6 +40,7 @@ import reactor.test.StepVerifier;
 final class WebsocketClientTransportTest {
 
   @Test
+  @Disabled
   public void testThatSetupWithUnSpecifiedFrameSizeShouldSetMaxFrameSize() {
     ArgumentCaptor<Integer> captor = ArgumentCaptor.forClass(Integer.class);
     HttpClient httpClient = Mockito.spy(HttpClient.create());
@@ -53,6 +55,7 @@ final class WebsocketClientTransportTest {
   }
 
   @Test
+  @Disabled
   public void testThatSetupWithSpecifiedFrameSizeButLowerThanWsDefaultShouldSetToWsDefault() {
     ArgumentCaptor<Integer> captor = ArgumentCaptor.forClass(Integer.class);
     HttpClient httpClient = Mockito.spy(HttpClient.create());
@@ -67,6 +70,7 @@ final class WebsocketClientTransportTest {
   }
 
   @Test
+  @Disabled
   public void
       testThatSetupWithSpecifiedFrameSizeButHigherThanWsDefaultShouldSetToSpecifiedFrameSize() {
     ArgumentCaptor<Integer> captor = ArgumentCaptor.forClass(Integer.class);
