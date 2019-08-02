@@ -16,6 +16,9 @@
 
 package io.rsocket;
 
+import static io.rsocket.internal.ClientSetup.DefaultClientSetup;
+import static io.rsocket.internal.ClientSetup.ResumableClientSetup;
+
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.exceptions.InvalidSetupException;
@@ -32,27 +35,20 @@ import io.rsocket.lease.LeaseStats;
 import io.rsocket.lease.Leases;
 import io.rsocket.lease.RequesterLeaseHandler;
 import io.rsocket.lease.ResponderLeaseHandler;
-import io.rsocket.plugins.DuplexConnectionInterceptor;
-import io.rsocket.plugins.PluginRegistry;
-import io.rsocket.plugins.Plugins;
-import io.rsocket.plugins.RSocketInterceptor;
+import io.rsocket.plugins.*;
 import io.rsocket.resume.*;
 import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.ServerTransport;
 import io.rsocket.util.ConnectionUtils;
 import io.rsocket.util.EmptyPayload;
 import io.rsocket.util.MultiSubscriberRSocket;
-import reactor.core.publisher.Mono;
-
 import java.time.Duration;
 import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
-
-import static io.rsocket.internal.ClientSetup.DefaultClientSetup;
-import static io.rsocket.internal.ClientSetup.ResumableClientSetup;
+import reactor.core.publisher.Mono;
 
 /** Factory for creating RSocket clients and servers. */
 public class RSocketFactory {
@@ -100,8 +96,7 @@ public class RSocketFactory {
   public static class ClientRSocketFactory implements ClientTransportAcceptor {
     private static final String CLIENT_TAG = "client";
 
-    private SocketAcceptor acceptor =
-            (setup, sendingSocket) -> Mono.just(new AbstractRSocket() {});
+    private SocketAcceptor acceptor = (setup, sendingSocket) -> Mono.just(new AbstractRSocket() {});
 
     private Consumer<Throwable> errorConsumer = Throwable::printStackTrace;
     private int mtu = 0;
@@ -163,6 +158,11 @@ public class RSocketFactory {
 
     public ClientRSocketFactory addResponderPlugin(RSocketInterceptor interceptor) {
       plugins.addResponderPlugin(interceptor);
+      return this;
+    }
+
+    public ClientRSocketFactory addSocketAcceptorPlugin(SocketAcceptorInterceptor interceptor) {
+      plugins.addSocketAcceptorPlugin(interceptor);
       return this;
     }
 
@@ -278,7 +278,8 @@ public class RSocketFactory {
 
     public ClientTransportAcceptor acceptor(Supplier<Function<RSocket, RSocket>> acceptor) {
       return acceptor(
-              (SocketAcceptor) (setup, sendingSocket) -> Mono.just(acceptor.get().apply(sendingSocket)));
+          (SocketAcceptor)
+              (setup, sendingSocket) -> Mono.just(acceptor.get().apply(sendingSocket)));
     }
 
     @Deprecated
@@ -357,6 +358,8 @@ public class RSocketFactory {
                     rSocketRequester = new MultiSubscriberRSocket(rSocketRequester);
                   }
 
+                  RSocket wrappedRSocketRequester = plugins.applyRequester(rSocketRequester);
+
                   ByteBuf setupFrame =
                       SetupFrameFlyweight.encode(
                           allocator,
@@ -368,10 +371,10 @@ public class RSocketFactory {
                           dataMimeType,
                           setupPayload);
 
-                  RSocket wrappedRSocketRequester = plugins.applyRequester(rSocketRequester);
-
                   ConnectionSetupPayload setup = ConnectionSetupPayload.create(setupFrame);
-                  return acceptor
+
+                  return plugins
+                      .applySocketAcceptorInterceptor(acceptor)
                       .accept(setup, wrappedRSocketRequester)
                       .flatMap(
                           rSocketHandler -> {
@@ -488,6 +491,11 @@ public class RSocketFactory {
 
     public ServerRSocketFactory addResponderPlugin(RSocketInterceptor interceptor) {
       plugins.addResponderPlugin(interceptor);
+      return this;
+    }
+
+    public ServerRSocketFactory addSocketAcceptorPlugin(SocketAcceptorInterceptor interceptor) {
+      plugins.addSocketAcceptorPlugin(interceptor);
       return this;
     }
 
@@ -659,7 +667,8 @@ public class RSocketFactory {
               }
               RSocket wrappedRSocketRequester = plugins.applyRequester(rSocketRequester);
 
-              return acceptor
+              return plugins
+                  .applySocketAcceptorInterceptor(acceptor)
                   .accept(setupPayload, wrappedRSocketRequester)
                   .onErrorResume(
                       err -> sendError(multiplexer, rejectedSetupError(err)).then(Mono.error(err)))

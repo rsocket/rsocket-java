@@ -18,6 +18,7 @@ package io.rsocket.plugins;
 
 import io.rsocket.DuplexConnection;
 import io.rsocket.RSocket;
+import io.rsocket.SocketAcceptor;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -25,6 +26,7 @@ public class PluginRegistry {
   private List<DuplexConnectionInterceptor> connections = new ArrayList<>();
   private List<RSocketInterceptor> requesters = new ArrayList<>();
   private List<RSocketInterceptor> responders = new ArrayList<>();
+  private List<SocketAcceptorInterceptor> socketAcceptorInterceptors = new ArrayList<>();
 
   public PluginRegistry() {}
 
@@ -58,6 +60,10 @@ public class PluginRegistry {
     responders.add(interceptor);
   }
 
+  public void addSocketAcceptorPlugin(SocketAcceptorInterceptor interceptor) {
+    socketAcceptorInterceptors.add(interceptor);
+  }
+
   /** Deprecated. Use {@link #applyRequester(RSocket)} instead */
   @Deprecated
   public RSocket applyClient(RSocket rSocket) {
@@ -84,6 +90,14 @@ public class PluginRegistry {
     }
 
     return rSocket;
+  }
+
+  public SocketAcceptor applySocketAcceptorInterceptor(SocketAcceptor acceptor) {
+    for (SocketAcceptorInterceptor i : socketAcceptorInterceptors) {
+      acceptor = i.apply(acceptor);
+    }
+
+    return acceptor;
   }
 
   public DuplexConnection applyConnection(
