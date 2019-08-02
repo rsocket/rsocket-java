@@ -16,9 +16,6 @@
 
 package io.rsocket;
 
-import static io.rsocket.internal.ClientSetup.DefaultClientSetup;
-import static io.rsocket.internal.ClientSetup.ResumableClientSetup;
-
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.exceptions.InvalidSetupException;
@@ -31,7 +28,10 @@ import io.rsocket.internal.ClientServerInputMultiplexer;
 import io.rsocket.internal.ClientSetup;
 import io.rsocket.internal.ServerSetup;
 import io.rsocket.keepalive.KeepAliveHandler;
-import io.rsocket.lease.*;
+import io.rsocket.lease.LeaseStats;
+import io.rsocket.lease.Leases;
+import io.rsocket.lease.RequesterLeaseHandler;
+import io.rsocket.lease.ResponderLeaseHandler;
 import io.rsocket.plugins.DuplexConnectionInterceptor;
 import io.rsocket.plugins.PluginRegistry;
 import io.rsocket.plugins.Plugins;
@@ -42,10 +42,17 @@ import io.rsocket.transport.ServerTransport;
 import io.rsocket.util.ConnectionUtils;
 import io.rsocket.util.EmptyPayload;
 import io.rsocket.util.MultiSubscriberRSocket;
+import reactor.core.publisher.Mono;
+
 import java.time.Duration;
 import java.util.Objects;
-import java.util.function.*;
-import reactor.core.publisher.Mono;
+import java.util.function.BiFunction;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.Supplier;
+
+import static io.rsocket.internal.ClientSetup.DefaultClientSetup;
+import static io.rsocket.internal.ClientSetup.ResumableClientSetup;
 
 /** Factory for creating RSocket clients and servers. */
 public class RSocketFactory {
@@ -93,10 +100,8 @@ public class RSocketFactory {
   public static class ClientRSocketFactory implements ClientTransportAcceptor {
     private static final String CLIENT_TAG = "client";
 
-    private Supplier<Function<RSocket, RSocket>> acceptor =
-        () -> rSocket -> new AbstractRSocket() {};
-
-    private BiFunction<ConnectionSetupPayload, RSocket, RSocket> biAcceptor;
+    private SocketAcceptor acceptor =
+            (setup, sendingSocket) -> Mono.just(new AbstractRSocket() {});
 
     private Consumer<Throwable> errorConsumer = Throwable::printStackTrace;
     private int mtu = 0;
@@ -268,18 +273,24 @@ public class RSocketFactory {
     }
 
     public ClientTransportAcceptor acceptor(Function<RSocket, RSocket> acceptor) {
-      this.acceptor = () -> acceptor;
-      return StartClient::new;
+      return acceptor(() -> acceptor);
     }
 
     public ClientTransportAcceptor acceptor(Supplier<Function<RSocket, RSocket>> acceptor) {
-      this.acceptor = acceptor;
-      return StartClient::new;
+      return acceptor(
+              (SocketAcceptor) (setup, sendingSocket) -> Mono.just(acceptor.get().apply(sendingSocket)));
     }
 
+    @Deprecated
     public ClientTransportAcceptor acceptor(
         BiFunction<ConnectionSetupPayload, RSocket, RSocket> biAcceptor) {
-      this.biAcceptor = biAcceptor;
+      return acceptor(
+          (SocketAcceptor)
+              (setup, sendingSocket) -> Mono.just(biAcceptor.apply(setup, sendingSocket)));
+    }
+
+    public ClientTransportAcceptor acceptor(SocketAcceptor acceptor) {
+      this.acceptor = acceptor;
       return StartClient::new;
     }
 
@@ -359,32 +370,36 @@ public class RSocketFactory {
 
                   RSocket wrappedRSocketRequester = plugins.applyRequester(rSocketRequester);
 
-                  RSocket rSocketHandler;
-                  if (biAcceptor != null) {
-                    ConnectionSetupPayload setup = ConnectionSetupPayload.create(setupFrame);
-                    rSocketHandler = biAcceptor.apply(setup, wrappedRSocketRequester);
-                  } else {
-                    rSocketHandler = acceptor.get().apply(wrappedRSocketRequester);
-                  }
+                  ConnectionSetupPayload setup = ConnectionSetupPayload.create(setupFrame);
+                  return acceptor
+                      .accept(setup, wrappedRSocketRequester)
+                      .flatMap(
+                          rSocketHandler -> {
+                            RSocket wrappedRSocketHandler = plugins.applyResponder(rSocketHandler);
 
-                  RSocket wrappedRSocketHandler = plugins.applyResponder(rSocketHandler);
+                            ResponderLeaseHandler responderLeaseHandler =
+                                isLeaseEnabled
+                                    ? new ResponderLeaseHandler.Impl<>(
+                                        CLIENT_TAG,
+                                        allocator,
+                                        leases.sender(),
+                                        errorConsumer,
+                                        leases.stats())
+                                    : ResponderLeaseHandler.None;
 
-                  ResponderLeaseHandler responderLeaseHandler =
-                      isLeaseEnabled
-                          ? new ResponderLeaseHandler.Impl<>(
-                              CLIENT_TAG, allocator, leases.sender(), errorConsumer, leases.stats())
-                          : ResponderLeaseHandler.None;
+                            RSocket rSocketResponder =
+                                new RSocketResponder(
+                                    allocator,
+                                    multiplexer.asServerConnection(),
+                                    wrappedRSocketHandler,
+                                    payloadDecoder,
+                                    errorConsumer,
+                                    responderLeaseHandler);
 
-                  RSocket rSocketResponder =
-                      new RSocketResponder(
-                          allocator,
-                          multiplexer.asServerConnection(),
-                          wrappedRSocketHandler,
-                          payloadDecoder,
-                          errorConsumer,
-                          responderLeaseHandler);
-
-                  return wrappedConnection.sendOne(setupFrame).thenReturn(wrappedRSocketRequester);
+                            return wrappedConnection
+                                .sendOne(setupFrame)
+                                .thenReturn(wrappedRSocketRequester);
+                          });
                 });
       }
 
