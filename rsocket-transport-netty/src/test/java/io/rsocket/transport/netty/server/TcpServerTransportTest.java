@@ -70,7 +70,7 @@ final class TcpServerTransportTest {
   @DisplayName("creates server with port")
   @Test
   void createPort() {
-    assertThat(TcpServerTransport.create(8000)).isNotNull();
+    assertThat(TcpServerTransport.create("localhost", 8000)).isNotNull();
   }
 
   @DisplayName("creates client with TcpServer")
@@ -97,7 +97,7 @@ final class TcpServerTransportTest {
   @Test
   void startNullAcceptor() {
     assertThatNullPointerException()
-        .isThrownBy(() -> TcpServerTransport.create(8000).start(null, 0))
+        .isThrownBy(() -> TcpServerTransport.create("localhost", 8000).start(null, 0))
         .withMessage("acceptor must not be null");
   }
 }

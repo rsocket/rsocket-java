@@ -23,7 +23,7 @@ import io.netty.util.collection.IntObjectMap;
 import io.rsocket.exceptions.ApplicationErrorException;
 import io.rsocket.frame.*;
 import io.rsocket.frame.decoder.PayloadDecoder;
-import io.rsocket.internal.LimitableRequestPublisher;
+import io.rsocket.internal.RateLimitableRequestPublisher;
 import io.rsocket.internal.SynchronizedIntObjectHashMap;
 import io.rsocket.internal.UnboundedProcessor;
 import io.rsocket.lease.ResponderLeaseHandler;
@@ -35,6 +35,7 @@ import org.reactivestreams.Subscription;
 import reactor.core.Disposable;
 import reactor.core.Exceptions;
 import reactor.core.publisher.*;
+import reactor.util.concurrent.Queues;
 
 /** Responder side of RSocket. Receives {@link ByteBuf}s from a peer's {@link RSocketRequester} */
 class RSocketResponder implements ResponderRSocket {
@@ -46,7 +47,7 @@ class RSocketResponder implements ResponderRSocket {
   private final Consumer<Throwable> errorConsumer;
   private final ResponderLeaseHandler leaseHandler;
 
-  private final IntObjectMap<LimitableRequestPublisher> sendingLimitableSubscriptions;
+  private final IntObjectMap<RateLimitableRequestPublisher> sendingLimitableSubscriptions;
   private final IntObjectMap<Subscription> sendingSubscriptions;
   private final IntObjectMap<Processor<Payload, Payload>> channelProcessors;
 
@@ -435,8 +436,8 @@ class RSocketResponder implements ResponderRSocket {
     response
         .transform(
             frameFlux -> {
-              LimitableRequestPublisher<Payload> payloads =
-                  LimitableRequestPublisher.wrap(frameFlux);
+              RateLimitableRequestPublisher<Payload> payloads =
+                  RateLimitableRequestPublisher.wrap(frameFlux, Queues.SMALL_BUFFER_SIZE);
               sendingLimitableSubscriptions.put(streamId, payloads);
               payloads.request(
                   initialRequestN >= Integer.MAX_VALUE ? Long.MAX_VALUE : initialRequestN);
