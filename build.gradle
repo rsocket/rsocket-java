@@ -46,7 +46,13 @@ subprojects {
     googleJavaFormat {
         toolVersion = '1.6'
     }
-    
+
+    ext {
+      if (project.hasProperty('versionSuffix')) {
+          project.version += project.getProperty('versionSuffix')
+      }
+    }
+
     dependencyManagement {
         imports {
             mavenBom "io.projectreactor:reactor-bom:${ext['reactor-bom.version']}"
