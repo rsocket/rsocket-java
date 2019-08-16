@@ -99,8 +99,8 @@ public class ReconnectingRSocket implements CoreSubscriber<RSocket>, RSocket, Ru
     if (value == null) {
       reconnect();
     } else {
-      value.onClose().subscribe(null, null, () -> resubscribeWhen(ON_CLOSE_EXCEPTION));
       Consumer<RSocket>[] array = SUBSCRIBERS.getAndSet(this, TERMINATED);
+      value.onClose().subscribe(null, null, () -> resubscribeWhen(ON_CLOSE_EXCEPTION));
       for (Consumer<? super RSocket> as : array) {
         as.accept(value);
       }
