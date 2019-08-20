@@ -20,7 +20,7 @@ dist: trusty
 
 matrix:
   include:
-    - jdk: oraclejdk8
+    - jdk: openjdk8
     - jdk: openjdk11
       env: SKIP_RELEASE=true
     - jdk: openjdk12
