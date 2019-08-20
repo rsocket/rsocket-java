@@ -183,6 +183,16 @@ subprojects {
                                     name 'Yuri Schimke'
                                     email 'yuri@schimke.ee'
                                 }
+                                developer {
+                                    id 'OlegDokuka'
+                                    name 'Oleh Dokuka'
+                                    email 'oleh@netifi.com'
+                                }
+                                developer {
+                                    id 'mostroverkhov'
+                                    name 'Maksym Ostroverkhov'
+                                    email 'm.ostroverkhov@gmail.com'
+                                }
                             }
 
                             scm {
