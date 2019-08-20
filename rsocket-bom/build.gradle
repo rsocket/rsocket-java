@@ -83,6 +83,11 @@ def customizePom(generatedPom, gradleProject) {
                 name 'Oleh Dokuka'
                 email 'oleh@netifi.com'
             }
+            developer {
+                id 'mostroverkhov'
+                name 'Maksym Ostroverkhov'
+                email 'm.ostroverkhov@gmail.com'
+            }
         }
         scm {
             connection = 'scm:git:git://github.com/rsocket/rsocket-java.git'
