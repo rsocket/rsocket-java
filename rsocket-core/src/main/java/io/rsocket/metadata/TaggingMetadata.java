@@ -1,10 +1,8 @@
 package io.rsocket.metadata;
 
-import static io.netty.buffer.Unpooled.buffer;
-
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.CompositeByteBuf;
-import io.netty.buffer.Unpooled;
 import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.Iterator;
@@ -30,16 +28,16 @@ public class TaggingMetadata implements Iterable<String>, CompositeMetadata.Entr
     this.content = content;
   }
 
-  public TaggingMetadata(String type, Collection<String> tags) {
+  public TaggingMetadata(ByteBufAllocator byteBufAllocator, String type, Collection<String> tags) {
     this.type = type;
-    CompositeByteBuf compositeByteBuf = Unpooled.compositeBuffer();
+    CompositeByteBuf compositeByteBuf = byteBufAllocator.compositeBuffer();
     tags.stream()
         .map(tag -> tag.getBytes(StandardCharsets.UTF_8))
         .filter(bytes -> bytes.length > 0 && bytes.length < TAG_LENGTH_MAX)
         .forEach(
             bytes -> {
               int capacity = bytes.length + 1;
-              ByteBuf tagByteBuf = buffer(capacity, capacity);
+              ByteBuf tagByteBuf = byteBufAllocator.buffer(capacity);
               tagByteBuf.writeByte(bytes.length);
               tagByteBuf.writeBytes(bytes);
               compositeByteBuf.addComponent(true, tagByteBuf);
@@ -66,9 +64,7 @@ public class TaggingMetadata implements Iterable<String>, CompositeMetadata.Entr
       public String next() {
         int tagLength = TAG_LENGTH_MAX & content.readByte();
         if (tagLength > 0) {
-          byte[] tagBytes = new byte[tagLength];
-          content.readBytes(tagBytes);
-          return new String(tagBytes, StandardCharsets.UTF_8);
+          return content.readSlice(tagLength).toString(StandardCharsets.UTF_8);
         } else {
           return "";
         }
