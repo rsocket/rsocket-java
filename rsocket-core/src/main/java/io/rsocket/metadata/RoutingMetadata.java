@@ -1,6 +1,7 @@
 package io.rsocket.metadata;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufAllocator;
 import java.util.Collection;
 
 /**
@@ -17,7 +18,7 @@ public class RoutingMetadata extends TaggingMetadata {
     super(ROUTING_MIME_TYPE.getString(), content);
   }
 
-  public RoutingMetadata(Collection<String> tags) {
-    super(ROUTING_MIME_TYPE.getString(), tags);
+  public RoutingMetadata(ByteBufAllocator byteBufAllocator, Collection<String> tags) {
+    super(byteBufAllocator, ROUTING_MIME_TYPE.getString(), tags);
   }
 }
