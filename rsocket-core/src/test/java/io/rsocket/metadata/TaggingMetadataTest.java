@@ -2,6 +2,7 @@ package io.rsocket.metadata;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.netty.buffer.ByteBufAllocator;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -14,13 +15,15 @@ import org.junit.jupiter.api.Test;
  * @author linux_china
  */
 public class TaggingMetadataTest {
+  private ByteBufAllocator byteBufAllocator = ByteBufAllocator.DEFAULT;
 
   @Test
   public void testParseTags() {
     List<String> tags =
         Arrays.asList(
             "ws://localhost:8080/rsocket", String.join("", Collections.nCopies(129, "x")));
-    TaggingMetadata taggingMetadata = new TaggingMetadata("message/x.rsocket.routing.v0", tags);
+    TaggingMetadata taggingMetadata =
+        new TaggingMetadata(byteBufAllocator, "message/x.rsocket.routing.v0", tags);
     TaggingMetadata taggingMetadataCopy =
         new TaggingMetadata("message/x.rsocket.routing.v0", taggingMetadata.getContent());
     assertThat(tags)
@@ -32,7 +35,8 @@ public class TaggingMetadataTest {
     List<String> tags =
         Arrays.asList(
             "ws://localhost:8080/rsocket", "", String.join("", Collections.nCopies(256, "x")));
-    TaggingMetadata taggingMetadata = new TaggingMetadata("message/x.rsocket.routing.v0", tags);
+    TaggingMetadata taggingMetadata =
+        new TaggingMetadata(byteBufAllocator, "message/x.rsocket.routing.v0", tags);
     TaggingMetadata taggingMetadataCopy =
         new TaggingMetadata("message/x.rsocket.routing.v0", taggingMetadata.getContent());
     assertThat(tags.subList(0, 1))
