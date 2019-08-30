@@ -30,6 +30,16 @@ public class TaggingMetadataFlyweight {
   }
 
   /**
+   * create tagging metadata from composite metadata entry
+   *
+   * @param entry composite metadata entry
+   * @return tagging metadata
+   */
+  public static TaggingMetadata createTaggingMetadata(CompositeMetadata.Entry entry) {
+    return new TaggingMetadata(entry.getMimeType(), entry.getContent());
+  }
+
+  /**
    * create tagging metadata
    *
    * @param allocator the {@link ByteBufAllocator} to use to create intermediate buffers as needed.
