@@ -2,6 +2,7 @@ package io.rsocket.metadata;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
+import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.CompositeByteBuf;
 import java.nio.charset.StandardCharsets;
 import java.util.Collection;
@@ -61,17 +62,15 @@ public class TaggingMetadataFlyweight {
    */
   public static ByteBuf createTaggingContent(ByteBufAllocator allocator, Collection<String> tags) {
     CompositeByteBuf taggingContent = allocator.compositeBuffer();
-    tags.stream()
-        .map(tag -> tag.getBytes(StandardCharsets.UTF_8))
-        .filter(bytes -> bytes.length > 0 && bytes.length < TAG_LENGTH_MAX)
-        .forEach(
-            bytes -> {
-              int capacity = bytes.length + 1;
-              ByteBuf tagByteBuf = allocator.buffer(capacity);
-              tagByteBuf.writeByte(bytes.length);
-              tagByteBuf.writeBytes(bytes);
-              taggingContent.addComponent(true, tagByteBuf);
-            });
+    for (String key : tags) {
+      int length = ByteBufUtil.utf8Bytes(key);
+      if (length > TAG_LENGTH_MAX) {
+        continue;
+      }
+      ByteBuf byteBuf = allocator.buffer().writeByte(length);
+      byteBuf.writeCharSequence(key, StandardCharsets.UTF_8);
+      taggingContent.addComponent(true, byteBuf);
+    }
     return taggingContent;
   }
 }
