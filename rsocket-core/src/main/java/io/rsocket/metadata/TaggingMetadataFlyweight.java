@@ -64,7 +64,7 @@ public class TaggingMetadataFlyweight {
     CompositeByteBuf taggingContent = allocator.compositeBuffer();
     for (String key : tags) {
       int length = ByteBufUtil.utf8Bytes(key);
-      if (length > TAG_LENGTH_MAX) {
+      if (length == 0 || length > TAG_LENGTH_MAX) {
         continue;
       }
       ByteBuf byteBuf = allocator.buffer().writeByte(length);
