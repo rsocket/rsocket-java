@@ -1,10 +1,7 @@
 package io.rsocket.metadata;
 
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.ByteBufAllocator;
-import io.netty.buffer.CompositeByteBuf;
 import java.nio.charset.StandardCharsets;
-import java.util.Collection;
 import java.util.Iterator;
 import java.util.Spliterator;
 import java.util.Spliterators;
@@ -20,29 +17,12 @@ public class TaggingMetadata implements Iterable<String>, CompositeMetadata.Entr
   /** Tag max length in bytes */
   private static int TAG_LENGTH_MAX = 0xFF;
 
-  private String type;
+  private String mimeType;
   private ByteBuf content;
 
-  public TaggingMetadata(String type, ByteBuf content) {
-    this.type = type;
+  public TaggingMetadata(String mimeType, ByteBuf content) {
+    this.mimeType = mimeType;
     this.content = content;
-  }
-
-  public TaggingMetadata(ByteBufAllocator byteBufAllocator, String type, Collection<String> tags) {
-    this.type = type;
-    CompositeByteBuf compositeByteBuf = byteBufAllocator.compositeBuffer();
-    tags.stream()
-        .map(tag -> tag.getBytes(StandardCharsets.UTF_8))
-        .filter(bytes -> bytes.length > 0 && bytes.length < TAG_LENGTH_MAX)
-        .forEach(
-            bytes -> {
-              int capacity = bytes.length + 1;
-              ByteBuf tagByteBuf = byteBufAllocator.buffer(capacity);
-              tagByteBuf.writeByte(bytes.length);
-              tagByteBuf.writeBytes(bytes);
-              compositeByteBuf.addComponent(true, tagByteBuf);
-            });
-    this.content = compositeByteBuf;
   }
 
   public Stream<String> stream() {
@@ -79,6 +59,6 @@ public class TaggingMetadata implements Iterable<String>, CompositeMetadata.Entr
 
   @Override
   public String getMimeType() {
-    return this.type;
+    return this.mimeType;
   }
 }
