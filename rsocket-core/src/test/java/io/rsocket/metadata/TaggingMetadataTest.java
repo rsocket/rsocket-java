@@ -23,7 +23,8 @@ public class TaggingMetadataTest {
         Arrays.asList(
             "ws://localhost:8080/rsocket", String.join("", Collections.nCopies(129, "x")));
     TaggingMetadata taggingMetadata =
-        new TaggingMetadata(byteBufAllocator, "message/x.rsocket.routing.v0", tags);
+        TaggingMetadataFlyweight.createTaggingMetadata(
+            byteBufAllocator, "message/x.rsocket.routing.v0", tags);
     TaggingMetadata taggingMetadataCopy =
         new TaggingMetadata("message/x.rsocket.routing.v0", taggingMetadata.getContent());
     assertThat(tags)
@@ -36,7 +37,8 @@ public class TaggingMetadataTest {
         Arrays.asList(
             "ws://localhost:8080/rsocket", "", String.join("", Collections.nCopies(256, "x")));
     TaggingMetadata taggingMetadata =
-        new TaggingMetadata(byteBufAllocator, "message/x.rsocket.routing.v0", tags);
+        TaggingMetadataFlyweight.createTaggingMetadata(
+            byteBufAllocator, "message/x.rsocket.routing.v0", tags);
     TaggingMetadata taggingMetadataCopy =
         new TaggingMetadata("message/x.rsocket.routing.v0", taggingMetadata.getContent());
     assertThat(tags.subList(0, 1))
