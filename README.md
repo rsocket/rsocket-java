@@ -23,10 +23,10 @@ Example:
 
 ```groovy
 dependencies {
-    implementation 'io.rsocket:rsocket-core:1.0.0-RC2'
-    implementation 'io.rsocket:rsocket-transport-netty:1.0.0-RC2'
-//    implementation 'io.rsocket:rsocket-core:1.0.0-RC3-SNAPSHOT'
-//    implementation 'io.rsocket:rsocket-transport-netty:1.0.0-RC3-SNAPSHOT'
+    implementation 'io.rsocket:rsocket-core:1.0.0-RC3'
+    implementation 'io.rsocket:rsocket-transport-netty:1.0.0-RC3'
+//    implementation 'io.rsocket:rsocket-core:1.0.0-RC4-SNAPSHOT'
+//    implementation 'io.rsocket:rsocket-transport-netty:1.0.0-RC4-SNAPSHOT'
 }
 ```
 
