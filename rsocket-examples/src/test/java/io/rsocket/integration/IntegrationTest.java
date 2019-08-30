@@ -29,6 +29,7 @@ import io.rsocket.RSocket;
 import io.rsocket.RSocketFactory;
 import io.rsocket.plugins.DuplexConnectionInterceptor;
 import io.rsocket.plugins.RSocketInterceptor;
+import io.rsocket.plugins.SocketAcceptorInterceptor;
 import io.rsocket.test.TestSubscriber;
 import io.rsocket.transport.netty.client.TcpClientTransport;
 import io.rsocket.transport.netty.server.CloseableChannel;
@@ -48,32 +49,50 @@ import reactor.core.publisher.Mono;
 
 public class IntegrationTest {
 
-  private static final RSocketInterceptor clientPlugin;
-  private static final RSocketInterceptor serverPlugin;
+  private static final RSocketInterceptor requesterPlugin;
+  private static final RSocketInterceptor responderPlugin;
+  private static final SocketAcceptorInterceptor clientAcceptorPlugin;
+  private static final SocketAcceptorInterceptor serverAcceptorPlugin;
   private static final DuplexConnectionInterceptor connectionPlugin;
-  public static volatile boolean calledClient = false;
-  public static volatile boolean calledServer = false;
+  public static volatile boolean calledRequester = false;
+  public static volatile boolean calledResponder = false;
+  public static volatile boolean calledClientAcceptor = false;
+  public static volatile boolean calledServerAcceptor = false;
   public static volatile boolean calledFrame = false;
 
   static {
-    clientPlugin =
+    requesterPlugin =
         reactiveSocket ->
             new RSocketProxy(reactiveSocket) {
               @Override
               public Mono<Payload> requestResponse(Payload payload) {
-                calledClient = true;
+                calledRequester = true;
                 return reactiveSocket.requestResponse(payload);
               }
             };
 
-    serverPlugin =
+    responderPlugin =
         reactiveSocket ->
             new RSocketProxy(reactiveSocket) {
               @Override
               public Mono<Payload> requestResponse(Payload payload) {
-                calledServer = true;
+                calledResponder = true;
                 return reactiveSocket.requestResponse(payload);
               }
+            };
+
+    clientAcceptorPlugin =
+        acceptor ->
+            (setup, sendingSocket) -> {
+              calledClientAcceptor = true;
+              return acceptor.accept(setup, sendingSocket);
+            };
+
+    serverAcceptorPlugin =
+        acceptor ->
+            (setup, sendingSocket) -> {
+              calledServerAcceptor = true;
+              return acceptor.accept(setup, sendingSocket);
             };
 
     connectionPlugin =
@@ -95,11 +114,12 @@ public class IntegrationTest {
     requestCount = new AtomicInteger();
     disconnectionCounter = new CountDownLatch(1);
 
-    TcpServerTransport serverTransport = TcpServerTransport.create(0);
+    TcpServerTransport serverTransport = TcpServerTransport.create("localhost", 0);
 
     server =
         RSocketFactory.receive()
-            .addServerPlugin(serverPlugin)
+            .addResponderPlugin(responderPlugin)
+            .addSocketAcceptorPlugin(serverAcceptorPlugin)
             .addConnectionPlugin(connectionPlugin)
             .errorConsumer(
                 t -> {
@@ -138,7 +158,8 @@ public class IntegrationTest {
 
     client =
         RSocketFactory.connect()
-            .addClientPlugin(clientPlugin)
+            .addRequesterPlugin(requesterPlugin)
+            .addSocketAcceptorPlugin(clientAcceptorPlugin)
             .addConnectionPlugin(connectionPlugin)
             .transport(TcpClientTransport.create(server.address()))
             .start()
@@ -154,8 +175,10 @@ public class IntegrationTest {
   public void testRequest() {
     client.requestResponse(DefaultPayload.create("REQUEST", "META")).block();
     assertThat("Server did not see the request.", requestCount.get(), is(1));
-    assertTrue(calledClient);
-    assertTrue(calledServer);
+    assertTrue(calledRequester);
+    assertTrue(calledResponder);
+    assertTrue(calledClientAcceptor);
+    assertTrue(calledServerAcceptor);
     assertTrue(calledFrame);
   }
 
