@@ -32,29 +32,23 @@ build.doLast {
     }
 }
 
-dependencies {
-    compile project(':rsocket-core')
-    compile project(':rsocket-test')
-    compile project(':rsocket-load-balancer')
-    compile project(':rsocket-micrometer')
-    compile project(':rsocket-transport-local')
-    compile project(':rsocket-transport-netty')
+dependencyManagement {
+    dependencies {
+        rootProject.subprojects.each {
+            if (it.name != project.name) {
+              dependency(group: it.group, name: it.name, version: it.version)
+            }
+        }
+    }
 }
 
 def customizePom(generatedPom, gradleProject) {
-    //make sure that dependencies are under <dependencyManagement>
-    generatedPom.withXml {
-        if (generatedPom.generatedDependencies.size > 0) {
-            asNode().appendNode('dependencyManagement', asNode().dependencies)
-            asNode().dependencies.replaceNode {}
-        }
-    }
-
     generatedPom.project {
         name = 'RSocket-Java Release Train - BOM'
         description = gradleProject.description
         url = 'http://rsocket.io'
-        groupId = group
+        groupId = gradleProject.group
+        version = gradleProject.version.trim()
         packaging = "pom"
         licenses {
             license {
@@ -105,13 +99,7 @@ def customizePom(generatedPom, gradleProject) {
 plugins.withType(MavenPublishPlugin) {
     publishing {
         publications {
-            mavenJava(MavenPublication) {
-                pom.withXml {
-                    def sb = asString()
-                    sb.setLength 0
-                    sb.append file("$buildDir/poms/rsocket-bom-${version}.xml").text
-                    println(sb.toString())
-                }
+            mavenBom(MavenPublication) {
             }
         }
     }
