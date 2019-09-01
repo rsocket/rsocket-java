@@ -102,103 +102,168 @@ subprojects {
         }
     }
 
-    plugins.withType(JavaPlugin) {
-        compileJava {
-            sourceCompatibility = 1.8
+    if (project.name != 'rsocket-bom') {
 
-            // TODO: Cleanup warnings so no need to exclude
-            options.compilerArgs << '-Xlint:all,-overloads,-rawtypes,-unchecked'
-        }
+        plugins.withType(JavaPlugin) {
+            compileJava {
+                sourceCompatibility = 1.8
 
-        javadoc {
-            options.with {
-                links 'https://docs.oracle.com/javase/8/docs/api/'
-                links 'https://projectreactor.io/docs/core/release/api/'
-                links 'https://netty.io/4.1/api/'
+                // TODO: Cleanup warnings so no need to exclude
+                options.compilerArgs << '-Xlint:all,-overloads,-rawtypes,-unchecked'
+            }
+
+            javadoc {
+                options.with {
+                    links 'https://docs.oracle.com/javase/8/docs/api/'
+                    links 'https://projectreactor.io/docs/core/release/api/'
+                    links 'https://netty.io/4.1/api/'
+                }
+            }
+
+            test {
+                useJUnitPlatform()
+
+                systemProperty "io.netty.leakDetection.level", "ADVANCED"
+            }
+
+            tasks.named("javadoc").configure {
+                onlyIf { System.getenv('SKIP_RELEASE') != "true" }
             }
         }
 
-        test {
-            useJUnitPlatform()
+        plugins.withType(JavaLibraryPlugin) {
+            task sourcesJar(type: Jar) {
+                classifier 'sources'
+                from sourceSets.main.allJava
+            }
 
-            systemProperty "io.netty.leakDetection.level", "ADVANCED"
-        }
-        
-        tasks.named("javadoc").configure {
-            onlyIf { System.getenv('SKIP_RELEASE') != "true" }
-        }
-    }
-
-    plugins.withType(JavaLibraryPlugin) {
-        task sourcesJar(type: Jar) {
-            classifier 'sources'
-            from sourceSets.main.allJava
+            task javadocJar(type: Jar, dependsOn: javadoc) {
+                classifier 'javadoc'
+                from javadoc.destinationDir
+            }
         }
 
-        task javadocJar(type: Jar, dependsOn: javadoc) {
-            classifier 'javadoc'
-            from javadoc.destinationDir
-        }
-    }
+        plugins.withType(MavenPublishPlugin) {
+            publishing {
+                publications {
+                    maven(MavenPublication) {
+                        groupId 'io.rsocket'
 
-    plugins.withType(MavenPublishPlugin) {
-        publishing {
-            publications {
-                maven(MavenPublication) {
-                    groupId 'io.rsocket'
+                        from components.java
 
-                    from components.java
+                        artifact sourcesJar
+                        artifact javadocJar
 
-                    artifact sourcesJar
-                    artifact javadocJar
+                        pom.withXml {
+                            asNode().':version' + {
+                                resolveStrategy = DELEGATE_FIRST
 
-                    pom.withXml {
-                        asNode().':version' + {
-                            resolveStrategy = DELEGATE_FIRST
+                                name project.name
+                                description project.description
+                                url 'http://rsocket.io'
 
-                            name project.name
-                            description project.description
-                            url 'http://rsocket.io'
+                                licenses {
+                                    license {
+                                        name 'The Apache Software License, Version 2.0'
+                                        url 'http://www.apache.org/license/LICENSE-2.0.txt'
+                                    }
+                                }
 
-                            licenses {
-                                license {
-                                    name 'The Apache Software License, Version 2.0'
-                                    url 'http://www.apache.org/license/LICENSE-2.0.txt'
+                                developers {
+                                    developer {
+                                        id 'robertroeser'
+                                        name 'Robert Roeser'
+                                        email 'robert@netifi.com'
+                                    }
+                                    developer {
+                                        id 'rdegnan'
+                                        name 'Ryland Degnan'
+                                        email 'ryland@netifi.com'
+                                    }
+                                    developer {
+                                        id 'yschimke'
+                                        name 'Yuri Schimke'
+                                        email 'yuri@schimke.ee'
+                                    }
+                                    developer {
+                                        id 'OlegDokuka'
+                                        name 'Oleh Dokuka'
+                                        email 'oleh@netifi.com'
+                                    }
+                                    developer {
+                                        id 'mostroverkhov'
+                                        name 'Maksym Ostroverkhov'
+                                        email 'm.ostroverkhov@gmail.com'
+                                    }
+                                }
+
+                                scm {
+                                    connection 'scm:git:https://github.com/rsocket/rsocket-java.git'
+                                    developerConnection 'scm:git:https://github.com/rsocket/rsocket-java.git'
+                                    url 'https://github.com/rsocket/rsocket-java'
                                 }
                             }
+                        }
+                    }
+                }
+            }
+        }
 
-                            developers {
-                                developer {
-                                    id 'robertroeser'
-                                    name 'Robert Roeser'
-                                    email 'robert@netifi.com'
-                                }
-                                developer {
-                                    id 'rdegnan'
-                                    name 'Ryland Degnan'
-                                    email 'ryland@netifi.com'
-                                }
-                                developer {
-                                    id 'yschimke'
-                                    name 'Yuri Schimke'
-                                    email 'yuri@schimke.ee'
-                                }
-                                developer {
-                                    id 'OlegDokuka'
-                                    name 'Oleh Dokuka'
-                                    email 'oleh@netifi.com'
-                                }
-                                developer {
-                                    id 'mostroverkhov'
-                                    name 'Maksym Ostroverkhov'
-                                    email 'm.ostroverkhov@gmail.com'
-                                }
-                            }
+    } else {
+        plugins.withType(MavenPublishPlugin) {
+            publishing {
+                publications {
+                    maven(MavenPublication) {
+                        groupId 'io.rsocket'
 
-                            scm {
-                                connection 'scm:git:https://github.com/rsocket/rsocket-java.git'
-                                developerConnection 'scm:git:https://github.com/rsocket/rsocket-java.git'
-                                url 'https://github.com/rsocket/rsocket-java'
+                        pom.withXml {
+                            asNode().':version' + {
+                                resolveStrategy = DELEGATE_FIRST
+
+                                name project.name
+                                description project.description
+                                url 'http://rsocket.io'
+
+                                licenses {
+                                    license {
+                                        name 'The Apache Software License, Version 2.0'
+                                        url 'http://www.apache.org/license/LICENSE-2.0.txt'
+                                    }
+                                }
+
+                                developers {
+                                    developer {
+                                        id 'robertroeser'
+                                        name 'Robert Roeser'
+                                        email 'robert@netifi.com'
+                                    }
+                                    developer {
+                                        id 'rdegnan'
+                                        name 'Ryland Degnan'
+                                        email 'ryland@netifi.com'
+                                    }
+                                    developer {
+                                        id 'yschimke'
+                                        name 'Yuri Schimke'
+                                        email 'yuri@schimke.ee'
+                                    }
+                                    developer {
+                                        id 'OlegDokuka'
+                                        name 'Oleh Dokuka'
+                                        email 'oleh@netifi.com'
+                                    }
+                                    developer {
+                                        id 'mostroverkhov'
+                                        name 'Maksym Ostroverkhov'
+                                        email 'm.ostroverkhov@gmail.com'
+                                    }
+                                }
+
+                                scm {
+                                    connection 'scm:git:https://github.com/rsocket/rsocket-java.git'
+                                    developerConnection 'scm:git:https://github.com/rsocket/rsocket-java.git'
+                                    url 'https://github.com/rsocket/rsocket-java'
+                                }
                             }
                         }
                     }
