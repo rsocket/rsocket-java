@@ -28,7 +28,7 @@ dependencyManagement {
     dependencies {
         rootProject.subprojects.each {
             if (it.name != project.name) {
-                dependency(group: it.group, name: it.name, version: it.version)
+                dependency(group: 'io.rsocket', name: it.name, version: it.version)
             }
         }
     }
