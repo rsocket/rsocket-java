@@ -16,27 +16,25 @@
 
 package io.rsocket.examples.transport.ws;
 
-import io.netty.handler.codec.http.HttpResponseStatus;
+import io.netty.handler.codec.http.websocketx.WebSocketCloseStatus;
 import io.rsocket.AbstractRSocket;
 import io.rsocket.ConnectionSetupPayload;
-import io.rsocket.DuplexConnection;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.RSocketFactory;
 import io.rsocket.SocketAcceptor;
 import io.rsocket.frame.decoder.PayloadDecoder;
-import io.rsocket.transport.ServerTransport;
-import io.rsocket.transport.netty.WebsocketDuplexConnection;
 import io.rsocket.transport.netty.client.WebsocketClientTransport;
+import io.rsocket.transport.netty.server.CloseableChannel;
+import io.rsocket.transport.netty.server.WebsocketServerTransport;
 import io.rsocket.util.ByteBufPayload;
 import java.time.Duration;
 import java.util.HashMap;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.publisher.MonoProcessor;
 import reactor.core.scheduler.Schedulers;
-import reactor.netty.Connection;
-import reactor.netty.DisposableServer;
 import reactor.netty.http.server.HttpServer;
 
 public class WebSocketHeadersSample {
@@ -44,42 +42,42 @@ public class WebSocketHeadersSample {
 
   public static void main(String[] args) {
 
-    ServerTransport.ConnectionAcceptor acceptor =
+    CloseableChannel disposableServer =
         RSocketFactory.receive()
             .frameDecoder(PayloadDecoder.ZERO_COPY)
             .acceptor(new SocketAcceptorImpl())
-            .toConnectionAcceptor();
-
-    DisposableServer disposableServer =
-        HttpServer.create()
-            .host("localhost")
-            .port(0)
-            .route(
-                routes ->
-                    routes.ws(
-                        "/",
-                        (in, out) -> {
-                          if (in.headers().containsValue("Authorization", "test", true)) {
-                            DuplexConnection connection =
-                                new WebsocketDuplexConnection((Connection) in);
-                            return acceptor.apply(connection).then(out.neverComplete());
-                          }
-
-                          return out.sendClose(
-                              HttpResponseStatus.UNAUTHORIZED.code(),
-                              HttpResponseStatus.UNAUTHORIZED.reasonPhrase());
-                        }))
-            .bindNow();
+            .transport(
+                WebsocketServerTransport.builder()
+                    .filteringInbound(
+                        headers -> headers.containsValue("Authorization", "test", true))
+                    .closingWithStatus(headers -> new WebSocketCloseStatus(4404, "Unauthorized"))
+                    .build(HttpServer.create().host("localhost").port(8080))
+                // Same could be done with routing transport
+                //            WebsocketRouteTransport
+                //                .builder()
+                //                .filteringInbound(headers ->
+                // headers.containsValue("Authorization", "test", true))
+                //                .closingWithStatus(headers -> new WebSocketCloseStatus(4404,
+                // "Unauthorized"))
+                //                .observingOn("/")
+                //                .build(HttpServer.create().host("localhost").port(8080))
+                )
+            .start()
+            .block();
 
     WebsocketClientTransport clientTransport =
-        WebsocketClientTransport.create(disposableServer.host(), disposableServer.port());
+        WebsocketClientTransport.create(disposableServer.address());
 
+    MonoProcessor<WebSocketCloseStatus> statusMonoProcessor = MonoProcessor.create();
     clientTransport.setTransportHeaders(
         () -> {
           HashMap<String, String> map = new HashMap<>();
-          map.put("Authorization", "test");
+          map.put("Authorization", "1");
           return map;
         });
+
+    clientTransport.setCloseStatusConsumer(
+        webSocketCloseStatusMono -> webSocketCloseStatusMono.log().subscribe(statusMonoProcessor));
 
     RSocket socket =
         RSocketFactory.connect()
@@ -89,17 +87,24 @@ public class WebSocketHeadersSample {
             .start()
             .block();
 
-    Flux.range(0, 100)
-        .concatMap(i -> socket.fireAndForget(payload1.retain()))
-        //        .doOnNext(p -> {
-        ////            System.out.println(p.getDataUtf8());
-        //            p.release();
-        //        })
-        .blockLast();
+    try {
+      Flux.range(0, 100).concatMap(i -> socket.fireAndForget(payload1.retain())).blockLast();
+
+    } catch (Exception e) {
+      System.out.println("Observed WebSocket Close Status " + statusMonoProcessor.peek());
+    }
+
     socket.dispose();
 
     WebsocketClientTransport clientTransport2 =
-        WebsocketClientTransport.create(disposableServer.host(), disposableServer.port());
+        WebsocketClientTransport.create(disposableServer.address());
+
+    clientTransport2.setTransportHeaders(
+        () -> {
+          HashMap<String, String> map = new HashMap<>();
+          map.put("Authorization", "test");
+          return map;
+        });
 
     RSocket rSocket =
         RSocketFactory.connect()
@@ -109,7 +114,7 @@ public class WebSocketHeadersSample {
             .start()
             .block();
 
-    // expect error here because of closed channel
+    // expect normal execution here
     rSocket.requestResponse(payload1).block();
   }
 

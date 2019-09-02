@@ -21,6 +21,7 @@ import static io.rsocket.transport.netty.UriUtils.getPort;
 import static io.rsocket.transport.netty.UriUtils.isSecure;
 
 import io.netty.buffer.ByteBufAllocator;
+import io.netty.handler.codec.http.websocketx.WebSocketCloseStatus;
 import io.rsocket.DuplexConnection;
 import io.rsocket.fragmentation.FragmentationDuplexConnection;
 import io.rsocket.transport.ClientTransport;
@@ -32,9 +33,11 @@ import java.net.URI;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import reactor.core.publisher.Mono;
 import reactor.netty.http.client.HttpClient;
+import reactor.netty.http.websocket.WebsocketInbound;
 import reactor.netty.tcp.TcpClient;
 
 /**
@@ -48,7 +51,9 @@ public final class WebsocketClientTransport implements ClientTransport, Transpor
 
   private final HttpClient client;
 
-  private String path;
+  private final String path;
+
+  private Consumer<Mono<WebSocketCloseStatus>> closeStatusConsumer;
 
   private Supplier<Map<String, String>> transportHeaders = Collections::emptyMap;
 
@@ -161,6 +166,11 @@ public final class WebsocketClientTransport implements ClientTransport, Transpor
             .connect()
             .map(
                 c -> {
+                  Consumer<Mono<WebSocketCloseStatus>> closeStatusConsumer =
+                      this.closeStatusConsumer;
+                  if (closeStatusConsumer != null) {
+                    closeStatusConsumer.accept(((WebsocketInbound) c).receiveCloseStatus());
+                  }
                   DuplexConnection connection = new WebsocketDuplexConnection(c);
                   if (mtu > 0) {
                     connection =
@@ -175,5 +185,9 @@ public final class WebsocketClientTransport implements ClientTransport, Transpor
   public void setTransportHeaders(Supplier<Map<String, String>> transportHeaders) {
     this.transportHeaders =
         Objects.requireNonNull(transportHeaders, "transportHeaders must not be null");
+  }
+
+  public void setCloseStatusConsumer(Consumer<Mono<WebSocketCloseStatus>> closeStatusConsumer) {
+    this.closeStatusConsumer = closeStatusConsumer;
   }
 }

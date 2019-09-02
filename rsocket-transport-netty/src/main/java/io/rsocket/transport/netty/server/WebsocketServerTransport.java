@@ -16,15 +16,18 @@
 
 package io.rsocket.transport.netty.server;
 
+import static io.netty.handler.codec.http.websocketx.WebSocketCloseStatus.NORMAL_CLOSURE;
 import static io.rsocket.frame.FrameLengthFlyweight.FRAME_LENGTH_MASK;
 
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
+import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.websocketx.CloseWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.PingWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.PongWebSocketFrame;
+import io.netty.handler.codec.http.websocketx.WebSocketCloseStatus;
 import io.rsocket.DuplexConnection;
 import io.rsocket.fragmentation.FragmentationDuplexConnection;
 import io.rsocket.transport.ClientTransport;
@@ -35,7 +38,10 @@ import java.net.InetSocketAddress;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
+import javax.annotation.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Mono;
@@ -50,9 +56,17 @@ public final class WebsocketServerTransport
     implements ServerTransport<CloseableChannel>, TransportHeaderAware {
   private static final Logger logger = LoggerFactory.getLogger(WebsocketServerTransport.class);
 
+  private static final Function<HttpHeaders, WebSocketCloseStatus> DEFAULT_STATUS_SUPPLIER =
+      __ -> NORMAL_CLOSURE;
+
   private final HttpServer server;
 
   private Supplier<Map<String, String>> transportHeaders = Collections::emptyMap;
+
+  private Function<HttpHeaders, WebSocketCloseStatus> webSocketCloseStatusSupplier =
+      DEFAULT_STATUS_SUPPLIER;
+
+  private @Nullable Predicate<HttpHeaders> headersPredicate;
 
   private WebsocketServerTransport(HttpServer server) {
     this.server = server;
@@ -147,27 +161,92 @@ public final class WebsocketServerTransport
     Objects.requireNonNull(acceptor, "acceptor must not be null");
 
     Mono<CloseableChannel> isError = FragmentationDuplexConnection.checkMtu(mtu);
-    return isError != null
-        ? isError
-        : server
-            .handle(
-                (request, response) -> {
-                  transportHeaders.get().forEach(response::addHeader);
-                  return response.sendWebsocket(
-                      null,
-                      FRAME_LENGTH_MASK,
-                      (in, out) -> {
-                        DuplexConnection connection =
-                            new WebsocketDuplexConnection((Connection) in);
-                        if (mtu > 0) {
-                          connection =
-                              new FragmentationDuplexConnection(
-                                  connection, ByteBufAllocator.DEFAULT, mtu, false, "server");
-                        }
-                        return acceptor.apply(connection).then(out.neverComplete());
-                      });
-                })
-            .bind()
-            .map(CloseableChannel::new);
+
+    if (isError != null) {
+      return isError;
+    }
+
+    if (headersPredicate != null) {
+      return server
+          .handle(
+              (request, response) -> {
+                transportHeaders.get().forEach(response::addHeader);
+                return response.sendWebsocket(
+                    null,
+                    FRAME_LENGTH_MASK,
+                    (in, out) -> {
+                      HttpHeaders headers = in.headers();
+                      if (!headersPredicate.test(headers)) {
+                        final WebSocketCloseStatus status =
+                            webSocketCloseStatusSupplier.apply(headers);
+                        return out.sendClose(status.code(), status.reasonText());
+                      }
+
+                      DuplexConnection connection = new WebsocketDuplexConnection((Connection) in);
+                      if (mtu > 0) {
+                        connection =
+                            new FragmentationDuplexConnection(
+                                connection, ByteBufAllocator.DEFAULT, mtu, false, "server");
+                      }
+                      return acceptor.apply(connection).then(out.neverComplete());
+                    });
+              })
+          .bind()
+          .map(CloseableChannel::new);
+    }
+
+    return server
+        .handle(
+            (request, response) -> {
+              transportHeaders.get().forEach(response::addHeader);
+              return response.sendWebsocket(
+                  null,
+                  FRAME_LENGTH_MASK,
+                  (in, out) -> {
+                    DuplexConnection connection = new WebsocketDuplexConnection((Connection) in);
+                    if (mtu > 0) {
+                      connection =
+                          new FragmentationDuplexConnection(
+                              connection, ByteBufAllocator.DEFAULT, mtu, false, "server");
+                    }
+                    return acceptor.apply(connection).then(out.neverComplete());
+                  });
+            })
+        .bind()
+        .map(CloseableChannel::new);
+  }
+
+  public static Builder builder() {
+    return new Builder();
+  }
+
+  public static class Builder {
+
+    private Predicate<HttpHeaders> headersPredicate;
+    private Function<HttpHeaders, WebSocketCloseStatus> webSocketCloseStatusSupplier =
+        DEFAULT_STATUS_SUPPLIER;
+
+    public Builder filteringInbound(Predicate<HttpHeaders> headersPredicate) {
+      this.headersPredicate =
+          Objects.requireNonNull(headersPredicate, "Header predicate must not be null");
+      return this;
+    }
+
+    public Builder closingWithStatus(
+        Function<HttpHeaders, WebSocketCloseStatus> webSocketCloseStatusSupplier) {
+      this.webSocketCloseStatusSupplier =
+          Objects.requireNonNull(
+              webSocketCloseStatusSupplier, "WebSocketCloseStatusSupplier must not be null");
+      return this;
+    }
+
+    public WebsocketServerTransport build(HttpServer server) {
+      WebsocketServerTransport websocketServerTransport = WebsocketServerTransport.create(server);
+
+      websocketServerTransport.headersPredicate = headersPredicate;
+      websocketServerTransport.webSocketCloseStatusSupplier = webSocketCloseStatusSupplier;
+
+      return websocketServerTransport;
+    }
   }
 }

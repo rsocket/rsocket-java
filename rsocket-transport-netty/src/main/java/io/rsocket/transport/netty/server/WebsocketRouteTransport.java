@@ -16,11 +16,13 @@
 
 package io.rsocket.transport.netty.server;
 
+import static io.netty.handler.codec.http.websocketx.WebSocketCloseStatus.NORMAL_CLOSURE;
 import static io.rsocket.frame.FrameLengthFlyweight.FRAME_LENGTH_MASK;
 
 import io.netty.buffer.ByteBufAllocator;
+import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpMethod;
-import io.rsocket.Closeable;
+import io.netty.handler.codec.http.websocketx.WebSocketCloseStatus;
 import io.rsocket.DuplexConnection;
 import io.rsocket.fragmentation.FragmentationDuplexConnection;
 import io.rsocket.transport.ServerTransport;
@@ -32,8 +34,11 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import javax.annotation.Nullable;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Mono;
 import reactor.netty.Connection;
@@ -46,13 +51,22 @@ import reactor.netty.http.websocket.WebsocketOutbound;
  * An implementation of {@link ServerTransport} that connects via Websocket and listens on specified
  * routes.
  */
-public final class WebsocketRouteTransport implements ServerTransport<Closeable> {
+public final class WebsocketRouteTransport implements ServerTransport<CloseableChannel> {
+
+  private static final Function<HttpHeaders, WebSocketCloseStatus> DEFAULT_STATUS_SUPPLIER =
+      __ -> NORMAL_CLOSURE;
+
+  private static final Consumer<HttpServerRoutes> NO_OPS_ROUTES_BUILDER = (r) -> {};
 
   private final UriPathTemplate template;
 
   private final Consumer<? super HttpServerRoutes> routesBuilder;
 
   private final HttpServer server;
+
+  private final Function<HttpHeaders, WebSocketCloseStatus> webSocketCloseStatusSupplier;
+
+  private final @Nullable Predicate<HttpHeaders> headersPredicate;
 
   /**
    * Creates a new instance
@@ -64,14 +78,42 @@ public final class WebsocketRouteTransport implements ServerTransport<Closeable>
   public WebsocketRouteTransport(
       HttpServer server, Consumer<? super HttpServerRoutes> routesBuilder, String path) {
 
+    this(server, routesBuilder, path, null, DEFAULT_STATUS_SUPPLIER);
+  }
+
+  public WebsocketRouteTransport(
+      HttpServer server,
+      Consumer<? super HttpServerRoutes> routesBuilder,
+      String path,
+      @Nullable Predicate<HttpHeaders> headersPredicate,
+      Function<HttpHeaders, WebSocketCloseStatus> webSocketCloseStatusSupplier) {
+
     this.server = Objects.requireNonNull(server, "server must not be null");
     this.routesBuilder = Objects.requireNonNull(routesBuilder, "routesBuilder must not be null");
     this.template = new UriPathTemplate(Objects.requireNonNull(path, "path must not be null"));
+    this.headersPredicate = headersPredicate;
+    this.webSocketCloseStatusSupplier =
+        Objects.requireNonNull(webSocketCloseStatusSupplier, "status supplier must not be null");
   }
 
   @Override
-  public Mono<Closeable> start(ConnectionAcceptor acceptor, int mtu) {
+  public Mono<CloseableChannel> start(ConnectionAcceptor acceptor, int mtu) {
     Objects.requireNonNull(acceptor, "acceptor must not be null");
+
+    if (headersPredicate != null) {
+      return server
+          .route(
+              routes -> {
+                routesBuilder.accept(routes);
+                routes.ws(
+                    hsr -> hsr.method().equals(HttpMethod.GET) && template.matches(hsr.uri()),
+                    newHandler(acceptor, mtu, headersPredicate, webSocketCloseStatusSupplier),
+                    null,
+                    FRAME_LENGTH_MASK);
+              })
+          .bind()
+          .map(CloseableChannel::new);
+    }
 
     return server
         .route(
@@ -110,6 +152,36 @@ public final class WebsocketRouteTransport implements ServerTransport<Closeable>
   public static BiFunction<WebsocketInbound, WebsocketOutbound, Publisher<Void>> newHandler(
       ConnectionAcceptor acceptor, int mtu) {
     return (in, out) -> {
+      DuplexConnection connection = new WebsocketDuplexConnection((Connection) in);
+      if (mtu > 0) {
+        connection =
+            new FragmentationDuplexConnection(
+                connection, ByteBufAllocator.DEFAULT, mtu, false, "server");
+      }
+      return acceptor.apply(connection).then(out.neverComplete());
+    };
+  }
+
+  /**
+   * Creates a new Websocket handler
+   *
+   * @param acceptor the {@link ConnectionAcceptor} to use with the handler
+   * @param mtu the fragment size
+   * @return a new Websocket handler
+   * @throws NullPointerException if {@code acceptor} is {@code null}
+   */
+  public static BiFunction<WebsocketInbound, WebsocketOutbound, Publisher<Void>> newHandler(
+      ConnectionAcceptor acceptor,
+      int mtu,
+      Predicate<HttpHeaders> headersPredicate,
+      Function<HttpHeaders, WebSocketCloseStatus> webSocketCloseStatusSupplier) {
+    return (in, out) -> {
+      HttpHeaders headers = in.headers();
+      if (!headersPredicate.test(headers)) {
+        final WebSocketCloseStatus status = webSocketCloseStatusSupplier.apply(headers);
+        return out.sendClose(status.code(), status.reasonText());
+      }
+
       DuplexConnection connection = new WebsocketDuplexConnection((Connection) in);
       if (mtu > 0) {
         connection =
@@ -234,6 +306,49 @@ public final class WebsocketRouteTransport implements ServerTransport<Closeable>
         }
       }
       return m;
+    }
+  }
+
+  public static Builder builder() {
+    return new Builder();
+  }
+
+  public static class Builder {
+
+    private Predicate<HttpHeaders> headersPredicate;
+    private Function<HttpHeaders, WebSocketCloseStatus> webSocketCloseStatusSupplier =
+        DEFAULT_STATUS_SUPPLIER;
+    private String path = "/";
+    private Consumer<? super HttpServerRoutes> routesBuilder = NO_OPS_ROUTES_BUILDER;
+
+    public Builder filteringInbound(Predicate<HttpHeaders> headersPredicate) {
+      Objects.requireNonNull(headersPredicate, "Header predicate must not be null");
+      this.headersPredicate = headersPredicate;
+      return this;
+    }
+
+    public Builder closingWithStatus(
+        Function<HttpHeaders, WebSocketCloseStatus> webSocketCloseStatusSupplier) {
+      this.webSocketCloseStatusSupplier =
+          Objects.requireNonNull(
+              webSocketCloseStatusSupplier, "WebSocketCloseStatusSupplier must not be null");
+      return this;
+    }
+
+    public Builder observingOn(String path) {
+      Objects.requireNonNull(path, "path must not be null");
+      this.path = path;
+      return this;
+    }
+
+    public Builder routingWith(Consumer<? super HttpServerRoutes> routesBuilder) {
+      this.routesBuilder = Objects.requireNonNull(routesBuilder, "routesBuilder must not be null");
+      return this;
+    }
+
+    public WebsocketRouteTransport build(HttpServer server) {
+      return new WebsocketRouteTransport(
+          server, routesBuilder, path, headersPredicate, webSocketCloseStatusSupplier);
     }
   }
 }
