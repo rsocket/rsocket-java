@@ -52,7 +52,7 @@ Frames can be printed out to help debugging. Set the logger `io.rsocket.FrameLog
 
 ## Trivial Client
 
-```
+```java
 package io.rsocket.transport.netty;
 
 import io.rsocket.Payload;
