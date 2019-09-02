@@ -45,8 +45,6 @@ public class UnicastMonoProcessor<O> extends Mono<O>
   static final AtomicIntegerFieldUpdater<UnicastMonoProcessor> ONCE =
       AtomicIntegerFieldUpdater.newUpdater(UnicastMonoProcessor.class, "once");
 
-  Publisher<? extends O> source;
-
   Throwable error;
   volatile boolean terminated;
   O value;
@@ -67,7 +65,6 @@ public class UnicastMonoProcessor<O> extends Mono<O>
       return;
     }
 
-    source = null;
     if (s != null) {
       s.cancel();
     }
@@ -84,7 +81,6 @@ public class UnicastMonoProcessor<O> extends Mono<O>
     final CancellationException e = new CancellationException("Disposed");
     error = e;
     value = null;
-    source = null;
     terminated = true;
     if (s != null) {
       s.cancel();
@@ -159,7 +155,6 @@ public class UnicastMonoProcessor<O> extends Mono<O>
 
     error = cause;
     value = null;
-    source = null;
     terminated = true;
 
     final CoreSubscriber<? super O> a = actual;
@@ -182,8 +177,6 @@ public class UnicastMonoProcessor<O> extends Mono<O>
     }
 
     this.value = value;
-    final Publisher<? extends O> parent = source;
-    source = null;
     terminated = true;
 
     final CoreSubscriber<? super O> a = actual;
@@ -193,7 +186,7 @@ public class UnicastMonoProcessor<O> extends Mono<O>
         a.onComplete();
       }
     } else {
-      if (s != null && !(parent instanceof Mono)) {
+      if (s != null) {
         s.cancel();
       }
 
