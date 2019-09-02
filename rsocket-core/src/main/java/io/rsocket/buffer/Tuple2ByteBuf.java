@@ -44,6 +44,7 @@ class Tuple2ByteBuf extends AbstractTupleByteBuf {
     this.freed = false;
   }
 
+  @Override
   long calculateRelativeIndex(int index) {
     checkIndex(index, 0);
 
@@ -60,6 +61,7 @@ class Tuple2ByteBuf extends AbstractTupleByteBuf {
     return relativeIndex | mask;
   }
 
+  @Override
   ByteBuf getPart(int index) {
     long ri = calculateRelativeIndex(index);
     switch ((int) ((ri & MASK) >>> 32L)) {
