@@ -5,7 +5,6 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import org.reactivestreams.Processor;
-import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 import reactor.core.CoreSubscriber;
@@ -13,7 +12,6 @@ import reactor.core.Disposable;
 import reactor.core.Exceptions;
 import reactor.core.Scannable;
 import reactor.core.publisher.Mono;
-import reactor.core.publisher.MonoProcessor;
 import reactor.core.publisher.Operators;
 import reactor.util.annotation.Nullable;
 import reactor.util.context.Context;
@@ -22,11 +20,11 @@ public class UnicastMonoProcessor<O> extends Mono<O>
     implements Processor<O, O>, CoreSubscriber<O>, Disposable, Subscription, Scannable {
 
   /**
-   * Create a {@link MonoProcessor} that will eagerly request 1 on {@link
+   * Create a {@link UnicastMonoProcessor} that will eagerly request 1 on {@link
    * #onSubscribe(Subscription)}, cache and emit the eventual result for 1 or N subscribers.
    *
    * @param <T> type of the expected value
-   * @return A {@link MonoProcessor}.
+   * @return A {@link UnicastMonoProcessor}.
    */
   public static <T> UnicastMonoProcessor<T> create() {
     return new UnicastMonoProcessor<>();
@@ -104,29 +102,31 @@ public class UnicastMonoProcessor<O> extends Mono<O>
   }
 
   /**
-   * Indicates whether this {@code MonoProcessor} has been interrupted via cancellation.
+   * Indicates whether this {@code UnicastMonoProcessor} has been interrupted via cancellation.
    *
-   * @return {@code true} if this {@code MonoProcessor} is cancelled, {@code false} otherwise.
+   * @return {@code true} if this {@code UnicastMonoProcessor} is cancelled, {@code false}
+   *     otherwise.
    */
   public boolean isCancelled() {
     return isDisposed() && !isTerminated();
   }
 
   /**
-   * Indicates whether this {@code MonoProcessor} has been completed with an error.
+   * Indicates whether this {@code UnicastMonoProcessor} has been completed with an error.
    *
-   * @return {@code true} if this {@code MonoProcessor} was completed with an error, {@code false}
-   *     otherwise.
+   * @return {@code true} if this {@code UnicastMonoProcessor} was completed with an error, {@code
+   *     false} otherwise.
    */
   public final boolean isError() {
     return getError() != null;
   }
 
   /**
-   * Indicates whether this {@code MonoProcessor} has been terminated by the source producer with a
-   * success or an error.
+   * Indicates whether this {@code UnicastMonoProcessor} has been terminated by the source producer
+   * with a success or an error.
    *
-   * @return {@code true} if this {@code MonoProcessor} is successful, {@code false} otherwise.
+   * @return {@code true} if this {@code UnicastMonoProcessor} is successful, {@code false}
+   *     otherwise.
    */
   public final boolean isTerminated() {
     return terminated;
@@ -205,13 +205,13 @@ public class UnicastMonoProcessor<O> extends Mono<O>
   }
 
   /**
-   * Returns the value that completed this {@link MonoProcessor}. Returns {@code null} if the {@link
-   * MonoProcessor} has not been completed. If the {@link MonoProcessor} is completed with an error
-   * a RuntimeException that wraps the error is thrown.
+   * Returns the value that completed this {@link UnicastMonoProcessor}. Returns {@code null} if the
+   * {@link UnicastMonoProcessor} has not been completed. If the {@link UnicastMonoProcessor} is
+   * completed with an error a RuntimeException that wraps the error is thrown.
    *
-   * @return the value that completed the {@link MonoProcessor}, or {@code null} if it has not been
-   *     completed
-   * @throws RuntimeException if the {@link MonoProcessor} was completed with an error
+   * @return the value that completed the {@link UnicastMonoProcessor}, or {@code null} if it has
+   *     not been completed
+   * @throws RuntimeException if the {@link UnicastMonoProcessor} was completed with an error
    */
   @Nullable
   public O peek() {
