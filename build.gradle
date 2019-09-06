@@ -97,9 +97,9 @@ subprojects {
         mavenCentral()
         maven { url 'http://repo.spring.io/milestone' } // temporary for Reactor Dysprosium
 
-//        if (version.endsWith('BUILD-SNAPSHOT') || project.hasProperty('platformVersion')) {
+        if (version.endsWith('BUILD-SNAPSHOT') || project.hasProperty('platformVersion')) {
             maven { url 'http://repo.spring.io/libs-snapshot' }
-//        }
+        }
     }
 
     if (project.name != 'rsocket-bom') {
