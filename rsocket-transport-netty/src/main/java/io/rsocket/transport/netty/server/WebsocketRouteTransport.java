@@ -331,7 +331,7 @@ public final class WebsocketRouteTransport implements ServerTransport<CloseableC
         Function<HttpHeaders, WebSocketCloseStatus> webSocketCloseStatusSupplier) {
       this.webSocketCloseStatusSupplier =
           Objects.requireNonNull(
-              webSocketCloseStatusSupplier, "WebSocketCloseStatusSupplier must not be null");
+              webSocketCloseStatusSupplier, "webSocketCloseStatusSupplier must not be null");
       return this;
     }
 
