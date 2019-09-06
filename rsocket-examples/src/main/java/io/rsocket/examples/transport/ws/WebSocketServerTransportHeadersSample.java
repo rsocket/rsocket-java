@@ -37,7 +37,7 @@ import reactor.core.publisher.MonoProcessor;
 import reactor.core.scheduler.Schedulers;
 import reactor.netty.http.server.HttpServer;
 
-public class WebSocketHeadersSample {
+public class WebSocketServerTransportHeadersSample {
   static final Payload payload1 = ByteBufPayload.create("Hello ");
 
   public static void main(String[] args) {
@@ -51,17 +51,7 @@ public class WebSocketHeadersSample {
                     .filteringInbound(
                         headers -> headers.containsValue("Authorization", "test", true))
                     .closingWithStatus(headers -> new WebSocketCloseStatus(4404, "Unauthorized"))
-                    .build(HttpServer.create().host("localhost").port(8080))
-                // Same could be done with routing transport
-                //            WebsocketRouteTransport
-                //                .builder()
-                //                .filteringInbound(headers ->
-                // headers.containsValue("Authorization", "test", true))
-                //                .closingWithStatus(headers -> new WebSocketCloseStatus(4404,
-                // "Unauthorized"))
-                //                .observingOn("/")
-                //                .build(HttpServer.create().host("localhost").port(8080))
-                )
+                    .build(HttpServer.create().host("localhost").port(8080)))
             .start()
             .block();
 

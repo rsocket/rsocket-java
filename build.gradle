@@ -29,10 +29,10 @@ subprojects {
     apply plugin: 'io.spring.dependency-management'
     apply plugin: 'com.github.sherter.google-java-format'
 
-    ext['reactor-bom.version'] = 'Dysprosium-BUILD-SNAPSHOT'
+    ext['reactor-bom.version'] = 'Dysprosium-RC1'
     ext['logback.version'] = '1.2.3'
     ext['findbugs.version'] = '3.0.2'
-    ext['netty.version'] = '4.1.37.Final'
+    ext['netty.version'] = '4.1.39.Final'
     ext['netty-boringssl.version'] = '2.0.25.Final'
     ext['hdrhistogram.version'] = '2.1.10'
     ext['mockito.version'] = '2.25.1'
