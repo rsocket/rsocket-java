@@ -116,7 +116,6 @@ public class WebSocketServerTransportHeadersSample {
 
             @Override
             public Mono<Void> fireAndForget(Payload payload) {
-              //                  System.out.println(payload.getDataUtf8());
               payload.release();
               return Mono.empty();
             }
@@ -128,7 +127,7 @@ public class WebSocketServerTransportHeadersSample {
 
             @Override
             public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
-              return Flux.from(payloads).subscribeOn(Schedulers.single());
+              return Flux.from(payloads);
             }
           });
     }
