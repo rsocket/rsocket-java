@@ -17,6 +17,8 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 public class ResumeFileTransfer {
+  /*amount of file chunks requested by subscriber: n, refilled on n/2 of received items*/
+  private static final int PREFETCH_WINDOW_SIZE = 4;
 
   public static void main(String[] args) {
     RequestCodec requestCodec = new RequestCodec();
@@ -43,7 +45,7 @@ public class ResumeFileTransfer {
     client
         .requestStream(requestCodec.encode(new Request(16, "lorem.txt")))
         .doFinally(s -> server.dispose())
-        .subscribe(Files.fileSink("rsocket-examples/out/lorem_output.txt", 256));
+        .subscribe(Files.fileSink("rsocket-examples/out/lorem_output.txt", PREFETCH_WINDOW_SIZE));
 
     server.onClose().block();
   }
