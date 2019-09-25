@@ -28,10 +28,9 @@ plugins {
 subprojects {
     apply plugin: 'io.spring.dependency-management'
     apply plugin: 'com.github.sherter.google-java-format'
-
     apply from: "${rootDir}/gradle/publications.gradle"
-
-    ext['reactor-bom.version'] = 'Dysprosium-M3'
+    
+    ext['reactor-bom.version'] = 'Dysprosium-RELEASE'
     ext['logback.version'] = '1.2.3'
     ext['findbugs.version'] = '3.0.2'
     ext['netty-bom.version'] = '4.1.37.Final'
@@ -89,7 +88,6 @@ subprojects {
 
     repositories {
         mavenCentral()
-        maven { url 'http://repo.spring.io/milestone' } // temporary for Reactor Dysprosium
 
         if (version.endsWith('BUILD-SNAPSHOT') || project.hasProperty('platformVersion')) {
             maven { url 'http://repo.spring.io/libs-snapshot' }
