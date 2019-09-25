@@ -15,9 +15,9 @@
  */
 
 plugins {
-    id 'com.gradle.build-scan' version '1.16'
+    id 'com.gradle.build-scan' version '2.4.2'
 
-    id 'com.github.sherter.google-java-format' version '0.7.1' apply false
+    id 'com.github.sherter.google-java-format' version '0.8' apply false
     id 'com.jfrog.artifactory' version '4.7.3' apply false
     id 'com.jfrog.bintray' version '1.8.4' apply false
     id 'me.champeau.gradle.jmh' version '0.4.8' apply false
