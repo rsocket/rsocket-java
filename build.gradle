@@ -15,9 +15,9 @@
  */
 
 plugins {
-    id 'com.gradle.build-scan' version '1.16'
+    id 'com.gradle.build-scan' version '2.4.2'
 
-    id 'com.github.sherter.google-java-format' version '0.7.1' apply false
+    id 'com.github.sherter.google-java-format' version '0.8' apply false
     id 'com.jfrog.artifactory' version '4.7.3' apply false
     id 'com.jfrog.bintray' version '1.8.4' apply false
     id 'me.champeau.gradle.jmh' version '0.4.8' apply false
@@ -28,17 +28,18 @@ plugins {
 subprojects {
     apply plugin: 'io.spring.dependency-management'
     apply plugin: 'com.github.sherter.google-java-format'
-
+    apply from: "${rootDir}/gradle/publications.gradle"
+    
     ext['reactor-bom.version'] = 'Dysprosium-RELEASE'
     ext['logback.version'] = '1.2.3'
     ext['findbugs.version'] = '3.0.2'
-    ext['netty.version'] = '4.1.37.Final'
+    ext['netty-bom.version'] = '4.1.37.Final'
     ext['netty-boringssl.version'] = '2.0.25.Final'
     ext['hdrhistogram.version'] = '2.1.10'
     ext['mockito.version'] = '2.25.1'
     ext['slf4j.version'] = '1.7.25'
     ext['jmh.version'] = '1.21'
-    ext['junit.version'] = '5.1.0'
+    ext['junit.version'] = '5.5.2'
     ext['hamcrest.version'] = '1.3'
     ext['micrometer.version'] = '1.0.6'
     ext['assertj.version'] = '3.11.1'
@@ -48,48 +49,40 @@ subprojects {
     }
 
     ext {
-      if (project.hasProperty('versionSuffix')) {
-          project.version += project.getProperty('versionSuffix')
-      }
+        if (project.hasProperty('versionSuffix')) {
+            project.version += project.getProperty('versionSuffix')
+        }
     }
 
     dependencyManagement {
         imports {
             mavenBom "io.projectreactor:reactor-bom:${ext['reactor-bom.version']}"
+            mavenBom "io.netty:netty-bom:${ext['netty-bom.version']}"
+            mavenBom "org.junit:junit-bom:${ext['junit.version']}"
         }
 
         dependencies {
             dependency "ch.qos.logback:logback-classic:${ext['logback.version']}"
             dependency "com.google.code.findbugs:jsr305:${ext['findbugs.version']}"
-            dependency "io.netty:netty-buffer:${ext['netty.version']}"
             dependency "io.netty:netty-tcnative-boringssl-static:${ext['netty-boringssl.version']}"
             dependency "io.micrometer:micrometer-core:${ext['micrometer.version']}"
             dependency "org.assertj:assertj-core:${ext['assertj.version']}"
             dependency "org.hdrhistogram:HdrHistogram:${ext['hdrhistogram.version']}"
             dependency "org.slf4j:slf4j-api:${ext['slf4j.version']}"
-            
             dependencySet(group: 'org.mockito', version: ext['mockito.version']) {
                 entry 'mockito-junit-jupiter'
                 entry 'mockito-core'
             }
-
-            dependencySet(group: 'org.junit.jupiter', version: ext['junit.version']) {
-                entry 'junit-jupiter-api'
-                entry 'junit-jupiter-engine'
-                entry 'junit-jupiter-params'
-            }
-
             // TODO: Remove after JUnit5 migration
             dependency 'junit:junit:4.12'
             dependency "org.hamcrest:hamcrest-library:${ext['hamcrest.version']}"
-            dependencySet(group: 'org.junit.vintage', version: ext['junit.version']) {
-                entry 'junit-vintage-engine'
-            }
-
             dependencySet(group: 'org.openjdk.jmh', version: ext['jmh.version']) {
                 entry 'jmh-core'
                 entry 'jmh-generator-annprocess'
             }
+        }
+        generatedPomCustomization {
+            enabled = false
         }
     }
 
@@ -101,179 +94,56 @@ subprojects {
         }
     }
 
-    if (project.name != 'rsocket-bom') {
+    plugins.withType(JavaPlugin) {
+        compileJava {
+            sourceCompatibility = 1.8
 
-        plugins.withType(JavaPlugin) {
-            compileJava {
-                sourceCompatibility = 1.8
+            // TODO: Cleanup warnings so no need to exclude
+            options.compilerArgs << '-Xlint:all,-overloads,-rawtypes,-unchecked'
+        }
 
-                // TODO: Cleanup warnings so no need to exclude
-                options.compilerArgs << '-Xlint:all,-overloads,-rawtypes,-unchecked'
-            }
-
-            javadoc {
-                options.with {
-                    links 'https://docs.oracle.com/javase/8/docs/api/'
-                    links 'https://projectreactor.io/docs/core/release/api/'
-                    links 'https://netty.io/4.1/api/'
-                }
-            }
-
-            test {
-                useJUnitPlatform()
-
-                systemProperty "io.netty.leakDetection.level", "ADVANCED"
-            }
-
-            tasks.named("javadoc").configure {
-                onlyIf { System.getenv('SKIP_RELEASE') != "true" }
+        javadoc {
+            options.with {
+                links 'https://docs.oracle.com/javase/8/docs/api/'
+                links 'https://projectreactor.io/docs/core/release/api/'
+                links 'https://netty.io/4.1/api/'
             }
         }
 
-        plugins.withType(JavaLibraryPlugin) {
-            task sourcesJar(type: Jar) {
-                classifier 'sources'
-                from sourceSets.main.allJava
-            }
+        test {
+            useJUnitPlatform()
 
-            task javadocJar(type: Jar, dependsOn: javadoc) {
-                classifier 'javadoc'
-                from javadoc.destinationDir
-            }
+            systemProperty "io.netty.leakDetection.level", "ADVANCED"
         }
 
-        plugins.withType(MavenPublishPlugin) {
-            publishing {
-                publications {
-                    maven(MavenPublication) {
-                        groupId 'io.rsocket'
+        tasks.named("javadoc").configure {
+            onlyIf { System.getenv('SKIP_RELEASE') != "true" }
+        }
+    }
 
-                        from components.java
-
-                        artifact sourcesJar
-                        artifact javadocJar
-
-                        pom.withXml {
-                            asNode().':version' + {
-                                resolveStrategy = DELEGATE_FIRST
-
-                                name project.name
-                                description project.description
-                                url 'http://rsocket.io'
-
-                                licenses {
-                                    license {
-                                        name 'The Apache Software License, Version 2.0'
-                                        url 'http://www.apache.org/license/LICENSE-2.0.txt'
-                                    }
-                                }
-
-                                developers {
-                                    developer {
-                                        id 'robertroeser'
-                                        name 'Robert Roeser'
-                                        email 'robert@netifi.com'
-                                    }
-                                    developer {
-                                        id 'rdegnan'
-                                        name 'Ryland Degnan'
-                                        email 'ryland@netifi.com'
-                                    }
-                                    developer {
-                                        id 'yschimke'
-                                        name 'Yuri Schimke'
-                                        email 'yuri@schimke.ee'
-                                    }
-                                    developer {
-                                        id 'OlegDokuka'
-                                        name 'Oleh Dokuka'
-                                        email 'oleh@netifi.com'
-                                    }
-                                    developer {
-                                        id 'mostroverkhov'
-                                        name 'Maksym Ostroverkhov'
-                                        email 'm.ostroverkhov@gmail.com'
-                                    }
-                                }
-
-                                scm {
-                                    connection 'scm:git:https://github.com/rsocket/rsocket-java.git'
-                                    developerConnection 'scm:git:https://github.com/rsocket/rsocket-java.git'
-                                    url 'https://github.com/rsocket/rsocket-java'
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+    plugins.withType(JavaLibraryPlugin) {
+        task sourcesJar(type: Jar) {
+            classifier 'sources'
+            from sourceSets.main.allJava
         }
 
-    } else {
-        plugins.withType(MavenPublishPlugin) {
-            publishing {
-                publications {
-                    maven(MavenPublication) {
-                        groupId 'io.rsocket'
+        task javadocJar(type: Jar, dependsOn: javadoc) {
+            classifier 'javadoc'
+            from javadoc.destinationDir
+        }
 
-                        pom.withXml {
-                            asNode().':version' + {
-                                resolveStrategy = DELEGATE_FIRST
-
-                                name project.name
-                                description project.description
-                                url 'http://rsocket.io'
-
-                                licenses {
-                                    license {
-                                        name 'The Apache Software License, Version 2.0'
-                                        url 'http://www.apache.org/license/LICENSE-2.0.txt'
-                                    }
-                                }
-
-                                developers {
-                                    developer {
-                                        id 'robertroeser'
-                                        name 'Robert Roeser'
-                                        email 'robert@netifi.com'
-                                    }
-                                    developer {
-                                        id 'rdegnan'
-                                        name 'Ryland Degnan'
-                                        email 'ryland@netifi.com'
-                                    }
-                                    developer {
-                                        id 'yschimke'
-                                        name 'Yuri Schimke'
-                                        email 'yuri@schimke.ee'
-                                    }
-                                    developer {
-                                        id 'OlegDokuka'
-                                        name 'Oleh Dokuka'
-                                        email 'oleh@netifi.com'
-                                    }
-                                    developer {
-                                        id 'mostroverkhov'
-                                        name 'Maksym Ostroverkhov'
-                                        email 'm.ostroverkhov@gmail.com'
-                                    }
-                                }
-
-                                scm {
-                                    connection 'scm:git:https://github.com/rsocket/rsocket-java.git'
-                                    developerConnection 'scm:git:https://github.com/rsocket/rsocket-java.git'
-                                    url 'https://github.com/rsocket/rsocket-java'
-                                }
-                            }
-                        }
-                    }
+        publishing {
+            publications {
+                maven(MavenPublication) {
+                    from components.java
+                    artifact sourcesJar
+                    artifact javadocJar
                 }
             }
         }
     }
-}
 
-apply from: 'artifactory.gradle'
-apply from: 'bintray.gradle'
+}
 
 buildScan {
     termsOfServiceUrl = 'https://gradle.com/terms-of-service'

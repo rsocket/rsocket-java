@@ -14,21 +14,31 @@
  * limitations under the License.
  */
 plugins {
-    id 'java'
+    id 'java-platform'
     id 'maven-publish'
     id 'com.jfrog.artifactory'
     id 'com.jfrog.bintray'
-    id 'io.spring.dependency-management'
 }
 
-description = 'Bill of materials to make sure a consistent set of versions is used for RSocket-Java.'
-//configurations.archives.artifacts.clear()
+description = 'RSocket Java Bill of materials.'
 
-dependencyManagement {
-    dependencies {
-        rootProject.subprojects.each {
-            if (it.name != project.name) {
-                dependency(group: 'io.rsocket', name: it.name, version: it.version)
+dependencies {
+    constraints {
+        parent.subprojects.findAll { it.name != project.name }.sort { "$it.name" }.each {
+            api it
+        }
+    }
+}
+
+publishing {
+    publications {
+        maven(MavenPublication) {
+            from components.javaPlatform
+            // remove scope information from published BOM
+            pom.withXml {
+                asNode().dependencyManagement.first().dependencies.first().each {
+                    it.remove(it.scope.first())
+                }
             }
         }
     }
