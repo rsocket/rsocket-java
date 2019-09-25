@@ -31,7 +31,7 @@ if (project.hasProperty('bintrayUser') && project.hasProperty('bintrayKey')) {
                     }
 
                     defaults {
-                        publications('maven')
+                        publications(publishing.publications.maven)
                     }
                 }
             }
