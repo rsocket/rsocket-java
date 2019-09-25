@@ -18,7 +18,7 @@ plugins {
     id 'com.gradle.build-scan' version '2.4.2'
 
     id 'com.github.sherter.google-java-format' version '0.8' apply false
-    id 'com.jfrog.artifactory' version '4.7.3' apply false
+    id 'com.jfrog.artifactory' version '4.9.10' apply false
     id 'com.jfrog.bintray' version '1.8.4' apply false
     id 'me.champeau.gradle.jmh' version '0.4.8' apply false
     id 'io.spring.dependency-management' version '1.0.7.RELEASE' apply false
@@ -28,7 +28,6 @@ plugins {
 subprojects {
     apply plugin: 'io.spring.dependency-management'
     apply plugin: 'com.github.sherter.google-java-format'
-    apply from: "${rootDir}/gradle/publications.gradle"
     
     ext['reactor-bom.version'] = 'Dysprosium-RELEASE'
     ext['logback.version'] = '1.2.3'
@@ -132,18 +131,22 @@ subprojects {
             from javadoc.destinationDir
         }
 
-        publishing {
-            publications {
-                maven(MavenPublication) {
-                    from components.java
-                    artifact sourcesJar
-                    artifact javadocJar
+        plugins.withType(MavenPublishPlugin) {
+            publishing {
+                publications {
+                    maven(MavenPublication) {
+                        from components.java
+                        artifact sourcesJar
+                        artifact javadocJar
+                    }
                 }
             }
         }
     }
 
 }
+
+apply from: "${rootDir}/gradle/publications.gradle"
 
 buildScan {
     termsOfServiceUrl = 'https://gradle.com/terms-of-service'
