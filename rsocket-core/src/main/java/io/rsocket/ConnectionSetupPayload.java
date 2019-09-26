@@ -61,8 +61,10 @@ public abstract class ConnectionSetupPayload extends AbstractReferenceCounted im
     return this;
   }
 
+  @Override
   public abstract ConnectionSetupPayload touch();
 
+  @Override
   public abstract ConnectionSetupPayload touch(Object hint);
 
   private static final class DefaultConnectionSetupPayload extends ConnectionSetupPayload {

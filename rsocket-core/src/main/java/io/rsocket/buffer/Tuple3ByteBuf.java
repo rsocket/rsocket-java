@@ -57,6 +57,7 @@ class Tuple3ByteBuf extends AbstractTupleByteBuf {
     return one.isDirect() && two.isDirect() && three.isDirect();
   }
 
+  @Override
   public long calculateRelativeIndex(int index) {
     checkIndex(index, 0);
     long relativeIndex;
@@ -75,6 +76,7 @@ class Tuple3ByteBuf extends AbstractTupleByteBuf {
     return relativeIndex | mask;
   }
 
+  @Override
   public ByteBuf getPart(int index) {
     long ri = calculateRelativeIndex(index);
     switch ((int) ((ri & MASK) >>> 32L)) {

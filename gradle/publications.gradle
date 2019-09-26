@@ -1,0 +1,66 @@
+apply from: "${rootDir}/gradle/artifactory.gradle"
+apply from: "${rootDir}/gradle/bintray.gradle"
+
+subprojects {
+    plugins.withType(MavenPublishPlugin) {
+        publishing {
+            publications {
+                maven(MavenPublication) {
+                    pom {
+                        name = project.name
+                        groupId = 'io.rsocket'
+                        description = project.description
+                        url = 'http://rsocket.io'
+                        licenses {
+                            license {
+                                name = "The Apache Software License, Version 2.0"
+                                url = "https://www.apache.org/licenses/LICENSE-2.0.txt"
+                                distribution = "repo"
+                            }
+                        }
+                        developers {
+                            developer {
+                                id = 'robertroeser'
+                                name = 'Robert Roeser'
+                                email = 'robert@netifi.com'
+                            }
+                            developer {
+                                id = 'rdegnan'
+                                name = 'Ryland Degnan'
+                                email = 'ryland@netifi.com'
+                            }
+                            developer {
+                                id = 'yschimke'
+                                name = 'Yuri Schimke'
+                                email = 'yuri@schimke.ee'
+                            }
+                            developer {
+                                id = 'OlegDokuka'
+                                name = 'Oleh Dokuka'
+                                email = 'oleh@netifi.com'
+                            }
+                            developer {
+                                id = 'mostroverkhov'
+                                name = 'Maksym Ostroverkhov'
+                                email = 'm.ostroverkhov@gmail.com'
+                            }
+                        }
+                        scm {
+                            connection = 'scm:git:https://github.com/rsocket/rsocket-java.git'
+                            developerConnection = 'scm:git:https://github.com/rsocket/rsocket-java.git'
+                            url = 'https://github.com/rsocket/rsocket-java'
+                        }
+                        versionMapping {
+                            usage('java-api') {
+                                fromResolutionResult()
+                            }
+                            usage('java-runtime') {
+                                fromResolutionResult()
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

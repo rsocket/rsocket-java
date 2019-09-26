@@ -14,108 +14,32 @@
  * limitations under the License.
  */
 plugins {
-    id 'java-library'
-    id 'maven'
+    id 'java-platform'
     id 'maven-publish'
     id 'com.jfrog.artifactory'
     id 'com.jfrog.bintray'
-    id 'io.morethan.jmhreport'
-    id 'me.champeau.gradle.jmh'
 }
 
-description = 'Bill of materials to make sure a consistent set of versions is used for RSocket-Java.'
-configurations.archives.artifacts.clear()
-
-build.doLast {
-    pom {
-        customizePom(it, project)
-    }
-}
+description = 'RSocket Java Bill of materials.'
 
 dependencies {
-    compile project(':rsocket-core')
-    compile project(':rsocket-test')
-    compile project(':rsocket-load-balancer')
-    compile project(':rsocket-micrometer')
-    compile project(':rsocket-transport-local')
-    compile project(':rsocket-transport-netty')
-}
-
-def customizePom(generatedPom, gradleProject) {
-    //make sure that dependencies are under <dependencyManagement>
-    generatedPom.withXml {
-        if (generatedPom.generatedDependencies.size > 0) {
-            asNode().appendNode('dependencyManagement', asNode().dependencies)
-            asNode().dependencies.replaceNode {}
+    constraints {
+        parent.subprojects.findAll { it.name != project.name }.sort { "$it.name" }.each {
+            api it
         }
     }
-
-    generatedPom.project {
-        name = 'RSocket-Java Release Train - BOM'
-        description = gradleProject.description
-        url = 'http://rsocket.io'
-        groupId = group
-        packaging = "pom"
-        licenses {
-            license {
-                name = 'The Apache License, Version 2.0'
-                url = 'http://www.apache.org/licenses/LICENSE-2.0.txt'
-            }
-        }
-        developers {
-            developer {
-                id 'robertroeser'
-                name 'Robert Roeser'
-                email 'robert@netifi.com'
-            }
-            developer {
-                id 'rdegnan'
-                name 'Ryland Degnan'
-                email 'ryland@netifi.com'
-            }
-            developer {
-                id 'yschimke'
-                name 'Yuri Schimke'
-                email 'yuri@schimke.ee'
-            }
-            developer {
-                id 'OlegDokuka'
-                name 'Oleh Dokuka'
-                email 'oleh@netifi.com'
-            }
-            developer {
-                id 'mostroverkhov'
-                name 'Maksym Ostroverkhov'
-                email 'm.ostroverkhov@gmail.com'
-            }
-        }
-        scm {
-            connection = 'scm:git:git://github.com/rsocket/rsocket-java.git'
-            developerConnection = 'scm:git:ssh://github.com/rsocket/rsocket-java.git'
-            url = 'http://github.com/rsocket/rsocket-java/'
-        }
-        issueManagement {
-            system = "GitHub Issues"
-            url = "https://github.com/rsocket/rsocket-java/issues"
-        }
-    }
-
-    generatedPom.writeTo("$buildDir/poms/rsocket-bom-${version}.xml")
 }
-plugins.withType(MavenPublishPlugin) {
-    publishing {
-        publications {
-            mavenJava(MavenPublication) {
-                pom.withXml {
-                    def sb = asString()
-                    sb.setLength 0
-                    sb.append file("$buildDir/poms/rsocket-bom-${version}.xml").text
-                    println(sb.toString())
+
+publishing {
+    publications {
+        maven(MavenPublication) {
+            from components.javaPlatform
+            // remove scope information from published BOM
+            pom.withXml {
+                asNode().dependencyManagement.first().dependencies.first().each {
+                    it.remove(it.scope.first())
                 }
             }
         }
     }
 }
-
-publish.dependsOn("build")
-publishToMavenLocal.dependsOn("build")
