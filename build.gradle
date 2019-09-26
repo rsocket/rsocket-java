@@ -43,6 +43,8 @@ subprojects {
     ext['micrometer.version'] = '1.0.6'
     ext['assertj.version'] = '3.11.1'
 
+    group = "io.rsocket"
+
     googleJavaFormat {
         toolVersion = '1.6'
     }
