@@ -8,8 +8,10 @@ subprojects {
                 maven(MavenPublication) {
                     pom {
                         name = project.name
+                        afterEvaluate {
+                            description = project.description
+                        }
                         groupId = 'io.rsocket'
-                        description = project.description
                         url = 'http://rsocket.io'
                         licenses {
                             license {
