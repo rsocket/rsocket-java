@@ -583,7 +583,6 @@ public abstract class LoadBalancedRSocketMono extends Mono<RSocket>
                 activeSockets.remove(WeightedSocket.this);
                 logger.debug(
                     "Removed {} from factory {} from activeSockets", WeightedSocket.this, factory);
-                refreshSockets();
               })
           .subscribe();
 
