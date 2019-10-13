@@ -291,6 +291,55 @@ public class CompositeMetadataFlyweight {
     return header.readableBytes() == 1;
   }
 
+  public static boolean isCompositeMetadata(ByteBuf compositeMetadata) {
+    compositeMetadata.markReaderIndex();
+    compositeMetadata.readerIndex(0);
+
+    int ridx = 0;
+    while (hasEntry(compositeMetadata, ridx)) {
+      if (compositeMetadata.isReadable()) {
+        byte mimeIdOrLength = compositeMetadata.readByte();
+        if ((mimeIdOrLength & STREAM_METADATA_KNOWN_MASK) == STREAM_METADATA_KNOWN_MASK) {
+          // noop
+        } else {
+          // M flag unset, remaining 7 bits are the length of the mime
+          int mimeLength = Byte.toUnsignedInt(mimeIdOrLength) + 1;
+
+          if (compositeMetadata.isReadable(
+                  mimeLength)) { // need to be able to read an extra mimeLength bytes
+            // here we need a way for the returned ByteBuf to differentiate between a
+            // 1-byte length mime type and a 1 byte encoded mime id, preferably without
+            // re-applying the byte mask. The easiest way is to include the initial byte
+            // and have further decoding ignore the first byte. 1 byte buffer == id, 2+ byte
+            // buffer == full mime string.
+            compositeMetadata.skipBytes(mimeLength);
+          } else {
+            compositeMetadata.resetReaderIndex();
+            return false;
+          }
+        }
+
+        if (compositeMetadata.isReadable(3)) {
+          // ensures the length medium can be read
+          final int metadataLength = compositeMetadata.readUnsignedMedium();
+          if (compositeMetadata.isReadable(metadataLength)) {
+            compositeMetadata.skipBytes(metadataLength);
+          } else {
+            compositeMetadata.resetReaderIndex();
+            return false;
+          }
+        } else {
+          compositeMetadata.resetReaderIndex();
+          return false;
+        }
+      }
+      ridx = compositeMetadata.readerIndex();
+    }
+
+    compositeMetadata.resetReaderIndex();
+    return true;
+  }
+
   /**
    * Encode a new sub-metadata information into a composite metadata {@link CompositeByteBuf
    * buffer}.

@@ -16,9 +16,7 @@
 
 package io.rsocket.metadata;
 
-import static io.rsocket.metadata.CompositeMetadataFlyweight.decodeMimeAndContentBuffersSlices;
-import static io.rsocket.metadata.CompositeMetadataFlyweight.decodeMimeIdFromMimeBuffer;
-import static io.rsocket.metadata.CompositeMetadataFlyweight.decodeMimeTypeFromMimeBuffer;
+import static io.rsocket.metadata.CompositeMetadataFlyweight.*;
 import static org.assertj.core.api.Assertions.*;
 
 import io.netty.buffer.*;
@@ -26,6 +24,8 @@ import io.netty.util.CharsetUtil;
 import io.rsocket.test.util.ByteBufUtils;
 import io.rsocket.util.NumberUtils;
 import org.junit.jupiter.api.Test;
+
+import java.nio.charset.Charset;
 
 class CompositeMetadataFlyweightTest {
 
@@ -480,6 +480,89 @@ class CompositeMetadataFlyweightTest {
         .isEqualTo(mime.getIdentifier());
 
     assertThat(content.readableBytes()).as("no metadata content").isZero();
+  }
+
+
+
+  @Test
+  void checkIsNotACompositeTest() {
+    WellKnownMimeType mime = WellKnownMimeType.MESSAGE_RSOCKET_COMPOSITE_METADATA;
+    assertThat(mime.getIdentifier())
+            .as("smoke test COMPOSITE unsigned 7 bits representation")
+            .isEqualTo((byte) 127)
+            .isEqualTo((byte) 0b01111111);
+
+    CompositeByteBuf compositeByteBuf = ByteBufAllocator.DEFAULT.compositeBuffer();
+
+    ByteBuf encoded =
+            CompositeMetadataFlyweight.encodeMetadataHeader(
+                    ByteBufAllocator.DEFAULT, mime.getIdentifier(), 0);
+    compositeByteBuf.addComponent(true, encoded);
+
+    ByteBuf buffer = ByteBufAllocator.DEFAULT.buffer();
+
+    buffer.writeByte(127);
+    buffer.writeCharSequence("Hello World", Charset.defaultCharset());
+
+    compositeByteBuf.addComponent(true, buffer);
+
+    assertThat(isCompositeMetadata(compositeByteBuf)).isFalse();
+  }
+
+  @Test
+  void checkIsCompositeTest() {
+    WellKnownMimeType mime = WellKnownMimeType.MESSAGE_RSOCKET_COMPOSITE_METADATA;
+    assertThat(mime.getIdentifier())
+            .as("smoke test COMPOSITE unsigned 7 bits representation")
+            .isEqualTo((byte) 127)
+            .isEqualTo((byte) 0b01111111);
+    ByteBuf encoded =
+            CompositeMetadataFlyweight.encodeMetadataHeader(
+                    ByteBufAllocator.DEFAULT, mime.getIdentifier(), 0);
+
+    assertThat(isCompositeMetadata(encoded)).isTrue();
+  }
+
+  @Test
+  void checkIsCompositeTest_multiple() {
+    WellKnownMimeType mime = WellKnownMimeType.MESSAGE_RSOCKET_COMPOSITE_METADATA;
+    assertThat(mime.getIdentifier())
+            .as("smoke test COMPOSITE unsigned 7 bits representation")
+            .isEqualTo((byte) 127)
+            .isEqualTo((byte) 0b01111111);
+    CompositeByteBuf compositeByteBuf = ByteBufAllocator.DEFAULT.compositeBuffer();
+
+    ByteBuf buffer = ByteBufAllocator.DEFAULT.buffer();
+    buffer.writeCharSequence("Hello World", Charset.defaultCharset());
+    CompositeMetadataFlyweight.encodeAndAddMetadata(
+                compositeByteBuf,
+                ByteBufAllocator.DEFAULT,
+                mime,
+                buffer
+            );
+
+
+    ByteBuf buffer2 = ByteBufAllocator.DEFAULT.buffer();
+    buffer2.writeCharSequence("World", Charset.defaultCharset());
+    CompositeMetadataFlyweight.encodeAndAddMetadata(
+            compositeByteBuf,
+            ByteBufAllocator.DEFAULT,
+            "test/metadata",
+            buffer2
+    );
+
+
+
+    byte reserved = 120;
+    ByteBuf buffer3 = ByteBufAllocator.DEFAULT.buffer();
+    CompositeMetadataFlyweight.encodeAndAddMetadata(
+            compositeByteBuf,
+            ByteBufAllocator.DEFAULT,
+            reserved,
+            buffer3
+    );
+
+    assertThat(isCompositeMetadata(compositeByteBuf)).isTrue();
   }
 
   @Test
