@@ -306,7 +306,7 @@ public class CompositeMetadataFlyweight {
           int mimeLength = Byte.toUnsignedInt(mimeIdOrLength) + 1;
 
           if (compositeMetadata.isReadable(
-                  mimeLength)) { // need to be able to read an extra mimeLength bytes
+              mimeLength)) { // need to be able to read an extra mimeLength bytes
             // here we need a way for the returned ByteBuf to differentiate between a
             // 1-byte length mime type and a 1 byte encoded mime id, preferably without
             // re-applying the byte mask. The easiest way is to include the initial byte
