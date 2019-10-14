@@ -114,7 +114,7 @@ public class IntegrationTest {
     requestCount = new AtomicInteger();
     disconnectionCounter = new CountDownLatch(1);
 
-    TcpServerTransport serverTransport = TcpServerTransport.create("localhost", 0);
+    TcpServerTransport serverTransport = TcpServerTransport.create(0);
 
     server =
         RSocketFactory.receive()

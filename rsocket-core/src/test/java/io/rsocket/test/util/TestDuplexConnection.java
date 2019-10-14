@@ -27,7 +27,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.DirectProcessor;
 import reactor.core.publisher.Flux;
-import reactor.core.publisher.FluxSink;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
 
@@ -41,9 +40,7 @@ public class TestDuplexConnection implements DuplexConnection {
 
   private final LinkedBlockingQueue<ByteBuf> sent;
   private final DirectProcessor<ByteBuf> sentPublisher;
-  private final FluxSink<ByteBuf> sendSink;
   private final DirectProcessor<ByteBuf> received;
-  private final FluxSink<ByteBuf> receivedSink;
   private final MonoProcessor<Void> onClose;
   private final ConcurrentLinkedQueue<Subscriber<ByteBuf>> sendSubscribers;
   private volatile double availability = 1;
@@ -52,9 +49,7 @@ public class TestDuplexConnection implements DuplexConnection {
   public TestDuplexConnection() {
     sent = new LinkedBlockingQueue<>();
     received = DirectProcessor.create();
-    receivedSink = received.sink();
     sentPublisher = DirectProcessor.create();
-    sendSink = sentPublisher.sink();
     sendSubscribers = new ConcurrentLinkedQueue<>();
     onClose = MonoProcessor.create();
   }
@@ -70,7 +65,7 @@ public class TestDuplexConnection implements DuplexConnection {
         .doOnNext(
             frame -> {
               sent.offer(frame);
-              sendSink.next(frame);
+              sentPublisher.onNext(frame);
             })
         .doOnError(throwable -> logger.error("Error in send stream on test connection.", throwable))
         .subscribe(subscriber);
@@ -121,7 +116,7 @@ public class TestDuplexConnection implements DuplexConnection {
 
   public void addToReceivedBuffer(ByteBuf... received) {
     for (ByteBuf frame : received) {
-      this.receivedSink.next(frame);
+      this.received.onNext(frame);
     }
   }
 

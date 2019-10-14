@@ -27,7 +27,7 @@ import io.rsocket.exceptions.ConnectionErrorException;
 import io.rsocket.exceptions.Exceptions;
 import io.rsocket.frame.*;
 import io.rsocket.frame.decoder.PayloadDecoder;
-import io.rsocket.internal.RateLimitableRequestPublisher;
+import io.rsocket.internal.LimitableRequestPublisher;
 import io.rsocket.internal.SynchronizedIntObjectHashMap;
 import io.rsocket.internal.UnboundedProcessor;
 import io.rsocket.internal.UnicastMonoProcessor;
@@ -47,7 +47,6 @@ import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 import reactor.core.publisher.*;
-import reactor.util.concurrent.Queues;
 
 /**
  * Requester Side of a RSocket socket. Sends {@link ByteBuf}s to a {@link RSocketResponder} of peer
@@ -61,7 +60,7 @@ class RSocketRequester implements RSocket {
   private final PayloadDecoder payloadDecoder;
   private final Consumer<Throwable> errorConsumer;
   private final StreamIdSupplier streamIdSupplier;
-  private final IntObjectMap<RateLimitableRequestPublisher> senders;
+  private final IntObjectMap<LimitableRequestPublisher> senders;
   private final IntObjectMap<Processor<Payload, Payload>> receivers;
   private final UnboundedProcessor<ByteBuf> sendProcessor;
   private final RequesterLeaseHandler leaseHandler;
@@ -132,7 +131,7 @@ class RSocketRequester implements RSocket {
               }
             });
 
-    senders.values().forEach(RateLimitableRequestPublisher::cancel);
+    senders.values().forEach(LimitableRequestPublisher::cancel);
   }
 
   private void handleSendProcessorCancel(SignalType t) {
@@ -151,7 +150,7 @@ class RSocketRequester implements RSocket {
               }
             });
 
-    senders.values().forEach(RateLimitableRequestPublisher::cancel);
+    senders.values().forEach(LimitableRequestPublisher::cancel);
   }
 
   @Override
@@ -344,8 +343,8 @@ class RSocketRequester implements RSocket {
                   request
                       .transform(
                           f -> {
-                            RateLimitableRequestPublisher<Payload> wrapped =
-                                RateLimitableRequestPublisher.wrap(f, Queues.SMALL_BUFFER_SIZE);
+                            LimitableRequestPublisher<Payload> wrapped =
+                                LimitableRequestPublisher.wrap(f);
                             // Need to set this to one for first the frame
                             wrapped.request(1);
                             senders.put(streamId, wrapped);
@@ -422,7 +421,7 @@ class RSocketRequester implements RSocket {
         .doFinally(
             s -> {
               receivers.remove(streamId);
-              RateLimitableRequestPublisher sender = senders.remove(streamId);
+              LimitableRequestPublisher sender = senders.remove(streamId);
               if (sender != null) {
                 sender.cancel();
               }
@@ -490,7 +489,7 @@ class RSocketRequester implements RSocket {
   }
 
   private synchronized void cleanUpLimitableRequestPublisher(
-      RateLimitableRequestPublisher<?> limitableRequestPublisher) {
+      LimitableRequestPublisher<?> limitableRequestPublisher) {
     try {
       limitableRequestPublisher.cancel();
     } catch (Throwable t) {
@@ -562,7 +561,7 @@ class RSocketRequester implements RSocket {
           break;
         case CANCEL:
           {
-            RateLimitableRequestPublisher sender = senders.remove(streamId);
+            LimitableRequestPublisher sender = senders.remove(streamId);
             if (sender != null) {
               sender.cancel();
             }
@@ -573,7 +572,7 @@ class RSocketRequester implements RSocket {
           break;
         case REQUEST_N:
           {
-            RateLimitableRequestPublisher sender = senders.get(streamId);
+            LimitableRequestPublisher sender = senders.get(streamId);
             if (sender != null) {
               int n = RequestNFrameFlyweight.requestN(frame);
               sender.request(n >= Integer.MAX_VALUE ? Long.MAX_VALUE : n);

@@ -38,7 +38,7 @@ public final class TcpPongServer {
     serverRSocketFactory
         .frameDecoder(PayloadDecoder.ZERO_COPY)
         .acceptor(new PingHandler())
-        .transport(TcpServerTransport.create("localhost", port))
+        .transport(TcpServerTransport.create(port))
         .start()
         .block()
         .onClose()
