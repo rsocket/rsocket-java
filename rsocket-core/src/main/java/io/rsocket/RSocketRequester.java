@@ -59,6 +59,10 @@ class RSocketRequester implements RSocket {
           RSocketRequester.class, Throwable.class, "terminationError");
   private static final Exception CLOSED_CHANNEL_EXCEPTION = new ClosedChannelException();
 
+  static {
+    CLOSED_CHANNEL_EXCEPTION.setStackTrace(new StackTraceElement[0]);
+  }
+
   private final DuplexConnection connection;
   private final PayloadDecoder payloadDecoder;
   private final Consumer<Throwable> errorConsumer;
@@ -587,7 +591,7 @@ class RSocketRequester implements RSocket {
   }
 
   private void removeStreamReceiver(int streamId) {
-    /*on termination senders & receivers are explicitly cleared to avoid removing from map while iterating over one
+    /*on termination receivers are explicitly cleared to avoid removing from map while iterating over one
     of its views*/
     if (terminationError == null) {
       receivers.remove(streamId);
