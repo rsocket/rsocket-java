@@ -40,6 +40,7 @@ import java.nio.channels.ClosedChannelException;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
+import java.util.function.Supplier;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import org.reactivestreams.Processor;
@@ -56,6 +57,7 @@ class RSocketRequester implements RSocket {
   private static final AtomicReferenceFieldUpdater<RSocketRequester, Throwable> TERMINATION_ERROR =
       AtomicReferenceFieldUpdater.newUpdater(
           RSocketRequester.class, Throwable.class, "terminationError");
+  private static final Exception CLOSED_CHANNEL_EXCEPTION = new ClosedChannelException();
 
   private final DuplexConnection connection;
   private final PayloadDecoder payloadDecoder;
@@ -91,11 +93,11 @@ class RSocketRequester implements RSocket {
     // DO NOT Change the order here. The Send processor must be subscribed to before receiving
     this.sendProcessor = new UnboundedProcessor<>();
 
-    connection.onClose().doFinally(signalType -> terminate()).subscribe(null, errorConsumer);
     connection
-        .send(sendProcessor)
-        .doFinally(this::handleSendProcessorCancel)
-        .subscribe(null, this::handleSendProcessorError);
+        .onClose()
+        .doFinally(signalType -> tryTerminateOnConnectionClose())
+        .subscribe(null, errorConsumer);
+    connection.send(sendProcessor).subscribe(null, this::handleSendProcessorError);
 
     connection.receive().subscribe(this::handleIncomingFrames, errorConsumer);
 
@@ -103,55 +105,11 @@ class RSocketRequester implements RSocket {
       KeepAliveSupport keepAliveSupport =
           new ClientKeepAliveSupport(allocator, keepAliveTickPeriod, keepAliveAckTimeout);
       this.keepAliveFramesAcceptor =
-          keepAliveHandler.start(keepAliveSupport, sendProcessor::onNext, this::terminate);
+          keepAliveHandler.start(
+              keepAliveSupport, sendProcessor::onNext, this::tryTerminateOnKeepAlive);
     } else {
       keepAliveFramesAcceptor = null;
     }
-  }
-
-  private void terminate(KeepAlive keepAlive) {
-    String message =
-        String.format("No keep-alive acks for %d ms", keepAlive.getTimeout().toMillis());
-    ConnectionErrorException err = new ConnectionErrorException(message);
-    setTerminationError(err);
-    errorConsumer.accept(err);
-    connection.dispose();
-  }
-
-  private void handleSendProcessorError(Throwable t) {
-    Throwable terminationError = this.terminationError;
-    Throwable err = terminationError != null ? terminationError : t;
-    receivers
-        .values()
-        .forEach(
-            subscriber -> {
-              try {
-                subscriber.onError(err);
-              } catch (Throwable e) {
-                errorConsumer.accept(e);
-              }
-            });
-
-    senders.values().forEach(RateLimitableRequestPublisher::cancel);
-  }
-
-  private void handleSendProcessorCancel(SignalType t) {
-    if (SignalType.ON_ERROR == t) {
-      return;
-    }
-
-    receivers
-        .values()
-        .forEach(
-            subscriber -> {
-              try {
-                subscriber.onError(new Throwable("closed connection"));
-              } catch (Throwable e) {
-                errorConsumer.accept(e);
-              }
-            });
-
-    senders.values().forEach(RateLimitableRequestPublisher::cancel);
   }
 
   @Override
@@ -263,8 +221,7 @@ class RSocketRequester implements RSocket {
               if (s == SignalType.CANCEL) {
                 sendProcessor.onNext(CancelFrameFlyweight.encode(allocator, streamId));
               }
-
-              receivers.remove(streamId);
+              removeStreamReceiver(streamId);
             });
   }
 
@@ -318,7 +275,7 @@ class RSocketRequester implements RSocket {
                 sendProcessor.onNext(CancelFrameFlyweight.encode(allocator, streamId));
               }
             })
-        .doFinally(s -> receivers.remove(streamId));
+        .doFinally(s -> removeStreamReceiver(streamId));
   }
 
   private Flux<Payload> handleChannel(Flux<Payload> request) {
@@ -419,14 +376,7 @@ class RSocketRequester implements RSocket {
                 sendProcessor.onNext(CancelFrameFlyweight.encode(allocator, streamId));
               }
             })
-        .doFinally(
-            s -> {
-              receivers.remove(streamId);
-              RateLimitableRequestPublisher sender = senders.remove(streamId);
-              if (sender != null) {
-                sender.cancel();
-              }
-            });
+        .doFinally(s -> removeStreamReceiverAndSender(streamId));
   }
 
   private Mono<Void> handleMetadataPush(Payload payload) {
@@ -472,40 +422,6 @@ class RSocketRequester implements RSocket {
     return receivers.containsKey(streamId);
   }
 
-  private void terminate() {
-    setTerminationError(new ClosedChannelException());
-    leaseHandler.dispose();
-    try {
-      receivers.values().forEach(this::cleanUpSubscriber);
-      senders.values().forEach(this::cleanUpLimitableRequestPublisher);
-    } finally {
-      senders.clear();
-      receivers.clear();
-      sendProcessor.dispose();
-    }
-  }
-
-  private void setTerminationError(Throwable error) {
-    TERMINATION_ERROR.compareAndSet(this, null, error);
-  }
-
-  private synchronized void cleanUpLimitableRequestPublisher(
-      RateLimitableRequestPublisher<?> limitableRequestPublisher) {
-    try {
-      limitableRequestPublisher.cancel();
-    } catch (Throwable t) {
-      errorConsumer.accept(t);
-    }
-  }
-
-  private synchronized void cleanUpSubscriber(Processor subscriber) {
-    try {
-      subscriber.onError(terminationError);
-    } catch (Throwable t) {
-      errorConsumer.accept(t);
-    }
-  }
-
   private void handleIncomingFrames(ByteBuf frame) {
     try {
       int streamId = FrameHeaderFlyweight.streamId(frame);
@@ -525,10 +441,7 @@ class RSocketRequester implements RSocket {
   private void handleStreamZero(FrameType type, ByteBuf frame) {
     switch (type) {
       case ERROR:
-        RuntimeException error = Exceptions.from(frame);
-        setTerminationError(error);
-        errorConsumer.accept(error);
-        connection.dispose();
+        tryTerminateOnZeroError(frame);
         break;
       case LEASE:
         leaseHandler.receive(frame);
@@ -613,5 +526,87 @@ class RSocketRequester implements RSocket {
     }
     // receiving a frame after a given stream has been cancelled/completed,
     // so ignore (cancellation is async so there is a race condition)
+  }
+
+  private void tryTerminateOnKeepAlive(KeepAlive keepAlive) {
+    tryTerminate(
+        () ->
+            new ConnectionErrorException(
+                String.format("No keep-alive acks for %d ms", keepAlive.getTimeout().toMillis())));
+  }
+
+  private void tryTerminateOnConnectionClose() {
+    tryTerminate(() -> CLOSED_CHANNEL_EXCEPTION);
+  }
+
+  private void tryTerminateOnZeroError(ByteBuf errorFrame) {
+    tryTerminate(() -> Exceptions.from(errorFrame));
+  }
+
+  private void tryTerminate(Supplier<Exception> errorSupplier) {
+    if (terminationError == null) {
+      Exception e = errorSupplier.get();
+      if (TERMINATION_ERROR.compareAndSet(this, null, e)) {
+        terminate(e);
+      }
+    }
+  }
+
+  private void terminate(Exception e) {
+    connection.dispose();
+    leaseHandler.dispose();
+
+    synchronized (receivers) {
+      receivers
+          .values()
+          .forEach(
+              receiver -> {
+                try {
+                  receiver.onError(e);
+                } catch (Throwable t) {
+                  errorConsumer.accept(t);
+                }
+              });
+    }
+    synchronized (senders) {
+      senders
+          .values()
+          .forEach(
+              sender -> {
+                try {
+                  sender.cancel();
+                } catch (Throwable t) {
+                  errorConsumer.accept(t);
+                }
+              });
+    }
+    senders.clear();
+    receivers.clear();
+    sendProcessor.dispose();
+    errorConsumer.accept(e);
+  }
+
+  private void removeStreamReceiver(int streamId) {
+    /*on termination senders & receivers are explicitly cleared to avoid removing from map while iterating over one
+    of its views*/
+    if (terminationError == null) {
+      receivers.remove(streamId);
+    }
+  }
+
+  private void removeStreamReceiverAndSender(int streamId) {
+    /*on termination senders & receivers are explicitly cleared to avoid removing from map while iterating over one
+    of its views*/
+    if (terminationError == null) {
+      receivers.remove(streamId);
+      RateLimitableRequestPublisher<?> sender = senders.remove(streamId);
+      if (sender != null) {
+        sender.cancel();
+      }
+    }
+  }
+
+  private void handleSendProcessorError(Throwable t) {
+    connection.dispose();
   }
 }
