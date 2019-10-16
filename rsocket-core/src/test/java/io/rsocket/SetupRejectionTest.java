@@ -18,13 +18,11 @@ import io.rsocket.util.DefaultPayload;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
-import org.junit.Ignore;
 import org.junit.jupiter.api.Test;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.UnicastProcessor;
 import reactor.test.StepVerifier;
 
-@Ignore
 public class SetupRejectionTest {
 
   @Test
@@ -64,15 +62,16 @@ public class SetupRejectionTest {
 
     String errorMsg = "error";
 
-    Mono.delay(Duration.ofMillis(100))
-        .doOnTerminate(
-            () ->
-                conn.addToReceivedBuffer(
-                    ErrorFrameFlyweight.encode(
-                        ByteBufAllocator.DEFAULT, 0, new RejectedSetupException(errorMsg))))
-        .subscribe();
-
-    StepVerifier.create(rSocket.requestResponse(DefaultPayload.create("test")))
+    StepVerifier.create(
+            rSocket
+                .requestResponse(DefaultPayload.create("test"))
+                .doOnRequest(
+                    ignored ->
+                        conn.addToReceivedBuffer(
+                            ErrorFrameFlyweight.encode(
+                                ByteBufAllocator.DEFAULT,
+                                0,
+                                new RejectedSetupException(errorMsg)))))
         .expectErrorMatches(
             err -> err instanceof RejectedSetupException && errorMsg.equals(err.getMessage()))
         .verify(Duration.ofSeconds(5));
