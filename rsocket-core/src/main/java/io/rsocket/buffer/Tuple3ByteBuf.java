@@ -164,7 +164,7 @@ class Tuple3ByteBuf extends AbstractTupleByteBuf {
           ByteBuffer[] twoBuffer;
           ByteBuffer[] threeBuffer;
           int l = Math.min(twoReadableBytes - index, length);
-          twoBuffer = two.nioBuffers(index, length);
+          twoBuffer = two.nioBuffers(index, l);
           length -= l;
           if (length != 0) {
             threeBuffer = three.nioBuffers(threeReadIndex, length);
