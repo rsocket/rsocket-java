@@ -19,12 +19,6 @@ package io.rsocket.transport.netty.server;
 import static io.rsocket.frame.FrameLengthFlyweight.FRAME_LENGTH_MASK;
 
 import io.netty.buffer.ByteBufAllocator;
-import io.netty.buffer.Unpooled;
-import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.ChannelInboundHandlerAdapter;
-import io.netty.handler.codec.http.websocketx.CloseWebSocketFrame;
-import io.netty.handler.codec.http.websocketx.PingWebSocketFrame;
-import io.netty.handler.codec.http.websocketx.PongWebSocketFrame;
 import io.rsocket.DuplexConnection;
 import io.rsocket.fragmentation.FragmentationDuplexConnection;
 import io.rsocket.transport.ClientTransport;
@@ -46,8 +40,8 @@ import reactor.netty.http.server.HttpServer;
  * An implementation of {@link ServerTransport} that connects to a {@link ClientTransport} via a
  * Websocket.
  */
-public final class WebsocketServerTransport
-    implements ServerTransport<CloseableChannel>, TransportHeaderAware {
+public final class WebsocketServerTransport extends BaseWebsocketServerTransport<CloseableChannel>
+    implements TransportHeaderAware {
   private static final Logger logger = LoggerFactory.getLogger(WebsocketServerTransport.class);
 
   private final HttpServer server;
@@ -55,7 +49,7 @@ public final class WebsocketServerTransport
   private Supplier<Map<String, String>> transportHeaders = Collections::emptyMap;
 
   private WebsocketServerTransport(HttpServer server) {
-    this.server = server;
+    this.server = serverConfigurer.apply(Objects.requireNonNull(server, "server must not be null"));
   }
 
   /**
@@ -107,33 +101,7 @@ public final class WebsocketServerTransport
   public static WebsocketServerTransport create(final HttpServer server) {
     Objects.requireNonNull(server, "server must not be null");
 
-    return new WebsocketServerTransport(
-        server.tcpConfiguration(
-            tcpServer ->
-                tcpServer.doOnConnection(
-                    connection ->
-                        connection.addHandlerLast(
-                            new ChannelInboundHandlerAdapter() {
-                              @Override
-                              public void channelRead(ChannelHandlerContext ctx, Object msg)
-                                  throws Exception {
-                                if (msg instanceof PongWebSocketFrame) {
-                                  logger.debug("received WebSocket Pong Frame");
-                                } else if (msg instanceof PingWebSocketFrame) {
-                                  logger.debug(
-                                      "received WebSocket Ping Frame - sending Pong Frame");
-                                  PongWebSocketFrame pongWebSocketFrame =
-                                      new PongWebSocketFrame(Unpooled.EMPTY_BUFFER);
-                                  ctx.writeAndFlush(pongWebSocketFrame);
-                                } else if (msg instanceof CloseWebSocketFrame) {
-                                  logger.warn(
-                                      "received WebSocket Close Frame - connection is closing");
-                                  ctx.close();
-                                } else {
-                                  ctx.fireChannelRead(msg);
-                                }
-                              }
-                            }))));
+    return new WebsocketServerTransport(server);
   }
 
   @Override

@@ -46,7 +46,7 @@ import reactor.netty.http.websocket.WebsocketOutbound;
  * An implementation of {@link ServerTransport} that connects via Websocket and listens on specified
  * routes.
  */
-public final class WebsocketRouteTransport implements ServerTransport<Closeable> {
+public final class WebsocketRouteTransport extends BaseWebsocketServerTransport<Closeable> {
 
   private final UriPathTemplate template;
 
@@ -63,8 +63,7 @@ public final class WebsocketRouteTransport implements ServerTransport<Closeable>
    */
   public WebsocketRouteTransport(
       HttpServer server, Consumer<? super HttpServerRoutes> routesBuilder, String path) {
-
-    this.server = Objects.requireNonNull(server, "server must not be null");
+    this.server = serverConfigurer.apply(Objects.requireNonNull(server, "server must not be null"));
     this.routesBuilder = Objects.requireNonNull(routesBuilder, "routesBuilder must not be null");
     this.template = new UriPathTemplate(Objects.requireNonNull(path, "path must not be null"));
   }
