@@ -2,7 +2,6 @@ package io.rsocket.frame;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
-import io.rsocket.buffer.TupleByteBuf;
 
 /**
  * Some transports like TCP aren't framed, and require a length. This is used by DuplexConnections
@@ -35,7 +34,7 @@ public class FrameLengthFlyweight {
   public static ByteBuf encode(ByteBufAllocator allocator, int length, ByteBuf frame) {
     ByteBuf buffer = allocator.buffer();
     encodeLength(buffer, length);
-    return TupleByteBuf.of(allocator, buffer, frame);
+    return allocator.compositeBuffer().addComponents(true, buffer, frame);
   }
 
   public static int length(ByteBuf byteBuf) {
