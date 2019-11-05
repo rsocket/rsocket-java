@@ -50,7 +50,7 @@ public enum WellKnownMimeType {
   AUDIO_OPUS("audio/opus", (byte) 0x12),
   AUDIO_VORBIS("audio/vorbis", (byte) 0x13),
   IMAGE_BMP("image/bmp", (byte) 0x14),
-  IMAGE_GIG("image/gif", (byte) 0x15),
+  IMAGE_GIF("image/gif", (byte) 0x15),
   IMAGE_HEIC_SEQUENCE("image/heic-sequence", (byte) 0x16),
   IMAGE_HEIC("image/heic", (byte) 0x17),
   IMAGE_HEIF_SEQUENCE("image/heif-sequence", (byte) 0x18),
