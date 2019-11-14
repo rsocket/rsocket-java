@@ -24,7 +24,7 @@ description = 'RSocket Java Bill of materials.'
 
 dependencies {
     constraints {
-        parent.subprojects.findAll { it.name != project.name }.sort { "$it.name" }.each {
+        parent.subprojects.findAll { it.name != project.name && it.name != "rsocket-examples" }.sort { "$it.name" }.each {
             api it
         }
     }
