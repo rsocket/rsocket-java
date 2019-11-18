@@ -18,6 +18,7 @@ package io.rsocket.internal;
 
 import io.netty.util.ReferenceCounted;
 import io.rsocket.internal.jctools.queues.MpscUnboundedArrayQueue;
+import io.rsocket.internal.jctools.queues.SpscUnboundedArrayQueue;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
@@ -56,6 +57,7 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
       AtomicLongFieldUpdater.newUpdater(UnboundedProcessor.class, "requested");
 
   final Queue<T> queue;
+  final Queue<T> priorityQueue;
   volatile boolean done;
   Throwable error;
   volatile CoreSubscriber<? super T> actual;
@@ -67,6 +69,7 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
 
   public UnboundedProcessor() {
     this.queue = new MpscUnboundedArrayQueue<>(Queues.SMALL_BUFFER_SIZE);
+    this.priorityQueue = new SpscUnboundedArrayQueue<>(Queues.SMALL_BUFFER_SIZE);
   }
 
   @Override
@@ -84,6 +87,7 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
     int missed = 1;
 
     final Queue<T> q = queue;
+    final Queue<T> pq = priorityQueue;
 
     for (; ; ) {
 
@@ -93,10 +97,18 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
       while (r != e) {
         boolean d = done;
 
-        T t = q.poll();
-        boolean empty = t == null;
+        T t;
+        boolean empty;
 
-        if (checkTerminated(d, empty, a, q)) {
+        if (!pq.isEmpty()) {
+          t = pq.poll();
+          empty = false;
+        } else {
+          t = q.poll();
+          empty = t == null;
+        }
+
+        if (checkTerminated(d, empty, a, q, pq)) {
           return;
         }
 
@@ -110,7 +122,7 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
       }
 
       if (r == e) {
-        if (checkTerminated(done, q.isEmpty(), a, q)) {
+        if (checkTerminated(done, q.isEmpty() && pq.isEmpty(), a, q, pq)) {
           return;
         }
       }
@@ -130,11 +142,13 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
     int missed = 1;
 
     final Queue<T> q = queue;
+    final Queue<T> pq = priorityQueue;
 
     for (; ; ) {
 
       if (cancelled) {
         q.clear();
+        pq.clear();
         actual = null;
         return;
       }
@@ -188,10 +202,17 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
     }
   }
 
-  boolean checkTerminated(boolean d, boolean empty, Subscriber<? super T> a, Queue<T> q) {
+  boolean checkTerminated(
+      boolean d, boolean empty, Subscriber<? super T> a, Queue<T> q, Queue<T> pq) {
     if (cancelled) {
       while (!q.isEmpty()) {
         T t = q.poll();
+        if (t != null) {
+          release(t);
+        }
+      }
+      while (!pq.isEmpty()) {
+        T t = pq.poll();
         if (t != null) {
           release(t);
         }
@@ -235,6 +256,23 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
   public Context currentContext() {
     CoreSubscriber<? super T> actual = this.actual;
     return actual != null ? actual.currentContext() : Context.empty();
+  }
+
+  public void onNextPrioritized(T t) {
+    if (done || cancelled) {
+      Operators.onNextDropped(t, currentContext());
+      release(t);
+      return;
+    }
+
+    if (!priorityQueue.offer(t)) {
+      Throwable ex =
+          Operators.onOperatorError(null, Exceptions.failWithOverflow(), t, currentContext());
+      onError(Operators.onOperatorError(null, ex, t, currentContext()));
+      release(t);
+      return;
+    }
+    drain();
   }
 
   @Override
@@ -321,29 +359,41 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
 
   @Override
   public T peek() {
+    if (!priorityQueue.isEmpty()) {
+      return priorityQueue.peek();
+    }
     return queue.peek();
   }
 
   @Override
   @Nullable
   public T poll() {
+    if (!priorityQueue.isEmpty()) {
+      return priorityQueue.poll();
+    }
     return queue.poll();
   }
 
   @Override
   public int size() {
-    return queue.size();
+    return priorityQueue.size() + queue.size();
   }
 
   @Override
   public boolean isEmpty() {
-    return queue.isEmpty();
+    return priorityQueue.isEmpty() && queue.isEmpty();
   }
 
   @Override
   public void clear() {
     while (!queue.isEmpty()) {
       T t = queue.poll();
+      if (t != null) {
+        release(t);
+      }
+    }
+    while (!priorityQueue.isEmpty()) {
+      T t = priorityQueue.poll();
       if (t != null) {
         release(t);
       }
