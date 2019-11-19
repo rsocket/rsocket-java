@@ -146,8 +146,7 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
     for (; ; ) {
 
       if (cancelled) {
-        q.clear();
-        pq.clear();
+        clear();
         actual = null;
         return;
       }
@@ -204,18 +203,7 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
   boolean checkTerminated(
       boolean d, boolean empty, Subscriber<? super T> a, Queue<T> q, Queue<T> pq) {
     if (cancelled) {
-      while (!q.isEmpty()) {
-        T t = q.poll();
-        if (t != null) {
-          release(t);
-        }
-      }
-      while (!pq.isEmpty()) {
-        T t = pq.poll();
-        if (t != null) {
-          release(t);
-        }
-      }
+      clear();
       actual = null;
       return true;
     }
