@@ -18,7 +18,6 @@ package io.rsocket.internal;
 
 import io.netty.util.ReferenceCounted;
 import io.rsocket.internal.jctools.queues.MpscUnboundedArrayQueue;
-import io.rsocket.internal.jctools.queues.SpscUnboundedArrayQueue;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
@@ -69,12 +68,12 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
 
   public UnboundedProcessor() {
     this.queue = new MpscUnboundedArrayQueue<>(Queues.SMALL_BUFFER_SIZE);
-    this.priorityQueue = new SpscUnboundedArrayQueue<>(Queues.SMALL_BUFFER_SIZE);
+    this.priorityQueue = new MpscUnboundedArrayQueue<>(Queues.SMALL_BUFFER_SIZE);
   }
 
   @Override
   public int getBufferSize() {
-    return Queues.capacity(this.queue);
+    return Integer.MAX_VALUE;
   }
 
   @Override

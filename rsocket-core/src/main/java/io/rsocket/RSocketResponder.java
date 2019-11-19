@@ -85,7 +85,7 @@ class RSocketResponder implements ResponderRSocket {
         .subscribe(null, this::handleSendProcessorError);
 
     Disposable receiveDisposable = connection.receive().subscribe(this::handleFrame, errorConsumer);
-    Disposable sendLeaseDisposable = leaseHandler.send(sendProcessor::onNext);
+    Disposable sendLeaseDisposable = leaseHandler.send(sendProcessor::onNextPrioritized);
 
     this.connection
         .onClose()
