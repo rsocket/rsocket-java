@@ -22,9 +22,11 @@ plugins {
 
 description = 'RSocket Java Bill of materials.'
 
+def excluded = ["rsocket-examples", "benchmarks"]
+
 dependencies {
     constraints {
-        parent.subprojects.findAll { it.name != project.name && it.name != "rsocket-examples" }.sort { "$it.name" }.each {
+        parent.subprojects.findAll { it.name != project.name && !excluded.contains(it.name) } .sort { "$it.name" }.each {
             api it
         }
     }
