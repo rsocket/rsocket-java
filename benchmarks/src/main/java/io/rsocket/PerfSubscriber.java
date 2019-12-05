@@ -5,9 +5,9 @@ import org.openjdk.jmh.infra.Blackhole;
 import org.reactivestreams.Subscription;
 import reactor.core.CoreSubscriber;
 
-public class PerfSubscriber implements CoreSubscriber<Payload> {
+public class PerfSubscriber<T> implements CoreSubscriber<T> {
 
-  final CountDownLatch latch = new CountDownLatch(1);
+  public final CountDownLatch latch = new CountDownLatch(1);
   final Blackhole blackhole;
 
   Subscription s;
@@ -23,8 +23,7 @@ public class PerfSubscriber implements CoreSubscriber<Payload> {
   }
 
   @Override
-  public void onNext(Payload payload) {
-    payload.release();
+  public void onNext(T payload) {
     blackhole.consume(payload);
     s.request(1);
   }

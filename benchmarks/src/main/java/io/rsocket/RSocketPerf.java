@@ -4,15 +4,20 @@ import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.transport.local.LocalClientTransport;
 import io.rsocket.transport.local.LocalServerTransport;
 import io.rsocket.util.EmptyPayload;
+import java.lang.reflect.Field;
+import java.util.Queue;
+import java.util.concurrent.locks.LockSupport;
 import java.util.stream.IntStream;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
+import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Measurement;
 import org.openjdk.jmh.annotations.Mode;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
+import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 import org.reactivestreams.Publisher;
@@ -36,11 +41,26 @@ public class RSocketPerf {
 
   RSocket client;
   Closeable server;
+  Queue clientsQueue;
+
+  @TearDown
+  public void tearDown() {
+    client.dispose();
+    server.dispose();
+  }
+
+  @TearDown(Level.Iteration)
+  public void awaitToBeConsumed() {
+    while (!clientsQueue.isEmpty()) {
+      LockSupport.parkNanos(1000);
+    }
+  }
 
   @Setup
-  public void setUp() {
+  public void setUp() throws NoSuchFieldException, IllegalAccessException {
     server =
         RSocketFactory.receive()
+            .frameDecoder(PayloadDecoder.ZERO_COPY)
             .acceptor(
                 (setup, sendingSocket) ->
                     Mono.just(
@@ -75,16 +95,22 @@ public class RSocketPerf {
 
     client =
         RSocketFactory.connect()
+            .singleSubscriberRequester()
             .frameDecoder(PayloadDecoder.ZERO_COPY)
             .transport(LocalClientTransport.create("server"))
             .start()
             .block();
+
+    Field sendProcessorField = RSocketRequester.class.getDeclaredField("sendProcessor");
+    sendProcessorField.setAccessible(true);
+
+    clientsQueue = (Queue) sendProcessorField.get(client);
   }
 
   @Benchmark
   @SuppressWarnings("unchecked")
-  public PerfSubscriber fireAndForget(Blackhole blackhole) throws InterruptedException {
-    PerfSubscriber subscriber = new PerfSubscriber(blackhole);
+  public PayloadsPerfSubscriber fireAndForget(Blackhole blackhole) throws InterruptedException {
+    PayloadsPerfSubscriber subscriber = new PayloadsPerfSubscriber(blackhole);
     client.fireAndForget(PAYLOAD).subscribe((CoreSubscriber) subscriber);
     subscriber.latch.await();
 
@@ -92,8 +118,8 @@ public class RSocketPerf {
   }
 
   @Benchmark
-  public PerfSubscriber requestResponse(Blackhole blackhole) throws InterruptedException {
-    PerfSubscriber subscriber = new PerfSubscriber(blackhole);
+  public PayloadsPerfSubscriber requestResponse(Blackhole blackhole) throws InterruptedException {
+    PayloadsPerfSubscriber subscriber = new PayloadsPerfSubscriber(blackhole);
     client.requestResponse(PAYLOAD).subscribe(subscriber);
     subscriber.latch.await();
 
@@ -101,9 +127,9 @@ public class RSocketPerf {
   }
 
   @Benchmark
-  public PerfSubscriber requestStreamWithRequestByOneStrategy(Blackhole blackhole)
+  public PayloadsPerfSubscriber requestStreamWithRequestByOneStrategy(Blackhole blackhole)
       throws InterruptedException {
-    PerfSubscriber subscriber = new PerfSubscriber(blackhole);
+    PayloadsPerfSubscriber subscriber = new PayloadsPerfSubscriber(blackhole);
     client.requestStream(PAYLOAD).subscribe(subscriber);
     subscriber.latch.await();
 
@@ -121,9 +147,9 @@ public class RSocketPerf {
   }
 
   @Benchmark
-  public PerfSubscriber requestChannelWithRequestByOneStrategy(Blackhole blackhole)
+  public PayloadsPerfSubscriber requestChannelWithRequestByOneStrategy(Blackhole blackhole)
       throws InterruptedException {
-    PerfSubscriber subscriber = new PerfSubscriber(blackhole);
+    PayloadsPerfSubscriber subscriber = new PayloadsPerfSubscriber(blackhole);
     client.requestChannel(PAYLOAD_FLUX).subscribe(subscriber);
     subscriber.latch.await();
 

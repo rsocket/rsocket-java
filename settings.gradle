@@ -17,10 +17,12 @@
 rootProject.name = 'rsocket-java'
 
 include 'rsocket-core'
-include 'rsocket-examples'
 include 'rsocket-load-balancer'
 include 'rsocket-micrometer'
 include 'rsocket-test'
 include 'rsocket-transport-local'
 include 'rsocket-transport-netty'
 include 'rsocket-bom'
+
+include 'rsocket-examples'
+include 'benchmarks'
