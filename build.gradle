@@ -15,13 +15,11 @@
  */
 
 plugins {
-    id 'com.gradle.build-scan' version '2.4.2'
-
     id 'com.github.sherter.google-java-format' version '0.8' apply false
-    id 'com.jfrog.artifactory' version '4.9.10' apply false
+    id 'com.jfrog.artifactory' version '4.11.0' apply false
     id 'com.jfrog.bintray' version '1.8.4' apply false
-    id 'me.champeau.gradle.jmh' version '0.4.8' apply false
-    id 'io.spring.dependency-management' version '1.0.7.RELEASE' apply false
+    id 'me.champeau.gradle.jmh' version '0.5.0' apply false
+    id 'io.spring.dependency-management' version '1.0.8.RELEASE' apply false
     id 'io.morethan.jmhreport' version '0.9.0' apply false
 }
 
@@ -145,7 +143,6 @@ subprojects {
             }
         }
     }
-
 }
 
 apply from: "${rootDir}/gradle/publications.gradle"
