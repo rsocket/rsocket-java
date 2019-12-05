@@ -33,6 +33,10 @@ if (project.hasProperty('bintrayUser') && project.hasProperty('bintrayKey')) {
                     defaults {
                         publications(publishing.publications.maven)
                     }
+
+                    if (project.hasProperty('buildNumber')) {
+                        clientConfig.info.setBuildNumber(project.property('buildNumber').toString())
+                    }
                 }
             }
             tasks.named("artifactoryPublish").configure {

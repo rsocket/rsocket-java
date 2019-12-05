@@ -23,7 +23,7 @@ matrix:
     - jdk: openjdk8
     - jdk: openjdk11
       env: SKIP_RELEASE=true
-    - jdk: openjdk12
+    - jdk: openjdk13
       env: SKIP_RELEASE=true
 
 env:
