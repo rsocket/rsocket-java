@@ -16,6 +16,7 @@
 
 package io.rsocket.internal;
 
+import static io.rsocket.internal.SchedulerUtils.warmup;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -27,8 +28,6 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -42,7 +41,6 @@ import reactor.core.publisher.Hooks;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
 import reactor.core.publisher.Operators;
-import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
 import reactor.test.StepVerifier;
 import reactor.test.publisher.TestPublisher;
@@ -1436,16 +1434,5 @@ public class UnicastMonoProcessorTest {
 
     processor.subscribe(v -> Assertions.fail("expected late subscriber to error"), late::set);
     assertThat(late.get()).isInstanceOf(IllegalStateException.class);
-  }
-
-  static void warmup(Scheduler scheduler) throws InterruptedException {
-    scheduler.start();
-
-    // warm up
-    CountDownLatch latch = new CountDownLatch(10000);
-    for (int i = 0; i < 10000; i++) {
-      scheduler.schedule(latch::countDown);
-    }
-    latch.await(5, TimeUnit.SECONDS);
   }
 }
