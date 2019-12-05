@@ -33,7 +33,7 @@ subprojects {
     ext['netty-bom.version'] = '4.1.37.Final'
     ext['netty-boringssl.version'] = '2.0.25.Final'
     ext['hdrhistogram.version'] = '2.1.10'
-    ext['mockito.version'] = '2.25.1'
+    ext['mockito.version'] = '3.2.0'
     ext['slf4j.version'] = '1.7.25'
     ext['jmh.version'] = '1.21'
     ext['junit.version'] = '5.5.2'

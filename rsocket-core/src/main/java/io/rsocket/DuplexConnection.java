@@ -30,7 +30,7 @@ public interface DuplexConnection extends Availability, Closeable {
    * Sends the source of Frames on this connection and returns the {@code Publisher} representing
    * the result of this send.
    *
-   * <h2>Flow control</h2>
+   * <strong>Flow control</strong>
    *
    * The passed {@code Publisher} must
    *
@@ -56,18 +56,18 @@ public interface DuplexConnection extends Availability, Closeable {
   /**
    * Returns a stream of all {@code Frame}s received on this connection.
    *
-   * <h2>Completion</h2>
+   * <strong>Completion</strong>
    *
    * Returned {@code Publisher} <em>MUST</em> never emit a completion event ({@link
    * Subscriber#onComplete()}.
    *
-   * <h2>Error</h2>
+   * <strong>Error</strong>
    *
    * Returned {@code Publisher} can error with various transport errors. If the underlying physical
    * connection is closed by the peer, then the returned stream from here <em>MUST</em> emit an
    * {@link ClosedChannelException}.
    *
-   * <h2>Multiple Subscriptions</h2>
+   * <strong>Multiple Subscriptions</strong>
    *
    * Returned {@code Publisher} is not required to support multiple concurrent subscriptions.
    * RSocket will never have multiple subscriptions to this source. Implementations <em>MUST</em>

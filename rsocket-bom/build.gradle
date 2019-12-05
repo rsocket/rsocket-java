@@ -34,12 +34,6 @@ publishing {
     publications {
         maven(MavenPublication) {
             from components.javaPlatform
-            // remove scope information from published BOM
-            pom.withXml {
-                asNode().dependencyManagement.first().dependencies.first().each {
-                    it.remove(it.scope.first())
-                }
-            }
         }
     }
 }
