@@ -30,9 +30,9 @@ public interface DuplexConnection extends Availability, Closeable {
    * Sends the source of Frames on this connection and returns the {@code Publisher} representing
    * the result of this send.
    *
-   * <strong>Flow control</strong>
+   * <p><strong>Flow control</strong>
    *
-   * The passed {@code Publisher} must
+   * <p>The passed {@code Publisher} must
    *
    * @param frames Stream of {@code Frame}s to send on the connection.
    * @return {@code Publisher} that completes when all the frames are written on the connection
@@ -56,20 +56,20 @@ public interface DuplexConnection extends Availability, Closeable {
   /**
    * Returns a stream of all {@code Frame}s received on this connection.
    *
-   * <strong>Completion</strong>
+   * <p><strong>Completion</strong>
    *
-   * Returned {@code Publisher} <em>MUST</em> never emit a completion event ({@link
+   * <p>Returned {@code Publisher} <em>MUST</em> never emit a completion event ({@link
    * Subscriber#onComplete()}.
    *
-   * <strong>Error</strong>
+   * <p><strong>Error</strong>
    *
-   * Returned {@code Publisher} can error with various transport errors. If the underlying physical
-   * connection is closed by the peer, then the returned stream from here <em>MUST</em> emit an
-   * {@link ClosedChannelException}.
+   * <p>Returned {@code Publisher} can error with various transport errors. If the underlying
+   * physical connection is closed by the peer, then the returned stream from here <em>MUST</em>
+   * emit an {@link ClosedChannelException}.
    *
-   * <strong>Multiple Subscriptions</strong>
+   * <p><strong>Multiple Subscriptions</strong>
    *
-   * Returned {@code Publisher} is not required to support multiple concurrent subscriptions.
+   * <p>Returned {@code Publisher} is not required to support multiple concurrent subscriptions.
    * RSocket will never have multiple subscriptions to this source. Implementations <em>MUST</em>
    * emit an {@link IllegalStateException} for subsequent concurrent subscriptions, if they do not
    * support multiple concurrent subscriptions.
