@@ -1,15 +1,34 @@
+/*
+ * Copyright 2015-2018 the original author or authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package io.rsocket.internal;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.assertj.core.api.Assumptions.assumeThat;
 
+import io.rsocket.internal.subscriber.AssertSubscriber;
 import java.lang.ref.WeakReference;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -19,14 +38,754 @@ import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 import reactor.core.Scannable;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Hooks;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
 import reactor.core.publisher.Operators;
+import reactor.core.scheduler.Scheduler;
+import reactor.core.scheduler.Schedulers;
 import reactor.test.StepVerifier;
 import reactor.test.publisher.TestPublisher;
+import reactor.test.util.RaceTestUtils;
+import reactor.util.context.Context;
 import reactor.util.function.Tuple2;
 
 public class UnicastMonoProcessorTest {
+
+  @Test
+  public void testUnicast() throws InterruptedException {
+    warmup(Schedulers.single());
+
+    for (int i = 0; i < 10000; i++) {
+      UnicastMonoProcessor<Integer> processor = UnicastMonoProcessor.create();
+      assertThatThrownBy(() -> RaceTestUtils.race(processor::subscribe, processor::subscribe))
+          .hasCause(
+              new IllegalStateException("UnicastMonoProcessor allows only a single Subscriber"));
+    }
+  }
+
+  @Test
+  public void stateFlowTest1_Next() {
+    UnicastMonoProcessor<Integer> processor = UnicastMonoProcessor.create();
+    AssertSubscriber<Integer> assertSubscriber = AssertSubscriber.create(0);
+
+    assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_SUBSCRIBER_NO_RESULT);
+
+    processor.onNext(1);
+
+    assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_SUBSCRIBER_HAS_RESULT);
+
+    processor.subscribe(assertSubscriber);
+
+    assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_REQUEST_HAS_RESULT);
+
+    assertSubscriber.request(1);
+
+    assertThat(processor.state).isEqualTo(UnicastMonoProcessor.HAS_REQUEST_HAS_RESULT);
+
+    assertSubscriber.assertValues(1);
+    assertSubscriber.assertComplete();
+  }
+
+  @Test
+  public void stateFlowTest1_Complete() {
+    UnicastMonoProcessor<Integer> processor = UnicastMonoProcessor.create();
+    AssertSubscriber<Integer> assertSubscriber = AssertSubscriber.create(0);
+
+    assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_SUBSCRIBER_NO_RESULT);
+
+    processor.onComplete();
+
+    assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_SUBSCRIBER_HAS_RESULT);
+
+    processor.subscribe(assertSubscriber);
+
+    assertThat(processor.state).isEqualTo(UnicastMonoProcessor.HAS_REQUEST_HAS_RESULT);
+
+    assertSubscriber.assertNoValues();
+    assertSubscriber.assertComplete();
+  }
+
+  @Test
+  public void stateFlowTest1_Error() {
+    UnicastMonoProcessor<Integer> processor = UnicastMonoProcessor.create();
+    AssertSubscriber<Integer> assertSubscriber = AssertSubscriber.create(0);
+    RuntimeException testError = new RuntimeException("test");
+
+    assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_SUBSCRIBER_NO_RESULT);
+
+    processor.onError(testError);
+
+    assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_SUBSCRIBER_HAS_RESULT);
+
+    processor.subscribe(assertSubscriber);
+
+    assertThat(processor.state).isEqualTo(UnicastMonoProcessor.HAS_REQUEST_HAS_RESULT);
+
+    assertSubscriber.assertNoValues();
+    assertSubscriber.assertError(RuntimeException.class);
+    assertSubscriber.assertErrorMessage("test");
+  }
+
+  @Test
+  public void stateFlowTest1_Dispose() {
+    UnicastMonoProcessor<Integer> processor = UnicastMonoProcessor.create();
+    AssertSubscriber<Integer> assertSubscriber = AssertSubscriber.create(0);
+
+    assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_SUBSCRIBER_NO_RESULT);
+
+    processor.dispose();
+
+    assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_SUBSCRIBER_HAS_RESULT);
+
+    processor.subscribe(assertSubscriber);
+
+    assertThat(processor.state).isEqualTo(UnicastMonoProcessor.HAS_REQUEST_HAS_RESULT);
+
+    assertSubscriber.assertNoValues();
+    assertSubscriber.assertError(CancellationException.class);
+    assertSubscriber.assertErrorMessage("Disposed");
+  }
+
+  @Test
+  public void stateFlowTest2_Next() {
+    UnicastMonoProcessor<Integer> processor = UnicastMonoProcessor.create();
+    AssertSubscriber<Integer> assertSubscriber = AssertSubscriber.create(0);
+
+    assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_SUBSCRIBER_NO_RESULT);
+
+    processor.subscribe(assertSubscriber);
+
+    assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_REQUEST_NO_RESULT);
+
+    processor.onNext(1);
+
+    assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_REQUEST_HAS_RESULT);
+
+    assertSubscriber.request(1);
+
+    assertThat(processor.state).isEqualTo(UnicastMonoProcessor.HAS_REQUEST_HAS_RESULT);
+
+    assertSubscriber.assertValues(1);
+    assertSubscriber.assertComplete();
+  }
+
+  @Test
+  public void stateFlowTest2_Complete() {
+    UnicastMonoProcessor<Integer> processor = UnicastMonoProcessor.create();
+    AssertSubscriber<Integer> assertSubscriber = AssertSubscriber.create(0);
+
+    assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_SUBSCRIBER_NO_RESULT);
+
+    processor.subscribe(assertSubscriber);
+
+    assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_REQUEST_NO_RESULT);
+
+    processor.onComplete();
+
+    assertThat(processor.state).isEqualTo(UnicastMonoProcessor.HAS_REQUEST_HAS_RESULT);
+
+    assertSubscriber.assertNoValues();
+    assertSubscriber.assertComplete();
+  }
+
+  @Test
+  public void stateFlowTest2_Error() {
+    UnicastMonoProcessor<Integer> processor = UnicastMonoProcessor.create();
+    AssertSubscriber<Integer> assertSubscriber = AssertSubscriber.create(0);
+
+    assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_SUBSCRIBER_NO_RESULT);
+
+    processor.subscribe(assertSubscriber);
+
+    assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_REQUEST_NO_RESULT);
+
+    processor.onError(new RuntimeException("Test"));
+
+    assertThat(processor.state).isEqualTo(UnicastMonoProcessor.HAS_REQUEST_HAS_RESULT);
+
+    assertSubscriber.assertNoValues();
+    assertSubscriber.assertError(RuntimeException.class);
+    assertSubscriber.assertErrorMessage("Test");
+  }
+
+  @Test
+  public void stateFlowTest2_Dispose() {
+    UnicastMonoProcessor<Integer> processor = UnicastMonoProcessor.create();
+    AssertSubscriber<Integer> assertSubscriber = AssertSubscriber.create(0);
+
+    assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_SUBSCRIBER_NO_RESULT);
+
+    processor.subscribe(assertSubscriber);
+
+    assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_REQUEST_NO_RESULT);
+
+    processor.dispose();
+
+    assertThat(processor.state).isEqualTo(UnicastMonoProcessor.HAS_REQUEST_HAS_RESULT);
+
+    assertSubscriber.assertNoValues();
+    assertSubscriber.assertError(CancellationException.class);
+    assertSubscriber.assertErrorMessage("Disposed");
+  }
+
+  @Test
+  public void stateFlowTest3_Next() {
+    UnicastMonoProcessor<Integer> processor = UnicastMonoProcessor.create();
+    AssertSubscriber<Integer> assertSubscriber = AssertSubscriber.create(0);
+
+    assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_SUBSCRIBER_NO_RESULT);
+
+    processor.subscribe(assertSubscriber);
+
+    assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_REQUEST_NO_RESULT);
+
+    assertSubscriber.request(1);
+
+    assertThat(processor.state).isEqualTo(UnicastMonoProcessor.HAS_REQUEST_NO_RESULT);
+
+    processor.onNext(1);
+
+    assertThat(processor.state).isEqualTo(UnicastMonoProcessor.HAS_REQUEST_HAS_RESULT);
+
+    assertSubscriber.assertValues(1);
+    assertSubscriber.assertComplete();
+  }
+
+  @Test
+  public void stateFlowTest3_Complete() {
+    UnicastMonoProcessor<Integer> processor = UnicastMonoProcessor.create();
+    AssertSubscriber<Integer> assertSubscriber = AssertSubscriber.create(0);
+
+    assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_SUBSCRIBER_NO_RESULT);
+
+    processor.subscribe(assertSubscriber);
+
+    assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_REQUEST_NO_RESULT);
+
+    assertSubscriber.request(1);
+
+    assertThat(processor.state).isEqualTo(UnicastMonoProcessor.HAS_REQUEST_NO_RESULT);
+
+    processor.onComplete();
+
+    assertThat(processor.state).isEqualTo(UnicastMonoProcessor.HAS_REQUEST_HAS_RESULT);
+
+    assertSubscriber.assertNoValues();
+    assertSubscriber.assertComplete();
+  }
+
+  @Test
+  public void stateFlowTest3_Error() {
+    UnicastMonoProcessor<Integer> processor = UnicastMonoProcessor.create();
+    AssertSubscriber<Integer> assertSubscriber = AssertSubscriber.create(0);
+
+    assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_SUBSCRIBER_NO_RESULT);
+
+    processor.subscribe(assertSubscriber);
+
+    assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_REQUEST_NO_RESULT);
+
+    assertSubscriber.request(1);
+
+    assertThat(processor.state).isEqualTo(UnicastMonoProcessor.HAS_REQUEST_NO_RESULT);
+
+    processor.onError(new RuntimeException("Test"));
+
+    assertThat(processor.state).isEqualTo(UnicastMonoProcessor.HAS_REQUEST_HAS_RESULT);
+
+    assertSubscriber.assertNoValues();
+    assertSubscriber.assertError(RuntimeException.class);
+    assertSubscriber.assertErrorMessage("Test");
+  }
+
+  @Test
+  public void stateFlowTest3_Dispose() {
+    UnicastMonoProcessor<Integer> processor = UnicastMonoProcessor.create();
+    AssertSubscriber<Integer> assertSubscriber = AssertSubscriber.create(0);
+
+    assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_SUBSCRIBER_NO_RESULT);
+
+    processor.subscribe(assertSubscriber);
+
+    assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_REQUEST_NO_RESULT);
+
+    assertSubscriber.request(1);
+
+    assertThat(processor.state).isEqualTo(UnicastMonoProcessor.HAS_REQUEST_NO_RESULT);
+
+    processor.dispose();
+
+    assertThat(processor.state).isEqualTo(UnicastMonoProcessor.HAS_REQUEST_HAS_RESULT);
+
+    assertSubscriber.assertNoValues();
+    assertSubscriber.assertError(RuntimeException.class);
+    assertSubscriber.assertErrorMessage("Disposed");
+  }
+
+  @Test
+  public void stateFlowTest4_Next() {
+    ArrayList<Object> discarded = new ArrayList<>();
+    UnicastMonoProcessor<Integer> processor = UnicastMonoProcessor.create();
+    //    Context discardingContext = Operators.enableOnDiscard(null, discarded::add);
+    Hooks.onNextDropped(discarded::add);
+    AssertSubscriber<Integer> assertSubscriber = new AssertSubscriber<>(0);
+
+    try {
+      assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_SUBSCRIBER_NO_RESULT);
+
+      processor.subscribe(assertSubscriber);
+
+      assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_REQUEST_NO_RESULT);
+
+      assertSubscriber.request(1);
+
+      assertThat(processor.state).isEqualTo(UnicastMonoProcessor.HAS_REQUEST_NO_RESULT);
+
+      assertSubscriber.cancel();
+
+      assertThat(processor.state).isEqualTo(UnicastMonoProcessor.CANCELLED);
+
+      processor.onNext(1);
+
+      assertThat(processor.state).isEqualTo(UnicastMonoProcessor.CANCELLED);
+
+      assertSubscriber.assertNoEvents();
+      assertThat(discarded).containsExactly(1);
+    } finally {
+      Hooks.resetOnNextDropped();
+    }
+  }
+
+  @Test
+  public void stateFlowTest4_Error() {
+    ArrayList<Object> discarded = new ArrayList<>();
+    UnicastMonoProcessor<Integer> processor = UnicastMonoProcessor.create();
+    //    Context discardingContext = Operators.enableOnDiscard(null, discarded::add);
+    Hooks.onErrorDropped(discarded::add);
+    AssertSubscriber<Integer> assertSubscriber = new AssertSubscriber<>(0);
+
+    try {
+
+      assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_SUBSCRIBER_NO_RESULT);
+
+      processor.subscribe(assertSubscriber);
+
+      assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_REQUEST_NO_RESULT);
+
+      assertSubscriber.request(1);
+
+      assertThat(processor.state).isEqualTo(UnicastMonoProcessor.HAS_REQUEST_NO_RESULT);
+
+      assertSubscriber.cancel();
+
+      assertThat(processor.state).isEqualTo(UnicastMonoProcessor.CANCELLED);
+
+      RuntimeException testError = new RuntimeException("test");
+      processor.onError(testError);
+
+      assertThat(processor.state).isEqualTo(UnicastMonoProcessor.CANCELLED);
+
+      assertSubscriber.assertNoEvents();
+      assertThat(discarded).containsExactly(testError);
+
+    } finally {
+      Hooks.resetOnErrorDropped();
+    }
+  }
+
+  @Test
+  public void stateFlowTest4_Dispose() {
+    ArrayList<Object> discarded = new ArrayList<>();
+    UnicastMonoProcessor<Integer> processor = UnicastMonoProcessor.create();
+    //    Context discardingContext = Operators.enableOnDiscard(null, discarded::add);
+    Hooks.onErrorDropped(discarded::add);
+    try {
+      AssertSubscriber<Integer> assertSubscriber = new AssertSubscriber<>(0);
+
+      assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_SUBSCRIBER_NO_RESULT);
+
+      processor.subscribe(assertSubscriber);
+
+      assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_REQUEST_NO_RESULT);
+
+      assertSubscriber.request(1);
+
+      assertThat(processor.state).isEqualTo(UnicastMonoProcessor.HAS_REQUEST_NO_RESULT);
+
+      assertSubscriber.cancel();
+
+      assertThat(processor.state).isEqualTo(UnicastMonoProcessor.CANCELLED);
+
+      processor.dispose();
+
+      assertThat(processor.state).isEqualTo(UnicastMonoProcessor.CANCELLED);
+
+      assertSubscriber.assertNoEvents();
+      assertThat(discarded).isEmpty();
+    } finally {
+      Hooks.resetOnErrorDropped();
+    }
+  }
+
+  @Test
+  public void stateFlowTest4_Complete() {
+    ArrayList<Object> discarded = new ArrayList<>();
+    UnicastMonoProcessor<Integer> processor = UnicastMonoProcessor.create();
+    //    Context discardingContext = Operators.enableOnDiscard(null, discarded::add);
+    Hooks.onErrorDropped(discarded::add);
+    AssertSubscriber<Integer> assertSubscriber = new AssertSubscriber<>(0);
+
+    try {
+      assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_SUBSCRIBER_NO_RESULT);
+
+      processor.subscribe(assertSubscriber);
+
+      assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_REQUEST_NO_RESULT);
+
+      assertSubscriber.request(1);
+
+      assertThat(processor.state).isEqualTo(UnicastMonoProcessor.HAS_REQUEST_NO_RESULT);
+
+      assertSubscriber.cancel();
+
+      assertThat(processor.state).isEqualTo(UnicastMonoProcessor.CANCELLED);
+
+      processor.onComplete();
+
+      assertThat(processor.state).isEqualTo(UnicastMonoProcessor.CANCELLED);
+
+      assertSubscriber.assertNoEvents();
+      assertThat(discarded).isEmpty();
+    } finally {
+      Hooks.resetOnErrorDropped();
+    }
+  }
+
+  @Test
+  public void stateFlowTest5_Next() {
+    ArrayList<Object> discarded = new ArrayList<>();
+    UnicastMonoProcessor<Integer> processor = UnicastMonoProcessor.create();
+    Context discardingContext = Operators.enableOnDiscard(null, discarded::add);
+    AssertSubscriber<Integer> assertSubscriber = new AssertSubscriber<>(discardingContext, 0);
+
+    assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_SUBSCRIBER_NO_RESULT);
+
+    processor.subscribe(assertSubscriber);
+
+    assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_REQUEST_NO_RESULT);
+
+    processor.onNext(1);
+
+    assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_REQUEST_HAS_RESULT);
+
+    assertSubscriber.cancel();
+
+    assertThat(processor.state).isEqualTo(UnicastMonoProcessor.CANCELLED);
+
+    assertSubscriber.assertNoEvents();
+    assertThat(discarded).containsExactly(1);
+  }
+
+  @Test
+  public void stateFlowTest5_Complete() {
+    ArrayList<Object> discarded = new ArrayList<>();
+    UnicastMonoProcessor<Integer> processor = UnicastMonoProcessor.create();
+    Context discardingContext = Operators.enableOnDiscard(null, discarded::add);
+    AssertSubscriber<Integer> assertSubscriber = new AssertSubscriber<>(discardingContext, 0);
+
+    assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_SUBSCRIBER_NO_RESULT);
+
+    processor.subscribe(assertSubscriber);
+
+    assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_REQUEST_NO_RESULT);
+
+    processor.onComplete();
+
+    assertThat(processor.state).isEqualTo(UnicastMonoProcessor.HAS_REQUEST_HAS_RESULT);
+
+    assertSubscriber.cancel();
+
+    assertThat(processor.state).isEqualTo(UnicastMonoProcessor.CANCELLED);
+
+    assertSubscriber.assertComplete();
+    assertThat(discarded).isEmpty();
+  }
+
+  @Test
+  public void stateFlowTest5_Error() {
+    ArrayList<Object> discarded = new ArrayList<>();
+    UnicastMonoProcessor<Integer> processor = UnicastMonoProcessor.create();
+    Context discardingContext = Operators.enableOnDiscard(null, discarded::add);
+    Hooks.onErrorDropped(discarded::add);
+    AssertSubscriber<Integer> assertSubscriber = new AssertSubscriber<>(discardingContext, 0);
+
+    try {
+      assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_SUBSCRIBER_NO_RESULT);
+
+      processor.subscribe(assertSubscriber);
+
+      assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_REQUEST_NO_RESULT);
+
+      processor.onError(new RuntimeException("test"));
+
+      assertThat(processor.state).isEqualTo(UnicastMonoProcessor.HAS_REQUEST_HAS_RESULT);
+
+      assertSubscriber.cancel();
+
+      assertThat(processor.state).isEqualTo(UnicastMonoProcessor.CANCELLED);
+
+      assertSubscriber.assertError(RuntimeException.class);
+      assertSubscriber.assertErrorMessage("test");
+      assertThat(discarded).isEmpty();
+    } finally {
+      Hooks.resetOnErrorDropped();
+    }
+  }
+
+  @Test
+  public void stateFlowTest5_Dispose() {
+    ArrayList<Object> discarded = new ArrayList<>();
+    UnicastMonoProcessor<Integer> processor = UnicastMonoProcessor.create();
+    Context discardingContext = Operators.enableOnDiscard(null, discarded::add);
+    Hooks.onErrorDropped(discarded::add);
+    AssertSubscriber<Integer> assertSubscriber = new AssertSubscriber<>(discardingContext, 0);
+
+    try {
+      assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_SUBSCRIBER_NO_RESULT);
+
+      processor.subscribe(assertSubscriber);
+
+      assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_REQUEST_NO_RESULT);
+
+      processor.dispose();
+
+      assertThat(processor.state).isEqualTo(UnicastMonoProcessor.HAS_REQUEST_HAS_RESULT);
+
+      assertSubscriber.cancel();
+
+      assertThat(processor.state).isEqualTo(UnicastMonoProcessor.CANCELLED);
+
+      assertSubscriber.assertError(CancellationException.class);
+      assertSubscriber.assertErrorMessage("Disposed");
+      assertThat(discarded).isEmpty();
+    } finally {
+      Hooks.resetOnErrorDropped();
+    }
+  }
+
+  @Test
+  public void stateFlowTest6_Next() {
+    ArrayList<Object> discarded = new ArrayList<>();
+    UnicastMonoProcessor<Integer> processor = UnicastMonoProcessor.create();
+    Context discardingContext = Operators.enableOnDiscard(null, discarded::add);
+    AssertSubscriber<Integer> assertSubscriber = new AssertSubscriber<>(discardingContext, 0);
+
+    assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_SUBSCRIBER_NO_RESULT);
+
+    processor.onNext(1);
+
+    assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_SUBSCRIBER_HAS_RESULT);
+
+    processor.subscribe(assertSubscriber);
+
+    assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_REQUEST_HAS_RESULT);
+
+    assertSubscriber.cancel();
+
+    assertThat(processor.state).isEqualTo(UnicastMonoProcessor.CANCELLED);
+
+    assertSubscriber.assertNoEvents();
+    assertThat(discarded).containsExactly(1);
+  }
+
+  @Test
+  public void stateFlowTest7_Next() throws InterruptedException {
+    warmup(Schedulers.single());
+
+    for (int i = 0; i < 10000; i++) {
+      UnicastMonoProcessor<Integer> processor = UnicastMonoProcessor.create();
+      AssertSubscriber<Integer> assertSubscriber = new AssertSubscriber<>();
+
+      assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_SUBSCRIBER_NO_RESULT);
+
+      RaceTestUtils.race(
+          () -> processor.onNext(1),
+          () -> processor.subscribe(assertSubscriber),
+          Schedulers.single());
+
+      assertThat(processor.state).isEqualTo(UnicastMonoProcessor.HAS_REQUEST_HAS_RESULT);
+
+      assertSubscriber.assertValues(1);
+      assertSubscriber.assertComplete();
+    }
+  }
+
+  @Test
+  public void stateFlowTest7_Complete() throws InterruptedException {
+    warmup(Schedulers.single());
+
+    for (int i = 0; i < 10000; i++) {
+      UnicastMonoProcessor<Integer> processor = UnicastMonoProcessor.create();
+      AssertSubscriber<Integer> assertSubscriber = new AssertSubscriber<>(0);
+
+      assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_SUBSCRIBER_NO_RESULT);
+
+      RaceTestUtils.race(
+          processor::onComplete, () -> processor.subscribe(assertSubscriber), Schedulers.single());
+
+      assertThat(processor.state).isEqualTo(UnicastMonoProcessor.HAS_REQUEST_HAS_RESULT);
+
+      assertSubscriber.assertNoValues();
+      assertSubscriber.assertComplete();
+    }
+  }
+
+  @Test
+  public void stateFlowTest7_Error() throws InterruptedException {
+    warmup(Schedulers.single());
+
+    for (int i = 0; i < 10000; i++) {
+      UnicastMonoProcessor<Integer> processor = UnicastMonoProcessor.create();
+      AssertSubscriber<Integer> assertSubscriber = new AssertSubscriber<>(0);
+
+      assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_SUBSCRIBER_NO_RESULT);
+
+      RaceTestUtils.race(
+          () -> processor.onError(new RuntimeException("test")),
+          () -> processor.subscribe(assertSubscriber),
+          Schedulers.single());
+
+      assertThat(processor.state).isEqualTo(UnicastMonoProcessor.HAS_REQUEST_HAS_RESULT);
+
+      assertSubscriber.assertNoValues();
+      assertSubscriber.assertError(RuntimeException.class);
+      assertSubscriber.assertErrorMessage("test");
+    }
+  }
+
+  @Test
+  public void stateFlowTest7_Dispose() throws InterruptedException {
+    warmup(Schedulers.single());
+
+    for (int i = 0; i < 10000; i++) {
+      UnicastMonoProcessor<Integer> processor = UnicastMonoProcessor.create();
+      AssertSubscriber<Integer> assertSubscriber = new AssertSubscriber<>(0);
+
+      assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_SUBSCRIBER_NO_RESULT);
+
+      RaceTestUtils.race(
+          processor::dispose, () -> processor.subscribe(assertSubscriber), Schedulers.single());
+
+      assertThat(processor.state).isEqualTo(UnicastMonoProcessor.HAS_REQUEST_HAS_RESULT);
+
+      assertSubscriber.assertNoValues();
+      assertSubscriber.assertError(CancellationException.class);
+      assertSubscriber.assertErrorMessage("Disposed");
+    }
+  }
+
+  @Test
+  public void stateFlowTest8_Next() throws InterruptedException {
+    warmup(Schedulers.single());
+
+    for (int i = 0; i < 10000; i++) {
+      UnicastMonoProcessor<Integer> processor = UnicastMonoProcessor.create();
+      AssertSubscriber<Integer> assertSubscriber = new AssertSubscriber<>();
+
+      assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_SUBSCRIBER_NO_RESULT);
+
+      processor.subscribe(assertSubscriber);
+
+      assertThat(processor.state).isEqualTo(UnicastMonoProcessor.HAS_REQUEST_NO_RESULT);
+
+      RaceTestUtils.race(() -> processor.onNext(1), assertSubscriber::cancel, Schedulers.single());
+
+      assertThat(processor.state).isEqualTo(UnicastMonoProcessor.CANCELLED);
+
+      if (assertSubscriber.values().isEmpty()) {
+        assertSubscriber.assertNoEvents();
+      } else {
+        assertSubscriber.assertValues(1);
+        assertSubscriber.assertComplete();
+      }
+    }
+  }
+
+  @Test
+  public void stateFlowTest9_Next() throws InterruptedException {
+    warmup(Schedulers.single());
+
+    for (int i = 0; i < 10000; i++) {
+      UnicastMonoProcessor<Integer> processor = UnicastMonoProcessor.create();
+      AssertSubscriber<Integer> assertSubscriber = new AssertSubscriber<>();
+
+      assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_SUBSCRIBER_NO_RESULT);
+
+      processor.subscribe(assertSubscriber);
+
+      assertThat(processor.state).isEqualTo(UnicastMonoProcessor.HAS_REQUEST_NO_RESULT);
+
+      RaceTestUtils.race(() -> processor.onNext(1), processor::dispose, Schedulers.single());
+
+      assertThat(processor.state).isEqualTo(UnicastMonoProcessor.HAS_REQUEST_HAS_RESULT);
+
+      if (processor.isError()) {
+        assertSubscriber.assertNoValues();
+        assertSubscriber.assertErrorMessage("Disposed");
+      } else {
+        assertSubscriber.assertValues(1);
+        assertSubscriber.assertComplete();
+      }
+    }
+  }
+
+  @Test
+  public void stateFlowTest13_Next() throws InterruptedException {
+    warmup(Schedulers.single());
+
+    for (int i = 0; i < 10000; i++) {
+      UnicastMonoProcessor<Integer> processor = UnicastMonoProcessor.create();
+      AssertSubscriber<Integer> assertSubscriber = new AssertSubscriber<>(0);
+
+      assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_SUBSCRIBER_NO_RESULT);
+
+      processor.onNext(1);
+      processor.subscribe(assertSubscriber);
+
+      RaceTestUtils.race(
+          () -> assertSubscriber.request(1),
+          () -> assertSubscriber.request(1),
+          Schedulers.single());
+
+      assertThat(processor.state).isEqualTo(UnicastMonoProcessor.HAS_REQUEST_HAS_RESULT);
+
+      assertSubscriber.assertValues(1);
+      assertSubscriber.assertComplete();
+    }
+  }
+
+  @Test
+  public void stateFlowTest14_Next() throws InterruptedException {
+    warmup(Schedulers.single());
+
+    for (int i = 0; i < 10000; i++) {
+      UnicastMonoProcessor<Integer> processor = UnicastMonoProcessor.create();
+      AssertSubscriber<Integer> assertSubscriber = new AssertSubscriber<>(0);
+
+      assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_SUBSCRIBER_NO_RESULT);
+
+      processor.subscribe(assertSubscriber);
+      assertSubscriber.request(1);
+
+      RaceTestUtils.race(() -> processor.onNext(1), () -> processor.onNext(1), Schedulers.single());
+
+      assertThat(processor.state).isEqualTo(UnicastMonoProcessor.HAS_REQUEST_HAS_RESULT);
+
+      assertSubscriber.assertValues(1);
+      assertSubscriber.assertComplete();
+    }
+  }
 
   @Test
   public void noRetentionOnTermination() throws InterruptedException {
@@ -54,7 +813,7 @@ public class UnicastMonoProcessorTest {
       Thread.sleep(100);
     }
 
-    assumeThat(refFuture.get()).isNull();
+    assertThat(refFuture.get()).isNull();
     assertThat(refDate.get()).isNull();
     assertThat(cycles).isNotZero().isPositive();
   }
@@ -83,7 +842,7 @@ public class UnicastMonoProcessorTest {
       Thread.sleep(100);
     }
 
-    assumeThat(refFuture.get()).isNull();
+    assertThat(refFuture.get()).isNull();
     assertThat(cycles).isNotZero().isPositive();
   }
 
@@ -114,7 +873,7 @@ public class UnicastMonoProcessorTest {
       Thread.sleep(100);
     }
 
-    assumeThat(refFuture.get()).isNull();
+    assertThat(refFuture.get()).isNull();
     assertThat(cycles).isNotZero().isPositive();
   }
 
@@ -290,11 +1049,13 @@ public class UnicastMonoProcessorTest {
 
     UnicastMonoProcessor<Integer> mp2 =
         mp.map(s -> s * 2).subscribeWith(UnicastMonoProcessor.create());
+
+    assertThat(mp2.isDisposed()).isTrue();
+    assertThat(mp2.isTerminated()).isTrue();
+    assertThat(mp2.isCancelled()).isFalse();
     assertThat(mp2.peek()).isEqualTo(2);
 
     mp2.subscribe();
-    assertThat(mp2.isDisposed()).isTrue();
-    assertThat(mp2.peek()).isNull();
   }
 
   @Test
@@ -305,10 +1066,13 @@ public class UnicastMonoProcessorTest {
 
     UnicastMonoProcessor<Integer> mp2 =
         mp.flatMap(s -> Mono.just(s * 2)).subscribeWith(UnicastMonoProcessor.create());
-    mp2.subscribe();
 
     assertThat(mp2.isDisposed()).isTrue();
+    assertThat(mp2.isTerminated()).isTrue();
+    assertThat(mp2.isCancelled()).isFalse();
     assertThat(mp2.peek()).isEqualTo(2);
+
+    mp2.subscribe();
   }
 
   @Test
@@ -357,7 +1121,7 @@ public class UnicastMonoProcessorTest {
     UnicastMonoProcessor<Integer> mp2 = UnicastMonoProcessor.create();
     UnicastMonoProcessor<Tuple2<Integer, Integer>> mp3 = UnicastMonoProcessor.create();
 
-    StepVerifier.create(Mono.zip(mp, mp2).subscribeWith(mp3))
+    StepVerifier.create(Mono.zip(mp, mp2).subscribeWith(mp3), 0)
         .then(() -> assertThat(mp3.isDisposed()).isFalse())
         .then(() -> mp.onNext(1))
         .then(() -> assertThat(mp3.isDisposed()).isFalse())
@@ -368,6 +1132,7 @@ public class UnicastMonoProcessorTest {
               assertThat(mp3.peek().getT1()).isEqualTo(1);
               assertThat(mp3.peek().getT2()).isEqualTo(2);
             })
+        .thenRequest(1)
         .expectNextMatches(t -> t.getT1() == 1 && t.getT2() == 2)
         .verifyComplete();
   }
@@ -377,7 +1142,7 @@ public class UnicastMonoProcessorTest {
     UnicastMonoProcessor<Integer> mp = UnicastMonoProcessor.create();
     UnicastMonoProcessor<Integer> mp3 = UnicastMonoProcessor.create();
 
-    StepVerifier.create(Mono.zip(d -> (Integer) d[0], mp).subscribeWith(mp3))
+    StepVerifier.create(Mono.zip(d -> (Integer) d[0], mp).subscribeWith(mp3), 0)
         .then(() -> assertThat(mp3.isDisposed()).isFalse())
         .then(() -> mp.onNext(1))
         .then(
@@ -385,6 +1150,7 @@ public class UnicastMonoProcessorTest {
               assertThat(mp3.isDisposed()).isTrue();
               assertThat(mp3.peek()).isEqualTo(1);
             })
+        .thenRequest(1)
         .expectNext(1)
         .verifyComplete();
   }
@@ -410,12 +1176,13 @@ public class UnicastMonoProcessorTest {
   public void filterMonoProcessor() {
     UnicastMonoProcessor<Integer> mp = UnicastMonoProcessor.create();
     UnicastMonoProcessor<Integer> mp2 = UnicastMonoProcessor.create();
-    StepVerifier.create(mp.filter(s -> s % 2 == 0).subscribeWith(mp2))
+    StepVerifier.create(mp.filter(s -> s % 2 == 0).subscribeWith(mp2), 0)
         .then(() -> mp.onNext(2))
         .then(() -> assertThat(mp2.isError()).isFalse())
         .then(() -> assertThat(mp2.isDisposed()).isTrue())
         .then(() -> assertThat(mp2.peek()).isEqualTo(2))
         .then(() -> assertThat(mp2.isDisposed()).isTrue())
+        .thenRequest(1)
         .expectNext(2)
         .verifyComplete();
   }
@@ -657,5 +1424,16 @@ public class UnicastMonoProcessorTest {
 
     processor.subscribe(v -> Assertions.fail("expected late subscriber to error"), late::set);
     assertThat(late.get()).isInstanceOf(IllegalStateException.class);
+  }
+
+  static void warmup(Scheduler scheduler) throws InterruptedException {
+    scheduler.start();
+
+    // warm up
+    CountDownLatch latch = new CountDownLatch(10000);
+    for (int i = 0; i < 10000; i++) {
+      scheduler.schedule(latch::countDown);
+    }
+    latch.await(5, TimeUnit.SECONDS);
   }
 }
