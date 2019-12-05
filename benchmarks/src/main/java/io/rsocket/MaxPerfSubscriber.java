@@ -5,12 +5,12 @@ import org.openjdk.jmh.infra.Blackhole;
 import org.reactivestreams.Subscription;
 import reactor.core.CoreSubscriber;
 
-public class MaxPerfSubscriber implements CoreSubscriber<Payload> {
+public class MaxPerfSubscriber<T> extends CountDownLatch implements CoreSubscriber<T> {
 
-  final CountDownLatch latch = new CountDownLatch(1);
   final Blackhole blackhole;
 
   public MaxPerfSubscriber(Blackhole blackhole) {
+    super(1);
     this.blackhole = blackhole;
   }
 
@@ -20,19 +20,18 @@ public class MaxPerfSubscriber implements CoreSubscriber<Payload> {
   }
 
   @Override
-  public void onNext(Payload payload) {
-    payload.release();
+  public void onNext(T payload) {
     blackhole.consume(payload);
   }
 
   @Override
   public void onError(Throwable t) {
     blackhole.consume(t);
-    latch.countDown();
+    countDown();
   }
 
   @Override
   public void onComplete() {
-    latch.countDown();
+    countDown();
   }
 }

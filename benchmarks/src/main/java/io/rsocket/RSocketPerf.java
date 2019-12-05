@@ -112,7 +112,7 @@ public class RSocketPerf {
   public PayloadsPerfSubscriber fireAndForget(Blackhole blackhole) throws InterruptedException {
     PayloadsPerfSubscriber subscriber = new PayloadsPerfSubscriber(blackhole);
     client.fireAndForget(PAYLOAD).subscribe((CoreSubscriber) subscriber);
-    subscriber.latch.await();
+    subscriber.await();
 
     return subscriber;
   }
@@ -121,7 +121,7 @@ public class RSocketPerf {
   public PayloadsPerfSubscriber requestResponse(Blackhole blackhole) throws InterruptedException {
     PayloadsPerfSubscriber subscriber = new PayloadsPerfSubscriber(blackhole);
     client.requestResponse(PAYLOAD).subscribe(subscriber);
-    subscriber.latch.await();
+    subscriber.await();
 
     return subscriber;
   }
@@ -131,17 +131,17 @@ public class RSocketPerf {
       throws InterruptedException {
     PayloadsPerfSubscriber subscriber = new PayloadsPerfSubscriber(blackhole);
     client.requestStream(PAYLOAD).subscribe(subscriber);
-    subscriber.latch.await();
+    subscriber.await();
 
     return subscriber;
   }
 
   @Benchmark
-  public MaxPerfSubscriber requestStreamWithRequestAllStrategy(Blackhole blackhole)
+  public PayloadsMaxPerfSubscriber requestStreamWithRequestAllStrategy(Blackhole blackhole)
       throws InterruptedException {
-    MaxPerfSubscriber subscriber = new MaxPerfSubscriber(blackhole);
+    PayloadsMaxPerfSubscriber subscriber = new PayloadsMaxPerfSubscriber(blackhole);
     client.requestStream(PAYLOAD).subscribe(subscriber);
-    subscriber.latch.await();
+    subscriber.await();
 
     return subscriber;
   }
@@ -151,17 +151,17 @@ public class RSocketPerf {
       throws InterruptedException {
     PayloadsPerfSubscriber subscriber = new PayloadsPerfSubscriber(blackhole);
     client.requestChannel(PAYLOAD_FLUX).subscribe(subscriber);
-    subscriber.latch.await();
+    subscriber.await();
 
     return subscriber;
   }
 
   @Benchmark
-  public MaxPerfSubscriber requestChannelWithRequestAllStrategy(Blackhole blackhole)
+  public PayloadsMaxPerfSubscriber requestChannelWithRequestAllStrategy(Blackhole blackhole)
       throws InterruptedException {
-    MaxPerfSubscriber subscriber = new MaxPerfSubscriber(blackhole);
+    PayloadsMaxPerfSubscriber subscriber = new PayloadsMaxPerfSubscriber(blackhole);
     client.requestChannel(PAYLOAD_FLUX).subscribe(subscriber);
-    subscriber.latch.await();
+    subscriber.await();
 
     return subscriber;
   }

@@ -5,14 +5,14 @@ import org.openjdk.jmh.infra.Blackhole;
 import org.reactivestreams.Subscription;
 import reactor.core.CoreSubscriber;
 
-public class PerfSubscriber<T> implements CoreSubscriber<T> {
+public class PerfSubscriber<T> extends CountDownLatch implements CoreSubscriber<T> {
 
-  public final CountDownLatch latch = new CountDownLatch(1);
   final Blackhole blackhole;
 
   Subscription s;
 
   public PerfSubscriber(Blackhole blackhole) {
+    super(1);
     this.blackhole = blackhole;
   }
 
@@ -31,11 +31,11 @@ public class PerfSubscriber<T> implements CoreSubscriber<T> {
   @Override
   public void onError(Throwable t) {
     blackhole.consume(t);
-    latch.countDown();
+    countDown();
   }
 
   @Override
   public void onComplete() {
-    latch.countDown();
+    countDown();
   }
 }
