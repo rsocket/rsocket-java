@@ -79,6 +79,7 @@ public class UnicastMonoProcessorTest {
 
     assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_REQUEST_HAS_RESULT);
 
+    assertSubscriber.assertNoEvents();
     assertSubscriber.request(1);
 
     assertThat(processor.state).isEqualTo(UnicastMonoProcessor.HAS_REQUEST_HAS_RESULT);
@@ -162,6 +163,7 @@ public class UnicastMonoProcessorTest {
 
     assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_REQUEST_HAS_RESULT);
 
+    assertSubscriber.assertNoEvents();
     assertSubscriber.request(1);
 
     assertThat(processor.state).isEqualTo(UnicastMonoProcessor.HAS_REQUEST_HAS_RESULT);
@@ -240,10 +242,12 @@ public class UnicastMonoProcessorTest {
 
     assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_REQUEST_NO_RESULT);
 
+    assertSubscriber.assertNoEvents();
     assertSubscriber.request(1);
 
     assertThat(processor.state).isEqualTo(UnicastMonoProcessor.HAS_REQUEST_NO_RESULT);
 
+    assertSubscriber.assertNoEvents();
     processor.onNext(1);
 
     assertThat(processor.state).isEqualTo(UnicastMonoProcessor.HAS_REQUEST_HAS_RESULT);
@@ -339,10 +343,12 @@ public class UnicastMonoProcessorTest {
       assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_REQUEST_NO_RESULT);
 
       assertSubscriber.request(1);
+      assertSubscriber.assertNoEvents();
 
       assertThat(processor.state).isEqualTo(UnicastMonoProcessor.HAS_REQUEST_NO_RESULT);
 
       assertSubscriber.cancel();
+      assertSubscriber.assertNoEvents();
 
       assertThat(processor.state).isEqualTo(UnicastMonoProcessor.CANCELLED);
 
@@ -374,10 +380,12 @@ public class UnicastMonoProcessorTest {
       assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_REQUEST_NO_RESULT);
 
       assertSubscriber.request(1);
+      assertSubscriber.assertNoEvents();
 
       assertThat(processor.state).isEqualTo(UnicastMonoProcessor.HAS_REQUEST_NO_RESULT);
 
       assertSubscriber.cancel();
+      assertSubscriber.assertNoEvents();
 
       assertThat(processor.state).isEqualTo(UnicastMonoProcessor.CANCELLED);
 
@@ -410,10 +418,12 @@ public class UnicastMonoProcessorTest {
       assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_REQUEST_NO_RESULT);
 
       assertSubscriber.request(1);
+      assertSubscriber.assertNoEvents();
 
       assertThat(processor.state).isEqualTo(UnicastMonoProcessor.HAS_REQUEST_NO_RESULT);
 
       assertSubscriber.cancel();
+      assertSubscriber.assertNoEvents();
 
       assertThat(processor.state).isEqualTo(UnicastMonoProcessor.CANCELLED);
 
@@ -444,10 +454,12 @@ public class UnicastMonoProcessorTest {
       assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_REQUEST_NO_RESULT);
 
       assertSubscriber.request(1);
+      assertSubscriber.assertNoEvents();
 
       assertThat(processor.state).isEqualTo(UnicastMonoProcessor.HAS_REQUEST_NO_RESULT);
 
       assertSubscriber.cancel();
+      assertSubscriber.assertNoEvents();
 
       assertThat(processor.state).isEqualTo(UnicastMonoProcessor.CANCELLED);
 
