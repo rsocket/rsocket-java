@@ -16,19 +16,19 @@
 
 package io.rsocket.internal;
 
+import static io.rsocket.internal.SchedulerUtils.warmup;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.rsocket.internal.subscriber.AssertSubscriber;
+import io.rsocket.util.MonoLifecycleHandler;
 import java.lang.ref.WeakReference;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -42,7 +42,7 @@ import reactor.core.publisher.Hooks;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
 import reactor.core.publisher.Operators;
-import reactor.core.scheduler.Scheduler;
+import reactor.core.publisher.SignalType;
 import reactor.core.scheduler.Schedulers;
 import reactor.test.StepVerifier;
 import reactor.test.publisher.TestPublisher;
@@ -52,36 +52,128 @@ import reactor.util.function.Tuple2;
 
 public class UnicastMonoProcessorTest {
 
+  static class VerifyMonoLifecycleHandler<T> implements MonoLifecycleHandler<T> {
+    private final AtomicInteger onSubscribeCounter = new AtomicInteger();
+    private final AtomicInteger onTerminalCounter = new AtomicInteger();
+    private final AtomicReference<T> valueReference = new AtomicReference<>();
+    private final AtomicReference<Throwable> errorReference = new AtomicReference<>();
+    private final AtomicReference<SignalType> signalTypeReference = new AtomicReference<>();
+
+    @Override
+    public void doOnSubscribe() {
+      onSubscribeCounter.incrementAndGet();
+    }
+
+    @Override
+    public void doOnTerminal(SignalType signalType, T element, Throwable e) {
+      onTerminalCounter.incrementAndGet();
+      signalTypeReference.set(signalType);
+      valueReference.set(element);
+      errorReference.set(e);
+    }
+
+    public VerifyMonoLifecycleHandler<T> assertSubscribed() {
+      assertThat(onSubscribeCounter.get()).isOne();
+      return this;
+    }
+
+    public VerifyMonoLifecycleHandler<T> assertNotSubscribed() {
+      assertThat(onSubscribeCounter.get()).isZero();
+      return this;
+    }
+
+    public VerifyMonoLifecycleHandler<T> assertTerminated() {
+      assertThat(onTerminalCounter.get()).describedAs("Expected a single terminal signal").isOne();
+      return this;
+    }
+
+    public VerifyMonoLifecycleHandler<T> assertNotTerminated() {
+      assertThat(onTerminalCounter.get()).describedAs("Expected zero terminal signals").isZero();
+      return this;
+    }
+
+    public VerifyMonoLifecycleHandler<T> assertCompleted() {
+      assertTerminated();
+      assertThat(signalTypeReference.get())
+          .describedAs("Expected ON_COMPLETE signal")
+          .isEqualTo(SignalType.ON_COMPLETE);
+      assertThat(errorReference.get()).describedAs("Expected error to be absent").isNull();
+      assertThat(valueReference.get()).isNull();
+      return this;
+    }
+
+    public VerifyMonoLifecycleHandler<T> assertCompleted(T value) {
+      assertTerminated();
+      assertThat(signalTypeReference.get())
+          .describedAs("Expected ON_COMPLETE signal")
+          .isEqualTo(SignalType.ON_COMPLETE);
+      assertThat(errorReference.get()).describedAs("Expected error to be absent").isNull();
+      assertThat(valueReference.get()).isEqualTo(value);
+      return this;
+    }
+
+    public VerifyMonoLifecycleHandler<T> assertErrored() {
+      assertTerminated();
+      assertThat(signalTypeReference.get())
+          .describedAs("Expected ON_ERROR signal")
+          .isEqualTo(SignalType.ON_ERROR);
+      assertThat(errorReference.get()).describedAs("Expected error to be present").isNotNull();
+      assertThat(valueReference.get()).isNull();
+      return this;
+    }
+
+    public VerifyMonoLifecycleHandler<T> assertCancelled() {
+      assertTerminated();
+      assertThat(signalTypeReference.get())
+          .describedAs("Expected ON_ERROR signal")
+          .isEqualTo(SignalType.CANCEL);
+      assertThat(errorReference.get()).describedAs("Expected error to be absent").isNull();
+      assertThat(valueReference.get()).isNull();
+      return this;
+    }
+  }
+
   @Test
   public void testUnicast() throws InterruptedException {
     warmup(Schedulers.single());
 
     for (int i = 0; i < 10000; i++) {
-      UnicastMonoProcessor<Integer> processor = UnicastMonoProcessor.create();
+      VerifyMonoLifecycleHandler<Integer> verifyMonoLifecycleHandler =
+          new VerifyMonoLifecycleHandler<>();
+      UnicastMonoProcessor<Integer> processor =
+          UnicastMonoProcessor.create(verifyMonoLifecycleHandler);
+      verifyMonoLifecycleHandler.assertNotSubscribed();
       assertThatThrownBy(() -> RaceTestUtils.race(processor::subscribe, processor::subscribe))
           .hasCause(
               new IllegalStateException("UnicastMonoProcessor allows only a single Subscriber"));
+      verifyMonoLifecycleHandler.assertSubscribed().assertNotTerminated();
     }
   }
 
   @Test
   public void stateFlowTest1_Next() {
-    UnicastMonoProcessor<Integer> processor = UnicastMonoProcessor.create();
+    VerifyMonoLifecycleHandler<Integer> verifyMonoLifecycleHandler =
+        new VerifyMonoLifecycleHandler<>();
+    UnicastMonoProcessor<Integer> processor =
+        UnicastMonoProcessor.create(verifyMonoLifecycleHandler);
     AssertSubscriber<Integer> assertSubscriber = AssertSubscriber.create(0);
 
     assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_SUBSCRIBER_NO_RESULT);
 
     processor.onNext(1);
 
+    verifyMonoLifecycleHandler.assertNotSubscribed().assertNotTerminated();
     assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_SUBSCRIBER_HAS_RESULT);
 
     processor.subscribe(assertSubscriber);
 
+    verifyMonoLifecycleHandler.assertSubscribed().assertNotTerminated();
     assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_REQUEST_HAS_RESULT);
 
     assertSubscriber.assertNoEvents();
     assertSubscriber.request(1);
 
+    verifyMonoLifecycleHandler.assertCompleted(1);
     assertThat(processor.state).isEqualTo(UnicastMonoProcessor.HAS_REQUEST_HAS_RESULT);
 
     assertSubscriber.assertValues(1);
@@ -90,17 +182,23 @@ public class UnicastMonoProcessorTest {
 
   @Test
   public void stateFlowTest1_Complete() {
-    UnicastMonoProcessor<Integer> processor = UnicastMonoProcessor.create();
+    VerifyMonoLifecycleHandler<Integer> verifyMonoLifecycleHandler =
+        new VerifyMonoLifecycleHandler<>();
+    UnicastMonoProcessor<Integer> processor =
+        UnicastMonoProcessor.create(verifyMonoLifecycleHandler);
     AssertSubscriber<Integer> assertSubscriber = AssertSubscriber.create(0);
 
+    verifyMonoLifecycleHandler.assertNotSubscribed().assertNotTerminated();
     assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_SUBSCRIBER_NO_RESULT);
 
     processor.onComplete();
 
+    verifyMonoLifecycleHandler.assertNotSubscribed().assertNotTerminated();
     assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_SUBSCRIBER_HAS_RESULT);
 
     processor.subscribe(assertSubscriber);
 
+    verifyMonoLifecycleHandler.assertSubscribed().assertCompleted();
     assertThat(processor.state).isEqualTo(UnicastMonoProcessor.HAS_REQUEST_HAS_RESULT);
 
     assertSubscriber.assertNoValues();
@@ -109,18 +207,24 @@ public class UnicastMonoProcessorTest {
 
   @Test
   public void stateFlowTest1_Error() {
-    UnicastMonoProcessor<Integer> processor = UnicastMonoProcessor.create();
+    VerifyMonoLifecycleHandler<Integer> verifyMonoLifecycleHandler =
+        new VerifyMonoLifecycleHandler<>();
+    UnicastMonoProcessor<Integer> processor =
+        UnicastMonoProcessor.create(verifyMonoLifecycleHandler);
     AssertSubscriber<Integer> assertSubscriber = AssertSubscriber.create(0);
     RuntimeException testError = new RuntimeException("test");
 
+    verifyMonoLifecycleHandler.assertNotSubscribed().assertNotTerminated();
     assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_SUBSCRIBER_NO_RESULT);
 
     processor.onError(testError);
 
+    verifyMonoLifecycleHandler.assertNotSubscribed().assertNotTerminated();
     assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_SUBSCRIBER_HAS_RESULT);
 
     processor.subscribe(assertSubscriber);
 
+    verifyMonoLifecycleHandler.assertSubscribed().assertErrored();
     assertThat(processor.state).isEqualTo(UnicastMonoProcessor.HAS_REQUEST_HAS_RESULT);
 
     assertSubscriber.assertNoValues();
@@ -130,17 +234,23 @@ public class UnicastMonoProcessorTest {
 
   @Test
   public void stateFlowTest1_Dispose() {
-    UnicastMonoProcessor<Integer> processor = UnicastMonoProcessor.create();
+    VerifyMonoLifecycleHandler<Integer> verifyMonoLifecycleHandler =
+        new VerifyMonoLifecycleHandler<>();
+    UnicastMonoProcessor<Integer> processor =
+        UnicastMonoProcessor.create(verifyMonoLifecycleHandler);
     AssertSubscriber<Integer> assertSubscriber = AssertSubscriber.create(0);
 
+    verifyMonoLifecycleHandler.assertNotSubscribed().assertNotTerminated();
     assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_SUBSCRIBER_NO_RESULT);
 
     processor.dispose();
 
+    verifyMonoLifecycleHandler.assertNotSubscribed().assertNotTerminated();
     assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_SUBSCRIBER_HAS_RESULT);
 
     processor.subscribe(assertSubscriber);
 
+    verifyMonoLifecycleHandler.assertSubscribed().assertErrored();
     assertThat(processor.state).isEqualTo(UnicastMonoProcessor.HAS_REQUEST_HAS_RESULT);
 
     assertSubscriber.assertNoValues();
@@ -150,22 +260,29 @@ public class UnicastMonoProcessorTest {
 
   @Test
   public void stateFlowTest2_Next() {
-    UnicastMonoProcessor<Integer> processor = UnicastMonoProcessor.create();
+    VerifyMonoLifecycleHandler<Integer> verifyMonoLifecycleHandler =
+        new VerifyMonoLifecycleHandler<>();
+    UnicastMonoProcessor<Integer> processor =
+        UnicastMonoProcessor.create(verifyMonoLifecycleHandler);
     AssertSubscriber<Integer> assertSubscriber = AssertSubscriber.create(0);
 
+    verifyMonoLifecycleHandler.assertNotSubscribed().assertNotTerminated();
     assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_SUBSCRIBER_NO_RESULT);
 
     processor.subscribe(assertSubscriber);
 
+    verifyMonoLifecycleHandler.assertSubscribed().assertNotTerminated();
     assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_REQUEST_NO_RESULT);
 
     processor.onNext(1);
 
+    verifyMonoLifecycleHandler.assertSubscribed().assertNotTerminated();
     assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_REQUEST_HAS_RESULT);
 
     assertSubscriber.assertNoEvents();
     assertSubscriber.request(1);
 
+    verifyMonoLifecycleHandler.assertSubscribed().assertCompleted(1);
     assertThat(processor.state).isEqualTo(UnicastMonoProcessor.HAS_REQUEST_HAS_RESULT);
 
     assertSubscriber.assertValues(1);
@@ -174,17 +291,23 @@ public class UnicastMonoProcessorTest {
 
   @Test
   public void stateFlowTest2_Complete() {
-    UnicastMonoProcessor<Integer> processor = UnicastMonoProcessor.create();
+    VerifyMonoLifecycleHandler<Integer> verifyMonoLifecycleHandler =
+        new VerifyMonoLifecycleHandler<>();
+    UnicastMonoProcessor<Integer> processor =
+        UnicastMonoProcessor.create(verifyMonoLifecycleHandler);
     AssertSubscriber<Integer> assertSubscriber = AssertSubscriber.create(0);
 
+    verifyMonoLifecycleHandler.assertNotSubscribed().assertNotTerminated();
     assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_SUBSCRIBER_NO_RESULT);
 
     processor.subscribe(assertSubscriber);
 
+    verifyMonoLifecycleHandler.assertSubscribed().assertNotTerminated();
     assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_REQUEST_NO_RESULT);
 
     processor.onComplete();
 
+    verifyMonoLifecycleHandler.assertSubscribed().assertCompleted();
     assertThat(processor.state).isEqualTo(UnicastMonoProcessor.HAS_REQUEST_HAS_RESULT);
 
     assertSubscriber.assertNoValues();
@@ -193,17 +316,23 @@ public class UnicastMonoProcessorTest {
 
   @Test
   public void stateFlowTest2_Error() {
-    UnicastMonoProcessor<Integer> processor = UnicastMonoProcessor.create();
+    VerifyMonoLifecycleHandler<Integer> verifyMonoLifecycleHandler =
+        new VerifyMonoLifecycleHandler<>();
+    UnicastMonoProcessor<Integer> processor =
+        UnicastMonoProcessor.create(verifyMonoLifecycleHandler);
     AssertSubscriber<Integer> assertSubscriber = AssertSubscriber.create(0);
 
+    verifyMonoLifecycleHandler.assertNotSubscribed().assertNotTerminated();
     assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_SUBSCRIBER_NO_RESULT);
 
     processor.subscribe(assertSubscriber);
 
+    verifyMonoLifecycleHandler.assertSubscribed().assertNotTerminated();
     assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_REQUEST_NO_RESULT);
 
     processor.onError(new RuntimeException("Test"));
 
+    verifyMonoLifecycleHandler.assertSubscribed().assertErrored();
     assertThat(processor.state).isEqualTo(UnicastMonoProcessor.HAS_REQUEST_HAS_RESULT);
 
     assertSubscriber.assertNoValues();
@@ -213,17 +342,23 @@ public class UnicastMonoProcessorTest {
 
   @Test
   public void stateFlowTest2_Dispose() {
-    UnicastMonoProcessor<Integer> processor = UnicastMonoProcessor.create();
+    VerifyMonoLifecycleHandler<Integer> verifyMonoLifecycleHandler =
+        new VerifyMonoLifecycleHandler<>();
+    UnicastMonoProcessor<Integer> processor =
+        UnicastMonoProcessor.create(verifyMonoLifecycleHandler);
     AssertSubscriber<Integer> assertSubscriber = AssertSubscriber.create(0);
 
+    verifyMonoLifecycleHandler.assertNotSubscribed().assertNotTerminated();
     assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_SUBSCRIBER_NO_RESULT);
 
     processor.subscribe(assertSubscriber);
 
+    verifyMonoLifecycleHandler.assertSubscribed().assertNotTerminated();
     assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_REQUEST_NO_RESULT);
 
     processor.dispose();
 
+    verifyMonoLifecycleHandler.assertSubscribed().assertErrored();
     assertThat(processor.state).isEqualTo(UnicastMonoProcessor.HAS_REQUEST_HAS_RESULT);
 
     assertSubscriber.assertNoValues();
@@ -233,23 +368,30 @@ public class UnicastMonoProcessorTest {
 
   @Test
   public void stateFlowTest3_Next() {
-    UnicastMonoProcessor<Integer> processor = UnicastMonoProcessor.create();
+    VerifyMonoLifecycleHandler<Integer> verifyMonoLifecycleHandler =
+        new VerifyMonoLifecycleHandler<>();
+    UnicastMonoProcessor<Integer> processor =
+        UnicastMonoProcessor.create(verifyMonoLifecycleHandler);
     AssertSubscriber<Integer> assertSubscriber = AssertSubscriber.create(0);
 
+    verifyMonoLifecycleHandler.assertNotSubscribed().assertNotTerminated();
     assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_SUBSCRIBER_NO_RESULT);
 
     processor.subscribe(assertSubscriber);
 
+    verifyMonoLifecycleHandler.assertSubscribed().assertNotTerminated();
     assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_REQUEST_NO_RESULT);
 
     assertSubscriber.assertNoEvents();
     assertSubscriber.request(1);
 
+    verifyMonoLifecycleHandler.assertSubscribed().assertNotTerminated();
     assertThat(processor.state).isEqualTo(UnicastMonoProcessor.HAS_REQUEST_NO_RESULT);
 
     assertSubscriber.assertNoEvents();
     processor.onNext(1);
 
+    verifyMonoLifecycleHandler.assertSubscribed().assertCompleted(1);
     assertThat(processor.state).isEqualTo(UnicastMonoProcessor.HAS_REQUEST_HAS_RESULT);
 
     assertSubscriber.assertValues(1);
@@ -258,21 +400,28 @@ public class UnicastMonoProcessorTest {
 
   @Test
   public void stateFlowTest3_Complete() {
-    UnicastMonoProcessor<Integer> processor = UnicastMonoProcessor.create();
+    VerifyMonoLifecycleHandler<Integer> verifyMonoLifecycleHandler =
+        new VerifyMonoLifecycleHandler<>();
+    UnicastMonoProcessor<Integer> processor =
+        UnicastMonoProcessor.create(verifyMonoLifecycleHandler);
     AssertSubscriber<Integer> assertSubscriber = AssertSubscriber.create(0);
 
+    verifyMonoLifecycleHandler.assertNotSubscribed().assertNotTerminated();
     assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_SUBSCRIBER_NO_RESULT);
 
     processor.subscribe(assertSubscriber);
 
+    verifyMonoLifecycleHandler.assertSubscribed().assertNotTerminated();
     assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_REQUEST_NO_RESULT);
 
     assertSubscriber.request(1);
 
+    verifyMonoLifecycleHandler.assertSubscribed().assertNotTerminated();
     assertThat(processor.state).isEqualTo(UnicastMonoProcessor.HAS_REQUEST_NO_RESULT);
 
     processor.onComplete();
 
+    verifyMonoLifecycleHandler.assertSubscribed().assertCompleted();
     assertThat(processor.state).isEqualTo(UnicastMonoProcessor.HAS_REQUEST_HAS_RESULT);
 
     assertSubscriber.assertNoValues();
@@ -281,21 +430,28 @@ public class UnicastMonoProcessorTest {
 
   @Test
   public void stateFlowTest3_Error() {
-    UnicastMonoProcessor<Integer> processor = UnicastMonoProcessor.create();
+    VerifyMonoLifecycleHandler<Integer> verifyMonoLifecycleHandler =
+        new VerifyMonoLifecycleHandler<>();
+    UnicastMonoProcessor<Integer> processor =
+        UnicastMonoProcessor.create(verifyMonoLifecycleHandler);
     AssertSubscriber<Integer> assertSubscriber = AssertSubscriber.create(0);
 
+    verifyMonoLifecycleHandler.assertNotSubscribed().assertNotTerminated();
     assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_SUBSCRIBER_NO_RESULT);
 
     processor.subscribe(assertSubscriber);
 
+    verifyMonoLifecycleHandler.assertSubscribed().assertNotTerminated();
     assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_REQUEST_NO_RESULT);
 
     assertSubscriber.request(1);
 
+    verifyMonoLifecycleHandler.assertSubscribed().assertNotTerminated();
     assertThat(processor.state).isEqualTo(UnicastMonoProcessor.HAS_REQUEST_NO_RESULT);
 
     processor.onError(new RuntimeException("Test"));
 
+    verifyMonoLifecycleHandler.assertSubscribed().assertErrored();
     assertThat(processor.state).isEqualTo(UnicastMonoProcessor.HAS_REQUEST_HAS_RESULT);
 
     assertSubscriber.assertNoValues();
@@ -305,21 +461,28 @@ public class UnicastMonoProcessorTest {
 
   @Test
   public void stateFlowTest3_Dispose() {
-    UnicastMonoProcessor<Integer> processor = UnicastMonoProcessor.create();
+    VerifyMonoLifecycleHandler<Integer> verifyMonoLifecycleHandler =
+        new VerifyMonoLifecycleHandler<>();
+    UnicastMonoProcessor<Integer> processor =
+        UnicastMonoProcessor.create(verifyMonoLifecycleHandler);
     AssertSubscriber<Integer> assertSubscriber = AssertSubscriber.create(0);
 
+    verifyMonoLifecycleHandler.assertNotSubscribed().assertNotTerminated();
     assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_SUBSCRIBER_NO_RESULT);
 
     processor.subscribe(assertSubscriber);
 
+    verifyMonoLifecycleHandler.assertSubscribed().assertNotTerminated();
     assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_REQUEST_NO_RESULT);
 
     assertSubscriber.request(1);
 
+    verifyMonoLifecycleHandler.assertSubscribed().assertNotTerminated();
     assertThat(processor.state).isEqualTo(UnicastMonoProcessor.HAS_REQUEST_NO_RESULT);
 
     processor.dispose();
 
+    verifyMonoLifecycleHandler.assertSubscribed().assertErrored();
     assertThat(processor.state).isEqualTo(UnicastMonoProcessor.HAS_REQUEST_HAS_RESULT);
 
     assertSubscriber.assertNoValues();
@@ -330,30 +493,38 @@ public class UnicastMonoProcessorTest {
   @Test
   public void stateFlowTest4_Next() {
     ArrayList<Object> discarded = new ArrayList<>();
-    UnicastMonoProcessor<Integer> processor = UnicastMonoProcessor.create();
+    VerifyMonoLifecycleHandler<Integer> verifyMonoLifecycleHandler =
+        new VerifyMonoLifecycleHandler<>();
+    UnicastMonoProcessor<Integer> processor =
+        UnicastMonoProcessor.create(verifyMonoLifecycleHandler);
     //    Context discardingContext = Operators.enableOnDiscard(null, discarded::add);
     Hooks.onNextDropped(discarded::add);
     AssertSubscriber<Integer> assertSubscriber = new AssertSubscriber<>(0);
 
     try {
+      verifyMonoLifecycleHandler.assertNotSubscribed().assertNotTerminated();
       assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_SUBSCRIBER_NO_RESULT);
 
       processor.subscribe(assertSubscriber);
 
+      verifyMonoLifecycleHandler.assertSubscribed().assertNotTerminated();
       assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_REQUEST_NO_RESULT);
 
       assertSubscriber.request(1);
       assertSubscriber.assertNoEvents();
 
+      verifyMonoLifecycleHandler.assertSubscribed().assertNotTerminated();
       assertThat(processor.state).isEqualTo(UnicastMonoProcessor.HAS_REQUEST_NO_RESULT);
 
       assertSubscriber.cancel();
       assertSubscriber.assertNoEvents();
 
+      verifyMonoLifecycleHandler.assertSubscribed().assertCancelled();
       assertThat(processor.state).isEqualTo(UnicastMonoProcessor.CANCELLED);
 
       processor.onNext(1);
 
+      verifyMonoLifecycleHandler.assertSubscribed().assertCancelled();
       assertThat(processor.state).isEqualTo(UnicastMonoProcessor.CANCELLED);
 
       assertSubscriber.assertNoEvents();
@@ -366,32 +537,40 @@ public class UnicastMonoProcessorTest {
   @Test
   public void stateFlowTest4_Error() {
     ArrayList<Object> discarded = new ArrayList<>();
-    UnicastMonoProcessor<Integer> processor = UnicastMonoProcessor.create();
+    VerifyMonoLifecycleHandler<Integer> verifyMonoLifecycleHandler =
+        new VerifyMonoLifecycleHandler<>();
+    UnicastMonoProcessor<Integer> processor =
+        UnicastMonoProcessor.create(verifyMonoLifecycleHandler);
     //    Context discardingContext = Operators.enableOnDiscard(null, discarded::add);
     Hooks.onErrorDropped(discarded::add);
     AssertSubscriber<Integer> assertSubscriber = new AssertSubscriber<>(0);
 
     try {
 
+      verifyMonoLifecycleHandler.assertNotSubscribed().assertNotTerminated();
       assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_SUBSCRIBER_NO_RESULT);
 
       processor.subscribe(assertSubscriber);
 
+      verifyMonoLifecycleHandler.assertSubscribed().assertNotTerminated();
       assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_REQUEST_NO_RESULT);
 
       assertSubscriber.request(1);
       assertSubscriber.assertNoEvents();
 
+      verifyMonoLifecycleHandler.assertSubscribed().assertNotTerminated();
       assertThat(processor.state).isEqualTo(UnicastMonoProcessor.HAS_REQUEST_NO_RESULT);
 
       assertSubscriber.cancel();
       assertSubscriber.assertNoEvents();
 
+      verifyMonoLifecycleHandler.assertSubscribed().assertCancelled();
       assertThat(processor.state).isEqualTo(UnicastMonoProcessor.CANCELLED);
 
       RuntimeException testError = new RuntimeException("test");
       processor.onError(testError);
 
+      verifyMonoLifecycleHandler.assertSubscribed().assertCancelled();
       assertThat(processor.state).isEqualTo(UnicastMonoProcessor.CANCELLED);
 
       assertSubscriber.assertNoEvents();
@@ -405,30 +584,38 @@ public class UnicastMonoProcessorTest {
   @Test
   public void stateFlowTest4_Dispose() {
     ArrayList<Object> discarded = new ArrayList<>();
-    UnicastMonoProcessor<Integer> processor = UnicastMonoProcessor.create();
+    VerifyMonoLifecycleHandler<Integer> verifyMonoLifecycleHandler =
+        new VerifyMonoLifecycleHandler<>();
+    UnicastMonoProcessor<Integer> processor =
+        UnicastMonoProcessor.create(verifyMonoLifecycleHandler);
     //    Context discardingContext = Operators.enableOnDiscard(null, discarded::add);
     Hooks.onErrorDropped(discarded::add);
     try {
       AssertSubscriber<Integer> assertSubscriber = new AssertSubscriber<>(0);
 
+      verifyMonoLifecycleHandler.assertNotSubscribed().assertNotTerminated();
       assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_SUBSCRIBER_NO_RESULT);
 
       processor.subscribe(assertSubscriber);
 
+      verifyMonoLifecycleHandler.assertSubscribed().assertNotTerminated();
       assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_REQUEST_NO_RESULT);
 
       assertSubscriber.request(1);
       assertSubscriber.assertNoEvents();
 
+      verifyMonoLifecycleHandler.assertSubscribed().assertNotTerminated();
       assertThat(processor.state).isEqualTo(UnicastMonoProcessor.HAS_REQUEST_NO_RESULT);
 
       assertSubscriber.cancel();
       assertSubscriber.assertNoEvents();
 
+      verifyMonoLifecycleHandler.assertSubscribed().assertCancelled();
       assertThat(processor.state).isEqualTo(UnicastMonoProcessor.CANCELLED);
 
       processor.dispose();
 
+      verifyMonoLifecycleHandler.assertSubscribed().assertCancelled();
       assertThat(processor.state).isEqualTo(UnicastMonoProcessor.CANCELLED);
 
       assertSubscriber.assertNoEvents();
@@ -441,30 +628,38 @@ public class UnicastMonoProcessorTest {
   @Test
   public void stateFlowTest4_Complete() {
     ArrayList<Object> discarded = new ArrayList<>();
-    UnicastMonoProcessor<Integer> processor = UnicastMonoProcessor.create();
+    VerifyMonoLifecycleHandler<Integer> verifyMonoLifecycleHandler =
+        new VerifyMonoLifecycleHandler<>();
+    UnicastMonoProcessor<Integer> processor =
+        UnicastMonoProcessor.create(verifyMonoLifecycleHandler);
     //    Context discardingContext = Operators.enableOnDiscard(null, discarded::add);
     Hooks.onErrorDropped(discarded::add);
     AssertSubscriber<Integer> assertSubscriber = new AssertSubscriber<>(0);
 
     try {
+      verifyMonoLifecycleHandler.assertNotSubscribed().assertNotTerminated();
       assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_SUBSCRIBER_NO_RESULT);
 
       processor.subscribe(assertSubscriber);
 
+      verifyMonoLifecycleHandler.assertSubscribed().assertNotTerminated();
       assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_REQUEST_NO_RESULT);
 
       assertSubscriber.request(1);
       assertSubscriber.assertNoEvents();
 
+      verifyMonoLifecycleHandler.assertSubscribed().assertNotTerminated();
       assertThat(processor.state).isEqualTo(UnicastMonoProcessor.HAS_REQUEST_NO_RESULT);
 
       assertSubscriber.cancel();
       assertSubscriber.assertNoEvents();
 
+      verifyMonoLifecycleHandler.assertSubscribed().assertCancelled();
       assertThat(processor.state).isEqualTo(UnicastMonoProcessor.CANCELLED);
 
       processor.onComplete();
 
+      verifyMonoLifecycleHandler.assertSubscribed().assertCancelled();
       assertThat(processor.state).isEqualTo(UnicastMonoProcessor.CANCELLED);
 
       assertSubscriber.assertNoEvents();
@@ -477,22 +672,34 @@ public class UnicastMonoProcessorTest {
   @Test
   public void stateFlowTest5_Next() {
     ArrayList<Object> discarded = new ArrayList<>();
-    UnicastMonoProcessor<Integer> processor = UnicastMonoProcessor.create();
+    VerifyMonoLifecycleHandler<Integer> verifyMonoLifecycleHandler =
+        new VerifyMonoLifecycleHandler<>();
+    UnicastMonoProcessor<Integer> processor =
+        UnicastMonoProcessor.create(verifyMonoLifecycleHandler);
     Context discardingContext = Operators.enableOnDiscard(null, discarded::add);
     AssertSubscriber<Integer> assertSubscriber = new AssertSubscriber<>(discardingContext, 0);
 
+    verifyMonoLifecycleHandler.assertNotSubscribed().assertNotTerminated();
     assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_SUBSCRIBER_NO_RESULT);
 
     processor.subscribe(assertSubscriber);
 
+    verifyMonoLifecycleHandler.assertSubscribed().assertNotTerminated();
     assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_REQUEST_NO_RESULT);
 
     processor.onNext(1);
 
+    verifyMonoLifecycleHandler.assertSubscribed().assertNotTerminated();
     assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_REQUEST_HAS_RESULT);
 
     assertSubscriber.cancel();
 
+    verifyMonoLifecycleHandler.assertSubscribed().assertCancelled();
+    assertThat(processor.state).isEqualTo(UnicastMonoProcessor.CANCELLED);
+
+    assertSubscriber.request(1);
+
+    verifyMonoLifecycleHandler.assertSubscribed().assertCancelled();
     assertThat(processor.state).isEqualTo(UnicastMonoProcessor.CANCELLED);
 
     assertSubscriber.assertNoEvents();
@@ -502,22 +709,29 @@ public class UnicastMonoProcessorTest {
   @Test
   public void stateFlowTest5_Complete() {
     ArrayList<Object> discarded = new ArrayList<>();
-    UnicastMonoProcessor<Integer> processor = UnicastMonoProcessor.create();
+    VerifyMonoLifecycleHandler<Integer> verifyMonoLifecycleHandler =
+        new VerifyMonoLifecycleHandler<>();
+    UnicastMonoProcessor<Integer> processor =
+        UnicastMonoProcessor.create(verifyMonoLifecycleHandler);
     Context discardingContext = Operators.enableOnDiscard(null, discarded::add);
     AssertSubscriber<Integer> assertSubscriber = new AssertSubscriber<>(discardingContext, 0);
 
+    verifyMonoLifecycleHandler.assertNotSubscribed().assertNotTerminated();
     assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_SUBSCRIBER_NO_RESULT);
 
     processor.subscribe(assertSubscriber);
 
+    verifyMonoLifecycleHandler.assertSubscribed().assertNotTerminated();
     assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_REQUEST_NO_RESULT);
 
     processor.onComplete();
 
+    verifyMonoLifecycleHandler.assertSubscribed().assertCompleted();
     assertThat(processor.state).isEqualTo(UnicastMonoProcessor.HAS_REQUEST_HAS_RESULT);
 
     assertSubscriber.cancel();
 
+    verifyMonoLifecycleHandler.assertSubscribed().assertCompleted();
     assertThat(processor.state).isEqualTo(UnicastMonoProcessor.CANCELLED);
 
     assertSubscriber.assertComplete();
@@ -527,24 +741,31 @@ public class UnicastMonoProcessorTest {
   @Test
   public void stateFlowTest5_Error() {
     ArrayList<Object> discarded = new ArrayList<>();
-    UnicastMonoProcessor<Integer> processor = UnicastMonoProcessor.create();
+    VerifyMonoLifecycleHandler<Integer> verifyMonoLifecycleHandler =
+        new VerifyMonoLifecycleHandler<>();
+    UnicastMonoProcessor<Integer> processor =
+        UnicastMonoProcessor.create(verifyMonoLifecycleHandler);
     Context discardingContext = Operators.enableOnDiscard(null, discarded::add);
     Hooks.onErrorDropped(discarded::add);
     AssertSubscriber<Integer> assertSubscriber = new AssertSubscriber<>(discardingContext, 0);
 
     try {
+      verifyMonoLifecycleHandler.assertNotSubscribed().assertNotTerminated();
       assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_SUBSCRIBER_NO_RESULT);
 
       processor.subscribe(assertSubscriber);
 
+      verifyMonoLifecycleHandler.assertSubscribed().assertNotTerminated();
       assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_REQUEST_NO_RESULT);
 
       processor.onError(new RuntimeException("test"));
 
+      verifyMonoLifecycleHandler.assertSubscribed().assertErrored();
       assertThat(processor.state).isEqualTo(UnicastMonoProcessor.HAS_REQUEST_HAS_RESULT);
 
       assertSubscriber.cancel();
 
+      verifyMonoLifecycleHandler.assertSubscribed().assertErrored();
       assertThat(processor.state).isEqualTo(UnicastMonoProcessor.CANCELLED);
 
       assertSubscriber.assertError(RuntimeException.class);
@@ -558,24 +779,31 @@ public class UnicastMonoProcessorTest {
   @Test
   public void stateFlowTest5_Dispose() {
     ArrayList<Object> discarded = new ArrayList<>();
-    UnicastMonoProcessor<Integer> processor = UnicastMonoProcessor.create();
+    VerifyMonoLifecycleHandler<Integer> verifyMonoLifecycleHandler =
+        new VerifyMonoLifecycleHandler<>();
+    UnicastMonoProcessor<Integer> processor =
+        UnicastMonoProcessor.create(verifyMonoLifecycleHandler);
     Context discardingContext = Operators.enableOnDiscard(null, discarded::add);
     Hooks.onErrorDropped(discarded::add);
     AssertSubscriber<Integer> assertSubscriber = new AssertSubscriber<>(discardingContext, 0);
 
     try {
+      verifyMonoLifecycleHandler.assertNotSubscribed().assertNotTerminated();
       assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_SUBSCRIBER_NO_RESULT);
 
       processor.subscribe(assertSubscriber);
 
+      verifyMonoLifecycleHandler.assertSubscribed().assertNotTerminated();
       assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_REQUEST_NO_RESULT);
 
       processor.dispose();
 
+      verifyMonoLifecycleHandler.assertSubscribed().assertErrored();
       assertThat(processor.state).isEqualTo(UnicastMonoProcessor.HAS_REQUEST_HAS_RESULT);
 
       assertSubscriber.cancel();
 
+      verifyMonoLifecycleHandler.assertSubscribed().assertErrored();
       assertThat(processor.state).isEqualTo(UnicastMonoProcessor.CANCELLED);
 
       assertSubscriber.assertError(CancellationException.class);
@@ -589,22 +817,34 @@ public class UnicastMonoProcessorTest {
   @Test
   public void stateFlowTest6_Next() {
     ArrayList<Object> discarded = new ArrayList<>();
-    UnicastMonoProcessor<Integer> processor = UnicastMonoProcessor.create();
+    VerifyMonoLifecycleHandler<Integer> verifyMonoLifecycleHandler =
+        new VerifyMonoLifecycleHandler<>();
+    UnicastMonoProcessor<Integer> processor =
+        UnicastMonoProcessor.create(verifyMonoLifecycleHandler);
     Context discardingContext = Operators.enableOnDiscard(null, discarded::add);
     AssertSubscriber<Integer> assertSubscriber = new AssertSubscriber<>(discardingContext, 0);
 
+    verifyMonoLifecycleHandler.assertNotSubscribed().assertNotTerminated();
     assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_SUBSCRIBER_NO_RESULT);
 
     processor.onNext(1);
 
+    verifyMonoLifecycleHandler.assertNotSubscribed().assertNotTerminated();
     assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_SUBSCRIBER_HAS_RESULT);
 
     processor.subscribe(assertSubscriber);
 
+    verifyMonoLifecycleHandler.assertSubscribed().assertNotTerminated();
     assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_REQUEST_HAS_RESULT);
 
     assertSubscriber.cancel();
 
+    verifyMonoLifecycleHandler.assertSubscribed().assertCancelled();
+    assertThat(processor.state).isEqualTo(UnicastMonoProcessor.CANCELLED);
+
+    assertSubscriber.request(1);
+
+    verifyMonoLifecycleHandler.assertSubscribed().assertCancelled();
     assertThat(processor.state).isEqualTo(UnicastMonoProcessor.CANCELLED);
 
     assertSubscriber.assertNoEvents();
@@ -616,9 +856,13 @@ public class UnicastMonoProcessorTest {
     warmup(Schedulers.single());
 
     for (int i = 0; i < 10000; i++) {
-      UnicastMonoProcessor<Integer> processor = UnicastMonoProcessor.create();
+      VerifyMonoLifecycleHandler<Integer> verifyMonoLifecycleHandler =
+          new VerifyMonoLifecycleHandler<>();
+      UnicastMonoProcessor<Integer> processor =
+          UnicastMonoProcessor.create(verifyMonoLifecycleHandler);
       AssertSubscriber<Integer> assertSubscriber = new AssertSubscriber<>();
 
+      verifyMonoLifecycleHandler.assertNotSubscribed().assertNotTerminated();
       assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_SUBSCRIBER_NO_RESULT);
 
       RaceTestUtils.race(
@@ -626,6 +870,7 @@ public class UnicastMonoProcessorTest {
           () -> processor.subscribe(assertSubscriber),
           Schedulers.single());
 
+      verifyMonoLifecycleHandler.assertSubscribed().assertCompleted(1);
       assertThat(processor.state).isEqualTo(UnicastMonoProcessor.HAS_REQUEST_HAS_RESULT);
 
       assertSubscriber.assertValues(1);
@@ -681,14 +926,19 @@ public class UnicastMonoProcessorTest {
     warmup(Schedulers.single());
 
     for (int i = 0; i < 10000; i++) {
-      UnicastMonoProcessor<Integer> processor = UnicastMonoProcessor.create();
+      VerifyMonoLifecycleHandler<Integer> verifyMonoLifecycleHandler =
+          new VerifyMonoLifecycleHandler<>();
+      UnicastMonoProcessor<Integer> processor =
+          UnicastMonoProcessor.create(verifyMonoLifecycleHandler);
       AssertSubscriber<Integer> assertSubscriber = new AssertSubscriber<>(0);
 
+      verifyMonoLifecycleHandler.assertNotSubscribed().assertNotTerminated();
       assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_SUBSCRIBER_NO_RESULT);
 
       RaceTestUtils.race(
           processor::dispose, () -> processor.subscribe(assertSubscriber), Schedulers.single());
 
+      verifyMonoLifecycleHandler.assertSubscribed().assertErrored();
       assertThat(processor.state).isEqualTo(UnicastMonoProcessor.HAS_REQUEST_HAS_RESULT);
 
       assertSubscriber.assertNoValues();
@@ -702,22 +952,30 @@ public class UnicastMonoProcessorTest {
     warmup(Schedulers.single());
 
     for (int i = 0; i < 10000; i++) {
-      UnicastMonoProcessor<Integer> processor = UnicastMonoProcessor.create();
+      VerifyMonoLifecycleHandler<Integer> verifyMonoLifecycleHandler =
+          new VerifyMonoLifecycleHandler<>();
+      UnicastMonoProcessor<Integer> processor =
+          UnicastMonoProcessor.create(verifyMonoLifecycleHandler);
       AssertSubscriber<Integer> assertSubscriber = new AssertSubscriber<>();
 
+      verifyMonoLifecycleHandler.assertNotSubscribed().assertNotTerminated();
       assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_SUBSCRIBER_NO_RESULT);
 
       processor.subscribe(assertSubscriber);
 
+      verifyMonoLifecycleHandler.assertSubscribed().assertNotTerminated();
       assertThat(processor.state).isEqualTo(UnicastMonoProcessor.HAS_REQUEST_NO_RESULT);
 
       RaceTestUtils.race(() -> processor.onNext(1), assertSubscriber::cancel, Schedulers.single());
 
+      verifyMonoLifecycleHandler.assertSubscribed().assertTerminated();
       assertThat(processor.state).isEqualTo(UnicastMonoProcessor.CANCELLED);
 
       if (assertSubscriber.values().isEmpty()) {
+        verifyMonoLifecycleHandler.assertSubscribed().assertCancelled();
         assertSubscriber.assertNoEvents();
       } else {
+        verifyMonoLifecycleHandler.assertSubscribed().assertCompleted(1);
         assertSubscriber.assertValues(1);
         assertSubscriber.assertComplete();
       }
@@ -729,23 +987,31 @@ public class UnicastMonoProcessorTest {
     warmup(Schedulers.single());
 
     for (int i = 0; i < 10000; i++) {
-      UnicastMonoProcessor<Integer> processor = UnicastMonoProcessor.create();
+      VerifyMonoLifecycleHandler<Integer> verifyMonoLifecycleHandler =
+          new VerifyMonoLifecycleHandler<>();
+      UnicastMonoProcessor<Integer> processor =
+          UnicastMonoProcessor.create(verifyMonoLifecycleHandler);
       AssertSubscriber<Integer> assertSubscriber = new AssertSubscriber<>();
 
+      verifyMonoLifecycleHandler.assertNotSubscribed().assertNotTerminated();
       assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_SUBSCRIBER_NO_RESULT);
 
       processor.subscribe(assertSubscriber);
 
+      verifyMonoLifecycleHandler.assertSubscribed().assertNotTerminated();
       assertThat(processor.state).isEqualTo(UnicastMonoProcessor.HAS_REQUEST_NO_RESULT);
 
       RaceTestUtils.race(() -> processor.onNext(1), processor::dispose, Schedulers.single());
 
+      verifyMonoLifecycleHandler.assertSubscribed().assertTerminated();
       assertThat(processor.state).isEqualTo(UnicastMonoProcessor.HAS_REQUEST_HAS_RESULT);
 
       if (processor.isError()) {
+        verifyMonoLifecycleHandler.assertSubscribed().assertErrored();
         assertSubscriber.assertNoValues();
         assertSubscriber.assertErrorMessage("Disposed");
       } else {
+        verifyMonoLifecycleHandler.assertSubscribed().assertCompleted(1);
         assertSubscriber.assertValues(1);
         assertSubscriber.assertComplete();
       }
@@ -757,19 +1023,26 @@ public class UnicastMonoProcessorTest {
     warmup(Schedulers.single());
 
     for (int i = 0; i < 10000; i++) {
-      UnicastMonoProcessor<Integer> processor = UnicastMonoProcessor.create();
+      VerifyMonoLifecycleHandler<Integer> verifyMonoLifecycleHandler =
+          new VerifyMonoLifecycleHandler<>();
+      UnicastMonoProcessor<Integer> processor =
+          UnicastMonoProcessor.create(verifyMonoLifecycleHandler);
       AssertSubscriber<Integer> assertSubscriber = new AssertSubscriber<>(0);
 
+      verifyMonoLifecycleHandler.assertNotSubscribed().assertNotTerminated();
       assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_SUBSCRIBER_NO_RESULT);
 
       processor.onNext(1);
       processor.subscribe(assertSubscriber);
+
+      verifyMonoLifecycleHandler.assertSubscribed().assertNotTerminated();
 
       RaceTestUtils.race(
           () -> assertSubscriber.request(1),
           () -> assertSubscriber.request(1),
           Schedulers.single());
 
+      verifyMonoLifecycleHandler.assertSubscribed().assertCompleted(1);
       assertThat(processor.state).isEqualTo(UnicastMonoProcessor.HAS_REQUEST_HAS_RESULT);
 
       assertSubscriber.assertValues(1);
@@ -782,20 +1055,87 @@ public class UnicastMonoProcessorTest {
     warmup(Schedulers.single());
 
     for (int i = 0; i < 10000; i++) {
-      UnicastMonoProcessor<Integer> processor = UnicastMonoProcessor.create();
+      VerifyMonoLifecycleHandler<Integer> verifyMonoLifecycleHandler =
+          new VerifyMonoLifecycleHandler<>();
+      UnicastMonoProcessor<Integer> processor =
+          UnicastMonoProcessor.create(verifyMonoLifecycleHandler);
       AssertSubscriber<Integer> assertSubscriber = new AssertSubscriber<>(0);
 
+      verifyMonoLifecycleHandler.assertNotSubscribed().assertNotTerminated();
       assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_SUBSCRIBER_NO_RESULT);
 
       processor.subscribe(assertSubscriber);
       assertSubscriber.request(1);
 
+      verifyMonoLifecycleHandler.assertSubscribed().assertNotTerminated();
       RaceTestUtils.race(() -> processor.onNext(1), () -> processor.onNext(1), Schedulers.single());
 
+      verifyMonoLifecycleHandler.assertSubscribed().assertCompleted(1);
       assertThat(processor.state).isEqualTo(UnicastMonoProcessor.HAS_REQUEST_HAS_RESULT);
 
       assertSubscriber.assertValues(1);
       assertSubscriber.assertComplete();
+    }
+  }
+
+  @Test
+  public void stateFlowTest15_Next() throws InterruptedException {
+    warmup(Schedulers.single());
+
+    for (int i = 0; i < 10000; i++) {
+      VerifyMonoLifecycleHandler<Integer> verifyMonoLifecycleHandler =
+          new VerifyMonoLifecycleHandler<>();
+      UnicastMonoProcessor<Integer> processor =
+          UnicastMonoProcessor.create(verifyMonoLifecycleHandler);
+      AssertSubscriber<Integer> assertSubscriber = new AssertSubscriber<>(0);
+
+      verifyMonoLifecycleHandler.assertNotSubscribed().assertNotTerminated();
+      assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_SUBSCRIBER_NO_RESULT);
+
+      processor.subscribe(assertSubscriber);
+      processor.onNext(1);
+
+      verifyMonoLifecycleHandler.assertSubscribed().assertNotTerminated();
+      RaceTestUtils.race(
+          () -> assertSubscriber.request(1), assertSubscriber::cancel, Schedulers.single());
+
+      assertThat(processor.state).isEqualTo(UnicastMonoProcessor.CANCELLED);
+
+      if (assertSubscriber.values().isEmpty()) {
+        verifyMonoLifecycleHandler.assertSubscribed().assertCancelled();
+        assertSubscriber.assertNoEvents();
+      } else {
+        verifyMonoLifecycleHandler.assertSubscribed().assertCompleted(1);
+        assertSubscriber.assertValues(1);
+        assertSubscriber.assertComplete();
+      }
+    }
+  }
+
+  @Test
+  public void stateFlowTest16_Next() throws InterruptedException {
+    warmup(Schedulers.single());
+
+    for (int i = 0; i < 10000; i++) {
+      VerifyMonoLifecycleHandler<Integer> verifyMonoLifecycleHandler =
+          new VerifyMonoLifecycleHandler<>();
+      UnicastMonoProcessor<Integer> processor =
+          UnicastMonoProcessor.create(verifyMonoLifecycleHandler);
+      AssertSubscriber<Integer> assertSubscriber = new AssertSubscriber<>(0);
+
+      verifyMonoLifecycleHandler.assertNotSubscribed().assertNotTerminated();
+      assertThat(processor.state).isEqualTo(UnicastMonoProcessor.NO_SUBSCRIBER_NO_RESULT);
+
+      processor.subscribe(assertSubscriber);
+      processor.onNext(1);
+
+      verifyMonoLifecycleHandler.assertSubscribed().assertNotTerminated();
+      RaceTestUtils.race(assertSubscriber::cancel, assertSubscriber::cancel, Schedulers.single());
+
+      assertThat(processor.state).isEqualTo(UnicastMonoProcessor.CANCELLED);
+
+      verifyMonoLifecycleHandler.assertSubscribed().assertCancelled();
+      assertSubscriber.assertNoEvents();
     }
   }
 
@@ -1436,16 +1776,5 @@ public class UnicastMonoProcessorTest {
 
     processor.subscribe(v -> Assertions.fail("expected late subscriber to error"), late::set);
     assertThat(late.get()).isInstanceOf(IllegalStateException.class);
-  }
-
-  static void warmup(Scheduler scheduler) throws InterruptedException {
-    scheduler.start();
-
-    // warm up
-    CountDownLatch latch = new CountDownLatch(10000);
-    for (int i = 0; i < 10000; i++) {
-      scheduler.schedule(latch::countDown);
-    }
-    latch.await(5, TimeUnit.SECONDS);
   }
 }

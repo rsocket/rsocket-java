@@ -25,17 +25,28 @@ import io.netty.util.ReferenceCountUtil;
 import io.netty.util.collection.IntObjectMap;
 import io.rsocket.exceptions.ConnectionErrorException;
 import io.rsocket.exceptions.Exceptions;
-import io.rsocket.frame.*;
+import io.rsocket.frame.CancelFrameFlyweight;
+import io.rsocket.frame.ErrorFrameFlyweight;
+import io.rsocket.frame.FrameHeaderFlyweight;
+import io.rsocket.frame.FrameType;
+import io.rsocket.frame.MetadataPushFrameFlyweight;
+import io.rsocket.frame.PayloadFrameFlyweight;
+import io.rsocket.frame.RequestChannelFrameFlyweight;
+import io.rsocket.frame.RequestFireAndForgetFrameFlyweight;
+import io.rsocket.frame.RequestNFrameFlyweight;
+import io.rsocket.frame.RequestResponseFrameFlyweight;
+import io.rsocket.frame.RequestStreamFrameFlyweight;
 import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.internal.RateLimitableRequestPublisher;
 import io.rsocket.internal.SynchronizedIntObjectHashMap;
 import io.rsocket.internal.UnboundedProcessor;
+import io.rsocket.internal.UnicastMonoEmpty;
 import io.rsocket.internal.UnicastMonoProcessor;
 import io.rsocket.keepalive.KeepAliveFramesAcceptor;
 import io.rsocket.keepalive.KeepAliveHandler;
 import io.rsocket.keepalive.KeepAliveSupport;
 import io.rsocket.lease.RequesterLeaseHandler;
-import io.rsocket.util.OnceConsumer;
+import io.rsocket.util.MonoLifecycleHandler;
 import java.nio.channels.ClosedChannelException;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.function.Consumer;
@@ -46,8 +57,11 @@ import javax.annotation.Nullable;
 import org.reactivestreams.Processor;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
-import org.reactivestreams.Subscription;
-import reactor.core.publisher.*;
+import reactor.core.publisher.BaseSubscriber;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+import reactor.core.publisher.SignalType;
+import reactor.core.publisher.UnicastProcessor;
 import reactor.util.concurrent.Queues;
 
 /**
@@ -170,23 +184,19 @@ class RSocketRequester implements RSocket {
 
     final int streamId = streamIdSupplier.nextStreamId(receivers);
 
-    return emptyUnicastMono()
-        .doOnSubscribe(
-            new OnceConsumer<Subscription>() {
-              @Override
-              public void acceptOnce(@Nonnull Subscription subscription) {
-                ByteBuf requestFrame =
-                    RequestFireAndForgetFrameFlyweight.encode(
-                        allocator,
-                        streamId,
-                        false,
-                        payload.hasMetadata() ? payload.sliceMetadata().retain() : null,
-                        payload.sliceData().retain());
-                payload.release();
+    return UnicastMonoEmpty.newInstance(
+        () -> {
+          ByteBuf requestFrame =
+              RequestFireAndForgetFrameFlyweight.encode(
+                  allocator,
+                  streamId,
+                  false,
+                  payload.hasMetadata() ? payload.sliceMetadata().retain() : null,
+                  payload.sliceData().retain());
+          payload.release();
 
-                sendProcessor.onNext(requestFrame);
-              }
-            });
+          sendProcessor.onNext(requestFrame);
+        });
   }
 
   private Mono<Payload> handleRequestResponse(final Payload payload) {
@@ -199,14 +209,11 @@ class RSocketRequester implements RSocket {
     int streamId = streamIdSupplier.nextStreamId(receivers);
     final UnboundedProcessor<ByteBuf> sendProcessor = this.sendProcessor;
 
-    UnicastMonoProcessor<Payload> receiver = UnicastMonoProcessor.create();
-    receivers.put(streamId, receiver);
-
-    return receiver
-        .doOnSubscribe(
-            new OnceConsumer<Subscription>() {
+    UnicastMonoProcessor<Payload> receiver =
+        UnicastMonoProcessor.create(
+            new MonoLifecycleHandler<Payload>() {
               @Override
-              public void acceptOnce(@Nonnull Subscription subscription) {
+              public void doOnSubscribe() {
                 final ByteBuf requestFrame =
                     RequestResponseFrameFlyweight.encode(
                         allocator,
@@ -218,15 +225,23 @@ class RSocketRequester implements RSocket {
 
                 sendProcessor.onNext(requestFrame);
               }
-            })
-        .doOnError(t -> sendProcessor.onNext(ErrorFrameFlyweight.encode(allocator, streamId, t)))
-        .doFinally(
-            s -> {
-              if (s == SignalType.CANCEL) {
-                sendProcessor.onNext(CancelFrameFlyweight.encode(allocator, streamId));
+
+              @Override
+              public void doOnTerminal(
+                  @Nonnull SignalType signalType,
+                  @Nullable Payload element,
+                  @Nullable Throwable e) {
+                if (signalType == SignalType.ON_ERROR) {
+                  sendProcessor.onNext(ErrorFrameFlyweight.encode(allocator, streamId, e));
+                } else if (signalType == SignalType.CANCEL) {
+                  sendProcessor.onNext(CancelFrameFlyweight.encode(allocator, streamId));
+                }
+                removeStreamReceiver(streamId);
               }
-              removeStreamReceiver(streamId);
             });
+    receivers.put(streamId, receiver);
+
+    return receiver;
   }
 
   private Flux<Payload> handleRequestStream(final Payload payload) {
@@ -390,24 +405,14 @@ class RSocketRequester implements RSocket {
       return Mono.error(err);
     }
 
-    return emptyUnicastMono()
-        .doOnSubscribe(
-            new OnceConsumer<Subscription>() {
-              @Override
-              public void acceptOnce(@Nonnull Subscription subscription) {
-                ByteBuf metadataPushFrame =
-                    MetadataPushFrameFlyweight.encode(allocator, payload.sliceMetadata().retain());
-                payload.release();
+    return UnicastMonoEmpty.newInstance(
+        () -> {
+          ByteBuf metadataPushFrame =
+              MetadataPushFrameFlyweight.encode(allocator, payload.sliceMetadata().retain());
+          payload.release();
 
-                sendProcessor.onNext(metadataPushFrame);
-              }
-            });
-  }
-
-  private static UnicastMonoProcessor<Void> emptyUnicastMono() {
-    UnicastMonoProcessor<Void> result = UnicastMonoProcessor.create();
-    result.onComplete();
-    return result;
+          sendProcessor.onNext(metadataPushFrame);
+        });
   }
 
   private Throwable checkAvailable() {
