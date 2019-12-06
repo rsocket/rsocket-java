@@ -16,6 +16,7 @@
 
 package io.rsocket.internal;
 
+import io.rsocket.util.MonoLifecycleHandler;
 import java.util.Objects;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
@@ -29,6 +30,7 @@ import reactor.core.Exceptions;
 import reactor.core.Scannable;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Operators;
+import reactor.core.publisher.SignalType;
 import reactor.util.annotation.NonNull;
 import reactor.util.annotation.Nullable;
 import reactor.util.context.Context;
@@ -36,15 +38,30 @@ import reactor.util.context.Context;
 public class UnicastMonoProcessor<O> extends Mono<O>
     implements Processor<O, O>, CoreSubscriber<O>, Disposable, Subscription, Scannable {
 
+  static final MonoLifecycleHandler DEFAULT_LIFECYCLE = new MonoLifecycleHandler() {};
+
   /**
    * Create a {@link UnicastMonoProcessor} that will eagerly request 1 on {@link
-   * #onSubscribe(Subscription)}, cache and emit the eventual result for 1 or N subscribers.
+   * #onSubscribe(Subscription)}, cache and emit the eventual result for a single subscriber.
    *
    * @param <T> type of the expected value
    * @return A {@link UnicastMonoProcessor}.
    */
+  @SuppressWarnings("unchecked")
   public static <T> UnicastMonoProcessor<T> create() {
-    return new UnicastMonoProcessor<>();
+    return new UnicastMonoProcessor<T>(DEFAULT_LIFECYCLE);
+  }
+
+  /**
+   * Create a {@link UnicastMonoProcessor} that will eagerly request 1 on {@link
+   * #onSubscribe(Subscription)}, cache and emit the eventual result for a single subscriber.
+   *
+   * @param lifecycleHandler lifecycle handler
+   * @param <T> type of the expected value
+   * @return A {@link UnicastMonoProcessor}.
+   */
+  public static <T> UnicastMonoProcessor<T> create(MonoLifecycleHandler<T> lifecycleHandler) {
+    return new UnicastMonoProcessor<>(lifecycleHandler);
   }
 
   /** Indicates this Subscription has no value and not requested yet. */
@@ -86,7 +103,11 @@ public class UnicastMonoProcessor<O> extends Mono<O>
   Throwable error;
   O value;
 
-  UnicastMonoProcessor() {}
+  final MonoLifecycleHandler<O> lifecycleHandler;
+
+  UnicastMonoProcessor(MonoLifecycleHandler<O> lifecycleHandler) {
+    this.lifecycleHandler = lifecycleHandler;
+  }
 
   @Override
   @NonNull
@@ -162,9 +183,11 @@ public class UnicastMonoProcessor<O> extends Mono<O>
       }
 
       if (state == HAS_REQUEST_NO_RESULT) {
-        final Subscriber<? super O> a = actual;
         if (STATE.compareAndSet(this, HAS_REQUEST_NO_RESULT, HAS_REQUEST_HAS_RESULT)) {
-          this.value = null;
+          final Subscriber<? super O> a = actual;
+          actual = null;
+          value = null;
+          lifecycleHandler.doOnTerminal(SignalType.ON_COMPLETE, v, null);
           a.onNext(v);
           a.onComplete();
           return;
@@ -197,8 +220,10 @@ public class UnicastMonoProcessor<O> extends Mono<O>
       }
 
       if (state == HAS_REQUEST_NO_RESULT || state == NO_REQUEST_NO_RESULT) {
-        final Subscriber<? super O> a = actual;
         if (STATE.compareAndSet(this, state, HAS_REQUEST_HAS_RESULT)) {
+          final Subscriber<? super O> a = actual;
+          actual = null;
+          lifecycleHandler.doOnTerminal(SignalType.ON_COMPLETE, null, null);
           a.onComplete();
           return;
         }
@@ -229,8 +254,10 @@ public class UnicastMonoProcessor<O> extends Mono<O>
 
       setError(e);
       if (state == HAS_REQUEST_NO_RESULT || state == NO_REQUEST_NO_RESULT) {
-        final Subscriber<? super O> a = actual;
         if (STATE.compareAndSet(this, state, HAS_REQUEST_HAS_RESULT)) {
+          final Subscriber<? super O> a = actual;
+          actual = null;
+          lifecycleHandler.doOnTerminal(SignalType.ON_ERROR, null, e);
           a.onError(e);
           return;
         }
@@ -247,10 +274,11 @@ public class UnicastMonoProcessor<O> extends Mono<O>
     Objects.requireNonNull(actual, "subscribe");
 
     if (once == 0 && ONCE.compareAndSet(this, 0, 1)) {
-      this.actual = actual;
+      final MonoLifecycleHandler<O> lh = this.lifecycleHandler;
 
-      // CAS LOOP since there is a racing with [onNext / onComplete / onError / dispose] which can
-      // appear at any moment
+      lh.doOnSubscribe();
+
+      this.actual = actual;
 
       int state = this.state;
 
@@ -280,8 +308,10 @@ public class UnicastMonoProcessor<O> extends Mono<O>
         // barrier to flush changes
         STATE.set(this, HAS_REQUEST_HAS_RESULT);
         if (e == null) {
+          lh.doOnTerminal(SignalType.ON_COMPLETE, null, null);
           Operators.complete(actual);
         } else {
+          lh.doOnTerminal(SignalType.ON_ERROR, null, e);
           Operators.error(actual, e);
         }
         return;
@@ -306,16 +336,17 @@ public class UnicastMonoProcessor<O> extends Mono<O>
         if ((s & ~NO_REQUEST_HAS_RESULT) != 0) {
           return;
         }
-        if (s == NO_REQUEST_HAS_RESULT
-            && STATE.compareAndSet(this, NO_REQUEST_HAS_RESULT, HAS_REQUEST_HAS_RESULT)) {
-          O v = value;
-          if (v != null) {
+        if (s == NO_REQUEST_HAS_RESULT) {
+          if (STATE.compareAndSet(this, NO_REQUEST_HAS_RESULT, HAS_REQUEST_HAS_RESULT)) {
+            final Subscriber<? super O> a = actual;
+            final O v = value;
+            actual = null;
             value = null;
-            Subscriber<? super O> a = actual;
+            lifecycleHandler.doOnTerminal(SignalType.ON_COMPLETE, v, null);
             a.onNext(v);
             a.onComplete();
+            return;
           }
-          return;
         }
         if (STATE.compareAndSet(this, NO_REQUEST_NO_RESULT, HAS_REQUEST_NO_RESULT)) {
           return;
@@ -328,15 +359,14 @@ public class UnicastMonoProcessor<O> extends Mono<O>
   public final void cancel() {
     if (STATE.getAndSet(this, CANCELLED) <= HAS_REQUEST_NO_RESULT) {
       Operators.onDiscard(value, currentContext());
+      value = null;
+      actual = null;
+      lifecycleHandler.doOnTerminal(SignalType.CANCEL, null, null);
+      final Subscription s = UPSTREAM.getAndSet(this, Operators.cancelledSubscription());
+      if (s != null && s != Operators.cancelledSubscription()) {
+        s.cancel();
+      }
     }
-
-    final Subscription s = UPSTREAM.getAndSet(this, Operators.cancelledSubscription());
-    if (s != null) {
-      s.cancel();
-    }
-
-    value = null;
-    actual = null;
   }
 
   @Override
