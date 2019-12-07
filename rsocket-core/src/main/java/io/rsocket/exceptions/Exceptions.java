@@ -34,36 +34,50 @@ public final class Exceptions {
    * @return a {@link RSocketException} that matches the error code in the Frame
    * @throws NullPointerException if {@code frame} is {@code null}
    */
-  public static RuntimeException from(ByteBuf frame) {
+  public static RuntimeException from(int streamId, ByteBuf frame) {
     Objects.requireNonNull(frame, "frame must not be null");
 
     int errorCode = ErrorFrameFlyweight.errorCode(frame);
     String message = ErrorFrameFlyweight.dataUtf8(frame);
 
-    switch (errorCode) {
-      case APPLICATION_ERROR:
-        return new ApplicationErrorException(message);
-      case CANCELED:
-        return new CanceledException(message);
-      case CONNECTION_CLOSE:
-        return new ConnectionCloseException(message);
-      case CONNECTION_ERROR:
-        return new ConnectionErrorException(message);
-      case INVALID:
-        return new InvalidException(message);
-      case INVALID_SETUP:
-        return new InvalidSetupException(message);
-      case REJECTED:
-        return new RejectedException(message);
-      case REJECTED_RESUME:
-        return new RejectedResumeException(message);
-      case REJECTED_SETUP:
-        return new RejectedSetupException(message);
-      case UNSUPPORTED_SETUP:
-        return new UnsupportedSetupException(message);
-      default:
-        return new IllegalArgumentException(
-            String.format("Invalid Error frame: %d '%s'", errorCode, message));
+    if (streamId == 0) {
+      switch (errorCode) {
+        case INVALID_SETUP:
+          return new InvalidSetupException(message);
+        case UNSUPPORTED_SETUP:
+          return new UnsupportedSetupException(message);
+        case REJECTED_SETUP:
+          return new RejectedSetupException(message);
+        case REJECTED_RESUME:
+          return new RejectedResumeException(message);
+        case CONNECTION_ERROR:
+          return new ConnectionErrorException(message);
+        case CONNECTION_CLOSE:
+          return new ConnectionCloseException(message);
+        default:
+          return new IllegalArgumentException(
+              String.format("Invalid Error frame in Stream ID 0: 0x%08X '%s'", errorCode, message));
+      }
+    } else {
+      switch (errorCode) {
+        case APPLICATION_ERROR:
+          return new ApplicationErrorException(message);
+        case REJECTED:
+          return new RejectedException(message);
+        case CANCELED:
+          return new CanceledException(message);
+        case INVALID:
+          return new InvalidException(message);
+        default:
+          if (errorCode >= MIN_USER_ALLOWED_ERROR_CODE
+              || errorCode <= MAX_USER_ALLOWED_ERROR_CODE) {
+            return new CustomRSocketException(errorCode, message);
+          }
+          return new IllegalArgumentException(
+              String.format(
+                  "Invalid Error frame in Stream ID %d: 0x%08X '%s'",
+                  streamId, errorCode, message));
+      }
     }
   }
 }

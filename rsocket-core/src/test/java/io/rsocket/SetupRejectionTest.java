@@ -37,7 +37,7 @@ public class SetupRejectionTest {
 
     ByteBuf sentFrame = transport.awaitSent();
     assertThat(FrameHeaderFlyweight.frameType(sentFrame)).isEqualTo(FrameType.ERROR);
-    RuntimeException error = Exceptions.from(sentFrame);
+    RuntimeException error = Exceptions.from(0, sentFrame);
     assertThat(errorMsg).isEqualTo(error.getMessage());
     assertThat(error).isInstanceOf(RejectedSetupException.class);
     RSocket acceptorSender = acceptor.senderRSocket().block();
