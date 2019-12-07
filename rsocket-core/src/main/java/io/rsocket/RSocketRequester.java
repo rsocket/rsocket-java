@@ -470,7 +470,7 @@ class RSocketRequester implements RSocket {
     } else {
       switch (type) {
         case ERROR:
-          receiver.onError(Exceptions.from(frame));
+          receiver.onError(Exceptions.from(streamId, frame));
           receivers.remove(streamId);
           break;
         case NEXT_COMPLETE:
@@ -544,7 +544,7 @@ class RSocketRequester implements RSocket {
   }
 
   private void tryTerminateOnZeroError(ByteBuf errorFrame) {
-    tryTerminate(() -> Exceptions.from(errorFrame));
+    tryTerminate(() -> Exceptions.from(0, errorFrame));
   }
 
   private void tryTerminate(Supplier<Exception> errorSupplier) {

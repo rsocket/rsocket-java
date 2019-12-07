@@ -141,7 +141,8 @@ class RSocketLeaseTest {
     Assertions.assertThat(sent).hasSize(1);
     ByteBuf error = sent.iterator().next();
     Assertions.assertThat(FrameHeaderFlyweight.frameType(error)).isEqualTo(ERROR);
-    Assertions.assertThat(Exceptions.from(error).getMessage()).isEqualTo("lease is not supported");
+    Assertions.assertThat(Exceptions.from(0, error).getMessage())
+        .isEqualTo("lease is not supported");
   }
 
   @Test
