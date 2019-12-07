@@ -411,7 +411,7 @@ class RSocketRequester implements RSocket {
               MetadataPushFrameFlyweight.encode(allocator, payload.sliceMetadata().retain());
           payload.release();
 
-          sendProcessor.onNext(metadataPushFrame);
+          sendProcessor.onNextPrioritized(metadataPushFrame);
         });
   }
 

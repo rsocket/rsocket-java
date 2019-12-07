@@ -107,7 +107,7 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
           empty = t == null;
         }
 
-        if (checkTerminated(d, empty, a, q, pq)) {
+        if (checkTerminated(d, empty, a)) {
           return;
         }
 
@@ -121,7 +121,7 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
       }
 
       if (r == e) {
-        if (checkTerminated(done, q.isEmpty() && pq.isEmpty(), a, q, pq)) {
+        if (checkTerminated(done, q.isEmpty() && pq.isEmpty(), a)) {
           return;
         }
       }
@@ -139,9 +139,6 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
 
   void drainFused(Subscriber<? super T> a) {
     int missed = 1;
-
-    final Queue<T> q = queue;
-    final Queue<T> pq = priorityQueue;
 
     for (; ; ) {
 
@@ -201,7 +198,7 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
   }
 
   boolean checkTerminated(
-      boolean d, boolean empty, Subscriber<? super T> a, Queue<T> q, Queue<T> pq) {
+      boolean d, boolean empty, Subscriber<? super T> a) {
     if (cancelled) {
       clear();
       actual = null;
@@ -345,18 +342,11 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
   }
 
   @Override
-  public T peek() {
-    if (!priorityQueue.isEmpty()) {
-      return priorityQueue.peek();
-    }
-    return queue.peek();
-  }
-
-  @Override
   @Nullable
   public T poll() {
-    if (!priorityQueue.isEmpty()) {
-      return priorityQueue.poll();
+    Queue<T> pq = this.priorityQueue;
+    if (!pq.isEmpty()) {
+      return pq.poll();
     }
     return queue.poll();
   }
