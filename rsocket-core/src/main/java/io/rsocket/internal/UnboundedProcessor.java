@@ -197,8 +197,7 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
     }
   }
 
-  boolean checkTerminated(
-      boolean d, boolean empty, Subscriber<? super T> a) {
+  boolean checkTerminated(boolean d, boolean empty, Subscriber<? super T> a) {
     if (cancelled) {
       clear();
       actual = null;
