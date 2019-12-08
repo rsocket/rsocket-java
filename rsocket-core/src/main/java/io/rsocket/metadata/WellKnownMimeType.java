@@ -73,6 +73,7 @@ public enum WellKnownMimeType {
 
   // ... reserved for future use ...
 
+  MESSAGE_RSOCKET_AUTHENTICATION("message/x.rsocket.authentication.v0", (byte) 0x7C),
   MESSAGE_RSOCKET_TRACING_ZIPKIN("message/x.rsocket.tracing-zipkin.v0", (byte) 0x7D),
   MESSAGE_RSOCKET_ROUTING("message/x.rsocket.routing.v0", (byte) 0x7E),
   MESSAGE_RSOCKET_COMPOSITE_METADATA("message/x.rsocket.composite-metadata.v0", (byte) 0x7F);
