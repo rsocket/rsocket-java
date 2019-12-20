@@ -21,7 +21,7 @@ elif [ "$TRAVIS_PULL_REQUEST" == "false" ] && [ "$TRAVIS_TAG" == "" ] && [ "$bin
     ./gradlew \
         -PbintrayUser="${bintrayUser}" -PbintrayKey="${bintrayKey}" \
         -PsonatypeUsername="${sonatypeUsername}" -PsonatypePassword="${sonatypePassword}" \
-        -PversionSuffix="-$TRAVIS_BRANCH-SNAPSHOT" \
+        -PversionSuffix="-${TRAVIS_BRANCH//\//-}-SNAPSHOT" \
         -PbuildNumber="$TRAVIS_BUILD_NUMBER" \
         build artifactoryPublish --stacktrace
 
