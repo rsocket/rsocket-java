@@ -3,7 +3,14 @@ package io.rsocket.util;
 import static io.netty.util.internal.StringUtil.isSurrogate;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.util.CharsetUtil;
 import io.netty.util.internal.MathUtil;
+import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.CharsetDecoder;
+import java.nio.charset.CoderResult;
+import java.util.Arrays;
 
 public class CharByteBufUtil {
 
@@ -167,5 +174,35 @@ public class CharByteBufUtil {
     buffer.setByte(writerIndex++, (byte) (0x80 | ((codePoint >> 6) & 0x3f)));
     buffer.setByte(writerIndex++, (byte) (0x80 | (codePoint & 0x3f)));
     return writerIndex;
+  }
+
+  public static char[] readUtf8(ByteBuf byteBuf, int length) {
+    CharsetDecoder charsetDecoder = CharsetUtil.UTF_8.newDecoder();
+    int en = (int) (length * (double) charsetDecoder.maxCharsPerByte());
+    char[] ca = new char[en];
+
+    CharBuffer charBuffer = CharBuffer.wrap(ca);
+    ByteBuffer byteBuffer = byteBuf.internalNioBuffer(byteBuf.readerIndex(), length);
+    byteBuffer.mark();
+    try {
+      CoderResult cr = charsetDecoder.decode(byteBuffer, charBuffer, true);
+      if (!cr.isUnderflow()) cr.throwException();
+      cr = charsetDecoder.flush(charBuffer);
+      if (!cr.isUnderflow()) cr.throwException();
+
+      byteBuffer.reset();
+      byteBuf.skipBytes(length);
+
+      return safeTrim(charBuffer.array(), charBuffer.position());
+    } catch (CharacterCodingException x) {
+      // Substitution is always enabled,
+      // so this shouldn't happen
+      throw new IllegalStateException("unable to decode char array from the given buffer", x);
+    }
+  }
+
+  private static char[] safeTrim(char[] ca, int len) {
+    if (len == ca.length) return ca;
+    else return Arrays.copyOf(ca, len);
   }
 }

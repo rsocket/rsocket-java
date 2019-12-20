@@ -550,7 +550,7 @@ abstract class AbstractTupleByteBuf extends AbstractReferenceCountedByteBuf {
 
   @Override
   public ByteBuffer internalNioBuffer(int index, int length) {
-    throw new UnsupportedOperationException();
+    return nioBuffer(index, length);
   }
 
   @Override

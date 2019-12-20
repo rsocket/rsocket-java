@@ -27,7 +27,12 @@ class AuthMetadataFlyweightTest {
         AuthMetadataFlyweight.encodeSimpleMetadata(
             ByteBufAllocator.DEFAULT, username.toCharArray(), password.toCharArray());
 
-    checkSimpleAuthMetadataEncoding(username, password, usernameLength, passwordLength, byteBuf);
+    byteBuf.markReaderIndex();
+    checkSimpleAuthMetadataEncoding(
+        username, password, usernameLength, passwordLength, byteBuf.retain());
+    byteBuf.resetReaderIndex();
+    checkSimpleAuthMetadataEncodingUsingDecoders(
+        username, password, usernameLength, passwordLength, byteBuf);
   }
 
   @Test
@@ -42,7 +47,12 @@ class AuthMetadataFlyweightTest {
         AuthMetadataFlyweight.encodeSimpleMetadata(
             ByteBufAllocator.DEFAULT, username.toCharArray(), password.toCharArray());
 
-    checkSimpleAuthMetadataEncoding(username, password, usernameLength, passwordLength, byteBuf);
+    byteBuf.markReaderIndex();
+    checkSimpleAuthMetadataEncoding(
+        username, password, usernameLength, passwordLength, byteBuf.retain());
+    byteBuf.resetReaderIndex();
+    checkSimpleAuthMetadataEncodingUsingDecoders(
+        username, password, usernameLength, passwordLength, byteBuf);
   }
 
   @Test
@@ -57,7 +67,12 @@ class AuthMetadataFlyweightTest {
         AuthMetadataFlyweight.encodeSimpleMetadata(
             ByteBufAllocator.DEFAULT, username.toCharArray(), password.toCharArray());
 
-    checkSimpleAuthMetadataEncoding(username, password, usernameLength, passwordLength, byteBuf);
+    byteBuf.markReaderIndex();
+    checkSimpleAuthMetadataEncoding(
+        username, password, usernameLength, passwordLength, byteBuf.retain());
+    byteBuf.resetReaderIndex();
+    checkSimpleAuthMetadataEncodingUsingDecoders(
+        username, password, usernameLength, passwordLength, byteBuf);
   }
 
   private static void checkSimpleAuthMetadataEncoding(
@@ -77,10 +92,32 @@ class AuthMetadataFlyweightTest {
     ReferenceCountUtil.release(byteBuf);
   }
 
+  private static void checkSimpleAuthMetadataEncodingUsingDecoders(
+      String username, String password, int usernameLength, int passwordLength, ByteBuf byteBuf) {
+    Assertions.assertThat(byteBuf.capacity())
+        .isEqualTo(AUTH_TYPE_ID_LENGTH + USER_NAME_BYTES_LENGTH + usernameLength + passwordLength);
+
+    Assertions.assertThat(AuthMetadataFlyweight.decodeWellKnownAuthType(byteBuf))
+        .isEqualTo(WellKnownAuthType.SIMPLE);
+    byteBuf.markReaderIndex();
+    Assertions.assertThat(AuthMetadataFlyweight.decodeUsername(byteBuf).toString(CharsetUtil.UTF_8))
+        .isEqualTo(username);
+    Assertions.assertThat(AuthMetadataFlyweight.decodePassword(byteBuf).toString(CharsetUtil.UTF_8))
+        .isEqualTo(password);
+    byteBuf.resetReaderIndex();
+
+    Assertions.assertThat(new String(AuthMetadataFlyweight.decodeUsernameAsCharArray(byteBuf)))
+        .isEqualTo(username);
+    Assertions.assertThat(new String(AuthMetadataFlyweight.decodePasswordAsCharArray(byteBuf)))
+        .isEqualTo(password);
+
+    ReferenceCountUtil.release(byteBuf);
+  }
+
   @Test
   void shouldThrowExceptionIfUsernameLengthExitsAllowedBounds() {
     String username =
-        "𠜎𠜱𠝹𠱓𠱸𠲖𠳏𠳕𠴕𠵼𠵿𠸎𠸏𠹷𠺝𠺢𠻗𠻹𠻺𠼭𠼮𠽌𠾴𠾼𠿪𡁜𡁯𡁵𡁶𡁻𡃁𡃉𡇙𢃇𢞵𢫕𢭃𢯊𢱑𢱕𢳂𢴈𢵌𢵧𢺳𣲷𤓓𤶸𤷪𥄫𦉘𦟌𦧲𦧺𧨾𨅝𨈇𨋢𨳊𨳍𨳒𩶘";
+        "𠜎𠜱𠝹𠱓𠱸𠲖𠳏𠳕𠴕𠵼𠵿𠸎𠸏𠹷𠺝𠺢𠻗𠻹𠻺𠼭𠼮𠽌𠾴𠾼𠿪𡁜𡁯𡁵𡁶𡁻𡃁𡃉𡇙𢃇𢞵𢫕𢭃𢯊𢱑𢱕𢳂𢴈𢵌𢵧𢺳𣲷𤓓𤶸𤷪𥄫𦉘𦟌𦧲𦧺𧨾𨅝𨈇𨋢𨳊𨳍𨳒𩶘𠜎𠜱𠝹";
     String password = "tset1234";
 
     Assertions.assertThatThrownBy(
@@ -88,7 +125,7 @@ class AuthMetadataFlyweightTest {
                 AuthMetadataFlyweight.encodeSimpleMetadata(
                     ByteBufAllocator.DEFAULT, username.toCharArray(), password.toCharArray()))
         .hasMessage(
-            "Username should be shorter than or equal to 128 bytes length in UTF-8 encoding");
+            "Username should be shorter than or equal to 256 bytes length in UTF-8 encoding");
   }
 
   @Test
@@ -99,7 +136,10 @@ class AuthMetadataFlyweightTest {
         AuthMetadataFlyweight.encodeBearerMetadata(
             ByteBufAllocator.DEFAULT, testToken.toCharArray());
 
+    byteBuf.markReaderIndex();
     checkBearerAuthMetadataEncoding(testToken, byteBuf);
+    byteBuf.resetReaderIndex();
+    checkBearerAuthMetadataEncodingUsingDecoders(testToken, byteBuf);
   }
 
   private static void checkBearerAuthMetadataEncoding(String testToken, ByteBuf byteBuf) {
@@ -109,6 +149,22 @@ class AuthMetadataFlyweightTest {
             byteBuf.readUnsignedByte() & ~AuthMetadataFlyweight.STREAM_METADATA_KNOWN_MASK)
         .isEqualTo(WellKnownAuthType.BEARER.getIdentifier());
     Assertions.assertThat(byteBuf.readSlice(byteBuf.capacity() - 1).toString(CharsetUtil.UTF_8))
+        .isEqualTo(testToken);
+  }
+
+  private static void checkBearerAuthMetadataEncodingUsingDecoders(
+      String testToken, ByteBuf byteBuf) {
+    Assertions.assertThat(byteBuf.capacity())
+        .isEqualTo(testToken.getBytes(CharsetUtil.UTF_8).length + AUTH_TYPE_ID_LENGTH);
+    Assertions.assertThat(AuthMetadataFlyweight.isWellKnownAuthType(byteBuf)).isTrue();
+    Assertions.assertThat(AuthMetadataFlyweight.decodeWellKnownAuthType(byteBuf))
+        .isEqualTo(WellKnownAuthType.BEARER);
+    byteBuf.markReaderIndex();
+    Assertions.assertThat(new String(AuthMetadataFlyweight.decodeBearerTokenAsCharArray(byteBuf)))
+        .isEqualTo(testToken);
+    byteBuf.resetReaderIndex();
+    Assertions.assertThat(
+            AuthMetadataFlyweight.decodePayload(byteBuf).toString(CharsetUtil.UTF_8).toString())
         .isEqualTo(testToken);
   }
 
@@ -217,7 +273,10 @@ class AuthMetadataFlyweightTest {
             WellKnownAuthType.BEARER,
             Unpooled.copiedBuffer(TEST_BEARER_TOKEN, CharsetUtil.UTF_8));
 
+    byteBuf.markReaderIndex();
     checkBearerAuthMetadataEncoding(TEST_BEARER_TOKEN, byteBuf);
+    byteBuf.resetReaderIndex();
+    checkBearerAuthMetadataEncodingUsingDecoders(TEST_BEARER_TOKEN, byteBuf);
   }
 
   @Test
@@ -257,7 +316,10 @@ class AuthMetadataFlyweightTest {
             "bearer",
             Unpooled.copiedBuffer(TEST_BEARER_TOKEN, CharsetUtil.UTF_8));
 
+    byteBuf.markReaderIndex();
     checkBearerAuthMetadataEncoding(TEST_BEARER_TOKEN, byteBuf);
+    byteBuf.resetReaderIndex();
+    checkBearerAuthMetadataEncodingUsingDecoders(TEST_BEARER_TOKEN, byteBuf);
   }
 
   @Test
@@ -270,5 +332,144 @@ class AuthMetadataFlyweightTest {
             ByteBufAllocator.DEFAULT, customAuthType, testMetadataPayload);
 
     checkCustomAuthMetadataEncoding(testMetadataPayload, customAuthType, byteBuf);
+  }
+
+  @Test
+  void shouldConfirmWellKnownAuthType() {
+    ByteBuf metadata =
+        AuthMetadataFlyweight.encodeMetadataWithCompression(
+            ByteBufAllocator.DEFAULT, "simple", Unpooled.EMPTY_BUFFER);
+
+    int initialReaderIndex = metadata.readerIndex();
+
+    Assertions.assertThat(AuthMetadataFlyweight.isWellKnownAuthType(metadata)).isTrue();
+    Assertions.assertThat(metadata.readerIndex()).isEqualTo(initialReaderIndex);
+
+    ReferenceCountUtil.release(metadata);
+  }
+
+  @Test
+  void shouldConfirmGivenMetadataIsNotAWellKnownAuthType() {
+    ByteBuf metadata =
+        AuthMetadataFlyweight.encodeMetadataWithCompression(
+            ByteBufAllocator.DEFAULT, "simple/afafgafadf", Unpooled.EMPTY_BUFFER);
+
+    int initialReaderIndex = metadata.readerIndex();
+
+    Assertions.assertThat(AuthMetadataFlyweight.isWellKnownAuthType(metadata)).isFalse();
+    Assertions.assertThat(metadata.readerIndex()).isEqualTo(initialReaderIndex);
+
+    ReferenceCountUtil.release(metadata);
+  }
+
+  @Test
+  void shouldReadSimpleWellKnownAuthType() {
+    ByteBuf metadata =
+        AuthMetadataFlyweight.encodeMetadataWithCompression(
+            ByteBufAllocator.DEFAULT, "simple", Unpooled.EMPTY_BUFFER);
+    WellKnownAuthType expectedType = WellKnownAuthType.SIMPLE;
+    checkDecodeWellKnowAuthTypeCorrectly(metadata, expectedType);
+  }
+
+  @Test
+  void shouldReadSimpleWellKnownAuthType1() {
+    ByteBuf metadata =
+        AuthMetadataFlyweight.encodeMetadataWithCompression(
+            ByteBufAllocator.DEFAULT, "bearer", Unpooled.EMPTY_BUFFER);
+    WellKnownAuthType expectedType = WellKnownAuthType.BEARER;
+    checkDecodeWellKnowAuthTypeCorrectly(metadata, expectedType);
+  }
+
+  @Test
+  void shouldReadSimpleWellKnownAuthType2() {
+    ByteBuf metadata =
+        ByteBufAllocator.DEFAULT
+            .buffer()
+            .writeByte(3 | AuthMetadataFlyweight.STREAM_METADATA_KNOWN_MASK);
+    WellKnownAuthType expectedType = WellKnownAuthType.UNKNOWN_RESERVED_AUTH_TYPE;
+    checkDecodeWellKnowAuthTypeCorrectly(metadata, expectedType);
+  }
+
+  @Test
+  void shouldNotReadSimpleWellKnownAuthTypeIfEncodedLength() {
+    ByteBuf metadata = ByteBufAllocator.DEFAULT.buffer().writeByte(3);
+    WellKnownAuthType expectedType = WellKnownAuthType.UNPARSEABLE_AUTH_TYPE;
+    checkDecodeWellKnowAuthTypeCorrectly(metadata, expectedType);
+  }
+
+  @Test
+  void shouldNotReadSimpleWellKnownAuthTypeIfEncodedLength1() {
+    ByteBuf metadata =
+        AuthMetadataFlyweight.encodeMetadata(
+            ByteBufAllocator.DEFAULT, "testmetadataauthtype", Unpooled.EMPTY_BUFFER);
+    WellKnownAuthType expectedType = WellKnownAuthType.UNPARSEABLE_AUTH_TYPE;
+    checkDecodeWellKnowAuthTypeCorrectly(metadata, expectedType);
+  }
+
+  @Test
+  void shouldThrowExceptionIsNotEnoughReadableBytes() {
+    Assertions.assertThatThrownBy(
+            () -> AuthMetadataFlyweight.decodeWellKnownAuthType(Unpooled.EMPTY_BUFFER))
+        .hasMessage("Unable to decode Well Know Auth type. Not enough readable bytes");
+  }
+
+  private static void checkDecodeWellKnowAuthTypeCorrectly(
+      ByteBuf metadata, WellKnownAuthType expectedType) {
+    int initialReaderIndex = metadata.readerIndex();
+
+    WellKnownAuthType wellKnownAuthType = AuthMetadataFlyweight.decodeWellKnownAuthType(metadata);
+
+    Assertions.assertThat(wellKnownAuthType).isEqualTo(expectedType);
+    Assertions.assertThat(metadata.readerIndex())
+        .isNotEqualTo(initialReaderIndex)
+        .isEqualTo(initialReaderIndex + 1);
+
+    ReferenceCountUtil.release(metadata);
+  }
+
+  @Test
+  void shouldReadCustomEncodedAuthType() {
+    String testAuthType = "TestAuthType";
+    ByteBuf byteBuf =
+        AuthMetadataFlyweight.encodeMetadata(
+            ByteBufAllocator.DEFAULT, testAuthType, Unpooled.EMPTY_BUFFER);
+    checkDecodeCustomAuthTypeCorrectly(testAuthType, byteBuf);
+  }
+
+  @Test
+  void shouldThrowExceptionOnEmptyMetadata() {
+    Assertions.assertThatThrownBy(
+            () -> AuthMetadataFlyweight.decodeCustomAuthType(Unpooled.EMPTY_BUFFER))
+        .hasMessage("Unable to decode custom Auth type. Not enough readable bytes");
+  }
+
+  @Test
+  void shouldThrowExceptionOnMalformedMetadata_wellknowninstead() {
+    Assertions.assertThatThrownBy(
+            () ->
+                AuthMetadataFlyweight.decodeCustomAuthType(
+                    AuthMetadataFlyweight.encodeMetadata(
+                        ByteBufAllocator.DEFAULT,
+                        WellKnownAuthType.BEARER,
+                        Unpooled.copiedBuffer(new byte[] {'a', 'b'}))))
+        .hasMessage("Unable to decode custom Auth type. Incorrect auth type length");
+  }
+
+  @Test
+  void shouldThrowExceptionOnMalformedMetadata_length() {
+    Assertions.assertThatThrownBy(
+            () ->
+                AuthMetadataFlyweight.decodeCustomAuthType(
+                    ByteBufAllocator.DEFAULT.buffer().writeByte(127).writeChar('a').writeChar('b')))
+        .hasMessage("Unable to decode custom Auth type. Malformed length or auth type string");
+  }
+
+  private static void checkDecodeCustomAuthTypeCorrectly(String testAuthType, ByteBuf byteBuf) {
+    int initialReaderIndex = byteBuf.readerIndex();
+
+    Assertions.assertThat(AuthMetadataFlyweight.decodeCustomAuthType(byteBuf).toString())
+        .isEqualTo(testAuthType);
+    Assertions.assertThat(byteBuf.readerIndex())
+        .isEqualTo(initialReaderIndex + testAuthType.length() + 1);
   }
 }
