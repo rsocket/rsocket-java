@@ -84,7 +84,7 @@ public class AuthMetadataFlyweight {
   /**
    * Encode a Authentication CompositeMetadata payload using Simple Authentication format
    *
-   * @throws IllegalArgumentException if username length is greater than 256
+   * @throws IllegalArgumentException if username length is greater than 255
    * @param allocator the {@link ByteBufAllocator} to use to create intermediate buffers as needed.
    * @param username the char sequence which represents user name.
    * @param password the char sequence which represents user password.
@@ -93,9 +93,9 @@ public class AuthMetadataFlyweight {
       ByteBufAllocator allocator, char[] username, char[] password) {
 
     int usernameLength = CharByteBufUtil.utf8Bytes(username);
-    if (usernameLength > 256) {
+    if (usernameLength > 255) {
       throw new IllegalArgumentException(
-          "Username should be shorter than or equal to 256 bytes length in UTF-8 encoding");
+          "Username should be shorter than or equal to 255 bytes length in UTF-8 encoding");
     }
 
     int passwordLength = CharByteBufUtil.utf8Bytes(password);

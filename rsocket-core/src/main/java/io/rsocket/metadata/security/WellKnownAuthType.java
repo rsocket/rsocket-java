@@ -17,7 +17,7 @@
 package io.rsocket.metadata.security;
 
 import java.util.Arrays;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
@@ -41,7 +41,7 @@ public enum WellKnownAuthType {
     TYPES_BY_AUTH_ID = new WellKnownAuthType[128]; // 0-127 inclusive
     Arrays.fill(TYPES_BY_AUTH_ID, UNKNOWN_RESERVED_AUTH_TYPE);
     // also prepare a Map of the types by auth string
-    TYPES_BY_AUTH_STRING = new HashMap<>(128);
+    TYPES_BY_AUTH_STRING = new LinkedHashMap<>(128);
 
     for (WellKnownAuthType value : values()) {
       if (value.getIdentifier() >= 0) {
