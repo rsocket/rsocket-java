@@ -34,11 +34,9 @@ public class AuthMetadataFlyweight {
 
     int actualASCIILength = ByteBufUtil.utf8Bytes(customAuthType);
     if (actualASCIILength != customAuthType.length()) {
-      metadata.release();
       throw new IllegalArgumentException("custom auth type must be US_ASCII characters only");
     }
     if (actualASCIILength < 1 || actualASCIILength > 128) {
-      metadata.release();
       throw new IllegalArgumentException(
           "custom auth type must have a strictly positive length that fits on 7 unsigned bits, ie 1-128");
     }
@@ -68,7 +66,6 @@ public class AuthMetadataFlyweight {
 
     if (authType == WellKnownAuthType.UNPARSEABLE_AUTH_TYPE
         || authType == WellKnownAuthType.UNKNOWN_RESERVED_AUTH_TYPE) {
-      metadata.release();
       throw new IllegalArgumentException("only allowed AuthType should be used");
     }
 

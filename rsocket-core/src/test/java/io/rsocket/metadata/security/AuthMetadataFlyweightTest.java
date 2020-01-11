@@ -125,7 +125,7 @@ class AuthMetadataFlyweightTest {
                 AuthMetadataFlyweight.encodeSimpleMetadata(
                     ByteBufAllocator.DEFAULT, username.toCharArray(), password.toCharArray()))
         .hasMessage(
-            "Username should be shorter than or equal to 256 bytes length in UTF-8 encoding");
+            "Username should be shorter than or equal to 255 bytes length in UTF-8 encoding");
   }
 
   @Test
@@ -207,8 +207,6 @@ class AuthMetadataFlyweightTest {
                 AuthMetadataFlyweight.encodeMetadata(
                     ByteBufAllocator.DEFAULT, customAuthType, testSecurityPayload))
         .hasMessage("custom auth type must be US_ASCII characters only");
-
-    Assertions.assertThat(testSecurityPayload.refCnt()).isZero();
   }
 
   @Test
@@ -224,8 +222,6 @@ class AuthMetadataFlyweightTest {
                     ByteBufAllocator.DEFAULT, customAuthType, testSecurityPayload))
         .hasMessage(
             "custom auth type must have a strictly positive length that fits on 7 unsigned bits, ie 1-128");
-
-    Assertions.assertThat(testSecurityPayload.refCnt()).isZero();
   }
 
   @Test
@@ -239,8 +235,6 @@ class AuthMetadataFlyweightTest {
                     ByteBufAllocator.DEFAULT, customAuthType, testSecurityPayload))
         .hasMessage(
             "custom auth type must have a strictly positive length that fits on 7 unsigned bits, ie 1-128");
-
-    Assertions.assertThat(testSecurityPayload.refCnt()).isZero();
   }
 
   @Test
@@ -281,20 +275,21 @@ class AuthMetadataFlyweightTest {
 
   @Test
   void shouldThrowIfWellKnownAuthTypeIsUnsupportedOrUnknown() {
-    ByteBuf buffer = ByteBufAllocator.DEFAULT.buffer().retain();
-    Assertions.assertThat(buffer.refCnt()).isEqualTo(2);
+    ByteBuf buffer = ByteBufAllocator.DEFAULT.buffer();
 
     Assertions.assertThatThrownBy(
         () ->
             AuthMetadataFlyweight.encodeMetadata(
-                ByteBufAllocator.DEFAULT, WellKnownAuthType.UNPARSEABLE_AUTH_TYPE, buffer));
-    Assertions.assertThat(buffer.refCnt()).isOne();
+                ByteBufAllocator.DEFAULT, WellKnownAuthType.UNPARSEABLE_AUTH_TYPE, buffer))
+            .hasMessage("only allowed AuthType should be used");
 
     Assertions.assertThatThrownBy(
         () ->
             AuthMetadataFlyweight.encodeMetadata(
-                ByteBufAllocator.DEFAULT, WellKnownAuthType.UNPARSEABLE_AUTH_TYPE, buffer));
-    Assertions.assertThat(buffer.refCnt()).isZero();
+                ByteBufAllocator.DEFAULT, WellKnownAuthType.UNPARSEABLE_AUTH_TYPE, buffer))
+            .hasMessage("only allowed AuthType should be used");
+
+    buffer.release();
   }
 
   @Test
