@@ -35,6 +35,8 @@ import io.rsocket.test.util.TestSubscriber;
 import io.rsocket.util.DefaultPayload;
 import io.rsocket.util.EmptyPayload;
 import java.util.ArrayList;
+import java.util.concurrent.atomic.AtomicReference;
+import org.assertj.core.api.Assertions;
 import org.hamcrest.MatcherAssert;
 import org.junit.Assert;
 import org.junit.Rule;
@@ -131,6 +133,22 @@ public class RSocketTest {
         Flux.range(0, 10).map(i -> DefaultPayload.create("streaming in -> " + i));
     Flux<Payload> responses = rule.crs.requestChannel(requests);
     StepVerifier.create(responses).expectNextCount(10).expectComplete().verify();
+  }
+
+  @Test(timeout = 2000)
+  public void testErrorPropagatesCorrectly() {
+    AtomicReference<Throwable> error = new AtomicReference<>();
+    rule.setRequestAcceptor(
+        new AbstractRSocket() {
+          @Override
+          public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
+            return Flux.from(payloads).doOnError(error::set);
+          }
+        });
+    Flux<Payload> requests = Flux.error(new RuntimeException("test"));
+    Flux<Payload> responses = rule.crs.requestChannel(requests);
+    StepVerifier.create(responses).expectErrorMessage("test").verify();
+    Assertions.assertThat(error.get()).isNull();
   }
 
   public static class SocketRule extends ExternalResource {

@@ -76,9 +76,15 @@ class RSocketRequesterSubscribersTest {
   @MethodSource("allInteractions")
   void multiSubscriber(Function<RSocket, Publisher<?>> interaction) {
     RSocket multiSubsRSocket = new MultiSubscriberRSocket(rSocketRequester);
-    Flux<?> response = Flux.from(interaction.apply(multiSubsRSocket)).take(Duration.ofMillis(10));
-    StepVerifier.create(response).expectComplete().verify(Duration.ofSeconds(5));
-    StepVerifier.create(response).expectComplete().verify(Duration.ofSeconds(5));
+    Flux<?> response = Flux.from(interaction.apply(multiSubsRSocket));
+    StepVerifier.withVirtualTime(() -> response.take(Duration.ofMillis(10)))
+        .thenAwait(Duration.ofMillis(10))
+        .expectComplete()
+        .verify(Duration.ofSeconds(5));
+    StepVerifier.withVirtualTime(() -> response.take(Duration.ofMillis(10)))
+        .thenAwait(Duration.ofMillis(10))
+        .expectComplete()
+        .verify(Duration.ofSeconds(5));
 
     Assertions.assertThat(requestFramesCount(connection.getSent())).isEqualTo(2);
   }
@@ -86,9 +92,13 @@ class RSocketRequesterSubscribersTest {
   @ParameterizedTest
   @MethodSource("allInteractions")
   void singleSubscriber(Function<RSocket, Publisher<?>> interaction) {
-    Flux<?> response = Flux.from(interaction.apply(rSocketRequester)).take(Duration.ofMillis(10));
-    StepVerifier.create(response).expectComplete().verify(Duration.ofSeconds(5));
-    StepVerifier.create(response)
+    Flux<?> response = Flux.from(interaction.apply(rSocketRequester));
+    StepVerifier.withVirtualTime(() -> response.take(Duration.ofMillis(10)))
+        .thenAwait(Duration.ofMillis(10))
+        .expectComplete()
+        .verify(Duration.ofSeconds(5));
+    StepVerifier.withVirtualTime(() -> response.take(Duration.ofMillis(10)))
+        .thenAwait(Duration.ofMillis(10))
         .expectError(IllegalStateException.class)
         .verify(Duration.ofSeconds(5));
 

@@ -40,7 +40,8 @@ import io.rsocket.frame.RequestNFrameFlyweight;
 import io.rsocket.frame.RequestResponseFrameFlyweight;
 import io.rsocket.frame.RequestStreamFrameFlyweight;
 import io.rsocket.frame.decoder.PayloadDecoder;
-import io.rsocket.internal.RateLimitableRequestPublisher;
+import io.rsocket.internal.FluxSwitchOnFirst;
+import io.rsocket.internal.RateLimitableRequestSubscriber;
 import io.rsocket.internal.SynchronizedIntObjectHashMap;
 import io.rsocket.internal.UnboundedProcessor;
 import io.rsocket.internal.UnicastMonoEmpty;
@@ -51,6 +52,7 @@ import io.rsocket.keepalive.KeepAliveSupport;
 import io.rsocket.lease.RequesterLeaseHandler;
 import io.rsocket.util.MonoLifecycleHandler;
 import java.nio.channels.ClosedChannelException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
@@ -60,7 +62,7 @@ import javax.annotation.Nullable;
 import org.reactivestreams.Processor;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
-import reactor.core.publisher.BaseSubscriber;
+import org.reactivestreams.Subscription;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.SignalType;
@@ -84,7 +86,7 @@ class RSocketRequester implements RSocket {
   private final PayloadDecoder payloadDecoder;
   private final Consumer<Throwable> errorConsumer;
   private final StreamIdSupplier streamIdSupplier;
-  private final IntObjectMap<RateLimitableRequestPublisher> senders;
+  private final IntObjectMap<RateLimitableRequestSubscriber> senders;
   private final IntObjectMap<Processor<Payload, Payload>> receivers;
   private final UnboundedProcessor<ByteBuf> sendProcessor;
   private final RequesterLeaseHandler leaseHandler;
@@ -258,10 +260,12 @@ class RSocketRequester implements RSocket {
 
     final UnboundedProcessor<ByteBuf> sendProcessor = this.sendProcessor;
     final UnicastProcessor<Payload> receiver = UnicastProcessor.create();
+    final AtomicBoolean payloadReleasedFlag = new AtomicBoolean(false);
 
     receivers.put(streamId, receiver);
 
     return receiver
+        .log()
         .doOnRequest(
             new LongConsumer() {
 
@@ -279,7 +283,9 @@ class RSocketRequester implements RSocket {
                           n,
                           payload.sliceMetadata().retain(),
                           payload.sliceData().retain()));
-                  payload.release();
+                  if (!payloadReleasedFlag.getAndSet(true)) {
+                    payload.release();
+                  }
                 } else if (contains(streamId) && !receiver.isDisposed()) {
                   sendProcessor.onNext(RequestNFrameFlyweight.encode(allocator, streamId, n));
                 }
@@ -293,6 +299,9 @@ class RSocketRequester implements RSocket {
             })
         .doOnCancel(
             () -> {
+              if (!payloadReleasedFlag.getAndSet(true)) {
+                payload.release();
+              }
               if (contains(streamId) && !receiver.isDisposed()) {
                 sendProcessor.onNext(CancelFrameFlyweight.encode(allocator, streamId));
               }
@@ -306,9 +315,57 @@ class RSocketRequester implements RSocket {
       return Flux.error(err);
     }
 
+    return request.transform(
+        f ->
+            new FluxSwitchOnFirst<>(
+                f,
+                (s, flux) -> {
+                  Payload payload = s.get();
+                  if (payload != null) {
+                    return handleChannel(flux, payload);
+                  } else {
+                    return flux;
+                  }
+                },
+                false));
+  }
+
+  private Flux<? extends Payload> handleChannel(Flux<Payload> inboundFlux, Payload initialPayload) {
     final UnboundedProcessor<ByteBuf> sendProcessor = this.sendProcessor;
-    final UnicastProcessor<Payload> receiver = UnicastProcessor.create();
+    final AtomicBoolean payloadReleasedFlag = new AtomicBoolean(false);
     final int streamId = streamIdSupplier.nextStreamId(receivers);
+
+    final UnicastProcessor<Payload> receiver = UnicastProcessor.create();
+    final RateLimitableRequestSubscriber<Payload> upstreamSubscriber =
+        new RateLimitableRequestSubscriber<Payload>(Queues.SMALL_BUFFER_SIZE) {
+
+          @Override
+          protected void hookOnNext(Payload payload) {
+            final ByteBuf frame =
+                PayloadFrameFlyweight.encode(allocator, streamId, false, false, true, payload);
+
+            sendProcessor.onNext(frame);
+            payload.release();
+          }
+
+          @Override
+          protected void hookOnComplete() {
+            ByteBuf frame = PayloadFrameFlyweight.encodeComplete(allocator, streamId);
+            sendProcessor.onNext(frame);
+          }
+
+          @Override
+          protected void hookOnError(Throwable t) {
+            ByteBuf frame = ErrorFrameFlyweight.encode(allocator, streamId, t);
+            sendProcessor.onNext(frame);
+            receiver.dispose();
+          }
+
+          @Override
+          protected void hookFinally(SignalType type) {
+            senders.remove(streamId, this);
+          }
+        };
 
     return receiver
         .doOnRequest(
@@ -320,85 +377,49 @@ class RSocketRequester implements RSocket {
               public void accept(long n) {
                 if (firstRequest) {
                   firstRequest = false;
-                  request
-                      .transform(
-                          f -> {
-                            RateLimitableRequestPublisher<Payload> wrapped =
-                                RateLimitableRequestPublisher.wrap(f, Queues.SMALL_BUFFER_SIZE);
-                            // Need to set this to one for first the frame
-                            wrapped.request(1);
-                            senders.put(streamId, wrapped);
-                            receivers.put(streamId, receiver);
+                  senders.put(streamId, upstreamSubscriber);
+                  receivers.put(streamId, receiver);
 
-                            return wrapped;
-                          })
-                      .subscribe(
-                          new BaseSubscriber<Payload>() {
+                  inboundFlux.subscribe(upstreamSubscriber);
 
-                            boolean firstPayload = true;
+                  ByteBuf frame =
+                      RequestChannelFrameFlyweight.encode(
+                          allocator,
+                          streamId,
+                          false,
+                          false,
+                          n,
+                          initialPayload.sliceMetadata().retain(),
+                          initialPayload.sliceData().retain());
 
-                            @Override
-                            protected void hookOnNext(Payload payload) {
-                              final ByteBuf frame;
+                  sendProcessor.onNext(frame);
 
-                              if (firstPayload) {
-                                firstPayload = false;
-                                frame =
-                                    RequestChannelFrameFlyweight.encode(
-                                        allocator,
-                                        streamId,
-                                        false,
-                                        false,
-                                        n,
-                                        payload.sliceMetadata().retain(),
-                                        payload.sliceData().retain());
-                              } else {
-                                frame =
-                                    PayloadFrameFlyweight.encode(
-                                        allocator, streamId, false, false, true, payload);
-                              }
-
-                              sendProcessor.onNext(frame);
-                              payload.release();
-                            }
-
-                            @Override
-                            protected void hookOnComplete() {
-                              if (contains(streamId) && !receiver.isDisposed()) {
-                                sendProcessor.onNext(
-                                    PayloadFrameFlyweight.encodeComplete(allocator, streamId));
-                              }
-                              if (firstPayload) {
-                                receiver.onComplete();
-                              }
-                            }
-
-                            @Override
-                            protected void hookOnError(Throwable t) {
-                              errorConsumer.accept(t);
-                              receiver.dispose();
-                            }
-                          });
-                } else {
-                  if (contains(streamId) && !receiver.isDisposed()) {
-                    sendProcessor.onNext(RequestNFrameFlyweight.encode(allocator, streamId, n));
+                  if (!payloadReleasedFlag.getAndSet(true)) {
+                    initialPayload.release();
                   }
+                } else {
+                  sendProcessor.onNext(RequestNFrameFlyweight.encode(allocator, streamId, n));
                 }
               }
             })
         .doOnError(
             t -> {
-              if (contains(streamId) && !receiver.isDisposed()) {
-                sendProcessor.onNext(ErrorFrameFlyweight.encode(allocator, streamId, t));
+              if (receivers.remove(streamId, receiver)) {
+                upstreamSubscriber.cancel();
               }
             })
         .doOnCancel(
             () -> {
-              if (contains(streamId) && !receiver.isDisposed()) {
-                sendProcessor.onNext(CancelFrameFlyweight.encode(allocator, streamId));
+              if (!payloadReleasedFlag.getAndSet(true)) {
+                initialPayload.release();
               }
-            })
-        .doFinally(s -> removeStreamReceiverAndSender(streamId));
+              if (contains(streamId)) {
+                sendProcessor.onNext(CancelFrameFlyweight.encode(allocator, streamId));
+                if (receivers.remove(streamId, receiver)) {
+                  upstreamSubscriber.cancel();
+                }
+              }
+            });
   }
 
   private Mono<Void> handleMetadataPush(Payload payload) {
@@ -487,7 +508,7 @@ class RSocketRequester implements RSocket {
           break;
         case CANCEL:
           {
-            RateLimitableRequestPublisher sender = senders.remove(streamId);
+            Subscription sender = senders.remove(streamId);
             if (sender != null) {
               sender.cancel();
             }
@@ -498,7 +519,7 @@ class RSocketRequester implements RSocket {
           break;
         case REQUEST_N:
           {
-            RateLimitableRequestPublisher sender = senders.get(streamId);
+            Subscription sender = senders.get(streamId);
             if (sender != null) {
               int n = RequestNFrameFlyweight.requestN(frame);
               sender.request(n >= Integer.MAX_VALUE ? Long.MAX_VALUE : n);
@@ -603,18 +624,6 @@ class RSocketRequester implements RSocket {
     of its views*/
     if (terminationError == null) {
       receivers.remove(streamId);
-    }
-  }
-
-  private void removeStreamReceiverAndSender(int streamId) {
-    /*on termination senders & receivers are explicitly cleared to avoid removing from map while iterating over one
-    of its views*/
-    if (terminationError == null) {
-      receivers.remove(streamId);
-      RateLimitableRequestPublisher<?> sender = senders.remove(streamId);
-      if (sender != null) {
-        sender.cancel();
-      }
     }
   }
 

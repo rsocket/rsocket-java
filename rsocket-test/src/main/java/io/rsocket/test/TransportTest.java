@@ -26,11 +26,13 @@ import io.rsocket.util.DefaultPayload;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.time.Duration;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.zip.GZIPInputStream;
+import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -215,14 +217,18 @@ public interface TransportTest {
   @DisplayName("makes 1 requestChannel request with 3 payloads")
   @Test
   default void requestChannel3() {
-    Flux<Payload> payloads = Flux.range(0, 3).map(this::createTestPayload);
+    AtomicLong requested = new AtomicLong();
+    Flux<Payload> payloads =
+        Flux.range(0, 3).doOnRequest(requested::addAndGet).map(this::createTestPayload);
 
     getClient()
         .requestChannel(payloads)
-        .as(StepVerifier::create)
+        .as(publisher -> StepVerifier.create(publisher, 3))
         .expectNextCount(3)
         .expectComplete()
         .verify(getTimeout());
+
+    Assertions.assertThat(requested.get()).isEqualTo(3L);
   }
 
   @DisplayName("makes 1 requestChannel request with 512 payloads")

@@ -1,13 +1,16 @@
 package io.rsocket.internal;
 
-import static org.junit.jupiter.api.Assertions.*;
-
 import java.time.Duration;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.reactivestreams.Subscription;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Operators;
+import reactor.core.publisher.SignalType;
 import reactor.core.scheduler.Schedulers;
 import reactor.test.StepVerifier;
 
@@ -20,11 +23,31 @@ class RateLimitableRequestPublisherTest {
             .subscribeOn(Schedulers.parallel())
             .doOnRequest(r -> Assertions.assertThat(r).isLessThanOrEqualTo(128));
 
-    RateLimitableRequestPublisher<Integer> rateLimitableRequestPublisher =
-        RateLimitableRequestPublisher.wrap(source, 128);
+    StepVerifier.create(
+            source.transform(
+                Operators.<Integer, Integer>lift(
+                    (__, actual) ->
+                        new RateLimitableRequestSubscriber<Integer>(128) {
+                          @Override
+                          public void hookOnSubscribe(Subscription s) {
+                            actual.onSubscribe(this);
+                          }
 
-    StepVerifier.create(rateLimitableRequestPublisher)
-        .then(() -> rateLimitableRequestPublisher.request(1))
+                          @Override
+                          public void hookOnNext(Integer o) {
+                            actual.onNext(o);
+                          }
+
+                          @Override
+                          public void hookOnError(Throwable t) {
+                            actual.onError(t);
+                          }
+
+                          @Override
+                          public void hookOnComplete() {
+                            actual.onComplete();
+                          }
+                        })))
         .expectNext(1)
         .expectComplete()
         .verify(Duration.ofMillis(1000));
@@ -37,11 +60,31 @@ class RateLimitableRequestPublisherTest {
             .subscribeOn(Schedulers.parallel())
             .doOnRequest(r -> Assertions.assertThat(r).isLessThanOrEqualTo(128));
 
-    RateLimitableRequestPublisher<Integer> rateLimitableRequestPublisher =
-        RateLimitableRequestPublisher.wrap(source, 128);
+    StepVerifier.create(
+            source.transform(
+                Operators.<Integer, Integer>lift(
+                    (__, actual) ->
+                        new RateLimitableRequestSubscriber<Integer>(128) {
+                          @Override
+                          public void hookOnSubscribe(Subscription s) {
+                            actual.onSubscribe(this);
+                          }
 
-    StepVerifier.create(rateLimitableRequestPublisher)
-        .then(() -> rateLimitableRequestPublisher.request(256))
+                          @Override
+                          public void hookOnNext(Integer o) {
+                            actual.onNext(o);
+                          }
+
+                          @Override
+                          public void hookOnError(Throwable t) {
+                            actual.onError(t);
+                          }
+
+                          @Override
+                          public void hookOnComplete() {
+                            actual.onComplete();
+                          }
+                        })))
         .expectNextCount(256)
         .expectComplete()
         .verify(Duration.ofMillis(1000));
@@ -54,54 +97,84 @@ class RateLimitableRequestPublisherTest {
             .subscribeOn(Schedulers.parallel())
             .doOnRequest(r -> Assertions.assertThat(r).isLessThanOrEqualTo(128));
 
-    RateLimitableRequestPublisher<Integer> rateLimitableRequestPublisher =
-        RateLimitableRequestPublisher.wrap(source, 128);
+    StepVerifier.create(
+            source.transform(
+                Operators.<Integer, Integer>lift(
+                    (__, actual) ->
+                        new RateLimitableRequestSubscriber<Integer>(128) {
+                          @Override
+                          public void hookOnSubscribe(Subscription s) {
+                            actual.onSubscribe(this);
+                          }
 
-    StepVerifier.create(rateLimitableRequestPublisher)
-        .then(() -> rateLimitableRequestPublisher.request(10))
+                          @Override
+                          public void hookOnNext(Integer o) {
+                            actual.onNext(o);
+                          }
+
+                          @Override
+                          public void hookOnError(Throwable t) {
+                            actual.onError(t);
+                          }
+
+                          @Override
+                          public void hookOnComplete() {
+                            actual.onComplete();
+                          }
+                        })),
+            0)
+        .thenRequest(10)
         .expectNextCount(5)
-        .then(() -> rateLimitableRequestPublisher.request(128))
+        .thenRequest(128)
         .expectNextCount(133)
         .expectNoEvent(Duration.ofMillis(10))
-        .then(() -> rateLimitableRequestPublisher.request(Long.MAX_VALUE))
+        .thenRequest(Long.MAX_VALUE)
         .expectNextCount(118)
         .expectComplete()
         .verify(Duration.ofMillis(1000));
   }
 
   @Test
-  public void testThatRequestInRandomFashionWillBePropagatedToUpstreamWithLimitedRateInFewSteps() {
+  public void testThatRequestInRandomFashionWillBePropagatedToUpstreamWithLimitedRateInFewSteps()
+      throws InterruptedException {
     Flux<Integer> source =
         Flux.range(0, 10000000)
             .subscribeOn(Schedulers.parallel())
             .doOnRequest(r -> Assertions.assertThat(r).isLessThanOrEqualTo(128));
 
-    RateLimitableRequestPublisher<Integer> rateLimitableRequestPublisher =
-        RateLimitableRequestPublisher.wrap(source, 128);
+    CountDownLatch latch = new CountDownLatch(10000000 + 1);
 
-    StepVerifier.create(rateLimitableRequestPublisher)
-        .then(
-            () ->
-                Flux.interval(Duration.ofMillis(1000))
-                    .onBackpressureDrop()
-                    .subscribe(
-                        new Consumer<Long>() {
-                          int count = 10000000;
+    Subscription subscription =
+        source.subscribeWith(
+            new RateLimitableRequestSubscriber<Integer>(128) {
+              @Override
+              public void hookOnNext(Integer o) {
+                latch.countDown();
+              }
 
-                          @Override
-                          public void accept(Long __) {
-                            int random = ThreadLocalRandom.current().nextInt(1, 512);
+              @Override
+              protected void hookFinally(SignalType type) {
+                latch.countDown();
+              }
+            });
+    Flux.interval(Duration.ofMillis(1000))
+        .onBackpressureDrop()
+        .subscribe(
+            new Consumer<Long>() {
+              int count = 10000000;
 
-                            long request = Math.min(random, count);
+              @Override
+              public void accept(Long __) {
+                int random = ThreadLocalRandom.current().nextInt(1, 512);
 
-                            count -= request;
+                long request = Math.min(random, count);
 
-                            rateLimitableRequestPublisher.request(count);
-                          }
-                        }))
-        .expectNextCount(10000000)
-        .expectComplete()
-        .verify(Duration.ofMillis(30000));
+                count -= request;
+
+                subscription.request(count);
+              }
+            });
+    Assertions.assertThat(latch.await(30, TimeUnit.SECONDS)).isTrue();
   }
 
   @Test
@@ -111,11 +184,31 @@ class RateLimitableRequestPublisherTest {
             .subscribeOn(Schedulers.parallel())
             .doOnRequest(r -> Assertions.assertThat(r).isLessThanOrEqualTo(128));
 
-    RateLimitableRequestPublisher<Integer> rateLimitableRequestPublisher =
-        RateLimitableRequestPublisher.wrap(source, 128);
+    StepVerifier.create(
+            source.transform(
+                Operators.<Integer, Integer>lift(
+                    (__, actual) ->
+                        new RateLimitableRequestSubscriber<Integer>(128) {
+                          @Override
+                          public void hookOnSubscribe(Subscription s) {
+                            actual.onSubscribe(this);
+                          }
 
-    StepVerifier.create(rateLimitableRequestPublisher)
-        .then(() -> rateLimitableRequestPublisher.request(Long.MAX_VALUE))
+                          @Override
+                          public void hookOnNext(Integer o) {
+                            actual.onNext(o);
+                          }
+
+                          @Override
+                          public void hookOnError(Throwable t) {
+                            actual.onError(t);
+                          }
+
+                          @Override
+                          public void hookOnComplete() {
+                            actual.onComplete();
+                          }
+                        })))
         .expectNextCount(10000000)
         .expectComplete()
         .verify(Duration.ofMillis(30000));
@@ -128,11 +221,31 @@ class RateLimitableRequestPublisherTest {
             .subscribeOn(Schedulers.parallel())
             .doOnRequest(r -> Assertions.assertThat(r).isEqualTo(Long.MAX_VALUE));
 
-    RateLimitableRequestPublisher<Integer> rateLimitableRequestPublisher =
-        RateLimitableRequestPublisher.wrap(source, Integer.MAX_VALUE);
+    StepVerifier.create(
+            source.transform(
+                Operators.<Integer, Integer>lift(
+                    (__, actual) ->
+                        new RateLimitableRequestSubscriber<Integer>(128) {
+                          @Override
+                          public void hookOnSubscribe(Subscription s) {
+                            actual.onSubscribe(this);
+                          }
 
-    StepVerifier.create(rateLimitableRequestPublisher)
-        .then(() -> rateLimitableRequestPublisher.request(Long.MAX_VALUE))
+                          @Override
+                          public void hookOnNext(Integer o) {
+                            actual.onNext(o);
+                          }
+
+                          @Override
+                          public void hookOnError(Throwable t) {
+                            actual.onError(t);
+                          }
+
+                          @Override
+                          public void hookOnComplete() {
+                            actual.onComplete();
+                          }
+                        })))
         .expectNextCount(10000000)
         .expectComplete()
         .verify(Duration.ofMillis(30000));
