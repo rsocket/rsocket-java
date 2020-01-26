@@ -219,7 +219,8 @@ public interface TransportTest {
   default void requestChannel3() {
     AtomicLong requested = new AtomicLong();
     Flux<Payload> payloads =
-        Flux.range(0, 3).doOnRequest(requested::addAndGet).map(this::createTestPayload);
+            Flux.range(0, 3).doOnRequest(requested::addAndGet).map(this::createTestPayload);
+
 
     getClient()
         .requestChannel(payloads)
