@@ -278,16 +278,16 @@ class AuthMetadataFlyweightTest {
     ByteBuf buffer = ByteBufAllocator.DEFAULT.buffer();
 
     Assertions.assertThatThrownBy(
-        () ->
-            AuthMetadataFlyweight.encodeMetadata(
-                ByteBufAllocator.DEFAULT, WellKnownAuthType.UNPARSEABLE_AUTH_TYPE, buffer))
-            .hasMessage("only allowed AuthType should be used");
+            () ->
+                AuthMetadataFlyweight.encodeMetadata(
+                    ByteBufAllocator.DEFAULT, WellKnownAuthType.UNPARSEABLE_AUTH_TYPE, buffer))
+        .hasMessage("only allowed AuthType should be used");
 
     Assertions.assertThatThrownBy(
-        () ->
-            AuthMetadataFlyweight.encodeMetadata(
-                ByteBufAllocator.DEFAULT, WellKnownAuthType.UNPARSEABLE_AUTH_TYPE, buffer))
-            .hasMessage("only allowed AuthType should be used");
+            () ->
+                AuthMetadataFlyweight.encodeMetadata(
+                    ByteBufAllocator.DEFAULT, WellKnownAuthType.UNPARSEABLE_AUTH_TYPE, buffer))
+        .hasMessage("only allowed AuthType should be used");
 
     buffer.release();
   }
