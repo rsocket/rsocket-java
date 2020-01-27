@@ -23,11 +23,11 @@ public class AuthMetadataFlyweight {
   /**
    * Encode a Authentication CompositeMetadata payload using custom authentication type
    *
-   * @throws IllegalArgumentException if customAuthType is non US_ASCII string if customAuthType is
-   *     empty string if customAuthType is has length greater than 128 bytes
    * @param allocator the {@link ByteBufAllocator} to use to create intermediate buffers as needed.
    * @param customAuthType the custom mime type to encode.
    * @param metadata the metadata value to encode.
+   * @throws IllegalArgumentException in case of {@code customAuthType} is non US_ASCII string or
+   *     empty string or its length is greater than 128 bytes
    */
   public static ByteBuf encodeMetadata(
       ByteBufAllocator allocator, String customAuthType, ByteBuf metadata) {
@@ -55,11 +55,12 @@ public class AuthMetadataFlyweight {
   /**
    * Encode a Authentication CompositeMetadata payload using custom authentication type
    *
-   * @throws IllegalArgumentException if customAuthType is non US_ASCII string if customAuthType is
-   *     empty string if customAuthType is has length greater than 128 bytes
-   * @param allocator the {@link ByteBufAllocator} to use to create intermediate buffers as needed.
-   * @param authType the custom mime type to encode.
+   * @param allocator the {@link ByteBufAllocator} to create intermediate buffers as needed.
+   * @param authType the well-known mime type to encode.
    * @param metadata the metadata value to encode.
+   * @throws IllegalArgumentException in case of {@code authType} is {@link
+   *     WellKnownAuthType#UNPARSEABLE_AUTH_TYPE} or {@link
+   *     WellKnownAuthType#UNKNOWN_RESERVED_AUTH_TYPE}
    */
   public static ByteBuf encodeMetadata(
       ByteBufAllocator allocator, WellKnownAuthType authType, ByteBuf metadata) {
@@ -81,7 +82,7 @@ public class AuthMetadataFlyweight {
   /**
    * Encode a Authentication CompositeMetadata payload using Simple Authentication format
    *
-   * @throws IllegalArgumentException if username length is greater than 255
+   * @throws IllegalArgumentException if the username length is greater than 255
    * @param allocator the {@link ByteBufAllocator} to use to create intermediate buffers as needed.
    * @param username the char sequence which represents user name.
    * @param password the char sequence which represents user password.
@@ -172,7 +173,7 @@ public class AuthMetadataFlyweight {
    * @param metadata given metadata buffer to read from
    * @return Return on of the know Auth types or {@link WellKnownAuthType#UNPARSEABLE_AUTH_TYPE} if
    *     field's value is length or unknown auth type
-   * @throws IllegalStateException if not enough readable bytes in the given ByteBuf
+   * @throws IllegalStateException if not enough readable bytes in the given {@link ByteBuf}
    */
   public static WellKnownAuthType decodeWellKnownAuthType(ByteBuf metadata) {
     if (metadata.readableBytes() < 1) {
