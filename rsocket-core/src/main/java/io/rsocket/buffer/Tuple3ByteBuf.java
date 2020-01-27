@@ -235,15 +235,13 @@ class Tuple3ByteBuf extends AbstractTupleByteBuf {
   @Override
   public ByteBuf getBytes(int index, byte[] dst, int dstIndex, int length) {
     ByteBuf dstBuf = Unpooled.wrappedBuffer(dst);
-    int min = Math.min(dst.length, capacity);
-    return getBytes(0, dstBuf, index, min);
+    return getBytes(index, dstBuf, dstIndex, length);
   }
 
   @Override
   public ByteBuf getBytes(int index, ByteBuffer dst) {
     ByteBuf dstBuf = Unpooled.wrappedBuffer(dst);
-    int min = Math.min(dst.limit(), capacity);
-    return getBytes(0, dstBuf, index, min);
+    return getBytes(index, dstBuf);
   }
 
   @Override
@@ -537,12 +535,6 @@ class Tuple3ByteBuf extends AbstractTupleByteBuf {
     builder.append(two.toString(charset));
     builder.append(three.toString(charset));
     return builder.toString();
-  }
-
-  @Override
-  public String toString(int index, int length, Charset charset) {
-    // TODO - make this smarter
-    return toString(charset).substring(index, length);
   }
 
   @Override
