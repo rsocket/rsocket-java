@@ -21,12 +21,15 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
 
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
 /**
  * An abstract implementation of {@link RSocket}. All request handling methods emit {@link
  * UnsupportedOperationException} and hence must be overridden to provide a valid implementation.
  */
 public abstract class AbstractRSocket implements RSocket {
-
+  private final Map<String, Object> attributes = new ConcurrentHashMap<>();
   private final MonoProcessor<Void> onClose = MonoProcessor.create();
 
   @Override
@@ -71,5 +74,10 @@ public abstract class AbstractRSocket implements RSocket {
   @Override
   public Mono<Void> onClose() {
     return onClose;
+  }
+
+  @Override
+  public Map<String, Object> getAttributes() {
+    return this.attributes;
   }
 }
