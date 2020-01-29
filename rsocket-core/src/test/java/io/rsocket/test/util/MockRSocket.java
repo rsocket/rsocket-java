@@ -21,6 +21,7 @@ import static org.hamcrest.Matchers.is;
 
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
@@ -89,6 +90,11 @@ public class MockRSocket implements RSocket {
   @Override
   public Mono<Void> onClose() {
     return delegate.onClose();
+  }
+
+  @Override
+  public Map<String, Object> getAttributes() {
+    return delegate.getAttributes();
   }
 
   public void assertFireAndForgetCount(int expected) {

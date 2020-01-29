@@ -18,6 +18,7 @@ package io.rsocket.util;
 
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
+import java.util.Map;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -73,5 +74,10 @@ public class RSocketProxy implements RSocket {
   @Override
   public Mono<Void> onClose() {
     return source.onClose();
+  }
+
+  @Override
+  public Map<String, Object> getAttributes() {
+    return source.getAttributes();
   }
 }

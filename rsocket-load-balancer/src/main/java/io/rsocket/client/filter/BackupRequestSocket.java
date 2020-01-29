@@ -21,6 +21,7 @@ import io.rsocket.RSocket;
 import io.rsocket.stat.FrugalQuantile;
 import io.rsocket.stat.Quantile;
 import io.rsocket.util.Clock;
+import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -101,6 +102,11 @@ public class BackupRequestSocket implements RSocket {
   @Override
   public Mono<Void> onClose() {
     return child.onClose();
+  }
+
+  @Override
+  public Map<String, Object> getAttributes() {
+    return child.getAttributes();
   }
 
   @Override

@@ -25,10 +25,7 @@ import io.rsocket.stat.Quantile;
 import io.rsocket.util.Clock;
 import java.nio.channels.ClosedChannelException;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Optional;
-import java.util.Random;
+import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -529,6 +526,11 @@ public abstract class LoadBalancedRSocketMono extends Mono<RSocket>
     @Override
     public Mono<Void> onClose() {
       return Mono.empty();
+    }
+
+    @Override
+    public Map<String, Object> getAttributes() {
+      return Collections.emptyMap();
     }
   }
 

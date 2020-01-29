@@ -27,6 +27,8 @@ import io.rsocket.internal.RateLimitableRequestPublisher;
 import io.rsocket.internal.SynchronizedIntObjectHashMap;
 import io.rsocket.internal.UnboundedProcessor;
 import io.rsocket.lease.ResponderLeaseHandler;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import org.reactivestreams.Processor;
 import org.reactivestreams.Publisher;
@@ -53,6 +55,7 @@ class RSocketResponder implements ResponderRSocket {
 
   private final UnboundedProcessor<ByteBuf> sendProcessor;
   private final ByteBufAllocator allocator;
+  private final Map<String, Object> attributes = new ConcurrentHashMap<>();
 
   RSocketResponder(
       ByteBufAllocator allocator,
@@ -546,5 +549,10 @@ class RSocketResponder implements ResponderRSocket {
       int n = RequestNFrameFlyweight.requestN(frame);
       subscription.request(n >= Integer.MAX_VALUE ? Long.MAX_VALUE : n);
     }
+  }
+
+  @Override
+  public Map<String, Object> getAttributes() {
+    return this.attributes;
   }
 }

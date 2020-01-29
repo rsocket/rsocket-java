@@ -1,8 +1,8 @@
 package io.rsocket;
 
+import java.util.Map;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Map;
 
 /**
  * Attributes Context

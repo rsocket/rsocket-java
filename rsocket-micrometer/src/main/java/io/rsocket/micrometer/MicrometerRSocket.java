@@ -16,19 +16,13 @@
 
 package io.rsocket.micrometer;
 
-import static reactor.core.publisher.SignalType.CANCEL;
-import static reactor.core.publisher.SignalType.ON_COMPLETE;
-import static reactor.core.publisher.SignalType.ON_ERROR;
+import static reactor.core.publisher.SignalType.*;
 
-import io.micrometer.core.instrument.Counter;
-import io.micrometer.core.instrument.Meter;
-import io.micrometer.core.instrument.MeterRegistry;
-import io.micrometer.core.instrument.Tag;
-import io.micrometer.core.instrument.Tags;
-import io.micrometer.core.instrument.Timer;
+import io.micrometer.core.instrument.*;
 import io.micrometer.core.instrument.Timer.Sample;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -98,6 +92,11 @@ final class MicrometerRSocket implements RSocket {
   @Override
   public Mono<Void> onClose() {
     return delegate.onClose();
+  }
+
+  @Override
+  public Map<String, Object> getAttributes() {
+    return delegate.getAttributes();
   }
 
   @Override

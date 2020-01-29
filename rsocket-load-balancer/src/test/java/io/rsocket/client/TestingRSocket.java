@@ -18,19 +18,24 @@ package io.rsocket.client;
 
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
-import reactor.core.publisher.*;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+import reactor.core.publisher.MonoProcessor;
 
 public class TestingRSocket implements RSocket {
 
   private final AtomicInteger count;
   private final MonoProcessor<Void> onClose = MonoProcessor.create();
   private final BiFunction<Subscriber<? super Payload>, Payload, Boolean> eachPayloadHandler;
+  private final Map<String, Object> attributes = new ConcurrentHashMap<>();
 
   public TestingRSocket(Function<Payload, Payload> responder) {
     this(
@@ -139,5 +144,10 @@ public class TestingRSocket implements RSocket {
   @Override
   public Mono<Void> onClose() {
     return onClose;
+  }
+
+  @Override
+  public Map<String, Object> getAttributes() {
+    return this.attributes;
   }
 }

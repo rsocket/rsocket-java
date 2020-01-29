@@ -16,13 +16,12 @@
 
 package io.rsocket;
 
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
-
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * An abstract implementation of {@link RSocket}. All request handling methods emit {@link
