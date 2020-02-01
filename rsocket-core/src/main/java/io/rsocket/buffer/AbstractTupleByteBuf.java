@@ -1,22 +1,16 @@
 package io.rsocket.buffer;
 
-import io.netty.buffer.AbstractReferenceCountedByteBuf;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
 import io.netty.util.internal.SystemPropertyUtil;
-import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.nio.channels.FileChannel;
-import java.nio.channels.ScatteringByteChannel;
-import java.nio.charset.Charset;
 
-abstract class AbstractTupleByteBuf extends AbstractReferenceCountedByteBuf {
+public abstract class AbstractTupleByteBuf extends AbstractReadOnlyReferenceCountedByteBuf {
   static final int DEFAULT_DIRECT_MEMORY_CACHE_ALIGNMENT =
       SystemPropertyUtil.getInt("io.netty.allocator.directMemoryCacheAlignment", 0);
   static final ByteBuffer EMPTY_NIO_BUFFER = Unpooled.EMPTY_BUFFER.nioBuffer();
-  static final int NOT_ENOUGH_BYTES_AT_MAX_CAPACITY_CODE = 3;
 
   final ByteBufAllocator allocator;
   final int capacity;
@@ -40,7 +34,7 @@ abstract class AbstractTupleByteBuf extends AbstractReferenceCountedByteBuf {
     ByteBuffer[] buffers = nioBuffers(index, length);
 
     if (buffers.length == 1) {
-      return buffers[0].duplicate();
+      return buffers[0];
     }
 
     ByteBuffer merged =
@@ -197,9 +191,9 @@ abstract class AbstractTupleByteBuf extends AbstractReferenceCountedByteBuf {
     if (calculatedIndex + Long.BYTES <= byteBuf.writerIndex()) {
       return byteBuf.getLongLE(calculatedIndex);
     } else if (order() == ByteOrder.BIG_ENDIAN) {
-      return (_getInt(index) & 0xffffffffL) << 32 | _getInt(index + 4) & 0xffffffffL;
+      return _getIntLE(index) & 0xffffffffL | (_getIntLE(index + 4) & 0xffffffffL) << 32;
     } else {
-      return _getInt(index) & 0xFFFFFFFFL | (_getInt(index + 4) & 0xFFFFFFFFL) << 32;
+      return (_getIntLE(index) & 0xffffffffL) << 32 | _getIntLE(index + 4) & 0xffffffffL;
     }
   }
 
@@ -214,28 +208,18 @@ abstract class AbstractTupleByteBuf extends AbstractReferenceCountedByteBuf {
   }
 
   @Override
-  public ByteBuf capacity(int newCapacity) {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
   public int maxCapacity() {
     return capacity;
   }
 
   @Override
   public ByteOrder order() {
-    return ByteOrder.LITTLE_ENDIAN;
-  }
-
-  @Override
-  public ByteBuf order(ByteOrder endianness) {
-    return this;
+    return ByteOrder.BIG_ENDIAN;
   }
 
   @Override
   public ByteBuf unwrap() {
-    throw new UnsupportedOperationException();
+    return null;
   }
 
   @Override
@@ -244,7 +228,7 @@ abstract class AbstractTupleByteBuf extends AbstractReferenceCountedByteBuf {
   }
 
   @Override
-  public ByteBuf asReadOnly() {
+  public AbstractTupleByteBuf asReadOnly() {
     return this;
   }
 
@@ -259,298 +243,21 @@ abstract class AbstractTupleByteBuf extends AbstractReferenceCountedByteBuf {
   }
 
   @Override
-  public ByteBuf writerIndex(int writerIndex) {
+  public AbstractTupleByteBuf readerIndex(int readerIndex) {
+    super.readerIndex(readerIndex);
     return this;
   }
 
   @Override
-  public final int writerIndex() {
-    return capacity;
-  }
-
-  @Override
-  public ByteBuf setIndex(int readerIndex, int writerIndex) {
+  public AbstractTupleByteBuf writerIndex(int writerIndex) {
+    super.writerIndex(writerIndex);
     return this;
   }
 
   @Override
-  public ByteBuf clear() {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
-  public ByteBuf discardReadBytes() {
+  public AbstractTupleByteBuf setIndex(int readerIndex, int writerIndex) {
+    super.setIndex(readerIndex, writerIndex);
     return this;
-  }
-
-  @Override
-  public ByteBuf discardSomeReadBytes() {
-    return this;
-  }
-
-  @Override
-  public ByteBuf ensureWritable(int minWritableBytes) {
-    return this;
-  }
-
-  @Override
-  public int ensureWritable(int minWritableBytes, boolean force) {
-    return NOT_ENOUGH_BYTES_AT_MAX_CAPACITY_CODE;
-  }
-
-  @Override
-  public ByteBuf setFloatLE(int index, float value) {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
-  public ByteBuf setDoubleLE(int index, double value) {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
-  public ByteBuf setBoolean(int index, boolean value) {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
-  public ByteBuf setByte(int index, int value) {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
-  public ByteBuf setShort(int index, int value) {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
-  public ByteBuf setShortLE(int index, int value) {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
-  public ByteBuf setMedium(int index, int value) {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
-  public ByteBuf setMediumLE(int index, int value) {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
-  public ByteBuf setInt(int index, int value) {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
-  public ByteBuf setIntLE(int index, int value) {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
-  public ByteBuf setLong(int index, long value) {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
-  public ByteBuf setLongLE(int index, long value) {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
-  public ByteBuf setChar(int index, int value) {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
-  public ByteBuf setFloat(int index, float value) {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
-  public ByteBuf setDouble(int index, double value) {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
-  public ByteBuf setBytes(int index, ByteBuf src) {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
-  public ByteBuf setBytes(int index, ByteBuf src, int length) {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
-  public ByteBuf setBytes(int index, ByteBuf src, int srcIndex, int length) {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
-  public ByteBuf setBytes(int index, byte[] src) {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
-  public ByteBuf setBytes(int index, byte[] src, int srcIndex, int length) {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
-  public ByteBuf setBytes(int index, ByteBuffer src) {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
-  public int setBytes(int index, InputStream in, int length) {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
-  public int setBytes(int index, ScatteringByteChannel in, int length) {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
-  public int setBytes(int index, FileChannel in, long position, int length) {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
-  public int setCharSequence(int index, CharSequence sequence, Charset charset) {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
-  public ByteBuf setZero(int index, int length) {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
-  public ByteBuf writeBoolean(boolean value) {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
-  public ByteBuf writeByte(int value) {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
-  public ByteBuf writeShort(int value) {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
-  public ByteBuf writeShortLE(int value) {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
-  public ByteBuf writeMedium(int value) {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
-  public ByteBuf writeMediumLE(int value) {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
-  public ByteBuf writeInt(int value) {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
-  public ByteBuf writeIntLE(int value) {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
-  public ByteBuf writeLong(long value) {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
-  public ByteBuf writeLongLE(long value) {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
-  public ByteBuf writeChar(int value) {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
-  public ByteBuf writeFloat(float value) {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
-  public ByteBuf writeDouble(double value) {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
-  public ByteBuf writeBytes(ByteBuf src) {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
-  public ByteBuf writeBytes(ByteBuf src, int length) {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
-  public ByteBuf writeBytes(ByteBuf src, int srcIndex, int length) {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
-  public ByteBuf writeBytes(byte[] src) {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
-  public ByteBuf writeBytes(byte[] src, int srcIndex, int length) {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
-  public ByteBuf writeBytes(ByteBuffer src) {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
-  public int writeBytes(InputStream in, int length) {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
-  public int writeBytes(ScatteringByteChannel in, int length) {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
-  public int writeBytes(FileChannel in, long position, int length) {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
-  public ByteBuf writeZero(int length) {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
-  public int writeCharSequence(CharSequence sequence, Charset charset) {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
-  public ByteBuffer internalNioBuffer(int index, int length) {
-    return nioBuffer(index, length);
   }
 
   @Override
@@ -578,30 +285,7 @@ abstract class AbstractTupleByteBuf extends AbstractReferenceCountedByteBuf {
     throw new UnsupportedOperationException();
   }
 
-  @Override
-  protected void _setByte(int index, int value) {}
-
-  @Override
-  protected void _setShort(int index, int value) {}
-
-  @Override
-  protected void _setShortLE(int index, int value) {}
-
-  @Override
-  protected void _setMedium(int index, int value) {}
-
-  @Override
-  protected void _setMediumLE(int index, int value) {}
-
-  @Override
-  protected void _setInt(int index, int value) {}
-
-  @Override
-  protected void _setIntLE(int index, int value) {}
-
-  @Override
-  protected void _setLong(int index, long value) {}
-
-  @Override
-  protected void _setLongLE(int index, long value) {}
+  protected ByteBuf allocBuffer(int capacity) {
+    return isDirect() ? alloc().directBuffer(capacity) : alloc().heapBuffer(capacity);
+  }
 }

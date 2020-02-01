@@ -1,5 +1,7 @@
 package io.rsocket.buffer;
 
+import static io.netty.buffer.Unpooled.wrappedBuffer;
+
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.ByteBufUtil;
@@ -7,12 +9,88 @@ import io.netty.buffer.Unpooled;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.Function;
 import org.junit.Assert;
-import org.junit.jupiter.api.Test;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
-class Tuple3ByteBufTest {
+@RunWith(Parameterized.class)
+public class Tuple3ByteBufTest extends AbstractByteBufTest {
+
+  @Parameterized.Parameters
+  public static Object[] data() {
+    return new Object[] {
+      (Function<Integer, ByteBuf[]>)
+          (Integer capacity) -> {
+            int i = capacity / 3;
+            return new ByteBuf[] {
+              wrappedBuffer(new byte[i]),
+              wrappedBuffer(new byte[capacity - i - i]),
+              wrappedBuffer(new byte[i]),
+            };
+          },
+      (Function<Integer, ByteBuf[]>)
+          (Integer capacity) -> {
+            int i =
+                Math.min(
+                    Math.max(capacity / (Long.SIZE + Short.SIZE), 1), Math.max(capacity / 3, 1));
+
+            int capacity1 = i;
+            int capacity2 = Math.max(Math.min((capacity - capacity1) / 3, i / 2), 0);
+            int capacity3 = Math.max(capacity - capacity1 - capacity2, 0);
+
+            return new ByteBuf[] {
+              wrappedBuffer(new byte[capacity1]),
+              wrappedBuffer(new byte[capacity2]),
+              wrappedBuffer(new byte[capacity3])
+            };
+          },
+      (Function<Integer, ByteBuf[]>)
+          (Integer capacity) -> {
+            return new ByteBuf[] {
+              wrappedBuffer(new byte[0]),
+              wrappedBuffer(new byte[0]),
+              wrappedBuffer(new byte[capacity])
+            };
+          },
+      (Function<Integer, ByteBuf[]>)
+          (Integer capacity) -> {
+            return new ByteBuf[] {
+              wrappedBuffer(new byte[0]),
+              wrappedBuffer(new byte[capacity]),
+              wrappedBuffer(new byte[0])
+            };
+          },
+      (Function<Integer, ByteBuf[]>)
+          (Integer capacity) -> {
+            return new ByteBuf[] {
+              wrappedBuffer(new byte[capacity]),
+              wrappedBuffer(new byte[0]),
+              wrappedBuffer(new byte[0])
+            };
+          }
+    };
+  }
+
+  private final Function<Integer, ByteBuf[]> innerBuffersGenerator;
+
+  public Tuple3ByteBufTest(Object innerBuffersGenerator) {
+    this.innerBuffersGenerator = (Function<Integer, ByteBuf[]>) innerBuffersGenerator;
+  }
+
+  @Override
+  protected ByteBuf[] newInnerBuffers(int capacity, int maxCapacity) {
+    return innerBuffersGenerator.apply(capacity);
+  }
+
+  @Override
+  protected AbstractTupleByteBuf newBuffer(ByteBuf[] inners) {
+    return (AbstractTupleByteBuf) TupleByteBuf.of(inners[0], inners[1], inners[2]);
+  }
+
   @Test
-  void testTupleBufferGet() {
+  public void testTupleBufferGet() {
     ByteBufAllocator allocator = ByteBufAllocator.DEFAULT;
     ByteBuf one = allocator.directBuffer(9);
 
@@ -40,7 +118,7 @@ class Tuple3ByteBufTest {
   }
 
   @Test
-  void testTuple3BufferSlicing() {
+  public void testTuple3BufferSlicing() {
     ByteBufAllocator allocator = ByteBufAllocator.DEFAULT;
     ByteBuf one = allocator.directBuffer();
     ByteBufUtil.writeUtf8(one, "foo");
@@ -64,7 +142,7 @@ class Tuple3ByteBufTest {
   }
 
   @Test
-  void testTuple3ToNioBuffers() throws Exception {
+  public void testTuple3ToNioBuffers() throws Exception {
     ByteBufAllocator allocator = ByteBufAllocator.DEFAULT;
     ByteBuf one = allocator.directBuffer();
     ByteBufUtil.writeUtf8(one, "one");

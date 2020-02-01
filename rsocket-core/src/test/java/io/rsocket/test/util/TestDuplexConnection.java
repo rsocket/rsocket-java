@@ -17,6 +17,7 @@
 package io.rsocket.test.util;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.util.ReferenceCountUtil;
 import io.rsocket.DuplexConnection;
 import java.util.Collection;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -126,7 +127,10 @@ public class TestDuplexConnection implements DuplexConnection {
   }
 
   public void clearSendReceiveBuffers() {
-    sent.clear();
+    ByteBuf frame;
+    while ((frame = sent.poll()) != null) {
+      ReferenceCountUtil.safeRelease(frame);
+    }
     sendSubscribers.clear();
   }
 

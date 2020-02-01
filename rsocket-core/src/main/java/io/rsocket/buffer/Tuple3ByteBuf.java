@@ -9,7 +9,6 @@ import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.channels.GatheringByteChannel;
-import java.nio.charset.Charset;
 
 class Tuple3ByteBuf extends AbstractTupleByteBuf {
   private static final long ONE_MASK = 0x100000000L;
@@ -124,6 +123,41 @@ class Tuple3ByteBuf extends AbstractTupleByteBuf {
   }
 
   @Override
+  public ByteBuffer internalNioBuffer(int index, int length) {
+    checkIndex(index, length);
+    if (length == 0) {
+      return EMPTY_NIO_BUFFER;
+    }
+
+    long ri = calculateRelativeIndex(index);
+    index = (int) (ri & Integer.MAX_VALUE);
+    switch ((int) ((ri & MASK) >>> 32L)) {
+      case 0x1:
+        {
+          int l = Math.min(oneReadableBytes - index, length);
+
+          if (length > l) {
+            throw new UnsupportedOperationException();
+          }
+
+          return one.internalNioBuffer(index, l);
+        }
+      case 0x2:
+        int l = Math.min(twoReadableBytes - index, length);
+
+        if (length > l) {
+          throw new UnsupportedOperationException();
+        }
+
+        return two.internalNioBuffer(index, length);
+      case 0x4:
+        return three.internalNioBuffer(index, length);
+      default:
+        throw new IllegalStateException();
+    }
+  }
+
+  @Override
   public ByteBuffer[] _nioBuffers(int index, int length) {
     long ri = calculateRelativeIndex(index);
     index = (int) (ri & Integer.MAX_VALUE);
@@ -186,6 +220,7 @@ class Tuple3ByteBuf extends AbstractTupleByteBuf {
   @Override
   public ByteBuf getBytes(int index, ByteBuf dst, int dstIndex, int length) {
     checkDstIndex(index, length, dstIndex, dst.capacity());
+
     long ri = calculateRelativeIndex(index);
     index = (int) (ri & Integer.MAX_VALUE);
     switch ((int) ((ri & MASK) >>> 32L)) {
@@ -240,8 +275,64 @@ class Tuple3ByteBuf extends AbstractTupleByteBuf {
 
   @Override
   public ByteBuf getBytes(int index, ByteBuffer dst) {
-    ByteBuf dstBuf = Unpooled.wrappedBuffer(dst);
-    return getBytes(index, dstBuf);
+    int limit = dst.limit();
+    int length = dst.remaining();
+
+    checkIndex(index, length);
+    if (length == 0) {
+      return this;
+    }
+
+    long ri = calculateRelativeIndex(index);
+    index = (int) (ri & Integer.MAX_VALUE);
+    try {
+      switch ((int) ((ri & MASK) >>> 32L)) {
+        case 0x1:
+          {
+            int localLength = Math.min(oneReadableBytes - index, length);
+            dst.limit(dst.position() + localLength);
+            one.getBytes(index, dst);
+            length -= localLength;
+
+            if (length != 0) {
+              localLength = Math.min(twoReadableBytes, length);
+              dst.limit(dst.position() + localLength);
+              two.getBytes(twoReadIndex, dst);
+              length -= localLength;
+
+              if (length != 0) {
+                dst.limit(dst.position() + length);
+                three.getBytes(threeReadIndex, dst);
+              }
+            }
+            break;
+          }
+        case 0x2:
+          {
+            int localLength = Math.min(twoReadableBytes - index, length);
+            dst.limit(dst.position() + localLength);
+            two.getBytes(index, dst);
+            length -= localLength;
+
+            if (length != 0) {
+              dst.limit(dst.position() + length);
+              three.getBytes(threeReadIndex, dst);
+            }
+            break;
+          }
+        case 0x4:
+          {
+            three.getBytes(index, dst);
+            break;
+          }
+        default:
+          throw new IllegalStateException();
+      }
+    } finally {
+      dst.limit(limit);
+    }
+
+    return this;
   }
 
   @Override
@@ -445,78 +536,6 @@ class Tuple3ByteBuf extends AbstractTupleByteBuf {
   }
 
   @Override
-  public ByteBuf retainedSlice() {
-    return new Tuple3ByteBuf(
-        allocator,
-        one.retainedSlice(oneReadIndex, oneReadableBytes),
-        two.retainedSlice(twoReadIndex, twoReadableBytes),
-        three.retainedSlice(threeReadIndex, threeReadableBytes));
-  }
-
-  @Override
-  public ByteBuf slice(final int readIndex, int length) {
-    checkIndex(readIndex, length);
-
-    if (readIndex == 0 && length == capacity) {
-      return new Tuple3ByteBuf(
-          allocator,
-          one.slice(oneReadIndex, oneReadableBytes),
-          two.slice(twoReadIndex, twoReadableBytes),
-          three.slice(threeReadIndex, threeReadableBytes));
-    }
-
-    long ri = calculateRelativeIndex(readIndex);
-    int index = (int) (ri & Integer.MAX_VALUE);
-    switch ((int) ((ri & MASK) >>> 32L)) {
-      case 0x1:
-        {
-          ByteBuf oneSlice;
-          ByteBuf twoSlice;
-          ByteBuf threeSlice;
-
-          int l = Math.min(oneReadableBytes - index, length);
-          oneSlice = one.slice(index, l);
-          length -= l;
-          if (length != 0) {
-            l = Math.min(twoReadableBytes, length);
-            twoSlice = two.slice(twoReadIndex, l);
-            length -= l;
-            if (length != 0) {
-              threeSlice = three.slice(threeReadIndex, length);
-              return new Tuple3ByteBuf(allocator, oneSlice, twoSlice, threeSlice);
-            } else {
-              return new Tuple2ByteBuf(allocator, oneSlice, twoSlice);
-            }
-
-          } else {
-            return oneSlice;
-          }
-        }
-      case 0x2:
-        {
-          ByteBuf twoSlice;
-          ByteBuf threeSlice;
-
-          int l = Math.min(twoReadableBytes - index, length);
-          twoSlice = two.slice(index, l);
-          length -= l;
-          if (length != 0) {
-            threeSlice = three.slice(threeReadIndex, length);
-            return new Tuple2ByteBuf(allocator, twoSlice, threeSlice);
-          } else {
-            return twoSlice;
-          }
-        }
-      case 0x4:
-        {
-          return three.slice(index, length);
-        }
-      default:
-        throw new IllegalStateException();
-    }
-  }
-
-  @Override
   protected void deallocate() {
     if (freed) {
       return;
@@ -526,15 +545,6 @@ class Tuple3ByteBuf extends AbstractTupleByteBuf {
     ReferenceCountUtil.safeRelease(one);
     ReferenceCountUtil.safeRelease(two);
     ReferenceCountUtil.safeRelease(three);
-  }
-
-  @Override
-  public String toString(Charset charset) {
-    StringBuilder builder = new StringBuilder(3);
-    builder.append(one.toString(charset));
-    builder.append(two.toString(charset));
-    builder.append(three.toString(charset));
-    return builder.toString();
   }
 
   @Override
