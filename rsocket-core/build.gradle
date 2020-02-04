@@ -47,5 +47,3 @@ dependencies {
 }
 
 description = "Core functionality for the RSocket library"
-
-apply from: 'jmh.gradle'

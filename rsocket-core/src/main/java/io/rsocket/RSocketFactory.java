@@ -44,7 +44,6 @@ import io.rsocket.util.EmptyPayload;
 import io.rsocket.util.MultiSubscriberRSocket;
 import java.time.Duration;
 import java.util.Objects;
-import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -277,17 +276,7 @@ public class RSocketFactory {
     }
 
     public ClientTransportAcceptor acceptor(Supplier<Function<RSocket, RSocket>> acceptor) {
-      return acceptor(
-          (SocketAcceptor)
-              (setup, sendingSocket) -> Mono.just(acceptor.get().apply(sendingSocket)));
-    }
-
-    @Deprecated
-    public ClientTransportAcceptor acceptor(
-        BiFunction<ConnectionSetupPayload, RSocket, RSocket> biAcceptor) {
-      return acceptor(
-          (SocketAcceptor)
-              (setup, sendingSocket) -> Mono.just(biAcceptor.apply(setup, sendingSocket)));
+      return acceptor((setup, sendingSocket) -> Mono.just(acceptor.get().apply(sendingSocket)));
     }
 
     public ClientTransportAcceptor acceptor(SocketAcceptor acceptor) {

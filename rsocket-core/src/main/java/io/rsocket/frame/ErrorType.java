@@ -11,7 +11,7 @@ public final class ErrorType {
   /**
    * Application layer logic generating a Reactive Streams onError event. Stream ID MUST be &gt; 0.
    */
-  public static final int APPLICATION_ERROR = 0x00000201;;
+  public static final int APPLICATION_ERROR = 0x00000201;
 
   /**
    * The Responder canceled the request but may have started processing it (similar to REJECTED but
@@ -69,6 +69,15 @@ public final class ErrorType {
    * ID MUST be 0.
    */
   public static final int UNSUPPORTED_SETUP = 0x00000002;
+
+  /** Minimum allowed user defined error code value */
+  public static final int MIN_USER_ALLOWED_ERROR_CODE = 0x00000301;
+
+  /**
+   * Maximum allowed user defined error code value. Note, the value is above signed integer maximum,
+   * so it will be negative after overflow.
+   */
+  public static final int MAX_USER_ALLOWED_ERROR_CODE = 0xFFFFFFFE;
 
   private ErrorType() {}
 }

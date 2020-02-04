@@ -50,7 +50,7 @@ public enum WellKnownMimeType {
   AUDIO_OPUS("audio/opus", (byte) 0x12),
   AUDIO_VORBIS("audio/vorbis", (byte) 0x13),
   IMAGE_BMP("image/bmp", (byte) 0x14),
-  IMAGE_GIG("image/gif", (byte) 0x15),
+  IMAGE_GIF("image/gif", (byte) 0x15),
   IMAGE_HEIC_SEQUENCE("image/heic-sequence", (byte) 0x16),
   IMAGE_HEIC("image/heic", (byte) 0x17),
   IMAGE_HEIF_SEQUENCE("image/heif-sequence", (byte) 0x18),
@@ -73,6 +73,7 @@ public enum WellKnownMimeType {
 
   // ... reserved for future use ...
 
+  MESSAGE_RSOCKET_AUTHENTICATION("message/x.rsocket.authentication.v0", (byte) 0x7C),
   MESSAGE_RSOCKET_TRACING_ZIPKIN("message/x.rsocket.tracing-zipkin.v0", (byte) 0x7D),
   MESSAGE_RSOCKET_ROUTING("message/x.rsocket.routing.v0", (byte) 0x7E),
   MESSAGE_RSOCKET_COMPOSITE_METADATA("message/x.rsocket.composite-metadata.v0", (byte) 0x7F);

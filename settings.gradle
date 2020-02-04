@@ -13,14 +13,29 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+plugins {
+    id 'com.gradle.enterprise' version '3.1'
+}
 
 rootProject.name = 'rsocket-java'
 
 include 'rsocket-core'
-include 'rsocket-examples'
 include 'rsocket-load-balancer'
 include 'rsocket-micrometer'
 include 'rsocket-test'
 include 'rsocket-transport-local'
 include 'rsocket-transport-netty'
 include 'rsocket-bom'
+
+include 'rsocket-examples'
+include 'benchmarks'
+
+
+
+gradleEnterprise {
+    buildScan {
+        termsOfServiceUrl = 'https://gradle.com/terms-of-service'
+        termsOfServiceAgree = 'yes'
+    }
+}
+

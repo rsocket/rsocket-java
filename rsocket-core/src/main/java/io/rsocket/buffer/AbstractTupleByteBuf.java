@@ -16,6 +16,7 @@ abstract class AbstractTupleByteBuf extends AbstractReferenceCountedByteBuf {
   static final int DEFAULT_DIRECT_MEMORY_CACHE_ALIGNMENT =
       SystemPropertyUtil.getInt("io.netty.allocator.directMemoryCacheAlignment", 0);
   static final ByteBuffer EMPTY_NIO_BUFFER = Unpooled.EMPTY_BUFFER.nioBuffer();
+  static final int NOT_ENOUGH_BYTES_AT_MAX_CAPACITY_CODE = 3;
 
   final ByteBufAllocator allocator;
   final int capacity;
@@ -294,7 +295,7 @@ abstract class AbstractTupleByteBuf extends AbstractReferenceCountedByteBuf {
 
   @Override
   public int ensureWritable(int minWritableBytes, boolean force) {
-    return 0;
+    return NOT_ENOUGH_BYTES_AT_MAX_CAPACITY_CODE;
   }
 
   @Override
@@ -549,7 +550,7 @@ abstract class AbstractTupleByteBuf extends AbstractReferenceCountedByteBuf {
 
   @Override
   public ByteBuffer internalNioBuffer(int index, int length) {
-    throw new UnsupportedOperationException();
+    return nioBuffer(index, length);
   }
 
   @Override

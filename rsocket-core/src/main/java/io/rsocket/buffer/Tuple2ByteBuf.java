@@ -134,6 +134,12 @@ class Tuple2ByteBuf extends AbstractTupleByteBuf {
 
   @Override
   public ByteBuf getBytes(int index, ByteBuf dst, int dstIndex, int length) {
+    checkDstIndex(index, length, dstIndex, dst.capacity());
+    if (length == 0) {
+      return this;
+    }
+
+    // FIXME: check twice here
     long ri = calculateRelativeIndex(index);
     index = (int) (ri & Integer.MAX_VALUE);
     switch ((int) ((ri & MASK) >>> 32L)) {
@@ -165,20 +171,22 @@ class Tuple2ByteBuf extends AbstractTupleByteBuf {
   @Override
   public ByteBuf getBytes(int index, byte[] dst, int dstIndex, int length) {
     ByteBuf dstBuf = Unpooled.wrappedBuffer(dst);
-    int min = Math.min(dst.length, capacity);
-    return getBytes(0, dstBuf, index, min);
+    return getBytes(index, dstBuf, dstIndex, length);
   }
 
   @Override
   public ByteBuf getBytes(int index, ByteBuffer dst) {
     ByteBuf dstBuf = Unpooled.wrappedBuffer(dst);
-    int min = Math.min(dst.limit(), capacity);
-    return getBytes(0, dstBuf, index, min);
+    return getBytes(index, dstBuf);
   }
 
   @Override
   public ByteBuf getBytes(int index, final OutputStream out, int length) throws IOException {
     checkIndex(index, length);
+    if (length == 0) {
+      return this;
+    }
+
     long ri = calculateRelativeIndex(index);
     index = (int) (ri & Integer.MAX_VALUE);
     switch ((int) ((ri & MASK) >>> 32L)) {
@@ -354,16 +362,10 @@ class Tuple2ByteBuf extends AbstractTupleByteBuf {
 
   @Override
   public String toString(Charset charset) {
-    StringBuilder builder = new StringBuilder(3);
+    StringBuilder builder = new StringBuilder(capacity);
     builder.append(one.toString(charset));
     builder.append(two.toString(charset));
     return builder.toString();
-  }
-
-  @Override
-  public String toString(int index, int length, Charset charset) {
-    // TODO - make this smarter
-    return toString(charset).substring(index, length);
   }
 
   @Override

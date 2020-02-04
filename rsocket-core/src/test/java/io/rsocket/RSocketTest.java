@@ -24,6 +24,7 @@ import static org.mockito.Mockito.verify;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.exceptions.ApplicationErrorException;
+import io.rsocket.exceptions.CustomRSocketException;
 import io.rsocket.lease.RequesterLeaseHandler;
 import io.rsocket.lease.ResponderLeaseHandler;
 import io.rsocket.test.util.LocalDuplexConnection;
@@ -38,6 +39,7 @@ import org.junit.Test;
 import org.junit.rules.ExternalResource;
 import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
+import org.mockito.ArgumentCaptor;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import reactor.core.publisher.DirectProcessor;
@@ -84,6 +86,34 @@ public class RSocketTest {
     rule.assertNoClientErrors();
 
     rule.assertServerError("java.lang.NullPointerException: Deliberate exception.");
+  }
+
+  @Test(timeout = 2000)
+  public void testHandlerEmitsCustomError() {
+    rule.setRequestAcceptor(
+        new AbstractRSocket() {
+          @Override
+          public Mono<Payload> requestResponse(Payload payload) {
+            return Mono.error(
+                new CustomRSocketException(0x00000501, "Deliberate Custom exception."));
+          }
+        });
+    Subscriber<Payload> subscriber = TestSubscriber.create();
+    rule.crs.requestResponse(EmptyPayload.INSTANCE).subscribe(subscriber);
+    ArgumentCaptor<CustomRSocketException> customRSocketExceptionArgumentCaptor =
+        ArgumentCaptor.forClass(CustomRSocketException.class);
+    verify(subscriber).onError(customRSocketExceptionArgumentCaptor.capture());
+
+    Assert.assertEquals(
+        "Deliberate Custom exception.",
+        customRSocketExceptionArgumentCaptor.getValue().getMessage());
+    Assert.assertEquals(0x00000501, customRSocketExceptionArgumentCaptor.getValue().errorCode());
+
+    // Client sees error through normal API
+    rule.assertNoClientErrors();
+
+    rule.assertServerError(
+        "io.rsocket.exceptions.CustomRSocketException: Deliberate Custom exception.");
   }
 
   @Test(timeout = 2000)
