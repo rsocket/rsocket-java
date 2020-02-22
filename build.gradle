@@ -88,8 +88,11 @@ subprojects {
     repositories {
         mavenCentral()
 
-        if (version.endsWith('BUILD-SNAPSHOT') || project.hasProperty('platformVersion')) {
+        if (version.endsWith('SNAPSHOT') || project.hasProperty('platformVersion')) {
             maven { url 'http://repo.spring.io/libs-snapshot' }
+            maven {
+                url 'https://oss.jfrog.org/artifactory/oss-snapshot-local'
+            }
         }
     }
 
