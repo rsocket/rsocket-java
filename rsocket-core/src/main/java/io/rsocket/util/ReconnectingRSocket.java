@@ -13,14 +13,16 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+
+import io.rsocket.frame.FrameType;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscription;
 import reactor.core.CoreSubscriber;
-import reactor.core.Exceptions;
+import reactor.core.Disposable;
 import reactor.core.Scannable;
+import reactor.core.publisher.BaseSubscriber;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
@@ -31,23 +33,18 @@ import reactor.util.annotation.Nullable;
 import reactor.util.context.Context;
 
 @SuppressWarnings("unchecked")
-public class ReconnectingRSocket implements CoreSubscriber<RSocket>, RSocket, Runnable {
+public final class ReconnectingRSocket extends ReconnectingSubscriber implements RSocket {
 
-  private final long backoffMinInMillis;
-  private final long backoffMaxInMillis;
   private final Mono<? extends RSocket> source;
-  private final Scheduler scheduler;
   private final Predicate<Throwable> errorPredicate;
   private final MonoProcessor<Void> onDispose;
 
-  RSocket value;
 
   volatile Consumer<RSocket>[] subscribers;
-
   @SuppressWarnings("rawtypes")
   static final AtomicReferenceFieldUpdater<ReconnectingRSocket, Consumer[]> SUBSCRIBERS =
-      AtomicReferenceFieldUpdater.newUpdater(
-          ReconnectingRSocket.class, Consumer[].class, "subscribers");
+          AtomicReferenceFieldUpdater.newUpdater(
+                  ReconnectingRSocket.class, Consumer[].class, "subscribers");
 
   @SuppressWarnings("rawtypes")
   static final Consumer<RSocket>[] EMPTY_UNSUBSCRIBED = new Consumer[0];
@@ -56,9 +53,16 @@ public class ReconnectingRSocket implements CoreSubscriber<RSocket>, RSocket, Ru
   static final Consumer<RSocket>[] EMPTY_SUBSCRIBED = new Consumer[0];
 
   @SuppressWarnings("rawtypes")
+  static final Consumer<RSocket>[] READY = new Consumer[0];
+
+  static final int ADDED_STATE = 0;
+  static final int READY_STATE = 1;
+  static final int TERMINATED_STATE = 2;
+
+  @SuppressWarnings("rawtypes")
   static final Consumer<RSocket>[] TERMINATED = new Consumer[0];
 
-  static final ClosedChannelException ON_CLOSE_EXCEPTION = new ClosedChannelException();
+  OnCloseSubscriber onCloseSubscriber;
 
   public static Builder builder() {
     return new Builder();
@@ -71,132 +75,74 @@ public class ReconnectingRSocket implements CoreSubscriber<RSocket>, RSocket, Ru
       long backoffMinInMillis,
       long backoffMaxInMillis) {
 
+    super(backoffMinInMillis, backoffMaxInMillis, scheduler);
+
     this.source = source;
-    this.backoffMinInMillis = backoffMinInMillis;
-    this.backoffMaxInMillis = backoffMaxInMillis;
-    this.scheduler = scheduler;
     this.errorPredicate = errorPredicate;
     this.onDispose = MonoProcessor.create();
+
+
 
     SUBSCRIBERS.lazySet(this, EMPTY_UNSUBSCRIBED);
   }
 
-  public void subscribe(Consumer<RSocket> actual) {
-    if (!add(actual)) {
-      actual.accept(value);
-    }
-  }
-
-  @Override
-  public void onSubscribe(Subscription subscription) {
-    subscription.request(Long.MAX_VALUE);
-  }
-
-  @Override
-  public void onComplete() {
-    final RSocket value = this.value;
-
-    if (value == null) {
-      reconnect();
-    } else {
-      Consumer<RSocket>[] array = SUBSCRIBERS.getAndSet(this, TERMINATED);
-      value.onClose().subscribe(null, null, () -> resubscribeWhen(ON_CLOSE_EXCEPTION));
-      for (Consumer<? super RSocket> as : array) {
-        as.accept(value);
-      }
-    }
-  }
-
-  @Override
-  public void onError(Throwable t) {
-    reconnect();
-  }
-
-  @Override
-  @SuppressWarnings("unchecked")
-  public void onNext(@Nullable RSocket value) {
-    this.value = value;
-  }
-
-  @Override
-  public void run() {
-    source.subscribe(this);
-  }
-
-  private void reconnect() {
-    ThreadLocalRandom random = ThreadLocalRandom.current();
-    long nextRandomDelay = random.nextLong(backoffMinInMillis, backoffMaxInMillis);
-    scheduler.schedule(this, nextRandomDelay, TimeUnit.MILLISECONDS);
-  }
-
-  private boolean resubscribeWhen(Throwable throwable) {
-    if (onDispose.isDisposed()) {
-      return false;
-    }
-
-    if (errorPredicate.test(throwable)) {
-      final Consumer<RSocket>[] subscribers = this.subscribers;
-      final RSocket current = this.value;
-      if ((current == null || current.isDisposed())
-          && subscribers == TERMINATED
-          && SUBSCRIBERS.compareAndSet(this, TERMINATED, EMPTY_SUBSCRIBED)) {
-        this.value = null;
-        reconnect();
-      }
-      return true;
-    }
-    return false;
-  }
-
   @Override
   public Mono<Void> fireAndForget(Payload payload) {
-    return new FlatMapInner<>(
-        this, rsocket -> rsocket.fireAndForget(payload), this::resubscribeWhen);
+    return new FlatMapInner<>(this, payload, FrameType.REQUEST_FNF);
   }
 
   @Override
   public Mono<Payload> requestResponse(Payload payload) {
-    return new FlatMapInner<>(
-        this, rsocket -> rsocket.requestResponse(payload), this::resubscribeWhen);
+    return new FlatMapInner<>(this, payload, FrameType.REQUEST_RESPONSE);
   }
 
   @Override
   public Flux<Payload> requestStream(Payload payload) {
-    return new FlatMapManyInner<>(
-        this, rSocket -> rSocket.requestStream(payload), this::resubscribeWhen);
+    return new FlatMapManyInner<>(this, payload, FrameType.REQUEST_STREAM);
   }
 
   @Override
   public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
-    return new FlatMapManyInner<>(
-        this, rSocket -> rSocket.requestChannel(payloads), this::resubscribeWhen);
+    return new FlatMapManyInner<>(this, payloads, FrameType.REQUEST_CHANNEL);
   }
 
   @Override
   public Mono<Void> metadataPush(Payload payload) {
-    return new FlatMapInner<>(
-        this, rsocket -> rsocket.metadataPush(payload), this::resubscribeWhen);
+    return new FlatMapInner<>(this, payload, FrameType.METADATA_PUSH);
   }
 
   @Override
   public double availability() {
     RSocket rsocket = this.value;
-    return rsocket != null ? rsocket.availability() : 0d;
+    return rsocket != null ? rsocket.availability() : 0.0d;
   }
 
   @Override
   public void dispose() {
-    onDispose.dispose();
+    Consumer<RSocket>[] consumers = SUBSCRIBERS.getAndSet(this, TERMINATED);
+
     RSocket value = this.value;
+    OnCloseSubscriber onCloseSubscriber = this.onCloseSubscriber;
+
     this.value = null;
+    this.onCloseSubscriber = null;
+    this.onDispose.dispose();
+
     if (value != null) {
+      onCloseSubscriber.dispose();
       value.dispose();
+    }
+
+    if (consumers != TERMINATED && consumers != READY) {
+      for (Consumer<RSocket> consumer : consumers) {
+        consumer.accept(null);
+      }
     }
   }
 
   @Override
   public boolean isDisposed() {
-    return onDispose.isDisposed();
+    return this.onDispose.isDisposed();
   }
 
   @Override
@@ -204,12 +150,74 @@ public class ReconnectingRSocket implements CoreSubscriber<RSocket>, RSocket, Ru
     return onDispose;
   }
 
-  boolean add(Consumer<RSocket> ps) {
-    for (; ; ) {
-      Consumer<RSocket>[] a = subscribers;
+  void subscribe(Consumer<RSocket> actual) {
+    final int state = add(actual);
+
+    if (state == READY_STATE) {
+      actual.accept(value);
+    } else if (state == TERMINATED_STATE) {
+      actual.accept(null);
+    }
+  }
+
+  @Override
+  void complete(RSocket rSocket) {
+    onCloseSubscriber = new OnCloseSubscriber(this, rSocket);
+
+    // happens-before write so all non-volatile writes are going to be available on this volatile field read
+    Consumer<RSocket>[] consumers = SUBSCRIBERS.getAndSet(this, READY);
+
+    if (consumers == TERMINATED) {
+      this.dispose();
+      return;
+    }
+
+    rSocket.onClose().subscribe(onCloseSubscriber);
+
+    for (Consumer<? super RSocket> as : consumers) {
+      as.accept(rSocket);
+    }
+  }
+
+  boolean tryResubscribe(RSocket rSocket, Throwable throwable) {
+
+    if (this.subscribers == TERMINATED) {
+      return false;
+    }
+
+    if (this.errorPredicate.test(throwable)) {
+      final Consumer<RSocket>[] subscribers = this.subscribers;
+      final RSocket currentRSocket = this.value;
+
+      if (currentRSocket == rSocket && subscribers == READY && SUBSCRIBERS.compareAndSet(this, READY, EMPTY_SUBSCRIBED)) {
+        // dispose listener to avoid double retry in case reconnection happens earlier that last RSocket is going to be disposed
+        this.onCloseSubscriber.dispose();
+        this.onCloseSubscriber = null;
+
+        // need to be disposed just in case a given error was considered as one to resubscribe
+        if (!currentRSocket.isDisposed()) {
+          currentRSocket.dispose();
+        }
+        this.value = null;
+
+        reconnect();
+      }
+
+      return true;
+    }
+    return false;
+  }
+
+  int add(Consumer<RSocket> ps) {
+    for (;;) {
+      Consumer<RSocket>[] a = this.subscribers;
 
       if (a == TERMINATED) {
-        return false;
+        return TERMINATED_STATE;
+      }
+
+      if (a == READY) {
+        return READY_STATE;
       }
 
       int n = a.length;
@@ -220,24 +228,28 @@ public class ReconnectingRSocket implements CoreSubscriber<RSocket>, RSocket, Ru
 
       if (SUBSCRIBERS.compareAndSet(this, a, b)) {
         if (a == EMPTY_UNSUBSCRIBED) {
-          source.subscribe(this);
+          this.source.subscribe(this);
         }
-        return true;
+        return ADDED_STATE;
       }
     }
+  }
+
+  @Override
+  public void run() {
+    this.source.subscribe(this);
   }
 
   static final class FlatMapInner<T> extends Mono<T>
       implements CoreSubscriber<T>, Consumer<RSocket>, Subscription, Scannable {
 
     final ReconnectingRSocket parent;
-    final Function<RSocket, Mono<? extends T>> mapper;
-    final Predicate<Throwable> errorPredicate;
+    final FrameType interactionType;
+    final Payload payload;
 
     boolean done;
 
     volatile int state;
-
     @SuppressWarnings("rawtypes")
     static final AtomicIntegerFieldUpdater<FlatMapInner> STATE =
         AtomicIntegerFieldUpdater.newUpdater(FlatMapInner.class, "state");
@@ -246,16 +258,17 @@ public class ReconnectingRSocket implements CoreSubscriber<RSocket>, RSocket, Ru
     static final int SUBSCRIBED = 1;
     static final int CANCELLED = 2;
 
+    RSocket rSocket;
     CoreSubscriber<? super T> actual;
     Subscription s;
 
     FlatMapInner(
-        ReconnectingRSocket parent,
-        Function<RSocket, Mono<? extends T>> mapper,
-        Predicate<Throwable> errorPredicate) {
+            ReconnectingRSocket parent,
+            Payload payload,
+            FrameType interactionType) {
       this.parent = parent;
-      this.mapper = mapper;
-      this.errorPredicate = errorPredicate;
+      this.payload = payload;
+      this.interactionType = interactionType;
     }
 
     @Override
@@ -274,14 +287,25 @@ public class ReconnectingRSocket implements CoreSubscriber<RSocket>, RSocket, Ru
         Operators.error(actual, new CancellationException("Disposed"));
       }
 
-      Mono<? extends T> source;
-      try {
-        source = this.mapper.apply(rSocket);
-        source.subscribe(this);
-      } catch (Throwable e) {
-        Exceptions.throwIfFatal(e);
-        Operators.error(actual, e);
+      this.rSocket = rSocket;
+
+      Mono source;
+      switch (interactionType) {
+        case REQUEST_FNF:
+          source = rSocket.fireAndForget(payload);
+          break;
+        case REQUEST_RESPONSE:
+          source = rSocket.requestResponse(payload);
+          break;
+        case METADATA_PUSH:
+          source = rSocket.metadataPush(payload);
+          break;
+        default:
+          Operators.error(this.actual, new IllegalStateException("Should never happen"));
+          return;
+
       }
+      source.subscribe((CoreSubscriber) this);
     }
 
     @Override
@@ -308,26 +332,28 @@ public class ReconnectingRSocket implements CoreSubscriber<RSocket>, RSocket, Ru
 
     @Override
     public void onNext(T payload) {
-      if (done) {
-        Operators.onNextDropped(payload, actual.currentContext());
+      if (this.done) {
+        Operators.onNextDropped(payload, this.actual.currentContext());
         return;
       }
-      done = true;
-      actual.onNext(payload);
+
+      this.done = true;
+      this.actual.onNext(payload);
+      this.actual.onComplete();
     }
 
     @Override
     public void onError(Throwable t) {
-      if (done) {
-        Operators.onErrorDropped(t, actual.currentContext());
+      if (this.done) {
+        Operators.onErrorDropped(t, this.actual.currentContext());
         return;
       }
 
       final CoreSubscriber<? super T> actual = this.actual;
 
-      if (errorPredicate.test(t)) {
+      if (this.parent.tryResubscribe(rSocket, t)) {
         this.actual = null;
-        STATE.compareAndSet(this, SUBSCRIBED, NONE);
+        this.state = NONE;
       } else {
         done = true;
       }
@@ -336,61 +362,61 @@ public class ReconnectingRSocket implements CoreSubscriber<RSocket>, RSocket, Ru
 
     @Override
     public void onComplete() {
-      if (done) {
+      if (this.done) {
         return;
       }
-      done = true;
-      actual.onComplete();
+
+      this.done = true;
+      this.actual.onComplete();
     }
 
     @Override
     public void request(long n) {
-      s.request(n);
+      this.s.request(n);
     }
 
     public void cancel() {
       if (STATE.getAndSet(this, CANCELLED) != CANCELLED) {
-        s.cancel();
+        this.s.cancel();
       }
     }
   }
 
-  static final class FlatMapManyInner<T> extends Flux<T>
-      implements CoreSubscriber<T>, Consumer<RSocket>, Subscription, Scannable {
+  static final class FlatMapManyInner<T> extends Flux<Payload>
+      implements CoreSubscriber<Payload>, Consumer<RSocket>, Subscription, Scannable {
 
     final ReconnectingRSocket parent;
-    final Function<RSocket, Flux<? extends T>> mapper;
-    final Predicate<Throwable> errorPredicate;
-
-    boolean done;
+    final FrameType interactionType;
+    final T fluxOrPayload;
 
     volatile int state;
-
     @SuppressWarnings("rawtypes")
     static final AtomicIntegerFieldUpdater<FlatMapManyInner> STATE =
         AtomicIntegerFieldUpdater.newUpdater(FlatMapManyInner.class, "state");
-
     static final int NONE = 0;
     static final int SUBSCRIBED = 1;
     static final int CANCELLED = 2;
 
-    CoreSubscriber<? super T> actual;
+
+    RSocket rSocket;
+    boolean done;
+    CoreSubscriber<? super Payload> actual;
     Subscription s;
 
     FlatMapManyInner(
-        ReconnectingRSocket parent,
-        Function<RSocket, Flux<? extends T>> mapper,
-        Predicate<Throwable> errorPredicate) {
+            ReconnectingRSocket parent,
+            T fluxOrPayload,
+            FrameType interactionType) {
       this.parent = parent;
-      this.mapper = mapper;
-      this.errorPredicate = errorPredicate;
+      this.fluxOrPayload = fluxOrPayload;
+      this.interactionType = interactionType;
     }
 
     @Override
-    public void subscribe(CoreSubscriber<? super T> actual) {
-      if (state == NONE && STATE.compareAndSet(this, NONE, SUBSCRIBED)) {
+    public void subscribe(CoreSubscriber<? super Payload> actual) {
+      if (this.state == NONE && STATE.compareAndSet(this, NONE, SUBSCRIBED)) {
         this.actual = actual;
-        parent.subscribe(this);
+        this.parent.subscribe(this);
       } else {
         Operators.error(actual, new IllegalStateException("Only a single Subscriber allowed"));
       }
@@ -399,31 +425,42 @@ public class ReconnectingRSocket implements CoreSubscriber<RSocket>, RSocket, Ru
     @Override
     public void accept(RSocket rSocket) {
       if (rSocket == null) {
-        Operators.error(actual, new CancellationException("Disposed"));
+        Operators.error(this.actual, new CancellationException("Disposed"));
       }
 
-      Flux<? extends T> source;
-      try {
-        source = this.mapper.apply(rSocket);
-        source.subscribe(this);
-      } catch (Throwable e) {
-        Exceptions.throwIfFatal(e);
-        Operators.error(actual, e);
+      this.rSocket = rSocket;
+
+      Flux<? extends Payload> source;
+      switch (interactionType) {
+        case REQUEST_STREAM:
+          source = rSocket.requestStream((Payload) fluxOrPayload);
+          break;
+        case REQUEST_CHANNEL:
+          source = rSocket.requestChannel((Flux<Payload>) fluxOrPayload);
+          break;
+        default:
+          Operators.error(this.actual, new IllegalStateException("Should never happen"));
+          return;
+
       }
+
+      source.subscribe(this);
     }
 
     @Override
     public Context currentContext() {
-      return actual.currentContext();
+      return this.actual.currentContext();
     }
 
     @Nullable
     @Override
     public Object scanUnsafe(Attr key) {
-      if (key == Attr.PARENT) return s;
-      if (key == Attr.ACTUAL) return parent;
-      if (key == Attr.TERMINATED) return done;
-      if (key == Attr.CANCELLED) return s == Operators.cancelledSubscription();
+      int state = this.state;
+
+      if (key == Attr.PARENT) return this.s;
+      if (key == Attr.ACTUAL) return this.parent;
+      if (key == Attr.TERMINATED) return this.done;
+      if (key == Attr.CANCELLED) return state == CANCELLED;
 
       return null;
     }
@@ -431,49 +468,49 @@ public class ReconnectingRSocket implements CoreSubscriber<RSocket>, RSocket, Ru
     @Override
     public void onSubscribe(Subscription s) {
       this.s = s;
-      actual.onSubscribe(this);
+      this.actual.onSubscribe(this);
     }
 
     @Override
-    public void onNext(T payload) {
-      actual.onNext(payload);
+    public void onNext(Payload payload) {
+      this.actual.onNext(payload);
     }
 
     @Override
     public void onError(Throwable t) {
-      if (done) {
-        Operators.onErrorDropped(t, actual.currentContext());
+      if (this.done) {
+        Operators.onErrorDropped(t, this.actual.currentContext());
         return;
       }
 
-      final CoreSubscriber<? super T> actual = this.actual;
+      final CoreSubscriber<? super Payload> actual = this.actual;
 
-      if (errorPredicate.test(t)) {
+      if (this.parent.tryResubscribe(rSocket, t)) {
         this.actual = null;
-        STATE.compareAndSet(this, SUBSCRIBED, NONE);
+        this.state = NONE;
       } else {
-        done = true;
+        this.done = true;
       }
       actual.onError(t);
     }
 
     @Override
     public void onComplete() {
-      if (done) {
+      if (this.done) {
         return;
       }
-      done = true;
-      actual.onComplete();
+      this.done = true;
+      this.actual.onComplete();
     }
 
     @Override
     public void request(long n) {
-      s.request(n);
+      this.s.request(n);
     }
 
     public void cancel() {
       if (STATE.getAndSet(this, CANCELLED) != CANCELLED) {
-        s.cancel();
+        this.s.cancel();
       }
     }
   }
@@ -536,4 +573,77 @@ public class ReconnectingRSocket implements CoreSubscriber<RSocket>, RSocket, Ru
           backoffMax.toMillis());
     }
   }
+
+  final static class OnCloseSubscriber extends BaseSubscriber<Void> {
+    final ReconnectingRSocket parent;
+    final RSocket rSocket;
+
+    OnCloseSubscriber(ReconnectingRSocket parent, RSocket rSocket) {
+      this.parent = parent;
+      this.rSocket = rSocket;
+    }
+
+    @Override
+    protected void hookOnComplete() {
+      if (!parent.tryResubscribe(rSocket, ON_CLOSE_EXCEPTION)) {
+        this.dispose();
+      }
+    }
+  }
 }
+
+abstract class ReconnectingSubscriber implements CoreSubscriber<RSocket>, Runnable, Disposable {
+
+  final long backoffMinInMillis;
+  final long backoffMaxInMillis;
+  final Scheduler scheduler;
+
+  RSocket value;
+
+  static final ClosedChannelException ON_CLOSE_EXCEPTION = new ClosedChannelException();
+
+  ReconnectingSubscriber(long backoffMinInMillis, long backoffMaxInMillis, Scheduler scheduler) {
+    this.backoffMinInMillis = backoffMinInMillis;
+    this.backoffMaxInMillis = backoffMaxInMillis;
+    this.scheduler = scheduler;
+  }
+
+  @Override
+  public void onSubscribe(Subscription s) {
+    s.request(Long.MAX_VALUE);
+  }
+
+  @Override
+  public void onComplete() {
+    final RSocket value = this.value;
+
+    if (value == null) {
+      reconnect();
+    } else {
+      complete(value);
+    }
+  }
+
+  abstract void complete(RSocket rSocket);
+
+  @Override
+  public void onError(Throwable t) {
+    this.value = null;
+    reconnect();
+  }
+
+  @Override
+  public void onNext(@Nullable RSocket value) {
+    this.value = value;
+  }
+
+  void reconnect() {
+    final ThreadLocalRandom random = ThreadLocalRandom.current();
+    final long min = this.backoffMinInMillis;
+    final long max = this.backoffMaxInMillis;
+    final long nextRandomDelay = min == max ? min : random.nextLong(min, max);
+
+    this.scheduler.schedule(this, nextRandomDelay, TimeUnit.MILLISECONDS);
+  }
+}
+
