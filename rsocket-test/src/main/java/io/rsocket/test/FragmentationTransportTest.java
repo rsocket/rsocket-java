@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2020 the original author or authors.
+ * Copyright 2015-2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,14 +21,16 @@ import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.core.RSocketConnector;
 import io.rsocket.core.RSocketServer;
+import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.ServerTransport;
-import io.rsocket.util.DefaultPayload;
+import io.rsocket.util.ByteBufPayload;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.time.Duration;
+import java.util.Objects;
 import java.util.concurrent.CancellationException;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -36,22 +38,20 @@ import java.util.stream.Collectors;
 import java.util.zip.GZIPInputStream;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
-import reactor.core.publisher.Hooks;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 import reactor.test.StepVerifier;
 
-public interface TransportTest {
+public interface FragmentationTransportTest {
 
   String MOCK_DATA = "test-data";
   String MOCK_METADATA = "metadata";
   String LARGE_DATA = read("words.shakespeare.txt.gz");
-  Payload LARGE_PAYLOAD = DefaultPayload.create(LARGE_DATA, LARGE_DATA);
+  Payload LARGE_PAYLOAD = ByteBufPayload.create(LARGE_DATA, LARGE_DATA);
 
   static String read(String resourceName) {
 
@@ -59,7 +59,10 @@ public interface TransportTest {
         new BufferedReader(
             new InputStreamReader(
                 new GZIPInputStream(
-                    TransportTest.class.getClassLoader().getResourceAsStream(resourceName))))) {
+                    Objects.requireNonNull(
+                        FragmentationTransportTest.class
+                            .getClassLoader()
+                            .getResourceAsStream(resourceName)))))) {
 
       return br.lines().map(String::toLowerCase).collect(Collectors.joining("\n\r"));
     } catch (Throwable e) {
@@ -67,15 +70,9 @@ public interface TransportTest {
     }
   }
 
-  @BeforeEach
-  default void setUp() {
-    Hooks.onOperatorDebug();
-  }
-
   @AfterEach
   default void close() {
     getTransportPair().dispose();
-    Hooks.resetOnOperatorDebug();
   }
 
   default Payload createTestPayload(int metadataPresent) {
@@ -94,7 +91,7 @@ public interface TransportTest {
     }
     String metadata = metadata1;
 
-    return DefaultPayload.create(MOCK_DATA, metadata);
+    return ByteBufPayload.create(MOCK_DATA, metadata);
   }
 
   @DisplayName("makes 10 fireAndForget requests")
@@ -112,7 +109,7 @@ public interface TransportTest {
   @Test
   default void largePayloadFireAndForget10() {
     Flux.range(1, 10)
-        .flatMap(i -> getClient().fireAndForget(LARGE_PAYLOAD))
+        .flatMap(i -> getClient().fireAndForget(LARGE_PAYLOAD.retain()))
         .as(StepVerifier::create)
         .expectNextCount(0)
         .expectComplete()
@@ -131,7 +128,7 @@ public interface TransportTest {
   @Test
   default void metadataPush10() {
     Flux.range(1, 10)
-        .flatMap(i -> getClient().metadataPush(DefaultPayload.create("", "test-metadata")))
+        .flatMap(i -> getClient().metadataPush(ByteBufPayload.create("", "test-metadata")))
         .as(StepVerifier::create)
         .expectNextCount(0)
         .expectComplete()
@@ -142,7 +139,7 @@ public interface TransportTest {
   @Test
   default void largePayloadMetadataPush10() {
     Flux.range(1, 10)
-        .flatMap(i -> getClient().metadataPush(DefaultPayload.create("", LARGE_DATA)))
+        .flatMap(i -> getClient().metadataPush(ByteBufPayload.create("", LARGE_DATA)))
         .as(StepVerifier::create)
         .expectNextCount(0)
         .expectComplete()
@@ -169,6 +166,7 @@ public interface TransportTest {
   default void requestChannel1() {
     getClient()
         .requestChannel(Mono.just(createTestPayload(0)))
+        .map(Payload::release)
         .as(StepVerifier::create)
         .expectNextCount(1)
         .expectComplete()
@@ -182,21 +180,23 @@ public interface TransportTest {
 
     getClient()
         .requestChannel(payloads)
+        .map(Payload::release)
         .as(StepVerifier::create)
         .expectNextCount(200_000)
         .expectComplete()
         .verify(getTimeout());
   }
 
-  @DisplayName("makes 1 requestChannel request with 200 large payloads")
+  @DisplayName("makes 1 requestChannel request with 100 large payloads")
   @Test
-  default void largePayloadRequestChannel200() {
-    Flux<Payload> payloads = Flux.range(0, 200).map(__ -> LARGE_PAYLOAD);
+  default void largePayloadRequestChannel100() {
+    Flux<Payload> payloads = Flux.range(0, 100).map(__ -> LARGE_PAYLOAD.retain());
 
     getClient()
         .requestChannel(payloads)
+        .map(Payload::release)
         .as(StepVerifier::create)
-        .expectNextCount(200)
+        .expectNextCount(100)
         .expectComplete()
         .verify(getTimeout());
   }
@@ -209,6 +209,7 @@ public interface TransportTest {
     getClient()
         .requestChannel(payloads)
         .doOnNext(this::assertChannelPayload)
+        .map(Payload::release)
         .as(StepVerifier::create)
         .expectNextCount(20_000)
         .expectComplete()
@@ -231,18 +232,15 @@ public interface TransportTest {
   @DisplayName("makes 1 requestChannel request with 3 payloads")
   @Test
   default void requestChannel3() {
-    AtomicLong requested = new AtomicLong();
-    Flux<Payload> payloads =
-        Flux.range(0, 3).doOnRequest(requested::addAndGet).map(this::createTestPayload);
+    Flux<Payload> payloads = Flux.range(0, 3).map(this::createTestPayload);
 
     getClient()
         .requestChannel(payloads)
-        .as(publisher -> StepVerifier.create(publisher, 3))
+        .map(Payload::release)
+        .as(StepVerifier::create)
         .expectNextCount(3)
         .expectComplete()
         .verify(getTimeout());
-
-    Assertions.assertThat(requested.get()).isEqualTo(3L);
   }
 
   @DisplayName("makes 1 requestChannel request with 512 payloads")
@@ -259,6 +257,7 @@ public interface TransportTest {
   default void check(Flux<Payload> payloads) {
     getClient()
         .requestChannel(payloads)
+        .map(Payload::release)
         .as(StepVerifier::create)
         .expectNextCount(512)
         .as("expected 512 items")
@@ -272,6 +271,7 @@ public interface TransportTest {
     getClient()
         .requestResponse(createTestPayload(1))
         .doOnNext(this::assertPayload)
+        .map(Payload::release)
         .as(StepVerifier::create)
         .expectNextCount(1)
         .expectComplete()
@@ -283,7 +283,11 @@ public interface TransportTest {
   default void requestResponse10() {
     Flux.range(1, 10)
         .flatMap(
-            i -> getClient().requestResponse(createTestPayload(i)).doOnNext(v -> assertPayload(v)))
+            i ->
+                getClient()
+                    .requestResponse(createTestPayload(i))
+                    .doOnNext(v -> assertPayload(v))
+                    .map(Payload::release))
         .as(StepVerifier::create)
         .expectNextCount(10)
         .expectComplete()
@@ -294,7 +298,16 @@ public interface TransportTest {
   @Test
   default void requestResponse100() {
     Flux.range(1, 100)
-        .flatMap(i -> getClient().requestResponse(createTestPayload(i)).map(Payload::getDataUtf8))
+        .flatMap(
+            i ->
+                getClient()
+                    .requestResponse(createTestPayload(i))
+                    .map(
+                        payload -> {
+                          String dataUtf8 = payload.getDataUtf8();
+                          payload.release();
+                          return dataUtf8;
+                        }))
         .as(StepVerifier::create)
         .expectNextCount(100)
         .expectComplete()
@@ -305,7 +318,16 @@ public interface TransportTest {
   @Test
   default void largePayloadRequestResponse100() {
     Flux.range(1, 100)
-        .flatMap(i -> getClient().requestResponse(LARGE_PAYLOAD).map(Payload::getDataUtf8))
+        .flatMap(
+            i ->
+                getClient()
+                    .requestResponse(LARGE_PAYLOAD.retain())
+                    .map(
+                        payload -> {
+                          String dataUtf8 = payload.getDataUtf8();
+                          payload.release();
+                          return dataUtf8;
+                        }))
         .as(StepVerifier::create)
         .expectNextCount(100)
         .expectComplete()
@@ -316,7 +338,16 @@ public interface TransportTest {
   @Test
   default void requestResponse10_000() {
     Flux.range(1, 10_000)
-        .flatMap(i -> getClient().requestResponse(createTestPayload(i)).map(Payload::getDataUtf8))
+        .flatMap(
+            i ->
+                getClient()
+                    .requestResponse(createTestPayload(i))
+                    .map(
+                        payload -> {
+                          String dataUtf8 = payload.getDataUtf8();
+                          payload.release();
+                          return dataUtf8;
+                        }))
         .as(StepVerifier::create)
         .expectNextCount(10_000)
         .expectComplete()
@@ -329,6 +360,7 @@ public interface TransportTest {
     getClient()
         .requestStream(createTestPayload(3))
         .doOnNext(this::assertPayload)
+        .map(Payload::release)
         .as(StepVerifier::create)
         .expectNextCount(10_000)
         .expectComplete()
@@ -341,6 +373,7 @@ public interface TransportTest {
     getClient()
         .requestStream(createTestPayload(3))
         .doOnNext(this::assertPayload)
+        .map(Payload::release)
         .take(5)
         .as(StepVerifier::create)
         .expectNextCount(5)
@@ -353,6 +386,7 @@ public interface TransportTest {
   default void requestStreamDelayedRequestN() {
     getClient()
         .requestStream(createTestPayload(3))
+        .map(Payload::release)
         .take(10)
         .as(StepVerifier::create)
         .thenRequest(5)
@@ -394,11 +428,17 @@ public interface TransportTest {
 
       server =
           RSocketServer.create((setup, sendingSocket) -> Mono.just(new TestRSocket(data, metadata)))
+              .payloadDecoder(PayloadDecoder.ZERO_COPY)
+              .fragment(ThreadLocalRandom.current().nextInt(128, 512))
               .bind(serverTransportSupplier.apply(address))
               .block();
 
       client =
-          RSocketConnector.connectWith(clientTransportSupplier.apply(address, server))
+          RSocketConnector.create()
+              .payloadDecoder(PayloadDecoder.ZERO_COPY)
+              .keepAlive(Duration.ofMillis(Integer.MAX_VALUE), Duration.ofMillis(Integer.MAX_VALUE))
+              .fragment(ThreadLocalRandom.current().nextInt(64, 256))
+              .connect(clientTransportSupplier.apply(address, server))
               .doOnError(Throwable::printStackTrace)
               .block();
     }

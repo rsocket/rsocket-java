@@ -22,7 +22,6 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
-import io.rsocket.TestScheduler;
 import io.rsocket.buffer.LeaksTrackingByteBufAllocator;
 import io.rsocket.exceptions.ApplicationErrorException;
 import io.rsocket.exceptions.CustomRSocketException;
@@ -163,7 +162,7 @@ public class RSocketTest {
     StepVerifier.create(responses).expectNextCount(10).expectComplete().verify();
   }
 
-  @Test(timeout = 2000)
+  @Test(timeout = 200000)
   public void testChannel() throws Exception {
     Flux<Payload> requests =
         Flux.range(0, 10).map(i -> DefaultPayload.create("streaming in -> " + i));
@@ -569,7 +568,8 @@ public class RSocketTest {
               PayloadDecoder.DEFAULT,
               ResponderLeaseHandler.None,
               0,
-              FRAME_LENGTH_MASK);
+              FRAME_LENGTH_MASK,
+              Integer.MAX_VALUE);
 
       crs =
           new RSocketRequester(
@@ -578,11 +578,11 @@ public class RSocketTest {
               StreamIdSupplier.clientSupplier(),
               0,
               FRAME_LENGTH_MASK,
+              Integer.MAX_VALUE,
               0,
               0,
               null,
-              RequesterLeaseHandler.None,
-              TestScheduler.INSTANCE);
+              RequesterLeaseHandler.None);
     }
 
     public void setRequestAcceptor(RSocket requestAcceptor) {

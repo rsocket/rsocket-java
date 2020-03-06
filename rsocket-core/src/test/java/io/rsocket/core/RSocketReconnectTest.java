@@ -25,15 +25,12 @@ import java.time.Duration;
 import java.util.Iterator;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import reactor.core.Exceptions;
 import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Schedulers;
 import reactor.util.retry.Retry;
 
 public class RSocketReconnectTest {
@@ -42,14 +39,6 @@ public class RSocketReconnectTest {
 
   @Test
   public void shouldBeASharedReconnectableInstanceOfRSocketMono() throws InterruptedException {
-    CountDownLatch latch = new CountDownLatch(1);
-    Schedulers.onScheduleHook(
-        "test",
-        r ->
-            () -> {
-              r.run();
-              latch.countDown();
-            });
     TestClientTransport[] testClientTransport =
         new TestClientTransport[] {new TestClientTransport()};
     Mono<RSocket> rSocketMono =
@@ -63,10 +52,8 @@ public class RSocketReconnectTest {
     Assertions.assertThat(rSocket1).isEqualTo(rSocket2);
 
     testClientTransport[0].testConnection().dispose();
-    Assertions.assertThat(latch.await(5, TimeUnit.SECONDS)).isTrue();
     testClientTransport[0] = new TestClientTransport();
 
-    System.out.println("here");
     RSocket rSocket3 = rSocketMono.block();
     RSocket rSocket4 = rSocketMono.block();
 

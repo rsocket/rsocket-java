@@ -59,11 +59,11 @@ public class SetupRejectionTest {
             StreamIdSupplier.clientSupplier(),
             0,
             FRAME_LENGTH_MASK,
+            Integer.MAX_VALUE,
             0,
             0,
             null,
-            RequesterLeaseHandler.None,
-            TestScheduler.INSTANCE);
+            RequesterLeaseHandler.None);
 
     String errorMsg = "error";
 
@@ -96,11 +96,11 @@ public class SetupRejectionTest {
             StreamIdSupplier.clientSupplier(),
             0,
             FRAME_LENGTH_MASK,
+            Integer.MAX_VALUE,
             0,
             0,
             null,
-            RequesterLeaseHandler.None,
-            TestScheduler.INSTANCE);
+            RequesterLeaseHandler.None);
 
     conn.addToReceivedBuffer(
         ErrorFrameCodec.encode(ByteBufAllocator.DEFAULT, 0, new RejectedSetupException("error")));

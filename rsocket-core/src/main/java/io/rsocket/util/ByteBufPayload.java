@@ -115,7 +115,7 @@ public final class ByteBufPayload extends AbstractReferenceCounted implements Pa
     ByteBufPayload payload = RECYCLER.get();
     payload.data = data;
     payload.metadata = metadata;
-    // unsure data and metadata is set before refCnt change
+    // ensure data and metadata is set before refCnt change
     payload.setRefCnt(1);
     return payload;
   }

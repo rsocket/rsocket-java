@@ -18,7 +18,8 @@ package io.rsocket.test;
 
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
-import io.rsocket.util.DefaultPayload;
+import io.rsocket.util.ByteBufPayload;
+import io.rsocket.util.EmptyPayload;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -34,27 +35,30 @@ public class TestRSocket implements RSocket {
 
   @Override
   public Mono<Payload> requestResponse(Payload payload) {
-    return Mono.just(DefaultPayload.create(data, metadata));
+    payload.release();
+    return Mono.just(ByteBufPayload.create(data, metadata));
   }
 
   @Override
   public Flux<Payload> requestStream(Payload payload) {
-    return Flux.range(1, 10_000).flatMap(l -> requestResponse(payload));
+    payload.release();
+    return Flux.range(1, 10_000).flatMap(l -> requestResponse(EmptyPayload.INSTANCE));
   }
 
   @Override
   public Mono<Void> metadataPush(Payload payload) {
+    payload.release();
     return Mono.empty();
   }
 
   @Override
   public Mono<Void> fireAndForget(Payload payload) {
+    payload.release();
     return Mono.empty();
   }
 
   @Override
   public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
-    // TODO is defensive copy neccesary?
-    return Flux.from(payloads).map(Payload::retain);
+    return Flux.from(payloads);
   }
 }
