@@ -182,7 +182,10 @@ public class CharByteBufUtil {
     char[] ca = new char[en];
 
     CharBuffer charBuffer = CharBuffer.wrap(ca);
-    ByteBuffer byteBuffer = byteBuf.internalNioBuffer(byteBuf.readerIndex(), length);
+    ByteBuffer byteBuffer =
+        byteBuf.nioBufferCount() == 1
+            ? byteBuf.internalNioBuffer(byteBuf.readerIndex(), length)
+            : byteBuf.nioBuffer(byteBuf.readerIndex(), length);
     byteBuffer.mark();
     try {
       CoderResult cr = charsetDecoder.decode(byteBuffer, charBuffer, true);

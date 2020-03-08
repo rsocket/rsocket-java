@@ -174,13 +174,13 @@ public interface TransportTest {
 
   @DisplayName("makes 1 requestChannel request with 2,000 large payloads")
   @Test
-  default void largePayloadRequestChannel2_000() {
-    Flux<Payload> payloads = Flux.range(0, 2_000).map(__ -> LARGE_PAYLOAD);
+  default void largePayloadRequestChannel200() {
+    Flux<Payload> payloads = Flux.range(0, 200).map(__ -> LARGE_PAYLOAD);
 
     getClient()
         .requestChannel(payloads)
         .as(StepVerifier::create)
-        .expectNextCount(2_000)
+        .expectNextCount(200)
         .expectComplete()
         .verify(getTimeout());
   }
