@@ -96,6 +96,10 @@ subprojects {
         }
     }
 
+    tasks.withType(GenerateModuleMetadata) {
+        enabled = false
+    }
+
     plugins.withType(JavaPlugin) {
         compileJava {
             sourceCompatibility = 1.8
