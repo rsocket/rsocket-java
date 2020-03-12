@@ -377,9 +377,8 @@ public abstract class LoadBalancedRSocketMono extends Mono<RSocket>
     refreshSockets();
 
     if (activeSockets.isEmpty()) {
-      return FAILING_REACTIVE_SOCKET;
+      throw NoAvailableRSocketException.INSTANCE;
     }
-
     int size = activeSockets.size();
     if (size == 1) {
       return activeSockets.get(0);

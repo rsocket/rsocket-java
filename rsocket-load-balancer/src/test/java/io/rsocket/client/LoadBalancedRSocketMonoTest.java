@@ -19,10 +19,13 @@ package io.rsocket.client;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.client.filter.RSocketSupplier;
+import io.rsocket.util.EmptyPayload;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import org.junit.Assert;
 import org.junit.Test;
@@ -64,6 +67,38 @@ public class LoadBalancedRSocketMonoTest {
     List<RSocketSupplier> clients = Arrays.asList(failing, succeeding);
 
     testBalancer(clients);
+  }
+
+  @Test(timeout = 10_000L)
+  public void testNoAvailableConnections() {
+    RSocketSupplier supplier = Mockito.mock(RSocketSupplier.class);
+    Mockito.when(supplier.availability()).thenReturn(1.0);
+    Mono<RSocket> socketMono =
+        Mono.fromSupplier(() -> (RSocket) new TestingRSocket(Function.identity()))
+            .delayElement(Duration.ofMillis(200));
+    Mockito.when(supplier.get()).thenReturn(socketMono);
+    Mockito.when(supplier.onClose()).thenReturn(Mono.never());
+
+    Publisher<List<RSocketSupplier>> src =
+        s -> {
+          s.onNext(Collections.singletonList(supplier));
+          s.onComplete();
+        };
+
+    AtomicBoolean gotError = new AtomicBoolean(false);
+    AtomicBoolean success = new AtomicBoolean(false);
+    LoadBalancedRSocketMono.create(src)
+        .doOnError(t -> gotError.set(true))
+        .retryBackoff(1, Duration.ofMillis(300))
+        .doOnSuccess(r -> success.set(true))
+        .map(r -> r.requestResponse(EmptyPayload.INSTANCE))
+        .block();
+
+    Assert.assertTrue("the loadbalanced socket did not emit an error", gotError.get());
+    Assert.assertTrue(
+        "the loadbalanced socket did not start working after the underlying "
+            + "socket was established",
+        success.get());
   }
 
   @Test(timeout = 10_000L)

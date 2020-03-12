@@ -17,7 +17,7 @@
 package io.rsocket.client;
 
 /** An exception that indicates that no RSocket was available. */
-public final class NoAvailableRSocketException extends Exception {
+public final class NoAvailableRSocketException extends RuntimeException {
 
   /**
    * The single instance of this type. <b>Note</b> that it is initialized without any stack trace.
