@@ -47,6 +47,9 @@ import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import org.reactivestreams.Publisher;
+import reactor.core.Disposable;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 /** Factory for creating RSocket clients and servers. */
@@ -95,6 +98,9 @@ public class RSocketFactory {
   public static class ClientRSocketFactory implements ClientTransportAcceptor {
     private static final String CLIENT_TAG = "client";
 
+    private static final Function<Flux<Throwable>, ? extends Publisher<?>> FAIL_WHEN_FACTORY =
+        f -> f.concatMap(Mono::error);
+
     private SocketAcceptor acceptor = (setup, sendingSocket) -> Mono.just(new AbstractRSocket() {});
 
     private Consumer<Throwable> errorConsumer = Throwable::printStackTrace;
@@ -125,6 +131,8 @@ public class RSocketFactory {
     private boolean multiSubscriberRequester = true;
     private boolean leaseEnabled;
     private Supplier<Leases<?>> leasesSupplier = Leases::new;
+    private boolean reconnectEnabled;
+    private Function<Flux<Throwable>, ? extends Publisher<?>> whenFactory = FAIL_WHEN_FACTORY;
 
     private ByteBufAllocator allocator = ByteBufAllocator.DEFAULT;
 
@@ -227,6 +235,129 @@ public class RSocketFactory {
 
     public ClientRSocketFactory singleSubscriberRequester() {
       this.multiSubscriberRequester = false;
+      return this;
+    }
+
+    /**
+     * Enables a reconnectable, shared instance of {@code Mono<RSocket>} so every subscriber will
+     * observe the same RSocket instance up on connection establishment. <br>
+     * For example:
+     *
+     * <pre>{@code
+     * Mono<RSocket> sharedRSocketMono =
+     *   RSocketFactory
+     *                .connect()
+     *                .singleSubscriberRequester()
+     *                .reconnect()
+     *                .transport(transport)
+     *                .start();
+     *
+     *  RSocket r1 = sharedRSocketMono.block();
+     *  RSocket r2 = sharedRSocketMono.block();
+     *
+     *  assert r1 == r2;
+     *
+     * }</pre>
+     *
+     * Apart of the shared behavior, once the previous connection has been expired (e.g. connection
+     * has been disposed), the same instance of {@code Mono<RSocket>} reestablish connection without
+     * any extra effort. <br>
+     * For example:
+     *
+     * <pre>{@code
+     * Mono<RSocket> sharedRSocketMono =
+     *   RSocketFactory
+     *                .connect()
+     *                .singleSubscriberRequester()
+     *                .reconnect()
+     *                .transport(transport)
+     *                .start();
+     *
+     *  RSocket r1 = sharedRSocketMono.block();
+     *  RSocket r2 = sharedRSocketMono.block();
+     *
+     *  assert r1 == r2;
+     *
+     *  r1.dispose()
+     *
+     *  assert r2.isDisposed()
+     *
+     *  RSocket r3 = sharedRSocketMono.block();
+     *  RSocket r4 = sharedRSocketMono.block();
+     *
+     *
+     *  assert r1 != r3;
+     *  assert r4 == r3;
+     *
+     * }</pre>
+     *
+     * @return a shared instance of {@code Mono<RSocket>}.
+     */
+    public ClientRSocketFactory reconnect() {
+      this.reconnectEnabled = true;
+      return this;
+    }
+
+    /**
+     * Enables a reconnectable, shared instance of {@code Mono<RSocket>} so every subscriber will
+     * observe the same RSocket instance up on connection establishment. <br>
+     * For example:
+     *
+     * <pre>{@code
+     * Mono<RSocket> sharedRSocketMono =
+     *   RSocketFactory
+     *                .connect()
+     *                .singleSubscriberRequester()
+     *                .reconnect(fluxOfThrowables -> flux.concatMap(t -> Mono.delay(Duration.ofSeconds(1)).take(5))
+     *                .transport(transport)
+     *                .start();
+     *
+     *  RSocket r1 = sharedRSocketMono.block();
+     *  RSocket r2 = sharedRSocketMono.block();
+     *
+     *  assert r1 == r2;
+     *
+     * }</pre>
+     *
+     * Apart of the shared behavior, once the previous connection has been expired (e.g. connection
+     * has been disposed), the same instance of {@code Mono<RSocket>} reestablish connection without
+     * any extra effort. <br>
+     * For example:
+     *
+     * <pre>{@code
+     * Mono<RSocket> sharedRSocketMono =
+     *   RSocketFactory
+     *                .connect()
+     *                .singleSubscriberRequester()
+     *                .reconnect(fluxOfThrowables -> flux.concatMap(t -> Mono.delay(Duration.ofSeconds(1)).take(5))
+     *                .transport(transport)
+     *                .start();
+     *
+     *  RSocket r1 = sharedRSocketMono.block();
+     *  RSocket r2 = sharedRSocketMono.block();
+     *
+     *  assert r1 == r2;
+     *
+     *  r1.dispose()
+     *
+     *  assert r2.isDisposed()
+     *
+     *  RSocket r3 = sharedRSocketMono.block();
+     *  RSocket r4 = sharedRSocketMono.block();
+     *
+     *
+     *  assert r1 != r3;
+     *  assert r4 == r3;
+     *
+     * }</pre>
+     *
+     * @param whenFactory a retry factory applied for {@link Mono.retryWhen(whenFactory)}
+     * @return a shared instance of {@code Mono<RSocket>}.
+     */
+    public ClientRSocketFactory reconnect(
+        Function<Flux<Throwable>, ? extends Publisher<?>> whenFactory) {
+      this.whenFactory = Objects.requireNonNull(whenFactory);
+      this.reconnectEnabled = true;
       return this;
     }
 
@@ -392,6 +523,17 @@ public class RSocketFactory {
                                 .sendOne(setupFrame)
                                 .thenReturn(wrappedRSocketRequester);
                           });
+                })
+            .as(
+                source -> {
+                  if (reconnectEnabled) {
+                    return new ReconnectMono<>(
+                        source.retryWhen(whenFactory),
+                        Disposable::dispose,
+                        (r, i) -> r.onClose().subscribe(null, null, i::expire));
+                  } else {
+                    return source;
+                  }
                 });
       }
 
@@ -422,7 +564,7 @@ public class RSocketFactory {
       }
 
       private Mono<DuplexConnection> newConnection() {
-        return transportClient.get().connect(mtu);
+        return Mono.fromSupplier(transportClient).flatMap(t -> t.connect(mtu));
       }
     }
   }
