@@ -248,7 +248,7 @@ public class RSocketFactory {
      *   RSocketFactory
      *                .connect()
      *                .singleSubscriberRequester()
-     *                .reconnect()
+     *                .reconnect(Retry.fixedDelay(3, Duration.ofSeconds(1)))
      *                .transport(transport)
      *                .start();
      *
@@ -260,8 +260,8 @@ public class RSocketFactory {
      * }</pre>
      *
      * Apart of the shared behavior, once the previous connection has been expired (e.g. connection
-     * has been disposed), the same instance of {@code Mono<RSocket>} reestablish connection without
-     * any extra effort. <br>
+     * has been disposed), the same instance of {@code Mono<RSocket>} reestablishes connection
+     * without any extra effort. <br>
      * For example:
      *
      * <pre>{@code
@@ -269,7 +269,7 @@ public class RSocketFactory {
      *   RSocketFactory
      *                .connect()
      *                .singleSubscriberRequester()
-     *                .reconnect()
+     *                .reconnect(Retry.fixedDelay(3, Duration.ofSeconds(1)))
      *                .transport(transport)
      *                .start();
      *
@@ -291,67 +291,7 @@ public class RSocketFactory {
      *
      * }</pre>
      *
-     * @return a shared instance of {@code Mono<RSocket>}.
-     */
-    public ClientRSocketFactory reconnect() {
-      this.reconnectEnabled = true;
-      return this;
-    }
-
-    /**
-     * Enables a reconnectable, shared instance of {@code Mono<RSocket>} so every subscriber will
-     * observe the same RSocket instance up on connection establishment. <br>
-     * For example:
-     *
-     * <pre>{@code
-     * Mono<RSocket> sharedRSocketMono =
-     *   RSocketFactory
-     *                .connect()
-     *                .singleSubscriberRequester()
-     *                .reconnect(fluxOfThrowables -> flux.concatMap(t -> Mono.delay(Duration.ofSeconds(1)).take(5))
-     *                .transport(transport)
-     *                .start();
-     *
-     *  RSocket r1 = sharedRSocketMono.block();
-     *  RSocket r2 = sharedRSocketMono.block();
-     *
-     *  assert r1 == r2;
-     *
-     * }</pre>
-     *
-     * Apart of the shared behavior, once the previous connection has been expired (e.g. connection
-     * has been disposed), the same instance of {@code Mono<RSocket>} reestablish connection without
-     * any extra effort. <br>
-     * For example:
-     *
-     * <pre>{@code
-     * Mono<RSocket> sharedRSocketMono =
-     *   RSocketFactory
-     *                .connect()
-     *                .singleSubscriberRequester()
-     *                .reconnect(fluxOfThrowables -> flux.concatMap(t -> Mono.delay(Duration.ofSeconds(1)).take(5))
-     *                .transport(transport)
-     *                .start();
-     *
-     *  RSocket r1 = sharedRSocketMono.block();
-     *  RSocket r2 = sharedRSocketMono.block();
-     *
-     *  assert r1 == r2;
-     *
-     *  r1.dispose()
-     *
-     *  assert r2.isDisposed()
-     *
-     *  RSocket r3 = sharedRSocketMono.block();
-     *  RSocket r4 = sharedRSocketMono.block();
-     *
-     *
-     *  assert r1 != r3;
-     *  assert r4 == r3;
-     *
-     * }</pre>
-     *
-     * @param whenFactory a retry factory applied for {@link Mono.retryWhen(whenFactory)}
+     * @param retrySpec a retry factory applied for {@link Mono#retryWhen(Retry)}
      * @return a shared instance of {@code Mono<RSocket>}.
      */
     public ClientRSocketFactory reconnect(Retry retrySpec) {
@@ -527,9 +467,7 @@ public class RSocketFactory {
                 source -> {
                   if (reconnectEnabled) {
                     return new ReconnectMono<>(
-                        retrySpec == null ? source : source.retryWhen(retrySpec),
-                        Disposable::dispose,
-                        INVALIDATE_FUNCTION);
+                        source.retryWhen(retrySpec), Disposable::dispose, INVALIDATE_FUNCTION);
                   } else {
                     return source;
                   }
