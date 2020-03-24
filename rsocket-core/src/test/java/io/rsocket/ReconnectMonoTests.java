@@ -53,7 +53,7 @@ import reactor.util.function.Tuples;
 public class ReconnectMonoTests {
 
   private Queue<RetryContext<?>> retries = new ConcurrentLinkedQueue<>();
-  private Queue<Tuple2<Object, Invalidate>> received = new ConcurrentLinkedQueue<>();
+  private Queue<Tuple2<Object, Invalidatable>> received = new ConcurrentLinkedQueue<>();
   private Queue<Object> expired = new ConcurrentLinkedQueue<>();
 
   @Test
@@ -542,7 +542,7 @@ public class ReconnectMonoTests {
     Assertions.assertThat(received).isEmpty();
     Assertions.assertThat(processor.isTerminated()).isFalse();
 
-    reconnectMono.expire();
+    reconnectMono.invalidate();
 
     Assertions.assertThat(expired).isEmpty();
     Assertions.assertThat(received).isEmpty();
@@ -736,7 +736,7 @@ public class ReconnectMonoTests {
 
       Assertions.assertThat(expired).isEmpty();
       Assertions.assertThat(received).hasSize(1).containsOnly(Tuples.of("value", reconnectMono));
-      RaceTestUtils.race(reconnectMono::expire, reconnectMono::expire);
+      RaceTestUtils.race(reconnectMono::invalidate, reconnectMono::invalidate);
 
       Assertions.assertThat(expired).hasSize(1).containsOnly("value");
       Assertions.assertThat(received).hasSize(1).containsOnly(Tuples.of("value", reconnectMono));
@@ -906,7 +906,7 @@ public class ReconnectMonoTests {
     return context -> retries.add(context);
   }
 
-  <T> BiConsumer<T, Invalidate> onValue() {
+  <T> BiConsumer<T, Invalidatable> onValue() {
     return (v, __) -> received.add(Tuples.of(v, __));
   }
 

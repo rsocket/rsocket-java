@@ -44,6 +44,7 @@ import io.rsocket.util.EmptyPayload;
 import io.rsocket.util.MultiSubscriberRSocket;
 import java.time.Duration;
 import java.util.Objects;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -98,6 +99,8 @@ public class RSocketFactory {
   public static class ClientRSocketFactory implements ClientTransportAcceptor {
     private static final String CLIENT_TAG = "client";
 
+    private static final BiConsumer<RSocket, Invalidatable> INVALIDATE_FUNCTION =
+        (r, i) -> r.onClose().subscribe(null, null, i::invalidate);
     private static final Function<Flux<Throwable>, ? extends Publisher<?>> FAIL_WHEN_FACTORY =
         f -> f.concatMap(Mono::error);
 
@@ -528,9 +531,7 @@ public class RSocketFactory {
                 source -> {
                   if (reconnectEnabled) {
                     return new ReconnectMono<>(
-                        source.retryWhen(whenFactory),
-                        Disposable::dispose,
-                        (r, i) -> r.onClose().subscribe(null, null, i::expire));
+                        source.retryWhen(whenFactory), Disposable::dispose, INVALIDATE_FUNCTION);
                   } else {
                     return source;
                   }

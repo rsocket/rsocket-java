@@ -15,7 +15,7 @@
  */
 package io.rsocket;
 
-interface Invalidate {
+interface Invalidatable {
 
-  void expire();
+  void invalidate();
 }

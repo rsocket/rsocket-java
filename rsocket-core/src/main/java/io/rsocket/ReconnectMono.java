@@ -33,10 +33,10 @@ import reactor.core.publisher.Operators.MonoSubscriber;
 import reactor.util.annotation.Nullable;
 import reactor.util.context.Context;
 
-final class ReconnectMono<T> extends Mono<T> implements Invalidate, Disposable, Scannable {
+final class ReconnectMono<T> extends Mono<T> implements Invalidatable, Disposable, Scannable {
 
   final Mono<T> source;
-  final BiConsumer<? super T, Invalidate> onValueReceived;
+  final BiConsumer<? super T, Invalidatable> onValueReceived;
   final Consumer<? super T> onValueExpired;
   final ReconnectMainSubscriber<? super T> mainSubscriber;
 
@@ -75,7 +75,7 @@ final class ReconnectMono<T> extends Mono<T> implements Invalidate, Disposable, 
   ReconnectMono(
       Mono<T> source,
       Consumer<? super T> onValueExpired,
-      BiConsumer<? super T, Invalidate> onValueReceived) {
+      BiConsumer<? super T, Invalidatable> onValueReceived) {
     this.source = source;
     this.onValueExpired = onValueExpired;
     this.onValueReceived = onValueReceived;
@@ -275,7 +275,7 @@ final class ReconnectMono<T> extends Mono<T> implements Invalidate, Disposable, 
 
   // Check RSocket is not good
   @Override
-  public void expire() {
+  public void invalidate() {
     if (this.subscribers == TERMINATED) {
       return;
     }
