@@ -259,9 +259,8 @@ public class RSocketFactory {
      *
      * }</pre>
      *
-     * Apart of the shared behavior, once the previous connection has been expired (e.g. connection
-     * has been disposed), the same instance of {@code Mono<RSocket>} reestablishes connection
-     * without any extra effort. <br>
+     * Apart of the shared behavior, if the connection is lost, the same {@code Mono<RSocket>} instance
+     * will transparently re-establish the connection for subsequent subscribers.<br>
      * For example:
      *
      * <pre>{@code
