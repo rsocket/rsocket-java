@@ -101,8 +101,6 @@ public class RSocketFactory {
 
     private static final BiConsumer<RSocket, Invalidatable> INVALIDATE_FUNCTION =
         (r, i) -> r.onClose().subscribe(null, null, i::invalidate);
-    private static final Function<Flux<Throwable>, ? extends Publisher<?>> FAIL_WHEN_FACTORY =
-        f -> f.concatMap(Mono::error);
 
     private SocketAcceptor acceptor = (setup, sendingSocket) -> Mono.just(new AbstractRSocket() {});
 
@@ -135,7 +133,7 @@ public class RSocketFactory {
     private boolean leaseEnabled;
     private Supplier<Leases<?>> leasesSupplier = Leases::new;
     private boolean reconnectEnabled;
-    private Function<Flux<Throwable>, ? extends Publisher<?>> whenFactory = FAIL_WHEN_FACTORY;
+    private Function<Flux<Throwable>, ? extends Publisher<?>> whenFactory;
 
     private ByteBufAllocator allocator = ByteBufAllocator.DEFAULT;
 
@@ -531,7 +529,9 @@ public class RSocketFactory {
                 source -> {
                   if (reconnectEnabled) {
                     return new ReconnectMono<>(
-                        source.retryWhen(whenFactory), Disposable::dispose, INVALIDATE_FUNCTION);
+                        whenFactory == null ? source : source.retryWhen(whenFactory),
+                        Disposable::dispose,
+                        INVALIDATE_FUNCTION);
                   } else {
                     return source;
                   }
