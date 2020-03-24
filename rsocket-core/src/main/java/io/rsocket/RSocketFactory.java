@@ -259,8 +259,8 @@ public class RSocketFactory {
      *
      * }</pre>
      *
-     * Apart of the shared behavior, if the connection is lost, the same {@code Mono<RSocket>} instance
-     * will transparently re-establish the connection for subsequent subscribers.<br>
+     * Apart of the shared behavior, if the connection is lost, the same {@code Mono<RSocket>}
+     * instance will transparently re-establish the connection for subsequent subscribers.<br>
      * For example:
      *
      * <pre>{@code
@@ -287,6 +287,25 @@ public class RSocketFactory {
      *
      *  assert r1 != r3;
      *  assert r4 == r3;
+     *
+     * }</pre>
+     *
+     * <b>Note,</b> having reconnect() enabled does not eliminate the need to accompany each
+     * individual request with the corresponding retry logic. <br>
+     * For example:
+     *
+     * <pre>{@code
+     * Mono<RSocket> sharedRSocketMono =
+     *   RSocketFactory
+     *                .connect()
+     *                .singleSubscriberRequester()
+     *                .reconnect(Retry.fixedDelay(3, Duration.ofSeconds(1)))
+     *                .transport(transport)
+     *                .start();
+     *
+     *  sharedRSocket.flatMap(rSocket -> rSocket.requestResponse(...))
+     *               .retryWhen(ownRetry)
+     *               .subscribe()
      *
      * }</pre>
      *
