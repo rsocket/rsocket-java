@@ -43,7 +43,6 @@ dependencies {
     // TODO: Remove after JUnit5 migration
     testCompileOnly 'junit:junit'
     testImplementation 'org.hamcrest:hamcrest-library'
-    testImplementation 'io.projectreactor.addons:reactor-extra'
     testRuntimeOnly 'org.junit.vintage:junit-vintage-engine'
 }
 

@@ -29,14 +29,13 @@ import java.util.function.Supplier;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
+import reactor.core.Exceptions;
 import reactor.core.publisher.Mono;
-import reactor.retry.Retry;
-import reactor.retry.RetryContext;
-import reactor.retry.RetryExhaustedException;
+import reactor.util.retry.Retry;
 
 public class RSocketReconnectTest {
 
-  private Queue<RetryContext<?>> retries = new ConcurrentLinkedQueue<>();
+  private Queue<Retry.RetrySignal> retries = new ConcurrentLinkedQueue<>();
 
   @Test
   public void shouldBeASharedReconnectableInstanceOfRSocketMono() {
@@ -45,7 +44,7 @@ public class RSocketReconnectTest {
     Mono<RSocket> rSocketMono =
         RSocketFactory.connect()
             .singleSubscriberRequester()
-            .reconnect()
+            .reconnect(Retry.indefinitely())
             .transport(
                 () -> {
                   return testClientTransport[0];
@@ -80,10 +79,9 @@ public class RSocketReconnectTest {
         RSocketFactory.connect()
             .singleSubscriberRequester()
             .reconnect(
-                Retry.any()
-                    .exponentialBackoff(Duration.ofMillis(100), Duration.ofMillis(500))
-                    .retryMax(4)
-                    .doOnRetry(onRetry()))
+                Retry.backoff(4, Duration.ofMillis(100))
+                    .maxBackoff(Duration.ofMillis(500))
+                    .doAfterRetry(onRetry()))
             .transport(mockTransportSupplier)
             .start();
 
@@ -96,7 +94,6 @@ public class RSocketReconnectTest {
         UncheckedIOException.class,
         UncheckedIOException.class,
         UncheckedIOException.class);
-    RetryTestUtils.assertDelays(retries, 100L, 200L, 400L, 500L);
   }
 
   @Test
@@ -114,19 +111,18 @@ public class RSocketReconnectTest {
         RSocketFactory.connect()
             .singleSubscriberRequester()
             .reconnect(
-                Retry.any()
-                    .exponentialBackoff(Duration.ofMillis(100), Duration.ofMillis(500))
-                    .retryMax(4)
-                    .doOnRetry(onRetry()))
+                Retry.backoff(4, Duration.ofMillis(100))
+                    .maxBackoff(Duration.ofMillis(500))
+                    .doAfterRetry(onRetry()))
             .transport(mockTransportSupplier)
             .start();
 
     Assertions.assertThatThrownBy(rSocketMono::block)
-        .isInstanceOf(RetryExhaustedException.class)
+        .matches(Exceptions::isRetryExhausted)
         .hasCauseInstanceOf(UncheckedIOException.class);
 
     Assertions.assertThatThrownBy(rSocketMono::block)
-        .isInstanceOf(RetryExhaustedException.class)
+        .matches(Exceptions::isRetryExhausted)
         .hasCauseInstanceOf(UncheckedIOException.class);
 
     assertRetries(
@@ -134,7 +130,6 @@ public class RSocketReconnectTest {
         UncheckedIOException.class,
         UncheckedIOException.class,
         UncheckedIOException.class);
-    RetryTestUtils.assertDelays(retries, 100L, 200L, 400L, 500L);
   }
 
   @Test
@@ -156,15 +151,15 @@ public class RSocketReconnectTest {
   private final void assertRetries(Class<? extends Throwable>... exceptions) {
     assertEquals(exceptions.length, retries.size());
     int index = 0;
-    for (Iterator<RetryContext<?>> it = retries.iterator(); it.hasNext(); ) {
-      RetryContext<?> retryContext = it.next();
-      assertEquals(index + 1, retryContext.iteration());
-      assertEquals(exceptions[index], retryContext.exception().getClass());
+    for (Iterator<Retry.RetrySignal> it = retries.iterator(); it.hasNext(); ) {
+      Retry.RetrySignal retryContext = it.next();
+      assertEquals(index, retryContext.totalRetries());
+      assertEquals(exceptions[index], retryContext.failure().getClass());
       index++;
     }
   }
 
-  Consumer<? super RetryContext<?>> onRetry() {
+  Consumer<Retry.RetrySignal> onRetry() {
     return context -> retries.add(context);
   }
 }
