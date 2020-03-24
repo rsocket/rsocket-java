@@ -48,10 +48,9 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import org.reactivestreams.Publisher;
 import reactor.core.Disposable;
-import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.util.retry.Retry;
 
 /** Factory for creating RSocket clients and servers. */
 public class RSocketFactory {
@@ -133,7 +132,7 @@ public class RSocketFactory {
     private boolean leaseEnabled;
     private Supplier<Leases<?>> leasesSupplier = Leases::new;
     private boolean reconnectEnabled;
-    private Function<Flux<Throwable>, ? extends Publisher<?>> whenFactory;
+    private Retry retrySpec;
 
     private ByteBufAllocator allocator = ByteBufAllocator.DEFAULT;
 
@@ -355,9 +354,8 @@ public class RSocketFactory {
      * @param whenFactory a retry factory applied for {@link Mono.retryWhen(whenFactory)}
      * @return a shared instance of {@code Mono<RSocket>}.
      */
-    public ClientRSocketFactory reconnect(
-        Function<Flux<Throwable>, ? extends Publisher<?>> whenFactory) {
-      this.whenFactory = Objects.requireNonNull(whenFactory);
+    public ClientRSocketFactory reconnect(Retry retrySpec) {
+      this.retrySpec = Objects.requireNonNull(retrySpec);
       this.reconnectEnabled = true;
       return this;
     }
@@ -529,7 +527,7 @@ public class RSocketFactory {
                 source -> {
                   if (reconnectEnabled) {
                     return new ReconnectMono<>(
-                        whenFactory == null ? source : source.retryWhen(whenFactory),
+                        retrySpec == null ? source : source.retryWhen(retrySpec),
                         Disposable::dispose,
                         INVALIDATE_FUNCTION);
                   } else {
@@ -841,9 +839,11 @@ public class RSocketFactory {
 
               @Override
               public Mono<T> get() {
-                return transportServer
-                    .get()
-                    .start(duplexConnection -> acceptor(serverSetup, duplexConnection), mtu)
+                return Mono.fromSupplier(transportServer)
+                    .flatMap(
+                        transport ->
+                            transport.start(
+                                duplexConnection -> acceptor(serverSetup, duplexConnection), mtu))
                     .doOnNext(c -> c.onClose().doFinally(v -> serverSetup.dispose()).subscribe());
               }
             });

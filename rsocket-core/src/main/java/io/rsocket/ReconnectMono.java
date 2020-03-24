@@ -470,3 +470,8 @@ final class ReconnectMono<T> extends Mono<T> implements Invalidatable, Disposabl
     }
   }
 }
+
+interface Invalidatable {
+
+  void invalidate();
+}

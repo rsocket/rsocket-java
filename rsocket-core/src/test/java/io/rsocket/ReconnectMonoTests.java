@@ -53,7 +53,8 @@ import reactor.util.function.Tuples;
 public class ReconnectMonoTests {
 
   private Queue<RetryContext<?>> retries = new ConcurrentLinkedQueue<>();
-  private Queue<Tuple2<Object, Invalidatable>> received = new ConcurrentLinkedQueue<>();
+  private Queue<Tuple2<Object, ReconnectMono.Invalidatable>> received =
+      new ConcurrentLinkedQueue<>();
   private Queue<Object> expired = new ConcurrentLinkedQueue<>();
 
   @Test
@@ -906,7 +907,7 @@ public class ReconnectMonoTests {
     return context -> retries.add(context);
   }
 
-  <T> BiConsumer<T, Invalidatable> onValue() {
+  <T> BiConsumer<T, ReconnectMono.Invalidatable> onValue() {
     return (v, __) -> received.add(Tuples.of(v, __));
   }
 
