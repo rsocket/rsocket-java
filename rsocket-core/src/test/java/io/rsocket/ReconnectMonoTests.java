@@ -820,6 +820,7 @@ public class ReconnectMonoTests {
             .retryWhen(
                 Retry.backoff(4, Duration.ofMillis(100))
                     .maxBackoff(Duration.ofMillis(500))
+                    .jitter(0.0d)
                     .doAfterRetry(onRetry()))
             .as(m -> new ReconnectMono<>(m, onExpire(), onValue()));
 
