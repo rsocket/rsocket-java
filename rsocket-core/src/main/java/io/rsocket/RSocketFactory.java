@@ -44,10 +44,13 @@ import io.rsocket.util.EmptyPayload;
 import io.rsocket.util.MultiSubscriberRSocket;
 import java.time.Duration;
 import java.util.Objects;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import reactor.core.Disposable;
 import reactor.core.publisher.Mono;
+import reactor.util.retry.Retry;
 
 /** Factory for creating RSocket clients and servers. */
 public class RSocketFactory {
@@ -95,6 +98,9 @@ public class RSocketFactory {
   public static class ClientRSocketFactory implements ClientTransportAcceptor {
     private static final String CLIENT_TAG = "client";
 
+    private static final BiConsumer<RSocket, Invalidatable> INVALIDATE_FUNCTION =
+        (r, i) -> r.onClose().subscribe(null, null, i::invalidate);
+
     private SocketAcceptor acceptor = (setup, sendingSocket) -> Mono.just(new AbstractRSocket() {});
 
     private Consumer<Throwable> errorConsumer = Throwable::printStackTrace;
@@ -125,6 +131,8 @@ public class RSocketFactory {
     private boolean multiSubscriberRequester = true;
     private boolean leaseEnabled;
     private Supplier<Leases<?>> leasesSupplier = Leases::new;
+    private boolean reconnectEnabled;
+    private Retry retrySpec;
 
     private ByteBufAllocator allocator = ByteBufAllocator.DEFAULT;
 
@@ -227,6 +235,86 @@ public class RSocketFactory {
 
     public ClientRSocketFactory singleSubscriberRequester() {
       this.multiSubscriberRequester = false;
+      return this;
+    }
+
+    /**
+     * Enables a reconnectable, shared instance of {@code Mono<RSocket>} so every subscriber will
+     * observe the same RSocket instance up on connection establishment. <br>
+     * For example:
+     *
+     * <pre>{@code
+     * Mono<RSocket> sharedRSocketMono =
+     *   RSocketFactory
+     *                .connect()
+     *                .singleSubscriberRequester()
+     *                .reconnect(Retry.fixedDelay(3, Duration.ofSeconds(1)))
+     *                .transport(transport)
+     *                .start();
+     *
+     *  RSocket r1 = sharedRSocketMono.block();
+     *  RSocket r2 = sharedRSocketMono.block();
+     *
+     *  assert r1 == r2;
+     *
+     * }</pre>
+     *
+     * Apart of the shared behavior, if the connection is lost, the same {@code Mono<RSocket>}
+     * instance will transparently re-establish the connection for subsequent subscribers.<br>
+     * For example:
+     *
+     * <pre>{@code
+     * Mono<RSocket> sharedRSocketMono =
+     *   RSocketFactory
+     *                .connect()
+     *                .singleSubscriberRequester()
+     *                .reconnect(Retry.fixedDelay(3, Duration.ofSeconds(1)))
+     *                .transport(transport)
+     *                .start();
+     *
+     *  RSocket r1 = sharedRSocketMono.block();
+     *  RSocket r2 = sharedRSocketMono.block();
+     *
+     *  assert r1 == r2;
+     *
+     *  r1.dispose()
+     *
+     *  assert r2.isDisposed()
+     *
+     *  RSocket r3 = sharedRSocketMono.block();
+     *  RSocket r4 = sharedRSocketMono.block();
+     *
+     *
+     *  assert r1 != r3;
+     *  assert r4 == r3;
+     *
+     * }</pre>
+     *
+     * <b>Note,</b> having reconnect() enabled does not eliminate the need to accompany each
+     * individual request with the corresponding retry logic. <br>
+     * For example:
+     *
+     * <pre>{@code
+     * Mono<RSocket> sharedRSocketMono =
+     *   RSocketFactory
+     *                .connect()
+     *                .singleSubscriberRequester()
+     *                .reconnect(Retry.fixedDelay(3, Duration.ofSeconds(1)))
+     *                .transport(transport)
+     *                .start();
+     *
+     *  sharedRSocket.flatMap(rSocket -> rSocket.requestResponse(...))
+     *               .retryWhen(ownRetry)
+     *               .subscribe()
+     *
+     * }</pre>
+     *
+     * @param retrySpec a retry factory applied for {@link Mono#retryWhen(Retry)}
+     * @return a shared instance of {@code Mono<RSocket>}.
+     */
+    public ClientRSocketFactory reconnect(Retry retrySpec) {
+      this.retrySpec = Objects.requireNonNull(retrySpec);
+      this.reconnectEnabled = true;
       return this;
     }
 
@@ -392,6 +480,15 @@ public class RSocketFactory {
                                 .sendOne(setupFrame)
                                 .thenReturn(wrappedRSocketRequester);
                           });
+                })
+            .as(
+                source -> {
+                  if (reconnectEnabled) {
+                    return new ReconnectMono<>(
+                        source.retryWhen(retrySpec), Disposable::dispose, INVALIDATE_FUNCTION);
+                  } else {
+                    return source;
+                  }
                 });
       }
 
@@ -422,7 +519,7 @@ public class RSocketFactory {
       }
 
       private Mono<DuplexConnection> newConnection() {
-        return transportClient.get().connect(mtu);
+        return Mono.fromSupplier(transportClient).flatMap(t -> t.connect(mtu));
       }
     }
   }
@@ -698,9 +795,11 @@ public class RSocketFactory {
 
               @Override
               public Mono<T> get() {
-                return transportServer
-                    .get()
-                    .start(duplexConnection -> acceptor(serverSetup, duplexConnection), mtu)
+                return Mono.fromSupplier(transportServer)
+                    .flatMap(
+                        transport ->
+                            transport.start(
+                                duplexConnection -> acceptor(serverSetup, duplexConnection), mtu))
                     .doOnNext(c -> c.onClose().doFinally(v -> serverSetup.dispose()).subscribe());
               }
             });
