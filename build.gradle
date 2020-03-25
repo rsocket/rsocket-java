@@ -119,6 +119,10 @@ subprojects {
         test {
             useJUnitPlatform()
 
+            testLogging {
+                events "started", "passed", "skipped", "failed"
+            }
+
             systemProperty "io.netty.leakDetection.level", "ADVANCED"
         }
 
