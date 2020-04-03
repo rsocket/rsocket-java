@@ -40,8 +40,6 @@ import io.rsocket.frame.RequestNFrameFlyweight;
 import io.rsocket.frame.RequestResponseFrameFlyweight;
 import io.rsocket.frame.RequestStreamFrameFlyweight;
 import io.rsocket.frame.decoder.PayloadDecoder;
-import io.rsocket.internal.FluxSwitchOnFirst;
-import io.rsocket.internal.RateLimitableRequestSubscriber;
 import io.rsocket.internal.SynchronizedIntObjectHashMap;
 import io.rsocket.internal.UnboundedProcessor;
 import io.rsocket.internal.UnicastMonoEmpty;
@@ -63,6 +61,7 @@ import org.reactivestreams.Processor;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
+import reactor.core.publisher.BaseSubscriber;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.SignalType;
@@ -86,7 +85,7 @@ class RSocketRequester implements RSocket {
   private final PayloadDecoder payloadDecoder;
   private final Consumer<Throwable> errorConsumer;
   private final StreamIdSupplier streamIdSupplier;
-  private final IntObjectMap<RateLimitableRequestSubscriber> senders;
+  private final IntObjectMap<Subscription> senders;
   private final IntObjectMap<Processor<Payload, Payload>> receivers;
   private final UnboundedProcessor<ByteBuf> sendProcessor;
   private final RequesterLeaseHandler leaseHandler;
@@ -265,7 +264,6 @@ class RSocketRequester implements RSocket {
     receivers.put(streamId, receiver);
 
     return receiver
-        .log()
         .doOnRequest(
             new LongConsumer() {
 
@@ -315,29 +313,31 @@ class RSocketRequester implements RSocket {
       return Flux.error(err);
     }
 
-    return request.transform(
-        f ->
-            new FluxSwitchOnFirst<>(
-                f,
-                (s, flux) -> {
-                  Payload payload = s.get();
-                  if (payload != null) {
-                    return handleChannel(flux, payload);
-                  } else {
-                    return flux;
-                  }
-                },
-                false));
+    return request.switchOnFirst(
+        (s, flux) -> {
+          Payload payload = s.get();
+          if (payload != null) {
+            return handleChannel(payload, flux.skip(1));
+          } else {
+            return flux;
+          }
+        },
+        false);
   }
 
-  private Flux<? extends Payload> handleChannel(Flux<Payload> inboundFlux, Payload initialPayload) {
+  private Flux<? extends Payload> handleChannel(Payload initialPayload, Flux<Payload> inboundFlux) {
     final UnboundedProcessor<ByteBuf> sendProcessor = this.sendProcessor;
     final AtomicBoolean payloadReleasedFlag = new AtomicBoolean(false);
     final int streamId = streamIdSupplier.nextStreamId(receivers);
 
     final UnicastProcessor<Payload> receiver = UnicastProcessor.create();
-    final RateLimitableRequestSubscriber<Payload> upstreamSubscriber =
-        new RateLimitableRequestSubscriber<Payload>(Queues.SMALL_BUFFER_SIZE) {
+    final BaseSubscriber<Payload> upstreamSubscriber =
+        new BaseSubscriber<Payload>() {
+
+          @Override
+          protected void hookOnSubscribe(Subscription subscription) {
+            // noops
+          }
 
           @Override
           protected void hookOnNext(Payload payload) {
@@ -358,7 +358,7 @@ class RSocketRequester implements RSocket {
           protected void hookOnError(Throwable t) {
             ByteBuf frame = ErrorFrameFlyweight.encode(allocator, streamId, t);
             sendProcessor.onNext(frame);
-            receiver.dispose();
+            receiver.onError(t);
           }
 
           @Override
@@ -380,21 +380,20 @@ class RSocketRequester implements RSocket {
                   senders.put(streamId, upstreamSubscriber);
                   receivers.put(streamId, receiver);
 
-                  inboundFlux.subscribe(upstreamSubscriber);
-
-                  ByteBuf frame =
-                      RequestChannelFrameFlyweight.encode(
-                          allocator,
-                          streamId,
-                          false,
-                          false,
-                          n,
-                          initialPayload.sliceMetadata().retain(),
-                          initialPayload.sliceData().retain());
-
-                  sendProcessor.onNext(frame);
-
+                  inboundFlux.limitRate(Queues.SMALL_BUFFER_SIZE).subscribe(upstreamSubscriber);
                   if (!payloadReleasedFlag.getAndSet(true)) {
+                    ByteBuf frame =
+                        RequestChannelFrameFlyweight.encode(
+                            allocator,
+                            streamId,
+                            false,
+                            false,
+                            n,
+                            initialPayload.sliceMetadata().retain(),
+                            initialPayload.sliceData().retain());
+
+                    sendProcessor.onNext(frame);
+
                     initialPayload.release();
                   }
                 } else {
@@ -408,16 +407,15 @@ class RSocketRequester implements RSocket {
                 upstreamSubscriber.cancel();
               }
             })
+        .doOnComplete(() -> receivers.remove(streamId, receiver))
         .doOnCancel(
             () -> {
               if (!payloadReleasedFlag.getAndSet(true)) {
                 initialPayload.release();
               }
-              if (contains(streamId)) {
+              if (receivers.remove(streamId, receiver)) {
                 sendProcessor.onNext(CancelFrameFlyweight.encode(allocator, streamId));
-                if (receivers.remove(streamId, receiver)) {
-                  upstreamSubscriber.cancel();
-                }
+                upstreamSubscriber.cancel();
               }
             });
   }

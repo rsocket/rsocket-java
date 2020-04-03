@@ -27,7 +27,6 @@ import io.rsocket.ResponderRSocket;
 import io.rsocket.exceptions.ApplicationErrorException;
 import io.rsocket.frame.*;
 import io.rsocket.frame.decoder.PayloadDecoder;
-import io.rsocket.internal.RateLimitableRequestSubscriber;
 import io.rsocket.internal.SynchronizedIntObjectHashMap;
 import io.rsocket.internal.UnboundedProcessor;
 import io.rsocket.lease.ResponderLeaseHandler;
@@ -362,15 +361,9 @@ class RSocketResponder implements ResponderRSocket {
   }
 
   private void handleRequestResponse(int streamId, Mono<Payload> response) {
-    response.subscribe(
+    final BaseSubscriber<Payload> subscriber =
         new BaseSubscriber<Payload>() {
           private boolean isEmpty = true;
-
-          @Override
-          protected void hookOnSubscribe(Subscription subscription) {
-            sendingSubscriptions.put(streamId, subscription);
-            subscription.request(Long.MAX_VALUE);
-          }
 
           @Override
           protected void hookOnNext(Payload payload) {
@@ -405,18 +398,20 @@ class RSocketResponder implements ResponderRSocket {
 
           @Override
           protected void hookFinally(SignalType type) {
-            sendingSubscriptions.remove(streamId);
+            sendingSubscriptions.remove(streamId, this);
           }
-        });
+        };
+
+    sendingSubscriptions.put(streamId, subscriber);
+    response.subscribe(subscriber);
   }
 
   private void handleStream(int streamId, Flux<Payload> response, int initialRequestN) {
-    response.subscribe(
-        new RateLimitableRequestSubscriber<Payload>(Queues.SMALL_BUFFER_SIZE) {
+    final BaseSubscriber<Payload> subscriber =
+        new BaseSubscriber<Payload>() {
 
           @Override
           protected void hookOnSubscribe(Subscription s) {
-            sendingSubscriptions.put(streamId, s);
             s.request(initialRequestN >= Integer.MAX_VALUE ? Long.MAX_VALUE : initialRequestN);
           }
 
@@ -449,7 +444,10 @@ class RSocketResponder implements ResponderRSocket {
           protected void hookFinally(SignalType type) {
             sendingSubscriptions.remove(streamId);
           }
-        });
+        };
+
+    sendingSubscriptions.put(streamId, subscriber);
+    response.limitRate(Queues.SMALL_BUFFER_SIZE).subscribe(subscriber);
   }
 
   private void handleChannel(int streamId, Payload payload, int initialRequestN) {
@@ -470,7 +468,7 @@ class RSocketResponder implements ResponderRSocket {
                     long n;
                     if (first) {
                       first = false;
-                      n = l - 1;
+                      n = l - 1L;
                     } else {
                       n = l;
                     }
