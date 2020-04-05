@@ -25,6 +25,7 @@ import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.ResponderRSocket;
 import io.rsocket.exceptions.ApplicationErrorException;
+import io.rsocket.fragmentation.FragmentationUtils;
 import io.rsocket.frame.*;
 import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.internal.SynchronizedIntObjectHashMap;
@@ -51,6 +52,8 @@ class RSocketResponder implements ResponderRSocket {
   private final Consumer<Throwable> errorConsumer;
   private final ResponderLeaseHandler leaseHandler;
 
+  private final int mtu;
+
   private final IntObjectMap<Subscription> sendingSubscriptions;
   private final IntObjectMap<Processor<Payload, Payload>> channelProcessors;
 
@@ -63,9 +66,11 @@ class RSocketResponder implements ResponderRSocket {
       RSocket requestHandler,
       PayloadDecoder payloadDecoder,
       Consumer<Throwable> errorConsumer,
-      ResponderLeaseHandler leaseHandler) {
+      ResponderLeaseHandler leaseHandler,
+      int mtu) {
     this.allocator = allocator;
     this.connection = connection;
+    this.mtu = mtu;
 
     this.requestHandler = requestHandler;
     this.responderRSocket =
@@ -371,6 +376,15 @@ class RSocketResponder implements ResponderRSocket {
               isEmpty = false;
             }
 
+            if (!FragmentationUtils.isValid(mtu, payload)) {
+              payload.release();
+              cancel();
+              final IllegalArgumentException t =
+                  new IllegalArgumentException("Too big Payload size");
+              handleError(streamId, t);
+              return;
+            }
+
             ByteBuf byteBuf;
             try {
               byteBuf = PayloadFrameFlyweight.encodeNextComplete(allocator, streamId, payload);
@@ -417,6 +431,15 @@ class RSocketResponder implements ResponderRSocket {
 
           @Override
           protected void hookOnNext(Payload payload) {
+            if (!FragmentationUtils.isValid(mtu, payload)) {
+              payload.release();
+              cancel();
+              final IllegalArgumentException t =
+                  new IllegalArgumentException("Too big Payload size");
+              handleError(streamId, t);
+              return;
+            }
+
             ByteBuf byteBuf;
             try {
               byteBuf = PayloadFrameFlyweight.encodeNext(allocator, streamId, payload);
