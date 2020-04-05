@@ -28,11 +28,10 @@ import io.rsocket.frame.RequestChannelFrameFlyweight;
 import io.rsocket.frame.RequestFireAndForgetFrameFlyweight;
 import io.rsocket.frame.RequestResponseFrameFlyweight;
 import io.rsocket.frame.RequestStreamFrameFlyweight;
+import java.util.function.Consumer;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.SynchronousSink;
-
-import java.util.function.Consumer;
 
 /**
  * The implementation of the RSocket fragmentation behavior.

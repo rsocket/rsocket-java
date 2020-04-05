@@ -94,6 +94,7 @@ class RSocketLeaseTest {
             StreamIdSupplier.clientSupplier(),
             0,
             0,
+            0,
             null,
             requesterLeaseHandler);
 
@@ -111,7 +112,8 @@ class RSocketLeaseTest {
             mockRSocketHandler,
             payloadDecoder,
             err -> {},
-            responderLeaseHandler);
+            responderLeaseHandler,
+            0);
   }
 
   @Test

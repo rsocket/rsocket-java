@@ -23,8 +23,8 @@
         </encoder>
     </appender>
 
-    <logger name="io.rsocket.transport.netty" level="DEBUG"/>
-    <logger name="io.rsocket.FrameLogger" level="DEBUG"/>
+    <logger name="io.rsocket.transport.netty" level="INFO"/>
+    <logger name="io.rsocket.FrameLogger" level="INFO"/>
     <logger name="io.rsocket.fragmentation.FragmentationDuplexConnection" level="INFO"/>
 
     <root level="INFO">
