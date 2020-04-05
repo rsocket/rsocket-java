@@ -35,6 +35,7 @@ import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Mono;
 import reactor.netty.Connection;
 import reactor.netty.http.server.HttpServer;
+import reactor.netty.http.server.WebsocketServerSpec;
 
 /**
  * An implementation of {@link ServerTransport} that connects to a {@link ClientTransport} via a
@@ -122,8 +123,6 @@ public final class WebsocketServerTransport extends BaseWebsocketServerTransport
                 (request, response) -> {
                   transportHeaders.get().forEach(response::addHeader);
                   return response.sendWebsocket(
-                      null,
-                      FRAME_LENGTH_MASK,
                       (in, out) -> {
                         DuplexConnection connection =
                             new WebsocketDuplexConnection((Connection) in);
@@ -133,7 +132,10 @@ public final class WebsocketServerTransport extends BaseWebsocketServerTransport
                                   connection, ByteBufAllocator.DEFAULT, mtu, false, "server");
                         }
                         return acceptor.apply(connection).then(out.neverComplete());
-                      });
+                      },
+                      WebsocketServerSpec.builder()
+                          .maxFramePayloadLength(FRAME_LENGTH_MASK)
+                          .build());
                 })
             .bind()
             .map(CloseableChannel::new);

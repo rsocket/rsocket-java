@@ -43,7 +43,6 @@ import reactor.netty.tcp.TcpClient;
  */
 public final class WebsocketClientTransport implements ClientTransport, TransportHeaderAware {
 
-  private static final int DEFAULT_FRAME_SIZE = 65536;
   private static final String DEFAULT_PATH = "/";
 
   private final HttpClient client;
