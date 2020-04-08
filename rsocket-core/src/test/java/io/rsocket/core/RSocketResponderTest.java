@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package io.rsocket;
+package io.rsocket.core;
 
 import static io.rsocket.frame.FrameHeaderFlyweight.frameType;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -23,6 +23,9 @@ import static org.hamcrest.Matchers.*;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
+import io.rsocket.AbstractRSocket;
+import io.rsocket.Payload;
+import io.rsocket.RSocket;
 import io.rsocket.frame.*;
 import io.rsocket.lease.ResponderLeaseHandler;
 import io.rsocket.test.util.TestDuplexConnection;

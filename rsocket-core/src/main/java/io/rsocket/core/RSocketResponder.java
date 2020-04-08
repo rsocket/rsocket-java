@@ -14,12 +14,16 @@
  * limitations under the License.
  */
 
-package io.rsocket;
+package io.rsocket.core;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.util.ReferenceCountUtil;
 import io.netty.util.collection.IntObjectMap;
+import io.rsocket.DuplexConnection;
+import io.rsocket.Payload;
+import io.rsocket.RSocket;
+import io.rsocket.ResponderRSocket;
 import io.rsocket.exceptions.ApplicationErrorException;
 import io.rsocket.frame.*;
 import io.rsocket.frame.decoder.PayloadDecoder;

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package io.rsocket;
+package io.rsocket.core;
 
 import static io.rsocket.frame.FrameType.ERROR;
 import static io.rsocket.frame.FrameType.SETUP;
@@ -25,6 +25,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
 import io.netty.buffer.UnpooledByteBufAllocator;
+import io.rsocket.*;
 import io.rsocket.exceptions.Exceptions;
 import io.rsocket.exceptions.MissingLeaseException;
 import io.rsocket.frame.FrameHeaderFlyweight;

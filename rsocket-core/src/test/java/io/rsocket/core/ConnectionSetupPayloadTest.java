@@ -1,4 +1,4 @@
-package io.rsocket;
+package io.rsocket.core;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -6,6 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
+import io.rsocket.ConnectionSetupPayload;
+import io.rsocket.Payload;
 import io.rsocket.frame.SetupFrameFlyweight;
 import io.rsocket.util.DefaultPayload;
 import org.junit.jupiter.api.Test;
@@ -24,7 +26,7 @@ class ConnectionSetupPayloadTest {
     boolean leaseEnabled = true;
 
     ByteBuf frame = encodeSetupFrame(leaseEnabled, payload);
-    ConnectionSetupPayload setupPayload = ConnectionSetupPayload.create(frame);
+    ConnectionSetupPayload setupPayload = new DefaultConnectionSetupPayload(frame);
 
     assertTrue(setupPayload.willClientHonorLease());
     assertEquals(KEEP_ALIVE_INTERVAL, setupPayload.keepAliveInterval());
@@ -46,7 +48,7 @@ class ConnectionSetupPayloadTest {
     boolean leaseEnabled = false;
 
     ByteBuf frame = encodeSetupFrame(leaseEnabled, payload);
-    ConnectionSetupPayload setupPayload = ConnectionSetupPayload.create(frame);
+    ConnectionSetupPayload setupPayload = new DefaultConnectionSetupPayload(frame);
 
     assertFalse(setupPayload.willClientHonorLease());
     assertFalse(setupPayload.hasMetadata());
@@ -64,7 +66,7 @@ class ConnectionSetupPayloadTest {
     boolean leaseEnabled = false;
 
     ByteBuf frame = encodeSetupFrame(leaseEnabled, payload);
-    ConnectionSetupPayload setupPayload = ConnectionSetupPayload.create(frame);
+    ConnectionSetupPayload setupPayload = new DefaultConnectionSetupPayload(frame);
 
     assertFalse(setupPayload.willClientHonorLease());
     assertTrue(setupPayload.hasMetadata());

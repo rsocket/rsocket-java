@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package io.rsocket;
+package io.rsocket.core;
 
 import java.time.Duration;
 import java.util.concurrent.CancellationException;

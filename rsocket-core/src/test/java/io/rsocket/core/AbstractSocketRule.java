@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-package io.rsocket;
+package io.rsocket.core;
 
+import io.rsocket.RSocket;
 import io.rsocket.test.util.TestDuplexConnection;
 import io.rsocket.test.util.TestSubscriber;
 import java.util.concurrent.ConcurrentLinkedQueue;

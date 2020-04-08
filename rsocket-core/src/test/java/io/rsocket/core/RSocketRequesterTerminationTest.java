@@ -1,6 +1,8 @@
-package io.rsocket;
+package io.rsocket.core;
 
-import io.rsocket.RSocketRequesterTest.ClientSocketRule;
+import io.rsocket.Payload;
+import io.rsocket.RSocket;
+import io.rsocket.core.RSocketRequesterTest.ClientSocketRule;
 import io.rsocket.util.EmptyPayload;
 import java.nio.channels.ClosedChannelException;
 import java.time.Duration;
