@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2019 the original author or authors.
+ * Copyright 2015-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package io.rsocket.internal;
+package io.rsocket.core;
 
 import static io.rsocket.keepalive.KeepAliveHandler.*;
 
@@ -22,32 +22,45 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.exceptions.RejectedResumeException;
 import io.rsocket.exceptions.UnsupportedSetupException;
+import io.rsocket.frame.ErrorFrameFlyweight;
 import io.rsocket.frame.ResumeFrameFlyweight;
 import io.rsocket.frame.SetupFrameFlyweight;
+import io.rsocket.internal.ClientServerInputMultiplexer;
 import io.rsocket.keepalive.KeepAliveHandler;
 import io.rsocket.resume.*;
-import io.rsocket.util.ConnectionUtils;
 import java.time.Duration;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import reactor.core.publisher.Mono;
 
-public interface ServerSetup {
+abstract class ServerSetup {
 
-  Mono<Void> acceptRSocketSetup(
+  final ByteBufAllocator allocator;
+
+  public ServerSetup(ByteBufAllocator allocator) {
+    this.allocator = allocator;
+  }
+
+  abstract Mono<Void> acceptRSocketSetup(
       ByteBuf frame,
       ClientServerInputMultiplexer multiplexer,
       BiFunction<KeepAliveHandler, ClientServerInputMultiplexer, Mono<Void>> then);
 
-  Mono<Void> acceptRSocketResume(ByteBuf frame, ClientServerInputMultiplexer multiplexer);
+  abstract Mono<Void> acceptRSocketResume(ByteBuf frame, ClientServerInputMultiplexer multiplexer);
 
-  default void dispose() {}
+  void dispose() {}
 
-  class DefaultServerSetup implements ServerSetup {
-    private final ByteBufAllocator allocator;
+  Mono<Void> sendError(ClientServerInputMultiplexer multiplexer, Exception exception) {
+    return multiplexer
+        .asSetupConnection()
+        .sendOne(ErrorFrameFlyweight.encode(allocator, 0, exception))
+        .onErrorResume(err -> Mono.empty());
+  }
 
-    public DefaultServerSetup(ByteBufAllocator allocator) {
-      this.allocator = allocator;
+  static class DefaultServerSetup extends ServerSetup {
+
+    DefaultServerSetup(ByteBufAllocator allocator) {
+      super(allocator);
     }
 
     @Override
@@ -78,13 +91,9 @@ public interface ServerSetup {
                 multiplexer.dispose();
               });
     }
-
-    private Mono<Void> sendError(ClientServerInputMultiplexer multiplexer, Exception exception) {
-      return ConnectionUtils.sendError(allocator, multiplexer, exception);
-    }
   }
 
-  class ResumableServerSetup implements ServerSetup {
+  static class ResumableServerSetup extends ServerSetup {
     private final ByteBufAllocator allocator;
     private final SessionManager sessionManager;
     private final Duration resumeSessionDuration;
@@ -92,13 +101,14 @@ public interface ServerSetup {
     private final Function<? super ByteBuf, ? extends ResumableFramesStore> resumeStoreFactory;
     private final boolean cleanupStoreOnKeepAlive;
 
-    public ResumableServerSetup(
+    ResumableServerSetup(
         ByteBufAllocator allocator,
         SessionManager sessionManager,
         Duration resumeSessionDuration,
         Duration resumeStreamTimeout,
         Function<? super ByteBuf, ? extends ResumableFramesStore> resumeStoreFactory,
         boolean cleanupStoreOnKeepAlive) {
+      super(allocator);
       this.allocator = allocator;
       this.sessionManager = sessionManager;
       this.resumeSessionDuration = resumeSessionDuration;
@@ -153,10 +163,6 @@ public interface ServerSetup {
                   multiplexer.dispose();
                 });
       }
-    }
-
-    private Mono<Void> sendError(ClientServerInputMultiplexer multiplexer, Exception exception) {
-      return ConnectionUtils.sendError(allocator, multiplexer, exception);
     }
 
     @Override
