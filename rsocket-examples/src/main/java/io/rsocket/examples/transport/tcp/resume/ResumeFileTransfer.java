@@ -36,11 +36,7 @@ public class ResumeFileTransfer {
         RSocketFactory.connect()
             .resume()
             .resumeStrategy(
-                () -> {
-                  System.out.println("created");
-                  return new VerboseResumeStrategy(
-                      new PeriodicResumeStrategy(Duration.ofSeconds(1)));
-                })
+                () -> new VerboseResumeStrategy(new PeriodicResumeStrategy(Duration.ofSeconds(1))))
             .resumeSessionDuration(Duration.ofMinutes(5))
             .transport(TcpClientTransport.create("localhost", 8001))
             .start()
