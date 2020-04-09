@@ -305,7 +305,7 @@ public class RSocketRequesterTest {
                       t ->
                           Assertions.assertThat(t)
                               .isInstanceOf(IllegalArgumentException.class)
-                              .hasMessage("Too big Payload size"))
+                              .hasMessage("The payload is too big to send as a single frame with a 24-bit encoded length. Consider enabling fragmentation via RSocketFactory."))
                   .verify();
             });
   }
@@ -332,7 +332,7 @@ public class RSocketRequesterTest {
             t ->
                 Assertions.assertThat(t)
                     .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessage("Too big Payload size"))
+                    .hasMessage("The payload is too big to send as a single frame with a 24-bit encoded length. Consider enabling fragmentation via RSocketFactory."))
         .verify();
   }
 

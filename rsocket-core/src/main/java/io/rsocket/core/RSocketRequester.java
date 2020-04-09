@@ -191,7 +191,9 @@ class RSocketRequester implements RSocket {
 
     if (!FragmentationUtils.isValid(this.mtu, payload)) {
       payload.release();
-      return Mono.error(new IllegalArgumentException("Too big Payload size"));
+      return Mono.error(
+          new IllegalArgumentException(
+              "The payload is too big to send as a single frame with a 24-bit encoded length. Consider enabling fragmentation via RSocketFactory."));
     }
 
     final int streamId = streamIdSupplier.nextStreamId(receivers);
@@ -220,7 +222,9 @@ class RSocketRequester implements RSocket {
 
     if (!FragmentationUtils.isValid(this.mtu, payload)) {
       payload.release();
-      return Mono.error(new IllegalArgumentException("Too big Payload size"));
+      return Mono.error(
+          new IllegalArgumentException(
+              "The payload is too big to send as a single frame with a 24-bit encoded length. Consider enabling fragmentation via RSocketFactory."));
     }
 
     int streamId = streamIdSupplier.nextStreamId(receivers);
@@ -270,7 +274,9 @@ class RSocketRequester implements RSocket {
 
     if (!FragmentationUtils.isValid(this.mtu, payload)) {
       payload.release();
-      return Flux.error(new IllegalArgumentException("Too big Payload size"));
+      return Flux.error(
+          new IllegalArgumentException(
+              "The payload is too big to send as a single frame with a 24-bit encoded length. Consider enabling fragmentation via RSocketFactory."));
     }
 
     int streamId = streamIdSupplier.nextStreamId(receivers);
@@ -338,7 +344,8 @@ class RSocketRequester implements RSocket {
             if (!FragmentationUtils.isValid(mtu, payload)) {
               payload.release();
               final IllegalArgumentException t =
-                  new IllegalArgumentException("Too big Payload size");
+                  new IllegalArgumentException(
+                      "The payload is too big to send as a single frame with a 24-bit encoded length. Consider enabling fragmentation via RSocketFactory.");
               errorConsumer.accept(t);
               return Mono.error(t);
             }
@@ -377,7 +384,8 @@ if (!FragmentationUtils.isValid(mtu, payload)) {
               payload.release();
               cancel();
               final IllegalArgumentException t =
-                  new IllegalArgumentException("Too big Payload size");
+                  new IllegalArgumentException(
+                      "The payload is too big to send as a single frame with a 24-bit encoded length. Consider enabling fragmentation via RSocketFactory.");
               errorConsumer.accept(t);
               // no need to send any errors.
               sendProcessor.onNext(CancelFrameFlyweight.encode(allocator, streamId));
@@ -472,7 +480,9 @@ if (!FragmentationUtils.isValid(mtu, payload)) {
 
     if (!FragmentationUtils.isValid(this.mtu, payload)) {
       payload.release();
-      return Mono.error(new IllegalArgumentException("Too big Payload size"));
+      return Mono.error(
+          new IllegalArgumentException(
+              "The payload is too big to send as a single frame with a 24-bit encoded length. Consider enabling fragmentation via RSocketFactory."));
     }
 
     return UnicastMonoEmpty.newInstance(

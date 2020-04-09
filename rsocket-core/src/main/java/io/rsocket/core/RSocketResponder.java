@@ -380,7 +380,8 @@ class RSocketResponder implements ResponderRSocket {
               payload.release();
               cancel();
               final IllegalArgumentException t =
-                  new IllegalArgumentException("Too big Payload size");
+                  new IllegalArgumentException(
+                      "The payload is too big to send as a single frame with a 24-bit encoded length. Consider enabling fragmentation via RSocketFactory.");
               handleError(streamId, t);
               return;
             }
@@ -435,7 +436,8 @@ class RSocketResponder implements ResponderRSocket {
               payload.release();
               cancel();
               final IllegalArgumentException t =
-                  new IllegalArgumentException("Too big Payload size");
+                  new IllegalArgumentException(
+                      "The payload is too big to send as a single frame with a 24-bit encoded length. Consider enabling fragmentation via RSocketFactory.");
               handleError(streamId, t);
               return;
             }

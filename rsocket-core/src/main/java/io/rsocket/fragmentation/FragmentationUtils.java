@@ -9,7 +9,7 @@ public final class FragmentationUtils {
   public static boolean isValid(int mtu, Payload payload) {
     return payload.hasMetadata()
         ? isValid(mtu, payload.data(), payload.metadata())
-        : isValid(mtu, payload.metadata());
+        : isValid(mtu, payload.data());
   }
 
   public static boolean isValid(int mtu, ByteBuf data) {

@@ -1,7 +1,5 @@
 package io.rsocket.fragmentation;
 
-import static org.junit.jupiter.api.Assertions.*;
-
 import io.rsocket.Payload;
 import io.rsocket.frame.FrameHeaderFlyweight;
 import io.rsocket.frame.FrameLengthFlyweight;
@@ -13,7 +11,7 @@ import org.junit.jupiter.api.Test;
 class FragmentationUtilsTest {
 
   @Test
-  void shouldValidFrameWithNoFragmentation() {
+  void shouldBeValidFrameWithNoFragmentation() {
     byte[] data =
         new byte
             [FrameLengthFlyweight.FRAME_LENGTH_MASK
@@ -26,7 +24,21 @@ class FragmentationUtilsTest {
   }
 
   @Test
-  void shouldValidFrameWithNoFragmentation0() {
+  void shouldBeInValidFrameWithNoFragmentation() {
+    byte[] data =
+        new byte
+            [FrameLengthFlyweight.FRAME_LENGTH_MASK
+                - FrameLengthFlyweight.FRAME_LENGTH_SIZE
+                - FrameHeaderFlyweight.size()
+                + 1];
+    ThreadLocalRandom.current().nextBytes(data);
+    final Payload payload = DefaultPayload.create(data);
+
+    Assertions.assertThat(FragmentationUtils.isValid(0, payload)).isFalse();
+  }
+
+  @Test
+  void shouldBeValidFrameWithNoFragmentation0() {
     byte[] metadata = new byte[FrameLengthFlyweight.FRAME_LENGTH_MASK / 2];
     byte[] data =
         new byte
@@ -42,7 +54,7 @@ class FragmentationUtilsTest {
   }
 
   @Test
-  void shouldValidFrameWithNoFragmentation1() {
+  void shouldBeInValidFrameWithNoFragmentation1() {
     byte[] metadata = new byte[FrameLengthFlyweight.FRAME_LENGTH_MASK];
     byte[] data = new byte[FrameLengthFlyweight.FRAME_LENGTH_MASK];
     ThreadLocalRandom.current().nextBytes(metadata);
@@ -53,7 +65,7 @@ class FragmentationUtilsTest {
   }
 
   @Test
-  void shouldValidFrameWithNoFragmentation2() {
+  void shouldBeValidFrameWithNoFragmentation2() {
     byte[] metadata = new byte[1];
     byte[] data = new byte[1];
     ThreadLocalRandom.current().nextBytes(metadata);
@@ -64,7 +76,7 @@ class FragmentationUtilsTest {
   }
 
   @Test
-  void shouldValidFrameWithNoFragmentation3() {
+  void shouldBeValidFrameWithNoFragmentation3() {
     byte[] metadata = new byte[FrameLengthFlyweight.FRAME_LENGTH_MASK];
     byte[] data = new byte[FrameLengthFlyweight.FRAME_LENGTH_MASK];
     ThreadLocalRandom.current().nextBytes(metadata);
@@ -75,7 +87,7 @@ class FragmentationUtilsTest {
   }
 
   @Test
-  void shouldValidFrameWithNoFragmentation4() {
+  void shouldBeValidFrameWithNoFragmentation4() {
     byte[] metadata = new byte[1];
     byte[] data = new byte[1];
     ThreadLocalRandom.current().nextBytes(metadata);

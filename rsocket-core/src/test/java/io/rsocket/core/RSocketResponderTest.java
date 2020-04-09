@@ -153,12 +153,12 @@ public class RSocketResponderTest {
       Assertions.assertThat(rule.errors)
           .first()
           .isInstanceOf(IllegalArgumentException.class)
-          .hasToString("java.lang.IllegalArgumentException: Too big Payload size");
+          .hasToString("java.lang.IllegalArgumentException: The payload is too big to send as a single frame with a 24-bit encoded length. Consider enabling fragmentation via RSocketFactory.");
       Assertions.assertThat(rule.connection.getSent())
           .hasSize(1)
           .first()
           .matches(bb -> FrameHeaderFlyweight.frameType(bb) == FrameType.ERROR)
-          .matches(bb -> ErrorFrameFlyweight.dataUtf8(bb).contains("Too big Payload size"));
+          .matches(bb -> ErrorFrameFlyweight.dataUtf8(bb).contains("The payload is too big to send as a single frame with a 24-bit encoded length. Consider enabling fragmentation via RSocketFactory."));
 
       assertThat("Subscription not cancelled.", cancelled.get(), is(true));
       rule.init();
