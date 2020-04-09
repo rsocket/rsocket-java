@@ -281,6 +281,7 @@ public class DefaultServerRSocketFactory implements RSocketFactory.ServerRSocket
                     payloadDecoder,
                     errorConsumer,
                     StreamIdSupplier.serverSupplier(),
+                    mtu,
                     setupPayload.keepAliveInterval(),
                     setupPayload.keepAliveMaxLifetime(),
                     keepAliveHandler,
@@ -317,7 +318,8 @@ public class DefaultServerRSocketFactory implements RSocketFactory.ServerRSocket
                               wrappedRSocketHandler,
                               payloadDecoder,
                               errorConsumer,
-                              responderLeaseHandler);
+                              responderLeaseHandler,
+                              mtu);
                     })
                 .doFinally(signalType -> setupPayload.release())
                 .then();

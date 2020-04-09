@@ -16,6 +16,7 @@
 
 package io.rsocket.core;
 
+import static io.rsocket.core.PayloadValidationUtils.INVALID_PAYLOAD_ERROR_MESSAGE;
 import static io.rsocket.frame.FrameHeaderFlyweight.frameType;
 import static io.rsocket.frame.FrameType.CANCEL;
 import static io.rsocket.frame.FrameType.KEEPALIVE;
@@ -37,6 +38,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.util.CharsetUtil;
 import io.rsocket.Payload;
+import io.rsocket.RSocket;
 import io.rsocket.exceptions.ApplicationErrorException;
 import io.rsocket.exceptions.RejectedSetupException;
 import io.rsocket.frame.CancelFrameFlyweight;
@@ -305,7 +307,7 @@ public class RSocketRequesterTest {
                       t ->
                           Assertions.assertThat(t)
                               .isInstanceOf(IllegalArgumentException.class)
-                              .hasMessage("The payload is too big to send as a single frame with a 24-bit encoded length. Consider enabling fragmentation via RSocketFactory."))
+                              .hasMessage(INVALID_PAYLOAD_ERROR_MESSAGE))
                   .verify();
             });
   }
@@ -332,7 +334,7 @@ public class RSocketRequesterTest {
             t ->
                 Assertions.assertThat(t)
                     .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessage("The payload is too big to send as a single frame with a 24-bit encoded length. Consider enabling fragmentation via RSocketFactory."))
+                    .hasMessage(INVALID_PAYLOAD_ERROR_MESSAGE))
         .verify();
   }
 

@@ -16,6 +16,7 @@
 
 package io.rsocket.core;
 
+import static io.rsocket.core.PayloadValidationUtils.INVALID_PAYLOAD_ERROR_MESSAGE;
 import static io.rsocket.keepalive.KeepAliveSupport.ClientKeepAliveSupport;
 import static io.rsocket.keepalive.KeepAliveSupport.KeepAlive;
 
@@ -191,9 +192,7 @@ class RSocketRequester implements RSocket {
 
     if (!PayloadValidationUtils.isValid(this.mtu, payload)) {
       payload.release();
-      return Mono.error(
-          new IllegalArgumentException(
-              "The payload is too big to send as a single frame with a 24-bit encoded length. Consider enabling fragmentation via RSocketFactory."));
+      return Mono.error(new IllegalArgumentException(INVALID_PAYLOAD_ERROR_MESSAGE));
     }
 
     final int streamId = streamIdSupplier.nextStreamId(receivers);
@@ -222,9 +221,7 @@ class RSocketRequester implements RSocket {
 
     if (!PayloadValidationUtils.isValid(this.mtu, payload)) {
       payload.release();
-      return Mono.error(
-          new IllegalArgumentException(
-              "The payload is too big to send as a single frame with a 24-bit encoded length. Consider enabling fragmentation via RSocketFactory."));
+      return Mono.error(new IllegalArgumentException(INVALID_PAYLOAD_ERROR_MESSAGE));
     }
 
     int streamId = streamIdSupplier.nextStreamId(receivers);
@@ -274,9 +271,7 @@ class RSocketRequester implements RSocket {
 
     if (!PayloadValidationUtils.isValid(this.mtu, payload)) {
       payload.release();
-      return Flux.error(
-          new IllegalArgumentException(
-              "The payload is too big to send as a single frame with a 24-bit encoded length. Consider enabling fragmentation via RSocketFactory."));
+      return Flux.error(new IllegalArgumentException(INVALID_PAYLOAD_ERROR_MESSAGE));
     }
 
     int streamId = streamIdSupplier.nextStreamId(receivers);
@@ -344,8 +339,7 @@ class RSocketRequester implements RSocket {
             if (!PayloadValidationUtils.isValid(mtu, payload)) {
               payload.release();
               final IllegalArgumentException t =
-                  new IllegalArgumentException(
-                      "The payload is too big to send as a single frame with a 24-bit encoded length. Consider enabling fragmentation via RSocketFactory.");
+                  new IllegalArgumentException(INVALID_PAYLOAD_ERROR_MESSAGE);
               errorConsumer.accept(t);
               return Mono.error(t);
             }
@@ -384,8 +378,7 @@ class RSocketRequester implements RSocket {
               payload.release();
               cancel();
               final IllegalArgumentException t =
-                  new IllegalArgumentException(
-                      "The payload is too big to send as a single frame with a 24-bit encoded length. Consider enabling fragmentation via RSocketFactory.");
+                  new IllegalArgumentException(INVALID_PAYLOAD_ERROR_MESSAGE);
               errorConsumer.accept(t);
               // no need to send any errors.
               sendProcessor.onNext(CancelFrameFlyweight.encode(allocator, streamId));
@@ -480,9 +473,7 @@ class RSocketRequester implements RSocket {
 
     if (!PayloadValidationUtils.isValid(this.mtu, payload)) {
       payload.release();
-      return Mono.error(
-          new IllegalArgumentException(
-              "The payload is too big to send as a single frame with a 24-bit encoded length. Consider enabling fragmentation via RSocketFactory."));
+      return Mono.error(new IllegalArgumentException(INVALID_PAYLOAD_ERROR_MESSAGE));
     }
 
     return UnicastMonoEmpty.newInstance(

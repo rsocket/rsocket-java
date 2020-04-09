@@ -16,6 +16,8 @@
 
 package io.rsocket.core;
 
+import static io.rsocket.core.PayloadValidationUtils.INVALID_PAYLOAD_ERROR_MESSAGE;
+
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.util.ReferenceCountUtil;
@@ -379,8 +381,7 @@ class RSocketResponder implements ResponderRSocket {
               payload.release();
               cancel();
               final IllegalArgumentException t =
-                  new IllegalArgumentException(
-                      "The payload is too big to send as a single frame with a 24-bit encoded length. Consider enabling fragmentation via RSocketFactory.");
+                  new IllegalArgumentException(INVALID_PAYLOAD_ERROR_MESSAGE);
               handleError(streamId, t);
               return;
             }
@@ -435,8 +436,7 @@ class RSocketResponder implements ResponderRSocket {
               payload.release();
               cancel();
               final IllegalArgumentException t =
-                  new IllegalArgumentException(
-                      "The payload is too big to send as a single frame with a 24-bit encoded length. Consider enabling fragmentation via RSocketFactory.");
+                  new IllegalArgumentException(INVALID_PAYLOAD_ERROR_MESSAGE);
               handleError(streamId, t);
               return;
             }

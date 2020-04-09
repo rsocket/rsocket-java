@@ -16,6 +16,7 @@
 
 package io.rsocket.core;
 
+import static io.rsocket.core.PayloadValidationUtils.INVALID_PAYLOAD_ERROR_MESSAGE;
 import static io.rsocket.frame.FrameHeaderFlyweight.frameType;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
@@ -153,12 +154,12 @@ public class RSocketResponderTest {
       Assertions.assertThat(rule.errors)
           .first()
           .isInstanceOf(IllegalArgumentException.class)
-          .hasToString("java.lang.IllegalArgumentException: The payload is too big to send as a single frame with a 24-bit encoded length. Consider enabling fragmentation via RSocketFactory.");
+          .hasToString("java.lang.IllegalArgumentException: " + INVALID_PAYLOAD_ERROR_MESSAGE);
       Assertions.assertThat(rule.connection.getSent())
           .hasSize(1)
           .first()
           .matches(bb -> FrameHeaderFlyweight.frameType(bb) == FrameType.ERROR)
-          .matches(bb -> ErrorFrameFlyweight.dataUtf8(bb).contains("The payload is too big to send as a single frame with a 24-bit encoded length. Consider enabling fragmentation via RSocketFactory."));
+          .matches(bb -> ErrorFrameFlyweight.dataUtf8(bb).contains(INVALID_PAYLOAD_ERROR_MESSAGE));
 
       assertThat("Subscription not cancelled.", cancelled.get(), is(true));
       rule.init();
