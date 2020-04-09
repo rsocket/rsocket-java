@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package io.rsocket;
+package io.rsocket.core;
 
 import static io.rsocket.keepalive.KeepAliveHandler.DefaultKeepAliveHandler;
 import static io.rsocket.keepalive.KeepAliveHandler.ResumableKeepAliveHandler;
@@ -22,6 +22,7 @@ import static io.rsocket.keepalive.KeepAliveHandler.ResumableKeepAliveHandler;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
+import io.rsocket.RSocket;
 import io.rsocket.exceptions.ConnectionErrorException;
 import io.rsocket.frame.FrameHeaderFlyweight;
 import io.rsocket.frame.FrameType;

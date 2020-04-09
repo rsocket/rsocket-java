@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.rsocket;
+package io.rsocket.core;
 
 import io.netty.util.collection.IntObjectMap;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;

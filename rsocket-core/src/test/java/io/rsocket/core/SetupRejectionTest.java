@@ -1,10 +1,11 @@
-package io.rsocket;
+package io.rsocket.core;
 
 import static io.rsocket.transport.ServerTransport.ConnectionAcceptor;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
+import io.rsocket.*;
 import io.rsocket.exceptions.Exceptions;
 import io.rsocket.exceptions.RejectedSetupException;
 import io.rsocket.frame.ErrorFrameFlyweight;

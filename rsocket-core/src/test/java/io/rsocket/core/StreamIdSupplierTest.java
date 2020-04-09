@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package io.rsocket;
+package io.rsocket.core;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;

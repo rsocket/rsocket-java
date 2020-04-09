@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package io.rsocket;
+package io.rsocket.core;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
@@ -23,6 +23,9 @@ import static org.mockito.Mockito.verify;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
+import io.rsocket.AbstractRSocket;
+import io.rsocket.Payload;
+import io.rsocket.RSocket;
 import io.rsocket.exceptions.ApplicationErrorException;
 import io.rsocket.exceptions.CustomRSocketException;
 import io.rsocket.lease.RequesterLeaseHandler;

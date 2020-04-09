@@ -13,10 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.rsocket;
+package io.rsocket.core;
 
 import static org.junit.Assert.assertEquals;
 
+import io.rsocket.RSocket;
+import io.rsocket.RSocketFactory;
 import io.rsocket.test.util.TestClientTransport;
 import io.rsocket.transport.ClientTransport;
 import java.io.UncheckedIOException;

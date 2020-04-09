@@ -1,4 +1,4 @@
-package io.rsocket;
+package io.rsocket.core;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
@@ -16,6 +16,6 @@ public class TestingStuff {
     ByteBuf byteBuf = Unpooled.wrappedBuffer(ByteBufUtil.decodeHexDump(f1));
     System.out.println(ByteBufUtil.prettyHexDump(byteBuf));
 
-    ConnectionSetupPayload.create(byteBuf);
+    new DefaultConnectionSetupPayload(byteBuf);
   }
 }
