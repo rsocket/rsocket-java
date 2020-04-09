@@ -317,7 +317,7 @@ class RSocketRequester implements RSocket {
         (s, flux) -> {
           Payload payload = s.get();
           if (payload != null) {
-            return handleChannel(payload, flux.skip(1));
+            return handleChannel(payload, flux);
           } else {
             return flux;
           }
@@ -334,6 +334,8 @@ class RSocketRequester implements RSocket {
     final BaseSubscriber<Payload> upstreamSubscriber =
         new BaseSubscriber<Payload>() {
 
+          boolean first = true;
+
           @Override
           protected void hookOnSubscribe(Subscription subscription) {
             // noops
@@ -341,6 +343,11 @@ class RSocketRequester implements RSocket {
 
           @Override
           protected void hookOnNext(Payload payload) {
+            if (first) {
+              // need to skip first since we have already sent it
+              first = false;
+              return;
+            }
             final ByteBuf frame =
                 PayloadFrameFlyweight.encode(allocator, streamId, false, false, true, payload);
 

@@ -229,7 +229,7 @@ public interface TransportTest {
         .verify(getTimeout());
 
     Assertions.assertThat(requested.get())
-        .isEqualTo(257L); // 257 because of eager behavior of limitRate
+        .isEqualTo(256L); // 256 because of eager behavior of limitRate
   }
 
   @DisplayName("makes 1 requestChannel request with 512 payloads")
