@@ -34,7 +34,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 /**
- * A {@link DuplexConnection} implementation that fragments and reassembles {@link ByteBuf}s.
+ * A {@link DuplexConnection} implementation that fragments {@link ByteBuf}s.
  *
  * @see <a
  *     href="https://github.com/rsocket/rsocket/blob/master/Protocol.md#fragmentation-and-reassembly">Fragmentation
@@ -138,23 +138,9 @@ public final class FragmentationDuplexConnection implements DuplexConnection {
     }
   }
 
-  private ByteBuf decode(ByteBuf frame) {
-    if (encodeLength) {
-      return FrameLengthFlyweight.frame(frame).retain();
-    } else {
-      return frame;
-    }
-  }
-
   @Override
   public Flux<ByteBuf> receive() {
-    return delegate
-        .receive()
-        .handle(
-            (byteBuf, sink) -> {
-              ByteBuf decode = decode(byteBuf);
-              frameReassembler.reassembleFrame(decode, sink);
-            });
+    return delegate.receive();
   }
 
   @Override

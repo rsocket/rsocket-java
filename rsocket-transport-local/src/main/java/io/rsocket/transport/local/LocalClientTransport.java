@@ -20,6 +20,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.DuplexConnection;
 import io.rsocket.fragmentation.FragmentationDuplexConnection;
+import io.rsocket.fragmentation.ReassemblyDuplexConnection;
 import io.rsocket.internal.UnboundedProcessor;
 import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.ServerTransport;
@@ -65,9 +66,18 @@ public final class LocalClientTransport implements ClientTransport {
           UnboundedProcessor<ByteBuf> out = new UnboundedProcessor<>();
           MonoProcessor<Void> closeNotifier = MonoProcessor.create();
 
-          server.accept(new LocalDuplexConnection(out, in, closeNotifier));
+          server.accept(
+              new ReassemblyDuplexConnection(
+                  new LocalDuplexConnection(out, in, closeNotifier),
+                  ByteBufAllocator.DEFAULT,
+                  false));
 
-          return Mono.just((DuplexConnection) new LocalDuplexConnection(in, out, closeNotifier));
+          return Mono.just(
+              (DuplexConnection)
+                  new ReassemblyDuplexConnection(
+                      new LocalDuplexConnection(in, out, closeNotifier),
+                      ByteBufAllocator.DEFAULT,
+                      false));
         });
   }
 

@@ -22,6 +22,7 @@ import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.Closeable;
 import io.rsocket.DuplexConnection;
 import io.rsocket.fragmentation.FragmentationDuplexConnection;
+import io.rsocket.fragmentation.ReassemblyDuplexConnection;
 import io.rsocket.transport.ServerTransport;
 import io.rsocket.transport.netty.WebsocketDuplexConnection;
 import java.util.Objects;
@@ -102,7 +103,9 @@ public final class WebsocketRouteTransport extends BaseWebsocketServerTransport<
   public static BiFunction<WebsocketInbound, WebsocketOutbound, Publisher<Void>> newHandler(
       ConnectionAcceptor acceptor, int mtu) {
     return (in, out) -> {
-      DuplexConnection connection = new WebsocketDuplexConnection((Connection) in);
+      DuplexConnection connection =
+          new ReassemblyDuplexConnection(
+              new WebsocketDuplexConnection((Connection) in), ByteBufAllocator.DEFAULT, false);
       if (mtu > 0) {
         connection =
             new FragmentationDuplexConnection(

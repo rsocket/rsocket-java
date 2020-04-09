@@ -19,6 +19,7 @@ package io.rsocket.transport.netty.server;
 import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.DuplexConnection;
 import io.rsocket.fragmentation.FragmentationDuplexConnection;
+import io.rsocket.fragmentation.ReassemblyDuplexConnection;
 import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.ServerTransport;
 import io.rsocket.transport.netty.RSocketLengthCodec;
@@ -105,13 +106,16 @@ public final class TcpServerTransport implements ServerTransport<CloseableChanne
                   if (mtu > 0) {
                     connection =
                         new FragmentationDuplexConnection(
-                            new TcpDuplexConnection(c, false),
+                            new ReassemblyDuplexConnection(
+                                new TcpDuplexConnection(c, false), ByteBufAllocator.DEFAULT, true),
                             ByteBufAllocator.DEFAULT,
                             mtu,
                             true,
                             "server");
                   } else {
-                    connection = new TcpDuplexConnection(c);
+                    connection =
+                        new ReassemblyDuplexConnection(
+                            new TcpDuplexConnection(c), ByteBufAllocator.DEFAULT, false);
                   }
                   acceptor
                       .apply(connection)

@@ -23,6 +23,7 @@ import static io.rsocket.transport.netty.UriUtils.isSecure;
 import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.DuplexConnection;
 import io.rsocket.fragmentation.FragmentationDuplexConnection;
+import io.rsocket.fragmentation.ReassemblyDuplexConnection;
 import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.ServerTransport;
 import io.rsocket.transport.TransportHeaderAware;
@@ -160,7 +161,9 @@ public final class WebsocketClientTransport implements ClientTransport, Transpor
             .connect()
             .map(
                 c -> {
-                  DuplexConnection connection = new WebsocketDuplexConnection(c);
+                  DuplexConnection connection =
+                      new ReassemblyDuplexConnection(
+                          new WebsocketDuplexConnection(c), ByteBufAllocator.DEFAULT, false);
                   if (mtu > 0) {
                     connection =
                         new FragmentationDuplexConnection(

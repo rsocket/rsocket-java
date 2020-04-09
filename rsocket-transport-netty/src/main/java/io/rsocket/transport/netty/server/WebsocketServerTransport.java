@@ -21,6 +21,7 @@ import static io.rsocket.frame.FrameLengthFlyweight.FRAME_LENGTH_MASK;
 import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.DuplexConnection;
 import io.rsocket.fragmentation.FragmentationDuplexConnection;
+import io.rsocket.fragmentation.ReassemblyDuplexConnection;
 import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.ServerTransport;
 import io.rsocket.transport.TransportHeaderAware;
@@ -125,7 +126,10 @@ public final class WebsocketServerTransport extends BaseWebsocketServerTransport
                   return response.sendWebsocket(
                       (in, out) -> {
                         DuplexConnection connection =
-                            new WebsocketDuplexConnection((Connection) in);
+                            new ReassemblyDuplexConnection(
+                                new WebsocketDuplexConnection((Connection) in),
+                                ByteBufAllocator.DEFAULT,
+                                false);
                         if (mtu > 0) {
                           connection =
                               new FragmentationDuplexConnection(
