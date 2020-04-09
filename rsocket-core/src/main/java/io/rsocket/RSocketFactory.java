@@ -89,25 +89,11 @@ public final class RSocketFactory {
 
     ClientRSocketFactory addConnectionPlugin(DuplexConnectionInterceptor interceptor);
 
-    @Deprecated
-    ClientRSocketFactory addClientPlugin(RSocketInterceptor interceptor);
-
     ClientRSocketFactory addRequesterPlugin(RSocketInterceptor interceptor);
-
-    @Deprecated
-    ClientRSocketFactory addServerPlugin(RSocketInterceptor interceptor);
 
     ClientRSocketFactory addResponderPlugin(RSocketInterceptor interceptor);
 
     ClientRSocketFactory addSocketAcceptorPlugin(SocketAcceptorInterceptor interceptor);
-
-    /**
-     * Deprecated as Keep-Alive is not optional according to spec
-     *
-     * @return this ClientRSocketFactory
-     */
-    @Deprecated
-    ClientRSocketFactory keepAlive();
 
     ClientRSocketFactory keepAlive(Duration tickPeriod, Duration ackTimeout, int missedAcks);
 
@@ -244,13 +230,7 @@ public final class RSocketFactory {
 
     ServerRSocketFactory addConnectionPlugin(DuplexConnectionInterceptor interceptor);
 
-    @Deprecated
-    ServerRSocketFactory addClientPlugin(RSocketInterceptor interceptor);
-
     ServerRSocketFactory addRequesterPlugin(RSocketInterceptor interceptor);
-
-    @Deprecated
-    ServerRSocketFactory addServerPlugin(RSocketInterceptor interceptor);
 
     ServerRSocketFactory addResponderPlugin(RSocketInterceptor interceptor);
 

@@ -114,24 +114,10 @@ public class DefaultClientRSocketFactory implements RSocketFactory.ClientRSocket
     return this;
   }
 
-  /** Deprecated. Use {@link #addRequesterPlugin(RSocketInterceptor)} instead */
-  @Override
-  @Deprecated
-  public RSocketFactory.ClientRSocketFactory addClientPlugin(RSocketInterceptor interceptor) {
-    return addRequesterPlugin(interceptor);
-  }
-
   @Override
   public RSocketFactory.ClientRSocketFactory addRequesterPlugin(RSocketInterceptor interceptor) {
     plugins.addRequesterPlugin(interceptor);
     return this;
-  }
-
-  /** Deprecated. Use {@link #addResponderPlugin(RSocketInterceptor)} instead */
-  @Override
-  @Deprecated
-  public RSocketFactory.ClientRSocketFactory addServerPlugin(RSocketInterceptor interceptor) {
-    return addResponderPlugin(interceptor);
   }
 
   @Override
@@ -144,12 +130,6 @@ public class DefaultClientRSocketFactory implements RSocketFactory.ClientRSocket
   public RSocketFactory.ClientRSocketFactory addSocketAcceptorPlugin(
       SocketAcceptorInterceptor interceptor) {
     plugins.addSocketAcceptorPlugin(interceptor);
-    return this;
-  }
-
-  @Override
-  @Deprecated
-  public RSocketFactory.ClientRSocketFactory keepAlive() {
     return this;
   }
 
