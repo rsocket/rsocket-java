@@ -19,7 +19,6 @@ package io.rsocket.lease;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.Availability;
-import io.rsocket.exceptions.MissingLeaseException;
 import io.rsocket.frame.LeaseFrameFlyweight;
 import java.util.Optional;
 import java.util.function.Consumer;
