@@ -1,11 +1,11 @@
-package io.rsocket.fragmentation;
+package io.rsocket.core;
 
 import io.netty.buffer.ByteBuf;
 import io.rsocket.Payload;
 import io.rsocket.frame.FrameHeaderFlyweight;
 import io.rsocket.frame.FrameLengthFlyweight;
 
-public final class FragmentationUtils {
+final class PayloadValidationUtils {
   public static boolean isValid(int mtu, Payload payload) {
     return payload.hasMetadata()
         ? isValid(mtu, payload.data(), payload.metadata())

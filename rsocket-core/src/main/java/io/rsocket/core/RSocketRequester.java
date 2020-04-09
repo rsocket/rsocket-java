@@ -189,7 +189,7 @@ class RSocketRequester implements RSocket {
       return Mono.error(err);
     }
 
-    if (!FragmentationUtils.isValid(this.mtu, payload)) {
+    if (!PayloadValidationUtils.isValid(this.mtu, payload)) {
       payload.release();
       return Mono.error(
           new IllegalArgumentException(
@@ -220,7 +220,7 @@ class RSocketRequester implements RSocket {
       return Mono.error(err);
     }
 
-    if (!FragmentationUtils.isValid(this.mtu, payload)) {
+    if (!PayloadValidationUtils.isValid(this.mtu, payload)) {
       payload.release();
       return Mono.error(
           new IllegalArgumentException(
@@ -272,7 +272,7 @@ class RSocketRequester implements RSocket {
       return Flux.error(err);
     }
 
-    if (!FragmentationUtils.isValid(this.mtu, payload)) {
+    if (!PayloadValidationUtils.isValid(this.mtu, payload)) {
       payload.release();
       return Flux.error(
           new IllegalArgumentException(
@@ -341,7 +341,7 @@ class RSocketRequester implements RSocket {
         (s, flux) -> {
           Payload payload = s.get();
           if (payload != null) {
-            if (!FragmentationUtils.isValid(mtu, payload)) {
+            if (!PayloadValidationUtils.isValid(mtu, payload)) {
               payload.release();
               final IllegalArgumentException t =
                   new IllegalArgumentException(
@@ -375,12 +375,12 @@ class RSocketRequester implements RSocket {
 
           @Override
           protected void hookOnNext(Payload payload) {
-if (first) {
+            if (first) {
               // need to skip first since we have already sent it
               first = false;
               return;
             }
-if (!FragmentationUtils.isValid(mtu, payload)) {
+            if (!PayloadValidationUtils.isValid(mtu, payload)) {
               payload.release();
               cancel();
               final IllegalArgumentException t =
@@ -478,7 +478,7 @@ if (!FragmentationUtils.isValid(mtu, payload)) {
       return Mono.error(err);
     }
 
-    if (!FragmentationUtils.isValid(this.mtu, payload)) {
+    if (!PayloadValidationUtils.isValid(this.mtu, payload)) {
       payload.release();
       return Mono.error(
           new IllegalArgumentException(

@@ -25,7 +25,6 @@ import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.ResponderRSocket;
 import io.rsocket.exceptions.ApplicationErrorException;
-import io.rsocket.fragmentation.FragmentationUtils;
 import io.rsocket.frame.*;
 import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.internal.SynchronizedIntObjectHashMap;
@@ -376,7 +375,7 @@ class RSocketResponder implements ResponderRSocket {
               isEmpty = false;
             }
 
-            if (!FragmentationUtils.isValid(mtu, payload)) {
+            if (!PayloadValidationUtils.isValid(mtu, payload)) {
               payload.release();
               cancel();
               final IllegalArgumentException t =
@@ -432,7 +431,7 @@ class RSocketResponder implements ResponderRSocket {
 
           @Override
           protected void hookOnNext(Payload payload) {
-            if (!FragmentationUtils.isValid(mtu, payload)) {
+            if (!PayloadValidationUtils.isValid(mtu, payload)) {
               payload.release();
               cancel();
               final IllegalArgumentException t =

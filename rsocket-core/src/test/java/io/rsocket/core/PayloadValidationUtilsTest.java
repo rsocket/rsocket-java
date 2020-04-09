@@ -1,4 +1,4 @@
-package io.rsocket.fragmentation;
+package io.rsocket.core;
 
 import io.rsocket.Payload;
 import io.rsocket.frame.FrameHeaderFlyweight;
@@ -8,7 +8,7 @@ import java.util.concurrent.ThreadLocalRandom;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-class FragmentationUtilsTest {
+class PayloadValidationUtilsTest {
 
   @Test
   void shouldBeValidFrameWithNoFragmentation() {
@@ -20,7 +20,7 @@ class FragmentationUtilsTest {
     ThreadLocalRandom.current().nextBytes(data);
     final Payload payload = DefaultPayload.create(data);
 
-    Assertions.assertThat(FragmentationUtils.isValid(0, payload)).isTrue();
+    Assertions.assertThat(PayloadValidationUtils.isValid(0, payload)).isTrue();
   }
 
   @Test
@@ -34,7 +34,7 @@ class FragmentationUtilsTest {
     ThreadLocalRandom.current().nextBytes(data);
     final Payload payload = DefaultPayload.create(data);
 
-    Assertions.assertThat(FragmentationUtils.isValid(0, payload)).isFalse();
+    Assertions.assertThat(PayloadValidationUtils.isValid(0, payload)).isFalse();
   }
 
   @Test
@@ -50,7 +50,7 @@ class FragmentationUtilsTest {
     ThreadLocalRandom.current().nextBytes(metadata);
     final Payload payload = DefaultPayload.create(data, metadata);
 
-    Assertions.assertThat(FragmentationUtils.isValid(0, payload)).isTrue();
+    Assertions.assertThat(PayloadValidationUtils.isValid(0, payload)).isTrue();
   }
 
   @Test
@@ -61,7 +61,7 @@ class FragmentationUtilsTest {
     ThreadLocalRandom.current().nextBytes(data);
     final Payload payload = DefaultPayload.create(data, metadata);
 
-    Assertions.assertThat(FragmentationUtils.isValid(0, payload)).isFalse();
+    Assertions.assertThat(PayloadValidationUtils.isValid(0, payload)).isFalse();
   }
 
   @Test
@@ -72,7 +72,7 @@ class FragmentationUtilsTest {
     ThreadLocalRandom.current().nextBytes(data);
     final Payload payload = DefaultPayload.create(data, metadata);
 
-    Assertions.assertThat(FragmentationUtils.isValid(0, payload)).isTrue();
+    Assertions.assertThat(PayloadValidationUtils.isValid(0, payload)).isTrue();
   }
 
   @Test
@@ -83,7 +83,7 @@ class FragmentationUtilsTest {
     ThreadLocalRandom.current().nextBytes(data);
     final Payload payload = DefaultPayload.create(data, metadata);
 
-    Assertions.assertThat(FragmentationUtils.isValid(64, payload)).isTrue();
+    Assertions.assertThat(PayloadValidationUtils.isValid(64, payload)).isTrue();
   }
 
   @Test
@@ -94,6 +94,6 @@ class FragmentationUtilsTest {
     ThreadLocalRandom.current().nextBytes(data);
     final Payload payload = DefaultPayload.create(data, metadata);
 
-    Assertions.assertThat(FragmentationUtils.isValid(64, payload)).isTrue();
+    Assertions.assertThat(PayloadValidationUtils.isValid(64, payload)).isTrue();
   }
 }
