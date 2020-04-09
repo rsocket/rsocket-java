@@ -277,16 +277,11 @@ public class RSocketRequesterTest {
     ByteBuf initialFrame = iterator.next();
 
     Assertions.assertThat(FrameHeaderFlyweight.frameType(initialFrame)).isEqualTo(REQUEST_CHANNEL);
-    Assertions.assertThat(RequestChannelFrameFlyweight.initialRequestN(initialFrame)).isEqualTo(1);
+    Assertions.assertThat(RequestChannelFrameFlyweight.initialRequestN(initialFrame))
+        .isEqualTo(Integer.MAX_VALUE);
     Assertions.assertThat(
             RequestChannelFrameFlyweight.data(initialFrame).toString(CharsetUtil.UTF_8))
         .isEqualTo("0");
-
-    ByteBuf requestNFrame = iterator.next();
-
-    Assertions.assertThat(FrameHeaderFlyweight.frameType(requestNFrame)).isEqualTo(REQUEST_N);
-    Assertions.assertThat(RequestNFrameFlyweight.requestN(requestNFrame))
-        .isEqualTo(Integer.MAX_VALUE);
 
     Assertions.assertThat(iterator.hasNext()).isFalse();
   }
@@ -329,7 +324,7 @@ public class RSocketRequesterTest {
                     RequestNFrameFlyweight.encode(
                         ByteBufAllocator.DEFAULT,
                         rule.getStreamIdForRequestType(REQUEST_CHANNEL),
-                        1)))
+                        2)))
         .expectErrorSatisfies(
             t ->
                 Assertions.assertThat(t)

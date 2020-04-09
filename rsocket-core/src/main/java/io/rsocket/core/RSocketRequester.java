@@ -486,6 +486,7 @@ class RSocketRequester implements RSocket {
         });
   }
 
+  @Nullable
   private Throwable checkAvailable() {
     Throwable err = this.terminationError;
     if (err != null) {
