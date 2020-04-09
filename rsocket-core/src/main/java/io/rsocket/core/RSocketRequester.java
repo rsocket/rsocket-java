@@ -16,6 +16,7 @@
 
 package io.rsocket.core;
 
+import static io.rsocket.core.PayloadValidationUtils.INVALID_PAYLOAD_ERROR_MESSAGE;
 import static io.rsocket.keepalive.KeepAliveSupport.ClientKeepAliveSupport;
 import static io.rsocket.keepalive.KeepAliveSupport.KeepAlive;
 
@@ -88,6 +89,7 @@ class RSocketRequester implements RSocket {
   private final IntObjectMap<Subscription> senders;
   private final IntObjectMap<Processor<Payload, Payload>> receivers;
   private final UnboundedProcessor<ByteBuf> sendProcessor;
+  private final int mtu;
   private final RequesterLeaseHandler leaseHandler;
   private final ByteBufAllocator allocator;
   private final KeepAliveFramesAcceptor keepAliveFramesAcceptor;
@@ -99,6 +101,7 @@ class RSocketRequester implements RSocket {
       PayloadDecoder payloadDecoder,
       Consumer<Throwable> errorConsumer,
       StreamIdSupplier streamIdSupplier,
+      int mtu,
       int keepAliveTickPeriod,
       int keepAliveAckTimeout,
       @Nullable KeepAliveHandler keepAliveHandler,
@@ -108,6 +111,7 @@ class RSocketRequester implements RSocket {
     this.payloadDecoder = payloadDecoder;
     this.errorConsumer = errorConsumer;
     this.streamIdSupplier = streamIdSupplier;
+    this.mtu = mtu;
     this.leaseHandler = leaseHandler;
     this.senders = new SynchronizedIntObjectHashMap<>();
     this.receivers = new SynchronizedIntObjectHashMap<>();
@@ -186,6 +190,11 @@ class RSocketRequester implements RSocket {
       return Mono.error(err);
     }
 
+    if (!PayloadValidationUtils.isValid(this.mtu, payload)) {
+      payload.release();
+      return Mono.error(new IllegalArgumentException(INVALID_PAYLOAD_ERROR_MESSAGE));
+    }
+
     final int streamId = streamIdSupplier.nextStreamId(receivers);
 
     return UnicastMonoEmpty.newInstance(
@@ -208,6 +217,11 @@ class RSocketRequester implements RSocket {
     if (err != null) {
       payload.release();
       return Mono.error(err);
+    }
+
+    if (!PayloadValidationUtils.isValid(this.mtu, payload)) {
+      payload.release();
+      return Mono.error(new IllegalArgumentException(INVALID_PAYLOAD_ERROR_MESSAGE));
     }
 
     int streamId = streamIdSupplier.nextStreamId(receivers);
@@ -253,6 +267,11 @@ class RSocketRequester implements RSocket {
     if (err != null) {
       payload.release();
       return Flux.error(err);
+    }
+
+    if (!PayloadValidationUtils.isValid(this.mtu, payload)) {
+      payload.release();
+      return Flux.error(new IllegalArgumentException(INVALID_PAYLOAD_ERROR_MESSAGE));
     }
 
     int streamId = streamIdSupplier.nextStreamId(receivers);
@@ -317,6 +336,13 @@ class RSocketRequester implements RSocket {
         (s, flux) -> {
           Payload payload = s.get();
           if (payload != null) {
+            if (!PayloadValidationUtils.isValid(mtu, payload)) {
+              payload.release();
+              final IllegalArgumentException t =
+                  new IllegalArgumentException(INVALID_PAYLOAD_ERROR_MESSAGE);
+              errorConsumer.accept(t);
+              return Mono.error(t);
+            }
             return handleChannel(payload, flux);
           } else {
             return flux;
@@ -346,6 +372,17 @@ class RSocketRequester implements RSocket {
             if (first) {
               // need to skip first since we have already sent it
               first = false;
+              return;
+            }
+            if (!PayloadValidationUtils.isValid(mtu, payload)) {
+              payload.release();
+              cancel();
+              final IllegalArgumentException t =
+                  new IllegalArgumentException(INVALID_PAYLOAD_ERROR_MESSAGE);
+              errorConsumer.accept(t);
+              // no need to send any errors.
+              sendProcessor.onNext(CancelFrameFlyweight.encode(allocator, streamId));
+              receiver.onError(t);
               return;
             }
             final ByteBuf frame =
@@ -434,6 +471,11 @@ class RSocketRequester implements RSocket {
       return Mono.error(err);
     }
 
+    if (!PayloadValidationUtils.isValid(this.mtu, payload)) {
+      payload.release();
+      return Mono.error(new IllegalArgumentException(INVALID_PAYLOAD_ERROR_MESSAGE));
+    }
+
     return UnicastMonoEmpty.newInstance(
         () -> {
           ByteBuf metadataPushFrame =
@@ -444,6 +486,7 @@ class RSocketRequester implements RSocket {
         });
   }
 
+  @Nullable
   private Throwable checkAvailable() {
     Throwable err = this.terminationError;
     if (err != null) {

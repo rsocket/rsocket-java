@@ -16,10 +16,21 @@
 
 package io.rsocket.core;
 
+import static io.rsocket.core.PayloadValidationUtils.INVALID_PAYLOAD_ERROR_MESSAGE;
 import static io.rsocket.frame.FrameHeaderFlyweight.frameType;
-import static io.rsocket.frame.FrameType.*;
+import static io.rsocket.frame.FrameType.CANCEL;
+import static io.rsocket.frame.FrameType.KEEPALIVE;
+import static io.rsocket.frame.FrameType.REQUEST_CHANNEL;
+import static io.rsocket.frame.FrameType.REQUEST_RESPONSE;
+import static io.rsocket.frame.FrameType.REQUEST_STREAM;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 
@@ -27,9 +38,18 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.util.CharsetUtil;
 import io.rsocket.Payload;
+import io.rsocket.RSocket;
 import io.rsocket.exceptions.ApplicationErrorException;
 import io.rsocket.exceptions.RejectedSetupException;
-import io.rsocket.frame.*;
+import io.rsocket.frame.CancelFrameFlyweight;
+import io.rsocket.frame.ErrorFrameFlyweight;
+import io.rsocket.frame.FrameHeaderFlyweight;
+import io.rsocket.frame.FrameLengthFlyweight;
+import io.rsocket.frame.FrameType;
+import io.rsocket.frame.PayloadFrameFlyweight;
+import io.rsocket.frame.RequestChannelFrameFlyweight;
+import io.rsocket.frame.RequestNFrameFlyweight;
+import io.rsocket.frame.RequestStreamFrameFlyweight;
 import io.rsocket.lease.RequesterLeaseHandler;
 import io.rsocket.test.util.TestSubscriber;
 import io.rsocket.util.DefaultPayload;
@@ -39,7 +59,10 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.BiFunction;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.assertj.core.api.Assertions;
 import org.junit.Rule;
 import org.junit.Test;
@@ -51,6 +74,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
 import reactor.core.publisher.UnicastProcessor;
+import reactor.test.StepVerifier;
 
 public class RSocketRequesterTest {
 
@@ -262,6 +286,62 @@ public class RSocketRequesterTest {
     Assertions.assertThat(iterator.hasNext()).isFalse();
   }
 
+  @Test
+  public void shouldThrownExceptionIfGivenPayloadIsExitsSizeAllowanceWithNoFragmentation() {
+    prepareCalls()
+        .forEach(
+            generator -> {
+              byte[] metadata = new byte[FrameLengthFlyweight.FRAME_LENGTH_MASK];
+              byte[] data = new byte[FrameLengthFlyweight.FRAME_LENGTH_MASK];
+              ThreadLocalRandom.current().nextBytes(metadata);
+              ThreadLocalRandom.current().nextBytes(data);
+              StepVerifier.create(
+                      generator.apply(rule.socket, DefaultPayload.create(data, metadata)))
+                  .expectSubscription()
+                  .expectErrorSatisfies(
+                      t ->
+                          Assertions.assertThat(t)
+                              .isInstanceOf(IllegalArgumentException.class)
+                              .hasMessage(INVALID_PAYLOAD_ERROR_MESSAGE))
+                  .verify();
+            });
+  }
+
+  @Test
+  public void
+      shouldThrownExceptionIfGivenPayloadIsExitsSizeAllowanceWithNoFragmentationForRequestChannelCase() {
+    byte[] metadata = new byte[FrameLengthFlyweight.FRAME_LENGTH_MASK];
+    byte[] data = new byte[FrameLengthFlyweight.FRAME_LENGTH_MASK];
+    ThreadLocalRandom.current().nextBytes(metadata);
+    ThreadLocalRandom.current().nextBytes(data);
+    StepVerifier.create(
+            rule.socket.requestChannel(
+                Flux.just(EmptyPayload.INSTANCE, DefaultPayload.create(data, metadata))))
+        .expectSubscription()
+        .then(
+            () ->
+                rule.connection.addToReceivedBuffer(
+                    RequestNFrameFlyweight.encode(
+                        ByteBufAllocator.DEFAULT,
+                        rule.getStreamIdForRequestType(REQUEST_CHANNEL),
+                        2)))
+        .expectErrorSatisfies(
+            t ->
+                Assertions.assertThat(t)
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage(INVALID_PAYLOAD_ERROR_MESSAGE))
+        .verify();
+  }
+
+  static Stream<BiFunction<RSocket, Payload, Publisher<?>>> prepareCalls() {
+    return Stream.of(
+        RSocket::fireAndForget,
+        RSocket::requestResponse,
+        RSocket::requestStream,
+        (rSocket, payload) -> rSocket.requestChannel(Flux.just(payload)),
+        RSocket::metadataPush);
+  }
+
   public int sendRequestResponse(Publisher<Payload> response) {
     Subscriber<Payload> sub = TestSubscriber.create();
     response.subscribe(sub);
@@ -283,6 +363,7 @@ public class RSocketRequesterTest {
           DefaultPayload::create,
           throwable -> errors.add(throwable),
           StreamIdSupplier.clientSupplier(),
+          0,
           0,
           0,
           null,

@@ -331,6 +331,7 @@ public class DefaultClientRSocketFactory implements RSocketFactory.ClientRSocket
                         payloadDecoder,
                         errorConsumer,
                         StreamIdSupplier.clientSupplier(),
+                        mtu,
                         keepAliveTickPeriod(),
                         keepAliveTimeout(),
                         keepAliveHandler,
@@ -379,7 +380,8 @@ public class DefaultClientRSocketFactory implements RSocketFactory.ClientRSocket
                                   wrappedRSocketHandler,
                                   payloadDecoder,
                                   errorConsumer,
-                                  responderLeaseHandler);
+                                  responderLeaseHandler,
+                                  mtu);
 
                           return wrappedConnection
                               .sendOne(setupFrame)

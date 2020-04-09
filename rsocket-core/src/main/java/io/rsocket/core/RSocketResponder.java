@@ -16,6 +16,8 @@
 
 package io.rsocket.core;
 
+import static io.rsocket.core.PayloadValidationUtils.INVALID_PAYLOAD_ERROR_MESSAGE;
+
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.util.ReferenceCountUtil;
@@ -51,6 +53,8 @@ class RSocketResponder implements ResponderRSocket {
   private final Consumer<Throwable> errorConsumer;
   private final ResponderLeaseHandler leaseHandler;
 
+  private final int mtu;
+
   private final IntObjectMap<Subscription> sendingSubscriptions;
   private final IntObjectMap<Processor<Payload, Payload>> channelProcessors;
 
@@ -63,9 +67,11 @@ class RSocketResponder implements ResponderRSocket {
       RSocket requestHandler,
       PayloadDecoder payloadDecoder,
       Consumer<Throwable> errorConsumer,
-      ResponderLeaseHandler leaseHandler) {
+      ResponderLeaseHandler leaseHandler,
+      int mtu) {
     this.allocator = allocator;
     this.connection = connection;
+    this.mtu = mtu;
 
     this.requestHandler = requestHandler;
     this.responderRSocket =
@@ -371,6 +377,15 @@ class RSocketResponder implements ResponderRSocket {
               isEmpty = false;
             }
 
+            if (!PayloadValidationUtils.isValid(mtu, payload)) {
+              payload.release();
+              cancel();
+              final IllegalArgumentException t =
+                  new IllegalArgumentException(INVALID_PAYLOAD_ERROR_MESSAGE);
+              handleError(streamId, t);
+              return;
+            }
+
             ByteBuf byteBuf;
             try {
               byteBuf = PayloadFrameFlyweight.encodeNextComplete(allocator, streamId, payload);
@@ -417,6 +432,15 @@ class RSocketResponder implements ResponderRSocket {
 
           @Override
           protected void hookOnNext(Payload payload) {
+            if (!PayloadValidationUtils.isValid(mtu, payload)) {
+              payload.release();
+              cancel();
+              final IllegalArgumentException t =
+                  new IllegalArgumentException(INVALID_PAYLOAD_ERROR_MESSAGE);
+              handleError(streamId, t);
+              return;
+            }
+
             ByteBuf byteBuf;
             try {
               byteBuf = PayloadFrameFlyweight.encodeNext(allocator, streamId, payload);

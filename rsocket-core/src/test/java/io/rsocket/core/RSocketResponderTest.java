@@ -16,6 +16,7 @@
 
 package io.rsocket.core;
 
+import static io.rsocket.core.PayloadValidationUtils.INVALID_PAYLOAD_ERROR_MESSAGE;
 import static io.rsocket.frame.FrameHeaderFlyweight.frameType;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
@@ -34,11 +35,15 @@ import io.rsocket.util.DefaultPayload;
 import io.rsocket.util.EmptyPayload;
 import java.util.Collection;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.assertj.core.api.Assertions;
 import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
+import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 public class RSocketResponderTest {
@@ -110,6 +115,58 @@ public class RSocketResponderTest {
     assertThat("Subscription not cancelled.", cancelled.get(), is(true));
   }
 
+  @Test
+  public void shouldThrownExceptionIfGivenPayloadIsExitsSizeAllowanceWithNoFragmentation() {
+    final int streamId = 4;
+    final AtomicBoolean cancelled = new AtomicBoolean();
+    byte[] metadata = new byte[FrameLengthFlyweight.FRAME_LENGTH_MASK];
+    byte[] data = new byte[FrameLengthFlyweight.FRAME_LENGTH_MASK];
+    ThreadLocalRandom.current().nextBytes(metadata);
+    ThreadLocalRandom.current().nextBytes(data);
+    final Payload payload = DefaultPayload.create(data, metadata);
+    final AbstractRSocket acceptingSocket =
+        new AbstractRSocket() {
+          @Override
+          public Mono<Payload> requestResponse(Payload p) {
+            return Mono.just(payload).doOnCancel(() -> cancelled.set(true));
+          }
+
+          @Override
+          public Flux<Payload> requestStream(Payload p) {
+            return Flux.just(payload).doOnCancel(() -> cancelled.set(true));
+          }
+
+          @Override
+          public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
+            return Flux.just(payload).doOnCancel(() -> cancelled.set(true));
+          }
+        };
+    rule.setAcceptingSocket(acceptingSocket);
+
+    final Runnable[] runnables = {
+      () -> rule.sendRequest(streamId, FrameType.REQUEST_RESPONSE),
+      () -> rule.sendRequest(streamId, FrameType.REQUEST_STREAM),
+      () -> rule.sendRequest(streamId, FrameType.REQUEST_CHANNEL)
+    };
+
+    for (Runnable runnable : runnables) {
+      runnable.run();
+      Assertions.assertThat(rule.errors)
+          .first()
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasToString("java.lang.IllegalArgumentException: " + INVALID_PAYLOAD_ERROR_MESSAGE);
+      Assertions.assertThat(rule.connection.getSent())
+          .hasSize(1)
+          .first()
+          .matches(bb -> FrameHeaderFlyweight.frameType(bb) == FrameType.ERROR)
+          .matches(bb -> ErrorFrameFlyweight.dataUtf8(bb).contains(INVALID_PAYLOAD_ERROR_MESSAGE));
+
+      assertThat("Subscription not cancelled.", cancelled.get(), is(true));
+      rule.init();
+      rule.setAcceptingSocket(acceptingSocket);
+    }
+  }
+
   public static class ServerSocketRule extends AbstractSocketRule<RSocketResponder> {
 
     private RSocket acceptingSocket;
@@ -151,7 +208,8 @@ public class RSocketResponderTest {
           acceptingSocket,
           DefaultPayload::create,
           throwable -> errors.add(throwable),
-          ResponderLeaseHandler.None);
+          ResponderLeaseHandler.None,
+          0);
     }
 
     private void sendRequest(int streamId, FrameType frameType) {
