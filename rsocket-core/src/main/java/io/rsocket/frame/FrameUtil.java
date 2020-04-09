@@ -22,6 +22,16 @@ public class FrameUtil {
         .append(Integer.toBinaryString(FrameHeaderFlyweight.flags(frame)))
         .append(" Length: " + frame.readableBytes());
 
+    if (frameType.hasInitialRequestN()) {
+      payload
+          .append(" InitialRequestN: ")
+          .append(RequestStreamFrameFlyweight.initialRequestN(frame));
+    }
+
+    if (frameType == FrameType.REQUEST_N) {
+      payload.append(" RequestN: ").append(RequestNFrameFlyweight.requestN(frame));
+    }
+
     if (FrameHeaderFlyweight.hasMetadata(frame)) {
       payload.append("\nMetadata:\n");
 
