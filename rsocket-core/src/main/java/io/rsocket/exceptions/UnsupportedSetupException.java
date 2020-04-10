@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2015-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 package io.rsocket.exceptions;
 
 import io.rsocket.frame.ErrorType;
+import javax.annotation.Nullable;
 
 /**
  * Some (or all) of the parameters specified by the client are unsupported by the server.
@@ -32,10 +33,9 @@ public final class UnsupportedSetupException extends SetupException {
    * Constructs a new exception with the specified message.
    *
    * @param message the message
-   * @throws NullPointerException if {@code message} is {@code null}
    */
   public UnsupportedSetupException(String message) {
-    super(message);
+    this(message, null);
   }
 
   /**
@@ -43,14 +43,8 @@ public final class UnsupportedSetupException extends SetupException {
    *
    * @param message the message
    * @param cause the cause of this exception
-   * @throws NullPointerException if {@code message} or {@code cause} is {@code null}
    */
-  public UnsupportedSetupException(String message, Throwable cause) {
-    super(message, cause);
-  }
-
-  @Override
-  public int errorCode() {
-    return ErrorType.UNSUPPORTED_SETUP;
+  public UnsupportedSetupException(String message, @Nullable Throwable cause) {
+    super(ErrorType.UNSUPPORTED_SETUP, message, cause);
   }
 }

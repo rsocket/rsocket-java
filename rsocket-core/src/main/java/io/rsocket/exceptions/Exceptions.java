@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2015-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,9 +16,21 @@
 
 package io.rsocket.exceptions;
 
-import static io.rsocket.frame.ErrorFrameFlyweight.*;
+import static io.rsocket.frame.ErrorFrameFlyweight.APPLICATION_ERROR;
+import static io.rsocket.frame.ErrorFrameFlyweight.CANCELED;
+import static io.rsocket.frame.ErrorFrameFlyweight.CONNECTION_CLOSE;
+import static io.rsocket.frame.ErrorFrameFlyweight.CONNECTION_ERROR;
+import static io.rsocket.frame.ErrorFrameFlyweight.INVALID;
+import static io.rsocket.frame.ErrorFrameFlyweight.INVALID_SETUP;
+import static io.rsocket.frame.ErrorFrameFlyweight.MAX_USER_ALLOWED_ERROR_CODE;
+import static io.rsocket.frame.ErrorFrameFlyweight.MIN_USER_ALLOWED_ERROR_CODE;
+import static io.rsocket.frame.ErrorFrameFlyweight.REJECTED;
+import static io.rsocket.frame.ErrorFrameFlyweight.REJECTED_RESUME;
+import static io.rsocket.frame.ErrorFrameFlyweight.REJECTED_SETUP;
+import static io.rsocket.frame.ErrorFrameFlyweight.UNSUPPORTED_SETUP;
 
 import io.netty.buffer.ByteBuf;
+import io.rsocket.RSocketErrorException;
 import io.rsocket.frame.ErrorFrameFlyweight;
 import java.util.Objects;
 
@@ -28,10 +40,10 @@ public final class Exceptions {
   private Exceptions() {}
 
   /**
-   * Create a {@link RSocketException} from a Frame that matches the error code it contains.
+   * Create a {@link RSocketErrorException} from a Frame that matches the error code it contains.
    *
    * @param frame the frame to retrieve the error code and message from
-   * @return a {@link RSocketException} that matches the error code in the Frame
+   * @return a {@link RSocketErrorException} that matches the error code in the Frame
    * @throws NullPointerException if {@code frame} is {@code null}
    */
   public static RuntimeException from(int streamId, ByteBuf frame) {

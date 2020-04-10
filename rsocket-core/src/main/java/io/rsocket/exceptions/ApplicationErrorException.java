@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2015-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 package io.rsocket.exceptions;
 
 import io.rsocket.frame.ErrorType;
+import javax.annotation.Nullable;
 
 /**
  * Application layer logic generating a Reactive Streams {@code onError} event.
@@ -32,10 +33,9 @@ public final class ApplicationErrorException extends RSocketException {
    * Constructs a new exception with the specified message.
    *
    * @param message the message
-   * @throws NullPointerException if {@code message} is {@code null}
    */
   public ApplicationErrorException(String message) {
-    super(message);
+    this(message, null);
   }
 
   /**
@@ -43,14 +43,8 @@ public final class ApplicationErrorException extends RSocketException {
    *
    * @param message the message
    * @param cause the cause of this exception
-   * @throws NullPointerException if {@code message} or {@code cause} is {@code null}
    */
-  public ApplicationErrorException(String message, Throwable cause) {
-    super(message, cause);
-  }
-
-  @Override
-  public int errorCode() {
-    return ErrorType.APPLICATION_ERROR;
+  public ApplicationErrorException(String message, @Nullable Throwable cause) {
+    super(ErrorType.APPLICATION_ERROR, message, cause);
   }
 }

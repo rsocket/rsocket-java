@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2015-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 package io.rsocket.exceptions;
 
 import io.rsocket.frame.ErrorType;
+import javax.annotation.Nullable;
 
 /**
  * Despite being a valid request, the Responder decided to reject it. The Responder guarantees that
@@ -34,10 +35,9 @@ public class RejectedException extends RSocketException implements Retryable {
    * Constructs a new exception with the specified message.
    *
    * @param message the message
-   * @throws NullPointerException if {@code message} is {@code null}
    */
   public RejectedException(String message) {
-    super(message);
+    this(message, null);
   }
 
   /**
@@ -45,14 +45,8 @@ public class RejectedException extends RSocketException implements Retryable {
    *
    * @param message the message
    * @param cause the cause of this exception
-   * @throws NullPointerException if {@code message} or {@code cause} is {@code null}
    */
-  public RejectedException(String message, Throwable cause) {
-    super(message, cause);
-  }
-
-  @Override
-  public int errorCode() {
-    return ErrorType.REJECTED;
+  public RejectedException(String message, @Nullable Throwable cause) {
+    super(ErrorType.REJECTED, message, cause);
   }
 }
