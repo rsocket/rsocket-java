@@ -21,6 +21,7 @@ import static io.rsocket.core.PayloadValidationUtils.INVALID_PAYLOAD_ERROR_MESSA
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.util.ReferenceCountUtil;
+import io.netty.util.ReferenceCounted;
 import io.netty.util.collection.IntObjectMap;
 import io.rsocket.DuplexConnection;
 import io.rsocket.Payload;
@@ -45,6 +46,8 @@ import reactor.util.concurrent.Queues;
 
 /** Responder side of RSocket. Receives {@link ByteBuf}s from a peer's {@link RSocketRequester} */
 class RSocketResponder implements ResponderRSocket {
+  private static final Consumer<ReferenceCounted> DROPPED_ELEMENTS_CONSUMER =
+      ReferenceCountUtil::safeRelease;
 
   private final DuplexConnection connection;
   private final RSocket requestHandler;
@@ -418,7 +421,7 @@ class RSocketResponder implements ResponderRSocket {
         };
 
     sendingSubscriptions.put(streamId, subscriber);
-    response.subscribe(subscriber);
+    response.doOnDiscard(ReferenceCounted.class, DROPPED_ELEMENTS_CONSUMER).subscribe(subscriber);
   }
 
   private void handleStream(int streamId, Flux<Payload> response, int initialRequestN) {
@@ -471,11 +474,15 @@ class RSocketResponder implements ResponderRSocket {
         };
 
     sendingSubscriptions.put(streamId, subscriber);
-    response.limitRate(Queues.SMALL_BUFFER_SIZE).subscribe(subscriber);
+    response
+        .limitRate(Queues.SMALL_BUFFER_SIZE)
+        .doOnDiscard(ReferenceCounted.class, DROPPED_ELEMENTS_CONSUMER)
+        .subscribe(subscriber);
   }
 
   private void handleChannel(int streamId, Payload payload, int initialRequestN) {
-    UnicastProcessor<Payload> frames = UnicastProcessor.create();
+    UnicastProcessor<Payload> frames =
+        UnicastProcessor.create(new CleanOnClearQueueDecorator(Queues.<Payload>unbounded().get()));
     channelProcessors.put(streamId, frames);
 
     Flux<Payload> payloads =
@@ -499,7 +506,8 @@ class RSocketResponder implements ResponderRSocket {
                     sendProcessor.onNext(RequestNFrameFlyweight.encode(allocator, streamId, n));
                   }
                 })
-            .doFinally(signalType -> channelProcessors.remove(streamId));
+            .doFinally(signalType -> channelProcessors.remove(streamId))
+            .doOnDiscard(ReferenceCounted.class, DROPPED_ELEMENTS_CONSUMER);
 
     // not chained, as the payload should be enqueued in the Unicast processor before this method
     // returns
