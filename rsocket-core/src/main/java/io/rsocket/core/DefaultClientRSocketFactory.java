@@ -17,6 +17,7 @@ package io.rsocket.core;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
+import io.netty.buffer.Unpooled;
 import io.rsocket.AbstractRSocket;
 import io.rsocket.ConnectionSetupPayload;
 import io.rsocket.DuplexConnection;
@@ -28,7 +29,6 @@ import io.rsocket.frame.ResumeFrameFlyweight;
 import io.rsocket.frame.SetupFrameFlyweight;
 import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.internal.ClientServerInputMultiplexer;
-import io.rsocket.internal.ClientSetup;
 import io.rsocket.keepalive.KeepAliveHandler;
 import io.rsocket.lease.LeaseStats;
 import io.rsocket.lease.Leases;
@@ -39,6 +39,7 @@ import io.rsocket.plugins.PluginRegistry;
 import io.rsocket.plugins.Plugins;
 import io.rsocket.plugins.RSocketInterceptor;
 import io.rsocket.plugins.SocketAcceptorInterceptor;
+import io.rsocket.resume.ClientRSocketSession;
 import io.rsocket.resume.ExponentialBackoffResumeStrategy;
 import io.rsocket.resume.InMemoryResumableFramesStore;
 import io.rsocket.resume.ResumableFramesStore;
@@ -309,10 +310,31 @@ public class DefaultClientRSocketFactory implements RSocketFactory.ClientRSocket
       return newConnection()
           .flatMap(
               connection -> {
-                ClientSetup clientSetup = clientSetup(connection);
-                ByteBuf resumeToken = clientSetup.resumeToken();
-                KeepAliveHandler keepAliveHandler = clientSetup.keepAliveHandler();
-                DuplexConnection wrappedConnection = clientSetup.connection();
+                ByteBuf resumeToken;
+                KeepAliveHandler keepAliveHandler;
+                DuplexConnection wrappedConnection;
+
+                if (resumeEnabled) {
+                  resumeToken = resumeTokenSupplier.get();
+                  ClientRSocketSession session =
+                      new ClientRSocketSession(
+                              connection,
+                              allocator,
+                              resumeSessionDuration,
+                              resumeStrategySupplier,
+                              resumeStoreFactory.apply(resumeToken),
+                              resumeStreamTimeout,
+                              resumeCleanupStoreOnKeepAlive)
+                          .continueWith(newConnection())
+                          .resumeToken(resumeToken);
+                  keepAliveHandler =
+                      new KeepAliveHandler.ResumableKeepAliveHandler(session.resumableConnection());
+                  wrappedConnection = session.resumableConnection();
+                } else {
+                  resumeToken = Unpooled.EMPTY_BUFFER;
+                  keepAliveHandler = new KeepAliveHandler.DefaultKeepAliveHandler(connection);
+                  wrappedConnection = connection;
+                }
 
                 ClientServerInputMultiplexer multiplexer =
                     new ClientServerInputMultiplexer(wrappedConnection, plugins, true);
@@ -405,24 +427,6 @@ public class DefaultClientRSocketFactory implements RSocketFactory.ClientRSocket
 
     private int keepAliveTimeout() {
       return (int) (ackTimeout.toMillis() + tickPeriod.toMillis() * missedAcks);
-    }
-
-    private ClientSetup clientSetup(DuplexConnection startConnection) {
-      if (resumeEnabled) {
-        ByteBuf resumeToken = resumeTokenSupplier.get();
-        return new ClientSetup.ResumableClientSetup(
-            allocator,
-            startConnection,
-            newConnection(),
-            resumeToken,
-            resumeStoreFactory.apply(resumeToken),
-            resumeSessionDuration,
-            resumeStreamTimeout,
-            resumeStrategySupplier,
-            resumeCleanupStoreOnKeepAlive);
-      } else {
-        return new ClientSetup.DefaultClientSetup(startConnection);
-      }
     }
 
     private Mono<DuplexConnection> newConnection() {

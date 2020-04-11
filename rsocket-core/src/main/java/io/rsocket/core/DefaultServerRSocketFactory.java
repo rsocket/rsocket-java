@@ -29,7 +29,6 @@ import io.rsocket.frame.FrameHeaderFlyweight;
 import io.rsocket.frame.SetupFrameFlyweight;
 import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.internal.ClientServerInputMultiplexer;
-import io.rsocket.internal.ServerSetup;
 import io.rsocket.lease.Leases;
 import io.rsocket.lease.RequesterLeaseHandler;
 import io.rsocket.lease.ResponderLeaseHandler;
@@ -42,7 +41,6 @@ import io.rsocket.resume.InMemoryResumableFramesStore;
 import io.rsocket.resume.ResumableFramesStore;
 import io.rsocket.resume.SessionManager;
 import io.rsocket.transport.ServerTransport;
-import io.rsocket.util.ConnectionUtils;
 import io.rsocket.util.MultiSubscriberRSocket;
 import java.time.Duration;
 import java.util.Objects;
@@ -232,7 +230,16 @@ public class DefaultServerRSocketFactory implements RSocketFactory.ServerRSocket
         case RESUME:
           return acceptResume(serverSetup, startFrame, multiplexer);
         default:
-          return acceptUnknown(startFrame, multiplexer);
+          return serverSetup
+              .sendError(
+                  multiplexer,
+                  new InvalidSetupException(
+                      "invalid setup frame: " + FrameHeaderFlyweight.frameType(startFrame)))
+              .doFinally(
+                  signalType -> {
+                    startFrame.release();
+                    multiplexer.dispose();
+                  });
       }
     }
 
@@ -240,7 +247,8 @@ public class DefaultServerRSocketFactory implements RSocketFactory.ServerRSocket
         ServerSetup serverSetup, ByteBuf setupFrame, ClientServerInputMultiplexer multiplexer) {
 
       if (!SetupFrameFlyweight.isSupportedVersion(setupFrame)) {
-        return sendError(
+        return serverSetup
+            .sendError(
                 multiplexer,
                 new InvalidSetupException(
                     "Unsupported version: " + SetupFrameFlyweight.humanReadableVersion(setupFrame)))
@@ -254,7 +262,8 @@ public class DefaultServerRSocketFactory implements RSocketFactory.ServerRSocket
       boolean isLeaseEnabled = leaseEnabled;
 
       if (SetupFrameFlyweight.honorLease(setupFrame) && !isLeaseEnabled) {
-        return sendError(multiplexer, new InvalidSetupException("lease is not supported"))
+        return serverSetup
+            .sendError(multiplexer, new InvalidSetupException("lease is not supported"))
             .doFinally(
                 signalType -> {
                   setupFrame.release();
@@ -296,7 +305,10 @@ public class DefaultServerRSocketFactory implements RSocketFactory.ServerRSocket
                 .applySocketAcceptorInterceptor(acceptor)
                 .accept(setupPayload, wrappedRSocketRequester)
                 .onErrorResume(
-                    err -> sendError(multiplexer, rejectedSetupError(err)).then(Mono.error(err)))
+                    err ->
+                        serverSetup
+                            .sendError(multiplexer, rejectedSetupError(err))
+                            .then(Mono.error(err)))
                 .doOnNext(
                     rSocketHandler -> {
                       RSocket wrappedRSocketHandler = plugins.applyResponder(rSocketHandler);
@@ -355,22 +367,6 @@ public class DefaultServerRSocketFactory implements RSocketFactory.ServerRSocket
               resumeStoreFactory,
               resumeCleanupStoreOnKeepAlive)
           : new ServerSetup.DefaultServerSetup(allocator);
-    }
-
-    private Mono<Void> acceptUnknown(ByteBuf frame, ClientServerInputMultiplexer multiplexer) {
-      return sendError(
-              multiplexer,
-              new InvalidSetupException(
-                  "invalid setup frame: " + FrameHeaderFlyweight.frameType(frame)))
-          .doFinally(
-              signalType -> {
-                frame.release();
-                multiplexer.dispose();
-              });
-    }
-
-    private Mono<Void> sendError(ClientServerInputMultiplexer multiplexer, Exception exception) {
-      return ConnectionUtils.sendError(allocator, multiplexer, exception);
     }
 
     private Exception rejectedSetupError(Throwable err) {

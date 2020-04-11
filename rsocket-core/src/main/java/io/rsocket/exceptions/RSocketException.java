@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2015-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,41 +16,48 @@
 
 package io.rsocket.exceptions;
 
-import java.util.Objects;
+import io.rsocket.RSocketErrorException;
+import io.rsocket.frame.ErrorFrameFlyweight;
 import reactor.util.annotation.Nullable;
 
-/** The root of the RSocket exception hierarchy. */
-public abstract class RSocketException extends RuntimeException {
+/**
+ * The root of the RSocket exception hierarchy.
+ *
+ * @deprecated please use {@link RSocketErrorException} instead
+ */
+@Deprecated
+public abstract class RSocketException extends RSocketErrorException {
 
   private static final long serialVersionUID = 2912815394105575423L;
 
   /**
-   * Constructs a new exception with the specified message.
+   * Constructs a new exception with the specified message and error code 0x201 (Application error).
    *
    * @param message the message
-   * @throws NullPointerException if {@code message} is {@code null}
    */
   public RSocketException(String message) {
-    super(Objects.requireNonNull(message, "message must not be null"));
+    this(message, null);
   }
 
   /**
-   * Constructs a new exception with the specified message and cause.
+   * Constructs a new exception with the specified message and cause and error code 0x201
+   * (Application error).
    *
    * @param message the message
    * @param cause the cause of this exception
-   * @throws NullPointerException if {@code message} is {@code null}
    */
   public RSocketException(String message, @Nullable Throwable cause) {
-    super(Objects.requireNonNull(message, "message must not be null"), cause);
+    super(ErrorFrameFlyweight.APPLICATION_ERROR, message, cause);
   }
 
   /**
-   * Returns the RSocket <a
-   * href="https://github.com/rsocket/rsocket/blob/master/Protocol.md#error-codes">error code</a>
-   * represented by this exception
+   * Constructs a new exception with the specified error code, message and cause.
    *
-   * @return the RSocket error code
+   * @param errorCode the RSocket protocol error code
+   * @param message the message
+   * @param cause the cause of this exception
    */
-  public abstract int errorCode();
+  public RSocketException(int errorCode, String message, @Nullable Throwable cause) {
+    super(errorCode, message, cause);
+  }
 }
