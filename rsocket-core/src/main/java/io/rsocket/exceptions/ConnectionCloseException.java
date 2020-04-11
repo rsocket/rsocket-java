@@ -16,7 +16,7 @@
 
 package io.rsocket.exceptions;
 
-import io.rsocket.frame.ErrorType;
+import io.rsocket.frame.ErrorFrameFlyweight;
 import javax.annotation.Nullable;
 
 /**
@@ -46,6 +46,6 @@ public final class ConnectionCloseException extends RSocketException {
    * @param cause the cause of this exception
    */
   public ConnectionCloseException(String message, @Nullable Throwable cause) {
-    super(ErrorType.CONNECTION_CLOSE, message, cause);
+    super(ErrorFrameFlyweight.CONNECTION_CLOSE, message, cause);
   }
 }

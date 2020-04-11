@@ -5,7 +5,9 @@ package io.rsocket.frame;
  *
  * @see <a href="https://github.com/rsocket/rsocket/blob/master/Protocol.md#error-codes">Error
  *     Codes</a>
+ * @deprecated please use constants in {@link ErrorFrameFlyweight}.
  */
+@Deprecated
 public final class ErrorType {
 
   /**

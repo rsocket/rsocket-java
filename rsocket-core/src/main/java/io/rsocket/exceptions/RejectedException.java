@@ -16,7 +16,7 @@
 
 package io.rsocket.exceptions;
 
-import io.rsocket.frame.ErrorType;
+import io.rsocket.frame.ErrorFrameFlyweight;
 import javax.annotation.Nullable;
 
 /**
@@ -47,6 +47,6 @@ public class RejectedException extends RSocketException implements Retryable {
    * @param cause the cause of this exception
    */
   public RejectedException(String message, @Nullable Throwable cause) {
-    super(ErrorType.REJECTED, message, cause);
+    super(ErrorFrameFlyweight.REJECTED, message, cause);
   }
 }

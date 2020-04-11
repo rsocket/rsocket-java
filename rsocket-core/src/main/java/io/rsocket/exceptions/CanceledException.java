@@ -16,7 +16,7 @@
 
 package io.rsocket.exceptions;
 
-import io.rsocket.frame.ErrorType;
+import io.rsocket.frame.ErrorFrameFlyweight;
 import javax.annotation.Nullable;
 
 /**
@@ -46,6 +46,6 @@ public final class CanceledException extends RSocketException {
    * @param cause the cause of this exception
    */
   public CanceledException(String message, @Nullable Throwable cause) {
-    super(ErrorType.CANCELED, message, cause);
+    super(ErrorFrameFlyweight.CANCELED, message, cause);
   }
 }

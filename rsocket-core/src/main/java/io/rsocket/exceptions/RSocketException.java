@@ -17,6 +17,7 @@
 package io.rsocket.exceptions;
 
 import io.rsocket.RSocketErrorException;
+import io.rsocket.frame.ErrorFrameFlyweight;
 import reactor.util.annotation.Nullable;
 
 /**
@@ -46,7 +47,7 @@ public abstract class RSocketException extends RSocketErrorException {
    * @param cause the cause of this exception
    */
   public RSocketException(String message, @Nullable Throwable cause) {
-    super(0x00000201, message, cause);
+    super(ErrorFrameFlyweight.APPLICATION_ERROR, message, cause);
   }
 
   /**

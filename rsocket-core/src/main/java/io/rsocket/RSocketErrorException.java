@@ -28,6 +28,10 @@ public class RSocketErrorException extends RuntimeException {
 
   private static final long serialVersionUID = -1628781753426267554L;
 
+  private static final int MIN_ERROR_CODE = 0x00000001;
+
+  private static final int MAX_ERROR_CODE = 0xFFFFFFFE;
+
   private final int errorCode;
 
   /**
@@ -50,9 +54,7 @@ public class RSocketErrorException extends RuntimeException {
   public RSocketErrorException(int errorCode, String message, @Nullable Throwable cause) {
     super(message, cause);
     this.errorCode = errorCode;
-
-    // Avoid dependency on frame package
-    if (errorCode > 0xFFFFFFFE && errorCode < 0x00000001) {
+    if (errorCode > MAX_ERROR_CODE && errorCode < MIN_ERROR_CODE) {
       throw new IllegalArgumentException(
           "Allowed errorCode value should be in range [0x00000001-0xFFFFFFFE]", this);
     }

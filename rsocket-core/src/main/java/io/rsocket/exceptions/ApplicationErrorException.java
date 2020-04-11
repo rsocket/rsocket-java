@@ -16,7 +16,7 @@
 
 package io.rsocket.exceptions;
 
-import io.rsocket.frame.ErrorType;
+import io.rsocket.frame.ErrorFrameFlyweight;
 import javax.annotation.Nullable;
 
 /**
@@ -45,6 +45,6 @@ public final class ApplicationErrorException extends RSocketException {
    * @param cause the cause of this exception
    */
   public ApplicationErrorException(String message, @Nullable Throwable cause) {
-    super(ErrorType.APPLICATION_ERROR, message, cause);
+    super(ErrorFrameFlyweight.APPLICATION_ERROR, message, cause);
   }
 }
