@@ -64,10 +64,9 @@ public class LeaksTrackingByteBufAllocator implements ByteBufAllocator {
     public LeaksTrackingByteBufAllocator assertHasNoLeaks() {
         Assertions.assertThat(tracker)
                 .allSatisfy(buf -> {
-                    ByteBuf unwrap = buf.unwrap();
-                    if (unwrap instanceof CompositeByteBuf) {
+                    if (buf instanceof CompositeByteBuf) {
                         if (buf.refCnt() > 0) {
-                            List<ByteBuf> decomposed = ((CompositeByteBuf) unwrap).decompose(0, unwrap.readableBytes());
+                            List<ByteBuf> decomposed = ((CompositeByteBuf) buf).decompose(0, buf.readableBytes());
                             for (int i = 0; i < decomposed.size(); i++) {
                                Assertions.assertThat(decomposed.get(i))
                                        .matches(bb -> bb.refCnt() == 0, "Got unreleased CompositeByteBuf");

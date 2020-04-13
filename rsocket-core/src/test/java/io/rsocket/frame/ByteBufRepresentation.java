@@ -17,6 +17,7 @@ package io.rsocket.frame;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
+import io.netty.util.IllegalReferenceCountException;
 import org.assertj.core.presentation.StandardRepresentation;
 
 public final class ByteBufRepresentation extends StandardRepresentation {
@@ -24,7 +25,11 @@ public final class ByteBufRepresentation extends StandardRepresentation {
   @Override
   protected String fallbackToStringOf(Object object) {
     if (object instanceof ByteBuf) {
-      return ByteBufUtil.prettyHexDump((ByteBuf) object);
+      try {
+        return ByteBufUtil.prettyHexDump((ByteBuf) object);
+      } catch (IllegalReferenceCountException e) {
+        //noops
+      }
     }
 
     return super.fallbackToStringOf(object);
