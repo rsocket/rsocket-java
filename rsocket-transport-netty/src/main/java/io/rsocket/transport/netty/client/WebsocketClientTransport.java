@@ -161,13 +161,14 @@ public final class WebsocketClientTransport implements ClientTransport, Transpor
             .connect()
             .map(
                 c -> {
-                  DuplexConnection connection =
-                      new ReassemblyDuplexConnection(
-                          new WebsocketDuplexConnection(c), ByteBufAllocator.DEFAULT, false);
+                  DuplexConnection connection = new WebsocketDuplexConnection(c);
                   if (mtu > 0) {
                     connection =
                         new FragmentationDuplexConnection(
                             connection, ByteBufAllocator.DEFAULT, mtu, false, "client");
+                  } else {
+                    connection =
+                        new ReassemblyDuplexConnection(connection, ByteBufAllocator.DEFAULT, false);
                   }
                   return connection;
                 });

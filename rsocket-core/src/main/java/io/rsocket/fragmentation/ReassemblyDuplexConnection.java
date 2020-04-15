@@ -32,7 +32,7 @@ import reactor.core.publisher.Mono;
  *     href="https://github.com/rsocket/rsocket/blob/master/Protocol.md#fragmentation-and-reassembly">Fragmentation
  *     and Reassembly</a>
  */
-public final class ReassemblyDuplexConnection implements DuplexConnection {
+public class ReassemblyDuplexConnection implements DuplexConnection {
   private final DuplexConnection delegate;
   private final FrameReassembler frameReassembler;
   private final boolean decodeLength;

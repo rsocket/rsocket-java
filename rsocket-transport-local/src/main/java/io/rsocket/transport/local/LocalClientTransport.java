@@ -66,18 +66,9 @@ public final class LocalClientTransport implements ClientTransport {
           UnboundedProcessor<ByteBuf> out = new UnboundedProcessor<>();
           MonoProcessor<Void> closeNotifier = MonoProcessor.create();
 
-          server.accept(
-              new ReassemblyDuplexConnection(
-                  new LocalDuplexConnection(out, in, closeNotifier),
-                  ByteBufAllocator.DEFAULT,
-                  false));
+          server.accept(new LocalDuplexConnection(out, in, closeNotifier));
 
-          return Mono.just(
-              (DuplexConnection)
-                  new ReassemblyDuplexConnection(
-                      new LocalDuplexConnection(in, out, closeNotifier),
-                      ByteBufAllocator.DEFAULT,
-                      false));
+          return Mono.just((DuplexConnection) new LocalDuplexConnection(in, out, closeNotifier));
         });
   }
 
@@ -85,13 +76,16 @@ public final class LocalClientTransport implements ClientTransport {
   public Mono<DuplexConnection> connect(int mtu) {
     Mono<DuplexConnection> isError = FragmentationDuplexConnection.checkMtu(mtu);
     Mono<DuplexConnection> connect = isError != null ? isError : connect();
-    if (mtu > 0) {
-      return connect.map(
-          duplexConnection ->
-              new FragmentationDuplexConnection(
-                  duplexConnection, ByteBufAllocator.DEFAULT, mtu, false, "client"));
-    } else {
-      return connect;
-    }
+
+    return connect.map(
+        duplexConnection -> {
+          if (mtu > 0) {
+            return new FragmentationDuplexConnection(
+                duplexConnection, ByteBufAllocator.DEFAULT, mtu, false, "client");
+          } else {
+            return new ReassemblyDuplexConnection(
+                duplexConnection, ByteBufAllocator.DEFAULT, false);
+          }
+        });
   }
 }

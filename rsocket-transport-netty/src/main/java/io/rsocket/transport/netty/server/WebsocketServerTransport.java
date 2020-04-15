@@ -126,14 +126,15 @@ public final class WebsocketServerTransport extends BaseWebsocketServerTransport
                   return response.sendWebsocket(
                       (in, out) -> {
                         DuplexConnection connection =
-                            new ReassemblyDuplexConnection(
-                                new WebsocketDuplexConnection((Connection) in),
-                                ByteBufAllocator.DEFAULT,
-                                false);
+                            new WebsocketDuplexConnection((Connection) in);
                         if (mtu > 0) {
                           connection =
                               new FragmentationDuplexConnection(
                                   connection, ByteBufAllocator.DEFAULT, mtu, false, "server");
+                        } else {
+                          connection =
+                              new ReassemblyDuplexConnection(
+                                  connection, ByteBufAllocator.DEFAULT, false);
                         }
                         return acceptor.apply(connection).then(out.neverComplete());
                       },

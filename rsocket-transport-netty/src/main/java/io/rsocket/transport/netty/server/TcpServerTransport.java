@@ -106,8 +106,7 @@ public final class TcpServerTransport implements ServerTransport<CloseableChanne
                   if (mtu > 0) {
                     connection =
                         new FragmentationDuplexConnection(
-                            new ReassemblyDuplexConnection(
-                                new TcpDuplexConnection(c, false), ByteBufAllocator.DEFAULT, true),
+                            new TcpDuplexConnection(c, false),
                             ByteBufAllocator.DEFAULT,
                             mtu,
                             true,
