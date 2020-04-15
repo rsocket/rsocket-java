@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2015-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
 package io.rsocket.transport.netty;
 
 import io.rsocket.RSocket;
-import io.rsocket.RSocketFactory;
+import io.rsocket.core.RSocketConnector;
 import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.test.PingClient;
 import io.rsocket.transport.netty.client.WebsocketClientTransport;
@@ -29,10 +29,9 @@ public final class WebsocketPing {
 
   public static void main(String... args) {
     Mono<RSocket> client =
-        RSocketFactory.connect()
-            .frameDecoder(PayloadDecoder.ZERO_COPY)
-            .transport(WebsocketClientTransport.create(7878))
-            .start();
+        RSocketConnector.create()
+            .payloadDecoder(PayloadDecoder.ZERO_COPY)
+            .connect(WebsocketClientTransport.create(7878));
 
     PingClient pingClient = new PingClient(client);
 

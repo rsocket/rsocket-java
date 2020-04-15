@@ -32,7 +32,7 @@ public class SetupRejectionTest {
 
     String errorMsg = "error";
     RejectingAcceptor acceptor = new RejectingAcceptor(errorMsg);
-    RSocketFactory.receive().acceptor(acceptor).transport(transport).start().block();
+    RSocketServer.create().acceptor(acceptor).bind(transport).block();
 
     transport.connect();
 

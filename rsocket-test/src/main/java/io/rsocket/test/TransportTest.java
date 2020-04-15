@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2015-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,7 +19,8 @@ package io.rsocket.test;
 import io.rsocket.Closeable;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
-import io.rsocket.RSocketFactory;
+import io.rsocket.core.RSocketConnector;
+import io.rsocket.core.RSocketServer;
 import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.ServerTransport;
 import io.rsocket.util.DefaultPayload;
@@ -380,17 +381,12 @@ public interface TransportTest {
       T address = addressSupplier.get();
 
       server =
-          RSocketFactory.receive()
-              .acceptor((setup, sendingSocket) -> Mono.just(new TestRSocket(data, metadata)))
-              .transport(serverTransportSupplier.apply(address))
-              .start()
+          RSocketServer.create((setup, sendingSocket) -> Mono.just(new TestRSocket(data, metadata)))
+              .bind(serverTransportSupplier.apply(address))
               .block();
 
       client =
-          RSocketFactory.connect()
-              .keepAlive(Duration.ZERO, Duration.ZERO, 1)
-              .transport(clientTransportSupplier.apply(address, server))
-              .start()
+          RSocketConnector.connectWith(clientTransportSupplier.apply(address, server))
               .doOnError(Throwable::printStackTrace)
               .block();
     }

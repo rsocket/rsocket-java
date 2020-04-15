@@ -8,7 +8,12 @@ import io.netty.handler.codec.http.websocketx.PingWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.PongWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.WebSocketFrame;
 import io.netty.util.ReferenceCountUtil;
-import io.rsocket.*;
+import io.rsocket.AbstractRSocket;
+import io.rsocket.Closeable;
+import io.rsocket.Payload;
+import io.rsocket.RSocket;
+import io.rsocket.core.RSocketConnector;
+import io.rsocket.core.RSocketServer;
 import io.rsocket.transport.ServerTransport;
 import io.rsocket.transport.netty.client.WebsocketClientTransport;
 import io.rsocket.transport.netty.server.WebsocketRouteTransport;
@@ -42,10 +47,8 @@ public class WebsocketPingPongIntegrationTest {
   @MethodSource("provideServerTransport")
   void webSocketPingPong(ServerTransport<Closeable> serverTransport) {
     server =
-        RSocketFactory.receive()
-            .acceptor((setup, sendingSocket) -> Mono.just(new EchoRSocket()))
-            .transport(serverTransport)
-            .start()
+        RSocketServer.create((setup, sendingSocket) -> Mono.just(new EchoRSocket()))
+            .bind(serverTransport)
             .block();
 
     String expectedData = "data";
@@ -63,10 +66,7 @@ public class WebsocketPingPongIntegrationTest {
                         .port(port));
 
     RSocket rSocket =
-        RSocketFactory.connect()
-            .transport(WebsocketClientTransport.create(httpClient, "/"))
-            .start()
-            .block();
+        RSocketConnector.connectWith(WebsocketClientTransport.create(httpClient, "/")).block();
 
     rSocket
         .requestResponse(DefaultPayload.create(expectedData))

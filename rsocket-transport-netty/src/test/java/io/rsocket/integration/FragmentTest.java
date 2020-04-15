@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2015-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,7 +21,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.rsocket.AbstractRSocket;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
-import io.rsocket.RSocketFactory;
+import io.rsocket.core.RSocketConnector;
+import io.rsocket.core.RSocketServer;
 import io.rsocket.transport.netty.client.TcpClientTransport;
 import io.rsocket.transport.netty.server.CloseableChannel;
 import io.rsocket.transport.netty.server.TcpServerTransport;
@@ -59,19 +60,16 @@ public class FragmentTest {
 
     TcpServerTransport serverTransport = TcpServerTransport.create("localhost", randomPort);
     server =
-        RSocketFactory.receive()
+        RSocketServer.create((setup, sendingSocket) -> Mono.just(new RSocketProxy(handler)))
             .fragment(frameSize)
-            .acceptor((setup, sendingSocket) -> Mono.just(new RSocketProxy(handler)))
-            .transport(serverTransport)
-            .start()
+            .bind(serverTransport)
             .block();
   }
 
   private RSocket buildClient() {
-    return RSocketFactory.connect()
+    return RSocketConnector.create()
         .fragment(frameSize)
-        .transport(TcpClientTransport.create(server.address()))
-        .start()
+        .connect(TcpClientTransport.create(server.address()))
         .block();
   }
 
