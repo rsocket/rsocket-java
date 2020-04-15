@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2015-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,8 +22,9 @@ import io.rsocket.ConnectionSetupPayload;
 import io.rsocket.DuplexConnection;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
-import io.rsocket.RSocketFactory;
 import io.rsocket.SocketAcceptor;
+import io.rsocket.core.RSocketConnector;
+import io.rsocket.core.RSocketServer;
 import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.transport.ServerTransport;
 import io.rsocket.transport.netty.WebsocketDuplexConnection;
@@ -45,10 +46,10 @@ public class WebSocketHeadersSample {
   public static void main(String[] args) {
 
     ServerTransport.ConnectionAcceptor acceptor =
-        RSocketFactory.receive()
-            .frameDecoder(PayloadDecoder.ZERO_COPY)
+        RSocketServer.create()
+            .payloadDecoder(PayloadDecoder.ZERO_COPY)
             .acceptor(new SocketAcceptorImpl())
-            .toConnectionAcceptor();
+            .asConnectionAcceptor();
 
     DisposableServer disposableServer =
         HttpServer.create()
@@ -82,11 +83,10 @@ public class WebSocketHeadersSample {
         });
 
     RSocket socket =
-        RSocketFactory.connect()
-            .keepAliveAckTimeout(Duration.ofMinutes(10))
-            .frameDecoder(PayloadDecoder.ZERO_COPY)
-            .transport(clientTransport)
-            .start()
+        RSocketConnector.create()
+            .keepAlive(Duration.ofMinutes(10), Duration.ofMinutes(10))
+            .payloadDecoder(PayloadDecoder.ZERO_COPY)
+            .connect(clientTransport)
             .block();
 
     Flux.range(0, 100)
@@ -102,11 +102,10 @@ public class WebSocketHeadersSample {
         WebsocketClientTransport.create(disposableServer.host(), disposableServer.port());
 
     RSocket rSocket =
-        RSocketFactory.connect()
-            .keepAliveAckTimeout(Duration.ofMinutes(10))
-            .frameDecoder(PayloadDecoder.ZERO_COPY)
-            .transport(clientTransport2)
-            .start()
+        RSocketConnector.create()
+            .keepAlive(Duration.ofMinutes(10), Duration.ofMinutes(10))
+            .payloadDecoder(PayloadDecoder.ZERO_COPY)
+            .connect(clientTransport2)
             .block();
 
     // expect error here because of closed channel

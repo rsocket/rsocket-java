@@ -22,7 +22,8 @@ import static org.junit.Assert.assertFalse;
 import io.rsocket.AbstractRSocket;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
-import io.rsocket.RSocketFactory;
+import io.rsocket.core.RSocketConnector;
+import io.rsocket.core.RSocketServer;
 import io.rsocket.transport.netty.client.TcpClientTransport;
 import io.rsocket.transport.netty.server.CloseableChannel;
 import io.rsocket.transport.netty.server.TcpServerTransport;
@@ -46,20 +47,14 @@ public class TcpIntegrationTest {
 
   @Before
   public void startup() {
-    TcpServerTransport serverTransport = TcpServerTransport.create("localhost", 0);
     server =
-        RSocketFactory.receive()
-            .acceptor((setup, sendingSocket) -> Mono.just(new RSocketProxy(handler)))
-            .transport(serverTransport)
-            .start()
+        RSocketServer.create((setup, sendingSocket) -> Mono.just(new RSocketProxy(handler)))
+            .bind(TcpServerTransport.create("localhost", 0))
             .block();
   }
 
   private RSocket buildClient() {
-    return RSocketFactory.connect()
-        .transport(TcpClientTransport.create(server.address()))
-        .start()
-        .block();
+    return RSocketConnector.connectWith(TcpClientTransport.create(server.address())).block();
   }
 
   @After

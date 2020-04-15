@@ -1,18 +1,15 @@
 package io.rsocket.transport.netty;
 
-import static io.rsocket.RSocketFactory.*;
-
 import io.rsocket.RSocket;
-import io.rsocket.RSocketFactory;
 import io.rsocket.SocketAcceptor;
-import io.rsocket.transport.ClientTransport;
+import io.rsocket.core.RSocketConnector;
+import io.rsocket.core.RSocketServer;
 import io.rsocket.transport.ServerTransport;
 import io.rsocket.transport.netty.client.TcpClientTransport;
 import io.rsocket.transport.netty.server.CloseableChannel;
 import io.rsocket.transport.netty.server.TcpServerTransport;
 import io.rsocket.transport.netty.server.WebsocketServerTransport;
 import java.time.Duration;
-import java.util.function.Function;
 import java.util.stream.Stream;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -22,91 +19,56 @@ import reactor.test.StepVerifier;
 
 class RSocketFactoryNettyTransportFragmentationTest {
 
-  @ParameterizedTest
-  @MethodSource("serverTransportProvider")
-  void serverErrorsWithEnabledFragmentationOnInsufficientMtu(
-      ServerTransport<CloseableChannel> serverTransport) {
-    Mono<CloseableChannel> server = createServer(serverTransport, f -> f.fragment(2));
-
-    StepVerifier.create(server)
-        .expectErrorMatches(
-            err ->
-                err instanceof IllegalArgumentException
-                    && "smallest allowed mtu size is 64 bytes, provided: 2"
-                        .equals(err.getMessage()))
-        .verify(Duration.ofSeconds(5));
+  static Stream<? extends ServerTransport<CloseableChannel>> arguments() {
+    return Stream.of(TcpServerTransport.create(0), WebsocketServerTransport.create(0));
   }
 
   @ParameterizedTest
-  @MethodSource("serverTransportProvider")
+  @MethodSource("arguments")
   void serverSucceedsWithEnabledFragmentationOnSufficientMtu(
       ServerTransport<CloseableChannel> serverTransport) {
     Mono<CloseableChannel> server =
-        createServer(serverTransport, f -> f.fragment(100)).doOnNext(CloseableChannel::dispose);
-    StepVerifier.create(server).expectNextCount(1).expectComplete().verify(Duration.ofSeconds(5));
-  }
-
-  @ParameterizedTest
-  @MethodSource("serverTransportProvider")
-  void serverSucceedsWithDisabledFragmentation() {
-    Mono<CloseableChannel> server =
-        createServer(TcpServerTransport.create("localhost", 0), Function.identity())
+        RSocketServer.create(mockAcceptor())
+            .fragment(100)
+            .bind(serverTransport)
             .doOnNext(CloseableChannel::dispose);
     StepVerifier.create(server).expectNextCount(1).expectComplete().verify(Duration.ofSeconds(5));
   }
 
   @ParameterizedTest
-  @MethodSource("serverTransportProvider")
-  void clientErrorsWithEnabledFragmentationOnInsufficientMtu(
-      ServerTransport<CloseableChannel> serverTransport) {
-    CloseableChannel server = createServer(serverTransport, f -> f.fragment(100)).block();
-
-    Mono<RSocket> rSocket =
-        createClient(TcpClientTransport.create(server.address()), f -> f.fragment(2))
-            .doFinally(s -> server.dispose());
-
-    StepVerifier.create(rSocket)
-        .expectErrorMatches(
-            err ->
-                err instanceof IllegalArgumentException
-                    && "smallest allowed mtu size is 64 bytes, provided: 2"
-                        .equals(err.getMessage()))
-        .verify(Duration.ofSeconds(5));
+  @MethodSource("arguments")
+  void serverSucceedsWithDisabledFragmentation(ServerTransport<CloseableChannel> serverTransport) {
+    Mono<CloseableChannel> server =
+        RSocketServer.create(mockAcceptor())
+            .bind(serverTransport)
+            .doOnNext(CloseableChannel::dispose);
+    StepVerifier.create(server).expectNextCount(1).expectComplete().verify(Duration.ofSeconds(5));
   }
 
   @ParameterizedTest
-  @MethodSource("serverTransportProvider")
+  @MethodSource("arguments")
   void clientSucceedsWithEnabledFragmentationOnSufficientMtu(
       ServerTransport<CloseableChannel> serverTransport) {
-    CloseableChannel server = createServer(serverTransport, f -> f.fragment(100)).block();
+    CloseableChannel server =
+        RSocketServer.create(mockAcceptor()).fragment(100).bind(serverTransport).block();
 
     Mono<RSocket> rSocket =
-        createClient(TcpClientTransport.create(server.address()), f -> f.fragment(100))
+        RSocketConnector.create()
+            .fragment(100)
+            .connect(TcpClientTransport.create(server.address()))
             .doFinally(s -> server.dispose());
     StepVerifier.create(rSocket).expectNextCount(1).expectComplete().verify(Duration.ofSeconds(5));
   }
 
   @ParameterizedTest
-  @MethodSource("serverTransportProvider")
-  void clientSucceedsWithDisabledFragmentation() {
-    CloseableChannel server =
-        createServer(TcpServerTransport.create("localhost", 0), Function.identity()).block();
+  @MethodSource("arguments")
+  void clientSucceedsWithDisabledFragmentation(ServerTransport<CloseableChannel> serverTransport) {
+    CloseableChannel server = RSocketServer.create(mockAcceptor()).bind(serverTransport).block();
 
     Mono<RSocket> rSocket =
-        createClient(TcpClientTransport.create(server.address()), Function.identity())
+        RSocketConnector.connectWith(TcpClientTransport.create(server.address()))
             .doFinally(s -> server.dispose());
     StepVerifier.create(rSocket).expectNextCount(1).expectComplete().verify(Duration.ofSeconds(5));
-  }
-
-  private Mono<RSocket> createClient(
-      ClientTransport transport, Function<ClientRSocketFactory, ClientRSocketFactory> f) {
-    return f.apply(RSocketFactory.connect()).transport(transport).start();
-  }
-
-  private Mono<CloseableChannel> createServer(
-      ServerTransport<CloseableChannel> transport,
-      Function<ServerRSocketFactory, ServerRSocketFactory> f) {
-    return f.apply(receive()).acceptor(mockAcceptor()).transport(transport).start();
   }
 
   private SocketAcceptor mockAcceptor() {
@@ -114,12 +76,5 @@ class RSocketFactoryNettyTransportFragmentationTest {
     Mockito.when(mock.accept(Mockito.any(), Mockito.any()))
         .thenReturn(Mono.just(Mockito.mock(RSocket.class)));
     return mock;
-  }
-
-  static Stream<? extends ServerTransport<CloseableChannel>> serverTransportProvider() {
-    String host = "localhost";
-    int port = 0;
-    return Stream.of(
-        TcpServerTransport.create(host, port), WebsocketServerTransport.create(host, port));
   }
 }

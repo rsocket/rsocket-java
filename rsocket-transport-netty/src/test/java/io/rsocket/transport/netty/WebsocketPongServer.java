@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2015-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@
 
 package io.rsocket.transport.netty;
 
-import io.rsocket.RSocketFactory;
+import io.rsocket.core.RSocketServer;
 import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.test.PingHandler;
 import io.rsocket.transport.netty.server.WebsocketServerTransport;
@@ -24,11 +24,9 @@ import io.rsocket.transport.netty.server.WebsocketServerTransport;
 public final class WebsocketPongServer {
 
   public static void main(String... args) {
-    RSocketFactory.receive()
-        .frameDecoder(PayloadDecoder.ZERO_COPY)
-        .acceptor(new PingHandler())
-        .transport(WebsocketServerTransport.create(7878))
-        .start()
+    RSocketServer.create(new PingHandler())
+        .payloadDecoder(PayloadDecoder.ZERO_COPY)
+        .bind(WebsocketServerTransport.create(7878))
         .block()
         .onClose()
         .block();

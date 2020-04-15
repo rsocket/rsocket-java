@@ -17,6 +17,9 @@ package io.rsocket;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
+import io.rsocket.core.RSocketConnector;
+import io.rsocket.core.RSocketServer;
+import io.rsocket.core.Resume;
 import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.lease.LeaseStats;
 import io.rsocket.lease.Leases;
@@ -27,7 +30,6 @@ import io.rsocket.resume.ResumableFramesStore;
 import io.rsocket.resume.ResumeStrategy;
 import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.ServerTransport;
-import java.lang.reflect.Constructor;
 import java.time.Duration;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -44,76 +46,171 @@ import reactor.util.retry.Retry;
  *   <li>{@link ServerRSocketFactory} to start a server. Use {@link #receive()} for a default
  *       instance.
  * </ul>
+ *
+ * @deprecated please use {@link RSocketConnector} and {@link RSocketServer}.
  */
+@Deprecated
 public final class RSocketFactory {
 
-  private static final Constructor<?> clientFactoryConstructor =
-      getConstructorFor("io.rsocket.core.DefaultClientRSocketFactory");
-
-  private static final Constructor<?> serverFactoryConstructor =
-      getConstructorFor("io.rsocket.core.DefaultServerRSocketFactory");
-
   /**
-   * Create a {@link ClientRSocketFactory} to connect to a remote RSocket endpoint. A shortcut for
-   * creating {@link io.rsocket.core.DefaultClientRSocketFactory}.
+   * Create a {@code ClientRSocketFactory} to connect to a remote RSocket endpoint. Internally
+   * delegates to {@link RSocketConnector}.
    *
    * @return the {@code ClientRSocketFactory} instance
    */
   public static ClientRSocketFactory connect() {
-    try {
-      // Avoid explicit dependency and a package cycle
-      return (ClientRSocketFactory) clientFactoryConstructor.newInstance();
-    } catch (Exception ex) {
-      throw new IllegalStateException("Failed to create ClientRSocketFactory", ex);
-    }
+    return new ClientRSocketFactory();
   }
 
   /**
-   * Create a {@link ServerRSocketFactory} to accept connections from RSocket clients. A shortcut
-   * for creating {@link io.rsocket.core.DefaultServerRSocketFactory}.
+   * Create a {@code ServerRSocketFactory} to accept connections from RSocket clients. Internally
+   * delegates to {@link RSocketServer}.
    *
    * @return the {@code ClientRSocketFactory} instance
    */
   public static ServerRSocketFactory receive() {
-    try {
-      // Avoid explicit dependency and a package cycle
-      return (ServerRSocketFactory) serverFactoryConstructor.newInstance();
-    } catch (Exception ex) {
-      throw new IllegalStateException("Failed to create ServerRSocketFactory", ex);
+    return new ServerRSocketFactory();
+  }
+
+  public interface Start<T extends Closeable> {
+    Mono<T> start();
+  }
+
+  public interface ClientTransportAcceptor {
+    Start<RSocket> transport(Supplier<ClientTransport> transport);
+
+    default Start<RSocket> transport(ClientTransport transport) {
+      return transport(() -> transport);
     }
   }
+
+  public interface ServerTransportAcceptor {
+
+    ServerTransport.ConnectionAcceptor toConnectionAcceptor();
+
+    <T extends Closeable> Start<T> transport(Supplier<ServerTransport<T>> transport);
+
+    default <T extends Closeable> Start<T> transport(ServerTransport<T> transport) {
+      return transport(() -> transport);
+    }
+  }
+
   /** Factory to create and configure an RSocket client, and connect to a server. */
-  public interface ClientRSocketFactory extends ClientTransportAcceptor {
+  public static class ClientRSocketFactory implements ClientTransportAcceptor {
+    private final RSocketConnector connector = RSocketConnector.create();
 
-    ClientRSocketFactory byteBufAllocator(ByteBufAllocator allocator);
+    private Duration tickPeriod = Duration.ofSeconds(20);
+    private Duration ackTimeout = Duration.ofSeconds(30);
+    private int missedAcks = 3;
 
-    ClientRSocketFactory addConnectionPlugin(DuplexConnectionInterceptor interceptor);
+    private Resume resume;
 
-    ClientRSocketFactory addRequesterPlugin(RSocketInterceptor interceptor);
+    public ClientRSocketFactory byteBufAllocator(ByteBufAllocator allocator) {
+      connector.byteBufAllocator(allocator);
+      return this;
+    }
 
-    ClientRSocketFactory addResponderPlugin(RSocketInterceptor interceptor);
+    public ClientRSocketFactory addConnectionPlugin(DuplexConnectionInterceptor interceptor) {
+      connector.interceptors(registry -> registry.forConnection(interceptor));
+      return this;
+    }
 
-    ClientRSocketFactory addSocketAcceptorPlugin(SocketAcceptorInterceptor interceptor);
+    /** Deprecated. Use {@link #addRequesterPlugin(RSocketInterceptor)} instead */
+    @Deprecated
+    public ClientRSocketFactory addClientPlugin(RSocketInterceptor interceptor) {
+      return addRequesterPlugin(interceptor);
+    }
 
-    ClientRSocketFactory keepAlive(Duration tickPeriod, Duration ackTimeout, int missedAcks);
+    public ClientRSocketFactory addRequesterPlugin(RSocketInterceptor interceptor) {
+      connector.interceptors(registry -> registry.forRequester(interceptor));
+      return this;
+    }
 
-    ClientRSocketFactory keepAliveTickPeriod(Duration tickPeriod);
+    /** Deprecated. Use {@link #addResponderPlugin(RSocketInterceptor)} instead */
+    @Deprecated
+    public ClientRSocketFactory addServerPlugin(RSocketInterceptor interceptor) {
+      return addResponderPlugin(interceptor);
+    }
 
-    ClientRSocketFactory keepAliveAckTimeout(Duration ackTimeout);
+    public ClientRSocketFactory addResponderPlugin(RSocketInterceptor interceptor) {
+      connector.interceptors(registry -> registry.forResponder(interceptor));
+      return this;
+    }
 
-    ClientRSocketFactory keepAliveMissedAcks(int missedAcks);
+    public ClientRSocketFactory addSocketAcceptorPlugin(SocketAcceptorInterceptor interceptor) {
+      connector.interceptors(registry -> registry.forSocketAcceptor(interceptor));
+      return this;
+    }
 
-    ClientRSocketFactory mimeType(String metadataMimeType, String dataMimeType);
+    /**
+     * Deprecated without replacement as Keep-Alive is not optional according to spec
+     *
+     * @return this ClientRSocketFactory
+     */
+    @Deprecated
+    public ClientRSocketFactory keepAlive() {
+      connector.keepAlive(tickPeriod, ackTimeout.plus(tickPeriod.multipliedBy(missedAcks)));
+      return this;
+    }
 
-    ClientRSocketFactory dataMimeType(String dataMimeType);
+    public ClientTransportAcceptor keepAlive(
+        Duration tickPeriod, Duration ackTimeout, int missedAcks) {
+      this.tickPeriod = tickPeriod;
+      this.ackTimeout = ackTimeout;
+      this.missedAcks = missedAcks;
+      keepAlive();
+      return this;
+    }
 
-    ClientRSocketFactory metadataMimeType(String metadataMimeType);
+    public ClientRSocketFactory keepAliveTickPeriod(Duration tickPeriod) {
+      this.tickPeriod = tickPeriod;
+      keepAlive();
+      return this;
+    }
 
-    ClientRSocketFactory lease(Supplier<Leases<? extends LeaseStats>> leasesSupplier);
+    public ClientRSocketFactory keepAliveAckTimeout(Duration ackTimeout) {
+      this.ackTimeout = ackTimeout;
+      keepAlive();
+      return this;
+    }
 
-    ClientRSocketFactory lease();
+    public ClientRSocketFactory keepAliveMissedAcks(int missedAcks) {
+      this.missedAcks = missedAcks;
+      keepAlive();
+      return this;
+    }
 
-    ClientRSocketFactory singleSubscriberRequester();
+    public ClientRSocketFactory mimeType(String metadataMimeType, String dataMimeType) {
+      connector.metadataMimeType(metadataMimeType);
+      connector.dataMimeType(dataMimeType);
+      return this;
+    }
+
+    public ClientRSocketFactory dataMimeType(String dataMimeType) {
+      connector.dataMimeType(dataMimeType);
+      return this;
+    }
+
+    public ClientRSocketFactory metadataMimeType(String metadataMimeType) {
+      connector.metadataMimeType(metadataMimeType);
+      return this;
+    }
+
+    public ClientRSocketFactory lease(Supplier<Leases<? extends LeaseStats>> supplier) {
+      connector.lease(supplier);
+      return this;
+    }
+
+    public ClientRSocketFactory lease() {
+      connector.lease(Leases::new);
+      return this;
+    }
+
+    /** @deprecated without a replacement and no longer used. */
+    @Deprecated
+    public ClientRSocketFactory singleSubscriberRequester() {
+      return this;
+    }
 
     /**
      * Enables a reconnectable, shared instance of {@code Mono<RSocket>} so every subscriber will
@@ -124,7 +221,6 @@ public final class RSocketFactory {
      * Mono<RSocket> sharedRSocketMono =
      *   RSocketFactory
      *                .connect()
-     *                .singleSubscriberRequester()
      *                .reconnect(Retry.fixedDelay(3, Duration.ofSeconds(1)))
      *                .transport(transport)
      *                .start();
@@ -144,7 +240,6 @@ public final class RSocketFactory {
      * Mono<RSocket> sharedRSocketMono =
      *   RSocketFactory
      *                .connect()
-     *                .singleSubscriberRequester()
      *                .reconnect(Retry.fixedDelay(3, Duration.ofSeconds(1)))
      *                .transport(transport)
      *                .start();
@@ -175,7 +270,6 @@ public final class RSocketFactory {
      * Mono<RSocket> sharedRSocketMono =
      *   RSocketFactory
      *                .connect()
-     *                .singleSubscriberRequester()
      *                .reconnect(Retry.fixedDelay(3, Duration.ofSeconds(1)))
      *                .transport(transport)
      *                .start();
@@ -189,108 +283,212 @@ public final class RSocketFactory {
      * @param retrySpec a retry factory applied for {@link Mono#retryWhen(Retry)}
      * @return a shared instance of {@code Mono<RSocket>}.
      */
-    ClientRSocketFactory reconnect(Retry retrySpec);
+    public ClientRSocketFactory reconnect(Retry retrySpec) {
+      connector.reconnect(retrySpec);
+      return this;
+    }
 
-    ClientRSocketFactory resume();
+    public ClientRSocketFactory resume() {
+      resume = resume != null ? resume : new Resume();
+      connector.resume(resume);
+      return this;
+    }
 
-    ClientRSocketFactory resumeToken(Supplier<ByteBuf> resumeTokenSupplier);
+    public ClientRSocketFactory resumeToken(Supplier<ByteBuf> supplier) {
+      resume();
+      resume.token(supplier);
+      return this;
+    }
 
-    ClientRSocketFactory resumeStore(
-        Function<? super ByteBuf, ? extends ResumableFramesStore> resumeStoreFactory);
+    public ClientRSocketFactory resumeStore(
+        Function<? super ByteBuf, ? extends ResumableFramesStore> storeFactory) {
+      resume();
+      resume.storeFactory(storeFactory);
+      return this;
+    }
 
-    ClientRSocketFactory resumeSessionDuration(Duration sessionDuration);
+    public ClientRSocketFactory resumeSessionDuration(Duration sessionDuration) {
+      resume();
+      resume.sessionDuration(sessionDuration);
+      return this;
+    }
 
-    ClientRSocketFactory resumeStreamTimeout(Duration resumeStreamTimeout);
+    public ClientRSocketFactory resumeStreamTimeout(Duration streamTimeout) {
+      resume();
+      resume.streamTimeout(streamTimeout);
+      return this;
+    }
 
-    ClientRSocketFactory resumeStrategy(Supplier<ResumeStrategy> resumeStrategy);
+    public ClientRSocketFactory resumeStrategy(Supplier<ResumeStrategy> resumeStrategy) {
+      resume();
+      resume.resumeStrategy(resumeStrategy);
+      return this;
+    }
 
-    ClientRSocketFactory resumeCleanupOnKeepAlive();
+    public ClientRSocketFactory resumeCleanupOnKeepAlive() {
+      resume();
+      resume.cleanupStoreOnKeepAlive();
+      return this;
+    }
 
-    @Override
-    Start<RSocket> transport(Supplier<ClientTransport> transportClient);
+    public Start<RSocket> transport(Supplier<ClientTransport> transport) {
+      return () -> connector.connect(transport);
+    }
 
-    ClientTransportAcceptor acceptor(Function<RSocket, RSocket> acceptor);
+    public ClientTransportAcceptor acceptor(Function<RSocket, RSocket> acceptor) {
+      return acceptor(() -> acceptor);
+    }
 
-    ClientTransportAcceptor acceptor(Supplier<Function<RSocket, RSocket>> acceptor);
+    public ClientTransportAcceptor acceptor(Supplier<Function<RSocket, RSocket>> acceptorSupplier) {
+      return acceptor(
+          (setup, sendingSocket) -> {
+            acceptorSupplier.get().apply(sendingSocket);
+            return Mono.empty();
+          });
+    }
 
-    ClientTransportAcceptor acceptor(SocketAcceptor acceptor);
+    public ClientTransportAcceptor acceptor(SocketAcceptor acceptor) {
+      connector.acceptor(acceptor);
+      return this;
+    }
 
-    ClientRSocketFactory fragment(int mtu);
+    public ClientRSocketFactory fragment(int mtu) {
+      connector.fragment(mtu);
+      return this;
+    }
 
-    ClientRSocketFactory errorConsumer(Consumer<Throwable> errorConsumer);
+    public ClientRSocketFactory errorConsumer(Consumer<Throwable> errorConsumer) {
+      connector.errorConsumer(errorConsumer);
+      return this;
+    }
 
-    ClientRSocketFactory setupPayload(Payload payload);
+    public ClientRSocketFactory setupPayload(Payload payload) {
+      connector.setupPayload(payload);
+      return this;
+    }
 
-    ClientRSocketFactory frameDecoder(PayloadDecoder payloadDecoder);
+    public ClientRSocketFactory frameDecoder(PayloadDecoder payloadDecoder) {
+      connector.payloadDecoder(payloadDecoder);
+      return this;
+    }
   }
 
   /** Factory to create, configure, and start an RSocket server. */
-  public interface ServerRSocketFactory {
-    ServerRSocketFactory byteBufAllocator(ByteBufAllocator allocator);
+  public static class ServerRSocketFactory implements ServerTransportAcceptor {
+    private final RSocketServer server = RSocketServer.create();
 
-    ServerRSocketFactory addConnectionPlugin(DuplexConnectionInterceptor interceptor);
+    private Resume resume;
 
-    ServerRSocketFactory addRequesterPlugin(RSocketInterceptor interceptor);
-
-    ServerRSocketFactory addResponderPlugin(RSocketInterceptor interceptor);
-
-    ServerRSocketFactory addSocketAcceptorPlugin(SocketAcceptorInterceptor interceptor);
-
-    ServerTransportAcceptor acceptor(SocketAcceptor acceptor);
-
-    ServerRSocketFactory frameDecoder(PayloadDecoder payloadDecoder);
-
-    ServerRSocketFactory fragment(int mtu);
-
-    ServerRSocketFactory errorConsumer(Consumer<Throwable> errorConsumer);
-
-    ServerRSocketFactory lease(Supplier<Leases<?>> leasesSupplier);
-
-    ServerRSocketFactory lease();
-
-    ServerRSocketFactory singleSubscriberRequester();
-
-    ServerRSocketFactory resume();
-
-    ServerRSocketFactory resumeStore(
-        Function<? super ByteBuf, ? extends ResumableFramesStore> resumeStoreFactory);
-
-    ServerRSocketFactory resumeSessionDuration(Duration sessionDuration);
-
-    ServerRSocketFactory resumeStreamTimeout(Duration resumeStreamTimeout);
-
-    ServerRSocketFactory resumeCleanupOnKeepAlive();
-  }
-
-  public interface ClientTransportAcceptor {
-    Start<RSocket> transport(Supplier<ClientTransport> transport);
-
-    default Start<RSocket> transport(ClientTransport transport) {
-      return transport(() -> transport);
+    public ServerRSocketFactory byteBufAllocator(ByteBufAllocator allocator) {
+      server.byteBufAllocator(allocator);
+      return this;
     }
-  }
 
-  public interface ServerTransportAcceptor {
-
-    ServerTransport.ConnectionAcceptor toConnectionAcceptor();
-
-    <T extends Closeable> Start<T> transport(Supplier<ServerTransport<T>> transport);
-
-    default <T extends Closeable> Start<T> transport(ServerTransport<T> transport) {
-      return transport(() -> transport);
+    public ServerRSocketFactory addConnectionPlugin(DuplexConnectionInterceptor interceptor) {
+      server.interceptors(registry -> registry.forConnection(interceptor));
+      return this;
     }
-  }
+    /** Deprecated. Use {@link #addRequesterPlugin(RSocketInterceptor)} instead */
+    @Deprecated
+    public ServerRSocketFactory addClientPlugin(RSocketInterceptor interceptor) {
+      return addRequesterPlugin(interceptor);
+    }
 
-  public interface Start<T extends Closeable> {
-    Mono<T> start();
-  }
+    public ServerRSocketFactory addRequesterPlugin(RSocketInterceptor interceptor) {
+      server.interceptors(registry -> registry.forRequester(interceptor));
+      return this;
+    }
 
-  private static Constructor<?> getConstructorFor(String className) {
-    try {
-      Class<?> clazz = Class.forName(className);
-      return clazz.getDeclaredConstructor();
-    } catch (Throwable ex) {
-      throw new IllegalStateException("No " + className);
+    /** Deprecated. Use {@link #addResponderPlugin(RSocketInterceptor)} instead */
+    @Deprecated
+    public ServerRSocketFactory addServerPlugin(RSocketInterceptor interceptor) {
+      return addResponderPlugin(interceptor);
+    }
+
+    public ServerRSocketFactory addResponderPlugin(RSocketInterceptor interceptor) {
+      server.interceptors(registry -> registry.forResponder(interceptor));
+      return this;
+    }
+
+    public ServerRSocketFactory addSocketAcceptorPlugin(SocketAcceptorInterceptor interceptor) {
+      server.interceptors(registry -> registry.forSocketAcceptor(interceptor));
+      return this;
+    }
+
+    public ServerTransportAcceptor acceptor(SocketAcceptor acceptor) {
+      return this;
+    }
+
+    public ServerRSocketFactory frameDecoder(PayloadDecoder payloadDecoder) {
+      server.payloadDecoder(payloadDecoder);
+      return this;
+    }
+
+    public ServerRSocketFactory fragment(int mtu) {
+      server.fragment(mtu);
+      return this;
+    }
+
+    public ServerRSocketFactory errorConsumer(Consumer<Throwable> errorConsumer) {
+      server.errorConsumer(errorConsumer);
+      return this;
+    }
+
+    public ServerRSocketFactory lease(Supplier<Leases<?>> supplier) {
+      server.lease(supplier);
+      return this;
+    }
+
+    public ServerRSocketFactory lease() {
+      server.lease(Leases::new);
+      return this;
+    }
+
+    /** @deprecated without a replacement and no longer used. */
+    @Deprecated
+    public ServerRSocketFactory singleSubscriberRequester() {
+      return this;
+    }
+
+    public ServerRSocketFactory resume() {
+      resume = resume != null ? resume : new Resume();
+      server.resume(resume);
+      return this;
+    }
+
+    public ServerRSocketFactory resumeStore(
+        Function<? super ByteBuf, ? extends ResumableFramesStore> storeFactory) {
+      resume();
+      resume.storeFactory(storeFactory);
+      return this;
+    }
+
+    public ServerRSocketFactory resumeSessionDuration(Duration sessionDuration) {
+      resume();
+      resume.sessionDuration(sessionDuration);
+      return this;
+    }
+
+    public ServerRSocketFactory resumeStreamTimeout(Duration streamTimeout) {
+      resume();
+      resume.streamTimeout(streamTimeout);
+      return this;
+    }
+
+    public ServerRSocketFactory resumeCleanupOnKeepAlive() {
+      resume();
+      resume.cleanupStoreOnKeepAlive();
+      return this;
+    }
+
+    @Override
+    public ServerTransport.ConnectionAcceptor toConnectionAcceptor() {
+      return server.asConnectionAcceptor();
+    }
+
+    @Override
+    public <T extends Closeable> Start<T> transport(Supplier<ServerTransport<T>> transport) {
+      return () -> server.bind(transport.get());
     }
   }
 }

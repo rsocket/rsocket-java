@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2015-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,8 @@
 package io.rsocket.transport.local;
 
 import io.rsocket.RSocket;
-import io.rsocket.RSocketFactory;
+import io.rsocket.core.RSocketConnector;
+import io.rsocket.core.RSocketServer;
 import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.test.PingClient;
 import io.rsocket.test.PingHandler;
@@ -28,18 +29,15 @@ import reactor.core.publisher.Mono;
 public final class LocalPingPong {
 
   public static void main(String... args) {
-    RSocketFactory.receive()
-        .frameDecoder(PayloadDecoder.ZERO_COPY)
-        .acceptor(new PingHandler())
-        .transport(LocalServerTransport.create("test-local-server"))
-        .start()
+    RSocketServer.create(new PingHandler())
+        .payloadDecoder(PayloadDecoder.ZERO_COPY)
+        .bind(LocalServerTransport.create("test-local-server"))
         .block();
 
     Mono<RSocket> client =
-        RSocketFactory.connect()
-            .frameDecoder(PayloadDecoder.ZERO_COPY)
-            .transport(LocalClientTransport.create("test-local-server"))
-            .start();
+        RSocketConnector.create()
+            .payloadDecoder(PayloadDecoder.ZERO_COPY)
+            .connect(LocalClientTransport.create("test-local-server"));
 
     PingClient pingClient = new PingClient(client);
 

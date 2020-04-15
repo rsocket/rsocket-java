@@ -17,7 +17,8 @@
 package io.rsocket.transport.netty;
 
 import io.rsocket.RSocket;
-import io.rsocket.RSocketFactory;
+import io.rsocket.core.RSocketConnector;
+import io.rsocket.core.Resume;
 import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.test.PerfTest;
 import io.rsocket.test.PingClient;
@@ -81,16 +82,15 @@ public final class TcpPing {
   }
 
   private static PingClient newPingClient(boolean isResumable) {
-    RSocketFactory.ClientRSocketFactory clientRSocketFactory = RSocketFactory.connect();
+    RSocketConnector connector = RSocketConnector.create();
     if (isResumable) {
-      clientRSocketFactory.resume();
+      connector.resume(new Resume());
     }
     Mono<RSocket> rSocket =
-        clientRSocketFactory
-            .frameDecoder(PayloadDecoder.ZERO_COPY)
-            .keepAlive(Duration.ofMinutes(1), Duration.ofMinutes(30), 3)
-            .transport(TcpClientTransport.create(port))
-            .start();
+        connector
+            .payloadDecoder(PayloadDecoder.ZERO_COPY)
+            .keepAlive(Duration.ofMinutes(1), Duration.ofMinutes(30))
+            .connect(TcpClientTransport.create(port));
 
     return new PingClient(rSocket);
   }

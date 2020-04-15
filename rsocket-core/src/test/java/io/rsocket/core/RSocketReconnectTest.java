@@ -18,7 +18,6 @@ package io.rsocket.core;
 import static org.junit.Assert.assertEquals;
 
 import io.rsocket.RSocket;
-import io.rsocket.RSocketFactory;
 import io.rsocket.test.util.TestClientTransport;
 import io.rsocket.transport.ClientTransport;
 import java.io.UncheckedIOException;
@@ -27,7 +26,6 @@ import java.util.Iterator;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -44,14 +42,9 @@ public class RSocketReconnectTest {
     TestClientTransport[] testClientTransport =
         new TestClientTransport[] {new TestClientTransport()};
     Mono<RSocket> rSocketMono =
-        RSocketFactory.connect()
-            .singleSubscriberRequester()
+        RSocketConnector.create()
             .reconnect(Retry.indefinitely())
-            .transport(
-                () -> {
-                  return testClientTransport[0];
-                })
-            .start();
+            .connect(() -> testClientTransport[0]);
 
     RSocket rSocket1 = rSocketMono.block();
     RSocket rSocket2 = rSocketMono.block();
@@ -70,22 +63,20 @@ public class RSocketReconnectTest {
   @Test
   @SuppressWarnings({"rawtype", "unchecked"})
   public void shouldBeRetrieableConnectionSharedReconnectableInstanceOfRSocketMono() {
-    Supplier<ClientTransport> mockTransportSupplier = Mockito.mock(Supplier.class);
-    Mockito.when(mockTransportSupplier.get())
+    ClientTransport transport = Mockito.mock(ClientTransport.class);
+    Mockito.when(transport.connect(0))
         .thenThrow(UncheckedIOException.class)
         .thenThrow(UncheckedIOException.class)
         .thenThrow(UncheckedIOException.class)
         .thenThrow(UncheckedIOException.class)
-        .thenReturn(new TestClientTransport());
+        .thenReturn(new TestClientTransport().connect(0));
     Mono<RSocket> rSocketMono =
-        RSocketFactory.connect()
-            .singleSubscriberRequester()
+        RSocketConnector.create()
             .reconnect(
                 Retry.backoff(4, Duration.ofMillis(100))
                     .maxBackoff(Duration.ofMillis(500))
                     .doAfterRetry(onRetry()))
-            .transport(mockTransportSupplier)
-            .start();
+            .connect(transport);
 
     RSocket rSocket1 = rSocketMono.block();
     RSocket rSocket2 = rSocketMono.block();
@@ -101,23 +92,21 @@ public class RSocketReconnectTest {
   @Test
   @SuppressWarnings({"rawtype", "unchecked"})
   public void shouldBeExaustedRetrieableConnectionSharedReconnectableInstanceOfRSocketMono() {
-    Supplier<ClientTransport> mockTransportSupplier = Mockito.mock(Supplier.class);
-    Mockito.when(mockTransportSupplier.get())
+    ClientTransport transport = Mockito.mock(ClientTransport.class);
+    Mockito.when(transport.connect(0))
         .thenThrow(UncheckedIOException.class)
         .thenThrow(UncheckedIOException.class)
         .thenThrow(UncheckedIOException.class)
         .thenThrow(UncheckedIOException.class)
         .thenThrow(UncheckedIOException.class)
-        .thenReturn(new TestClientTransport());
+        .thenReturn(new TestClientTransport().connect(0));
     Mono<RSocket> rSocketMono =
-        RSocketFactory.connect()
-            .singleSubscriberRequester()
+        RSocketConnector.create()
             .reconnect(
                 Retry.backoff(4, Duration.ofMillis(100))
                     .maxBackoff(Duration.ofMillis(500))
                     .doAfterRetry(onRetry()))
-            .transport(mockTransportSupplier)
-            .start();
+            .connect(transport);
 
     Assertions.assertThatThrownBy(rSocketMono::block)
         .matches(Exceptions::isRetryExhausted)
@@ -137,11 +126,7 @@ public class RSocketReconnectTest {
   @Test
   public void shouldBeNotBeASharedReconnectableInstanceOfRSocketMono() {
 
-    Mono<RSocket> rSocketMono =
-        RSocketFactory.connect()
-            .singleSubscriberRequester()
-            .transport(new TestClientTransport())
-            .start();
+    Mono<RSocket> rSocketMono = RSocketConnector.connectWith(new TestClientTransport());
 
     RSocket rSocket1 = rSocketMono.block();
     RSocket rSocket2 = rSocketMono.block();

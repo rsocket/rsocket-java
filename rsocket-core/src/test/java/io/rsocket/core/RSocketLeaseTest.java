@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2019 the original author or authors.
+ * Copyright 2015-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,13 +19,16 @@ package io.rsocket.core;
 import static io.rsocket.frame.FrameType.ERROR;
 import static io.rsocket.frame.FrameType.SETUP;
 import static org.assertj.core.data.Offset.offset;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
 import io.netty.buffer.UnpooledByteBufAllocator;
-import io.rsocket.*;
+import io.rsocket.Payload;
+import io.rsocket.RSocket;
 import io.rsocket.exceptions.Exceptions;
 import io.rsocket.frame.FrameHeaderFlyweight;
 import io.rsocket.frame.FrameType;
@@ -35,7 +38,7 @@ import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.internal.ClientServerInputMultiplexer;
 import io.rsocket.lease.*;
 import io.rsocket.lease.MissingLeaseException;
-import io.rsocket.plugins.PluginRegistry;
+import io.rsocket.plugins.InitializingInterceptorRegistry;
 import io.rsocket.test.util.TestClientTransport;
 import io.rsocket.test.util.TestDuplexConnection;
 import io.rsocket.test.util.TestServerTransport;
@@ -84,7 +87,7 @@ class RSocketLeaseTest {
             TAG, byteBufAllocator, stats -> leaseSender, err -> {}, Optional.empty());
 
     ClientServerInputMultiplexer multiplexer =
-        new ClientServerInputMultiplexer(connection, new PluginRegistry(), true);
+        new ClientServerInputMultiplexer(connection, new InitializingInterceptorRegistry(), true);
     rSocketRequester =
         new RSocketRequester(
             byteBufAllocator,
@@ -130,12 +133,7 @@ class RSocketLeaseTest {
             payload);
 
     TestServerTransport transport = new TestServerTransport();
-    Closeable server =
-        RSocketFactory.receive()
-            .acceptor((setup, sendingSocket) -> Mono.just(new AbstractRSocket() {}))
-            .transport(transport)
-            .start()
-            .block();
+    RSocketServer.create().bind(transport).block();
 
     TestDuplexConnection connection = transport.connect();
     connection.addToReceivedBuffer(setupFrame);
@@ -151,7 +149,7 @@ class RSocketLeaseTest {
   @Test
   public void clientRSocketFactorySetsLeaseFlag() {
     TestClientTransport clientTransport = new TestClientTransport();
-    RSocketFactory.connect().lease().transport(clientTransport).start().block();
+    RSocketConnector.create().lease(Leases::new).connect(clientTransport).block();
 
     Collection<ByteBuf> sent = clientTransport.testConnection().getSent();
     Assertions.assertThat(sent).hasSize(1);

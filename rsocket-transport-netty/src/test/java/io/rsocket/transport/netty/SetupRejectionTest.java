@@ -2,8 +2,9 @@ package io.rsocket.transport.netty;
 
 import io.rsocket.ConnectionSetupPayload;
 import io.rsocket.RSocket;
-import io.rsocket.RSocketFactory;
 import io.rsocket.SocketAcceptor;
+import io.rsocket.core.RSocketConnector;
+import io.rsocket.core.RSocketServer;
 import io.rsocket.exceptions.RejectedSetupException;
 import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.ServerTransport;
@@ -41,19 +42,15 @@ public class SetupRejectionTest {
     Mono<RSocket> serverRequester = acceptor.requesterRSocket();
 
     CloseableChannel channel =
-        RSocketFactory.receive()
-            .acceptor(acceptor)
-            .transport(serverTransport.apply(new InetSocketAddress("localhost", 0)))
-            .start()
+        RSocketServer.create(acceptor)
+            .bind(serverTransport.apply(new InetSocketAddress("localhost", 0)))
             .block(Duration.ofSeconds(5));
 
     ErrorConsumer errorConsumer = new ErrorConsumer();
 
     RSocket clientRequester =
-        RSocketFactory.connect()
-            .errorConsumer(errorConsumer)
-            .transport(clientTransport.apply(channel.address()))
-            .start()
+        RSocketConnector.connectWith(clientTransport.apply(channel.address()))
+            .doOnError(errorConsumer)
             .block(Duration.ofSeconds(5));
 
     StepVerifier.create(errorConsumer.errors().next())

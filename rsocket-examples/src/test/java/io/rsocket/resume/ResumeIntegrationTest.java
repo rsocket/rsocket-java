@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2019 the original author or authors.
+ * Copyright 2015-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,7 +19,9 @@ package io.rsocket.resume;
 import io.rsocket.AbstractRSocket;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
-import io.rsocket.RSocketFactory;
+import io.rsocket.core.RSocketConnector;
+import io.rsocket.core.RSocketServer;
+import io.rsocket.core.Resume;
 import io.rsocket.exceptions.RejectedResumeException;
 import io.rsocket.exceptions.UnsupportedSetupException;
 import io.rsocket.test.SlowTest;
@@ -106,8 +108,7 @@ public class ResumeIntegrationTest {
     ErrorConsumer errorConsumer = new ErrorConsumer();
     int clientSessionDurationSeconds = 10;
 
-    RSocket rSocket =
-        newClientRSocket(clientTransport, clientSessionDurationSeconds, errorConsumer).block();
+    RSocket rSocket = newClientRSocket(clientTransport, clientSessionDurationSeconds).block();
 
     Mono.delay(Duration.ofSeconds(1))
         .subscribe(v -> clientTransport.disconnectFor(Duration.ofSeconds(3)));
@@ -129,20 +130,16 @@ public class ResumeIntegrationTest {
   @Test
   void serverMissingResume() {
     CloseableChannel closeableChannel =
-        RSocketFactory.receive()
-            .acceptor((setupPayload, rSocket) -> Mono.just(new TestResponderRSocket()))
-            .transport(serverTransport(SERVER_HOST, SERVER_PORT))
-            .start()
+        RSocketServer.create((setupPayload, rSocket) -> Mono.just(new TestResponderRSocket()))
+            .bind(serverTransport(SERVER_HOST, SERVER_PORT))
             .block();
 
     ErrorConsumer errorConsumer = new ErrorConsumer();
 
     RSocket rSocket =
-        RSocketFactory.connect()
-            .resume()
-            .errorConsumer(errorConsumer)
-            .transport(clientTransport(closeableChannel.address()))
-            .start()
+        RSocketConnector.create()
+            .resume(new Resume())
+            .connect(clientTransport(closeableChannel.address()))
             .block();
 
     StepVerifier.create(errorConsumer.errors().next().doFinally(s -> closeableChannel.dispose()))
@@ -201,24 +198,15 @@ public class ResumeIntegrationTest {
 
   private static Mono<RSocket> newClientRSocket(
       DisconnectableClientTransport clientTransport, int sessionDurationSeconds) {
-    return newClientRSocket(clientTransport, sessionDurationSeconds, err -> {});
-  }
-
-  private static Mono<RSocket> newClientRSocket(
-      DisconnectableClientTransport clientTransport,
-      int sessionDurationSeconds,
-      Consumer<Throwable> errConsumer) {
-    return RSocketFactory.connect()
-        .resume()
-        .resumeSessionDuration(Duration.ofSeconds(sessionDurationSeconds))
-        .resumeStore(t -> new InMemoryResumableFramesStore("client", 500_000))
-        .resumeCleanupOnKeepAlive()
-        .keepAliveTickPeriod(Duration.ofSeconds(5))
-        .keepAliveAckTimeout(Duration.ofMinutes(5))
-        .errorConsumer(errConsumer)
-        .resumeStrategy(() -> new PeriodicResumeStrategy(Duration.ofSeconds(1)))
-        .transport(clientTransport)
-        .start();
+    return RSocketConnector.create()
+        .resume(
+            new Resume()
+                .sessionDuration(Duration.ofSeconds(sessionDurationSeconds))
+                .storeFactory(t -> new InMemoryResumableFramesStore("client", 500_000))
+                .cleanupStoreOnKeepAlive()
+                .resumeStrategy(() -> new PeriodicResumeStrategy(Duration.ofSeconds(1))))
+        .keepAlive(Duration.ofSeconds(5), Duration.ofMinutes(5))
+        .connect(clientTransport);
   }
 
   private static Mono<CloseableChannel> newServerRSocket() {
@@ -226,14 +214,13 @@ public class ResumeIntegrationTest {
   }
 
   private static Mono<CloseableChannel> newServerRSocket(int sessionDurationSeconds) {
-    return RSocketFactory.receive()
-        .resume()
-        .resumeStore(t -> new InMemoryResumableFramesStore("server", 500_000))
-        .resumeSessionDuration(Duration.ofSeconds(sessionDurationSeconds))
-        .resumeCleanupOnKeepAlive()
-        .acceptor((setupPayload, rSocket) -> Mono.just(new TestResponderRSocket()))
-        .transport(serverTransport(SERVER_HOST, SERVER_PORT))
-        .start();
+    return RSocketServer.create((setup, rsocket) -> Mono.just(new TestResponderRSocket()))
+        .resume(
+            new Resume()
+                .sessionDuration(Duration.ofSeconds(sessionDurationSeconds))
+                .cleanupStoreOnKeepAlive()
+                .storeFactory(t -> new InMemoryResumableFramesStore("server", 500_000)))
+        .bind(serverTransport(SERVER_HOST, SERVER_PORT));
   }
 
   private static class TestResponderRSocket extends AbstractRSocket {
