@@ -30,6 +30,7 @@ import org.junit.Assert;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -45,6 +46,10 @@ final class FragmentationDuplexConnectionTest {
   }
 
   private final DuplexConnection delegate = mock(DuplexConnection.class, RETURNS_SMART_NULLS);
+
+  {
+    Mockito.when(delegate.onClose()).thenReturn(Mono.never());
+  }
 
   @SuppressWarnings("unchecked")
   private final ArgumentCaptor<Publisher<ByteBuf>> publishers =
