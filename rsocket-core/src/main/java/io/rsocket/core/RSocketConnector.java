@@ -120,8 +120,8 @@ public class RSocketConnector {
    *
    * <p>By default {@code interval} is set to 20 seconds and {@code maxLifeTime} to 90 seconds.
    *
-   * @param interval the time between KEEPALIVE frames sent, must be > 0.
-   * @param maxLifeTime the max time allowed between KEEPALIVE frames received, must be > 0.
+   * @param interval the time between KEEPALIVE frames sent, must be greater than 0.
+   * @param maxLifeTime the max time between KEEPALIVE frames received, must be greater than 0.
    */
   public RSocketConnector keepAlive(Duration interval, Duration maxLifeTime) {
     if (!interval.negated().isNegative()) {
