@@ -13,18 +13,20 @@ public class LeaseFrameFlyweight {
       final int numRequests,
       @Nullable final ByteBuf metadata) {
 
+    final boolean hasMetadata = metadata != null && metadata.isReadable();
+
     int flags = 0;
 
-    if (metadata != null) {
+    if (hasMetadata) {
       flags |= FrameHeaderFlyweight.FLAGS_M;
     }
 
-    ByteBuf header =
+    final ByteBuf header =
         FrameHeaderFlyweight.encodeStreamZero(allocator, FrameType.LEASE, flags)
             .writeInt(ttl)
             .writeInt(numRequests);
 
-    if (metadata == null) {
+    if (!hasMetadata) {
       return header;
     } else {
       return DataAndMetadataFlyweight.encodeOnlyMetadata(allocator, header, metadata);

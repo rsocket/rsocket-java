@@ -47,6 +47,13 @@ class DataAndMetadataFlyweight {
     return allocator.compositeBuffer(3).addComponents(true, header, metadata, data);
   }
 
+  static ByteBuf encode(ByteBufAllocator allocator, final ByteBuf header, ByteBuf metadata) {
+
+    int length = metadata.readableBytes();
+    encodeLength(header, length);
+    return allocator.compositeBuffer(2).addComponents(true, header, metadata);
+  }
+
   static ByteBuf metadataWithoutMarking(ByteBuf byteBuf, boolean hasMetadata) {
     if (hasMetadata) {
       int length = decodeLength(byteBuf);

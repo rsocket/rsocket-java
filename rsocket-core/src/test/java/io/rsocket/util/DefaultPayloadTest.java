@@ -16,10 +16,13 @@
 
 package io.rsocket.util;
 
-import static org.hamcrest.MatcherAssert.*;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
 
+import io.netty.buffer.Unpooled;
 import io.rsocket.Payload;
+import java.nio.ByteBuffer;
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
 public class DefaultPayloadTest {
@@ -47,5 +50,28 @@ public class DefaultPayloadTest {
   public void staticMethods() {
     assertDataAndMetadata(DefaultPayload.create(DATA_VAL, METADATA_VAL), DATA_VAL, METADATA_VAL);
     assertDataAndMetadata(DefaultPayload.create(DATA_VAL), DATA_VAL, null);
+  }
+
+  @Test
+  public void shouldIndicateThatItHasNotMetadata() {
+    Payload payload = DefaultPayload.create("data");
+
+    Assertions.assertThat(payload.hasMetadata()).isFalse();
+  }
+
+  @Test
+  public void shouldIndicateThatItHasNotMetadata1() {
+    Payload payload =
+        DefaultPayload.create(Unpooled.wrappedBuffer("data".getBytes()), Unpooled.EMPTY_BUFFER);
+
+    Assertions.assertThat(payload.hasMetadata()).isFalse();
+  }
+
+  @Test
+  public void shouldIndicateThatItHasNotMetadata2() {
+    Payload payload =
+        DefaultPayload.create(ByteBuffer.wrap("data".getBytes()), ByteBuffer.allocate(0));
+
+    Assertions.assertThat(payload.hasMetadata()).isFalse();
   }
 }

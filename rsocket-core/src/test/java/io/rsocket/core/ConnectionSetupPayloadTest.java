@@ -69,7 +69,7 @@ class ConnectionSetupPayloadTest {
     ConnectionSetupPayload setupPayload = new DefaultConnectionSetupPayload(frame);
 
     assertFalse(setupPayload.willClientHonorLease());
-    assertTrue(setupPayload.hasMetadata());
+    assertFalse(setupPayload.hasMetadata());
     assertNotNull(setupPayload.metadata());
     assertEquals(0, setupPayload.metadata().readableBytes());
     assertEquals(payload.data(), setupPayload.data());

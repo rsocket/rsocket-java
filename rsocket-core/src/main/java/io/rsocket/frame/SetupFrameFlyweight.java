@@ -55,8 +55,10 @@ public class SetupFrameFlyweight {
       final String dataMimeType,
       final Payload setupPayload) {
 
-    ByteBuf metadata = setupPayload.hasMetadata() ? setupPayload.sliceMetadata() : null;
-    ByteBuf data = setupPayload.sliceData();
+    final ByteBuf data = setupPayload.sliceData();
+    final boolean hasData = data.isReadable();
+    final boolean hasMetadata = setupPayload.hasMetadata();
+    final ByteBuf metadata = hasMetadata ? setupPayload.sliceMetadata() : null;
 
     int flags = 0;
 
@@ -68,11 +70,11 @@ public class SetupFrameFlyweight {
       flags |= FLAGS_WILL_HONOR_LEASE;
     }
 
-    if (metadata != null) {
+    if (hasMetadata) {
       flags |= FrameHeaderFlyweight.FLAGS_M;
     }
 
-    ByteBuf header = FrameHeaderFlyweight.encodeStreamZero(allocator, FrameType.SETUP, flags);
+    final ByteBuf header = FrameHeaderFlyweight.encodeStreamZero(allocator, FrameType.SETUP, flags);
 
     header.writeInt(CURRENT_VERSION).writeInt(keepaliveInterval).writeInt(maxLifetime);
 
@@ -91,12 +93,15 @@ public class SetupFrameFlyweight {
     length = ByteBufUtil.utf8Bytes(dataMimeType);
     header.writeByte(length);
     ByteBufUtil.writeUtf8(header, dataMimeType);
-    if (data == null && metadata == null) {
-      return header;
-    } else if (metadata != null) {
+
+    if (hasData && hasMetadata) {
       return DataAndMetadataFlyweight.encode(allocator, header, metadata, data);
-    } else {
+    } else if (hasMetadata) {
+      return DataAndMetadataFlyweight.encode(allocator, header, metadata);
+    } else if (hasData) {
       return DataAndMetadataFlyweight.encodeOnlyData(allocator, header, data);
+    } else {
+      return header;
     }
   }
 

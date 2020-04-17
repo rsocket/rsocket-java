@@ -110,7 +110,7 @@ public final class DefaultPayload implements Payload {
 
   @Override
   public boolean hasMetadata() {
-    return metadata != null;
+    return metadata != null && metadata.remaining() > 0;
   }
 
   @Override

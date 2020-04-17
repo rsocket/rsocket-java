@@ -22,7 +22,12 @@ class RequestFlyweightTest {
             Unpooled.copiedBuffer("d", StandardCharsets.UTF_8));
 
     frame = FrameLengthFlyweight.encode(ByteBufAllocator.DEFAULT, frame.readableBytes(), frame);
-
+    //   Encoded Frame Length⌍        ⌌ Encoded Headers
+    //                       |        |         ⌌ Encoded Request(1)
+    //                       |        |         |         ⌌Encoded Metadata
+    //                       |        |         |         |     ⌌Encoded Data
+    //                     __|________|_________|_________|_____|
+    //                     ↓    ↓↓          ↓↓      ↓↓        ↓↓↓
     assertEquals("000010000000011900000000010000026d6464", ByteBufUtil.hexDump(frame));
     frame.release();
   }
@@ -39,8 +44,12 @@ class RequestFlyweightTest {
             Unpooled.copiedBuffer("d", StandardCharsets.UTF_8));
 
     frame = FrameLengthFlyweight.encode(ByteBufAllocator.DEFAULT, frame.readableBytes(), frame);
-
-    assertEquals("00000e0000000119000000000100000064", ByteBufUtil.hexDump(frame));
+    //   Encoded Frame Length⌍        ⌌ Encoded Headers
+    //                       |        |         ⌌ Encoded Request(1)
+    //                       |        |         |     ⌌Encoded Data
+    //                     __|________|_________|_____|
+    //                     ↓    ↓↓          ↓↓      ↓↓↓
+    assertEquals("00000b0000000118000000000164", ByteBufUtil.hexDump(frame));
     frame.release();
   }
 
@@ -57,6 +66,11 @@ class RequestFlyweightTest {
 
     frame = FrameLengthFlyweight.encode(ByteBufAllocator.DEFAULT, frame.readableBytes(), frame);
 
+    //   Encoded Frame Length⌍        ⌌ Encoded Headers
+    //                       |        |         ⌌ Encoded Request(1)
+    //                       |        |         |     ⌌Encoded Data
+    //                     __|________|_________|_____|
+    //                     ↓    ↓↓          ↓↓      ↓↓↓
     assertEquals("00000b0000000118000000000164", ByteBufUtil.hexDump(frame));
     frame.release();
   }

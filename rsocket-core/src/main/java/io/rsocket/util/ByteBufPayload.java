@@ -21,6 +21,7 @@ import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
 import io.netty.util.AbstractReferenceCounted;
+import io.netty.util.IllegalReferenceCountException;
 import io.netty.util.Recycler;
 import io.netty.util.Recycler.Handle;
 import io.rsocket.Payload;
@@ -112,9 +113,10 @@ public final class ByteBufPayload extends AbstractReferenceCounted implements Pa
 
   public static Payload create(ByteBuf data, @Nullable ByteBuf metadata) {
     ByteBufPayload payload = RECYCLER.get();
-    payload.setRefCnt(1);
     payload.data = data;
     payload.metadata = metadata;
+    // unsure data and metadata is set before refCnt change
+    payload.setRefCnt(1);
     return payload;
   }
 
@@ -126,26 +128,31 @@ public final class ByteBufPayload extends AbstractReferenceCounted implements Pa
 
   @Override
   public boolean hasMetadata() {
-    return metadata != null;
+    ensureAccessible();
+    return metadata != null && metadata.isReadable();
   }
 
   @Override
   public ByteBuf sliceMetadata() {
+    ensureAccessible();
     return metadata == null ? Unpooled.EMPTY_BUFFER : metadata.slice();
   }
 
   @Override
   public ByteBuf data() {
+    ensureAccessible();
     return data;
   }
 
   @Override
   public ByteBuf metadata() {
+    ensureAccessible();
     return metadata == null ? Unpooled.EMPTY_BUFFER : metadata;
   }
 
   @Override
   public ByteBuf sliceData() {
+    ensureAccessible();
     return data.slice();
   }
 
@@ -163,6 +170,7 @@ public final class ByteBufPayload extends AbstractReferenceCounted implements Pa
 
   @Override
   public ByteBufPayload touch() {
+    ensureAccessible();
     data.touch();
     if (metadata != null) {
       metadata.touch();
@@ -172,6 +180,7 @@ public final class ByteBufPayload extends AbstractReferenceCounted implements Pa
 
   @Override
   public ByteBufPayload touch(Object hint) {
+    ensureAccessible();
     data.touch(hint);
     if (metadata != null) {
       metadata.touch(hint);
@@ -188,5 +197,23 @@ public final class ByteBufPayload extends AbstractReferenceCounted implements Pa
       metadata = null;
     }
     handle.recycle(this);
+  }
+
+  /**
+   * Should be called by every method that tries to access the buffers content to check if the
+   * buffer was released before.
+   */
+  void ensureAccessible() {
+    if (!isAccessible()) {
+      throw new IllegalReferenceCountException(0);
+    }
+  }
+
+  /**
+   * Used internally by {@link ByteBufPayload#ensureAccessible()} to try to guard against using the
+   * buffer after it was released (best-effort).
+   */
+  boolean isAccessible() {
+    return refCnt() != 0;
   }
 }

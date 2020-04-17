@@ -29,9 +29,13 @@ class RequestFlyweight {
       int requestN,
       @Nullable ByteBuf metadata,
       ByteBuf data) {
+
+    final boolean hasData = data != null && data.isReadable();
+    final boolean hasMetadata = metadata != null && metadata.isReadable();
+
     int flags = 0;
 
-    if (metadata != null) {
+    if (hasMetadata) {
       flags |= FrameHeaderFlyweight.FLAGS_M;
     }
 
@@ -47,18 +51,20 @@ class RequestFlyweight {
       flags |= FrameHeaderFlyweight.FLAGS_N;
     }
 
-    ByteBuf header = FrameHeaderFlyweight.encode(allocator, streamId, frameType, flags);
+    final ByteBuf header = FrameHeaderFlyweight.encode(allocator, streamId, frameType, flags);
 
     if (requestN > 0) {
       header.writeInt(requestN);
     }
 
-    if (data == null && metadata == null) {
-      return header;
-    } else if (metadata != null) {
+    if (hasData && hasMetadata) {
       return DataAndMetadataFlyweight.encode(allocator, header, metadata, data);
-    } else {
+    } else if (hasMetadata) {
+      return DataAndMetadataFlyweight.encode(allocator, header, metadata);
+    } else if (hasData) {
       return DataAndMetadataFlyweight.encodeOnlyData(allocator, header, data);
+    } else {
+      return header;
     }
   }
 
