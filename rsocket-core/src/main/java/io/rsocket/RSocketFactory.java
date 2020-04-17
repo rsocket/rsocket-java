@@ -416,6 +416,7 @@ public final class RSocketFactory {
     }
 
     public ServerTransportAcceptor acceptor(SocketAcceptor acceptor) {
+      server.acceptor(acceptor);
       return this;
     }
 
