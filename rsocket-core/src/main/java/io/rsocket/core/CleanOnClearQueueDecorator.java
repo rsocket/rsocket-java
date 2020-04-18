@@ -7,6 +7,12 @@ import java.util.Iterator;
 import java.util.Queue;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+/**
+ * This queue decorator is temporary solution in order to workaround leaks in UnicastProcessor and
+ * FluxPublishOn. <br>
+ * For more information about the root-cause of leaks, please see
+ * https://github.com/reactor/reactor-core/pull/2114
+ */
 final class CleanOnClearQueueDecorator extends AtomicBoolean implements Queue<Payload> {
   final Queue<Payload> delegate;
 
@@ -21,6 +27,23 @@ final class CleanOnClearQueueDecorator extends AtomicBoolean implements Queue<Pa
     while ((p = delegate.poll()) != null) {
       ReferenceCountUtil.safeRelease(p);
     }
+  }
+
+  @Override
+  public boolean offer(Payload payload) {
+    if (get()) {
+      ReferenceCountUtil.safeRelease(payload);
+      return true;
+    }
+
+    boolean result = delegate.offer(payload);
+
+    // ensures in case of racing offered element is released for sure
+    if (get()) {
+      ReferenceCountUtil.safeRelease(payload);
+    }
+
+    return result;
   }
 
   @Override
@@ -81,15 +104,6 @@ final class CleanOnClearQueueDecorator extends AtomicBoolean implements Queue<Pa
   @Override
   public boolean retainAll(Collection<?> c) {
     return delegate.retainAll(c);
-  }
-
-  @Override
-  public boolean offer(Payload payload) {
-    if (get()) {
-      ReferenceCountUtil.safeRelease(payload);
-      return true;
-    }
-    return delegate.offer(payload);
   }
 
   @Override

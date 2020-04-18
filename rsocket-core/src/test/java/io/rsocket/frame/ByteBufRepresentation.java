@@ -28,7 +28,7 @@ public final class ByteBufRepresentation extends StandardRepresentation {
       try {
         return ByteBufUtil.prettyHexDump((ByteBuf) object);
       } catch (IllegalReferenceCountException e) {
-        //noops
+        // noops
       }
     }
 

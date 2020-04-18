@@ -16,6 +16,7 @@
 
 package io.rsocket.core;
 
+import static io.rsocket.core.LimitRateOperator.applyLimitRateOperator;
 import static io.rsocket.core.PayloadValidationUtils.INVALID_PAYLOAD_ERROR_MESSAGE;
 import static io.rsocket.keepalive.KeepAliveSupport.ClientKeepAliveSupport;
 import static io.rsocket.keepalive.KeepAliveSupport.KeepAlive;
@@ -431,7 +432,7 @@ class RSocketRequester implements RSocket {
                   receivers.put(streamId, receiver);
 
                   inboundFlux
-                      .limitRate(Queues.SMALL_BUFFER_SIZE)
+                      .transform(f -> applyLimitRateOperator(f, Queues.SMALL_BUFFER_SIZE))
                       .doOnDiscard(ReferenceCounted.class, DROPPED_ELEMENTS_CONSUMER)
                       .subscribe(upstreamSubscriber);
                   if (!payloadReleasedFlag.getAndSet(true)) {
