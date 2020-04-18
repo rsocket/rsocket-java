@@ -17,14 +17,15 @@
 package io.rsocket.core;
 
 import io.netty.buffer.ByteBuf;
-import io.netty.util.AbstractReferenceCounted;
 import io.rsocket.ConnectionSetupPayload;
 import io.rsocket.frame.FrameHeaderFlyweight;
 import io.rsocket.frame.SetupFrameFlyweight;
 
-/** Default implementation of {@link ConnectionSetupPayload}. */
-class DefaultConnectionSetupPayload extends AbstractReferenceCounted
-    implements ConnectionSetupPayload {
+/**
+ * Default implementation of {@link ConnectionSetupPayload}. Primarily for internal use within
+ * RSocket Java but may be created in an application, e.g. for testing purposes.
+ */
+public class DefaultConnectionSetupPayload extends ConnectionSetupPayload {
 
   private final ByteBuf setupFrame;
 
@@ -33,30 +34,28 @@ class DefaultConnectionSetupPayload extends AbstractReferenceCounted
   }
 
   @Override
-  public ConnectionSetupPayload retain() {
-    super.retain();
-    return this;
-  }
-
-  @Override
-  public ConnectionSetupPayload retain(int increment) {
-    super.retain(increment);
-    return this;
-  }
-
-  @Override
   public boolean hasMetadata() {
     return FrameHeaderFlyweight.hasMetadata(setupFrame);
   }
 
   @Override
-  public int keepAliveInterval() {
-    return SetupFrameFlyweight.keepAliveInterval(setupFrame);
+  public ByteBuf sliceMetadata() {
+    return SetupFrameFlyweight.metadata(setupFrame);
   }
 
   @Override
-  public int keepAliveMaxLifetime() {
-    return SetupFrameFlyweight.keepAliveMaxLifetime(setupFrame);
+  public ByteBuf sliceData() {
+    return SetupFrameFlyweight.data(setupFrame);
+  }
+
+  @Override
+  public ByteBuf data() {
+    return sliceData();
+  }
+
+  @Override
+  public ByteBuf metadata() {
+    return sliceMetadata();
   }
 
   @Override
@@ -67,6 +66,16 @@ class DefaultConnectionSetupPayload extends AbstractReferenceCounted
   @Override
   public String dataMimeType() {
     return SetupFrameFlyweight.dataMimeType(setupFrame);
+  }
+
+  @Override
+  public int keepAliveInterval() {
+    return SetupFrameFlyweight.keepAliveInterval(setupFrame);
+  }
+
+  @Override
+  public int keepAliveMaxLifetime() {
+    return SetupFrameFlyweight.keepAliveMaxLifetime(setupFrame);
   }
 
   @Override
@@ -104,25 +113,5 @@ class DefaultConnectionSetupPayload extends AbstractReferenceCounted
   @Override
   protected void deallocate() {
     setupFrame.release();
-  }
-
-  @Override
-  public ByteBuf sliceMetadata() {
-    return SetupFrameFlyweight.metadata(setupFrame);
-  }
-
-  @Override
-  public ByteBuf sliceData() {
-    return SetupFrameFlyweight.data(setupFrame);
-  }
-
-  @Override
-  public ByteBuf data() {
-    return sliceData();
-  }
-
-  @Override
-  public ByteBuf metadata() {
-    return sliceMetadata();
   }
 }

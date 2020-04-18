@@ -13,31 +13,60 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package io.rsocket;
 
 import io.netty.buffer.ByteBuf;
-import io.netty.util.ReferenceCounted;
+import io.netty.util.AbstractReferenceCounted;
+import io.rsocket.core.DefaultConnectionSetupPayload;
 import javax.annotation.Nullable;
 
 /**
  * Exposes information from the {@code SETUP} frame to a server, as well as to client responders.
  */
-public interface ConnectionSetupPayload extends ReferenceCounted, Payload {
+public abstract class ConnectionSetupPayload extends AbstractReferenceCounted implements Payload {
 
-  String metadataMimeType();
+  public abstract String metadataMimeType();
 
-  String dataMimeType();
+  public abstract String dataMimeType();
 
-  int keepAliveInterval();
+  public abstract int keepAliveInterval();
 
-  int keepAliveMaxLifetime();
+  public abstract int keepAliveMaxLifetime();
 
-  int getFlags();
+  public abstract int getFlags();
 
-  boolean willClientHonorLease();
+  public abstract boolean willClientHonorLease();
 
-  boolean isResumeEnabled();
+  public abstract boolean isResumeEnabled();
 
   @Nullable
-  ByteBuf resumeToken();
+  public abstract ByteBuf resumeToken();
+
+  @Override
+  public ConnectionSetupPayload retain() {
+    super.retain();
+    return this;
+  }
+
+  @Override
+  public ConnectionSetupPayload retain(int increment) {
+    super.retain(increment);
+    return this;
+  }
+
+  @Override
+  public abstract ConnectionSetupPayload touch();
+
+  /**
+   * Create a {@code ConnectionSetupPayload}.
+   *
+   * @deprecated as of 1.0 RC7. Please, use {@link
+   *     DefaultConnectionSetupPayload#DefaultConnectionSetupPayload(ByteBuf)
+   *     DefaultConnectionSetupPayload} constructor.
+   */
+  @Deprecated
+  public static ConnectionSetupPayload create(final ByteBuf setupFrame) {
+    return new DefaultConnectionSetupPayload(setupFrame);
+  }
 }
