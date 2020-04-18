@@ -5,8 +5,9 @@ import io.rsocket.Payload;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.Queue;
+import java.util.concurrent.atomic.AtomicBoolean;
 
-final class CleanOnClearQueueDecorator implements Queue<Payload> {
+final class CleanOnClearQueueDecorator extends AtomicBoolean implements Queue<Payload> {
   final Queue<Payload> delegate;
 
   CleanOnClearQueueDecorator(Queue<Payload> delegate) {
@@ -15,6 +16,7 @@ final class CleanOnClearQueueDecorator implements Queue<Payload> {
 
   @Override
   public void clear() {
+    set(true);
     Payload p;
     while ((p = delegate.poll()) != null) {
       ReferenceCountUtil.safeRelease(p);
@@ -83,6 +85,10 @@ final class CleanOnClearQueueDecorator implements Queue<Payload> {
 
   @Override
   public boolean offer(Payload payload) {
+    if (get()) {
+      ReferenceCountUtil.safeRelease(payload);
+      return true;
+    }
     return delegate.offer(payload);
   }
 
