@@ -97,13 +97,21 @@ public final class RSocketFactory {
 
   /** Factory to create and configure an RSocket client, and connect to a server. */
   public static class ClientRSocketFactory implements ClientTransportAcceptor {
-    private final RSocketConnector connector = RSocketConnector.create();
+    private final RSocketConnector connector;
 
     private Duration tickPeriod = Duration.ofSeconds(20);
     private Duration ackTimeout = Duration.ofSeconds(30);
     private int missedAcks = 3;
 
     private Resume resume;
+
+    public ClientRSocketFactory() {
+      this(RSocketConnector.create());
+    }
+
+    public ClientRSocketFactory(RSocketConnector connector) {
+      this.connector = connector;
+    }
 
     public ClientRSocketFactory byteBufAllocator(ByteBufAllocator allocator) {
       connector.byteBufAllocator(allocator);
@@ -375,9 +383,17 @@ public final class RSocketFactory {
 
   /** Factory to create, configure, and start an RSocket server. */
   public static class ServerRSocketFactory implements ServerTransportAcceptor {
-    private final RSocketServer server = RSocketServer.create();
+    private final RSocketServer server;
 
     private Resume resume;
+
+    public ServerRSocketFactory() {
+      this(RSocketServer.create());
+    }
+
+    public ServerRSocketFactory(RSocketServer server) {
+      this.server = server;
+    }
 
     public ServerRSocketFactory byteBufAllocator(ByteBufAllocator allocator) {
       server.byteBufAllocator(allocator);
