@@ -101,6 +101,7 @@ public class RSocketRequesterTest {
 
   @Test(timeout = 2_000)
   public void testInvalidFrameOnStream0() {
+    LeaksTrackingByteBufAllocator allocator = LeaksTrackingByteBufAllocator.instrumentDefault();
     rule.connection.addToReceivedBuffer(
         RequestNFrameFlyweight.encode(ByteBufAllocator.DEFAULT, 0, 10));
     assertThat("Unexpected errors.", rule.errors, hasSize(1));
@@ -108,10 +109,12 @@ public class RSocketRequesterTest {
         "Unexpected error received.",
         rule.errors,
         contains(instanceOf(IllegalStateException.class)));
+    allocator.assertHasNoLeaks();
   }
 
   @Test(timeout = 2_000)
   public void testStreamInitialN() {
+    LeaksTrackingByteBufAllocator allocator = LeaksTrackingByteBufAllocator.instrumentDefault();
     Flux<Payload> stream = rule.socket.requestStream(EmptyPayload.INSTANCE);
 
     BaseSubscriber<Payload> subscriber =
@@ -139,10 +142,12 @@ public class RSocketRequesterTest {
 
     assertThat("initial frame", frameType(f), is(REQUEST_STREAM));
     assertThat("initial request n", RequestStreamFrameFlyweight.initialRequestN(f), is(5));
+    allocator.assertHasNoLeaks();
   }
 
   @Test(timeout = 2_000)
   public void testHandleSetupException() {
+    LeaksTrackingByteBufAllocator allocator = LeaksTrackingByteBufAllocator.instrumentDefault();
     rule.connection.addToReceivedBuffer(
         ErrorFrameFlyweight.encode(
             ByteBufAllocator.DEFAULT, 0, new RejectedSetupException("boom")));
@@ -151,10 +156,12 @@ public class RSocketRequesterTest {
         "Unexpected error received.",
         rule.errors,
         contains(instanceOf(RejectedSetupException.class)));
+    allocator.assertHasNoLeaks();
   }
 
   @Test(timeout = 2_000)
   public void testHandleApplicationException() {
+    LeaksTrackingByteBufAllocator allocator = LeaksTrackingByteBufAllocator.instrumentDefault();
     rule.connection.clearSendReceiveBuffers();
     Publisher<Payload> response = rule.socket.requestResponse(EmptyPayload.INSTANCE);
     Subscriber<Payload> responseSub = TestSubscriber.create();
@@ -166,10 +173,12 @@ public class RSocketRequesterTest {
             ByteBufAllocator.DEFAULT, streamId, new ApplicationErrorException("error")));
 
     verify(responseSub).onError(any(ApplicationErrorException.class));
+    allocator.assertHasNoLeaks();
   }
 
   @Test(timeout = 2_000)
   public void testHandleValidFrame() {
+    LeaksTrackingByteBufAllocator allocator = LeaksTrackingByteBufAllocator.instrumentDefault();
     Publisher<Payload> response = rule.socket.requestResponse(EmptyPayload.INSTANCE);
     Subscriber<Payload> sub = TestSubscriber.create();
     response.subscribe(sub);
@@ -180,10 +189,12 @@ public class RSocketRequesterTest {
             ByteBufAllocator.DEFAULT, streamId, EmptyPayload.INSTANCE));
 
     verify(sub).onComplete();
+    allocator.assertHasNoLeaks();
   }
 
   @Test(timeout = 2_000)
   public void testRequestReplyWithCancel() {
+    LeaksTrackingByteBufAllocator allocator = LeaksTrackingByteBufAllocator.instrumentDefault();
     Mono<Payload> response = rule.socket.requestResponse(EmptyPayload.INSTANCE);
 
     try {
@@ -201,10 +212,12 @@ public class RSocketRequesterTest {
     assertThat(
         "Unexpected frame sent on the connection.", frameType(sent.get(0)), is(REQUEST_RESPONSE));
     assertThat("Unexpected frame sent on the connection.", frameType(sent.get(1)), is(CANCEL));
+    allocator.assertHasNoLeaks();
   }
 
   @Test(timeout = 2_000)
   public void testRequestReplyErrorOnSend() {
+    LeaksTrackingByteBufAllocator allocator = LeaksTrackingByteBufAllocator.instrumentDefault();
     rule.connection.setAvailability(0); // Fails send
     Mono<Payload> response = rule.socket.requestResponse(EmptyPayload.INSTANCE);
     Subscriber<Payload> responseSub = TestSubscriber.create(10);
@@ -214,22 +227,28 @@ public class RSocketRequesterTest {
 
     verify(responseSub).onSubscribe(any(Subscription.class));
 
+    allocator.assertHasNoLeaks();
     // TODO this should get the error reported through the response subscription
     //    verify(responseSub).onError(any(RuntimeException.class));
   }
 
   @Test(timeout = 2_000)
   public void testLazyRequestResponse() {
+    LeaksTrackingByteBufAllocator allocator = LeaksTrackingByteBufAllocator.instrumentDefault();
     Publisher<Payload> response =
         new MultiSubscriberRSocket(rule.socket).requestResponse(EmptyPayload.INSTANCE);
     int streamId = sendRequestResponse(response);
+    Assertions.assertThat(rule.connection.getSent()).allMatch(ReferenceCounted::release);
+    allocator.assertHasNoLeaks();
     rule.connection.clearSendReceiveBuffers();
     int streamId2 = sendRequestResponse(response);
     assertThat("Stream ID reused.", streamId2, not(equalTo(streamId)));
+    allocator.assertHasNoLeaks();
   }
 
   @Test
   public void testChannelRequestCancellation() {
+    LeaksTrackingByteBufAllocator allocator = LeaksTrackingByteBufAllocator.instrumentDefault();
     MonoProcessor<Void> cancelled = MonoProcessor.create();
     Flux<Payload> request = Flux.<Payload>never().doOnCancel(cancelled::onComplete);
     rule.socket.requestChannel(request).subscribe().dispose();
@@ -238,10 +257,12 @@ public class RSocketRequesterTest {
             Flux.error(new IllegalStateException("Channel request not cancelled"))
                 .delaySubscription(Duration.ofSeconds(1)))
         .blockFirst();
+    allocator.assertHasNoLeaks();
   }
 
   @Test
   public void testChannelRequestCancellation2() {
+    LeaksTrackingByteBufAllocator allocator = LeaksTrackingByteBufAllocator.instrumentDefault();
     MonoProcessor<Void> cancelled = MonoProcessor.create();
     Flux<Payload> request =
         Flux.<Payload>just(EmptyPayload.INSTANCE).repeat(259).doOnCancel(cancelled::onComplete);
@@ -251,10 +272,12 @@ public class RSocketRequesterTest {
             Flux.error(new IllegalStateException("Channel request not cancelled"))
                 .delaySubscription(Duration.ofSeconds(1)))
         .blockFirst();
+    allocator.assertHasNoLeaks();
   }
 
   @Test
   public void testChannelRequestServerSideCancellation() {
+    LeaksTrackingByteBufAllocator allocator = LeaksTrackingByteBufAllocator.instrumentDefault();
     MonoProcessor<Payload> cancelled = MonoProcessor.create();
     UnicastProcessor<Payload> request = UnicastProcessor.create();
     request.onNext(EmptyPayload.INSTANCE);
@@ -271,10 +294,12 @@ public class RSocketRequesterTest {
         .blockFirst();
 
     Assertions.assertThat(request.isDisposed()).isTrue();
+    allocator.assertHasNoLeaks();
   }
 
   @Test
   public void testCorrectFrameOrder() {
+    LeaksTrackingByteBufAllocator allocator = LeaksTrackingByteBufAllocator.instrumentDefault();
     MonoProcessor<Object> delayer = MonoProcessor.create();
     BaseSubscriber<Payload> subscriber =
         new BaseSubscriber<Payload>() {
@@ -303,6 +328,7 @@ public class RSocketRequesterTest {
         .isEqualTo("0");
 
     Assertions.assertThat(iterator.hasNext()).isFalse();
+    allocator.assertHasNoLeaks();
   }
 
   @Test
@@ -310,6 +336,8 @@ public class RSocketRequesterTest {
     prepareCalls()
         .forEach(
             generator -> {
+              LeaksTrackingByteBufAllocator allocator =
+                  LeaksTrackingByteBufAllocator.instrumentDefault();
               byte[] metadata = new byte[FrameLengthFlyweight.FRAME_LENGTH_MASK];
               byte[] data = new byte[FrameLengthFlyweight.FRAME_LENGTH_MASK];
               ThreadLocalRandom.current().nextBytes(metadata);
@@ -323,12 +351,23 @@ public class RSocketRequesterTest {
                               .isInstanceOf(IllegalArgumentException.class)
                               .hasMessage(INVALID_PAYLOAD_ERROR_MESSAGE))
                   .verify();
+              allocator.assertHasNoLeaks();
             });
+  }
+
+  static Stream<BiFunction<RSocket, Payload, Publisher<?>>> prepareCalls() {
+    return Stream.of(
+        RSocket::fireAndForget,
+        RSocket::requestResponse,
+        RSocket::requestStream,
+        (rSocket, payload) -> rSocket.requestChannel(Flux.just(payload)),
+        RSocket::metadataPush);
   }
 
   @Test
   public void
       shouldThrownExceptionIfGivenPayloadIsExitsSizeAllowanceWithNoFragmentationForRequestChannelCase() {
+    LeaksTrackingByteBufAllocator allocator = LeaksTrackingByteBufAllocator.instrumentDefault();
     byte[] metadata = new byte[FrameLengthFlyweight.FRAME_LENGTH_MASK];
     byte[] data = new byte[FrameLengthFlyweight.FRAME_LENGTH_MASK];
     ThreadLocalRandom.current().nextBytes(metadata);
@@ -350,6 +389,64 @@ public class RSocketRequesterTest {
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessage(INVALID_PAYLOAD_ERROR_MESSAGE))
         .verify();
+    allocator.assertHasNoLeaks();
+  }
+
+  @Test
+  @Ignore("Due to https://github.com/reactor/reactor-core/pull/2114")
+  @SuppressWarnings("unchecked")
+  public void checkNoLeaksOnRacingTest() {
+
+    racingCases()
+        .forEach(
+            a -> {
+              LeaksTrackingByteBufAllocator allocator =
+                  LeaksTrackingByteBufAllocator.instrumentDefault();
+              ((Runnable) a.get()[0]).run();
+              checkNoLeaksOnRacing(
+                  allocator,
+                  (Function<ClientSocketRule, Publisher<Payload>>) a.get()[1],
+                  (BiConsumer<AssertSubscriber<Payload>, ClientSocketRule>) a.get()[2]);
+
+              LeaksTrackingByteBufAllocator.deinstrumentDefault();
+            });
+  }
+
+  public void checkNoLeaksOnRacing(
+      LeaksTrackingByteBufAllocator allocator,
+      Function<ClientSocketRule, Publisher<Payload>> initiator,
+      BiConsumer<AssertSubscriber<Payload>, ClientSocketRule> runner) {
+    for (int i = 0; i < 10000; i++) {
+      ClientSocketRule clientSocketRule = new ClientSocketRule();
+      try {
+        clientSocketRule
+            .apply(
+                new Statement() {
+                  @Override
+                  public void evaluate() throws Throwable {}
+                },
+                null)
+            .evaluate();
+      } catch (Throwable throwable) {
+        throwable.printStackTrace();
+      }
+
+      Publisher<Payload> payloadP = initiator.apply(clientSocketRule);
+      AssertSubscriber<Payload> assertSubscriber = AssertSubscriber.create();
+
+      if (payloadP instanceof Flux) {
+        ((Flux<Payload>) payloadP).doOnNext(Payload::release).subscribe(assertSubscriber);
+      } else {
+        ((Mono<Payload>) payloadP).doOnNext(Payload::release).subscribe(assertSubscriber);
+      }
+
+      runner.accept(assertSubscriber, clientSocketRule);
+
+      Assertions.assertThat(clientSocketRule.connection.getSent())
+          .allMatch(ReferenceCounted::release);
+
+      allocator.assertHasNoLeaks();
+    }
   }
 
   private static Stream<Arguments> racingCases() {
@@ -487,72 +584,6 @@ public class RSocketRequesterTest {
 
                   RaceTestUtils.race(as::cancel, () -> rule.connection.addToReceivedBuffer(frame));
                 }));
-  }
-
-  @Test
-  @Ignore("Due to https://github.com/reactor/reactor-core/pull/2114")
-  @SuppressWarnings("unchecked")
-  public void checkNoLeaksOnRacingTest() {
-
-    racingCases()
-        .forEach(
-            a -> {
-              LeaksTrackingByteBufAllocator allocator =
-                  LeaksTrackingByteBufAllocator.instrumentDefault();
-              ((Runnable) a.get()[0]).run();
-              checkNoLeaksOnRacing(
-                  allocator,
-                  (Function<ClientSocketRule, Publisher<Payload>>) a.get()[1],
-                  (BiConsumer<AssertSubscriber<Payload>, ClientSocketRule>) a.get()[2]);
-
-              LeaksTrackingByteBufAllocator.deinstrumentDefault();
-            });
-  }
-
-  public void checkNoLeaksOnRacing(
-      LeaksTrackingByteBufAllocator allocator,
-      Function<ClientSocketRule, Publisher<Payload>> initiator,
-      BiConsumer<AssertSubscriber<Payload>, ClientSocketRule> runner) {
-    for (int i = 0; i < 10000; i++) {
-      ClientSocketRule clientSocketRule = new ClientSocketRule();
-      try {
-        clientSocketRule
-            .apply(
-                new Statement() {
-                  @Override
-                  public void evaluate() throws Throwable {}
-                },
-                null)
-            .evaluate();
-      } catch (Throwable throwable) {
-        throwable.printStackTrace();
-      }
-
-      Publisher<Payload> payloadP = initiator.apply(clientSocketRule);
-      AssertSubscriber<Payload> assertSubscriber = AssertSubscriber.create();
-
-      if (payloadP instanceof Flux) {
-        ((Flux<Payload>) payloadP).doOnNext(Payload::release).subscribe(assertSubscriber);
-      } else {
-        ((Mono<Payload>) payloadP).doOnNext(Payload::release).subscribe(assertSubscriber);
-      }
-
-      runner.accept(assertSubscriber, clientSocketRule);
-
-      Assertions.assertThat(clientSocketRule.connection.getSent())
-          .allMatch(ReferenceCounted::release);
-
-      allocator.assertHasNoLeaks();
-    }
-  }
-
-  static Stream<BiFunction<RSocket, Payload, Publisher<?>>> prepareCalls() {
-    return Stream.of(
-        RSocket::fireAndForget,
-        RSocket::requestResponse,
-        RSocket::requestStream,
-        (rSocket, payload) -> rSocket.requestChannel(Flux.just(payload)),
-        RSocket::metadataPush);
   }
 
   @Test

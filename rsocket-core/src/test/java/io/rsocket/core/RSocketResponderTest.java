@@ -53,7 +53,9 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
+import org.reactivestreams.Subscription;
 import reactor.core.CoreSubscriber;
+import reactor.core.publisher.BaseSubscriber;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.FluxSink;
 import reactor.core.publisher.Hooks;
@@ -117,12 +119,14 @@ public class RSocketResponderTest {
 
   @Test(timeout = 2_0000)
   public void testCancel() {
+    LeaksTrackingByteBufAllocator allocator = LeaksTrackingByteBufAllocator.instrumentDefault();
     final int streamId = 4;
     final AtomicBoolean cancelled = new AtomicBoolean();
     rule.setAcceptingSocket(
         new AbstractRSocket() {
           @Override
           public Mono<Payload> requestResponse(Payload payload) {
+            payload.release();
             return Mono.<Payload>never().doOnCancel(() -> cancelled.set(true));
           }
         });
@@ -136,10 +140,12 @@ public class RSocketResponderTest {
 
     assertThat("Unexpected frame sent.", rule.connection.getSent(), is(empty()));
     assertThat("Subscription not cancelled.", cancelled.get(), is(true));
+    allocator.assertHasNoLeaks();
   }
 
   @Test
   public void shouldThrownExceptionIfGivenPayloadIsExitsSizeAllowanceWithNoFragmentation() {
+    LeaksTrackingByteBufAllocator allocator = LeaksTrackingByteBufAllocator.instrumentDefault();
     final int streamId = 4;
     final AtomicBoolean cancelled = new AtomicBoolean();
     byte[] metadata = new byte[FrameLengthFlyweight.FRAME_LENGTH_MASK];
@@ -151,16 +157,27 @@ public class RSocketResponderTest {
         new AbstractRSocket() {
           @Override
           public Mono<Payload> requestResponse(Payload p) {
+            p.release();
             return Mono.just(payload).doOnCancel(() -> cancelled.set(true));
           }
 
           @Override
           public Flux<Payload> requestStream(Payload p) {
+            p.release();
             return Flux.just(payload).doOnCancel(() -> cancelled.set(true));
           }
 
           @Override
           public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
+            Flux.from(payloads)
+                .doOnNext(Payload::release)
+                .subscribe(
+                    new BaseSubscriber<Payload>() {
+                      @Override
+                      protected void hookOnSubscribe(Subscription subscription) {
+                        subscription.request(1);
+                      }
+                    });
             return Flux.just(payload).doOnCancel(() -> cancelled.set(true));
           }
         };
@@ -182,12 +199,14 @@ public class RSocketResponderTest {
           .hasSize(1)
           .first()
           .matches(bb -> FrameHeaderFlyweight.frameType(bb) == FrameType.ERROR)
-          .matches(bb -> ErrorFrameFlyweight.dataUtf8(bb).contains(INVALID_PAYLOAD_ERROR_MESSAGE));
+          .matches(bb -> ErrorFrameFlyweight.dataUtf8(bb).contains(INVALID_PAYLOAD_ERROR_MESSAGE))
+          .matches(ReferenceCounted::release);
 
       assertThat("Subscription not cancelled.", cancelled.get(), is(true));
       rule.init();
       rule.setAcceptingSocket(acceptingSocket);
     }
+    allocator.assertHasNoLeaks();
   }
 
   @Test
