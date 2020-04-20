@@ -16,7 +16,6 @@
 
 package io.rsocket.core;
 
-import static io.rsocket.core.LimitRateOperator.applyLimitRateOperator;
 import static io.rsocket.core.PayloadValidationUtils.INVALID_PAYLOAD_ERROR_MESSAGE;
 
 import io.netty.buffer.ByteBuf;
@@ -476,14 +475,13 @@ class RSocketResponder implements ResponderRSocket {
 
     sendingSubscriptions.put(streamId, subscriber);
     response
-        .transform(f -> applyLimitRateOperator(f, Queues.SMALL_BUFFER_SIZE))
+        .limitRate(Queues.SMALL_BUFFER_SIZE)
         .doOnDiscard(ReferenceCounted.class, DROPPED_ELEMENTS_CONSUMER)
         .subscribe(subscriber);
   }
 
   private void handleChannel(int streamId, Payload payload, int initialRequestN) {
-    UnicastProcessor<Payload> frames =
-        UnicastProcessor.create(new CleanOnClearQueueDecorator(Queues.<Payload>unbounded().get()));
+    UnicastProcessor<Payload> frames = UnicastProcessor.create();
     channelProcessors.put(streamId, frames);
 
     Flux<Payload> payloads =

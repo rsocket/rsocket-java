@@ -46,4 +46,23 @@ dependencies {
     testRuntimeOnly 'org.junit.vintage:junit-vintage-engine'
 }
 
+if (JavaVersion.current().java9Compatible) {
+    sourceSets {
+        java9impl.java.srcDirs = ['src/test/java9impl']
+    }
+
+    dependencies {
+        testCompile sourceSets.java9impl.output
+    }
+}
+else {
+    sourceSets {
+        java8impl.java.srcDirs = ['src/test/java8impl']
+    }
+
+    dependencies {
+        testCompile sourceSets.java8impl.output
+    }
+}
+
 description = "Core functionality for the RSocket library"

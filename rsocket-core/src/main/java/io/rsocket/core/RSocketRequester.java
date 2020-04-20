@@ -16,7 +16,6 @@
 
 package io.rsocket.core;
 
-import static io.rsocket.core.LimitRateOperator.applyLimitRateOperator;
 import static io.rsocket.core.PayloadValidationUtils.INVALID_PAYLOAD_ERROR_MESSAGE;
 import static io.rsocket.keepalive.KeepAliveSupport.ClientKeepAliveSupport;
 import static io.rsocket.keepalive.KeepAliveSupport.KeepAlive;
@@ -281,8 +280,7 @@ class RSocketRequester implements RSocket {
     int streamId = streamIdSupplier.nextStreamId(receivers);
 
     final UnboundedProcessor<ByteBuf> sendProcessor = this.sendProcessor;
-    final UnicastProcessor<Payload> receiver =
-        UnicastProcessor.create(new CleanOnClearQueueDecorator(Queues.<Payload>unbounded().get()));
+    final UnicastProcessor<Payload> receiver = UnicastProcessor.create();
     final AtomicBoolean payloadReleasedFlag = new AtomicBoolean(false);
 
     receivers.put(streamId, receiver);
@@ -362,8 +360,7 @@ class RSocketRequester implements RSocket {
     final AtomicBoolean payloadReleasedFlag = new AtomicBoolean(false);
     final int streamId = streamIdSupplier.nextStreamId(receivers);
 
-    final UnicastProcessor<Payload> receiver =
-        UnicastProcessor.create(new CleanOnClearQueueDecorator(Queues.<Payload>unbounded().get()));
+    final UnicastProcessor<Payload> receiver = UnicastProcessor.create();
     final BaseSubscriber<Payload> upstreamSubscriber =
         new BaseSubscriber<Payload>() {
 
@@ -432,7 +429,7 @@ class RSocketRequester implements RSocket {
                   receivers.put(streamId, receiver);
 
                   inboundFlux
-                      .transform(f -> applyLimitRateOperator(f, Queues.SMALL_BUFFER_SIZE))
+                      .limitRate(Queues.SMALL_BUFFER_SIZE)
                       .doOnDiscard(ReferenceCounted.class, DROPPED_ELEMENTS_CONSUMER)
                       .subscribe(upstreamSubscriber);
                   if (!payloadReleasedFlag.getAndSet(true)) {

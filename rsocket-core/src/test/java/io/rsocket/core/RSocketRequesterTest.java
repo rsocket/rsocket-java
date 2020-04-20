@@ -37,12 +37,12 @@ import static org.mockito.Mockito.verify;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.util.CharsetUtil;
-import io.netty.util.ReferenceCountUtil;
 import io.netty.util.ReferenceCounted;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.buffer.LeaksTrackingByteBufAllocator;
 import io.rsocket.exceptions.ApplicationErrorException;
+import io.rsocket.exceptions.CustomRSocketException;
 import io.rsocket.exceptions.RejectedSetupException;
 import io.rsocket.frame.CancelFrameFlyweight;
 import io.rsocket.frame.ErrorFrameFlyweight;
@@ -72,6 +72,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.assertj.core.api.Assertions;
+import org.junit.After;
 import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
@@ -82,16 +83,21 @@ import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 import reactor.core.publisher.BaseSubscriber;
 import reactor.core.publisher.Flux;
-import reactor.core.publisher.Hooks;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
 import reactor.core.publisher.UnicastProcessor;
 import reactor.test.StepVerifier;
+import reactor.test.publisher.TestPublisher;
 import reactor.test.util.RaceTestUtils;
 
 public class RSocketRequesterTest {
 
   @Rule public final ClientSocketRule rule = new ClientSocketRule();
+
+  @After
+  public void tearDown() {
+    LeaksTrackingByteBufAllocator.deinstrumentDefault();
+  }
 
   @Test(timeout = 2_000)
   public void testInvalidFrameOnStream0() {
@@ -349,6 +355,25 @@ public class RSocketRequesterTest {
   private static Stream<Arguments> racingCases() {
     return Stream.of(
         Arguments.of(
+            (Runnable) () -> System.out.println("RequestStream downstream cancellation case"),
+            (Function<ClientSocketRule, Publisher<Payload>>)
+                (rule) -> rule.socket.requestStream(EmptyPayload.INSTANCE),
+            (BiConsumer<AssertSubscriber<Payload>, ClientSocketRule>)
+                (as, rule) -> {
+                  LeaksTrackingByteBufAllocator allocator =
+                      LeaksTrackingByteBufAllocator.instrumentDefault();
+                  ByteBuf metadata = allocator.buffer();
+                  metadata.writeCharSequence("abc", CharsetUtil.UTF_8);
+                  ByteBuf data = allocator.buffer();
+                  data.writeCharSequence("def", CharsetUtil.UTF_8);
+                  int streamId = rule.getStreamIdForRequestType(REQUEST_STREAM);
+                  ByteBuf frame =
+                      PayloadFrameFlyweight.encode(
+                          allocator, streamId, false, false, true, metadata, data);
+
+                  RaceTestUtils.race(as::cancel, () -> rule.connection.addToReceivedBuffer(frame));
+                }),
+        Arguments.of(
             (Runnable) () -> System.out.println("RequestChannel downstream cancellation case"),
             (Function<ClientSocketRule, Publisher<Payload>>)
                 (rule) -> rule.socket.requestChannel(Flux.just(EmptyPayload.INSTANCE)),
@@ -395,10 +420,13 @@ public class RSocketRequesterTest {
             (Function<ClientSocketRule, Publisher<Payload>>)
                 (rule) -> {
                   return rule.socket.requestChannel(
-                      Flux.just(
-                          ByteBufPayload.create("a", "b"),
-                          ByteBufPayload.create("c", "d"),
-                          ByteBufPayload.create("e", "f")));
+                      Flux.generate(
+                          () -> 1L,
+                          (index, sink) -> {
+                            final Payload payload = ByteBufPayload.create("d" + index, "m" + index);
+                            sink.next(payload);
+                            return ++index;
+                          }));
                 },
             (BiConsumer<AssertSubscriber<Payload>, ClientSocketRule>)
                 (as, rule) -> {
@@ -418,10 +446,13 @@ public class RSocketRequesterTest {
             (Function<ClientSocketRule, Publisher<Payload>>)
                 (rule) -> {
                   return rule.socket.requestChannel(
-                      Flux.just(
-                          ByteBufPayload.create("a", "b"),
-                          ByteBufPayload.create("c", "d"),
-                          ByteBufPayload.create("e", "f")));
+                      Flux.generate(
+                          () -> 1L,
+                          (index, sink) -> {
+                            final Payload payload = ByteBufPayload.create("d" + index, "m" + index);
+                            sink.next(payload);
+                            return ++index;
+                          }));
                 },
             (BiConsumer<AssertSubscriber<Payload>, ClientSocketRule>)
                 (as, rule) -> {
@@ -466,7 +497,6 @@ public class RSocketRequesterTest {
     racingCases()
         .forEach(
             a -> {
-              Hooks.onNextDropped(ReferenceCountUtil::safeRelease);
               LeaksTrackingByteBufAllocator allocator =
                   LeaksTrackingByteBufAllocator.instrumentDefault();
               ((Runnable) a.get()[0]).run();
@@ -475,7 +505,6 @@ public class RSocketRequesterTest {
                   (Function<ClientSocketRule, Publisher<Payload>>) a.get()[1],
                   (BiConsumer<AssertSubscriber<Payload>, ClientSocketRule>) a.get()[2]);
 
-              Hooks.resetOnNextDropped();
               LeaksTrackingByteBufAllocator.deinstrumentDefault();
             });
   }
@@ -484,7 +513,7 @@ public class RSocketRequesterTest {
       LeaksTrackingByteBufAllocator allocator,
       Function<ClientSocketRule, Publisher<Payload>> initiator,
       BiConsumer<AssertSubscriber<Payload>, ClientSocketRule> runner) {
-    for (int i = 0; i < 100000; i++) {
+    for (int i = 0; i < 10000; i++) {
       ClientSocketRule clientSocketRule = new ClientSocketRule();
       try {
         clientSocketRule
@@ -524,6 +553,52 @@ public class RSocketRequesterTest {
         RSocket::requestStream,
         (rSocket, payload) -> rSocket.requestChannel(Flux.just(payload)),
         RSocket::metadataPush);
+  }
+
+  @Test
+  public void simpleOnDiscardRequestChannelTest() {
+    LeaksTrackingByteBufAllocator allocator = LeaksTrackingByteBufAllocator.instrumentDefault();
+    AssertSubscriber<Payload> assertSubscriber = AssertSubscriber.create(1);
+    TestPublisher<Payload> testPublisher = TestPublisher.create();
+
+    Flux<Payload> payloadFlux = rule.socket.requestChannel(testPublisher);
+
+    payloadFlux.subscribe(assertSubscriber);
+
+    testPublisher.next(
+        ByteBufPayload.create("d", "m"),
+        ByteBufPayload.create("d1", "m1"),
+        ByteBufPayload.create("d2", "m2"));
+
+    assertSubscriber.cancel();
+
+    Assertions.assertThat(rule.connection.getSent()).allMatch(ByteBuf::release);
+
+    allocator.assertHasNoLeaks();
+  }
+
+  @Test
+  public void simpleOnDiscardRequestChannelTest2() {
+    LeaksTrackingByteBufAllocator allocator = LeaksTrackingByteBufAllocator.instrumentDefault();
+    AssertSubscriber<Payload> assertSubscriber = AssertSubscriber.create(1);
+    TestPublisher<Payload> testPublisher = TestPublisher.create();
+
+    Flux<Payload> payloadFlux = rule.socket.requestChannel(testPublisher);
+
+    payloadFlux.subscribe(assertSubscriber);
+
+    testPublisher.next(ByteBufPayload.create("d", "m"));
+
+    int streamId = rule.getStreamIdForRequestType(REQUEST_CHANNEL);
+    testPublisher.next(ByteBufPayload.create("d1", "m1"), ByteBufPayload.create("d2", "m2"));
+
+    rule.connection.addToReceivedBuffer(
+        ErrorFrameFlyweight.encode(
+            allocator, streamId, new CustomRSocketException(0x00000404, "test")));
+
+    Assertions.assertThat(rule.connection.getSent()).allMatch(ByteBuf::release);
+
+    allocator.assertHasNoLeaks();
   }
 
   public int sendRequestResponse(Publisher<Payload> response) {

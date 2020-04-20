@@ -2,15 +2,35 @@ package io.rsocket.frame.decoder;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
+import io.netty.util.IllegalReferenceCountException;
+import io.netty.util.ReferenceCounted;
 import io.rsocket.Payload;
 import io.rsocket.frame.*;
 import io.rsocket.util.ByteBufPayload;
+import reactor.core.publisher.Hooks;
 
 /**
  * Frame decoder that decodes a frame to a payload without copying. The caller is responsible for
  * for releasing the payload to free memory when they no long need it.
  */
 public class ZeroCopyPayloadDecoder implements PayloadDecoder {
+
+  static {
+    Hooks.onNextDropped(
+        o -> {
+          if (o instanceof ReferenceCounted) {
+            ReferenceCounted referenceCounted = (ReferenceCounted) o;
+            if (referenceCounted.refCnt() > 0) {
+              try {
+                referenceCounted.release();
+              } catch (IllegalReferenceCountException e) {
+                // ignored
+              }
+            }
+          }
+        });
+  }
+
   @Override
   public Payload apply(ByteBuf byteBuf) {
     ByteBuf m;

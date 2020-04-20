@@ -3,14 +3,24 @@ package io.rsocket.buffer;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.CompositeByteBuf;
+import io.rsocket.reflection.FieldHelper;
 import java.lang.reflect.Field;
-import java.lang.reflect.Modifier;
 import java.util.List;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import org.assertj.core.api.Assertions;
 
+/**
+ * Additional Utils which allows to decorate a ByteBufAllocator and track/assertOnLeaks all created
+ * ByteBuffs
+ */
 public class LeaksTrackingByteBufAllocator implements ByteBufAllocator {
 
+  /**
+   * Allows to Instruments the ByteBufAllocator.DEFAULT allocator and replace an existing one using
+   * reflection
+   *
+   * @return
+   */
   public static LeaksTrackingByteBufAllocator instrumentDefault() {
     if (ByteBufAllocator.DEFAULT instanceof LeaksTrackingByteBufAllocator) {
       return (LeaksTrackingByteBufAllocator) ByteBufAllocator.DEFAULT;
@@ -20,7 +30,7 @@ public class LeaksTrackingByteBufAllocator implements ByteBufAllocator {
         new LeaksTrackingByteBufAllocator(ByteBufAllocator.DEFAULT);
     try {
       Field field = ByteBufAllocator.class.getField("DEFAULT");
-      setFinalStatic(field, instrumented);
+      FieldHelper.setFinalStatic(field, instrumented);
     } catch (Exception e) {
       throw new RuntimeException(e);
     }
@@ -33,23 +43,19 @@ public class LeaksTrackingByteBufAllocator implements ByteBufAllocator {
           (LeaksTrackingByteBufAllocator) ByteBufAllocator.DEFAULT;
       try {
         Field field = ByteBufAllocator.class.getField("DEFAULT");
-        setFinalStatic(field, instrumented.delegate);
+        FieldHelper.setFinalStatic(field, instrumented.delegate);
       } catch (Exception e) {
         throw new RuntimeException(e);
       }
     }
   }
 
-  static void setFinalStatic(Field field, Object newValue) throws Exception {
-    field.setAccessible(true);
-
-    Field modifiersField = Field.class.getDeclaredField("modifiers");
-    modifiersField.setAccessible(true);
-    modifiersField.setInt(field, field.getModifiers() & ~Modifier.FINAL);
-
-    field.set(null, newValue);
-  }
-
+  /**
+   * Allows to instrument any given the instance of ByteBufAllocator
+   *
+   * @param allocator
+   * @return
+   */
   public static LeaksTrackingByteBufAllocator instrument(ByteBufAllocator allocator) {
     return new LeaksTrackingByteBufAllocator(allocator);
   }
@@ -63,25 +69,28 @@ public class LeaksTrackingByteBufAllocator implements ByteBufAllocator {
   }
 
   public LeaksTrackingByteBufAllocator assertHasNoLeaks() {
-    Assertions.assertThat(tracker)
-        .allSatisfy(
-            buf -> {
-              if (buf instanceof CompositeByteBuf) {
-                if (buf.refCnt() > 0) {
-                  List<ByteBuf> decomposed =
-                      ((CompositeByteBuf) buf).decompose(0, buf.readableBytes());
-                  for (int i = 0; i < decomposed.size(); i++) {
-                    Assertions.assertThat(decomposed.get(i))
-                        .matches(bb -> bb.refCnt() == 0, "Got unreleased CompositeByteBuf");
+    try {
+      Assertions.assertThat(tracker)
+          .allSatisfy(
+              buf -> {
+                if (buf instanceof CompositeByteBuf) {
+                  if (buf.refCnt() > 0) {
+                    List<ByteBuf> decomposed =
+                        ((CompositeByteBuf) buf).decompose(0, buf.readableBytes());
+                    for (int i = 0; i < decomposed.size(); i++) {
+                      Assertions.assertThat(decomposed.get(i))
+                          .matches(bb -> bb.refCnt() == 0, "Got unreleased CompositeByteBuf");
+                    }
                   }
-                }
 
-              } else {
-                Assertions.assertThat(buf)
-                    .matches(bb -> bb.refCnt() == 0, "buffer should be released");
-              }
-            });
-    tracker.clear();
+                } else {
+                  Assertions.assertThat(buf)
+                      .matches(bb -> bb.refCnt() == 0, "buffer should be released");
+                }
+              });
+    } finally {
+      tracker.clear();
+    }
     return this;
   }
 
