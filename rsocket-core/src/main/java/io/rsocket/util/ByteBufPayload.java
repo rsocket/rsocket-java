@@ -129,7 +129,7 @@ public final class ByteBufPayload extends AbstractReferenceCounted implements Pa
   @Override
   public boolean hasMetadata() {
     ensureAccessible();
-    return metadata != null && metadata.isReadable();
+    return metadata != null;
   }
 
   @Override

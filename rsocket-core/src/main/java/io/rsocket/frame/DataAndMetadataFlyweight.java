@@ -30,11 +30,6 @@ class DataAndMetadataFlyweight {
     return length;
   }
 
-  static ByteBuf encodeOnlyMetadata(
-      ByteBufAllocator allocator, final ByteBuf header, ByteBuf metadata) {
-    return allocator.compositeBuffer(2).addComponents(true, header, metadata);
-  }
-
   static ByteBuf encodeOnlyData(ByteBufAllocator allocator, final ByteBuf header, ByteBuf data) {
     return allocator.compositeBuffer(2).addComponents(true, header, data);
   }

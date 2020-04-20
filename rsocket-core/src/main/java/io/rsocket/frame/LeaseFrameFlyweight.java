@@ -13,7 +13,8 @@ public class LeaseFrameFlyweight {
       final int numRequests,
       @Nullable final ByteBuf metadata) {
 
-    final boolean hasMetadata = metadata != null && metadata.isReadable();
+    final boolean hasMetadata = metadata != null;
+    final boolean writesMetadata = hasMetadata && metadata.isReadable();
 
     int flags = 0;
 
@@ -26,10 +27,10 @@ public class LeaseFrameFlyweight {
             .writeInt(ttl)
             .writeInt(numRequests);
 
-    if (!hasMetadata) {
-      return header;
+    if (writesMetadata) {
+      return allocator.compositeBuffer(2).addComponents(true, header, metadata);
     } else {
-      return DataAndMetadataFlyweight.encodeOnlyMetadata(allocator, header, metadata);
+      return header;
     }
   }
 
