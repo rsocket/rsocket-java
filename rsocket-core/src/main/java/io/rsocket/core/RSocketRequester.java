@@ -22,7 +22,9 @@ import static io.rsocket.keepalive.KeepAliveSupport.KeepAlive;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
+import io.netty.util.IllegalReferenceCountException;
 import io.netty.util.ReferenceCountUtil;
+import io.netty.util.ReferenceCounted;
 import io.netty.util.collection.IntObjectMap;
 import io.rsocket.DuplexConnection;
 import io.rsocket.Payload;
@@ -77,6 +79,16 @@ class RSocketRequester implements RSocket {
       AtomicReferenceFieldUpdater.newUpdater(
           RSocketRequester.class, Throwable.class, "terminationError");
   private static final Exception CLOSED_CHANNEL_EXCEPTION = new ClosedChannelException();
+  private static final Consumer<ReferenceCounted> DROPPED_ELEMENTS_CONSUMER =
+      referenceCounted -> {
+        if (referenceCounted.refCnt() > 0) {
+          try {
+            referenceCounted.release();
+          } catch (IllegalReferenceCountException e) {
+            // ignored
+          }
+        }
+      };
 
   static {
     CLOSED_CHANNEL_EXCEPTION.setStackTrace(new StackTraceElement[0]);
@@ -259,7 +271,7 @@ class RSocketRequester implements RSocket {
             });
     receivers.put(streamId, receiver);
 
-    return receiver;
+    return receiver.doOnDiscard(ReferenceCounted.class, DROPPED_ELEMENTS_CONSUMER);
   }
 
   private Flux<Payload> handleRequestStream(final Payload payload) {
@@ -323,7 +335,8 @@ class RSocketRequester implements RSocket {
                 sendProcessor.onNext(CancelFrameFlyweight.encode(allocator, streamId));
               }
             })
-        .doFinally(s -> removeStreamReceiver(streamId));
+        .doFinally(s -> removeStreamReceiver(streamId))
+        .doOnDiscard(ReferenceCounted.class, DROPPED_ELEMENTS_CONSUMER);
   }
 
   private Flux<Payload> handleChannel(Flux<Payload> request) {
@@ -424,7 +437,10 @@ class RSocketRequester implements RSocket {
                   senders.put(streamId, upstreamSubscriber);
                   receivers.put(streamId, receiver);
 
-                  inboundFlux.limitRate(Queues.SMALL_BUFFER_SIZE).subscribe(upstreamSubscriber);
+                  inboundFlux
+                      .limitRate(Queues.SMALL_BUFFER_SIZE)
+                      .doOnDiscard(ReferenceCounted.class, DROPPED_ELEMENTS_CONSUMER)
+                      .subscribe(upstreamSubscriber);
                   if (!payloadReleasedFlag.getAndSet(true)) {
                     ByteBuf frame =
                         RequestChannelFrameFlyweight.encode(
@@ -461,7 +477,8 @@ class RSocketRequester implements RSocket {
                 sendProcessor.onNext(CancelFrameFlyweight.encode(allocator, streamId));
                 upstreamSubscriber.cancel();
               }
-            });
+            })
+        .doOnDiscard(ReferenceCounted.class, DROPPED_ELEMENTS_CONSUMER);
   }
 
   private Mono<Void> handleMetadataPush(Payload payload) {

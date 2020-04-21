@@ -99,7 +99,7 @@ public class CharByteBufUtil {
   }
 
   /**
-   * Encode a {@link char[]} in <a href="http://en.wikipedia.org/wiki/UTF-8">UTF-8</a> and write it
+   * Encode a {@code char[]} in <a href="http://en.wikipedia.org/wiki/UTF-8">UTF-8</a> and write it
    * into {@link ByteBuf}.
    *
    * <p>This method returns the actual number of bytes written.
@@ -109,9 +109,8 @@ public class CharByteBufUtil {
   }
 
   /**
-   * Equivalent to <code>{@link #writeUtf8(ByteBuf, char[])
-   * writeUtf8(buf, seq.subSequence(start, end), reserveBytes)}</code> but avoids subsequence object
-   * allocation if possible.
+   * Equivalent to {@link #writeUtf8(ByteBuf, char[]) writeUtf8(buf, seq.subSequence(start, end),
+   * reserveBytes)} but avoids subsequence object allocation if possible.
    *
    * @return actual number of bytes written
    */
