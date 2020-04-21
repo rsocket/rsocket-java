@@ -22,7 +22,10 @@ import static io.rsocket.frame.FrameType.REQUEST_CHANNEL;
 import static io.rsocket.frame.FrameType.REQUEST_RESPONSE;
 import static io.rsocket.frame.FrameType.REQUEST_STREAM;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
@@ -34,7 +37,17 @@ import io.rsocket.AbstractRSocket;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.buffer.LeaksTrackingByteBufAllocator;
-import io.rsocket.frame.*;
+import io.rsocket.frame.CancelFrameFlyweight;
+import io.rsocket.frame.ErrorFrameFlyweight;
+import io.rsocket.frame.FrameHeaderFlyweight;
+import io.rsocket.frame.FrameLengthFlyweight;
+import io.rsocket.frame.FrameType;
+import io.rsocket.frame.KeepAliveFrameFlyweight;
+import io.rsocket.frame.PayloadFrameFlyweight;
+import io.rsocket.frame.RequestChannelFrameFlyweight;
+import io.rsocket.frame.RequestNFrameFlyweight;
+import io.rsocket.frame.RequestResponseFrameFlyweight;
+import io.rsocket.frame.RequestStreamFrameFlyweight;
 import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.internal.subscriber.AssertSubscriber;
 import io.rsocket.lease.ResponderLeaseHandler;
@@ -73,19 +86,18 @@ public class RSocketResponderTest {
 
   @BeforeEach
   public void setUp() throws Throwable {
-      rule = new ServerSocketRule();
-      rule.apply(new Statement() {
-          @Override
-          public void evaluate() {
-
-          }
-      }, null)
-              .evaluate();
+    rule = new ServerSocketRule();
+    rule.apply(
+            new Statement() {
+              @Override
+              public void evaluate() {}
+            },
+            null)
+        .evaluate();
   }
 
   @AfterEach
   public void tearDown() {
-    LeaksTrackingByteBufAllocator.deinstrumentDefault();
     Hooks.resetOnErrorDropped();
   }
 
@@ -94,7 +106,7 @@ public class RSocketResponderTest {
   @Disabled
   public void testHandleKeepAlive() throws Exception {
     rule.connection.addToReceivedBuffer(
-        KeepAliveFrameFlyweight.encode(ByteBufAllocator.DEFAULT, true, 0, Unpooled.EMPTY_BUFFER));
+        KeepAliveFrameFlyweight.encode(rule.alloc(), true, 0, Unpooled.EMPTY_BUFFER));
     ByteBuf sent = rule.connection.awaitSend();
     assertThat("Unexpected frame sent.", frameType(sent), is(FrameType.KEEPALIVE));
     /*Keep alive ack must not have respond flag else, it will result in infinite ping-pong of keep alive frames.*/
@@ -137,7 +149,7 @@ public class RSocketResponderTest {
   @Test
   @Timeout(20_000)
   public void testCancel() {
-    LeaksTrackingByteBufAllocator allocator = LeaksTrackingByteBufAllocator.instrumentDefault();
+    ByteBufAllocator allocator = rule.alloc();
     final int streamId = 4;
     final AtomicBoolean cancelled = new AtomicBoolean();
     rule.setAcceptingSocket(
@@ -153,18 +165,17 @@ public class RSocketResponderTest {
     assertThat("Unexpected error.", rule.errors, is(empty()));
     assertThat("Unexpected frame sent.", rule.connection.getSent(), is(empty()));
 
-    rule.connection.addToReceivedBuffer(
-        CancelFrameFlyweight.encode(ByteBufAllocator.DEFAULT, streamId));
+    rule.connection.addToReceivedBuffer(CancelFrameFlyweight.encode(allocator, streamId));
 
     assertThat("Unexpected frame sent.", rule.connection.getSent(), is(empty()));
     assertThat("Subscription not cancelled.", cancelled.get(), is(true));
-    allocator.assertHasNoLeaks();
+    rule.assertHasNoLeaks();
   }
 
   @Test
   @Timeout(2_000)
   public void shouldThrownExceptionIfGivenPayloadIsExitsSizeAllowanceWithNoFragmentation() {
-    LeaksTrackingByteBufAllocator allocator = LeaksTrackingByteBufAllocator.instrumentDefault();
+    ByteBufAllocator allocator = rule.alloc();
     final int streamId = 4;
     final AtomicBoolean cancelled = new AtomicBoolean();
     byte[] metadata = new byte[FrameLengthFlyweight.FRAME_LENGTH_MASK];
@@ -225,14 +236,14 @@ public class RSocketResponderTest {
       rule.init();
       rule.setAcceptingSocket(acceptingSocket);
     }
-    allocator.assertHasNoLeaks();
+    rule.assertHasNoLeaks();
   }
 
   @Test
   @Disabled("Due to https://github.com/reactor/reactor-core/pull/2114")
   public void checkNoLeaksOnRacingCancelFromRequestChannelAndNextFromUpstream() {
 
-    LeaksTrackingByteBufAllocator allocator = LeaksTrackingByteBufAllocator.instrumentDefault();
+    ByteBufAllocator allocator = rule.alloc();
     for (int i = 0; i < 10000; i++) {
       AssertSubscriber<Payload> assertSubscriber = AssertSubscriber.create();
 
@@ -278,7 +289,7 @@ public class RSocketResponderTest {
 
       Assertions.assertThat(rule.connection.getSent()).allMatch(ReferenceCounted::release);
 
-      allocator.assertHasNoLeaks();
+      rule.assertHasNoLeaks();
     }
   }
 
@@ -286,7 +297,7 @@ public class RSocketResponderTest {
   @Disabled("Due to https://github.com/reactor/reactor-core/pull/2114")
   public void checkNoLeaksOnRacingBetweenDownstreamCancelAndOnNextFromRequestChannelTest() {
     Hooks.onErrorDropped((e) -> {});
-    LeaksTrackingByteBufAllocator allocator = LeaksTrackingByteBufAllocator.instrumentDefault();
+    ByteBufAllocator allocator = rule.alloc();
     for (int i = 0; i < 10000; i++) {
       AssertSubscriber<Payload> assertSubscriber = AssertSubscriber.create();
 
@@ -318,7 +329,7 @@ public class RSocketResponderTest {
 
       Assertions.assertThat(rule.connection.getSent()).allMatch(ReferenceCounted::release);
 
-      allocator.assertHasNoLeaks();
+      rule.assertHasNoLeaks();
     }
   }
 
@@ -327,7 +338,7 @@ public class RSocketResponderTest {
   public void checkNoLeaksOnRacingBetweenDownstreamCancelAndOnNextFromRequestChannelTest1() {
     Scheduler parallel = Schedulers.parallel();
     Hooks.onErrorDropped((e) -> {});
-    LeaksTrackingByteBufAllocator allocator = LeaksTrackingByteBufAllocator.instrumentDefault();
+    ByteBufAllocator allocator = rule.alloc();
     for (int i = 0; i < 10000; i++) {
       AssertSubscriber<Payload> assertSubscriber = AssertSubscriber.create();
 
@@ -365,7 +376,7 @@ public class RSocketResponderTest {
 
       Assertions.assertThat(rule.connection.getSent()).allMatch(ReferenceCounted::release);
 
-      allocator.assertHasNoLeaks();
+      rule.assertHasNoLeaks();
     }
   }
 
@@ -376,7 +387,7 @@ public class RSocketResponderTest {
           throws InterruptedException {
     Scheduler parallel = Schedulers.parallel();
     Hooks.onErrorDropped((e) -> {});
-    LeaksTrackingByteBufAllocator allocator = LeaksTrackingByteBufAllocator.instrumentDefault();
+    ByteBufAllocator allocator = rule.alloc();
     for (int i = 0; i < 10000; i++) {
       FluxSink<Payload>[] sinks = new FluxSink[1];
 
@@ -437,7 +448,7 @@ public class RSocketResponderTest {
 
       Assertions.assertThat(rule.connection.getSent()).allMatch(ReferenceCounted::release);
 
-      allocator.assertHasNoLeaks();
+      rule.assertHasNoLeaks();
     }
   }
 
@@ -446,7 +457,7 @@ public class RSocketResponderTest {
   public void checkNoLeaksOnRacingBetweenDownstreamCancelAndOnNextFromRequestStreamTest1() {
     Scheduler parallel = Schedulers.parallel();
     Hooks.onErrorDropped((e) -> {});
-    LeaksTrackingByteBufAllocator allocator = LeaksTrackingByteBufAllocator.instrumentDefault();
+    ByteBufAllocator allocator = rule.alloc();
     for (int i = 0; i < 10000; i++) {
       FluxSink<Payload>[] sinks = new FluxSink[1];
 
@@ -475,7 +486,7 @@ public class RSocketResponderTest {
 
       Assertions.assertThat(rule.connection.getSent()).allMatch(ReferenceCounted::release);
 
-      allocator.assertHasNoLeaks();
+      rule.assertHasNoLeaks();
     }
   }
 
@@ -483,7 +494,7 @@ public class RSocketResponderTest {
   public void checkNoLeaksOnRacingBetweenDownstreamCancelAndOnNextFromRequestResponseTest1() {
     Scheduler parallel = Schedulers.parallel();
     Hooks.onErrorDropped((e) -> {});
-    LeaksTrackingByteBufAllocator allocator = LeaksTrackingByteBufAllocator.instrumentDefault();
+    ByteBufAllocator allocator = rule.alloc();
     for (int i = 0; i < 10000; i++) {
       Operators.MonoSubscriber<Payload, Payload>[] sources = new Operators.MonoSubscriber[1];
 
@@ -515,13 +526,13 @@ public class RSocketResponderTest {
 
       Assertions.assertThat(rule.connection.getSent()).allMatch(ReferenceCounted::release);
 
-      allocator.assertHasNoLeaks();
+      rule.assertHasNoLeaks();
     }
   }
 
   @Test
   public void simpleDiscardRequestStreamTest() {
-    LeaksTrackingByteBufAllocator allocator = LeaksTrackingByteBufAllocator.instrumentDefault();
+    ByteBufAllocator allocator = rule.alloc();
     FluxSink<Payload>[] sinks = new FluxSink[1];
 
     rule.setAcceptingSocket(
@@ -546,12 +557,12 @@ public class RSocketResponderTest {
 
     Assertions.assertThat(rule.connection.getSent()).allMatch(ReferenceCounted::release);
 
-    allocator.assertHasNoLeaks();
+    rule.assertHasNoLeaks();
   }
 
   @Test
   public void simpleDiscardRequestChannelTest() {
-    LeaksTrackingByteBufAllocator allocator = LeaksTrackingByteBufAllocator.instrumentDefault();
+    ByteBufAllocator allocator = rule.alloc();
 
     rule.setAcceptingSocket(
         new AbstractRSocket() {
@@ -592,7 +603,7 @@ public class RSocketResponderTest {
 
     Assertions.assertThat(rule.connection.getSent()).allMatch(ReferenceCounted::release);
 
-    allocator.assertHasNoLeaks();
+    rule.assertHasNoLeaks();
   }
 
   public static class ServerSocketRule extends AbstractSocketRule<RSocketResponder> {
@@ -631,9 +642,9 @@ public class RSocketResponderTest {
     }
 
     @Override
-    protected RSocketResponder newRSocket() {
+    protected RSocketResponder newRSocket(LeaksTrackingByteBufAllocator allocator) {
       return new RSocketResponder(
-          ByteBufAllocator.DEFAULT,
+          allocator,
           connection,
           acceptingSocket,
           PayloadDecoder.ZERO_COPY,
@@ -649,7 +660,7 @@ public class RSocketResponderTest {
         case REQUEST_CHANNEL:
           request =
               RequestChannelFrameFlyweight.encode(
-                  ByteBufAllocator.DEFAULT,
+                  allocator,
                   streamId,
                   false,
                   false,
@@ -660,7 +671,7 @@ public class RSocketResponderTest {
         case REQUEST_STREAM:
           request =
               RequestStreamFrameFlyweight.encode(
-                  ByteBufAllocator.DEFAULT,
+                  allocator,
                   streamId,
                   false,
                   prefetch,
@@ -670,19 +681,13 @@ public class RSocketResponderTest {
         case REQUEST_RESPONSE:
           request =
               RequestResponseFrameFlyweight.encode(
-                  ByteBufAllocator.DEFAULT,
-                  streamId,
-                  false,
-                  Unpooled.EMPTY_BUFFER,
-                  Unpooled.EMPTY_BUFFER);
+                  allocator, streamId, false, Unpooled.EMPTY_BUFFER, Unpooled.EMPTY_BUFFER);
           break;
         default:
           throw new IllegalArgumentException("unsupported type: " + frameType);
       }
 
       connection.addToReceivedBuffer(request);
-      //      connection.addToReceivedBuffer(
-      //          RequestNFrameFlyweight.encode(ByteBufAllocator.DEFAULT, streamId, 2));
     }
   }
 }

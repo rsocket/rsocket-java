@@ -3,8 +3,6 @@ package io.rsocket.buffer;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.CompositeByteBuf;
-import io.rsocket.reflection.FieldHelper;
-import java.lang.reflect.Field;
 import java.util.List;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import org.assertj.core.api.Assertions;
@@ -14,41 +12,6 @@ import org.assertj.core.api.Assertions;
  * ByteBuffs
  */
 public class LeaksTrackingByteBufAllocator implements ByteBufAllocator {
-
-  /**
-   * Allows to Instruments the ByteBufAllocator.DEFAULT allocator and replace an existing one using
-   * reflection
-   *
-   * @return
-   */
-  public static synchronized LeaksTrackingByteBufAllocator instrumentDefault() {
-    if (ByteBufAllocator.DEFAULT instanceof LeaksTrackingByteBufAllocator) {
-      return (LeaksTrackingByteBufAllocator) ByteBufAllocator.DEFAULT;
-    }
-
-    final LeaksTrackingByteBufAllocator instrumented =
-        new LeaksTrackingByteBufAllocator(ByteBufAllocator.DEFAULT);
-    try {
-      Field field = ByteBufAllocator.class.getField("DEFAULT");
-      FieldHelper.setFinalStatic(field, instrumented);
-    } catch (Exception e) {
-      throw new RuntimeException(e);
-    }
-    return instrumented;
-  }
-
-  public static synchronized void deinstrumentDefault() {
-    if (ByteBufAllocator.DEFAULT instanceof LeaksTrackingByteBufAllocator) {
-      LeaksTrackingByteBufAllocator instrumented =
-          (LeaksTrackingByteBufAllocator) ByteBufAllocator.DEFAULT;
-      try {
-        Field field = ByteBufAllocator.class.getField("DEFAULT");
-        FieldHelper.setFinalStatic(field, instrumented.delegate);
-      } catch (Exception e) {
-        throw new RuntimeException(e);
-      }
-    }
-  }
 
   /**
    * Allows to instrument any given the instance of ByteBufAllocator

@@ -16,7 +16,9 @@
 
 package io.rsocket.core;
 
+import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.RSocket;
+import io.rsocket.buffer.LeaksTrackingByteBufAllocator;
 import io.rsocket.test.util.TestDuplexConnection;
 import io.rsocket.test.util.TestSubscriber;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -32,6 +34,7 @@ public abstract class AbstractSocketRule<T extends RSocket> extends ExternalReso
   protected Subscriber<Void> connectSub;
   protected T socket;
   protected ConcurrentLinkedQueue<Throwable> errors;
+  protected LeaksTrackingByteBufAllocator allocator;
 
   @Override
   public Statement apply(final Statement base, Description description) {
@@ -41,6 +44,7 @@ public abstract class AbstractSocketRule<T extends RSocket> extends ExternalReso
         connection = new TestDuplexConnection();
         connectSub = TestSubscriber.create();
         errors = new ConcurrentLinkedQueue<>();
+        allocator = LeaksTrackingByteBufAllocator.instrument(ByteBufAllocator.DEFAULT);
         init();
         base.evaluate();
       }
@@ -48,14 +52,22 @@ public abstract class AbstractSocketRule<T extends RSocket> extends ExternalReso
   }
 
   protected void init() {
-    socket = newRSocket();
+    socket = newRSocket(allocator);
   }
 
-  protected abstract T newRSocket();
+  protected abstract T newRSocket(LeaksTrackingByteBufAllocator allocator);
 
   public void assertNoConnectionErrors() {
     if (errors.size() > 1) {
       Assert.fail("No connection errors expected: " + errors.peek().toString());
     }
+  }
+
+  public ByteBufAllocator alloc() {
+    return allocator;
+  }
+
+  public void assertHasNoLeaks() {
+    allocator.assertHasNoLeaks();
   }
 }

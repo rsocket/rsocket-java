@@ -252,9 +252,7 @@ class RSocketRequester implements RSocket {
                   @Nonnull SignalType signalType,
                   @Nullable Payload element,
                   @Nullable Throwable e) {
-                if (signalType == SignalType.ON_ERROR) {
-                  sendProcessor.onNext(ErrorFrameFlyweight.encode(allocator, streamId, e));
-                } else if (signalType == SignalType.CANCEL) {
+                if (signalType == SignalType.CANCEL) {
                   sendProcessor.onNext(CancelFrameFlyweight.encode(allocator, streamId));
                 }
                 removeStreamReceiver(streamId);
