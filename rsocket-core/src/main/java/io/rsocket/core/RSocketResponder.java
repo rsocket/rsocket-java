@@ -514,6 +514,7 @@ class RSocketResponder implements ResponderRSocket {
                     sendProcessor.onNext(RequestNFrameFlyweight.encode(allocator, streamId, n));
                   }
                 })
+            .doFinally(signalType -> channelProcessors.remove(streamId))
             .doOnDiscard(ReferenceCounted.class, DROPPED_ELEMENTS_CONSUMER);
 
     // not chained, as the payload should be enqueued in the Unicast processor before this method

@@ -11,7 +11,6 @@ import io.rsocket.util.ByteBufPayload;
  * for releasing the payload to free memory when they no long need it.
  */
 public class ZeroCopyPayloadDecoder implements PayloadDecoder {
-
   @Override
   public Payload apply(ByteBuf byteBuf) {
     ByteBuf m;
