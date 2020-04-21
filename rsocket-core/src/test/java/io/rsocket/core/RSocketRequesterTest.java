@@ -356,6 +356,9 @@ public class RSocketRequesterTest {
                               .isInstanceOf(IllegalArgumentException.class)
                               .hasMessage(INVALID_PAYLOAD_ERROR_MESSAGE))
                   .verify();
+              // FIXME: should be removed
+              Assertions.assertThat(rule.connection.getSent())
+                      .allMatch(bb -> bb.release());
               rule.assertHasNoLeaks();
             });
   }
