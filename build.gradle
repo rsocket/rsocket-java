@@ -109,61 +109,25 @@ subprojects {
         }
 
         javadoc {
-            def jdk = JavaVersion.current().majorVersion
-            def jdkJavadoc = "https://docs.oracle.com/javase/$jdk/docs/api/"
-            if (JavaVersion.current().isJava11Compatible()) {
-                jdkJavadoc = "https://docs.oracle.com/en/java/javase/$jdk/docs/api/"
-            }
             options.with {
-                links jdkJavadoc
+                links 'https://docs.oracle.com/javase/8/docs/api/'
                 links 'https://projectreactor.io/docs/core/release/api/'
                 links 'https://netty.io/4.1/api/'
             }
         }
 
-        tasks.named("javadoc").configure {
-            onlyIf { System.getenv('SKIP_RELEASE') != "true" }
-        }
-
         test {
             useJUnitPlatform()
+
+            testLogging {
+                events "started", "passed", "skipped", "failed"
+            }
 
             systemProperty "io.netty.leakDetection.level", "ADVANCED"
         }
 
-        //all test tasks will show FAILED for each test method,
-        // common exclusions, no scanning
-        project.tasks.withType(Test).all {
-            testLogging {
-                events "FAILED"
-                showExceptions true
-                exceptionFormat "FULL"
-                stackTraceFilters "ENTRY_POINT"
-                maxGranularity 3
-            }
-
-            if (JavaVersion.current().isJava9Compatible()) {
-                println "Java 9+: lowering MaxGCPauseMillis to 20ms in ${project.name} ${name}"
-                jvmArgs = ["-XX:MaxGCPauseMillis=20"]
-            }
-
-            systemProperty("java.awt.headless", "true")
-            systemProperty("reactor.trace.cancel", "true")
-            systemProperty("reactor.trace.nocapacity", "true")
-            systemProperty("testGroups", project.properties.get("testGroups"))
-            scanForTestClasses = false
-            exclude '**/*Abstract*.*'
-
-            //allow re-run of failed tests only without special test tasks failing
-            // because the filter is too restrictive
-            filter.setFailOnNoMatchingTests(false)
-
-            //display intermediate results for special test tasks
-            afterSuite { desc, result ->
-                if (!desc.parent) { // will match the outermost suite
-                    println('\n' + "${desc} Results: ${result.resultType} (${result.testCount} tests, ${result.successfulTestCount} successes, ${result.failedTestCount} failures, ${result.skippedTestCount} skipped)")
-                }
-            }
+        tasks.named("javadoc").configure {
+            onlyIf { System.getenv('SKIP_RELEASE') != "true" }
         }
     }
 
