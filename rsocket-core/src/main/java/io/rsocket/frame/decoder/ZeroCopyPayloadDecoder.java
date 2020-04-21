@@ -15,22 +15,6 @@ import reactor.core.publisher.Hooks;
  */
 public class ZeroCopyPayloadDecoder implements PayloadDecoder {
 
-  static {
-    Hooks.onNextDropped(
-        o -> {
-          if (o instanceof ReferenceCounted) {
-            ReferenceCounted referenceCounted = (ReferenceCounted) o;
-            if (referenceCounted.refCnt() > 0) {
-              try {
-                referenceCounted.release();
-              } catch (IllegalReferenceCountException e) {
-                // ignored
-              }
-            }
-          }
-        });
-  }
-
   @Override
   public Payload apply(ByteBuf byteBuf) {
     ByteBuf m;
