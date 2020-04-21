@@ -21,7 +21,7 @@ public class LeaksTrackingByteBufAllocator implements ByteBufAllocator {
    *
    * @return
    */
-  public static LeaksTrackingByteBufAllocator instrumentDefault() {
+  public static synchronized LeaksTrackingByteBufAllocator instrumentDefault() {
     if (ByteBufAllocator.DEFAULT instanceof LeaksTrackingByteBufAllocator) {
       return (LeaksTrackingByteBufAllocator) ByteBufAllocator.DEFAULT;
     }
@@ -37,7 +37,7 @@ public class LeaksTrackingByteBufAllocator implements ByteBufAllocator {
     return instrumented;
   }
 
-  public static void deinstrumentDefault() {
+  public static synchronized void deinstrumentDefault() {
     if (ByteBufAllocator.DEFAULT instanceof LeaksTrackingByteBufAllocator) {
       LeaksTrackingByteBufAllocator instrumented =
           (LeaksTrackingByteBufAllocator) ByteBufAllocator.DEFAULT;

@@ -72,10 +72,11 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.assertj.core.api.Assertions;
-import org.junit.After;
-import org.junit.Ignore;
-import org.junit.Rule;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.runners.model.Statement;
 import org.reactivestreams.Publisher;
@@ -92,14 +93,27 @@ import reactor.test.util.RaceTestUtils;
 
 public class RSocketRequesterTest {
 
-  @Rule public final ClientSocketRule rule = new ClientSocketRule();
+  ClientSocketRule rule;
 
-  @After
+  @BeforeEach
+  public void setUp() throws Throwable {
+     rule = new ClientSocketRule();
+     rule.apply(new Statement() {
+       @Override
+       public void evaluate() throws Throwable {
+
+       }
+     }, null)
+             .evaluate();
+  }
+
+  @AfterEach
   public void tearDown() {
     LeaksTrackingByteBufAllocator.deinstrumentDefault();
   }
 
-  @Test(timeout = 2_000)
+  @Test
+  @Timeout(2_000)
   public void testInvalidFrameOnStream0() {
     LeaksTrackingByteBufAllocator allocator = LeaksTrackingByteBufAllocator.instrumentDefault();
     rule.connection.addToReceivedBuffer(
@@ -112,7 +126,8 @@ public class RSocketRequesterTest {
     allocator.assertHasNoLeaks();
   }
 
-  @Test(timeout = 2_000)
+  @Test
+  @Timeout(2_000)
   public void testStreamInitialN() {
     LeaksTrackingByteBufAllocator allocator = LeaksTrackingByteBufAllocator.instrumentDefault();
     Flux<Payload> stream = rule.socket.requestStream(EmptyPayload.INSTANCE);
@@ -145,7 +160,8 @@ public class RSocketRequesterTest {
     allocator.assertHasNoLeaks();
   }
 
-  @Test(timeout = 2_000)
+  @Test
+  @Timeout(2_000)
   public void testHandleSetupException() {
     LeaksTrackingByteBufAllocator allocator = LeaksTrackingByteBufAllocator.instrumentDefault();
     rule.connection.addToReceivedBuffer(
@@ -159,7 +175,8 @@ public class RSocketRequesterTest {
     allocator.assertHasNoLeaks();
   }
 
-  @Test(timeout = 2_000)
+  @Test
+  @Timeout(2_000)
   public void testHandleApplicationException() {
     LeaksTrackingByteBufAllocator allocator = LeaksTrackingByteBufAllocator.instrumentDefault();
     rule.connection.clearSendReceiveBuffers();
@@ -176,7 +193,8 @@ public class RSocketRequesterTest {
     allocator.assertHasNoLeaks();
   }
 
-  @Test(timeout = 2_000)
+  @Test
+  @Timeout(2_000)
   public void testHandleValidFrame() {
     LeaksTrackingByteBufAllocator allocator = LeaksTrackingByteBufAllocator.instrumentDefault();
     Publisher<Payload> response = rule.socket.requestResponse(EmptyPayload.INSTANCE);
@@ -192,7 +210,8 @@ public class RSocketRequesterTest {
     allocator.assertHasNoLeaks();
   }
 
-  @Test(timeout = 2_000)
+  @Test
+  @Timeout(2_000)
   public void testRequestReplyWithCancel() {
     LeaksTrackingByteBufAllocator allocator = LeaksTrackingByteBufAllocator.instrumentDefault();
     Mono<Payload> response = rule.socket.requestResponse(EmptyPayload.INSTANCE);
@@ -215,7 +234,8 @@ public class RSocketRequesterTest {
     allocator.assertHasNoLeaks();
   }
 
-  @Test(timeout = 2_000)
+  @Test
+  @Timeout(2_000)
   public void testRequestReplyErrorOnSend() {
     LeaksTrackingByteBufAllocator allocator = LeaksTrackingByteBufAllocator.instrumentDefault();
     rule.connection.setAvailability(0); // Fails send
@@ -232,7 +252,8 @@ public class RSocketRequesterTest {
     //    verify(responseSub).onError(any(RuntimeException.class));
   }
 
-  @Test(timeout = 2_000)
+  @Test
+  @Timeout(2_000)
   public void testLazyRequestResponse() {
     LeaksTrackingByteBufAllocator allocator = LeaksTrackingByteBufAllocator.instrumentDefault();
     Publisher<Payload> response =
@@ -247,6 +268,7 @@ public class RSocketRequesterTest {
   }
 
   @Test
+  @Timeout(2_000)
   public void testChannelRequestCancellation() {
     LeaksTrackingByteBufAllocator allocator = LeaksTrackingByteBufAllocator.instrumentDefault();
     MonoProcessor<Void> cancelled = MonoProcessor.create();
@@ -261,6 +283,7 @@ public class RSocketRequesterTest {
   }
 
   @Test
+  @Timeout(2_000)
   public void testChannelRequestCancellation2() {
     LeaksTrackingByteBufAllocator allocator = LeaksTrackingByteBufAllocator.instrumentDefault();
     MonoProcessor<Void> cancelled = MonoProcessor.create();
@@ -393,7 +416,7 @@ public class RSocketRequesterTest {
   }
 
   @Test
-  @Ignore("Due to https://github.com/reactor/reactor-core/pull/2114")
+  @Disabled("Due to https://github.com/reactor/reactor-core/pull/2114")
   @SuppressWarnings("unchecked")
   public void checkNoLeaksOnRacingTest() {
 

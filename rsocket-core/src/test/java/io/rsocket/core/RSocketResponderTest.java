@@ -47,10 +47,12 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.assertj.core.api.Assertions;
-import org.junit.After;
-import org.junit.Ignore;
-import org.junit.Rule;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
+import org.junit.runners.model.Statement;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
@@ -67,16 +69,29 @@ import reactor.test.util.RaceTestUtils;
 
 public class RSocketResponderTest {
 
-  @Rule public final ServerSocketRule rule = new ServerSocketRule();
+  ServerSocketRule rule;
 
-  @After
+  @BeforeEach
+  public void setUp() throws Throwable {
+      rule = new ServerSocketRule();
+      rule.apply(new Statement() {
+          @Override
+          public void evaluate() {
+
+          }
+      }, null)
+              .evaluate();
+  }
+
+  @AfterEach
   public void tearDown() {
     LeaksTrackingByteBufAllocator.deinstrumentDefault();
     Hooks.resetOnErrorDropped();
   }
 
-  @Test(timeout = 2000)
-  @Ignore
+  @Test
+  @Timeout(2_000)
+  @Disabled
   public void testHandleKeepAlive() throws Exception {
     rule.connection.addToReceivedBuffer(
         KeepAliveFrameFlyweight.encode(ByteBufAllocator.DEFAULT, true, 0, Unpooled.EMPTY_BUFFER));
@@ -89,8 +104,9 @@ public class RSocketResponderTest {
         is(false));
   }
 
-  @Test(timeout = 2000)
-  @Ignore
+  @Test
+  @Timeout(2_000)
+  @Disabled
   public void testHandleResponseFrameNoError() throws Exception {
     final int streamId = 4;
     rule.connection.clearSendReceiveBuffers();
@@ -107,8 +123,9 @@ public class RSocketResponderTest {
         anyOf(is(FrameType.COMPLETE), is(FrameType.NEXT_COMPLETE)));
   }
 
-  @Test(timeout = 2000)
-  @Ignore
+  @Test
+  @Timeout(2_000)
+  @Disabled
   public void testHandlerEmitsError() throws Exception {
     final int streamId = 4;
     rule.sendRequest(streamId, FrameType.REQUEST_STREAM);
@@ -117,7 +134,8 @@ public class RSocketResponderTest {
         "Unexpected frame sent.", frameType(rule.connection.awaitSend()), is(FrameType.ERROR));
   }
 
-  @Test(timeout = 2_0000)
+  @Test
+  @Timeout(20_000)
   public void testCancel() {
     LeaksTrackingByteBufAllocator allocator = LeaksTrackingByteBufAllocator.instrumentDefault();
     final int streamId = 4;
@@ -144,6 +162,7 @@ public class RSocketResponderTest {
   }
 
   @Test
+  @Timeout(2_000)
   public void shouldThrownExceptionIfGivenPayloadIsExitsSizeAllowanceWithNoFragmentation() {
     LeaksTrackingByteBufAllocator allocator = LeaksTrackingByteBufAllocator.instrumentDefault();
     final int streamId = 4;
@@ -210,7 +229,7 @@ public class RSocketResponderTest {
   }
 
   @Test
-  @Ignore("Due to https://github.com/reactor/reactor-core/pull/2114")
+  @Disabled("Due to https://github.com/reactor/reactor-core/pull/2114")
   public void checkNoLeaksOnRacingCancelFromRequestChannelAndNextFromUpstream() {
 
     LeaksTrackingByteBufAllocator allocator = LeaksTrackingByteBufAllocator.instrumentDefault();
@@ -264,7 +283,7 @@ public class RSocketResponderTest {
   }
 
   @Test
-  @Ignore("Due to https://github.com/reactor/reactor-core/pull/2114")
+  @Disabled("Due to https://github.com/reactor/reactor-core/pull/2114")
   public void checkNoLeaksOnRacingBetweenDownstreamCancelAndOnNextFromRequestChannelTest() {
     Hooks.onErrorDropped((e) -> {});
     LeaksTrackingByteBufAllocator allocator = LeaksTrackingByteBufAllocator.instrumentDefault();
@@ -304,7 +323,7 @@ public class RSocketResponderTest {
   }
 
   @Test
-  @Ignore("Due to https://github.com/reactor/reactor-core/pull/2114")
+  @Disabled("Due to https://github.com/reactor/reactor-core/pull/2114")
   public void checkNoLeaksOnRacingBetweenDownstreamCancelAndOnNextFromRequestChannelTest1() {
     Scheduler parallel = Schedulers.parallel();
     Hooks.onErrorDropped((e) -> {});
@@ -351,7 +370,7 @@ public class RSocketResponderTest {
   }
 
   @Test
-  @Ignore("Due to https://github.com/reactor/reactor-core/pull/2114")
+  @Disabled("Due to https://github.com/reactor/reactor-core/pull/2114")
   public void
       checkNoLeaksOnRacingBetweenDownstreamCancelAndOnNextFromUpstreamOnErrorFromRequestChannelTest1()
           throws InterruptedException {
@@ -423,7 +442,7 @@ public class RSocketResponderTest {
   }
 
   @Test
-  @Ignore("Due to https://github.com/reactor/reactor-core/pull/2114")
+  @Disabled("Due to https://github.com/reactor/reactor-core/pull/2114")
   public void checkNoLeaksOnRacingBetweenDownstreamCancelAndOnNextFromRequestStreamTest1() {
     Scheduler parallel = Schedulers.parallel();
     Hooks.onErrorDropped((e) -> {});
