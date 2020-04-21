@@ -236,6 +236,8 @@ public class RSocketResponderTest {
       rule.init();
       rule.setAcceptingSocket(acceptingSocket);
     }
+    // FIXME: needs to be removed
+    Assertions.assertThat(rule.connection.getSent()).allMatch(ReferenceCounted::release);
     rule.assertHasNoLeaks();
   }
 

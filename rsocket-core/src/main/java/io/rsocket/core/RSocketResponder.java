@@ -36,7 +36,6 @@ import io.rsocket.internal.UnboundedProcessor;
 import io.rsocket.lease.ResponderLeaseHandler;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
-import javax.annotation.Nullable;
 import org.reactivestreams.Processor;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
@@ -303,7 +302,7 @@ class RSocketResponder implements ResponderRSocket {
         case REQUEST_STREAM:
           int streamInitialRequestN = RequestStreamFrameFlyweight.initialRequestN(frame);
           Payload streamPayload = payloadDecoder.apply(frame);
-          handleStream(streamId, requestStream(streamPayload), streamInitialRequestN, null);
+          handleStream(streamId, requestStream(streamPayload), streamInitialRequestN);
           break;
         case REQUEST_CHANNEL:
           int channelInitialRequestN = RequestChannelFrameFlyweight.initialRequestN(frame);
@@ -434,11 +433,7 @@ class RSocketResponder implements ResponderRSocket {
     response.doOnDiscard(ReferenceCounted.class, DROPPED_ELEMENTS_CONSUMER).subscribe(subscriber);
   }
 
-  private void handleStream(
-      int streamId,
-      Flux<Payload> response,
-      int initialRequestN,
-      @Nullable UnicastProcessor<Payload> requestChannel) {
+  private void handleStream(int streamId, Flux<Payload> response, int initialRequestN) {
     final BaseSubscriber<Payload> subscriber =
         new BaseSubscriber<Payload>() {
 
@@ -451,9 +446,6 @@ class RSocketResponder implements ResponderRSocket {
           protected void hookOnNext(Payload payload) {
             if (!PayloadValidationUtils.isValid(mtu, payload)) {
               payload.release();
-              if (requestChannel != null) {
-                channelProcessors.remove(streamId, requestChannel);
-              }
               cancel();
               final IllegalArgumentException t =
                   new IllegalArgumentException(INVALID_PAYLOAD_ERROR_MESSAGE);
@@ -503,6 +495,9 @@ class RSocketResponder implements ResponderRSocket {
 
     Flux<Payload> payloads =
         frames
+            .doOnCancel(
+                () -> sendProcessor.onNext(CancelFrameFlyweight.encode(allocator, streamId)))
+            .doOnError(t -> handleError(streamId, t))
             .doOnRequest(
                 new LongConsumer() {
                   boolean first = true;
@@ -516,17 +511,7 @@ class RSocketResponder implements ResponderRSocket {
                     } else {
                       n = l;
                     }
-                    if (n > 0) {
-                      sendProcessor.onNext(RequestNFrameFlyweight.encode(allocator, streamId, n));
-                    }
-                  }
-                })
-            .doFinally(
-                signalType -> {
-                  if (channelProcessors.remove(streamId, frames)) {
-                    if (signalType == SignalType.CANCEL) {
-                      sendProcessor.onNext(CancelFrameFlyweight.encode(allocator, streamId));
-                    }
+                    sendProcessor.onNext(RequestNFrameFlyweight.encode(allocator, streamId, n));
                   }
                 })
             .doOnDiscard(ReferenceCounted.class, DROPPED_ELEMENTS_CONSUMER);
@@ -537,9 +522,9 @@ class RSocketResponder implements ResponderRSocket {
     frames.onNext(payload);
 
     if (responderRSocket != null) {
-      handleStream(streamId, requestChannel(payload, payloads), initialRequestN, frames);
+      handleStream(streamId, requestChannel(payload, payloads), initialRequestN);
     } else {
-      handleStream(streamId, requestChannel(payloads), initialRequestN, frames);
+      handleStream(streamId, requestChannel(payloads), initialRequestN);
     }
   }
 
