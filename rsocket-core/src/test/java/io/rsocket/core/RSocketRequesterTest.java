@@ -174,8 +174,8 @@ public class RSocketRequesterTest {
     verify(responseSub).onError(any(ApplicationErrorException.class));
 
     Assertions.assertThat(rule.connection.getSent())
-        // requestResponseFrame FIXME
-        //        .hasSize(1)
+        // requestResponseFrame
+        .hasSize(1)
         .allMatch(ReferenceCounted::release);
 
     rule.assertHasNoLeaks();
@@ -356,8 +356,6 @@ public class RSocketRequesterTest {
                               .isInstanceOf(IllegalArgumentException.class)
                               .hasMessage(INVALID_PAYLOAD_ERROR_MESSAGE))
                   .verify();
-              // FIXME: should be removed
-              Assertions.assertThat(rule.connection.getSent()).allMatch(bb -> bb.release());
               rule.assertHasNoLeaks();
             });
   }

@@ -36,6 +36,7 @@ import io.rsocket.internal.UnboundedProcessor;
 import io.rsocket.lease.ResponderLeaseHandler;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
+import javax.annotation.Nullable;
 import org.reactivestreams.Processor;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
@@ -302,7 +303,7 @@ class RSocketResponder implements ResponderRSocket {
         case REQUEST_STREAM:
           int streamInitialRequestN = RequestStreamFrameFlyweight.initialRequestN(frame);
           Payload streamPayload = payloadDecoder.apply(frame);
-          handleStream(streamId, requestStream(streamPayload), streamInitialRequestN);
+          handleStream(streamId, requestStream(streamPayload), streamInitialRequestN, null);
           break;
         case REQUEST_CHANNEL:
           int channelInitialRequestN = RequestChannelFrameFlyweight.initialRequestN(frame);
@@ -433,7 +434,11 @@ class RSocketResponder implements ResponderRSocket {
     response.doOnDiscard(ReferenceCounted.class, DROPPED_ELEMENTS_CONSUMER).subscribe(subscriber);
   }
 
-  private void handleStream(int streamId, Flux<Payload> response, int initialRequestN) {
+  private void handleStream(
+      int streamId,
+      Flux<Payload> response,
+      int initialRequestN,
+      @Nullable UnicastProcessor<Payload> requestChannel) {
     final BaseSubscriber<Payload> subscriber =
         new BaseSubscriber<Payload>() {
 
@@ -446,6 +451,17 @@ class RSocketResponder implements ResponderRSocket {
           protected void hookOnNext(Payload payload) {
             if (!PayloadValidationUtils.isValid(mtu, payload)) {
               payload.release();
+              // specifically for requestChannel case so when Payload is invalid we will not be
+              // sending CancelFrame and ErrorFrame
+              // Note: CancelFrame is redundant and due to spec
+              // (https://github.com/rsocket/rsocket/blob/master/Protocol.md#request-channel)
+              // Upon receiving an ERROR[APPLICATION_ERROR|REJECTED|CANCELED|INVALID], the stream is
+              // terminated on both Requester and Responder.
+              // Upon sending an ERROR[APPLICATION_ERROR|REJECTED|CANCELED|INVALID], the stream is
+              // terminated on both the Requester and Responder.
+              if (requestChannel != null) {
+                channelProcessors.remove(streamId, requestChannel);
+              }
               cancel();
               final IllegalArgumentException t =
                   new IllegalArgumentException(INVALID_PAYLOAD_ERROR_MESSAGE);
@@ -495,9 +511,6 @@ class RSocketResponder implements ResponderRSocket {
 
     Flux<Payload> payloads =
         frames
-            .doOnCancel(
-                () -> sendProcessor.onNext(CancelFrameFlyweight.encode(allocator, streamId)))
-            .doOnError(t -> handleError(streamId, t))
             .doOnRequest(
                 new LongConsumer() {
                   boolean first = true;
@@ -511,10 +524,19 @@ class RSocketResponder implements ResponderRSocket {
                     } else {
                       n = l;
                     }
-                    sendProcessor.onNext(RequestNFrameFlyweight.encode(allocator, streamId, n));
+                    if (n > 0) {
+                      sendProcessor.onNext(RequestNFrameFlyweight.encode(allocator, streamId, n));
+                    }
                   }
                 })
-            .doFinally(signalType -> channelProcessors.remove(streamId))
+            .doFinally(
+                signalType -> {
+                  if (channelProcessors.remove(streamId, frames)) {
+                    if (signalType == SignalType.CANCEL) {
+                      sendProcessor.onNext(CancelFrameFlyweight.encode(allocator, streamId));
+                    }
+                  }
+                })
             .doOnDiscard(ReferenceCounted.class, DROPPED_ELEMENTS_CONSUMER);
 
     // not chained, as the payload should be enqueued in the Unicast processor before this method
@@ -523,9 +545,9 @@ class RSocketResponder implements ResponderRSocket {
     frames.onNext(payload);
 
     if (responderRSocket != null) {
-      handleStream(streamId, requestChannel(payload, payloads), initialRequestN);
+      handleStream(streamId, requestChannel(payload, payloads), initialRequestN, frames);
     } else {
-      handleStream(streamId, requestChannel(payloads), initialRequestN);
+      handleStream(streamId, requestChannel(payloads), initialRequestN, frames);
     }
   }
 

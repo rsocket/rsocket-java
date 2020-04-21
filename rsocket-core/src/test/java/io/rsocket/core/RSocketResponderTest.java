@@ -68,7 +68,9 @@ import org.junit.jupiter.api.Timeout;
 import org.junit.runners.model.Statement;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
+import org.reactivestreams.Subscription;
 import reactor.core.CoreSubscriber;
+import reactor.core.publisher.BaseSubscriber;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.FluxSink;
 import reactor.core.publisher.Hooks;
@@ -193,27 +195,27 @@ public class RSocketResponderTest {
             p.release();
             return Flux.just(payload).doOnCancel(() -> cancelled.set(true));
           }
-          // FIXME
-          //          @Override
-          //          public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
-          //            Flux.from(payloads)
-          //                .doOnNext(Payload::release)
-          //                .subscribe(
-          //                    new BaseSubscriber<Payload>() {
-          //                      @Override
-          //                      protected void hookOnSubscribe(Subscription subscription) {
-          //                        subscription.request(1);
-          //                      }
-          //                    });
-          //            return Flux.just(payload).doOnCancel(() -> cancelled.set(true));
-          //          }
+
+          @Override
+          public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
+            Flux.from(payloads)
+                .doOnNext(Payload::release)
+                .subscribe(
+                    new BaseSubscriber<Payload>() {
+                      @Override
+                      protected void hookOnSubscribe(Subscription subscription) {
+                        subscription.request(1);
+                      }
+                    });
+            return Flux.just(payload).doOnCancel(() -> cancelled.set(true));
+          }
         };
     rule.setAcceptingSocket(acceptingSocket);
 
     final Runnable[] runnables = {
       () -> rule.sendRequest(streamId, FrameType.REQUEST_RESPONSE),
-      () -> rule.sendRequest(streamId, FrameType.REQUEST_STREAM) /* FIXME,
-      () -> rule.sendRequest(streamId, FrameType.REQUEST_CHANNEL)*/
+      () -> rule.sendRequest(streamId, FrameType.REQUEST_STREAM),
+      () -> rule.sendRequest(streamId, FrameType.REQUEST_CHANNEL)
     };
 
     for (Runnable runnable : runnables) {
@@ -224,9 +226,9 @@ public class RSocketResponderTest {
           .isInstanceOf(IllegalArgumentException.class)
           .hasToString("java.lang.IllegalArgumentException: " + INVALID_PAYLOAD_ERROR_MESSAGE);
       Assertions.assertThat(rule.connection.getSent())
-          .filteredOn(bb -> FrameHeaderFlyweight.frameType(bb) == FrameType.ERROR)
           .hasSize(1)
           .first()
+          .matches(bb -> FrameHeaderFlyweight.frameType(bb) == FrameType.ERROR)
           .matches(bb -> ErrorFrameFlyweight.dataUtf8(bb).contains(INVALID_PAYLOAD_ERROR_MESSAGE))
           .matches(ReferenceCounted::release);
 
