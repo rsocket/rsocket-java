@@ -20,6 +20,7 @@ import static io.rsocket.core.PayloadValidationUtils.INVALID_PAYLOAD_ERROR_MESSA
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
+import io.netty.util.IllegalReferenceCountException;
 import io.netty.util.ReferenceCountUtil;
 import io.netty.util.ReferenceCounted;
 import io.netty.util.collection.IntObjectMap;
@@ -48,7 +49,15 @@ import reactor.util.concurrent.Queues;
 /** Responder side of RSocket. Receives {@link ByteBuf}s from a peer's {@link RSocketRequester} */
 class RSocketResponder implements ResponderRSocket {
   private static final Consumer<ReferenceCounted> DROPPED_ELEMENTS_CONSUMER =
-      ReferenceCountUtil::safeRelease;
+      referenceCounted -> {
+        if (referenceCounted.refCnt() > 0) {
+          try {
+            referenceCounted.release();
+          } catch (IllegalReferenceCountException e) {
+            // ignored
+          }
+        }
+      };
 
   private final DuplexConnection connection;
   private final RSocket requestHandler;

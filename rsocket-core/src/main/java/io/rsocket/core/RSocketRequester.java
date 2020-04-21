@@ -22,6 +22,7 @@ import static io.rsocket.keepalive.KeepAliveSupport.KeepAlive;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
+import io.netty.util.IllegalReferenceCountException;
 import io.netty.util.ReferenceCountUtil;
 import io.netty.util.ReferenceCounted;
 import io.netty.util.collection.IntObjectMap;
@@ -79,7 +80,15 @@ class RSocketRequester implements RSocket {
           RSocketRequester.class, Throwable.class, "terminationError");
   private static final Exception CLOSED_CHANNEL_EXCEPTION = new ClosedChannelException();
   private static final Consumer<ReferenceCounted> DROPPED_ELEMENTS_CONSUMER =
-      ReferenceCountUtil::safeRelease;
+      referenceCounted -> {
+        if (referenceCounted.refCnt() > 0) {
+          try {
+            referenceCounted.release();
+          } catch (IllegalReferenceCountException e) {
+            // ignored
+          }
+        }
+      };
 
   static {
     CLOSED_CHANNEL_EXCEPTION.setStackTrace(new StackTraceElement[0]);
