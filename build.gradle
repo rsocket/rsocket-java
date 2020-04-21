@@ -109,11 +109,20 @@ subprojects {
         }
 
         javadoc {
+            def jdk = JavaVersion.current().majorVersion
+            def jdkJavadoc = "https://docs.oracle.com/javase/$jdk/docs/api/"
+            if (JavaVersion.current().isJava11Compatible()) {
+                jdkJavadoc = "https://docs.oracle.com/en/java/javase/$jdk/docs/api/"
+            }
             options.with {
-                links 'https://docs.oracle.com/javase/8/docs/api/'
+                links jdkJavadoc
                 links 'https://projectreactor.io/docs/core/release/api/'
                 links 'https://netty.io/4.1/api/'
             }
+        }
+
+        tasks.named("javadoc").configure {
+            onlyIf { System.getenv('SKIP_RELEASE') != "true" }
         }
 
         test {
