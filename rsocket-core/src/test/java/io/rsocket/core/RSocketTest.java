@@ -34,6 +34,7 @@ import io.rsocket.test.util.LocalDuplexConnection;
 import io.rsocket.test.util.TestSubscriber;
 import io.rsocket.util.DefaultPayload;
 import io.rsocket.util.EmptyPayload;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicReference;
 import org.assertj.core.api.Assertions;
@@ -118,6 +119,32 @@ public class RSocketTest {
     rule.assertNoClientErrors();
 
     rule.assertServerError("CustomRSocketException (0x501): Deliberate Custom exception.");
+  }
+
+  @Test(timeout = 2000)
+  public void testRequestPropagatesCorrectlyForRequestChannel() {
+    rule.setRequestAcceptor(
+        new AbstractRSocket() {
+          @Override
+          public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
+            return Flux.from(payloads)
+                // specifically limits request to 3 in order to prevent 256 request from limitRate
+                // hidden on the responder side
+                .limitRequest(3);
+          }
+        });
+
+    Flux.range(0, 3)
+        .map(i -> DefaultPayload.create("" + i))
+        .as(rule.crs::requestChannel)
+        .as(publisher -> StepVerifier.create(publisher, 3))
+        .expectSubscription()
+        .expectNextCount(3)
+        .expectComplete()
+        .verify(Duration.ofMillis(5000));
+
+    rule.assertNoClientErrors();
+    rule.assertNoServerErrors();
   }
 
   @Test(timeout = 2000)

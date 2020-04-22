@@ -382,7 +382,10 @@ class RSocketRequester implements RSocket {
           protected void hookOnNext(Payload payload) {
             if (first) {
               // need to skip first since we have already sent it
+              // no need to release it since it was released earlier on the request establishment
+              // phase
               first = false;
+              request(1);
               return;
             }
             if (!PayloadValidationUtils.isValid(mtu, payload)) {
