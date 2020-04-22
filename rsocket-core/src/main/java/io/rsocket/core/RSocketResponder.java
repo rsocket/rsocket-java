@@ -35,7 +35,6 @@ import io.rsocket.internal.SynchronizedIntObjectHashMap;
 import io.rsocket.internal.UnboundedProcessor;
 import io.rsocket.lease.ResponderLeaseHandler;
 import java.util.function.Consumer;
-import java.util.function.LongConsumer;
 import javax.annotation.Nullable;
 import org.reactivestreams.Processor;
 import org.reactivestreams.Publisher;
@@ -530,23 +529,7 @@ class RSocketResponder implements ResponderRSocket {
     Flux<Payload> payloads =
         frames
             .doOnRequest(
-                new LongConsumer() {
-                  boolean first = true;
-
-                  @Override
-                  public void accept(long l) {
-                    long n;
-                    if (first) {
-                      first = false;
-                      n = l - 1L;
-                    } else {
-                      n = l;
-                    }
-                    if (n > 0) {
-                      sendProcessor.onNext(RequestNFrameFlyweight.encode(allocator, streamId, n));
-                    }
-                  }
-                })
+                l -> sendProcessor.onNext(RequestNFrameFlyweight.encode(allocator, streamId, l)))
             .doFinally(
                 signalType -> {
                   if (channelProcessors.remove(streamId, frames)) {
