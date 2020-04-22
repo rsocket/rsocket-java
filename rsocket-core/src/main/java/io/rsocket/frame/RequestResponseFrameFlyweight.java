@@ -10,9 +10,13 @@ public class RequestResponseFrameFlyweight {
 
   private RequestResponseFrameFlyweight() {}
 
-  public static ByteBuf encode(
-      ByteBufAllocator allocator, int streamId, boolean fragmentFollows, Payload payload) {
-    return encode(allocator, streamId, fragmentFollows, payload.metadata(), payload.data());
+  public static ByteBuf encode(ByteBufAllocator allocator, int streamId, Payload payload) {
+
+    final boolean hasMetadata = payload.hasMetadata();
+    final ByteBuf metadata = hasMetadata ? payload.metadata().retain() : null;
+    final ByteBuf data = payload.data().retain();
+
+    return encode(allocator, streamId, false, metadata, data);
   }
 
   public static ByteBuf encode(

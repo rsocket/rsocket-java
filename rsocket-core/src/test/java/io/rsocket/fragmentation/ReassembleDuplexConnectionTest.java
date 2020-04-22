@@ -30,7 +30,6 @@ import io.rsocket.frame.FrameHeaderFlyweight;
 import io.rsocket.frame.FrameType;
 import io.rsocket.frame.PayloadFrameFlyweight;
 import io.rsocket.frame.RequestResponseFrameFlyweight;
-import io.rsocket.util.DefaultPayload;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
@@ -59,15 +58,16 @@ final class ReassembleDuplexConnectionTest {
   void reassembleData() {
     List<ByteBuf> byteBufs =
         Arrays.asList(
-            RequestResponseFrameFlyweight.encode(allocator, 1, true, DefaultPayload.create(data)),
+            RequestResponseFrameFlyweight.encode(
+                allocator, 1, true, null, Unpooled.wrappedBuffer(data)),
             PayloadFrameFlyweight.encode(
-                allocator, 1, true, false, true, DefaultPayload.create(data)),
+                allocator, 1, true, false, true, null, Unpooled.wrappedBuffer(data)),
             PayloadFrameFlyweight.encode(
-                allocator, 1, true, false, true, DefaultPayload.create(data)),
+                allocator, 1, true, false, true, null, Unpooled.wrappedBuffer(data)),
             PayloadFrameFlyweight.encode(
-                allocator, 1, true, false, true, DefaultPayload.create(data)),
+                allocator, 1, true, false, true, null, Unpooled.wrappedBuffer(data)),
             PayloadFrameFlyweight.encode(
-                allocator, 1, false, false, true, DefaultPayload.create(data)));
+                allocator, 1, false, false, true, null, Unpooled.wrappedBuffer(data)));
 
     CompositeByteBuf data =
         allocator
@@ -99,38 +99,39 @@ final class ReassembleDuplexConnectionTest {
     List<ByteBuf> byteBufs =
         Arrays.asList(
             RequestResponseFrameFlyweight.encode(
-                allocator,
-                1,
-                true,
-                DefaultPayload.create(Unpooled.EMPTY_BUFFER, Unpooled.wrappedBuffer(metadata))),
+                allocator, 1, true, Unpooled.wrappedBuffer(metadata), Unpooled.EMPTY_BUFFER),
             PayloadFrameFlyweight.encode(
                 allocator,
                 1,
                 true,
                 false,
                 true,
-                DefaultPayload.create(Unpooled.EMPTY_BUFFER, Unpooled.wrappedBuffer(metadata))),
+                Unpooled.wrappedBuffer(metadata),
+                Unpooled.EMPTY_BUFFER),
             PayloadFrameFlyweight.encode(
                 allocator,
                 1,
                 true,
                 false,
                 true,
-                DefaultPayload.create(Unpooled.EMPTY_BUFFER, Unpooled.wrappedBuffer(metadata))),
+                Unpooled.wrappedBuffer(metadata),
+                Unpooled.EMPTY_BUFFER),
             PayloadFrameFlyweight.encode(
                 allocator,
                 1,
                 true,
                 false,
                 true,
-                DefaultPayload.create(Unpooled.EMPTY_BUFFER, Unpooled.wrappedBuffer(metadata))),
+                Unpooled.wrappedBuffer(metadata),
+                Unpooled.EMPTY_BUFFER),
             PayloadFrameFlyweight.encode(
                 allocator,
                 1,
                 false,
                 false,
                 true,
-                DefaultPayload.create(Unpooled.EMPTY_BUFFER, Unpooled.wrappedBuffer(metadata))));
+                Unpooled.wrappedBuffer(metadata),
+                Unpooled.EMPTY_BUFFER));
 
     CompositeByteBuf metadata =
         allocator
@@ -164,34 +165,33 @@ final class ReassembleDuplexConnectionTest {
     List<ByteBuf> byteBufs =
         Arrays.asList(
             RequestResponseFrameFlyweight.encode(
-                allocator,
-                1,
-                true,
-                DefaultPayload.create(Unpooled.EMPTY_BUFFER, Unpooled.wrappedBuffer(metadata))),
+                allocator, 1, true, Unpooled.wrappedBuffer(metadata), Unpooled.EMPTY_BUFFER),
             PayloadFrameFlyweight.encode(
                 allocator,
                 1,
                 true,
                 false,
                 true,
-                DefaultPayload.create(Unpooled.EMPTY_BUFFER, Unpooled.wrappedBuffer(metadata))),
+                Unpooled.wrappedBuffer(metadata),
+                Unpooled.EMPTY_BUFFER),
             PayloadFrameFlyweight.encode(
                 allocator,
                 1,
                 true,
                 false,
                 true,
-                DefaultPayload.create(Unpooled.EMPTY_BUFFER, Unpooled.wrappedBuffer(metadata))),
+                Unpooled.wrappedBuffer(metadata),
+                Unpooled.EMPTY_BUFFER),
             PayloadFrameFlyweight.encode(
                 allocator,
                 1,
                 true,
                 false,
                 true,
-                DefaultPayload.create(
-                    Unpooled.wrappedBuffer(data), Unpooled.wrappedBuffer(metadata))),
+                Unpooled.wrappedBuffer(metadata),
+                Unpooled.wrappedBuffer(data)),
             PayloadFrameFlyweight.encode(
-                allocator, 1, false, false, true, DefaultPayload.create(data)));
+                allocator, 1, false, false, true, null, Unpooled.wrappedBuffer(data)));
 
     CompositeByteBuf data =
         allocator
@@ -230,7 +230,7 @@ final class ReassembleDuplexConnectionTest {
   void reassembleNonFragment() {
     ByteBuf encode =
         RequestResponseFrameFlyweight.encode(
-            allocator, 1, false, DefaultPayload.create(Unpooled.wrappedBuffer(data)));
+            allocator, 1, false, null, Unpooled.wrappedBuffer(data));
 
     when(delegate.receive()).thenReturn(Flux.just(encode));
     when(delegate.onClose()).thenReturn(Mono.never());

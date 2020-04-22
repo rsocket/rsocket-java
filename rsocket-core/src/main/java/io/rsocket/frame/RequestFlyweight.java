@@ -30,8 +30,7 @@ class RequestFlyweight {
       @Nullable ByteBuf metadata,
       ByteBuf data) {
 
-    final boolean hasData = data != null && data.isReadable();
-    final boolean hasMetadata = metadata != null && metadata.isReadable();
+    final boolean hasMetadata = metadata != null;
 
     int flags = 0;
 
@@ -57,15 +56,7 @@ class RequestFlyweight {
       header.writeInt(requestN);
     }
 
-    if (hasData && hasMetadata) {
-      return DataAndMetadataFlyweight.encode(allocator, header, metadata, data);
-    } else if (hasMetadata) {
-      return DataAndMetadataFlyweight.encode(allocator, header, metadata);
-    } else if (hasData) {
-      return DataAndMetadataFlyweight.encodeOnlyData(allocator, header, data);
-    } else {
-      return header;
-    }
+    return DataAndMetadataFlyweight.encode(allocator, header, metadata, hasMetadata, data);
   }
 
   ByteBuf data(ByteBuf byteBuf) {
@@ -79,9 +70,12 @@ class RequestFlyweight {
 
   ByteBuf metadata(ByteBuf byteBuf) {
     boolean hasMetadata = FrameHeaderFlyweight.hasMetadata(byteBuf);
+    if (!hasMetadata) {
+      return null;
+    }
     byteBuf.markReaderIndex();
     byteBuf.skipBytes(FrameHeaderFlyweight.size());
-    ByteBuf metadata = DataAndMetadataFlyweight.metadataWithoutMarking(byteBuf, hasMetadata);
+    ByteBuf metadata = DataAndMetadataFlyweight.metadataWithoutMarking(byteBuf);
     byteBuf.resetReaderIndex();
     return metadata;
   }
@@ -97,9 +91,12 @@ class RequestFlyweight {
 
   ByteBuf metadataWithRequestN(ByteBuf byteBuf) {
     boolean hasMetadata = FrameHeaderFlyweight.hasMetadata(byteBuf);
+    if (!hasMetadata) {
+      return null;
+    }
     byteBuf.markReaderIndex();
     byteBuf.skipBytes(FrameHeaderFlyweight.size() + Integer.BYTES);
-    ByteBuf metadata = DataAndMetadataFlyweight.metadataWithoutMarking(byteBuf, hasMetadata);
+    ByteBuf metadata = DataAndMetadataFlyweight.metadataWithoutMarking(byteBuf);
     byteBuf.resetReaderIndex();
     return metadata;
   }

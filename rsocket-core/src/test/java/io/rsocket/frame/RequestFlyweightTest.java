@@ -22,13 +22,15 @@ class RequestFlyweightTest {
             Unpooled.copiedBuffer("d", StandardCharsets.UTF_8));
 
     frame = FrameLengthFlyweight.encode(ByteBufAllocator.DEFAULT, frame.readableBytes(), frame);
-    //   Encoded Frame Length⌍        ⌌ Encoded Headers
-    //                       |        |         ⌌ Encoded Request(1)
-    //                       |        |         |         ⌌Encoded Metadata
-    //                       |        |         |         |     ⌌Encoded Data
-    //                     __|________|_________|_________|_____|
-    //                     ↓    ↓↓          ↓↓      ↓↓        ↓↓↓
-    assertEquals("000010000000011900000000010000026d6464", ByteBufUtil.hexDump(frame));
+    // Encoded FrameLength⌍        ⌌ Encoded Headers
+    //                   |        |         ⌌ Encoded Request(1)
+    //                   |        |         |      ⌌Encoded Metadata Length
+    //                   |        |         |      |    ⌌Encoded Metadata
+    //                   |        |         |      |    |   ⌌Encoded Data
+    //                 __|________|_________|______|____|___|
+    //                 ↓    ↓↓          ↓↓      ↓↓    ↓↓  ↓↓↓
+    String expected = "000010000000011900000000010000026d6464";
+    assertEquals(expected, ByteBufUtil.hexDump(frame));
     frame.release();
   }
 
@@ -44,12 +46,14 @@ class RequestFlyweightTest {
             Unpooled.copiedBuffer("d", StandardCharsets.UTF_8));
 
     frame = FrameLengthFlyweight.encode(ByteBufAllocator.DEFAULT, frame.readableBytes(), frame);
-    //   Encoded Frame Length⌍        ⌌ Encoded Headers
-    //                       |        |         ⌌ Encoded Request(1)
-    //                       |        |         |     ⌌Encoded Data
-    //                     __|________|_________|_____|
-    //                     ↓    ↓↓          ↓↓      ↓↓↓
-    assertEquals("00000b0000000118000000000164", ByteBufUtil.hexDump(frame));
+    // Encoded FrameLength⌍        ⌌ Encoded Headers
+    //                   |        |         ⌌ Encoded Request(1)
+    //                   |        |         |       ⌌Encoded Metadata Length (0)
+    //                   |        |         |       |   ⌌Encoded Data
+    //                 __|________|_________|_______|___|
+    //                 ↓    ↓↓          ↓↓      ↓↓    ↓↓↓
+    String expected = "00000e0000000119000000000100000064";
+    assertEquals(expected, ByteBufUtil.hexDump(frame));
     frame.release();
   }
 
@@ -66,12 +70,13 @@ class RequestFlyweightTest {
 
     frame = FrameLengthFlyweight.encode(ByteBufAllocator.DEFAULT, frame.readableBytes(), frame);
 
-    //   Encoded Frame Length⌍        ⌌ Encoded Headers
-    //                       |        |         ⌌ Encoded Request(1)
-    //                       |        |         |     ⌌Encoded Data
-    //                     __|________|_________|_____|
-    //                     ↓    ↓↓          ↓↓      ↓↓↓
-    assertEquals("00000b0000000118000000000164", ByteBufUtil.hexDump(frame));
+    // Encoded FrameLength⌍        ⌌ Encoded Headers
+    //                   |        |         ⌌ Encoded Request(1)
+    //                   |        |         |     ⌌Encoded Data
+    //                 __|________|_________|_____|
+    //                 ↓<-> ↓↓   <->    ↓↓ <->  ↓↓↓
+    String expected = "00000b0000000118000000000164";
+    assertEquals(expected, ByteBufUtil.hexDump(frame));
     frame.release();
   }
 
@@ -110,7 +115,7 @@ class RequestFlyweightTest {
 
     assertFalse(FrameHeaderFlyweight.hasMetadata(request));
     assertEquals("d", data);
-    assertTrue(metadata.readableBytes() == 0);
+    assertNull(metadata);
     request.release();
   }
 
@@ -145,13 +150,13 @@ class RequestFlyweightTest {
             Unpooled.copiedBuffer("md", StandardCharsets.UTF_8),
             Unpooled.copiedBuffer("d", StandardCharsets.UTF_8));
 
-    int actualRequest = RequestStreamFrameFlyweight.initialRequestN(request);
+    long actualRequest = RequestStreamFrameFlyweight.initialRequestN(request);
     String data = RequestStreamFrameFlyweight.data(request).toString(StandardCharsets.UTF_8);
     String metadata =
         RequestStreamFrameFlyweight.metadata(request).toString(StandardCharsets.UTF_8);
 
     assertTrue(FrameHeaderFlyweight.hasMetadata(request));
-    assertEquals(Integer.MAX_VALUE, actualRequest);
+    assertEquals(Long.MAX_VALUE, actualRequest);
     assertEquals("md", metadata);
     assertEquals("d", data);
     request.release();
@@ -168,13 +173,13 @@ class RequestFlyweightTest {
             null,
             Unpooled.copiedBuffer("d", StandardCharsets.UTF_8));
 
-    int actualRequest = RequestStreamFrameFlyweight.initialRequestN(request);
+    long actualRequest = RequestStreamFrameFlyweight.initialRequestN(request);
     String data = RequestStreamFrameFlyweight.data(request).toString(StandardCharsets.UTF_8);
     ByteBuf metadata = RequestStreamFrameFlyweight.metadata(request);
 
     assertFalse(FrameHeaderFlyweight.hasMetadata(request));
-    assertEquals(42, actualRequest);
-    assertTrue(metadata.readableBytes() == 0);
+    assertEquals(42L, actualRequest);
+    assertNull(metadata);
     assertEquals("d", data);
     request.release();
   }
@@ -190,13 +195,13 @@ class RequestFlyweightTest {
             Unpooled.copiedBuffer("md", StandardCharsets.UTF_8),
             Unpooled.EMPTY_BUFFER);
 
-    int actualRequest = RequestStreamFrameFlyweight.initialRequestN(request);
+    long actualRequest = RequestStreamFrameFlyweight.initialRequestN(request);
     ByteBuf data = RequestStreamFrameFlyweight.data(request);
     String metadata =
         RequestStreamFrameFlyweight.metadata(request).toString(StandardCharsets.UTF_8);
 
     assertTrue(FrameHeaderFlyweight.hasMetadata(request));
-    assertEquals(42, actualRequest);
+    assertEquals(42L, actualRequest);
     assertTrue(data.readableBytes() == 0);
     assertEquals("md", metadata);
     request.release();
@@ -237,7 +242,7 @@ class RequestFlyweightTest {
 
     assertFalse(FrameHeaderFlyweight.hasMetadata(request));
     assertEquals("d", data);
-    assertTrue(metadata.readableBytes() == 0);
+    assertNull(metadata);
     request.release();
   }
 

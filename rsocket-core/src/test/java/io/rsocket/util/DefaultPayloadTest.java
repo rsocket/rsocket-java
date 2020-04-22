@@ -60,18 +60,18 @@ public class DefaultPayloadTest {
   }
 
   @Test
-  public void shouldIndicateThatItHasNotMetadata1() {
+  public void shouldIndicateThatItHasMetadata1() {
     Payload payload =
         DefaultPayload.create(Unpooled.wrappedBuffer("data".getBytes()), Unpooled.EMPTY_BUFFER);
 
-    Assertions.assertThat(payload.hasMetadata()).isFalse();
+    Assertions.assertThat(payload.hasMetadata()).isTrue();
   }
 
   @Test
-  public void shouldIndicateThatItHasNotMetadata2() {
+  public void shouldIndicateThatItHasMetadata2() {
     Payload payload =
         DefaultPayload.create(ByteBuffer.wrap("data".getBytes()), ByteBuffer.allocate(0));
 
-    Assertions.assertThat(payload.hasMetadata()).isFalse();
+    Assertions.assertThat(payload.hasMetadata()).isTrue();
   }
 }

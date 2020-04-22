@@ -35,6 +35,7 @@ import io.rsocket.internal.SynchronizedIntObjectHashMap;
 import io.rsocket.internal.UnboundedProcessor;
 import io.rsocket.lease.ResponderLeaseHandler;
 import java.util.function.Consumer;
+import java.util.function.LongConsumer;
 import javax.annotation.Nullable;
 import org.reactivestreams.Processor;
 import org.reactivestreams.Publisher;
@@ -300,12 +301,12 @@ class RSocketResponder implements ResponderRSocket {
           handleRequestN(streamId, frame);
           break;
         case REQUEST_STREAM:
-          int streamInitialRequestN = RequestStreamFrameFlyweight.initialRequestN(frame);
+          long streamInitialRequestN = RequestStreamFrameFlyweight.initialRequestN(frame);
           Payload streamPayload = payloadDecoder.apply(frame);
           handleStream(streamId, requestStream(streamPayload), streamInitialRequestN, null);
           break;
         case REQUEST_CHANNEL:
-          int channelInitialRequestN = RequestChannelFrameFlyweight.initialRequestN(frame);
+          long channelInitialRequestN = RequestChannelFrameFlyweight.initialRequestN(frame);
           Payload channelPayload = payloadDecoder.apply(frame);
           handleChannel(streamId, channelPayload, channelInitialRequestN);
           break;
@@ -436,14 +437,14 @@ class RSocketResponder implements ResponderRSocket {
   private void handleStream(
       int streamId,
       Flux<Payload> response,
-      int initialRequestN,
+      long initialRequestN,
       @Nullable UnicastProcessor<Payload> requestChannel) {
     final BaseSubscriber<Payload> subscriber =
         new BaseSubscriber<Payload>() {
 
           @Override
           protected void hookOnSubscribe(Subscription s) {
-            s.request(initialRequestN >= Integer.MAX_VALUE ? Long.MAX_VALUE : initialRequestN);
+            s.request(initialRequestN);
           }
 
           @Override
@@ -522,14 +523,30 @@ class RSocketResponder implements ResponderRSocket {
         .subscribe(subscriber);
   }
 
-  private void handleChannel(int streamId, Payload payload, int initialRequestN) {
+  private void handleChannel(int streamId, Payload payload, long initialRequestN) {
     UnicastProcessor<Payload> frames = UnicastProcessor.create();
     channelProcessors.put(streamId, frames);
 
     Flux<Payload> payloads =
         frames
             .doOnRequest(
-                l -> sendProcessor.onNext(RequestNFrameFlyweight.encode(allocator, streamId, l)))
+                new LongConsumer() {
+                  boolean first = true;
+
+                  @Override
+                  public void accept(long l) {
+                    long n;
+                    if (first) {
+                      first = false;
+                      n = l - 1L;
+                    } else {
+                      n = l;
+                    }
+                    if (n > 0) {
+                      sendProcessor.onNext(RequestNFrameFlyweight.encode(allocator, streamId, n));
+                    }
+                  }
+                })
             .doFinally(
                 signalType -> {
                   if (channelProcessors.remove(streamId, frames)) {
@@ -585,8 +602,8 @@ class RSocketResponder implements ResponderRSocket {
     Subscription subscription = sendingSubscriptions.get(streamId);
 
     if (subscription != null) {
-      int n = RequestNFrameFlyweight.requestN(frame);
-      subscription.request(n >= Integer.MAX_VALUE ? Long.MAX_VALUE : n);
+      long n = RequestNFrameFlyweight.requestN(frame);
+      subscription.request(n);
     }
   }
 }

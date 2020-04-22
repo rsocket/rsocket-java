@@ -17,6 +17,7 @@
 package io.rsocket.core;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import io.rsocket.ConnectionSetupPayload;
 import io.rsocket.frame.FrameHeaderFlyweight;
 import io.rsocket.frame.SetupFrameFlyweight;
@@ -40,7 +41,8 @@ public class DefaultConnectionSetupPayload extends ConnectionSetupPayload {
 
   @Override
   public ByteBuf sliceMetadata() {
-    return SetupFrameFlyweight.metadata(setupFrame);
+    final ByteBuf metadata = SetupFrameFlyweight.metadata(setupFrame);
+    return metadata == null ? Unpooled.EMPTY_BUFFER : metadata;
   }
 
   @Override

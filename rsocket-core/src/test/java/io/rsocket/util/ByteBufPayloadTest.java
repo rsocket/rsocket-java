@@ -25,11 +25,11 @@ public class ByteBufPayloadTest {
   }
 
   @Test
-  public void shouldIndicateThatItHasNotMetadata1() {
+  public void shouldIndicateThatItHasMetadata1() {
     Payload payload =
         ByteBufPayload.create(Unpooled.wrappedBuffer("data".getBytes()), Unpooled.EMPTY_BUFFER);
 
-    Assertions.assertThat(payload.hasMetadata()).isFalse();
+    Assertions.assertThat(payload.hasMetadata()).isTrue();
     Assertions.assertThat(payload.release()).isTrue();
   }
 

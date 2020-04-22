@@ -56,7 +56,6 @@ public class SetupFrameFlyweight {
       final Payload setupPayload) {
 
     final ByteBuf data = setupPayload.sliceData();
-    final boolean hasData = data.isReadable();
     final boolean hasMetadata = setupPayload.hasMetadata();
     final ByteBuf metadata = hasMetadata ? setupPayload.sliceMetadata() : null;
 
@@ -94,15 +93,7 @@ public class SetupFrameFlyweight {
     header.writeByte(length);
     ByteBufUtil.writeUtf8(header, dataMimeType);
 
-    if (hasData && hasMetadata) {
-      return DataAndMetadataFlyweight.encode(allocator, header, metadata, data);
-    } else if (hasMetadata) {
-      return DataAndMetadataFlyweight.encode(allocator, header, metadata);
-    } else if (hasData) {
-      return DataAndMetadataFlyweight.encodeOnlyData(allocator, header, data);
-    } else {
-      return header;
-    }
+    return DataAndMetadataFlyweight.encode(allocator, header, metadata, hasMetadata, data);
   }
 
   public static int version(ByteBuf byteBuf) {
@@ -197,9 +188,12 @@ public class SetupFrameFlyweight {
 
   public static ByteBuf metadata(ByteBuf byteBuf) {
     boolean hasMetadata = FrameHeaderFlyweight.hasMetadata(byteBuf);
+    if (!hasMetadata) {
+      return null;
+    }
     byteBuf.markReaderIndex();
     skipToPayload(byteBuf);
-    ByteBuf metadata = DataAndMetadataFlyweight.metadataWithoutMarking(byteBuf, hasMetadata);
+    ByteBuf metadata = DataAndMetadataFlyweight.metadataWithoutMarking(byteBuf);
     byteBuf.resetReaderIndex();
     return metadata;
   }

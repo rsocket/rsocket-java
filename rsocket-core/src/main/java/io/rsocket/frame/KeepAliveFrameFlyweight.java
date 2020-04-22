@@ -29,7 +29,7 @@ public class KeepAliveFrameFlyweight {
 
     header.writeLong(lp);
 
-    return DataAndMetadataFlyweight.encodeOnlyData(allocator, header, data);
+    return DataAndMetadataFlyweight.encode(allocator, header, null, false, data);
   }
 
   public static boolean respondFlag(ByteBuf byteBuf) {

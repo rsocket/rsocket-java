@@ -13,17 +13,7 @@ public class FragmentationFlyweight {
   public static ByteBuf encode(
       final ByteBufAllocator allocator, ByteBuf header, @Nullable ByteBuf metadata, ByteBuf data) {
 
-    final boolean hasData = data != null && data.isReadable();
-    final boolean hasMetadata = metadata != null && metadata.isReadable();
-
-    if (hasData && hasMetadata) {
-      return DataAndMetadataFlyweight.encode(allocator, header, metadata, data);
-    } else if (hasMetadata) {
-      return DataAndMetadataFlyweight.encode(allocator, header, metadata);
-    } else if (hasData) {
-      return DataAndMetadataFlyweight.encodeOnlyData(allocator, header, data);
-    } else {
-      return header;
-    }
+    final boolean hasMetadata = metadata != null;
+    return DataAndMetadataFlyweight.encode(allocator, header, metadata, hasMetadata, data);
   }
 }

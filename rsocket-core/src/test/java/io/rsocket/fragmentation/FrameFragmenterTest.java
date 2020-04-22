@@ -20,7 +20,6 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
 import io.rsocket.frame.*;
-import io.rsocket.util.DefaultPayload;
 import java.util.concurrent.ThreadLocalRandom;
 import org.junit.Assert;
 import org.junit.jupiter.api.DisplayName;
@@ -43,14 +42,17 @@ final class FrameFragmenterTest {
   @Test
   void testGettingData() {
     ByteBuf rr =
-        RequestResponseFrameFlyweight.encode(allocator, 1, true, DefaultPayload.create(data));
+        RequestResponseFrameFlyweight.encode(
+            allocator, 1, true, null, Unpooled.wrappedBuffer(data));
     ByteBuf fnf =
-        RequestFireAndForgetFrameFlyweight.encode(allocator, 1, true, DefaultPayload.create(data));
+        RequestFireAndForgetFrameFlyweight.encode(
+            allocator, 1, true, null, Unpooled.wrappedBuffer(data));
     ByteBuf rs =
-        RequestStreamFrameFlyweight.encode(allocator, 1, true, 1, DefaultPayload.create(data));
+        RequestStreamFrameFlyweight.encode(
+            allocator, 1, true, 1, null, Unpooled.wrappedBuffer(data));
     ByteBuf rc =
         RequestChannelFrameFlyweight.encode(
-            allocator, 1, true, false, 1, DefaultPayload.create(data));
+            allocator, 1, true, false, 1, null, Unpooled.wrappedBuffer(data));
 
     ByteBuf data = FrameFragmenter.getData(rr, FrameType.REQUEST_RESPONSE);
     Assert.assertEquals(data, Unpooled.wrappedBuffer(data));
@@ -73,16 +75,22 @@ final class FrameFragmenterTest {
   void testGettingMetadata() {
     ByteBuf rr =
         RequestResponseFrameFlyweight.encode(
-            allocator, 1, true, DefaultPayload.create(data, metadata));
+            allocator, 1, true, Unpooled.wrappedBuffer(metadata), Unpooled.wrappedBuffer(data));
     ByteBuf fnf =
         RequestFireAndForgetFrameFlyweight.encode(
-            allocator, 1, true, DefaultPayload.create(data, metadata));
+            allocator, 1, true, Unpooled.wrappedBuffer(metadata), Unpooled.wrappedBuffer(data));
     ByteBuf rs =
         RequestStreamFrameFlyweight.encode(
-            allocator, 1, true, 1, DefaultPayload.create(data, metadata));
+            allocator, 1, true, 1, Unpooled.wrappedBuffer(metadata), Unpooled.wrappedBuffer(data));
     ByteBuf rc =
         RequestChannelFrameFlyweight.encode(
-            allocator, 1, true, false, 1, DefaultPayload.create(data, metadata));
+            allocator,
+            1,
+            true,
+            false,
+            1,
+            Unpooled.wrappedBuffer(metadata),
+            Unpooled.wrappedBuffer(data));
 
     ByteBuf data = FrameFragmenter.getMetadata(rr, FrameType.REQUEST_RESPONSE);
     Assert.assertEquals(data, Unpooled.wrappedBuffer(metadata));
@@ -104,7 +112,8 @@ final class FrameFragmenterTest {
   @Test
   void returnEmptBufferWhenNoMetadataPresent() {
     ByteBuf rr =
-        RequestResponseFrameFlyweight.encode(allocator, 1, true, DefaultPayload.create(data));
+        RequestResponseFrameFlyweight.encode(
+            allocator, 1, true, null, Unpooled.wrappedBuffer(data));
 
     ByteBuf data = FrameFragmenter.getMetadata(rr, FrameType.REQUEST_RESPONSE);
     Assert.assertEquals(data, Unpooled.EMPTY_BUFFER);
@@ -115,7 +124,8 @@ final class FrameFragmenterTest {
   @Test
   void encodeFirstFrameWithData() {
     ByteBuf rr =
-        RequestResponseFrameFlyweight.encode(allocator, 1, true, DefaultPayload.create(data));
+        RequestResponseFrameFlyweight.encode(
+            allocator, 1, true, null, Unpooled.wrappedBuffer(data));
 
     ByteBuf fragment =
         FrameFragmenter.encodeFirstFragment(
@@ -144,7 +154,7 @@ final class FrameFragmenterTest {
   void encodeFirstWithDataChannel() {
     ByteBuf rc =
         RequestChannelFrameFlyweight.encode(
-            allocator, 1, true, false, 10, DefaultPayload.create(data));
+            allocator, 1, true, false, 10, null, Unpooled.wrappedBuffer(data));
 
     ByteBuf fragment =
         FrameFragmenter.encodeFirstFragment(
@@ -173,7 +183,8 @@ final class FrameFragmenterTest {
   @Test
   void encodeFirstWithDataStream() {
     ByteBuf rc =
-        RequestStreamFrameFlyweight.encode(allocator, 1, true, 50, DefaultPayload.create(data));
+        RequestStreamFrameFlyweight.encode(
+            allocator, 1, true, 50, null, Unpooled.wrappedBuffer(data));
 
     ByteBuf fragment =
         FrameFragmenter.encodeFirstFragment(
@@ -203,10 +214,7 @@ final class FrameFragmenterTest {
   void encodeFirstFrameWithMetadata() {
     ByteBuf rr =
         RequestResponseFrameFlyweight.encode(
-            allocator,
-            1,
-            true,
-            DefaultPayload.create(Unpooled.EMPTY_BUFFER, Unpooled.wrappedBuffer(metadata)));
+            allocator, 1, true, Unpooled.wrappedBuffer(metadata), Unpooled.EMPTY_BUFFER);
 
     ByteBuf fragment =
         FrameFragmenter.encodeFirstFragment(
@@ -234,7 +242,7 @@ final class FrameFragmenterTest {
   void encodeFirstWithDataAndMetadataStream() {
     ByteBuf rc =
         RequestStreamFrameFlyweight.encode(
-            allocator, 1, true, 50, DefaultPayload.create(data, metadata));
+            allocator, 1, true, 50, Unpooled.wrappedBuffer(metadata), Unpooled.wrappedBuffer(data));
 
     ByteBuf fragment =
         FrameFragmenter.encodeFirstFragment(
@@ -266,7 +274,8 @@ final class FrameFragmenterTest {
   @Test
   void fragmentData() {
     ByteBuf rr =
-        RequestResponseFrameFlyweight.encode(allocator, 1, true, DefaultPayload.create(data));
+        RequestResponseFrameFlyweight.encode(
+            allocator, 1, true, null, Unpooled.wrappedBuffer(data));
 
     Publisher<ByteBuf> fragments =
         FrameFragmenter.fragmentFrame(allocator, 1024, rr, FrameType.REQUEST_RESPONSE, false);
@@ -293,11 +302,7 @@ final class FrameFragmenterTest {
   void fragmentMetadata() {
     ByteBuf rr =
         RequestStreamFrameFlyweight.encode(
-            allocator,
-            1,
-            true,
-            10,
-            DefaultPayload.create(Unpooled.EMPTY_BUFFER, Unpooled.wrappedBuffer(metadata)));
+            allocator, 1, true, 10, Unpooled.wrappedBuffer(metadata), Unpooled.EMPTY_BUFFER);
 
     Publisher<ByteBuf> fragments =
         FrameFragmenter.fragmentFrame(allocator, 1024, rr, FrameType.REQUEST_STREAM, false);
@@ -324,7 +329,7 @@ final class FrameFragmenterTest {
   void fragmentDataAndMetadata() {
     ByteBuf rr =
         RequestResponseFrameFlyweight.encode(
-            allocator, 1, true, DefaultPayload.create(data, metadata));
+            allocator, 1, true, Unpooled.wrappedBuffer(metadata), Unpooled.wrappedBuffer(data));
 
     Publisher<ByteBuf> fragments =
         FrameFragmenter.fragmentFrame(allocator, 1024, rr, FrameType.REQUEST_RESPONSE, false);

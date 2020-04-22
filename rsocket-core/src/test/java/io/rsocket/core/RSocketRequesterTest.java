@@ -20,6 +20,7 @@ import static io.rsocket.core.PayloadValidationUtils.INVALID_PAYLOAD_ERROR_MESSA
 import static io.rsocket.frame.FrameHeaderFlyweight.frameType;
 import static io.rsocket.frame.FrameType.CANCEL;
 import static io.rsocket.frame.FrameType.REQUEST_CHANNEL;
+import static io.rsocket.frame.FrameType.REQUEST_FNF;
 import static io.rsocket.frame.FrameType.REQUEST_RESPONSE;
 import static io.rsocket.frame.FrameType.REQUEST_STREAM;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -35,6 +36,7 @@ import static org.mockito.Mockito.verify;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
+import io.netty.buffer.Unpooled;
 import io.netty.util.CharsetUtil;
 import io.netty.util.ReferenceCounted;
 import io.rsocket.Payload;
@@ -74,7 +76,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
+import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.runners.model.Statement;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
@@ -623,6 +627,103 @@ public class RSocketRequesterTest {
     Assertions.assertThat(rule.connection.getSent()).allMatch(ByteBuf::release);
 
     rule.assertHasNoLeaks();
+  }
+
+  @ParameterizedTest
+  @MethodSource("encodeDecodePayloadCases")
+  public void verifiesThatFrameWithNoMetadataHasDecodedCorrectlyIntoPayload(
+      FrameType frameType, int framesCnt, int responsesCnt) {
+    ByteBufAllocator allocator = rule.alloc();
+    AssertSubscriber<Payload> assertSubscriber = AssertSubscriber.create(responsesCnt);
+    TestPublisher<Payload> testPublisher = TestPublisher.create();
+
+    Publisher<Payload> response;
+
+    switch (frameType) {
+      case REQUEST_FNF:
+        response =
+            testPublisher.mono().flatMap(p -> rule.socket.fireAndForget(p).then(Mono.empty()));
+        break;
+      case REQUEST_RESPONSE:
+        response = testPublisher.mono().flatMap(p -> rule.socket.requestResponse(p));
+        break;
+      case REQUEST_STREAM:
+        response = testPublisher.mono().flatMapMany(p -> rule.socket.requestStream(p));
+        break;
+      case REQUEST_CHANNEL:
+        response = rule.socket.requestChannel(testPublisher.flux());
+        break;
+      default:
+        throw new UnsupportedOperationException("illegal case");
+    }
+
+    response.subscribe(assertSubscriber);
+    testPublisher.next(ByteBufPayload.create("d"));
+
+    int streamId = rule.getStreamIdForRequestType(frameType);
+
+    if (responsesCnt > 0) {
+      for (int i = 0; i < responsesCnt - 1; i++) {
+        rule.connection.addToReceivedBuffer(
+            PayloadFrameFlyweight.encode(
+                allocator,
+                streamId,
+                false,
+                false,
+                true,
+                null,
+                Unpooled.wrappedBuffer(("rd" + (i + 1)).getBytes())));
+      }
+
+      rule.connection.addToReceivedBuffer(
+          PayloadFrameFlyweight.encode(
+              allocator,
+              streamId,
+              false,
+              true,
+              true,
+              null,
+              Unpooled.wrappedBuffer(("rd" + responsesCnt).getBytes())));
+    }
+
+    if (framesCnt > 1) {
+      rule.connection.addToReceivedBuffer(
+          RequestNFrameFlyweight.encode(allocator, streamId, framesCnt));
+    }
+
+    for (int i = 1; i < framesCnt; i++) {
+      testPublisher.next(ByteBufPayload.create("d" + i));
+    }
+
+    Assertions.assertThat(rule.connection.getSent())
+        .describedAs(
+            "Interaction Type :[%s]. Expected to observe %s frames sent", frameType, framesCnt)
+        .hasSize(framesCnt)
+        .allMatch(bb -> !FrameHeaderFlyweight.hasMetadata(bb))
+        .allMatch(ByteBuf::release);
+
+    Assertions.assertThat(assertSubscriber.isTerminated())
+        .describedAs("Interaction Type :[%s]. Expected to be terminated", frameType)
+        .isTrue();
+
+    Assertions.assertThat(assertSubscriber.values())
+        .describedAs(
+            "Interaction Type :[%s]. Expected to observe %s frames received",
+            frameType, responsesCnt)
+        .hasSize(responsesCnt)
+        .allMatch(p -> !p.hasMetadata())
+        .allMatch(p -> p.release());
+
+    rule.assertHasNoLeaks();
+    rule.connection.clearSendReceiveBuffers();
+  }
+
+  static Stream<Arguments> encodeDecodePayloadCases() {
+    return Stream.of(
+        Arguments.of(REQUEST_FNF, 1, 0),
+        Arguments.of(REQUEST_RESPONSE, 1, 1),
+        Arguments.of(REQUEST_STREAM, 1, 5),
+        Arguments.of(REQUEST_CHANNEL, 5, 5));
   }
 
   public int sendRequestResponse(Publisher<Payload> response) {

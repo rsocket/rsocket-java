@@ -13,22 +13,15 @@ public class RequestChannelFrameFlyweight {
   public static ByteBuf encode(
       ByteBufAllocator allocator,
       int streamId,
-      boolean fragmentFollows,
       boolean complete,
-      long requestN,
+      long initialRequestN,
       Payload payload) {
 
-    int reqN = requestN > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) requestN;
+    final boolean hasMetadata = payload.hasMetadata();
+    final ByteBuf metadata = hasMetadata ? payload.metadata().retain() : null;
+    final ByteBuf data = payload.data().retain();
 
-    return FLYWEIGHT.encode(
-        allocator,
-        streamId,
-        fragmentFollows,
-        complete,
-        false,
-        reqN,
-        payload.metadata(),
-        payload.data());
+    return encode(allocator, streamId, false, complete, initialRequestN, metadata, data);
   }
 
   public static ByteBuf encode(
@@ -36,11 +29,15 @@ public class RequestChannelFrameFlyweight {
       int streamId,
       boolean fragmentFollows,
       boolean complete,
-      long requestN,
+      long initialRequestN,
       ByteBuf metadata,
       ByteBuf data) {
 
-    int reqN = requestN > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) requestN;
+    if (initialRequestN < 1) {
+      throw new IllegalArgumentException("request n is less than 1");
+    }
+
+    int reqN = initialRequestN > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) initialRequestN;
 
     return FLYWEIGHT.encode(
         allocator, streamId, fragmentFollows, complete, false, reqN, metadata, data);
@@ -54,7 +51,8 @@ public class RequestChannelFrameFlyweight {
     return FLYWEIGHT.metadataWithRequestN(byteBuf);
   }
 
-  public static int initialRequestN(ByteBuf byteBuf) {
-    return FLYWEIGHT.initialRequestN(byteBuf);
+  public static long initialRequestN(ByteBuf byteBuf) {
+    int requestN = FLYWEIGHT.initialRequestN(byteBuf);
+    return requestN == Integer.MAX_VALUE ? Long.MAX_VALUE : requestN;
   }
 }

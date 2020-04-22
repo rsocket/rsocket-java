@@ -21,47 +21,24 @@ public class PayloadFrameFlyweight {
         allocator, streamId, fragmentFollows, complete, next, 0, metadata, data);
   }
 
-  public static ByteBuf encode(
-      ByteBufAllocator allocator,
-      int streamId,
-      boolean fragmentFollows,
-      boolean complete,
-      boolean next,
-      Payload payload) {
-    return FLYWEIGHT.encode(
-        allocator,
-        streamId,
-        fragmentFollows,
-        complete,
-        next,
-        0,
-        payload.hasMetadata() ? payload.metadata().retain() : null,
-        payload.data().retain());
+  public static ByteBuf encodeNext(ByteBufAllocator allocator, int streamId, Payload payload) {
+    return encode(allocator, streamId, false, payload);
   }
 
   public static ByteBuf encodeNextComplete(
       ByteBufAllocator allocator, int streamId, Payload payload) {
-    return FLYWEIGHT.encode(
-        allocator,
-        streamId,
-        false,
-        true,
-        true,
-        0,
-        payload.hasMetadata() ? payload.metadata().retain() : null,
-        payload.data().retain());
+
+    return encode(allocator, streamId, true, payload);
   }
 
-  public static ByteBuf encodeNext(ByteBufAllocator allocator, int streamId, Payload payload) {
-    return FLYWEIGHT.encode(
-        allocator,
-        streamId,
-        false,
-        false,
-        true,
-        0,
-        payload.hasMetadata() ? payload.metadata().retain() : null,
-        payload.data().retain());
+  static ByteBuf encode(
+      ByteBufAllocator allocator, int streamId, boolean complete, Payload payload) {
+
+    final boolean hasMetadata = payload.hasMetadata();
+    final ByteBuf metadata = hasMetadata ? payload.metadata().retain() : null;
+    final ByteBuf data = payload.data().retain();
+
+    return FLYWEIGHT.encode(allocator, streamId, false, complete, true, 0, metadata, data);
   }
 
   public static ByteBuf encodeComplete(ByteBufAllocator allocator, int streamId) {
