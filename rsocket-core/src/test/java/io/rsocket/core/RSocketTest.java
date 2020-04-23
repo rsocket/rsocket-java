@@ -28,6 +28,8 @@ import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.exceptions.ApplicationErrorException;
 import io.rsocket.exceptions.CustomRSocketException;
+import io.rsocket.frame.decoder.PayloadDecoder;
+import io.rsocket.internal.subscriber.AssertSubscriber;
 import io.rsocket.lease.RequesterLeaseHandler;
 import io.rsocket.lease.ResponderLeaseHandler;
 import io.rsocket.test.util.LocalDuplexConnection;
@@ -36,6 +38,7 @@ import io.rsocket.util.DefaultPayload;
 import io.rsocket.util.EmptyPayload;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import org.assertj.core.api.Assertions;
 import org.hamcrest.MatcherAssert;
@@ -52,6 +55,7 @@ import reactor.core.publisher.DirectProcessor;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
+import reactor.test.publisher.TestPublisher;
 
 public class RSocketTest {
 
@@ -177,6 +181,232 @@ public class RSocketTest {
     Assertions.assertThat(error.get()).isNull();
   }
 
+  @Test
+  public void requestChannelIndependentTerminationOfUpstreamAndDownstreamTest1() {
+    TestPublisher<Payload> outerPublisher = TestPublisher.create();
+    AssertSubscriber<Payload> outerAssertSubscriber = new AssertSubscriber<>(0);
+
+    AssertSubscriber<Payload> innerAssertSubscriber = new AssertSubscriber<>(0);
+    TestPublisher<Payload> innerPublisher = TestPublisher.create();
+
+    initRequestChannelCase(
+        outerPublisher, outerAssertSubscriber, innerPublisher, innerAssertSubscriber);
+
+    nextFromOuterPublisher(outerPublisher, innerAssertSubscriber);
+
+    completeFromOuterPublisher(outerPublisher, innerAssertSubscriber);
+
+    nextFromInnerPublisher(innerPublisher, outerAssertSubscriber);
+
+    completeFromInnerPublisher(innerPublisher, outerAssertSubscriber);
+  }
+
+  @Test
+  public void requestChannelIndependentTerminationOfUpstreamAndDownstreamTest2() {
+    TestPublisher<Payload> outerPublisher = TestPublisher.create();
+    AssertSubscriber<Payload> outerAssertSubscriber = new AssertSubscriber<>(0);
+
+    AssertSubscriber<Payload> innerAssertSubscriber = new AssertSubscriber<>(0);
+    TestPublisher<Payload> innerPublisher = TestPublisher.create();
+
+    initRequestChannelCase(
+        outerPublisher, outerAssertSubscriber, innerPublisher, innerAssertSubscriber);
+
+    nextFromInnerPublisher(innerPublisher, outerAssertSubscriber);
+
+    completeFromInnerPublisher(innerPublisher, outerAssertSubscriber);
+
+    nextFromOuterPublisher(outerPublisher, innerAssertSubscriber);
+
+    completeFromOuterPublisher(outerPublisher, innerAssertSubscriber);
+  }
+
+  @Test
+  public void requestChannelIndependentTerminationOfUpstreamAndDownstreamTest3() {
+    TestPublisher<Payload> outerPublisher = TestPublisher.create();
+    AssertSubscriber<Payload> outerAssertSubscriber = new AssertSubscriber<>(0);
+
+    AssertSubscriber<Payload> innerAssertSubscriber = new AssertSubscriber<>(0);
+    TestPublisher<Payload> innerPublisher = TestPublisher.create();
+
+    initRequestChannelCase(
+        outerPublisher, outerAssertSubscriber, innerPublisher, innerAssertSubscriber);
+
+    nextFromOuterPublisher(outerPublisher, innerAssertSubscriber);
+
+    cancelFromInnerSubscriber(outerPublisher, innerAssertSubscriber);
+
+    nextFromInnerPublisher(innerPublisher, outerAssertSubscriber);
+
+    completeFromInnerPublisher(innerPublisher, outerAssertSubscriber);
+  }
+
+  @Test
+  public void requestChannelIndependentTerminationOfUpstreamAndDownstreamTest4() {
+    TestPublisher<Payload> outerPublisher = TestPublisher.create();
+    AssertSubscriber<Payload> outerAssertSubscriber = new AssertSubscriber<>(0);
+
+    AssertSubscriber<Payload> innerAssertSubscriber = new AssertSubscriber<>(0);
+    TestPublisher<Payload> innerPublisher = TestPublisher.create();
+
+    initRequestChannelCase(
+        outerPublisher, outerAssertSubscriber, innerPublisher, innerAssertSubscriber);
+
+    nextFromInnerPublisher(innerPublisher, outerAssertSubscriber);
+
+    completeFromInnerPublisher(innerPublisher, outerAssertSubscriber);
+
+    nextFromOuterPublisher(outerPublisher, innerAssertSubscriber);
+
+    cancelFromInnerSubscriber(outerPublisher, innerAssertSubscriber);
+  }
+
+  @Test
+  public void requestChannelIndependentTerminationOfUpstreamAndDownstreamTest5() {
+    TestPublisher<Payload> outerPublisher = TestPublisher.create();
+    AssertSubscriber<Payload> outerAssertSubscriber = new AssertSubscriber<>(0);
+
+    AssertSubscriber<Payload> innerAssertSubscriber = new AssertSubscriber<>(0);
+    TestPublisher<Payload> innerPublisher = TestPublisher.create();
+
+    initRequestChannelCase(
+        outerPublisher, outerAssertSubscriber, innerPublisher, innerAssertSubscriber);
+
+    nextFromInnerPublisher(innerPublisher, outerAssertSubscriber);
+
+    nextFromOuterPublisher(outerPublisher, innerAssertSubscriber);
+
+    // ensures both sides are terminated
+    cancelFromOuterSubscriber(
+        outerPublisher, outerAssertSubscriber, innerPublisher, innerAssertSubscriber);
+  }
+
+  void initRequestChannelCase(
+      TestPublisher<Payload> outerPublisher,
+      AssertSubscriber<Payload> outerAssertSubscriber,
+      TestPublisher<Payload> innerPublisher,
+      AssertSubscriber<Payload> innerAssertSubscriber) {
+    rule.setRequestAcceptor(
+        new AbstractRSocket() {
+          @Override
+          public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
+            payloads.subscribe(innerAssertSubscriber);
+            return innerPublisher.flux();
+          }
+        });
+
+    rule.crs.requestChannel(outerPublisher).subscribe(outerAssertSubscriber);
+
+    outerPublisher.assertWasSubscribed();
+    outerAssertSubscriber.assertSubscribed();
+
+    innerAssertSubscriber.assertNotSubscribed();
+    innerPublisher.assertWasNotSubscribed();
+
+    // firstRequest
+    outerAssertSubscriber.request(1);
+    outerPublisher.assertMaxRequested(1);
+    outerPublisher.next(DefaultPayload.create("initialData", "initialMetadata"));
+
+    innerAssertSubscriber.assertSubscribed();
+    innerPublisher.assertWasSubscribed();
+  }
+
+  void nextFromOuterPublisher(
+      TestPublisher<Payload> outerPublisher, AssertSubscriber<Payload> innerAssertSubscriber) {
+    // ensures that outerUpstream and innerSubscriber is not terminated so the requestChannel
+    outerPublisher.assertSubscribers(1);
+    innerAssertSubscriber.assertNotTerminated();
+
+    innerAssertSubscriber.request(6);
+    outerPublisher.next(
+        DefaultPayload.create("d1", "m1"),
+        DefaultPayload.create("d2"),
+        DefaultPayload.create("d3", "m3"),
+        DefaultPayload.create("d4"),
+        DefaultPayload.create("d5", "m5"));
+
+    List<Payload> innerPayloads = innerAssertSubscriber.awaitAndAssertNextValueCount(6).values();
+    Assertions.assertThat(innerPayloads.stream().map(Payload::getDataUtf8))
+        .containsExactly("initialData", "d1", "d2", "d3", "d4", "d5");
+    // fixme: incorrect behaviour of metadata encoding
+    //    Assertions
+    //            .assertThat(innerPayloads
+    //                    .stream()
+    //                    .map(Payload::hasMetadata)
+    //            )
+    //            .containsExactly(true, true, false, true, false, true);
+    Assertions.assertThat(innerPayloads.stream().map(Payload::getMetadataUtf8))
+        .containsExactly("initialMetadata", "m1", "", "m3", "", "m5");
+  }
+
+  void completeFromOuterPublisher(
+      TestPublisher<Payload> outerPublisher, AssertSubscriber<Payload> innerAssertSubscriber) {
+    // ensures that after sending complete upstream part is closed
+    outerPublisher.complete();
+    innerAssertSubscriber.assertTerminated();
+    outerPublisher.assertNoSubscribers();
+  }
+
+  void cancelFromInnerSubscriber(
+      TestPublisher<Payload> outerPublisher, AssertSubscriber<Payload> innerAssertSubscriber) {
+    // ensures that after sending complete upstream part is closed
+    innerAssertSubscriber.cancel();
+    outerPublisher.assertWasCancelled();
+    outerPublisher.assertNoSubscribers();
+  }
+
+  void nextFromInnerPublisher(
+      TestPublisher<Payload> innerPublisher, AssertSubscriber<Payload> outerAssertSubscriber) {
+    // ensures that downstream is not terminated so the requestChannel state is half-closed
+    innerPublisher.assertSubscribers(1);
+    outerAssertSubscriber.assertNotTerminated();
+
+    // ensures innerPublisher can send messages and outerSubscriber can receive them
+    outerAssertSubscriber.request(5);
+    innerPublisher.next(
+        DefaultPayload.create("rd1", "rm1"),
+        DefaultPayload.create("rd2"),
+        DefaultPayload.create("rd3", "rm3"),
+        DefaultPayload.create("rd4"),
+        DefaultPayload.create("rd5", "rm5"));
+
+    List<Payload> outerPayloads = outerAssertSubscriber.awaitAndAssertNextValueCount(5).values();
+    Assertions.assertThat(outerPayloads.stream().map(Payload::getDataUtf8))
+        .containsExactly("rd1", "rd2", "rd3", "rd4", "rd5");
+    // fixme: incorrect behaviour of metadata encoding
+    //    Assertions
+    //            .assertThat(outerPayloads
+    //                    .stream()
+    //                    .map(Payload::hasMetadata)
+    //            )
+    //            .containsExactly(true, false, true, false, true);
+    Assertions.assertThat(outerPayloads.stream().map(Payload::getMetadataUtf8))
+        .containsExactly("rm1", "", "rm3", "", "rm5");
+  }
+
+  void completeFromInnerPublisher(
+      TestPublisher<Payload> innerPublisher, AssertSubscriber<Payload> outerAssertSubscriber) {
+    // ensures that after sending complete inner upstream is closed
+    innerPublisher.complete();
+    outerAssertSubscriber.assertTerminated();
+    innerPublisher.assertNoSubscribers();
+  }
+
+  void cancelFromOuterSubscriber(
+      TestPublisher<Payload> outerPublisher,
+      AssertSubscriber<Payload> outerAssertSubscriber,
+      TestPublisher<Payload> innerPublisher,
+      AssertSubscriber<Payload> innerAssertSubscriber) {
+    // ensures that after sending cancel the whole requestChannel is terminated
+    outerAssertSubscriber.cancel();
+    innerPublisher.assertWasCancelled();
+    innerPublisher.assertNoSubscribers();
+    // ensures that cancellation is propagated to the actual upstream
+    outerPublisher.assertWasCancelled();
+    outerPublisher.assertNoSubscribers();
+  }
+
   public static class SocketRule extends ExternalResource {
 
     DirectProcessor<ByteBuf> serverProcessor;
@@ -246,7 +476,7 @@ public class RSocketTest {
               ByteBufAllocator.DEFAULT,
               serverConnection,
               requestAcceptor,
-              DefaultPayload::create,
+              PayloadDecoder.DEFAULT,
               throwable -> serverErrors.add(throwable),
               ResponderLeaseHandler.None,
               0);
@@ -255,7 +485,7 @@ public class RSocketTest {
           new RSocketRequester(
               ByteBufAllocator.DEFAULT,
               clientConnection,
-              DefaultPayload::create,
+              PayloadDecoder.DEFAULT,
               throwable -> clientErrors.add(throwable),
               StreamIdSupplier.clientSupplier(),
               0,

@@ -493,6 +493,24 @@ class RSocketResponder implements ResponderRSocket {
           }
 
           @Override
+          protected void hookOnCancel() {
+            // specifically for requestChannel case so when requester sends Cancel frame so the
+            // whole chain MUST be terminated
+            // Note: CancelFrame is redundant from the responder side due to spec
+            // (https://github.com/rsocket/rsocket/blob/master/Protocol.md#request-channel)
+            // Upon receiving a CANCEL, the stream is terminated on the Responder.
+            // Upon sending a CANCEL, the stream is terminated on the Requester.
+            if (requestChannel != null) {
+              channelProcessors.remove(streamId, requestChannel);
+              try {
+                requestChannel.dispose();
+              } catch (Exception e) {
+                // might be thrown back if stream is cancelled
+              }
+            }
+          }
+
+          @Override
           protected void hookFinally(SignalType type) {
             sendingSubscriptions.remove(streamId);
           }
@@ -568,6 +586,7 @@ class RSocketResponder implements ResponderRSocket {
 
   private void handleCancelFrame(int streamId) {
     Subscription subscription = sendingSubscriptions.remove(streamId);
+    channelProcessors.remove(streamId);
 
     if (subscription != null) {
       subscription.cancel();
