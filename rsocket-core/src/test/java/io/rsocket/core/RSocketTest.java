@@ -182,7 +182,7 @@ public class RSocketTest {
   }
 
   @Test
-  public void requestChannelIndependentTerminationOfUpstreamAndDownstreamTest1() {
+  public void requestChannelCase_StreamIsTerminatedAfterBothSidesSentCompletion1() {
     TestPublisher<Payload> outerPublisher = TestPublisher.create();
     AssertSubscriber<Payload> outerAssertSubscriber = new AssertSubscriber<>(0);
 
@@ -202,7 +202,7 @@ public class RSocketTest {
   }
 
   @Test
-  public void requestChannelIndependentTerminationOfUpstreamAndDownstreamTest2() {
+  public void requestChannelCase_StreamIsTerminatedAfterBothSidesSentCompletion2() {
     TestPublisher<Payload> outerPublisher = TestPublisher.create();
     AssertSubscriber<Payload> outerAssertSubscriber = new AssertSubscriber<>(0);
 
@@ -222,7 +222,8 @@ public class RSocketTest {
   }
 
   @Test
-  public void requestChannelIndependentTerminationOfUpstreamAndDownstreamTest3() {
+  public void
+      requestChannelCase_CancellationFromResponderShouldLeaveStreamInHalfClosedStateWithNextCompletionPossibleFromRequester() {
     TestPublisher<Payload> outerPublisher = TestPublisher.create();
     AssertSubscriber<Payload> outerAssertSubscriber = new AssertSubscriber<>(0);
 
@@ -242,7 +243,8 @@ public class RSocketTest {
   }
 
   @Test
-  public void requestChannelIndependentTerminationOfUpstreamAndDownstreamTest4() {
+  public void
+      requestChannelCase_CompletionFromRequesterShouldLeaveStreamInHalfClosedStateWithNextCancellationPossibleFromResponder() {
     TestPublisher<Payload> outerPublisher = TestPublisher.create();
     AssertSubscriber<Payload> outerAssertSubscriber = new AssertSubscriber<>(0);
 
@@ -262,7 +264,8 @@ public class RSocketTest {
   }
 
   @Test
-  public void requestChannelIndependentTerminationOfUpstreamAndDownstreamTest5() {
+  public void
+      requestChannelCase_ensureThatRequesterSubscriberCancellationTerminatesStreamsOnBothSides() {
     TestPublisher<Payload> outerPublisher = TestPublisher.create();
     AssertSubscriber<Payload> outerAssertSubscriber = new AssertSubscriber<>(0);
 
