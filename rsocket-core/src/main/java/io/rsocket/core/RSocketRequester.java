@@ -604,8 +604,8 @@ class RSocketRequester implements RSocket {
         {
           Subscription sender = senders.get(streamId);
           if (sender != null) {
-            long n = RequestNFrameFlyweight.requestN(frame);
-            sender.request(n);
+            int n = RequestNFrameFlyweight.requestN(frame);
+            sender.request(n >= Integer.MAX_VALUE ? Long.MAX_VALUE : n);
           }
           break;
         }
