@@ -560,46 +560,58 @@ class RSocketRequester implements RSocket {
 
   private void handleFrame(int streamId, FrameType type, ByteBuf frame) {
     Subscriber<Payload> receiver = receivers.get(streamId);
-    if (receiver == null) {
-      handleMissingResponseProcessor(streamId, type, frame);
-    } else {
-      switch (type) {
-        case ERROR:
-          receiver.onError(Exceptions.from(streamId, frame));
-          receivers.remove(streamId);
-          break;
-        case NEXT_COMPLETE:
-          receiver.onNext(payloadDecoder.apply(frame));
-          receiver.onComplete();
-          break;
-        case CANCEL:
-          {
-            Subscription sender = senders.remove(streamId);
-            if (sender != null) {
-              sender.cancel();
-            }
-            break;
+    switch (type) {
+      case NEXT:
+        if (receiver == null) {
+          handleMissingResponseProcessor(streamId, type, frame);
+          return;
+        }
+        receiver.onNext(payloadDecoder.apply(frame));
+        break;
+      case NEXT_COMPLETE:
+        if (receiver == null) {
+          handleMissingResponseProcessor(streamId, type, frame);
+          return;
+        }
+        receiver.onNext(payloadDecoder.apply(frame));
+        receiver.onComplete();
+        break;
+      case COMPLETE:
+        if (receiver == null) {
+          handleMissingResponseProcessor(streamId, type, frame);
+          return;
+        }
+        receiver.onComplete();
+        receivers.remove(streamId);
+        break;
+      case ERROR:
+        if (receiver == null) {
+          handleMissingResponseProcessor(streamId, type, frame);
+          return;
+        }
+        receiver.onError(Exceptions.from(streamId, frame));
+        receivers.remove(streamId);
+        break;
+      case CANCEL:
+        {
+          Subscription sender = senders.remove(streamId);
+          if (sender != null) {
+            sender.cancel();
           }
-        case NEXT:
-          receiver.onNext(payloadDecoder.apply(frame));
           break;
-        case REQUEST_N:
-          {
-            Subscription sender = senders.get(streamId);
-            if (sender != null) {
-              int n = RequestNFrameFlyweight.requestN(frame);
-              sender.request(n >= Integer.MAX_VALUE ? Long.MAX_VALUE : n);
-            }
-            break;
+        }
+      case REQUEST_N:
+        {
+          Subscription sender = senders.get(streamId);
+          if (sender != null) {
+            int n = RequestNFrameFlyweight.requestN(frame);
+            sender.request(n >= Integer.MAX_VALUE ? Long.MAX_VALUE : n);
           }
-        case COMPLETE:
-          receiver.onComplete();
-          receivers.remove(streamId);
           break;
-        default:
-          throw new IllegalStateException(
-              "Client received supported frame on stream " + streamId + ": " + frame.toString());
-      }
+        }
+      default:
+        throw new IllegalStateException(
+            "Client received supported frame on stream " + streamId + ": " + frame.toString());
     }
   }
 
