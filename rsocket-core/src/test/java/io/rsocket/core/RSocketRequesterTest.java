@@ -145,7 +145,7 @@ public class RSocketRequesterTest {
     ByteBuf f = sent.get(0);
 
     assertThat("initial frame", frameType(f), is(REQUEST_STREAM));
-    assertThat("initial request n", RequestStreamFrameFlyweight.initialRequestN(f), is(5));
+    assertThat("initial request n", RequestStreamFrameFlyweight.initialRequestN(f), is(5L));
     assertThat("should be released", f.release(), is(true));
     rule.assertHasNoLeaks();
   }
@@ -332,7 +332,7 @@ public class RSocketRequesterTest {
 
     Assertions.assertThat(FrameHeaderFlyweight.frameType(initialFrame)).isEqualTo(REQUEST_CHANNEL);
     Assertions.assertThat(RequestChannelFrameFlyweight.initialRequestN(initialFrame))
-        .isEqualTo(Integer.MAX_VALUE);
+        .isEqualTo(Long.MAX_VALUE);
     Assertions.assertThat(
             RequestChannelFrameFlyweight.data(initialFrame).toString(CharsetUtil.UTF_8))
         .isEqualTo("0");
