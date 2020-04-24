@@ -10,7 +10,7 @@ public class RequestChannelFrameFlyweight {
 
   private RequestChannelFrameFlyweight() {}
 
-  public static ByteBuf encode(
+  public static ByteBuf encodeReleasingPayload(
       ByteBufAllocator allocator,
       int streamId,
       boolean complete,
@@ -20,6 +20,8 @@ public class RequestChannelFrameFlyweight {
     final boolean hasMetadata = payload.hasMetadata();
     final ByteBuf metadata = hasMetadata ? payload.metadata().retain() : null;
     final ByteBuf data = payload.data().retain();
+
+    payload.release();
 
     return encode(allocator, streamId, false, complete, initialRequestN, metadata, data);
   }

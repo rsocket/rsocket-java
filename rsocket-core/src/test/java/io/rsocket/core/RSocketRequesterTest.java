@@ -194,7 +194,8 @@ public class RSocketRequesterTest {
 
     int streamId = rule.getStreamIdForRequestType(REQUEST_RESPONSE);
     rule.connection.addToReceivedBuffer(
-        PayloadFrameFlyweight.encodeNext(rule.alloc(), streamId, EmptyPayload.INSTANCE));
+        PayloadFrameFlyweight.encodeNextReleasingPayload(
+            rule.alloc(), streamId, EmptyPayload.INSTANCE));
 
     verify(sub).onComplete();
     Assertions.assertThat(rule.connection.getSent()).hasSize(1).allMatch(ReferenceCounted::release);
@@ -731,7 +732,8 @@ public class RSocketRequesterTest {
     response.subscribe(sub);
     int streamId = rule.getStreamIdForRequestType(REQUEST_RESPONSE);
     rule.connection.addToReceivedBuffer(
-        PayloadFrameFlyweight.encodeNextComplete(rule.alloc(), streamId, EmptyPayload.INSTANCE));
+        PayloadFrameFlyweight.encodeNextCompleteReleasingPayload(
+            rule.alloc(), streamId, EmptyPayload.INSTANCE));
     verify(sub).onNext(any(Payload.class));
     verify(sub).onComplete();
     return streamId;

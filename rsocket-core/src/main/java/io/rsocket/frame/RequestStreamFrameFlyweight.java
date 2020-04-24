@@ -10,12 +10,14 @@ public class RequestStreamFrameFlyweight {
 
   private RequestStreamFrameFlyweight() {}
 
-  public static ByteBuf encode(
+  public static ByteBuf encodeReleasingPayload(
       ByteBufAllocator allocator, int streamId, long initialRequestN, Payload payload) {
 
     final boolean hasMetadata = payload.hasMetadata();
     final ByteBuf metadata = hasMetadata ? payload.metadata().retain() : null;
     final ByteBuf data = payload.data().retain();
+
+    payload.release();
 
     return encode(allocator, streamId, false, initialRequestN, metadata, data);
   }

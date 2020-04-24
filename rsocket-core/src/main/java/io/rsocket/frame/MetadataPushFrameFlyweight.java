@@ -2,8 +2,16 @@ package io.rsocket.frame;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
+import io.rsocket.Payload;
 
 public class MetadataPushFrameFlyweight {
+
+  public static ByteBuf encodeReleasingPayload(ByteBufAllocator allocator, Payload payload) {
+    final ByteBuf metadata = payload.metadata().retain();
+    payload.release();
+    return encode(allocator, metadata);
+  }
+
   public static ByteBuf encode(ByteBufAllocator allocator, ByteBuf metadata) {
     ByteBuf header =
         FrameHeaderFlyweight.encodeStreamZero(

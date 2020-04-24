@@ -399,16 +399,9 @@ class RSocketResponder implements ResponderRSocket {
               return;
             }
 
-            ByteBuf byteBuf;
-            try {
-              byteBuf = PayloadFrameFlyweight.encodeNextComplete(allocator, streamId, payload);
-            } catch (Throwable t) {
-              payload.release();
-              throw Exceptions.propagate(t);
-            }
-
-            payload.release();
-
+            ByteBuf byteBuf =
+                PayloadFrameFlyweight.encodeNextCompleteReleasingPayload(
+                    allocator, streamId, payload);
             sendProcessor.onNext(byteBuf);
           }
 
@@ -469,16 +462,8 @@ class RSocketResponder implements ResponderRSocket {
               return;
             }
 
-            ByteBuf byteBuf;
-            try {
-              byteBuf = PayloadFrameFlyweight.encodeNext(allocator, streamId, payload);
-            } catch (Throwable t) {
-              payload.release();
-              throw Exceptions.propagate(t);
-            }
-
-            payload.release();
-
+            ByteBuf byteBuf =
+                PayloadFrameFlyweight.encodeNextReleasingPayload(allocator, streamId, payload);
             sendProcessor.onNext(byteBuf);
           }
 

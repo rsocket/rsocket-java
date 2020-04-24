@@ -773,16 +773,22 @@ public class RSocketResponderTest {
       switch (frameType) {
         case REQUEST_CHANNEL:
           request =
-              RequestChannelFrameFlyweight.encode(allocator, streamId, false, prefetch, payload);
+              RequestChannelFrameFlyweight.encodeReleasingPayload(
+                  allocator, streamId, false, prefetch, payload);
           break;
         case REQUEST_STREAM:
-          request = RequestStreamFrameFlyweight.encode(allocator, streamId, prefetch, payload);
+          request =
+              RequestStreamFrameFlyweight.encodeReleasingPayload(
+                  allocator, streamId, prefetch, payload);
           break;
         case REQUEST_RESPONSE:
-          request = RequestResponseFrameFlyweight.encode(allocator, streamId, payload);
+          request =
+              RequestResponseFrameFlyweight.encodeReleasingPayload(allocator, streamId, payload);
           break;
         case REQUEST_FNF:
-          request = RequestFireAndForgetFrameFlyweight.encode(allocator, streamId, payload);
+          request =
+              RequestFireAndForgetFrameFlyweight.encodeReleasingPayload(
+                  allocator, streamId, payload);
           break;
         default:
           throw new IllegalArgumentException("unsupported type: " + frameType);
