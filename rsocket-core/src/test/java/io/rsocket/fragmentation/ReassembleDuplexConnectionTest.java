@@ -25,6 +25,7 @@ import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.Unpooled;
 import io.rsocket.DuplexConnection;
+import io.rsocket.buffer.LeaksTrackingByteBufAllocator;
 import io.rsocket.frame.CancelFrameFlyweight;
 import io.rsocket.frame.FrameHeaderFlyweight;
 import io.rsocket.frame.FrameType;
@@ -51,7 +52,8 @@ final class ReassembleDuplexConnectionTest {
 
   private final DuplexConnection delegate = mock(DuplexConnection.class, RETURNS_SMART_NULLS);
 
-  private ByteBufAllocator allocator = ByteBufAllocator.DEFAULT;
+  private LeaksTrackingByteBufAllocator allocator =
+      LeaksTrackingByteBufAllocator.instrument(ByteBufAllocator.DEFAULT);
 
   @DisplayName("reassembles data")
   @Test
@@ -82,8 +84,9 @@ final class ReassembleDuplexConnectionTest {
 
     when(delegate.receive()).thenReturn(Flux.fromIterable(byteBufs));
     when(delegate.onClose()).thenReturn(Mono.never());
+    when(delegate.alloc()).thenReturn(allocator);
 
-    new ReassemblyDuplexConnection(delegate, allocator, false)
+    new ReassemblyDuplexConnection(delegate, false)
         .receive()
         .as(StepVerifier::create)
         .assertNext(
@@ -146,8 +149,9 @@ final class ReassembleDuplexConnectionTest {
 
     when(delegate.receive()).thenReturn(Flux.fromIterable(byteBufs));
     when(delegate.onClose()).thenReturn(Mono.never());
+    when(delegate.alloc()).thenReturn(allocator);
 
-    new ReassemblyDuplexConnection(delegate, allocator, false)
+    new ReassemblyDuplexConnection(delegate, false)
         .receive()
         .as(StepVerifier::create)
         .assertNext(
@@ -213,8 +217,9 @@ final class ReassembleDuplexConnectionTest {
 
     when(delegate.receive()).thenReturn(Flux.fromIterable(byteBufs));
     when(delegate.onClose()).thenReturn(Mono.never());
+    when(delegate.alloc()).thenReturn(allocator);
 
-    new ReassemblyDuplexConnection(delegate, allocator, false)
+    new ReassemblyDuplexConnection(delegate, false)
         .receive()
         .as(StepVerifier::create)
         .assertNext(
@@ -234,8 +239,9 @@ final class ReassembleDuplexConnectionTest {
 
     when(delegate.receive()).thenReturn(Flux.just(encode));
     when(delegate.onClose()).thenReturn(Mono.never());
+    when(delegate.alloc()).thenReturn(allocator);
 
-    new ReassemblyDuplexConnection(delegate, allocator, false)
+    new ReassemblyDuplexConnection(delegate, false)
         .receive()
         .as(StepVerifier::create)
         .assertNext(
@@ -253,8 +259,9 @@ final class ReassembleDuplexConnectionTest {
 
     when(delegate.receive()).thenReturn(Flux.just(encode));
     when(delegate.onClose()).thenReturn(Mono.never());
+    when(delegate.alloc()).thenReturn(allocator);
 
-    new ReassemblyDuplexConnection(delegate, allocator, false)
+    new ReassemblyDuplexConnection(delegate, false)
         .receive()
         .as(StepVerifier::create)
         .assertNext(

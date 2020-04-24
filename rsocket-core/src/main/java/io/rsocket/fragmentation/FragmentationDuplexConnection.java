@@ -19,7 +19,6 @@ package io.rsocket.fragmentation;
 import static io.rsocket.fragmentation.FrameFragmenter.fragmentFrame;
 
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.ByteBufUtil;
 import io.rsocket.DuplexConnection;
 import io.rsocket.frame.FrameHeaderFlyweight;
@@ -46,26 +45,19 @@ public final class FragmentationDuplexConnection extends ReassemblyDuplexConnect
   private static final Logger logger = LoggerFactory.getLogger(FragmentationDuplexConnection.class);
   private final DuplexConnection delegate;
   private final int mtu;
-  private final ByteBufAllocator allocator;
   private final FrameReassembler frameReassembler;
   private final boolean encodeLength;
   private final String type;
 
   public FragmentationDuplexConnection(
-      DuplexConnection delegate,
-      ByteBufAllocator allocator,
-      int mtu,
-      boolean encodeAndEncodeLength,
-      String type) {
-    super(delegate, allocator, encodeAndEncodeLength);
+      DuplexConnection delegate, int mtu, boolean encodeAndEncodeLength, String type) {
+    super(delegate, encodeAndEncodeLength);
 
     Objects.requireNonNull(delegate, "delegate must not be null");
-    Objects.requireNonNull(allocator, "byteBufAllocator must not be null");
     this.encodeLength = encodeAndEncodeLength;
-    this.allocator = allocator;
     this.delegate = delegate;
     this.mtu = assertMtu(mtu);
-    this.frameReassembler = new FrameReassembler(allocator);
+    this.frameReassembler = new FrameReassembler(delegate.alloc());
     this.type = type;
 
     delegate.onClose().doFinally(s -> frameReassembler.dispose()).subscribe();
@@ -113,7 +105,7 @@ public final class FragmentationDuplexConnection extends ReassemblyDuplexConnect
     if (shouldFragment(frameType, readableBytes)) {
       if (logger.isDebugEnabled()) {
         return delegate.send(
-            Flux.from(fragmentFrame(allocator, mtu, frame, frameType, encodeLength))
+            Flux.from(fragmentFrame(alloc(), mtu, frame, frameType, encodeLength))
                 .doOnNext(
                     byteBuf -> {
                       ByteBuf f = encodeLength ? FrameLengthFlyweight.frame(byteBuf) : byteBuf;
@@ -126,7 +118,7 @@ public final class FragmentationDuplexConnection extends ReassemblyDuplexConnect
                     }));
       } else {
         return delegate.send(
-            Flux.from(fragmentFrame(allocator, mtu, frame, frameType, encodeLength)));
+            Flux.from(fragmentFrame(alloc(), mtu, frame, frameType, encodeLength)));
       }
     } else {
       return delegate.sendOne(encode(frame));
@@ -135,7 +127,7 @@ public final class FragmentationDuplexConnection extends ReassemblyDuplexConnect
 
   private ByteBuf encode(ByteBuf frame) {
     if (encodeLength) {
-      return FrameLengthFlyweight.encode(allocator, frame.readableBytes(), frame);
+      return FrameLengthFlyweight.encode(alloc(), frame.readableBytes(), frame);
     } else {
       return frame;
     }

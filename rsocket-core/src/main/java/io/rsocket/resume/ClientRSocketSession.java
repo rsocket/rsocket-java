@@ -41,13 +41,12 @@ public class ClientRSocketSession implements RSocketSession<Mono<DuplexConnectio
 
   public ClientRSocketSession(
       DuplexConnection duplexConnection,
-      ByteBufAllocator allocator,
       Duration resumeSessionDuration,
       Supplier<ResumeStrategy> resumeStrategy,
       ResumableFramesStore resumableFramesStore,
       Duration resumeStreamTimeout,
       boolean cleanupStoreOnKeepAlive) {
-    this.allocator = allocator;
+    this.allocator = duplexConnection.alloc();
     this.resumableConnection =
         new ResumableDuplexConnection(
             "client",

@@ -71,7 +71,7 @@ public class RSocketConnector {
   private PayloadDecoder payloadDecoder = PayloadDecoder.DEFAULT;
 
   private Consumer<Throwable> errorConsumer = Throwable::printStackTrace;
-  private ByteBufAllocator allocator = ByteBufAllocator.DEFAULT;
+  private ByteBufAllocator allocator = null;
 
   private RSocketConnector() {}
 
@@ -245,6 +245,7 @@ public class RSocketConnector {
    * @deprecated this is deprecated with no replacement and will be removed after {@link
    *     io.rsocket.RSocketFactory} is removed.
    */
+  @Deprecated
   public RSocketConnector byteBufAllocator(ByteBufAllocator allocator) {
     Objects.requireNonNull(allocator);
     this.allocator = allocator;
@@ -304,7 +305,7 @@ public class RSocketConnector {
 
               ByteBuf setupFrame =
                   SetupFrameFlyweight.encode(
-                      allocator,
+                      allocator == null ? wrappedConnection.alloc() : allocator,
                       leaseEnabled,
                       (int) keepAliveInterval.toMillis(),
                       (int) keepAliveMaxLifeTime.toMillis(),
@@ -326,7 +327,7 @@ public class RSocketConnector {
                             leaseEnabled
                                 ? new ResponderLeaseHandler.Impl<>(
                                     CLIENT_TAG,
-                                    allocator,
+                                    allocator == null ? wrappedConnection.alloc() : allocator,
                                     leases.sender(),
                                     errorConsumer,
                                     leases.stats())
@@ -364,7 +365,6 @@ public class RSocketConnector {
     ClientRSocketSession session =
         new ClientRSocketSession(
             connection,
-            allocator,
             resume.getSessionDuration(),
             resume.getResumeStrategySupplier(),
             resume.getStoreFactory(CLIENT_TAG).apply(resumeToken),

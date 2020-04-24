@@ -37,21 +37,39 @@ public final class LocalClientTransport implements ClientTransport {
 
   private final String name;
 
-  private LocalClientTransport(String name) {
+  private final ByteBufAllocator allocator;
+
+  private LocalClientTransport(String name, ByteBufAllocator allocator) {
     this.name = name;
+    this.allocator = allocator;
   }
 
   /**
    * Creates a new instance.
    *
-   * @param name the name of the {@link ServerTransport} instance to connect to
+   * @param name the name of the {@link ClientTransport} instance to connect to
    * @return a new instance
    * @throws NullPointerException if {@code name} is {@code null}
    */
   public static LocalClientTransport create(String name) {
     Objects.requireNonNull(name, "name must not be null");
 
-    return new LocalClientTransport(name);
+    return create(name, ByteBufAllocator.DEFAULT);
+  }
+
+  /**
+   * Creates a new instance.
+   *
+   * @param name the name of the {@link ClientTransport} instance to connect to
+   * @param allocator the allocator used by {@link ClientTransport} instance
+   * @return a new instance
+   * @throws NullPointerException if {@code name} is {@code null}
+   */
+  public static LocalClientTransport create(String name, ByteBufAllocator allocator) {
+    Objects.requireNonNull(name, "name must not be null");
+    Objects.requireNonNull(allocator, "allocator must not be null");
+
+    return new LocalClientTransport(name, allocator);
   }
 
   private Mono<DuplexConnection> connect() {
@@ -66,9 +84,10 @@ public final class LocalClientTransport implements ClientTransport {
           UnboundedProcessor<ByteBuf> out = new UnboundedProcessor<>();
           MonoProcessor<Void> closeNotifier = MonoProcessor.create();
 
-          server.accept(new LocalDuplexConnection(out, in, closeNotifier));
+          server.accept(new LocalDuplexConnection(allocator, out, in, closeNotifier));
 
-          return Mono.just((DuplexConnection) new LocalDuplexConnection(in, out, closeNotifier));
+          return Mono.just(
+              (DuplexConnection) new LocalDuplexConnection(allocator, in, out, closeNotifier));
         });
   }
 
@@ -80,11 +99,9 @@ public final class LocalClientTransport implements ClientTransport {
     return connect.map(
         duplexConnection -> {
           if (mtu > 0) {
-            return new FragmentationDuplexConnection(
-                duplexConnection, ByteBufAllocator.DEFAULT, mtu, false, "client");
+            return new FragmentationDuplexConnection(duplexConnection, mtu, false, "client");
           } else {
-            return new ReassemblyDuplexConnection(
-                duplexConnection, ByteBufAllocator.DEFAULT, false);
+            return new ReassemblyDuplexConnection(duplexConnection, false);
           }
         });
   }

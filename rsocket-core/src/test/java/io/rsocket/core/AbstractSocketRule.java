@@ -41,10 +41,10 @@ public abstract class AbstractSocketRule<T extends RSocket> extends ExternalReso
     return new Statement() {
       @Override
       public void evaluate() throws Throwable {
-        connection = new TestDuplexConnection();
+        allocator = LeaksTrackingByteBufAllocator.instrument(ByteBufAllocator.DEFAULT);
+        connection = new TestDuplexConnection(allocator);
         connectSub = TestSubscriber.create();
         errors = new ConcurrentLinkedQueue<>();
-        allocator = LeaksTrackingByteBufAllocator.instrument(ByteBufAllocator.DEFAULT);
         init();
         base.evaluate();
       }
@@ -52,10 +52,10 @@ public abstract class AbstractSocketRule<T extends RSocket> extends ExternalReso
   }
 
   protected void init() {
-    socket = newRSocket(allocator);
+    socket = newRSocket();
   }
 
-  protected abstract T newRSocket(LeaksTrackingByteBufAllocator allocator);
+  protected abstract T newRSocket();
 
   public void assertNoConnectionErrors() {
     if (errors.size() > 1) {

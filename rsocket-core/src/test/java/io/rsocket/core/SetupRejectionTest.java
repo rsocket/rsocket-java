@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.*;
+import io.rsocket.buffer.LeaksTrackingByteBufAllocator;
 import io.rsocket.exceptions.Exceptions;
 import io.rsocket.exceptions.RejectedSetupException;
 import io.rsocket.frame.ErrorFrameFlyweight;
@@ -47,11 +48,12 @@ public class SetupRejectionTest {
 
   @Test
   void requesterStreamsTerminatedOnZeroErrorFrame() {
-    TestDuplexConnection conn = new TestDuplexConnection();
+    LeaksTrackingByteBufAllocator allocator =
+        LeaksTrackingByteBufAllocator.instrument(ByteBufAllocator.DEFAULT);
+    TestDuplexConnection conn = new TestDuplexConnection(allocator);
     List<Throwable> errors = new ArrayList<>();
     RSocketRequester rSocket =
         new RSocketRequester(
-            ByteBufAllocator.DEFAULT,
             conn,
             DefaultPayload::create,
             errors::add,
@@ -84,10 +86,11 @@ public class SetupRejectionTest {
 
   @Test
   void requesterNewStreamsTerminatedAfterZeroErrorFrame() {
-    TestDuplexConnection conn = new TestDuplexConnection();
+    LeaksTrackingByteBufAllocator allocator =
+        LeaksTrackingByteBufAllocator.instrument(ByteBufAllocator.DEFAULT);
+    TestDuplexConnection conn = new TestDuplexConnection(allocator);
     RSocketRequester rSocket =
         new RSocketRequester(
-            ByteBufAllocator.DEFAULT,
             conn,
             DefaultPayload::create,
             err -> {},
@@ -132,7 +135,9 @@ public class SetupRejectionTest {
 
   private static class SingleConnectionTransport implements ServerTransport<TestCloseable> {
 
-    private final TestDuplexConnection conn = new TestDuplexConnection();
+    private final LeaksTrackingByteBufAllocator allocator =
+        LeaksTrackingByteBufAllocator.instrument(ByteBufAllocator.DEFAULT);
+    private final TestDuplexConnection conn = new TestDuplexConnection(allocator);
 
     @Override
     public Mono<TestCloseable> start(ConnectionAcceptor acceptor, int mtu) {
@@ -150,8 +155,7 @@ public class SetupRejectionTest {
     public void connect() {
       Payload payload = DefaultPayload.create(DefaultPayload.EMPTY_BUFFER);
       ByteBuf setup =
-          SetupFrameFlyweight.encode(
-              ByteBufAllocator.DEFAULT, false, 0, 42, "mdMime", "dMime", payload);
+          SetupFrameFlyweight.encode(allocator, false, 0, 42, "mdMime", "dMime", payload);
 
       conn.addToReceivedBuffer(setup);
     }

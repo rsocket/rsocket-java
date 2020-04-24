@@ -20,6 +20,7 @@ import static io.rsocket.frame.FrameType.*;
 
 import io.micrometer.core.instrument.*;
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.DuplexConnection;
 import io.rsocket.frame.FrameHeaderFlyweight;
 import io.rsocket.frame.FrameType;
@@ -80,6 +81,11 @@ final class MicrometerDuplexConnection implements DuplexConnection {
             "rsocket.duplex.connection.dispose",
             Tags.of(tags).and("connection.type", connectionType.name()));
     this.frameCounters = new FrameCounters(connectionType, meterRegistry, tags);
+  }
+
+  @Override
+  public ByteBufAllocator alloc() {
+    return delegate.alloc();
   }
 
   @Override

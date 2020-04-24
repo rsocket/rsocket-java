@@ -63,6 +63,11 @@ public final class TcpDuplexConnection extends BaseDuplexConnection {
   }
 
   @Override
+  public ByteBufAllocator alloc() {
+    return connection.channel().alloc();
+  }
+
+  @Override
   protected void doOnClose() {
     if (!connection.isDisposed()) {
       connection.dispose();

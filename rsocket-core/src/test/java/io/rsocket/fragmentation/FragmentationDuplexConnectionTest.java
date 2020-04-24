@@ -24,6 +24,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
 import io.rsocket.DuplexConnection;
+import io.rsocket.buffer.LeaksTrackingByteBufAllocator;
 import io.rsocket.frame.*;
 import java.util.concurrent.ThreadLocalRandom;
 import org.junit.Assert;
@@ -55,16 +56,14 @@ final class FragmentationDuplexConnectionTest {
   private final ArgumentCaptor<Publisher<ByteBuf>> publishers =
       ArgumentCaptor.forClass(Publisher.class);
 
-  private ByteBufAllocator allocator = ByteBufAllocator.DEFAULT;
+  private LeaksTrackingByteBufAllocator allocator =
+      LeaksTrackingByteBufAllocator.instrument(ByteBufAllocator.DEFAULT);
 
   @DisplayName("constructor throws IllegalArgumentException with negative maxFragmentLength")
   @Test
   void constructorInvalidMaxFragmentSize() {
     assertThatIllegalArgumentException()
-        .isThrownBy(
-            () ->
-                new FragmentationDuplexConnection(
-                    delegate, allocator, Integer.MIN_VALUE, false, ""))
+        .isThrownBy(() -> new FragmentationDuplexConnection(delegate, Integer.MIN_VALUE, false, ""))
         .withMessage("smallest allowed mtu size is 64 bytes, provided: -2147483648");
   }
 
@@ -72,23 +71,15 @@ final class FragmentationDuplexConnectionTest {
   @Test
   void constructorMtuLessThanMin() {
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> new FragmentationDuplexConnection(delegate, allocator, 2, false, ""))
+        .isThrownBy(() -> new FragmentationDuplexConnection(delegate, 2, false, ""))
         .withMessage("smallest allowed mtu size is 64 bytes, provided: 2");
-  }
-
-  @DisplayName("constructor throws NullPointerException with null byteBufAllocator")
-  @Test
-  void constructorNullByteBufAllocator() {
-    assertThatNullPointerException()
-        .isThrownBy(() -> new FragmentationDuplexConnection(delegate, null, 64, false, ""))
-        .withMessage("byteBufAllocator must not be null");
   }
 
   @DisplayName("constructor throws NullPointerException with null delegate")
   @Test
   void constructorNullDelegate() {
     assertThatNullPointerException()
-        .isThrownBy(() -> new FragmentationDuplexConnection(null, allocator, 64, false, ""))
+        .isThrownBy(() -> new FragmentationDuplexConnection(null, 64, false, ""))
         .withMessage("delegate must not be null");
   }
 
@@ -100,8 +91,9 @@ final class FragmentationDuplexConnectionTest {
             allocator, 1, false, Unpooled.EMPTY_BUFFER, Unpooled.wrappedBuffer(data));
 
     when(delegate.onClose()).thenReturn(Mono.never());
+    when(delegate.alloc()).thenReturn(allocator);
 
-    new FragmentationDuplexConnection(delegate, allocator, 64, false, "").sendOne(encode.retain());
+    new FragmentationDuplexConnection(delegate, 64, false, "").sendOne(encode.retain());
 
     verify(delegate).send(publishers.capture());
 

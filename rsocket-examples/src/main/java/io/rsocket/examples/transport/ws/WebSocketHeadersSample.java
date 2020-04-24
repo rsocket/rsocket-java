@@ -16,7 +16,6 @@
 
 package io.rsocket.examples.transport.ws;
 
-import io.netty.buffer.ByteBufAllocator;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.rsocket.AbstractRSocket;
 import io.rsocket.ConnectionSetupPayload;
@@ -65,9 +64,7 @@ public class WebSocketHeadersSample {
                           if (in.headers().containsValue("Authorization", "test", true)) {
                             DuplexConnection connection =
                                 new ReassemblyDuplexConnection(
-                                    new WebsocketDuplexConnection((Connection) in),
-                                    ByteBufAllocator.DEFAULT,
-                                    false);
+                                    new WebsocketDuplexConnection((Connection) in), false);
                             return acceptor.apply(connection).then(out.neverComplete());
                           }
 

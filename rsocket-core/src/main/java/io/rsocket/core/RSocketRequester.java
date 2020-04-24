@@ -108,7 +108,6 @@ class RSocketRequester implements RSocket {
   private volatile Throwable terminationError;
 
   RSocketRequester(
-      ByteBufAllocator allocator,
       DuplexConnection connection,
       PayloadDecoder payloadDecoder,
       Consumer<Throwable> errorConsumer,
@@ -118,8 +117,33 @@ class RSocketRequester implements RSocket {
       int keepAliveAckTimeout,
       @Nullable KeepAliveHandler keepAliveHandler,
       RequesterLeaseHandler leaseHandler) {
-    this.allocator = allocator;
+    this(
+        null,
+        connection,
+        payloadDecoder,
+        errorConsumer,
+        streamIdSupplier,
+        mtu,
+        keepAliveTickPeriod,
+        keepAliveAckTimeout,
+        keepAliveHandler,
+        leaseHandler);
+  }
+
+  @Deprecated
+  RSocketRequester(
+      @Nullable ByteBufAllocator allocator,
+      DuplexConnection connection,
+      PayloadDecoder payloadDecoder,
+      Consumer<Throwable> errorConsumer,
+      StreamIdSupplier streamIdSupplier,
+      int mtu,
+      int keepAliveTickPeriod,
+      int keepAliveAckTimeout,
+      @Nullable KeepAliveHandler keepAliveHandler,
+      RequesterLeaseHandler leaseHandler) {
     this.connection = connection;
+    this.allocator = allocator == null ? connection.alloc() : allocator;
     this.payloadDecoder = payloadDecoder;
     this.errorConsumer = errorConsumer;
     this.streamIdSupplier = streamIdSupplier;
@@ -141,7 +165,7 @@ class RSocketRequester implements RSocket {
 
     if (keepAliveTickPeriod != 0 && keepAliveHandler != null) {
       KeepAliveSupport keepAliveSupport =
-          new ClientKeepAliveSupport(allocator, keepAliveTickPeriod, keepAliveAckTimeout);
+          new ClientKeepAliveSupport(this.allocator, keepAliveTickPeriod, keepAliveAckTimeout);
       this.keepAliveFramesAcceptor =
           keepAliveHandler.start(
               keepAliveSupport, sendProcessor::onNextPrioritized, this::tryTerminateOnKeepAlive);

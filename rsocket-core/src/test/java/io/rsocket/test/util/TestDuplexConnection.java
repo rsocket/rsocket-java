@@ -17,6 +17,7 @@
 package io.rsocket.test.util;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.DuplexConnection;
 import java.util.Collection;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -46,17 +47,19 @@ public class TestDuplexConnection implements DuplexConnection {
   private final FluxSink<ByteBuf> receivedSink;
   private final MonoProcessor<Void> onClose;
   private final ConcurrentLinkedQueue<Subscriber<ByteBuf>> sendSubscribers;
+  private final ByteBufAllocator allocator;
   private volatile double availability = 1;
   private volatile int initialSendRequestN = Integer.MAX_VALUE;
 
-  public TestDuplexConnection() {
-    sent = new LinkedBlockingQueue<>();
-    received = DirectProcessor.create();
-    receivedSink = received.sink();
-    sentPublisher = DirectProcessor.create();
-    sendSink = sentPublisher.sink();
-    sendSubscribers = new ConcurrentLinkedQueue<>();
-    onClose = MonoProcessor.create();
+  public TestDuplexConnection(ByteBufAllocator allocator) {
+    this.allocator = allocator;
+    this.sent = new LinkedBlockingQueue<>();
+    this.received = DirectProcessor.create();
+    this.receivedSink = received.sink();
+    this.sentPublisher = DirectProcessor.create();
+    this.sendSink = sentPublisher.sink();
+    this.sendSubscribers = new ConcurrentLinkedQueue<>();
+    this.onClose = MonoProcessor.create();
   }
 
   @Override
@@ -81,6 +84,11 @@ public class TestDuplexConnection implements DuplexConnection {
   @Override
   public Flux<ByteBuf> receive() {
     return received;
+  }
+
+  @Override
+  public ByteBufAllocator alloc() {
+    return allocator;
   }
 
   @Override

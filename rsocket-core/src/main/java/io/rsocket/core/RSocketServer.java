@@ -55,7 +55,7 @@ public final class RSocketServer {
 
   private Consumer<Throwable> errorConsumer = Throwable::printStackTrace;
   private PayloadDecoder payloadDecoder = PayloadDecoder.DEFAULT;
-  private ByteBufAllocator allocator = ByteBufAllocator.DEFAULT;
+  private ByteBufAllocator allocator = null;
 
   private RSocketServer() {}
 
@@ -252,12 +252,13 @@ public final class RSocketServer {
               .doOnNext(
                   rSocketHandler -> {
                     RSocket wrappedRSocketHandler = interceptors.initResponder(rSocketHandler);
+                    DuplexConnection connection = wrappedMultiplexer.asClientConnection();
 
                     ResponderLeaseHandler responderLeaseHandler =
                         leaseEnabled
                             ? new ResponderLeaseHandler.Impl<>(
                                 SERVER_TAG,
-                                allocator,
+                                allocator == null ? connection.alloc() : allocator,
                                 leases.sender(),
                                 errorConsumer,
                                 leases.stats())
@@ -266,7 +267,7 @@ public final class RSocketServer {
                     RSocket rSocketResponder =
                         new RSocketResponder(
                             allocator,
-                            wrappedMultiplexer.asClientConnection(),
+                            connection,
                             wrappedRSocketHandler,
                             payloadDecoder,
                             errorConsumer,
@@ -279,12 +280,11 @@ public final class RSocketServer {
   }
 
   private ServerSetup serverSetup() {
-    return resume != null ? createSetup() : new ServerSetup.DefaultServerSetup(allocator);
+    return resume != null ? createSetup() : new ServerSetup.DefaultServerSetup();
   }
 
   ServerSetup createSetup() {
     return new ServerSetup.ResumableServerSetup(
-        allocator,
         new SessionManager(),
         resume.getSessionDuration(),
         resume.getStreamTimeout(),

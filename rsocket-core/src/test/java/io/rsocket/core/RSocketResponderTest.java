@@ -38,7 +38,6 @@ import io.netty.util.ReferenceCounted;
 import io.rsocket.AbstractRSocket;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
-import io.rsocket.buffer.LeaksTrackingByteBufAllocator;
 import io.rsocket.frame.CancelFrameFlyweight;
 import io.rsocket.frame.ErrorFrameFlyweight;
 import io.rsocket.frame.FrameHeaderFlyweight;
@@ -735,7 +734,7 @@ public class RSocketResponderTest {
 
     public void setAcceptingSocket(RSocket acceptingSocket) {
       this.acceptingSocket = acceptingSocket;
-      connection = new TestDuplexConnection();
+      connection = new TestDuplexConnection(alloc());
       connectSub = TestSubscriber.create();
       errors = new ConcurrentLinkedQueue<>();
       this.prefetch = Integer.MAX_VALUE;
@@ -744,7 +743,7 @@ public class RSocketResponderTest {
 
     public void setAcceptingSocket(RSocket acceptingSocket, int prefetch) {
       this.acceptingSocket = acceptingSocket;
-      connection = new TestDuplexConnection();
+      connection = new TestDuplexConnection(alloc());
       connectSub = TestSubscriber.create();
       errors = new ConcurrentLinkedQueue<>();
       this.prefetch = prefetch;
@@ -752,9 +751,8 @@ public class RSocketResponderTest {
     }
 
     @Override
-    protected RSocketResponder newRSocket(LeaksTrackingByteBufAllocator allocator) {
+    protected RSocketResponder newRSocket() {
       return new RSocketResponder(
-          allocator,
           connection,
           acceptingSocket,
           PayloadDecoder.ZERO_COPY,

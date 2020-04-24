@@ -19,6 +19,7 @@ package io.rsocket.core;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.RSocket;
+import io.rsocket.buffer.LeaksTrackingByteBufAllocator;
 import io.rsocket.frame.FrameHeaderFlyweight;
 import io.rsocket.frame.FrameType;
 import io.rsocket.frame.decoder.PayloadDecoder;
@@ -52,15 +53,16 @@ class RSocketRequesterSubscribersTest {
               FrameType.REQUEST_STREAM,
               FrameType.REQUEST_CHANNEL));
 
+  private LeaksTrackingByteBufAllocator allocator;
   private RSocket rSocketRequester;
   private TestDuplexConnection connection;
 
   @BeforeEach
   void setUp() {
-    connection = new TestDuplexConnection();
+    allocator = LeaksTrackingByteBufAllocator.instrument(ByteBufAllocator.DEFAULT);
+    connection = new TestDuplexConnection(allocator);
     rSocketRequester =
         new RSocketRequester(
-            ByteBufAllocator.DEFAULT,
             connection,
             PayloadDecoder.DEFAULT,
             err -> {},

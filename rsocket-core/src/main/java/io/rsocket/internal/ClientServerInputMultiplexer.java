@@ -17,6 +17,7 @@
 package io.rsocket.internal;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.Closeable;
 import io.rsocket.DuplexConnection;
 import io.rsocket.frame.FrameHeaderFlyweight;
@@ -199,6 +200,11 @@ public class ClientServerInputMultiplexer implements Closeable {
                           return f;
                         }
                       }));
+    }
+
+    @Override
+    public ByteBufAllocator alloc() {
+      return source.alloc();
     }
 
     @Override

@@ -19,7 +19,7 @@ package io.rsocket.core;
 import static io.rsocket.keepalive.KeepAliveHandler.*;
 
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.ByteBufAllocator;
+import io.rsocket.DuplexConnection;
 import io.rsocket.exceptions.RejectedResumeException;
 import io.rsocket.exceptions.UnsupportedSetupException;
 import io.rsocket.frame.ErrorFrameFlyweight;
@@ -35,12 +35,6 @@ import reactor.core.publisher.Mono;
 
 abstract class ServerSetup {
 
-  final ByteBufAllocator allocator;
-
-  public ServerSetup(ByteBufAllocator allocator) {
-    this.allocator = allocator;
-  }
-
   abstract Mono<Void> acceptRSocketSetup(
       ByteBuf frame,
       ClientServerInputMultiplexer multiplexer,
@@ -51,17 +45,13 @@ abstract class ServerSetup {
   void dispose() {}
 
   Mono<Void> sendError(ClientServerInputMultiplexer multiplexer, Exception exception) {
-    return multiplexer
-        .asSetupConnection()
-        .sendOne(ErrorFrameFlyweight.encode(allocator, 0, exception))
+    DuplexConnection duplexConnection = multiplexer.asSetupConnection();
+    return duplexConnection
+        .sendOne(ErrorFrameFlyweight.encode(duplexConnection.alloc(), 0, exception))
         .onErrorResume(err -> Mono.empty());
   }
 
   static class DefaultServerSetup extends ServerSetup {
-
-    DefaultServerSetup(ByteBufAllocator allocator) {
-      super(allocator);
-    }
 
     @Override
     public Mono<Void> acceptRSocketSetup(
@@ -94,7 +84,6 @@ abstract class ServerSetup {
   }
 
   static class ResumableServerSetup extends ServerSetup {
-    private final ByteBufAllocator allocator;
     private final SessionManager sessionManager;
     private final Duration resumeSessionDuration;
     private final Duration resumeStreamTimeout;
@@ -102,14 +91,11 @@ abstract class ServerSetup {
     private final boolean cleanupStoreOnKeepAlive;
 
     ResumableServerSetup(
-        ByteBufAllocator allocator,
         SessionManager sessionManager,
         Duration resumeSessionDuration,
         Duration resumeStreamTimeout,
         Function<? super ByteBuf, ? extends ResumableFramesStore> resumeStoreFactory,
         boolean cleanupStoreOnKeepAlive) {
-      super(allocator);
-      this.allocator = allocator;
       this.sessionManager = sessionManager;
       this.resumeSessionDuration = resumeSessionDuration;
       this.resumeStreamTimeout = resumeStreamTimeout;
@@ -131,7 +117,6 @@ abstract class ServerSetup {
                 .save(
                     new ServerRSocketSession(
                         multiplexer.asClientServerConnection(),
-                        allocator,
                         resumeSessionDuration,
                         resumeStreamTimeout,
                         resumeStoreFactory,
