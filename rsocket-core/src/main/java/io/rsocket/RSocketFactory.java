@@ -113,8 +113,29 @@ public final class RSocketFactory {
       this.connector = connector;
     }
 
+    /**
+     * @deprecated this method is deprecated and deliberately has no effect anymore. Right now, in
+     *     order configure the custom {@link ByteBufAllocator} it is recommended to use the
+     *     following setup for Reactor Netty based transport: <br>
+     *     1. For Client: <br>
+     *     <pre>{@code
+     * TcpClient.create()
+     *          ...
+     *          .bootstrap(bootstrap -> bootstrap.option(ChannelOption.ALLOCATOR, clientAllocator))
+     * }</pre>
+     *     <br>
+     *     2. For server: <br>
+     *     <pre>{@code
+     * TcpServer.create()
+     *          ...
+     *          .bootstrap(serverBootstrap -> serverBootstrap.childOption(ChannelOption.ALLOCATOR, serverAllocator))
+     * }</pre>
+     *     Or in case of local transport, to use corresponding factory method {@code
+     *     LocalClientTransport.creat(String, ByteBufAllocator)}
+     * @param allocator instance of {@link ByteBufAllocator}
+     * @return this factory instance
+     */
     public ClientRSocketFactory byteBufAllocator(ByteBufAllocator allocator) {
-      connector.byteBufAllocator(allocator);
       return this;
     }
 
@@ -395,8 +416,30 @@ public final class RSocketFactory {
       this.server = server;
     }
 
+    /**
+     * @deprecated this method is deprecated and deliberately has no effect anymore. Right now, in
+     *     order configure the custom {@link ByteBufAllocator} it is recommended to use the
+     *     following setup for Reactor Netty based transport: <br>
+     *     1. For Client: <br>
+     *     <pre>{@code
+     * TcpClient.create()
+     *          ...
+     *          .bootstrap(bootstrap -> bootstrap.option(ChannelOption.ALLOCATOR, clientAllocator))
+     * }</pre>
+     *     <br>
+     *     2. For server: <br>
+     *     <pre>{@code
+     * TcpServer.create()
+     *          ...
+     *          .bootstrap(serverBootstrap -> serverBootstrap.childOption(ChannelOption.ALLOCATOR, serverAllocator))
+     * }</pre>
+     *     Or in case of local transport, to use corresponding factory method {@code
+     *     LocalClientTransport.creat(String, ByteBufAllocator)}
+     * @param allocator instance of {@link ByteBufAllocator}
+     * @return this factory instance
+     */
+    @Deprecated
     public ServerRSocketFactory byteBufAllocator(ByteBufAllocator allocator) {
-      server.byteBufAllocator(allocator);
       return this;
     }
 
