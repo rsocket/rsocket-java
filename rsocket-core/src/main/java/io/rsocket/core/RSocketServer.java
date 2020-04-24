@@ -17,7 +17,6 @@
 package io.rsocket.core;
 
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.AbstractRSocket;
 import io.rsocket.Closeable;
 import io.rsocket.ConnectionSetupPayload;
@@ -55,7 +54,6 @@ public final class RSocketServer {
 
   private Consumer<Throwable> errorConsumer = Throwable::printStackTrace;
   private PayloadDecoder payloadDecoder = PayloadDecoder.DEFAULT;
-  private ByteBufAllocator allocator = null;
 
   private RSocketServer() {}
 
@@ -111,17 +109,6 @@ public final class RSocketServer {
   @Deprecated
   public RSocketServer errorConsumer(Consumer<Throwable> errorConsumer) {
     this.errorConsumer = errorConsumer;
-    return this;
-  }
-
-  /**
-   * @deprecated this is deprecated with no replacement and will be removed after {@link
-   *     io.rsocket.RSocketFactory} is removed.
-   */
-  @Deprecated
-  public RSocketServer byteBufAllocator(ByteBufAllocator allocator) {
-    Objects.requireNonNull(allocator);
-    this.allocator = allocator;
     return this;
   }
 
@@ -228,7 +215,6 @@ public final class RSocketServer {
 
           RSocket rSocketRequester =
               new RSocketRequester(
-                  allocator,
                   wrappedMultiplexer.asServerConnection(),
                   payloadDecoder,
                   errorConsumer,
@@ -258,7 +244,7 @@ public final class RSocketServer {
                         leaseEnabled
                             ? new ResponderLeaseHandler.Impl<>(
                                 SERVER_TAG,
-                                allocator == null ? connection.alloc() : allocator,
+                                connection.alloc(),
                                 leases.sender(),
                                 errorConsumer,
                                 leases.stats())
@@ -266,7 +252,6 @@ public final class RSocketServer {
 
                     RSocket rSocketResponder =
                         new RSocketResponder(
-                            allocator,
                             connection,
                             wrappedRSocketHandler,
                             payloadDecoder,

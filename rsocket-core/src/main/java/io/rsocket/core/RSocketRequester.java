@@ -117,33 +117,8 @@ class RSocketRequester implements RSocket {
       int keepAliveAckTimeout,
       @Nullable KeepAliveHandler keepAliveHandler,
       RequesterLeaseHandler leaseHandler) {
-    this(
-        null,
-        connection,
-        payloadDecoder,
-        errorConsumer,
-        streamIdSupplier,
-        mtu,
-        keepAliveTickPeriod,
-        keepAliveAckTimeout,
-        keepAliveHandler,
-        leaseHandler);
-  }
-
-  @Deprecated
-  RSocketRequester(
-      @Nullable ByteBufAllocator allocator,
-      DuplexConnection connection,
-      PayloadDecoder payloadDecoder,
-      Consumer<Throwable> errorConsumer,
-      StreamIdSupplier streamIdSupplier,
-      int mtu,
-      int keepAliveTickPeriod,
-      int keepAliveAckTimeout,
-      @Nullable KeepAliveHandler keepAliveHandler,
-      RequesterLeaseHandler leaseHandler) {
     this.connection = connection;
-    this.allocator = allocator == null ? connection.alloc() : allocator;
+    this.allocator = connection.alloc();
     this.payloadDecoder = payloadDecoder;
     this.errorConsumer = errorConsumer;
     this.streamIdSupplier = streamIdSupplier;
