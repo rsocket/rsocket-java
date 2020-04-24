@@ -10,46 +10,34 @@ public class RequestStreamFrameFlyweight {
 
   private RequestStreamFrameFlyweight() {}
 
-  public static ByteBuf encode(
-      ByteBufAllocator allocator,
-      int streamId,
-      boolean fragmentFollows,
-      long requestN,
-      Payload payload) {
-    return encode(
-        allocator, streamId, fragmentFollows, requestN, payload.metadata(), payload.data());
+  public static ByteBuf encodeReleasingPayload(
+      ByteBufAllocator allocator, int streamId, long initialRequestN, Payload payload) {
+
+    final boolean hasMetadata = payload.hasMetadata();
+    final ByteBuf metadata = hasMetadata ? payload.metadata().retain() : null;
+    final ByteBuf data = payload.data().retain();
+
+    payload.release();
+
+    return encode(allocator, streamId, false, initialRequestN, metadata, data);
   }
 
   public static ByteBuf encode(
       ByteBufAllocator allocator,
       int streamId,
       boolean fragmentFollows,
-      int requestN,
-      Payload payload) {
-    return encode(
-        allocator, streamId, fragmentFollows, requestN, payload.metadata(), payload.data());
-  }
-
-  public static ByteBuf encode(
-      ByteBufAllocator allocator,
-      int streamId,
-      boolean fragmentFollows,
-      long requestN,
+      long initialRequestN,
       ByteBuf metadata,
       ByteBuf data) {
-    int reqN = requestN > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) requestN;
-    return encode(allocator, streamId, fragmentFollows, reqN, metadata, data);
-  }
 
-  public static ByteBuf encode(
-      ByteBufAllocator allocator,
-      int streamId,
-      boolean fragmentFollows,
-      int requestN,
-      ByteBuf metadata,
-      ByteBuf data) {
+    if (initialRequestN < 1) {
+      throw new IllegalArgumentException("request n is less than 1");
+    }
+
+    int reqN = initialRequestN > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) initialRequestN;
+
     return FLYWEIGHT.encode(
-        allocator, streamId, fragmentFollows, false, false, requestN, metadata, data);
+        allocator, streamId, fragmentFollows, false, false, reqN, metadata, data);
   }
 
   public static ByteBuf data(ByteBuf byteBuf) {
@@ -60,7 +48,8 @@ public class RequestStreamFrameFlyweight {
     return FLYWEIGHT.metadataWithRequestN(byteBuf);
   }
 
-  public static int initialRequestN(ByteBuf byteBuf) {
-    return FLYWEIGHT.initialRequestN(byteBuf);
+  public static long initialRequestN(ByteBuf byteBuf) {
+    int requestN = FLYWEIGHT.initialRequestN(byteBuf);
+    return requestN == Integer.MAX_VALUE ? Long.MAX_VALUE : requestN;
   }
 }

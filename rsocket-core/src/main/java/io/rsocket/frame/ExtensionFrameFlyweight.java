@@ -14,21 +14,18 @@ public class ExtensionFrameFlyweight {
       @Nullable ByteBuf metadata,
       ByteBuf data) {
 
+    final boolean hasMetadata = metadata != null;
+
     int flags = FrameHeaderFlyweight.FLAGS_I;
 
-    if (metadata != null) {
+    if (hasMetadata) {
       flags |= FrameHeaderFlyweight.FLAGS_M;
     }
 
-    ByteBuf header = FrameHeaderFlyweight.encode(allocator, streamId, FrameType.EXT, flags);
+    final ByteBuf header = FrameHeaderFlyweight.encode(allocator, streamId, FrameType.EXT, flags);
     header.writeInt(extendedType);
-    if (data == null && metadata == null) {
-      return header;
-    } else if (metadata != null) {
-      return DataAndMetadataFlyweight.encode(allocator, header, metadata, data);
-    } else {
-      return DataAndMetadataFlyweight.encodeOnlyData(allocator, header, data);
-    }
+
+    return DataAndMetadataFlyweight.encode(allocator, header, metadata, hasMetadata, data);
   }
 
   public static int extendedType(ByteBuf byteBuf) {
@@ -56,10 +53,13 @@ public class ExtensionFrameFlyweight {
     FrameHeaderFlyweight.ensureFrameType(FrameType.EXT, byteBuf);
 
     boolean hasMetadata = FrameHeaderFlyweight.hasMetadata(byteBuf);
+    if (!hasMetadata) {
+      return null;
+    }
     byteBuf.markReaderIndex();
     // Extended type
     byteBuf.skipBytes(FrameHeaderFlyweight.size() + Integer.BYTES);
-    ByteBuf metadata = DataAndMetadataFlyweight.metadataWithoutMarking(byteBuf, hasMetadata);
+    ByteBuf metadata = DataAndMetadataFlyweight.metadataWithoutMarking(byteBuf);
     byteBuf.resetReaderIndex();
     return metadata;
   }

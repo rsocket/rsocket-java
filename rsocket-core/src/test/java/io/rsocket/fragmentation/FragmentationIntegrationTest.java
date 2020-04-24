@@ -28,7 +28,8 @@ public class FragmentationIntegrationTest {
   @Test
   void fragmentAndReassembleData() {
     ByteBuf frame =
-        PayloadFrameFlyweight.encodeNextComplete(allocator, 2, DefaultPayload.create(data));
+        PayloadFrameFlyweight.encodeNextCompleteReleasingPayload(
+            allocator, 2, DefaultPayload.create(data));
     System.out.println(FrameUtil.toString(frame));
 
     frame.retain();

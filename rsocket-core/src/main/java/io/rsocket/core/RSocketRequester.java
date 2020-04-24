@@ -212,13 +212,8 @@ class RSocketRequester implements RSocket {
     return UnicastMonoEmpty.newInstance(
         () -> {
           ByteBuf requestFrame =
-              RequestFireAndForgetFrameFlyweight.encode(
-                  allocator,
-                  streamId,
-                  false,
-                  payload.hasMetadata() ? payload.sliceMetadata().retain() : null,
-                  payload.sliceData().retain());
-          payload.release();
+              RequestFireAndForgetFrameFlyweight.encodeReleasingPayload(
+                  allocator, streamId, payload);
 
           sendProcessor.onNext(requestFrame);
         });
@@ -245,13 +240,8 @@ class RSocketRequester implements RSocket {
               @Override
               public void doOnSubscribe() {
                 final ByteBuf requestFrame =
-                    RequestResponseFrameFlyweight.encode(
-                        allocator,
-                        streamId,
-                        false,
-                        payload.sliceMetadata().retain(),
-                        payload.sliceData().retain());
-                payload.release();
+                    RequestResponseFrameFlyweight.encodeReleasingPayload(
+                        allocator, streamId, payload);
 
                 sendProcessor.onNext(requestFrame);
               }
@@ -302,16 +292,10 @@ class RSocketRequester implements RSocket {
               public void accept(long n) {
                 if (firstRequest && !receiver.isDisposed()) {
                   firstRequest = false;
-                  sendProcessor.onNext(
-                      RequestStreamFrameFlyweight.encode(
-                          allocator,
-                          streamId,
-                          false,
-                          n,
-                          payload.sliceMetadata().retain(),
-                          payload.sliceData().retain()));
                   if (!payloadReleasedFlag.getAndSet(true)) {
-                    payload.release();
+                    sendProcessor.onNext(
+                        RequestStreamFrameFlyweight.encodeReleasingPayload(
+                            allocator, streamId, n, payload));
                   }
                 } else if (contains(streamId) && !receiver.isDisposed()) {
                   sendProcessor.onNext(RequestNFrameFlyweight.encode(allocator, streamId, n));
@@ -400,10 +384,9 @@ class RSocketRequester implements RSocket {
               return;
             }
             final ByteBuf frame =
-                PayloadFrameFlyweight.encode(allocator, streamId, false, false, true, payload);
+                PayloadFrameFlyweight.encodeNextReleasingPayload(allocator, streamId, payload);
 
             sendProcessor.onNext(frame);
-            payload.release();
           }
 
           @Override
@@ -444,18 +427,10 @@ class RSocketRequester implements RSocket {
                       .subscribe(upstreamSubscriber);
                   if (!payloadReleasedFlag.getAndSet(true)) {
                     ByteBuf frame =
-                        RequestChannelFrameFlyweight.encode(
-                            allocator,
-                            streamId,
-                            false,
-                            false,
-                            n,
-                            initialPayload.sliceMetadata().retain(),
-                            initialPayload.sliceData().retain());
+                        RequestChannelFrameFlyweight.encodeReleasingPayload(
+                            allocator, streamId, false, n, initialPayload);
 
                     sendProcessor.onNext(frame);
-
-                    initialPayload.release();
                   }
                 } else {
                   sendProcessor.onNext(RequestNFrameFlyweight.encode(allocator, streamId, n));
@@ -497,8 +472,7 @@ class RSocketRequester implements RSocket {
     return UnicastMonoEmpty.newInstance(
         () -> {
           ByteBuf metadataPushFrame =
-              MetadataPushFrameFlyweight.encode(allocator, payload.sliceMetadata().retain());
-          payload.release();
+              MetadataPushFrameFlyweight.encodeReleasingPayload(allocator, payload);
 
           sendProcessor.onNextPrioritized(metadataPushFrame);
         });
@@ -604,8 +578,8 @@ class RSocketRequester implements RSocket {
         {
           Subscription sender = senders.get(streamId);
           if (sender != null) {
-            int n = RequestNFrameFlyweight.requestN(frame);
-            sender.request(n >= Integer.MAX_VALUE ? Long.MAX_VALUE : n);
+            long n = RequestNFrameFlyweight.requestN(frame);
+            sender.request(n);
           }
           break;
         }

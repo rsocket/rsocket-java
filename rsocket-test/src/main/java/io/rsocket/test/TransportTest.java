@@ -35,10 +35,12 @@ import java.util.stream.Collectors;
 import java.util.zip.GZIPInputStream;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Hooks;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 import reactor.test.StepVerifier;
@@ -64,9 +66,15 @@ public interface TransportTest {
     }
   }
 
+  @BeforeEach
+  default void setUp() {
+    Hooks.onOperatorDebug();
+  }
+
   @AfterEach
   default void close() {
     getTransportPair().dispose();
+    Hooks.resetOnOperatorDebug();
   }
 
   default Payload createTestPayload(int metadataPresent) {
@@ -175,7 +183,7 @@ public interface TransportTest {
         .verify(getTimeout());
   }
 
-  @DisplayName("makes 1 requestChannel request with 2,000 large payloads")
+  @DisplayName("makes 1 requestChannel request with 200 large payloads")
   @Test
   default void largePayloadRequestChannel200() {
     Flux<Payload> payloads = Flux.range(0, 200).map(__ -> LARGE_PAYLOAD);

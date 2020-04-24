@@ -30,38 +30,35 @@ class DataAndMetadataFlyweight {
     return length;
   }
 
-  static ByteBuf encodeOnlyMetadata(
-      ByteBufAllocator allocator, final ByteBuf header, ByteBuf metadata) {
-    return allocator.compositeBuffer(2).addComponents(true, header, metadata);
-  }
-
-  static ByteBuf encodeOnlyData(ByteBufAllocator allocator, final ByteBuf header, ByteBuf data) {
-    return allocator.compositeBuffer(2).addComponents(true, header, data);
-  }
-
   static ByteBuf encode(
-      ByteBufAllocator allocator, final ByteBuf header, ByteBuf metadata, ByteBuf data) {
+      ByteBufAllocator allocator,
+      final ByteBuf header,
+      ByteBuf metadata,
+      boolean hasMetadata,
+      ByteBuf data) {
 
-    int length = metadata.readableBytes();
-    encodeLength(header, length);
-    return allocator.compositeBuffer(3).addComponents(true, header, metadata, data);
-  }
+    final boolean addData = data != null && data.isReadable();
+    final boolean addMetadata = hasMetadata && metadata.isReadable();
 
-  static ByteBuf metadataWithoutMarking(ByteBuf byteBuf, boolean hasMetadata) {
     if (hasMetadata) {
-      int length = decodeLength(byteBuf);
-      return byteBuf.readSlice(length);
+      int length = metadata.readableBytes();
+      encodeLength(header, length);
+    }
+
+    if (addMetadata && addData) {
+      return allocator.compositeBuffer(3).addComponents(true, header, metadata, data);
+    } else if (addMetadata) {
+      return allocator.compositeBuffer(2).addComponents(true, header, metadata);
+    } else if (addData) {
+      return allocator.compositeBuffer(2).addComponents(true, header, data);
     } else {
-      return Unpooled.EMPTY_BUFFER;
+      return header;
     }
   }
 
-  static ByteBuf metadata(ByteBuf byteBuf, boolean hasMetadata) {
-    byteBuf.markReaderIndex();
-    byteBuf.skipBytes(6);
-    ByteBuf metadata = metadataWithoutMarking(byteBuf, hasMetadata);
-    byteBuf.resetReaderIndex();
-    return metadata;
+  static ByteBuf metadataWithoutMarking(ByteBuf byteBuf) {
+    int length = decodeLength(byteBuf);
+    return byteBuf.readSlice(length);
   }
 
   static ByteBuf dataWithoutMarking(ByteBuf byteBuf, boolean hasMetadata) {
@@ -75,13 +72,5 @@ class DataAndMetadataFlyweight {
     } else {
       return Unpooled.EMPTY_BUFFER;
     }
-  }
-
-  static ByteBuf data(ByteBuf byteBuf, boolean hasMetadata) {
-    byteBuf.markReaderIndex();
-    byteBuf.skipBytes(6);
-    ByteBuf data = dataWithoutMarking(byteBuf, hasMetadata);
-    byteBuf.resetReaderIndex();
-    return data;
   }
 }

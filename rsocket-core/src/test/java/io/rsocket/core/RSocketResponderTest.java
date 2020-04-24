@@ -19,6 +19,8 @@ package io.rsocket.core;
 import static io.rsocket.core.PayloadValidationUtils.INVALID_PAYLOAD_ERROR_MESSAGE;
 import static io.rsocket.frame.FrameHeaderFlyweight.frameType;
 import static io.rsocket.frame.FrameType.REQUEST_CHANNEL;
+import static io.rsocket.frame.FrameType.REQUEST_FNF;
+import static io.rsocket.frame.FrameType.REQUEST_N;
 import static io.rsocket.frame.FrameType.REQUEST_RESPONSE;
 import static io.rsocket.frame.FrameType.REQUEST_STREAM;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -45,6 +47,7 @@ import io.rsocket.frame.FrameType;
 import io.rsocket.frame.KeepAliveFrameFlyweight;
 import io.rsocket.frame.PayloadFrameFlyweight;
 import io.rsocket.frame.RequestChannelFrameFlyweight;
+import io.rsocket.frame.RequestFireAndForgetFrameFlyweight;
 import io.rsocket.frame.RequestNFrameFlyweight;
 import io.rsocket.frame.RequestResponseFrameFlyweight;
 import io.rsocket.frame.RequestStreamFrameFlyweight;
@@ -55,16 +58,21 @@ import io.rsocket.test.util.TestDuplexConnection;
 import io.rsocket.test.util.TestSubscriber;
 import io.rsocket.util.ByteBufPayload;
 import io.rsocket.util.DefaultPayload;
+import io.rsocket.util.EmptyPayload;
 import java.util.Collection;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Stream;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.runners.model.Statement;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
@@ -78,6 +86,7 @@ import reactor.core.publisher.Mono;
 import reactor.core.publisher.Operators;
 import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
+import reactor.test.publisher.TestPublisher;
 import reactor.test.util.RaceTestUtils;
 
 public class RSocketResponderTest {
@@ -605,6 +614,108 @@ public class RSocketResponderTest {
     rule.assertHasNoLeaks();
   }
 
+  @ParameterizedTest
+  @MethodSource("encodeDecodePayloadCases")
+  public void verifiesThatFrameWithNoMetadataHasDecodedCorrectlyIntoPayload(
+      FrameType frameType, int framesCnt, int responsesCnt) {
+    ByteBufAllocator allocator = rule.alloc();
+    AssertSubscriber<Payload> assertSubscriber = AssertSubscriber.create(framesCnt);
+    TestPublisher<Payload> testPublisher = TestPublisher.create();
+
+    rule.setAcceptingSocket(
+        new AbstractRSocket() {
+          @Override
+          public Mono<Void> fireAndForget(Payload payload) {
+            Mono.just(payload).subscribe(assertSubscriber);
+            return Mono.empty();
+          }
+
+          @Override
+          public Mono<Payload> requestResponse(Payload payload) {
+            Mono.just(payload).subscribe(assertSubscriber);
+            return testPublisher.mono();
+          }
+
+          @Override
+          public Flux<Payload> requestStream(Payload payload) {
+            Mono.just(payload).subscribe(assertSubscriber);
+            return testPublisher.flux();
+          }
+
+          @Override
+          public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
+            payloads.subscribe(assertSubscriber);
+            return testPublisher.flux();
+          }
+        },
+        1);
+
+    rule.sendRequest(1, frameType, ByteBufPayload.create("d"));
+
+    // if responses number is bigger than 1 we have to send one extra requestN
+    if (responsesCnt > 1) {
+      rule.connection.addToReceivedBuffer(
+          RequestNFrameFlyweight.encode(allocator, 1, responsesCnt - 1));
+    }
+
+    // respond with specific number of elements
+    for (int i = 0; i < responsesCnt; i++) {
+      testPublisher.next(ByteBufPayload.create("rd" + i));
+    }
+
+    // Listen to incoming frames. Valid for RequestChannel case only
+    if (framesCnt > 1) {
+      for (int i = 1; i < responsesCnt; i++) {
+        rule.connection.addToReceivedBuffer(
+            PayloadFrameFlyweight.encode(
+                allocator,
+                1,
+                false,
+                false,
+                true,
+                null,
+                Unpooled.wrappedBuffer(("d" + (i + 1)).getBytes())));
+      }
+    }
+
+    if (responsesCnt > 0) {
+      Assertions.assertThat(
+              rule.connection.getSent().stream().filter(bb -> frameType(bb) != REQUEST_N))
+          .describedAs(
+              "Interaction Type :[%s]. Expected to observe %s frames sent", frameType, responsesCnt)
+          .hasSize(responsesCnt)
+          .allMatch(bb -> !FrameHeaderFlyweight.hasMetadata(bb));
+    }
+
+    if (framesCnt > 1) {
+      Assertions.assertThat(
+              rule.connection.getSent().stream().filter(bb -> frameType(bb) == REQUEST_N))
+          .describedAs(
+              "Interaction Type :[%s]. Expected to observe single RequestN(%s) frame",
+              frameType, framesCnt - 1)
+          .hasSize(1)
+          .first()
+          .matches(bb -> RequestNFrameFlyweight.requestN(bb) == (framesCnt - 1));
+    }
+
+    Assertions.assertThat(rule.connection.getSent()).allMatch(ReferenceCounted::release);
+
+    Assertions.assertThat(assertSubscriber.awaitAndAssertNextValueCount(framesCnt).values())
+        .hasSize(framesCnt)
+        .allMatch(p -> !p.hasMetadata())
+        .allMatch(ReferenceCounted::release);
+
+    rule.assertHasNoLeaks();
+  }
+
+  static Stream<Arguments> encodeDecodePayloadCases() {
+    return Stream.of(
+        Arguments.of(REQUEST_FNF, 1, 0),
+        Arguments.of(REQUEST_RESPONSE, 1, 1),
+        Arguments.of(REQUEST_STREAM, 1, 5),
+        Arguments.of(REQUEST_CHANNEL, 5, 5));
+  }
+
   public static class ServerSocketRule extends AbstractSocketRule<RSocketResponder> {
 
     private RSocket acceptingSocket;
@@ -653,34 +764,31 @@ public class RSocketResponderTest {
     }
 
     private void sendRequest(int streamId, FrameType frameType) {
+      sendRequest(streamId, frameType, EmptyPayload.INSTANCE);
+    }
+
+    private void sendRequest(int streamId, FrameType frameType, Payload payload) {
       ByteBuf request;
 
       switch (frameType) {
         case REQUEST_CHANNEL:
           request =
-              RequestChannelFrameFlyweight.encode(
-                  allocator,
-                  streamId,
-                  false,
-                  false,
-                  prefetch,
-                  Unpooled.EMPTY_BUFFER,
-                  Unpooled.EMPTY_BUFFER);
+              RequestChannelFrameFlyweight.encodeReleasingPayload(
+                  allocator, streamId, false, prefetch, payload);
           break;
         case REQUEST_STREAM:
           request =
-              RequestStreamFrameFlyweight.encode(
-                  allocator,
-                  streamId,
-                  false,
-                  prefetch,
-                  Unpooled.EMPTY_BUFFER,
-                  Unpooled.EMPTY_BUFFER);
+              RequestStreamFrameFlyweight.encodeReleasingPayload(
+                  allocator, streamId, prefetch, payload);
           break;
         case REQUEST_RESPONSE:
           request =
-              RequestResponseFrameFlyweight.encode(
-                  allocator, streamId, false, Unpooled.EMPTY_BUFFER, Unpooled.EMPTY_BUFFER);
+              RequestResponseFrameFlyweight.encodeReleasingPayload(allocator, streamId, payload);
+          break;
+        case REQUEST_FNF:
+          request =
+              RequestFireAndForgetFrameFlyweight.encodeReleasingPayload(
+                  allocator, streamId, payload);
           break;
         default:
           throw new IllegalArgumentException("unsupported type: " + frameType);

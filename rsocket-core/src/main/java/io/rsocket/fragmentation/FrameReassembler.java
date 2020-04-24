@@ -166,8 +166,8 @@ final class FrameReassembler extends AtomicBoolean implements Disposable {
       header = frame.copy(frame.readerIndex(), FrameHeaderFlyweight.size());
 
       if (frameType == FrameType.REQUEST_CHANNEL || frameType == FrameType.REQUEST_STREAM) {
-        int i = RequestChannelFrameFlyweight.initialRequestN(frame);
-        header.writeInt(i);
+        long i = RequestChannelFrameFlyweight.initialRequestN(frame);
+        header.writeInt(i > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) i);
       }
       putHeader(streamId, header);
     }
@@ -261,10 +261,16 @@ final class FrameReassembler extends AtomicBoolean implements Disposable {
   private ByteBuf assembleFrameWithMetadata(ByteBuf frame, int streamId, ByteBuf header) {
     ByteBuf metadata;
     CompositeByteBuf cm = removeMetadata(streamId);
-    if (cm != null) {
-      metadata = cm.addComponents(true, PayloadFrameFlyweight.metadata(frame).retain());
+
+    ByteBuf decodedMetadata = PayloadFrameFlyweight.metadata(frame);
+    if (decodedMetadata != null) {
+      if (cm != null) {
+        metadata = cm.addComponents(true, decodedMetadata.retain());
+      } else {
+        metadata = PayloadFrameFlyweight.metadata(frame).retain();
+      }
     } else {
-      metadata = PayloadFrameFlyweight.metadata(frame).retain();
+      metadata = cm != null ? cm : null;
     }
 
     ByteBuf data = assembleData(frame, streamId);

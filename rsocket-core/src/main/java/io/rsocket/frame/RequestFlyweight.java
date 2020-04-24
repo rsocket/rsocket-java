@@ -29,9 +29,12 @@ class RequestFlyweight {
       int requestN,
       @Nullable ByteBuf metadata,
       ByteBuf data) {
+
+    final boolean hasMetadata = metadata != null;
+
     int flags = 0;
 
-    if (metadata != null) {
+    if (hasMetadata) {
       flags |= FrameHeaderFlyweight.FLAGS_M;
     }
 
@@ -47,19 +50,13 @@ class RequestFlyweight {
       flags |= FrameHeaderFlyweight.FLAGS_N;
     }
 
-    ByteBuf header = FrameHeaderFlyweight.encode(allocator, streamId, frameType, flags);
+    final ByteBuf header = FrameHeaderFlyweight.encode(allocator, streamId, frameType, flags);
 
     if (requestN > 0) {
       header.writeInt(requestN);
     }
 
-    if (data == null && metadata == null) {
-      return header;
-    } else if (metadata != null) {
-      return DataAndMetadataFlyweight.encode(allocator, header, metadata, data);
-    } else {
-      return DataAndMetadataFlyweight.encodeOnlyData(allocator, header, data);
-    }
+    return DataAndMetadataFlyweight.encode(allocator, header, metadata, hasMetadata, data);
   }
 
   ByteBuf data(ByteBuf byteBuf) {
@@ -73,9 +70,12 @@ class RequestFlyweight {
 
   ByteBuf metadata(ByteBuf byteBuf) {
     boolean hasMetadata = FrameHeaderFlyweight.hasMetadata(byteBuf);
+    if (!hasMetadata) {
+      return null;
+    }
     byteBuf.markReaderIndex();
     byteBuf.skipBytes(FrameHeaderFlyweight.size());
-    ByteBuf metadata = DataAndMetadataFlyweight.metadataWithoutMarking(byteBuf, hasMetadata);
+    ByteBuf metadata = DataAndMetadataFlyweight.metadataWithoutMarking(byteBuf);
     byteBuf.resetReaderIndex();
     return metadata;
   }
@@ -91,9 +91,12 @@ class RequestFlyweight {
 
   ByteBuf metadataWithRequestN(ByteBuf byteBuf) {
     boolean hasMetadata = FrameHeaderFlyweight.hasMetadata(byteBuf);
+    if (!hasMetadata) {
+      return null;
+    }
     byteBuf.markReaderIndex();
     byteBuf.skipBytes(FrameHeaderFlyweight.size() + Integer.BYTES);
-    ByteBuf metadata = DataAndMetadataFlyweight.metadataWithoutMarking(byteBuf, hasMetadata);
+    ByteBuf metadata = DataAndMetadataFlyweight.metadataWithoutMarking(byteBuf);
     byteBuf.resetReaderIndex();
     return metadata;
   }

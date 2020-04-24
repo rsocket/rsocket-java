@@ -301,12 +301,12 @@ class RSocketResponder implements ResponderRSocket {
           handleRequestN(streamId, frame);
           break;
         case REQUEST_STREAM:
-          int streamInitialRequestN = RequestStreamFrameFlyweight.initialRequestN(frame);
+          long streamInitialRequestN = RequestStreamFrameFlyweight.initialRequestN(frame);
           Payload streamPayload = payloadDecoder.apply(frame);
           handleStream(streamId, requestStream(streamPayload), streamInitialRequestN, null);
           break;
         case REQUEST_CHANNEL:
-          int channelInitialRequestN = RequestChannelFrameFlyweight.initialRequestN(frame);
+          long channelInitialRequestN = RequestChannelFrameFlyweight.initialRequestN(frame);
           Payload channelPayload = payloadDecoder.apply(frame);
           handleChannel(streamId, channelPayload, channelInitialRequestN);
           break;
@@ -399,16 +399,9 @@ class RSocketResponder implements ResponderRSocket {
               return;
             }
 
-            ByteBuf byteBuf;
-            try {
-              byteBuf = PayloadFrameFlyweight.encodeNextComplete(allocator, streamId, payload);
-            } catch (Throwable t) {
-              payload.release();
-              throw Exceptions.propagate(t);
-            }
-
-            payload.release();
-
+            ByteBuf byteBuf =
+                PayloadFrameFlyweight.encodeNextCompleteReleasingPayload(
+                    allocator, streamId, payload);
             sendProcessor.onNext(byteBuf);
           }
 
@@ -437,14 +430,14 @@ class RSocketResponder implements ResponderRSocket {
   private void handleStream(
       int streamId,
       Flux<Payload> response,
-      int initialRequestN,
+      long initialRequestN,
       @Nullable UnicastProcessor<Payload> requestChannel) {
     final BaseSubscriber<Payload> subscriber =
         new BaseSubscriber<Payload>() {
 
           @Override
           protected void hookOnSubscribe(Subscription s) {
-            s.request(initialRequestN >= Integer.MAX_VALUE ? Long.MAX_VALUE : initialRequestN);
+            s.request(initialRequestN);
           }
 
           @Override
@@ -469,16 +462,8 @@ class RSocketResponder implements ResponderRSocket {
               return;
             }
 
-            ByteBuf byteBuf;
-            try {
-              byteBuf = PayloadFrameFlyweight.encodeNext(allocator, streamId, payload);
-            } catch (Throwable t) {
-              payload.release();
-              throw Exceptions.propagate(t);
-            }
-
-            payload.release();
-
+            ByteBuf byteBuf =
+                PayloadFrameFlyweight.encodeNextReleasingPayload(allocator, streamId, payload);
             sendProcessor.onNext(byteBuf);
           }
 
@@ -523,7 +508,7 @@ class RSocketResponder implements ResponderRSocket {
         .subscribe(subscriber);
   }
 
-  private void handleChannel(int streamId, Payload payload, int initialRequestN) {
+  private void handleChannel(int streamId, Payload payload, long initialRequestN) {
     UnicastProcessor<Payload> frames = UnicastProcessor.create();
     channelProcessors.put(streamId, frames);
 
@@ -602,8 +587,8 @@ class RSocketResponder implements ResponderRSocket {
     Subscription subscription = sendingSubscriptions.get(streamId);
 
     if (subscription != null) {
-      int n = RequestNFrameFlyweight.requestN(frame);
-      subscription.request(n >= Integer.MAX_VALUE ? Long.MAX_VALUE : n);
+      long n = RequestNFrameFlyweight.requestN(frame);
+      subscription.request(n);
     }
   }
 }

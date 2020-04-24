@@ -35,7 +35,7 @@ public class ExtensionFrameFlyweightTest {
 
     Assertions.assertFalse(FrameHeaderFlyweight.hasMetadata(extension));
     Assertions.assertEquals(extendedType, ExtensionFrameFlyweight.extendedType(extension));
-    Assertions.assertEquals(0, ExtensionFrameFlyweight.metadata(extension).readableBytes());
+    Assertions.assertNull(ExtensionFrameFlyweight.metadata(extension));
     Assertions.assertEquals(data, ExtensionFrameFlyweight.data(extension));
     extension.release();
   }

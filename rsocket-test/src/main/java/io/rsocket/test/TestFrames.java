@@ -87,12 +87,12 @@ public final class TestFrames {
 
   /** @return {@link ByteBuf} representing test instance of Request-Response frame */
   public static ByteBuf createTestRequestResponseFrame() {
-    return RequestResponseFrameFlyweight.encode(allocator, 1, false, emptyPayload);
+    return RequestResponseFrameFlyweight.encodeReleasingPayload(allocator, 1, emptyPayload);
   }
 
   /** @return {@link ByteBuf} representing test instance of Request-Stream frame */
   public static ByteBuf createTestRequestStreamFrame() {
-    return RequestStreamFrameFlyweight.encode(allocator, 1, false, 1L, emptyPayload);
+    return RequestStreamFrameFlyweight.encodeReleasingPayload(allocator, 1, 1L, emptyPayload);
   }
 
   /** @return {@link ByteBuf} representing test instance of Setup frame */

@@ -183,231 +183,223 @@ public class RSocketTest {
 
   @Test
   public void requestChannelCase_StreamIsTerminatedAfterBothSidesSentCompletion1() {
-    TestPublisher<Payload> outerPublisher = TestPublisher.create();
-    AssertSubscriber<Payload> outerAssertSubscriber = new AssertSubscriber<>(0);
+    TestPublisher<Payload> requesterPublisher = TestPublisher.create();
+    AssertSubscriber<Payload> requesterSubscriber = new AssertSubscriber<>(0);
 
-    AssertSubscriber<Payload> innerAssertSubscriber = new AssertSubscriber<>(0);
-    TestPublisher<Payload> innerPublisher = TestPublisher.create();
+    AssertSubscriber<Payload> responderSubscriber = new AssertSubscriber<>(0);
+    TestPublisher<Payload> responderPublisher = TestPublisher.create();
 
     initRequestChannelCase(
-        outerPublisher, outerAssertSubscriber, innerPublisher, innerAssertSubscriber);
+        requesterPublisher, requesterSubscriber, responderPublisher, responderSubscriber);
 
-    nextFromOuterPublisher(outerPublisher, innerAssertSubscriber);
+    nextFromRequesterPublisher(requesterPublisher, responderSubscriber);
 
-    completeFromOuterPublisher(outerPublisher, innerAssertSubscriber);
+    completeFromRequesterPublisher(requesterPublisher, responderSubscriber);
 
-    nextFromInnerPublisher(innerPublisher, outerAssertSubscriber);
+    nextFromResponderPublisher(responderPublisher, requesterSubscriber);
 
-    completeFromInnerPublisher(innerPublisher, outerAssertSubscriber);
+    completeFromResponderPublisher(responderPublisher, requesterSubscriber);
   }
 
   @Test
   public void requestChannelCase_StreamIsTerminatedAfterBothSidesSentCompletion2() {
-    TestPublisher<Payload> outerPublisher = TestPublisher.create();
-    AssertSubscriber<Payload> outerAssertSubscriber = new AssertSubscriber<>(0);
+    TestPublisher<Payload> requesterPublisher = TestPublisher.create();
+    AssertSubscriber<Payload> requesterSubscriber = new AssertSubscriber<>(0);
 
-    AssertSubscriber<Payload> innerAssertSubscriber = new AssertSubscriber<>(0);
-    TestPublisher<Payload> innerPublisher = TestPublisher.create();
+    AssertSubscriber<Payload> responderSubscriber = new AssertSubscriber<>(0);
+    TestPublisher<Payload> responderPublisher = TestPublisher.create();
 
     initRequestChannelCase(
-        outerPublisher, outerAssertSubscriber, innerPublisher, innerAssertSubscriber);
+        requesterPublisher, requesterSubscriber, responderPublisher, responderSubscriber);
 
-    nextFromInnerPublisher(innerPublisher, outerAssertSubscriber);
+    nextFromResponderPublisher(responderPublisher, requesterSubscriber);
 
-    completeFromInnerPublisher(innerPublisher, outerAssertSubscriber);
+    completeFromResponderPublisher(responderPublisher, requesterSubscriber);
 
-    nextFromOuterPublisher(outerPublisher, innerAssertSubscriber);
+    nextFromRequesterPublisher(requesterPublisher, responderSubscriber);
 
-    completeFromOuterPublisher(outerPublisher, innerAssertSubscriber);
+    completeFromRequesterPublisher(requesterPublisher, responderSubscriber);
   }
 
   @Test
   public void
       requestChannelCase_CancellationFromResponderShouldLeaveStreamInHalfClosedStateWithNextCompletionPossibleFromRequester() {
-    TestPublisher<Payload> outerPublisher = TestPublisher.create();
-    AssertSubscriber<Payload> outerAssertSubscriber = new AssertSubscriber<>(0);
+    TestPublisher<Payload> requesterPublisher = TestPublisher.create();
+    AssertSubscriber<Payload> requesterSubscriber = new AssertSubscriber<>(0);
 
-    AssertSubscriber<Payload> innerAssertSubscriber = new AssertSubscriber<>(0);
-    TestPublisher<Payload> innerPublisher = TestPublisher.create();
+    AssertSubscriber<Payload> responderSubscriber = new AssertSubscriber<>(0);
+    TestPublisher<Payload> responderPublisher = TestPublisher.create();
 
     initRequestChannelCase(
-        outerPublisher, outerAssertSubscriber, innerPublisher, innerAssertSubscriber);
+        requesterPublisher, requesterSubscriber, responderPublisher, responderSubscriber);
 
-    nextFromOuterPublisher(outerPublisher, innerAssertSubscriber);
+    nextFromRequesterPublisher(requesterPublisher, responderSubscriber);
 
-    cancelFromInnerSubscriber(outerPublisher, innerAssertSubscriber);
+    cancelFromResponderSubscriber(requesterPublisher, responderSubscriber);
 
-    nextFromInnerPublisher(innerPublisher, outerAssertSubscriber);
+    nextFromResponderPublisher(responderPublisher, requesterSubscriber);
 
-    completeFromInnerPublisher(innerPublisher, outerAssertSubscriber);
+    completeFromResponderPublisher(responderPublisher, requesterSubscriber);
   }
 
   @Test
   public void
       requestChannelCase_CompletionFromRequesterShouldLeaveStreamInHalfClosedStateWithNextCancellationPossibleFromResponder() {
-    TestPublisher<Payload> outerPublisher = TestPublisher.create();
-    AssertSubscriber<Payload> outerAssertSubscriber = new AssertSubscriber<>(0);
+    TestPublisher<Payload> requesterPublisher = TestPublisher.create();
+    AssertSubscriber<Payload> requesterSubscriber = new AssertSubscriber<>(0);
 
-    AssertSubscriber<Payload> innerAssertSubscriber = new AssertSubscriber<>(0);
-    TestPublisher<Payload> innerPublisher = TestPublisher.create();
+    AssertSubscriber<Payload> responderSubscriber = new AssertSubscriber<>(0);
+    TestPublisher<Payload> responderPublisher = TestPublisher.create();
 
     initRequestChannelCase(
-        outerPublisher, outerAssertSubscriber, innerPublisher, innerAssertSubscriber);
+        requesterPublisher, requesterSubscriber, responderPublisher, responderSubscriber);
 
-    nextFromInnerPublisher(innerPublisher, outerAssertSubscriber);
+    nextFromResponderPublisher(responderPublisher, requesterSubscriber);
 
-    completeFromInnerPublisher(innerPublisher, outerAssertSubscriber);
+    completeFromResponderPublisher(responderPublisher, requesterSubscriber);
 
-    nextFromOuterPublisher(outerPublisher, innerAssertSubscriber);
+    nextFromRequesterPublisher(requesterPublisher, responderSubscriber);
 
-    cancelFromInnerSubscriber(outerPublisher, innerAssertSubscriber);
+    cancelFromResponderSubscriber(requesterPublisher, responderSubscriber);
   }
 
   @Test
   public void
       requestChannelCase_ensureThatRequesterSubscriberCancellationTerminatesStreamsOnBothSides() {
-    TestPublisher<Payload> outerPublisher = TestPublisher.create();
-    AssertSubscriber<Payload> outerAssertSubscriber = new AssertSubscriber<>(0);
+    TestPublisher<Payload> requesterPublisher = TestPublisher.create();
+    AssertSubscriber<Payload> requesterSubscriber = new AssertSubscriber<>(0);
 
-    AssertSubscriber<Payload> innerAssertSubscriber = new AssertSubscriber<>(0);
-    TestPublisher<Payload> innerPublisher = TestPublisher.create();
+    AssertSubscriber<Payload> responderSubscriber = new AssertSubscriber<>(0);
+    TestPublisher<Payload> responderPublisher = TestPublisher.create();
 
     initRequestChannelCase(
-        outerPublisher, outerAssertSubscriber, innerPublisher, innerAssertSubscriber);
+        requesterPublisher, requesterSubscriber, responderPublisher, responderSubscriber);
 
-    nextFromInnerPublisher(innerPublisher, outerAssertSubscriber);
+    nextFromResponderPublisher(responderPublisher, requesterSubscriber);
 
-    nextFromOuterPublisher(outerPublisher, innerAssertSubscriber);
+    nextFromRequesterPublisher(requesterPublisher, responderSubscriber);
 
     // ensures both sides are terminated
-    cancelFromOuterSubscriber(
-        outerPublisher, outerAssertSubscriber, innerPublisher, innerAssertSubscriber);
+    cancelFromRequesterSubscriber(
+        requesterPublisher, requesterSubscriber, responderPublisher, responderSubscriber);
   }
 
   void initRequestChannelCase(
-      TestPublisher<Payload> outerPublisher,
-      AssertSubscriber<Payload> outerAssertSubscriber,
-      TestPublisher<Payload> innerPublisher,
-      AssertSubscriber<Payload> innerAssertSubscriber) {
+      TestPublisher<Payload> requesterPublisher,
+      AssertSubscriber<Payload> requesterSubscriber,
+      TestPublisher<Payload> responderPublisher,
+      AssertSubscriber<Payload> responderSubscriber) {
     rule.setRequestAcceptor(
         new AbstractRSocket() {
           @Override
           public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
-            payloads.subscribe(innerAssertSubscriber);
-            return innerPublisher.flux();
+            payloads.subscribe(responderSubscriber);
+            return responderPublisher.flux();
           }
         });
 
-    rule.crs.requestChannel(outerPublisher).subscribe(outerAssertSubscriber);
+    rule.crs.requestChannel(requesterPublisher).subscribe(requesterSubscriber);
 
-    outerPublisher.assertWasSubscribed();
-    outerAssertSubscriber.assertSubscribed();
+    requesterPublisher.assertWasSubscribed();
+    requesterSubscriber.assertSubscribed();
 
-    innerAssertSubscriber.assertNotSubscribed();
-    innerPublisher.assertWasNotSubscribed();
+    responderSubscriber.assertNotSubscribed();
+    responderPublisher.assertWasNotSubscribed();
 
     // firstRequest
-    outerAssertSubscriber.request(1);
-    outerPublisher.assertMaxRequested(1);
-    outerPublisher.next(DefaultPayload.create("initialData", "initialMetadata"));
+    requesterSubscriber.request(1);
+    requesterPublisher.assertMaxRequested(1);
+    requesterPublisher.next(DefaultPayload.create("initialData", "initialMetadata"));
 
-    innerAssertSubscriber.assertSubscribed();
-    innerPublisher.assertWasSubscribed();
+    responderSubscriber.assertSubscribed();
+    responderPublisher.assertWasSubscribed();
   }
 
-  void nextFromOuterPublisher(
-      TestPublisher<Payload> outerPublisher, AssertSubscriber<Payload> innerAssertSubscriber) {
+  void nextFromRequesterPublisher(
+      TestPublisher<Payload> requesterPublisher, AssertSubscriber<Payload> responderSubscriber) {
     // ensures that outerUpstream and innerSubscriber is not terminated so the requestChannel
-    outerPublisher.assertSubscribers(1);
-    innerAssertSubscriber.assertNotTerminated();
+    requesterPublisher.assertSubscribers(1);
+    responderSubscriber.assertNotTerminated();
 
-    innerAssertSubscriber.request(6);
-    outerPublisher.next(
+    responderSubscriber.request(6);
+    requesterPublisher.next(
         DefaultPayload.create("d1", "m1"),
         DefaultPayload.create("d2"),
         DefaultPayload.create("d3", "m3"),
         DefaultPayload.create("d4"),
         DefaultPayload.create("d5", "m5"));
 
-    List<Payload> innerPayloads = innerAssertSubscriber.awaitAndAssertNextValueCount(6).values();
+    List<Payload> innerPayloads = responderSubscriber.awaitAndAssertNextValueCount(6).values();
     Assertions.assertThat(innerPayloads.stream().map(Payload::getDataUtf8))
         .containsExactly("initialData", "d1", "d2", "d3", "d4", "d5");
-    // fixme: incorrect behaviour of metadata encoding
-    //    Assertions
-    //            .assertThat(innerPayloads
-    //                    .stream()
-    //                    .map(Payload::hasMetadata)
-    //            )
-    //            .containsExactly(true, true, false, true, false, true);
+    Assertions.assertThat(innerPayloads.stream().map(Payload::hasMetadata))
+        .containsExactly(true, true, false, true, false, true);
     Assertions.assertThat(innerPayloads.stream().map(Payload::getMetadataUtf8))
         .containsExactly("initialMetadata", "m1", "", "m3", "", "m5");
   }
 
-  void completeFromOuterPublisher(
-      TestPublisher<Payload> outerPublisher, AssertSubscriber<Payload> innerAssertSubscriber) {
+  void completeFromRequesterPublisher(
+      TestPublisher<Payload> requesterPublisher, AssertSubscriber<Payload> responderSubscriber) {
     // ensures that after sending complete upstream part is closed
-    outerPublisher.complete();
-    innerAssertSubscriber.assertTerminated();
-    outerPublisher.assertNoSubscribers();
+    requesterPublisher.complete();
+    responderSubscriber.assertTerminated();
+    requesterPublisher.assertNoSubscribers();
   }
 
-  void cancelFromInnerSubscriber(
-      TestPublisher<Payload> outerPublisher, AssertSubscriber<Payload> innerAssertSubscriber) {
+  void cancelFromResponderSubscriber(
+      TestPublisher<Payload> requesterPublisher, AssertSubscriber<Payload> responderSubscriber) {
     // ensures that after sending complete upstream part is closed
-    innerAssertSubscriber.cancel();
-    outerPublisher.assertWasCancelled();
-    outerPublisher.assertNoSubscribers();
+    responderSubscriber.cancel();
+    requesterPublisher.assertWasCancelled();
+    requesterPublisher.assertNoSubscribers();
   }
 
-  void nextFromInnerPublisher(
-      TestPublisher<Payload> innerPublisher, AssertSubscriber<Payload> outerAssertSubscriber) {
+  void nextFromResponderPublisher(
+      TestPublisher<Payload> responderPublisher, AssertSubscriber<Payload> requesterSubscriber) {
     // ensures that downstream is not terminated so the requestChannel state is half-closed
-    innerPublisher.assertSubscribers(1);
-    outerAssertSubscriber.assertNotTerminated();
+    responderPublisher.assertSubscribers(1);
+    requesterSubscriber.assertNotTerminated();
 
-    // ensures innerPublisher can send messages and outerSubscriber can receive them
-    outerAssertSubscriber.request(5);
-    innerPublisher.next(
+    // ensures responderPublisher can send messages and outerSubscriber can receive them
+    requesterSubscriber.request(5);
+    responderPublisher.next(
         DefaultPayload.create("rd1", "rm1"),
         DefaultPayload.create("rd2"),
         DefaultPayload.create("rd3", "rm3"),
         DefaultPayload.create("rd4"),
         DefaultPayload.create("rd5", "rm5"));
 
-    List<Payload> outerPayloads = outerAssertSubscriber.awaitAndAssertNextValueCount(5).values();
+    List<Payload> outerPayloads = requesterSubscriber.awaitAndAssertNextValueCount(5).values();
     Assertions.assertThat(outerPayloads.stream().map(Payload::getDataUtf8))
         .containsExactly("rd1", "rd2", "rd3", "rd4", "rd5");
-    // fixme: incorrect behaviour of metadata encoding
-    //    Assertions
-    //            .assertThat(outerPayloads
-    //                    .stream()
-    //                    .map(Payload::hasMetadata)
-    //            )
-    //            .containsExactly(true, false, true, false, true);
+    Assertions.assertThat(outerPayloads.stream().map(Payload::hasMetadata))
+        .containsExactly(true, false, true, false, true);
     Assertions.assertThat(outerPayloads.stream().map(Payload::getMetadataUtf8))
         .containsExactly("rm1", "", "rm3", "", "rm5");
   }
 
-  void completeFromInnerPublisher(
-      TestPublisher<Payload> innerPublisher, AssertSubscriber<Payload> outerAssertSubscriber) {
+  void completeFromResponderPublisher(
+      TestPublisher<Payload> responderPublisher, AssertSubscriber<Payload> requesterSubscriber) {
     // ensures that after sending complete inner upstream is closed
-    innerPublisher.complete();
-    outerAssertSubscriber.assertTerminated();
-    innerPublisher.assertNoSubscribers();
+    responderPublisher.complete();
+    requesterSubscriber.assertTerminated();
+    responderPublisher.assertNoSubscribers();
   }
 
-  void cancelFromOuterSubscriber(
-      TestPublisher<Payload> outerPublisher,
-      AssertSubscriber<Payload> outerAssertSubscriber,
-      TestPublisher<Payload> innerPublisher,
-      AssertSubscriber<Payload> innerAssertSubscriber) {
+  void cancelFromRequesterSubscriber(
+      TestPublisher<Payload> requesterPublisher,
+      AssertSubscriber<Payload> requesterSubscriber,
+      TestPublisher<Payload> responderPublisher,
+      AssertSubscriber<Payload> responderSubscriber) {
     // ensures that after sending cancel the whole requestChannel is terminated
-    outerAssertSubscriber.cancel();
-    innerPublisher.assertWasCancelled();
-    innerPublisher.assertNoSubscribers();
+    requesterSubscriber.cancel();
+    // error should be propagated
+    responderSubscriber.assertTerminated();
+    responderPublisher.assertWasCancelled();
+    responderPublisher.assertNoSubscribers();
     // ensures that cancellation is propagated to the actual upstream
-    outerPublisher.assertWasCancelled();
-    outerPublisher.assertNoSubscribers();
+    requesterPublisher.assertWasCancelled();
+    requesterPublisher.assertNoSubscribers();
   }
 
   public static class SocketRule extends ExternalResource {

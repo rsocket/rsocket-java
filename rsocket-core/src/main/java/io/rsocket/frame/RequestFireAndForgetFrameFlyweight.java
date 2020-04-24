@@ -10,11 +10,16 @@ public class RequestFireAndForgetFrameFlyweight {
 
   private RequestFireAndForgetFrameFlyweight() {}
 
-  public static ByteBuf encode(
-      ByteBufAllocator allocator, int streamId, boolean fragmentFollows, Payload payload) {
+  public static ByteBuf encodeReleasingPayload(
+      ByteBufAllocator allocator, int streamId, Payload payload) {
 
-    return FLYWEIGHT.encode(
-        allocator, streamId, fragmentFollows, payload.metadata(), payload.data());
+    final boolean hasMetadata = payload.hasMetadata();
+    final ByteBuf metadata = hasMetadata ? payload.metadata().retain() : null;
+    final ByteBuf data = payload.data().retain();
+
+    payload.release();
+
+    return FLYWEIGHT.encode(allocator, streamId, false, metadata, data);
   }
 
   public static ByteBuf encode(
