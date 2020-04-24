@@ -26,6 +26,7 @@ import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.AbstractRSocket;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
+import io.rsocket.buffer.LeaksTrackingByteBufAllocator;
 import io.rsocket.exceptions.ApplicationErrorException;
 import io.rsocket.exceptions.CustomRSocketException;
 import io.rsocket.frame.decoder.PayloadDecoder;
@@ -415,6 +416,8 @@ public class RSocketTest {
     private ArrayList<Throwable> clientErrors = new ArrayList<>();
     private ArrayList<Throwable> serverErrors = new ArrayList<>();
 
+    private LeaksTrackingByteBufAllocator allocator;
+
     @Override
     public Statement apply(Statement base, Description description) {
       return new Statement() {
@@ -426,14 +429,19 @@ public class RSocketTest {
       };
     }
 
+    public LeaksTrackingByteBufAllocator alloc() {
+      return allocator;
+    }
+
     protected void init() {
+      allocator = LeaksTrackingByteBufAllocator.instrument(ByteBufAllocator.DEFAULT);
       serverProcessor = DirectProcessor.create();
       clientProcessor = DirectProcessor.create();
 
       LocalDuplexConnection serverConnection =
-          new LocalDuplexConnection("server", clientProcessor, serverProcessor);
+          new LocalDuplexConnection("server", allocator, clientProcessor, serverProcessor);
       LocalDuplexConnection clientConnection =
-          new LocalDuplexConnection("client", serverProcessor, clientProcessor);
+          new LocalDuplexConnection("client", allocator, serverProcessor, clientProcessor);
 
       requestAcceptor =
           null != requestAcceptor
@@ -468,7 +476,6 @@ public class RSocketTest {
 
       srs =
           new RSocketResponder(
-              ByteBufAllocator.DEFAULT,
               serverConnection,
               requestAcceptor,
               PayloadDecoder.DEFAULT,
@@ -478,7 +485,6 @@ public class RSocketTest {
 
       crs =
           new RSocketRequester(
-              ByteBufAllocator.DEFAULT,
               clientConnection,
               PayloadDecoder.DEFAULT,
               throwable -> clientErrors.add(throwable),

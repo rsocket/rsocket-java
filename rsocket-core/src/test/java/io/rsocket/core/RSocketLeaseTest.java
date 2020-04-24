@@ -26,9 +26,9 @@ import static org.mockito.Mockito.when;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
-import io.netty.buffer.UnpooledByteBufAllocator;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
+import io.rsocket.buffer.LeaksTrackingByteBufAllocator;
 import io.rsocket.exceptions.Exceptions;
 import io.rsocket.frame.FrameHeaderFlyweight;
 import io.rsocket.frame.FrameType;
@@ -77,10 +77,10 @@ class RSocketLeaseTest {
 
   @BeforeEach
   void setUp() {
-    connection = new TestDuplexConnection();
     PayloadDecoder payloadDecoder = PayloadDecoder.DEFAULT;
-    byteBufAllocator = UnpooledByteBufAllocator.DEFAULT;
+    byteBufAllocator = LeaksTrackingByteBufAllocator.instrument(ByteBufAllocator.DEFAULT);
 
+    connection = new TestDuplexConnection(byteBufAllocator);
     requesterLeaseHandler = new RequesterLeaseHandler.Impl(TAG, leases -> leaseReceiver = leases);
     responderLeaseHandler =
         new ResponderLeaseHandler.Impl<>(
@@ -90,7 +90,6 @@ class RSocketLeaseTest {
         new ClientServerInputMultiplexer(connection, new InitializingInterceptorRegistry(), true);
     rSocketRequester =
         new RSocketRequester(
-            byteBufAllocator,
             multiplexer.asClientConnection(),
             payloadDecoder,
             err -> {},
@@ -110,7 +109,6 @@ class RSocketLeaseTest {
 
     rSocketResponder =
         new RSocketResponder(
-            byteBufAllocator,
             multiplexer.asServerConnection(),
             mockRSocketHandler,
             payloadDecoder,

@@ -41,7 +41,6 @@ import io.netty.util.CharsetUtil;
 import io.netty.util.ReferenceCounted;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
-import io.rsocket.buffer.LeaksTrackingByteBufAllocator;
 import io.rsocket.exceptions.ApplicationErrorException;
 import io.rsocket.exceptions.CustomRSocketException;
 import io.rsocket.exceptions.RejectedSetupException;
@@ -741,9 +740,8 @@ public class RSocketRequesterTest {
 
   public static class ClientSocketRule extends AbstractSocketRule<RSocketRequester> {
     @Override
-    protected RSocketRequester newRSocket(LeaksTrackingByteBufAllocator allocator) {
+    protected RSocketRequester newRSocket() {
       return new RSocketRequester(
-          allocator,
           connection,
           PayloadDecoder.ZERO_COPY,
           throwable -> errors.add(throwable),

@@ -21,6 +21,7 @@ import static org.junit.Assert.assertEquals;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
+import io.rsocket.buffer.LeaksTrackingByteBufAllocator;
 import io.rsocket.frame.*;
 import io.rsocket.plugins.InitializingInterceptorRegistry;
 import io.rsocket.test.util.TestDuplexConnection;
@@ -32,12 +33,13 @@ import org.junit.Test;
 public class ClientServerInputMultiplexerTest {
   private TestDuplexConnection source;
   private ClientServerInputMultiplexer clientMultiplexer;
-  private ByteBufAllocator allocator = ByteBufAllocator.DEFAULT;
+  private LeaksTrackingByteBufAllocator allocator =
+      LeaksTrackingByteBufAllocator.instrument(ByteBufAllocator.DEFAULT);
   private ClientServerInputMultiplexer serverMultiplexer;
 
   @Before
   public void setup() {
-    source = new TestDuplexConnection();
+    source = new TestDuplexConnection(allocator);
     clientMultiplexer =
         new ClientServerInputMultiplexer(source, new InitializingInterceptorRegistry(), true);
     serverMultiplexer =

@@ -37,13 +37,11 @@ public class ReassemblyDuplexConnection implements DuplexConnection {
   private final FrameReassembler frameReassembler;
   private final boolean decodeLength;
 
-  public ReassemblyDuplexConnection(
-      DuplexConnection delegate, ByteBufAllocator allocator, boolean decodeLength) {
+  public ReassemblyDuplexConnection(DuplexConnection delegate, boolean decodeLength) {
     Objects.requireNonNull(delegate, "delegate must not be null");
-    Objects.requireNonNull(allocator, "byteBufAllocator must not be null");
     this.decodeLength = decodeLength;
     this.delegate = delegate;
-    this.frameReassembler = new FrameReassembler(allocator);
+    this.frameReassembler = new FrameReassembler(delegate.alloc());
 
     delegate.onClose().doFinally(s -> frameReassembler.dispose()).subscribe();
   }
@@ -75,6 +73,11 @@ public class ReassemblyDuplexConnection implements DuplexConnection {
               ByteBuf decode = decode(byteBuf);
               frameReassembler.reassembleFrame(decode, sink);
             });
+  }
+
+  @Override
+  public ByteBufAllocator alloc() {
+    return delegate.alloc();
   }
 
   @Override

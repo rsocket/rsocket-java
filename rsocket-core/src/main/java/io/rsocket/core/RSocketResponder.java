@@ -75,15 +75,14 @@ class RSocketResponder implements ResponderRSocket {
   private final ByteBufAllocator allocator;
 
   RSocketResponder(
-      ByteBufAllocator allocator,
       DuplexConnection connection,
       RSocket requestHandler,
       PayloadDecoder payloadDecoder,
       Consumer<Throwable> errorConsumer,
       ResponderLeaseHandler leaseHandler,
       int mtu) {
-    this.allocator = allocator;
     this.connection = connection;
+    this.allocator = connection.alloc();
     this.mtu = mtu;
 
     this.requestHandler = requestHandler;

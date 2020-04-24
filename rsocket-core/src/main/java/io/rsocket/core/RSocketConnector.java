@@ -16,7 +16,6 @@
 package io.rsocket.core;
 
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
 import io.rsocket.AbstractRSocket;
 import io.rsocket.ConnectionSetupPayload;
@@ -71,7 +70,6 @@ public class RSocketConnector {
   private PayloadDecoder payloadDecoder = PayloadDecoder.DEFAULT;
 
   private Consumer<Throwable> errorConsumer = Throwable::printStackTrace;
-  private ByteBufAllocator allocator = ByteBufAllocator.DEFAULT;
 
   private RSocketConnector() {}
 
@@ -241,16 +239,6 @@ public class RSocketConnector {
     return this;
   }
 
-  /**
-   * @deprecated this is deprecated with no replacement and will be removed after {@link
-   *     io.rsocket.RSocketFactory} is removed.
-   */
-  public RSocketConnector byteBufAllocator(ByteBufAllocator allocator) {
-    Objects.requireNonNull(allocator);
-    this.allocator = allocator;
-    return this;
-  }
-
   public Mono<RSocket> connect(ClientTransport transport) {
     return connect(() -> transport);
   }
@@ -289,7 +277,6 @@ public class RSocketConnector {
 
               RSocket rSocketRequester =
                   new RSocketRequester(
-                      allocator,
                       multiplexer.asClientConnection(),
                       payloadDecoder,
                       errorConsumer,
@@ -304,7 +291,7 @@ public class RSocketConnector {
 
               ByteBuf setupFrame =
                   SetupFrameFlyweight.encode(
-                      allocator,
+                      wrappedConnection.alloc(),
                       leaseEnabled,
                       (int) keepAliveInterval.toMillis(),
                       (int) keepAliveMaxLifeTime.toMillis(),
@@ -326,7 +313,7 @@ public class RSocketConnector {
                             leaseEnabled
                                 ? new ResponderLeaseHandler.Impl<>(
                                     CLIENT_TAG,
-                                    allocator,
+                                    wrappedConnection.alloc(),
                                     leases.sender(),
                                     errorConsumer,
                                     leases.stats())
@@ -334,7 +321,6 @@ public class RSocketConnector {
 
                         RSocket rSocketResponder =
                             new RSocketResponder(
-                                allocator,
                                 multiplexer.asServerConnection(),
                                 wrappedRSocketHandler,
                                 payloadDecoder,
@@ -364,7 +350,6 @@ public class RSocketConnector {
     ClientRSocketSession session =
         new ClientRSocketSession(
             connection,
-            allocator,
             resume.getSessionDuration(),
             resume.getResumeStrategySupplier(),
             resume.getStoreFactory(CLIENT_TAG).apply(resumeToken),

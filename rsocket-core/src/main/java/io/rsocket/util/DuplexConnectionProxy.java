@@ -17,6 +17,7 @@
 package io.rsocket.util;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.DuplexConnection;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
@@ -42,6 +43,11 @@ public class DuplexConnectionProxy implements DuplexConnection {
   @Override
   public double availability() {
     return connection.availability();
+  }
+
+  @Override
+  public ByteBufAllocator alloc() {
+    return connection.alloc();
   }
 
   @Override
