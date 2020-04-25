@@ -53,6 +53,7 @@ import io.rsocket.keepalive.KeepAliveSupport;
 import io.rsocket.lease.RequesterLeaseHandler;
 import io.rsocket.util.MonoLifecycleHandler;
 import java.nio.channels.ClosedChannelException;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.function.Consumer;
@@ -67,6 +68,7 @@ import org.reactivestreams.Subscription;
 import reactor.core.publisher.BaseSubscriber;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.publisher.MonoProcessor;
 import reactor.core.publisher.SignalType;
 import reactor.core.publisher.UnicastProcessor;
 import reactor.util.concurrent.Queues;
@@ -106,6 +108,7 @@ class RSocketRequester implements RSocket {
   private final ByteBufAllocator allocator;
   private final KeepAliveFramesAcceptor keepAliveFramesAcceptor;
   private volatile Throwable terminationError;
+  private final MonoProcessor<Void> onClose;
 
   RSocketRequester(
       DuplexConnection connection,
@@ -126,14 +129,15 @@ class RSocketRequester implements RSocket {
     this.leaseHandler = leaseHandler;
     this.senders = new SynchronizedIntObjectHashMap<>();
     this.receivers = new SynchronizedIntObjectHashMap<>();
+    this.onClose = MonoProcessor.create();
 
     // DO NOT Change the order here. The Send processor must be subscribed to before receiving
     this.sendProcessor = new UnboundedProcessor<>();
 
     connection
         .onClose()
-        .doFinally(signalType -> tryTerminateOnConnectionClose())
-        .subscribe(null, errorConsumer);
+        .or(onClose)
+        .subscribe(null, this::tryTerminateOnConnectionClose, this::tryTerminateOnConnectionClose);
     connection.send(sendProcessor).subscribe(null, this::handleSendProcessorError);
 
     connection.receive().subscribe(this::handleIncomingFrames, errorConsumer);
@@ -181,17 +185,17 @@ class RSocketRequester implements RSocket {
 
   @Override
   public void dispose() {
-    connection.dispose();
+    tryTerminate(() -> new CancellationException("Disposed"));
   }
 
   @Override
   public boolean isDisposed() {
-    return connection.isDisposed();
+    return onClose.isDisposed();
   }
 
   @Override
   public Mono<Void> onClose() {
-    return connection.onClose();
+    return onClose;
   }
 
   private Mono<Void> handleFireAndForget(Payload payload) {
@@ -619,6 +623,10 @@ class RSocketRequester implements RSocket {
                 String.format("No keep-alive acks for %d ms", keepAlive.getTimeout().toMillis())));
   }
 
+  private void tryTerminateOnConnectionClose(Throwable e) {
+    tryTerminate(() -> e);
+  }
+
   private void tryTerminateOnConnectionClose() {
     tryTerminate(() -> CLOSED_CHANNEL_EXCEPTION);
   }
@@ -627,16 +635,16 @@ class RSocketRequester implements RSocket {
     tryTerminate(() -> Exceptions.from(0, errorFrame));
   }
 
-  private void tryTerminate(Supplier<Exception> errorSupplier) {
+  private void tryTerminate(Supplier<Throwable> errorSupplier) {
     if (terminationError == null) {
-      Exception e = errorSupplier.get();
+      Throwable e = errorSupplier.get();
       if (TERMINATION_ERROR.compareAndSet(this, null, e)) {
         terminate(e);
       }
     }
   }
 
-  private void terminate(Exception e) {
+  private void terminate(Throwable e) {
     connection.dispose();
     leaseHandler.dispose();
 
@@ -668,6 +676,7 @@ class RSocketRequester implements RSocket {
     receivers.clear();
     sendProcessor.dispose();
     errorConsumer.accept(e);
+    onClose.onError(e);
   }
 
   private void removeStreamReceiver(int streamId) {

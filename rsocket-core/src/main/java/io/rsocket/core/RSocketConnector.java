@@ -50,7 +50,7 @@ public class RSocketConnector {
   private static final int MIN_MTU_SIZE = 64;
 
   private static final BiConsumer<RSocket, Invalidatable> INVALIDATE_FUNCTION =
-      (r, i) -> r.onClose().subscribe(null, null, i::invalidate);
+      (r, i) -> r.onClose().subscribe(null, __ -> i.invalidate(), i::invalidate);
 
   private Payload setupPayload = EmptyPayload.INSTANCE;
   private String metadataMimeType = "application/binary";
