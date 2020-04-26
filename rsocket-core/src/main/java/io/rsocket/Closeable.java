@@ -28,7 +28,7 @@ public interface Closeable extends Disposable {
    * {@link org.reactivestreams.Subscriber#onError(Throwable)}. Otherwise, {@link
    * Subscriber#onComplete()} will be called.
    *
-   * @return a closable instance of {@link Mono}.
+   * @return a {@link Mono} to track completion with success or error of the underlying resource. When the underlying resource is an `RSocket`, the {@code Mono} exposes stream 0 (i.e. connection level) errors.
    */
   Mono<Void> onClose();
 }
