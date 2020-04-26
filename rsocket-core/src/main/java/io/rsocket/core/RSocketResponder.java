@@ -34,8 +34,12 @@ import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.internal.SynchronizedIntObjectHashMap;
 import io.rsocket.internal.UnboundedProcessor;
 import io.rsocket.lease.ResponderLeaseHandler;
+import java.nio.channels.ClosedChannelException;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
+import java.util.function.Supplier;
 import javax.annotation.Nullable;
 import org.reactivestreams.Processor;
 import org.reactivestreams.Publisher;
@@ -58,6 +62,7 @@ class RSocketResponder implements ResponderRSocket {
           }
         }
       };
+  private static final Exception CLOSED_CHANNEL_EXCEPTION = new ClosedChannelException();
 
   private final DuplexConnection connection;
   private final RSocket requestHandler;
@@ -65,6 +70,13 @@ class RSocketResponder implements ResponderRSocket {
   private final PayloadDecoder payloadDecoder;
   private final Consumer<Throwable> errorConsumer;
   private final ResponderLeaseHandler leaseHandler;
+  private final Disposable leaseHandlerDisposable;
+  private final MonoProcessor<Void> onClose;
+
+  private volatile Throwable terminationError;
+  private static final AtomicReferenceFieldUpdater<RSocketResponder, Throwable> TERMINATION_ERROR =
+      AtomicReferenceFieldUpdater.newUpdater(
+          RSocketResponder.class, Throwable.class, "terminationError");
 
   private final int mtu;
 
@@ -94,28 +106,21 @@ class RSocketResponder implements ResponderRSocket {
     this.leaseHandler = leaseHandler;
     this.sendingSubscriptions = new SynchronizedIntObjectHashMap<>();
     this.channelProcessors = new SynchronizedIntObjectHashMap<>();
+    this.onClose = MonoProcessor.create();
 
     // DO NOT Change the order here. The Send processor must be subscribed to before receiving
     // connections
     this.sendProcessor = new UnboundedProcessor<>();
 
-    connection
-        .send(sendProcessor)
-        .doFinally(this::handleSendProcessorCancel)
-        .subscribe(null, this::handleSendProcessorError);
+    connection.send(sendProcessor).subscribe(null, this::handleSendProcessorError);
 
-    Disposable receiveDisposable = connection.receive().subscribe(this::handleFrame, errorConsumer);
-    Disposable sendLeaseDisposable = leaseHandler.send(sendProcessor::onNextPrioritized);
+    connection.receive().subscribe(this::handleFrame, errorConsumer);
+    leaseHandlerDisposable = leaseHandler.send(sendProcessor::onNextPrioritized);
 
     this.connection
         .onClose()
-        .doFinally(
-            s -> {
-              cleanup();
-              receiveDisposable.dispose();
-              sendLeaseDisposable.dispose();
-            })
-        .subscribe(null, errorConsumer);
+        .or(onClose)
+        .subscribe(null, this::tryTerminateOnConnectionError, this::tryTerminateOnConnectionClose);
   }
 
   private void handleSendProcessorError(Throwable t) {
@@ -142,32 +147,21 @@ class RSocketResponder implements ResponderRSocket {
             });
   }
 
-  private void handleSendProcessorCancel(SignalType t) {
-    if (SignalType.ON_ERROR == t) {
-      return;
+  private void tryTerminateOnConnectionError(Throwable e) {
+    tryTerminate(() -> e);
+  }
+
+  private void tryTerminateOnConnectionClose() {
+    tryTerminate(() -> CLOSED_CHANNEL_EXCEPTION);
+  }
+
+  private void tryTerminate(Supplier<Throwable> errorSupplier) {
+    if (terminationError == null) {
+      Throwable e = errorSupplier.get();
+      if (TERMINATION_ERROR.compareAndSet(this, null, e)) {
+        cleanup(e);
+      }
     }
-
-    sendingSubscriptions
-        .values()
-        .forEach(
-            subscription -> {
-              try {
-                subscription.cancel();
-              } catch (Throwable e) {
-                errorConsumer.accept(e);
-              }
-            });
-
-    channelProcessors
-        .values()
-        .forEach(
-            subscription -> {
-              try {
-                subscription.onComplete();
-              } catch (Throwable e) {
-                errorConsumer.accept(e);
-              }
-            });
   }
 
   @Override
@@ -250,23 +244,25 @@ class RSocketResponder implements ResponderRSocket {
 
   @Override
   public void dispose() {
-    connection.dispose();
+    tryTerminate(() -> new CancellationException("Disposed"));
   }
 
   @Override
   public boolean isDisposed() {
-    return connection.isDisposed();
+    return onClose.isDisposed();
   }
 
   @Override
   public Mono<Void> onClose() {
-    return connection.onClose();
+    return onClose;
   }
 
-  private void cleanup() {
+  private void cleanup(Throwable e) {
     cleanUpSendingSubscriptions();
-    cleanUpChannelProcessors();
+    cleanUpChannelProcessors(e);
 
+    connection.dispose();
+    leaseHandlerDisposable.dispose();
     requestHandler.dispose();
     sendProcessor.dispose();
   }
@@ -276,8 +272,17 @@ class RSocketResponder implements ResponderRSocket {
     sendingSubscriptions.clear();
   }
 
-  private synchronized void cleanUpChannelProcessors() {
-    channelProcessors.values().forEach(Processor::onComplete);
+  private synchronized void cleanUpChannelProcessors(Throwable e) {
+    channelProcessors
+        .values()
+        .forEach(
+            payloadPayloadProcessor -> {
+              try {
+                payloadPayloadProcessor.onError(e);
+              } catch (Throwable t) {
+                // noops
+              }
+            });
     channelProcessors.clear();
   }
 

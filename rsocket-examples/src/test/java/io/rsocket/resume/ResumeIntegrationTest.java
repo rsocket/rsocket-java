@@ -35,13 +35,11 @@ import java.net.InetSocketAddress;
 import java.nio.channels.ClosedChannelException;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Consumer;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import reactor.core.publisher.ReplayProcessor;
 import reactor.core.scheduler.Schedulers;
 import reactor.test.StepVerifier;
 
@@ -105,7 +103,6 @@ public class ResumeIntegrationTest {
 
     DisconnectableClientTransport clientTransport =
         new DisconnectableClientTransport(clientTransport(closeable.address()));
-    ErrorConsumer errorConsumer = new ErrorConsumer();
     int clientSessionDurationSeconds = 10;
 
     RSocket rSocket = newClientRSocket(clientTransport, clientSessionDurationSeconds).block();
@@ -118,12 +115,11 @@ public class ResumeIntegrationTest {
         .expectError()
         .verify(Duration.ofSeconds(5));
 
-    StepVerifier.create(errorConsumer.errors().next())
-        .expectNextMatches(
+    StepVerifier.create(rSocket.onClose())
+        .expectErrorMatches(
             err ->
                 err instanceof RejectedResumeException
                     && "unknown resume token".equals(err.getMessage()))
-        .expectComplete()
         .verify(Duration.ofSeconds(5));
   }
 
@@ -134,23 +130,19 @@ public class ResumeIntegrationTest {
             .bind(serverTransport(SERVER_HOST, SERVER_PORT))
             .block();
 
-    ErrorConsumer errorConsumer = new ErrorConsumer();
-
     RSocket rSocket =
         RSocketConnector.create()
             .resume(new Resume())
             .connect(clientTransport(closeableChannel.address()))
             .block();
 
-    StepVerifier.create(errorConsumer.errors().next().doFinally(s -> closeableChannel.dispose()))
-        .expectNextMatches(
+    StepVerifier.create(rSocket.onClose().doFinally(s -> closeableChannel.dispose()))
+        .expectErrorMatches(
             err ->
                 err instanceof UnsupportedSetupException
                     && "resume not supported".equals(err.getMessage()))
-        .expectComplete()
         .verify(Duration.ofSeconds(5));
 
-    StepVerifier.create(rSocket.onClose()).expectComplete().verify(Duration.ofSeconds(5));
     Assertions.assertThat(rSocket.isDisposed()).isTrue();
   }
 
@@ -160,19 +152,6 @@ public class ResumeIntegrationTest {
 
   static ServerTransport<CloseableChannel> serverTransport(String host, int port) {
     return TcpServerTransport.create(host, port);
-  }
-
-  private static class ErrorConsumer implements Consumer<Throwable> {
-    private final ReplayProcessor<Throwable> errors = ReplayProcessor.create();
-
-    public Flux<Throwable> errors() {
-      return errors;
-    }
-
-    @Override
-    public void accept(Throwable throwable) {
-      errors.onNext(throwable);
-    }
   }
 
   private static Flux<Payload> testRequest() {
