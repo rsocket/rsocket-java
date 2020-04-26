@@ -120,7 +120,7 @@ class RSocketResponder implements ResponderRSocket {
     this.connection
         .onClose()
         .or(onClose)
-        .subscribe(null, this::tryTerminateOnConnectionClose, this::tryTerminateOnConnectionClose);
+        .subscribe(null, this::tryTerminateOnConnectionError, this::tryTerminateOnConnectionClose);
   }
 
   private void handleSendProcessorError(Throwable t) {
@@ -147,7 +147,7 @@ class RSocketResponder implements ResponderRSocket {
             });
   }
 
-  private void tryTerminateOnConnectionClose(Throwable e) {
+  private void tryTerminateOnConnectionError(Throwable e) {
     tryTerminate(() -> e);
   }
 
@@ -275,13 +275,14 @@ class RSocketResponder implements ResponderRSocket {
   private synchronized void cleanUpChannelProcessors(Throwable e) {
     channelProcessors
         .values()
-        .forEach(payloadPayloadProcessor -> {
-          try {
-            payloadPayloadProcessor.onError(e);
-          } catch (Throwable t) {
-            // noops
-          }
-        });
+        .forEach(
+            payloadPayloadProcessor -> {
+              try {
+                payloadPayloadProcessor.onError(e);
+              } catch (Throwable t) {
+                // noops
+              }
+            });
     channelProcessors.clear();
   }
 

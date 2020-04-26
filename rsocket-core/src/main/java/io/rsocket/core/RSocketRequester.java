@@ -137,7 +137,7 @@ class RSocketRequester implements RSocket {
     connection
         .onClose()
         .or(onClose)
-        .subscribe(null, this::tryTerminateOnConnectionClose, this::tryTerminateOnConnectionClose);
+        .subscribe(null, this::tryTerminateOnConnectionError, this::tryTerminateOnConnectionClose);
     connection.send(sendProcessor).subscribe(null, this::handleSendProcessorError);
 
     connection.receive().subscribe(this::handleIncomingFrames, errorConsumer);
@@ -623,7 +623,7 @@ class RSocketRequester implements RSocket {
                 String.format("No keep-alive acks for %d ms", keepAlive.getTimeout().toMillis())));
   }
 
-  private void tryTerminateOnConnectionClose(Throwable e) {
+  private void tryTerminateOnConnectionError(Throwable e) {
     tryTerminate(() -> e);
   }
 
