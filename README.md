@@ -22,11 +22,26 @@ Releases are available via Maven Central.
 Example:
 
 ```groovy
+repositories {
+	mavenCentral()
+}
 dependencies {
     implementation 'io.rsocket:rsocket-core:1.0.0-RC6'
     implementation 'io.rsocket:rsocket-transport-netty:1.0.0-RC6'
-//    implementation 'io.rsocket:rsocket-core:1.0.0-RC4-SNAPSHOT'
-//    implementation 'io.rsocket:rsocket-transport-netty:1.0.0-RC4-SNAPSHOT'
+}
+```
+
+Snapshots are available via [oss.jfrog.org](oss.jfrog.org) (OJO).
+
+Example:
+
+```groovy
+repositories {
+	maven { url 'https://oss.jfrog.org/oss-snapshot-local' }
+}
+dependencies {
+    implementation 'io.rsocket:rsocket-core:1.0.0-RC7-SNAPSHOT'
+    implementation 'io.rsocket:rsocket-transport-netty:1.0.0-RC7-SNAPSHOT'
 }
 ```
 
