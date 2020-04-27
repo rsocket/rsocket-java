@@ -37,8 +37,34 @@ class DataAndMetadataFlyweight {
       boolean hasMetadata,
       ByteBuf data) {
 
-    final boolean addData = data != null && data.isReadable();
-    final boolean addMetadata = hasMetadata && metadata.isReadable();
+    final boolean addData;
+    if (data != null) {
+      if (data.isReadable()) {
+        addData = true;
+      } else {
+        // even though there is nothing to read, we still have to release here since nobody else
+        // going to do soo
+        data.release();
+        addData = false;
+      }
+    } else {
+      addData = false;
+    }
+
+    final boolean addMetadata;
+    if (hasMetadata) {
+      if (metadata.isReadable()) {
+        addMetadata = true;
+      } else {
+        // even though there is nothing to read, we still have to release here since nobody else
+        // going to do soo
+        metadata.release();
+        addMetadata = false;
+      }
+    } else {
+      // has no metadata means it is null, thus no need to release anything
+      addMetadata = false;
+    }
 
     if (hasMetadata) {
       int length = metadata.readableBytes();

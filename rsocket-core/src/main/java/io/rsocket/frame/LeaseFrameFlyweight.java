@@ -14,7 +14,6 @@ public class LeaseFrameFlyweight {
       @Nullable final ByteBuf metadata) {
 
     final boolean hasMetadata = metadata != null;
-    final boolean addMetadata = hasMetadata && metadata.isReadable();
 
     int flags = 0;
 
@@ -26,6 +25,21 @@ public class LeaseFrameFlyweight {
         FrameHeaderFlyweight.encodeStreamZero(allocator, FrameType.LEASE, flags)
             .writeInt(ttl)
             .writeInt(numRequests);
+
+    final boolean addMetadata;
+    if (hasMetadata) {
+      if (metadata.isReadable()) {
+        addMetadata = true;
+      } else {
+        // even though there is nothing to read, we still have to release here since nobody else
+        // going to do soo
+        metadata.release();
+        addMetadata = false;
+      }
+    } else {
+      // has no metadata means it is null, thus no need to release anything
+      addMetadata = false;
+    }
 
     if (addMetadata) {
       return allocator.compositeBuffer(2).addComponents(true, header, metadata);
