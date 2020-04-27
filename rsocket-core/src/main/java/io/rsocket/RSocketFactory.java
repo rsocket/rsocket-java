@@ -17,6 +17,7 @@ package io.rsocket;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
+import io.netty.buffer.Unpooled;
 import io.rsocket.core.RSocketConnector;
 import io.rsocket.core.RSocketServer;
 import io.rsocket.core.Resume;
@@ -26,6 +27,7 @@ import io.rsocket.lease.Leases;
 import io.rsocket.plugins.DuplexConnectionInterceptor;
 import io.rsocket.plugins.RSocketInterceptor;
 import io.rsocket.plugins.SocketAcceptorInterceptor;
+import io.rsocket.resume.ClientResume;
 import io.rsocket.resume.ResumableFramesStore;
 import io.rsocket.resume.ResumeStrategy;
 import io.rsocket.transport.ClientTransport;
@@ -97,6 +99,9 @@ public final class RSocketFactory {
 
   /** Factory to create and configure an RSocket client, and connect to a server. */
   public static class ClientRSocketFactory implements ClientTransportAcceptor {
+    private static final ClientResume CLIENT_RESUME =
+        new ClientResume(Duration.ofMinutes(2), Unpooled.EMPTY_BUFFER);
+
     private final RSocketConnector connector;
 
     private Duration tickPeriod = Duration.ofSeconds(20);
@@ -348,9 +353,11 @@ public final class RSocketFactory {
       return this;
     }
 
-    public ClientRSocketFactory resumeStrategy(Supplier<ResumeStrategy> resumeStrategy) {
+    public ClientRSocketFactory resumeStrategy(Supplier<ResumeStrategy> strategy) {
       resume();
-      resume.resumeStrategy(resumeStrategy);
+      resume.retry(
+          Retry.from(
+              signals -> signals.flatMap(s -> strategy.get().apply(CLIENT_RESUME, s.failure()))));
       return this;
     }
 

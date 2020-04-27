@@ -17,23 +17,29 @@ package io.rsocket.core;
 
 import io.netty.buffer.ByteBuf;
 import io.rsocket.frame.ResumeFrameFlyweight;
-import io.rsocket.resume.ExponentialBackoffResumeStrategy;
 import io.rsocket.resume.InMemoryResumableFramesStore;
 import io.rsocket.resume.ResumableFramesStore;
-import io.rsocket.resume.ResumeStrategy;
 import java.time.Duration;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import reactor.util.retry.Retry;
 
 public class Resume {
-  Duration sessionDuration = Duration.ofMinutes(2);
-  Duration streamTimeout = Duration.ofSeconds(10);
-  boolean cleanupStoreOnKeepAlive;
-  Function<? super ByteBuf, ? extends ResumableFramesStore> storeFactory;
+  private static final Logger logger = LoggerFactory.getLogger(Resume.class);
+
+  private Duration sessionDuration = Duration.ofMinutes(2);
+  private Duration streamTimeout = Duration.ofSeconds(10);
+  private boolean cleanupStoreOnKeepAlive;
+  private Function<? super ByteBuf, ? extends ResumableFramesStore> storeFactory;
 
   private Supplier<ByteBuf> tokenSupplier = ResumeFrameFlyweight::generateResumeToken;
-  private Supplier<ResumeStrategy> resumeStrategySupplier =
-      () -> new ExponentialBackoffResumeStrategy(Duration.ofSeconds(1), Duration.ofSeconds(16), 2);
+  private Retry retry =
+      Retry.backoff(Long.MAX_VALUE, Duration.ofSeconds(1))
+          .maxBackoff(Duration.ofSeconds(16))
+          .jitter(1.0)
+          .doBeforeRetry(signal -> logger.debug("Connection error", signal.failure()));
 
   public Resume() {}
 
@@ -63,8 +69,8 @@ public class Resume {
     return this;
   }
 
-  public Resume resumeStrategy(Supplier<ResumeStrategy> supplier) {
-    this.resumeStrategySupplier = supplier;
+  public Resume retry(Retry retry) {
+    this.retry = retry;
     return this;
   }
 
@@ -90,7 +96,7 @@ public class Resume {
     return tokenSupplier;
   }
 
-  Supplier<ResumeStrategy> getResumeStrategySupplier() {
-    return resumeStrategySupplier;
+  Retry getRetry() {
+    return retry;
   }
 }

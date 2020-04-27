@@ -42,6 +42,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 import reactor.test.StepVerifier;
+import reactor.util.retry.Retry;
 
 @SlowTest
 public class ResumeIntegrationTest {
@@ -155,7 +156,7 @@ public class ResumeIntegrationTest {
   }
 
   private static Flux<Payload> testRequest() {
-    return Flux.interval(Duration.ofMillis(50))
+    return Flux.interval(Duration.ofMillis(500))
         .map(v -> DefaultPayload.create("client_request"))
         .onBackpressureDrop();
   }
@@ -183,7 +184,7 @@ public class ResumeIntegrationTest {
                 .sessionDuration(Duration.ofSeconds(sessionDurationSeconds))
                 .storeFactory(t -> new InMemoryResumableFramesStore("client", 500_000))
                 .cleanupStoreOnKeepAlive()
-                .resumeStrategy(() -> new PeriodicResumeStrategy(Duration.ofSeconds(1))))
+                .retry(Retry.fixedDelay(Long.MAX_VALUE, Duration.ofSeconds(1))))
         .keepAlive(Duration.ofSeconds(5), Duration.ofMinutes(5))
         .connect(clientTransport);
   }
