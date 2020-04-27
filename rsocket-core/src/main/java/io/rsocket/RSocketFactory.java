@@ -111,7 +111,7 @@ public final class RSocketFactory {
     private Resume resume;
 
     public ClientRSocketFactory() {
-      this(RSocketConnector.create());
+      this(RSocketConnector.create().errorConsumer(Throwable::printStackTrace));
     }
 
     public ClientRSocketFactory(RSocketConnector connector) {
@@ -393,6 +393,7 @@ public final class RSocketFactory {
       return this;
     }
 
+    /** @deprecated this is deprecated with no replacement. */
     public ClientRSocketFactory errorConsumer(Consumer<Throwable> errorConsumer) {
       connector.errorConsumer(errorConsumer);
       return this;
@@ -416,7 +417,7 @@ public final class RSocketFactory {
     private Resume resume;
 
     public ServerRSocketFactory() {
-      this(RSocketServer.create());
+      this(RSocketServer.create().errorConsumer(Throwable::printStackTrace));
     }
 
     public ServerRSocketFactory(RSocketServer server) {
@@ -496,6 +497,7 @@ public final class RSocketFactory {
       return this;
     }
 
+    /** @deprecated this is deprecated with no replacement. */
     public ServerRSocketFactory errorConsumer(Consumer<Throwable> errorConsumer) {
       server.errorConsumer(errorConsumer);
       return this;
