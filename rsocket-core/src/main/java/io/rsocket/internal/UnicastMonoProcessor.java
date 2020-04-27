@@ -99,6 +99,7 @@ public class UnicastMonoProcessor<O> extends Mono<O>
           UnicastMonoProcessor.class, Subscription.class, "subscription");
 
   CoreSubscriber<? super O> actual;
+  boolean hasDownstream = false;
 
   Throwable error;
   O value;
@@ -185,7 +186,7 @@ public class UnicastMonoProcessor<O> extends Mono<O>
       if (state == HAS_REQUEST_NO_RESULT) {
         if (STATE.compareAndSet(this, HAS_REQUEST_NO_RESULT, HAS_REQUEST_HAS_RESULT)) {
           final Subscriber<? super O> a = actual;
-          actual = null;
+          hasDownstream = false;
           value = null;
           lifecycleHandler.doOnTerminal(SignalType.ON_COMPLETE, v, null);
           a.onNext(v);
@@ -222,7 +223,7 @@ public class UnicastMonoProcessor<O> extends Mono<O>
       if (state == HAS_REQUEST_NO_RESULT || state == NO_REQUEST_NO_RESULT) {
         if (STATE.compareAndSet(this, state, HAS_REQUEST_HAS_RESULT)) {
           final Subscriber<? super O> a = actual;
-          actual = null;
+          hasDownstream = false;
           lifecycleHandler.doOnTerminal(SignalType.ON_COMPLETE, null, null);
           a.onComplete();
           return;
@@ -256,7 +257,7 @@ public class UnicastMonoProcessor<O> extends Mono<O>
       if (state == HAS_REQUEST_NO_RESULT || state == NO_REQUEST_NO_RESULT) {
         if (STATE.compareAndSet(this, state, HAS_REQUEST_HAS_RESULT)) {
           final Subscriber<? super O> a = actual;
-          actual = null;
+          hasDownstream = false;
           lifecycleHandler.doOnTerminal(SignalType.ON_ERROR, null, e);
           a.onError(e);
           return;
@@ -278,6 +279,7 @@ public class UnicastMonoProcessor<O> extends Mono<O>
 
       lh.doOnSubscribe();
 
+      this.hasDownstream = true;
       this.actual = actual;
 
       int state = this.state;
@@ -303,7 +305,7 @@ public class UnicastMonoProcessor<O> extends Mono<O>
       // no value
       // e.g. [onError / onComplete / dispose] only
       if (state == NO_REQUEST_HAS_RESULT && this.value == null) {
-        this.actual = null;
+        this.hasDownstream = false;
         Throwable e = this.error;
         // barrier to flush changes
         STATE.set(this, HAS_REQUEST_HAS_RESULT);
@@ -340,7 +342,7 @@ public class UnicastMonoProcessor<O> extends Mono<O>
           if (STATE.compareAndSet(this, NO_REQUEST_HAS_RESULT, HAS_REQUEST_HAS_RESULT)) {
             final Subscriber<? super O> a = actual;
             final O v = value;
-            actual = null;
+            hasDownstream = false;
             value = null;
             lifecycleHandler.doOnTerminal(SignalType.ON_COMPLETE, v, null);
             a.onNext(v);
@@ -360,7 +362,7 @@ public class UnicastMonoProcessor<O> extends Mono<O>
     if (STATE.getAndSet(this, CANCELLED) <= HAS_REQUEST_NO_RESULT) {
       Operators.onDiscard(value, currentContext());
       value = null;
-      actual = null;
+      hasDownstream = false;
       lifecycleHandler.doOnTerminal(SignalType.CANCEL, null, null);
       final Subscription s = UPSTREAM.getAndSet(this, Operators.cancelledSubscription());
       if (s != null && s != Operators.cancelledSubscription()) {
@@ -502,6 +504,6 @@ public class UnicastMonoProcessor<O> extends Mono<O>
    * @return true if any {@link Subscriber} is actively subscribed
    */
   public final boolean hasDownstream() {
-    return state > NO_SUBSCRIBER_HAS_RESULT && actual != null;
+    return state > NO_SUBSCRIBER_HAS_RESULT && hasDownstream;
   }
 }

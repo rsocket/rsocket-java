@@ -38,6 +38,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
 import io.netty.util.CharsetUtil;
+import io.netty.util.ReferenceCountUtil;
 import io.netty.util.ReferenceCounted;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
@@ -71,6 +72,7 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Stream;
 import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
@@ -84,6 +86,7 @@ import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 import reactor.core.publisher.BaseSubscriber;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Hooks;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
 import reactor.core.publisher.UnicastProcessor;
@@ -97,6 +100,8 @@ public class RSocketRequesterTest {
 
   @BeforeEach
   public void setUp() throws Throwable {
+    Hooks.onNextDropped(ReferenceCountUtil::safeRelease);
+    Hooks.onErrorDropped((t) -> {});
     rule = new ClientSocketRule();
     rule.apply(
             new Statement() {
@@ -105,6 +110,12 @@ public class RSocketRequesterTest {
             },
             null)
         .evaluate();
+  }
+
+  @AfterEach
+  public void tearDown() {
+    Hooks.resetOnErrorDropped();
+    Hooks.resetOnNextDropped();
   }
 
   @Test
@@ -403,21 +414,8 @@ public class RSocketRequesterTest {
     rule.assertHasNoLeaks();
   }
 
-  @Test
-  @Disabled("Due to https://github.com/reactor/reactor-core/pull/2114")
-  @SuppressWarnings("unchecked")
-  public void checkNoLeaksOnRacingTest() {
-
-    racingCases()
-        .forEach(
-            a -> {
-              ((Runnable) a.get()[0]).run();
-              checkNoLeaksOnRacing(
-                  (Function<ClientSocketRule, Publisher<Payload>>) a.get()[1],
-                  (BiConsumer<AssertSubscriber<Payload>, ClientSocketRule>) a.get()[2]);
-            });
-  }
-
+  @ParameterizedTest
+  @MethodSource("racingCases")
   public void checkNoLeaksOnRacing(
       Function<ClientSocketRule, Publisher<Payload>> initiator,
       BiConsumer<AssertSubscriber<Payload>, ClientSocketRule> runner) {
@@ -437,7 +435,7 @@ public class RSocketRequesterTest {
       }
 
       Publisher<Payload> payloadP = initiator.apply(clientSocketRule);
-      AssertSubscriber<Payload> assertSubscriber = AssertSubscriber.create();
+      AssertSubscriber<Payload> assertSubscriber = AssertSubscriber.create(0);
 
       if (payloadP instanceof Flux) {
         ((Flux<Payload>) payloadP).doOnNext(Payload::release).subscribe(assertSubscriber);
@@ -450,14 +448,13 @@ public class RSocketRequesterTest {
       Assertions.assertThat(clientSocketRule.connection.getSent())
           .allMatch(ReferenceCounted::release);
 
-      rule.assertHasNoLeaks();
+      clientSocketRule.assertHasNoLeaks();
     }
   }
 
   private static Stream<Arguments> racingCases() {
     return Stream.of(
         Arguments.of(
-            (Runnable) () -> System.out.println("RequestStream downstream cancellation case"),
             (Function<ClientSocketRule, Publisher<Payload>>)
                 (rule) -> rule.socket.requestStream(EmptyPayload.INSTANCE),
             (BiConsumer<AssertSubscriber<Payload>, ClientSocketRule>)
@@ -467,6 +464,7 @@ public class RSocketRequesterTest {
                   metadata.writeCharSequence("abc", CharsetUtil.UTF_8);
                   ByteBuf data = allocator.buffer();
                   data.writeCharSequence("def", CharsetUtil.UTF_8);
+                  as.request(1);
                   int streamId = rule.getStreamIdForRequestType(REQUEST_STREAM);
                   ByteBuf frame =
                       PayloadFrameFlyweight.encode(
@@ -475,7 +473,6 @@ public class RSocketRequesterTest {
                   RaceTestUtils.race(as::cancel, () -> rule.connection.addToReceivedBuffer(frame));
                 }),
         Arguments.of(
-            (Runnable) () -> System.out.println("RequestChannel downstream cancellation case"),
             (Function<ClientSocketRule, Publisher<Payload>>)
                 (rule) -> rule.socket.requestChannel(Flux.just(EmptyPayload.INSTANCE)),
             (BiConsumer<AssertSubscriber<Payload>, ClientSocketRule>)
@@ -485,6 +482,7 @@ public class RSocketRequesterTest {
                   metadata.writeCharSequence("abc", CharsetUtil.UTF_8);
                   ByteBuf data = allocator.buffer();
                   data.writeCharSequence("def", CharsetUtil.UTF_8);
+                  as.request(1);
                   int streamId = rule.getStreamIdForRequestType(REQUEST_CHANNEL);
                   ByteBuf frame =
                       PayloadFrameFlyweight.encode(
@@ -493,79 +491,143 @@ public class RSocketRequesterTest {
                   RaceTestUtils.race(as::cancel, () -> rule.connection.addToReceivedBuffer(frame));
                 }),
         Arguments.of(
-            (Runnable) () -> System.out.println("RequestChannel upstream cancellation 1"),
             (Function<ClientSocketRule, Publisher<Payload>>)
                 (rule) -> {
                   ByteBufAllocator allocator = rule.alloc();
                   ByteBuf metadata = allocator.buffer();
-                  metadata.writeCharSequence("abc", CharsetUtil.UTF_8);
+                  metadata.writeCharSequence("metadata", CharsetUtil.UTF_8);
                   ByteBuf data = allocator.buffer();
-                  data.writeCharSequence("def", CharsetUtil.UTF_8);
-                  return rule.socket.requestChannel(
-                      Flux.just(ByteBufPayload.create(data, metadata)));
+                  data.writeCharSequence("data", CharsetUtil.UTF_8);
+                  final Payload payload = ByteBufPayload.create(data, metadata);
+
+                  return rule.socket.requestStream(payload);
                 },
             (BiConsumer<AssertSubscriber<Payload>, ClientSocketRule>)
                 (as, rule) -> {
-                  ByteBufAllocator allocator = rule.alloc();
-                  int streamId = rule.getStreamIdForRequestType(REQUEST_CHANNEL);
-                  ByteBuf frame = CancelFrameFlyweight.encode(allocator, streamId);
-
-                  RaceTestUtils.race(
-                      () -> as.request(1), () -> rule.connection.addToReceivedBuffer(frame));
+                  RaceTestUtils.race(() -> as.request(1), as::cancel);
+                  // ensures proper frames order
+                  if (rule.connection.getSent().size() > 0) {
+                    Assertions.assertThat(rule.connection.getSent()).hasSize(2);
+                    Assertions.assertThat(rule.connection.getSent())
+                        .element(0)
+                        .matches(
+                            bb -> frameType(bb) == REQUEST_STREAM,
+                            "Expected first frame matches {"
+                                + REQUEST_STREAM
+                                + "} but was {"
+                                + frameType(rule.connection.getSent().stream().findFirst().get())
+                                + "}");
+                    Assertions.assertThat(rule.connection.getSent())
+                        .element(1)
+                        .matches(
+                            bb -> frameType(bb) == CANCEL,
+                            "Expected first frame matches {"
+                                + CANCEL
+                                + "} but was {"
+                                + frameType(
+                                    rule.connection.getSent().stream().skip(1).findFirst().get())
+                                + "}");
+                  }
                 }),
         Arguments.of(
-            (Runnable) () -> System.out.println("RequestChannel upstream cancellation 2"),
+            (Function<ClientSocketRule, Publisher<Payload>>)
+                (rule) -> {
+                  ByteBufAllocator allocator = rule.alloc();
+                  return rule.socket.requestChannel(
+                      Flux.generate(
+                          () -> 1L,
+                          (index, sink) -> {
+                            ByteBuf metadata = allocator.buffer();
+                            metadata.writeCharSequence("metadata", CharsetUtil.UTF_8);
+                            ByteBuf data = allocator.buffer();
+                            data.writeCharSequence("data", CharsetUtil.UTF_8);
+                            final Payload payload = ByteBufPayload.create(data, metadata);
+                            sink.next(payload);
+                            sink.complete();
+                            return ++index;
+                          }));
+                },
+            (BiConsumer<AssertSubscriber<Payload>, ClientSocketRule>)
+                (as, rule) -> {
+                  RaceTestUtils.race(() -> as.request(1), as::cancel);
+                  // ensures proper frames order
+                  if (rule.connection.getSent().size() > 0) {
+                    Assertions.assertThat(rule.connection.getSent()).hasSize(2);
+                    Assertions.assertThat(rule.connection.getSent())
+                        .element(0)
+                        .matches(
+                            bb -> frameType(bb) == REQUEST_CHANNEL,
+                            "Expected first frame matches {"
+                                + REQUEST_CHANNEL
+                                + "} but was {"
+                                + frameType(rule.connection.getSent().stream().findFirst().get())
+                                + "}");
+                    Assertions.assertThat(rule.connection.getSent())
+                        .element(1)
+                        .matches(
+                            bb -> frameType(bb) == CANCEL,
+                            "Expected first frame matches {"
+                                + CANCEL
+                                + "} but was {"
+                                + frameType(
+                                    rule.connection.getSent().stream().skip(1).findFirst().get())
+                                + "}");
+                  }
+                }),
+        Arguments.of(
             (Function<ClientSocketRule, Publisher<Payload>>)
                 (rule) ->
                     rule.socket.requestChannel(
                         Flux.generate(
                             () -> 1L,
                             (index, sink) -> {
-                              final Payload payload =
-                                  ByteBufPayload.create("d" + index, "m" + index);
+                              ByteBuf data = rule.alloc().buffer();
+                              data.writeCharSequence("d" + index, CharsetUtil.UTF_8);
+                              ByteBuf metadata = rule.alloc().buffer();
+                              metadata.writeCharSequence("m" + index, CharsetUtil.UTF_8);
+                              final Payload payload = ByteBufPayload.create(data, metadata);
                               sink.next(payload);
                               return ++index;
                             })),
             (BiConsumer<AssertSubscriber<Payload>, ClientSocketRule>)
                 (as, rule) -> {
                   ByteBufAllocator allocator = rule.alloc();
+                  as.request(1);
                   int streamId = rule.getStreamIdForRequestType(REQUEST_CHANNEL);
                   ByteBuf frame = CancelFrameFlyweight.encode(allocator, streamId);
-
-                  as.request(1);
 
                   RaceTestUtils.race(
                       () -> as.request(Long.MAX_VALUE),
                       () -> rule.connection.addToReceivedBuffer(frame));
                 }),
         Arguments.of(
-            (Runnable) () -> System.out.println("RequestChannel remote error"),
             (Function<ClientSocketRule, Publisher<Payload>>)
                 (rule) ->
                     rule.socket.requestChannel(
                         Flux.generate(
                             () -> 1L,
                             (index, sink) -> {
-                              final Payload payload =
-                                  ByteBufPayload.create("d" + index, "m" + index);
+                              ByteBuf data = rule.alloc().buffer();
+                              data.writeCharSequence("d" + index, CharsetUtil.UTF_8);
+                              ByteBuf metadata = rule.alloc().buffer();
+                              metadata.writeCharSequence("m" + index, CharsetUtil.UTF_8);
+                              final Payload payload = ByteBufPayload.create(data, metadata);
                               sink.next(payload);
                               return ++index;
                             })),
             (BiConsumer<AssertSubscriber<Payload>, ClientSocketRule>)
                 (as, rule) -> {
                   ByteBufAllocator allocator = rule.alloc();
+                  as.request(1);
                   int streamId = rule.getStreamIdForRequestType(REQUEST_CHANNEL);
                   ByteBuf frame =
                       ErrorFrameFlyweight.encode(allocator, streamId, new RuntimeException("test"));
 
-                  as.request(1);
-
                   RaceTestUtils.race(
                       () -> as.request(Long.MAX_VALUE),
                       () -> rule.connection.addToReceivedBuffer(frame));
                 }),
         Arguments.of(
-            (Runnable) () -> System.out.println("RequestResponse downstream cancellation"),
             (Function<ClientSocketRule, Publisher<Payload>>)
                 (rule) -> rule.socket.requestResponse(EmptyPayload.INSTANCE),
             (BiConsumer<AssertSubscriber<Payload>, ClientSocketRule>)
@@ -575,6 +637,7 @@ public class RSocketRequesterTest {
                   metadata.writeCharSequence("abc", CharsetUtil.UTF_8);
                   ByteBuf data = allocator.buffer();
                   data.writeCharSequence("def", CharsetUtil.UTF_8);
+                  as.request(Long.MAX_VALUE);
                   int streamId = rule.getStreamIdForRequestType(REQUEST_RESPONSE);
                   ByteBuf frame =
                       PayloadFrameFlyweight.encode(

@@ -3,7 +3,6 @@ package io.rsocket.buffer;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.CompositeByteBuf;
-import java.util.List;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import org.assertj.core.api.Assertions;
 
@@ -35,22 +34,9 @@ public class LeaksTrackingByteBufAllocator implements ByteBufAllocator {
     try {
       Assertions.assertThat(tracker)
           .allSatisfy(
-              buf -> {
-                if (buf instanceof CompositeByteBuf) {
-                  if (buf.refCnt() > 0) {
-                    List<ByteBuf> decomposed =
-                        ((CompositeByteBuf) buf).decompose(0, buf.readableBytes());
-                    for (int i = 0; i < decomposed.size(); i++) {
-                      Assertions.assertThat(decomposed.get(i))
-                          .matches(bb -> bb.refCnt() == 0, "Got unreleased CompositeByteBuf");
-                    }
-                  }
-
-                } else {
+              buf ->
                   Assertions.assertThat(buf)
-                      .matches(bb -> bb.refCnt() == 0, "buffer should be released");
-                }
-              });
+                      .matches(bb -> bb.refCnt() == 0, "buffer should be released"));
     } finally {
       tracker.clear();
     }
