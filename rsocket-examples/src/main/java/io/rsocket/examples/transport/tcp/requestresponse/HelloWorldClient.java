@@ -24,9 +24,13 @@ import io.rsocket.core.RSocketServer;
 import io.rsocket.transport.netty.client.TcpClientTransport;
 import io.rsocket.transport.netty.server.TcpServerTransport;
 import io.rsocket.util.DefaultPayload;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Mono;
 
 public final class HelloWorldClient {
+
+  private static final Logger logger = LoggerFactory.getLogger(HelloWorldClient.class);
 
   public static void main(String[] args) {
     RSocketServer.create(
@@ -39,7 +43,7 @@ public final class HelloWorldClient {
                       public Mono<Payload> requestResponse(Payload p) {
                         if (fail) {
                           fail = false;
-                          return Mono.error(new Throwable());
+                          return Mono.error(new Throwable("Simulated error"));
                         } else {
                           return Mono.just(p);
                         }
@@ -51,26 +55,14 @@ public final class HelloWorldClient {
     RSocket socket =
         RSocketConnector.connectWith(TcpClientTransport.create("localhost", 7000)).block();
 
-    socket
-        .requestResponse(DefaultPayload.create("Hello"))
-        .map(Payload::getDataUtf8)
-        .onErrorReturn("error")
-        .doOnNext(System.out::println)
-        .block();
-
-    socket
-        .requestResponse(DefaultPayload.create("Hello"))
-        .map(Payload::getDataUtf8)
-        .onErrorReturn("error")
-        .doOnNext(System.out::println)
-        .block();
-
-    socket
-        .requestResponse(DefaultPayload.create("Hello"))
-        .map(Payload::getDataUtf8)
-        .onErrorReturn("error")
-        .doOnNext(System.out::println)
-        .block();
+    for (int i = 0; i < 3; i++) {
+      socket
+          .requestResponse(DefaultPayload.create("Hello"))
+          .map(Payload::getDataUtf8)
+          .onErrorReturn("error")
+          .doOnNext(logger::debug)
+          .block();
+    }
 
     socket.dispose();
   }

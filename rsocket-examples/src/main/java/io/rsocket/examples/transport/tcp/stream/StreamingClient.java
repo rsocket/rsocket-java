@@ -27,10 +27,14 @@ import io.rsocket.transport.netty.client.TcpClientTransport;
 import io.rsocket.transport.netty.server.TcpServerTransport;
 import io.rsocket.util.DefaultPayload;
 import java.time.Duration;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 public final class StreamingClient {
+
+  private static final Logger logger = LoggerFactory.getLogger(StreamingClient.class);
 
   public static void main(String[] args) {
     RSocketServer.create(new SocketAcceptorImpl())
@@ -43,7 +47,7 @@ public final class StreamingClient {
     socket
         .requestStream(DefaultPayload.create("Hello"))
         .map(Payload::getDataUtf8)
-        .doOnNext(System.out::println)
+        .doOnNext(logger::debug)
         .take(10)
         .then()
         .doFinally(signalType -> socket.dispose())

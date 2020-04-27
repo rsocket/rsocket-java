@@ -28,10 +28,14 @@ import io.rsocket.transport.netty.server.TcpServerTransport;
 import io.rsocket.util.DefaultPayload;
 import java.time.Duration;
 import org.reactivestreams.Publisher;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 public final class ChannelEchoClient {
+
+  private static final Logger logger = LoggerFactory.getLogger(ChannelEchoClient.class);
 
   public static void main(String[] args) {
     RSocketServer.create(new EchoAcceptor())
@@ -45,7 +49,7 @@ public final class ChannelEchoClient {
         .requestChannel(
             Flux.interval(Duration.ofMillis(1000)).map(i -> DefaultPayload.create("Hello")))
         .map(Payload::getDataUtf8)
-        .doOnNext(System.out::println)
+        .doOnNext(logger::debug)
         .take(10)
         .doFinally(signalType -> socket.dispose())
         .then()

@@ -22,13 +22,13 @@ dependencies {
     implementation project(':rsocket-core')
     implementation project(':rsocket-transport-local')
     implementation project(':rsocket-transport-netty')
+    runtimeOnly 'ch.qos.logback:logback-classic'
 
     testImplementation project(':rsocket-test')
     testImplementation 'org.junit.jupiter:junit-jupiter-api'
     testImplementation 'org.mockito:mockito-core'
     testImplementation 'org.assertj:assertj-core'
     testImplementation 'io.projectreactor:reactor-test'
-    testImplementation 'ch.qos.logback:logback-classic'
 
     // TODO: Remove after JUnit5 migration
     testCompileOnly 'junit:junit'

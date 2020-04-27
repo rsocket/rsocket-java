@@ -27,13 +27,17 @@ import io.rsocket.transport.netty.server.CloseableChannel;
 import io.rsocket.transport.netty.server.TcpServerTransport;
 import io.rsocket.util.DefaultPayload;
 import java.time.Duration;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.util.retry.Retry;
 
 public class ResumeFileTransfer {
+
   /*amount of file chunks requested by subscriber: n, refilled on n/2 of received items*/
   private static final int PREFETCH_WINDOW_SIZE = 4;
+  private static final Logger logger = LoggerFactory.getLogger(ResumeFileTransfer.class);
 
   public static void main(String[] args) {
     RequestCodec requestCodec = new RequestCodec();
@@ -44,7 +48,7 @@ public class ResumeFileTransfer {
                 Retry.fixedDelay(Long.MAX_VALUE, Duration.ofSeconds(1))
                     .doBeforeRetry(
                         retrySignal ->
-                            System.out.println("Disconnected. Trying to resume connection...")));
+                            logger.debug("Disconnected. Trying to resume connection...")));
 
     CloseableChannel server =
         RSocketServer.create((setup, rSocket) -> Mono.just(new FileServer(requestCodec)))
