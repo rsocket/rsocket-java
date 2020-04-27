@@ -254,8 +254,17 @@ public class RSocketConnector {
               DuplexConnection wrappedConnection;
 
               if (resume != null) {
-                ClientRSocketSession session = createSession(connection, connectionMono);
-                resumeToken = session.token();
+                resumeToken = resume.getTokenSupplier().get();
+                ClientRSocketSession session =
+                    new ClientRSocketSession(
+                            connection,
+                            resume.getSessionDuration(),
+                            resume.getRetry(),
+                            resume.getStoreFactory(CLIENT_TAG).apply(resumeToken),
+                            resume.getStreamTimeout(),
+                            resume.isCleanupStoreOnKeepAlive())
+                        .continueWith(connectionMono)
+                        .resumeToken(resumeToken);
                 keepAliveHandler =
                     new KeepAliveHandler.ResumableKeepAliveHandler(session.resumableConnection());
                 wrappedConnection = session.resumableConnection();
@@ -342,19 +351,5 @@ public class RSocketConnector {
                 return source;
               }
             });
-  }
-
-  private ClientRSocketSession createSession(
-      DuplexConnection connection, Mono<DuplexConnection> connectionMono) {
-    ByteBuf resumeToken = resume.getTokenSupplier().get();
-    ClientRSocketSession session =
-        new ClientRSocketSession(
-            connection,
-            resume.getSessionDuration(),
-            resume.getResumeStrategySupplier(),
-            resume.getStoreFactory(CLIENT_TAG).apply(resumeToken),
-            resume.getStreamTimeout(),
-            resume.isCleanupStoreOnKeepAlive());
-    return session.continueWith(connectionMono).resumeToken(resumeToken);
   }
 }

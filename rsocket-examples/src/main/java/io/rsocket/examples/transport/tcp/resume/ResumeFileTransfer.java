@@ -22,17 +22,14 @@ import io.rsocket.RSocket;
 import io.rsocket.core.RSocketConnector;
 import io.rsocket.core.RSocketServer;
 import io.rsocket.core.Resume;
-import io.rsocket.resume.ClientResume;
-import io.rsocket.resume.PeriodicResumeStrategy;
-import io.rsocket.resume.ResumeStrategy;
 import io.rsocket.transport.netty.client.TcpClientTransport;
 import io.rsocket.transport.netty.server.CloseableChannel;
 import io.rsocket.transport.netty.server.TcpServerTransport;
 import io.rsocket.util.DefaultPayload;
 import java.time.Duration;
-import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.util.retry.Retry;
 
 public class ResumeFileTransfer {
   /*amount of file chunks requested by subscriber: n, refilled on n/2 of received items*/
@@ -43,8 +40,11 @@ public class ResumeFileTransfer {
     Resume resume =
         new Resume()
             .sessionDuration(Duration.ofMinutes(5))
-            .resumeStrategy(
-                () -> new VerboseResumeStrategy(new PeriodicResumeStrategy(Duration.ofSeconds(1))));
+            .retry(
+                Retry.fixedDelay(Long.MAX_VALUE, Duration.ofSeconds(1))
+                    .doBeforeRetry(
+                        retrySignal ->
+                            System.out.println("Disconnected. Trying to resume connection...")));
 
     CloseableChannel server =
         RSocketServer.create((setup, rSocket) -> Mono.just(new FileServer(requestCodec)))
@@ -85,20 +85,6 @@ public class ResumeFileTransfer {
       return Files.fileSource(fileName, chunkSize)
           .map(DefaultPayload::create)
           .zipWith(ticks, (p, tick) -> p);
-    }
-  }
-
-  private static class VerboseResumeStrategy implements ResumeStrategy {
-    private final ResumeStrategy resumeStrategy;
-
-    public VerboseResumeStrategy(ResumeStrategy resumeStrategy) {
-      this.resumeStrategy = resumeStrategy;
-    }
-
-    @Override
-    public Publisher<?> apply(ClientResume clientResume, Throwable throwable) {
-      return Flux.from(resumeStrategy.apply(clientResume, throwable))
-          .doOnNext(v -> System.out.println("Disconnected. Trying to resume connection..."));
     }
   }
 

@@ -21,7 +21,13 @@ import java.util.Objects;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.util.retry.Retry;
 
+/**
+ * @deprecated as of 1.0 RC7 in favor of passing {@link Retry#backoff(long, Duration)} to {@link
+ *     io.rsocket.core.Resume#retry(Retry)}.
+ */
+@Deprecated
 public class ExponentialBackoffResumeStrategy implements ResumeStrategy {
   private volatile Duration next;
   private final Duration firstBackoff;
