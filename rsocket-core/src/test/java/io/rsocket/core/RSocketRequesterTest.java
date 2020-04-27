@@ -510,10 +510,23 @@ public class RSocketRequesterTest {
                     Assertions.assertThat(rule.connection.getSent()).hasSize(2);
                     Assertions.assertThat(rule.connection.getSent())
                         .element(0)
-                        .matches(bb -> frameType(bb) == REQUEST_STREAM);
+                        .matches(
+                            bb -> frameType(bb) == REQUEST_STREAM,
+                            "Expected first frame matches {"
+                                + REQUEST_STREAM
+                                + "} but was {"
+                                + frameType(rule.connection.getSent().stream().findFirst().get())
+                                + "}");
                     Assertions.assertThat(rule.connection.getSent())
-                        .element(0)
-                        .matches(bb -> frameType(bb) == REQUEST_STREAM);
+                        .element(1)
+                        .matches(
+                            bb -> frameType(bb) == CANCEL,
+                            "Expected first frame matches {"
+                                + CANCEL
+                                + "} but was {"
+                                + frameType(
+                                    rule.connection.getSent().stream().skip(1).findFirst().get())
+                                + "}");
                   }
                 }),
         Arguments.of(
@@ -542,10 +555,23 @@ public class RSocketRequesterTest {
                     Assertions.assertThat(rule.connection.getSent()).hasSize(2);
                     Assertions.assertThat(rule.connection.getSent())
                         .element(0)
-                        .matches(bb -> frameType(bb) == REQUEST_CHANNEL);
+                        .matches(
+                            bb -> frameType(bb) == REQUEST_CHANNEL,
+                            "Expected first frame matches {"
+                                + REQUEST_CHANNEL
+                                + "} but was {"
+                                + frameType(rule.connection.getSent().stream().findFirst().get())
+                                + "}");
                     Assertions.assertThat(rule.connection.getSent())
-                        .element(0)
-                        .matches(bb -> frameType(bb) == REQUEST_STREAM);
+                        .element(1)
+                        .matches(
+                            bb -> frameType(bb) == CANCEL,
+                            "Expected first frame matches {"
+                                + CANCEL
+                                + "} but was {"
+                                + frameType(
+                                    rule.connection.getSent().stream().skip(1).findFirst().get())
+                                + "}");
                   }
                 }),
         Arguments.of(

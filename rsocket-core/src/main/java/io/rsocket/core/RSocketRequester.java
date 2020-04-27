@@ -242,14 +242,9 @@ class RSocketRequester implements RSocket {
             new MonoLifecycleHandler<Payload>() {
               @Override
               public void doOnSubscribe() {
-                final ByteBuf requestFrame;
-                try {
-                  requestFrame =
-                      RequestResponseFrameFlyweight.encodeReleasingPayload(
-                          allocator, streamId, payload);
-                } catch (IllegalReferenceCountException e) {
-                  return;
-                }
+                final ByteBuf requestFrame =
+                    RequestResponseFrameFlyweight.encodeReleasingPayload(
+                        allocator, streamId, payload);
 
                 sendProcessor.onNext(requestFrame);
               }
@@ -299,7 +294,7 @@ class RSocketRequester implements RSocket {
 
               @Override
               public void accept(long n) {
-                if (firstRequest && !receiver.isDisposed()) {
+                if (firstRequest) {
                   firstRequest = false;
                   if (wip.getAndIncrement() != 0) {
                     // no need to do anything.
@@ -310,16 +305,9 @@ class RSocketRequester implements RSocket {
                   boolean firstHasBeenSent = false;
                   for (; ; ) {
                     if (!firstHasBeenSent) {
-                      ByteBuf frame;
-                      try {
-                        frame =
-                            RequestStreamFrameFlyweight.encodeReleasingPayload(
-                                allocator, streamId, n, payload);
-                      } catch (IllegalReferenceCountException e) {
-                        return;
-                      }
-
-                      sendProcessor.onNext(frame);
+                      sendProcessor.onNext(
+                          RequestStreamFrameFlyweight.encodeReleasingPayload(
+                              allocator, streamId, n, payload));
                       firstHasBeenSent = true;
                     } else {
                       // if first frame was sent but we cycling again, it means that wip was
@@ -333,7 +321,7 @@ class RSocketRequester implements RSocket {
                       return;
                     }
                   }
-                } else {
+                } else if (!receiver.isDisposed()) {
                   sendProcessor.onNext(RequestNFrameFlyweight.encode(allocator, streamId, n));
                 }
               }
@@ -348,9 +336,9 @@ class RSocketRequester implements RSocket {
               // only applicable if the cancel appears earlier than actual request
               if (payload.refCnt() > 0) {
                 payload.release();
+              } else {
+                sendProcessor.onNext(CancelFrameFlyweight.encode(allocator, streamId));
               }
-
-              sendProcessor.onNext(CancelFrameFlyweight.encode(allocator, streamId));
             })
         .doFinally(s -> removeStreamReceiver(streamId))
         .doOnDiscard(ReferenceCounted.class, DROPPED_ELEMENTS_CONSUMER);
@@ -502,7 +490,12 @@ class RSocketRequester implements RSocket {
                 }
               }
             })
-        .doOnError(t -> upstreamSubscriber.cancel())
+        .doOnError(
+            t -> {
+              upstreamSubscriber.cancel();
+              receivers.remove(streamId, receiver);
+            })
+        .doOnComplete(() -> receivers.remove(streamId, receiver))
         .doOnCancel(
             () -> {
               upstreamSubscriber.cancel();
@@ -511,9 +504,10 @@ class RSocketRequester implements RSocket {
               }
 
               // need to send frame only if RequestChannelFrame was sent
-              sendProcessor.onNext(CancelFrameFlyweight.encode(allocator, streamId));
-            })
-        .doFinally(__ -> receivers.remove(streamId, receiver));
+              if (receivers.remove(streamId, receiver)) {
+                sendProcessor.onNext(CancelFrameFlyweight.encode(allocator, streamId));
+              }
+            });
   }
 
   private Mono<Void> handleMetadataPush(Payload payload) {
