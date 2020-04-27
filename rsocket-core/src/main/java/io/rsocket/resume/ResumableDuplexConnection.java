@@ -223,6 +223,10 @@ public class ResumableDuplexConnection implements DuplexConnection, ResumeStateH
   }
 
   private void sendFrame(ByteBuf f) {
+    if (disposed.get()) {
+      f.release();
+      return;
+    }
     /*resuming from store so no need to save again*/
     if (state != State.RESUME && isResumableFrame(f)) {
       resumeSaveFrames.onNext(f);
