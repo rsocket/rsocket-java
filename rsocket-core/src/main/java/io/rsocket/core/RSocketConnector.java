@@ -69,7 +69,7 @@ public class RSocketConnector {
   private int mtu = 0;
   private PayloadDecoder payloadDecoder = PayloadDecoder.DEFAULT;
 
-  private Consumer<Throwable> errorConsumer = Throwable::printStackTrace;
+  private Consumer<Throwable> errorConsumer = ex -> {};
 
   private RSocketConnector() {}
 

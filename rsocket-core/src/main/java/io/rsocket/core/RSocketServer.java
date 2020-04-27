@@ -52,7 +52,7 @@ public final class RSocketServer {
   private Resume resume;
   private Supplier<Leases<?>> leasesSupplier = null;
 
-  private Consumer<Throwable> errorConsumer = Throwable::printStackTrace;
+  private Consumer<Throwable> errorConsumer = ex -> {};
   private PayloadDecoder payloadDecoder = PayloadDecoder.DEFAULT;
 
   private RSocketServer() {}
