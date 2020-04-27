@@ -43,34 +43,38 @@ import reactor.util.context.Context;
 public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
     implements Fuseable.QueueSubscription<T>, Fuseable {
 
-
   final Queue<T> queue;
   final Queue<T> priorityQueue;
 
   volatile boolean done;
   Throwable error;
-
-  boolean hasDownstream; //important to not loose the downstream too early and miss discard hook, while having relevant hasDownstreams()
+  // important to not loose the downstream too early and miss discard hook, while
+  // having relevant hasDownstreams()
+  boolean hasDownstream;
   volatile CoreSubscriber<? super T> actual;
 
   volatile boolean cancelled;
 
   volatile int once;
+
   @SuppressWarnings("rawtypes")
   static final AtomicIntegerFieldUpdater<UnboundedProcessor> ONCE =
       AtomicIntegerFieldUpdater.newUpdater(UnboundedProcessor.class, "once");
 
   volatile int wip;
+
   @SuppressWarnings("rawtypes")
   static final AtomicIntegerFieldUpdater<UnboundedProcessor> WIP =
       AtomicIntegerFieldUpdater.newUpdater(UnboundedProcessor.class, "wip");
 
   volatile int discardGuard;
+
   @SuppressWarnings("rawtypes")
   static final AtomicIntegerFieldUpdater<UnboundedProcessor> DISCARD_GUARD =
-        AtomicIntegerFieldUpdater.newUpdater(UnboundedProcessor.class, "discardGuard");
+      AtomicIntegerFieldUpdater.newUpdater(UnboundedProcessor.class, "discardGuard");
 
   volatile long requested;
+
   @SuppressWarnings("rawtypes")
   static final AtomicLongFieldUpdater<UnboundedProcessor> REQUESTED =
       AtomicLongFieldUpdater.newUpdater(UnboundedProcessor.class, "requested");
@@ -379,7 +383,7 @@ public final class UnboundedProcessor<T> extends FluxProcessor<T, T>
 
     int missed = 1;
 
-    for (;;) {
+    for (; ; ) {
       while (!queue.isEmpty()) {
         T t = queue.poll();
         if (t != null) {
