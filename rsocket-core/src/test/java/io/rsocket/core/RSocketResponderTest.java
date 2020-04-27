@@ -94,6 +94,8 @@ public class RSocketResponderTest {
 
   @BeforeEach
   public void setUp() throws Throwable {
+    Hooks.onNextDropped(ReferenceCountUtil::safeRelease);
+    Hooks.onErrorDropped(t -> {});
     rule = new ServerSocketRule();
     rule.apply(
             new Statement() {
@@ -107,6 +109,7 @@ public class RSocketResponderTest {
   @AfterEach
   public void tearDown() {
     Hooks.resetOnErrorDropped();
+    Hooks.resetOnNextDropped();
   }
 
   @Test
@@ -247,9 +250,7 @@ public class RSocketResponderTest {
   }
 
   @Test
-  @Disabled("Due to https://github.com/reactor/reactor-core/pull/2114")
   public void checkNoLeaksOnRacingCancelFromRequestChannelAndNextFromUpstream() {
-
     ByteBufAllocator allocator = rule.alloc();
     for (int i = 0; i < 10000; i++) {
       AssertSubscriber<Payload> assertSubscriber = AssertSubscriber.create();
@@ -258,33 +259,32 @@ public class RSocketResponderTest {
           new AbstractRSocket() {
             @Override
             public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
-              ((Flux<Payload>) payloads)
-                  .doOnNext(ReferenceCountUtil::safeRelease)
-                  .subscribe(assertSubscriber);
+              payloads.subscribe(assertSubscriber);
               return Flux.never();
             }
           },
           Integer.MAX_VALUE);
 
       rule.sendRequest(1, REQUEST_CHANNEL);
+
       ByteBuf metadata1 = allocator.buffer();
-      metadata1.writeCharSequence("abc", CharsetUtil.UTF_8);
+      metadata1.writeCharSequence("abc1", CharsetUtil.UTF_8);
       ByteBuf data1 = allocator.buffer();
-      data1.writeCharSequence("def", CharsetUtil.UTF_8);
+      data1.writeCharSequence("def1", CharsetUtil.UTF_8);
       ByteBuf nextFrame1 =
           PayloadFrameFlyweight.encode(allocator, 1, false, false, true, metadata1, data1);
 
       ByteBuf metadata2 = allocator.buffer();
-      metadata2.writeCharSequence("abc", CharsetUtil.UTF_8);
+      metadata2.writeCharSequence("abc2", CharsetUtil.UTF_8);
       ByteBuf data2 = allocator.buffer();
-      data2.writeCharSequence("def", CharsetUtil.UTF_8);
+      data2.writeCharSequence("def2", CharsetUtil.UTF_8);
       ByteBuf nextFrame2 =
           PayloadFrameFlyweight.encode(allocator, 1, false, false, true, metadata2, data2);
 
       ByteBuf metadata3 = allocator.buffer();
-      metadata3.writeCharSequence("abc", CharsetUtil.UTF_8);
+      metadata3.writeCharSequence("abc3", CharsetUtil.UTF_8);
       ByteBuf data3 = allocator.buffer();
-      data3.writeCharSequence("def", CharsetUtil.UTF_8);
+      data3.writeCharSequence("def3", CharsetUtil.UTF_8);
       ByteBuf nextFrame3 =
           PayloadFrameFlyweight.encode(allocator, 1, false, false, true, metadata3, data3);
 
@@ -294,6 +294,8 @@ public class RSocketResponderTest {
           },
           assertSubscriber::cancel);
 
+      Assertions.assertThat(assertSubscriber.values()).allMatch(ReferenceCounted::release);
+
       Assertions.assertThat(rule.connection.getSent()).allMatch(ReferenceCounted::release);
 
       rule.assertHasNoLeaks();
@@ -301,7 +303,6 @@ public class RSocketResponderTest {
   }
 
   @Test
-  @Disabled("Due to https://github.com/reactor/reactor-core/pull/2114")
   public void checkNoLeaksOnRacingBetweenDownstreamCancelAndOnNextFromRequestChannelTest() {
     Hooks.onErrorDropped((e) -> {});
     ByteBufAllocator allocator = rule.alloc();
@@ -341,7 +342,6 @@ public class RSocketResponderTest {
   }
 
   @Test
-  @Disabled("Due to https://github.com/reactor/reactor-core/pull/2114")
   public void checkNoLeaksOnRacingBetweenDownstreamCancelAndOnNextFromRequestChannelTest1() {
     Scheduler parallel = Schedulers.parallel();
     Hooks.onErrorDropped((e) -> {});
@@ -388,27 +388,25 @@ public class RSocketResponderTest {
   }
 
   @Test
-  @Disabled("Due to https://github.com/reactor/reactor-core/pull/2114")
   public void
-      checkNoLeaksOnRacingBetweenDownstreamCancelAndOnNextFromUpstreamOnErrorFromRequestChannelTest1()
-          throws InterruptedException {
+      checkNoLeaksOnRacingBetweenDownstreamCancelAndOnNextFromUpstreamOnErrorFromRequestChannelTest1() {
     Scheduler parallel = Schedulers.parallel();
     Hooks.onErrorDropped((e) -> {});
     ByteBufAllocator allocator = rule.alloc();
     for (int i = 0; i < 10000; i++) {
       FluxSink<Payload>[] sinks = new FluxSink[1];
-
+      AssertSubscriber<Payload> assertSubscriber = AssertSubscriber.create();
       rule.setAcceptingSocket(
           new AbstractRSocket() {
             @Override
             public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
+              payloads.subscribe(assertSubscriber);
 
               return Flux.<Payload>create(
-                      sink -> {
-                        sinks[0] = sink;
-                      },
-                      FluxSink.OverflowStrategy.IGNORE)
-                  .mergeWith(payloads);
+                  sink -> {
+                    sinks[0] = sink;
+                  },
+                  FluxSink.OverflowStrategy.IGNORE);
             }
           },
           1);
@@ -416,23 +414,23 @@ public class RSocketResponderTest {
       rule.sendRequest(1, REQUEST_CHANNEL);
 
       ByteBuf metadata1 = allocator.buffer();
-      metadata1.writeCharSequence("abc", CharsetUtil.UTF_8);
+      metadata1.writeCharSequence("abc1", CharsetUtil.UTF_8);
       ByteBuf data1 = allocator.buffer();
-      data1.writeCharSequence("def", CharsetUtil.UTF_8);
+      data1.writeCharSequence("def1", CharsetUtil.UTF_8);
       ByteBuf nextFrame1 =
           PayloadFrameFlyweight.encode(allocator, 1, false, false, true, metadata1, data1);
 
       ByteBuf metadata2 = allocator.buffer();
-      metadata2.writeCharSequence("abc", CharsetUtil.UTF_8);
+      metadata2.writeCharSequence("abc2", CharsetUtil.UTF_8);
       ByteBuf data2 = allocator.buffer();
-      data2.writeCharSequence("def", CharsetUtil.UTF_8);
+      data2.writeCharSequence("def2", CharsetUtil.UTF_8);
       ByteBuf nextFrame2 =
           PayloadFrameFlyweight.encode(allocator, 1, false, false, true, metadata2, data2);
 
       ByteBuf metadata3 = allocator.buffer();
-      metadata3.writeCharSequence("abc", CharsetUtil.UTF_8);
+      metadata3.writeCharSequence("abc3", CharsetUtil.UTF_8);
       ByteBuf data3 = allocator.buffer();
-      data3.writeCharSequence("def", CharsetUtil.UTF_8);
+      data3.writeCharSequence("def3", CharsetUtil.UTF_8);
       ByteBuf nextFrame3 =
           PayloadFrameFlyweight.encode(allocator, 1, false, false, true, metadata3, data3);
 
@@ -454,13 +452,12 @@ public class RSocketResponderTest {
           parallel);
 
       Assertions.assertThat(rule.connection.getSent()).allMatch(ReferenceCounted::release);
-
+      Assertions.assertThat(assertSubscriber.values()).allMatch(ReferenceCounted::release);
       rule.assertHasNoLeaks();
     }
   }
 
   @Test
-  @Disabled("Due to https://github.com/reactor/reactor-core/pull/2114")
   public void checkNoLeaksOnRacingBetweenDownstreamCancelAndOnNextFromRequestStreamTest1() {
     Scheduler parallel = Schedulers.parallel();
     Hooks.onErrorDropped((e) -> {});
@@ -585,23 +582,23 @@ public class RSocketResponderTest {
     ByteBuf cancelFrame = CancelFrameFlyweight.encode(allocator, 1);
 
     ByteBuf metadata1 = allocator.buffer();
-    metadata1.writeCharSequence("abc", CharsetUtil.UTF_8);
+    metadata1.writeCharSequence("abc1", CharsetUtil.UTF_8);
     ByteBuf data1 = allocator.buffer();
-    data1.writeCharSequence("def", CharsetUtil.UTF_8);
+    data1.writeCharSequence("def1", CharsetUtil.UTF_8);
     ByteBuf nextFrame1 =
         PayloadFrameFlyweight.encode(allocator, 1, false, false, true, metadata1, data1);
 
     ByteBuf metadata2 = allocator.buffer();
-    metadata2.writeCharSequence("abc", CharsetUtil.UTF_8);
+    metadata2.writeCharSequence("abc2", CharsetUtil.UTF_8);
     ByteBuf data2 = allocator.buffer();
-    data2.writeCharSequence("def", CharsetUtil.UTF_8);
+    data2.writeCharSequence("def2", CharsetUtil.UTF_8);
     ByteBuf nextFrame2 =
         PayloadFrameFlyweight.encode(allocator, 1, false, false, true, metadata2, data2);
 
     ByteBuf metadata3 = allocator.buffer();
-    metadata3.writeCharSequence("abc", CharsetUtil.UTF_8);
+    metadata3.writeCharSequence("abc3", CharsetUtil.UTF_8);
     ByteBuf data3 = allocator.buffer();
-    data3.writeCharSequence("def", CharsetUtil.UTF_8);
+    data3.writeCharSequence("de3", CharsetUtil.UTF_8);
     ByteBuf nextFrame3 =
         PayloadFrameFlyweight.encode(allocator, 1, false, false, true, metadata3, data3);
     rule.connection.addToReceivedBuffer(nextFrame1, nextFrame2, nextFrame3);

@@ -26,7 +26,13 @@ public final class ByteBufRepresentation extends StandardRepresentation {
   protected String fallbackToStringOf(Object object) {
     if (object instanceof ByteBuf) {
       try {
-        return ByteBufUtil.prettyHexDump((ByteBuf) object);
+        String normalBufferString = object.toString();
+        String prettyHexDump = ByteBufUtil.prettyHexDump((ByteBuf) object);
+        return new StringBuilder()
+            .append(normalBufferString)
+            .append("\n")
+            .append(prettyHexDump)
+            .toString();
       } catch (IllegalReferenceCountException e) {
         // noops
       }
