@@ -22,7 +22,6 @@ import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.util.ReferenceCountUtil;
 import io.rsocket.frame.*;
-import io.rsocket.util.DefaultPayload;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
@@ -48,15 +47,16 @@ final class FrameReassemblerTest {
   void reassembleData() {
     List<ByteBuf> byteBufs =
         Arrays.asList(
-            RequestResponseFrameFlyweight.encode(allocator, 1, true, DefaultPayload.create(data)),
+            RequestResponseFrameFlyweight.encode(
+                allocator, 1, true, null, Unpooled.wrappedBuffer(data)),
             PayloadFrameFlyweight.encode(
-                allocator, 1, true, false, true, DefaultPayload.create(data)),
+                allocator, 1, true, false, true, null, Unpooled.wrappedBuffer(data)),
             PayloadFrameFlyweight.encode(
-                allocator, 1, true, false, true, DefaultPayload.create(data)),
+                allocator, 1, true, false, true, null, Unpooled.wrappedBuffer(data)),
             PayloadFrameFlyweight.encode(
-                allocator, 1, true, false, true, DefaultPayload.create(data)),
+                allocator, 1, true, false, true, null, Unpooled.wrappedBuffer(data)),
             PayloadFrameFlyweight.encode(
-                allocator, 1, false, false, true, DefaultPayload.create(data)));
+                allocator, 1, false, false, true, null, Unpooled.wrappedBuffer(data)));
 
     FrameReassembler reassembler = new FrameReassembler(allocator);
 
@@ -88,7 +88,8 @@ final class FrameReassemblerTest {
   void passthrough() {
     List<ByteBuf> byteBufs =
         Arrays.asList(
-            RequestResponseFrameFlyweight.encode(allocator, 1, false, DefaultPayload.create(data)));
+            RequestResponseFrameFlyweight.encode(
+                allocator, 1, false, null, Unpooled.wrappedBuffer(data)));
 
     FrameReassembler reassembler = new FrameReassembler(allocator);
 
@@ -115,38 +116,39 @@ final class FrameReassemblerTest {
     List<ByteBuf> byteBufs =
         Arrays.asList(
             RequestResponseFrameFlyweight.encode(
-                allocator,
-                1,
-                true,
-                DefaultPayload.create(Unpooled.EMPTY_BUFFER, Unpooled.wrappedBuffer(metadata))),
+                allocator, 1, true, Unpooled.wrappedBuffer(metadata), Unpooled.EMPTY_BUFFER),
             PayloadFrameFlyweight.encode(
                 allocator,
                 1,
                 true,
                 false,
                 true,
-                DefaultPayload.create(Unpooled.EMPTY_BUFFER, Unpooled.wrappedBuffer(metadata))),
+                Unpooled.wrappedBuffer(metadata),
+                Unpooled.EMPTY_BUFFER),
             PayloadFrameFlyweight.encode(
                 allocator,
                 1,
                 true,
                 false,
                 true,
-                DefaultPayload.create(Unpooled.EMPTY_BUFFER, Unpooled.wrappedBuffer(metadata))),
+                Unpooled.wrappedBuffer(metadata),
+                Unpooled.EMPTY_BUFFER),
             PayloadFrameFlyweight.encode(
                 allocator,
                 1,
                 true,
                 false,
                 true,
-                DefaultPayload.create(Unpooled.EMPTY_BUFFER, Unpooled.wrappedBuffer(metadata))),
+                Unpooled.wrappedBuffer(metadata),
+                Unpooled.EMPTY_BUFFER),
             PayloadFrameFlyweight.encode(
                 allocator,
                 1,
                 false,
                 false,
                 true,
-                DefaultPayload.create(Unpooled.EMPTY_BUFFER, Unpooled.wrappedBuffer(metadata))));
+                Unpooled.wrappedBuffer(metadata),
+                Unpooled.EMPTY_BUFFER));
 
     FrameReassembler reassembler = new FrameReassembler(allocator);
 
@@ -184,35 +186,40 @@ final class FrameReassemblerTest {
                 true,
                 false,
                 100,
-                DefaultPayload.create(Unpooled.EMPTY_BUFFER, Unpooled.wrappedBuffer(metadata))),
+                Unpooled.wrappedBuffer(metadata),
+                Unpooled.EMPTY_BUFFER),
             PayloadFrameFlyweight.encode(
                 allocator,
                 1,
                 true,
                 false,
                 true,
-                DefaultPayload.create(Unpooled.EMPTY_BUFFER, Unpooled.wrappedBuffer(metadata))),
+                Unpooled.wrappedBuffer(metadata),
+                Unpooled.EMPTY_BUFFER),
             PayloadFrameFlyweight.encode(
                 allocator,
                 1,
                 true,
                 false,
                 true,
-                DefaultPayload.create(Unpooled.EMPTY_BUFFER, Unpooled.wrappedBuffer(metadata))),
+                Unpooled.wrappedBuffer(metadata),
+                Unpooled.EMPTY_BUFFER),
             PayloadFrameFlyweight.encode(
                 allocator,
                 1,
                 true,
                 false,
                 true,
-                DefaultPayload.create(Unpooled.EMPTY_BUFFER, Unpooled.wrappedBuffer(metadata))),
+                Unpooled.wrappedBuffer(metadata),
+                Unpooled.EMPTY_BUFFER),
             PayloadFrameFlyweight.encode(
                 allocator,
                 1,
                 false,
                 false,
                 true,
-                DefaultPayload.create(Unpooled.EMPTY_BUFFER, Unpooled.wrappedBuffer(metadata))));
+                Unpooled.wrappedBuffer(metadata),
+                Unpooled.EMPTY_BUFFER));
 
     FrameReassembler reassembler = new FrameReassembler(allocator);
 
@@ -249,39 +256,39 @@ final class FrameReassemblerTest {
     List<ByteBuf> byteBufs =
         Arrays.asList(
             RequestStreamFrameFlyweight.encode(
-                allocator,
-                1,
-                true,
-                250,
-                DefaultPayload.create(Unpooled.EMPTY_BUFFER, Unpooled.wrappedBuffer(metadata))),
+                allocator, 1, true, 250, Unpooled.wrappedBuffer(metadata), Unpooled.EMPTY_BUFFER),
             PayloadFrameFlyweight.encode(
                 allocator,
                 1,
                 true,
                 false,
                 true,
-                DefaultPayload.create(Unpooled.EMPTY_BUFFER, Unpooled.wrappedBuffer(metadata))),
+                Unpooled.wrappedBuffer(metadata),
+                Unpooled.EMPTY_BUFFER),
             PayloadFrameFlyweight.encode(
                 allocator,
                 1,
                 true,
                 false,
                 true,
-                DefaultPayload.create(Unpooled.EMPTY_BUFFER, Unpooled.wrappedBuffer(metadata))),
+                Unpooled.wrappedBuffer(metadata),
+                Unpooled.EMPTY_BUFFER),
             PayloadFrameFlyweight.encode(
                 allocator,
                 1,
                 true,
                 false,
                 true,
-                DefaultPayload.create(Unpooled.EMPTY_BUFFER, Unpooled.wrappedBuffer(metadata))),
+                Unpooled.wrappedBuffer(metadata),
+                Unpooled.EMPTY_BUFFER),
             PayloadFrameFlyweight.encode(
                 allocator,
                 1,
                 false,
                 false,
                 true,
-                DefaultPayload.create(Unpooled.EMPTY_BUFFER, Unpooled.wrappedBuffer(metadata))));
+                Unpooled.wrappedBuffer(metadata),
+                Unpooled.EMPTY_BUFFER));
 
     FrameReassembler reassembler = new FrameReassembler(allocator);
 
@@ -319,34 +326,33 @@ final class FrameReassemblerTest {
     List<ByteBuf> byteBufs =
         Arrays.asList(
             RequestResponseFrameFlyweight.encode(
-                allocator,
-                1,
-                true,
-                DefaultPayload.create(Unpooled.EMPTY_BUFFER, Unpooled.wrappedBuffer(metadata))),
+                allocator, 1, true, Unpooled.wrappedBuffer(metadata), Unpooled.EMPTY_BUFFER),
             PayloadFrameFlyweight.encode(
                 allocator,
                 1,
                 true,
                 false,
                 true,
-                DefaultPayload.create(Unpooled.EMPTY_BUFFER, Unpooled.wrappedBuffer(metadata))),
+                Unpooled.wrappedBuffer(metadata),
+                Unpooled.EMPTY_BUFFER),
             PayloadFrameFlyweight.encode(
                 allocator,
                 1,
                 true,
                 false,
                 true,
-                DefaultPayload.create(Unpooled.EMPTY_BUFFER, Unpooled.wrappedBuffer(metadata))),
+                Unpooled.wrappedBuffer(metadata),
+                Unpooled.EMPTY_BUFFER),
             PayloadFrameFlyweight.encode(
                 allocator,
                 1,
                 true,
                 false,
                 true,
-                DefaultPayload.create(
-                    Unpooled.wrappedBuffer(data), Unpooled.wrappedBuffer(metadata))),
+                Unpooled.wrappedBuffer(metadata),
+                Unpooled.wrappedBuffer(data)),
             PayloadFrameFlyweight.encode(
-                allocator, 1, false, false, true, DefaultPayload.create(data)));
+                allocator, 1, false, false, true, null, Unpooled.wrappedBuffer(data)));
 
     FrameReassembler reassembler = new FrameReassembler(allocator);
 
@@ -387,32 +393,31 @@ final class FrameReassemblerTest {
     List<ByteBuf> byteBufs =
         Arrays.asList(
             RequestResponseFrameFlyweight.encode(
-                allocator,
-                1,
-                true,
-                DefaultPayload.create(Unpooled.EMPTY_BUFFER, Unpooled.wrappedBuffer(metadata))),
+                allocator, 1, true, Unpooled.wrappedBuffer(metadata), Unpooled.EMPTY_BUFFER),
             PayloadFrameFlyweight.encode(
                 allocator,
                 1,
                 true,
                 false,
                 true,
-                DefaultPayload.create(Unpooled.EMPTY_BUFFER, Unpooled.wrappedBuffer(metadata))),
+                Unpooled.wrappedBuffer(metadata),
+                Unpooled.EMPTY_BUFFER),
             PayloadFrameFlyweight.encode(
                 allocator,
                 1,
                 true,
                 false,
                 true,
-                DefaultPayload.create(Unpooled.EMPTY_BUFFER, Unpooled.wrappedBuffer(metadata))),
+                Unpooled.wrappedBuffer(metadata),
+                Unpooled.EMPTY_BUFFER),
             PayloadFrameFlyweight.encode(
                 allocator,
                 1,
                 true,
                 false,
                 true,
-                DefaultPayload.create(
-                    Unpooled.wrappedBuffer(data), Unpooled.wrappedBuffer(metadata))));
+                Unpooled.wrappedBuffer(metadata),
+                Unpooled.wrappedBuffer(data)));
 
     FrameReassembler reassembler = new FrameReassembler(allocator);
     Flux.fromIterable(byteBufs).handle(reassembler::reassembleFrame).blockLast();
@@ -436,32 +441,31 @@ final class FrameReassemblerTest {
     List<ByteBuf> byteBufs =
         Arrays.asList(
             RequestResponseFrameFlyweight.encode(
-                allocator,
-                1,
-                true,
-                DefaultPayload.create(Unpooled.EMPTY_BUFFER, Unpooled.wrappedBuffer(metadata))),
+                allocator, 1, true, Unpooled.wrappedBuffer(metadata), Unpooled.EMPTY_BUFFER),
             PayloadFrameFlyweight.encode(
                 allocator,
                 1,
                 true,
                 false,
                 true,
-                DefaultPayload.create(Unpooled.EMPTY_BUFFER, Unpooled.wrappedBuffer(metadata))),
+                Unpooled.wrappedBuffer(metadata),
+                Unpooled.EMPTY_BUFFER),
             PayloadFrameFlyweight.encode(
                 allocator,
                 1,
                 true,
                 false,
                 true,
-                DefaultPayload.create(Unpooled.EMPTY_BUFFER, Unpooled.wrappedBuffer(metadata))),
+                Unpooled.wrappedBuffer(metadata),
+                Unpooled.EMPTY_BUFFER),
             PayloadFrameFlyweight.encode(
                 allocator,
                 1,
                 true,
                 false,
                 true,
-                DefaultPayload.create(
-                    Unpooled.wrappedBuffer(data), Unpooled.wrappedBuffer(metadata))));
+                Unpooled.wrappedBuffer(metadata),
+                Unpooled.wrappedBuffer(data)));
 
     FrameReassembler reassembler = new FrameReassembler(allocator);
     Flux.fromIterable(byteBufs).handle(reassembler::reassembleFrame).blockLast();

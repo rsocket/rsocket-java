@@ -3,7 +3,14 @@ package io.rsocket.frame.decoder;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.rsocket.Payload;
-import io.rsocket.frame.*;
+import io.rsocket.frame.FrameHeaderFlyweight;
+import io.rsocket.frame.FrameType;
+import io.rsocket.frame.MetadataPushFrameFlyweight;
+import io.rsocket.frame.PayloadFrameFlyweight;
+import io.rsocket.frame.RequestChannelFrameFlyweight;
+import io.rsocket.frame.RequestFireAndForgetFrameFlyweight;
+import io.rsocket.frame.RequestResponseFrameFlyweight;
+import io.rsocket.frame.RequestStreamFrameFlyweight;
 import io.rsocket.util.ByteBufPayload;
 
 /**
@@ -46,6 +53,6 @@ public class ZeroCopyPayloadDecoder implements PayloadDecoder {
         throw new IllegalArgumentException("unsupported frame type: " + type);
     }
 
-    return ByteBufPayload.create(d.retain(), m.retain());
+    return ByteBufPayload.create(d.retain(), m != null ? m.retain() : null);
   }
 }

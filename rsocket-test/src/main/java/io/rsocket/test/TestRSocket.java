@@ -55,6 +55,6 @@ public class TestRSocket extends AbstractRSocket {
   @Override
   public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
     // TODO is defensive copy neccesary?
-    return Flux.from(payloads).map(DefaultPayload::create);
+    return Flux.from(payloads).map(Payload::retain);
   }
 }

@@ -1,12 +1,16 @@
 package io.rsocket.test.util;
 
+import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.Closeable;
+import io.rsocket.buffer.LeaksTrackingByteBufAllocator;
 import io.rsocket.transport.ServerTransport;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
 
 public class TestServerTransport implements ServerTransport<Closeable> {
   private final MonoProcessor<TestDuplexConnection> conn = MonoProcessor.create();
+  private final LeaksTrackingByteBufAllocator allocator =
+      LeaksTrackingByteBufAllocator.instrument(ByteBufAllocator.DEFAULT);
 
   @Override
   public Mono<Closeable> start(ConnectionAcceptor acceptor, int mtu) {
@@ -39,8 +43,12 @@ public class TestServerTransport implements ServerTransport<Closeable> {
   }
 
   public TestDuplexConnection connect() {
-    TestDuplexConnection c = new TestDuplexConnection();
+    TestDuplexConnection c = new TestDuplexConnection(allocator);
     conn.onNext(c);
     return c;
+  }
+
+  public LeaksTrackingByteBufAllocator alloc() {
+    return allocator;
   }
 }

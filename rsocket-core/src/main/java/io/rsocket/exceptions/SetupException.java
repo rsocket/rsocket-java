@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2015-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,9 @@
 
 package io.rsocket.exceptions;
 
+import io.rsocket.frame.ErrorFrameFlyweight;
+import javax.annotation.Nullable;
+
 /** The root of the setup exception hierarchy. */
 public abstract class SetupException extends RSocketException {
 
@@ -25,10 +28,11 @@ public abstract class SetupException extends RSocketException {
    * Constructs a new exception with the specified message.
    *
    * @param message the message
-   * @throws NullPointerException if {@code message} is {@code null}
+   * @deprecated please use {@link #SetupException(int, String, Throwable)}
    */
+  @Deprecated
   public SetupException(String message) {
-    super(message);
+    this(message, null);
   }
 
   /**
@@ -36,9 +40,21 @@ public abstract class SetupException extends RSocketException {
    *
    * @param message the message
    * @param cause the cause of this exception
-   * @throws NullPointerException if {@code message} or {@code cause} is {@code null}
+   * @deprecated please use {@link #SetupException(int, String, Throwable)}
    */
-  public SetupException(String message, Throwable cause) {
-    super(message, cause);
+  @Deprecated
+  public SetupException(String message, @Nullable Throwable cause) {
+    this(ErrorFrameFlyweight.INVALID_SETUP, message, cause);
+  }
+
+  /**
+   * Constructs a new exception with the specified error code, message and cause.
+   *
+   * @param errorCode the RSocket protocol code
+   * @param message the message
+   * @param cause the cause of this exception
+   */
+  public SetupException(int errorCode, String message, @Nullable Throwable cause) {
+    super(errorCode, message, cause);
   }
 }

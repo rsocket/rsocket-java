@@ -16,6 +16,7 @@
 package io.rsocket.transport.netty;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufAllocator;
 import io.netty.handler.codec.http.websocketx.BinaryWebSocketFrame;
 import io.rsocket.DuplexConnection;
 import io.rsocket.internal.BaseDuplexConnection;
@@ -51,6 +52,11 @@ public final class WebsocketDuplexConnection extends BaseDuplexConnection {
             future -> {
               if (!isDisposed()) dispose();
             });
+  }
+
+  @Override
+  public ByteBufAllocator alloc() {
+    return connection.channel().alloc();
   }
 
   @Override

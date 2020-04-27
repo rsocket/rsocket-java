@@ -9,10 +9,8 @@ import reactor.core.publisher.Operators;
 import reactor.util.annotation.Nullable;
 
 /**
- * Represents an empty publisher which only calls onSubscribe and onComplete.
- *
- * <p>This Publisher is effectively stateless and only a single instance exists. Use the {@link
- * #instance()} method to obtain a properly type-parametrized view of it.
+ * Represents an empty publisher which only calls onSubscribe and onComplete and allows only a
+ * single subscriber.
  *
  * @see <a href="https://github.com/reactor/reactive-streams-commons">Reactive-Streams-Commons</a>
  */

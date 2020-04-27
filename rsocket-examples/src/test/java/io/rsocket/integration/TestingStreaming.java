@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2015-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,60 +16,52 @@
 
 package io.rsocket.integration;
 
-import io.rsocket.*;
+import io.rsocket.AbstractRSocket;
+import io.rsocket.Closeable;
+import io.rsocket.Payload;
+import io.rsocket.core.RSocketConnector;
+import io.rsocket.core.RSocketServer;
 import io.rsocket.exceptions.ApplicationErrorException;
-import io.rsocket.transport.ClientTransport;
-import io.rsocket.transport.ServerTransport;
 import io.rsocket.transport.local.LocalClientTransport;
 import io.rsocket.transport.local.LocalServerTransport;
 import io.rsocket.util.DefaultPayload;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Supplier;
 import org.junit.Test;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 public class TestingStreaming {
-  private Supplier<ServerTransport<? extends Closeable>> serverSupplier =
-      () -> LocalServerTransport.create("test");
-
-  private Supplier<ClientTransport> clientSupplier = () -> LocalClientTransport.create("test");
+  LocalServerTransport serverTransport = LocalServerTransport.create("test");
 
   @Test(expected = ApplicationErrorException.class)
   public void testRangeButThrowException() {
     Closeable server = null;
     try {
       server =
-          RSocketFactory.receive()
-              .errorConsumer(Throwable::printStackTrace)
-              .acceptor(
-                  (connectionSetupPayload, rSocket) -> {
-                    AbstractRSocket abstractRSocket =
-                        new AbstractRSocket() {
-                          @Override
-                          public double availability() {
-                            return 1.0;
-                          }
+          RSocketServer.create(
+                  (connectionSetupPayload, rSocket) ->
+                      Mono.just(
+                          new AbstractRSocket() {
+                            @Override
+                            public double availability() {
+                              return 1.0;
+                            }
 
-                          @Override
-                          public Flux<Payload> requestStream(Payload payload) {
-                            return Flux.range(1, 1000)
-                                .doOnNext(
-                                    i -> {
-                                      if (i > 3) {
-                                        throw new RuntimeException("BOOM!");
-                                      }
-                                    })
-                                .map(l -> DefaultPayload.create("l -> " + l))
-                                .cast(Payload.class);
-                          }
-                        };
-
-                    return Mono.just(abstractRSocket);
-                  })
-              .transport(serverSupplier.get())
-              .start()
+                            @Override
+                            public Flux<Payload> requestStream(Payload payload) {
+                              return Flux.range(1, 1000)
+                                  .doOnNext(
+                                      i -> {
+                                        if (i > 3) {
+                                          throw new RuntimeException("BOOM!");
+                                        }
+                                      })
+                                  .map(l -> DefaultPayload.create("l -> " + l))
+                                  .cast(Payload.class);
+                            }
+                          }))
+              .bind(serverTransport)
               .block();
 
       Flux.range(1, 6).flatMap(i -> consumer("connection number -> " + i)).blockLast();
@@ -85,29 +77,23 @@ public class TestingStreaming {
     Closeable server = null;
     try {
       server =
-          RSocketFactory.receive()
-              .errorConsumer(Throwable::printStackTrace)
-              .acceptor(
-                  (connectionSetupPayload, rSocket) -> {
-                    AbstractRSocket abstractRSocket =
-                        new AbstractRSocket() {
-                          @Override
-                          public double availability() {
-                            return 1.0;
-                          }
+          RSocketServer.create(
+                  (connectionSetupPayload, rSocket) ->
+                      Mono.just(
+                          new AbstractRSocket() {
+                            @Override
+                            public double availability() {
+                              return 1.0;
+                            }
 
-                          @Override
-                          public Flux<Payload> requestStream(Payload payload) {
-                            return Flux.range(1, 1000)
-                                .map(l -> DefaultPayload.create("l -> " + l))
-                                .cast(Payload.class);
-                          }
-                        };
-
-                    return Mono.just(abstractRSocket);
-                  })
-              .transport(serverSupplier.get())
-              .start()
+                            @Override
+                            public Flux<Payload> requestStream(Payload payload) {
+                              return Flux.range(1, 1000)
+                                  .map(l -> DefaultPayload.create("l -> " + l))
+                                  .cast(Payload.class);
+                            }
+                          }))
+              .bind(serverTransport)
               .block();
 
       Flux.range(1, 6).flatMap(i -> consumer("connection number -> " + i)).blockLast();
@@ -119,10 +105,7 @@ public class TestingStreaming {
   }
 
   private Flux<Payload> consumer(String s) {
-    return RSocketFactory.connect()
-        .errorConsumer(Throwable::printStackTrace)
-        .transport(clientSupplier)
-        .start()
+    return RSocketConnector.connectWith(LocalClientTransport.create("test"))
         .flatMapMany(
             rSocket -> {
               AtomicInteger count = new AtomicInteger();
@@ -135,31 +118,25 @@ public class TestingStreaming {
   @Test
   public void testSingleConsumer() {
     Closeable server = null;
-
     try {
       server =
-          RSocketFactory.receive()
-              .acceptor(
-                  (connectionSetupPayload, rSocket) -> {
-                    AbstractRSocket abstractRSocket =
-                        new AbstractRSocket() {
-                          @Override
-                          public double availability() {
-                            return 1.0;
-                          }
+          RSocketServer.create(
+                  (connectionSetupPayload, rSocket) ->
+                      Mono.just(
+                          new AbstractRSocket() {
+                            @Override
+                            public double availability() {
+                              return 1.0;
+                            }
 
-                          @Override
-                          public Flux<Payload> requestStream(Payload payload) {
-                            return Flux.range(1, 10_000)
-                                .map(l -> DefaultPayload.create("l -> " + l))
-                                .cast(Payload.class);
-                          }
-                        };
-
-                    return Mono.just(abstractRSocket);
-                  })
-              .transport(serverSupplier.get())
-              .start()
+                            @Override
+                            public Flux<Payload> requestStream(Payload payload) {
+                              return Flux.range(1, 10_000)
+                                  .map(l -> DefaultPayload.create("l -> " + l))
+                                  .cast(Payload.class);
+                            }
+                          }))
+              .bind(serverTransport)
               .block();
 
       consumer("1").blockLast();

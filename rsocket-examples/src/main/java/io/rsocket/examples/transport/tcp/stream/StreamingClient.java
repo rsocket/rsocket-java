@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2015-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,33 +16,38 @@
 
 package io.rsocket.examples.transport.tcp.stream;
 
-import io.rsocket.*;
+import io.rsocket.AbstractRSocket;
+import io.rsocket.ConnectionSetupPayload;
+import io.rsocket.Payload;
+import io.rsocket.RSocket;
+import io.rsocket.SocketAcceptor;
+import io.rsocket.core.RSocketConnector;
+import io.rsocket.core.RSocketServer;
 import io.rsocket.transport.netty.client.TcpClientTransport;
 import io.rsocket.transport.netty.server.TcpServerTransport;
 import io.rsocket.util.DefaultPayload;
 import java.time.Duration;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 public final class StreamingClient {
 
+  private static final Logger logger = LoggerFactory.getLogger(StreamingClient.class);
+
   public static void main(String[] args) {
-    RSocketFactory.receive()
-        .acceptor(new SocketAcceptorImpl())
-        .transport(TcpServerTransport.create("localhost", 7000))
-        .start()
+    RSocketServer.create(new SocketAcceptorImpl())
+        .bind(TcpServerTransport.create("localhost", 7000))
         .subscribe();
 
     RSocket socket =
-        RSocketFactory.connect()
-            .transport(TcpClientTransport.create("localhost", 7000))
-            .start()
-            .block();
+        RSocketConnector.connectWith(TcpClientTransport.create("localhost", 7000)).block();
 
     socket
         .requestStream(DefaultPayload.create("Hello"))
         .map(Payload::getDataUtf8)
-        .doOnNext(System.out::println)
+        .doOnNext(logger::debug)
         .take(10)
         .then()
         .doFinally(signalType -> socket.dispose())

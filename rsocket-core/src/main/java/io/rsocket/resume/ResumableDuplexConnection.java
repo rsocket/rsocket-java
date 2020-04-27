@@ -17,6 +17,7 @@
 package io.rsocket.resume;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.Closeable;
 import io.rsocket.DuplexConnection;
 import io.rsocket.frame.FrameHeaderFlyweight;
@@ -103,6 +104,11 @@ public class ResumableDuplexConnection implements DuplexConnection, ResumeStateH
             .cache();
 
     reconnect(duplexConnection);
+  }
+
+  @Override
+  public ByteBufAllocator alloc() {
+    return curConnection.alloc();
   }
 
   public void disconnect() {
@@ -217,6 +223,10 @@ public class ResumableDuplexConnection implements DuplexConnection, ResumeStateH
   }
 
   private void sendFrame(ByteBuf f) {
+    if (disposed.get()) {
+      f.release();
+      return;
+    }
     /*resuming from store so no need to save again*/
     if (state != State.RESUME && isResumableFrame(f)) {
       resumeSaveFrames.onNext(f);

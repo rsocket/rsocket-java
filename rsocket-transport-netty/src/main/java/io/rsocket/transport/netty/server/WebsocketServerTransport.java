@@ -18,9 +18,9 @@ package io.rsocket.transport.netty.server;
 
 import static io.rsocket.frame.FrameLengthFlyweight.FRAME_LENGTH_MASK;
 
-import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.DuplexConnection;
 import io.rsocket.fragmentation.FragmentationDuplexConnection;
+import io.rsocket.fragmentation.ReassemblyDuplexConnection;
 import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.ServerTransport;
 import io.rsocket.transport.TransportHeaderAware;
@@ -35,6 +35,7 @@ import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Mono;
 import reactor.netty.Connection;
 import reactor.netty.http.server.HttpServer;
+import reactor.netty.http.server.WebsocketServerSpec;
 
 /**
  * An implementation of {@link ServerTransport} that connects to a {@link ClientTransport} via a
@@ -122,18 +123,20 @@ public final class WebsocketServerTransport extends BaseWebsocketServerTransport
                 (request, response) -> {
                   transportHeaders.get().forEach(response::addHeader);
                   return response.sendWebsocket(
-                      null,
-                      FRAME_LENGTH_MASK,
                       (in, out) -> {
                         DuplexConnection connection =
                             new WebsocketDuplexConnection((Connection) in);
                         if (mtu > 0) {
                           connection =
-                              new FragmentationDuplexConnection(
-                                  connection, ByteBufAllocator.DEFAULT, mtu, false, "server");
+                              new FragmentationDuplexConnection(connection, mtu, false, "server");
+                        } else {
+                          connection = new ReassemblyDuplexConnection(connection, false);
                         }
                         return acceptor.apply(connection).then(out.neverComplete());
-                      });
+                      },
+                      WebsocketServerSpec.builder()
+                          .maxFramePayloadLength(FRAME_LENGTH_MASK)
+                          .build());
                 })
             .bind()
             .map(CloseableChannel::new);

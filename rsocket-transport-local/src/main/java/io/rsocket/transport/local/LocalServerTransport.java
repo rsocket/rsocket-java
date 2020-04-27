@@ -16,10 +16,10 @@
 
 package io.rsocket.transport.local;
 
-import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.Closeable;
 import io.rsocket.DuplexConnection;
 import io.rsocket.fragmentation.FragmentationDuplexConnection;
+import io.rsocket.fragmentation.ReassemblyDuplexConnection;
 import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.ServerTransport;
 import java.util.Objects;
@@ -166,8 +166,9 @@ public final class LocalServerTransport implements ServerTransport<Closeable> {
 
       if (mtu > 0) {
         duplexConnection =
-            new FragmentationDuplexConnection(
-                duplexConnection, ByteBufAllocator.DEFAULT, mtu, false, "server");
+            new FragmentationDuplexConnection(duplexConnection, mtu, false, "server");
+      } else {
+        duplexConnection = new ReassemblyDuplexConnection(duplexConnection, false);
       }
 
       acceptor.apply(duplexConnection).subscribe();

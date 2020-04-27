@@ -26,7 +26,8 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import io.rsocket.AbstractRSocket;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
-import io.rsocket.RSocketFactory;
+import io.rsocket.core.RSocketConnector;
+import io.rsocket.core.RSocketServer;
 import io.rsocket.plugins.DuplexConnectionInterceptor;
 import io.rsocket.plugins.RSocketInterceptor;
 import io.rsocket.plugins.SocketAcceptorInterceptor;
@@ -39,7 +40,6 @@ import io.rsocket.util.RSocketProxy;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.After;
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.reactivestreams.Publisher;
@@ -49,19 +49,20 @@ import reactor.core.publisher.Mono;
 
 public class IntegrationTest {
 
-  private static final RSocketInterceptor requesterPlugin;
-  private static final RSocketInterceptor responderPlugin;
-  private static final SocketAcceptorInterceptor clientAcceptorPlugin;
-  private static final SocketAcceptorInterceptor serverAcceptorPlugin;
-  private static final DuplexConnectionInterceptor connectionPlugin;
-  public static volatile boolean calledRequester = false;
-  public static volatile boolean calledResponder = false;
-  public static volatile boolean calledClientAcceptor = false;
-  public static volatile boolean calledServerAcceptor = false;
-  public static volatile boolean calledFrame = false;
+  private static final RSocketInterceptor requesterInterceptor;
+  private static final RSocketInterceptor responderInterceptor;
+  private static final SocketAcceptorInterceptor clientAcceptorInterceptor;
+  private static final SocketAcceptorInterceptor serverAcceptorInterceptor;
+  private static final DuplexConnectionInterceptor connectionInterceptor;
+
+  private static volatile boolean calledRequester = false;
+  private static volatile boolean calledResponder = false;
+  private static volatile boolean calledClientAcceptor = false;
+  private static volatile boolean calledServerAcceptor = false;
+  private static volatile boolean calledFrame = false;
 
   static {
-    requesterPlugin =
+    requesterInterceptor =
         reactiveSocket ->
             new RSocketProxy(reactiveSocket) {
               @Override
@@ -71,7 +72,7 @@ public class IntegrationTest {
               }
             };
 
-    responderPlugin =
+    responderInterceptor =
         reactiveSocket ->
             new RSocketProxy(reactiveSocket) {
               @Override
@@ -81,21 +82,21 @@ public class IntegrationTest {
               }
             };
 
-    clientAcceptorPlugin =
+    clientAcceptorInterceptor =
         acceptor ->
             (setup, sendingSocket) -> {
               calledClientAcceptor = true;
               return acceptor.accept(setup, sendingSocket);
             };
 
-    serverAcceptorPlugin =
+    serverAcceptorInterceptor =
         acceptor ->
             (setup, sendingSocket) -> {
               calledServerAcceptor = true;
               return acceptor.accept(setup, sendingSocket);
             };
 
-    connectionPlugin =
+    connectionInterceptor =
         (type, connection) -> {
           calledFrame = true;
           return connection;
@@ -114,18 +115,8 @@ public class IntegrationTest {
     requestCount = new AtomicInteger();
     disconnectionCounter = new CountDownLatch(1);
 
-    TcpServerTransport serverTransport = TcpServerTransport.create("localhost", 0);
-
     server =
-        RSocketFactory.receive()
-            .addResponderPlugin(responderPlugin)
-            .addSocketAcceptorPlugin(serverAcceptorPlugin)
-            .addConnectionPlugin(connectionPlugin)
-            .errorConsumer(
-                t -> {
-                  errorCount.incrementAndGet();
-                })
-            .acceptor(
+        RSocketServer.create(
                 (setup, sendingSocket) -> {
                   sendingSocket
                       .onClose()
@@ -152,17 +143,24 @@ public class IntegrationTest {
                         }
                       });
                 })
-            .transport(serverTransport)
-            .start()
+            .interceptors(
+                registry ->
+                    registry
+                        .forResponder(responderInterceptor)
+                        .forSocketAcceptor(serverAcceptorInterceptor)
+                        .forConnection(connectionInterceptor))
+            .bind(TcpServerTransport.create("localhost", 0))
             .block();
 
     client =
-        RSocketFactory.connect()
-            .addRequesterPlugin(requesterPlugin)
-            .addSocketAcceptorPlugin(clientAcceptorPlugin)
-            .addConnectionPlugin(connectionPlugin)
-            .transport(TcpClientTransport.create(server.address()))
-            .start()
+        RSocketConnector.create()
+            .interceptors(
+                registry ->
+                    registry
+                        .forRequester(requesterInterceptor)
+                        .forSocketAcceptor(clientAcceptorInterceptor)
+                        .forConnection(connectionInterceptor))
+            .connect(TcpClientTransport.create(server.address()))
             .block();
   }
 
@@ -203,8 +201,6 @@ public class IntegrationTest {
       client.requestChannel(Mono.error(new Throwable())).blockLast();
     } catch (Throwable t) {
     }
-
-    Assert.assertEquals(1, errorCount.incrementAndGet());
 
     testRequest();
   }

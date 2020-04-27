@@ -17,6 +17,7 @@
 package io.rsocket.internal;
 
 import io.rsocket.Payload;
+import io.rsocket.util.ByteBufPayload;
 import io.rsocket.util.EmptyPayload;
 import java.util.concurrent.CountDownLatch;
 import org.junit.Assert;
@@ -80,6 +81,36 @@ public class UnboundedProcessorTest {
   @Test
   public void testOnNextAfterSubscribe_1000() throws Exception {
     testOnNextAfterSubscribeN(1000);
+  }
+
+  @Test
+  public void testPrioritizedSending() {
+    UnboundedProcessor<Payload> processor = new UnboundedProcessor<>();
+
+    for (int i = 0; i < 1000; i++) {
+      processor.onNext(EmptyPayload.INSTANCE);
+    }
+
+    processor.onNextPrioritized(ByteBufPayload.create("test"));
+
+    Payload closestPayload = processor.next().block();
+
+    Assert.assertEquals(closestPayload.getDataUtf8(), "test");
+  }
+
+  @Test
+  public void testPrioritizedFused() {
+    UnboundedProcessor<Payload> processor = new UnboundedProcessor<>();
+
+    for (int i = 0; i < 1000; i++) {
+      processor.onNext(EmptyPayload.INSTANCE);
+    }
+
+    processor.onNextPrioritized(ByteBufPayload.create("test"));
+
+    Payload closestPayload = processor.poll();
+
+    Assert.assertEquals(closestPayload.getDataUtf8(), "test");
   }
 
   public void testOnNextAfterSubscribeN(int n) throws Exception {

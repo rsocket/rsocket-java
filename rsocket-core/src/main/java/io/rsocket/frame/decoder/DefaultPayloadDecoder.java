@@ -3,8 +3,15 @@ package io.rsocket.frame.decoder;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.rsocket.Payload;
-import io.rsocket.frame.*;
-import io.rsocket.util.ByteBufPayload;
+import io.rsocket.frame.FrameHeaderFlyweight;
+import io.rsocket.frame.FrameType;
+import io.rsocket.frame.MetadataPushFrameFlyweight;
+import io.rsocket.frame.PayloadFrameFlyweight;
+import io.rsocket.frame.RequestChannelFrameFlyweight;
+import io.rsocket.frame.RequestFireAndForgetFrameFlyweight;
+import io.rsocket.frame.RequestResponseFrameFlyweight;
+import io.rsocket.frame.RequestStreamFrameFlyweight;
+import io.rsocket.util.DefaultPayload;
 import java.nio.ByteBuffer;
 
 /** Default Frame decoder that copies the frames contents for easy of use. */
@@ -45,14 +52,18 @@ class DefaultPayloadDecoder implements PayloadDecoder {
         throw new IllegalArgumentException("unsupported frame type: " + type);
     }
 
-    ByteBuffer metadata = ByteBuffer.allocateDirect(m.readableBytes());
     ByteBuffer data = ByteBuffer.allocateDirect(d.readableBytes());
-
     data.put(d.nioBuffer());
     data.flip();
-    metadata.put(m.nioBuffer());
-    metadata.flip();
 
-    return ByteBufPayload.create(data, metadata);
+    if (m != null) {
+      ByteBuffer metadata = ByteBuffer.allocateDirect(m.readableBytes());
+      metadata.put(m.nioBuffer());
+      metadata.flip();
+
+      return DefaultPayload.create(data, metadata);
+    }
+
+    return DefaultPayload.create(data);
   }
 }

@@ -20,9 +20,9 @@ import static io.rsocket.frame.FrameLengthFlyweight.FRAME_LENGTH_MASK;
 import static io.rsocket.transport.netty.UriUtils.getPort;
 import static io.rsocket.transport.netty.UriUtils.isSecure;
 
-import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.DuplexConnection;
 import io.rsocket.fragmentation.FragmentationDuplexConnection;
+import io.rsocket.fragmentation.ReassemblyDuplexConnection;
 import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.ServerTransport;
 import io.rsocket.transport.TransportHeaderAware;
@@ -43,7 +43,6 @@ import reactor.netty.tcp.TcpClient;
  */
 public final class WebsocketClientTransport implements ClientTransport, TransportHeaderAware {
 
-  private static final int DEFAULT_FRAME_SIZE = 65536;
   private static final String DEFAULT_PATH = "/";
 
   private final HttpClient client;
@@ -164,8 +163,9 @@ public final class WebsocketClientTransport implements ClientTransport, Transpor
                   DuplexConnection connection = new WebsocketDuplexConnection(c);
                   if (mtu > 0) {
                     connection =
-                        new FragmentationDuplexConnection(
-                            connection, ByteBufAllocator.DEFAULT, mtu, false, "client");
+                        new FragmentationDuplexConnection(connection, mtu, false, "client");
+                  } else {
+                    connection = new ReassemblyDuplexConnection(connection, false);
                   }
                   return connection;
                 });

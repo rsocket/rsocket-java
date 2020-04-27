@@ -3,7 +3,7 @@ package io.rsocket.frame;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.ByteBufUtil;
-import io.rsocket.exceptions.RSocketException;
+import io.rsocket.RSocketErrorException;
 import java.nio.charset.StandardCharsets;
 
 public class ErrorFrameFlyweight {
@@ -28,7 +28,10 @@ public class ErrorFrameFlyweight {
       ByteBufAllocator allocator, int streamId, Throwable t, ByteBuf data) {
     ByteBuf header = FrameHeaderFlyweight.encode(allocator, streamId, FrameType.ERROR, 0);
 
-    int errorCode = errorCodeFromException(t);
+    int errorCode =
+        t instanceof RSocketErrorException
+            ? ((RSocketErrorException) t).errorCode()
+            : APPLICATION_ERROR;
 
     header.writeInt(errorCode);
 
@@ -39,14 +42,6 @@ public class ErrorFrameFlyweight {
     String message = t.getMessage() == null ? "" : t.getMessage();
     ByteBuf data = ByteBufUtil.writeUtf8(allocator, message);
     return encode(allocator, streamId, t, data);
-  }
-
-  public static int errorCodeFromException(Throwable t) {
-    if (t instanceof RSocketException) {
-      return ((RSocketException) t).errorCode();
-    }
-
-    return APPLICATION_ERROR;
   }
 
   public static int errorCode(ByteBuf byteBuf) {

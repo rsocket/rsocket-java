@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2015-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,28 +19,62 @@ package io.rsocket.test;
 import io.rsocket.Closeable;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
-import io.rsocket.RSocketFactory;
+import io.rsocket.core.RSocketConnector;
+import io.rsocket.core.RSocketServer;
 import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.ServerTransport;
 import io.rsocket.util.DefaultPayload;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
 import java.time.Duration;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import java.util.zip.GZIPInputStream;
+import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Hooks;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 import reactor.test.StepVerifier;
 
 public interface TransportTest {
 
+  String MOCK_DATA = "test-data";
+  String MOCK_METADATA = "metadata";
+  String LARGE_DATA = read("words.shakespeare.txt.gz");
+  Payload LARGE_PAYLOAD = DefaultPayload.create(LARGE_DATA, LARGE_DATA);
+
+  static String read(String resourceName) {
+
+    try (BufferedReader br =
+        new BufferedReader(
+            new InputStreamReader(
+                new GZIPInputStream(
+                    TransportTest.class.getClassLoader().getResourceAsStream(resourceName))))) {
+
+      return br.lines().map(String::toLowerCase).collect(Collectors.joining("\n\r"));
+    } catch (Throwable e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  @BeforeEach
+  default void setUp() {
+    Hooks.onOperatorDebug();
+  }
+
   @AfterEach
   default void close() {
     getTransportPair().dispose();
+    Hooks.resetOnOperatorDebug();
   }
 
   default Payload createTestPayload(int metadataPresent) {
@@ -54,12 +88,12 @@ public interface TransportTest {
         metadata1 = "";
         break;
       default:
-        metadata1 = "metadata";
+        metadata1 = MOCK_METADATA;
         break;
     }
     String metadata = metadata1;
 
-    return DefaultPayload.create("test-data", metadata);
+    return DefaultPayload.create(MOCK_DATA, metadata);
   }
 
   @DisplayName("makes 10 fireAndForget requests")
@@ -67,6 +101,17 @@ public interface TransportTest {
   default void fireAndForget10() {
     Flux.range(1, 10)
         .flatMap(i -> getClient().fireAndForget(createTestPayload(i)))
+        .as(StepVerifier::create)
+        .expectNextCount(0)
+        .expectComplete()
+        .verify(getTimeout());
+  }
+
+  @DisplayName("makes 10 fireAndForget with Large Payload in Requests")
+  @Test
+  default void largePayloadFireAndForget10() {
+    Flux.range(1, 10)
+        .flatMap(i -> getClient().fireAndForget(LARGE_PAYLOAD))
         .as(StepVerifier::create)
         .expectNextCount(0)
         .expectComplete()
@@ -86,6 +131,17 @@ public interface TransportTest {
   default void metadataPush10() {
     Flux.range(1, 10)
         .flatMap(i -> getClient().metadataPush(DefaultPayload.create("", "test-metadata")))
+        .as(StepVerifier::create)
+        .expectNextCount(0)
+        .expectComplete()
+        .verify(getTimeout());
+  }
+
+  @DisplayName("makes 10 metadataPush with Large Metadata in requests")
+  @Test
+  default void largePayloadMetadataPush10() {
+    Flux.range(1, 10)
+        .flatMap(i -> getClient().metadataPush(DefaultPayload.create("", LARGE_DATA)))
         .as(StepVerifier::create)
         .expectNextCount(0)
         .expectComplete()
@@ -127,6 +183,19 @@ public interface TransportTest {
         .verify(getTimeout());
   }
 
+  @DisplayName("makes 1 requestChannel request with 200 large payloads")
+  @Test
+  default void largePayloadRequestChannel200() {
+    Flux<Payload> payloads = Flux.range(0, 200).map(__ -> LARGE_PAYLOAD);
+
+    getClient()
+        .requestChannel(payloads)
+        .as(StepVerifier::create)
+        .expectNextCount(200)
+        .expectComplete()
+        .verify(getTimeout());
+  }
+
   @DisplayName("makes 1 requestChannel request with 20,000 payloads")
   @Test
   default void requestChannel20_000() {
@@ -157,14 +226,19 @@ public interface TransportTest {
   @DisplayName("makes 1 requestChannel request with 3 payloads")
   @Test
   default void requestChannel3() {
-    Flux<Payload> payloads = Flux.range(0, 3).map(this::createTestPayload);
+    AtomicLong requested = new AtomicLong();
+    Flux<Payload> payloads =
+        Flux.range(0, 3).doOnRequest(requested::addAndGet).map(this::createTestPayload);
 
     getClient()
         .requestChannel(payloads)
-        .as(StepVerifier::create)
+        .as(publisher -> StepVerifier.create(publisher, 3))
         .expectNextCount(3)
         .expectComplete()
         .verify(getTimeout());
+
+    Assertions.assertThat(requested.get())
+        .isEqualTo(256L); // 256 because of eager behavior of limitRate
   }
 
   @DisplayName("makes 1 requestChannel request with 512 payloads")
@@ -217,6 +291,17 @@ public interface TransportTest {
   default void requestResponse100() {
     Flux.range(1, 100)
         .flatMap(i -> getClient().requestResponse(createTestPayload(i)).map(Payload::getDataUtf8))
+        .as(StepVerifier::create)
+        .expectNextCount(100)
+        .expectComplete()
+        .verify(getTimeout());
+  }
+
+  @DisplayName("makes 100 requestResponse requests")
+  @Test
+  default void largePayloadRequestResponse100() {
+    Flux.range(1, 100)
+        .flatMap(i -> getClient().requestResponse(LARGE_PAYLOAD).map(Payload::getDataUtf8))
         .as(StepVerifier::create)
         .expectNextCount(100)
         .expectComplete()
@@ -283,7 +368,7 @@ public interface TransportTest {
   }
 
   default void assertChannelPayload(Payload p) {
-    if (!"test-data".equals(p.getDataUtf8()) || !"metadata".equals(p.getMetadataUtf8())) {
+    if (!MOCK_DATA.equals(p.getDataUtf8()) || !MOCK_METADATA.equals(p.getMetadataUtf8())) {
       throw new IllegalStateException("Unexpected payload");
     }
   }
@@ -304,16 +389,12 @@ public interface TransportTest {
       T address = addressSupplier.get();
 
       server =
-          RSocketFactory.receive()
-              .acceptor((setup, sendingSocket) -> Mono.just(new TestRSocket(data, metadata)))
-              .transport(serverTransportSupplier.apply(address))
-              .start()
+          RSocketServer.create((setup, sendingSocket) -> Mono.just(new TestRSocket(data, metadata)))
+              .bind(serverTransportSupplier.apply(address))
               .block();
 
       client =
-          RSocketFactory.connect()
-              .transport(clientTransportSupplier.apply(address, server))
-              .start()
+          RSocketConnector.connectWith(clientTransportSupplier.apply(address, server))
               .doOnError(Throwable::printStackTrace)
               .block();
     }

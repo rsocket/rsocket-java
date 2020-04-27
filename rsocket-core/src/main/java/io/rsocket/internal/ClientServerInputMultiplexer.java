@@ -17,12 +17,13 @@
 package io.rsocket.internal;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.Closeable;
 import io.rsocket.DuplexConnection;
 import io.rsocket.frame.FrameHeaderFlyweight;
 import io.rsocket.frame.FrameUtil;
 import io.rsocket.plugins.DuplexConnectionInterceptor.Type;
-import io.rsocket.plugins.PluginRegistry;
+import io.rsocket.plugins.InitializingInterceptorRegistry;
 import org.reactivestreams.Publisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -45,7 +46,8 @@ import reactor.core.publisher.MonoProcessor;
  */
 public class ClientServerInputMultiplexer implements Closeable {
   private static final Logger LOGGER = LoggerFactory.getLogger("io.rsocket.FrameLogger");
-  private static final PluginRegistry emptyPluginRegistry = new PluginRegistry();
+  private static final InitializingInterceptorRegistry emptyInterceptorRegistry =
+      new InitializingInterceptorRegistry();
 
   private final DuplexConnection setupConnection;
   private final DuplexConnection serverConnection;
@@ -54,23 +56,23 @@ public class ClientServerInputMultiplexer implements Closeable {
   private final DuplexConnection clientServerConnection;
 
   public ClientServerInputMultiplexer(DuplexConnection source) {
-    this(source, emptyPluginRegistry, false);
+    this(source, emptyInterceptorRegistry, false);
   }
 
   public ClientServerInputMultiplexer(
-      DuplexConnection source, PluginRegistry plugins, boolean isClient) {
+      DuplexConnection source, InitializingInterceptorRegistry registry, boolean isClient) {
     this.source = source;
     final MonoProcessor<Flux<ByteBuf>> setup = MonoProcessor.create();
     final MonoProcessor<Flux<ByteBuf>> server = MonoProcessor.create();
     final MonoProcessor<Flux<ByteBuf>> client = MonoProcessor.create();
 
-    source = plugins.applyConnection(Type.SOURCE, source);
+    source = registry.initConnection(Type.SOURCE, source);
     setupConnection =
-        plugins.applyConnection(Type.SETUP, new InternalDuplexConnection(source, setup));
+        registry.initConnection(Type.SETUP, new InternalDuplexConnection(source, setup));
     serverConnection =
-        plugins.applyConnection(Type.SERVER, new InternalDuplexConnection(source, server));
+        registry.initConnection(Type.SERVER, new InternalDuplexConnection(source, server));
     clientConnection =
-        plugins.applyConnection(Type.CLIENT, new InternalDuplexConnection(source, client));
+        registry.initConnection(Type.CLIENT, new InternalDuplexConnection(source, client));
     clientServerConnection = new InternalDuplexConnection(source, client, server);
 
     source
@@ -198,6 +200,11 @@ public class ClientServerInputMultiplexer implements Closeable {
                           return f;
                         }
                       }));
+    }
+
+    @Override
+    public ByteBufAllocator alloc() {
+      return source.alloc();
     }
 
     @Override

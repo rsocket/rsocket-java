@@ -31,7 +31,6 @@ import reactor.netty.Connection;
 public final class TcpDuplexConnection extends BaseDuplexConnection {
 
   private final Connection connection;
-  private final ByteBufAllocator allocator = ByteBufAllocator.DEFAULT;
   private final boolean encodeLength;
 
   /**
@@ -63,6 +62,11 @@ public final class TcpDuplexConnection extends BaseDuplexConnection {
   }
 
   @Override
+  public ByteBufAllocator alloc() {
+    return connection.channel().alloc();
+  }
+
+  @Override
   protected void doOnClose() {
     if (!connection.isDisposed()) {
       connection.dispose();
@@ -84,7 +88,7 @@ public final class TcpDuplexConnection extends BaseDuplexConnection {
 
   private ByteBuf encode(ByteBuf frame) {
     if (encodeLength) {
-      return FrameLengthFlyweight.encode(allocator, frame.readableBytes(), frame);
+      return FrameLengthFlyweight.encode(alloc(), frame.readableBytes(), frame);
     } else {
       return frame;
     }

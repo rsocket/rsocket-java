@@ -34,6 +34,7 @@ dependencies {
     testCompileOnly 'junit:junit'
     testImplementation 'org.hamcrest:hamcrest-library'
     testRuntimeOnly 'org.junit.vintage:junit-vintage-engine'
+    testRuntimeOnly 'ch.qos.logback:logback-classic'
 }
 
 description = 'Transparent Load Balancer for RSocket'

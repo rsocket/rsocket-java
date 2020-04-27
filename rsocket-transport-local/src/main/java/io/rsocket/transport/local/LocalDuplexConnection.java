@@ -17,6 +17,7 @@
 package io.rsocket.transport.local;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.DuplexConnection;
 import java.util.Objects;
 import org.reactivestreams.Publisher;
@@ -28,6 +29,7 @@ import reactor.core.publisher.MonoProcessor;
 /** An implementation of {@link DuplexConnection} that connects inside the same JVM. */
 final class LocalDuplexConnection implements DuplexConnection {
 
+  private final ByteBufAllocator allocator;
   private final Flux<ByteBuf> in;
 
   private final MonoProcessor<Void> onClose;
@@ -42,7 +44,12 @@ final class LocalDuplexConnection implements DuplexConnection {
    * @param onClose the closing notifier
    * @throws NullPointerException if {@code in}, {@code out}, or {@code onClose} are {@code null}
    */
-  LocalDuplexConnection(Flux<ByteBuf> in, Subscriber<ByteBuf> out, MonoProcessor<Void> onClose) {
+  LocalDuplexConnection(
+      ByteBufAllocator allocator,
+      Flux<ByteBuf> in,
+      Subscriber<ByteBuf> out,
+      MonoProcessor<Void> onClose) {
+    this.allocator = Objects.requireNonNull(allocator, "allocator must not be null");
     this.in = Objects.requireNonNull(in, "in must not be null");
     this.out = Objects.requireNonNull(out, "out must not be null");
     this.onClose = Objects.requireNonNull(onClose, "onClose must not be null");
@@ -81,5 +88,10 @@ final class LocalDuplexConnection implements DuplexConnection {
     Objects.requireNonNull(frame, "frame must not be null");
     out.onNext(frame);
     return Mono.empty();
+  }
+
+  @Override
+  public ByteBufAllocator alloc() {
+    return allocator;
   }
 }

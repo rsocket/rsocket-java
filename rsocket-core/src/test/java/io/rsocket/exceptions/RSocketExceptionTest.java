@@ -17,27 +17,22 @@
 package io.rsocket.exceptions;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 interface RSocketExceptionTest<T extends RSocketException> {
 
-  @DisplayName("constructor throws NullPointerException with null message")
+  @DisplayName("constructor does not throw NullPointerException with null message")
   @Test
   default void constructorWithNullMessage() {
-    assertThatNullPointerException()
-        .isThrownBy(() -> getException(null))
-        .withMessage("message must not be null");
+    assertThat(getException(null)).hasMessage(null);
   }
 
-  @DisplayName("constructor throws NullPointerException with null message and cause")
+  @DisplayName("constructor does not throw NullPointerException with null message and cause")
   @Test
   default void constructorWithNullMessageAndCause() {
-    assertThatNullPointerException()
-        .isThrownBy(() -> getException(null, new Exception()))
-        .withMessage("message must not be null");
+    assertThat(getException(null)).hasMessage(null);
   }
 
   @DisplayName("errorCode returns specified value")

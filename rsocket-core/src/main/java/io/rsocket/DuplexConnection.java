@@ -17,6 +17,7 @@
 package io.rsocket;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufAllocator;
 import java.nio.channels.ClosedChannelException;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
@@ -77,6 +78,13 @@ public interface DuplexConnection extends Availability, Closeable {
    * @return Stream of all {@code Frame}s received.
    */
   Flux<ByteBuf> receive();
+
+  /**
+   * Returns the assigned {@link ByteBufAllocator}.
+   *
+   * @return the {@link ByteBufAllocator}
+   */
+  ByteBufAllocator alloc();
 
   @Override
   default double availability() {

@@ -16,17 +16,21 @@
 
 package io.rsocket;
 
+import org.reactivestreams.Subscriber;
 import reactor.core.Disposable;
 import reactor.core.publisher.Mono;
 
-/** */
+/** An interface which allows listening to when a specific instance of this interface is closed */
 public interface Closeable extends Disposable {
   /**
-   * Returns a {@code Publisher} that completes when this {@code RSocket} is closed. A {@code
-   * RSocket} can be closed by explicitly calling {@link RSocket#dispose()} or when the underlying
-   * transport connection is closed.
+   * Returns a {@link Mono} that terminates when the instance is terminated by any reason. Note, in
+   * case of error termination, the cause of error will be propagated as an error signal through
+   * {@link org.reactivestreams.Subscriber#onError(Throwable)}. Otherwise, {@link
+   * Subscriber#onComplete()} will be called.
    *
-   * @return A {@code Publisher} that completes when this {@code RSocket} close is complete.
+   * @return a {@link Mono} to track completion with success or error of the underlying resource.
+   *     When the underlying resource is an `RSocket`, the {@code Mono} exposes stream 0 (i.e.
+   *     connection level) errors.
    */
   Mono<Void> onClose();
 }

@@ -22,11 +22,26 @@ Releases are available via Maven Central.
 Example:
 
 ```groovy
+repositories {
+	mavenCentral()
+}
 dependencies {
-    implementation 'io.rsocket:rsocket-core:1.0.0-RC3'
-    implementation 'io.rsocket:rsocket-transport-netty:1.0.0-RC3'
-//    implementation 'io.rsocket:rsocket-core:1.0.0-RC4-SNAPSHOT'
-//    implementation 'io.rsocket:rsocket-transport-netty:1.0.0-RC4-SNAPSHOT'
+    implementation 'io.rsocket:rsocket-core:1.0.0-RC6'
+    implementation 'io.rsocket:rsocket-transport-netty:1.0.0-RC6'
+}
+```
+
+Snapshots are available via [oss.jfrog.org](oss.jfrog.org) (OJO).
+
+Example:
+
+```groovy
+repositories {
+	maven { url 'https://oss.jfrog.org/oss-snapshot-local' }
+}
+dependencies {
+    implementation 'io.rsocket:rsocket-core:1.0.0-RC7-SNAPSHOT'
+    implementation 'io.rsocket:rsocket-transport-netty:1.0.0-RC7-SNAPSHOT'
 }
 ```
 
@@ -57,7 +72,7 @@ package io.rsocket.transport.netty;
 
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
-import io.rsocket.RSocketFactory;
+import io.rsocket.core.RSocketConnector;
 import io.rsocket.transport.netty.client.WebsocketClientTransport;
 import io.rsocket.util.DefaultPayload;
 import reactor.core.publisher.Flux;
@@ -67,14 +82,14 @@ import java.net.URI;
 public class ExampleClient {
     public static void main(String[] args) {
         WebsocketClientTransport ws = WebsocketClientTransport.create(URI.create("ws://rsocket-demo.herokuapp.com/ws"));
-        RSocket client = RSocketFactory.connect().keepAlive().transport(ws).start().block();
+        RSocket clientRSocket = RSocketConnector.connectWith(ws).block();
 
         try {
-            Flux<Payload> s = client.requestStream(DefaultPayload.create("peace"));
+            Flux<Payload> s = clientRSocket.requestStream(DefaultPayload.create("peace"));
 
             s.take(10).doOnNext(p -> System.out.println(p.getDataUtf8())).blockLast();
         } finally {
-            client.dispose();
+            clientRSocket.dispose();
         }
     }
 }
@@ -89,12 +104,10 @@ or you will get a memory leak. Used correctly this will reduce latency and incre
 
 ### Example Server setup
 ```java
-RSocketFactory.receive()
+RSocketServer.create(new PingHandler())
         // Enable Zero Copy
-        .frameDecoder(PayloadDecoder.ZERO_COPY)
-        .acceptor(new PingHandler())
-        .transport(TcpServerTransport.create(7878))
-        .start()
+        .payloadDecoder(PayloadDecoder.ZERO_COPY)
+        .bind(TcpServerTransport.create(7878))
         .block()
         .onClose()
         .block();
@@ -102,12 +115,13 @@ RSocketFactory.receive()
 
 ### Example Client setup
 ```java
-Mono<RSocket> client =
-        RSocketFactory.connect()
+RSocket clientRSocket =
+        RSocketConnector.create()
             // Enable Zero Copy
-            .frameDecoder(PayloadDecoder.ZERO_COPY)
-            .transport(TcpClientTransport.create(7878))
-            .start();
+            .payloadDecoder(PayloadDecoder.ZERO_COPY)
+            .connect(TcpClientTransport.create(7878))
+            .start()
+            .block();
 ```
 
 ## Bugs and Feedback

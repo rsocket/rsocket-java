@@ -3,13 +3,21 @@ package io.rsocket.examples.transport.tcp.resume;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.rsocket.Payload;
-import java.io.*;
+import java.io.BufferedInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.SynchronousSink;
 
 class Files {
+  private static final Logger logger = LoggerFactory.getLogger(Files.class);
 
   public static Flux<ByteBuf> fileSource(String fileName, int chunkSizeBytes) {
     return Flux.generate(
@@ -35,8 +43,7 @@ class Files {
         ByteBuf data = payload.data();
         receivedBytes += data.readableBytes();
         receivedCount += 1;
-        System.out.println(
-            "Received file chunk: " + receivedCount + ". Total size: " + receivedBytes);
+        logger.debug("Received file chunk: " + receivedCount + ". Total size: " + receivedBytes);
         if (outputStream == null) {
           outputStream = open(fileName);
         }

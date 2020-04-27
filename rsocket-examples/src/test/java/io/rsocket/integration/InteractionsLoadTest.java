@@ -3,7 +3,8 @@ package io.rsocket.integration;
 import io.rsocket.AbstractRSocket;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
-import io.rsocket.RSocketFactory;
+import io.rsocket.core.RSocketConnector;
+import io.rsocket.core.RSocketServer;
 import io.rsocket.test.SlowTest;
 import io.rsocket.transport.netty.client.TcpClientTransport;
 import io.rsocket.transport.netty.server.CloseableChannel;
@@ -21,25 +22,20 @@ public class InteractionsLoadTest {
   @Test
   @SlowTest
   public void channel() {
-    TcpServerTransport serverTransport = TcpServerTransport.create("localhost", 0);
-
     CloseableChannel server =
-        RSocketFactory.receive()
-            .acceptor((setup, rsocket) -> Mono.just(new EchoRSocket()))
-            .transport(serverTransport)
-            .start()
+        RSocketServer.create((setup, rsocket) -> Mono.just(new EchoRSocket()))
+            .bind(TcpServerTransport.create("localhost", 0))
             .block(Duration.ofSeconds(10));
 
-    TcpClientTransport transport = TcpClientTransport.create(server.address());
-
-    RSocket client =
-        RSocketFactory.connect().transport(transport).start().block(Duration.ofSeconds(10));
+    RSocket clientRSocket =
+        RSocketConnector.connectWith(TcpClientTransport.create(server.address()))
+            .block(Duration.ofSeconds(10));
 
     int concurrency = 16;
     Flux.range(1, concurrency)
         .flatMap(
             v ->
-                client
+                clientRSocket
                     .requestChannel(
                         input().onBackpressureDrop().map(iv -> DefaultPayload.create("foo")))
                     .limitRate(10000),

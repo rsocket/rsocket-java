@@ -1,45 +1,65 @@
+/*
+ * Copyright 2015-2020 the original author or authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package io.rsocket.examples.transport.tcp.resume;
 
 import io.rsocket.AbstractRSocket;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
-import io.rsocket.RSocketFactory;
-import io.rsocket.resume.ClientResume;
-import io.rsocket.resume.PeriodicResumeStrategy;
-import io.rsocket.resume.ResumeStrategy;
+import io.rsocket.core.RSocketConnector;
+import io.rsocket.core.RSocketServer;
+import io.rsocket.core.Resume;
 import io.rsocket.transport.netty.client.TcpClientTransport;
 import io.rsocket.transport.netty.server.CloseableChannel;
 import io.rsocket.transport.netty.server.TcpServerTransport;
 import io.rsocket.util.DefaultPayload;
 import java.time.Duration;
-import org.reactivestreams.Publisher;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.util.retry.Retry;
 
 public class ResumeFileTransfer {
+
   /*amount of file chunks requested by subscriber: n, refilled on n/2 of received items*/
   private static final int PREFETCH_WINDOW_SIZE = 4;
+  private static final Logger logger = LoggerFactory.getLogger(ResumeFileTransfer.class);
 
   public static void main(String[] args) {
     RequestCodec requestCodec = new RequestCodec();
+    Resume resume =
+        new Resume()
+            .sessionDuration(Duration.ofMinutes(5))
+            .retry(
+                Retry.fixedDelay(Long.MAX_VALUE, Duration.ofSeconds(1))
+                    .doBeforeRetry(
+                        retrySignal ->
+                            logger.debug("Disconnected. Trying to resume connection...")));
 
     CloseableChannel server =
-        RSocketFactory.receive()
-            .resume()
-            .resumeSessionDuration(Duration.ofMinutes(5))
-            .acceptor((setup, rSocket) -> Mono.just(new FileServer(requestCodec)))
-            .transport(TcpServerTransport.create("localhost", 8000))
-            .start()
+        RSocketServer.create((setup, rSocket) -> Mono.just(new FileServer(requestCodec)))
+            .resume(resume)
+            .bind(TcpServerTransport.create("localhost", 8000))
             .block();
 
     RSocket client =
-        RSocketFactory.connect()
-            .resume()
-            .resumeStrategy(
-                () -> new VerboseResumeStrategy(new PeriodicResumeStrategy(Duration.ofSeconds(1))))
-            .resumeSessionDuration(Duration.ofMinutes(5))
-            .transport(TcpClientTransport.create("localhost", 8001))
-            .start()
+        RSocketConnector.create()
+            .resume(resume)
+            .connect(TcpClientTransport.create("localhost", 8001))
             .block();
 
     client
@@ -69,20 +89,6 @@ public class ResumeFileTransfer {
       return Files.fileSource(fileName, chunkSize)
           .map(DefaultPayload::create)
           .zipWith(ticks, (p, tick) -> p);
-    }
-  }
-
-  private static class VerboseResumeStrategy implements ResumeStrategy {
-    private final ResumeStrategy resumeStrategy;
-
-    public VerboseResumeStrategy(ResumeStrategy resumeStrategy) {
-      this.resumeStrategy = resumeStrategy;
-    }
-
-    @Override
-    public Publisher<?> apply(ClientResume clientResume, Throwable throwable) {
-      return Flux.from(resumeStrategy.apply(clientResume, throwable))
-          .doOnNext(v -> System.out.println("Disconnected. Trying to resume connection..."));
     }
   }
 

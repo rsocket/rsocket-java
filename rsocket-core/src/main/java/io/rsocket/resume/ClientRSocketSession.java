@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2019 the original author or authors.
+ * Copyright 2015-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,10 +26,11 @@ import io.rsocket.frame.ResumeOkFrameFlyweight;
 import io.rsocket.internal.ClientServerInputMultiplexer;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.util.retry.Retry;
 
 public class ClientRSocketSession implements RSocketSession<Mono<DuplexConnection>> {
   private static final Logger logger = LoggerFactory.getLogger(ClientRSocketSession.class);
@@ -41,13 +42,12 @@ public class ClientRSocketSession implements RSocketSession<Mono<DuplexConnectio
 
   public ClientRSocketSession(
       DuplexConnection duplexConnection,
-      ByteBufAllocator allocator,
       Duration resumeSessionDuration,
-      Supplier<ResumeStrategy> resumeStrategy,
+      Retry retry,
       ResumableFramesStore resumableFramesStore,
       Duration resumeStreamTimeout,
       boolean cleanupStoreOnKeepAlive) {
-    this.allocator = allocator;
+    this.allocator = duplexConnection.alloc();
     this.resumableConnection =
         new ResumableDuplexConnection(
             "client",
@@ -64,24 +64,13 @@ public class ClientRSocketSession implements RSocketSession<Mono<DuplexConnectio
         .flatMap(
             err -> {
               logger.debug("Client session connection error. Starting new connection");
-              ResumeStrategy reconnectOnError = resumeStrategy.get();
-              ClientResume clientResume = new ClientResume(resumeSessionDuration, resumeToken);
               AtomicBoolean once = new AtomicBoolean();
               return newConnection
                   .delaySubscription(
                       once.compareAndSet(false, true)
-                          ? reconnectOnError.apply(clientResume, err)
+                          ? retry.generateCompanion(Flux.just(new RetrySignal(err)))
                           : Mono.empty())
-                  .retryWhen(
-                      errors ->
-                          errors
-                              .doOnNext(
-                                  retryErr ->
-                                      logger.debug("Resumption reconnection error", retryErr))
-                              .flatMap(
-                                  retryErr ->
-                                      Mono.from(reconnectOnError.apply(clientResume, retryErr))
-                                          .doOnNext(v -> logger.debug("Retrying with: {}", v))))
+                  .retryWhen(retry)
                   .timeout(resumeSessionDuration);
             })
         .map(ClientServerInputMultiplexer::new)
@@ -177,5 +166,29 @@ public class ClientRSocketSession implements RSocketSession<Mono<DuplexConnectio
 
   private static ConnectionErrorException errorFrameThrowable(long impliedPos) {
     return new ConnectionErrorException("resumption_server_pos=[" + impliedPos + "]");
+  }
+
+  private static class RetrySignal implements Retry.RetrySignal {
+
+    private final Throwable ex;
+
+    RetrySignal(Throwable ex) {
+      this.ex = ex;
+    }
+
+    @Override
+    public long totalRetries() {
+      return 0;
+    }
+
+    @Override
+    public long totalRetriesInARow() {
+      return 0;
+    }
+
+    @Override
+    public Throwable failure() {
+      return ex;
+    }
   }
 }

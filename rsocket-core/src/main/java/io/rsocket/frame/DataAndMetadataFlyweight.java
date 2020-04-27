@@ -3,7 +3,6 @@ package io.rsocket.frame;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
-import io.rsocket.buffer.TupleByteBuf;
 
 class DataAndMetadataFlyweight {
   public static final int FRAME_LENGTH_MASK = 0xFFFFFF;
@@ -31,38 +30,61 @@ class DataAndMetadataFlyweight {
     return length;
   }
 
-  static ByteBuf encodeOnlyMetadata(
-      ByteBufAllocator allocator, final ByteBuf header, ByteBuf metadata) {
-    return TupleByteBuf.of(allocator, header, metadata);
-  }
-
-  static ByteBuf encodeOnlyData(ByteBufAllocator allocator, final ByteBuf header, ByteBuf data) {
-    return TupleByteBuf.of(allocator, header, data);
-  }
-
   static ByteBuf encode(
-      ByteBufAllocator allocator, final ByteBuf header, ByteBuf metadata, ByteBuf data) {
+      ByteBufAllocator allocator,
+      final ByteBuf header,
+      ByteBuf metadata,
+      boolean hasMetadata,
+      ByteBuf data) {
 
-    int length = metadata.readableBytes();
-    encodeLength(header, length);
-    return TupleByteBuf.of(allocator, header, metadata, data);
-  }
-
-  static ByteBuf metadataWithoutMarking(ByteBuf byteBuf, boolean hasMetadata) {
-    if (hasMetadata) {
-      int length = decodeLength(byteBuf);
-      return byteBuf.readSlice(length);
+    final boolean addData;
+    if (data != null) {
+      if (data.isReadable()) {
+        addData = true;
+      } else {
+        // even though there is nothing to read, we still have to release here since nobody else
+        // going to do soo
+        data.release();
+        addData = false;
+      }
     } else {
-      return Unpooled.EMPTY_BUFFER;
+      addData = false;
+    }
+
+    final boolean addMetadata;
+    if (hasMetadata) {
+      if (metadata.isReadable()) {
+        addMetadata = true;
+      } else {
+        // even though there is nothing to read, we still have to release here since nobody else
+        // going to do soo
+        metadata.release();
+        addMetadata = false;
+      }
+    } else {
+      // has no metadata means it is null, thus no need to release anything
+      addMetadata = false;
+    }
+
+    if (hasMetadata) {
+      int length = metadata.readableBytes();
+      encodeLength(header, length);
+    }
+
+    if (addMetadata && addData) {
+      return allocator.compositeBuffer(3).addComponents(true, header, metadata, data);
+    } else if (addMetadata) {
+      return allocator.compositeBuffer(2).addComponents(true, header, metadata);
+    } else if (addData) {
+      return allocator.compositeBuffer(2).addComponents(true, header, data);
+    } else {
+      return header;
     }
   }
 
-  static ByteBuf metadata(ByteBuf byteBuf, boolean hasMetadata) {
-    byteBuf.markReaderIndex();
-    byteBuf.skipBytes(6);
-    ByteBuf metadata = metadataWithoutMarking(byteBuf, hasMetadata);
-    byteBuf.resetReaderIndex();
-    return metadata;
+  static ByteBuf metadataWithoutMarking(ByteBuf byteBuf) {
+    int length = decodeLength(byteBuf);
+    return byteBuf.readSlice(length);
   }
 
   static ByteBuf dataWithoutMarking(ByteBuf byteBuf, boolean hasMetadata) {
@@ -76,13 +98,5 @@ class DataAndMetadataFlyweight {
     } else {
       return Unpooled.EMPTY_BUFFER;
     }
-  }
-
-  static ByteBuf data(ByteBuf byteBuf, boolean hasMetadata) {
-    byteBuf.markReaderIndex();
-    byteBuf.skipBytes(6);
-    ByteBuf data = dataWithoutMarking(byteBuf, hasMetadata);
-    byteBuf.resetReaderIndex();
-    return data;
   }
 }

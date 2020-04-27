@@ -16,9 +16,9 @@
 
 package io.rsocket.transport.netty.client;
 
-import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.DuplexConnection;
 import io.rsocket.fragmentation.FragmentationDuplexConnection;
+import io.rsocket.fragmentation.ReassemblyDuplexConnection;
 import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.ServerTransport;
 import io.rsocket.transport.netty.RSocketLengthCodec;
@@ -104,13 +104,9 @@ public final class TcpClientTransport implements ClientTransport {
                 c -> {
                   if (mtu > 0) {
                     return new FragmentationDuplexConnection(
-                        new TcpDuplexConnection(c, false),
-                        ByteBufAllocator.DEFAULT,
-                        mtu,
-                        true,
-                        "client");
+                        new TcpDuplexConnection(c, false), mtu, true, "client");
                   } else {
-                    return new TcpDuplexConnection(c);
+                    return new ReassemblyDuplexConnection(new TcpDuplexConnection(c), false);
                   }
                 });
   }

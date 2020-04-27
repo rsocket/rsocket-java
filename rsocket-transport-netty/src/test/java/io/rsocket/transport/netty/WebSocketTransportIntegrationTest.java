@@ -3,7 +3,8 @@ package io.rsocket.transport.netty;
 import io.rsocket.AbstractRSocket;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
-import io.rsocket.RSocketFactory;
+import io.rsocket.core.RSocketConnector;
+import io.rsocket.core.RSocketServer;
 import io.rsocket.transport.ServerTransport;
 import io.rsocket.transport.netty.client.WebsocketClientTransport;
 import io.rsocket.transport.netty.server.WebsocketRouteTransport;
@@ -23,8 +24,7 @@ public class WebSocketTransportIntegrationTest {
   @Test
   public void sendStreamOfDataWithExternalHttpServerTest() {
     ServerTransport.ConnectionAcceptor acceptor =
-        RSocketFactory.receive()
-            .acceptor(
+        RSocketServer.create(
                 (setupPayload, sendingRSocket) -> {
                   return Mono.just(
                       new AbstractRSocket() {
@@ -35,7 +35,7 @@ public class WebSocketTransportIntegrationTest {
                         }
                       });
                 })
-            .toConnectionAcceptor();
+            .asConnectionAcceptor();
 
     DisposableServer server =
         HttpServer.create()
@@ -44,11 +44,9 @@ public class WebSocketTransportIntegrationTest {
             .bindNow();
 
     RSocket rsocket =
-        RSocketFactory.connect()
-            .transport(
+        RSocketConnector.connectWith(
                 WebsocketClientTransport.create(
                     URI.create("ws://" + server.host() + ":" + server.port() + "/test")))
-            .start()
             .block();
 
     StepVerifier.create(rsocket.requestStream(EmptyPayload.INSTANCE))

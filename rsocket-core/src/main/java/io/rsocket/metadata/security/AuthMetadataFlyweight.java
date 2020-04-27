@@ -5,7 +5,6 @@ import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
 import io.netty.util.CharsetUtil;
-import io.rsocket.buffer.TupleByteBuf;
 import io.rsocket.util.CharByteBufUtil;
 
 public class AuthMetadataFlyweight {
@@ -49,7 +48,7 @@ public class AuthMetadataFlyweight {
 
     ByteBufUtil.reserveAndWriteUtf8(headerBuffer, customAuthType, actualASCIILength);
 
-    return TupleByteBuf.of(allocator, headerBuffer, metadata);
+    return allocator.compositeBuffer(2).addComponents(true, headerBuffer, metadata);
   }
 
   /**
@@ -76,7 +75,7 @@ public class AuthMetadataFlyweight {
             .buffer(capacity, capacity)
             .writeByte(authType.getIdentifier() | STREAM_METADATA_KNOWN_MASK);
 
-    return TupleByteBuf.of(allocator, headerBuffer, metadata);
+    return allocator.compositeBuffer(2).addComponents(true, headerBuffer, metadata);
   }
 
   /**
