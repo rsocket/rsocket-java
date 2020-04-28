@@ -1,5 +1,11 @@
-package io.rsocket;
+package io.rsocket.core;
 
+import io.rsocket.AbstractRSocket;
+import io.rsocket.Closeable;
+import io.rsocket.Payload;
+import io.rsocket.PayloadsMaxPerfSubscriber;
+import io.rsocket.PayloadsPerfSubscriber;
+import io.rsocket.RSocket;
 import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.transport.local.LocalClientTransport;
 import io.rsocket.transport.local.LocalServerTransport;
@@ -59,9 +65,7 @@ public class RSocketPerf {
   @Setup
   public void setUp() throws NoSuchFieldException, IllegalAccessException {
     server =
-        RSocketFactory.receive()
-            .frameDecoder(PayloadDecoder.ZERO_COPY)
-            .acceptor(
+        RSocketServer.create(
                 (setup, sendingSocket) ->
                     Mono.just(
                         new AbstractRSocket() {
@@ -89,16 +93,14 @@ public class RSocketPerf {
                             return Flux.from(payloads);
                           }
                         }))
-            .transport(LocalServerTransport.create("server"))
-            .start()
+            .payloadDecoder(PayloadDecoder.ZERO_COPY)
+            .bind(LocalServerTransport.create("server"))
             .block();
 
     client =
-        RSocketFactory.connect()
-            .singleSubscriberRequester()
-            .frameDecoder(PayloadDecoder.ZERO_COPY)
-            .transport(LocalClientTransport.create("server"))
-            .start()
+        RSocketConnector.create()
+            .payloadDecoder(PayloadDecoder.ZERO_COPY)
+            .connect(LocalClientTransport.create("server"))
             .block();
 
     Field sendProcessorField = RSocketRequester.class.getDeclaredField("sendProcessor");
