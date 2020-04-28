@@ -120,7 +120,6 @@ RSocket clientRSocket =
             // Enable Zero Copy
             .payloadDecoder(PayloadDecoder.ZERO_COPY)
             .connect(TcpClientTransport.create(7878))
-            .start()
             .block();
 ```
 
