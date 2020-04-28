@@ -27,7 +27,6 @@ import io.netty.util.collection.IntObjectMap;
 import io.rsocket.DuplexConnection;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
-import io.rsocket.ResponderRSocket;
 import io.rsocket.exceptions.ApplicationErrorException;
 import io.rsocket.frame.*;
 import io.rsocket.frame.decoder.PayloadDecoder;
@@ -51,7 +50,7 @@ import reactor.core.publisher.*;
 import reactor.util.concurrent.Queues;
 
 /** Responder side of RSocket. Receives {@link ByteBuf}s from a peer's {@link RSocketRequester} */
-class RSocketResponder implements ResponderRSocket {
+class RSocketResponder implements RSocket {
   private static final Consumer<ReferenceCounted> DROPPED_ELEMENTS_CONSUMER =
       referenceCounted -> {
         if (referenceCounted.refCnt() > 0) {
@@ -66,7 +65,10 @@ class RSocketResponder implements ResponderRSocket {
 
   private final DuplexConnection connection;
   private final RSocket requestHandler;
-  private final ResponderRSocket responderRSocket;
+
+  @SuppressWarnings("deprecation")
+  private final io.rsocket.ResponderRSocket responderRSocket;
+
   private final PayloadDecoder payloadDecoder;
   private final Consumer<Throwable> errorConsumer;
   private final ResponderLeaseHandler leaseHandler;
@@ -86,6 +88,7 @@ class RSocketResponder implements ResponderRSocket {
   private final UnboundedProcessor<ByteBuf> sendProcessor;
   private final ByteBufAllocator allocator;
 
+  @SuppressWarnings("deprecation")
   RSocketResponder(
       DuplexConnection connection,
       RSocket requestHandler,
@@ -99,7 +102,9 @@ class RSocketResponder implements ResponderRSocket {
 
     this.requestHandler = requestHandler;
     this.responderRSocket =
-        (requestHandler instanceof ResponderRSocket) ? (ResponderRSocket) requestHandler : null;
+        (requestHandler instanceof io.rsocket.ResponderRSocket)
+            ? (io.rsocket.ResponderRSocket) requestHandler
+            : null;
 
     this.payloadDecoder = payloadDecoder;
     this.errorConsumer = errorConsumer;
@@ -219,8 +224,7 @@ class RSocketResponder implements ResponderRSocket {
     }
   }
 
-  @Override
-  public Flux<Payload> requestChannel(Payload payload, Publisher<Payload> payloads) {
+  private Flux<Payload> requestChannel(Payload payload, Publisher<Payload> payloads) {
     try {
       if (leaseHandler.useLease()) {
         return responderRSocket.requestChannel(payload, payloads);
