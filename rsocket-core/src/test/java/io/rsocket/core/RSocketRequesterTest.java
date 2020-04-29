@@ -37,6 +37,7 @@ import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
 import io.netty.util.CharsetUtil;
+import io.netty.util.IllegalReferenceCountException;
 import io.netty.util.ReferenceCountUtil;
 import io.netty.util.ReferenceCounted;
 import io.rsocket.Payload;
@@ -773,6 +774,30 @@ public class RSocketRequesterTest {
         Arguments.of(REQUEST_RESPONSE, 1, 1),
         Arguments.of(REQUEST_STREAM, 1, 5),
         Arguments.of(REQUEST_CHANNEL, 5, 5));
+  }
+
+  @ParameterizedTest
+  @MethodSource("refCntCases")
+  public void ensureSendsErrorOnIllegalRefCntPayload(
+      BiFunction<Payload, RSocket, Publisher<?>> sourceProducer) {
+    Payload invalidPayload = ByteBufPayload.create("test", "test");
+    invalidPayload.release();
+
+    Publisher<?> source = sourceProducer.apply(invalidPayload, rule.socket);
+
+    StepVerifier.create(source, 0)
+        .expectError(IllegalReferenceCountException.class)
+        .verify(Duration.ofMillis(100));
+  }
+
+  private static Stream<BiFunction<Payload, RSocket, Publisher<?>>> refCntCases() {
+    return Stream.of(
+        (p, r) -> r.fireAndForget(p),
+        (p, r) -> r.requestResponse(p),
+        (p, r) -> r.requestStream(p),
+        (p, r) -> r.requestChannel(Mono.just(p)),
+        (p, r) ->
+            r.requestChannel(Flux.just(EmptyPayload.INSTANCE, p).doOnSubscribe(s -> s.request(1))));
   }
 
   @Test

@@ -18,6 +18,7 @@ package io.rsocket.core;
 
 import static io.rsocket.core.PayloadValidationUtils.INVALID_PAYLOAD_ERROR_MESSAGE;
 import static io.rsocket.frame.FrameHeaderFlyweight.frameType;
+import static io.rsocket.frame.FrameType.ERROR;
 import static io.rsocket.frame.FrameType.REQUEST_CHANNEL;
 import static io.rsocket.frame.FrameType.REQUEST_FNF;
 import static io.rsocket.frame.FrameType.REQUEST_N;
@@ -709,6 +710,51 @@ public class RSocketResponderTest {
         Arguments.of(REQUEST_RESPONSE, 1, 1),
         Arguments.of(REQUEST_STREAM, 1, 5),
         Arguments.of(REQUEST_CHANNEL, 5, 5));
+  }
+
+  @ParameterizedTest
+  @MethodSource("refCntCases")
+  public void ensureSendsErrorOnIllegalRefCntPayload(FrameType frameType) {
+    rule.setAcceptingSocket(
+        new RSocket() {
+          @Override
+          public Mono<Payload> requestResponse(Payload payload) {
+            Payload invalidPayload = ByteBufPayload.create("test", "test");
+            invalidPayload.release();
+            return Mono.just(invalidPayload);
+          }
+
+          @Override
+          public Flux<Payload> requestStream(Payload payload) {
+            Payload invalidPayload = ByteBufPayload.create("test", "test");
+            invalidPayload.release();
+            return Flux.just(invalidPayload);
+          }
+
+          @Override
+          public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
+            Payload invalidPayload = ByteBufPayload.create("test", "test");
+            invalidPayload.release();
+            return Flux.just(invalidPayload);
+          }
+        });
+
+    rule.sendRequest(1, frameType);
+
+    Assertions.assertThat(rule.connection.getSent())
+        .hasSize(1)
+        .first()
+        .matches(
+            bb -> frameType(bb) == ERROR,
+            "Expect frame type to be {"
+                + ERROR
+                + "} but was {"
+                + frameType(rule.connection.getSent().iterator().next())
+                + "}");
+  }
+
+  private static Stream<FrameType> refCntCases() {
+    return Stream.of(REQUEST_RESPONSE, REQUEST_STREAM, REQUEST_CHANNEL);
   }
 
   public static class ServerSocketRule extends AbstractSocketRule<RSocketResponder> {
