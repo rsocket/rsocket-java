@@ -16,9 +16,9 @@
 
 package io.rsocket.examples.transport.tcp.resume;
 
-import io.rsocket.AbstractRSocket;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
+import io.rsocket.SocketAcceptor;
 import io.rsocket.core.RSocketConnector;
 import io.rsocket.core.RSocketServer;
 import io.rsocket.core.Resume;
@@ -30,7 +30,6 @@ import java.time.Duration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
 import reactor.util.retry.Retry;
 
 public class ResumeFileTransfer {
@@ -40,18 +39,31 @@ public class ResumeFileTransfer {
   private static final Logger logger = LoggerFactory.getLogger(ResumeFileTransfer.class);
 
   public static void main(String[] args) {
-    RequestCodec requestCodec = new RequestCodec();
+
     Resume resume =
         new Resume()
             .sessionDuration(Duration.ofMinutes(5))
             .retry(
                 Retry.fixedDelay(Long.MAX_VALUE, Duration.ofSeconds(1))
-                    .doBeforeRetry(
-                        retrySignal ->
-                            logger.debug("Disconnected. Trying to resume connection...")));
+                    .doBeforeRetry(s -> logger.debug("Disconnected. Trying to resume...")));
+
+    RequestCodec codec = new RequestCodec();
 
     CloseableChannel server =
-        RSocketServer.create((setup, rSocket) -> Mono.just(new FileServer(requestCodec)))
+        RSocketServer.create(
+                SocketAcceptor.forRequestStream(
+                    payload -> {
+                      Request request = codec.decode(payload);
+                      payload.release();
+                      String fileName = request.getFileName();
+                      int chunkSize = request.getChunkSize();
+
+                      Flux<Long> ticks = Flux.interval(Duration.ofMillis(500)).onBackpressureDrop();
+
+                      return Files.fileSource(fileName, chunkSize)
+                          .map(DefaultPayload::create)
+                          .zipWith(ticks, (p, tick) -> p);
+                    }))
             .resume(resume)
             .bind(TcpServerTransport.create("localhost", 8000))
             .block();
@@ -63,33 +75,11 @@ public class ResumeFileTransfer {
             .block();
 
     client
-        .requestStream(requestCodec.encode(new Request(16, "lorem.txt")))
+        .requestStream(codec.encode(new Request(16, "lorem.txt")))
         .doFinally(s -> server.dispose())
         .subscribe(Files.fileSink("rsocket-examples/out/lorem_output.txt", PREFETCH_WINDOW_SIZE));
 
     server.onClose().block();
-  }
-
-  private static class FileServer extends AbstractRSocket {
-    private final RequestCodec requestCodec;
-
-    public FileServer(RequestCodec requestCodec) {
-      this.requestCodec = requestCodec;
-    }
-
-    @Override
-    public Flux<Payload> requestStream(Payload payload) {
-      Request request = requestCodec.decode(payload);
-      payload.release();
-      String fileName = request.getFileName();
-      int chunkSize = request.getChunkSize();
-
-      Flux<Long> ticks = Flux.interval(Duration.ofMillis(500)).onBackpressureDrop();
-
-      return Files.fileSource(fileName, chunkSize)
-          .map(DefaultPayload::create)
-          .zipWith(ticks, (p, tick) -> p);
-    }
   }
 
   private static class RequestCodec {

@@ -17,7 +17,6 @@ package io.rsocket.core;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
-import io.rsocket.AbstractRSocket;
 import io.rsocket.ConnectionSetupPayload;
 import io.rsocket.DuplexConnection;
 import io.rsocket.Payload;
@@ -56,7 +55,7 @@ public class RSocketConnector {
   private String metadataMimeType = "application/binary";
   private String dataMimeType = "application/binary";
 
-  private SocketAcceptor acceptor = (setup, sendingSocket) -> Mono.just(new AbstractRSocket() {});
+  private SocketAcceptor acceptor = SocketAcceptor.with(new RSocket() {});
   private InitializingInterceptorRegistry interceptors = new InitializingInterceptorRegistry();
 
   private Duration keepAliveInterval = Duration.ofSeconds(20);

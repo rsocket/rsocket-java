@@ -16,9 +16,9 @@
 
 package io.rsocket.integration;
 
-import io.rsocket.AbstractRSocket;
 import io.rsocket.Closeable;
 import io.rsocket.Payload;
+import io.rsocket.SocketAcceptor;
 import io.rsocket.core.RSocketConnector;
 import io.rsocket.core.RSocketServer;
 import io.rsocket.exceptions.ApplicationErrorException;
@@ -29,7 +29,6 @@ import java.time.Duration;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.Test;
 import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
 
 public class TestingStreaming {
   LocalServerTransport serverTransport = LocalServerTransport.create("test");
@@ -40,27 +39,17 @@ public class TestingStreaming {
     try {
       server =
           RSocketServer.create(
-                  (connectionSetupPayload, rSocket) ->
-                      Mono.just(
-                          new AbstractRSocket() {
-                            @Override
-                            public double availability() {
-                              return 1.0;
-                            }
-
-                            @Override
-                            public Flux<Payload> requestStream(Payload payload) {
-                              return Flux.range(1, 1000)
-                                  .doOnNext(
-                                      i -> {
-                                        if (i > 3) {
-                                          throw new RuntimeException("BOOM!");
-                                        }
-                                      })
-                                  .map(l -> DefaultPayload.create("l -> " + l))
-                                  .cast(Payload.class);
-                            }
-                          }))
+                  SocketAcceptor.forRequestStream(
+                      payload ->
+                          Flux.range(1, 1000)
+                              .doOnNext(
+                                  i -> {
+                                    if (i > 3) {
+                                      throw new RuntimeException("BOOM!");
+                                    }
+                                  })
+                              .map(l -> DefaultPayload.create("l -> " + l))
+                              .cast(Payload.class)))
               .bind(serverTransport)
               .block();
 
@@ -78,21 +67,11 @@ public class TestingStreaming {
     try {
       server =
           RSocketServer.create(
-                  (connectionSetupPayload, rSocket) ->
-                      Mono.just(
-                          new AbstractRSocket() {
-                            @Override
-                            public double availability() {
-                              return 1.0;
-                            }
-
-                            @Override
-                            public Flux<Payload> requestStream(Payload payload) {
-                              return Flux.range(1, 1000)
-                                  .map(l -> DefaultPayload.create("l -> " + l))
-                                  .cast(Payload.class);
-                            }
-                          }))
+                  SocketAcceptor.forRequestStream(
+                      payload ->
+                          Flux.range(1, 1000)
+                              .map(l -> DefaultPayload.create("l -> " + l))
+                              .cast(Payload.class)))
               .bind(serverTransport)
               .block();
 
@@ -121,21 +100,11 @@ public class TestingStreaming {
     try {
       server =
           RSocketServer.create(
-                  (connectionSetupPayload, rSocket) ->
-                      Mono.just(
-                          new AbstractRSocket() {
-                            @Override
-                            public double availability() {
-                              return 1.0;
-                            }
-
-                            @Override
-                            public Flux<Payload> requestStream(Payload payload) {
-                              return Flux.range(1, 10_000)
-                                  .map(l -> DefaultPayload.create("l -> " + l))
-                                  .cast(Payload.class);
-                            }
-                          }))
+                  SocketAcceptor.forRequestStream(
+                      payload ->
+                          Flux.range(1, 10_000)
+                              .map(l -> DefaultPayload.create("l -> " + l))
+                              .cast(Payload.class)))
               .bind(serverTransport)
               .block();
 

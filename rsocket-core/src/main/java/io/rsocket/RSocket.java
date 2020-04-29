@@ -33,7 +33,10 @@ public interface RSocket extends Availability, Closeable {
    * @return {@code Publisher} that completes when the passed {@code payload} is successfully
    *     handled, otherwise errors.
    */
-  Mono<Void> fireAndForget(Payload payload);
+  default Mono<Void> fireAndForget(Payload payload) {
+    payload.release();
+    return Mono.error(new UnsupportedOperationException("Fire-and-Forget not implemented."));
+  }
 
   /**
    * Request-Response interaction model of {@code RSocket}.
@@ -42,7 +45,10 @@ public interface RSocket extends Availability, Closeable {
    * @return {@code Publisher} containing at most a single {@code Payload} representing the
    *     response.
    */
-  Mono<Payload> requestResponse(Payload payload);
+  default Mono<Payload> requestResponse(Payload payload) {
+    payload.release();
+    return Mono.error(new UnsupportedOperationException("Request-Response not implemented."));
+  }
 
   /**
    * Request-Stream interaction model of {@code RSocket}.
@@ -50,7 +56,10 @@ public interface RSocket extends Availability, Closeable {
    * @param payload Request payload.
    * @return {@code Publisher} containing the stream of {@code Payload}s representing the response.
    */
-  Flux<Payload> requestStream(Payload payload);
+  default Flux<Payload> requestStream(Payload payload) {
+    payload.release();
+    return Flux.error(new UnsupportedOperationException("Request-Stream not implemented."));
+  }
 
   /**
    * Request-Channel interaction model of {@code RSocket}.
@@ -58,7 +67,9 @@ public interface RSocket extends Availability, Closeable {
    * @param payloads Stream of request payloads.
    * @return Stream of response payloads.
    */
-  Flux<Payload> requestChannel(Publisher<Payload> payloads);
+  default Flux<Payload> requestChannel(Publisher<Payload> payloads) {
+    return Flux.error(new UnsupportedOperationException("Request-Channel not implemented."));
+  }
 
   /**
    * Metadata-Push interaction model of {@code RSocket}.
@@ -67,10 +78,26 @@ public interface RSocket extends Availability, Closeable {
    * @return {@code Publisher} that completes when the passed {@code payload} is successfully
    *     handled, otherwise errors.
    */
-  Mono<Void> metadataPush(Payload payload);
+  default Mono<Void> metadataPush(Payload payload) {
+    payload.release();
+    return Mono.error(new UnsupportedOperationException("Metadata-Push not implemented."));
+  }
 
   @Override
   default double availability() {
     return isDisposed() ? 0.0 : 1.0;
+  }
+
+  @Override
+  default void dispose() {}
+
+  @Override
+  default boolean isDisposed() {
+    return false;
+  }
+
+  @Override
+  default Mono<Void> onClose() {
+    return Mono.never();
   }
 }

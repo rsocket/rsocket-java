@@ -8,10 +8,9 @@ import io.netty.handler.codec.http.websocketx.PingWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.PongWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.WebSocketFrame;
 import io.netty.util.ReferenceCountUtil;
-import io.rsocket.AbstractRSocket;
 import io.rsocket.Closeable;
-import io.rsocket.Payload;
 import io.rsocket.RSocket;
+import io.rsocket.SocketAcceptor;
 import io.rsocket.core.RSocketConnector;
 import io.rsocket.core.RSocketServer;
 import io.rsocket.transport.ServerTransport;
@@ -47,7 +46,7 @@ public class WebsocketPingPongIntegrationTest {
   @MethodSource("provideServerTransport")
   void webSocketPingPong(ServerTransport<Closeable> serverTransport) {
     server =
-        RSocketServer.create((setup, sendingSocket) -> Mono.just(new EchoRSocket()))
+        RSocketServer.create(SocketAcceptor.forRequestResponse(Mono::just))
             .bind(serverTransport)
             .block();
 
@@ -98,13 +97,6 @@ public class WebsocketPingPongIntegrationTest {
         Arguments.of(
             new WebsocketRouteTransport(
                 HttpServer.create().host(host).port(port), routes -> {}, "/")));
-  }
-
-  private static class EchoRSocket extends AbstractRSocket {
-    @Override
-    public Mono<Payload> requestResponse(Payload payload) {
-      return Mono.just(payload);
-    }
   }
 
   private static class PingSender extends ChannelInboundHandlerAdapter {

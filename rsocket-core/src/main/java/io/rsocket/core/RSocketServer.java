@@ -17,7 +17,6 @@
 package io.rsocket.core;
 
 import io.netty.buffer.ByteBuf;
-import io.rsocket.AbstractRSocket;
 import io.rsocket.Closeable;
 import io.rsocket.ConnectionSetupPayload;
 import io.rsocket.DuplexConnection;
@@ -45,7 +44,7 @@ public final class RSocketServer {
   private static final String SERVER_TAG = "server";
   private static final int MIN_MTU_SIZE = 64;
 
-  private SocketAcceptor acceptor = (setup, sendingSocket) -> Mono.just(new AbstractRSocket() {});
+  private SocketAcceptor acceptor = SocketAcceptor.with(new RSocket() {});
   private InitializingInterceptorRegistry interceptors = new InitializingInterceptorRegistry();
   private int mtu = 0;
 

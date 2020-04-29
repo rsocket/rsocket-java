@@ -16,7 +16,8 @@
 
 package io.rsocket.examples.transport.tcp.duplex;
 
-import io.rsocket.AbstractRSocket;
+import static io.rsocket.SocketAcceptor.forRequestStream;
+
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.core.RSocketConnector;
@@ -31,6 +32,7 @@ import reactor.core.publisher.Mono;
 public final class DuplexClient {
 
   public static void main(String[] args) {
+
     RSocketServer.create(
             (setup, rsocket) -> {
               rsocket
@@ -39,26 +41,21 @@ public final class DuplexClient {
                   .log()
                   .subscribe();
 
-              return Mono.just(new AbstractRSocket() {});
+              return Mono.just(new RSocket() {});
             })
         .bind(TcpServerTransport.create("localhost", 7000))
         .subscribe();
 
-    RSocket socket =
+    RSocket rsocket =
         RSocketConnector.create()
             .acceptor(
-                (setup, rsocket) ->
-                    Mono.just(
-                        new AbstractRSocket() {
-                          @Override
-                          public Flux<Payload> requestStream(Payload payload) {
-                            return Flux.interval(Duration.ofSeconds(1))
-                                .map(aLong -> DefaultPayload.create("Bi-di Response => " + aLong));
-                          }
-                        }))
+                forRequestStream(
+                    payload ->
+                        Flux.interval(Duration.ofSeconds(1))
+                            .map(aLong -> DefaultPayload.create("Bi-di Response => " + aLong))))
             .connect(TcpClientTransport.create("localhost", 7000))
             .block();
 
-    socket.onClose().block();
+    rsocket.onClose().block();
   }
 }

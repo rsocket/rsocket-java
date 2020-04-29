@@ -16,14 +16,14 @@
 
 package io.rsocket.test;
 
-import io.rsocket.AbstractRSocket;
 import io.rsocket.Payload;
+import io.rsocket.RSocket;
 import io.rsocket.util.DefaultPayload;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-public class TestRSocket extends AbstractRSocket {
+public class TestRSocket implements RSocket {
   private final String data;
   private final String metadata;
 

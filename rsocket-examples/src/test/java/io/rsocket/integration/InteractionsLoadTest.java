@@ -1,8 +1,8 @@
 package io.rsocket.integration;
 
-import io.rsocket.AbstractRSocket;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
+import io.rsocket.SocketAcceptor;
 import io.rsocket.core.RSocketConnector;
 import io.rsocket.core.RSocketServer;
 import io.rsocket.test.SlowTest;
@@ -15,7 +15,6 @@ import java.util.function.Supplier;
 import org.junit.jupiter.api.Test;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
 
 public class InteractionsLoadTest {
 
@@ -23,7 +22,7 @@ public class InteractionsLoadTest {
   @SlowTest
   public void channel() {
     CloseableChannel server =
-        RSocketServer.create((setup, rsocket) -> Mono.just(new EchoRSocket()))
+        RSocketServer.create(SocketAcceptor.with(new EchoRSocket()))
             .bind(TcpServerTransport.create("localhost", 0))
             .block(Duration.ofSeconds(10));
 
@@ -66,7 +65,8 @@ public class InteractionsLoadTest {
     return interval;
   }
 
-  private static class EchoRSocket extends AbstractRSocket {
+  private static class EchoRSocket implements RSocket {
+
     @Override
     public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
       return Flux.from(payloads)
