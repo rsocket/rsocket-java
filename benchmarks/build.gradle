@@ -40,6 +40,10 @@ task jmhBaseline(type: JmhExecTask, description: 'Executing JMH baseline benchma
   classpath = sourceSets.main.runtimeClasspath + configurations.baseline
 }
 
+clean {
+  delete "${projectDir}/src/main/generated"
+}
+
 class JmhExecTask extends JavaExec {
 
   private String include;
