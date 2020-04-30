@@ -26,7 +26,6 @@ import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.lease.RequesterLeaseHandler;
 import io.rsocket.test.util.TestDuplexConnection;
 import io.rsocket.util.DefaultPayload;
-import io.rsocket.util.MultiSubscriberRSocket;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collection;
@@ -72,23 +71,6 @@ class RSocketRequesterSubscribersTest {
             0,
             null,
             RequesterLeaseHandler.None);
-  }
-
-  @ParameterizedTest
-  @MethodSource("allInteractions")
-  void multiSubscriber(Function<RSocket, Publisher<?>> interaction) {
-    RSocket multiSubsRSocket = new MultiSubscriberRSocket(rSocketRequester);
-    Flux<?> response = Flux.from(interaction.apply(multiSubsRSocket));
-    StepVerifier.withVirtualTime(() -> response.take(Duration.ofMillis(10)))
-        .thenAwait(Duration.ofMillis(10))
-        .expectComplete()
-        .verify(Duration.ofSeconds(5));
-    StepVerifier.withVirtualTime(() -> response.take(Duration.ofMillis(10)))
-        .thenAwait(Duration.ofMillis(10))
-        .expectComplete()
-        .verify(Duration.ofSeconds(5));
-
-    Assertions.assertThat(requestFramesCount(connection.getSent())).isEqualTo(2);
   }
 
   @ParameterizedTest
