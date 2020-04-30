@@ -1,7 +1,7 @@
 package io.rsocket.core;
 
 import io.rsocket.Payload;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import org.reactivestreams.Subscription;
 import reactor.core.CoreSubscriber;
 import reactor.core.Fuseable;
@@ -27,7 +27,9 @@ abstract class RequestOperator
 
   boolean firstRequest = true;
 
-  final AtomicInteger wip = new AtomicInteger(0);
+  volatile int wip;
+  static final AtomicIntegerFieldUpdater<RequestOperator> WIP =
+      AtomicIntegerFieldUpdater.newUpdater(RequestOperator.class, "wip");
 
   RequestOperator(CoreSubscriber<? super Payload> actual) {
     this.actual = actual;
@@ -77,7 +79,7 @@ abstract class RequestOperator
     }
     this.firstRequest = false;
 
-    if (wip.getAndIncrement() != 0) {
+    if (WIP.getAndIncrement(this) != 0) {
       return;
     }
     int missed = 1;
@@ -101,7 +103,7 @@ abstract class RequestOperator
         return;
       }
 
-      missed = wip.addAndGet(-missed);
+      missed = WIP.addAndGet(this, -missed);
       if (missed == 0) {
         return;
       }
@@ -112,7 +114,7 @@ abstract class RequestOperator
   public void cancel() {
     this.s.cancel();
 
-    if (wip.getAndIncrement() != 0) {
+    if (WIP.getAndIncrement(this) != 0) {
       return;
     }
 
