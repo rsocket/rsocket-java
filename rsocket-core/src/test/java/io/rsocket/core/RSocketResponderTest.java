@@ -35,7 +35,6 @@ import io.netty.buffer.Unpooled;
 import io.netty.util.CharsetUtil;
 import io.netty.util.ReferenceCountUtil;
 import io.netty.util.ReferenceCounted;
-import io.rsocket.AbstractRSocket;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.frame.CancelFrameFlyweight;
@@ -164,7 +163,7 @@ public class RSocketResponderTest {
     final int streamId = 4;
     final AtomicBoolean cancelled = new AtomicBoolean();
     rule.setAcceptingSocket(
-        new AbstractRSocket() {
+        new RSocket() {
           @Override
           public Mono<Payload> requestResponse(Payload payload) {
             payload.release();
@@ -193,8 +192,8 @@ public class RSocketResponderTest {
     ThreadLocalRandom.current().nextBytes(metadata);
     ThreadLocalRandom.current().nextBytes(data);
     final Payload payload = DefaultPayload.create(data, metadata);
-    final AbstractRSocket acceptingSocket =
-        new AbstractRSocket() {
+    final RSocket acceptingSocket =
+        new RSocket() {
           @Override
           public Mono<Payload> requestResponse(Payload p) {
             p.release();
@@ -256,7 +255,7 @@ public class RSocketResponderTest {
       AssertSubscriber<Payload> assertSubscriber = AssertSubscriber.create();
 
       rule.setAcceptingSocket(
-          new AbstractRSocket() {
+          new RSocket() {
             @Override
             public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
               payloads.subscribe(assertSubscriber);
@@ -312,7 +311,7 @@ public class RSocketResponderTest {
       FluxSink<Payload>[] sinks = new FluxSink[1];
 
       rule.setAcceptingSocket(
-          new AbstractRSocket() {
+          new RSocket() {
             @Override
             public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
               ((Flux<Payload>) payloads)
@@ -352,7 +351,7 @@ public class RSocketResponderTest {
       FluxSink<Payload>[] sinks = new FluxSink[1];
 
       rule.setAcceptingSocket(
-          new AbstractRSocket() {
+          new RSocket() {
             @Override
             public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
               ((Flux<Payload>) payloads)
@@ -397,7 +396,7 @@ public class RSocketResponderTest {
       FluxSink<Payload>[] sinks = new FluxSink[1];
       AssertSubscriber<Payload> assertSubscriber = AssertSubscriber.create();
       rule.setAcceptingSocket(
-          new AbstractRSocket() {
+          new RSocket() {
             @Override
             public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
               payloads.subscribe(assertSubscriber);
@@ -466,7 +465,7 @@ public class RSocketResponderTest {
       FluxSink<Payload>[] sinks = new FluxSink[1];
 
       rule.setAcceptingSocket(
-          new AbstractRSocket() {
+          new RSocket() {
             @Override
             public Flux<Payload> requestStream(Payload payload) {
               payload.release();
@@ -503,7 +502,7 @@ public class RSocketResponderTest {
       Operators.MonoSubscriber<Payload, Payload>[] sources = new Operators.MonoSubscriber[1];
 
       rule.setAcceptingSocket(
-          new AbstractRSocket() {
+          new RSocket() {
             @Override
             public Mono<Payload> requestResponse(Payload payload) {
               payload.release();
@@ -540,7 +539,7 @@ public class RSocketResponderTest {
     FluxSink<Payload>[] sinks = new FluxSink[1];
 
     rule.setAcceptingSocket(
-        new AbstractRSocket() {
+        new RSocket() {
           @Override
           public Flux<Payload> requestStream(Payload payload) {
             payload.release();
@@ -569,7 +568,7 @@ public class RSocketResponderTest {
     ByteBufAllocator allocator = rule.alloc();
 
     rule.setAcceptingSocket(
-        new AbstractRSocket() {
+        new RSocket() {
           @Override
           public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
             return (Flux<Payload>) payloads;
@@ -619,7 +618,7 @@ public class RSocketResponderTest {
     TestPublisher<Payload> testPublisher = TestPublisher.create();
 
     rule.setAcceptingSocket(
-        new AbstractRSocket() {
+        new RSocket() {
           @Override
           public Mono<Void> fireAndForget(Payload payload) {
             Mono.just(payload).subscribe(assertSubscriber);
@@ -720,7 +719,7 @@ public class RSocketResponderTest {
     @Override
     protected void init() {
       acceptingSocket =
-          new AbstractRSocket() {
+          new RSocket() {
             @Override
             public Mono<Payload> requestResponse(Payload payload) {
               return Mono.just(payload);

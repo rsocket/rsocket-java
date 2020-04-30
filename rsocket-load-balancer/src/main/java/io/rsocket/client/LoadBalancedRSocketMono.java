@@ -536,7 +536,7 @@ public abstract class LoadBalancedRSocketMono extends Mono<RSocket>
    * Wrapper of a RSocket, it computes statistics about the req/resp calls and update availability
    * accordingly.
    */
-  private class WeightedSocket extends AbstractRSocket implements LoadBalancerSocketMetrics {
+  private class WeightedSocket implements LoadBalancerSocketMetrics, RSocket {
 
     private static final double STARTUP_PENALTY = Long.MAX_VALUE >> 12;
     private final Quantile lowerQuantile;
@@ -554,6 +554,7 @@ public abstract class LoadBalancedRSocketMono extends Mono<RSocket>
     private AtomicLong pendingStreams; // number of active streams
 
     private volatile double availability = 0.0;
+    private final MonoProcessor<Void> onClose = MonoProcessor.create();
 
     WeightedSocket(
         RSocketSupplier factory,
@@ -789,6 +790,21 @@ public abstract class LoadBalancedRSocketMono extends Mono<RSocket>
     @Override
     public double availability() {
       return availability;
+    }
+
+    @Override
+    public void dispose() {
+      onClose.onComplete();
+    }
+
+    @Override
+    public boolean isDisposed() {
+      return onClose.isDisposed();
+    }
+
+    @Override
+    public Mono<Void> onClose() {
+      return onClose;
     }
 
     @Override

@@ -16,9 +16,9 @@
 
 package io.rsocket.examples.transport.tcp.requestresponse;
 
-import io.rsocket.AbstractRSocket;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
+import io.rsocket.SocketAcceptor;
 import io.rsocket.core.RSocketConnector;
 import io.rsocket.core.RSocketServer;
 import io.rsocket.transport.netty.client.TcpClientTransport;
@@ -33,22 +33,23 @@ public final class HelloWorldClient {
   private static final Logger logger = LoggerFactory.getLogger(HelloWorldClient.class);
 
   public static void main(String[] args) {
-    RSocketServer.create(
-            (setupPayload, reactiveSocket) ->
-                Mono.just(
-                    new AbstractRSocket() {
-                      boolean fail = true;
 
-                      @Override
-                      public Mono<Payload> requestResponse(Payload p) {
-                        if (fail) {
-                          fail = false;
-                          return Mono.error(new Throwable("Simulated error"));
-                        } else {
-                          return Mono.just(p);
-                        }
-                      }
-                    }))
+    RSocket rsocket =
+        new RSocket() {
+          boolean fail = true;
+
+          @Override
+          public Mono<Payload> requestResponse(Payload p) {
+            if (fail) {
+              fail = false;
+              return Mono.error(new Throwable("Simulated error"));
+            } else {
+              return Mono.just(p);
+            }
+          }
+        };
+
+    RSocketServer.create(SocketAcceptor.with(rsocket))
         .bind(TcpServerTransport.create("localhost", 7000))
         .subscribe();
 

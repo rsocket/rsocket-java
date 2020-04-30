@@ -16,8 +16,6 @@
 
 package io.rsocket.examples.transport.tcp.channel;
 
-import io.rsocket.AbstractRSocket;
-import io.rsocket.ConnectionSetupPayload;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.SocketAcceptor;
@@ -27,18 +25,25 @@ import io.rsocket.transport.netty.client.TcpClientTransport;
 import io.rsocket.transport.netty.server.TcpServerTransport;
 import io.rsocket.util.DefaultPayload;
 import java.time.Duration;
-import org.reactivestreams.Publisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
 
 public final class ChannelEchoClient {
 
   private static final Logger logger = LoggerFactory.getLogger(ChannelEchoClient.class);
 
   public static void main(String[] args) {
-    RSocketServer.create(new EchoAcceptor())
+
+    SocketAcceptor echoAcceptor =
+        SocketAcceptor.forRequestChannel(
+            payloads ->
+                Flux.from(payloads)
+                    .map(Payload::getDataUtf8)
+                    .map(s -> "Echo: " + s)
+                    .map(DefaultPayload::create));
+
+    RSocketServer.create(echoAcceptor)
         .bind(TcpServerTransport.create("localhost", 7000))
         .subscribe();
 
@@ -54,21 +59,5 @@ public final class ChannelEchoClient {
         .doFinally(signalType -> socket.dispose())
         .then()
         .block();
-  }
-
-  private static class EchoAcceptor implements SocketAcceptor {
-    @Override
-    public Mono<RSocket> accept(ConnectionSetupPayload setupPayload, RSocket reactiveSocket) {
-      return Mono.just(
-          new AbstractRSocket() {
-            @Override
-            public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
-              return Flux.from(payloads)
-                  .map(Payload::getDataUtf8)
-                  .map(s -> "Echo: " + s)
-                  .map(DefaultPayload::create);
-            }
-          });
-    }
   }
 }

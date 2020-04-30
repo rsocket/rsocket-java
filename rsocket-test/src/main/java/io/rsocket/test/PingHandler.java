@@ -16,7 +16,6 @@
 
 package io.rsocket.test;
 
-import io.rsocket.AbstractRSocket;
 import io.rsocket.ConnectionSetupPayload;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
@@ -43,7 +42,7 @@ public class PingHandler implements SocketAcceptor {
   @Override
   public Mono<RSocket> accept(ConnectionSetupPayload setup, RSocket sendingSocket) {
     return Mono.just(
-        new AbstractRSocket() {
+        new RSocket() {
           @Override
           public Mono<Payload> requestResponse(Payload payload) {
             payload.release();

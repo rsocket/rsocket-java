@@ -18,9 +18,9 @@ package io.rsocket.examples.transport.tcp.lease;
 
 import static java.time.Duration.ofSeconds;
 
-import io.rsocket.AbstractRSocket;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
+import io.rsocket.SocketAcceptor;
 import io.rsocket.core.RSocketConnector;
 import io.rsocket.core.RSocketServer;
 import io.rsocket.lease.Lease;
@@ -45,7 +45,7 @@ public class LeaseExample {
 
     CloseableChannel server =
         RSocketServer.create(
-                (setup, sendingRSocket) -> Mono.just(new ServerAcceptor(sendingRSocket)))
+                (setup, sendingRSocket) -> Mono.just(new ServerRSocket(sendingRSocket)))
             .lease(
                 () ->
                     Leases.<NoopStats>create()
@@ -62,7 +62,9 @@ public class LeaseExample {
                     Leases.<NoopStats>create()
                         .sender(new LeaseSender(CLIENT_TAG, 3_000, 5))
                         .receiver(new LeaseReceiver(CLIENT_TAG)))
-            .acceptor((rSocket, setup) -> Mono.just(new ClientAcceptor()))
+            .acceptor(
+                SocketAcceptor.forRequestResponse(
+                    payload -> Mono.just(DefaultPayload.create("Client Response " + new Date()))))
             .connect(TcpClientTransport.create(server.address()))
             .block();
 
@@ -133,17 +135,10 @@ public class LeaseExample {
     public void onEvent(EventType eventType) {}
   }
 
-  private static class ClientAcceptor extends AbstractRSocket {
-    @Override
-    public Mono<Payload> requestResponse(Payload payload) {
-      return Mono.just(DefaultPayload.create("Client Response " + new Date()));
-    }
-  }
-
-  private static class ServerAcceptor extends AbstractRSocket {
+  private static class ServerRSocket implements RSocket {
     private final RSocket senderRSocket;
 
-    public ServerAcceptor(RSocket senderRSocket) {
+    public ServerRSocket(RSocket senderRSocket) {
       this.senderRSocket = senderRSocket;
     }
 

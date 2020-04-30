@@ -16,8 +16,6 @@
 
 package io.rsocket.examples.transport.tcp.stream;
 
-import io.rsocket.AbstractRSocket;
-import io.rsocket.ConnectionSetupPayload;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.SocketAcceptor;
@@ -30,14 +28,17 @@ import java.time.Duration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
 
 public final class StreamingClient {
 
   private static final Logger logger = LoggerFactory.getLogger(StreamingClient.class);
 
   public static void main(String[] args) {
-    RSocketServer.create(new SocketAcceptorImpl())
+    RSocketServer.create(
+            SocketAcceptor.forRequestStream(
+                payload ->
+                    Flux.interval(Duration.ofMillis(100))
+                        .map(aLong -> DefaultPayload.create("Interval: " + aLong))))
         .bind(TcpServerTransport.create("localhost", 7000))
         .subscribe();
 
@@ -53,19 +54,5 @@ public final class StreamingClient {
         .doFinally(signalType -> socket.dispose())
         .then()
         .block();
-  }
-
-  private static class SocketAcceptorImpl implements SocketAcceptor {
-    @Override
-    public Mono<RSocket> accept(ConnectionSetupPayload setupPayload, RSocket reactiveSocket) {
-      return Mono.just(
-          new AbstractRSocket() {
-            @Override
-            public Flux<Payload> requestStream(Payload payload) {
-              return Flux.interval(Duration.ofMillis(100))
-                  .map(aLong -> DefaultPayload.create("Interval: " + aLong));
-            }
-          });
-    }
   }
 }

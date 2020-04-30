@@ -23,7 +23,6 @@ import static org.mockito.Mockito.verify;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
-import io.rsocket.AbstractRSocket;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.buffer.LeaksTrackingByteBufAllocator;
@@ -83,7 +82,7 @@ public class RSocketTest {
   @Test(timeout = 2000)
   public void testHandlerEmitsError() {
     rule.setRequestAcceptor(
-        new AbstractRSocket() {
+        new RSocket() {
           @Override
           public Mono<Payload> requestResponse(Payload payload) {
             return Mono.error(new NullPointerException("Deliberate exception."));
@@ -102,7 +101,7 @@ public class RSocketTest {
   @Test(timeout = 2000)
   public void testHandlerEmitsCustomError() {
     rule.setRequestAcceptor(
-        new AbstractRSocket() {
+        new RSocket() {
           @Override
           public Mono<Payload> requestResponse(Payload payload) {
             return Mono.error(
@@ -129,7 +128,7 @@ public class RSocketTest {
   @Test(timeout = 2000)
   public void testRequestPropagatesCorrectlyForRequestChannel() {
     rule.setRequestAcceptor(
-        new AbstractRSocket() {
+        new RSocket() {
           @Override
           public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
             return Flux.from(payloads)
@@ -170,7 +169,7 @@ public class RSocketTest {
   public void testErrorPropagatesCorrectly() {
     AtomicReference<Throwable> error = new AtomicReference<>();
     rule.setRequestAcceptor(
-        new AbstractRSocket() {
+        new RSocket() {
           @Override
           public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
             return Flux.from(payloads).doOnError(error::set);
@@ -291,7 +290,7 @@ public class RSocketTest {
       TestPublisher<Payload> responderPublisher,
       AssertSubscriber<Payload> responderSubscriber) {
     rule.setRequestAcceptor(
-        new AbstractRSocket() {
+        new RSocket() {
           @Override
           public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
             payloads.subscribe(responderSubscriber);
@@ -446,7 +445,7 @@ public class RSocketTest {
       requestAcceptor =
           null != requestAcceptor
               ? requestAcceptor
-              : new AbstractRSocket() {
+              : new RSocket() {
                 @Override
                 public Mono<Payload> requestResponse(Payload payload) {
                   return Mono.just(payload);
