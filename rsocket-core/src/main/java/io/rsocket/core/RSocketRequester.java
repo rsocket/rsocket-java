@@ -465,14 +465,9 @@ class RSocketRequester implements RSocket {
                     final int streamId = streamIdSupplier.nextStreamId(receivers);
                     this.streamId = streamId;
 
-                    final ByteBuf frame;
-                    try {
-                      frame =
-                          RequestChannelFrameFlyweight.encodeReleasingPayload(
-                              allocator, streamId, false, n, initialPayload);
-                    } catch (IllegalReferenceCountException | NullPointerException e) {
-                      return;
-                    }
+                    final ByteBuf frame =
+                        RequestChannelFrameFlyweight.encodeReleasingPayload(
+                            allocator, streamId, false, n, initialPayload);
 
                     senders.put(streamId, upstreamSubscriber);
                     receivers.put(streamId, receiver);

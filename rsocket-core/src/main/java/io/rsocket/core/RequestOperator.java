@@ -68,7 +68,11 @@ abstract class RequestOperator
   public void request(long n) {
     this.s.request(n);
     if (!firstRequest) {
-      hookOnRestRequests(n);
+      try {
+        this.hookOnRestRequests(n);
+      } catch (Throwable throwable) {
+        onError(throwable);
+      }
       return;
     }
     this.firstRequest = false;
@@ -82,9 +86,18 @@ abstract class RequestOperator
     for (; ; ) {
       if (firstLoop) {
         firstLoop = false;
-        hookOnFirstRequest(n);
+        try {
+          this.hookOnFirstRequest(n);
+        } catch (Throwable throwable) {
+          onError(throwable);
+          return;
+        }
       } else {
-        hookOnCancel();
+        try {
+          this.hookOnCancel();
+        } catch (Throwable throwable) {
+          onError(throwable);
+        }
         return;
       }
 
@@ -126,13 +139,21 @@ abstract class RequestOperator
   @Override
   public void onError(Throwable t) {
     this.actual.onError(t);
-    this.hookOnTerminal(SignalType.ON_ERROR);
+    try {
+      this.hookOnTerminal(SignalType.ON_ERROR);
+    } catch (Throwable throwable) {
+      Operators.onErrorDropped(throwable, currentContext());
+    }
   }
 
   @Override
   public void onComplete() {
     this.actual.onComplete();
-    this.hookOnTerminal(SignalType.ON_COMPLETE);
+    try {
+      this.hookOnTerminal(SignalType.ON_COMPLETE);
+    } catch (Throwable throwable) {
+      Operators.onErrorDropped(throwable, currentContext());
+    }
   }
 
   @Override
