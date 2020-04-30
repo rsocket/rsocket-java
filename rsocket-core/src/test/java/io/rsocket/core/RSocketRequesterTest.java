@@ -25,12 +25,10 @@ import static io.rsocket.frame.FrameType.REQUEST_RESPONSE;
 import static io.rsocket.frame.FrameType.REQUEST_STREAM;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 
@@ -61,7 +59,6 @@ import io.rsocket.test.util.TestSubscriber;
 import io.rsocket.util.ByteBufPayload;
 import io.rsocket.util.DefaultPayload;
 import io.rsocket.util.EmptyPayload;
-import io.rsocket.util.MultiSubscriberRSocket;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -247,21 +244,6 @@ public class RSocketRequesterTest {
     rule.assertHasNoLeaks();
     // TODO this should get the error reported through the response subscription
     //    verify(responseSub).onError(any(RuntimeException.class));
-  }
-
-  @Test
-  @Timeout(2_000)
-  public void testLazyRequestResponse() {
-    Publisher<Payload> response =
-        new MultiSubscriberRSocket(rule.socket).requestResponse(EmptyPayload.INSTANCE);
-    int streamId = sendRequestResponse(response);
-    Assertions.assertThat(rule.connection.getSent()).hasSize(1).allMatch(ReferenceCounted::release);
-    rule.assertHasNoLeaks();
-    rule.connection.clearSendReceiveBuffers();
-    int streamId2 = sendRequestResponse(response);
-    assertThat("Stream ID reused.", streamId2, not(equalTo(streamId)));
-    Assertions.assertThat(rule.connection.getSent()).hasSize(1).allMatch(ReferenceCounted::release);
-    rule.assertHasNoLeaks();
   }
 
   @Test
