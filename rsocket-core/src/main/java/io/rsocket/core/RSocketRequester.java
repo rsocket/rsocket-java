@@ -52,10 +52,8 @@ import io.rsocket.lease.RequesterLeaseHandler;
 import java.nio.channels.ClosedChannelException;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.function.Consumer;
-import java.util.function.LongConsumer;
 import java.util.function.Supplier;
 import javax.annotation.Nullable;
 import org.reactivestreams.Processor;
@@ -66,6 +64,7 @@ import reactor.core.publisher.BaseSubscriber;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
+import reactor.core.publisher.Operators;
 import reactor.core.publisher.SignalType;
 import reactor.core.publisher.UnicastProcessor;
 import reactor.util.concurrent.Queues;
@@ -208,7 +207,6 @@ class RSocketRequester implements RSocket {
     }
 
     final AtomicBoolean once = new AtomicBoolean();
-    final int streamId = streamIdSupplier.nextStreamId(receivers);
 
     return Mono.defer(
         () -> {
@@ -217,15 +215,14 @@ class RSocketRequester implements RSocket {
                 new IllegalStateException("FireAndForgetMono allows only a single subscriber"));
           }
 
-          return Mono.<Void>empty()
-              .doOnSubscribe(
-                  (__) -> {
-                    ByteBuf requestFrame =
-                        RequestFireAndForgetFrameFlyweight.encodeReleasingPayload(
-                            allocator, streamId, payload);
+          final int streamId = streamIdSupplier.nextStreamId(receivers);
+          final ByteBuf requestFrame =
+              RequestFireAndForgetFrameFlyweight.encodeReleasingPayload(
+                  allocator, streamId, payload);
 
-                    sendProcessor.onNext(requestFrame);
-                  });
+          sendProcessor.onNext(requestFrame);
+
+          return Mono.empty();
         });
   }
 
@@ -241,12 +238,9 @@ class RSocketRequester implements RSocket {
       return Mono.error(new IllegalArgumentException(INVALID_PAYLOAD_ERROR_MESSAGE));
     }
 
-    int streamId = streamIdSupplier.nextStreamId(receivers);
     final UnboundedProcessor<ByteBuf> sendProcessor = this.sendProcessor;
     final UnicastProcessor<Payload> receiver = UnicastProcessor.create(Queues.<Payload>one().get());
     final AtomicBoolean once = new AtomicBoolean();
-
-    receivers.put(streamId, receiver);
 
     return Mono.defer(
         () -> {
@@ -257,21 +251,41 @@ class RSocketRequester implements RSocket {
 
           return receiver
               .next()
-              .doOnSubscribe(
-                  (__) -> {
-                    ByteBuf requestFrame =
-                        RequestResponseFrameFlyweight.encodeReleasingPayload(
-                            allocator, streamId, payload);
+              .transform(
+                  Operators.<Payload, Payload>lift(
+                      (s, actual) ->
+                          new RequestOperator(actual) {
 
-                    sendProcessor.onNext(requestFrame);
-                  })
-              .doFinally(
-                  signalType -> {
-                    if (signalType == SignalType.CANCEL) {
-                      sendProcessor.onNext(CancelFrameFlyweight.encode(allocator, streamId));
-                    }
-                    removeStreamReceiver(streamId);
-                  })
+                            int streamId;
+
+                            @Override
+                            void hookOnFirstRequest(long n) {
+                              int streamId = streamIdSupplier.nextStreamId(receivers);
+                              this.streamId = streamId;
+
+                              ByteBuf requestResponseFrame =
+                                  RequestResponseFrameFlyweight.encodeReleasingPayload(
+                                      allocator, streamId, payload);
+
+                              receivers.put(streamId, receiver);
+                              sendProcessor.onNext(requestResponseFrame);
+                            }
+
+                            @Override
+                            void hookOnCancel() {
+                              if (receivers.remove(streamId, receiver)) {
+                                sendProcessor.onNext(
+                                    CancelFrameFlyweight.encode(allocator, streamId));
+                              } else {
+                                payload.release();
+                              }
+                            }
+
+                            @Override
+                            public void hookOnTerminal(SignalType signalType) {
+                              receivers.remove(streamId, receiver);
+                            }
+                          }))
               .doOnDiscard(ReferenceCounted.class, DROPPED_ELEMENTS_CONSUMER);
         });
   }
@@ -288,14 +302,9 @@ class RSocketRequester implements RSocket {
       return Flux.error(new IllegalArgumentException(INVALID_PAYLOAD_ERROR_MESSAGE));
     }
 
-    int streamId = streamIdSupplier.nextStreamId(receivers);
-
     final UnboundedProcessor<ByteBuf> sendProcessor = this.sendProcessor;
     final UnicastProcessor<Payload> receiver = UnicastProcessor.create();
-    final AtomicInteger wip = new AtomicInteger(0);
     final AtomicBoolean once = new AtomicBoolean();
-
-    receivers.put(streamId, receiver);
 
     return Flux.defer(
         () -> {
@@ -305,62 +314,52 @@ class RSocketRequester implements RSocket {
           }
 
           return receiver
-              .doOnRequest(
-                  new LongConsumer() {
+              .transform(
+                  Operators.<Payload, Payload>lift(
+                      (s, actual) ->
+                          new RequestOperator(actual) {
 
-                    boolean firstRequest = true;
+                            int streamId;
 
-                    @Override
-                    public void accept(long n) {
-                      if (firstRequest) {
-                        firstRequest = false;
-                        if (wip.getAndIncrement() != 0) {
-                          // no need to do anything.
-                          // stream was canceled and fist payload has already been discarded
-                          return;
-                        }
-                        int missed = 1;
-                        boolean firstHasBeenSent = false;
-                        for (; ; ) {
-                          if (!firstHasBeenSent) {
-                            sendProcessor.onNext(
-                                RequestStreamFrameFlyweight.encodeReleasingPayload(
-                                    allocator, streamId, n, payload));
-                            firstHasBeenSent = true;
-                          } else {
-                            // if first frame was sent but we cycling again, it means that wip was
-                            // incremented at doOnCancel
-                            sendProcessor.onNext(CancelFrameFlyweight.encode(allocator, streamId));
-                            return;
-                          }
+                            @Override
+                            void hookOnFirstRequest(long n) {
+                              int streamId = streamIdSupplier.nextStreamId(receivers);
+                              this.streamId = streamId;
 
-                          missed = wip.addAndGet(-missed);
-                          if (missed == 0) {
-                            return;
-                          }
-                        }
-                      } else if (!receiver.isDisposed()) {
-                        sendProcessor.onNext(RequestNFrameFlyweight.encode(allocator, streamId, n));
-                      }
-                    }
-                  })
-              .doFinally(
-                  s -> {
-                    if (s == SignalType.CANCEL) {
-                      if (wip.getAndIncrement() != 0) {
-                        return;
-                      }
+                              ByteBuf requestStreamFrame =
+                                  RequestStreamFrameFlyweight.encodeReleasingPayload(
+                                      allocator, streamId, n, payload);
 
-                      // check if we need to release payload
-                      // only applicable if the cancel appears earlier than actual request
-                      if (payload.refCnt() > 0) {
-                        payload.release();
-                      } else {
-                        sendProcessor.onNext(CancelFrameFlyweight.encode(allocator, streamId));
-                      }
-                    }
-                    removeStreamReceiver(streamId);
-                  })
+                              receivers.put(streamId, receiver);
+
+                              sendProcessor.onNext(requestStreamFrame);
+                            }
+
+                            @Override
+                            void hookOnRestRequests(long n) {
+                              if (receiver.isDisposed()) {
+                                return;
+                              }
+
+                              sendProcessor.onNext(
+                                  RequestNFrameFlyweight.encode(allocator, streamId, n));
+                            }
+
+                            @Override
+                            void hookOnCancel() {
+                              if (receivers.remove(streamId, receiver)) {
+                                sendProcessor.onNext(
+                                    CancelFrameFlyweight.encode(allocator, streamId));
+                              } else {
+                                payload.release();
+                              }
+                            }
+
+                            @Override
+                            void hookOnTerminal(SignalType signalType) {
+                              receivers.remove(streamId);
+                            }
+                          }))
               .doOnDiscard(ReferenceCounted.class, DROPPED_ELEMENTS_CONSUMER);
         });
   }
@@ -396,7 +395,6 @@ class RSocketRequester implements RSocket {
     final UnboundedProcessor<ByteBuf> sendProcessor = this.sendProcessor;
     final int streamId = streamIdSupplier.nextStreamId(receivers);
 
-    final AtomicInteger wip = new AtomicInteger(0);
     final UnicastProcessor<Payload> receiver = UnicastProcessor.create();
     final BaseSubscriber<Payload> upstreamSubscriber =
         new BaseSubscriber<Payload>() {
@@ -455,80 +453,58 @@ class RSocketRequester implements RSocket {
         };
 
     return receiver
-        .doOnRequest(
-            new LongConsumer() {
+        .transform(
+            Operators.<Payload, Payload>lift(
+                (s, actual) ->
+                    new RequestOperator(actual) {
+                      @Override
+                      void hookOnFirstRequest(long n) {
+                        ByteBuf frame;
+                        try {
+                          frame =
+                              RequestChannelFrameFlyweight.encodeReleasingPayload(
+                                  allocator, streamId, false, n, initialPayload);
+                        } catch (IllegalReferenceCountException | NullPointerException e) {
+                          return;
+                        }
 
-              boolean firstRequest = true;
+                        senders.put(streamId, upstreamSubscriber);
+                        receivers.put(streamId, receiver);
 
-              @Override
-              public void accept(long n) {
-                if (firstRequest) {
-                  firstRequest = false;
-                  if (wip.getAndIncrement() != 0) {
-                    // no need to do anything.
-                    // stream was canceled and fist payload has already been discarded
-                    return;
-                  }
-                  int missed = 1;
-                  boolean firstHasBeenSent = false;
-                  for (; ; ) {
-                    if (!firstHasBeenSent) {
-                      ByteBuf frame;
-                      try {
-                        frame =
-                            RequestChannelFrameFlyweight.encodeReleasingPayload(
-                                allocator, streamId, false, n, initialPayload);
-                      } catch (IllegalReferenceCountException | NullPointerException e) {
-                        return;
+                        inboundFlux
+                            .limitRate(Queues.SMALL_BUFFER_SIZE)
+                            .doOnDiscard(ReferenceCounted.class, DROPPED_ELEMENTS_CONSUMER)
+                            .subscribe(upstreamSubscriber);
+
+                        sendProcessor.onNext(frame);
                       }
 
-                      senders.put(streamId, upstreamSubscriber);
-                      receivers.put(streamId, receiver);
+                      @Override
+                      void hookOnRestRequests(long n) {
+                        if (receiver.isDisposed()) {
+                          return;
+                        }
 
-                      inboundFlux
-                          .limitRate(Queues.SMALL_BUFFER_SIZE)
-                          .doOnDiscard(ReferenceCounted.class, DROPPED_ELEMENTS_CONSUMER)
-                          .subscribe(upstreamSubscriber);
+                        sendProcessor.onNext(RequestNFrameFlyweight.encode(allocator, streamId, n));
+                      }
 
-                      sendProcessor.onNext(frame);
-                      firstHasBeenSent = true;
-                    } else {
-                      // if first frame was sent but we cycling again, it means that wip was
-                      // incremented at doOnCancel
-                      senders.remove(streamId, upstreamSubscriber);
-                      receivers.remove(streamId, receiver);
-                      sendProcessor.onNext(CancelFrameFlyweight.encode(allocator, streamId));
-                      return;
-                    }
+                      @Override
+                      void hookOnCancel() {
+                        senders.remove(streamId, upstreamSubscriber);
+                        if (receivers.remove(streamId, receiver)) {
+                          sendProcessor.onNext(CancelFrameFlyweight.encode(allocator, streamId));
+                        }
+                      }
 
-                    missed = wip.addAndGet(-missed);
-                    if (missed == 0) {
-                      return;
-                    }
-                  }
-                } else {
-                  sendProcessor.onNext(RequestNFrameFlyweight.encode(allocator, streamId, n));
-                }
-              }
-            })
-        .doOnError(
-            t -> {
-              upstreamSubscriber.cancel();
-              receivers.remove(streamId, receiver);
-            })
-        .doOnComplete(() -> receivers.remove(streamId, receiver))
-        .doOnCancel(
-            () -> {
-              upstreamSubscriber.cancel();
-              if (wip.getAndIncrement() != 0) {
-                return;
-              }
-
-              // need to send frame only if RequestChannelFrame was sent
-              if (receivers.remove(streamId, receiver)) {
-                sendProcessor.onNext(CancelFrameFlyweight.encode(allocator, streamId));
-              }
-            });
+                      @Override
+                      void hookOnTerminal(SignalType signalType) {
+                        if (signalType == SignalType.ON_ERROR) {
+                          upstreamSubscriber.cancel();
+                        }
+                        receivers.remove(streamId, receiver);
+                      }
+                    }))
+        .doOnCancel(upstreamSubscriber::cancel);
   }
 
   private Mono<Void> handleMetadataPush(Payload payload) {
@@ -552,14 +528,12 @@ class RSocketRequester implements RSocket {
                 new IllegalStateException("MetadataPushMono allows only a single subscriber"));
           }
 
-          return Mono.<Void>empty()
-              .doOnSubscribe(
-                  (__) -> {
-                    ByteBuf metadataPushFrame =
-                        MetadataPushFrameFlyweight.encodeReleasingPayload(allocator, payload);
+          ByteBuf metadataPushFrame =
+              MetadataPushFrameFlyweight.encodeReleasingPayload(allocator, payload);
 
-                    sendProcessor.onNextPrioritized(metadataPushFrame);
-                  });
+          sendProcessor.onNextPrioritized(metadataPushFrame);
+
+          return Mono.empty();
         });
   }
 
@@ -755,14 +729,6 @@ class RSocketRequester implements RSocket {
     sendProcessor.dispose();
     errorConsumer.accept(e);
     onClose.onError(e);
-  }
-
-  private void removeStreamReceiver(int streamId) {
-    /*on termination receivers are explicitly cleared to avoid removing from map while iterating over one
-    of its views*/
-    if (terminationError == null) {
-      receivers.remove(streamId);
-    }
   }
 
   private void handleSendProcessorError(Throwable t) {
