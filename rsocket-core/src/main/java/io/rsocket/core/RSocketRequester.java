@@ -478,7 +478,7 @@ class RSocketRequester implements RSocket {
                         frame =
                             RequestChannelFrameFlyweight.encodeReleasingPayload(
                                 allocator, streamId, false, n, initialPayload);
-                      } catch (IllegalReferenceCountException e) {
+                      } catch (IllegalReferenceCountException | NullPointerException e) {
                         return;
                       }
 
