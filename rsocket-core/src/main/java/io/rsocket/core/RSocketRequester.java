@@ -256,8 +256,6 @@ class RSocketRequester implements RSocket {
                       (s, actual) ->
                           new RequestOperator(actual) {
 
-                            int streamId;
-
                             @Override
                             void hookOnFirstRequest(long n) {
                               int streamId = streamIdSupplier.nextStreamId(receivers);
@@ -319,8 +317,6 @@ class RSocketRequester implements RSocket {
                       (s, actual) ->
                           new RequestOperator(actual) {
 
-                            int streamId;
-
                             @Override
                             void hookOnFirstRequest(long n) {
                               int streamId = streamIdSupplier.nextStreamId(receivers);
@@ -336,7 +332,7 @@ class RSocketRequester implements RSocket {
                             }
 
                             @Override
-                            void hookOnRestRequests(long n) {
+                            void hookOnRemainingRequests(long n) {
                               if (receiver.isDisposed()) {
                                 return;
                               }
@@ -400,7 +396,6 @@ class RSocketRequester implements RSocket {
         Operators.<Payload, Payload>lift(
             (s, actual) ->
                 new RequestOperator(actual) {
-                  int streamId;
 
                   final BaseSubscriber<Payload> upstreamSubscriber =
                       new BaseSubscriber<Payload>() {
@@ -481,7 +476,7 @@ class RSocketRequester implements RSocket {
                   }
 
                   @Override
-                  void hookOnRestRequests(long n) {
+                  void hookOnRemainingRequests(long n) {
                     if (receiver.isDisposed()) {
                       return;
                     }

@@ -22,6 +22,9 @@ abstract class RequestOperator
   Subscription s;
   Fuseable.QueueSubscription<Payload> qs;
 
+
+
+  int streamId;
   boolean firstRequest = true;
 
   volatile int wip;
@@ -44,7 +47,7 @@ abstract class RequestOperator
    * Optional hook executed after the {@link Subscription#request} was propagated to the upstream
    * subscription and excludes the first {@link Subscription#request} invocation.
    */
-  void hookOnRestRequests(long n) {}
+  void hookOnRemainingRequests(long n) {}
 
   /** Optional hook executed after this {@link Subscription} cancelling. */
   void hookOnCancel() {}
@@ -68,7 +71,7 @@ abstract class RequestOperator
     this.s.request(n);
     if (!firstRequest) {
       try {
-        this.hookOnRestRequests(n);
+        this.hookOnRemainingRequests(n);
       } catch (Throwable throwable) {
         onError(throwable);
       }
