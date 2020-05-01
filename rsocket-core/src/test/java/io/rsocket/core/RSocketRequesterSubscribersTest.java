@@ -22,7 +22,9 @@ import io.rsocket.RSocket;
 import io.rsocket.buffer.LeaksTrackingByteBufAllocator;
 import io.rsocket.frame.FrameHeaderFlyweight;
 import io.rsocket.frame.FrameType;
+import io.rsocket.frame.PayloadFrameFlyweight;
 import io.rsocket.frame.decoder.PayloadDecoder;
+import io.rsocket.internal.subscriber.AssertSubscriber;
 import io.rsocket.lease.RequesterLeaseHandler;
 import io.rsocket.test.util.TestDuplexConnection;
 import io.rsocket.util.DefaultPayload;
@@ -40,6 +42,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.test.StepVerifier;
+import reactor.test.util.RaceTestUtils;
 
 class RSocketRequesterSubscribersTest {
 
@@ -87,6 +90,33 @@ class RSocketRequesterSubscribersTest {
         .verify(Duration.ofSeconds(5));
 
     Assertions.assertThat(requestFramesCount(connection.getSent())).isEqualTo(1);
+  }
+
+  @ParameterizedTest
+  @MethodSource("allInteractions")
+  void singleSubscriberInCaseOfRacing(Function<RSocket, Publisher<?>> interaction) {
+    for (int i = 1; i < 20000; i += 2) {
+      Flux<?> response = Flux.from(interaction.apply(rSocketRequester));
+      AssertSubscriber assertSubscriberA = AssertSubscriber.create();
+      AssertSubscriber assertSubscriberB = AssertSubscriber.create();
+
+      RaceTestUtils.race(
+          () -> response.subscribe(assertSubscriberA), () -> response.subscribe(assertSubscriberB));
+
+      connection.addToReceivedBuffer(PayloadFrameFlyweight.encodeComplete(connection.alloc(), i));
+
+      assertSubscriberA.assertTerminated();
+      assertSubscriberB.assertTerminated();
+
+      Assertions.assertThat(new AssertSubscriber[] {assertSubscriberA, assertSubscriberB})
+          .anySatisfy(as -> as.assertError(IllegalStateException.class));
+
+      Assertions.assertThat(connection.getSent())
+          .hasSize(1)
+          .first()
+          .matches(bb -> REQUEST_TYPES.contains(FrameHeaderFlyweight.frameType(bb)));
+      connection.clearSendReceiveBuffers();
+    }
   }
 
   @ParameterizedTest
