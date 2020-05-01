@@ -10,12 +10,9 @@ import reactor.core.publisher.SignalType;
 import reactor.util.context.Context;
 
 /**
- * This class is a supportive class to simplify requests' logic implementation and aimed to be used
- * with {@link Operators#lift}
- *
- * <p>This class incorporates extra logic which ensures serial cancel and first request execution as
- * well as provides extra logic to separate first {@link Subscription#request} invocation from the
- * rest of them
+ * This is a support class for handling of request input, intended for use with {@link Operators#lift}.
+ * It ensures serial execution of cancellation vs first request signals and also provides hooks for separate
+ * handling of first vs subsequent {@link Subscription#request} invocations.
  */
 abstract class RequestOperator
     implements CoreSubscriber<Payload>, Fuseable.QueueSubscription<Payload> {
