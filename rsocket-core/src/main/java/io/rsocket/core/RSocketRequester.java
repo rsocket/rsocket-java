@@ -108,6 +108,7 @@ class RSocketRequester implements RSocket {
 
   RSocketRequester(
       DuplexConnection connection,
+      boolean isResumeEnabled,
       PayloadDecoder payloadDecoder,
       Consumer<Throwable> errorConsumer,
       StreamIdSupplier streamIdSupplier,
@@ -120,12 +121,15 @@ class RSocketRequester implements RSocket {
     this.allocator = connection.alloc();
     this.payloadDecoder = payloadDecoder;
     this.errorConsumer = errorConsumer;
-    this.streamIdSupplier = streamIdSupplier;
     this.mtu = mtu;
     this.leaseHandler = leaseHandler;
     this.senders = new SynchronizedIntObjectHashMap<>();
     this.receivers = new SynchronizedIntObjectHashMap<>();
     this.onClose = MonoProcessor.create();
+    this.streamIdSupplier =
+        isResumeEnabled
+            ? new ResumableStreamIdSupplier(streamIdSupplier, receivers)
+            : streamIdSupplier;
 
     // DO NOT Change the order here. The Send processor must be subscribed to before receiving
     this.sendProcessor = new UnboundedProcessor<>();
@@ -215,7 +219,7 @@ class RSocketRequester implements RSocket {
                     new IllegalStateException("FireAndForgetMono allows only a single subscriber"));
               }
 
-              final int streamId = streamIdSupplier.nextStreamId(receivers);
+              final int streamId = streamIdSupplier.nextStreamId();
               final ByteBuf requestFrame =
                   RequestFireAndForgetFrameFlyweight.encodeReleasingPayload(
                       allocator, streamId, payload);
@@ -259,7 +263,7 @@ class RSocketRequester implements RSocket {
 
                             @Override
                             void hookOnFirstRequest(long n) {
-                              int streamId = streamIdSupplier.nextStreamId(receivers);
+                              int streamId = streamIdSupplier.nextStreamId();
                               this.streamId = streamId;
 
                               ByteBuf requestResponseFrame =
@@ -321,7 +325,7 @@ class RSocketRequester implements RSocket {
 
                             @Override
                             void hookOnFirstRequest(long n) {
-                              int streamId = streamIdSupplier.nextStreamId(receivers);
+                              int streamId = streamIdSupplier.nextStreamId();
                               this.streamId = streamId;
 
                               ByteBuf requestStreamFrame =
@@ -464,7 +468,7 @@ class RSocketRequester implements RSocket {
 
                       @Override
                       void hookOnFirstRequest(long n) {
-                        final int streamId = streamIdSupplier.nextStreamId(receivers);
+                        final int streamId = streamIdSupplier.nextStreamId();
                         this.streamId = streamId;
 
                         final ByteBuf frame =

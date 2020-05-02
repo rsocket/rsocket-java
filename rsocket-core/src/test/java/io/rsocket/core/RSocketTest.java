@@ -485,6 +485,7 @@ public class RSocketTest {
       crs =
           new RSocketRequester(
               clientConnection,
+              false,
               PayloadDecoder.DEFAULT,
               throwable -> clientErrors.add(throwable),
               StreamIdSupplier.clientSupplier(),

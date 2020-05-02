@@ -27,35 +27,33 @@ import org.junit.Test;
 public class StreamIdSupplierTest {
   @Test
   public void testClientSequence() {
-    IntObjectMap<Object> map = new SynchronizedIntObjectHashMap<>();
     StreamIdSupplier s = StreamIdSupplier.clientSupplier();
-    assertEquals(1, s.nextStreamId(map));
-    assertEquals(3, s.nextStreamId(map));
-    assertEquals(5, s.nextStreamId(map));
+    assertEquals(1, s.nextStreamId());
+    assertEquals(3, s.nextStreamId());
+    assertEquals(5, s.nextStreamId());
   }
 
   @Test
   public void testServerSequence() {
-    IntObjectMap<Object> map = new SynchronizedIntObjectHashMap<>();
     StreamIdSupplier s = StreamIdSupplier.serverSupplier();
-    assertEquals(2, s.nextStreamId(map));
-    assertEquals(4, s.nextStreamId(map));
-    assertEquals(6, s.nextStreamId(map));
+    assertEquals(2, s.nextStreamId());
+    assertEquals(4, s.nextStreamId());
+    assertEquals(6, s.nextStreamId());
   }
 
   @Test
   public void testClientIsValid() {
-    IntObjectMap<Object> map = new SynchronizedIntObjectHashMap<>();
     StreamIdSupplier s = StreamIdSupplier.clientSupplier();
 
     assertFalse(s.isBeforeOrCurrent(1));
     assertFalse(s.isBeforeOrCurrent(3));
 
-    s.nextStreamId(map);
+    s.nextStreamId();
+
     assertTrue(s.isBeforeOrCurrent(1));
     assertFalse(s.isBeforeOrCurrent(3));
 
-    s.nextStreamId(map);
+    s.nextStreamId();
     assertTrue(s.isBeforeOrCurrent(3));
 
     // negative
@@ -68,17 +66,16 @@ public class StreamIdSupplierTest {
 
   @Test
   public void testServerIsValid() {
-    IntObjectMap<Object> map = new SynchronizedIntObjectHashMap<>();
     StreamIdSupplier s = StreamIdSupplier.serverSupplier();
 
     assertFalse(s.isBeforeOrCurrent(2));
     assertFalse(s.isBeforeOrCurrent(4));
 
-    s.nextStreamId(map);
+    s.nextStreamId();
     assertTrue(s.isBeforeOrCurrent(2));
     assertFalse(s.isBeforeOrCurrent(4));
 
-    s.nextStreamId(map);
+    s.nextStreamId();
     assertTrue(s.isBeforeOrCurrent(4));
 
     // negative
@@ -91,18 +88,17 @@ public class StreamIdSupplierTest {
 
   @Test
   public void testWrap() {
-    IntObjectMap<Object> map = new SynchronizedIntObjectHashMap<>();
-    StreamIdSupplier s = new StreamIdSupplier(Integer.MAX_VALUE - 3);
+    StreamIdSupplier s = new DefaultStreamIdSupplier(Integer.MAX_VALUE - 3);
 
-    assertEquals(2147483646, s.nextStreamId(map));
-    assertEquals(2, s.nextStreamId(map));
-    assertEquals(4, s.nextStreamId(map));
+    assertEquals(2147483646, s.nextStreamId());
+    assertEquals(2, s.nextStreamId());
+    assertEquals(4, s.nextStreamId());
 
-    s = new StreamIdSupplier(Integer.MAX_VALUE - 2);
+    s = new DefaultStreamIdSupplier(Integer.MAX_VALUE - 2);
 
-    assertEquals(2147483647, s.nextStreamId(map));
-    assertEquals(1, s.nextStreamId(map));
-    assertEquals(3, s.nextStreamId(map));
+    assertEquals(2147483647, s.nextStreamId());
+    assertEquals(1, s.nextStreamId());
+    assertEquals(3, s.nextStreamId());
   }
 
   @Test
@@ -110,10 +106,10 @@ public class StreamIdSupplierTest {
     IntObjectMap<Object> map = new SynchronizedIntObjectHashMap<>();
     map.put(5, new Object());
     map.put(9, new Object());
-    StreamIdSupplier s = StreamIdSupplier.clientSupplier();
-    assertEquals(1, s.nextStreamId(map));
-    assertEquals(3, s.nextStreamId(map));
-    assertEquals(7, s.nextStreamId(map));
-    assertEquals(11, s.nextStreamId(map));
+    StreamIdSupplier s = new ResumableStreamIdSupplier(StreamIdSupplier.clientSupplier(), map);
+    assertEquals(1, s.nextStreamId());
+    assertEquals(3, s.nextStreamId());
+    assertEquals(7, s.nextStreamId());
+    assertEquals(11, s.nextStreamId());
   }
 }

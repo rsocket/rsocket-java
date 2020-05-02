@@ -60,6 +60,7 @@ public class KeepAliveTest {
     RSocketRequester rSocket =
         new RSocketRequester(
             connection,
+            false,
             DefaultPayload::create,
             errors,
             StreamIdSupplier.clientSupplier(),
@@ -87,6 +88,7 @@ public class KeepAliveTest {
     RSocketRequester rSocket =
         new RSocketRequester(
             resumableConnection,
+            true,
             DefaultPayload::create,
             errors,
             StreamIdSupplier.clientSupplier(),

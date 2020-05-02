@@ -15,17 +15,26 @@
  */
 package io.rsocket.core;
 
-interface StreamIdSupplier {
+final class DefaultStreamIdSupplier implements StreamIdSupplier {
+  private static final int MASK = 0x7FFFFFFF;
 
-  int nextStreamId();
+  private long streamId;
 
-  boolean isBeforeOrCurrent(int streamId);
-
-  static StreamIdSupplier clientSupplier() {
-    return new DefaultStreamIdSupplier(-1);
+  // Visible for testing
+  DefaultStreamIdSupplier(int streamId) {
+    this.streamId = streamId;
   }
 
-  static StreamIdSupplier serverSupplier() {
-    return new DefaultStreamIdSupplier(0);
+  public int nextStreamId() {
+    int streamId;
+    do {
+      this.streamId += 2;
+      streamId = (int) (this.streamId & MASK);
+    } while (streamId == 0);
+    return streamId;
+  }
+
+  public boolean isBeforeOrCurrent(int streamId) {
+    return this.streamId >= streamId && streamId > 0;
   }
 }

@@ -215,6 +215,7 @@ public final class RSocketServer {
           RSocket rSocketRequester =
               new RSocketRequester(
                   wrappedMultiplexer.asServerConnection(),
+                  resume != null,
                   payloadDecoder,
                   errorConsumer,
                   StreamIdSupplier.serverSupplier(),

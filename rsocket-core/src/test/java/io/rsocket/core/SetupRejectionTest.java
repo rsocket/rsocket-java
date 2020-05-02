@@ -57,6 +57,7 @@ public class SetupRejectionTest {
     RSocketRequester rSocket =
         new RSocketRequester(
             conn,
+            false,
             DefaultPayload::create,
             errors::add,
             StreamIdSupplier.clientSupplier(),
@@ -94,6 +95,7 @@ public class SetupRejectionTest {
     RSocketRequester rSocket =
         new RSocketRequester(
             conn,
+            false,
             DefaultPayload::create,
             err -> {},
             StreamIdSupplier.clientSupplier(),

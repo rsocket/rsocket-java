@@ -15,17 +15,27 @@
  */
 package io.rsocket.core;
 
-interface StreamIdSupplier {
+import io.netty.util.collection.IntObjectMap;
 
-  int nextStreamId();
+final class ResumableStreamIdSupplier implements StreamIdSupplier {
+  final StreamIdSupplier origin;
+  final IntObjectMap<?> streamIds;
 
-  boolean isBeforeOrCurrent(int streamId);
-
-  static StreamIdSupplier clientSupplier() {
-    return new DefaultStreamIdSupplier(-1);
+  ResumableStreamIdSupplier(StreamIdSupplier origin, IntObjectMap<?> streamIds) {
+    this.origin = origin;
+    this.streamIds = streamIds;
   }
 
-  static StreamIdSupplier serverSupplier() {
-    return new DefaultStreamIdSupplier(0);
+  @Override
+  public int nextStreamId() {
+    int streamId;
+    do {
+      streamId = origin.nextStreamId();
+    } while (streamIds.containsKey(streamId));
+    return streamId;
+  }
+
+  public boolean isBeforeOrCurrent(int streamId) {
+    return origin.isBeforeOrCurrent(streamId);
   }
 }

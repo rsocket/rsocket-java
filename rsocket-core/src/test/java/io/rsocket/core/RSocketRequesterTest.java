@@ -985,6 +985,7 @@ public class RSocketRequesterTest {
     protected RSocketRequester newRSocket() {
       return new RSocketRequester(
           connection,
+          false,
           PayloadDecoder.ZERO_COPY,
           throwable -> errors.add(throwable),
           StreamIdSupplier.clientSupplier(),

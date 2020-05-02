@@ -252,7 +252,8 @@ public class RSocketConnector {
               KeepAliveHandler keepAliveHandler;
               DuplexConnection wrappedConnection;
 
-              if (resume != null) {
+              boolean isResumeEnabled = resume != null;
+              if (isResumeEnabled) {
                 resumeToken = resume.getTokenSupplier().get();
                 ClientRSocketSession session =
                     new ClientRSocketSession(
@@ -286,6 +287,7 @@ public class RSocketConnector {
               RSocket rSocketRequester =
                   new RSocketRequester(
                       multiplexer.asClientConnection(),
+                      isResumeEnabled,
                       payloadDecoder,
                       errorConsumer,
                       StreamIdSupplier.clientSupplier(),

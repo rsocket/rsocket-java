@@ -64,6 +64,7 @@ class RSocketRequesterSubscribersTest {
     rSocketRequester =
         new RSocketRequester(
             connection,
+            false,
             PayloadDecoder.DEFAULT,
             err -> {},
             StreamIdSupplier.clientSupplier(),

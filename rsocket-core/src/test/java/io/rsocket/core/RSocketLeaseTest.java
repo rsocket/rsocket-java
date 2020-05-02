@@ -91,6 +91,7 @@ class RSocketLeaseTest {
     rSocketRequester =
         new RSocketRequester(
             multiplexer.asClientConnection(),
+            false,
             payloadDecoder,
             err -> {},
             StreamIdSupplier.clientSupplier(),
