@@ -28,6 +28,8 @@ import io.rsocket.transport.local.LocalServerTransport.ServerDuplexConnectionAcc
 import java.util.Objects;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
+import reactor.core.scheduler.Scheduler;
+import reactor.core.scheduler.Schedulers;
 
 /**
  * An implementation of {@link ClientTransport} that connects to a {@link ServerTransport} in the
@@ -83,11 +85,13 @@ public final class LocalClientTransport implements ClientTransport {
           UnboundedProcessor<ByteBuf> in = new UnboundedProcessor<>();
           UnboundedProcessor<ByteBuf> out = new UnboundedProcessor<>();
           MonoProcessor<Void> closeNotifier = MonoProcessor.create();
+          Scheduler scheduler = Schedulers.single(Schedulers.parallel());
 
-          server.accept(new LocalDuplexConnection(allocator, out, in, closeNotifier));
+          server.accept(new LocalDuplexConnection(allocator, scheduler, out, in, closeNotifier));
 
           return Mono.just(
-              (DuplexConnection) new LocalDuplexConnection(allocator, in, out, closeNotifier));
+              (DuplexConnection)
+                  new LocalDuplexConnection(allocator, scheduler, in, out, closeNotifier));
         });
   }
 

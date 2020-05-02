@@ -25,6 +25,8 @@ import java.util.Objects;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Scheduler;
+import reactor.core.scheduler.Schedulers;
 import reactor.netty.Connection;
 
 /** An implementation of {@link DuplexConnection} that connects via TCP. */
@@ -32,6 +34,7 @@ public final class TcpDuplexConnection extends BaseDuplexConnection {
 
   private final Connection connection;
   private final boolean encodeLength;
+  private final Scheduler scheduler;
 
   /**
    * Creates a new instance
@@ -51,6 +54,7 @@ public final class TcpDuplexConnection extends BaseDuplexConnection {
   public TcpDuplexConnection(Connection connection, boolean encodeLength) {
     this.encodeLength = encodeLength;
     this.connection = Objects.requireNonNull(connection, "connection must not be null");
+    this.scheduler = Schedulers.fromExecutorService(connection.channel().eventLoop());
 
     connection
         .channel()
@@ -64,6 +68,11 @@ public final class TcpDuplexConnection extends BaseDuplexConnection {
   @Override
   public ByteBufAllocator alloc() {
     return connection.channel().alloc();
+  }
+
+  @Override
+  public Scheduler eventLoopScheduler() {
+    return scheduler;
   }
 
   @Override

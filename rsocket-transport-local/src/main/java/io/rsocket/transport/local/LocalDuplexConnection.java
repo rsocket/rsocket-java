@@ -25,11 +25,13 @@ import org.reactivestreams.Subscriber;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
+import reactor.core.scheduler.Scheduler;
 
 /** An implementation of {@link DuplexConnection} that connects inside the same JVM. */
 final class LocalDuplexConnection implements DuplexConnection {
 
   private final ByteBufAllocator allocator;
+  private final Scheduler scheduler;
   private final Flux<ByteBuf> in;
 
   private final MonoProcessor<Void> onClose;
@@ -46,10 +48,12 @@ final class LocalDuplexConnection implements DuplexConnection {
    */
   LocalDuplexConnection(
       ByteBufAllocator allocator,
+      Scheduler scheduler,
       Flux<ByteBuf> in,
       Subscriber<ByteBuf> out,
       MonoProcessor<Void> onClose) {
     this.allocator = Objects.requireNonNull(allocator, "allocator must not be null");
+    this.scheduler = Objects.requireNonNull(scheduler, "scheduler must not be null");
     this.in = Objects.requireNonNull(in, "in must not be null");
     this.out = Objects.requireNonNull(out, "out must not be null");
     this.onClose = Objects.requireNonNull(onClose, "onClose must not be null");
@@ -93,5 +97,10 @@ final class LocalDuplexConnection implements DuplexConnection {
   @Override
   public ByteBufAllocator alloc() {
     return allocator;
+  }
+
+  @Override
+  public Scheduler eventLoopScheduler() {
+    return scheduler;
   }
 }

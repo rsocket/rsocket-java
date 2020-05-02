@@ -33,6 +33,7 @@ import org.slf4j.LoggerFactory;
 import reactor.core.Disposable;
 import reactor.core.Disposables;
 import reactor.core.publisher.*;
+import reactor.core.scheduler.Scheduler;
 import reactor.util.concurrent.Queues;
 
 public class ResumableDuplexConnection implements DuplexConnection, ResumeStateHolder {
@@ -104,6 +105,11 @@ public class ResumableDuplexConnection implements DuplexConnection, ResumeStateH
             .cache();
 
     reconnect(duplexConnection);
+  }
+
+  @Override
+  public Scheduler eventLoopScheduler() {
+    return curConnection.eventLoopScheduler();
   }
 
   @Override

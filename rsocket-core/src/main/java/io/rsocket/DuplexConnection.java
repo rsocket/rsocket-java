@@ -23,6 +23,7 @@ import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Scheduler;
 
 /** Represents a connection with input/output that the protocol uses. */
 public interface DuplexConnection extends Availability, Closeable {
@@ -85,6 +86,14 @@ public interface DuplexConnection extends Availability, Closeable {
    * @return the {@link ByteBufAllocator}
    */
   ByteBufAllocator alloc();
+
+  /**
+   * Returns associated to this connection {@link Scheduler} that will process all submitted tasks
+   * in an ordered / serial fashion.
+   *
+   * @return events' ordered {@link Scheduler}
+   */
+  Scheduler eventLoopScheduler();
 
   @Override
   default double availability() {

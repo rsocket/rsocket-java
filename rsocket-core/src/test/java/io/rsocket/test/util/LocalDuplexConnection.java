@@ -19,11 +19,13 @@ package io.rsocket.test.util;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.DuplexConnection;
+import io.rsocket.TestScheduler;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.DirectProcessor;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
+import reactor.core.scheduler.Scheduler;
 
 public class LocalDuplexConnection implements DuplexConnection {
   private final ByteBufAllocator allocator;
@@ -61,6 +63,11 @@ public class LocalDuplexConnection implements DuplexConnection {
   @Override
   public ByteBufAllocator alloc() {
     return allocator;
+  }
+
+  @Override
+  public Scheduler eventLoopScheduler() {
+    return TestScheduler.INSTANCE;
   }
 
   @Override

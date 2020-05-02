@@ -32,6 +32,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Scheduler;
 
 /**
  * An implementation of {@link DuplexConnection} that intercepts frames and gathers Micrometer
@@ -81,6 +82,11 @@ final class MicrometerDuplexConnection implements DuplexConnection {
             "rsocket.duplex.connection.dispose",
             Tags.of(tags).and("connection.type", connectionType.name()));
     this.frameCounters = new FrameCounters(connectionType, meterRegistry, tags);
+  }
+
+  @Override
+  public Scheduler eventLoopScheduler() {
+    return delegate.eventLoopScheduler();
   }
 
   @Override

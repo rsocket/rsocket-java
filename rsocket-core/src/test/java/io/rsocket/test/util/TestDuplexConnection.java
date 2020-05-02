@@ -19,6 +19,7 @@ package io.rsocket.test.util;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.DuplexConnection;
+import io.rsocket.TestScheduler;
 import java.util.Collection;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -31,6 +32,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.FluxSink;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
+import reactor.core.scheduler.Scheduler;
 
 /**
  * An implementation of {@link DuplexConnection} that provides functionality to modify the behavior
@@ -84,6 +86,11 @@ public class TestDuplexConnection implements DuplexConnection {
   @Override
   public Flux<ByteBuf> receive() {
     return received;
+  }
+
+  @Override
+  public Scheduler eventLoopScheduler() {
+    return TestScheduler.INSTANCE;
   }
 
   @Override
