@@ -42,6 +42,7 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 import reactor.core.Disposable;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 import reactor.util.retry.Retry;
 
 public class RSocketConnector {
@@ -293,7 +294,8 @@ public class RSocketConnector {
                       (int) keepAliveInterval.toMillis(),
                       (int) keepAliveMaxLifeTime.toMillis(),
                       keepAliveHandler,
-                      requesterLeaseHandler);
+                      requesterLeaseHandler,
+                      Schedulers.single(Schedulers.parallel()));
 
               RSocket wrappedRSocketRequester = interceptors.initRequester(rSocketRequester);
 

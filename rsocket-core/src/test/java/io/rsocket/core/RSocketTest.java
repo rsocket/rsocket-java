@@ -25,6 +25,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
+import io.rsocket.TestScheduler;
 import io.rsocket.buffer.LeaksTrackingByteBufAllocator;
 import io.rsocket.exceptions.ApplicationErrorException;
 import io.rsocket.exceptions.CustomRSocketException;
@@ -492,7 +493,8 @@ public class RSocketTest {
               0,
               0,
               null,
-              RequesterLeaseHandler.None);
+              RequesterLeaseHandler.None,
+              TestScheduler.INSTANCE);
     }
 
     public void setRequestAcceptor(RSocket requestAcceptor) {
