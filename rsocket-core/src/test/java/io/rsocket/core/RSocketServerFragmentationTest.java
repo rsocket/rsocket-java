@@ -11,7 +11,7 @@ public class RSocketServerFragmentationTest {
   public void serverErrorsWithEnabledFragmentationOnInsufficientMtu() {
     Assertions.assertThatIllegalArgumentException()
         .isThrownBy(() -> RSocketServer.create().fragment(2))
-        .withMessage("smallest allowed mtu size is 64 bytes, provided: 2");
+        .withMessage("The smallest allowed mtu size is 64 bytes, provided: 2");
   }
 
   @Test
@@ -28,12 +28,12 @@ public class RSocketServerFragmentationTest {
   public void clientErrorsWithEnabledFragmentationOnInsufficientMtu() {
     Assertions.assertThatIllegalArgumentException()
         .isThrownBy(() -> RSocketConnector.create().fragment(2))
-        .withMessage("smallest allowed mtu size is 64 bytes, provided: 2");
+        .withMessage("The smallest allowed mtu size is 64 bytes, provided: 2");
   }
 
   @Test
   public void clientSucceedsWithEnabledFragmentationOnSufficientMtu() {
-    RSocketConnector.create().fragment(100).connect(TestClientTransport::new).block();
+    RSocketConnector.create().fragment(100).connect(new TestClientTransport()).block();
   }
 
   @Test

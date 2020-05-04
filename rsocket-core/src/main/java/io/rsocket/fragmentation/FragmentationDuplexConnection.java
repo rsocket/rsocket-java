@@ -41,7 +41,7 @@ import reactor.core.publisher.Mono;
  */
 public final class FragmentationDuplexConnection extends ReassemblyDuplexConnection
     implements DuplexConnection {
-  private static final int MIN_MTU_SIZE = 64;
+  public static final int MIN_MTU_SIZE = 64;
   private static final Logger logger = LoggerFactory.getLogger(FragmentationDuplexConnection.class);
   private final DuplexConnection delegate;
   private final int mtu;
