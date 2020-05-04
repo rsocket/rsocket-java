@@ -28,6 +28,7 @@ import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
+import io.rsocket.TestScheduler;
 import io.rsocket.buffer.LeaksTrackingByteBufAllocator;
 import io.rsocket.exceptions.Exceptions;
 import io.rsocket.frame.FrameHeaderFlyweight;
@@ -98,7 +99,8 @@ class RSocketLeaseTest {
             0,
             0,
             null,
-            requesterLeaseHandler);
+            requesterLeaseHandler,
+            TestScheduler.INSTANCE);
 
     RSocket mockRSocketHandler = mock(RSocket.class);
     when(mockRSocketHandler.metadataPush(any())).thenReturn(Mono.empty());

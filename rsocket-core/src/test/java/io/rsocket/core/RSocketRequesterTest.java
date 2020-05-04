@@ -42,6 +42,7 @@ import io.netty.util.ReferenceCountUtil;
 import io.netty.util.ReferenceCounted;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
+import io.rsocket.TestScheduler;
 import io.rsocket.exceptions.ApplicationErrorException;
 import io.rsocket.exceptions.CustomRSocketException;
 import io.rsocket.exceptions.RejectedSetupException;
@@ -949,6 +950,50 @@ public class RSocketRequesterTest {
                 (rule, payload) -> rule.socket.requestChannel(Flux.just(payload))));
   }
 
+  @ParameterizedTest
+  @MethodSource("streamIdRacingCases")
+  public void ensuresCorrectOrderOfStreamIdIssuingInCaseOfRacing(
+      BiFunction<ClientSocketRule, Payload, Publisher<?>> interaction1,
+      BiFunction<ClientSocketRule, Payload, Publisher<?>> interaction2) {
+    for (int i = 1; i < 10000; i += 4) {
+      Payload payload = DefaultPayload.create("test");
+      Publisher<?> publisher1 = interaction1.apply(rule, payload);
+      Publisher<?> publisher2 = interaction2.apply(rule, payload);
+      RaceTestUtils.race(
+          () -> publisher1.subscribe(AssertSubscriber.create()),
+          () -> publisher2.subscribe(AssertSubscriber.create()));
+
+      Assertions.assertThat(rule.connection.getSent())
+          .extracting(FrameHeaderFlyweight::streamId)
+          .containsExactly(i, i + 2);
+      rule.connection.getSent().clear();
+    }
+  }
+
+  public static Stream<Arguments> streamIdRacingCases() {
+    return Stream.of(
+        Arguments.of(
+            (BiFunction<ClientSocketRule, Payload, Publisher<?>>)
+                (r, p) -> r.socket.fireAndForget(p),
+            (BiFunction<ClientSocketRule, Payload, Publisher<?>>)
+                (r, p) -> r.socket.requestResponse(p)),
+        Arguments.of(
+            (BiFunction<ClientSocketRule, Payload, Publisher<?>>)
+                (r, p) -> r.socket.requestResponse(p),
+            (BiFunction<ClientSocketRule, Payload, Publisher<?>>)
+                (r, p) -> r.socket.requestStream(p)),
+        Arguments.of(
+            (BiFunction<ClientSocketRule, Payload, Publisher<?>>)
+                (r, p) -> r.socket.requestStream(p),
+            (BiFunction<ClientSocketRule, Payload, Publisher<?>>)
+                (r, p) -> r.socket.requestChannel(Flux.just(p))),
+        Arguments.of(
+            (BiFunction<ClientSocketRule, Payload, Publisher<?>>)
+                (r, p) -> r.socket.requestChannel(Flux.just(p)),
+            (BiFunction<ClientSocketRule, Payload, Publisher<?>>)
+                (r, p) -> r.socket.fireAndForget(p)));
+  }
+
   public int sendRequestResponse(Publisher<Payload> response) {
     Subscriber<Payload> sub = TestSubscriber.create();
     response.subscribe(sub);
@@ -973,7 +1018,8 @@ public class RSocketRequesterTest {
           0,
           0,
           null,
-          RequesterLeaseHandler.None);
+          RequesterLeaseHandler.None,
+          TestScheduler.INSTANCE);
     }
 
     public int getStreamIdForRequestType(FrameType expectedFrameType) {

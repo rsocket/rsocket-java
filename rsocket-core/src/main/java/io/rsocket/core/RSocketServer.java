@@ -39,6 +39,7 @@ import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 public final class RSocketServer {
   private static final String SERVER_TAG = "server";
@@ -222,7 +223,8 @@ public final class RSocketServer {
                   setupPayload.keepAliveInterval(),
                   setupPayload.keepAliveMaxLifetime(),
                   keepAliveHandler,
-                  requesterLeaseHandler);
+                  requesterLeaseHandler,
+                  Schedulers.single(Schedulers.parallel()));
 
           RSocket wrappedRSocketRequester = interceptors.initRequester(rSocketRequester);
 

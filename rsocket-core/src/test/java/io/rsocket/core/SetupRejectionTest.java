@@ -64,7 +64,8 @@ public class SetupRejectionTest {
             0,
             0,
             null,
-            RequesterLeaseHandler.None);
+            RequesterLeaseHandler.None,
+            TestScheduler.INSTANCE);
 
     String errorMsg = "error";
 
@@ -101,7 +102,8 @@ public class SetupRejectionTest {
             0,
             0,
             null,
-            RequesterLeaseHandler.None);
+            RequesterLeaseHandler.None,
+            TestScheduler.INSTANCE);
 
     conn.addToReceivedBuffer(
         ErrorFrameFlyweight.encode(

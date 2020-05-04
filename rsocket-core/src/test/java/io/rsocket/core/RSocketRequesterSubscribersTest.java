@@ -19,6 +19,7 @@ package io.rsocket.core;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.RSocket;
+import io.rsocket.TestScheduler;
 import io.rsocket.buffer.LeaksTrackingByteBufAllocator;
 import io.rsocket.frame.FrameHeaderFlyweight;
 import io.rsocket.frame.FrameType;
@@ -28,7 +29,6 @@ import io.rsocket.internal.subscriber.AssertSubscriber;
 import io.rsocket.lease.RequesterLeaseHandler;
 import io.rsocket.test.util.TestDuplexConnection;
 import io.rsocket.util.DefaultPayload;
-import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
@@ -41,7 +41,6 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
-import reactor.test.StepVerifier;
 import reactor.test.util.RaceTestUtils;
 
 class RSocketRequesterSubscribersTest {
@@ -73,21 +72,25 @@ class RSocketRequesterSubscribersTest {
             0,
             0,
             null,
-            RequesterLeaseHandler.None);
+            RequesterLeaseHandler.None,
+            TestScheduler.INSTANCE);
   }
 
   @ParameterizedTest
   @MethodSource("allInteractions")
   void singleSubscriber(Function<RSocket, Publisher<?>> interaction) {
     Flux<?> response = Flux.from(interaction.apply(rSocketRequester));
-    StepVerifier.withVirtualTime(() -> response.take(Duration.ofMillis(10)))
-        .thenAwait(Duration.ofMillis(10))
-        .expectComplete()
-        .verify(Duration.ofSeconds(5));
-    StepVerifier.withVirtualTime(() -> response.take(Duration.ofMillis(10)))
-        .thenAwait(Duration.ofMillis(10))
-        .expectError(IllegalStateException.class)
-        .verify(Duration.ofSeconds(5));
+
+    AssertSubscriber assertSubscriberA = AssertSubscriber.create();
+    AssertSubscriber assertSubscriberB = AssertSubscriber.create();
+
+    response.subscribe(assertSubscriberA);
+    response.subscribe(assertSubscriberB);
+
+    connection.addToReceivedBuffer(PayloadFrameFlyweight.encodeComplete(connection.alloc(), 1));
+
+    assertSubscriberA.assertTerminated();
+    assertSubscriberB.assertTerminated();
 
     Assertions.assertThat(requestFramesCount(connection.getSent())).isEqualTo(1);
   }
