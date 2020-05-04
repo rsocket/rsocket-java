@@ -195,6 +195,10 @@ class RSocketRequester implements RSocket {
   }
 
   private Mono<Void> handleFireAndForget(Payload payload) {
+    if (payload.refCnt() <= 0) {
+      return Mono.error(new IllegalReferenceCountException());
+    }
+
     Throwable err = checkAvailable();
     if (err != null) {
       payload.release();
@@ -227,6 +231,10 @@ class RSocketRequester implements RSocket {
   }
 
   private Mono<Payload> handleRequestResponse(final Payload payload) {
+    if (payload.refCnt() <= 0) {
+      return Mono.error(new IllegalReferenceCountException());
+    }
+
     Throwable err = checkAvailable();
     if (err != null) {
       payload.release();
@@ -289,6 +297,10 @@ class RSocketRequester implements RSocket {
   }
 
   private Flux<Payload> handleRequestStream(final Payload payload) {
+    if (payload.refCnt() <= 0) {
+      return Flux.error(new IllegalReferenceCountException());
+    }
+
     Throwable err = checkAvailable();
     if (err != null) {
       payload.release();
@@ -371,6 +383,10 @@ class RSocketRequester implements RSocket {
             (s, flux) -> {
               Payload payload = s.get();
               if (payload != null) {
+                if (payload.refCnt() <= 0) {
+                  return Mono.error(new IllegalReferenceCountException());
+                }
+
                 if (!PayloadValidationUtils.isValid(mtu, payload)) {
                   payload.release();
                   final IllegalArgumentException t =
@@ -509,6 +525,10 @@ class RSocketRequester implements RSocket {
   }
 
   private Mono<Void> handleMetadataPush(Payload payload) {
+    if (payload.refCnt() <= 0) {
+      return Mono.error(new IllegalReferenceCountException());
+    }
+
     Throwable err = this.terminationError;
     if (err != null) {
       payload.release();
