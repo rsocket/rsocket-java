@@ -16,7 +16,7 @@
 
 package io.rsocket.exceptions;
 
-import io.rsocket.frame.ErrorFrameFlyweight;
+import io.rsocket.frame.ErrorFrameCodec;
 import javax.annotation.Nullable;
 
 /**
@@ -45,6 +45,6 @@ public final class RejectedSetupException extends SetupException implements Retr
    * @param cause the cause of this exception
    */
   public RejectedSetupException(String message, @Nullable Throwable cause) {
-    super(ErrorFrameFlyweight.REJECTED_SETUP, message, cause);
+    super(ErrorFrameCodec.REJECTED_SETUP, message, cause);
   }
 }

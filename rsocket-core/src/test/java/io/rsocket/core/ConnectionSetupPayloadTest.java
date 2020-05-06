@@ -8,7 +8,7 @@ import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
 import io.rsocket.ConnectionSetupPayload;
 import io.rsocket.Payload;
-import io.rsocket.frame.SetupFrameFlyweight;
+import io.rsocket.frame.SetupFrameCodec;
 import io.rsocket.util.DefaultPayload;
 import org.junit.jupiter.api.Test;
 
@@ -31,8 +31,8 @@ class ConnectionSetupPayloadTest {
     assertTrue(setupPayload.willClientHonorLease());
     assertEquals(KEEP_ALIVE_INTERVAL, setupPayload.keepAliveInterval());
     assertEquals(KEEP_ALIVE_MAX_LIFETIME, setupPayload.keepAliveMaxLifetime());
-    assertEquals(METADATA_TYPE, SetupFrameFlyweight.metadataMimeType(frame));
-    assertEquals(DATA_TYPE, SetupFrameFlyweight.dataMimeType(frame));
+    assertEquals(METADATA_TYPE, SetupFrameCodec.metadataMimeType(frame));
+    assertEquals(DATA_TYPE, SetupFrameCodec.dataMimeType(frame));
     assertTrue(setupPayload.hasMetadata());
     assertNotNull(setupPayload.metadata());
     assertEquals(payload.metadata(), setupPayload.metadata());
@@ -77,7 +77,7 @@ class ConnectionSetupPayloadTest {
   }
 
   private static ByteBuf encodeSetupFrame(boolean leaseEnabled, Payload setupPayload) {
-    return SetupFrameFlyweight.encode(
+    return SetupFrameCodec.encode(
         ByteBufAllocator.DEFAULT,
         leaseEnabled,
         KEEP_ALIVE_INTERVAL,

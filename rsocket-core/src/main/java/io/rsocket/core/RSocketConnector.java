@@ -23,7 +23,7 @@ import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.SocketAcceptor;
 import io.rsocket.fragmentation.FragmentationDuplexConnection;
-import io.rsocket.frame.SetupFrameFlyweight;
+import io.rsocket.frame.SetupFrameCodec;
 import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.internal.ClientServerInputMultiplexer;
 import io.rsocket.keepalive.KeepAliveHandler;
@@ -536,7 +536,7 @@ public class RSocketConnector {
               RSocket wrappedRSocketRequester = interceptors.initRequester(rSocketRequester);
 
               ByteBuf setupFrame =
-                  SetupFrameFlyweight.encode(
+                  SetupFrameCodec.encode(
                       wrappedConnection.alloc(),
                       leaseEnabled,
                       (int) keepAliveInterval.toMillis(),

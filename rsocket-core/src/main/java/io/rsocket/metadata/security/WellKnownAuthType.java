@@ -24,7 +24,10 @@ import java.util.Map;
  * Enumeration of Well Known Auth Types, as defined in the eponymous extension. Such auth types are
  * used in composite metadata (which can include routing and/or tracing metadata). Per
  * specification, identifiers are between 0 and 127 (inclusive).
+ *
+ * @deprecated in favor of {@link io.rsocket.metadata.WellKnownAuthType}
  */
+@Deprecated
 public enum WellKnownAuthType {
   UNPARSEABLE_AUTH_TYPE("UNPARSEABLE_AUTH_TYPE_DO_NOT_USE", (byte) -2),
   UNKNOWN_RESERVED_AUTH_TYPE("UNKNOWN_YET_RESERVED_DO_NOT_USE", (byte) -1),
@@ -57,6 +60,29 @@ public enum WellKnownAuthType {
   WellKnownAuthType(String str, byte identifier) {
     this.str = str;
     this.identifier = identifier;
+  }
+
+  static io.rsocket.metadata.WellKnownAuthType cast(WellKnownAuthType wellKnownAuthType) {
+    byte identifier = wellKnownAuthType.identifier;
+    if (identifier == io.rsocket.metadata.WellKnownAuthType.UNPARSEABLE_AUTH_TYPE.getIdentifier()) {
+      return io.rsocket.metadata.WellKnownAuthType.UNPARSEABLE_AUTH_TYPE;
+    } else if (identifier
+        == io.rsocket.metadata.WellKnownAuthType.UNKNOWN_RESERVED_AUTH_TYPE.getIdentifier()) {
+      return io.rsocket.metadata.WellKnownAuthType.UNKNOWN_RESERVED_AUTH_TYPE;
+    } else {
+      return io.rsocket.metadata.WellKnownAuthType.fromIdentifier(identifier);
+    }
+  }
+
+  static WellKnownAuthType cast(io.rsocket.metadata.WellKnownAuthType wellKnownAuthType) {
+    byte identifier = wellKnownAuthType.getIdentifier();
+    if (identifier == WellKnownAuthType.UNPARSEABLE_AUTH_TYPE.identifier) {
+      return WellKnownAuthType.UNPARSEABLE_AUTH_TYPE;
+    } else if (identifier == WellKnownAuthType.UNKNOWN_RESERVED_AUTH_TYPE.identifier) {
+      return WellKnownAuthType.UNKNOWN_RESERVED_AUTH_TYPE;
+    } else {
+      return TYPES_BY_AUTH_ID[identifier];
+    }
   }
 
   /**

@@ -18,7 +18,7 @@ package io.rsocket.lease;
 
 import io.netty.buffer.ByteBuf;
 import io.rsocket.Availability;
-import io.rsocket.frame.LeaseFrameFlyweight;
+import io.rsocket.frame.LeaseFrameCodec;
 import java.util.function.Consumer;
 import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
@@ -63,9 +63,9 @@ public interface RequesterLeaseHandler extends Availability, Disposable {
 
     @Override
     public void receive(ByteBuf leaseFrame) {
-      int numberOfRequests = LeaseFrameFlyweight.numRequests(leaseFrame);
-      int timeToLiveMillis = LeaseFrameFlyweight.ttl(leaseFrame);
-      ByteBuf metadata = LeaseFrameFlyweight.metadata(leaseFrame);
+      int numberOfRequests = LeaseFrameCodec.numRequests(leaseFrame);
+      int timeToLiveMillis = LeaseFrameCodec.ttl(leaseFrame);
+      ByteBuf metadata = LeaseFrameCodec.metadata(leaseFrame);
       LeaseImpl lease = LeaseImpl.create(timeToLiveMillis, numberOfRequests, metadata);
       currentLease = lease;
       receivedLease.onNext(lease);

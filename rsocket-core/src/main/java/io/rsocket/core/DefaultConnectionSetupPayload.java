@@ -19,8 +19,8 @@ package io.rsocket.core;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.rsocket.ConnectionSetupPayload;
-import io.rsocket.frame.FrameHeaderFlyweight;
-import io.rsocket.frame.SetupFrameFlyweight;
+import io.rsocket.frame.FrameHeaderCodec;
+import io.rsocket.frame.SetupFrameCodec;
 
 /**
  * Default implementation of {@link ConnectionSetupPayload}. Primarily for internal use within
@@ -36,18 +36,18 @@ public class DefaultConnectionSetupPayload extends ConnectionSetupPayload {
 
   @Override
   public boolean hasMetadata() {
-    return FrameHeaderFlyweight.hasMetadata(setupFrame);
+    return FrameHeaderCodec.hasMetadata(setupFrame);
   }
 
   @Override
   public ByteBuf sliceMetadata() {
-    final ByteBuf metadata = SetupFrameFlyweight.metadata(setupFrame);
+    final ByteBuf metadata = SetupFrameCodec.metadata(setupFrame);
     return metadata == null ? Unpooled.EMPTY_BUFFER : metadata;
   }
 
   @Override
   public ByteBuf sliceData() {
-    return SetupFrameFlyweight.data(setupFrame);
+    return SetupFrameCodec.data(setupFrame);
   }
 
   @Override
@@ -62,42 +62,42 @@ public class DefaultConnectionSetupPayload extends ConnectionSetupPayload {
 
   @Override
   public String metadataMimeType() {
-    return SetupFrameFlyweight.metadataMimeType(setupFrame);
+    return SetupFrameCodec.metadataMimeType(setupFrame);
   }
 
   @Override
   public String dataMimeType() {
-    return SetupFrameFlyweight.dataMimeType(setupFrame);
+    return SetupFrameCodec.dataMimeType(setupFrame);
   }
 
   @Override
   public int keepAliveInterval() {
-    return SetupFrameFlyweight.keepAliveInterval(setupFrame);
+    return SetupFrameCodec.keepAliveInterval(setupFrame);
   }
 
   @Override
   public int keepAliveMaxLifetime() {
-    return SetupFrameFlyweight.keepAliveMaxLifetime(setupFrame);
+    return SetupFrameCodec.keepAliveMaxLifetime(setupFrame);
   }
 
   @Override
   public int getFlags() {
-    return FrameHeaderFlyweight.flags(setupFrame);
+    return FrameHeaderCodec.flags(setupFrame);
   }
 
   @Override
   public boolean willClientHonorLease() {
-    return SetupFrameFlyweight.honorLease(setupFrame);
+    return SetupFrameCodec.honorLease(setupFrame);
   }
 
   @Override
   public boolean isResumeEnabled() {
-    return SetupFrameFlyweight.resumeEnabled(setupFrame);
+    return SetupFrameCodec.resumeEnabled(setupFrame);
   }
 
   @Override
   public ByteBuf resumeToken() {
-    return SetupFrameFlyweight.resumeToken(setupFrame);
+    return SetupFrameCodec.resumeToken(setupFrame);
   }
 
   @Override

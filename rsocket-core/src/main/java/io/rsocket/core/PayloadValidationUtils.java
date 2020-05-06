@@ -1,8 +1,8 @@
 package io.rsocket.core;
 
 import io.rsocket.Payload;
-import io.rsocket.frame.FrameHeaderFlyweight;
-import io.rsocket.frame.FrameLengthFlyweight;
+import io.rsocket.frame.FrameHeaderCodec;
+import io.rsocket.frame.FrameLengthCodec;
 
 final class PayloadValidationUtils {
   static final String INVALID_PAYLOAD_ERROR_MESSAGE =
@@ -14,18 +14,18 @@ final class PayloadValidationUtils {
     }
 
     if (payload.hasMetadata()) {
-      return (((FrameHeaderFlyweight.size()
-                  + FrameLengthFlyweight.FRAME_LENGTH_SIZE
-                  + FrameHeaderFlyweight.size()
+      return (((FrameHeaderCodec.size()
+                  + FrameLengthCodec.FRAME_LENGTH_SIZE
+                  + FrameHeaderCodec.size()
                   + payload.data().readableBytes()
                   + payload.metadata().readableBytes())
-              & ~FrameLengthFlyweight.FRAME_LENGTH_MASK)
+              & ~FrameLengthCodec.FRAME_LENGTH_MASK)
           == 0);
     } else {
-      return (((FrameHeaderFlyweight.size()
+      return (((FrameHeaderCodec.size()
                   + payload.data().readableBytes()
-                  + FrameLengthFlyweight.FRAME_LENGTH_SIZE)
-              & ~FrameLengthFlyweight.FRAME_LENGTH_MASK)
+                  + FrameLengthCodec.FRAME_LENGTH_SIZE)
+              & ~FrameLengthCodec.FRAME_LENGTH_MASK)
           == 0);
     }
   }

@@ -16,7 +16,7 @@
 
 package io.rsocket.exceptions;
 
-import io.rsocket.frame.ErrorFrameFlyweight;
+import io.rsocket.frame.ErrorFrameCodec;
 import javax.annotation.Nullable;
 
 /**
@@ -46,6 +46,6 @@ public final class ConnectionErrorException extends RSocketException implements 
    * @param cause the cause of this exception
    */
   public ConnectionErrorException(String message, @Nullable Throwable cause) {
-    super(ErrorFrameFlyweight.CONNECTION_ERROR, message, cause);
+    super(ErrorFrameCodec.CONNECTION_ERROR, message, cause);
   }
 }

@@ -2,9 +2,9 @@ package io.rsocket.fragmentation;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
-import io.rsocket.frame.FrameHeaderFlyweight;
+import io.rsocket.frame.FrameHeaderCodec;
 import io.rsocket.frame.FrameUtil;
-import io.rsocket.frame.PayloadFrameFlyweight;
+import io.rsocket.frame.PayloadFrameCodec;
 import io.rsocket.util.DefaultPayload;
 import java.util.concurrent.ThreadLocalRandom;
 import org.junit.Assert;
@@ -28,7 +28,7 @@ public class FragmentationIntegrationTest {
   @Test
   void fragmentAndReassembleData() {
     ByteBuf frame =
-        PayloadFrameFlyweight.encodeNextCompleteReleasingPayload(
+        PayloadFrameCodec.encodeNextCompleteReleasingPayload(
             allocator, 2, DefaultPayload.create(data));
     System.out.println(FrameUtil.toString(frame));
 
@@ -36,7 +36,7 @@ public class FragmentationIntegrationTest {
 
     Publisher<ByteBuf> fragments =
         FrameFragmenter.fragmentFrame(
-            allocator, 64, frame, FrameHeaderFlyweight.frameType(frame), false);
+            allocator, 64, frame, FrameHeaderCodec.frameType(frame), false);
 
     FrameReassembler reassembler = new FrameReassembler(allocator);
 
@@ -50,9 +50,8 @@ public class FragmentationIntegrationTest {
     String s = FrameUtil.toString(assembled);
     System.out.println(s);
 
-    Assert.assertEquals(
-        FrameHeaderFlyweight.frameType(frame), FrameHeaderFlyweight.frameType(assembled));
+    Assert.assertEquals(FrameHeaderCodec.frameType(frame), FrameHeaderCodec.frameType(assembled));
     Assert.assertEquals(frame.readableBytes(), assembled.readableBytes());
-    Assert.assertEquals(PayloadFrameFlyweight.data(frame), PayloadFrameFlyweight.data(assembled));
+    Assert.assertEquals(PayloadFrameCodec.data(frame), PayloadFrameCodec.data(assembled));
   }
 }

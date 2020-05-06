@@ -26,8 +26,8 @@ import io.rsocket.SocketAcceptor;
 import io.rsocket.exceptions.InvalidSetupException;
 import io.rsocket.exceptions.RejectedSetupException;
 import io.rsocket.fragmentation.FragmentationDuplexConnection;
-import io.rsocket.frame.FrameHeaderFlyweight;
-import io.rsocket.frame.SetupFrameFlyweight;
+import io.rsocket.frame.FrameHeaderCodec;
+import io.rsocket.frame.SetupFrameCodec;
 import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.internal.ClientServerInputMultiplexer;
 import io.rsocket.lease.Leases;
@@ -325,7 +325,7 @@ public final class RSocketServer {
 
   private Mono<Void> accept(
       ServerSetup serverSetup, ByteBuf startFrame, ClientServerInputMultiplexer multiplexer) {
-    switch (FrameHeaderFlyweight.frameType(startFrame)) {
+    switch (FrameHeaderCodec.frameType(startFrame)) {
       case SETUP:
         return acceptSetup(serverSetup, startFrame, multiplexer);
       case RESUME:
@@ -335,7 +335,7 @@ public final class RSocketServer {
             .sendError(
                 multiplexer,
                 new InvalidSetupException(
-                    "invalid setup frame: " + FrameHeaderFlyweight.frameType(startFrame)))
+                    "invalid setup frame: " + FrameHeaderCodec.frameType(startFrame)))
             .doFinally(
                 signalType -> {
                   startFrame.release();
@@ -347,12 +347,12 @@ public final class RSocketServer {
   private Mono<Void> acceptSetup(
       ServerSetup serverSetup, ByteBuf setupFrame, ClientServerInputMultiplexer multiplexer) {
 
-    if (!SetupFrameFlyweight.isSupportedVersion(setupFrame)) {
+    if (!SetupFrameCodec.isSupportedVersion(setupFrame)) {
       return serverSetup
           .sendError(
               multiplexer,
               new InvalidSetupException(
-                  "Unsupported version: " + SetupFrameFlyweight.humanReadableVersion(setupFrame)))
+                  "Unsupported version: " + SetupFrameCodec.humanReadableVersion(setupFrame)))
           .doFinally(
               signalType -> {
                 setupFrame.release();
@@ -361,7 +361,7 @@ public final class RSocketServer {
     }
 
     boolean leaseEnabled = leasesSupplier != null;
-    if (SetupFrameFlyweight.honorLease(setupFrame) && !leaseEnabled) {
+    if (SetupFrameCodec.honorLease(setupFrame) && !leaseEnabled) {
       return serverSetup
           .sendError(multiplexer, new InvalidSetupException("lease is not supported"))
           .doFinally(

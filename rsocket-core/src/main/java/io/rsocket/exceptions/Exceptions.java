@@ -16,22 +16,22 @@
 
 package io.rsocket.exceptions;
 
-import static io.rsocket.frame.ErrorFrameFlyweight.APPLICATION_ERROR;
-import static io.rsocket.frame.ErrorFrameFlyweight.CANCELED;
-import static io.rsocket.frame.ErrorFrameFlyweight.CONNECTION_CLOSE;
-import static io.rsocket.frame.ErrorFrameFlyweight.CONNECTION_ERROR;
-import static io.rsocket.frame.ErrorFrameFlyweight.INVALID;
-import static io.rsocket.frame.ErrorFrameFlyweight.INVALID_SETUP;
-import static io.rsocket.frame.ErrorFrameFlyweight.MAX_USER_ALLOWED_ERROR_CODE;
-import static io.rsocket.frame.ErrorFrameFlyweight.MIN_USER_ALLOWED_ERROR_CODE;
-import static io.rsocket.frame.ErrorFrameFlyweight.REJECTED;
-import static io.rsocket.frame.ErrorFrameFlyweight.REJECTED_RESUME;
-import static io.rsocket.frame.ErrorFrameFlyweight.REJECTED_SETUP;
-import static io.rsocket.frame.ErrorFrameFlyweight.UNSUPPORTED_SETUP;
+import static io.rsocket.frame.ErrorFrameCodec.APPLICATION_ERROR;
+import static io.rsocket.frame.ErrorFrameCodec.CANCELED;
+import static io.rsocket.frame.ErrorFrameCodec.CONNECTION_CLOSE;
+import static io.rsocket.frame.ErrorFrameCodec.CONNECTION_ERROR;
+import static io.rsocket.frame.ErrorFrameCodec.INVALID;
+import static io.rsocket.frame.ErrorFrameCodec.INVALID_SETUP;
+import static io.rsocket.frame.ErrorFrameCodec.MAX_USER_ALLOWED_ERROR_CODE;
+import static io.rsocket.frame.ErrorFrameCodec.MIN_USER_ALLOWED_ERROR_CODE;
+import static io.rsocket.frame.ErrorFrameCodec.REJECTED;
+import static io.rsocket.frame.ErrorFrameCodec.REJECTED_RESUME;
+import static io.rsocket.frame.ErrorFrameCodec.REJECTED_SETUP;
+import static io.rsocket.frame.ErrorFrameCodec.UNSUPPORTED_SETUP;
 
 import io.netty.buffer.ByteBuf;
 import io.rsocket.RSocketErrorException;
-import io.rsocket.frame.ErrorFrameFlyweight;
+import io.rsocket.frame.ErrorFrameCodec;
 import java.util.Objects;
 
 /** Utility class that generates an exception from a frame. */
@@ -49,8 +49,8 @@ public final class Exceptions {
   public static RuntimeException from(int streamId, ByteBuf frame) {
     Objects.requireNonNull(frame, "frame must not be null");
 
-    int errorCode = ErrorFrameFlyweight.errorCode(frame);
-    String message = ErrorFrameFlyweight.dataUtf8(frame);
+    int errorCode = ErrorFrameCodec.errorCode(frame);
+    String message = ErrorFrameCodec.dataUtf8(frame);
 
     if (streamId == 0) {
       switch (errorCode) {

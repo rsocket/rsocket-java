@@ -9,8 +9,8 @@ public class FrameUtil {
   private FrameUtil() {}
 
   public static String toString(ByteBuf frame) {
-    FrameType frameType = FrameHeaderFlyweight.frameType(frame);
-    int streamId = FrameHeaderFlyweight.streamId(frame);
+    FrameType frameType = FrameHeaderCodec.frameType(frame);
+    int streamId = FrameHeaderCodec.streamId(frame);
     StringBuilder payload = new StringBuilder();
 
     payload
@@ -19,20 +19,18 @@ public class FrameUtil {
         .append(" Type: ")
         .append(frameType)
         .append(" Flags: 0b")
-        .append(Integer.toBinaryString(FrameHeaderFlyweight.flags(frame)))
+        .append(Integer.toBinaryString(FrameHeaderCodec.flags(frame)))
         .append(" Length: " + frame.readableBytes());
 
     if (frameType.hasInitialRequestN()) {
-      payload
-          .append(" InitialRequestN: ")
-          .append(RequestStreamFrameFlyweight.initialRequestN(frame));
+      payload.append(" InitialRequestN: ").append(RequestStreamFrameCodec.initialRequestN(frame));
     }
 
     if (frameType == FrameType.REQUEST_N) {
-      payload.append(" RequestN: ").append(RequestNFrameFlyweight.requestN(frame));
+      payload.append(" RequestN: ").append(RequestNFrameCodec.requestN(frame));
     }
 
-    if (FrameHeaderFlyweight.hasMetadata(frame)) {
+    if (FrameHeaderCodec.hasMetadata(frame)) {
       payload.append("\nMetadata:\n");
 
       ByteBufUtil.appendPrettyHexDump(payload, getMetadata(frame, frameType));
@@ -45,37 +43,37 @@ public class FrameUtil {
   }
 
   private static ByteBuf getMetadata(ByteBuf frame, FrameType frameType) {
-    boolean hasMetadata = FrameHeaderFlyweight.hasMetadata(frame);
+    boolean hasMetadata = FrameHeaderCodec.hasMetadata(frame);
     if (hasMetadata) {
       ByteBuf metadata;
       switch (frameType) {
         case REQUEST_FNF:
-          metadata = RequestFireAndForgetFrameFlyweight.metadata(frame);
+          metadata = RequestFireAndForgetFrameCodec.metadata(frame);
           break;
         case REQUEST_STREAM:
-          metadata = RequestStreamFrameFlyweight.metadata(frame);
+          metadata = RequestStreamFrameCodec.metadata(frame);
           break;
         case REQUEST_RESPONSE:
-          metadata = RequestResponseFrameFlyweight.metadata(frame);
+          metadata = RequestResponseFrameCodec.metadata(frame);
           break;
         case REQUEST_CHANNEL:
-          metadata = RequestChannelFrameFlyweight.metadata(frame);
+          metadata = RequestChannelFrameCodec.metadata(frame);
           break;
           // Payload and synthetic types
         case PAYLOAD:
         case NEXT:
         case NEXT_COMPLETE:
         case COMPLETE:
-          metadata = PayloadFrameFlyweight.metadata(frame);
+          metadata = PayloadFrameCodec.metadata(frame);
           break;
         case METADATA_PUSH:
-          metadata = MetadataPushFrameFlyweight.metadata(frame);
+          metadata = MetadataPushFrameCodec.metadata(frame);
           break;
         case SETUP:
-          metadata = SetupFrameFlyweight.metadata(frame);
+          metadata = SetupFrameCodec.metadata(frame);
           break;
         case LEASE:
-          metadata = LeaseFrameFlyweight.metadata(frame);
+          metadata = LeaseFrameCodec.metadata(frame);
           break;
         default:
           return Unpooled.EMPTY_BUFFER;
@@ -90,26 +88,26 @@ public class FrameUtil {
     ByteBuf data;
     switch (frameType) {
       case REQUEST_FNF:
-        data = RequestFireAndForgetFrameFlyweight.data(frame);
+        data = RequestFireAndForgetFrameCodec.data(frame);
         break;
       case REQUEST_STREAM:
-        data = RequestStreamFrameFlyweight.data(frame);
+        data = RequestStreamFrameCodec.data(frame);
         break;
       case REQUEST_RESPONSE:
-        data = RequestResponseFrameFlyweight.data(frame);
+        data = RequestResponseFrameCodec.data(frame);
         break;
       case REQUEST_CHANNEL:
-        data = RequestChannelFrameFlyweight.data(frame);
+        data = RequestChannelFrameCodec.data(frame);
         break;
         // Payload and synthetic types
       case PAYLOAD:
       case NEXT:
       case NEXT_COMPLETE:
       case COMPLETE:
-        data = PayloadFrameFlyweight.data(frame);
+        data = PayloadFrameCodec.data(frame);
         break;
       case SETUP:
-        data = SetupFrameFlyweight.data(frame);
+        data = SetupFrameCodec.data(frame);
         break;
       default:
         return Unpooled.EMPTY_BUFFER;

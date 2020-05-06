@@ -16,7 +16,7 @@
 
 package io.rsocket.transport.netty.server;
 
-import static io.rsocket.frame.FrameLengthFlyweight.FRAME_LENGTH_MASK;
+import static io.rsocket.frame.FrameLengthCodec.FRAME_LENGTH_MASK;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 

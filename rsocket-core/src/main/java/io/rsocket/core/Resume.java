@@ -16,7 +16,7 @@
 package io.rsocket.core;
 
 import io.netty.buffer.ByteBuf;
-import io.rsocket.frame.ResumeFrameFlyweight;
+import io.rsocket.frame.ResumeFrameCodec;
 import io.rsocket.resume.InMemoryResumableFramesStore;
 import io.rsocket.resume.ResumableFramesStore;
 import java.time.Duration;
@@ -43,7 +43,7 @@ public class Resume {
   private Duration streamTimeout = Duration.ofSeconds(10);
 
   /* Client only */
-  private Supplier<ByteBuf> tokenSupplier = ResumeFrameFlyweight::generateResumeToken;
+  private Supplier<ByteBuf> tokenSupplier = ResumeFrameCodec::generateResumeToken;
   private Retry retry =
       Retry.backoff(Long.MAX_VALUE, Duration.ofSeconds(1))
           .maxBackoff(Duration.ofSeconds(16))

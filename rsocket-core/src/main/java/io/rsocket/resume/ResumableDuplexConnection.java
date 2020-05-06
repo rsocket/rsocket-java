@@ -20,7 +20,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.Closeable;
 import io.rsocket.DuplexConnection;
-import io.rsocket.frame.FrameHeaderFlyweight;
+import io.rsocket.frame.FrameHeaderCodec;
 import java.nio.channels.ClosedChannelException;
 import java.time.Duration;
 import java.util.Queue;
@@ -373,7 +373,7 @@ public class ResumableDuplexConnection implements DuplexConnection, ResumeStateH
   }
 
   static boolean isResumableFrame(ByteBuf frame) {
-    switch (FrameHeaderFlyweight.nativeFrameType(frame)) {
+    switch (FrameHeaderCodec.nativeFrameType(frame)) {
       case REQUEST_CHANNEL:
       case REQUEST_STREAM:
       case REQUEST_RESPONSE:

@@ -15,10 +15,9 @@ public class PayloadFlyweightTest {
   void nextCompleteDataMetadata() {
     Payload payload = DefaultPayload.create("d", "md");
     ByteBuf nextComplete =
-        PayloadFrameFlyweight.encodeNextCompleteReleasingPayload(
-            ByteBufAllocator.DEFAULT, 1, payload);
-    String data = PayloadFrameFlyweight.data(nextComplete).toString(StandardCharsets.UTF_8);
-    String metadata = PayloadFrameFlyweight.metadata(nextComplete).toString(StandardCharsets.UTF_8);
+        PayloadFrameCodec.encodeNextCompleteReleasingPayload(ByteBufAllocator.DEFAULT, 1, payload);
+    String data = PayloadFrameCodec.data(nextComplete).toString(StandardCharsets.UTF_8);
+    String metadata = PayloadFrameCodec.metadata(nextComplete).toString(StandardCharsets.UTF_8);
     Assertions.assertEquals("d", data);
     Assertions.assertEquals("md", metadata);
     nextComplete.release();
@@ -28,10 +27,9 @@ public class PayloadFlyweightTest {
   void nextCompleteData() {
     Payload payload = DefaultPayload.create("d");
     ByteBuf nextComplete =
-        PayloadFrameFlyweight.encodeNextCompleteReleasingPayload(
-            ByteBufAllocator.DEFAULT, 1, payload);
-    String data = PayloadFrameFlyweight.data(nextComplete).toString(StandardCharsets.UTF_8);
-    ByteBuf metadata = PayloadFrameFlyweight.metadata(nextComplete);
+        PayloadFrameCodec.encodeNextCompleteReleasingPayload(ByteBufAllocator.DEFAULT, 1, payload);
+    String data = PayloadFrameCodec.data(nextComplete).toString(StandardCharsets.UTF_8);
+    ByteBuf metadata = PayloadFrameCodec.metadata(nextComplete);
     Assertions.assertEquals("d", data);
     Assertions.assertNull(metadata);
     nextComplete.release();
@@ -44,10 +42,9 @@ public class PayloadFlyweightTest {
             Unpooled.EMPTY_BUFFER, Unpooled.wrappedBuffer("md".getBytes(StandardCharsets.UTF_8)));
 
     ByteBuf nextComplete =
-        PayloadFrameFlyweight.encodeNextCompleteReleasingPayload(
-            ByteBufAllocator.DEFAULT, 1, payload);
-    ByteBuf data = PayloadFrameFlyweight.data(nextComplete);
-    String metadata = PayloadFrameFlyweight.metadata(nextComplete).toString(StandardCharsets.UTF_8);
+        PayloadFrameCodec.encodeNextCompleteReleasingPayload(ByteBufAllocator.DEFAULT, 1, payload);
+    ByteBuf data = PayloadFrameCodec.data(nextComplete);
+    String metadata = PayloadFrameCodec.metadata(nextComplete).toString(StandardCharsets.UTF_8);
     Assertions.assertTrue(data.readableBytes() == 0);
     Assertions.assertEquals("md", metadata);
     nextComplete.release();
@@ -57,9 +54,9 @@ public class PayloadFlyweightTest {
   void nextDataMetadata() {
     Payload payload = DefaultPayload.create("d", "md");
     ByteBuf next =
-        PayloadFrameFlyweight.encodeNextReleasingPayload(ByteBufAllocator.DEFAULT, 1, payload);
-    String data = PayloadFrameFlyweight.data(next).toString(StandardCharsets.UTF_8);
-    String metadata = PayloadFrameFlyweight.metadata(next).toString(StandardCharsets.UTF_8);
+        PayloadFrameCodec.encodeNextReleasingPayload(ByteBufAllocator.DEFAULT, 1, payload);
+    String data = PayloadFrameCodec.data(next).toString(StandardCharsets.UTF_8);
+    String metadata = PayloadFrameCodec.metadata(next).toString(StandardCharsets.UTF_8);
     Assertions.assertEquals("d", data);
     Assertions.assertEquals("md", metadata);
     next.release();
@@ -69,9 +66,9 @@ public class PayloadFlyweightTest {
   void nextData() {
     Payload payload = DefaultPayload.create("d");
     ByteBuf next =
-        PayloadFrameFlyweight.encodeNextReleasingPayload(ByteBufAllocator.DEFAULT, 1, payload);
-    String data = PayloadFrameFlyweight.data(next).toString(StandardCharsets.UTF_8);
-    ByteBuf metadata = PayloadFrameFlyweight.metadata(next);
+        PayloadFrameCodec.encodeNextReleasingPayload(ByteBufAllocator.DEFAULT, 1, payload);
+    String data = PayloadFrameCodec.data(next).toString(StandardCharsets.UTF_8);
+    ByteBuf metadata = PayloadFrameCodec.metadata(next);
     Assertions.assertEquals("d", data);
     Assertions.assertNull(metadata);
     next.release();
@@ -81,9 +78,9 @@ public class PayloadFlyweightTest {
   void nextDataEmptyMetadata() {
     Payload payload = DefaultPayload.create("d".getBytes(), new byte[0]);
     ByteBuf next =
-        PayloadFrameFlyweight.encodeNextReleasingPayload(ByteBufAllocator.DEFAULT, 1, payload);
-    String data = PayloadFrameFlyweight.data(next).toString(StandardCharsets.UTF_8);
-    ByteBuf metadata = PayloadFrameFlyweight.metadata(next);
+        PayloadFrameCodec.encodeNextReleasingPayload(ByteBufAllocator.DEFAULT, 1, payload);
+    String data = PayloadFrameCodec.data(next).toString(StandardCharsets.UTF_8);
+    ByteBuf metadata = PayloadFrameCodec.metadata(next);
     Assertions.assertEquals("d", data);
     Assertions.assertEquals(metadata.readableBytes(), 0);
     next.release();

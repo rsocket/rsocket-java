@@ -21,9 +21,9 @@ import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.RSocket;
 import io.rsocket.TestScheduler;
 import io.rsocket.buffer.LeaksTrackingByteBufAllocator;
-import io.rsocket.frame.FrameHeaderFlyweight;
+import io.rsocket.frame.FrameHeaderCodec;
 import io.rsocket.frame.FrameType;
-import io.rsocket.frame.PayloadFrameFlyweight;
+import io.rsocket.frame.PayloadFrameCodec;
 import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.internal.subscriber.AssertSubscriber;
 import io.rsocket.lease.RequesterLeaseHandler;
@@ -87,7 +87,7 @@ class RSocketRequesterSubscribersTest {
     response.subscribe(assertSubscriberA);
     response.subscribe(assertSubscriberB);
 
-    connection.addToReceivedBuffer(PayloadFrameFlyweight.encodeComplete(connection.alloc(), 1));
+    connection.addToReceivedBuffer(PayloadFrameCodec.encodeComplete(connection.alloc(), 1));
 
     assertSubscriberA.assertTerminated();
     assertSubscriberB.assertTerminated();
@@ -106,7 +106,7 @@ class RSocketRequesterSubscribersTest {
       RaceTestUtils.race(
           () -> response.subscribe(assertSubscriberA), () -> response.subscribe(assertSubscriberB));
 
-      connection.addToReceivedBuffer(PayloadFrameFlyweight.encodeComplete(connection.alloc(), i));
+      connection.addToReceivedBuffer(PayloadFrameCodec.encodeComplete(connection.alloc(), i));
 
       assertSubscriberA.assertTerminated();
       assertSubscriberB.assertTerminated();
@@ -117,7 +117,7 @@ class RSocketRequesterSubscribersTest {
       Assertions.assertThat(connection.getSent())
           .hasSize(1)
           .first()
-          .matches(bb -> REQUEST_TYPES.contains(FrameHeaderFlyweight.frameType(bb)));
+          .matches(bb -> REQUEST_TYPES.contains(FrameHeaderCodec.frameType(bb)));
       connection.clearSendReceiveBuffers();
     }
   }
@@ -133,7 +133,7 @@ class RSocketRequesterSubscribersTest {
   static long requestFramesCount(Collection<ByteBuf> frames) {
     return frames
         .stream()
-        .filter(frame -> REQUEST_TYPES.contains(FrameHeaderFlyweight.frameType(frame)))
+        .filter(frame -> REQUEST_TYPES.contains(FrameHeaderCodec.frameType(frame)))
         .count();
   }
 

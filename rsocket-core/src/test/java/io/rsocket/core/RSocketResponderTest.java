@@ -17,7 +17,7 @@
 package io.rsocket.core;
 
 import static io.rsocket.core.PayloadValidationUtils.INVALID_PAYLOAD_ERROR_MESSAGE;
-import static io.rsocket.frame.FrameHeaderFlyweight.frameType;
+import static io.rsocket.frame.FrameHeaderCodec.frameType;
 import static io.rsocket.frame.FrameType.ERROR;
 import static io.rsocket.frame.FrameType.REQUEST_CHANNEL;
 import static io.rsocket.frame.FrameType.REQUEST_FNF;
@@ -38,18 +38,18 @@ import io.netty.util.ReferenceCountUtil;
 import io.netty.util.ReferenceCounted;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
-import io.rsocket.frame.CancelFrameFlyweight;
-import io.rsocket.frame.ErrorFrameFlyweight;
-import io.rsocket.frame.FrameHeaderFlyweight;
-import io.rsocket.frame.FrameLengthFlyweight;
+import io.rsocket.frame.CancelFrameCodec;
+import io.rsocket.frame.ErrorFrameCodec;
+import io.rsocket.frame.FrameHeaderCodec;
+import io.rsocket.frame.FrameLengthCodec;
 import io.rsocket.frame.FrameType;
-import io.rsocket.frame.KeepAliveFrameFlyweight;
-import io.rsocket.frame.PayloadFrameFlyweight;
-import io.rsocket.frame.RequestChannelFrameFlyweight;
-import io.rsocket.frame.RequestFireAndForgetFrameFlyweight;
-import io.rsocket.frame.RequestNFrameFlyweight;
-import io.rsocket.frame.RequestResponseFrameFlyweight;
-import io.rsocket.frame.RequestStreamFrameFlyweight;
+import io.rsocket.frame.KeepAliveFrameCodec;
+import io.rsocket.frame.PayloadFrameCodec;
+import io.rsocket.frame.RequestChannelFrameCodec;
+import io.rsocket.frame.RequestFireAndForgetFrameCodec;
+import io.rsocket.frame.RequestNFrameCodec;
+import io.rsocket.frame.RequestResponseFrameCodec;
+import io.rsocket.frame.RequestStreamFrameCodec;
 import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.internal.subscriber.AssertSubscriber;
 import io.rsocket.lease.ResponderLeaseHandler;
@@ -117,13 +117,13 @@ public class RSocketResponderTest {
   @Disabled
   public void testHandleKeepAlive() throws Exception {
     rule.connection.addToReceivedBuffer(
-        KeepAliveFrameFlyweight.encode(rule.alloc(), true, 0, Unpooled.EMPTY_BUFFER));
+        KeepAliveFrameCodec.encode(rule.alloc(), true, 0, Unpooled.EMPTY_BUFFER));
     ByteBuf sent = rule.connection.awaitSend();
     assertThat("Unexpected frame sent.", frameType(sent), is(FrameType.KEEPALIVE));
     /*Keep alive ack must not have respond flag else, it will result in infinite ping-pong of keep alive frames.*/
     assertThat(
         "Unexpected keep-alive frame respond flag.",
-        KeepAliveFrameFlyweight.respondFlag(sent),
+        KeepAliveFrameCodec.respondFlag(sent),
         is(false));
   }
 
@@ -176,7 +176,7 @@ public class RSocketResponderTest {
     assertThat("Unexpected error.", rule.errors, is(empty()));
     assertThat("Unexpected frame sent.", rule.connection.getSent(), is(empty()));
 
-    rule.connection.addToReceivedBuffer(CancelFrameFlyweight.encode(allocator, streamId));
+    rule.connection.addToReceivedBuffer(CancelFrameCodec.encode(allocator, streamId));
 
     assertThat("Unexpected frame sent.", rule.connection.getSent(), is(empty()));
     assertThat("Subscription not cancelled.", cancelled.get(), is(true));
@@ -188,8 +188,8 @@ public class RSocketResponderTest {
   public void shouldThrownExceptionIfGivenPayloadIsExitsSizeAllowanceWithNoFragmentation() {
     final int streamId = 4;
     final AtomicBoolean cancelled = new AtomicBoolean();
-    byte[] metadata = new byte[FrameLengthFlyweight.FRAME_LENGTH_MASK];
-    byte[] data = new byte[FrameLengthFlyweight.FRAME_LENGTH_MASK];
+    byte[] metadata = new byte[FrameLengthCodec.FRAME_LENGTH_MASK];
+    byte[] data = new byte[FrameLengthCodec.FRAME_LENGTH_MASK];
     ThreadLocalRandom.current().nextBytes(metadata);
     ThreadLocalRandom.current().nextBytes(data);
     final Payload payload = DefaultPayload.create(data, metadata);
@@ -239,8 +239,8 @@ public class RSocketResponderTest {
       Assertions.assertThat(rule.connection.getSent())
           .hasSize(1)
           .first()
-          .matches(bb -> FrameHeaderFlyweight.frameType(bb) == FrameType.ERROR)
-          .matches(bb -> ErrorFrameFlyweight.dataUtf8(bb).contains(INVALID_PAYLOAD_ERROR_MESSAGE))
+          .matches(bb -> FrameHeaderCodec.frameType(bb) == FrameType.ERROR)
+          .matches(bb -> ErrorFrameCodec.dataUtf8(bb).contains(INVALID_PAYLOAD_ERROR_MESSAGE))
           .matches(ReferenceCounted::release);
 
       assertThat("Subscription not cancelled.", cancelled.get(), is(true));
@@ -272,21 +272,21 @@ public class RSocketResponderTest {
       ByteBuf data1 = allocator.buffer();
       data1.writeCharSequence("def1", CharsetUtil.UTF_8);
       ByteBuf nextFrame1 =
-          PayloadFrameFlyweight.encode(allocator, 1, false, false, true, metadata1, data1);
+          PayloadFrameCodec.encode(allocator, 1, false, false, true, metadata1, data1);
 
       ByteBuf metadata2 = allocator.buffer();
       metadata2.writeCharSequence("abc2", CharsetUtil.UTF_8);
       ByteBuf data2 = allocator.buffer();
       data2.writeCharSequence("def2", CharsetUtil.UTF_8);
       ByteBuf nextFrame2 =
-          PayloadFrameFlyweight.encode(allocator, 1, false, false, true, metadata2, data2);
+          PayloadFrameCodec.encode(allocator, 1, false, false, true, metadata2, data2);
 
       ByteBuf metadata3 = allocator.buffer();
       metadata3.writeCharSequence("abc3", CharsetUtil.UTF_8);
       ByteBuf data3 = allocator.buffer();
       data3.writeCharSequence("def3", CharsetUtil.UTF_8);
       ByteBuf nextFrame3 =
-          PayloadFrameFlyweight.encode(allocator, 1, false, false, true, metadata3, data3);
+          PayloadFrameCodec.encode(allocator, 1, false, false, true, metadata3, data3);
 
       RaceTestUtils.race(
           () -> {
@@ -325,7 +325,7 @@ public class RSocketResponderTest {
 
       rule.sendRequest(1, REQUEST_CHANNEL);
 
-      ByteBuf cancelFrame = CancelFrameFlyweight.encode(allocator, 1);
+      ByteBuf cancelFrame = CancelFrameCodec.encode(allocator, 1);
       FluxSink<Payload> sink = sinks[0];
       RaceTestUtils.race(
           () -> rule.connection.addToReceivedBuffer(cancelFrame),
@@ -365,8 +365,8 @@ public class RSocketResponderTest {
 
       rule.sendRequest(1, REQUEST_CHANNEL);
 
-      ByteBuf cancelFrame = CancelFrameFlyweight.encode(allocator, 1);
-      ByteBuf requestNFrame = RequestNFrameFlyweight.encode(allocator, 1, Integer.MAX_VALUE);
+      ByteBuf cancelFrame = CancelFrameCodec.encode(allocator, 1);
+      ByteBuf requestNFrame = RequestNFrameCodec.encode(allocator, 1, Integer.MAX_VALUE);
       FluxSink<Payload> sink = sinks[0];
       RaceTestUtils.race(
           () ->
@@ -418,23 +418,23 @@ public class RSocketResponderTest {
       ByteBuf data1 = allocator.buffer();
       data1.writeCharSequence("def1", CharsetUtil.UTF_8);
       ByteBuf nextFrame1 =
-          PayloadFrameFlyweight.encode(allocator, 1, false, false, true, metadata1, data1);
+          PayloadFrameCodec.encode(allocator, 1, false, false, true, metadata1, data1);
 
       ByteBuf metadata2 = allocator.buffer();
       metadata2.writeCharSequence("abc2", CharsetUtil.UTF_8);
       ByteBuf data2 = allocator.buffer();
       data2.writeCharSequence("def2", CharsetUtil.UTF_8);
       ByteBuf nextFrame2 =
-          PayloadFrameFlyweight.encode(allocator, 1, false, false, true, metadata2, data2);
+          PayloadFrameCodec.encode(allocator, 1, false, false, true, metadata2, data2);
 
       ByteBuf metadata3 = allocator.buffer();
       metadata3.writeCharSequence("abc3", CharsetUtil.UTF_8);
       ByteBuf data3 = allocator.buffer();
       data3.writeCharSequence("def3", CharsetUtil.UTF_8);
       ByteBuf nextFrame3 =
-          PayloadFrameFlyweight.encode(allocator, 1, false, false, true, metadata3, data3);
+          PayloadFrameCodec.encode(allocator, 1, false, false, true, metadata3, data3);
 
-      ByteBuf requestNFrame = RequestNFrameFlyweight.encode(allocator, 1, Integer.MAX_VALUE);
+      ByteBuf requestNFrame = RequestNFrameCodec.encode(allocator, 1, Integer.MAX_VALUE);
 
       FluxSink<Payload> sink = sinks[0];
       RaceTestUtils.race(
@@ -477,7 +477,7 @@ public class RSocketResponderTest {
 
       rule.sendRequest(1, REQUEST_STREAM);
 
-      ByteBuf cancelFrame = CancelFrameFlyweight.encode(allocator, 1);
+      ByteBuf cancelFrame = CancelFrameCodec.encode(allocator, 1);
       FluxSink<Payload> sink = sinks[0];
       RaceTestUtils.race(
           () -> rule.connection.addToReceivedBuffer(cancelFrame),
@@ -520,7 +520,7 @@ public class RSocketResponderTest {
 
       rule.sendRequest(1, REQUEST_RESPONSE);
 
-      ByteBuf cancelFrame = CancelFrameFlyweight.encode(allocator, 1);
+      ByteBuf cancelFrame = CancelFrameCodec.encode(allocator, 1);
       RaceTestUtils.race(
           () -> rule.connection.addToReceivedBuffer(cancelFrame),
           () -> {
@@ -551,7 +551,7 @@ public class RSocketResponderTest {
 
     rule.sendRequest(1, REQUEST_STREAM);
 
-    ByteBuf cancelFrame = CancelFrameFlyweight.encode(allocator, 1);
+    ByteBuf cancelFrame = CancelFrameCodec.encode(allocator, 1);
     FluxSink<Payload> sink = sinks[0];
 
     sink.next(ByteBufPayload.create("d1", "m1"));
@@ -579,28 +579,28 @@ public class RSocketResponderTest {
 
     rule.sendRequest(1, REQUEST_STREAM);
 
-    ByteBuf cancelFrame = CancelFrameFlyweight.encode(allocator, 1);
+    ByteBuf cancelFrame = CancelFrameCodec.encode(allocator, 1);
 
     ByteBuf metadata1 = allocator.buffer();
     metadata1.writeCharSequence("abc1", CharsetUtil.UTF_8);
     ByteBuf data1 = allocator.buffer();
     data1.writeCharSequence("def1", CharsetUtil.UTF_8);
     ByteBuf nextFrame1 =
-        PayloadFrameFlyweight.encode(allocator, 1, false, false, true, metadata1, data1);
+        PayloadFrameCodec.encode(allocator, 1, false, false, true, metadata1, data1);
 
     ByteBuf metadata2 = allocator.buffer();
     metadata2.writeCharSequence("abc2", CharsetUtil.UTF_8);
     ByteBuf data2 = allocator.buffer();
     data2.writeCharSequence("def2", CharsetUtil.UTF_8);
     ByteBuf nextFrame2 =
-        PayloadFrameFlyweight.encode(allocator, 1, false, false, true, metadata2, data2);
+        PayloadFrameCodec.encode(allocator, 1, false, false, true, metadata2, data2);
 
     ByteBuf metadata3 = allocator.buffer();
     metadata3.writeCharSequence("abc3", CharsetUtil.UTF_8);
     ByteBuf data3 = allocator.buffer();
     data3.writeCharSequence("de3", CharsetUtil.UTF_8);
     ByteBuf nextFrame3 =
-        PayloadFrameFlyweight.encode(allocator, 1, false, false, true, metadata3, data3);
+        PayloadFrameCodec.encode(allocator, 1, false, false, true, metadata3, data3);
     rule.connection.addToReceivedBuffer(nextFrame1, nextFrame2, nextFrame3);
 
     rule.connection.addToReceivedBuffer(cancelFrame);
@@ -651,7 +651,7 @@ public class RSocketResponderTest {
     // if responses number is bigger than 1 we have to send one extra requestN
     if (responsesCnt > 1) {
       rule.connection.addToReceivedBuffer(
-          RequestNFrameFlyweight.encode(allocator, 1, responsesCnt - 1));
+          RequestNFrameCodec.encode(allocator, 1, responsesCnt - 1));
     }
 
     // respond with specific number of elements
@@ -663,7 +663,7 @@ public class RSocketResponderTest {
     if (framesCnt > 1) {
       for (int i = 1; i < responsesCnt; i++) {
         rule.connection.addToReceivedBuffer(
-            PayloadFrameFlyweight.encode(
+            PayloadFrameCodec.encode(
                 allocator,
                 1,
                 false,
@@ -680,7 +680,7 @@ public class RSocketResponderTest {
           .describedAs(
               "Interaction Type :[%s]. Expected to observe %s frames sent", frameType, responsesCnt)
           .hasSize(responsesCnt)
-          .allMatch(bb -> !FrameHeaderFlyweight.hasMetadata(bb));
+          .allMatch(bb -> !FrameHeaderCodec.hasMetadata(bb));
     }
 
     if (framesCnt > 1) {
@@ -691,7 +691,7 @@ public class RSocketResponderTest {
               frameType, framesCnt - 1)
           .hasSize(1)
           .first()
-          .matches(bb -> RequestNFrameFlyweight.requestN(bb) == (framesCnt - 1));
+          .matches(bb -> RequestNFrameCodec.requestN(bb) == (framesCnt - 1));
     }
 
     Assertions.assertThat(rule.connection.getSent()).allMatch(ReferenceCounted::release);
@@ -813,22 +813,20 @@ public class RSocketResponderTest {
       switch (frameType) {
         case REQUEST_CHANNEL:
           request =
-              RequestChannelFrameFlyweight.encodeReleasingPayload(
+              RequestChannelFrameCodec.encodeReleasingPayload(
                   allocator, streamId, false, prefetch, payload);
           break;
         case REQUEST_STREAM:
           request =
-              RequestStreamFrameFlyweight.encodeReleasingPayload(
+              RequestStreamFrameCodec.encodeReleasingPayload(
                   allocator, streamId, prefetch, payload);
           break;
         case REQUEST_RESPONSE:
-          request =
-              RequestResponseFrameFlyweight.encodeReleasingPayload(allocator, streamId, payload);
+          request = RequestResponseFrameCodec.encodeReleasingPayload(allocator, streamId, payload);
           break;
         case REQUEST_FNF:
           request =
-              RequestFireAndForgetFrameFlyweight.encodeReleasingPayload(
-                  allocator, streamId, payload);
+              RequestFireAndForgetFrameCodec.encodeReleasingPayload(allocator, streamId, payload);
           break;
         default:
           throw new IllegalArgumentException("unsupported type: " + frameType);

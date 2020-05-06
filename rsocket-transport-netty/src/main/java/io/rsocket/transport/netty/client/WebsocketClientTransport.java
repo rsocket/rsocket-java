@@ -16,7 +16,7 @@
 
 package io.rsocket.transport.netty.client;
 
-import static io.rsocket.frame.FrameLengthFlyweight.FRAME_LENGTH_MASK;
+import static io.rsocket.frame.FrameLengthCodec.FRAME_LENGTH_MASK;
 import static io.rsocket.transport.netty.UriUtils.getPort;
 import static io.rsocket.transport.netty.UriUtils.isSecure;
 

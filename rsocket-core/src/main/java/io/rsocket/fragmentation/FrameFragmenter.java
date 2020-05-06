@@ -20,14 +20,14 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
 import io.netty.util.ReferenceCountUtil;
-import io.rsocket.frame.FrameHeaderFlyweight;
-import io.rsocket.frame.FrameLengthFlyweight;
+import io.rsocket.frame.FrameHeaderCodec;
+import io.rsocket.frame.FrameLengthCodec;
 import io.rsocket.frame.FrameType;
-import io.rsocket.frame.PayloadFrameFlyweight;
-import io.rsocket.frame.RequestChannelFrameFlyweight;
-import io.rsocket.frame.RequestFireAndForgetFrameFlyweight;
-import io.rsocket.frame.RequestResponseFrameFlyweight;
-import io.rsocket.frame.RequestStreamFrameFlyweight;
+import io.rsocket.frame.PayloadFrameCodec;
+import io.rsocket.frame.RequestChannelFrameCodec;
+import io.rsocket.frame.RequestFireAndForgetFrameCodec;
+import io.rsocket.frame.RequestResponseFrameCodec;
+import io.rsocket.frame.RequestStreamFrameCodec;
 import java.util.function.Consumer;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
@@ -49,7 +49,7 @@ final class FrameFragmenter {
       boolean encodeLength) {
     ByteBuf metadata = getMetadata(frame, frameType);
     ByteBuf data = getData(frame, frameType);
-    int streamId = FrameHeaderFlyweight.streamId(frame);
+    int streamId = FrameHeaderCodec.streamId(frame);
     return Flux.generate(
             new Consumer<SynchronousSink<ByteBuf>>() {
               boolean first = true;
@@ -84,7 +84,7 @@ final class FrameFragmenter {
       ByteBuf metadata,
       ByteBuf data) {
     // subtract the header bytes
-    int remaining = mtu - FrameHeaderFlyweight.size();
+    int remaining = mtu - FrameHeaderCodec.size();
 
     // substract the initial request n
     switch (frameType) {
@@ -112,40 +112,40 @@ final class FrameFragmenter {
 
     switch (frameType) {
       case REQUEST_FNF:
-        return RequestFireAndForgetFrameFlyweight.encode(
+        return RequestFireAndForgetFrameCodec.encode(
             allocator, streamId, true, metadataFragment, dataFragment);
       case REQUEST_STREAM:
-        return RequestStreamFrameFlyweight.encode(
+        return RequestStreamFrameCodec.encode(
             allocator,
             streamId,
             true,
-            RequestStreamFrameFlyweight.initialRequestN(frame),
+            RequestStreamFrameCodec.initialRequestN(frame),
             metadataFragment,
             dataFragment);
       case REQUEST_RESPONSE:
-        return RequestResponseFrameFlyweight.encode(
+        return RequestResponseFrameCodec.encode(
             allocator, streamId, true, metadataFragment, dataFragment);
       case REQUEST_CHANNEL:
-        return RequestChannelFrameFlyweight.encode(
+        return RequestChannelFrameCodec.encode(
             allocator,
             streamId,
             true,
             false,
-            RequestChannelFrameFlyweight.initialRequestN(frame),
+            RequestChannelFrameCodec.initialRequestN(frame),
             metadataFragment,
             dataFragment);
         // Payload and synthetic types
       case PAYLOAD:
-        return PayloadFrameFlyweight.encode(
+        return PayloadFrameCodec.encode(
             allocator, streamId, true, false, false, metadataFragment, dataFragment);
       case NEXT:
-        return PayloadFrameFlyweight.encode(
+        return PayloadFrameCodec.encode(
             allocator, streamId, true, false, true, metadataFragment, dataFragment);
       case NEXT_COMPLETE:
-        return PayloadFrameFlyweight.encode(
+        return PayloadFrameCodec.encode(
             allocator, streamId, true, true, true, metadataFragment, dataFragment);
       case COMPLETE:
-        return PayloadFrameFlyweight.encode(
+        return PayloadFrameCodec.encode(
             allocator, streamId, true, true, false, metadataFragment, dataFragment);
       default:
         throw new IllegalStateException("unsupported fragment type: " + frameType);
@@ -155,7 +155,7 @@ final class FrameFragmenter {
   static ByteBuf encodeFollowsFragment(
       ByteBufAllocator allocator, int mtu, int streamId, ByteBuf metadata, ByteBuf data) {
     // subtract the header bytes
-    int remaining = mtu - FrameHeaderFlyweight.size();
+    int remaining = mtu - FrameHeaderCodec.size();
 
     ByteBuf metadataFragment = null;
     if (metadata.isReadable()) {
@@ -173,33 +173,33 @@ final class FrameFragmenter {
     }
 
     boolean follows = data.isReadable() || metadata.isReadable();
-    return PayloadFrameFlyweight.encode(
+    return PayloadFrameCodec.encode(
         allocator, streamId, follows, false, true, metadataFragment, dataFragment);
   }
 
   static ByteBuf getMetadata(ByteBuf frame, FrameType frameType) {
-    boolean hasMetadata = FrameHeaderFlyweight.hasMetadata(frame);
+    boolean hasMetadata = FrameHeaderCodec.hasMetadata(frame);
     if (hasMetadata) {
       ByteBuf metadata;
       switch (frameType) {
         case REQUEST_FNF:
-          metadata = RequestFireAndForgetFrameFlyweight.metadata(frame);
+          metadata = RequestFireAndForgetFrameCodec.metadata(frame);
           break;
         case REQUEST_STREAM:
-          metadata = RequestStreamFrameFlyweight.metadata(frame);
+          metadata = RequestStreamFrameCodec.metadata(frame);
           break;
         case REQUEST_RESPONSE:
-          metadata = RequestResponseFrameFlyweight.metadata(frame);
+          metadata = RequestResponseFrameCodec.metadata(frame);
           break;
         case REQUEST_CHANNEL:
-          metadata = RequestChannelFrameFlyweight.metadata(frame);
+          metadata = RequestChannelFrameCodec.metadata(frame);
           break;
           // Payload and synthetic types
         case PAYLOAD:
         case NEXT:
         case NEXT_COMPLETE:
         case COMPLETE:
-          metadata = PayloadFrameFlyweight.metadata(frame);
+          metadata = PayloadFrameCodec.metadata(frame);
           break;
         default:
           throw new IllegalStateException("unsupported fragment type");
@@ -214,23 +214,23 @@ final class FrameFragmenter {
     ByteBuf data;
     switch (frameType) {
       case REQUEST_FNF:
-        data = RequestFireAndForgetFrameFlyweight.data(frame);
+        data = RequestFireAndForgetFrameCodec.data(frame);
         break;
       case REQUEST_STREAM:
-        data = RequestStreamFrameFlyweight.data(frame);
+        data = RequestStreamFrameCodec.data(frame);
         break;
       case REQUEST_RESPONSE:
-        data = RequestResponseFrameFlyweight.data(frame);
+        data = RequestResponseFrameCodec.data(frame);
         break;
       case REQUEST_CHANNEL:
-        data = RequestChannelFrameFlyweight.data(frame);
+        data = RequestChannelFrameCodec.data(frame);
         break;
         // Payload and synthetic types
       case PAYLOAD:
       case NEXT:
       case NEXT_COMPLETE:
       case COMPLETE:
-        data = PayloadFrameFlyweight.data(frame);
+        data = PayloadFrameCodec.data(frame);
         break;
       default:
         throw new IllegalStateException("unsupported fragment type");
@@ -240,7 +240,7 @@ final class FrameFragmenter {
 
   static ByteBuf encode(ByteBufAllocator allocator, ByteBuf frame, boolean encodeLength) {
     if (encodeLength) {
-      return FrameLengthFlyweight.encode(allocator, frame.readableBytes(), frame);
+      return FrameLengthCodec.encode(allocator, frame.readableBytes(), frame);
     } else {
       return frame;
     }

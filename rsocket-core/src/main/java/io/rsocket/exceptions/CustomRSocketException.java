@@ -16,7 +16,7 @@
 
 package io.rsocket.exceptions;
 
-import io.rsocket.frame.ErrorFrameFlyweight;
+import io.rsocket.frame.ErrorFrameCodec;
 import javax.annotation.Nullable;
 
 public class CustomRSocketException extends RSocketException {
@@ -43,8 +43,8 @@ public class CustomRSocketException extends RSocketException {
    */
   public CustomRSocketException(int errorCode, String message, @Nullable Throwable cause) {
     super(errorCode, message, cause);
-    if (errorCode > ErrorFrameFlyweight.MAX_USER_ALLOWED_ERROR_CODE
-        && errorCode < ErrorFrameFlyweight.MIN_USER_ALLOWED_ERROR_CODE) {
+    if (errorCode > ErrorFrameCodec.MAX_USER_ALLOWED_ERROR_CODE
+        && errorCode < ErrorFrameCodec.MIN_USER_ALLOWED_ERROR_CODE) {
       throw new IllegalArgumentException(
           "Allowed errorCode value should be in range [0x00000301-0xFFFFFFFE]", this);
     }

@@ -20,9 +20,9 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.DuplexConnection;
 import io.rsocket.exceptions.ConnectionErrorException;
-import io.rsocket.frame.ErrorFrameFlyweight;
-import io.rsocket.frame.ResumeFrameFlyweight;
-import io.rsocket.frame.ResumeOkFrameFlyweight;
+import io.rsocket.frame.ErrorFrameCodec;
+import io.rsocket.frame.ResumeFrameCodec;
+import io.rsocket.frame.ResumeOkFrameCodec;
 import io.rsocket.internal.ClientServerInputMultiplexer;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -86,7 +86,7 @@ public class ClientRSocketSession implements RSocketSession<Mono<DuplexConnectio
                   position);
               /*Connection is established again: send RESUME frame to server, listen for RESUME_OK*/
               sendFrame(
-                      ResumeFrameFlyweight.encode(
+                      ResumeFrameCodec.encode(
                           allocator,
                           /*retain so token is not released once sent as part of resume frame*/
                           resumeToken.retain(),
@@ -123,7 +123,7 @@ public class ClientRSocketSession implements RSocketSession<Mono<DuplexConnectio
                 .onErrorResume(
                     err ->
                         sendFrame(
-                                ErrorFrameFlyweight.encode(
+                                ErrorFrameCodec.encode(
                                     allocator, 0, errorFrameThrowable(remoteImpliedPos)))
                             .then(Mono.fromRunnable(resumableConnection::dispose))
                             /*Resumption is impossible: no need to return control to ResumableConnection*/
@@ -157,7 +157,7 @@ public class ClientRSocketSession implements RSocketSession<Mono<DuplexConnectio
   }
 
   private static long remoteImpliedPos(ByteBuf resumeOkFrame) {
-    return ResumeOkFrameFlyweight.lastReceivedClientPos(resumeOkFrame);
+    return ResumeOkFrameCodec.lastReceivedClientPos(resumeOkFrame);
   }
 
   private static long remotePos(ByteBuf resumeOkFrame) {

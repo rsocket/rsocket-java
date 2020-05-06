@@ -19,7 +19,7 @@ package io.rsocket.lease;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.Availability;
-import io.rsocket.frame.LeaseFrameFlyweight;
+import io.rsocket.frame.LeaseFrameCodec;
 import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -96,7 +96,7 @@ public interface ResponderLeaseHandler extends Availability {
     }
 
     private ByteBuf createLeaseFrame(Lease lease) {
-      return LeaseFrameFlyweight.encode(
+      return LeaseFrameCodec.encode(
           allocator, lease.getTimeToLiveMillis(), lease.getAllowedRequests(), lease.getMetadata());
     }
 

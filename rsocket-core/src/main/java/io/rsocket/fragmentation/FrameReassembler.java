@@ -146,12 +146,12 @@ final class FrameReassembler extends AtomicBoolean implements Disposable {
   void handleNoFollowsFlag(ByteBuf frame, SynchronousSink<ByteBuf> sink, int streamId) {
     ByteBuf header = removeHeader(streamId);
     if (header != null) {
-      if (FrameHeaderFlyweight.hasMetadata(header)) {
+      if (FrameHeaderCodec.hasMetadata(header)) {
         ByteBuf assembledFrame = assembleFrameWithMetadata(frame, streamId, header);
         sink.next(assembledFrame);
       } else {
         ByteBuf data = assembleData(frame, streamId);
-        ByteBuf assembledFrame = FragmentationFlyweight.encode(allocator, header, data);
+        ByteBuf assembledFrame = FragmentationCodec.encode(allocator, header, data);
         sink.next(assembledFrame);
       }
       frame.release();
@@ -163,36 +163,36 @@ final class FrameReassembler extends AtomicBoolean implements Disposable {
   void handleFollowsFlag(ByteBuf frame, int streamId, FrameType frameType) {
     ByteBuf header = getHeader(streamId);
     if (header == null) {
-      header = frame.copy(frame.readerIndex(), FrameHeaderFlyweight.size());
+      header = frame.copy(frame.readerIndex(), FrameHeaderCodec.size());
 
       if (frameType == FrameType.REQUEST_CHANNEL || frameType == FrameType.REQUEST_STREAM) {
-        long i = RequestChannelFrameFlyweight.initialRequestN(frame);
+        long i = RequestChannelFrameCodec.initialRequestN(frame);
         header.writeInt(i > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) i);
       }
       putHeader(streamId, header);
     }
 
-    if (FrameHeaderFlyweight.hasMetadata(frame)) {
+    if (FrameHeaderCodec.hasMetadata(frame)) {
       CompositeByteBuf metadata = getMetadata(streamId);
       switch (frameType) {
         case REQUEST_FNF:
-          metadata.addComponents(true, RequestFireAndForgetFrameFlyweight.metadata(frame).retain());
+          metadata.addComponents(true, RequestFireAndForgetFrameCodec.metadata(frame).retain());
           break;
         case REQUEST_STREAM:
-          metadata.addComponents(true, RequestStreamFrameFlyweight.metadata(frame).retain());
+          metadata.addComponents(true, RequestStreamFrameCodec.metadata(frame).retain());
           break;
         case REQUEST_RESPONSE:
-          metadata.addComponents(true, RequestResponseFrameFlyweight.metadata(frame).retain());
+          metadata.addComponents(true, RequestResponseFrameCodec.metadata(frame).retain());
           break;
         case REQUEST_CHANNEL:
-          metadata.addComponents(true, RequestChannelFrameFlyweight.metadata(frame).retain());
+          metadata.addComponents(true, RequestChannelFrameCodec.metadata(frame).retain());
           break;
           // Payload and synthetic types
         case PAYLOAD:
         case NEXT:
         case NEXT_COMPLETE:
         case COMPLETE:
-          metadata.addComponents(true, PayloadFrameFlyweight.metadata(frame).retain());
+          metadata.addComponents(true, PayloadFrameCodec.metadata(frame).retain());
           break;
         default:
           throw new IllegalStateException("unsupported fragment type");
@@ -202,23 +202,23 @@ final class FrameReassembler extends AtomicBoolean implements Disposable {
     ByteBuf data;
     switch (frameType) {
       case REQUEST_FNF:
-        data = RequestFireAndForgetFrameFlyweight.data(frame).retain();
+        data = RequestFireAndForgetFrameCodec.data(frame).retain();
         break;
       case REQUEST_STREAM:
-        data = RequestStreamFrameFlyweight.data(frame).retain();
+        data = RequestStreamFrameCodec.data(frame).retain();
         break;
       case REQUEST_RESPONSE:
-        data = RequestResponseFrameFlyweight.data(frame).retain();
+        data = RequestResponseFrameCodec.data(frame).retain();
         break;
       case REQUEST_CHANNEL:
-        data = RequestChannelFrameFlyweight.data(frame).retain();
+        data = RequestChannelFrameCodec.data(frame).retain();
         break;
         // Payload and synthetic types
       case PAYLOAD:
       case NEXT:
       case NEXT_COMPLETE:
       case COMPLETE:
-        data = PayloadFrameFlyweight.data(frame).retain();
+        data = PayloadFrameCodec.data(frame).retain();
         break;
       default:
         throw new IllegalStateException("unsupported fragment type");
@@ -230,8 +230,8 @@ final class FrameReassembler extends AtomicBoolean implements Disposable {
 
   void reassembleFrame(ByteBuf frame, SynchronousSink<ByteBuf> sink) {
     try {
-      FrameType frameType = FrameHeaderFlyweight.frameType(frame);
-      int streamId = FrameHeaderFlyweight.streamId(frame);
+      FrameType frameType = FrameHeaderCodec.frameType(frame);
+      int streamId = FrameHeaderCodec.streamId(frame);
       switch (frameType) {
         case CANCEL:
         case ERROR:
@@ -244,7 +244,7 @@ final class FrameReassembler extends AtomicBoolean implements Disposable {
         return;
       }
 
-      boolean hasFollows = FrameHeaderFlyweight.hasFollows(frame);
+      boolean hasFollows = FrameHeaderCodec.hasFollows(frame);
 
       if (hasFollows) {
         handleFollowsFlag(frame, streamId, frameType);
@@ -262,12 +262,12 @@ final class FrameReassembler extends AtomicBoolean implements Disposable {
     ByteBuf metadata;
     CompositeByteBuf cm = removeMetadata(streamId);
 
-    ByteBuf decodedMetadata = PayloadFrameFlyweight.metadata(frame);
+    ByteBuf decodedMetadata = PayloadFrameCodec.metadata(frame);
     if (decodedMetadata != null) {
       if (cm != null) {
         metadata = cm.addComponents(true, decodedMetadata.retain());
       } else {
-        metadata = PayloadFrameFlyweight.metadata(frame).retain();
+        metadata = PayloadFrameCodec.metadata(frame).retain();
       }
     } else {
       metadata = cm != null ? cm : null;
@@ -275,14 +275,14 @@ final class FrameReassembler extends AtomicBoolean implements Disposable {
 
     ByteBuf data = assembleData(frame, streamId);
 
-    return FragmentationFlyweight.encode(allocator, header, metadata, data);
+    return FragmentationCodec.encode(allocator, header, metadata, data);
   }
 
   private ByteBuf assembleData(ByteBuf frame, int streamId) {
     ByteBuf data;
     CompositeByteBuf cd = removeData(streamId);
     if (cd != null) {
-      cd.addComponents(true, PayloadFrameFlyweight.data(frame).retain());
+      cd.addComponents(true, PayloadFrameCodec.data(frame).retain());
       data = cd;
     } else {
       data = Unpooled.EMPTY_BUFFER;
