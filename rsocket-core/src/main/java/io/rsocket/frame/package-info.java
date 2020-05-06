@@ -14,15 +14,8 @@
  * limitations under the License.
  */
 
-package io.rsocket.plugins;
-
-import io.rsocket.RSocket;
-import java.util.function.Function;
-
 /**
- * Contract to decorate an {@link RSocket}, providing a way to intercept interactions. This can be
- * applied to a {@link InterceptorRegistry#forRequester(RSocketInterceptor) requester} or {@link
- * InterceptorRegistry#forResponder(RSocketInterceptor) responder} {@code RSocket} of a client or
- * server.
+ * Support for encoding and decoding of RSocket frames to and from {@link io.rsocket.Payload
+ * Payload}.
  */
-public @FunctionalInterface interface RSocketInterceptor extends Function<RSocket, RSocket> {}
+package io.rsocket.frame;

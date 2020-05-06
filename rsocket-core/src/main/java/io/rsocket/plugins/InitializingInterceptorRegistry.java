@@ -19,6 +19,10 @@ import io.rsocket.DuplexConnection;
 import io.rsocket.RSocket;
 import io.rsocket.SocketAcceptor;
 
+/**
+ * Extends {@link InterceptorRegistry} with methods for building a chain of registered interceptors.
+ * This is not intended for direct use by applications.
+ */
 public class InitializingInterceptorRegistry extends InterceptorRegistry {
 
   public DuplexConnection initConnection(

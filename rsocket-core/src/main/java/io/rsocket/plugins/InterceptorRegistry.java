@@ -19,54 +19,87 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 
+/**
+ * Provides support for registering interceptors at the following levels:
+ *
+ * <ul>
+ *   <li>{@link #forConnection(DuplexConnectionInterceptor)} -- transport level
+ *   <li>{@link #forSocketAcceptor(SocketAcceptorInterceptor)} -- for accepting new connections
+ *   <li>{@link #forRequester(RSocketInterceptor)} -- for performing of requests
+ *   <li>{@link #forResponder(RSocketInterceptor)} -- for responding to requests
+ * </ul>
+ */
 public class InterceptorRegistry {
-  private List<DuplexConnectionInterceptor> connectionInterceptors = new ArrayList<>();
   private List<RSocketInterceptor> requesterInteceptors = new ArrayList<>();
   private List<RSocketInterceptor> responderInterceptors = new ArrayList<>();
   private List<SocketAcceptorInterceptor> socketAcceptorInterceptors = new ArrayList<>();
+  private List<DuplexConnectionInterceptor> connectionInterceptors = new ArrayList<>();
 
-  public InterceptorRegistry forConnection(DuplexConnectionInterceptor interceptor) {
-    connectionInterceptors.add(interceptor);
-    return this;
-  }
-
-  public InterceptorRegistry forConnection(Consumer<List<DuplexConnectionInterceptor>> consumer) {
-    consumer.accept(connectionInterceptors);
-    return this;
-  }
-
+  /**
+   * Add an {@link RSocketInterceptor} that will decorate the RSocket used for performing requests.
+   */
   public InterceptorRegistry forRequester(RSocketInterceptor interceptor) {
     requesterInteceptors.add(interceptor);
     return this;
   }
 
+  /**
+   * Variant of {@link #forRequester(RSocketInterceptor)} with access to the list of existing
+   * registrations.
+   */
   public InterceptorRegistry forRequester(Consumer<List<RSocketInterceptor>> consumer) {
     consumer.accept(requesterInteceptors);
     return this;
   }
 
+  /**
+   * Add an {@link RSocketInterceptor} that will decorate the RSocket used for resonding to
+   * requests.
+   */
   public InterceptorRegistry forResponder(RSocketInterceptor interceptor) {
     responderInterceptors.add(interceptor);
     return this;
   }
 
+  /**
+   * Variant of {@link #forResponder(RSocketInterceptor)} with access to the list of existing
+   * registrations.
+   */
   public InterceptorRegistry forResponder(Consumer<List<RSocketInterceptor>> consumer) {
     consumer.accept(responderInterceptors);
     return this;
   }
 
+  /**
+   * Add a {@link SocketAcceptorInterceptor} that will intercept the accepting of new connections.
+   */
   public InterceptorRegistry forSocketAcceptor(SocketAcceptorInterceptor interceptor) {
     socketAcceptorInterceptors.add(interceptor);
     return this;
   }
 
+  /**
+   * Variant of {@link #forSocketAcceptor(SocketAcceptorInterceptor)} with access to the list of
+   * existing registrations.
+   */
   public InterceptorRegistry forSocketAcceptor(Consumer<List<SocketAcceptorInterceptor>> consumer) {
     consumer.accept(socketAcceptorInterceptors);
     return this;
   }
 
-  List<DuplexConnectionInterceptor> getConnectionInterceptors() {
-    return connectionInterceptors;
+  /** Add a {@link DuplexConnectionInterceptor}. */
+  public InterceptorRegistry forConnection(DuplexConnectionInterceptor interceptor) {
+    connectionInterceptors.add(interceptor);
+    return this;
+  }
+
+  /**
+   * Variant of {@link #forConnection(DuplexConnectionInterceptor)} with access to the list of
+   * existing registrations.
+   */
+  public InterceptorRegistry forConnection(Consumer<List<DuplexConnectionInterceptor>> consumer) {
+    consumer.accept(connectionInterceptors);
+    return this;
   }
 
   List<RSocketInterceptor> getRequesterInteceptors() {
@@ -75,6 +108,10 @@ public class InterceptorRegistry {
 
   List<RSocketInterceptor> getResponderInterceptors() {
     return responderInterceptors;
+  }
+
+  List<DuplexConnectionInterceptor> getConnectionInterceptors() {
+    return connectionInterceptors;
   }
 
   List<SocketAcceptorInterceptor> getSocketAcceptorInterceptors() {
