@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
-/** Client and server transport contracts for pluggable transports. */
-@javax.annotation.ParametersAreNonnullByDefault
-package io.rsocket.transport;
+/**
+ * Contains implementations of RSocket <a
+ * href="https://github.com/rsocket/rsocket/tree/master/Extensions">protocol extensions</a> related
+ * to the use of metadata.
+ */
+package io.rsocket.metadata;

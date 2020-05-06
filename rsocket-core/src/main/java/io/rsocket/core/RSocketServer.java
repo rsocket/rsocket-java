@@ -189,8 +189,8 @@ public final class RSocketServer {
    *
    * @param supplier supplier for a {@link Leases}
    * @return the same instance for method chaining
-   * @return the same instance for method chaining <a
-   *     href="https://github.com/rsocket/rsocket/blob/master/Protocol.md#lease-semantics">Lease
+   * @return the same instance for method chaining
+   * @see <a href="https://github.com/rsocket/rsocket/blob/master/Protocol.md#lease-semantics">Lease
    *     Semantics</a>
    */
   public RSocketServer lease(Supplier<Leases<?>> supplier) {

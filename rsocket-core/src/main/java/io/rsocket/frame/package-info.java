@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
-/** Client and server transport contracts for pluggable transports. */
-@javax.annotation.ParametersAreNonnullByDefault
-package io.rsocket.transport;
+/**
+ * Support for encoding and decoding of RSocket frames to and from {@link io.rsocket.Payload
+ * Payload}.
+ */
+package io.rsocket.frame;

@@ -14,6 +14,5 @@
  * limitations under the License.
  */
 
-/** Client and server transport contracts for pluggable transports. */
-@javax.annotation.ParametersAreNonnullByDefault
-package io.rsocket.transport;
+/** Contracts for interception of transports, connections, and requests in in RSocket Java. */
+package io.rsocket.plugins;

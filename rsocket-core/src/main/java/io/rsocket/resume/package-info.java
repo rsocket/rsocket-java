@@ -14,5 +14,12 @@
  * limitations under the License.
  */
 
+/**
+ * Contains support classes for the RSocket resume capability.
+ *
+ * @see <a
+ *     href="https://github.com/rsocket/rsocket/blob/master/Protocol.md#resuming-operation">Resuming
+ *     Operation</a>
+ */
 @javax.annotation.ParametersAreNonnullByDefault
 package io.rsocket.resume;

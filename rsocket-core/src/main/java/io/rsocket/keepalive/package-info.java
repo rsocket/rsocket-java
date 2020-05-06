@@ -14,6 +14,6 @@
  * limitations under the License.
  */
 
-/** Client and server transport contracts for pluggable transports. */
+/** Support classes for sending and keeping track of KEEPALIVE frames from the remote. */
 @javax.annotation.ParametersAreNonnullByDefault
-package io.rsocket.transport;
+package io.rsocket.keepalive;
