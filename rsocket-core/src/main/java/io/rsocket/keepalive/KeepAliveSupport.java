@@ -19,7 +19,7 @@ package io.rsocket.keepalive;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
-import io.rsocket.frame.KeepAliveFrameFlyweight;
+import io.rsocket.frame.KeepAliveFrameCodec;
 import io.rsocket.resume.ResumeStateHolder;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -69,14 +69,14 @@ public abstract class KeepAliveSupport implements KeepAliveFramesAcceptor {
       long remoteLastReceivedPos = remoteLastReceivedPosition(keepAliveFrame);
       resumeStateHolder.onImpliedPosition(remoteLastReceivedPos);
     }
-    if (KeepAliveFrameFlyweight.respondFlag(keepAliveFrame)) {
+    if (KeepAliveFrameCodec.respondFlag(keepAliveFrame)) {
       long localLastReceivedPos = localLastReceivedPosition();
       send(
-          KeepAliveFrameFlyweight.encode(
+          KeepAliveFrameCodec.encode(
               allocator,
               false,
               localLastReceivedPos,
-              KeepAliveFrameFlyweight.data(keepAliveFrame).retain()));
+              KeepAliveFrameCodec.data(keepAliveFrame).retain()));
     }
   }
 
@@ -118,7 +118,7 @@ public abstract class KeepAliveSupport implements KeepAliveFramesAcceptor {
   }
 
   long remoteLastReceivedPosition(ByteBuf keepAliveFrame) {
-    return KeepAliveFrameFlyweight.lastPosition(keepAliveFrame);
+    return KeepAliveFrameCodec.lastPosition(keepAliveFrame);
   }
 
   public static final class ServerKeepAliveSupport extends KeepAliveSupport {
@@ -145,7 +145,7 @@ public abstract class KeepAliveSupport implements KeepAliveFramesAcceptor {
     void onIntervalTick() {
       tryTimeout();
       send(
-          KeepAliveFrameFlyweight.encode(
+          KeepAliveFrameCodec.encode(
               allocator, true, localLastReceivedPosition(), Unpooled.EMPTY_BUFFER));
     }
   }

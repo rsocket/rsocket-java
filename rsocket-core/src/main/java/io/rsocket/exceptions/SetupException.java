@@ -16,7 +16,7 @@
 
 package io.rsocket.exceptions;
 
-import io.rsocket.frame.ErrorFrameFlyweight;
+import io.rsocket.frame.ErrorFrameCodec;
 import javax.annotation.Nullable;
 
 /** The root of the setup exception hierarchy. */
@@ -44,7 +44,7 @@ public abstract class SetupException extends RSocketException {
    */
   @Deprecated
   public SetupException(String message, @Nullable Throwable cause) {
-    this(ErrorFrameFlyweight.INVALID_SETUP, message, cause);
+    this(ErrorFrameCodec.INVALID_SETUP, message, cause);
   }
 
   /**

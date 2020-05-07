@@ -14,18 +14,18 @@ class KeepaliveFrameFlyweightTest {
   @Test
   void canReadData() {
     ByteBuf data = Unpooled.wrappedBuffer(new byte[] {5, 4, 3});
-    ByteBuf frame = KeepAliveFrameFlyweight.encode(ByteBufAllocator.DEFAULT, true, 0, data);
-    assertTrue(KeepAliveFrameFlyweight.respondFlag(frame));
-    assertEquals(data, KeepAliveFrameFlyweight.data(frame));
+    ByteBuf frame = KeepAliveFrameCodec.encode(ByteBufAllocator.DEFAULT, true, 0, data);
+    assertTrue(KeepAliveFrameCodec.respondFlag(frame));
+    assertEquals(data, KeepAliveFrameCodec.data(frame));
     frame.release();
   }
 
   @Test
   void testEncoding() {
     ByteBuf frame =
-        KeepAliveFrameFlyweight.encode(
+        KeepAliveFrameCodec.encode(
             ByteBufAllocator.DEFAULT, true, 0, Unpooled.copiedBuffer("d", StandardCharsets.UTF_8));
-    frame = FrameLengthFlyweight.encode(ByteBufAllocator.DEFAULT, frame.readableBytes(), frame);
+    frame = FrameLengthCodec.encode(ByteBufAllocator.DEFAULT, frame.readableBytes(), frame);
     assertEquals("00000f000000000c80000000000000000064", ByteBufUtil.hexDump(frame));
     frame.release();
   }

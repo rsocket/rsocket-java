@@ -21,8 +21,8 @@ import static io.rsocket.fragmentation.FrameFragmenter.fragmentFrame;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
 import io.rsocket.DuplexConnection;
-import io.rsocket.frame.FrameHeaderFlyweight;
-import io.rsocket.frame.FrameLengthFlyweight;
+import io.rsocket.frame.FrameHeaderCodec;
+import io.rsocket.frame.FrameLengthCodec;
 import io.rsocket.frame.FrameType;
 import java.util.Objects;
 import javax.annotation.Nullable;
@@ -100,7 +100,7 @@ public final class FragmentationDuplexConnection extends ReassemblyDuplexConnect
 
   @Override
   public Mono<Void> sendOne(ByteBuf frame) {
-    FrameType frameType = FrameHeaderFlyweight.frameType(frame);
+    FrameType frameType = FrameHeaderCodec.frameType(frame);
     int readableBytes = frame.readableBytes();
     if (shouldFragment(frameType, readableBytes)) {
       if (logger.isDebugEnabled()) {
@@ -108,12 +108,12 @@ public final class FragmentationDuplexConnection extends ReassemblyDuplexConnect
             Flux.from(fragmentFrame(alloc(), mtu, frame, frameType, encodeLength))
                 .doOnNext(
                     byteBuf -> {
-                      ByteBuf f = encodeLength ? FrameLengthFlyweight.frame(byteBuf) : byteBuf;
+                      ByteBuf f = encodeLength ? FrameLengthCodec.frame(byteBuf) : byteBuf;
                       logger.debug(
                           "{} - stream id {} - frame type {} - \n {}",
                           type,
-                          FrameHeaderFlyweight.streamId(f),
-                          FrameHeaderFlyweight.frameType(f),
+                          FrameHeaderCodec.streamId(f),
+                          FrameHeaderCodec.frameType(f),
                           ByteBufUtil.prettyHexDump(f));
                     }));
       } else {
@@ -127,7 +127,7 @@ public final class FragmentationDuplexConnection extends ReassemblyDuplexConnect
 
   private ByteBuf encode(ByteBuf frame) {
     if (encodeLength) {
-      return FrameLengthFlyweight.encode(alloc(), frame.readableBytes(), frame);
+      return FrameLengthCodec.encode(alloc(), frame.readableBytes(), frame);
     } else {
       return frame;
     }

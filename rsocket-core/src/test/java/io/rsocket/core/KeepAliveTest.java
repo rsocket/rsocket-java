@@ -26,9 +26,9 @@ import io.rsocket.RSocket;
 import io.rsocket.TestScheduler;
 import io.rsocket.buffer.LeaksTrackingByteBufAllocator;
 import io.rsocket.exceptions.ConnectionErrorException;
-import io.rsocket.frame.FrameHeaderFlyweight;
+import io.rsocket.frame.FrameHeaderCodec;
 import io.rsocket.frame.FrameType;
-import io.rsocket.frame.KeepAliveFrameFlyweight;
+import io.rsocket.frame.KeepAliveFrameCodec;
 import io.rsocket.lease.RequesterLeaseHandler;
 import io.rsocket.resume.InMemoryResumableFramesStore;
 import io.rsocket.resume.ResumableDuplexConnection;
@@ -115,7 +115,7 @@ public class KeepAliveTest {
         .subscribe(
             n ->
                 connection.addToReceivedBuffer(
-                    KeepAliveFrameFlyweight.encode(
+                    KeepAliveFrameCodec.encode(
                         ByteBufAllocator.DEFAULT, true, 0, Unpooled.EMPTY_BUFFER)));
 
     Mono.delay(Duration.ofMillis(2000)).block();
@@ -171,7 +171,7 @@ public class KeepAliveTest {
         .subscribe(
             l ->
                 connection.addToReceivedBuffer(
-                    KeepAliveFrameFlyweight.encode(
+                    KeepAliveFrameCodec.encode(
                         ByteBufAllocator.DEFAULT, true, 0, Unpooled.EMPTY_BUFFER)));
 
     StepVerifier.create(Flux.from(connection.getSentAsPublisher()).take(1))
@@ -235,15 +235,15 @@ public class KeepAliveTest {
   }
 
   private boolean keepAliveFrame(ByteBuf frame) {
-    return FrameHeaderFlyweight.frameType(frame) == FrameType.KEEPALIVE;
+    return FrameHeaderCodec.frameType(frame) == FrameType.KEEPALIVE;
   }
 
   private boolean keepAliveFrameWithRespondFlag(ByteBuf frame) {
-    return keepAliveFrame(frame) && KeepAliveFrameFlyweight.respondFlag(frame);
+    return keepAliveFrame(frame) && KeepAliveFrameCodec.respondFlag(frame);
   }
 
   private boolean keepAliveFrameWithoutRespondFlag(ByteBuf frame) {
-    return keepAliveFrame(frame) && !KeepAliveFrameFlyweight.respondFlag(frame);
+    return keepAliveFrame(frame) && !KeepAliveFrameCodec.respondFlag(frame);
   }
 
   static class RSocketState {

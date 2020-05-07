@@ -16,7 +16,7 @@
 
 package io.rsocket.exceptions;
 
-import io.rsocket.frame.ErrorFrameFlyweight;
+import io.rsocket.frame.ErrorFrameCodec;
 import javax.annotation.Nullable;
 
 /**
@@ -45,6 +45,6 @@ public final class UnsupportedSetupException extends SetupException {
    * @param cause the cause of this exception
    */
   public UnsupportedSetupException(String message, @Nullable Throwable cause) {
-    super(ErrorFrameFlyweight.UNSUPPORTED_SETUP, message, cause);
+    super(ErrorFrameCodec.UNSUPPORTED_SETUP, message, cause);
   }
 }

@@ -31,10 +31,10 @@ import io.rsocket.RSocket;
 import io.rsocket.TestScheduler;
 import io.rsocket.buffer.LeaksTrackingByteBufAllocator;
 import io.rsocket.exceptions.Exceptions;
-import io.rsocket.frame.FrameHeaderFlyweight;
+import io.rsocket.frame.FrameHeaderCodec;
 import io.rsocket.frame.FrameType;
-import io.rsocket.frame.LeaseFrameFlyweight;
-import io.rsocket.frame.SetupFrameFlyweight;
+import io.rsocket.frame.LeaseFrameCodec;
+import io.rsocket.frame.SetupFrameCodec;
 import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.internal.ClientServerInputMultiplexer;
 import io.rsocket.lease.*;
@@ -123,7 +123,7 @@ class RSocketLeaseTest {
   public void serverRSocketFactoryRejectsUnsupportedLease() {
     Payload payload = DefaultPayload.create(DefaultPayload.EMPTY_BUFFER);
     ByteBuf setupFrame =
-        SetupFrameFlyweight.encode(
+        SetupFrameCodec.encode(
             ByteBufAllocator.DEFAULT,
             true,
             1000,
@@ -141,7 +141,7 @@ class RSocketLeaseTest {
     Collection<ByteBuf> sent = connection.getSent();
     Assertions.assertThat(sent).hasSize(1);
     ByteBuf error = sent.iterator().next();
-    Assertions.assertThat(FrameHeaderFlyweight.frameType(error)).isEqualTo(ERROR);
+    Assertions.assertThat(FrameHeaderCodec.frameType(error)).isEqualTo(ERROR);
     Assertions.assertThat(Exceptions.from(0, error).getMessage())
         .isEqualTo("lease is not supported");
   }
@@ -154,8 +154,8 @@ class RSocketLeaseTest {
     Collection<ByteBuf> sent = clientTransport.testConnection().getSent();
     Assertions.assertThat(sent).hasSize(1);
     ByteBuf setup = sent.iterator().next();
-    Assertions.assertThat(FrameHeaderFlyweight.frameType(setup)).isEqualTo(SETUP);
-    Assertions.assertThat(SetupFrameFlyweight.honorLease(setup)).isTrue();
+    Assertions.assertThat(FrameHeaderCodec.frameType(setup)).isEqualTo(SETUP);
+    Assertions.assertThat(SetupFrameCodec.honorLease(setup)).isTrue();
   }
 
   @ParameterizedTest
@@ -278,13 +278,13 @@ class RSocketLeaseTest {
         connection
             .getSent()
             .stream()
-            .filter(f -> FrameHeaderFlyweight.frameType(f) == FrameType.LEASE)
+            .filter(f -> FrameHeaderCodec.frameType(f) == FrameType.LEASE)
             .findFirst()
             .orElseThrow(() -> new IllegalStateException("Lease frame not sent"));
 
-    Assertions.assertThat(LeaseFrameFlyweight.ttl(leaseFrame)).isEqualTo(ttl);
-    Assertions.assertThat(LeaseFrameFlyweight.numRequests(leaseFrame)).isEqualTo(numberOfRequests);
-    Assertions.assertThat(LeaseFrameFlyweight.metadata(leaseFrame).toString(utf8))
+    Assertions.assertThat(LeaseFrameCodec.ttl(leaseFrame)).isEqualTo(ttl);
+    Assertions.assertThat(LeaseFrameCodec.numRequests(leaseFrame)).isEqualTo(numberOfRequests);
+    Assertions.assertThat(LeaseFrameCodec.metadata(leaseFrame).toString(utf8))
         .isEqualTo(metadataContent);
   }
 
@@ -312,7 +312,7 @@ class RSocketLeaseTest {
   }
 
   ByteBuf leaseFrame(int ttl, int requests, ByteBuf metadata) {
-    return LeaseFrameFlyweight.encode(byteBufAllocator, ttl, requests, metadata);
+    return LeaseFrameCodec.encode(byteBufAllocator, ttl, requests, metadata);
   }
 
   static Stream<Function<RSocket, Publisher<?>>> interactions() {

@@ -16,7 +16,7 @@
 
 package io.rsocket.exceptions;
 
-import io.rsocket.frame.ErrorFrameFlyweight;
+import io.rsocket.frame.ErrorFrameCodec;
 import javax.annotation.Nullable;
 
 /**
@@ -45,6 +45,6 @@ public final class InvalidException extends RSocketException {
    * @param cause the cause of this exception
    */
   public InvalidException(String message, @Nullable Throwable cause) {
-    super(ErrorFrameFlyweight.INVALID, message, cause);
+    super(ErrorFrameCodec.INVALID, message, cause);
   }
 }

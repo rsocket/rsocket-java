@@ -20,9 +20,9 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.DuplexConnection;
 import io.rsocket.exceptions.RejectedResumeException;
-import io.rsocket.frame.ErrorFrameFlyweight;
-import io.rsocket.frame.ResumeFrameFlyweight;
-import io.rsocket.frame.ResumeOkFrameFlyweight;
+import io.rsocket.frame.ErrorFrameCodec;
+import io.rsocket.frame.ResumeFrameCodec;
+import io.rsocket.frame.ResumeOkFrameCodec;
 import java.time.Duration;
 import java.util.function.Function;
 import org.slf4j.Logger;
@@ -103,12 +103,10 @@ public class ServerRSocketSession implements RSocketSession<DuplexConnection> {
         remotePos,
         remoteImpliedPos,
         pos ->
-            pos.flatMap(
-                    impliedPos -> sendFrame(ResumeOkFrameFlyweight.encode(allocator, impliedPos)))
+            pos.flatMap(impliedPos -> sendFrame(ResumeOkFrameCodec.encode(allocator, impliedPos)))
                 .onErrorResume(
                     err ->
-                        sendFrame(
-                                ErrorFrameFlyweight.encode(allocator, 0, errorFrameThrowable(err)))
+                        sendFrame(ErrorFrameCodec.encode(allocator, 0, errorFrameThrowable(err)))
                             .then(Mono.fromRunnable(resumableConnection::dispose))
                             /*Resumption is impossible: no need to return control to ResumableConnection*/
                             .then(Mono.never())));
@@ -136,11 +134,11 @@ public class ServerRSocketSession implements RSocketSession<DuplexConnection> {
   }
 
   private static long remotePos(ByteBuf resumeFrame) {
-    return ResumeFrameFlyweight.firstAvailableClientPos(resumeFrame);
+    return ResumeFrameCodec.firstAvailableClientPos(resumeFrame);
   }
 
   private static long remoteImpliedPos(ByteBuf resumeFrame) {
-    return ResumeFrameFlyweight.lastReceivedServerPos(resumeFrame);
+    return ResumeFrameCodec.lastReceivedServerPos(resumeFrame);
   }
 
   private static RejectedResumeException errorFrameThrowable(Throwable err) {

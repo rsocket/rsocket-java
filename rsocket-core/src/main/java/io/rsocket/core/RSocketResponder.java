@@ -292,9 +292,9 @@ class RSocketResponder implements RSocket {
 
   private void handleFrame(ByteBuf frame) {
     try {
-      int streamId = FrameHeaderFlyweight.streamId(frame);
+      int streamId = FrameHeaderCodec.streamId(frame);
       Subscriber<Payload> receiver;
-      FrameType frameType = FrameHeaderFlyweight.frameType(frame);
+      FrameType frameType = FrameHeaderCodec.frameType(frame);
       switch (frameType) {
         case REQUEST_FNF:
           handleFireAndForget(streamId, fireAndForget(payloadDecoder.apply(frame)));
@@ -309,12 +309,12 @@ class RSocketResponder implements RSocket {
           handleRequestN(streamId, frame);
           break;
         case REQUEST_STREAM:
-          long streamInitialRequestN = RequestStreamFrameFlyweight.initialRequestN(frame);
+          long streamInitialRequestN = RequestStreamFrameCodec.initialRequestN(frame);
           Payload streamPayload = payloadDecoder.apply(frame);
           handleStream(streamId, requestStream(streamPayload), streamInitialRequestN, null);
           break;
         case REQUEST_CHANNEL:
-          long channelInitialRequestN = RequestChannelFrameFlyweight.initialRequestN(frame);
+          long channelInitialRequestN = RequestChannelFrameCodec.initialRequestN(frame);
           Payload channelPayload = payloadDecoder.apply(frame);
           handleChannel(streamId, channelPayload, channelInitialRequestN);
           break;
@@ -339,7 +339,7 @@ class RSocketResponder implements RSocket {
         case ERROR:
           receiver = channelProcessors.get(streamId);
           if (receiver != null) {
-            receiver.onError(new ApplicationErrorException(ErrorFrameFlyweight.dataUtf8(frame)));
+            receiver.onError(new ApplicationErrorException(ErrorFrameCodec.dataUtf8(frame)));
           }
           break;
         case NEXT_COMPLETE:
@@ -408,8 +408,7 @@ class RSocketResponder implements RSocket {
             }
 
             ByteBuf byteBuf =
-                PayloadFrameFlyweight.encodeNextCompleteReleasingPayload(
-                    allocator, streamId, payload);
+                PayloadFrameCodec.encodeNextCompleteReleasingPayload(allocator, streamId, payload);
             sendProcessor.onNext(byteBuf);
           }
 
@@ -421,7 +420,7 @@ class RSocketResponder implements RSocket {
           @Override
           protected void hookOnComplete() {
             if (isEmpty) {
-              sendProcessor.onNext(PayloadFrameFlyweight.encodeComplete(allocator, streamId));
+              sendProcessor.onNext(PayloadFrameCodec.encodeComplete(allocator, streamId));
             }
           }
 
@@ -473,7 +472,7 @@ class RSocketResponder implements RSocket {
               }
 
               ByteBuf byteBuf =
-                  PayloadFrameFlyweight.encodeNextReleasingPayload(allocator, streamId, payload);
+                  PayloadFrameCodec.encodeNextReleasingPayload(allocator, streamId, payload);
               sendProcessor.onNext(byteBuf);
             } catch (Throwable e) {
               // specifically for requestChannel case so when Payload is invalid we will not be
@@ -494,7 +493,7 @@ class RSocketResponder implements RSocket {
 
           @Override
           protected void hookOnComplete() {
-            sendProcessor.onNext(PayloadFrameFlyweight.encodeComplete(allocator, streamId));
+            sendProcessor.onNext(PayloadFrameCodec.encodeComplete(allocator, streamId));
           }
 
           @Override
@@ -553,7 +552,7 @@ class RSocketResponder implements RSocket {
                       n = l;
                     }
                     if (n > 0) {
-                      sendProcessor.onNext(RequestNFrameFlyweight.encode(allocator, streamId, n));
+                      sendProcessor.onNext(RequestNFrameCodec.encode(allocator, streamId, n));
                     }
                   }
                 })
@@ -561,7 +560,7 @@ class RSocketResponder implements RSocket {
                 signalType -> {
                   if (channelProcessors.remove(streamId, frames)) {
                     if (signalType == SignalType.CANCEL) {
-                      sendProcessor.onNext(CancelFrameFlyweight.encode(allocator, streamId));
+                      sendProcessor.onNext(CancelFrameCodec.encode(allocator, streamId));
                     }
                   }
                 })
@@ -605,14 +604,14 @@ class RSocketResponder implements RSocket {
 
   private void handleError(int streamId, Throwable t) {
     errorConsumer.accept(t);
-    sendProcessor.onNext(ErrorFrameFlyweight.encode(allocator, streamId, t));
+    sendProcessor.onNext(ErrorFrameCodec.encode(allocator, streamId, t));
   }
 
   private void handleRequestN(int streamId, ByteBuf frame) {
     Subscription subscription = sendingSubscriptions.get(streamId);
 
     if (subscription != null) {
-      long n = RequestNFrameFlyweight.requestN(frame);
+      long n = RequestNFrameCodec.requestN(frame);
       subscription.request(n);
     }
   }

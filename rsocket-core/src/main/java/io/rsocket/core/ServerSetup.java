@@ -22,9 +22,9 @@ import io.netty.buffer.ByteBuf;
 import io.rsocket.DuplexConnection;
 import io.rsocket.exceptions.RejectedResumeException;
 import io.rsocket.exceptions.UnsupportedSetupException;
-import io.rsocket.frame.ErrorFrameFlyweight;
-import io.rsocket.frame.ResumeFrameFlyweight;
-import io.rsocket.frame.SetupFrameFlyweight;
+import io.rsocket.frame.ErrorFrameCodec;
+import io.rsocket.frame.ResumeFrameCodec;
+import io.rsocket.frame.SetupFrameCodec;
 import io.rsocket.internal.ClientServerInputMultiplexer;
 import io.rsocket.keepalive.KeepAliveHandler;
 import io.rsocket.resume.*;
@@ -47,7 +47,7 @@ abstract class ServerSetup {
   Mono<Void> sendError(ClientServerInputMultiplexer multiplexer, Exception exception) {
     DuplexConnection duplexConnection = multiplexer.asSetupConnection();
     return duplexConnection
-        .sendOne(ErrorFrameFlyweight.encode(duplexConnection.alloc(), 0, exception))
+        .sendOne(ErrorFrameCodec.encode(duplexConnection.alloc(), 0, exception))
         .onErrorResume(err -> Mono.empty());
   }
 
@@ -59,7 +59,7 @@ abstract class ServerSetup {
         ClientServerInputMultiplexer multiplexer,
         BiFunction<KeepAliveHandler, ClientServerInputMultiplexer, Mono<Void>> then) {
 
-      if (SetupFrameFlyweight.resumeEnabled(frame)) {
+      if (SetupFrameCodec.resumeEnabled(frame)) {
         return sendError(multiplexer, new UnsupportedSetupException("resume not supported"))
             .doFinally(
                 signalType -> {
@@ -109,8 +109,8 @@ abstract class ServerSetup {
         ClientServerInputMultiplexer multiplexer,
         BiFunction<KeepAliveHandler, ClientServerInputMultiplexer, Mono<Void>> then) {
 
-      if (SetupFrameFlyweight.resumeEnabled(frame)) {
-        ByteBuf resumeToken = SetupFrameFlyweight.resumeToken(frame);
+      if (SetupFrameCodec.resumeEnabled(frame)) {
+        ByteBuf resumeToken = SetupFrameCodec.resumeToken(frame);
 
         ResumableDuplexConnection connection =
             sessionManager
@@ -133,7 +133,7 @@ abstract class ServerSetup {
 
     @Override
     public Mono<Void> acceptRSocketResume(ByteBuf frame, ClientServerInputMultiplexer multiplexer) {
-      ServerRSocketSession session = sessionManager.get(ResumeFrameFlyweight.token(frame));
+      ServerRSocketSession session = sessionManager.get(ResumeFrameCodec.token(frame));
       if (session != null) {
         return session
             .continueWith(multiplexer.asClientServerConnection())

@@ -16,22 +16,22 @@
 
 package io.rsocket.exceptions;
 
-import static io.rsocket.frame.ErrorFrameFlyweight.APPLICATION_ERROR;
-import static io.rsocket.frame.ErrorFrameFlyweight.CANCELED;
-import static io.rsocket.frame.ErrorFrameFlyweight.CONNECTION_CLOSE;
-import static io.rsocket.frame.ErrorFrameFlyweight.CONNECTION_ERROR;
-import static io.rsocket.frame.ErrorFrameFlyweight.INVALID;
-import static io.rsocket.frame.ErrorFrameFlyweight.INVALID_SETUP;
-import static io.rsocket.frame.ErrorFrameFlyweight.REJECTED;
-import static io.rsocket.frame.ErrorFrameFlyweight.REJECTED_RESUME;
-import static io.rsocket.frame.ErrorFrameFlyweight.REJECTED_SETUP;
-import static io.rsocket.frame.ErrorFrameFlyweight.UNSUPPORTED_SETUP;
+import static io.rsocket.frame.ErrorFrameCodec.APPLICATION_ERROR;
+import static io.rsocket.frame.ErrorFrameCodec.CANCELED;
+import static io.rsocket.frame.ErrorFrameCodec.CONNECTION_CLOSE;
+import static io.rsocket.frame.ErrorFrameCodec.CONNECTION_ERROR;
+import static io.rsocket.frame.ErrorFrameCodec.INVALID;
+import static io.rsocket.frame.ErrorFrameCodec.INVALID_SETUP;
+import static io.rsocket.frame.ErrorFrameCodec.REJECTED;
+import static io.rsocket.frame.ErrorFrameCodec.REJECTED_RESUME;
+import static io.rsocket.frame.ErrorFrameCodec.REJECTED_SETUP;
+import static io.rsocket.frame.ErrorFrameCodec.UNSUPPORTED_SETUP;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.UnpooledByteBufAllocator;
-import io.rsocket.frame.ErrorFrameFlyweight;
+import io.rsocket.frame.ErrorFrameCodec;
 import java.util.concurrent.ThreadLocalRandom;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -205,9 +205,9 @@ final class ExceptionsTest {
       int randomCode =
           ThreadLocalRandom.current().nextBoolean()
               ? ThreadLocalRandom.current()
-                  .nextInt(Integer.MIN_VALUE, ErrorFrameFlyweight.MAX_USER_ALLOWED_ERROR_CODE)
+                  .nextInt(Integer.MIN_VALUE, ErrorFrameCodec.MAX_USER_ALLOWED_ERROR_CODE)
               : ThreadLocalRandom.current()
-                  .nextInt(ErrorFrameFlyweight.MIN_USER_ALLOWED_ERROR_CODE, Integer.MAX_VALUE);
+                  .nextInt(ErrorFrameCodec.MIN_USER_ALLOWED_ERROR_CODE, Integer.MAX_VALUE);
       ByteBuf byteBuf = createErrorFrame(0, randomCode, "test-message");
 
       assertThat(Exceptions.from(1, byteBuf))
@@ -229,7 +229,7 @@ final class ExceptionsTest {
   }
 
   private ByteBuf createErrorFrame(int streamId, int errorCode, String message) {
-    return ErrorFrameFlyweight.encode(
+    return ErrorFrameCodec.encode(
         UnpooledByteBufAllocator.DEFAULT, streamId, new TestRSocketException(errorCode, message));
   }
 }

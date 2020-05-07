@@ -19,7 +19,7 @@ package io.rsocket.fragmentation;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.DuplexConnection;
-import io.rsocket.frame.FrameLengthFlyweight;
+import io.rsocket.frame.FrameLengthCodec;
 import java.util.Objects;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
@@ -58,7 +58,7 @@ public class ReassemblyDuplexConnection implements DuplexConnection {
 
   private ByteBuf decode(ByteBuf frame) {
     if (decodeLength) {
-      return FrameLengthFlyweight.frame(frame).retain();
+      return FrameLengthCodec.frame(frame).retain();
     } else {
       return frame;
     }
