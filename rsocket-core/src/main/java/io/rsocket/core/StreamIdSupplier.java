@@ -16,7 +16,9 @@
 package io.rsocket.core;
 
 import io.netty.util.collection.IntObjectMap;
+import javax.annotation.concurrent.NotThreadSafe;
 
+@NotThreadSafe
 final class StreamIdSupplier {
   private static final int MASK = 0x7FFFFFFF;
 

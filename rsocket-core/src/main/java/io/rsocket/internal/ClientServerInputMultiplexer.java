@@ -161,6 +161,7 @@ public class ClientServerInputMultiplexer implements Closeable {
     private final MonoProcessor<Flux<ByteBuf>>[] processors;
     private final boolean debugEnabled;
 
+    @SafeVarargs
     public InternalDuplexConnection(
         DuplexConnection source, MonoProcessor<Flux<ByteBuf>>... processors) {
       this.source = source;

@@ -38,7 +38,7 @@ final class WebsocketSecureTransportTest implements TransportTest {
           (address, server) ->
               WebsocketClientTransport.create(
                   HttpClient.create()
-                      .addressSupplier(server::address)
+                      .remoteAddress(server::address)
                       .secure(
                           ssl ->
                               ssl.sslContext(
@@ -53,7 +53,7 @@ final class WebsocketSecureTransportTest implements TransportTest {
               HttpServer server =
                   HttpServer.from(
                       TcpServer.create()
-                          .addressSupplier(() -> address)
+                          .bindAddress(() -> address)
                           .secure(
                               ssl ->
                                   ssl.sslContext(

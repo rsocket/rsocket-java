@@ -32,7 +32,7 @@ public class LeaseFrameCodecTest {
     Assertions.assertFalse(FrameHeaderCodec.hasMetadata(lease));
     Assertions.assertEquals(ttl, LeaseFrameCodec.ttl(lease));
     Assertions.assertEquals(numRequests, LeaseFrameCodec.numRequests(lease));
-    Assertions.assertEquals(0, LeaseFrameCodec.metadata(lease).readableBytes());
+    Assertions.assertNull(LeaseFrameCodec.metadata(lease));
     lease.release();
   }
 

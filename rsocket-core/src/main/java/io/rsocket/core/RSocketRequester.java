@@ -55,7 +55,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
-import javax.annotation.Nullable;
 import org.reactivestreams.Processor;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
@@ -68,6 +67,7 @@ import reactor.core.publisher.Operators;
 import reactor.core.publisher.SignalType;
 import reactor.core.publisher.UnicastProcessor;
 import reactor.core.scheduler.Scheduler;
+import reactor.util.annotation.Nullable;
 import reactor.util.concurrent.Queues;
 
 /**

@@ -39,7 +39,6 @@ import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
 import java.util.function.Supplier;
-import javax.annotation.Nullable;
 import org.reactivestreams.Processor;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
@@ -47,6 +46,7 @@ import org.reactivestreams.Subscription;
 import reactor.core.Disposable;
 import reactor.core.Exceptions;
 import reactor.core.publisher.*;
+import reactor.util.annotation.Nullable;
 import reactor.util.concurrent.Queues;
 
 /** Responder side of RSocket. Receives {@link ByteBuf}s from a peer's {@link RSocketRequester} */

@@ -21,5 +21,7 @@
  *     href="https://github.com/rsocket/rsocket/blob/master/Protocol.md#resuming-operation">Resuming
  *     Operation</a>
  */
-@javax.annotation.ParametersAreNonnullByDefault
+@NonNullApi
 package io.rsocket.lease;
+
+import reactor.util.annotation.NonNullApi;

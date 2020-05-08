@@ -15,5 +15,7 @@
  */
 
 /** Shared utility classes and {@link io.rsocket.Payload} implementations. */
-@javax.annotation.ParametersAreNonnullByDefault
+@NonNullApi
 package io.rsocket.util;
+
+import reactor.util.annotation.NonNullApi;

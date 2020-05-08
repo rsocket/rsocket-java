@@ -4,7 +4,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.util.IllegalReferenceCountException;
 import io.rsocket.Payload;
-import javax.annotation.Nullable;
+import reactor.util.annotation.Nullable;
 
 class GenericFrameCodec {
 
@@ -75,7 +75,7 @@ class GenericFrameCodec {
       boolean next,
       int requestN,
       @Nullable ByteBuf metadata,
-      ByteBuf data) {
+      @Nullable ByteBuf data) {
 
     final boolean hasMetadata = metadata != null;
 
@@ -115,6 +115,7 @@ class GenericFrameCodec {
     return data;
   }
 
+  @Nullable
   static ByteBuf metadata(ByteBuf byteBuf) {
     boolean hasMetadata = FrameHeaderCodec.hasMetadata(byteBuf);
     if (!hasMetadata) {
@@ -136,6 +137,7 @@ class GenericFrameCodec {
     return data;
   }
 
+  @Nullable
   static ByteBuf metadataWithRequestN(ByteBuf byteBuf) {
     boolean hasMetadata = FrameHeaderCodec.hasMetadata(byteBuf);
     if (!hasMetadata) {

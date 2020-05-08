@@ -18,7 +18,7 @@ package io.rsocket.lease;
 import io.rsocket.exceptions.RejectedException;
 import java.util.Objects;
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
+import reactor.util.annotation.Nullable;
 
 public class MissingLeaseException extends RejectedException {
   private static final long serialVersionUID = -6169748673403858959L;

@@ -15,4 +15,7 @@
  */
 
 /** Contracts for interception of transports, connections, and requests in in RSocket Java. */
+@NonNullApi
 package io.rsocket.plugins;
+
+import reactor.util.annotation.NonNullApi;

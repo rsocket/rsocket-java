@@ -19,7 +19,7 @@ package io.rsocket.resume;
 import io.netty.buffer.ByteBuf;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import javax.annotation.Nullable;
+import reactor.util.annotation.Nullable;
 
 public class SessionManager {
   private volatile boolean isDisposed;

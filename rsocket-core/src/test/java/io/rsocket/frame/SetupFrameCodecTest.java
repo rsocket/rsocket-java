@@ -22,7 +22,7 @@ class SetupFrameCodecTest {
 
     assertEquals(FrameType.SETUP, FrameHeaderCodec.frameType(frame));
     assertFalse(SetupFrameCodec.resumeEnabled(frame));
-    assertNull(SetupFrameCodec.resumeToken(frame));
+    assertEquals(0, SetupFrameCodec.resumeToken(frame).readableBytes());
     assertEquals("metadata_type", SetupFrameCodec.metadataMimeType(frame));
     assertEquals("data_type", SetupFrameCodec.dataMimeType(frame));
     assertEquals(metadata, SetupFrameCodec.metadata(frame));

@@ -23,7 +23,7 @@ import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import javax.annotation.Nullable;
+import reactor.util.annotation.Nullable;
 
 /**
  * An implementation of {@link Payload}. This implementation is <b>not</b> thread-safe, and hence

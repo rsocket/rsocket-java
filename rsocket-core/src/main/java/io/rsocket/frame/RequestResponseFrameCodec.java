@@ -3,6 +3,7 @@ package io.rsocket.frame;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.Payload;
+import reactor.util.annotation.Nullable;
 
 public class RequestResponseFrameCodec {
 
@@ -19,7 +20,7 @@ public class RequestResponseFrameCodec {
       ByteBufAllocator allocator,
       int streamId,
       boolean fragmentFollows,
-      ByteBuf metadata,
+      @Nullable ByteBuf metadata,
       ByteBuf data) {
     return GenericFrameCodec.encode(
         allocator, FrameType.REQUEST_RESPONSE, streamId, fragmentFollows, metadata, data);
@@ -29,6 +30,7 @@ public class RequestResponseFrameCodec {
     return GenericFrameCodec.data(byteBuf);
   }
 
+  @Nullable
   public static ByteBuf metadata(ByteBuf byteBuf) {
     return GenericFrameCodec.metadata(byteBuf);
   }

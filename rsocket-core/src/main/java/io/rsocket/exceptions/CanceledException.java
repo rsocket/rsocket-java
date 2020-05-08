@@ -17,7 +17,7 @@
 package io.rsocket.exceptions;
 
 import io.rsocket.frame.ErrorFrameCodec;
-import javax.annotation.Nullable;
+import reactor.util.annotation.Nullable;
 
 /**
  * The Responder canceled the request but may have started processing it (similar to REJECTED but

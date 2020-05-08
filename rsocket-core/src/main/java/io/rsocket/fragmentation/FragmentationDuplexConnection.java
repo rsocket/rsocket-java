@@ -25,12 +25,12 @@ import io.rsocket.frame.FrameHeaderCodec;
 import io.rsocket.frame.FrameLengthCodec;
 import io.rsocket.frame.FrameType;
 import java.util.Objects;
-import javax.annotation.Nullable;
 import org.reactivestreams.Publisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.util.annotation.Nullable;
 
 /**
  * A {@link DuplexConnection} implementation that fragments and reassembles {@link ByteBuf}s.
