@@ -3,6 +3,7 @@ package io.rsocket.frame;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
+import reactor.util.annotation.Nullable;
 
 class FrameBodyCodec {
   public static final int FRAME_LENGTH_MASK = 0xFFFFFF;
@@ -33,9 +34,9 @@ class FrameBodyCodec {
   static ByteBuf encode(
       ByteBufAllocator allocator,
       final ByteBuf header,
-      ByteBuf metadata,
+      @Nullable ByteBuf metadata,
       boolean hasMetadata,
-      ByteBuf data) {
+      @Nullable ByteBuf data) {
 
     final boolean addData;
     if (data != null) {

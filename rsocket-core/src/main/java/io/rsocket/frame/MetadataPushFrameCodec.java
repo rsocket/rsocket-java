@@ -8,6 +8,10 @@ import io.rsocket.Payload;
 public class MetadataPushFrameCodec {
 
   public static ByteBuf encodeReleasingPayload(ByteBufAllocator allocator, Payload payload) {
+    if (!payload.hasMetadata()) {
+      throw new IllegalStateException(
+          "Metadata  push requires to have metadata present" + " in the given Payload");
+    }
     final ByteBuf metadata = payload.metadata().retain();
     // releasing payload safely since it can be already released wheres we have to release retained
     // data and metadata as well

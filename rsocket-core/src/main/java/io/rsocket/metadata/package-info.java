@@ -19,4 +19,7 @@
  * href="https://github.com/rsocket/rsocket/tree/master/Extensions">protocol extensions</a> related
  * to the use of metadata.
  */
+@NonNullApi
 package io.rsocket.metadata;
+
+import reactor.util.annotation.NonNullApi;

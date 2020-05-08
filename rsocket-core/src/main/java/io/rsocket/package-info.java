@@ -23,4 +23,7 @@
  * <p>To connect to or start a server see {@link io.rsocket.core.RSocketConnector RSocketConnector}
  * and {@link io.rsocket.core.RSocketServer RSocketServer} in {@link io.rsocket.core}.
  */
+@NonNullApi
 package io.rsocket;
+
+import reactor.util.annotation.NonNullApi;

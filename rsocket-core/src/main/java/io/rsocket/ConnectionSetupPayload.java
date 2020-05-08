@@ -19,7 +19,7 @@ package io.rsocket;
 import io.netty.buffer.ByteBuf;
 import io.netty.util.AbstractReferenceCounted;
 import io.rsocket.core.DefaultConnectionSetupPayload;
-import javax.annotation.Nullable;
+import reactor.util.annotation.Nullable;
 
 /**
  * Exposes information from the {@code SETUP} frame to a server, as well as to client responders.

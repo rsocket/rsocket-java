@@ -14,8 +14,11 @@
  * limitations under the License.
  */
 
-/** Client and server transport contracts for pluggable transports. */
+/**
+ * Support for encoding and decoding of RSocket frames to and from {@link io.rsocket.Payload
+ * Payload}.
+ */
 @NonNullApi
-package io.rsocket.transport;
+package io.rsocket.frame.decoder;
 
 import reactor.util.annotation.NonNullApi;

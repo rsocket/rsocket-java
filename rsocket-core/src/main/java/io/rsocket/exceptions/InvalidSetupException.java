@@ -17,7 +17,7 @@
 package io.rsocket.exceptions;
 
 import io.rsocket.frame.ErrorFrameCodec;
-import javax.annotation.Nullable;
+import reactor.util.annotation.Nullable;
 
 /**
  * The Setup frame is invalid for the server (it could be that the client is too recent for the old

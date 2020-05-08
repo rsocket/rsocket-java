@@ -17,7 +17,7 @@
 package io.rsocket.exceptions;
 
 import io.rsocket.frame.ErrorFrameCodec;
-import javax.annotation.Nullable;
+import reactor.util.annotation.Nullable;
 
 /**
  * Despite being a valid request, the Responder decided to reject it. The Responder guarantees that

@@ -2,8 +2,7 @@ package io.rsocket.frame;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
-import io.netty.buffer.Unpooled;
-import javax.annotation.Nullable;
+import reactor.util.annotation.Nullable;
 
 public class LeaseFrameCodec {
 
@@ -67,6 +66,7 @@ public class LeaseFrameCodec {
     return numRequests;
   }
 
+  @Nullable
   public static ByteBuf metadata(final ByteBuf byteBuf) {
     FrameHeaderCodec.ensureFrameType(FrameType.LEASE, byteBuf);
     if (FrameHeaderCodec.hasMetadata(byteBuf)) {
@@ -77,7 +77,7 @@ public class LeaseFrameCodec {
       byteBuf.resetReaderIndex();
       return metadata;
     } else {
-      return Unpooled.EMPTY_BUFFER;
+      return null;
     }
   }
 }

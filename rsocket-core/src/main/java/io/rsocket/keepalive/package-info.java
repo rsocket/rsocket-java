@@ -15,5 +15,7 @@
  */
 
 /** Support classes for sending and keeping track of KEEPALIVE frames from the remote. */
-@javax.annotation.ParametersAreNonnullByDefault
+@NonNullApi
 package io.rsocket.keepalive;
+
+import reactor.util.annotation.NonNullApi;

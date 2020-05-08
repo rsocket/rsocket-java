@@ -17,7 +17,7 @@
 package io.rsocket.exceptions;
 
 import io.rsocket.frame.ErrorFrameCodec;
-import javax.annotation.Nullable;
+import reactor.util.annotation.Nullable;
 
 public class CustomRSocketException extends RSocketException {
   private static final long serialVersionUID = 7873267740343446585L;

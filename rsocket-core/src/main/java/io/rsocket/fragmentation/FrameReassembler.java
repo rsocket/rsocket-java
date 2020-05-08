@@ -29,6 +29,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.Disposable;
 import reactor.core.publisher.SynchronousSink;
+import reactor.util.annotation.Nullable;
 
 /**
  * The implementation of the RSocket reassembly behavior.
@@ -83,6 +84,7 @@ final class FrameReassembler extends AtomicBoolean implements Disposable {
     return get();
   }
 
+  @Nullable
   synchronized ByteBuf getHeader(int streamId) {
     return headers.get(streamId);
   }
@@ -109,14 +111,17 @@ final class FrameReassembler extends AtomicBoolean implements Disposable {
     return byteBuf;
   }
 
+  @Nullable
   synchronized ByteBuf removeHeader(int streamId) {
     return headers.remove(streamId);
   }
 
+  @Nullable
   synchronized CompositeByteBuf removeMetadata(int streamId) {
     return metadata.remove(streamId);
   }
 
+  @Nullable
   synchronized CompositeByteBuf removeData(int streamId) {
     return data.remove(streamId);
   }
@@ -236,7 +241,6 @@ final class FrameReassembler extends AtomicBoolean implements Disposable {
         case CANCEL:
         case ERROR:
           cancelAssemble(streamId);
-        default:
       }
 
       if (!frameType.isFragmentable()) {
@@ -270,7 +274,7 @@ final class FrameReassembler extends AtomicBoolean implements Disposable {
         metadata = PayloadFrameCodec.metadata(frame).retain();
       }
     } else {
-      metadata = cm != null ? cm : null;
+      metadata = cm;
     }
 
     ByteBuf data = assembleData(frame, streamId);

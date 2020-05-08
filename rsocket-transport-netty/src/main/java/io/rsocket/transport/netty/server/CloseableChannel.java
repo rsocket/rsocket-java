@@ -28,7 +28,7 @@ import reactor.netty.DisposableChannel;
  */
 public final class CloseableChannel implements Closeable {
 
-  private DisposableChannel channel;
+  private final DisposableChannel channel;
 
   /**
    * Creates a new instance

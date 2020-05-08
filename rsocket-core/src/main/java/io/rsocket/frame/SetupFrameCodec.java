@@ -6,6 +6,7 @@ import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
 import io.rsocket.Payload;
 import java.nio.charset.StandardCharsets;
+import reactor.util.annotation.Nullable;
 
 public class SetupFrameCodec {
   /**
@@ -61,7 +62,7 @@ public class SetupFrameCodec {
 
     int flags = 0;
 
-    if (resumeToken != null && resumeToken.readableBytes() > 0) {
+    if (resumeToken.readableBytes() > 0) {
       flags |= FLAGS_RESUME_ENABLE;
     }
 
@@ -163,7 +164,7 @@ public class SetupFrameCodec {
       byteBuf.resetReaderIndex();
       return resumeToken;
     } else {
-      return null;
+      return Unpooled.EMPTY_BUFFER;
     }
   }
 
@@ -186,6 +187,7 @@ public class SetupFrameCodec {
     return mimeType;
   }
 
+  @Nullable
   public static ByteBuf metadata(ByteBuf byteBuf) {
     boolean hasMetadata = FrameHeaderCodec.hasMetadata(byteBuf);
     if (!hasMetadata) {

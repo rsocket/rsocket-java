@@ -2,7 +2,7 @@ package io.rsocket.frame;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
-import javax.annotation.Nullable;
+import reactor.util.annotation.Nullable;
 
 public class ExtensionFrameCodec {
   private ExtensionFrameCodec() {}
@@ -49,6 +49,7 @@ public class ExtensionFrameCodec {
     return data;
   }
 
+  @Nullable
   public static ByteBuf metadata(ByteBuf byteBuf) {
     FrameHeaderCodec.ensureFrameType(FrameType.EXT, byteBuf);
 

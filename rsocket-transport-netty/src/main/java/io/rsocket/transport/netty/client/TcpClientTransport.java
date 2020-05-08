@@ -75,7 +75,7 @@ public final class TcpClientTransport implements ClientTransport {
   public static TcpClientTransport create(InetSocketAddress address) {
     Objects.requireNonNull(address, "address must not be null");
 
-    TcpClient tcpClient = TcpClient.create().addressSupplier(() -> address);
+    TcpClient tcpClient = TcpClient.create().remoteAddress(() -> address);
     return create(tcpClient);
   }
 

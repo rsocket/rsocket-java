@@ -17,7 +17,7 @@
 package io.rsocket.exceptions;
 
 import io.rsocket.frame.ErrorFrameCodec;
-import javax.annotation.Nullable;
+import reactor.util.annotation.Nullable;
 
 /**
  * Some (or all) of the parameters specified by the client are unsupported by the server.

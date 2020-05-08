@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-/** Client and server transport contracts for pluggable transports. */
 @NonNullApi
-package io.rsocket.transport;
+package io.rsocket.client.filter;
 
 import reactor.util.annotation.NonNullApi;

@@ -18,4 +18,7 @@
  * Support for encoding and decoding of RSocket frames to and from {@link io.rsocket.Payload
  * Payload}.
  */
+@NonNullApi
 package io.rsocket.frame;
+
+import reactor.util.annotation.NonNullApi;
