@@ -82,7 +82,7 @@ class ConnectionSetupPayloadTest {
         leaseEnabled,
         KEEP_ALIVE_INTERVAL,
         KEEP_ALIVE_MAX_LIFETIME,
-        null,
+        Unpooled.EMPTY_BUFFER,
         METADATA_TYPE,
         DATA_TYPE,
         setupPayload);

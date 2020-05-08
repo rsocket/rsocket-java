@@ -143,6 +143,6 @@ class RSocketRequesterSubscribersTest {
         rSocket -> rSocket.requestResponse(DefaultPayload.create("test")),
         rSocket -> rSocket.requestStream(DefaultPayload.create("test")),
         //        rSocket -> rSocket.requestChannel(Mono.just(DefaultPayload.create("test"))),
-        rSocket -> rSocket.metadataPush(DefaultPayload.create("test")));
+        rSocket -> rSocket.metadataPush(DefaultPayload.create("", "test")));
   }
 }
