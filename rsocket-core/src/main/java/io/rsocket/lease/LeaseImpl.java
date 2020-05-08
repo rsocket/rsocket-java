@@ -19,7 +19,6 @@ package io.rsocket.lease;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import java.util.concurrent.atomic.AtomicInteger;
-import javax.annotation.Nonnull;
 import reactor.util.annotation.Nullable;
 
 public class LeaseImpl implements Lease {
@@ -60,7 +59,6 @@ public class LeaseImpl implements Lease {
     return startingAllowedRequests;
   }
 
-  @Nonnull
   @Override
   public ByteBuf getMetadata() {
     return metadata;

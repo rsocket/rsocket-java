@@ -16,9 +16,8 @@
 package io.rsocket.core;
 
 import io.netty.util.collection.IntObjectMap;
-import javax.annotation.concurrent.NotThreadSafe;
 
-@NotThreadSafe
+/** This API is not thread-safe and must be strictly used in serialized fashion */
 final class StreamIdSupplier {
   private static final int MASK = 0x7FFFFFFF;
 
