@@ -291,6 +291,14 @@ public final class RSocketServer {
   }
 
   /**
+   * Start the server on the given transport. Effectively is a shortcut for {@code
+   * .bind(ServerTransport).block()}
+   */
+  public <T extends Closeable> T bindNow(ServerTransport<T> transport) {
+    return bind(transport).block();
+  }
+
+  /**
    * An alternative to {@link #bind(ServerTransport)} that is useful for installing RSocket on a
    * server that is started independently.
    *
