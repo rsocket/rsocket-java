@@ -491,7 +491,6 @@ class RSocketRequester implements RSocket {
                         receivers.put(streamId, receiver);
 
                         inboundFlux
-                            .limitRate(Queues.SMALL_BUFFER_SIZE)
                             .doOnDiscard(ReferenceCounted.class, DROPPED_ELEMENTS_CONSUMER)
                             .subscribe(upstreamSubscriber);
 

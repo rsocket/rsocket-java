@@ -47,7 +47,6 @@ import reactor.core.Disposable;
 import reactor.core.Exceptions;
 import reactor.core.publisher.*;
 import reactor.util.annotation.Nullable;
-import reactor.util.concurrent.Queues;
 
 /** Responder side of RSocket. Receives {@link ByteBuf}s from a peer's {@link RSocketRequester} */
 class RSocketResponder implements RSocket {
@@ -526,10 +525,7 @@ class RSocketResponder implements RSocket {
         };
 
     sendingSubscriptions.put(streamId, subscriber);
-    response
-        .limitRate(Queues.SMALL_BUFFER_SIZE)
-        .doOnDiscard(ReferenceCounted.class, DROPPED_ELEMENTS_CONSUMER)
-        .subscribe(subscriber);
+    response.doOnDiscard(ReferenceCounted.class, DROPPED_ELEMENTS_CONSUMER).subscribe(subscriber);
   }
 
   private void handleChannel(int streamId, Payload payload, long initialRequestN) {
