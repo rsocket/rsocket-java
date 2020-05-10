@@ -18,24 +18,26 @@ package io.rsocket.transport.netty.server;
 
 import static io.rsocket.frame.FrameLengthCodec.FRAME_LENGTH_MASK;
 
-import io.rsocket.DuplexConnection;
 import io.rsocket.fragmentation.FragmentationDuplexConnection;
-import io.rsocket.fragmentation.ReassemblyDuplexConnection;
 import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.ServerTransport;
 import io.rsocket.transport.TransportHeaderAware;
-import io.rsocket.transport.netty.WebsocketDuplexConnection;
 import java.net.InetSocketAddress;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiFunction;
 import java.util.function.Supplier;
+import org.reactivestreams.Publisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Mono;
-import reactor.netty.Connection;
 import reactor.netty.http.server.HttpServer;
+import reactor.netty.http.server.HttpServerRequest;
+import reactor.netty.http.server.HttpServerResponse;
 import reactor.netty.http.server.WebsocketServerSpec;
+import reactor.netty.http.websocket.WebsocketInbound;
+import reactor.netty.http.websocket.WebsocketOutbound;
 
 /**
  * An implementation of {@link ServerTransport} that connects to a {@link ClientTransport} via a
@@ -45,12 +47,25 @@ public final class WebsocketServerTransport extends BaseWebsocketServerTransport
     implements TransportHeaderAware {
   private static final Logger logger = LoggerFactory.getLogger(WebsocketServerTransport.class);
 
-  private final HttpServer server;
+  final HttpServer server;
+  final Handler handler;
 
   private Supplier<Map<String, String>> transportHeaders = Collections::emptyMap;
 
   private WebsocketServerTransport(HttpServer server) {
     this.server = serverConfigurer.apply(Objects.requireNonNull(server, "server must not be null"));
+    this.handler =
+        (request, response, webSocketHandler) -> {
+          transportHeaders.get().forEach(response::addHeader);
+          return response.sendWebsocket(
+              webSocketHandler,
+              WebsocketServerSpec.builder().maxFramePayloadLength(FRAME_LENGTH_MASK).build());
+        };
+  }
+
+  private WebsocketServerTransport(HttpServer server, Handler handler) {
+    this.server = serverConfigurer.apply(Objects.requireNonNull(server, "server must not be null"));
+    this.handler = Objects.requireNonNull(handler, "handler must not be null");
   }
 
   /**
@@ -105,6 +120,61 @@ public final class WebsocketServerTransport extends BaseWebsocketServerTransport
     return new WebsocketServerTransport(server);
   }
 
+  /**
+   * Creates a new instance
+   *
+   * @param server the {@link HttpServer} to use
+   * @param handler websocket handling chain customizer.
+   *  Should be used in order to customize / reject response from the
+   *  {@link WebsocketServerTransport}.
+   *  Can be used as shown in the following sample:
+   *
+   *  <pre>
+   *      {@code
+   *  new Handler() {
+   *    @Override
+   *    public Publisher<Void> handle(HttpServerRequest request,
+   *            HttpServerResponse response,
+   *            BiFunction<WebsocketInbound, WebsocketOutbound, Publisher<Void>> webSocketHandler) {
+   *
+   *      return response.sendWebsocket(webSocketHandler,
+   *              WebsocketServerSpec.builder()
+   *                                 .maxFramePayloadLength(FRAME_LENGTH_MASK)
+   *                                 .build());
+   *    }
+   *  }
+   *  </pre>
+   * @return a new instance
+   * @throws NullPointerException if {@code server} is {@code null}
+   */
+  public static WebsocketServerTransport create(final HttpServer server, final Handler handler) {
+    Objects.requireNonNull(server, "server must not be null");
+    Objects.requireNonNull(handler, "handler must not be null");
+
+    return new WebsocketServerTransport(server, handler);
+  }
+
+  /**
+   * @deprecated in favor of {@link #create(HttpServer, Handler)} which might be used as the following
+   * in order
+   *     to provide custom headers in the response
+   * <pre>
+   *      {@code
+   *  new Handler() {
+   *    @Override
+   *    public Publisher<Void> handle(HttpServerRequest request,
+   *            HttpServerResponse response,
+   *            BiFunction<WebsocketInbound, WebsocketOutbound, Publisher<Void>> webSocketHandler) {
+   *      response.addHeader("test", "test");
+   *      return response.sendWebsocket(webSocketHandler,
+   *              WebsocketServerSpec.builder()
+   *                                 .maxFramePayloadLength(FRAME_LENGTH_MASK)
+   *                                 .build());
+   *    }
+   *  }
+   *  </pre>
+   */
+  @Deprecated
   @Override
   public void setTransportHeaders(Supplier<Map<String, String>> transportHeaders) {
     this.transportHeaders =
@@ -120,25 +190,38 @@ public final class WebsocketServerTransport extends BaseWebsocketServerTransport
         ? isError
         : server
             .handle(
-                (request, response) -> {
-                  transportHeaders.get().forEach(response::addHeader);
-                  return response.sendWebsocket(
-                      (in, out) -> {
-                        DuplexConnection connection =
-                            new WebsocketDuplexConnection((Connection) in);
-                        if (mtu > 0) {
-                          connection =
-                              new FragmentationDuplexConnection(connection, mtu, false, "server");
-                        } else {
-                          connection = new ReassemblyDuplexConnection(connection, false);
-                        }
-                        return acceptor.apply(connection).then(out.neverComplete());
-                      },
-                      WebsocketServerSpec.builder()
-                          .maxFramePayloadLength(FRAME_LENGTH_MASK)
-                          .build());
-                })
+                (request, response) -> handler.handle(request, response, newHandler(acceptor, mtu)))
             .bind()
             .map(CloseableChannel::new);
+  }
+
+  /**
+   * Websocket handling chain customizer.
+   * Should be used in order to customize / reject response from the
+   * {@link WebsocketServerTransport}.
+   * Can be used as shown in the following sample:
+   *
+   * <pre>
+   *     {@code
+   * new Handler() {
+   *   @Override
+   *   public Publisher<Void> handle(HttpServerRequest request,
+   *           HttpServerResponse response,
+   *           BiFunction<WebsocketInbound, WebsocketOutbound, Publisher<Void>> webSocketHandler) {
+   *
+   *     return response.sendWebsocket(webSocketHandler,
+   *             WebsocketServerSpec.builder()
+   *                                .maxFramePayloadLength(FRAME_LENGTH_MASK)
+   *                                .build());
+   *   }
+   * }
+   * </pre>
+   */
+  public interface Handler {
+
+    Publisher<Void> handle(
+        HttpServerRequest request,
+        HttpServerResponse response,
+        BiFunction<WebsocketInbound, WebsocketOutbound, Publisher<Void>> webSocketHandler);
   }
 }

@@ -34,6 +34,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
 import reactor.core.publisher.Mono;
+import reactor.netty.Connection;
 import reactor.netty.http.client.HttpClient;
 import reactor.netty.http.client.WebsocketClientSpec;
 import reactor.netty.tcp.TcpClient;
@@ -46,15 +47,23 @@ public final class WebsocketClientTransport implements ClientTransport, Transpor
 
   private static final String DEFAULT_PATH = "/";
 
-  private final HttpClient client;
+  final Supplier<Mono<? extends Connection>> connectionSupplier;
 
-  private final String path;
+  Supplier<Map<String, String>> transportHeaders = Collections::emptyMap;
 
-  private Supplier<Map<String, String>> transportHeaders = Collections::emptyMap;
+  private WebsocketClientTransport(Supplier<Mono<? extends Connection>> connectionSupplier) {
+    this.connectionSupplier = connectionSupplier;
+  }
 
   private WebsocketClientTransport(HttpClient client, String path) {
-    this.client = client;
-    this.path = path;
+    this.connectionSupplier =
+        () ->
+            client
+                .headers(headers -> transportHeaders.get().forEach(headers::set))
+                .websocket(
+                    WebsocketClientSpec.builder().maxFramePayloadLength(FRAME_LENGTH_MASK).build())
+                .uri(path)
+                .connect();
   }
 
   /**
@@ -125,7 +134,8 @@ public final class WebsocketClientTransport implements ClientTransport, Transpor
   }
 
   /**
-   * Creates a new instance
+   * Creates a new instance of the {@link ClientTransport} using given {@link HttpClient} and custom
+   * {@code path}
    *
    * @param client the {@link HttpClient} to use
    * @param path the path to request
@@ -141,6 +151,33 @@ public final class WebsocketClientTransport implements ClientTransport, Transpor
     return new WebsocketClientTransport(client, path);
   }
 
+  /**
+   * Creates a new instance of the {@link ClientTransport} using given {@code Supplier<Mono<?
+   * extends Connection>>} which should provide fully customized process of WebSocket {@link
+   * Connection} creating and supplement
+   *
+   * @param connectionSupplier WebSocket {@link Connection} supplier. Note, it is up to caller to
+   *     provide correct setup of the websocket connection. For reference, please use the following
+   *     template
+   *     <pre>{@code
+   * client
+   *   .headers(headers -> ...)
+   *   .websocket(WebsocketClientSpec.builder()
+   *                                 .maxFramePayloadLength(0xFFFFFF)
+   *                                 .build())
+   *   .uri("/")
+   *   .connect()
+   * }</pre>
+   *
+   * @return a new instance
+   * @throws NullPointerException if {@code client} or {@code path} is {@code null}
+   */
+  public static WebsocketClientTransport create(
+      Supplier<Mono<? extends Connection>> connectionSupplier) {
+    Objects.requireNonNull(connectionSupplier, "connectionSupplier should be present");
+    return new WebsocketClientTransport(connectionSupplier);
+  }
+
   private static TcpClient createClient(URI uri) {
     if (isSecure(uri)) {
       return TcpClient.create().secure().host(uri.getHost()).port(getPort(uri, 443));
@@ -154,12 +191,8 @@ public final class WebsocketClientTransport implements ClientTransport, Transpor
     Mono<DuplexConnection> isError = FragmentationDuplexConnection.checkMtu(mtu);
     return isError != null
         ? isError
-        : client
-            .headers(headers -> transportHeaders.get().forEach(headers::set))
-            .websocket(
-                WebsocketClientSpec.builder().maxFramePayloadLength(FRAME_LENGTH_MASK).build())
-            .uri(path)
-            .connect()
+        : connectionSupplier
+            .get()
             .map(
                 c -> {
                   DuplexConnection connection = new WebsocketDuplexConnection(c);
@@ -173,7 +206,25 @@ public final class WebsocketClientTransport implements ClientTransport, Transpor
                 });
   }
 
+  /**
+   * @deprecated in favor of {@link #create(Supplier)} which might be used as the following in order
+   *     to provide custom headers
+   *     <pre>{@code
+   * WebsocketClientTransport.create(
+   *   () ->
+   *     HttpClient.create()
+   *       .remoteAddress(closeableChannel::address)
+   *       .headers(headers -> headers.add("Authorization", "test"))
+   *       .websocket(
+   *           WebsocketClientSpec.builder()
+   *               .maxFramePayloadLength(FrameLengthCodec.FRAME_LENGTH_MASK)
+   *               .build())
+   *       .connect());
+   *
+   * }</pre>
+   */
   @Override
+  @Deprecated
   public void setTransportHeaders(Supplier<Map<String, String>> transportHeaders) {
     this.transportHeaders =
         Objects.requireNonNull(transportHeaders, "transportHeaders must not be null");

@@ -20,10 +20,15 @@ import static io.rsocket.frame.FrameLengthCodec.FRAME_LENGTH_MASK;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
+import io.netty.handler.codec.http.cookie.DefaultCookie;
+import io.rsocket.RSocket;
+import io.rsocket.core.RSocketConnector;
 import io.rsocket.transport.netty.server.WebsocketServerTransport;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.util.Collections;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
@@ -33,7 +38,10 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import reactor.core.publisher.Mono;
+import reactor.netty.DisposableServer;
 import reactor.netty.http.client.HttpClient;
+import reactor.netty.http.client.WebsocketClientSpec;
+import reactor.netty.http.server.HttpServer;
 import reactor.test.StepVerifier;
 
 @ExtendWith(MockitoExtension.class)
@@ -108,36 +116,153 @@ final class WebsocketClientTransportTest {
 
   @DisplayName("creates client with BindAddress")
   @Test
-  void createBindAddress() {
-    assertThat(WebsocketClientTransport.create("test-bind-address", 8000))
-        .isNotNull()
-        .hasFieldOrPropertyWithValue("path", "/");
+  void createBindAddress() throws InterruptedException {
+    CountDownLatch latch = new CountDownLatch(1);
+    DisposableServer server =
+        HttpServer.create()
+            .route(
+                r ->
+                    r.ws(
+                        "/",
+                        (in, out) -> {
+                          latch.countDown();
+                          return out.sendClose();
+                        }))
+            .bindNow();
+
+    RSocket rSocket =
+        RSocketConnector.connectWith(WebsocketClientTransport.create(server.address())).block();
+
+    Assertions.assertThat(latch.await(1, TimeUnit.SECONDS)).isTrue();
+
+    rSocket.dispose();
+    server.dispose();
   }
 
   @DisplayName("creates client with HttpClient")
   @Test
-  void createHttpClient() {
-    assertThat(WebsocketClientTransport.create(HttpClient.create(), "/"))
-        .isNotNull()
-        .hasFieldOrPropertyWithValue("path", "/");
+  void createHttpClient() throws InterruptedException {
+    CountDownLatch latch = new CountDownLatch(1);
+    DisposableServer server =
+        HttpServer.create()
+            .route(
+                r ->
+                    r.ws(
+                        "/",
+                        (in, out) -> {
+                          latch.countDown();
+                          return out.sendClose();
+                        }))
+            .bindNow();
+
+    RSocket rSocket =
+        RSocketConnector.connectWith(
+                WebsocketClientTransport.create(
+                    HttpClient.create().remoteAddress(server::address), "/"))
+            .block();
+
+    Assertions.assertThat(latch.await(1, TimeUnit.SECONDS)).isTrue();
+
+    rSocket.dispose();
+    server.dispose();
   }
 
   @DisplayName("creates client with HttpClient and path without root")
   @Test
-  void createHttpClientWithPathWithoutRoot() {
-    assertThat(WebsocketClientTransport.create(HttpClient.create(), "test"))
-        .isNotNull()
-        .hasFieldOrPropertyWithValue("path", "/test");
+  void createHttpClientWithPathWithoutRoot() throws InterruptedException {
+    CountDownLatch latch = new CountDownLatch(1);
+    DisposableServer server =
+        HttpServer.create()
+            .route(
+                r ->
+                    r.ws(
+                        "/test",
+                        (in, out) -> {
+                          latch.countDown();
+                          return out.sendClose();
+                        }))
+            .bindNow();
+
+    RSocket rSocket =
+        RSocketConnector.connectWith(
+                WebsocketClientTransport.create(
+                    HttpClient.create().remoteAddress(server::address), "/test"))
+            .block();
+
+    Assertions.assertThat(latch.await(1, TimeUnit.SECONDS)).isTrue();
+
+    rSocket.dispose();
+    server.dispose();
   }
 
-  @DisplayName("creates client with InetSocketAddress")
   @Test
-  void createInetSocketAddress() {
-    assertThat(
+  void shouldFailOnIllegalPath() throws InterruptedException {
+    CountDownLatch latch = new CountDownLatch(1);
+    DisposableServer server =
+        HttpServer.create()
+            .route(
+                r ->
+                    r.ws(
+                        "/",
+                        (in, out) -> {
+                          latch.countDown();
+                          return out.sendClose();
+                        }))
+            .bindNow();
+
+    RSocketConnector.connectWith(
             WebsocketClientTransport.create(
-                InetSocketAddress.createUnresolved("test-bind-address", 8000)))
-        .isNotNull()
-        .hasFieldOrPropertyWithValue("path", "/");
+                HttpClient.create().remoteAddress(server::address), "/test"))
+        .as(StepVerifier::create)
+        .verifyError();
+
+    Assertions.assertThat(latch.await(1, TimeUnit.SECONDS)).isFalse();
+
+    server.dispose();
+  }
+
+  @Test
+  void shouldBeAbleToCustomizeRequest() throws InterruptedException {
+    CountDownLatch latch = new CountDownLatch(1);
+    DisposableServer server =
+        HttpServer.create()
+            .handle(
+                (req, res) -> {
+                  Assertions.assertThat(req.requestHeaders().get("testHeader"))
+                      .isNotNull()
+                      .isEqualTo("testHeaderValue");
+
+                  Assertions.assertThat(req.cookies().get("testCookie"))
+                      .isNotNull()
+                      .containsExactly(new DefaultCookie("testCookie", "testCookieValue"));
+                  return res.sendWebsocket(
+                      (in, out) -> {
+                        latch.countDown();
+                        return out.sendClose();
+                      });
+                })
+            .bindNow();
+
+    RSocket rSocket =
+        RSocketConnector.connectWith(
+                WebsocketClientTransport.create(
+                    () ->
+                        HttpClient.create()
+                            .remoteAddress(() -> server.address())
+                            .headers(hh -> hh.add("testHeader", "testHeaderValue"))
+                            .cookie(new DefaultCookie("testCookie", "testCookieValue"))
+                            .websocket(
+                                WebsocketClientSpec.builder()
+                                    .maxFramePayloadLength(FRAME_LENGTH_MASK)
+                                    .build())
+                            .uri("/test")
+                            .connect()))
+            .block();
+
+    Assertions.assertThat(latch.await(1, TimeUnit.SECONDS)).isTrue();
+
+    rSocket.dispose();
+    server.dispose();
   }
 
   @DisplayName("create throws NullPointerException with null bindAddress")
@@ -188,18 +313,60 @@ final class WebsocketClientTransportTest {
 
   @DisplayName("creates client with URI")
   @Test
-  void createUri() {
-    assertThat(WebsocketClientTransport.create(URI.create("ws://test-host")))
-        .isNotNull()
-        .hasFieldOrPropertyWithValue("path", "/");
+  void createUri() throws InterruptedException {
+    CountDownLatch latch = new CountDownLatch(1);
+    DisposableServer server =
+        HttpServer.create()
+            .host("localhost")
+            .route(
+                r ->
+                    r.ws(
+                        "/",
+                        (in, out) -> {
+                          latch.countDown();
+                          return out.sendClose();
+                        }))
+            .bindNow();
+
+    RSocket rSocket =
+        RSocketConnector.connectWith(
+                WebsocketClientTransport.create(
+                    URI.create("ws://" + server.host() + ":" + server.port())))
+            .block();
+
+    Assertions.assertThat(latch.await(1, TimeUnit.SECONDS)).isTrue();
+
+    rSocket.dispose();
+    server.dispose();
   }
 
   @DisplayName("creates client with URI path")
   @Test
-  void createUriPath() {
-    assertThat(WebsocketClientTransport.create(URI.create("ws://test-host/test")))
-        .isNotNull()
-        .hasFieldOrPropertyWithValue("path", "/test");
+  void createUriPath() throws InterruptedException {
+    CountDownLatch latch = new CountDownLatch(1);
+    DisposableServer server =
+        HttpServer.create()
+            .host("localhost")
+            .route(
+                r ->
+                    r.ws(
+                        "/test",
+                        (in, out) -> {
+                          latch.countDown();
+                          return out.sendClose();
+                        }))
+            .bindNow();
+
+    RSocket rSocket =
+        RSocketConnector.connectWith(
+                WebsocketClientTransport.create(
+                    URI.create("ws://" + server.host() + ":" + server.port() + "/test")))
+            .block();
+
+    Assertions.assertThat(latch.await(1, TimeUnit.SECONDS)).isTrue();
+
+    rSocket.dispose();
+    server.dispose();
   }
 
   @DisplayName("sets transport headers")

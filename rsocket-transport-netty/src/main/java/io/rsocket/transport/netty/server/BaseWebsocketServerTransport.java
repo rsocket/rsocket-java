@@ -8,11 +8,20 @@ import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.handler.codec.http.websocketx.PongWebSocketFrame;
 import io.netty.util.ReferenceCountUtil;
 import io.rsocket.Closeable;
+import io.rsocket.DuplexConnection;
+import io.rsocket.fragmentation.FragmentationDuplexConnection;
+import io.rsocket.fragmentation.ReassemblyDuplexConnection;
 import io.rsocket.transport.ServerTransport;
+import io.rsocket.transport.netty.WebsocketDuplexConnection;
+import java.util.function.BiFunction;
 import java.util.function.Function;
+import org.reactivestreams.Publisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import reactor.netty.Connection;
 import reactor.netty.http.server.HttpServer;
+import reactor.netty.http.websocket.WebsocketInbound;
+import reactor.netty.http.websocket.WebsocketOutbound;
 
 abstract class BaseWebsocketServerTransport<T extends Closeable> implements ServerTransport<T> {
   private static final Logger logger = LoggerFactory.getLogger(BaseWebsocketServerTransport.class);
@@ -36,5 +45,38 @@ abstract class BaseWebsocketServerTransport<T extends Closeable> implements Serv
         ctx.fireChannelRead(msg);
       }
     }
+  }
+
+  /**
+   * Creates a new Websocket handler
+   *
+   * @param acceptor the {@link ConnectionAcceptor} to use with the handler
+   * @return a new Websocket handler
+   * @throws NullPointerException if {@code acceptor} is {@code null}
+   */
+  public static BiFunction<WebsocketInbound, WebsocketOutbound, Publisher<Void>> newHandler(
+      ConnectionAcceptor acceptor) {
+    return newHandler(acceptor, 0);
+  }
+
+  /**
+   * Creates a new Websocket handler
+   *
+   * @param acceptor the {@link ConnectionAcceptor} to use with the handler
+   * @param mtu the fragment size
+   * @return a new Websocket handler
+   * @throws NullPointerException if {@code acceptor} is {@code null}
+   */
+  public static BiFunction<WebsocketInbound, WebsocketOutbound, Publisher<Void>> newHandler(
+      ConnectionAcceptor acceptor, int mtu) {
+    return (in, out) -> {
+      DuplexConnection connection = new WebsocketDuplexConnection((Connection) in);
+      if (mtu > 0) {
+        connection = new FragmentationDuplexConnection(connection, mtu, false, "server");
+      } else {
+        connection = new ReassemblyDuplexConnection(connection, false);
+      }
+      return acceptor.apply(connection).then(out.neverComplete());
+    };
   }
 }

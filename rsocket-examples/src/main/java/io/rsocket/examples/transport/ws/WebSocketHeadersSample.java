@@ -17,69 +17,74 @@
 package io.rsocket.examples.transport.ws;
 
 import io.netty.handler.codec.http.HttpResponseStatus;
-import io.rsocket.DuplexConnection;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.SocketAcceptor;
 import io.rsocket.core.RSocketConnector;
 import io.rsocket.core.RSocketServer;
-import io.rsocket.fragmentation.ReassemblyDuplexConnection;
+import io.rsocket.frame.FrameLengthCodec;
 import io.rsocket.frame.decoder.PayloadDecoder;
-import io.rsocket.transport.ServerTransport;
-import io.rsocket.transport.netty.WebsocketDuplexConnection;
 import io.rsocket.transport.netty.client.WebsocketClientTransport;
+import io.rsocket.transport.netty.server.CloseableChannel;
+import io.rsocket.transport.netty.server.WebsocketServerTransport;
 import io.rsocket.util.ByteBufPayload;
 import java.time.Duration;
-import java.util.HashMap;
+import java.util.function.BiFunction;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
-import reactor.netty.Connection;
-import reactor.netty.DisposableServer;
+import reactor.netty.http.client.HttpClient;
+import reactor.netty.http.client.WebsocketClientSpec;
 import reactor.netty.http.server.HttpServer;
+import reactor.netty.http.server.HttpServerRequest;
+import reactor.netty.http.server.HttpServerResponse;
+import reactor.netty.http.server.WebsocketServerSpec;
+import reactor.netty.http.websocket.WebsocketInbound;
+import reactor.netty.http.websocket.WebsocketOutbound;
 
 public class WebSocketHeadersSample {
   static final Payload payload1 = ByteBufPayload.create("Hello ");
 
   public static void main(String[] args) {
 
-    ServerTransport.ConnectionAcceptor acceptor =
+    CloseableChannel closeableChannel =
         RSocketServer.create(SocketAcceptor.with(new ServerRSocket()))
             .payloadDecoder(PayloadDecoder.ZERO_COPY)
-            .asConnectionAcceptor();
+            .bindNow(
+                WebsocketServerTransport.create(
+                    HttpServer.create().host("localhost").port(0),
+                    new WebsocketServerTransport.Handler() {
+                      @Override
+                      public Publisher<Void> handle(
+                          HttpServerRequest request,
+                          HttpServerResponse response,
+                          BiFunction<WebsocketInbound, WebsocketOutbound, Publisher<Void>>
+                              webSocketHandler) {
 
-    DisposableServer disposableServer =
-        HttpServer.create()
-            .host("localhost")
-            .port(0)
-            .route(
-                routes ->
-                    routes.ws(
-                        "/",
-                        (in, out) -> {
-                          if (in.headers().containsValue("Authorization", "test", true)) {
-                            DuplexConnection connection =
-                                new ReassemblyDuplexConnection(
-                                    new WebsocketDuplexConnection((Connection) in), false);
-                            return acceptor.apply(connection).then(out.neverComplete());
-                          }
+                        if (request.requestHeaders().containsValue("Authorization", "test", true)) {
+                          return response.sendWebsocket(
+                              webSocketHandler,
+                              WebsocketServerSpec.builder()
+                                  .maxFramePayloadLength(FrameLengthCodec.FRAME_LENGTH_MASK)
+                                  .build());
+                        }
 
-                          return out.sendClose(
-                              HttpResponseStatus.UNAUTHORIZED.code(),
-                              HttpResponseStatus.UNAUTHORIZED.reasonPhrase());
-                        }))
-            .bindNow();
+                        return response.status(HttpResponseStatus.UNAUTHORIZED.code()).send();
+                      }
+                    }));
 
     WebsocketClientTransport clientTransport =
-        WebsocketClientTransport.create(disposableServer.host(), disposableServer.port());
-
-    clientTransport.setTransportHeaders(
-        () -> {
-          HashMap<String, String> map = new HashMap<>();
-          map.put("Authorization", "test");
-          return map;
-        });
+        WebsocketClientTransport.create(
+            () ->
+                HttpClient.create()
+                    .remoteAddress(closeableChannel::address)
+                    .headers(headers -> headers.add("Authorization", "test"))
+                    .websocket(
+                        WebsocketClientSpec.builder()
+                            .maxFramePayloadLength(FrameLengthCodec.FRAME_LENGTH_MASK)
+                            .build())
+                    .connect());
 
     RSocket socket =
         RSocketConnector.create()
@@ -98,17 +103,24 @@ public class WebSocketHeadersSample {
     socket.dispose();
 
     WebsocketClientTransport clientTransport2 =
-        WebsocketClientTransport.create(disposableServer.host(), disposableServer.port());
-
-    RSocket rSocket =
-        RSocketConnector.create()
-            .keepAlive(Duration.ofMinutes(10), Duration.ofMinutes(10))
-            .payloadDecoder(PayloadDecoder.ZERO_COPY)
-            .connect(clientTransport2)
-            .block();
+        WebsocketClientTransport.create(
+            () ->
+                HttpClient.create()
+                    .remoteAddress(closeableChannel::address)
+                    .websocket(
+                        WebsocketClientSpec.builder()
+                            .maxFramePayloadLength(FrameLengthCodec.FRAME_LENGTH_MASK)
+                            .build())
+                    .connect());
 
     // expect error here because of closed channel
-    rSocket.requestResponse(payload1).block();
+    RSocketConnector.create()
+        .keepAlive(Duration.ofMinutes(10), Duration.ofMinutes(10))
+        .payloadDecoder(PayloadDecoder.ZERO_COPY)
+        .connect(clientTransport2)
+        .block();
+
+    System.out.println("Should never happen");
   }
 
   private static class ServerRSocket implements RSocket {
