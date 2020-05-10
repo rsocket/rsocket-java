@@ -24,10 +24,8 @@ import static io.rsocket.frame.FrameType.REQUEST_FNF;
 import static io.rsocket.frame.FrameType.REQUEST_RESPONSE;
 import static io.rsocket.frame.FrameType.REQUEST_STREAM;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
@@ -122,13 +120,9 @@ public class RSocketRequesterTest {
 
   @Test
   @Timeout(2_000)
-  public void testInvalidFrameOnStream0() {
+  public void testInvalidFrameOnStream0ShouldNotTerminateRSocket() {
     rule.connection.addToReceivedBuffer(RequestNFrameCodec.encode(rule.alloc(), 0, 10));
-    assertThat("Unexpected errors.", rule.errors, hasSize(1));
-    assertThat(
-        "Unexpected error received.",
-        rule.errors,
-        contains(instanceOf(IllegalStateException.class)));
+    Assertions.assertThat(rule.socket.isDisposed()).isFalse();
     rule.assertHasNoLeaks();
   }
 
@@ -167,11 +161,8 @@ public class RSocketRequesterTest {
   public void testHandleSetupException() {
     rule.connection.addToReceivedBuffer(
         ErrorFrameCodec.encode(rule.alloc(), 0, new RejectedSetupException("boom")));
-    assertThat("Unexpected errors.", rule.errors, hasSize(1));
-    assertThat(
-        "Unexpected error received.",
-        rule.errors,
-        contains(instanceOf(RejectedSetupException.class)));
+    Assertions.assertThatThrownBy(() -> rule.socket.onClose().block())
+        .isInstanceOf(RejectedSetupException.class);
     rule.assertHasNoLeaks();
   }
 
@@ -242,7 +233,12 @@ public class RSocketRequesterTest {
     Subscriber<Payload> responseSub = TestSubscriber.create(10);
     response.subscribe(responseSub);
 
-    this.rule.assertNoConnectionErrors();
+    this.rule
+        .socket
+        .onClose()
+        .as(StepVerifier::create)
+        .expectComplete()
+        .verify(Duration.ofMillis(100));
 
     verify(responseSub).onSubscribe(any(Subscription.class));
 
@@ -1006,7 +1002,6 @@ public class RSocketRequesterTest {
       return new RSocketRequester(
           connection,
           PayloadDecoder.ZERO_COPY,
-          throwable -> errors.add(throwable),
           StreamIdSupplier.clientSupplier(),
           0,
           0,

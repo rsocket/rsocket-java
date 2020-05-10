@@ -18,8 +18,6 @@ import io.rsocket.test.util.TestDuplexConnection;
 import io.rsocket.transport.ServerTransport;
 import io.rsocket.util.DefaultPayload;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.List;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import reactor.core.publisher.Mono;
@@ -53,12 +51,10 @@ public class SetupRejectionTest {
     LeaksTrackingByteBufAllocator allocator =
         LeaksTrackingByteBufAllocator.instrument(ByteBufAllocator.DEFAULT);
     TestDuplexConnection conn = new TestDuplexConnection(allocator);
-    List<Throwable> errors = new ArrayList<>();
     RSocketRequester rSocket =
         new RSocketRequester(
             conn,
             DefaultPayload::create,
-            errors::add,
             StreamIdSupplier.clientSupplier(),
             0,
             0,
@@ -83,7 +79,6 @@ public class SetupRejectionTest {
             err -> err instanceof RejectedSetupException && errorMsg.equals(err.getMessage()))
         .verify(Duration.ofSeconds(5));
 
-    assertThat(errors).hasSize(1);
     assertThat(rSocket.isDisposed()).isTrue();
   }
 
@@ -96,7 +91,6 @@ public class SetupRejectionTest {
         new RSocketRequester(
             conn,
             DefaultPayload::create,
-            err -> {},
             StreamIdSupplier.clientSupplier(),
             0,
             0,

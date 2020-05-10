@@ -43,6 +43,8 @@ import org.reactivestreams.Processor;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import reactor.core.Disposable;
 import reactor.core.Exceptions;
 import reactor.core.publisher.*;
@@ -50,6 +52,8 @@ import reactor.util.annotation.Nullable;
 
 /** Responder side of RSocket. Receives {@link ByteBuf}s from a peer's {@link RSocketRequester} */
 class RSocketResponder implements RSocket {
+  private static final Logger LOGGER = LoggerFactory.getLogger(RSocketResponder.class);
+
   private static final Consumer<ReferenceCounted> DROPPED_ELEMENTS_CONSUMER =
       referenceCounted -> {
         if (referenceCounted.refCnt() > 0) {
@@ -69,7 +73,6 @@ class RSocketResponder implements RSocket {
   private final io.rsocket.ResponderRSocket responderRSocket;
 
   private final PayloadDecoder payloadDecoder;
-  private final Consumer<Throwable> errorConsumer;
   private final ResponderLeaseHandler leaseHandler;
   private final Disposable leaseHandlerDisposable;
   private final MonoProcessor<Void> onClose;
@@ -87,12 +90,10 @@ class RSocketResponder implements RSocket {
   private final UnboundedProcessor<ByteBuf> sendProcessor;
   private final ByteBufAllocator allocator;
 
-  @SuppressWarnings("deprecation")
   RSocketResponder(
       DuplexConnection connection,
       RSocket requestHandler,
       PayloadDecoder payloadDecoder,
-      Consumer<Throwable> errorConsumer,
       ResponderLeaseHandler leaseHandler,
       int mtu) {
     this.connection = connection;
@@ -106,7 +107,6 @@ class RSocketResponder implements RSocket {
             : null;
 
     this.payloadDecoder = payloadDecoder;
-    this.errorConsumer = errorConsumer;
     this.leaseHandler = leaseHandler;
     this.sendingSubscriptions = new SynchronizedIntObjectHashMap<>();
     this.channelProcessors = new SynchronizedIntObjectHashMap<>();
@@ -118,7 +118,7 @@ class RSocketResponder implements RSocket {
 
     connection.send(sendProcessor).subscribe(null, this::handleSendProcessorError);
 
-    connection.receive().subscribe(this::handleFrame, errorConsumer);
+    connection.receive().subscribe(this::handleFrame, e -> {});
     leaseHandlerDisposable = leaseHandler.send(sendProcessor::onNextPrioritized);
 
     this.connection
@@ -135,7 +135,9 @@ class RSocketResponder implements RSocket {
               try {
                 subscription.cancel();
               } catch (Throwable e) {
-                errorConsumer.accept(e);
+                if (LOGGER.isDebugEnabled()) {
+                  LOGGER.debug("Dropped exception", t);
+                }
               }
             });
 
@@ -146,7 +148,9 @@ class RSocketResponder implements RSocket {
               try {
                 subscription.onError(t);
               } catch (Throwable e) {
-                errorConsumer.accept(e);
+                if (LOGGER.isDebugEnabled()) {
+                  LOGGER.debug("Dropped exception", t);
+                }
               }
             });
   }
@@ -375,9 +379,7 @@ class RSocketResponder implements RSocket {
           }
 
           @Override
-          protected void hookOnError(Throwable throwable) {
-            errorConsumer.accept(throwable);
-          }
+          protected void hookOnError(Throwable throwable) {}
 
           @Override
           protected void hookFinally(SignalType type) {
@@ -583,9 +585,7 @@ class RSocketResponder implements RSocket {
           }
 
           @Override
-          protected void hookOnError(Throwable throwable) {
-            errorConsumer.accept(throwable);
-          }
+          protected void hookOnError(Throwable throwable) {}
         });
   }
 
@@ -599,7 +599,6 @@ class RSocketResponder implements RSocket {
   }
 
   private void handleError(int streamId, Throwable t) {
-    errorConsumer.accept(t);
     sendProcessor.onNext(ErrorFrameCodec.encode(allocator, streamId, t));
   }
 

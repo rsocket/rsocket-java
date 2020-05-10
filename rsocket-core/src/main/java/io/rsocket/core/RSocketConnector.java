@@ -91,8 +91,6 @@ public class RSocketConnector {
   private int mtu = 0;
   private PayloadDecoder payloadDecoder = PayloadDecoder.DEFAULT;
 
-  private Consumer<Throwable> errorConsumer = ex -> {};
-
   private RSocketConnector() {}
 
   /**
@@ -437,17 +435,6 @@ public class RSocketConnector {
   }
 
   /**
-   * @deprecated this is deprecated with no replacement and will be removed after {@link
-   *     io.rsocket.RSocketFactory} is removed.
-   */
-  @Deprecated
-  public RSocketConnector errorConsumer(Consumer<Throwable> errorConsumer) {
-    Objects.requireNonNull(errorConsumer);
-    this.errorConsumer = errorConsumer;
-    return this;
-  }
-
-  /**
    * The final step to connect with the transport to use as input and the resulting {@code
    * Mono<RSocket>} as output. Each subscriber to the returned {@code Mono} starts a new connection
    * if neither {@link #reconnect(Retry) reconnect} nor {@link #resume(Resume)} are enabled.
@@ -524,7 +511,6 @@ public class RSocketConnector {
                   new RSocketRequester(
                       multiplexer.asClientConnection(),
                       payloadDecoder,
-                      errorConsumer,
                       StreamIdSupplier.clientSupplier(),
                       mtu,
                       (int) keepAliveInterval.toMillis(),
@@ -564,7 +550,6 @@ public class RSocketConnector {
                                     CLIENT_TAG,
                                     wrappedConnection.alloc(),
                                     leases.sender(),
-                                    errorConsumer,
                                     leases.stats())
                                 : ResponderLeaseHandler.None;
 
@@ -573,7 +558,6 @@ public class RSocketConnector {
                                 multiplexer.asServerConnection(),
                                 wrappedRSocketHandler,
                                 payloadDecoder,
-                                errorConsumer,
                                 responderLeaseHandler,
                                 mtu);
 

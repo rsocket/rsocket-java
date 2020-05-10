@@ -85,7 +85,7 @@ class RSocketLeaseTest {
     requesterLeaseHandler = new RequesterLeaseHandler.Impl(TAG, leases -> leaseReceiver = leases);
     responderLeaseHandler =
         new ResponderLeaseHandler.Impl<>(
-            TAG, byteBufAllocator, stats -> leaseSender, err -> {}, Optional.empty());
+            TAG, byteBufAllocator, stats -> leaseSender, Optional.empty());
 
     ClientServerInputMultiplexer multiplexer =
         new ClientServerInputMultiplexer(connection, new InitializingInterceptorRegistry(), true);
@@ -93,7 +93,6 @@ class RSocketLeaseTest {
         new RSocketRequester(
             multiplexer.asClientConnection(),
             payloadDecoder,
-            err -> {},
             StreamIdSupplier.clientSupplier(),
             0,
             0,
@@ -114,7 +113,6 @@ class RSocketLeaseTest {
             multiplexer.asServerConnection(),
             mockRSocketHandler,
             payloadDecoder,
-            err -> {},
             responderLeaseHandler,
             0);
   }
