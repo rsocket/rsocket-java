@@ -50,7 +50,6 @@ import io.rsocket.keepalive.KeepAliveHandler;
 import io.rsocket.keepalive.KeepAliveSupport;
 import io.rsocket.lease.RequesterLeaseHandler;
 import java.nio.channels.ClosedChannelException;
-import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.function.Consumer;
@@ -64,6 +63,7 @@ import org.slf4j.LoggerFactory;
 import reactor.core.publisher.BaseSubscriber;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.publisher.MonoProcessor;
 import reactor.core.publisher.Operators;
 import reactor.core.publisher.SignalType;
 import reactor.core.publisher.UnicastProcessor;
@@ -109,6 +109,7 @@ class RSocketRequester implements RSocket {
   private final RequesterLeaseHandler leaseHandler;
   private final ByteBufAllocator allocator;
   private final KeepAliveFramesAcceptor keepAliveFramesAcceptor;
+  private final MonoProcessor<Void> onClose;
   private final Scheduler serialScheduler;
 
   RSocketRequester(
@@ -129,6 +130,7 @@ class RSocketRequester implements RSocket {
     this.leaseHandler = leaseHandler;
     this.senders = new SynchronizedIntObjectHashMap<>();
     this.receivers = new SynchronizedIntObjectHashMap<>();
+    this.onClose = MonoProcessor.create();
     this.serialScheduler = serialScheduler;
 
     // DO NOT Change the order here. The Send processor must be subscribed to before receiving
@@ -182,17 +184,17 @@ class RSocketRequester implements RSocket {
 
   @Override
   public void dispose() {
-    tryTerminate(() -> new CancellationException("Disposed"));
+    tryShutdown();
   }
 
   @Override
   public boolean isDisposed() {
-    return connection.isDisposed();
+    return onClose.isDisposed();
   }
 
   @Override
   public Mono<Void> onClose() {
-    return connection.onClose();
+    return onClose;
   }
 
   private Mono<Void> handleFireAndForget(Payload payload) {
@@ -758,6 +760,11 @@ class RSocketRequester implements RSocket {
     senders.clear();
     receivers.clear();
     sendProcessor.dispose();
+    if (e == CLOSED_CHANNEL_EXCEPTION) {
+      onClose.onComplete();
+    } else {
+      onClose.onError(e);
+    }
   }
 
   private void handleSendProcessorError(Throwable t) {
