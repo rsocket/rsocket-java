@@ -64,7 +64,6 @@ import org.slf4j.LoggerFactory;
 import reactor.core.publisher.BaseSubscriber;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import reactor.core.publisher.MonoProcessor;
 import reactor.core.publisher.Operators;
 import reactor.core.publisher.SignalType;
 import reactor.core.publisher.UnicastProcessor;
@@ -110,7 +109,6 @@ class RSocketRequester implements RSocket {
   private final RequesterLeaseHandler leaseHandler;
   private final ByteBufAllocator allocator;
   private final KeepAliveFramesAcceptor keepAliveFramesAcceptor;
-  private final MonoProcessor<Void> onClose;
   private final Scheduler serialScheduler;
 
   RSocketRequester(
@@ -131,16 +129,12 @@ class RSocketRequester implements RSocket {
     this.leaseHandler = leaseHandler;
     this.senders = new SynchronizedIntObjectHashMap<>();
     this.receivers = new SynchronizedIntObjectHashMap<>();
-    this.onClose = MonoProcessor.create();
     this.serialScheduler = serialScheduler;
 
     // DO NOT Change the order here. The Send processor must be subscribed to before receiving
     this.sendProcessor = new UnboundedProcessor<>();
 
-    connection
-        .onClose()
-        .or(onClose)
-        .subscribe(null, this::tryTerminateOnConnectionError, this::tryTerminateOnConnectionClose);
+    connection.onClose().subscribe(null, this::tryTerminateOnConnectionError, this::tryShutdown);
     connection.send(sendProcessor).subscribe(null, this::handleSendProcessorError);
 
     connection.receive().subscribe(this::handleIncomingFrames, e -> {});
@@ -193,12 +187,12 @@ class RSocketRequester implements RSocket {
 
   @Override
   public boolean isDisposed() {
-    return onClose.isDisposed();
+    return connection.isDisposed();
   }
 
   @Override
   public Mono<Void> onClose() {
-    return onClose;
+    return connection.onClose();
   }
 
   private Mono<Void> handleFireAndForget(Payload payload) {
@@ -708,10 +702,6 @@ class RSocketRequester implements RSocket {
     tryTerminate(() -> e);
   }
 
-  private void tryTerminateOnConnectionClose() {
-    tryTerminate(() -> CLOSED_CHANNEL_EXCEPTION);
-  }
-
   private void tryTerminateOnZeroError(ByteBuf errorFrame) {
     tryTerminate(() -> Exceptions.from(0, errorFrame));
   }
@@ -721,6 +711,14 @@ class RSocketRequester implements RSocket {
       Throwable e = errorSupplier.get();
       if (TERMINATION_ERROR.compareAndSet(this, null, e)) {
         terminate(e);
+      }
+    }
+  }
+
+  private void tryShutdown() {
+    if (terminationError == null) {
+      if (TERMINATION_ERROR.compareAndSet(this, null, CLOSED_CHANNEL_EXCEPTION)) {
+        terminate(CLOSED_CHANNEL_EXCEPTION);
       }
     }
   }
@@ -760,7 +758,6 @@ class RSocketRequester implements RSocket {
     senders.clear();
     receivers.clear();
     sendProcessor.dispose();
-    onClose.onError(e);
   }
 
   private void handleSendProcessorError(Throwable t) {
