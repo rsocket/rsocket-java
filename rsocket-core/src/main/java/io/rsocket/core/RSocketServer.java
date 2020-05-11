@@ -142,6 +142,7 @@ public final class RSocketServer {
    *
    * @param configurer a configurer to customize interception with.
    * @return the same instance for method chaining
+   * @see io.rsocket.plugins.LimitRateInterceptor
    */
   public RSocketServer interceptors(Consumer<InterceptorRegistry> configurer) {
     configurer.accept(this.interceptors);
