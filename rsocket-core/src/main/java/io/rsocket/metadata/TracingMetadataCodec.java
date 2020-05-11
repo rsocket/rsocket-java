@@ -3,6 +3,12 @@ package io.rsocket.metadata;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 
+/**
+ * Represents codes for tracing metadata which is fully compatible with <a
+ * href="https://github.com/openzipkin/b3-propagation/">Zipkin B3 propagation</a>
+ *
+ * @since 1.0
+ */
 public class TracingMetadataCodec {
 
   static final int FLAG_EXTENDED_TRACE_ID_SIZE = 0b0000_1000;

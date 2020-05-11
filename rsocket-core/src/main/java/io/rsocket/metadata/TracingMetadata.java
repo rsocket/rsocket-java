@@ -16,6 +16,12 @@
 
 package io.rsocket.metadata;
 
+/**
+ * Represents decoded tracing metadata which is fully compatible with <a
+ * href="https://github.com/openzipkin/b3-propagation/">Zipkin B3 propagation</a>
+ *
+ * @since 1.0
+ */
 public final class TracingMetadata {
 
   final long traceIdHigh;
