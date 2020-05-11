@@ -111,7 +111,7 @@ public final class RSocketFactory {
     private Resume resume;
 
     public ClientRSocketFactory() {
-      this(RSocketConnector.create().errorConsumer(Throwable::printStackTrace));
+      this(RSocketConnector.create());
     }
 
     public ClientRSocketFactory(RSocketConnector connector) {
@@ -393,9 +393,13 @@ public final class RSocketFactory {
       return this;
     }
 
-    /** @deprecated this is deprecated with no replacement. */
+    /**
+     * @deprecated this handler is deliberately no-ops and is deprecated with no replacement. In
+     *     order to observe errors, it is recommended to add error handler using {@code doOnError}
+     *     on the specific logical stream. In order to observe connection, or RSocket terminal
+     *     errors, it is recommended to hook on {@link Closeable#onClose()} handler.
+     */
     public ClientRSocketFactory errorConsumer(Consumer<Throwable> errorConsumer) {
-      connector.errorConsumer(errorConsumer);
       return this;
     }
 
@@ -417,7 +421,7 @@ public final class RSocketFactory {
     private Resume resume;
 
     public ServerRSocketFactory() {
-      this(RSocketServer.create().errorConsumer(Throwable::printStackTrace));
+      this(RSocketServer.create());
     }
 
     public ServerRSocketFactory(RSocketServer server) {
@@ -497,9 +501,13 @@ public final class RSocketFactory {
       return this;
     }
 
-    /** @deprecated this is deprecated with no replacement. */
+    /**
+     * @deprecated this handler is deliberately no-ops and is deprecated with no replacement. In
+     *     order to observe errors, it is recommended to add error handler using {@code doOnError}
+     *     on the specific logical stream. In order to observe connection, or RSocket terminal
+     *     errors, it is recommended to hook on {@link Closeable#onClose()} handler.
+     */
     public ServerRSocketFactory errorConsumer(Consumer<Throwable> errorConsumer) {
-      server.errorConsumer(errorConsumer);
       return this;
     }
 

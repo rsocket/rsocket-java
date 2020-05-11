@@ -119,10 +119,7 @@ public class ClientServerInputMultiplexer implements Closeable {
                   break;
               }
             },
-            t -> {
-              LOGGER.error("Error receiving frame:", t);
-              dispose();
-            });
+            t -> {});
   }
 
   public DuplexConnection asClientServerConnection() {

@@ -59,7 +59,6 @@ import io.rsocket.util.ByteBufPayload;
 import io.rsocket.util.DefaultPayload;
 import io.rsocket.util.EmptyPayload;
 import java.util.Collection;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Stream;
@@ -138,7 +137,6 @@ public class RSocketResponderTest {
 
     Collection<Subscriber<ByteBuf>> sendSubscribers = rule.connection.getSendSubscribers();
     assertThat("Request not sent.", sendSubscribers, hasSize(1));
-    assertThat("Unexpected error.", rule.errors, is(empty()));
     Subscriber<ByteBuf> sendSub = sendSubscribers.iterator().next();
     assertThat(
         "Unexpected frame sent.",
@@ -152,7 +150,6 @@ public class RSocketResponderTest {
   public void testHandlerEmitsError() throws Exception {
     final int streamId = 4;
     rule.sendRequest(streamId, FrameType.REQUEST_STREAM);
-    assertThat("Unexpected error.", rule.errors, is(empty()));
     assertThat(
         "Unexpected frame sent.", frameType(rule.connection.awaitSend()), is(FrameType.ERROR));
   }
@@ -173,7 +170,6 @@ public class RSocketResponderTest {
         });
     rule.sendRequest(streamId, FrameType.REQUEST_RESPONSE);
 
-    assertThat("Unexpected error.", rule.errors, is(empty()));
     assertThat("Unexpected frame sent.", rule.connection.getSent(), is(empty()));
 
     rule.connection.addToReceivedBuffer(CancelFrameCodec.encode(allocator, streamId));
@@ -232,10 +228,6 @@ public class RSocketResponderTest {
     for (Runnable runnable : runnables) {
       rule.connection.clearSendReceiveBuffers();
       runnable.run();
-      Assertions.assertThat(rule.errors)
-          .first()
-          .isInstanceOf(IllegalArgumentException.class)
-          .hasToString("java.lang.IllegalArgumentException: " + INVALID_PAYLOAD_ERROR_MESSAGE);
       Assertions.assertThat(rule.connection.getSent())
           .hasSize(1)
           .first()
@@ -778,7 +770,6 @@ public class RSocketResponderTest {
       this.acceptingSocket = acceptingSocket;
       connection = new TestDuplexConnection(alloc());
       connectSub = TestSubscriber.create();
-      errors = new ConcurrentLinkedQueue<>();
       this.prefetch = Integer.MAX_VALUE;
       super.init();
     }
@@ -787,7 +778,6 @@ public class RSocketResponderTest {
       this.acceptingSocket = acceptingSocket;
       connection = new TestDuplexConnection(alloc());
       connectSub = TestSubscriber.create();
-      errors = new ConcurrentLinkedQueue<>();
       this.prefetch = prefetch;
       super.init();
     }
@@ -795,12 +785,7 @@ public class RSocketResponderTest {
     @Override
     protected RSocketResponder newRSocket() {
       return new RSocketResponder(
-          connection,
-          acceptingSocket,
-          PayloadDecoder.ZERO_COPY,
-          throwable -> errors.add(throwable),
-          ResponderLeaseHandler.None,
-          0);
+          connection, acceptingSocket, PayloadDecoder.ZERO_COPY, ResponderLeaseHandler.None, 0);
     }
 
     private void sendRequest(int streamId, FrameType frameType) {

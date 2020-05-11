@@ -35,9 +35,6 @@ import io.rsocket.resume.ResumableDuplexConnection;
 import io.rsocket.test.util.TestDuplexConnection;
 import io.rsocket.util.DefaultPayload;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.function.Consumer;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -57,12 +54,10 @@ public class KeepAliveTest {
     LeaksTrackingByteBufAllocator allocator =
         LeaksTrackingByteBufAllocator.instrument(ByteBufAllocator.DEFAULT);
     TestDuplexConnection connection = new TestDuplexConnection(allocator);
-    Errors errors = new Errors();
     RSocketRequester rSocket =
         new RSocketRequester(
             connection,
             DefaultPayload::create,
-            errors,
             StreamIdSupplier.clientSupplier(),
             0,
             tickPeriod,
@@ -70,7 +65,7 @@ public class KeepAliveTest {
             new DefaultKeepAliveHandler(connection),
             RequesterLeaseHandler.None,
             TestScheduler.INSTANCE);
-    return new RSocketState(rSocket, errors, allocator, connection);
+    return new RSocketState(rSocket, allocator, connection);
   }
 
   static ResumableRSocketState resumableRequester(int tickPeriod, int timeout) {
@@ -85,12 +80,10 @@ public class KeepAliveTest {
             Duration.ofSeconds(10),
             false);
 
-    Errors errors = new Errors();
     RSocketRequester rSocket =
         new RSocketRequester(
             resumableConnection,
             DefaultPayload::create,
-            errors,
             StreamIdSupplier.clientSupplier(),
             0,
             tickPeriod,
@@ -98,7 +91,7 @@ public class KeepAliveTest {
             new ResumableKeepAliveHandler(resumableConnection),
             RequesterLeaseHandler.None,
             TestScheduler.INSTANCE);
-    return new ResumableRSocketState(rSocket, errors, connection, resumableConnection, allocator);
+    return new ResumableRSocketState(rSocket, connection, resumableConnection, allocator);
   }
 
   @BeforeEach
@@ -121,10 +114,8 @@ public class KeepAliveTest {
     Mono.delay(Duration.ofMillis(2000)).block();
 
     RSocket rSocket = requesterState.rSocket();
-    List<Throwable> errors = requesterState.errors().errors();
 
     Assertions.assertThat(rSocket.isDisposed()).isFalse();
-    Assertions.assertThat(errors).isEmpty();
   }
 
   @Test
@@ -143,11 +134,12 @@ public class KeepAliveTest {
 
     Mono.delay(Duration.ofMillis(2000)).block();
 
-    List<Throwable> errors = requesterState.errors().errors();
     Assertions.assertThat(rSocket.isDisposed()).isTrue();
-    Assertions.assertThat(errors).hasSize(1);
-    Throwable throwable = errors.get(0);
-    Assertions.assertThat(throwable).isInstanceOf(ConnectionErrorException.class);
+    rSocket
+        .onClose()
+        .as(StepVerifier::create)
+        .expectError(ConnectionErrorException.class)
+        .verify(Duration.ofMillis(100));
   }
 
   @Test
@@ -224,13 +216,11 @@ public class KeepAliveTest {
   @Test
   void resumableRSocketsNotDisposedOnMissingKeepAlives() {
     RSocket rSocket = resumableRequesterState.rSocket();
-    List<Throwable> errors = resumableRequesterState.errors().errors();
     TestDuplexConnection connection = resumableRequesterState.connection();
 
     Mono.delay(Duration.ofMillis(500)).block();
 
     Assertions.assertThat(rSocket.isDisposed()).isFalse();
-    Assertions.assertThat(errors).hasSize(0);
     Assertions.assertThat(connection.isDisposed()).isTrue();
   }
 
@@ -248,17 +238,12 @@ public class KeepAliveTest {
 
   static class RSocketState {
     private final RSocket rSocket;
-    private final Errors errors;
     private final TestDuplexConnection connection;
     private final LeaksTrackingByteBufAllocator allocator;
 
     public RSocketState(
-        RSocket rSocket,
-        Errors errors,
-        LeaksTrackingByteBufAllocator allocator,
-        TestDuplexConnection connection) {
+        RSocket rSocket, LeaksTrackingByteBufAllocator allocator, TestDuplexConnection connection) {
       this.rSocket = rSocket;
-      this.errors = errors;
       this.connection = connection;
       this.allocator = allocator;
     }
@@ -271,10 +256,6 @@ public class KeepAliveTest {
       return rSocket;
     }
 
-    public Errors errors() {
-      return errors;
-    }
-
     public LeaksTrackingByteBufAllocator alloc() {
       return allocator;
     }
@@ -282,19 +263,16 @@ public class KeepAliveTest {
 
   static class ResumableRSocketState {
     private final RSocket rSocket;
-    private final Errors errors;
     private final TestDuplexConnection connection;
     private final ResumableDuplexConnection resumableDuplexConnection;
     private final LeaksTrackingByteBufAllocator allocator;
 
     public ResumableRSocketState(
         RSocket rSocket,
-        Errors errors,
         TestDuplexConnection connection,
         ResumableDuplexConnection resumableDuplexConnection,
         LeaksTrackingByteBufAllocator allocator) {
       this.rSocket = rSocket;
-      this.errors = errors;
       this.connection = connection;
       this.resumableDuplexConnection = resumableDuplexConnection;
       this.allocator = allocator;
@@ -312,25 +290,8 @@ public class KeepAliveTest {
       return rSocket;
     }
 
-    public Errors errors() {
-      return errors;
-    }
-
     public LeaksTrackingByteBufAllocator alloc() {
       return allocator;
-    }
-  }
-
-  static class Errors implements Consumer<Throwable> {
-    private final List<Throwable> errors = new ArrayList<>();
-
-    @Override
-    public void accept(Throwable throwable) {
-      errors.add(throwable);
-    }
-
-    public List<Throwable> errors() {
-      return new ArrayList<>(errors);
     }
   }
 }

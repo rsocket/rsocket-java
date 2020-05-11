@@ -59,6 +59,8 @@ import org.reactivestreams.Processor;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import reactor.core.publisher.BaseSubscriber;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -74,9 +76,8 @@ import reactor.util.concurrent.Queues;
  * Requester Side of a RSocket socket. Sends {@link ByteBuf}s to a {@link RSocketResponder} of peer
  */
 class RSocketRequester implements RSocket {
-  private static final AtomicReferenceFieldUpdater<RSocketRequester, Throwable> TERMINATION_ERROR =
-      AtomicReferenceFieldUpdater.newUpdater(
-          RSocketRequester.class, Throwable.class, "terminationError");
+  private static final Logger LOGGER = LoggerFactory.getLogger(RSocketRequester.class);
+
   private static final Exception CLOSED_CHANNEL_EXCEPTION = new ClosedChannelException();
   private static final Consumer<ReferenceCounted> DROPPED_ELEMENTS_CONSUMER =
       referenceCounted -> {
@@ -93,9 +94,14 @@ class RSocketRequester implements RSocket {
     CLOSED_CHANNEL_EXCEPTION.setStackTrace(new StackTraceElement[0]);
   }
 
+  private volatile Throwable terminationError;
+
+  private static final AtomicReferenceFieldUpdater<RSocketRequester, Throwable> TERMINATION_ERROR =
+      AtomicReferenceFieldUpdater.newUpdater(
+          RSocketRequester.class, Throwable.class, "terminationError");
+
   private final DuplexConnection connection;
   private final PayloadDecoder payloadDecoder;
-  private final Consumer<Throwable> errorConsumer;
   private final StreamIdSupplier streamIdSupplier;
   private final IntObjectMap<Subscription> senders;
   private final IntObjectMap<Processor<Payload, Payload>> receivers;
@@ -104,14 +110,12 @@ class RSocketRequester implements RSocket {
   private final RequesterLeaseHandler leaseHandler;
   private final ByteBufAllocator allocator;
   private final KeepAliveFramesAcceptor keepAliveFramesAcceptor;
-  private volatile Throwable terminationError;
   private final MonoProcessor<Void> onClose;
   private final Scheduler serialScheduler;
 
   RSocketRequester(
       DuplexConnection connection,
       PayloadDecoder payloadDecoder,
-      Consumer<Throwable> errorConsumer,
       StreamIdSupplier streamIdSupplier,
       int mtu,
       int keepAliveTickPeriod,
@@ -122,7 +126,6 @@ class RSocketRequester implements RSocket {
     this.connection = connection;
     this.allocator = connection.alloc();
     this.payloadDecoder = payloadDecoder;
-    this.errorConsumer = errorConsumer;
     this.streamIdSupplier = streamIdSupplier;
     this.mtu = mtu;
     this.leaseHandler = leaseHandler;
@@ -140,7 +143,7 @@ class RSocketRequester implements RSocket {
         .subscribe(null, this::tryTerminateOnConnectionError, this::tryTerminateOnConnectionClose);
     connection.send(sendProcessor).subscribe(null, this::handleSendProcessorError);
 
-    connection.receive().subscribe(this::handleIncomingFrames, errorConsumer);
+    connection.receive().subscribe(this::handleIncomingFrames, e -> {});
 
     if (keepAliveTickPeriod != 0 && keepAliveHandler != null) {
       KeepAliveSupport keepAliveSupport =
@@ -396,7 +399,6 @@ class RSocketRequester implements RSocket {
                   payload.release();
                   final IllegalArgumentException t =
                       new IllegalArgumentException(INVALID_PAYLOAD_ERROR_MESSAGE);
-                  errorConsumer.accept(t);
                   return Mono.error(t);
                 }
                 return handleChannel(payload, flux);
@@ -446,7 +448,6 @@ class RSocketRequester implements RSocket {
                                 cancel();
                                 final IllegalArgumentException t =
                                     new IllegalArgumentException(INVALID_PAYLOAD_ERROR_MESSAGE);
-                                errorConsumer.accept(t);
                                 // no need to send any errors.
                                 sendProcessor.onNext(CancelFrameCodec.encode(allocator, streamId));
                                 receiver.onError(t);
@@ -609,9 +610,9 @@ class RSocketRequester implements RSocket {
         break;
       default:
         // Ignore unknown frames. Throwing an error will close the socket.
-        errorConsumer.accept(
-            new IllegalStateException(
-                "Client received supported frame on stream 0: " + frame.toString()));
+        if (LOGGER.isInfoEnabled()) {
+          LOGGER.info("Requester received unsupported frame on stream 0: " + frame.toString());
+        }
     }
   }
 
@@ -668,7 +669,7 @@ class RSocketRequester implements RSocket {
         }
       default:
         throw new IllegalStateException(
-            "Client received supported frame on stream " + streamId + ": " + frame.toString());
+            "Requester received unsupported frame on stream " + streamId + ": " + frame.toString());
     }
   }
 
@@ -736,7 +737,9 @@ class RSocketRequester implements RSocket {
                 try {
                   receiver.onError(e);
                 } catch (Throwable t) {
-                  errorConsumer.accept(t);
+                  if (LOGGER.isDebugEnabled()) {
+                    LOGGER.debug("Dropped exception", t);
+                  }
                 }
               });
     }
@@ -748,14 +751,15 @@ class RSocketRequester implements RSocket {
                 try {
                   sender.cancel();
                 } catch (Throwable t) {
-                  errorConsumer.accept(t);
+                  if (LOGGER.isDebugEnabled()) {
+                    LOGGER.debug("Dropped exception", t);
+                  }
                 }
               });
     }
     senders.clear();
     receivers.clear();
     sendProcessor.dispose();
-    errorConsumer.accept(e);
     onClose.onError(e);
   }
 

@@ -41,7 +41,6 @@ public interface ResponderLeaseHandler extends Availability {
     private final String tag;
     private final ByteBufAllocator allocator;
     private final Function<Optional<T>, Flux<Lease>> leaseSender;
-    private final Consumer<Throwable> errorConsumer;
     private final Optional<T> leaseStatsOption;
     private final T leaseStats;
 
@@ -49,12 +48,10 @@ public interface ResponderLeaseHandler extends Availability {
         String tag,
         ByteBufAllocator allocator,
         Function<Optional<T>, Flux<Lease>> leaseSender,
-        Consumer<Throwable> errorConsumer,
         Optional<T> leaseStatsOption) {
       this.tag = tag;
       this.allocator = allocator;
       this.leaseSender = leaseSender;
-      this.errorConsumer = errorConsumer;
       this.leaseStatsOption = leaseStatsOption;
       this.leaseStats = leaseStatsOption.orElse(null);
     }
@@ -86,8 +83,7 @@ public interface ResponderLeaseHandler extends Availability {
               lease -> {
                 currentLease = create(lease);
                 leaseFrameSender.accept(createLeaseFrame(lease));
-              },
-              errorConsumer);
+              });
     }
 
     @Override

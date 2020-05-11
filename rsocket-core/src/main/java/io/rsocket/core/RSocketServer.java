@@ -67,8 +67,6 @@ public final class RSocketServer {
   private int mtu = 0;
   private PayloadDecoder payloadDecoder = PayloadDecoder.DEFAULT;
 
-  private Consumer<Throwable> errorConsumer = ex -> {};
-
   private RSocketServer() {}
 
   /** Static factory method to create an {@code RSocketServer}. */
@@ -248,16 +246,6 @@ public final class RSocketServer {
   }
 
   /**
-   * @deprecated this is deprecated with no replacement and will be removed after {@link
-   *     io.rsocket.RSocketFactory} is removed.
-   */
-  @Deprecated
-  public RSocketServer errorConsumer(Consumer<Throwable> errorConsumer) {
-    this.errorConsumer = errorConsumer;
-    return this;
-  }
-
-  /**
    * Start the server on the given transport.
    *
    * <p>The following transports are available from additional RSocket Java modules:
@@ -395,7 +383,6 @@ public final class RSocketServer {
               new RSocketRequester(
                   wrappedMultiplexer.asServerConnection(),
                   payloadDecoder,
-                  errorConsumer,
                   StreamIdSupplier.serverSupplier(),
                   mtu,
                   setupPayload.keepAliveInterval(),
@@ -422,11 +409,7 @@ public final class RSocketServer {
                     ResponderLeaseHandler responderLeaseHandler =
                         leaseEnabled
                             ? new ResponderLeaseHandler.Impl<>(
-                                SERVER_TAG,
-                                connection.alloc(),
-                                leases.sender(),
-                                errorConsumer,
-                                leases.stats())
+                                SERVER_TAG, connection.alloc(), leases.sender(), leases.stats())
                             : ResponderLeaseHandler.None;
 
                     RSocket rSocketResponder =
@@ -434,7 +417,6 @@ public final class RSocketServer {
                             connection,
                             wrappedRSocketHandler,
                             payloadDecoder,
-                            errorConsumer,
                             responderLeaseHandler,
                             mtu);
                   })
