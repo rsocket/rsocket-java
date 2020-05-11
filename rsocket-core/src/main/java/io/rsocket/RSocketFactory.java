@@ -393,7 +393,12 @@ public final class RSocketFactory {
       return this;
     }
 
-    /** @deprecated this is deprecated with no replacement. */
+    /**
+     * @deprecated this handler is deliberately no-ops and is deprecated with no replacement. In
+     *     order to observe errors, it is recommended to add error handler using {@code doOnError}
+     *     on the specific logical stream. In order to observe connection, or RSocket terminal
+     *     errors, it is recommended to hook on {@link Closeable#onClose()} handler.
+     */
     public ClientRSocketFactory errorConsumer(Consumer<Throwable> errorConsumer) {
       return this;
     }
@@ -496,7 +501,12 @@ public final class RSocketFactory {
       return this;
     }
 
-    /** @deprecated this is deprecated with no replacement. */
+    /**
+     * @deprecated this handler is deliberately no-ops and is deprecated with no replacement. In
+     *     order to observe errors, it is recommended to add error handler using {@code doOnError}
+     *     on the specific logical stream. In order to observe connection, or RSocket terminal
+     *     errors, it is recommended to hook on {@link Closeable#onClose()} handler.
+     */
     public ServerRSocketFactory errorConsumer(Consumer<Throwable> errorConsumer) {
       return this;
     }
