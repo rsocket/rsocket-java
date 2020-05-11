@@ -41,6 +41,8 @@ import org.junit.rules.ExternalResource;
 import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
 import org.reactivestreams.Publisher;
+import reactor.core.Disposable;
+import reactor.core.Disposables;
 import reactor.core.publisher.DirectProcessor;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -50,6 +52,34 @@ import reactor.test.publisher.TestPublisher;
 public class RSocketTest {
 
   @Rule public final SocketRule rule = new SocketRule();
+
+  @Test
+  public void rsocketDisposalShouldEndupWithNoErrorsOnClose() {
+    RSocket requestHandlingRSocket =
+        new RSocket() {
+          final Disposable disposable = Disposables.single();
+
+          @Override
+          public void dispose() {
+            disposable.dispose();
+          }
+
+          @Override
+          public boolean isDisposed() {
+            return disposable.isDisposed();
+          }
+        };
+    rule.setRequestAcceptor(requestHandlingRSocket);
+    rule.crs
+        .onClose()
+        .as(StepVerifier::create)
+        .expectSubscription()
+        .then(rule.crs::dispose)
+        .expectComplete()
+        .verify(Duration.ofMillis(100));
+
+    Assertions.assertThat(requestHandlingRSocket.isDisposed()).isTrue();
+  }
 
   @Test(timeout = 2_000)
   public void testRequestReplyNoError() {
@@ -412,6 +442,9 @@ public class RSocketTest {
           new LocalDuplexConnection("server", allocator, clientProcessor, serverProcessor);
       LocalDuplexConnection clientConnection =
           new LocalDuplexConnection("client", allocator, serverProcessor, clientProcessor);
+
+      clientConnection.onClose().doFinally(__ -> serverConnection.dispose()).subscribe();
+      serverConnection.onClose().doFinally(__ -> clientConnection.dispose()).subscribe();
 
       requestAcceptor =
           null != requestAcceptor

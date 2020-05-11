@@ -75,7 +75,6 @@ class RSocketResponder implements RSocket {
   private final PayloadDecoder payloadDecoder;
   private final ResponderLeaseHandler leaseHandler;
   private final Disposable leaseHandlerDisposable;
-  private final MonoProcessor<Void> onClose;
 
   private volatile Throwable terminationError;
   private static final AtomicReferenceFieldUpdater<RSocketResponder, Throwable> TERMINATION_ERROR =
@@ -110,7 +109,6 @@ class RSocketResponder implements RSocket {
     this.leaseHandler = leaseHandler;
     this.sendingSubscriptions = new SynchronizedIntObjectHashMap<>();
     this.channelProcessors = new SynchronizedIntObjectHashMap<>();
-    this.onClose = MonoProcessor.create();
 
     // DO NOT Change the order here. The Send processor must be subscribed to before receiving
     // connections
@@ -123,7 +121,6 @@ class RSocketResponder implements RSocket {
 
     this.connection
         .onClose()
-        .or(onClose)
         .subscribe(null, this::tryTerminateOnConnectionError, this::tryTerminateOnConnectionClose);
   }
 
@@ -256,12 +253,12 @@ class RSocketResponder implements RSocket {
 
   @Override
   public boolean isDisposed() {
-    return onClose.isDisposed();
+    return connection.isDisposed();
   }
 
   @Override
   public Mono<Void> onClose() {
-    return onClose;
+    return connection.onClose();
   }
 
   private void cleanup(Throwable e) {

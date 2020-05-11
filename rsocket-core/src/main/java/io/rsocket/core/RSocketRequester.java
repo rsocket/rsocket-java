@@ -50,7 +50,6 @@ import io.rsocket.keepalive.KeepAliveHandler;
 import io.rsocket.keepalive.KeepAliveSupport;
 import io.rsocket.lease.RequesterLeaseHandler;
 import java.nio.channels.ClosedChannelException;
-import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.function.Consumer;
@@ -137,10 +136,7 @@ class RSocketRequester implements RSocket {
     // DO NOT Change the order here. The Send processor must be subscribed to before receiving
     this.sendProcessor = new UnboundedProcessor<>();
 
-    connection
-        .onClose()
-        .or(onClose)
-        .subscribe(null, this::tryTerminateOnConnectionError, this::tryTerminateOnConnectionClose);
+    connection.onClose().subscribe(null, this::tryTerminateOnConnectionError, this::tryShutdown);
     connection.send(sendProcessor).subscribe(null, this::handleSendProcessorError);
 
     connection.receive().subscribe(this::handleIncomingFrames, e -> {});
@@ -188,7 +184,7 @@ class RSocketRequester implements RSocket {
 
   @Override
   public void dispose() {
-    tryTerminate(() -> new CancellationException("Disposed"));
+    tryShutdown();
   }
 
   @Override
@@ -708,10 +704,6 @@ class RSocketRequester implements RSocket {
     tryTerminate(() -> e);
   }
 
-  private void tryTerminateOnConnectionClose() {
-    tryTerminate(() -> CLOSED_CHANNEL_EXCEPTION);
-  }
-
   private void tryTerminateOnZeroError(ByteBuf errorFrame) {
     tryTerminate(() -> Exceptions.from(0, errorFrame));
   }
@@ -721,6 +713,14 @@ class RSocketRequester implements RSocket {
       Throwable e = errorSupplier.get();
       if (TERMINATION_ERROR.compareAndSet(this, null, e)) {
         terminate(e);
+      }
+    }
+  }
+
+  private void tryShutdown() {
+    if (terminationError == null) {
+      if (TERMINATION_ERROR.compareAndSet(this, null, CLOSED_CHANNEL_EXCEPTION)) {
+        terminate(CLOSED_CHANNEL_EXCEPTION);
       }
     }
   }
@@ -760,7 +760,11 @@ class RSocketRequester implements RSocket {
     senders.clear();
     receivers.clear();
     sendProcessor.dispose();
-    onClose.onError(e);
+    if (e == CLOSED_CHANNEL_EXCEPTION) {
+      onClose.onComplete();
+    } else {
+      onClose.onError(e);
+    }
   }
 
   private void handleSendProcessorError(Throwable t) {
