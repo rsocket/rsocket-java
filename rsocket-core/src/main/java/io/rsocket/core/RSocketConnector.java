@@ -221,6 +221,7 @@ public class RSocketConnector {
    *
    * @param configurer a configurer to customize interception with.
    * @return the same instance for method chaining
+   * @see io.rsocket.plugins.LimitRateInterceptor
    */
   public RSocketConnector interceptors(Consumer<InterceptorRegistry> configurer) {
     configurer.accept(this.interceptors);
