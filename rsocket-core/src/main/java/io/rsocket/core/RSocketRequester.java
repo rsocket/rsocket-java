@@ -610,8 +610,8 @@ class RSocketRequester implements RSocket {
         break;
       default:
         // Ignore unknown frames. Throwing an error will close the socket.
-        if (LOGGER.isDebugEnabled()) {
-          LOGGER.debug("Requester received unsupported frame on stream 0: " + frame.toString());
+        if (LOGGER.isInfoEnabled()) {
+          LOGGER.info("Requester received unsupported frame on stream 0: " + frame.toString());
         }
     }
   }
