@@ -15,6 +15,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
 
+@Deprecated
 public class RSocketSupplierPool
     implements Supplier<Optional<RSocketSupplier>>, Consumer<RSocketSupplier>, Closeable {
   private static final Logger logger = LoggerFactory.getLogger(RSocketSupplierPool.class);

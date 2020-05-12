@@ -20,6 +20,7 @@ plugins {
 
 dependencies {
     implementation project(':rsocket-core')
+    implementation project(':rsocket-load-balancer')
     implementation project(':rsocket-transport-local')
     implementation project(':rsocket-transport-netty')
     runtimeOnly 'ch.qos.logback:logback-classic'

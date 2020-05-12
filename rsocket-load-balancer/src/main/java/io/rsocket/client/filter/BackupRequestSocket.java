@@ -33,6 +33,7 @@ import org.reactivestreams.Subscription;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+@Deprecated
 public class BackupRequestSocket implements RSocket {
   private final ScheduledExecutorService executor;
   private final RSocket child;

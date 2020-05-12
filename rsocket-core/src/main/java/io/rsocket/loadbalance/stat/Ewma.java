@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2015-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package io.rsocket.stat;
+package io.rsocket.loadbalance.stat;
 
 import io.rsocket.util.Clock;
 import java.util.concurrent.TimeUnit;
@@ -27,7 +27,6 @@ import java.util.concurrent.TimeUnit;
  * <p>e.g. with a half-life of 10 unit, if you insert 100 at t=0 and 200 at t=10 the ewma will be
  * equal to (200 - 100)/2 = 150 (half of the distance between the new and the old value)
  */
-@Deprecated
 public class Ewma {
   private final long tau;
   private volatile long stamp;

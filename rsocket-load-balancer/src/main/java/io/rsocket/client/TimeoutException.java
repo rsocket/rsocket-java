@@ -16,6 +16,7 @@
 
 package io.rsocket.client;
 
+@Deprecated
 public final class TimeoutException extends Exception {
 
   public static final TimeoutException INSTANCE = new TimeoutException();

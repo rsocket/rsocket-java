@@ -16,6 +16,7 @@
 
 package io.rsocket.client;
 
+@Deprecated
 /** An exception that indicates that no RSocket was available. */
 public final class NoAvailableRSocketException extends Exception {
 
