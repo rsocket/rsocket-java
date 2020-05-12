@@ -31,6 +31,7 @@ import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
 
 /** */
+@Deprecated
 public class RSocketSupplier implements Availability, Supplier<Mono<RSocket>>, Closeable {
 
   private static final double EPSILON = 1e-4;

@@ -27,6 +27,7 @@ import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+@Deprecated
 public final class RSockets {
 
   private RSockets() {

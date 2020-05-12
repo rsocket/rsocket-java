@@ -15,6 +15,7 @@
  */
 package io.rsocket.stat;
 
+@Deprecated
 public interface Quantile {
   /** @return the estimation of the current value of the quantile */
   double estimation();

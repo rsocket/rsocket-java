@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2015-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-package io.rsocket.stat;
+package io.rsocket.loadbalance.stat;
 
-import java.util.Random;
+import java.util.SplittableRandom;
 
 /**
  * Reference: Ma, Qiang, S. Muthukrishnan, and Mark Sandler. "Frugal Streaming for Estimating
@@ -25,27 +25,32 @@ import java.util.Random;
  *
  * <p>More info: http://blog.aggregateknowledge.com/2013/09/16/sketch-of-the-day-frugal-streaming/
  */
-@Deprecated
 public class FrugalQuantile implements Quantile {
   private final double increment;
-  private double quantile;
-  private Random rng;
-
   volatile double estimate;
   int step;
   int sign;
+  private double quantile;
+  private SplittableRandom rnd;
 
-  public FrugalQuantile(double quantile, double increment, Random rng) {
+  public FrugalQuantile(double quantile, double increment) {
     this.increment = increment;
     this.quantile = quantile;
     this.estimate = 0.0;
     this.step = 1;
     this.sign = 0;
-    this.rng = rng;
+    this.rnd = new SplittableRandom(System.nanoTime());
   }
 
   public FrugalQuantile(double quantile) {
-    this(quantile, 1.0, new Random());
+    this(quantile, 1.0);
+  }
+
+  public synchronized void reset(double quantile) {
+    this.quantile = quantile;
+    this.estimate = 0.0;
+    this.step = 1;
+    this.sign = 0;
   }
 
   public double estimation() {
@@ -57,48 +62,57 @@ public class FrugalQuantile implements Quantile {
     if (sign == 0) {
       estimate = x;
       sign = 1;
-      return;
+    } else {
+      double v = rnd.nextDouble();
+
+      if (x > estimate && v > (1 - quantile)) {
+        higher(x);
+      } else if (x < estimate && v > quantile) {
+        lower(x);
+      }
+    }
+  }
+
+  private void higher(double x) {
+    step += sign * increment;
+
+    if (step > 0) {
+      estimate += step;
+    } else {
+      estimate += 1;
     }
 
-    if (x > estimate && rng.nextDouble() > (1 - quantile)) {
-      step += sign * increment;
-
-      if (step > 0) {
-        estimate += step;
-      } else {
-        estimate += 1;
-      }
-
-      if (estimate > x) {
-        step += (x - estimate);
-        estimate = x;
-      }
-
-      if (sign < 0) {
-        step = 1;
-      }
-
-      sign = 1;
-    } else if (x < estimate && rng.nextDouble() > quantile) {
-      step -= sign * increment;
-
-      if (step > 0) {
-        estimate -= step;
-      } else {
-        estimate--;
-      }
-
-      if (estimate < x) {
-        step += (estimate - x);
-        estimate = x;
-      }
-
-      if (sign > 0) {
-        step = 1;
-      }
-
-      sign = -1;
+    if (estimate > x) {
+      step += (x - estimate);
+      estimate = x;
     }
+
+    if (sign < 0) {
+      step = 1;
+    }
+
+    sign = 1;
+  }
+
+  private void lower(double x) {
+    step -= sign * increment;
+
+    if (step > 0) {
+      estimate -= step;
+    } else {
+      estimate--;
+    }
+
+    if (estimate < x) {
+      step += (estimate - x);
+      estimate = x;
+    }
+
+    if (sign > 0) {
+      step = 1;
+    }
+
+    sign = -1;
   }
 
   @Override

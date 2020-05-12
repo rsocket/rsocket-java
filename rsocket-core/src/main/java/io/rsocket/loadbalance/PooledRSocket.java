@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2015-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,15 +13,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package io.rsocket.loadbalance;
 
-package io.rsocket.client;
+import io.rsocket.RSocket;
 
-@Deprecated
-public final class TransportException extends Throwable {
+public interface PooledRSocket extends RSocket {
 
-  private static final long serialVersionUID = -3339846338318701123L;
+  Stats stats();
 
-  public TransportException(Throwable t) {
-    super(t);
-  }
+  LoadbalanceTarget supplier();
+
+  boolean markForRemoval();
+
+  boolean markActive();
 }

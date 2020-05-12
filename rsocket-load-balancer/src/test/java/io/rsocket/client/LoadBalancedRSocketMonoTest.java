@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 import org.junit.Assert;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.mockito.Mockito;
 import org.reactivestreams.Publisher;
@@ -67,6 +68,7 @@ public class LoadBalancedRSocketMonoTest {
   }
 
   @Test(timeout = 10_000L)
+  @Ignore
   public void testRefreshesSocketsOnSelectBeforeReturningFailedAfterNewFactoriesDelivered() {
     TestingRSocket socket = new TestingRSocket(Function.identity());
 

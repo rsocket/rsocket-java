@@ -28,7 +28,10 @@ dependencies {
 
     testImplementation project(':rsocket-test')
     testImplementation 'org.junit.jupiter:junit-jupiter-api'
+    testImplementation 'org.junit.jupiter:junit-jupiter-params'
     testImplementation 'org.mockito:mockito-core'
+    testImplementation 'org.assertj:assertj-core'
+    testImplementation 'io.projectreactor:reactor-test'
 
     // TODO: Remove after JUnit5 migration
     testCompileOnly 'junit:junit'
