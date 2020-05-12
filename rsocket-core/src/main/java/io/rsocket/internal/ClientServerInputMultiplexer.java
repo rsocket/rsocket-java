@@ -20,7 +20,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.Closeable;
 import io.rsocket.DuplexConnection;
-import io.rsocket.frame.FrameHeaderFlyweight;
+import io.rsocket.frame.FrameHeaderCodec;
 import io.rsocket.frame.FrameUtil;
 import io.rsocket.plugins.DuplexConnectionInterceptor.Type;
 import io.rsocket.plugins.InitializingInterceptorRegistry;
@@ -79,10 +79,10 @@ public class ClientServerInputMultiplexer implements Closeable {
         .receive()
         .groupBy(
             frame -> {
-              int streamId = FrameHeaderFlyweight.streamId(frame);
+              int streamId = FrameHeaderCodec.streamId(frame);
               final Type type;
               if (streamId == 0) {
-                switch (FrameHeaderFlyweight.frameType(frame)) {
+                switch (FrameHeaderCodec.frameType(frame)) {
                   case SETUP:
                   case RESUME:
                   case RESUME_OK:
@@ -119,10 +119,7 @@ public class ClientServerInputMultiplexer implements Closeable {
                   break;
               }
             },
-            t -> {
-              LOGGER.error("Error receiving frame:", t);
-              dispose();
-            });
+            t -> {});
   }
 
   public DuplexConnection asClientServerConnection() {
@@ -161,6 +158,7 @@ public class ClientServerInputMultiplexer implements Closeable {
     private final MonoProcessor<Flux<ByteBuf>>[] processors;
     private final boolean debugEnabled;
 
+    @SafeVarargs
     public InternalDuplexConnection(
         DuplexConnection source, MonoProcessor<Flux<ByteBuf>>... processors) {
       this.source = source;

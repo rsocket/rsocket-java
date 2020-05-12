@@ -16,8 +16,8 @@
 
 package io.rsocket.exceptions;
 
-import io.rsocket.frame.ErrorFrameFlyweight;
-import javax.annotation.Nullable;
+import io.rsocket.frame.ErrorFrameCodec;
+import reactor.util.annotation.Nullable;
 
 /**
  * The connection is being terminated. Sender or Receiver of this frame MUST wait for outstanding
@@ -46,6 +46,6 @@ public final class ConnectionCloseException extends RSocketException {
    * @param cause the cause of this exception
    */
   public ConnectionCloseException(String message, @Nullable Throwable cause) {
-    super(ErrorFrameFlyweight.CONNECTION_CLOSE, message, cause);
+    super(ErrorFrameCodec.CONNECTION_CLOSE, message, cause);
   }
 }

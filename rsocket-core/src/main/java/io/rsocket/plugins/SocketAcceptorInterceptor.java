@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2019 the original author or authors.
+ * Copyright 2015-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,8 +22,8 @@ import java.util.function.Function;
  * Contract to decorate a {@link SocketAcceptor}, providing access to connection {@code setup}
  * information and the ability to also decorate the sockets for requesting and responding.
  *
- * <p>This can be used as an alternative to individual requester and responder {@link
- * RSocketInterceptor} plugins.
+ * <p>This could be used as an alternative to registering an individual "requester" {@code
+ * RSocketInterceptor} and "responder" {@code RSocketInterceptor}.
  */
 public @FunctionalInterface interface SocketAcceptorInterceptor
     extends Function<SocketAcceptor, SocketAcceptor> {}

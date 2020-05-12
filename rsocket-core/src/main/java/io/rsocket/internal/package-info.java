@@ -18,5 +18,7 @@
  * Internal package and <em>must not</em> be used outside this project. There are no guarantees for
  * API compatibility.
  */
-@javax.annotation.ParametersAreNonnullByDefault
+@NonNullApi
 package io.rsocket.internal;
+
+import reactor.util.annotation.NonNullApi;

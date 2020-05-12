@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2015-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,5 +14,14 @@
  * limitations under the License.
  */
 
-@javax.annotation.ParametersAreNonnullByDefault
+/**
+ * Contains support classes for the Lease feature of the RSocket protocol.
+ *
+ * @see <a
+ *     href="https://github.com/rsocket/rsocket/blob/master/Protocol.md#resuming-operation">Resuming
+ *     Operation</a>
+ */
+@NonNullApi
 package io.rsocket.lease;
+
+import reactor.util.annotation.NonNullApi;

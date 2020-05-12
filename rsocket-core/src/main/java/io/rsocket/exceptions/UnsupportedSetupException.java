@@ -16,8 +16,8 @@
 
 package io.rsocket.exceptions;
 
-import io.rsocket.frame.ErrorFrameFlyweight;
-import javax.annotation.Nullable;
+import io.rsocket.frame.ErrorFrameCodec;
+import reactor.util.annotation.Nullable;
 
 /**
  * Some (or all) of the parameters specified by the client are unsupported by the server.
@@ -45,6 +45,6 @@ public final class UnsupportedSetupException extends SetupException {
    * @param cause the cause of this exception
    */
   public UnsupportedSetupException(String message, @Nullable Throwable cause) {
-    super(ErrorFrameFlyweight.UNSUPPORTED_SETUP, message, cause);
+    super(ErrorFrameCodec.UNSUPPORTED_SETUP, message, cause);
   }
 }

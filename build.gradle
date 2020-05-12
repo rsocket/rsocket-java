@@ -62,7 +62,6 @@ subprojects {
 
         dependencies {
             dependency "ch.qos.logback:logback-classic:${ext['logback.version']}"
-            dependency "com.google.code.findbugs:jsr305:${ext['findbugs.version']}"
             dependency "io.netty:netty-tcnative-boringssl-static:${ext['netty-boringssl.version']}"
             dependency "io.micrometer:micrometer-core:${ext['micrometer.version']}"
             dependency "org.assertj:assertj-core:${ext['assertj.version']}"

@@ -16,16 +16,11 @@
 
 package io.rsocket.core;
 
-import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.is;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.verify;
-
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
-import io.rsocket.AbstractRSocket;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
+import io.rsocket.TestScheduler;
 import io.rsocket.buffer.LeaksTrackingByteBufAllocator;
 import io.rsocket.exceptions.ApplicationErrorException;
 import io.rsocket.exceptions.CustomRSocketException;
@@ -34,24 +29,20 @@ import io.rsocket.internal.subscriber.AssertSubscriber;
 import io.rsocket.lease.RequesterLeaseHandler;
 import io.rsocket.lease.ResponderLeaseHandler;
 import io.rsocket.test.util.LocalDuplexConnection;
-import io.rsocket.test.util.TestSubscriber;
 import io.rsocket.util.DefaultPayload;
 import io.rsocket.util.EmptyPayload;
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import org.assertj.core.api.Assertions;
-import org.hamcrest.MatcherAssert;
-import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExternalResource;
 import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
-import org.mockito.ArgumentCaptor;
 import org.reactivestreams.Publisher;
-import org.reactivestreams.Subscriber;
+import reactor.core.Disposable;
+import reactor.core.Disposables;
 import reactor.core.publisher.DirectProcessor;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -62,14 +53,32 @@ public class RSocketTest {
 
   @Rule public final SocketRule rule = new SocketRule();
 
-  public static void assertError(String s, String mode, ArrayList<Throwable> errors) {
-    for (Throwable t : errors) {
-      if (t.toString().equals(s)) {
-        return;
-      }
-    }
+  @Test
+  public void rsocketDisposalShouldEndupWithNoErrorsOnClose() {
+    RSocket requestHandlingRSocket =
+        new RSocket() {
+          final Disposable disposable = Disposables.single();
 
-    Assert.fail("Expected " + mode + " connection error: " + s + " other errors " + errors.size());
+          @Override
+          public void dispose() {
+            disposable.dispose();
+          }
+
+          @Override
+          public boolean isDisposed() {
+            return disposable.isDisposed();
+          }
+        };
+    rule.setRequestAcceptor(requestHandlingRSocket);
+    rule.crs
+        .onClose()
+        .as(StepVerifier::create)
+        .expectSubscription()
+        .then(rule.crs::dispose)
+        .expectComplete()
+        .verify(Duration.ofMillis(100));
+
+    Assertions.assertThat(requestHandlingRSocket.isDisposed()).isTrue();
   }
 
   @Test(timeout = 2_000)
@@ -83,53 +92,49 @@ public class RSocketTest {
   @Test(timeout = 2000)
   public void testHandlerEmitsError() {
     rule.setRequestAcceptor(
-        new AbstractRSocket() {
+        new RSocket() {
           @Override
           public Mono<Payload> requestResponse(Payload payload) {
             return Mono.error(new NullPointerException("Deliberate exception."));
           }
         });
-    Subscriber<Payload> subscriber = TestSubscriber.create();
-    rule.crs.requestResponse(EmptyPayload.INSTANCE).subscribe(subscriber);
-    verify(subscriber).onError(any(ApplicationErrorException.class));
-
-    // Client sees error through normal API
-    rule.assertNoClientErrors();
-
-    rule.assertServerError("java.lang.NullPointerException: Deliberate exception.");
+    rule.crs
+        .requestResponse(EmptyPayload.INSTANCE)
+        .as(StepVerifier::create)
+        .expectErrorSatisfies(
+            t ->
+                Assertions.assertThat(t)
+                    .isInstanceOf(ApplicationErrorException.class)
+                    .hasMessage("Deliberate exception."))
+        .verify(Duration.ofMillis(100));
   }
 
   @Test(timeout = 2000)
   public void testHandlerEmitsCustomError() {
     rule.setRequestAcceptor(
-        new AbstractRSocket() {
+        new RSocket() {
           @Override
           public Mono<Payload> requestResponse(Payload payload) {
             return Mono.error(
                 new CustomRSocketException(0x00000501, "Deliberate Custom exception."));
           }
         });
-    Subscriber<Payload> subscriber = TestSubscriber.create();
-    rule.crs.requestResponse(EmptyPayload.INSTANCE).subscribe(subscriber);
-    ArgumentCaptor<CustomRSocketException> customRSocketExceptionArgumentCaptor =
-        ArgumentCaptor.forClass(CustomRSocketException.class);
-    verify(subscriber).onError(customRSocketExceptionArgumentCaptor.capture());
-
-    Assert.assertEquals(
-        "Deliberate Custom exception.",
-        customRSocketExceptionArgumentCaptor.getValue().getMessage());
-    Assert.assertEquals(0x00000501, customRSocketExceptionArgumentCaptor.getValue().errorCode());
-
-    // Client sees error through normal API
-    rule.assertNoClientErrors();
-
-    rule.assertServerError("CustomRSocketException (0x501): Deliberate Custom exception.");
+    rule.crs
+        .requestResponse(EmptyPayload.INSTANCE)
+        .as(StepVerifier::create)
+        .expectErrorSatisfies(
+            t ->
+                Assertions.assertThat(t)
+                    .isInstanceOf(CustomRSocketException.class)
+                    .hasMessage("Deliberate Custom exception.")
+                    .hasFieldOrPropertyWithValue("errorCode", 0x00000501))
+        .verify();
   }
 
   @Test(timeout = 2000)
   public void testRequestPropagatesCorrectlyForRequestChannel() {
     rule.setRequestAcceptor(
-        new AbstractRSocket() {
+        new RSocket() {
           @Override
           public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
             return Flux.from(payloads)
@@ -147,9 +152,6 @@ public class RSocketTest {
         .expectNextCount(3)
         .expectComplete()
         .verify(Duration.ofMillis(5000));
-
-    rule.assertNoClientErrors();
-    rule.assertNoServerErrors();
   }
 
   @Test(timeout = 2000)
@@ -170,7 +172,7 @@ public class RSocketTest {
   public void testErrorPropagatesCorrectly() {
     AtomicReference<Throwable> error = new AtomicReference<>();
     rule.setRequestAcceptor(
-        new AbstractRSocket() {
+        new RSocket() {
           @Override
           public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
             return Flux.from(payloads).doOnError(error::set);
@@ -291,7 +293,7 @@ public class RSocketTest {
       TestPublisher<Payload> responderPublisher,
       AssertSubscriber<Payload> responderSubscriber) {
     rule.setRequestAcceptor(
-        new AbstractRSocket() {
+        new RSocket() {
           @Override
           public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
             payloads.subscribe(responderSubscriber);
@@ -413,8 +415,6 @@ public class RSocketTest {
     private RSocketResponder srs;
 
     private RSocket requestAcceptor;
-    private ArrayList<Throwable> clientErrors = new ArrayList<>();
-    private ArrayList<Throwable> serverErrors = new ArrayList<>();
 
     private LeaksTrackingByteBufAllocator allocator;
 
@@ -443,10 +443,13 @@ public class RSocketTest {
       LocalDuplexConnection clientConnection =
           new LocalDuplexConnection("client", allocator, serverProcessor, clientProcessor);
 
+      clientConnection.onClose().doFinally(__ -> serverConnection.dispose()).subscribe();
+      serverConnection.onClose().doFinally(__ -> clientConnection.dispose()).subscribe();
+
       requestAcceptor =
           null != requestAcceptor
               ? requestAcceptor
-              : new AbstractRSocket() {
+              : new RSocket() {
                 @Override
                 public Mono<Payload> requestResponse(Payload payload) {
                   return Mono.just(payload);
@@ -479,7 +482,6 @@ public class RSocketTest {
               serverConnection,
               requestAcceptor,
               PayloadDecoder.DEFAULT,
-              throwable -> serverErrors.add(throwable),
               ResponderLeaseHandler.None,
               0);
 
@@ -487,41 +489,18 @@ public class RSocketTest {
           new RSocketRequester(
               clientConnection,
               PayloadDecoder.DEFAULT,
-              throwable -> clientErrors.add(throwable),
               StreamIdSupplier.clientSupplier(),
               0,
               0,
               0,
               null,
-              RequesterLeaseHandler.None);
+              RequesterLeaseHandler.None,
+              TestScheduler.INSTANCE);
     }
 
     public void setRequestAcceptor(RSocket requestAcceptor) {
       this.requestAcceptor = requestAcceptor;
       init();
-    }
-
-    public void assertNoErrors() {
-      assertNoClientErrors();
-      assertNoServerErrors();
-    }
-
-    public void assertNoClientErrors() {
-      MatcherAssert.assertThat(
-          "Unexpected error on the client connection.", clientErrors, is(empty()));
-    }
-
-    public void assertNoServerErrors() {
-      MatcherAssert.assertThat(
-          "Unexpected error on the server connection.", serverErrors, is(empty()));
-    }
-
-    public void assertClientError(String s) {
-      assertError(s, "client", this.clientErrors);
-    }
-
-    public void assertServerError(String s) {
-      assertError(s, "server", this.serverErrors);
     }
   }
 }

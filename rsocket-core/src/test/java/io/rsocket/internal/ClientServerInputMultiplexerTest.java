@@ -193,11 +193,11 @@ public class ClientServerInputMultiplexerTest {
   }
 
   private ByteBuf resumeFrame() {
-    return ResumeFrameFlyweight.encode(allocator, Unpooled.EMPTY_BUFFER, 0, 0);
+    return ResumeFrameCodec.encode(allocator, Unpooled.EMPTY_BUFFER, 0, 0);
   }
 
   private ByteBuf setupFrame() {
-    return SetupFrameFlyweight.encode(
+    return SetupFrameCodec.encode(
         ByteBufAllocator.DEFAULT,
         false,
         0,
@@ -208,22 +208,22 @@ public class ClientServerInputMultiplexerTest {
   }
 
   private ByteBuf leaseFrame() {
-    return LeaseFrameFlyweight.encode(allocator, 1_000, 1, Unpooled.EMPTY_BUFFER);
+    return LeaseFrameCodec.encode(allocator, 1_000, 1, Unpooled.EMPTY_BUFFER);
   }
 
   private ByteBuf errorFrame(int i) {
-    return ErrorFrameFlyweight.encode(allocator, i, new Exception());
+    return ErrorFrameCodec.encode(allocator, i, new Exception());
   }
 
   private ByteBuf resumeOkFrame() {
-    return ResumeOkFrameFlyweight.encode(allocator, 0);
+    return ResumeOkFrameCodec.encode(allocator, 0);
   }
 
   private ByteBuf keepAliveFrame() {
-    return KeepAliveFrameFlyweight.encode(allocator, false, 0, Unpooled.EMPTY_BUFFER);
+    return KeepAliveFrameCodec.encode(allocator, false, 0, Unpooled.EMPTY_BUFFER);
   }
 
   private ByteBuf metadataPushFrame() {
-    return MetadataPushFrameFlyweight.encode(allocator, Unpooled.EMPTY_BUFFER);
+    return MetadataPushFrameCodec.encode(allocator, Unpooled.EMPTY_BUFFER);
   }
 }

@@ -22,7 +22,7 @@ import io.micrometer.core.instrument.*;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.DuplexConnection;
-import io.rsocket.frame.FrameHeaderFlyweight;
+import io.rsocket.frame.FrameHeaderCodec;
 import io.rsocket.frame.FrameType;
 import io.rsocket.plugins.DuplexConnectionInterceptor.Type;
 import java.util.Objects;
@@ -191,7 +191,7 @@ final class MicrometerDuplexConnection implements DuplexConnection {
 
     @Override
     public void accept(ByteBuf frame) {
-      FrameType frameType = FrameHeaderFlyweight.frameType(frame);
+      FrameType frameType = FrameHeaderCodec.frameType(frame);
 
       switch (frameType) {
         case SETUP:

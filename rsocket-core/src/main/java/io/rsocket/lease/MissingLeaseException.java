@@ -17,17 +17,16 @@ package io.rsocket.lease;
 
 import io.rsocket.exceptions.RejectedException;
 import java.util.Objects;
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
+import reactor.util.annotation.Nullable;
 
 public class MissingLeaseException extends RejectedException {
   private static final long serialVersionUID = -6169748673403858959L;
 
-  public MissingLeaseException(@Nonnull Lease lease, @Nonnull String tag) {
+  public MissingLeaseException(Lease lease, String tag) {
     super(leaseMessage(Objects.requireNonNull(lease), Objects.requireNonNull(tag)));
   }
 
-  public MissingLeaseException(@Nonnull String tag) {
+  public MissingLeaseException(String tag) {
     super(leaseMessage(null, Objects.requireNonNull(tag)));
   }
 

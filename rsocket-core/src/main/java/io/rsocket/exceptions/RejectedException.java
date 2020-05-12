@@ -16,8 +16,8 @@
 
 package io.rsocket.exceptions;
 
-import io.rsocket.frame.ErrorFrameFlyweight;
-import javax.annotation.Nullable;
+import io.rsocket.frame.ErrorFrameCodec;
+import reactor.util.annotation.Nullable;
 
 /**
  * Despite being a valid request, the Responder decided to reject it. The Responder guarantees that
@@ -47,6 +47,6 @@ public class RejectedException extends RSocketException implements Retryable {
    * @param cause the cause of this exception
    */
   public RejectedException(String message, @Nullable Throwable cause) {
-    super(ErrorFrameFlyweight.REJECTED, message, cause);
+    super(ErrorFrameCodec.REJECTED, message, cause);
   }
 }

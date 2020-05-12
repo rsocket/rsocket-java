@@ -26,11 +26,11 @@ import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.Unpooled;
 import io.rsocket.DuplexConnection;
 import io.rsocket.buffer.LeaksTrackingByteBufAllocator;
-import io.rsocket.frame.CancelFrameFlyweight;
-import io.rsocket.frame.FrameHeaderFlyweight;
+import io.rsocket.frame.CancelFrameCodec;
+import io.rsocket.frame.FrameHeaderCodec;
 import io.rsocket.frame.FrameType;
-import io.rsocket.frame.PayloadFrameFlyweight;
-import io.rsocket.frame.RequestResponseFrameFlyweight;
+import io.rsocket.frame.PayloadFrameCodec;
+import io.rsocket.frame.RequestResponseFrameCodec;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
@@ -60,15 +60,15 @@ final class ReassembleDuplexConnectionTest {
   void reassembleData() {
     List<ByteBuf> byteBufs =
         Arrays.asList(
-            RequestResponseFrameFlyweight.encode(
+            RequestResponseFrameCodec.encode(
                 allocator, 1, true, null, Unpooled.wrappedBuffer(data)),
-            PayloadFrameFlyweight.encode(
+            PayloadFrameCodec.encode(
                 allocator, 1, true, false, true, null, Unpooled.wrappedBuffer(data)),
-            PayloadFrameFlyweight.encode(
+            PayloadFrameCodec.encode(
                 allocator, 1, true, false, true, null, Unpooled.wrappedBuffer(data)),
-            PayloadFrameFlyweight.encode(
+            PayloadFrameCodec.encode(
                 allocator, 1, true, false, true, null, Unpooled.wrappedBuffer(data)),
-            PayloadFrameFlyweight.encode(
+            PayloadFrameCodec.encode(
                 allocator, 1, false, false, true, null, Unpooled.wrappedBuffer(data)));
 
     CompositeByteBuf data =
@@ -91,7 +91,7 @@ final class ReassembleDuplexConnectionTest {
         .as(StepVerifier::create)
         .assertNext(
             byteBuf -> {
-              Assert.assertEquals(data, RequestResponseFrameFlyweight.data(byteBuf));
+              Assert.assertEquals(data, RequestResponseFrameCodec.data(byteBuf));
             })
         .verifyComplete();
   }
@@ -101,9 +101,9 @@ final class ReassembleDuplexConnectionTest {
   void reassembleMetadata() {
     List<ByteBuf> byteBufs =
         Arrays.asList(
-            RequestResponseFrameFlyweight.encode(
+            RequestResponseFrameCodec.encode(
                 allocator, 1, true, Unpooled.wrappedBuffer(metadata), Unpooled.EMPTY_BUFFER),
-            PayloadFrameFlyweight.encode(
+            PayloadFrameCodec.encode(
                 allocator,
                 1,
                 true,
@@ -111,7 +111,7 @@ final class ReassembleDuplexConnectionTest {
                 true,
                 Unpooled.wrappedBuffer(metadata),
                 Unpooled.EMPTY_BUFFER),
-            PayloadFrameFlyweight.encode(
+            PayloadFrameCodec.encode(
                 allocator,
                 1,
                 true,
@@ -119,7 +119,7 @@ final class ReassembleDuplexConnectionTest {
                 true,
                 Unpooled.wrappedBuffer(metadata),
                 Unpooled.EMPTY_BUFFER),
-            PayloadFrameFlyweight.encode(
+            PayloadFrameCodec.encode(
                 allocator,
                 1,
                 true,
@@ -127,7 +127,7 @@ final class ReassembleDuplexConnectionTest {
                 true,
                 Unpooled.wrappedBuffer(metadata),
                 Unpooled.EMPTY_BUFFER),
-            PayloadFrameFlyweight.encode(
+            PayloadFrameCodec.encode(
                 allocator,
                 1,
                 false,
@@ -157,7 +157,7 @@ final class ReassembleDuplexConnectionTest {
         .assertNext(
             byteBuf -> {
               System.out.println(byteBuf.readableBytes());
-              ByteBuf m = RequestResponseFrameFlyweight.metadata(byteBuf);
+              ByteBuf m = RequestResponseFrameCodec.metadata(byteBuf);
               Assert.assertEquals(metadata, m);
             })
         .verifyComplete();
@@ -168,9 +168,9 @@ final class ReassembleDuplexConnectionTest {
   void reassembleMetadataAndData() {
     List<ByteBuf> byteBufs =
         Arrays.asList(
-            RequestResponseFrameFlyweight.encode(
+            RequestResponseFrameCodec.encode(
                 allocator, 1, true, Unpooled.wrappedBuffer(metadata), Unpooled.EMPTY_BUFFER),
-            PayloadFrameFlyweight.encode(
+            PayloadFrameCodec.encode(
                 allocator,
                 1,
                 true,
@@ -178,7 +178,7 @@ final class ReassembleDuplexConnectionTest {
                 true,
                 Unpooled.wrappedBuffer(metadata),
                 Unpooled.EMPTY_BUFFER),
-            PayloadFrameFlyweight.encode(
+            PayloadFrameCodec.encode(
                 allocator,
                 1,
                 true,
@@ -186,7 +186,7 @@ final class ReassembleDuplexConnectionTest {
                 true,
                 Unpooled.wrappedBuffer(metadata),
                 Unpooled.EMPTY_BUFFER),
-            PayloadFrameFlyweight.encode(
+            PayloadFrameCodec.encode(
                 allocator,
                 1,
                 true,
@@ -194,7 +194,7 @@ final class ReassembleDuplexConnectionTest {
                 true,
                 Unpooled.wrappedBuffer(metadata),
                 Unpooled.wrappedBuffer(data)),
-            PayloadFrameFlyweight.encode(
+            PayloadFrameCodec.encode(
                 allocator, 1, false, false, true, null, Unpooled.wrappedBuffer(data)));
 
     CompositeByteBuf data =
@@ -224,8 +224,8 @@ final class ReassembleDuplexConnectionTest {
         .as(StepVerifier::create)
         .assertNext(
             byteBuf -> {
-              Assert.assertEquals(data, RequestResponseFrameFlyweight.data(byteBuf));
-              Assert.assertEquals(metadata, RequestResponseFrameFlyweight.metadata(byteBuf));
+              Assert.assertEquals(data, RequestResponseFrameCodec.data(byteBuf));
+              Assert.assertEquals(metadata, RequestResponseFrameCodec.metadata(byteBuf));
             })
         .verifyComplete();
   }
@@ -234,8 +234,7 @@ final class ReassembleDuplexConnectionTest {
   @Test
   void reassembleNonFragment() {
     ByteBuf encode =
-        RequestResponseFrameFlyweight.encode(
-            allocator, 1, false, null, Unpooled.wrappedBuffer(data));
+        RequestResponseFrameCodec.encode(allocator, 1, false, null, Unpooled.wrappedBuffer(data));
 
     when(delegate.receive()).thenReturn(Flux.just(encode));
     when(delegate.onClose()).thenReturn(Mono.never());
@@ -247,7 +246,7 @@ final class ReassembleDuplexConnectionTest {
         .assertNext(
             byteBuf -> {
               Assert.assertEquals(
-                  Unpooled.wrappedBuffer(data), RequestResponseFrameFlyweight.data(byteBuf));
+                  Unpooled.wrappedBuffer(data), RequestResponseFrameCodec.data(byteBuf));
             })
         .verifyComplete();
   }
@@ -255,7 +254,7 @@ final class ReassembleDuplexConnectionTest {
   @DisplayName("does not reassemble non fragmentable frame")
   @Test
   void reassembleNonFragmentableFrame() {
-    ByteBuf encode = CancelFrameFlyweight.encode(allocator, 2);
+    ByteBuf encode = CancelFrameCodec.encode(allocator, 2);
 
     when(delegate.receive()).thenReturn(Flux.just(encode));
     when(delegate.onClose()).thenReturn(Mono.never());
@@ -266,7 +265,7 @@ final class ReassembleDuplexConnectionTest {
         .as(StepVerifier::create)
         .assertNext(
             byteBuf -> {
-              Assert.assertEquals(FrameType.CANCEL, FrameHeaderFlyweight.frameType(byteBuf));
+              Assert.assertEquals(FrameType.CANCEL, FrameHeaderCodec.frameType(byteBuf));
             })
         .verifyComplete();
   }

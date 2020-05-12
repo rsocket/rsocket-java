@@ -16,8 +16,8 @@
 
 package io.rsocket.exceptions;
 
-import io.rsocket.frame.ErrorFrameFlyweight;
-import javax.annotation.Nullable;
+import io.rsocket.frame.ErrorFrameCodec;
+import reactor.util.annotation.Nullable;
 
 /**
  * The server rejected the setup, it can specify the reason in the payload.
@@ -45,6 +45,6 @@ public final class RejectedSetupException extends SetupException implements Retr
    * @param cause the cause of this exception
    */
   public RejectedSetupException(String message, @Nullable Throwable cause) {
-    super(ErrorFrameFlyweight.REJECTED_SETUP, message, cause);
+    super(ErrorFrameCodec.REJECTED_SETUP, message, cause);
   }
 }

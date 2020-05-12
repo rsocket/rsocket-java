@@ -26,8 +26,6 @@ dependencies {
     api 'org.hdrhistogram:HdrHistogram'
     api 'org.junit.jupiter:junit-jupiter-api'
 
-    compileOnly  'com.google.code.findbugs:jsr305'
-
     implementation 'io.projectreactor:reactor-test'
     implementation 'org.assertj:assertj-core'
     implementation 'org.mockito:mockito-core'

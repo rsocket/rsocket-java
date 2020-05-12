@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2015-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,5 +14,8 @@
  * limitations under the License.
  */
 
-@javax.annotation.ParametersAreNonnullByDefault
+/** Client and server transport contracts for pluggable transports. */
+@NonNullApi
 package io.rsocket.transport;
+
+import reactor.util.annotation.NonNullApi;

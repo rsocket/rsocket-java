@@ -16,8 +16,8 @@
 
 package io.rsocket.exceptions;
 
-import io.rsocket.frame.ErrorFrameFlyweight;
-import javax.annotation.Nullable;
+import io.rsocket.frame.ErrorFrameCodec;
+import reactor.util.annotation.Nullable;
 
 public class CustomRSocketException extends RSocketException {
   private static final long serialVersionUID = 7873267740343446585L;
@@ -43,8 +43,8 @@ public class CustomRSocketException extends RSocketException {
    */
   public CustomRSocketException(int errorCode, String message, @Nullable Throwable cause) {
     super(errorCode, message, cause);
-    if (errorCode > ErrorFrameFlyweight.MAX_USER_ALLOWED_ERROR_CODE
-        && errorCode < ErrorFrameFlyweight.MIN_USER_ALLOWED_ERROR_CODE) {
+    if (errorCode > ErrorFrameCodec.MAX_USER_ALLOWED_ERROR_CODE
+        && errorCode < ErrorFrameCodec.MIN_USER_ALLOWED_ERROR_CODE) {
       throw new IllegalArgumentException(
           "Allowed errorCode value should be in range [0x00000301-0xFFFFFFFE]", this);
     }

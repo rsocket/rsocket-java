@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2015-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,5 +19,10 @@ package io.rsocket.plugins;
 import io.rsocket.RSocket;
 import java.util.function.Function;
 
-/** */
+/**
+ * Contract to decorate an {@link RSocket}, providing a way to intercept interactions. This can be
+ * applied to a {@link InterceptorRegistry#forRequester(RSocketInterceptor) requester} or {@link
+ * InterceptorRegistry#forResponder(RSocketInterceptor) responder} {@code RSocket} of a client or
+ * server.
+ */
 public @FunctionalInterface interface RSocketInterceptor extends Function<RSocket, RSocket> {}

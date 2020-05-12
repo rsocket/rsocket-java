@@ -24,8 +24,6 @@ plugins {
 dependencies {
     api project(':rsocket-core')
 
-    compileOnly 'com.google.code.findbugs:jsr305'
-
     testImplementation project(':rsocket-test')
     testImplementation 'io.projectreactor:reactor-test'
     testImplementation 'org.assertj:assertj-core'

@@ -33,71 +33,69 @@ public final class TestFrames {
 
   /** @return {@link ByteBuf} representing test instance of Cancel frame */
   public static ByteBuf createTestCancelFrame() {
-    return CancelFrameFlyweight.encode(allocator, 1);
+    return CancelFrameCodec.encode(allocator, 1);
   }
 
   /** @return {@link ByteBuf} representing test instance of Error frame */
   public static ByteBuf createTestErrorFrame() {
-    return ErrorFrameFlyweight.encode(allocator, 1, new RuntimeException());
+    return ErrorFrameCodec.encode(allocator, 1, new RuntimeException());
   }
 
   /** @return {@link ByteBuf} representing test instance of Extension frame */
   public static ByteBuf createTestExtensionFrame() {
-    return ExtensionFrameFlyweight.encode(
+    return ExtensionFrameCodec.encode(
         allocator, 1, 1, Unpooled.EMPTY_BUFFER, Unpooled.EMPTY_BUFFER);
   }
 
   /** @return {@link ByteBuf} representing test instance of Keep-Alive frame */
   public static ByteBuf createTestKeepaliveFrame() {
-    return KeepAliveFrameFlyweight.encode(allocator, false, 1, Unpooled.EMPTY_BUFFER);
+    return KeepAliveFrameCodec.encode(allocator, false, 1, Unpooled.EMPTY_BUFFER);
   }
 
   /** @return {@link ByteBuf} representing test instance of Lease frame */
   public static ByteBuf createTestLeaseFrame() {
-    return LeaseFrameFlyweight.encode(allocator, 1, 1, null);
+    return LeaseFrameCodec.encode(allocator, 1, 1, null);
   }
 
   /** @return {@link ByteBuf} representing test instance of Metadata-Push frame */
   public static ByteBuf createTestMetadataPushFrame() {
-    return MetadataPushFrameFlyweight.encode(allocator, Unpooled.EMPTY_BUFFER);
+    return MetadataPushFrameCodec.encode(allocator, Unpooled.EMPTY_BUFFER);
   }
 
   /** @return {@link ByteBuf} representing test instance of Payload frame */
   public static ByteBuf createTestPayloadFrame() {
-    return PayloadFrameFlyweight.encode(
-        allocator, 1, false, true, false, null, Unpooled.EMPTY_BUFFER);
+    return PayloadFrameCodec.encode(allocator, 1, false, true, false, null, Unpooled.EMPTY_BUFFER);
   }
 
   /** @return {@link ByteBuf} representing test instance of Request-Channel frame */
   public static ByteBuf createTestRequestChannelFrame() {
-    return RequestChannelFrameFlyweight.encode(
+    return RequestChannelFrameCodec.encode(
         allocator, 1, false, false, 1, null, Unpooled.EMPTY_BUFFER);
   }
 
   /** @return {@link ByteBuf} representing test instance of Fire-and-Forget frame */
   public static ByteBuf createTestRequestFireAndForgetFrame() {
-    return RequestFireAndForgetFrameFlyweight.encode(
-        allocator, 1, false, null, Unpooled.EMPTY_BUFFER);
+    return RequestFireAndForgetFrameCodec.encode(allocator, 1, false, null, Unpooled.EMPTY_BUFFER);
   }
 
   /** @return {@link ByteBuf} representing test instance of Request-N frame */
   public static ByteBuf createTestRequestNFrame() {
-    return RequestNFrameFlyweight.encode(allocator, 1, 1);
+    return RequestNFrameCodec.encode(allocator, 1, 1);
   }
 
   /** @return {@link ByteBuf} representing test instance of Request-Response frame */
   public static ByteBuf createTestRequestResponseFrame() {
-    return RequestResponseFrameFlyweight.encodeReleasingPayload(allocator, 1, emptyPayload);
+    return RequestResponseFrameCodec.encodeReleasingPayload(allocator, 1, emptyPayload);
   }
 
   /** @return {@link ByteBuf} representing test instance of Request-Stream frame */
   public static ByteBuf createTestRequestStreamFrame() {
-    return RequestStreamFrameFlyweight.encodeReleasingPayload(allocator, 1, 1L, emptyPayload);
+    return RequestStreamFrameCodec.encodeReleasingPayload(allocator, 1, 1L, emptyPayload);
   }
 
   /** @return {@link ByteBuf} representing test instance of Setup frame */
   public static ByteBuf createTestSetupFrame() {
-    return SetupFrameFlyweight.encode(
+    return SetupFrameCodec.encode(
         allocator,
         false,
         1,

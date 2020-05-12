@@ -18,7 +18,6 @@ package io.rsocket.integration;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import io.rsocket.AbstractRSocket;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.core.RSocketConnector;
@@ -38,7 +37,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 public class FragmentTest {
-  private AbstractRSocket handler;
+  private RSocket handler;
   private CloseableChannel server;
   private String message = null;
   private String metaData = null;
@@ -89,7 +88,7 @@ public class FragmentTest {
     System.out.println(
         "-------------------------------------------------testFragmentNoMetaData-------------------------------------------------");
     handler =
-        new AbstractRSocket() {
+        new RSocket() {
           @Override
           public Flux<Payload> requestStream(Payload payload) {
             String request = payload.getDataUtf8();
@@ -119,7 +118,7 @@ public class FragmentTest {
     System.out.println(
         "-------------------------------------------------testFragmentRequestMetaDataOnly-------------------------------------------------");
     handler =
-        new AbstractRSocket() {
+        new RSocket() {
           @Override
           public Flux<Payload> requestStream(Payload payload) {
             String request = payload.getDataUtf8();
@@ -150,7 +149,7 @@ public class FragmentTest {
     System.out.println(
         "-------------------------------------------------testFragmentBothMetaData-------------------------------------------------");
     handler =
-        new AbstractRSocket() {
+        new RSocket() {
           @Override
           public Flux<Payload> requestStream(Payload payload) {
             String request = payload.getDataUtf8();

@@ -1,12 +1,17 @@
 package io.rsocket;
 
+import java.util.function.BiFunction;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 
 /**
  * Extends the {@link RSocket} that allows an implementer to peek at the first request payload of a
  * channel.
+ *
+ * @deprecated as of 1.0 RC7 in favor of using {@link RSocket#requestChannel(Publisher)} with {@link
+ *     Flux#switchOnFirst(BiFunction)}
  */
+@Deprecated
 public interface ResponderRSocket extends RSocket {
   /**
    * Implement this method to peak at the first payload of the incoming request stream without

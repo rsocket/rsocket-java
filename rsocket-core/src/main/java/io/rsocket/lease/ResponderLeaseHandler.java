@@ -19,14 +19,14 @@ package io.rsocket.lease;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.Availability;
-import io.rsocket.frame.LeaseFrameFlyweight;
+import io.rsocket.frame.LeaseFrameCodec;
 import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import javax.annotation.Nullable;
 import reactor.core.Disposable;
 import reactor.core.Disposables;
 import reactor.core.publisher.Flux;
+import reactor.util.annotation.Nullable;
 
 public interface ResponderLeaseHandler extends Availability {
 
@@ -41,7 +41,6 @@ public interface ResponderLeaseHandler extends Availability {
     private final String tag;
     private final ByteBufAllocator allocator;
     private final Function<Optional<T>, Flux<Lease>> leaseSender;
-    private final Consumer<Throwable> errorConsumer;
     private final Optional<T> leaseStatsOption;
     private final T leaseStats;
 
@@ -49,12 +48,10 @@ public interface ResponderLeaseHandler extends Availability {
         String tag,
         ByteBufAllocator allocator,
         Function<Optional<T>, Flux<Lease>> leaseSender,
-        Consumer<Throwable> errorConsumer,
         Optional<T> leaseStatsOption) {
       this.tag = tag;
       this.allocator = allocator;
       this.leaseSender = leaseSender;
-      this.errorConsumer = errorConsumer;
       this.leaseStatsOption = leaseStatsOption;
       this.leaseStats = leaseStatsOption.orElse(null);
     }
@@ -86,8 +83,7 @@ public interface ResponderLeaseHandler extends Availability {
               lease -> {
                 currentLease = create(lease);
                 leaseFrameSender.accept(createLeaseFrame(lease));
-              },
-              errorConsumer);
+              });
     }
 
     @Override
@@ -96,7 +92,7 @@ public interface ResponderLeaseHandler extends Availability {
     }
 
     private ByteBuf createLeaseFrame(Lease lease) {
-      return LeaseFrameFlyweight.encode(
+      return LeaseFrameCodec.encode(
           allocator, lease.getTimeToLiveMillis(), lease.getAllowedRequests(), lease.getMetadata());
     }
 

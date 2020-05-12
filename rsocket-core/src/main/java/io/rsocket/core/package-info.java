@@ -15,8 +15,12 @@
  */
 
 /**
- * Contains core RSocket protocol, client and server implementation classes, including factories to
- * create and configure them.
+ * Contains {@link io.rsocket.core.RSocketConnector RSocketConnector} and {@link
+ * io.rsocket.core.RSocketServer RSocketServer}, the main classes for connecting to or starting an
+ * RSocket server.
+ *
+ * <p>This package also contains a package private classes that implement support for the main
+ * RSocket interactions.
  */
 @NonNullApi
 package io.rsocket.core;

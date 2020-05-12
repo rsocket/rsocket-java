@@ -16,8 +16,8 @@
 
 package io.rsocket.transport.netty;
 
-import static io.rsocket.frame.FrameLengthFlyweight.FRAME_LENGTH_MASK;
-import static io.rsocket.frame.FrameLengthFlyweight.FRAME_LENGTH_SIZE;
+import static io.rsocket.frame.FrameLengthCodec.FRAME_LENGTH_MASK;
+import static io.rsocket.frame.FrameLengthCodec.FRAME_LENGTH_SIZE;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;

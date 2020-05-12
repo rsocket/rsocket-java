@@ -20,7 +20,7 @@ public class TcpSecureTransportTest implements TransportTest {
           (address, server) ->
               TcpClientTransport.create(
                   TcpClient.create()
-                      .addressSupplier(server::address)
+                      .remoteAddress(server::address)
                       .secure(
                           ssl ->
                               ssl.sslContext(
@@ -31,7 +31,7 @@ public class TcpSecureTransportTest implements TransportTest {
               SelfSignedCertificate ssc = new SelfSignedCertificate();
               TcpServer server =
                   TcpServer.create()
-                      .addressSupplier(() -> address)
+                      .bindAddress(() -> address)
                       .secure(
                           ssl ->
                               ssl.sslContext(

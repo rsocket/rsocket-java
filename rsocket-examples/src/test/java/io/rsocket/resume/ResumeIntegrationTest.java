@@ -16,9 +16,9 @@
 
 package io.rsocket.resume;
 
-import io.rsocket.AbstractRSocket;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
+import io.rsocket.SocketAcceptor;
 import io.rsocket.core.RSocketConnector;
 import io.rsocket.core.RSocketServer;
 import io.rsocket.core.Resume;
@@ -127,7 +127,7 @@ public class ResumeIntegrationTest {
   @Test
   void serverMissingResume() {
     CloseableChannel closeableChannel =
-        RSocketServer.create((setupPayload, rSocket) -> Mono.just(new TestResponderRSocket()))
+        RSocketServer.create(SocketAcceptor.with(new TestResponderRSocket()))
             .bind(serverTransport(SERVER_HOST, SERVER_PORT))
             .block();
 
@@ -194,7 +194,7 @@ public class ResumeIntegrationTest {
   }
 
   private static Mono<CloseableChannel> newServerRSocket(int sessionDurationSeconds) {
-    return RSocketServer.create((setup, rsocket) -> Mono.just(new TestResponderRSocket()))
+    return RSocketServer.create(SocketAcceptor.with(new TestResponderRSocket()))
         .resume(
             new Resume()
                 .sessionDuration(Duration.ofSeconds(sessionDurationSeconds))
@@ -203,7 +203,7 @@ public class ResumeIntegrationTest {
         .bind(serverTransport(SERVER_HOST, SERVER_PORT));
   }
 
-  private static class TestResponderRSocket extends AbstractRSocket {
+  private static class TestResponderRSocket implements RSocket {
 
     AtomicInteger counter = new AtomicInteger();
 

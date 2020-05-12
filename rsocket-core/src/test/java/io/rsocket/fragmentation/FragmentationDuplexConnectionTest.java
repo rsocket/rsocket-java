@@ -87,7 +87,7 @@ final class FragmentationDuplexConnectionTest {
   @Test
   void sendData() {
     ByteBuf encode =
-        RequestResponseFrameFlyweight.encode(
+        RequestResponseFrameCodec.encode(
             allocator, 1, false, Unpooled.EMPTY_BUFFER, Unpooled.wrappedBuffer(data));
 
     when(delegate.onClose()).thenReturn(Mono.never());
@@ -101,8 +101,8 @@ final class FragmentationDuplexConnectionTest {
         .expectNextCount(17)
         .assertNext(
             byteBuf -> {
-              Assert.assertEquals(FrameType.NEXT, FrameHeaderFlyweight.frameType(byteBuf));
-              Assert.assertFalse(FrameHeaderFlyweight.hasFollows(byteBuf));
+              Assert.assertEquals(FrameType.NEXT, FrameHeaderCodec.frameType(byteBuf));
+              Assert.assertFalse(FrameHeaderCodec.hasFollows(byteBuf));
             })
         .verifyComplete();
   }

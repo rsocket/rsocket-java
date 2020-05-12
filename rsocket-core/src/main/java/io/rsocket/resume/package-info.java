@@ -14,5 +14,14 @@
  * limitations under the License.
  */
 
-@javax.annotation.ParametersAreNonnullByDefault
+/**
+ * Contains support classes for the RSocket resume capability.
+ *
+ * @see <a
+ *     href="https://github.com/rsocket/rsocket/blob/master/Protocol.md#resuming-operation">Resuming
+ *     Operation</a>
+ */
+@NonNullApi
 package io.rsocket.resume;
+
+import reactor.util.annotation.NonNullApi;

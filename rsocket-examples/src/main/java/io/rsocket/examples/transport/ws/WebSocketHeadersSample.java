@@ -17,8 +17,6 @@
 package io.rsocket.examples.transport.ws;
 
 import io.netty.handler.codec.http.HttpResponseStatus;
-import io.rsocket.AbstractRSocket;
-import io.rsocket.ConnectionSetupPayload;
 import io.rsocket.DuplexConnection;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
@@ -47,9 +45,8 @@ public class WebSocketHeadersSample {
   public static void main(String[] args) {
 
     ServerTransport.ConnectionAcceptor acceptor =
-        RSocketServer.create()
+        RSocketServer.create(SocketAcceptor.with(new ServerRSocket()))
             .payloadDecoder(PayloadDecoder.ZERO_COPY)
-            .acceptor(new SocketAcceptorImpl())
             .asConnectionAcceptor();
 
     DisposableServer disposableServer =
@@ -114,29 +111,23 @@ public class WebSocketHeadersSample {
     rSocket.requestResponse(payload1).block();
   }
 
-  private static class SocketAcceptorImpl implements SocketAcceptor {
+  private static class ServerRSocket implements RSocket {
+
     @Override
-    public Mono<RSocket> accept(ConnectionSetupPayload setupPayload, RSocket reactiveSocket) {
-      return Mono.just(
-          new AbstractRSocket() {
+    public Mono<Void> fireAndForget(Payload payload) {
+      // System.out.println(payload.getDataUtf8());
+      payload.release();
+      return Mono.empty();
+    }
 
-            @Override
-            public Mono<Void> fireAndForget(Payload payload) {
-              //                  System.out.println(payload.getDataUtf8());
-              payload.release();
-              return Mono.empty();
-            }
+    @Override
+    public Mono<Payload> requestResponse(Payload payload) {
+      return Mono.just(payload);
+    }
 
-            @Override
-            public Mono<Payload> requestResponse(Payload payload) {
-              return Mono.just(payload);
-            }
-
-            @Override
-            public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
-              return Flux.from(payloads).subscribeOn(Schedulers.single());
-            }
-          });
+    @Override
+    public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
+      return Flux.from(payloads).subscribeOn(Schedulers.single());
     }
   }
 }

@@ -19,8 +19,7 @@ package io.rsocket.lease;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.rsocket.Availability;
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
+import reactor.util.annotation.Nullable;
 
 /** A contract for RSocket lease, which is sent by a request acceptor and is time bound. */
 public interface Lease extends Availability {
@@ -78,7 +77,6 @@ public interface Lease extends Availability {
    *
    * @return Metadata for the lease.
    */
-  @Nonnull
   ByteBuf getMetadata();
 
   /**

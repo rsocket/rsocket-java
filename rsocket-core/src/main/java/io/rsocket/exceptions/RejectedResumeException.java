@@ -16,8 +16,8 @@
 
 package io.rsocket.exceptions;
 
-import io.rsocket.frame.ErrorFrameFlyweight;
-import javax.annotation.Nullable;
+import io.rsocket.frame.ErrorFrameCodec;
+import reactor.util.annotation.Nullable;
 
 /**
  * The server rejected the resume, it can specify the reason in the payload.
@@ -45,6 +45,6 @@ public final class RejectedResumeException extends RSocketException {
    * @param cause the cause of this exception
    */
   public RejectedResumeException(String message, @Nullable Throwable cause) {
-    super(ErrorFrameFlyweight.REJECTED_RESUME, message, cause);
+    super(ErrorFrameCodec.REJECTED_RESUME, message, cause);
   }
 }

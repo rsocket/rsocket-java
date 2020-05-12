@@ -16,8 +16,8 @@
 
 package io.rsocket.exceptions;
 
-import io.rsocket.frame.ErrorFrameFlyweight;
-import javax.annotation.Nullable;
+import io.rsocket.frame.ErrorFrameCodec;
+import reactor.util.annotation.Nullable;
 
 /**
  * Application layer logic generating a Reactive Streams {@code onError} event.
@@ -45,6 +45,6 @@ public final class ApplicationErrorException extends RSocketException {
    * @param cause the cause of this exception
    */
   public ApplicationErrorException(String message, @Nullable Throwable cause) {
-    super(ErrorFrameFlyweight.APPLICATION_ERROR, message, cause);
+    super(ErrorFrameCodec.APPLICATION_ERROR, message, cause);
   }
 }

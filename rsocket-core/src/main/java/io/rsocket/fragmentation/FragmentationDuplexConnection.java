@@ -21,16 +21,16 @@ import static io.rsocket.fragmentation.FrameFragmenter.fragmentFrame;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
 import io.rsocket.DuplexConnection;
-import io.rsocket.frame.FrameHeaderFlyweight;
-import io.rsocket.frame.FrameLengthFlyweight;
+import io.rsocket.frame.FrameHeaderCodec;
+import io.rsocket.frame.FrameLengthCodec;
 import io.rsocket.frame.FrameType;
 import java.util.Objects;
-import javax.annotation.Nullable;
 import org.reactivestreams.Publisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.util.annotation.Nullable;
 
 /**
  * A {@link DuplexConnection} implementation that fragments and reassembles {@link ByteBuf}s.
@@ -41,7 +41,7 @@ import reactor.core.publisher.Mono;
  */
 public final class FragmentationDuplexConnection extends ReassemblyDuplexConnection
     implements DuplexConnection {
-  private static final int MIN_MTU_SIZE = 64;
+  public static final int MIN_MTU_SIZE = 64;
   private static final Logger logger = LoggerFactory.getLogger(FragmentationDuplexConnection.class);
   private final DuplexConnection delegate;
   private final int mtu;
@@ -100,7 +100,7 @@ public final class FragmentationDuplexConnection extends ReassemblyDuplexConnect
 
   @Override
   public Mono<Void> sendOne(ByteBuf frame) {
-    FrameType frameType = FrameHeaderFlyweight.frameType(frame);
+    FrameType frameType = FrameHeaderCodec.frameType(frame);
     int readableBytes = frame.readableBytes();
     if (shouldFragment(frameType, readableBytes)) {
       if (logger.isDebugEnabled()) {
@@ -108,12 +108,12 @@ public final class FragmentationDuplexConnection extends ReassemblyDuplexConnect
             Flux.from(fragmentFrame(alloc(), mtu, frame, frameType, encodeLength))
                 .doOnNext(
                     byteBuf -> {
-                      ByteBuf f = encodeLength ? FrameLengthFlyweight.frame(byteBuf) : byteBuf;
+                      ByteBuf f = encodeLength ? FrameLengthCodec.frame(byteBuf) : byteBuf;
                       logger.debug(
                           "{} - stream id {} - frame type {} - \n {}",
                           type,
-                          FrameHeaderFlyweight.streamId(f),
-                          FrameHeaderFlyweight.frameType(f),
+                          FrameHeaderCodec.streamId(f),
+                          FrameHeaderCodec.frameType(f),
                           ByteBufUtil.prettyHexDump(f));
                     }));
       } else {
@@ -127,7 +127,7 @@ public final class FragmentationDuplexConnection extends ReassemblyDuplexConnect
 
   private ByteBuf encode(ByteBuf frame) {
     if (encodeLength) {
-      return FrameLengthFlyweight.encode(alloc(), frame.readableBytes(), frame);
+      return FrameLengthCodec.encode(alloc(), frame.readableBytes(), frame);
     } else {
       return frame;
     }

@@ -19,7 +19,7 @@ package io.rsocket.transport.netty;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.DuplexConnection;
-import io.rsocket.frame.FrameLengthFlyweight;
+import io.rsocket.frame.FrameLengthCodec;
 import io.rsocket.internal.BaseDuplexConnection;
 import java.util.Objects;
 import org.reactivestreams.Publisher;
@@ -88,7 +88,7 @@ public final class TcpDuplexConnection extends BaseDuplexConnection {
 
   private ByteBuf encode(ByteBuf frame) {
     if (encodeLength) {
-      return FrameLengthFlyweight.encode(alloc(), frame.readableBytes(), frame);
+      return FrameLengthCodec.encode(alloc(), frame.readableBytes(), frame);
     } else {
       return frame;
     }
@@ -96,7 +96,7 @@ public final class TcpDuplexConnection extends BaseDuplexConnection {
 
   private ByteBuf decode(ByteBuf frame) {
     if (encodeLength) {
-      return FrameLengthFlyweight.frame(frame).retain();
+      return FrameLengthCodec.frame(frame).retain();
     } else {
       return frame;
     }
