@@ -16,7 +16,7 @@ public class FrameHeaderFlyweightPerf {
 
   @Benchmark
   public void encode(Input input) {
-    ByteBuf byteBuf = FrameHeaderFlyweight.encodeStreamZero(input.allocator, FrameType.SETUP, 0);
+    ByteBuf byteBuf = FrameHeaderCodec.encodeStreamZero(input.allocator, FrameType.SETUP, 0);
     boolean release = byteBuf.release();
     input.bh.consume(release);
   }
@@ -24,9 +24,9 @@ public class FrameHeaderFlyweightPerf {
   @Benchmark
   public void decode(Input input) {
     ByteBuf frame = input.frame;
-    FrameType frameType = FrameHeaderFlyweight.frameType(frame);
-    int streamId = FrameHeaderFlyweight.streamId(frame);
-    int flags = FrameHeaderFlyweight.flags(frame);
+    FrameType frameType = FrameHeaderCodec.frameType(frame);
+    int streamId = FrameHeaderCodec.streamId(frame);
+    int flags = FrameHeaderCodec.flags(frame);
     input.bh.consume(streamId);
     input.bh.consume(flags);
     input.bh.consume(frameType);
@@ -44,7 +44,7 @@ public class FrameHeaderFlyweightPerf {
       this.bh = bh;
       this.frameType = FrameType.REQUEST_RESPONSE;
       allocator = ByteBufAllocator.DEFAULT;
-      frame = FrameHeaderFlyweight.encode(allocator, 123, FrameType.SETUP, 0);
+      frame = FrameHeaderCodec.encode(allocator, 123, FrameType.SETUP, 0);
     }
 
     @TearDown

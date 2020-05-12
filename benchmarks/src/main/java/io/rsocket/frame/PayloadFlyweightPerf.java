@@ -18,7 +18,7 @@ public class PayloadFlyweightPerf {
   @Benchmark
   public void encode(Input input) {
     ByteBuf encode =
-        PayloadFrameFlyweight.encode(
+        PayloadFrameCodec.encode(
             input.allocator,
             100,
             false,
@@ -33,8 +33,8 @@ public class PayloadFlyweightPerf {
   @Benchmark
   public void decode(Input input) {
     ByteBuf frame = input.payload;
-    ByteBuf data = PayloadFrameFlyweight.data(frame);
-    ByteBuf metadata = PayloadFrameFlyweight.metadata(frame);
+    ByteBuf data = PayloadFrameCodec.data(frame);
+    ByteBuf metadata = PayloadFrameCodec.metadata(frame);
     input.bh.consume(data);
     input.bh.consume(metadata);
   }
@@ -57,7 +57,7 @@ public class PayloadFlyweightPerf {
       // Encode a payload and then copy it a single bytebuf
       payload = allocator.buffer();
       ByteBuf encode =
-          PayloadFrameFlyweight.encode(
+          PayloadFrameCodec.encode(
               allocator,
               100,
               false,
