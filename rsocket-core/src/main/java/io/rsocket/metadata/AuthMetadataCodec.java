@@ -174,7 +174,7 @@ public class AuthMetadataCodec {
    *     field's value is length or unknown auth type
    * @throws IllegalStateException if not enough readable bytes in the given {@link ByteBuf}
    */
-  public static WellKnownAuthType decodeWellKnownAuthType(ByteBuf metadata) {
+  public static WellKnownAuthType readWellKnownAuthType(ByteBuf metadata) {
     if (metadata.readableBytes() < 1) {
       throw new IllegalStateException(
           "Unable to decode Well Know Auth type. Not enough readable bytes");
@@ -195,7 +195,7 @@ public class AuthMetadataCodec {
    * @param metadata
    * @return
    */
-  public static CharSequence decodeCustomAuthType(ByteBuf metadata) {
+  public static CharSequence readCustomAuthType(ByteBuf metadata) {
     if (metadata.readableBytes() < 2) {
       throw new IllegalStateException(
           "Unable to decode custom Auth type. Not enough readable bytes");
@@ -226,7 +226,7 @@ public class AuthMetadataCodec {
    * @return sliced {@link ByteBuf} or {@link Unpooled#EMPTY_BUFFER} if no bytes readable in the
    *     given one
    */
-  public static ByteBuf decodePayload(ByteBuf metadata) {
+  public static ByteBuf readPayload(ByteBuf metadata) {
     if (metadata.readableBytes() == 0) {
       return Unpooled.EMPTY_BUFFER;
     }
@@ -242,8 +242,8 @@ public class AuthMetadataCodec {
    *     simpleAuthMetadata#readIndex} should be set to the username length byte
    * @return sliced {@link ByteBuf} or {@link Unpooled#EMPTY_BUFFER} if username length is zero
    */
-  public static ByteBuf decodeUsername(ByteBuf simpleAuthMetadata) {
-    short usernameLength = decodeUsernameLength(simpleAuthMetadata);
+  public static ByteBuf readUsername(ByteBuf simpleAuthMetadata) {
+    short usernameLength = readUsernameLength(simpleAuthMetadata);
 
     if (usernameLength == 0) {
       return Unpooled.EMPTY_BUFFER;
@@ -260,7 +260,7 @@ public class AuthMetadataCodec {
    *     simpleAuthMetadata#readIndex} should be set to the beginning of the password bytes
    * @return sliced {@link ByteBuf} or {@link Unpooled#EMPTY_BUFFER} if password length is zero
    */
-  public static ByteBuf decodePassword(ByteBuf simpleAuthMetadata) {
+  public static ByteBuf readPassword(ByteBuf simpleAuthMetadata) {
     if (simpleAuthMetadata.readableBytes() == 0) {
       return Unpooled.EMPTY_BUFFER;
     }
@@ -275,8 +275,8 @@ public class AuthMetadataCodec {
    *     simpleAuthMetadata#readIndex} should be set to the username length byte
    * @return {@code char[]} which represents UTF-8 username
    */
-  public static char[] decodeUsernameAsCharArray(ByteBuf simpleAuthMetadata) {
-    short usernameLength = decodeUsernameLength(simpleAuthMetadata);
+  public static char[] readUsernameAsCharArray(ByteBuf simpleAuthMetadata) {
+    short usernameLength = readUsernameLength(simpleAuthMetadata);
 
     if (usernameLength == 0) {
       return EMPTY_CHARS_ARRAY;
@@ -293,7 +293,7 @@ public class AuthMetadataCodec {
    *     simpleAuthMetadata#readIndex} should be set to the beginning of the password bytes
    * @return {@code char[]} which represents UTF-8 password
    */
-  public static char[] decodePasswordAsCharArray(ByteBuf simpleAuthMetadata) {
+  public static char[] readPasswordAsCharArray(ByteBuf simpleAuthMetadata) {
     if (simpleAuthMetadata.readableBytes() == 0) {
       return EMPTY_CHARS_ARRAY;
     }
@@ -309,7 +309,7 @@ public class AuthMetadataCodec {
    *     simpleAuthMetadata#readIndex} should be set to the beginning of the password bytes
    * @return {@code char[]} which represents UTF-8 password
    */
-  public static char[] decodeBearerTokenAsCharArray(ByteBuf bearerAuthMetadata) {
+  public static char[] readBearerTokenAsCharArray(ByteBuf bearerAuthMetadata) {
     if (bearerAuthMetadata.readableBytes() == 0) {
       return EMPTY_CHARS_ARRAY;
     }
@@ -317,7 +317,7 @@ public class AuthMetadataCodec {
     return CharByteBufUtil.readUtf8(bearerAuthMetadata, bearerAuthMetadata.readableBytes());
   }
 
-  private static short decodeUsernameLength(ByteBuf simpleAuthMetadata) {
+  private static short readUsernameLength(ByteBuf simpleAuthMetadata) {
     if (simpleAuthMetadata.readableBytes() < 1) {
       throw new IllegalStateException(
           "Unable to decode custom username. Not enough readable bytes");

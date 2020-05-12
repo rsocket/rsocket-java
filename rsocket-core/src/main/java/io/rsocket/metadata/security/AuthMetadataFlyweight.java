@@ -107,7 +107,7 @@ public class AuthMetadataFlyweight {
    * @throws IllegalStateException if not enough readable bytes in the given {@link ByteBuf}
    */
   public static WellKnownAuthType decodeWellKnownAuthType(ByteBuf metadata) {
-    return WellKnownAuthType.cast(AuthMetadataCodec.decodeWellKnownAuthType(metadata));
+    return WellKnownAuthType.cast(AuthMetadataCodec.readWellKnownAuthType(metadata));
   }
 
   /**
@@ -117,7 +117,7 @@ public class AuthMetadataFlyweight {
    * @return
    */
   public static CharSequence decodeCustomAuthType(ByteBuf metadata) {
-    return AuthMetadataCodec.decodeCustomAuthType(metadata);
+    return AuthMetadataCodec.readCustomAuthType(metadata);
   }
 
   /**
@@ -130,7 +130,7 @@ public class AuthMetadataFlyweight {
    *     given one
    */
   public static ByteBuf decodePayload(ByteBuf metadata) {
-    return AuthMetadataCodec.decodePayload(metadata);
+    return AuthMetadataCodec.readPayload(metadata);
   }
 
   /**
@@ -142,7 +142,7 @@ public class AuthMetadataFlyweight {
    * @return sliced {@link ByteBuf} or {@link Unpooled#EMPTY_BUFFER} if username length is zero
    */
   public static ByteBuf decodeUsername(ByteBuf simpleAuthMetadata) {
-    return AuthMetadataCodec.decodeUsername(simpleAuthMetadata);
+    return AuthMetadataCodec.readUsername(simpleAuthMetadata);
   }
 
   /**
@@ -154,7 +154,7 @@ public class AuthMetadataFlyweight {
    * @return sliced {@link ByteBuf} or {@link Unpooled#EMPTY_BUFFER} if password length is zero
    */
   public static ByteBuf decodePassword(ByteBuf simpleAuthMetadata) {
-    return AuthMetadataCodec.decodePassword(simpleAuthMetadata);
+    return AuthMetadataCodec.readPassword(simpleAuthMetadata);
   }
   /**
    * Read up to 257 {@code bytes} from the given {@link ByteBuf} where the first byte is username
@@ -165,7 +165,7 @@ public class AuthMetadataFlyweight {
    * @return {@code char[]} which represents UTF-8 username
    */
   public static char[] decodeUsernameAsCharArray(ByteBuf simpleAuthMetadata) {
-    return AuthMetadataCodec.decodeUsernameAsCharArray(simpleAuthMetadata);
+    return AuthMetadataCodec.readUsernameAsCharArray(simpleAuthMetadata);
   }
 
   /**
@@ -177,7 +177,7 @@ public class AuthMetadataFlyweight {
    * @return {@code char[]} which represents UTF-8 password
    */
   public static char[] decodePasswordAsCharArray(ByteBuf simpleAuthMetadata) {
-    return AuthMetadataCodec.decodePasswordAsCharArray(simpleAuthMetadata);
+    return AuthMetadataCodec.readPasswordAsCharArray(simpleAuthMetadata);
   }
 
   /**
@@ -189,6 +189,6 @@ public class AuthMetadataFlyweight {
    * @return {@code char[]} which represents UTF-8 password
    */
   public static char[] decodeBearerTokenAsCharArray(ByteBuf bearerAuthMetadata) {
-    return AuthMetadataCodec.decodeBearerTokenAsCharArray(bearerAuthMetadata);
+    return AuthMetadataCodec.readBearerTokenAsCharArray(bearerAuthMetadata);
   }
 }
