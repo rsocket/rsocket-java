@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2015-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -127,10 +127,9 @@ public final class WebsocketServerTransport extends BaseWebsocketServerTransport
                         DuplexConnection connection =
                             new WebsocketDuplexConnection((Connection) in);
                         if (mtu > 0) {
-                          connection =
-                              new FragmentationDuplexConnection(connection, mtu, false, "server");
+                          connection = new FragmentationDuplexConnection(connection, mtu, "server");
                         } else {
-                          connection = new ReassemblyDuplexConnection(connection, false);
+                          connection = new ReassemblyDuplexConnection(connection);
                         }
                         return acceptor.apply(connection).then(out.neverComplete());
                       },

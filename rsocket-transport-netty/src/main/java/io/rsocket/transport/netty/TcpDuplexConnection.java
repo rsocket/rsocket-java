@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2015-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -47,7 +47,10 @@ public final class TcpDuplexConnection extends BaseDuplexConnection {
    *
    * @param encodeLength indicates if this connection should encode the length or not.
    * @param connection the {@link Connection} to for managing the server
+   * @deprecated as of 1.0.1 in favor of using {@link #TcpDuplexConnection(Connection)} and hence
+   *     {@code encodeLength} should always be true.
    */
+  @Deprecated
   public TcpDuplexConnection(Connection connection, boolean encodeLength) {
     this.encodeLength = encodeLength;
     this.connection = Objects.requireNonNull(connection, "connection must not be null");

@@ -49,6 +49,23 @@ public final class FragmentationDuplexConnection extends ReassemblyDuplexConnect
   private final boolean encodeLength;
   private final String type;
 
+  /**
+   * Class constructor.
+   *
+   * @param delegate the underlying connection
+   * @param mtu the fragment size, greater than {@link #MIN_MTU_SIZE}
+   * @param type a label to use for logging purposes
+   * @since 1.0.1
+   */
+  public FragmentationDuplexConnection(DuplexConnection delegate, int mtu, String type) {
+    this(delegate, mtu, false, type);
+  }
+
+  /**
+   * @deprecated as of 1.0.1 in favor of {@link #FragmentationDuplexConnection(DuplexConnection,
+   *     int, String)} and hence {@code decodeLength} should always be false.
+   */
+  @Deprecated
   public FragmentationDuplexConnection(
       DuplexConnection delegate, int mtu, boolean encodeAndEncodeLength, String type) {
     super(delegate, encodeAndEncodeLength);
@@ -102,27 +119,25 @@ public final class FragmentationDuplexConnection extends ReassemblyDuplexConnect
   public Mono<Void> sendOne(ByteBuf frame) {
     FrameType frameType = FrameHeaderCodec.frameType(frame);
     int readableBytes = frame.readableBytes();
-    if (shouldFragment(frameType, readableBytes)) {
-      if (logger.isDebugEnabled()) {
-        return delegate.send(
-            Flux.from(fragmentFrame(alloc(), mtu, frame, frameType, encodeLength))
-                .doOnNext(
-                    byteBuf -> {
-                      ByteBuf f = encodeLength ? FrameLengthCodec.frame(byteBuf) : byteBuf;
-                      logger.debug(
-                          "{} - stream id {} - frame type {} - \n {}",
-                          type,
-                          FrameHeaderCodec.streamId(f),
-                          FrameHeaderCodec.frameType(f),
-                          ByteBufUtil.prettyHexDump(f));
-                    }));
-      } else {
-        return delegate.send(
-            Flux.from(fragmentFrame(alloc(), mtu, frame, frameType, encodeLength)));
-      }
-    } else {
+    if (!shouldFragment(frameType, readableBytes)) {
       return delegate.sendOne(encode(frame));
     }
+    Flux<ByteBuf> fragments =
+        Flux.from(fragmentFrame(alloc(), mtu, frame, frameType, encodeLength));
+    if (logger.isDebugEnabled()) {
+      fragments =
+          fragments.doOnNext(
+              byteBuf -> {
+                ByteBuf f = encodeLength ? FrameLengthCodec.frame(byteBuf) : byteBuf;
+                logger.debug(
+                    "{} - stream id {} - frame type {} - \n {}",
+                    type,
+                    FrameHeaderCodec.streamId(f),
+                    FrameHeaderCodec.frameType(f),
+                    ByteBufUtil.prettyHexDump(f));
+              });
+    }
+    return delegate.send(fragments);
   }
 
   private ByteBuf encode(ByteBuf frame) {

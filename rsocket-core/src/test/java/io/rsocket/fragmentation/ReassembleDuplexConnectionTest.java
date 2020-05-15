@@ -86,7 +86,7 @@ final class ReassembleDuplexConnectionTest {
     when(delegate.onClose()).thenReturn(Mono.never());
     when(delegate.alloc()).thenReturn(allocator);
 
-    new ReassemblyDuplexConnection(delegate, false)
+    new ReassemblyDuplexConnection(delegate)
         .receive()
         .as(StepVerifier::create)
         .assertNext(
@@ -151,7 +151,7 @@ final class ReassembleDuplexConnectionTest {
     when(delegate.onClose()).thenReturn(Mono.never());
     when(delegate.alloc()).thenReturn(allocator);
 
-    new ReassemblyDuplexConnection(delegate, false)
+    new ReassemblyDuplexConnection(delegate)
         .receive()
         .as(StepVerifier::create)
         .assertNext(
@@ -219,7 +219,7 @@ final class ReassembleDuplexConnectionTest {
     when(delegate.onClose()).thenReturn(Mono.never());
     when(delegate.alloc()).thenReturn(allocator);
 
-    new ReassemblyDuplexConnection(delegate, false)
+    new ReassemblyDuplexConnection(delegate)
         .receive()
         .as(StepVerifier::create)
         .assertNext(
@@ -240,7 +240,7 @@ final class ReassembleDuplexConnectionTest {
     when(delegate.onClose()).thenReturn(Mono.never());
     when(delegate.alloc()).thenReturn(allocator);
 
-    new ReassemblyDuplexConnection(delegate, false)
+    new ReassemblyDuplexConnection(delegate)
         .receive()
         .as(StepVerifier::create)
         .assertNext(
@@ -260,7 +260,7 @@ final class ReassembleDuplexConnectionTest {
     when(delegate.onClose()).thenReturn(Mono.never());
     when(delegate.alloc()).thenReturn(allocator);
 
-    new ReassemblyDuplexConnection(delegate, false)
+    new ReassemblyDuplexConnection(delegate)
         .receive()
         .as(StepVerifier::create)
         .assertNext(

@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2015-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -165,10 +165,9 @@ public final class LocalServerTransport implements ServerTransport<Closeable> {
       Objects.requireNonNull(duplexConnection, "duplexConnection must not be null");
 
       if (mtu > 0) {
-        duplexConnection =
-            new FragmentationDuplexConnection(duplexConnection, mtu, false, "server");
+        duplexConnection = new FragmentationDuplexConnection(duplexConnection, mtu, "server");
       } else {
-        duplexConnection = new ReassemblyDuplexConnection(duplexConnection, false);
+        duplexConnection = new ReassemblyDuplexConnection(duplexConnection);
       }
 
       acceptor.apply(duplexConnection).subscribe();

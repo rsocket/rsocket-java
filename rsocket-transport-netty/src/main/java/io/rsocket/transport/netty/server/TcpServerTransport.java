@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2015-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -101,13 +101,11 @@ public final class TcpServerTransport implements ServerTransport<CloseableChanne
             .doOnConnection(
                 c -> {
                   c.addHandlerLast(new RSocketLengthCodec());
-                  DuplexConnection connection;
+                  DuplexConnection connection = new TcpDuplexConnection(c);
                   if (mtu > 0) {
-                    connection =
-                        new FragmentationDuplexConnection(
-                            new TcpDuplexConnection(c, false), mtu, true, "server");
+                    connection = new FragmentationDuplexConnection(connection, mtu, "server");
                   } else {
-                    connection = new ReassemblyDuplexConnection(new TcpDuplexConnection(c), false);
+                    connection = new ReassemblyDuplexConnection(connection);
                   }
                   acceptor
                       .apply(connection)

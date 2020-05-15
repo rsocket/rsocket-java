@@ -37,6 +37,20 @@ public class ReassemblyDuplexConnection implements DuplexConnection {
   private final FrameReassembler frameReassembler;
   private final boolean decodeLength;
 
+  /**
+   * Constructor with the underlying delegate to receive frames from.
+   *
+   * @since 1.0.1
+   */
+  public ReassemblyDuplexConnection(DuplexConnection delegate) {
+    this(delegate, false);
+  }
+
+  /**
+   * @deprecated as of 1.0.1 in favor of {@link #ReassemblyDuplexConnection(DuplexConnection)} and
+   *     hence {@code decodeLength} should always be false.
+   */
+  @Deprecated
   public ReassemblyDuplexConnection(DuplexConnection delegate, boolean decodeLength) {
     Objects.requireNonNull(delegate, "delegate must not be null");
     this.decodeLength = decodeLength;

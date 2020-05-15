@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2015-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -99,9 +99,9 @@ public final class LocalClientTransport implements ClientTransport {
     return connect.map(
         duplexConnection -> {
           if (mtu > 0) {
-            return new FragmentationDuplexConnection(duplexConnection, mtu, false, "client");
+            return new FragmentationDuplexConnection(duplexConnection, mtu, "client");
           } else {
-            return new ReassemblyDuplexConnection(duplexConnection, false);
+            return new ReassemblyDuplexConnection(duplexConnection);
           }
         });
   }

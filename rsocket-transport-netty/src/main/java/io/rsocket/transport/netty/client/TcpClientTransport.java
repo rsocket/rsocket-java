@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2015-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -102,11 +102,11 @@ public final class TcpClientTransport implements ClientTransport {
             .connect()
             .map(
                 c -> {
+                  TcpDuplexConnection connection = new TcpDuplexConnection(c);
                   if (mtu > 0) {
-                    return new FragmentationDuplexConnection(
-                        new TcpDuplexConnection(c, false), mtu, true, "client");
+                    return new FragmentationDuplexConnection(connection, mtu, "client");
                   } else {
-                    return new ReassemblyDuplexConnection(new TcpDuplexConnection(c), false);
+                    return new ReassemblyDuplexConnection(connection);
                   }
                 });
   }
