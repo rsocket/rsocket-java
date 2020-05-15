@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2015-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,7 +16,6 @@
 
 package io.rsocket.transport.netty.client;
 
-import static io.rsocket.frame.FrameLengthCodec.FRAME_LENGTH_MASK;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
@@ -24,13 +23,9 @@ import io.rsocket.transport.netty.server.WebsocketServerTransport;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.util.Collections;
-import org.assertj.core.api.Assertions;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
-import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import reactor.core.publisher.Mono;
 import reactor.netty.http.client.HttpClient;
@@ -38,52 +33,6 @@ import reactor.test.StepVerifier;
 
 @ExtendWith(MockitoExtension.class)
 final class WebsocketClientTransportTest {
-
-  @Test
-  @Disabled
-  public void testThatSetupWithUnSpecifiedFrameSizeShouldSetMaxFrameSize() {
-    ArgumentCaptor<Integer> captor = ArgumentCaptor.forClass(Integer.class);
-    HttpClient httpClient = Mockito.spy(HttpClient.create());
-    Mockito.doAnswer(a -> httpClient).when(httpClient).headers(Mockito.any());
-    Mockito.doCallRealMethod().when(httpClient).websocket(captor.capture());
-
-    WebsocketClientTransport clientTransport = WebsocketClientTransport.create(httpClient, "");
-
-    clientTransport.connect(0).subscribe();
-
-    Assertions.assertThat(captor.getValue()).isEqualTo(FRAME_LENGTH_MASK);
-  }
-
-  @Test
-  @Disabled
-  public void testThatSetupWithSpecifiedFrameSizeButLowerThanWsDefaultShouldSetToWsDefault() {
-    ArgumentCaptor<Integer> captor = ArgumentCaptor.forClass(Integer.class);
-    HttpClient httpClient = Mockito.spy(HttpClient.create());
-    Mockito.doAnswer(a -> httpClient).when(httpClient).headers(Mockito.any());
-    Mockito.doCallRealMethod().when(httpClient).websocket(captor.capture());
-
-    WebsocketClientTransport clientTransport = WebsocketClientTransport.create(httpClient, "");
-
-    clientTransport.connect(65536 - 10000).subscribe();
-
-    Assertions.assertThat(captor.getValue()).isEqualTo(FRAME_LENGTH_MASK);
-  }
-
-  @Test
-  @Disabled
-  public void
-      testThatSetupWithSpecifiedFrameSizeButHigherThanWsDefaultShouldSetToSpecifiedFrameSize() {
-    ArgumentCaptor<Integer> captor = ArgumentCaptor.forClass(Integer.class);
-    HttpClient httpClient = Mockito.spy(HttpClient.create());
-    Mockito.doAnswer(a -> httpClient).when(httpClient).headers(Mockito.any());
-    Mockito.doCallRealMethod().when(httpClient).websocket(captor.capture());
-
-    WebsocketClientTransport clientTransport = WebsocketClientTransport.create(httpClient, "");
-
-    clientTransport.connect(65536 + 10000).subscribe();
-
-    Assertions.assertThat(captor.getValue()).isEqualTo(FRAME_LENGTH_MASK);
-  }
 
   @DisplayName("connects to server")
   @Test
@@ -93,8 +42,8 @@ final class WebsocketClientTransportTest {
     WebsocketServerTransport serverTransport = WebsocketServerTransport.create(address);
 
     serverTransport
-        .start(duplexConnection -> Mono.empty(), 0)
-        .flatMap(context -> WebsocketClientTransport.create(context.address()).connect(0))
+        .start(duplexConnection -> Mono.empty())
+        .flatMap(context -> WebsocketClientTransport.create(context.address()).connect())
         .as(StepVerifier::create)
         .expectNextCount(1)
         .verifyComplete();
@@ -103,7 +52,7 @@ final class WebsocketClientTransportTest {
   @DisplayName("create generates error if server not started")
   @Test
   void connectNoServer() {
-    WebsocketClientTransport.create(8000).connect(0).as(StepVerifier::create).verifyError();
+    WebsocketClientTransport.create(8000).connect().as(StepVerifier::create).verifyError();
   }
 
   @DisplayName("creates client with BindAddress")

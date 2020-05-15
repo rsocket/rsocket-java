@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2015-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -44,50 +44,7 @@ final class WebsocketServerTransportTest {
 
     WebsocketServerTransport serverTransport = WebsocketServerTransport.create(httpServer);
 
-    serverTransport.start(c -> Mono.empty(), 0).subscribe();
-
-    HttpServerRequest httpServerRequest = Mockito.mock(HttpServerRequest.class);
-    HttpServerResponse httpServerResponse = Mockito.mock(HttpServerResponse.class);
-
-    captor.getValue().apply(httpServerRequest, httpServerResponse);
-
-    Mockito.verify(httpServerResponse)
-        .sendWebsocket(
-            Mockito.nullable(String.class), Mockito.eq(FRAME_LENGTH_MASK), Mockito.any());
-  }
-
-  // @Test
-  public void testThatSetupWithSpecifiedFrameSizeButLowerThanWsDefaultShouldSetToWsDefault() {
-    ArgumentCaptor<BiFunction> captor = ArgumentCaptor.forClass(BiFunction.class);
-    HttpServer httpServer = Mockito.spy(HttpServer.create());
-    Mockito.doAnswer(a -> httpServer).when(httpServer).handle(captor.capture());
-    Mockito.doAnswer(a -> Mono.empty()).when(httpServer).bind();
-
-    WebsocketServerTransport serverTransport = WebsocketServerTransport.create(httpServer);
-
-    serverTransport.start(c -> Mono.empty(), 1000).subscribe();
-
-    HttpServerRequest httpServerRequest = Mockito.mock(HttpServerRequest.class);
-    HttpServerResponse httpServerResponse = Mockito.mock(HttpServerResponse.class);
-
-    captor.getValue().apply(httpServerRequest, httpServerResponse);
-
-    Mockito.verify(httpServerResponse)
-        .sendWebsocket(
-            Mockito.nullable(String.class), Mockito.eq(FRAME_LENGTH_MASK), Mockito.any());
-  }
-
-  // @Test
-  public void
-      testThatSetupWithSpecifiedFrameSizeButHigherThanWsDefaultShouldSetToSpecifiedFrameSize() {
-    ArgumentCaptor<BiFunction> captor = ArgumentCaptor.forClass(BiFunction.class);
-    HttpServer httpServer = Mockito.spy(HttpServer.create());
-    Mockito.doAnswer(a -> httpServer).when(httpServer).handle(captor.capture());
-    Mockito.doAnswer(a -> Mono.empty()).when(httpServer).bind();
-
-    WebsocketServerTransport serverTransport = WebsocketServerTransport.create(httpServer);
-
-    serverTransport.start(c -> Mono.empty(), 65536 + 1000).subscribe();
+    serverTransport.start(c -> Mono.empty()).subscribe();
 
     HttpServerRequest httpServerRequest = Mockito.mock(HttpServerRequest.class);
     HttpServerResponse httpServerResponse = Mockito.mock(HttpServerResponse.class);
@@ -172,7 +129,7 @@ final class WebsocketServerTransportTest {
     WebsocketServerTransport serverTransport = WebsocketServerTransport.create(address);
 
     serverTransport
-        .start(duplexConnection -> Mono.empty(), 0)
+        .start(duplexConnection -> Mono.empty())
         .as(StepVerifier::create)
         .expectNextCount(1)
         .verifyComplete();
@@ -182,7 +139,7 @@ final class WebsocketServerTransportTest {
   @Test
   void startNullAcceptor() {
     assertThatNullPointerException()
-        .isThrownBy(() -> WebsocketServerTransport.create(8000).start(null, 0))
+        .isThrownBy(() -> WebsocketServerTransport.create(8000).start(null))
         .withMessage("acceptor must not be null");
   }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2015-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -37,8 +37,8 @@ final class TcpClientTransportTest {
     TcpServerTransport serverTransport = TcpServerTransport.create(address);
 
     serverTransport
-        .start(duplexConnection -> Mono.empty(), 0)
-        .flatMap(context -> TcpClientTransport.create(context.address()).connect(0))
+        .start(duplexConnection -> Mono.empty())
+        .flatMap(context -> TcpClientTransport.create(context.address()).connect())
         .as(StepVerifier::create)
         .expectNextCount(1)
         .verifyComplete();
@@ -47,7 +47,7 @@ final class TcpClientTransportTest {
   @DisplayName("create generates error if server not started")
   @Test
   void connectNoServer() {
-    TcpClientTransport.create(8000).connect(0).as(StepVerifier::create).verifyError();
+    TcpClientTransport.create(8000).connect().as(StepVerifier::create).verifyError();
   }
 
   @DisplayName("creates client with BindAddress")

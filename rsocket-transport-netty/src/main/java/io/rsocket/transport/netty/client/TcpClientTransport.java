@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2015-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,8 +17,6 @@
 package io.rsocket.transport.netty.client;
 
 import io.rsocket.DuplexConnection;
-import io.rsocket.fragmentation.FragmentationDuplexConnection;
-import io.rsocket.fragmentation.ReassemblyDuplexConnection;
 import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.ServerTransport;
 import io.rsocket.transport.netty.RSocketLengthCodec;
@@ -93,21 +91,10 @@ public final class TcpClientTransport implements ClientTransport {
   }
 
   @Override
-  public Mono<DuplexConnection> connect(int mtu) {
-    Mono<DuplexConnection> isError = FragmentationDuplexConnection.checkMtu(mtu);
-    return isError != null
-        ? isError
-        : client
-            .doOnConnected(c -> c.addHandlerLast(new RSocketLengthCodec()))
-            .connect()
-            .map(
-                c -> {
-                  if (mtu > 0) {
-                    return new FragmentationDuplexConnection(
-                        new TcpDuplexConnection(c, false), mtu, true, "client");
-                  } else {
-                    return new ReassemblyDuplexConnection(new TcpDuplexConnection(c), false);
-                  }
-                });
+  public Mono<DuplexConnection> connect() {
+    return client
+        .doOnConnected(c -> c.addHandlerLast(new RSocketLengthCodec()))
+        .connect()
+        .map(TcpDuplexConnection::new);
   }
 }

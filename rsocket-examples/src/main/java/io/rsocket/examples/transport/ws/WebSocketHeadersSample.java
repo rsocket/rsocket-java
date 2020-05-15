@@ -61,7 +61,7 @@ public class WebSocketHeadersSample {
                           if (in.headers().containsValue("Authorization", "test", true)) {
                             DuplexConnection connection =
                                 new ReassemblyDuplexConnection(
-                                    new WebsocketDuplexConnection((Connection) in), false);
+                                    new WebsocketDuplexConnection((Connection) in));
                             return acceptor.apply(connection).then(out.neverComplete());
                           }
 

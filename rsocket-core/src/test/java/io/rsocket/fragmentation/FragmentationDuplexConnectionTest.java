@@ -63,23 +63,23 @@ final class FragmentationDuplexConnectionTest {
   @Test
   void constructorInvalidMaxFragmentSize() {
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> new FragmentationDuplexConnection(delegate, Integer.MIN_VALUE, false, ""))
-        .withMessage("smallest allowed mtu size is 64 bytes, provided: -2147483648");
+        .isThrownBy(() -> new FragmentationDuplexConnection(delegate, Integer.MIN_VALUE, ""))
+        .withMessage("The smallest allowed mtu size is 64 bytes, provided: -2147483648");
   }
 
   @DisplayName("constructor throws IllegalArgumentException with negative maxFragmentLength")
   @Test
   void constructorMtuLessThanMin() {
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> new FragmentationDuplexConnection(delegate, 2, false, ""))
-        .withMessage("smallest allowed mtu size is 64 bytes, provided: 2");
+        .isThrownBy(() -> new FragmentationDuplexConnection(delegate, 2, ""))
+        .withMessage("The smallest allowed mtu size is 64 bytes, provided: 2");
   }
 
   @DisplayName("constructor throws NullPointerException with null delegate")
   @Test
   void constructorNullDelegate() {
     assertThatNullPointerException()
-        .isThrownBy(() -> new FragmentationDuplexConnection(null, 64, false, ""))
+        .isThrownBy(() -> new FragmentationDuplexConnection(null, 64, ""))
         .withMessage("delegate must not be null");
   }
 
@@ -93,7 +93,7 @@ final class FragmentationDuplexConnectionTest {
     when(delegate.onClose()).thenReturn(Mono.never());
     when(delegate.alloc()).thenReturn(allocator);
 
-    new FragmentationDuplexConnection(delegate, 64, false, "").sendOne(encode.retain());
+    new FragmentationDuplexConnection(delegate, 64, "").sendOne(encode.retain());
 
     verify(delegate).send(publishers.capture());
 

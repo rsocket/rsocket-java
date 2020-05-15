@@ -35,8 +35,7 @@ public class FragmentationIntegrationTest {
     frame.retain();
 
     Publisher<ByteBuf> fragments =
-        FrameFragmenter.fragmentFrame(
-            allocator, 64, frame, FrameHeaderCodec.frameType(frame), false);
+        FrameFragmenter.fragmentFrame(allocator, 64, frame, FrameHeaderCodec.frameType(frame));
 
     FrameReassembler reassembler = new FrameReassembler(allocator);
 

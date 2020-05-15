@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2019 the original author or authors.
+ * Copyright 2015-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,13 +33,13 @@ class DisconnectableClientTransport implements ClientTransport {
   }
 
   @Override
-  public Mono<DuplexConnection> connect(int mtu) {
+  public Mono<DuplexConnection> connect() {
     return Mono.defer(
         () ->
             now() < nextConnectPermitMillis
                 ? Mono.error(new ClosedChannelException())
                 : clientTransport
-                    .connect(mtu)
+                    .connect()
                     .map(
                         c -> {
                           if (curConnection.compareAndSet(null, c)) {

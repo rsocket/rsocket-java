@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2015-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,9 +18,6 @@ package io.rsocket.transport.netty.server;
 
 import static io.rsocket.frame.FrameLengthCodec.FRAME_LENGTH_MASK;
 
-import io.rsocket.DuplexConnection;
-import io.rsocket.fragmentation.FragmentationDuplexConnection;
-import io.rsocket.fragmentation.ReassemblyDuplexConnection;
 import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.ServerTransport;
 import io.rsocket.transport.TransportHeaderAware;
@@ -74,7 +71,6 @@ public final class WebsocketServerTransport extends BaseWebsocketServerTransport
    */
   public static WebsocketServerTransport create(String bindAddress, int port) {
     Objects.requireNonNull(bindAddress, "bindAddress must not be null");
-
     HttpServer httpServer = HttpServer.create().host(bindAddress).port(port);
     return create(httpServer);
   }
@@ -88,7 +84,6 @@ public final class WebsocketServerTransport extends BaseWebsocketServerTransport
    */
   public static WebsocketServerTransport create(InetSocketAddress address) {
     Objects.requireNonNull(address, "address must not be null");
-
     return create(address.getHostName(), address.getPort());
   }
 
@@ -101,7 +96,6 @@ public final class WebsocketServerTransport extends BaseWebsocketServerTransport
    */
   public static WebsocketServerTransport create(final HttpServer server) {
     Objects.requireNonNull(server, "server must not be null");
-
     return new WebsocketServerTransport(server);
   }
 
@@ -112,33 +106,20 @@ public final class WebsocketServerTransport extends BaseWebsocketServerTransport
   }
 
   @Override
-  public Mono<CloseableChannel> start(ConnectionAcceptor acceptor, int mtu) {
+  public Mono<CloseableChannel> start(ConnectionAcceptor acceptor) {
     Objects.requireNonNull(acceptor, "acceptor must not be null");
-
-    Mono<CloseableChannel> isError = FragmentationDuplexConnection.checkMtu(mtu);
-    return isError != null
-        ? isError
-        : server
-            .handle(
-                (request, response) -> {
-                  transportHeaders.get().forEach(response::addHeader);
-                  return response.sendWebsocket(
-                      (in, out) -> {
-                        DuplexConnection connection =
-                            new WebsocketDuplexConnection((Connection) in);
-                        if (mtu > 0) {
-                          connection =
-                              new FragmentationDuplexConnection(connection, mtu, false, "server");
-                        } else {
-                          connection = new ReassemblyDuplexConnection(connection, false);
-                        }
-                        return acceptor.apply(connection).then(out.neverComplete());
-                      },
-                      WebsocketServerSpec.builder()
-                          .maxFramePayloadLength(FRAME_LENGTH_MASK)
-                          .build());
-                })
-            .bind()
-            .map(CloseableChannel::new);
+    return server
+        .handle(
+            (request, response) -> {
+              transportHeaders.get().forEach(response::addHeader);
+              return response.sendWebsocket(
+                  (in, out) ->
+                      acceptor
+                          .apply(new WebsocketDuplexConnection((Connection) in))
+                          .then(out.neverComplete()),
+                  WebsocketServerSpec.builder().maxFramePayloadLength(FRAME_LENGTH_MASK).build());
+            })
+        .bind()
+        .map(CloseableChannel::new);
   }
 }

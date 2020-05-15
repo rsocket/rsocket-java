@@ -12,7 +12,7 @@ public class TestClientTransport implements ClientTransport {
   private final TestDuplexConnection testDuplexConnection = new TestDuplexConnection(allocator);
 
   @Override
-  public Mono<DuplexConnection> connect(int mtu) {
+  public Mono<DuplexConnection> connect() {
     return Mono.just(testDuplexConnection);
   }
 

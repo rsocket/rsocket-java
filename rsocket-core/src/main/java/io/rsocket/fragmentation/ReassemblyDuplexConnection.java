@@ -19,7 +19,6 @@ package io.rsocket.fragmentation;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.DuplexConnection;
-import io.rsocket.frame.FrameLengthCodec;
 import java.util.Objects;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
@@ -35,11 +34,10 @@ import reactor.core.publisher.Mono;
 public class ReassemblyDuplexConnection implements DuplexConnection {
   private final DuplexConnection delegate;
   private final FrameReassembler frameReassembler;
-  private final boolean decodeLength;
 
-  public ReassemblyDuplexConnection(DuplexConnection delegate, boolean decodeLength) {
+  /** Constructor with the underlying delegate to receive frames from. */
+  public ReassemblyDuplexConnection(DuplexConnection delegate) {
     Objects.requireNonNull(delegate, "delegate must not be null");
-    this.decodeLength = decodeLength;
     this.delegate = delegate;
     this.frameReassembler = new FrameReassembler(delegate.alloc());
 
@@ -56,23 +54,9 @@ public class ReassemblyDuplexConnection implements DuplexConnection {
     return delegate.sendOne(frame);
   }
 
-  private ByteBuf decode(ByteBuf frame) {
-    if (decodeLength) {
-      return FrameLengthCodec.frame(frame).retain();
-    } else {
-      return frame;
-    }
-  }
-
   @Override
   public Flux<ByteBuf> receive() {
-    return delegate
-        .receive()
-        .handle(
-            (byteBuf, sink) -> {
-              ByteBuf decode = decode(byteBuf);
-              frameReassembler.reassembleFrame(decode, sink);
-            });
+    return delegate.receive().handle(frameReassembler::reassembleFrame);
   }
 
   @Override

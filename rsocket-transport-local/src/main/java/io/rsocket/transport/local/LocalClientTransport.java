@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2015-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,12 +19,9 @@ package io.rsocket.transport.local;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.DuplexConnection;
-import io.rsocket.fragmentation.FragmentationDuplexConnection;
-import io.rsocket.fragmentation.ReassemblyDuplexConnection;
 import io.rsocket.internal.UnboundedProcessor;
 import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.ServerTransport;
-import io.rsocket.transport.local.LocalServerTransport.ServerDuplexConnectionAcceptor;
 import java.util.Objects;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
@@ -72,10 +69,11 @@ public final class LocalClientTransport implements ClientTransport {
     return new LocalClientTransport(name, allocator);
   }
 
-  private Mono<DuplexConnection> connect() {
+  @Override
+  public Mono<DuplexConnection> connect() {
     return Mono.defer(
         () -> {
-          ServerDuplexConnectionAcceptor server = LocalServerTransport.findServer(name);
+          ServerTransport.ConnectionAcceptor server = LocalServerTransport.findServer(name);
           if (server == null) {
             return Mono.error(new IllegalArgumentException("Could not find server: " + name));
           }
@@ -84,25 +82,10 @@ public final class LocalClientTransport implements ClientTransport {
           UnboundedProcessor<ByteBuf> out = new UnboundedProcessor<>();
           MonoProcessor<Void> closeNotifier = MonoProcessor.create();
 
-          server.accept(new LocalDuplexConnection(allocator, out, in, closeNotifier));
+          server.apply(new LocalDuplexConnection(allocator, out, in, closeNotifier)).subscribe();
 
           return Mono.just(
               (DuplexConnection) new LocalDuplexConnection(allocator, in, out, closeNotifier));
-        });
-  }
-
-  @Override
-  public Mono<DuplexConnection> connect(int mtu) {
-    Mono<DuplexConnection> isError = FragmentationDuplexConnection.checkMtu(mtu);
-    Mono<DuplexConnection> connect = isError != null ? isError : connect();
-
-    return connect.map(
-        duplexConnection -> {
-          if (mtu > 0) {
-            return new FragmentationDuplexConnection(duplexConnection, mtu, false, "client");
-          } else {
-            return new ReassemblyDuplexConnection(duplexConnection, false);
-          }
         });
   }
 }

@@ -64,12 +64,12 @@ public class RSocketReconnectTest {
   @SuppressWarnings({"rawtype", "unchecked"})
   public void shouldBeRetrieableConnectionSharedReconnectableInstanceOfRSocketMono() {
     ClientTransport transport = Mockito.mock(ClientTransport.class);
-    Mockito.when(transport.connect(0))
+    Mockito.when(transport.connect())
         .thenThrow(UncheckedIOException.class)
         .thenThrow(UncheckedIOException.class)
         .thenThrow(UncheckedIOException.class)
         .thenThrow(UncheckedIOException.class)
-        .thenReturn(new TestClientTransport().connect(0));
+        .thenReturn(new TestClientTransport().connect());
     Mono<RSocket> rSocketMono =
         RSocketConnector.create()
             .reconnect(
@@ -93,13 +93,13 @@ public class RSocketReconnectTest {
   @SuppressWarnings({"rawtype", "unchecked"})
   public void shouldBeExaustedRetrieableConnectionSharedReconnectableInstanceOfRSocketMono() {
     ClientTransport transport = Mockito.mock(ClientTransport.class);
-    Mockito.when(transport.connect(0))
+    Mockito.when(transport.connect())
         .thenThrow(UncheckedIOException.class)
         .thenThrow(UncheckedIOException.class)
         .thenThrow(UncheckedIOException.class)
         .thenThrow(UncheckedIOException.class)
         .thenThrow(UncheckedIOException.class)
-        .thenReturn(new TestClientTransport().connect(0));
+        .thenReturn(new TestClientTransport().connect());
     Mono<RSocket> rSocketMono =
         RSocketConnector.create()
             .reconnect(

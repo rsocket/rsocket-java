@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2015-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,8 +21,6 @@ import static io.rsocket.transport.netty.UriUtils.getPort;
 import static io.rsocket.transport.netty.UriUtils.isSecure;
 
 import io.rsocket.DuplexConnection;
-import io.rsocket.fragmentation.FragmentationDuplexConnection;
-import io.rsocket.fragmentation.ReassemblyDuplexConnection;
 import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.ServerTransport;
 import io.rsocket.transport.TransportHeaderAware;
@@ -150,32 +148,18 @@ public final class WebsocketClientTransport implements ClientTransport, Transpor
   }
 
   @Override
-  public Mono<DuplexConnection> connect(int mtu) {
-    Mono<DuplexConnection> isError = FragmentationDuplexConnection.checkMtu(mtu);
-    return isError != null
-        ? isError
-        : client
-            .headers(headers -> transportHeaders.get().forEach(headers::set))
-            .websocket(
-                WebsocketClientSpec.builder().maxFramePayloadLength(FRAME_LENGTH_MASK).build())
-            .uri(path)
-            .connect()
-            .map(
-                c -> {
-                  DuplexConnection connection = new WebsocketDuplexConnection(c);
-                  if (mtu > 0) {
-                    connection =
-                        new FragmentationDuplexConnection(connection, mtu, false, "client");
-                  } else {
-                    connection = new ReassemblyDuplexConnection(connection, false);
-                  }
-                  return connection;
-                });
-  }
-
-  @Override
   public void setTransportHeaders(Supplier<Map<String, String>> transportHeaders) {
     this.transportHeaders =
         Objects.requireNonNull(transportHeaders, "transportHeaders must not be null");
+  }
+
+  @Override
+  public Mono<DuplexConnection> connect() {
+    return client
+        .headers(headers -> transportHeaders.get().forEach(headers::set))
+        .websocket(WebsocketClientSpec.builder().maxFramePayloadLength(FRAME_LENGTH_MASK).build())
+        .uri(path)
+        .connect()
+        .map(WebsocketDuplexConnection::new);
   }
 }

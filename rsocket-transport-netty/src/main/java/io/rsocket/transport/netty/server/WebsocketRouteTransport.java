@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2015-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,9 +19,6 @@ package io.rsocket.transport.netty.server;
 import static io.rsocket.frame.FrameLengthCodec.FRAME_LENGTH_MASK;
 
 import io.rsocket.Closeable;
-import io.rsocket.DuplexConnection;
-import io.rsocket.fragmentation.FragmentationDuplexConnection;
-import io.rsocket.fragmentation.ReassemblyDuplexConnection;
 import io.rsocket.transport.ServerTransport;
 import io.rsocket.transport.netty.WebsocketDuplexConnection;
 import java.util.Objects;
@@ -63,16 +60,15 @@ public final class WebsocketRouteTransport extends BaseWebsocketServerTransport<
   }
 
   @Override
-  public Mono<Closeable> start(ConnectionAcceptor acceptor, int mtu) {
+  public Mono<Closeable> start(ConnectionAcceptor acceptor) {
     Objects.requireNonNull(acceptor, "acceptor must not be null");
-
     return server
         .route(
             routes -> {
               routesBuilder.accept(routes);
               routes.ws(
                   path,
-                  newHandler(acceptor, mtu),
+                  newHandler(acceptor),
                   WebsocketServerSpec.builder().maxFramePayloadLength(FRAME_LENGTH_MASK).build());
             })
         .bind()
@@ -101,14 +97,7 @@ public final class WebsocketRouteTransport extends BaseWebsocketServerTransport<
    */
   public static BiFunction<WebsocketInbound, WebsocketOutbound, Publisher<Void>> newHandler(
       ConnectionAcceptor acceptor, int mtu) {
-    return (in, out) -> {
-      DuplexConnection connection = new WebsocketDuplexConnection((Connection) in);
-      if (mtu > 0) {
-        connection = new FragmentationDuplexConnection(connection, mtu, false, "server");
-      } else {
-        connection = new ReassemblyDuplexConnection(connection, false);
-      }
-      return acceptor.apply(connection).then(out.neverComplete());
-    };
+    return (in, out) ->
+        acceptor.apply(new WebsocketDuplexConnection((Connection) in)).then(out.neverComplete());
   }
 }
