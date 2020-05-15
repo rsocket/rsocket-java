@@ -272,7 +272,7 @@ final class FrameFragmenterTest {
         RequestResponseFrameCodec.encode(allocator, 1, true, null, Unpooled.wrappedBuffer(data));
 
     Publisher<ByteBuf> fragments =
-        FrameFragmenter.fragmentFrame(allocator, 1024, rr, FrameType.REQUEST_RESPONSE, false);
+        FrameFragmenter.fragmentFrame(allocator, 1024, rr, FrameType.REQUEST_RESPONSE);
 
     StepVerifier.create(Flux.from(fragments).doOnError(Throwable::printStackTrace))
         .expectNextCount(1)
@@ -299,7 +299,7 @@ final class FrameFragmenterTest {
             allocator, 1, true, 10, Unpooled.wrappedBuffer(metadata), Unpooled.EMPTY_BUFFER);
 
     Publisher<ByteBuf> fragments =
-        FrameFragmenter.fragmentFrame(allocator, 1024, rr, FrameType.REQUEST_STREAM, false);
+        FrameFragmenter.fragmentFrame(allocator, 1024, rr, FrameType.REQUEST_STREAM);
 
     StepVerifier.create(Flux.from(fragments).doOnError(Throwable::printStackTrace))
         .expectNextCount(1)
@@ -326,7 +326,7 @@ final class FrameFragmenterTest {
             allocator, 1, true, Unpooled.wrappedBuffer(metadata), Unpooled.wrappedBuffer(data));
 
     Publisher<ByteBuf> fragments =
-        FrameFragmenter.fragmentFrame(allocator, 1024, rr, FrameType.REQUEST_RESPONSE, false);
+        FrameFragmenter.fragmentFrame(allocator, 1024, rr, FrameType.REQUEST_RESPONSE);
 
     StepVerifier.create(Flux.from(fragments).doOnError(Throwable::printStackTrace))
         .assertNext(

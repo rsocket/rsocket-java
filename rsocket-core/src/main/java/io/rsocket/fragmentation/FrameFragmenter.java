@@ -21,7 +21,6 @@ import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
 import io.netty.util.ReferenceCountUtil;
 import io.rsocket.frame.FrameHeaderCodec;
-import io.rsocket.frame.FrameLengthCodec;
 import io.rsocket.frame.FrameType;
 import io.rsocket.frame.PayloadFrameCodec;
 import io.rsocket.frame.RequestChannelFrameCodec;
@@ -42,11 +41,7 @@ import reactor.core.publisher.SynchronousSink;
  */
 final class FrameFragmenter {
   static Publisher<ByteBuf> fragmentFrame(
-      ByteBufAllocator allocator,
-      int mtu,
-      final ByteBuf frame,
-      FrameType frameType,
-      boolean encodeLength) {
+      ByteBufAllocator allocator, int mtu, final ByteBuf frame, FrameType frameType) {
     ByteBuf metadata = getMetadata(frame, frameType);
     ByteBuf data = getData(frame, frameType);
     int streamId = FrameHeaderCodec.streamId(frame);
@@ -66,7 +61,7 @@ final class FrameFragmenter {
                   byteBuf = encodeFollowsFragment(allocator, mtu, streamId, metadata, data);
                 }
 
-                sink.next(encode(allocator, byteBuf, encodeLength));
+                sink.next(byteBuf);
                 if (!metadata.isReadable() && !data.isReadable()) {
                   sink.complete();
                 }
@@ -236,13 +231,5 @@ final class FrameFragmenter {
         throw new IllegalStateException("unsupported fragment type");
     }
     return data;
-  }
-
-  static ByteBuf encode(ByteBufAllocator allocator, ByteBuf frame, boolean encodeLength) {
-    if (encodeLength) {
-      return FrameLengthCodec.encode(allocator, frame.readableBytes(), frame);
-    } else {
-      return frame;
-    }
   }
 }

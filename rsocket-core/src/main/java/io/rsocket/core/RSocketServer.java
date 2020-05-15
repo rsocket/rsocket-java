@@ -26,6 +26,7 @@ import io.rsocket.SocketAcceptor;
 import io.rsocket.exceptions.InvalidSetupException;
 import io.rsocket.exceptions.RejectedSetupException;
 import io.rsocket.fragmentation.FragmentationDuplexConnection;
+import io.rsocket.fragmentation.ReassemblyDuplexConnection;
 import io.rsocket.frame.FrameHeaderCodec;
 import io.rsocket.frame.SetupFrameCodec;
 import io.rsocket.frame.decoder.PayloadDecoder;
@@ -211,14 +212,7 @@ public final class RSocketServer {
    *     and Reassembly</a>
    */
   public RSocketServer fragment(int mtu) {
-    if (mtu > 0 && mtu < FragmentationDuplexConnection.MIN_MTU_SIZE || mtu < 0) {
-      String msg =
-          String.format(
-              "The smallest allowed mtu size is %d bytes, provided: %d",
-              FragmentationDuplexConnection.MIN_MTU_SIZE, mtu);
-      throw new IllegalArgumentException(msg);
-    }
-    this.mtu = mtu;
+    this.mtu = FragmentationDuplexConnection.assertMtu(mtu);
     return this;
   }
 
@@ -273,7 +267,7 @@ public final class RSocketServer {
           @Override
           public Mono<T> get() {
             return transport
-                .start(duplexConnection -> acceptor(serverSetup, duplexConnection), mtu)
+                .start(duplexConnection -> acceptor(serverSetup, duplexConnection))
                 .doOnNext(c -> c.onClose().doFinally(v -> serverSetup.dispose()).subscribe());
           }
         });
@@ -305,6 +299,11 @@ public final class RSocketServer {
   }
 
   private Mono<Void> acceptor(ServerSetup serverSetup, DuplexConnection connection) {
+    connection =
+        mtu > 0
+            ? new FragmentationDuplexConnection(connection, mtu, "server")
+            : new ReassemblyDuplexConnection(connection);
+
     ClientServerInputMultiplexer multiplexer =
         new ClientServerInputMultiplexer(connection, interceptors, false);
 

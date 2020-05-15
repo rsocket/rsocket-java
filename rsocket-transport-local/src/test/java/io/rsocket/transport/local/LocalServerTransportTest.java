@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2015-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -63,7 +63,7 @@ final class LocalServerTransportTest {
     LocalServerTransport serverTransport = LocalServerTransport.createEphemeral();
 
     serverTransport
-        .start(duplexConnection -> Mono.empty(), 0)
+        .start(duplexConnection -> Mono.empty())
         .as(StepVerifier::create)
         .expectNextCount(1)
         .verifyComplete();
@@ -97,7 +97,7 @@ final class LocalServerTransportTest {
   @Test
   void start() {
     LocalServerTransport.createEphemeral()
-        .start(duplexConnection -> Mono.empty(), 0)
+        .start(duplexConnection -> Mono.empty())
         .as(StepVerifier::create)
         .expectNextCount(1)
         .verifyComplete();
@@ -107,7 +107,7 @@ final class LocalServerTransportTest {
   @Test
   void startNullAcceptor() {
     assertThatNullPointerException()
-        .isThrownBy(() -> LocalServerTransport.createEphemeral().start(null, 0))
+        .isThrownBy(() -> LocalServerTransport.createEphemeral().start(null))
         .withMessage("acceptor must not be null");
   }
 }

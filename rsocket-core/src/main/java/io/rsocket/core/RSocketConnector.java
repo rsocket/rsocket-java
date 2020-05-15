@@ -23,6 +23,7 @@ import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.SocketAcceptor;
 import io.rsocket.fragmentation.FragmentationDuplexConnection;
+import io.rsocket.fragmentation.ReassemblyDuplexConnection;
 import io.rsocket.frame.SetupFrameCodec;
 import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.internal.ClientServerInputMultiplexer;
@@ -400,14 +401,7 @@ public class RSocketConnector {
    *     and Reassembly</a>
    */
   public RSocketConnector fragment(int mtu) {
-    if (mtu > 0 && mtu < FragmentationDuplexConnection.MIN_MTU_SIZE || mtu < 0) {
-      String msg =
-          String.format(
-              "The smallest allowed mtu size is %d bytes, provided: %d",
-              FragmentationDuplexConnection.MIN_MTU_SIZE, mtu);
-      throw new IllegalArgumentException(msg);
-    }
-    this.mtu = mtu;
+    this.mtu = FragmentationDuplexConnection.assertMtu(mtu);
     return this;
   }
 
@@ -468,8 +462,15 @@ public class RSocketConnector {
    * @return a {@code Mono} with the connected RSocket
    */
   public Mono<RSocket> connect(Supplier<ClientTransport> transportSupplier) {
+
     Mono<DuplexConnection> connectionMono =
-        Mono.fromSupplier(transportSupplier).flatMap(t -> t.connect(mtu));
+        Mono.fromSupplier(transportSupplier)
+            .flatMap(ClientTransport::connect)
+            .map(
+                connection ->
+                    mtu > 0
+                        ? new FragmentationDuplexConnection(connection, mtu, "client")
+                        : new ReassemblyDuplexConnection(connection));
     return connectionMono
         .flatMap(
             connection -> {

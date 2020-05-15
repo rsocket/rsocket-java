@@ -17,8 +17,6 @@
 package io.rsocket.transport.netty.client;
 
 import io.rsocket.DuplexConnection;
-import io.rsocket.fragmentation.FragmentationDuplexConnection;
-import io.rsocket.fragmentation.ReassemblyDuplexConnection;
 import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.ServerTransport;
 import io.rsocket.transport.netty.RSocketLengthCodec;
@@ -93,21 +91,10 @@ public final class TcpClientTransport implements ClientTransport {
   }
 
   @Override
-  public Mono<DuplexConnection> connect(int mtu) {
-    Mono<DuplexConnection> isError = FragmentationDuplexConnection.checkMtu(mtu);
-    return isError != null
-        ? isError
-        : client
-            .doOnConnected(c -> c.addHandlerLast(new RSocketLengthCodec()))
-            .connect()
-            .map(
-                c -> {
-                  TcpDuplexConnection connection = new TcpDuplexConnection(c);
-                  if (mtu > 0) {
-                    return new FragmentationDuplexConnection(connection, mtu, "client");
-                  } else {
-                    return new ReassemblyDuplexConnection(connection);
-                  }
-                });
+  public Mono<DuplexConnection> connect() {
+    return client
+        .doOnConnected(c -> c.addHandlerLast(new RSocketLengthCodec()))
+        .connect()
+        .map(TcpDuplexConnection::new);
   }
 }

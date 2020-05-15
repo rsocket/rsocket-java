@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2015-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,14 +26,13 @@ import reactor.core.publisher.Mono;
 public interface ServerTransport<T extends Closeable> extends Transport {
 
   /**
-   * Starts this server.
+   * Start this server.
    *
-   * @param acceptor An acceptor to process a newly accepted {@code DuplexConnection}
-   * @param mtu The mtu used for fragmentation - if set to zero fragmentation will be disabled
-   * @return A handle to retrieve information about a started server.
-   * @throws NullPointerException if {@code acceptor} is {@code null}
+   * @param acceptor to process a newly accepted connections with
+   * @return A handle for information about and control over the server.
+   * @since 1.0.1
    */
-  Mono<T> start(ConnectionAcceptor acceptor, int mtu);
+  Mono<T> start(ConnectionAcceptor acceptor);
 
   /** A contract to accept a new {@code DuplexConnection}. */
   interface ConnectionAcceptor extends Function<DuplexConnection, Publisher<Void>> {

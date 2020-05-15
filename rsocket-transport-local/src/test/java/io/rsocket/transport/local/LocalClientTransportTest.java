@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2015-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,8 +32,8 @@ final class LocalClientTransportTest {
     LocalServerTransport serverTransport = LocalServerTransport.createEphemeral();
 
     serverTransport
-        .start(duplexConnection -> Mono.empty(), 0)
-        .flatMap(closeable -> LocalClientTransport.create(serverTransport.getName()).connect(0))
+        .start(duplexConnection -> Mono.empty())
+        .flatMap(closeable -> LocalClientTransport.create(serverTransport.getName()).connect())
         .as(StepVerifier::create)
         .expectNextCount(1)
         .verifyComplete();
@@ -43,7 +43,7 @@ final class LocalClientTransportTest {
   @Test
   void connectNoServer() {
     LocalClientTransport.create("test-name")
-        .connect(0)
+        .connect()
         .as(StepVerifier::create)
         .verifyErrorMessage("Could not find server: test-name");
   }

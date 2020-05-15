@@ -13,7 +13,7 @@ public class TestServerTransport implements ServerTransport<Closeable> {
       LeaksTrackingByteBufAllocator.instrument(ByteBufAllocator.DEFAULT);
 
   @Override
-  public Mono<Closeable> start(ConnectionAcceptor acceptor, int mtu) {
+  public Mono<Closeable> start(ConnectionAcceptor acceptor) {
     conn.flatMap(acceptor::apply)
         .subscribe(ignored -> {}, err -> disposeConnection(), this::disposeConnection);
     return Mono.just(

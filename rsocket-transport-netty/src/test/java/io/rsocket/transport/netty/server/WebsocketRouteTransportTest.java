@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2015-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -63,7 +63,7 @@ final class WebsocketRouteTransportTest {
         new WebsocketRouteTransport(HttpServer.create(), routes -> {}, "/test-path");
 
     serverTransport
-        .start(duplexConnection -> Mono.empty(), 0)
+        .start(duplexConnection -> Mono.empty())
         .as(StepVerifier::create)
         .expectNextCount(1)
         .verifyComplete();
@@ -76,7 +76,7 @@ final class WebsocketRouteTransportTest {
         .isThrownBy(
             () ->
                 new WebsocketRouteTransport(HttpServer.create(), routes -> {}, "/test-path")
-                    .start(null, 0))
+                    .start(null))
         .withMessage("acceptor must not be null");
   }
 }

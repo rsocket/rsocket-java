@@ -64,7 +64,7 @@ final class FragmentationDuplexConnectionTest {
   void constructorInvalidMaxFragmentSize() {
     assertThatIllegalArgumentException()
         .isThrownBy(() -> new FragmentationDuplexConnection(delegate, Integer.MIN_VALUE, ""))
-        .withMessage("smallest allowed mtu size is 64 bytes, provided: -2147483648");
+        .withMessage("The smallest allowed mtu size is 64 bytes, provided: -2147483648");
   }
 
   @DisplayName("constructor throws IllegalArgumentException with negative maxFragmentLength")
@@ -72,7 +72,7 @@ final class FragmentationDuplexConnectionTest {
   void constructorMtuLessThanMin() {
     assertThatIllegalArgumentException()
         .isThrownBy(() -> new FragmentationDuplexConnection(delegate, 2, ""))
-        .withMessage("smallest allowed mtu size is 64 bytes, provided: 2");
+        .withMessage("The smallest allowed mtu size is 64 bytes, provided: 2");
   }
 
   @DisplayName("constructor throws NullPointerException with null delegate")

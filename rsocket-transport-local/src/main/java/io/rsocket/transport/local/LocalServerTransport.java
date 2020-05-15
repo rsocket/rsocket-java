@@ -17,16 +17,12 @@
 package io.rsocket.transport.local;
 
 import io.rsocket.Closeable;
-import io.rsocket.DuplexConnection;
-import io.rsocket.fragmentation.FragmentationDuplexConnection;
-import io.rsocket.fragmentation.ReassemblyDuplexConnection;
 import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.ServerTransport;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import java.util.function.Consumer;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
 import reactor.util.annotation.Nullable;
@@ -37,7 +33,7 @@ import reactor.util.annotation.Nullable;
  */
 public final class LocalServerTransport implements ServerTransport<Closeable> {
 
-  private static final ConcurrentMap<String, ServerDuplexConnectionAcceptor> registry =
+  private static final ConcurrentMap<String, ConnectionAcceptor> registry =
       new ConcurrentHashMap<>();
 
   private final String name;
@@ -79,106 +75,64 @@ public final class LocalServerTransport implements ServerTransport<Closeable> {
   }
 
   /**
-   * Retrieves an instance of {@link ServerDuplexConnectionAcceptor} based on the name of its {@code
+   * Retrieves an instance of {@link ConnectionAcceptor} based on the name of its {@code
    * LocalServerTransport}. Returns {@code null} if that server is not registered.
    *
    * @param name the name of the server to retrieve
    * @return the server if it has been registered, {@code null} otherwise
    * @throws NullPointerException if {@code name} is {@code null}
    */
-  static @Nullable ServerDuplexConnectionAcceptor findServer(String name) {
+  static @Nullable ConnectionAcceptor findServer(String name) {
     Objects.requireNonNull(name, "name must not be null");
 
     return registry.get(name);
   }
 
+  /** Return the name associated with this local server instance. */
+  String getName() {
+    return name;
+  }
+
   /**
-   * Returns a new {@link LocalClientTransport} that is connected to this {@code
-   * LocalServerTransport}.
-   *
-   * @return a new {@link LocalClientTransport} that is connected to this {@code
-   *     LocalServerTransport}
+   * Return a new {@link LocalClientTransport} connected to this {@code LocalServerTransport}
+   * through its {@link #getName()}.
    */
   public LocalClientTransport clientTransport() {
     return LocalClientTransport.create(name);
   }
 
   @Override
-  public Mono<Closeable> start(ConnectionAcceptor acceptor, int mtu) {
+  public Mono<Closeable> start(ConnectionAcceptor acceptor) {
     Objects.requireNonNull(acceptor, "acceptor must not be null");
-
-    Mono<Closeable> isError = FragmentationDuplexConnection.checkMtu(mtu);
-    return isError != null
-        ? isError
-        : Mono.create(
-            sink -> {
-              ServerDuplexConnectionAcceptor serverDuplexConnectionAcceptor =
-                  new ServerDuplexConnectionAcceptor(name, acceptor, mtu);
-
-              if (registry.putIfAbsent(name, serverDuplexConnectionAcceptor) != null) {
-                throw new IllegalStateException("name already registered: " + name);
-              }
-
-              sink.success(serverDuplexConnectionAcceptor);
-            });
+    return Mono.create(
+        sink -> {
+          ServerCloseable closeable = new ServerCloseable(name, acceptor);
+          if (registry.putIfAbsent(name, acceptor) != null) {
+            throw new IllegalStateException("name already registered: " + name);
+          }
+          sink.success(closeable);
+        });
   }
 
-  /**
-   * Returns the name of this instance.
-   *
-   * @return the name of this instance
-   */
-  String getName() {
-    return name;
-  }
-
-  /**
-   * A {@link Consumer} of {@link DuplexConnection} that is called when a server has been created.
-   */
-  static class ServerDuplexConnectionAcceptor implements Consumer<DuplexConnection>, Closeable {
-
-    private final ConnectionAcceptor acceptor;
+  static class ServerCloseable implements Closeable {
 
     private final LocalSocketAddress address;
 
+    private final ConnectionAcceptor acceptor;
+
     private final MonoProcessor<Void> onClose = MonoProcessor.create();
 
-    private final int mtu;
-
-    /**
-     * Creates a new instance
-     *
-     * @param name the name of the server
-     * @param acceptor the {@link ConnectionAcceptor} to call when the server has been created
-     * @throws NullPointerException if {@code name} or {@code acceptor} is {@code null}
-     */
-    ServerDuplexConnectionAcceptor(String name, ConnectionAcceptor acceptor, int mtu) {
+    ServerCloseable(String name, ConnectionAcceptor acceptor) {
       Objects.requireNonNull(name, "name must not be null");
-
       this.address = new LocalSocketAddress(name);
-      this.acceptor = Objects.requireNonNull(acceptor, "acceptor must not be null");
-      this.mtu = mtu;
-    }
-
-    @Override
-    public void accept(DuplexConnection duplexConnection) {
-      Objects.requireNonNull(duplexConnection, "duplexConnection must not be null");
-
-      if (mtu > 0) {
-        duplexConnection = new FragmentationDuplexConnection(duplexConnection, mtu, "server");
-      } else {
-        duplexConnection = new ReassemblyDuplexConnection(duplexConnection);
-      }
-
-      acceptor.apply(duplexConnection).subscribe();
+      this.acceptor = acceptor;
     }
 
     @Override
     public void dispose() {
-      if (!registry.remove(address.getName(), this)) {
+      if (!registry.remove(address.getName(), acceptor)) {
         throw new AssertionError();
       }
-
       onClose.onComplete();
     }
 

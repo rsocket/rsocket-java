@@ -22,7 +22,6 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
 import io.rsocket.DuplexConnection;
 import io.rsocket.frame.FrameHeaderCodec;
-import io.rsocket.frame.FrameLengthCodec;
 import io.rsocket.frame.FrameType;
 import java.util.Objects;
 import org.reactivestreams.Publisher;
@@ -30,7 +29,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import reactor.util.annotation.Nullable;
 
 /**
  * A {@link DuplexConnection} implementation that fragments and reassembles {@link ByteBuf}s.
@@ -46,7 +44,6 @@ public final class FragmentationDuplexConnection extends ReassemblyDuplexConnect
   private final DuplexConnection delegate;
   private final int mtu;
   private final FrameReassembler frameReassembler;
-  private final boolean encodeLength;
   private final String type;
 
   /**
@@ -55,23 +52,11 @@ public final class FragmentationDuplexConnection extends ReassemblyDuplexConnect
    * @param delegate the underlying connection
    * @param mtu the fragment size, greater than {@link #MIN_MTU_SIZE}
    * @param type a label to use for logging purposes
-   * @since 1.0.1
    */
   public FragmentationDuplexConnection(DuplexConnection delegate, int mtu, String type) {
-    this(delegate, mtu, false, type);
-  }
-
-  /**
-   * @deprecated as of 1.0.1 in favor of {@link #FragmentationDuplexConnection(DuplexConnection,
-   *     int, String)} and hence {@code decodeLength} should always be false.
-   */
-  @Deprecated
-  public FragmentationDuplexConnection(
-      DuplexConnection delegate, int mtu, boolean encodeAndEncodeLength, String type) {
-    super(delegate, encodeAndEncodeLength);
+    super(delegate);
 
     Objects.requireNonNull(delegate, "delegate must not be null");
-    this.encodeLength = encodeAndEncodeLength;
     this.delegate = delegate;
     this.mtu = assertMtu(mtu);
     this.frameReassembler = new FrameReassembler(delegate.alloc());
@@ -84,30 +69,15 @@ public final class FragmentationDuplexConnection extends ReassemblyDuplexConnect
     return frameType.isFragmentable() && readableBytes > mtu;
   }
 
-  /*TODO this is nullable and not returning empty to workaround javac 11.0.3 compiler issue on ubuntu (at least) */
-  @Nullable
-  public static <T> Mono<T> checkMtu(int mtu) {
-    if (isInsufficientMtu(mtu)) {
+  public static int assertMtu(int mtu) {
+    if (mtu > 0 && mtu < MIN_MTU_SIZE || mtu < 0) {
       String msg =
-          String.format("smallest allowed mtu size is %d bytes, provided: %d", MIN_MTU_SIZE, mtu);
-      return Mono.error(new IllegalArgumentException(msg));
-    } else {
-      return null;
-    }
-  }
-
-  private static int assertMtu(int mtu) {
-    if (isInsufficientMtu(mtu)) {
-      String msg =
-          String.format("smallest allowed mtu size is %d bytes, provided: %d", MIN_MTU_SIZE, mtu);
+          String.format(
+              "The smallest allowed mtu size is %d bytes, provided: %d", MIN_MTU_SIZE, mtu);
       throw new IllegalArgumentException(msg);
     } else {
       return mtu;
     }
-  }
-
-  private static boolean isInsufficientMtu(int mtu) {
-    return mtu > 0 && mtu < MIN_MTU_SIZE || mtu < 0;
   }
 
   @Override
@@ -120,31 +90,21 @@ public final class FragmentationDuplexConnection extends ReassemblyDuplexConnect
     FrameType frameType = FrameHeaderCodec.frameType(frame);
     int readableBytes = frame.readableBytes();
     if (!shouldFragment(frameType, readableBytes)) {
-      return delegate.sendOne(encode(frame));
+      return delegate.sendOne(frame);
     }
-    Flux<ByteBuf> fragments =
-        Flux.from(fragmentFrame(alloc(), mtu, frame, frameType, encodeLength));
+    Flux<ByteBuf> fragments = Flux.from(fragmentFrame(alloc(), mtu, frame, frameType));
     if (logger.isDebugEnabled()) {
       fragments =
           fragments.doOnNext(
               byteBuf -> {
-                ByteBuf f = encodeLength ? FrameLengthCodec.frame(byteBuf) : byteBuf;
                 logger.debug(
                     "{} - stream id {} - frame type {} - \n {}",
                     type,
-                    FrameHeaderCodec.streamId(f),
-                    FrameHeaderCodec.frameType(f),
-                    ByteBufUtil.prettyHexDump(f));
+                    FrameHeaderCodec.streamId(byteBuf),
+                    FrameHeaderCodec.frameType(byteBuf),
+                    ByteBufUtil.prettyHexDump(byteBuf));
               });
     }
     return delegate.send(fragments);
-  }
-
-  private ByteBuf encode(ByteBuf frame) {
-    if (encodeLength) {
-      return FrameLengthCodec.encode(alloc(), frame.readableBytes(), frame);
-    } else {
-      return frame;
-    }
   }
 }

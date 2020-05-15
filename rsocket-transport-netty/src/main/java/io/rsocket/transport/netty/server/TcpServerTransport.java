@@ -16,9 +16,6 @@
 
 package io.rsocket.transport.netty.server;
 
-import io.rsocket.DuplexConnection;
-import io.rsocket.fragmentation.FragmentationDuplexConnection;
-import io.rsocket.fragmentation.ReassemblyDuplexConnection;
 import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.ServerTransport;
 import io.rsocket.transport.netty.RSocketLengthCodec;
@@ -60,7 +57,6 @@ public final class TcpServerTransport implements ServerTransport<CloseableChanne
    */
   public static TcpServerTransport create(String bindAddress, int port) {
     Objects.requireNonNull(bindAddress, "bindAddress must not be null");
-
     TcpServer server = TcpServer.create().host(bindAddress).port(port);
     return create(server);
   }
@@ -74,7 +70,6 @@ public final class TcpServerTransport implements ServerTransport<CloseableChanne
    */
   public static TcpServerTransport create(InetSocketAddress address) {
     Objects.requireNonNull(address, "address must not be null");
-
     return create(address.getHostName(), address.getPort());
   }
 
@@ -87,32 +82,22 @@ public final class TcpServerTransport implements ServerTransport<CloseableChanne
    */
   public static TcpServerTransport create(TcpServer server) {
     Objects.requireNonNull(server, "server must not be null");
-
     return new TcpServerTransport(server);
   }
 
   @Override
-  public Mono<CloseableChannel> start(ConnectionAcceptor acceptor, int mtu) {
+  public Mono<CloseableChannel> start(ConnectionAcceptor acceptor) {
     Objects.requireNonNull(acceptor, "acceptor must not be null");
-    Mono<CloseableChannel> isError = FragmentationDuplexConnection.checkMtu(mtu);
-    return isError != null
-        ? isError
-        : server
-            .doOnConnection(
-                c -> {
-                  c.addHandlerLast(new RSocketLengthCodec());
-                  DuplexConnection connection = new TcpDuplexConnection(c);
-                  if (mtu > 0) {
-                    connection = new FragmentationDuplexConnection(connection, mtu, "server");
-                  } else {
-                    connection = new ReassemblyDuplexConnection(connection);
-                  }
-                  acceptor
-                      .apply(connection)
-                      .then(Mono.<Void>never())
-                      .subscribe(c.disposeSubscriber());
-                })
-            .bind()
-            .map(CloseableChannel::new);
+    return server
+        .doOnConnection(
+            c -> {
+              c.addHandlerLast(new RSocketLengthCodec());
+              acceptor
+                  .apply(new TcpDuplexConnection(c))
+                  .then(Mono.<Void>never())
+                  .subscribe(c.disposeSubscriber());
+            })
+        .bind()
+        .map(CloseableChannel::new);
   }
 }

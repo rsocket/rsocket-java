@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2015-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,11 +23,9 @@ import reactor.core.publisher.Mono;
 public interface ClientTransport extends Transport {
 
   /**
-   * Returns a {@code Publisher}, every subscription to which returns a single {@code
-   * DuplexConnection}.
+   * Return a {@code Mono} that connects for each subscriber.
    *
-   * @param mtu The mtu used for fragmentation - if set to zero fragmentation will be disabled
-   * @return {@code Publisher}, every subscription returns a single {@code DuplexConnection}.
+   * @since 1.0.1
    */
-  Mono<DuplexConnection> connect(int mtu);
+  Mono<DuplexConnection> connect();
 }
