@@ -20,6 +20,7 @@ import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.core.RSocketConnector;
 import io.rsocket.core.RSocketServer;
+import io.rsocket.examples.transport.tcp.stream.StreamingClient;
 import io.rsocket.lease.Lease;
 import io.rsocket.lease.LeaseStats;
 import io.rsocket.lease.Leases;
@@ -33,15 +34,19 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.ReplayProcessor;
 import reactor.util.retry.Retry;
 
 public class RateLimitingWithLeaseExample {
+
+  private static final Logger logger = LoggerFactory.getLogger(StreamingClient.class);
+
   private static final String SERVER_TAG = "server";
   private static final String CLIENT_TAG = "client";
 
@@ -58,8 +63,8 @@ public class RateLimitingWithLeaseExample {
             () -> {
               try {
                 while (!Thread.currentThread().isInterrupted()) {
-                  String message = messagesQueue.poll(Long.MAX_VALUE, TimeUnit.DAYS);
-                  System.out.println("Process message {" + message + "}");
+                  String message = messagesQueue.take();
+                  logger.info("Process message {}", message);
                   Thread.sleep(500); // emulating processing
                 }
               } catch (InterruptedException e) {
@@ -81,7 +86,7 @@ public class RateLimitingWithLeaseExample {
                             // that example
                             try {
                               if (!messagesQueue.offer(payload.getDataUtf8())) {
-                                // TODO: log error message
+                                logger.error("Queue has been overflowed. Terminating execution");
                                 sendingSocket.dispose();
                                 workerThread.interrupt();
                               }
@@ -115,7 +120,7 @@ public class RateLimitingWithLeaseExample {
         .delaySubscription(receiver.notifyWhenNewLease().then())
         .concatMap(
             tick -> {
-              System.out.println("Sending " + tick);
+              logger.info("Requesting FireAndForget({})", tick);
               return Mono.defer(() -> clientRSocket.fireAndForget(ByteBufPayload.create("" + tick)))
                   .retryWhen(
                       Retry.indefinitely()
@@ -125,7 +130,7 @@ public class RateLimitingWithLeaseExample {
                               rs -> {
                                 // here we create a mechanism to delay the retry until
                                 // the new lease allowance comes in.
-                                System.out.println("Ran out of leases " + rs);
+                                logger.info("Ran out of leases {}", rs);
                                 return receiver.notifyWhenNewLease().then();
                               }));
             })
@@ -153,11 +158,12 @@ public class RateLimitingWithLeaseExample {
 
     @Override
     public Flux<Lease> apply(Optional<LeaseStats> leaseStats) {
-      System.out.println(
-          String.format("%s stats are %s", tag, leaseStats.isPresent() ? "present" : "absent"));
+      logger.info("{} stats are {}", tag, leaseStats.isPresent() ? "present" : "absent");
       Duration ttlDuration = Duration.ofSeconds(5);
       // The interval function is used only for the demo purpose and should not be
       // considered as the way to issue leases.
+      // For advanced RateLimiting with Leasing
+      // consider adopting https://github.com/Netflix/concurrency-limits#server-limiter
       return Flux.interval(Duration.ZERO, ttlDuration.dividedBy(2))
           .handle(
               (__, sink) -> {
@@ -192,10 +198,11 @@ public class RateLimitingWithLeaseExample {
     public void accept(Flux<Lease> receivedLeases) {
       receivedLeases.subscribe(
           l -> {
-            System.out.println(
-                String.format(
-                    "%s received leases - ttl: %d, requests: %d",
-                    tag, l.getTimeToLiveMillis(), l.getAllowedRequests()));
+            logger.info(
+                "{} received leases - ttl: {}, requests: {}",
+                tag,
+                l.getTimeToLiveMillis(),
+                l.getAllowedRequests());
             lastLeaseReplay.onNext(l);
           });
     }
