@@ -80,14 +80,14 @@ public class RateLimitingWithLeaseExample {
                             // specifically to show that lease can limit rate of fnf requests in
                             // that example
                             try {
-                              messagesQueue.add(payload.getDataUtf8());
-                            } catch (IllegalStateException e) {
-                              e.printStackTrace();
-                              sendingSocket.dispose();
-                              workerThread.interrupt();
-                              throw e;
+                              if (!messagesQueue.offer(payload.getDataUtf8())) {
+                                // TODO: log error message
+                                sendingSocket.dispose();
+                                workerThread.interrupt();
+                              }
+                            } finally {
+                              payload.release();
                             }
-                            payload.release();
                             return Mono.empty();
                           }
                         }))
