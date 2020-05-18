@@ -16,103 +16,179 @@
 
 package io.rsocket.examples.transport.tcp.lease;
 
-import static java.time.Duration.ofSeconds;
-
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
-import io.rsocket.SocketAcceptor;
 import io.rsocket.core.RSocketConnector;
 import io.rsocket.core.RSocketServer;
+import io.rsocket.examples.transport.tcp.stream.StreamingClient;
 import io.rsocket.lease.Lease;
 import io.rsocket.lease.LeaseStats;
 import io.rsocket.lease.Leases;
+import io.rsocket.lease.MissingLeaseException;
 import io.rsocket.transport.netty.client.TcpClientTransport;
 import io.rsocket.transport.netty.server.CloseableChannel;
 import io.rsocket.transport.netty.server.TcpServerTransport;
-import io.rsocket.util.DefaultPayload;
-import java.util.Date;
+import io.rsocket.util.ByteBufPayload;
+import java.time.Duration;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.publisher.ReplayProcessor;
+import reactor.util.retry.Retry;
 
 public class LeaseExample {
+
+  private static final Logger logger = LoggerFactory.getLogger(StreamingClient.class);
+
   private static final String SERVER_TAG = "server";
   private static final String CLIENT_TAG = "client";
 
   public static void main(String[] args) {
+    // Queue for incoming messages represented as Flux
+    // Imagine that every fireAndForget that is pushed is processed by a worker
+
+    int queueCapacity = 50;
+    BlockingQueue<String> messagesQueue = new ArrayBlockingQueue<>(queueCapacity);
+
+    // emulating a worker that process data from the queue
+    Thread workerThread =
+        new Thread(
+            () -> {
+              try {
+                while (!Thread.currentThread().isInterrupted()) {
+                  String message = messagesQueue.take();
+                  logger.info("Process message {}", message);
+                  Thread.sleep(500); // emulating processing
+                }
+              } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+              }
+            });
+
+    workerThread.start();
 
     CloseableChannel server =
         RSocketServer.create(
-                (setup, sendingRSocket) -> Mono.just(new ServerRSocket(sendingRSocket)))
-            .lease(
-                () ->
-                    Leases.<NoopStats>create()
-                        .sender(new LeaseSender(SERVER_TAG, 7_000, 5))
-                        .receiver(new LeaseReceiver(SERVER_TAG))
-                        .stats(new NoopStats()))
-            .bind(TcpServerTransport.create("localhost", 7000))
-            .block();
+                (setup, sendingSocket) ->
+                    Mono.just(
+                        new RSocket() {
+                          @Override
+                          public Mono<Void> fireAndForget(Payload payload) {
+                            // add element. if overflows errors and terminates execution
+                            // specifically to show that lease can limit rate of fnf requests in
+                            // that example
+                            try {
+                              if (!messagesQueue.offer(payload.getDataUtf8())) {
+                                logger.error("Queue has been overflowed. Terminating execution");
+                                sendingSocket.dispose();
+                                workerThread.interrupt();
+                              }
+                            } finally {
+                              payload.release();
+                            }
+                            return Mono.empty();
+                          }
+                        }))
+            .lease(() -> Leases.create().sender(new LeaseCalculator(SERVER_TAG, messagesQueue)))
+            .bindNow(TcpServerTransport.create("localhost", 7000));
 
+    LeaseReceiver receiver = new LeaseReceiver(CLIENT_TAG);
     RSocket clientRSocket =
         RSocketConnector.create()
-            .lease(
-                () ->
-                    Leases.<NoopStats>create()
-                        .sender(new LeaseSender(CLIENT_TAG, 3_000, 5))
-                        .receiver(new LeaseReceiver(CLIENT_TAG)))
-            .acceptor(
-                SocketAcceptor.forRequestResponse(
-                    payload -> Mono.just(DefaultPayload.create("Client Response " + new Date()))))
+            .lease(() -> Leases.create().receiver(receiver))
             .connect(TcpClientTransport.create(server.address()))
             .block();
 
-    Flux.interval(ofSeconds(1))
-        .flatMap(
-            signal -> {
-              System.out.println("Client requester availability: " + clientRSocket.availability());
-              return clientRSocket
-                  .requestResponse(DefaultPayload.create("Client request " + new Date()))
-                  .doOnError(err -> System.out.println("Client request error: " + err))
-                  .onErrorResume(err -> Mono.empty());
+    Objects.requireNonNull(clientRSocket);
+
+    // generate stream of fnfs
+    Flux.generate(
+            () -> 0L,
+            (state, sink) -> {
+              sink.next(state);
+              return state + 1;
             })
-        .subscribe(resp -> System.out.println("Client requester response: " + resp.getDataUtf8()));
+        // here we wait for the first lease for the responder side and start execution
+        // on if there is allowance
+        .delaySubscription(receiver.notifyWhenNewLease().then())
+        .concatMap(
+            tick -> {
+              logger.info("Requesting FireAndForget({})", tick);
+              return Mono.defer(() -> clientRSocket.fireAndForget(ByteBufPayload.create("" + tick)))
+                  .retryWhen(
+                      Retry.indefinitely()
+                          // ensures that error is the result of missed lease
+                          .filter(t -> t instanceof MissingLeaseException)
+                          .doBeforeRetryAsync(
+                              rs -> {
+                                // here we create a mechanism to delay the retry until
+                                // the new lease allowance comes in.
+                                logger.info("Ran out of leases {}", rs);
+                                return receiver.notifyWhenNewLease().then();
+                              }));
+            })
+        .blockLast();
 
     clientRSocket.onClose().block();
     server.dispose();
   }
 
-  private static class LeaseSender implements Function<Optional<NoopStats>, Flux<Lease>> {
-    private final String tag;
-    private final int ttlMillis;
-    private final int allowedRequests;
+  /**
+   * This is a class responsible for making decision on whether Responder is ready to receive new
+   * FireAndForget or not base in the number of messages enqueued. <br>
+   * In the nutshell this is responder-side rate-limiter logic which is created for every new
+   * connection.<br>
+   * In real-world projects this class has to issue leases based on real metrics
+   */
+  private static class LeaseCalculator implements Function<Optional<LeaseStats>, Flux<Lease>> {
+    final String tag;
+    final BlockingQueue<?> queue;
 
-    public LeaseSender(String tag, int ttlMillis, int allowedRequests) {
+    public LeaseCalculator(String tag, BlockingQueue<?> queue) {
       this.tag = tag;
-      this.ttlMillis = ttlMillis;
-      this.allowedRequests = allowedRequests;
+      this.queue = queue;
     }
 
     @Override
-    public Flux<Lease> apply(Optional<NoopStats> leaseStats) {
-      System.out.println(
-          String.format("%s stats are %s", tag, leaseStats.isPresent() ? "present" : "absent"));
-      return Flux.interval(ofSeconds(1), ofSeconds(10))
-          .onBackpressureLatest()
-          .map(
-              tick -> {
-                System.out.println(
-                    String.format(
-                        "%s responder sends new leases: ttl: %d, requests: %d",
-                        tag, ttlMillis, allowedRequests));
-                return Lease.create(ttlMillis, allowedRequests);
+    public Flux<Lease> apply(Optional<LeaseStats> leaseStats) {
+      logger.info("{} stats are {}", tag, leaseStats.isPresent() ? "present" : "absent");
+      Duration ttlDuration = Duration.ofSeconds(5);
+      // The interval function is used only for the demo purpose and should not be
+      // considered as the way to issue leases.
+      // For advanced RateLimiting with Leasing
+      // consider adopting https://github.com/Netflix/concurrency-limits#server-limiter
+      return Flux.interval(Duration.ZERO, ttlDuration.dividedBy(2))
+          .handle(
+              (__, sink) -> {
+                // put queue.remainingCapacity() + 1 here if you want to observe that app is
+                // terminated  because of the queue overflowing
+                int requests = queue.remainingCapacity();
+
+                // reissue new lease only if queue has remaining capacity to
+                // accept more requests
+                if (requests > 0) {
+                  long ttl = ttlDuration.toMillis();
+                  sink.next(Lease.create((int) ttl, requests));
+                }
               });
     }
   }
 
+  /**
+   * Requester-side Lease listener.<br>
+   * In the nutshell this class implements mechanism to listen (and do appropriate actions as
+   * needed) to incoming leases issued by the Responder
+   */
   private static class LeaseReceiver implements Consumer<Flux<Lease>> {
-    private final String tag;
+    final String tag;
+    final ReplayProcessor<Lease> lastLeaseReplay = ReplayProcessor.cacheLast();
 
     public LeaseReceiver(String tag) {
       this.tag = tag;
@@ -121,38 +197,22 @@ public class LeaseExample {
     @Override
     public void accept(Flux<Lease> receivedLeases) {
       receivedLeases.subscribe(
-          l ->
-              System.out.println(
-                  String.format(
-                      "%s received leases - ttl: %d, requests: %d",
-                      tag, l.getTimeToLiveMillis(), l.getAllowedRequests())));
-    }
-  }
-
-  private static class NoopStats implements LeaseStats {
-
-    @Override
-    public void onEvent(EventType eventType) {}
-  }
-
-  private static class ServerRSocket implements RSocket {
-    private final RSocket senderRSocket;
-
-    public ServerRSocket(RSocket senderRSocket) {
-      this.senderRSocket = senderRSocket;
+          l -> {
+            logger.info(
+                "{} received leases - ttl: {}, requests: {}",
+                tag,
+                l.getTimeToLiveMillis(),
+                l.getAllowedRequests());
+            lastLeaseReplay.onNext(l);
+          });
     }
 
-    @Override
-    public Mono<Payload> requestResponse(Payload payload) {
-      System.out.println("Server requester availability: " + senderRSocket.availability());
-      senderRSocket
-          .requestResponse(DefaultPayload.create("Server request " + new Date()))
-          .doOnError(err -> System.out.println("Server request error: " + err))
-          .onErrorResume(err -> Mono.empty())
-          .subscribe(
-              resp -> System.out.println("Server requester response: " + resp.getDataUtf8()));
-
-      return Mono.just(DefaultPayload.create("Server Response " + new Date()));
+    /**
+     * This method allows to listen to new incoming leases and delay some action (e.g . retry) until
+     * new valid lease has come in
+     */
+    public Mono<Lease> notifyWhenNewLease() {
+      return lastLeaseReplay.filter(l -> l.isValid()).next();
     }
   }
 }
