@@ -43,7 +43,7 @@ import reactor.core.publisher.Mono;
 import reactor.core.publisher.ReplayProcessor;
 import reactor.util.retry.Retry;
 
-public class RateLimitingWithLeaseExample {
+public class LeaseExample {
 
   private static final Logger logger = LoggerFactory.getLogger(StreamingClient.class);
 
