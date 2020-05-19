@@ -36,6 +36,7 @@ import io.rsocket.plugins.InitializingInterceptorRegistry;
 import io.rsocket.plugins.InterceptorRegistry;
 import io.rsocket.resume.ClientRSocketSession;
 import io.rsocket.transport.ClientTransport;
+import io.rsocket.util.DefaultPayload;
 import io.rsocket.util.EmptyPayload;
 import java.time.Duration;
 import java.util.Objects;
@@ -121,13 +122,20 @@ public class RSocketConnector {
    * and metadata should be formatted according to the MIME types specified via {@link
    * #dataMimeType(String)} and {@link #metadataMimeType(String)}.
    *
-   * @param payload the payload containing data and/or metadata for the {@code SETUP} frame
+   * @param payload the payload containing data and/or metadata for the {@code SETUP} frame. Note,
+   *     if the instance of the given payload is not a {@link DefaultPayload}, its content will be
+   *     copied
    * @return the same instance for method chaining
    * @see <a href="https://github.com/rsocket/rsocket/blob/master/Protocol.md#frame-setup">SETUP
    *     Frame</a>
    */
   public RSocketConnector setupPayload(Payload payload) {
-    this.setupPayload = Objects.requireNonNull(payload);
+    if (payload instanceof DefaultPayload) {
+      this.setupPayload = payload;
+    } else {
+      this.setupPayload = DefaultPayload.create(Objects.requireNonNull(payload));
+      payload.release();
+    }
     return this;
   }
 
