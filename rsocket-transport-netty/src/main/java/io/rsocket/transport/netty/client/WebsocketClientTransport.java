@@ -17,19 +17,19 @@
 package io.rsocket.transport.netty.client;
 
 import static io.rsocket.frame.FrameLengthCodec.FRAME_LENGTH_MASK;
-import static io.rsocket.transport.netty.UriUtils.getPort;
-import static io.rsocket.transport.netty.UriUtils.isSecure;
 
+import io.netty.handler.codec.http.DefaultHttpHeaders;
+import io.netty.handler.codec.http.HttpHeaders;
 import io.rsocket.DuplexConnection;
 import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.ServerTransport;
-import io.rsocket.transport.TransportHeaderAware;
 import io.rsocket.transport.netty.WebsocketDuplexConnection;
 import java.net.InetSocketAddress;
 import java.net.URI;
-import java.util.Collections;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import reactor.core.publisher.Mono;
 import reactor.netty.http.client.HttpClient;
@@ -37,10 +37,12 @@ import reactor.netty.http.client.WebsocketClientSpec;
 import reactor.netty.tcp.TcpClient;
 
 /**
- * An implementation of {@link ClientTransport} that connects to a {@link ServerTransport} via a
- * Websocket.
+ * An implementation of {@link ClientTransport} that connects to a {@link ServerTransport} over
+ * WebSocket.
  */
-public final class WebsocketClientTransport implements ClientTransport, TransportHeaderAware {
+@SuppressWarnings("deprecation")
+public final class WebsocketClientTransport
+    implements ClientTransport, io.rsocket.transport.TransportHeaderAware {
 
   private static final String DEFAULT_PATH = "/";
 
@@ -48,11 +50,16 @@ public final class WebsocketClientTransport implements ClientTransport, Transpor
 
   private final String path;
 
-  private Supplier<Map<String, String>> transportHeaders = Collections::emptyMap;
+  private HttpHeaders headers = new DefaultHttpHeaders();
+
+  private WebsocketClientSpec.Builder specBuilder =
+      WebsocketClientSpec.builder().maxFramePayloadLength(FRAME_LENGTH_MASK);
 
   private WebsocketClientTransport(HttpClient client, String path) {
+    Objects.requireNonNull(client, "HttpClient must not be null");
+    Objects.requireNonNull(path, "path must not be null");
     this.client = client;
-    this.path = path;
+    this.path = path.startsWith("/") ? path : "/" + path;
   }
 
   /**
@@ -62,8 +69,7 @@ public final class WebsocketClientTransport implements ClientTransport, Transpor
    * @return a new instance
    */
   public static WebsocketClientTransport create(int port) {
-    TcpClient client = TcpClient.create().port(port);
-    return create(client);
+    return create(TcpClient.create().port(port));
   }
 
   /**
@@ -75,10 +81,7 @@ public final class WebsocketClientTransport implements ClientTransport, Transpor
    * @throws NullPointerException if {@code bindAddress} is {@code null}
    */
   public static WebsocketClientTransport create(String bindAddress, int port) {
-    Objects.requireNonNull(bindAddress, "bindAddress must not be null");
-
-    TcpClient client = TcpClient.create().host(bindAddress).port(port);
-    return create(client);
+    return create(TcpClient.create().host(bindAddress).port(port));
   }
 
   /**
@@ -90,9 +93,18 @@ public final class WebsocketClientTransport implements ClientTransport, Transpor
    */
   public static WebsocketClientTransport create(InetSocketAddress address) {
     Objects.requireNonNull(address, "address must not be null");
+    return create(TcpClient.create().remoteAddress(() -> address));
+  }
 
-    TcpClient client = TcpClient.create().remoteAddress(() -> address);
-    return create(client);
+  /**
+   * Creates a new instance
+   *
+   * @param client the {@link TcpClient} to use
+   * @return a new instance
+   * @throws NullPointerException if {@code client} or {@code path} is {@code null}
+   */
+  public static WebsocketClientTransport create(TcpClient client) {
+    return new WebsocketClientTransport(HttpClient.from(client), DEFAULT_PATH);
   }
 
   /**
@@ -104,22 +116,12 @@ public final class WebsocketClientTransport implements ClientTransport, Transpor
    */
   public static WebsocketClientTransport create(URI uri) {
     Objects.requireNonNull(uri, "uri must not be null");
-
-    TcpClient client = createClient(uri);
-    return create(HttpClient.from(client), uri.getPath());
-  }
-
-  /**
-   * Creates a new instance
-   *
-   * @param client the {@link TcpClient} to use
-   * @return a new instance
-   * @throws NullPointerException if {@code client} or {@code path} is {@code null}
-   */
-  public static WebsocketClientTransport create(TcpClient client) {
-    Objects.requireNonNull(client, "client must not be null");
-
-    return create(HttpClient.from(client), DEFAULT_PATH);
+    boolean isSecure = uri.getScheme().equals("wss") || uri.getScheme().equals("https");
+    TcpClient client =
+        (isSecure ? TcpClient.create().secure() : TcpClient.create())
+            .host(uri.getHost())
+            .port(uri.getPort() == -1 ? (isSecure ? 443 : 80) : uri.getPort());
+    return new WebsocketClientTransport(HttpClient.from(client), uri.getPath());
   }
 
   /**
@@ -131,33 +133,49 @@ public final class WebsocketClientTransport implements ClientTransport, Transpor
    * @throws NullPointerException if {@code client} or {@code path} is {@code null}
    */
   public static WebsocketClientTransport create(HttpClient client, String path) {
-    Objects.requireNonNull(client, "client must not be null");
-    Objects.requireNonNull(path, "path must not be null");
-
-    path = path.startsWith(DEFAULT_PATH) ? path : (DEFAULT_PATH + path);
-
     return new WebsocketClientTransport(client, path);
   }
 
-  private static TcpClient createClient(URI uri) {
-    if (isSecure(uri)) {
-      return TcpClient.create().secure().host(uri.getHost()).port(getPort(uri, 443));
-    } else {
-      return TcpClient.create().host(uri.getHost()).port(getPort(uri, 80));
+  /**
+   * Add a header and value(s) to use for the WebSocket handshake request.
+   *
+   * @param name the header name
+   * @param values the header value(s)
+   * @return the same instance for method chaining
+   * @since 1.0.1
+   */
+  public WebsocketClientTransport header(String name, String... values) {
+    if (values != null) {
+      Arrays.stream(values).forEach(value -> headers.add(name, value));
     }
+    return this;
+  }
+
+  /**
+   * Provide a consumer to customize properties of the {@link WebsocketClientSpec} to use for
+   * WebSocket upgrades. The consumer is invoked immediately.
+   *
+   * @param configurer the configurer to apply to the spec
+   * @return the same instance for method chaining
+   * @since 1.0.1
+   */
+  public WebsocketClientTransport webSocketSpec(Consumer<WebsocketClientSpec.Builder> configurer) {
+    configurer.accept(specBuilder);
+    return this;
   }
 
   @Override
   public void setTransportHeaders(Supplier<Map<String, String>> transportHeaders) {
-    this.transportHeaders =
-        Objects.requireNonNull(transportHeaders, "transportHeaders must not be null");
+    if (transportHeaders != null) {
+      transportHeaders.get().forEach((name, value) -> headers.add(name, value));
+    }
   }
 
   @Override
   public Mono<DuplexConnection> connect() {
     return client
-        .headers(headers -> transportHeaders.get().forEach(headers::set))
-        .websocket(WebsocketClientSpec.builder().maxFramePayloadLength(FRAME_LENGTH_MASK).build())
+        .headers(headers -> headers.add(this.headers))
+        .websocket(specBuilder.build())
         .uri(path)
         .connect()
         .map(WebsocketDuplexConnection::new);

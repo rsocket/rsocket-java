@@ -27,7 +27,6 @@ import io.rsocket.transport.netty.WebsocketDuplexConnection;
 import io.rsocket.transport.netty.client.WebsocketClientTransport;
 import io.rsocket.util.ByteBufPayload;
 import java.time.Duration;
-import java.util.Collections;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;
@@ -71,16 +70,15 @@ public class WebSocketHeadersSample {
     logger.debug(
         "\n\nStart of Authorized WebSocket Connection\n----------------------------------\n");
 
-    WebsocketClientTransport clientTransport =
-        WebsocketClientTransport.create(server.host(), server.port());
-
-    clientTransport.setTransportHeaders(() -> Collections.singletonMap("Authorization", "test"));
+    WebsocketClientTransport transport =
+        WebsocketClientTransport.create(server.host(), server.port())
+            .header("Authorization", "test");
 
     RSocket clientRSocket =
         RSocketConnector.create()
             .keepAlive(Duration.ofMinutes(10), Duration.ofMinutes(10))
             .payloadDecoder(PayloadDecoder.ZERO_COPY)
-            .connect(clientTransport)
+            .connect(transport)
             .block();
 
     Flux.range(1, 100)

@@ -94,7 +94,7 @@ final class WebsocketClientTransportTest {
   void createNullBindAddress() {
     assertThatNullPointerException()
         .isThrownBy(() -> WebsocketClientTransport.create(null, 8000))
-        .withMessage("bindAddress must not be null");
+        .withMessage("host");
   }
 
   @DisplayName("create throws NullPointerException with null client")
@@ -102,7 +102,7 @@ final class WebsocketClientTransportTest {
   void createNullHttpClient() {
     assertThatNullPointerException()
         .isThrownBy(() -> WebsocketClientTransport.create(null, "/test-path"))
-        .withMessage("client must not be null");
+        .withMessage("HttpClient must not be null");
   }
 
   @DisplayName("create throws NullPointerException with null address")
@@ -155,13 +155,5 @@ final class WebsocketClientTransportTest {
   @Test
   void setTransportHeader() {
     WebsocketClientTransport.create(8000).setTransportHeaders(Collections::emptyMap);
-  }
-
-  @DisplayName("setTransportHeaders throws NullPointerException with null headers")
-  @Test
-  void setTransportHeadersNullHeaders() {
-    assertThatNullPointerException()
-        .isThrownBy(() -> WebsocketClientTransport.create(8000).setTransportHeaders(null))
-        .withMessage("transportHeaders must not be null");
   }
 }
