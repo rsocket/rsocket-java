@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2015-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,7 +22,10 @@ import java.util.function.Supplier;
 /**
  * Extension interface to support Transports with headers at the transport layer, e.g. Websockets,
  * Http2.
+ *
+ * @deprecated as of 1.0.1 in favor using properties on individual transports.
  */
+@Deprecated
 public interface TransportHeaderAware {
 
   /**

@@ -113,14 +113,6 @@ final class WebsocketServerTransportTest {
     WebsocketServerTransport.create(8000).setTransportHeaders(Collections::emptyMap);
   }
 
-  @DisplayName("setTransportHeaders throws NullPointerException with null headers")
-  @Test
-  void setTransportHeadersNullHeaders() {
-    assertThatNullPointerException()
-        .isThrownBy(() -> WebsocketServerTransport.create(8000).setTransportHeaders(null))
-        .withMessage("transportHeaders must not be null");
-  }
-
   @DisplayName("starts server")
   @Test
   void start() {

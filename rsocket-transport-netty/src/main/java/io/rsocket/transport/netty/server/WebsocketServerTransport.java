@@ -18,14 +18,16 @@ package io.rsocket.transport.netty.server;
 
 import static io.rsocket.frame.FrameLengthCodec.FRAME_LENGTH_MASK;
 
+import io.netty.handler.codec.http.DefaultHttpHeaders;
+import io.netty.handler.codec.http.HttpHeaders;
 import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.ServerTransport;
-import io.rsocket.transport.TransportHeaderAware;
 import io.rsocket.transport.netty.WebsocketDuplexConnection;
 import java.net.InetSocketAddress;
-import java.util.Collections;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,13 +40,18 @@ import reactor.netty.http.server.WebsocketServerSpec;
  * An implementation of {@link ServerTransport} that connects to a {@link ClientTransport} via a
  * Websocket.
  */
+@SuppressWarnings("deprecation")
 public final class WebsocketServerTransport extends BaseWebsocketServerTransport<CloseableChannel>
-    implements TransportHeaderAware {
+    implements io.rsocket.transport.TransportHeaderAware {
+
   private static final Logger logger = LoggerFactory.getLogger(WebsocketServerTransport.class);
 
   private final HttpServer server;
 
-  private Supplier<Map<String, String>> transportHeaders = Collections::emptyMap;
+  private HttpHeaders headers = new DefaultHttpHeaders();
+
+  private WebsocketServerSpec.Builder specBuilder =
+      WebsocketServerSpec.builder().maxFramePayloadLength(FRAME_LENGTH_MASK);
 
   private WebsocketServerTransport(HttpServer server) {
     this.server = serverConfigurer.apply(Objects.requireNonNull(server, "server must not be null"));
@@ -99,10 +106,39 @@ public final class WebsocketServerTransport extends BaseWebsocketServerTransport
     return new WebsocketServerTransport(server);
   }
 
+  /**
+   * Add a header and value(s) to set on the response of WebSocket handshakes.
+   *
+   * @param name the header name
+   * @param values the header value(s)
+   * @return the same instance for method chaining
+   * @since 1.0.1
+   */
+  public WebsocketServerTransport header(String name, String... values) {
+    if (values != null) {
+      Arrays.stream(values).forEach(value -> headers.add(name, value));
+    }
+    return this;
+  }
+
+  /**
+   * Provide a consumer to customize properties of the {@link WebsocketServerSpec} to use for
+   * WebSocket upgrades. The consumer is invoked immediately.
+   *
+   * @param configurer the configurer to apply to the spec
+   * @return the same instance for method chaining
+   * @since 1.0.1
+   */
+  public WebsocketServerTransport webSocketSpec(Consumer<WebsocketServerSpec.Builder> configurer) {
+    configurer.accept(specBuilder);
+    return this;
+  }
+
   @Override
   public void setTransportHeaders(Supplier<Map<String, String>> transportHeaders) {
-    this.transportHeaders =
-        Objects.requireNonNull(transportHeaders, "transportHeaders must not be null");
+    if (transportHeaders != null) {
+      transportHeaders.get().forEach((name, value) -> headers.add(name, value));
+    }
   }
 
   @Override
@@ -111,13 +147,13 @@ public final class WebsocketServerTransport extends BaseWebsocketServerTransport
     return server
         .handle(
             (request, response) -> {
-              transportHeaders.get().forEach(response::addHeader);
+              response.headers(headers);
               return response.sendWebsocket(
                   (in, out) ->
                       acceptor
                           .apply(new WebsocketDuplexConnection((Connection) in))
                           .then(out.neverComplete()),
-                  WebsocketServerSpec.builder().maxFramePayloadLength(FRAME_LENGTH_MASK).build());
+                  specBuilder.build());
             })
         .bind()
         .map(CloseableChannel::new);
