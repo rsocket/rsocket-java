@@ -58,7 +58,7 @@ public class ReconnectMonoTests {
   public void shouldExpireValueOnRacingDisposeAndNext() {
     Hooks.onErrorDropped(t -> {});
     Hooks.onNextDropped(System.out::println);
-    for (int i = 0; i < 100000; i++) {
+    for (int i = 0; i < 10000; i++) {
       final int index = i;
       final CoreSubscriber<? super String>[] monoSubscribers = new CoreSubscriber[1];
       Subscription mockSubscription = Mockito.mock(Subscription.class);
@@ -104,7 +104,7 @@ public class ReconnectMonoTests {
   @Test
   public void shouldNotifyAllTheSubscribersUnderRacingBetweenSubscribeAndComplete() {
     Hooks.onErrorDropped(t -> {});
-    for (int i = 0; i < 100000; i++) {
+    for (int i = 0; i < 10000; i++) {
       final TestPublisher<String> cold =
           TestPublisher.createNoncompliant(TestPublisher.Violation.REQUEST_OVERFLOW);
 
@@ -142,8 +142,203 @@ public class ReconnectMonoTests {
   }
 
   @Test
+  public void shouldNotExpireNewlyResolvedValueIfSubscribeIsRacingWithInvalidate() {
+    Hooks.onErrorDropped(t -> {});
+    for (int i = 0; i < 10000; i++) {
+      final int index = i;
+      final TestPublisher<String> cold =
+          TestPublisher.createNoncompliant(TestPublisher.Violation.REQUEST_OVERFLOW);
+
+      final ReconnectMono<String> reconnectMono =
+          cold.mono().as(source -> new ReconnectMono<>(source, onExpire(), onValue()));
+
+      final MonoProcessor<String> processor = reconnectMono.subscribeWith(MonoProcessor.create());
+      final MonoProcessor<String> racerProcessor = MonoProcessor.create();
+
+      Assertions.assertThat(expired).isEmpty();
+      Assertions.assertThat(received).isEmpty();
+
+      reconnectMono.mainSubscriber.onNext("value_to_expire" + i);
+      reconnectMono.mainSubscriber.onComplete();
+
+      RaceTestUtils.race(
+          reconnectMono::invalidate,
+          () -> {
+            reconnectMono.subscribe(racerProcessor);
+            if (!racerProcessor.isTerminated()) {
+              reconnectMono.mainSubscriber.onNext("value_to_not_expire" + index);
+              reconnectMono.mainSubscriber.onComplete();
+            }
+          },
+          Schedulers.parallel());
+
+      Assertions.assertThat(processor.isTerminated()).isTrue();
+
+      Assertions.assertThat(processor.peek()).isEqualTo("value_to_expire" + i);
+      StepVerifier.create(racerProcessor)
+          .expectNextMatches(
+              (v) -> {
+                if (reconnectMono.subscribers == ReconnectMono.READY) {
+                  return v.equals("value_to_not_expire" + index);
+                } else {
+                  return v.equals("value_to_expire" + index);
+                }
+              })
+          .expectComplete()
+          .verify(Duration.ofMillis(100));
+
+      Assertions.assertThat(expired).hasSize(1).containsOnly("value_to_expire" + i);
+      if (reconnectMono.subscribers == ReconnectMono.READY) {
+        Assertions.assertThat(received)
+            .hasSize(2)
+            .containsExactly(
+                Tuples.of("value_to_expire" + i, reconnectMono),
+                Tuples.of("value_to_not_expire" + i, reconnectMono));
+      } else {
+        Assertions.assertThat(received)
+            .hasSize(1)
+            .containsOnly(Tuples.of("value_to_expire" + i, reconnectMono));
+      }
+
+      expired.clear();
+      received.clear();
+    }
+  }
+
+  @Test
+  public void shouldNotExpireNewlyResolvedValueIfSubscribeIsRacingWithInvalidates() {
+    Hooks.onErrorDropped(t -> {});
+    for (int i = 0; i < 10000; i++) {
+      final int index = i;
+      final TestPublisher<String> cold =
+          TestPublisher.createNoncompliant(TestPublisher.Violation.REQUEST_OVERFLOW);
+
+      final ReconnectMono<String> reconnectMono =
+          cold.mono().as(source -> new ReconnectMono<>(source, onExpire(), onValue()));
+
+      final MonoProcessor<String> processor = reconnectMono.subscribeWith(MonoProcessor.create());
+      final MonoProcessor<String> racerProcessor = MonoProcessor.create();
+
+      Assertions.assertThat(expired).isEmpty();
+      Assertions.assertThat(received).isEmpty();
+
+      reconnectMono.mainSubscriber.onNext("value_to_expire" + i);
+      reconnectMono.mainSubscriber.onComplete();
+
+      RaceTestUtils.race(
+          () ->
+              RaceTestUtils.race(
+                  reconnectMono::invalidate, reconnectMono::invalidate, Schedulers.parallel()),
+          () -> {
+            reconnectMono.subscribe(racerProcessor);
+            if (!racerProcessor.isTerminated()) {
+              reconnectMono.mainSubscriber.onNext("value_to_possibly_expire" + index);
+              reconnectMono.mainSubscriber.onComplete();
+            }
+          },
+          Schedulers.parallel());
+
+      Assertions.assertThat(processor.isTerminated()).isTrue();
+
+      Assertions.assertThat(processor.peek()).isEqualTo("value_to_expire" + i);
+      StepVerifier.create(racerProcessor)
+          .expectNextMatches(
+              (v) ->
+                  v.equals("value_to_possibly_expire" + index)
+                      || v.equals("value_to_expire" + index))
+          .expectComplete()
+          .verify(Duration.ofMillis(100));
+
+      if (expired.size() == 2) {
+        Assertions.assertThat(expired)
+            .hasSize(2)
+            .containsExactly("value_to_expire" + i, "value_to_possibly_expire" + i);
+      } else {
+        Assertions.assertThat(expired).hasSize(1).containsOnly("value_to_expire" + i);
+      }
+      if (received.size() == 2) {
+        Assertions.assertThat(received)
+            .hasSize(2)
+            .containsExactly(
+                Tuples.of("value_to_expire" + i, reconnectMono),
+                Tuples.of("value_to_possibly_expire" + i, reconnectMono));
+      } else {
+        Assertions.assertThat(received)
+            .hasSize(1)
+            .containsOnly(Tuples.of("value_to_expire" + i, reconnectMono));
+      }
+
+      expired.clear();
+      received.clear();
+    }
+  }
+
+  @Test
+  public void shouldNotExpireNewlyResolvedValueIfBlockIsRacingWithInvalidate() {
+    Hooks.onErrorDropped(t -> {});
+    for (int i = 0; i < 10000; i++) {
+      final int index = i;
+      final TestPublisher<String> cold =
+          TestPublisher.createNoncompliant(TestPublisher.Violation.REQUEST_OVERFLOW);
+
+      final ReconnectMono<String> reconnectMono =
+          cold.mono().as(source -> new ReconnectMono<>(source, onExpire(), onValue()));
+
+      final MonoProcessor<String> processor = reconnectMono.subscribeWith(MonoProcessor.create());
+
+      Assertions.assertThat(expired).isEmpty();
+      Assertions.assertThat(received).isEmpty();
+
+      reconnectMono.mainSubscriber.onNext("value_to_expire" + i);
+      reconnectMono.mainSubscriber.onComplete();
+
+      RaceTestUtils.race(
+          () ->
+              Assertions.assertThat(reconnectMono.block())
+                  .matches(
+                      (v) ->
+                          v.equals("value_to_not_expire" + index)
+                              || v.equals("value_to_expire" + index)),
+          () ->
+              RaceTestUtils.race(
+                  reconnectMono::invalidate,
+                  () -> {
+                    for (; ; ) {
+                      if (reconnectMono.subscribers != ReconnectMono.READY) {
+                        reconnectMono.mainSubscriber.onNext("value_to_not_expire" + index);
+                        reconnectMono.mainSubscriber.onComplete();
+                        break;
+                      }
+                    }
+                  },
+                  Schedulers.parallel()),
+          Schedulers.parallel());
+
+      Assertions.assertThat(processor.isTerminated()).isTrue();
+
+      Assertions.assertThat(processor.peek()).isEqualTo("value_to_expire" + i);
+
+      Assertions.assertThat(expired).hasSize(1).containsOnly("value_to_expire" + i);
+      if (reconnectMono.subscribers == ReconnectMono.READY) {
+        Assertions.assertThat(received)
+            .hasSize(2)
+            .containsExactly(
+                Tuples.of("value_to_expire" + i, reconnectMono),
+                Tuples.of("value_to_not_expire" + i, reconnectMono));
+      } else {
+        Assertions.assertThat(received)
+            .hasSize(1)
+            .containsOnly(Tuples.of("value_to_expire" + i, reconnectMono));
+      }
+
+      expired.clear();
+      received.clear();
+    }
+  }
+
+  @Test
   public void shouldEstablishValueOnceInCaseOfRacingBetweenSubscribers() {
-    for (int i = 0; i < 100000; i++) {
+    for (int i = 0; i < 10000; i++) {
       final TestPublisher<String> cold = TestPublisher.createCold();
       cold.next("value" + i);
 
@@ -187,7 +382,7 @@ public class ReconnectMonoTests {
   @Test
   public void shouldEstablishValueOnceInCaseOfRacingBetweenSubscribeAndBlock() {
     Duration timeout = Duration.ofMillis(100);
-    for (int i = 0; i < 100000; i++) {
+    for (int i = 0; i < 10000; i++) {
       final TestPublisher<String> cold = TestPublisher.createCold();
       cold.next("value" + i);
 
@@ -231,7 +426,7 @@ public class ReconnectMonoTests {
   @Test
   public void shouldEstablishValueOnceInCaseOfRacingBetweenBlocks() {
     Duration timeout = Duration.ofMillis(100);
-    for (int i = 0; i < 100000; i++) {
+    for (int i = 0; i < 10000; i++) {
       final TestPublisher<String> cold = TestPublisher.createCold();
       cold.next("value" + i);
 
@@ -274,7 +469,7 @@ public class ReconnectMonoTests {
   @Test
   public void shouldExpireValueOnRacingDisposeAndNoValueComplete() {
     Hooks.onErrorDropped(t -> {});
-    for (int i = 0; i < 100000; i++) {
+    for (int i = 0; i < 10000; i++) {
       final TestPublisher<String> cold =
           TestPublisher.createNoncompliant(TestPublisher.Violation.REQUEST_OVERFLOW);
 
@@ -299,7 +494,7 @@ public class ReconnectMonoTests {
       } else {
         Assertions.assertThat(error)
             .isInstanceOf(IllegalStateException.class)
-            .hasMessage("Unexpected Completion of the Upstream");
+            .hasMessage("Unexpected empty source");
       }
 
       Assertions.assertThat(expired).isEmpty();
@@ -312,7 +507,7 @@ public class ReconnectMonoTests {
   @Test
   public void shouldExpireValueOnRacingDisposeAndComplete() {
     Hooks.onErrorDropped(t -> {});
-    for (int i = 0; i < 100000; i++) {
+    for (int i = 0; i < 10000; i++) {
       final TestPublisher<String> cold =
           TestPublisher.createNoncompliant(TestPublisher.Violation.REQUEST_OVERFLOW);
 
@@ -352,7 +547,7 @@ public class ReconnectMonoTests {
   public void shouldExpireValueOnRacingDisposeAndError() {
     Hooks.onErrorDropped(t -> {});
     RuntimeException runtimeException = new RuntimeException("test");
-    for (int i = 0; i < 100000; i++) {
+    for (int i = 0; i < 10000; i++) {
       final TestPublisher<String> cold =
           TestPublisher.createNoncompliant(TestPublisher.Violation.REQUEST_OVERFLOW);
 
@@ -398,7 +593,7 @@ public class ReconnectMonoTests {
   public void shouldExpireValueOnRacingDisposeAndErrorWithNoBackoff() {
     Hooks.onErrorDropped(t -> {});
     RuntimeException runtimeException = new RuntimeException("test");
-    for (int i = 0; i < 100000; i++) {
+    for (int i = 0; i < 10000; i++) {
       final TestPublisher<String> cold =
           TestPublisher.createNoncompliant(TestPublisher.Violation.REQUEST_OVERFLOW);
 
@@ -710,13 +905,10 @@ public class ReconnectMonoTests {
   }
 
   @Test
-  public void shouldExpireValueExactlyOnce() {
-    for (int i = 0; i < 1000; i++) {
+  public void shouldExpireValueExactlyOnceOnRacingBetweenInvalidates() {
+    for (int i = 0; i < 10000; i++) {
       final TestPublisher<String> cold = TestPublisher.createCold();
       cold.next("value");
-      // given
-      final int minBackoff = 1;
-      final int maxBackoff = 5;
       final int timeout = 10;
 
       final ReconnectMono<String> reconnectMono =
@@ -730,6 +922,7 @@ public class ReconnectMonoTests {
 
       Assertions.assertThat(expired).isEmpty();
       Assertions.assertThat(received).hasSize(1).containsOnly(Tuples.of("value", reconnectMono));
+
       RaceTestUtils.race(reconnectMono::invalidate, reconnectMono::invalidate);
 
       Assertions.assertThat(expired).hasSize(1).containsOnly("value");
@@ -747,6 +940,45 @@ public class ReconnectMonoTests {
           .containsOnly(Tuples.of("value", reconnectMono), Tuples.of("value", reconnectMono));
 
       Assertions.assertThat(cold.subscribeCount()).isEqualTo(2);
+
+      expired.clear();
+      received.clear();
+    }
+  }
+
+  @Test
+  public void shouldExpireValueExactlyOnceOnRacingBetweenInvalidateAndDispose() {
+    for (int i = 0; i < 10000; i++) {
+      final TestPublisher<String> cold = TestPublisher.createCold();
+      cold.next("value");
+      final int timeout = 10;
+
+      final ReconnectMono<String> reconnectMono =
+          cold.mono().as(source -> new ReconnectMono<>(source, onExpire(), onValue()));
+
+      StepVerifier.create(reconnectMono.subscribeOn(Schedulers.elastic()))
+          .expectSubscription()
+          .expectNext("value")
+          .expectComplete()
+          .verify(Duration.ofSeconds(timeout));
+
+      Assertions.assertThat(expired).isEmpty();
+      Assertions.assertThat(received).hasSize(1).containsOnly(Tuples.of("value", reconnectMono));
+
+      RaceTestUtils.race(reconnectMono::invalidate, reconnectMono::dispose);
+
+      Assertions.assertThat(expired).hasSize(1).containsOnly("value");
+      Assertions.assertThat(received).hasSize(1).containsOnly(Tuples.of("value", reconnectMono));
+
+      StepVerifier.create(reconnectMono.subscribeOn(Schedulers.elastic()))
+          .expectSubscription()
+          .expectError(CancellationException.class)
+          .verify(Duration.ofSeconds(timeout));
+
+      Assertions.assertThat(expired).hasSize(1).containsOnly("value");
+      Assertions.assertThat(received).hasSize(1).containsOnly(Tuples.of("value", reconnectMono));
+
+      Assertions.assertThat(cold.subscribeCount()).isEqualTo(1);
 
       expired.clear();
       received.clear();
@@ -778,6 +1010,22 @@ public class ReconnectMonoTests {
 
     Assertions.assertThat(received).isEmpty();
     Assertions.assertThat(expired).isEmpty();
+  }
+
+  @Test
+  public void ensuresThatMainSubscriberAllowsOnlyTerminationWithValue() {
+    final int timeout = 10;
+    final ReconnectMono<String> reconnectMono =
+        new ReconnectMono<>(Mono.empty(), onExpire(), onValue());
+
+    StepVerifier.create(reconnectMono.subscribeOn(Schedulers.elastic()))
+        .expectSubscription()
+        .expectErrorSatisfies(
+            t ->
+                Assertions.assertThat(t)
+                    .hasMessage("Unexpected empty source")
+                    .isInstanceOf(IllegalStateException.class))
+        .verify(Duration.ofSeconds(timeout));
   }
 
   @Test

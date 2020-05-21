@@ -112,12 +112,25 @@ final class ReconnectMono<T> extends Mono<T> implements Invalidatable, Disposabl
     final ReconnectInner<T> inner = new ReconnectInner<>(actual, this);
     actual.onSubscribe(inner);
 
-    final int state = this.add(inner);
+    for (; ; ) {
+      final int state = this.add(inner);
 
-    if (state == READY_STATE) {
-      inner.complete(this.value);
-    } else if (state == TERMINATED_STATE) {
-      inner.onError(this.t);
+      T value = this.value;
+
+      if (state == READY_STATE) {
+        if (value != null) {
+          inner.complete(value);
+          return;
+        }
+        // value == null means racing between invalidate and this subscriber
+        // thus, we have to loop again
+        continue;
+      } else if (state == TERMINATED_STATE) {
+        inner.onError(this.t);
+        return;
+      }
+
+      return;
     }
   }
 
@@ -150,7 +163,14 @@ final class ReconnectMono<T> extends Mono<T> implements Invalidatable, Disposabl
     try {
       ReconnectInner<T>[] subscribers = this.subscribers;
       if (subscribers == READY) {
-        return this.value;
+        final T value = this.value;
+        if (value != null) {
+          return value;
+        } else {
+          // value == null means racing between invalidate and this block
+          // thus, we have to update the state again and see what happened
+          subscribers = this.subscribers;
+        }
       }
 
       if (subscribers == TERMINATED) {
@@ -175,7 +195,14 @@ final class ReconnectMono<T> extends Mono<T> implements Invalidatable, Disposabl
         ReconnectInner<T>[] inners = this.subscribers;
 
         if (inners == READY) {
-          return this.value;
+          final T value = this.value;
+          if (value != null) {
+            return value;
+          } else {
+            // value == null means racing between invalidate and this block
+            // thus, we have to update the state again and see what happened
+            inners = this.subscribers;
+          }
         }
         if (inners == TERMINATED) {
           RuntimeException re = Exceptions.propagate(this.t);
@@ -282,13 +309,31 @@ final class ReconnectMono<T> extends Mono<T> implements Invalidatable, Disposabl
 
     final ReconnectInner<T>[] subscribers = this.subscribers;
 
-    if (subscribers == READY && SUBSCRIBERS.compareAndSet(this, READY, EMPTY_UNSUBSCRIBED)) {
+    if (subscribers == READY) {
+      // guarded section to ensure we expire value exactly once if there is racing
+      if (WIP.getAndIncrement(this) != 0) {
+        return;
+      }
+
       final T value = this.value;
       this.value = null;
-
       if (value != null) {
         this.onValueExpired.accept(value);
       }
+
+      int m = 1;
+      for (; ; ) {
+        if (isDisposed()) {
+          return;
+        }
+
+        m = WIP.addAndGet(this, -m);
+        if (m == 0) {
+          break;
+        }
+      }
+
+      SUBSCRIBERS.compareAndSet(this, READY, EMPTY_UNSUBSCRIBED);
     }
   }
 
@@ -355,6 +400,11 @@ final class ReconnectMono<T> extends Mono<T> implements Invalidatable, Disposabl
     }
   }
 
+  /**
+   * Subscriber that subscribes to the source {@link Mono} in order to resolve value. <br>
+   * Note, implementation of this subscribers exclude possibility to receive onComplete only and if
+   * such happens, terminates execution with an error
+   */
   static final class ReconnectMainSubscriber<T> implements CoreSubscriber<T> {
 
     final ReconnectMono<T> parent;
@@ -389,7 +439,7 @@ final class ReconnectMono<T> extends Mono<T> implements Invalidatable, Disposabl
       }
 
       if (value == null) {
-        p.terminate(new IllegalStateException("Unexpected Completion of the Upstream"));
+        p.terminate(new IllegalStateException("Unexpected empty source"));
       } else {
         p.complete();
       }
