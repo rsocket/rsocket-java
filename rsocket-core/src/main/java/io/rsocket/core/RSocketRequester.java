@@ -189,7 +189,7 @@ class RSocketRequester implements RSocket {
 
   @Override
   public boolean isDisposed() {
-    return onClose.isDisposed();
+    return terminationError != null;
   }
 
   @Override
@@ -220,6 +220,12 @@ class RSocketRequester implements RSocket {
               if (once.getAndSet(true)) {
                 return Mono.error(
                     new IllegalStateException("FireAndForgetMono allows only a single subscriber"));
+              }
+
+              if (isDisposed()) {
+                payload.release();
+                final Throwable t = terminationError;
+                return Mono.error(t);
               }
 
               final int streamId = streamIdSupplier.nextStreamId(receivers);
@@ -270,6 +276,13 @@ class RSocketRequester implements RSocket {
 
                             @Override
                             void hookOnFirstRequest(long n) {
+                              if (isDisposed()) {
+                                payload.release();
+                                final Throwable t = terminationError;
+                                receiver.onError(t);
+                                return;
+                              }
+
                               int streamId = streamIdSupplier.nextStreamId(receivers);
                               this.streamId = streamId;
 
@@ -335,6 +348,13 @@ class RSocketRequester implements RSocket {
 
                             @Override
                             void hookOnFirstRequest(long n) {
+                              if (isDisposed()) {
+                                payload.release();
+                                final Throwable t = terminationError;
+                                receiver.onError(t);
+                                return;
+                              }
+
                               int streamId = streamIdSupplier.nextStreamId(receivers);
                               this.streamId = streamId;
 
@@ -477,6 +497,14 @@ class RSocketRequester implements RSocket {
 
                       @Override
                       void hookOnFirstRequest(long n) {
+                        if (isDisposed()) {
+                          initialPayload.release();
+                          final Throwable t = terminationError;
+                          upstreamSubscriber.cancel();
+                          receiver.onError(t);
+                          return;
+                        }
+
                         final int streamId = streamIdSupplier.nextStreamId(receivers);
                         this.streamId = streamId;
 
@@ -712,7 +740,7 @@ class RSocketRequester implements RSocket {
     if (terminationError == null) {
       Throwable e = errorSupplier.get();
       if (TERMINATION_ERROR.compareAndSet(this, null, e)) {
-        terminate(e);
+        serialScheduler.schedule(() -> terminate(e));
       }
     }
   }
@@ -720,7 +748,7 @@ class RSocketRequester implements RSocket {
   private void tryShutdown() {
     if (terminationError == null) {
       if (TERMINATION_ERROR.compareAndSet(this, null, CLOSED_CHANNEL_EXCEPTION)) {
-        terminate(CLOSED_CHANNEL_EXCEPTION);
+        serialScheduler.schedule(() -> terminate(CLOSED_CHANNEL_EXCEPTION));
       }
     }
   }
@@ -729,34 +757,30 @@ class RSocketRequester implements RSocket {
     connection.dispose();
     leaseHandler.dispose();
 
-    synchronized (receivers) {
-      receivers
-          .values()
-          .forEach(
-              receiver -> {
-                try {
-                  receiver.onError(e);
-                } catch (Throwable t) {
-                  if (LOGGER.isDebugEnabled()) {
-                    LOGGER.debug("Dropped exception", t);
-                  }
+    receivers
+        .values()
+        .forEach(
+            receiver -> {
+              try {
+                receiver.onError(e);
+              } catch (Throwable t) {
+                if (LOGGER.isDebugEnabled()) {
+                  LOGGER.debug("Dropped exception", t);
                 }
-              });
-    }
-    synchronized (senders) {
-      senders
-          .values()
-          .forEach(
-              sender -> {
-                try {
-                  sender.cancel();
-                } catch (Throwable t) {
-                  if (LOGGER.isDebugEnabled()) {
-                    LOGGER.debug("Dropped exception", t);
-                  }
+              }
+            });
+    senders
+        .values()
+        .forEach(
+            sender -> {
+              try {
+                sender.cancel();
+              } catch (Throwable t) {
+                if (LOGGER.isDebugEnabled()) {
+                  LOGGER.debug("Dropped exception", t);
                 }
-              });
-    }
+              }
+            });
     senders.clear();
     receivers.clear();
     sendProcessor.dispose();
