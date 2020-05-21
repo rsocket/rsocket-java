@@ -173,7 +173,7 @@ public class ResolvingRSocketTests {
     MonoProcessor<Payload> responseMono = MonoProcessor.create();
     Mockito.when(mockRSocket.requestResponse(Mockito.any())).thenReturn(responseMono);
     Mockito.when(mockRSocket.onClose()).thenReturn(Mono.never());
-    ResolvingRSocket mockParent = Mockito.mock(ResolvingRSocket.class);
+    ResolvingRSocket mockParent = new ResolvingRSocket(Mono.just(mockRSocket));
     Payload payload = ByteBufPayload.create("test");
     ResolvingRSocket.FlatMapInner<Payload> flatMapInner =
         new ResolvingRSocket.FlatMapInner<>(mockParent, payload, FrameType.REQUEST_RESPONSE);
@@ -192,7 +192,7 @@ public class ResolvingRSocketTests {
     MonoProcessor<Payload> responseMono = MonoProcessor.create();
     Mockito.when(mockRSocket.requestStream(Mockito.any())).thenReturn(responseMono.flux());
     Mockito.when(mockRSocket.onClose()).thenReturn(Mono.never());
-    ResolvingRSocket mockParent = Mockito.mock(ResolvingRSocket.class);
+    ResolvingRSocket mockParent = new ResolvingRSocket(Mono.just(mockRSocket));
     Payload payload = ByteBufPayload.create("test");
     ResolvingRSocket.FlatMapManyInner<Payload> flatMapManyInner =
         new ResolvingRSocket.FlatMapManyInner<>(mockParent, payload, FrameType.REQUEST_STREAM);
@@ -241,7 +241,7 @@ public class ResolvingRSocketTests {
       if (processor.isError()) {
         Assertions.assertThat(processor.getError())
             .isInstanceOf(CancellationException.class)
-            .hasMessage("ResolvingRSocket has already been disposed");
+            .hasMessage("Disposed");
       } else {
         Assertions.assertThat(processor.peek()).isEqualTo(EmptyPayload.INSTANCE);
       }
@@ -366,7 +366,7 @@ public class ResolvingRSocketTests {
       if (error instanceof CancellationException) {
         Assertions.assertThat(error)
             .isInstanceOf(CancellationException.class)
-            .hasMessage("ResolvingRSocket has already been disposed");
+            .hasMessage("Disposed");
       } else {
         Assertions.assertThat(error)
             .isInstanceOf(IllegalStateException.class)
@@ -404,7 +404,7 @@ public class ResolvingRSocketTests {
       if (processor.isError()) {
         Assertions.assertThat(processor.getError())
             .isInstanceOf(CancellationException.class)
-            .hasMessage("ResolvingRSocket has already been disposed");
+            .hasMessage("Disposed");
       } else {
         responseMono.onNext(EmptyPayload.INSTANCE);
         Assertions.assertThat(processor.peek()).isEqualTo(EmptyPayload.INSTANCE);
@@ -443,7 +443,7 @@ public class ResolvingRSocketTests {
         if (processor.getError() instanceof CancellationException) {
           Assertions.assertThat(processor.getError())
               .isInstanceOf(CancellationException.class)
-              .hasMessage("ResolvingRSocket has already been disposed");
+              .hasMessage("Disposed");
         } else {
           Assertions.assertThat(processor.getError())
               .isInstanceOf(RuntimeException.class)
@@ -490,7 +490,7 @@ public class ResolvingRSocketTests {
         if (processor.getError() instanceof CancellationException) {
           Assertions.assertThat(processor.getError())
               .isInstanceOf(CancellationException.class)
-              .hasMessage("ResolvingRSocket has already been disposed");
+              .hasMessage("Disposed");
         } else {
           Assertions.assertThat(processor.getError())
               .matches(Exceptions::isRetryExhausted)
