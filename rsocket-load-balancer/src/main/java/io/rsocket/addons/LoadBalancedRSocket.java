@@ -46,6 +46,6 @@ public class LoadBalancedRSocket implements RSocket {
 
   @Override
   public Mono<Void> onClose() {
-    return rSocketPool.onClose();
+    return Mono.empty();
   }
 }
