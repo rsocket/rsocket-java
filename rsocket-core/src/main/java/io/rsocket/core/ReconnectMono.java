@@ -402,8 +402,8 @@ final class ReconnectMono<T> extends Mono<T> implements Invalidatable, Disposabl
 
   /**
    * Subscriber that subscribes to the source {@link Mono} to receive its value. <br>
-   * Note that the source is not expected to complete empty, and if this happens,
-   * execution will terminate with an {@code IllegalStateException}.
+   * Note that the source is not expected to complete empty, and if this happens, execution will
+   * terminate with an {@code IllegalStateException}.
    */
   static final class ReconnectMainSubscriber<T> implements CoreSubscriber<T> {
 

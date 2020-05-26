@@ -494,7 +494,7 @@ public class ReconnectMonoTests {
       } else {
         Assertions.assertThat(error)
             .isInstanceOf(IllegalStateException.class)
-            .hasMessage("Unexpected empty source");
+            .hasMessage("Source completed empty");
       }
 
       Assertions.assertThat(expired).isEmpty();
@@ -1023,7 +1023,7 @@ public class ReconnectMonoTests {
         .expectErrorSatisfies(
             t ->
                 Assertions.assertThat(t)
-                    .hasMessage("Unexpected empty source")
+                    .hasMessage("Source completed empty")
                     .isInstanceOf(IllegalStateException.class))
         .verify(Duration.ofSeconds(timeout));
   }
