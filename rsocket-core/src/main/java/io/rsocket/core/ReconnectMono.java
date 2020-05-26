@@ -439,7 +439,7 @@ final class ReconnectMono<T> extends Mono<T> implements Invalidatable, Disposabl
       }
 
       if (value == null) {
-        p.terminate(new IllegalStateException("Unexpected empty source"));
+        p.terminate(new IllegalStateException("Source completed empty"));
       } else {
         p.complete();
       }
