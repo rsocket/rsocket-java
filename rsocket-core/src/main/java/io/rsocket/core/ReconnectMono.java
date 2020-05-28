@@ -25,11 +25,9 @@ import java.util.function.Consumer;
 import org.reactivestreams.Subscription;
 import reactor.core.CoreSubscriber;
 import reactor.core.Disposable;
-import reactor.core.Exceptions;
 import reactor.core.Scannable;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Operators;
-import reactor.core.publisher.Operators.MonoSubscriber;
 import reactor.util.annotation.Nullable;
 import reactor.util.context.Context;
 
@@ -38,39 +36,7 @@ final class ReconnectMono<T> extends Mono<T> implements Invalidatable, Disposabl
   final Mono<T> source;
   final BiConsumer<? super T, Invalidatable> onValueReceived;
   final Consumer<? super T> onValueExpired;
-  final ReconnectMainSubscriber<? super T> mainSubscriber;
-
-  volatile int wip;
-
-  @SuppressWarnings("rawtypes")
-  static final AtomicIntegerFieldUpdater<ReconnectMono> WIP =
-      AtomicIntegerFieldUpdater.newUpdater(ReconnectMono.class, "wip");
-
-  volatile ReconnectInner<T>[] subscribers;
-
-  @SuppressWarnings("rawtypes")
-  static final AtomicReferenceFieldUpdater<ReconnectMono, ReconnectInner[]> SUBSCRIBERS =
-      AtomicReferenceFieldUpdater.newUpdater(
-          ReconnectMono.class, ReconnectInner[].class, "subscribers");
-
-  @SuppressWarnings("rawtypes")
-  static final ReconnectInner[] EMPTY_UNSUBSCRIBED = new ReconnectInner[0];
-
-  @SuppressWarnings("rawtypes")
-  static final ReconnectInner[] EMPTY_SUBSCRIBED = new ReconnectInner[0];
-
-  @SuppressWarnings("rawtypes")
-  static final ReconnectInner[] READY = new ReconnectInner[0];
-
-  @SuppressWarnings("rawtypes")
-  static final ReconnectInner[] TERMINATED = new ReconnectInner[0];
-
-  static final int ADDED_STATE = 0;
-  static final int READY_STATE = 1;
-  static final int TERMINATED_STATE = 2;
-
-  T value;
-  Throwable t;
+  final ResolvingInner<T> resolvingInner;
 
   ReconnectMono(
       Mono<T> source,
@@ -79,9 +45,7 @@ final class ReconnectMono<T> extends Mono<T> implements Invalidatable, Disposabl
     this.source = source;
     this.onValueExpired = onValueExpired;
     this.onValueReceived = onValueReceived;
-    this.mainSubscriber = new ReconnectMainSubscriber<>(this);
-
-    SUBSCRIBERS.lazySet(this, EMPTY_UNSUBSCRIBED);
+    this.resolvingInner = new ResolvingInner<>(this);
   }
 
   @Override
@@ -91,47 +55,35 @@ final class ReconnectMono<T> extends Mono<T> implements Invalidatable, Disposabl
 
     final boolean isDisposed = isDisposed();
     if (key == Attr.TERMINATED) return isDisposed;
-    if (key == Attr.ERROR) return t;
+    if (key == Attr.ERROR) return this.resolvingInner.t;
 
     return null;
   }
 
   @Override
+  public void invalidate() {
+    this.resolvingInner.invalidate();
+  }
+
+  @Override
   public void dispose() {
-    this.terminate(new CancellationException("ReconnectMono has already been disposed"));
+    this.resolvingInner.terminate(
+        new CancellationException("ReconnectMono has already been disposed"));
   }
 
   @Override
   public boolean isDisposed() {
-    return this.subscribers == TERMINATED;
+    return this.resolvingInner.isDisposed();
   }
 
   @Override
   @SuppressWarnings("uncheked")
   public void subscribe(CoreSubscriber<? super T> actual) {
-    final ReconnectInner<T> inner = new ReconnectInner<>(actual, this);
+    final ResolvingOperator.MonoDeferredResolutionOperator<T> inner =
+        new ResolvingOperator.MonoDeferredResolutionOperator<>(this.resolvingInner, actual);
     actual.onSubscribe(inner);
 
-    for (; ; ) {
-      final int state = this.add(inner);
-
-      T value = this.value;
-
-      if (state == READY_STATE) {
-        if (value != null) {
-          inner.complete(value);
-          return;
-        }
-        // value == null means racing between invalidate and this subscriber
-        // thus, we have to loop again
-        continue;
-      } else if (state == TERMINATED_STATE) {
-        inner.onError(this.t);
-        return;
-      }
-
-      return;
-    }
+    this.resolvingInner.observe(inner);
   }
 
   /**
@@ -160,244 +112,7 @@ final class ReconnectMono<T> extends Mono<T> implements Invalidatable, Disposabl
   @Nullable
   @SuppressWarnings("uncheked")
   public T block(@Nullable Duration timeout) {
-    try {
-      ReconnectInner<T>[] subscribers = this.subscribers;
-      if (subscribers == READY) {
-        final T value = this.value;
-        if (value != null) {
-          return value;
-        } else {
-          // value == null means racing between invalidate and this block
-          // thus, we have to update the state again and see what happened
-          subscribers = this.subscribers;
-        }
-      }
-
-      if (subscribers == TERMINATED) {
-        RuntimeException re = Exceptions.propagate(this.t);
-        re = Exceptions.addSuppressed(re, new Exception("ReconnectMono terminated with an error"));
-        throw re;
-      }
-
-      // connect once
-      if (subscribers == EMPTY_UNSUBSCRIBED
-          && SUBSCRIBERS.compareAndSet(this, EMPTY_UNSUBSCRIBED, EMPTY_SUBSCRIBED)) {
-        this.source.subscribe(this.mainSubscriber);
-      }
-
-      long delay;
-      if (null == timeout) {
-        delay = 0L;
-      } else {
-        delay = System.nanoTime() + timeout.toNanos();
-      }
-      for (; ; ) {
-        ReconnectInner<T>[] inners = this.subscribers;
-
-        if (inners == READY) {
-          final T value = this.value;
-          if (value != null) {
-            return value;
-          } else {
-            // value == null means racing between invalidate and this block
-            // thus, we have to update the state again and see what happened
-            inners = this.subscribers;
-          }
-        }
-        if (inners == TERMINATED) {
-          RuntimeException re = Exceptions.propagate(this.t);
-          re =
-              Exceptions.addSuppressed(re, new Exception("ReconnectMono terminated with an error"));
-          throw re;
-        }
-        if (timeout != null && delay < System.nanoTime()) {
-          throw new IllegalStateException("Timeout on Mono blocking read");
-        }
-
-        Thread.sleep(1);
-      }
-    } catch (InterruptedException ie) {
-      Thread.currentThread().interrupt();
-
-      throw new IllegalStateException("Thread Interruption on Mono blocking read");
-    }
-  }
-
-  @SuppressWarnings("unchecked")
-  void terminate(Throwable t) {
-    if (isDisposed()) {
-      return;
-    }
-
-    // writes happens before volatile write
-    this.t = t;
-
-    final ReconnectInner<T>[] subscribers = SUBSCRIBERS.getAndSet(this, TERMINATED);
-    if (subscribers == TERMINATED) {
-      Operators.onErrorDropped(t, Context.empty());
-      return;
-    }
-
-    this.mainSubscriber.dispose();
-
-    this.doFinally();
-
-    for (CoreSubscriber<T> consumer : subscribers) {
-      consumer.onError(t);
-    }
-  }
-
-  void complete() {
-    ReconnectInner<T>[] subscribers = this.subscribers;
-    if (subscribers == TERMINATED) {
-      return;
-    }
-
-    final T value = this.value;
-
-    for (; ; ) {
-      // ensures TERMINATE is going to be replaced with READY
-      if (SUBSCRIBERS.compareAndSet(this, subscribers, READY)) {
-        break;
-      }
-
-      subscribers = this.subscribers;
-
-      if (subscribers == TERMINATED) {
-        this.doFinally();
-        return;
-      }
-    }
-
-    this.onValueReceived.accept(value, this);
-
-    for (ReconnectInner<T> consumer : subscribers) {
-      consumer.complete(value);
-    }
-  }
-
-  void doFinally() {
-    if (WIP.getAndIncrement(this) != 0) {
-      return;
-    }
-
-    int m = 1;
-    T value;
-
-    for (; ; ) {
-      value = this.value;
-
-      if (value != null && isDisposed()) {
-        this.value = null;
-        this.onValueExpired.accept(value);
-        return;
-      }
-
-      m = WIP.addAndGet(this, -m);
-      if (m == 0) {
-        return;
-      }
-    }
-  }
-
-  // Check RSocket is not good
-  @Override
-  public void invalidate() {
-    if (this.subscribers == TERMINATED) {
-      return;
-    }
-
-    final ReconnectInner<T>[] subscribers = this.subscribers;
-
-    if (subscribers == READY) {
-      // guarded section to ensure we expire value exactly once if there is racing
-      if (WIP.getAndIncrement(this) != 0) {
-        return;
-      }
-
-      final T value = this.value;
-      this.value = null;
-      if (value != null) {
-        this.onValueExpired.accept(value);
-      }
-
-      int m = 1;
-      for (; ; ) {
-        if (isDisposed()) {
-          return;
-        }
-
-        m = WIP.addAndGet(this, -m);
-        if (m == 0) {
-          break;
-        }
-      }
-
-      SUBSCRIBERS.compareAndSet(this, READY, EMPTY_UNSUBSCRIBED);
-    }
-  }
-
-  int add(ReconnectInner<T> ps) {
-    for (; ; ) {
-      ReconnectInner<T>[] a = this.subscribers;
-
-      if (a == TERMINATED) {
-        return TERMINATED_STATE;
-      }
-
-      if (a == READY) {
-        return READY_STATE;
-      }
-
-      int n = a.length;
-      @SuppressWarnings("unchecked")
-      ReconnectInner<T>[] b = new ReconnectInner[n + 1];
-      System.arraycopy(a, 0, b, 0, n);
-      b[n] = ps;
-
-      if (SUBSCRIBERS.compareAndSet(this, a, b)) {
-        if (a == EMPTY_UNSUBSCRIBED) {
-          this.source.subscribe(this.mainSubscriber);
-        }
-        return ADDED_STATE;
-      }
-    }
-  }
-
-  @SuppressWarnings("unchecked")
-  void remove(ReconnectInner<T> ps) {
-    for (; ; ) {
-      ReconnectInner<T>[] a = this.subscribers;
-      int n = a.length;
-      if (n == 0) {
-        return;
-      }
-
-      int j = -1;
-      for (int i = 0; i < n; i++) {
-        if (a[i] == ps) {
-          j = i;
-          break;
-        }
-      }
-
-      if (j < 0) {
-        return;
-      }
-
-      ReconnectInner<T>[] b;
-
-      if (n == 1) {
-        b = EMPTY_SUBSCRIBED;
-      } else {
-        b = new ReconnectInner[n - 1];
-        System.arraycopy(a, 0, b, 0, j);
-        System.arraycopy(a, j + 1, b, j, n - j - 1);
-      }
-      if (SUBSCRIBERS.compareAndSet(this, a, b)) {
-        return;
-      }
-    }
+    return this.resolvingInner.block(timeout);
   }
 
   /**
@@ -407,7 +122,7 @@ final class ReconnectMono<T> extends Mono<T> implements Invalidatable, Disposabl
    */
   static final class ReconnectMainSubscriber<T> implements CoreSubscriber<T> {
 
-    final ReconnectMono<T> parent;
+    final ResolvingInner<T> parent;
 
     volatile Subscription s;
 
@@ -416,7 +131,15 @@ final class ReconnectMono<T> extends Mono<T> implements Invalidatable, Disposabl
         AtomicReferenceFieldUpdater.newUpdater(
             ReconnectMainSubscriber.class, Subscription.class, "s");
 
-    ReconnectMainSubscriber(ReconnectMono<T> parent) {
+    volatile int wip;
+
+    @SuppressWarnings("rawtypes")
+    static final AtomicIntegerFieldUpdater<ReconnectMainSubscriber> WIP =
+        AtomicIntegerFieldUpdater.newUpdater(ReconnectMainSubscriber.class, "wip");
+
+    T value;
+
+    ReconnectMainSubscriber(ResolvingInner<T> parent) {
       this.parent = parent;
     }
 
@@ -430,93 +153,114 @@ final class ReconnectMono<T> extends Mono<T> implements Invalidatable, Disposabl
     @Override
     public void onComplete() {
       final Subscription s = this.s;
-      final ReconnectMono<T> p = this.parent;
-      final T value = p.value;
+      final T value = this.value;
 
       if (s == Operators.cancelledSubscription() || !S.compareAndSet(this, s, null)) {
-        p.doFinally();
+        this.doFinally();
         return;
       }
 
+      final ResolvingInner<T> p = this.parent;
       if (value == null) {
         p.terminate(new IllegalStateException("Source completed empty"));
       } else {
-        p.complete();
+        p.complete(value);
       }
     }
 
     @Override
     public void onError(Throwable t) {
       final Subscription s = this.s;
-      final ReconnectMono<T> p = this.parent;
 
       if (s == Operators.cancelledSubscription()
           || S.getAndSet(this, Operators.cancelledSubscription())
               == Operators.cancelledSubscription()) {
-        p.doFinally();
+        this.doFinally();
         Operators.onErrorDropped(t, Context.empty());
         return;
       }
 
+      this.doFinally();
       // terminate upstream which means retryBackoff has exhausted
-      p.terminate(t);
+      this.parent.terminate(t);
     }
 
     @Override
     public void onNext(T value) {
       if (this.s == Operators.cancelledSubscription()) {
-        this.parent.onValueExpired.accept(value);
+        this.parent.doOnValueExpired(value);
         return;
       }
 
-      final ReconnectMono<T> p = this.parent;
-
-      p.value = value;
+      this.value = value;
       // volatile write and check on racing
-      p.doFinally();
+      this.doFinally();
     }
 
     void dispose() {
-      Operators.terminate(S, this);
+      if (Operators.terminate(S, this)) {
+        this.doFinally();
+      }
+    }
+
+    final void doFinally() {
+      if (WIP.getAndIncrement(this) != 0) {
+        return;
+      }
+
+      int m = 1;
+      T value;
+
+      for (; ; ) {
+        value = this.value;
+        if (value != null && this.s == Operators.cancelledSubscription()) {
+          this.value = null;
+          this.parent.doOnValueExpired(value);
+          return;
+        }
+
+        m = WIP.addAndGet(this, -m);
+        if (m == 0) {
+          return;
+        }
+      }
     }
   }
 
-  static final class ReconnectInner<T> extends MonoSubscriber<T, T> {
+  static final class ResolvingInner<T> extends ResolvingOperator<T> implements Scannable {
+
     final ReconnectMono<T> parent;
+    final ReconnectMainSubscriber<? super T> mainSubscriber;
 
-    ReconnectInner(CoreSubscriber<? super T> actual, ReconnectMono<T> parent) {
-      super(actual);
+    ResolvingInner(ReconnectMono<T> parent) {
       this.parent = parent;
+      this.mainSubscriber = new ReconnectMainSubscriber<>(this);
     }
 
     @Override
-    public void cancel() {
-      if (!isCancelled()) {
-        super.cancel();
-        this.parent.remove(this);
-      }
+    protected void doOnValueExpired(T value) {
+      this.parent.onValueExpired.accept(value);
     }
 
     @Override
-    public void onComplete() {
-      if (!isCancelled()) {
-        this.actual.onComplete();
-      }
+    protected void doOnValueResolved(T value) {
+      this.parent.onValueReceived.accept(value, this.parent);
     }
 
     @Override
-    public void onError(Throwable t) {
-      if (isCancelled()) {
-        Operators.onErrorDropped(t, currentContext());
-      } else {
-        this.actual.onError(t);
-      }
+    protected void doOnDispose() {
+      this.mainSubscriber.dispose();
+    }
+
+    @Override
+    protected void doSubscribe() {
+      this.parent.source.subscribe(this.mainSubscriber);
     }
 
     @Override
     public Object scanUnsafe(Attr key) {
       if (key == Attr.PARENT) return this.parent;
-      return super.scanUnsafe(key);
+      return null;
     }
   }
 }
