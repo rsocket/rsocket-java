@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2015-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 package io.rsocket.transport.netty.server;
 
 import io.rsocket.Closeable;
+import java.lang.reflect.Method;
 import java.net.InetSocketAddress;
 import java.util.Objects;
 import reactor.core.publisher.Mono;
@@ -27,6 +28,17 @@ import reactor.netty.DisposableChannel;
  * close-ability and exposing the {@link DisposableChannel}'s address.
  */
 public final class CloseableChannel implements Closeable {
+
+  /** For forward compatibility: remove when RSocket compiles against Reactor 1.0. */
+  private static final Method channelAddressMethod;
+
+  static {
+    try {
+      channelAddressMethod = DisposableChannel.class.getMethod("address");
+    } catch (NoSuchMethodException ex) {
+      throw new IllegalStateException("Expected address method", ex);
+    }
+  }
 
   private final DisposableChannel channel;
 
@@ -47,7 +59,15 @@ public final class CloseableChannel implements Closeable {
    * @see DisposableChannel#address()
    */
   public InetSocketAddress address() {
-    return channel.address();
+    try {
+      return channel.address();
+    } catch (NoSuchMethodError e) {
+      try {
+        return (InetSocketAddress) channelAddressMethod.invoke(this.channel);
+      } catch (Exception ex) {
+        throw new IllegalStateException("Unable to obtain address", ex);
+      }
+    }
   }
 
   @Override
