@@ -16,8 +16,7 @@
 
 package io.rsocket.core;
 
-import static io.rsocket.frame.FrameType.ERROR;
-import static io.rsocket.frame.FrameType.SETUP;
+import static io.rsocket.frame.FrameType.*;
 import static org.assertj.core.data.Offset.offset;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.mock;
@@ -37,6 +36,7 @@ import io.rsocket.frame.LeaseFrameCodec;
 import io.rsocket.frame.SetupFrameCodec;
 import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.internal.ClientServerInputMultiplexer;
+import io.rsocket.internal.subscriber.AssertSubscriber;
 import io.rsocket.lease.*;
 import io.rsocket.lease.MissingLeaseException;
 import io.rsocket.plugins.InitializingInterceptorRegistry;
@@ -56,6 +56,7 @@ import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.EmitterProcessor;
@@ -183,17 +184,41 @@ class RSocketLeaseTest {
 
   @ParameterizedTest
   @MethodSource("interactions")
+  @SuppressWarnings({"rawtypes", "unchecked"})
   void requesterDepletedAllowedLeaseRequestsAreRejected(
-      Function<RSocket, Publisher<?>> interaction) {
+      Function<RSocket, Publisher<?>> interaction, FrameType interactionType) {
     requesterLeaseHandler.receive(leaseFrame(5_000, 1, Unpooled.EMPTY_BUFFER));
-    interaction.apply(rSocketRequester);
+
+    double initialAvailability = requesterLeaseHandler.availability();
+    Publisher<?> request = interaction.apply(rSocketRequester);
+
+    // ensures that lease is not used until the frame is sent
+    Assertions.assertThat(initialAvailability).isEqualTo(requesterLeaseHandler.availability());
+    Assertions.assertThat(connection.getSent()).hasSize(0);
+
+    AssertSubscriber assertSubscriber = AssertSubscriber.create(0);
+    request.subscribe(assertSubscriber);
+
+    // if request is FNF, then request frame is sent on subscribe
+    // otherwise we need to make request(1)
+    if (interactionType != REQUEST_FNF) {
+      Assertions.assertThat(initialAvailability).isEqualTo(requesterLeaseHandler.availability());
+      Assertions.assertThat(connection.getSent()).hasSize(0);
+
+      assertSubscriber.request(1);
+    }
+
+    // ensures availability is changed and lease is used only up on frame sending
+    Assertions.assertThat(rSocketRequester.availability()).isCloseTo(0.0, offset(1e-2));
+    Assertions.assertThat(connection.getSent())
+        .hasSize(1)
+        .first()
+        .matches(bb -> FrameHeaderCodec.frameType(bb) == interactionType);
 
     Flux.from(interaction.apply(rSocketRequester))
         .as(StepVerifier::create)
         .expectError(MissingLeaseException.class)
         .verify(Duration.ofSeconds(5));
-
-    Assertions.assertThat(rSocketRequester.availability()).isCloseTo(0.0, offset(1e-2));
   }
 
   @ParameterizedTest
@@ -313,11 +338,23 @@ class RSocketLeaseTest {
     return LeaseFrameCodec.encode(byteBufAllocator, ttl, requests, metadata);
   }
 
-  static Stream<Function<RSocket, Publisher<?>>> interactions() {
+  static Stream<Arguments> interactions() {
     return Stream.of(
-        rSocket -> rSocket.fireAndForget(DefaultPayload.create("test")),
-        rSocket -> rSocket.requestResponse(DefaultPayload.create("test")),
-        rSocket -> rSocket.requestStream(DefaultPayload.create("test")),
-        rSocket -> rSocket.requestChannel(Mono.just(DefaultPayload.create("test"))));
+        Arguments.of(
+            (Function<RSocket, Publisher<?>>)
+                rSocket -> rSocket.fireAndForget(DefaultPayload.create("test")),
+            FrameType.REQUEST_FNF),
+        Arguments.of(
+            (Function<RSocket, Publisher<?>>)
+                rSocket -> rSocket.requestResponse(DefaultPayload.create("test")),
+            FrameType.REQUEST_RESPONSE),
+        Arguments.of(
+            (Function<RSocket, Publisher<?>>)
+                rSocket -> rSocket.requestStream(DefaultPayload.create("test")),
+            FrameType.REQUEST_STREAM),
+        Arguments.of(
+            (Function<RSocket, Publisher<?>>)
+                rSocket -> rSocket.requestChannel(Mono.just(DefaultPayload.create("test"))),
+            FrameType.REQUEST_CHANNEL));
   }
 }

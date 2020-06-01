@@ -202,10 +202,10 @@ class RSocketRequester implements RSocket {
       return Mono.error(new IllegalReferenceCountException());
     }
 
-    Throwable err = checkAvailable();
-    if (err != null) {
+    if (isDisposed()) {
       payload.release();
-      return Mono.error(err);
+      final Throwable t = terminationError;
+      return Mono.error(t);
     }
 
     if (!PayloadValidationUtils.isValid(this.mtu, payload)) {
@@ -228,6 +228,11 @@ class RSocketRequester implements RSocket {
                 return Mono.error(t);
               }
 
+              RequesterLeaseHandler lh = leaseHandler;
+              if (!lh.useLease()) {
+                return Mono.error(lh.leaseError());
+              }
+
               final int streamId = streamIdSupplier.nextStreamId(receivers);
               final ByteBuf requestFrame =
                   RequestFireAndForgetFrameCodec.encodeReleasingPayload(
@@ -245,10 +250,10 @@ class RSocketRequester implements RSocket {
       return Mono.error(new IllegalReferenceCountException());
     }
 
-    Throwable err = checkAvailable();
-    if (err != null) {
+    if (isDisposed()) {
       payload.release();
-      return Mono.error(err);
+      final Throwable t = terminationError;
+      return Mono.error(t);
     }
 
     if (!PayloadValidationUtils.isValid(this.mtu, payload)) {
@@ -280,6 +285,12 @@ class RSocketRequester implements RSocket {
                                 payload.release();
                                 final Throwable t = terminationError;
                                 receiver.onError(t);
+                                return;
+                              }
+
+                              RequesterLeaseHandler lh = leaseHandler;
+                              if (!lh.useLease()) {
+                                receiver.onError(lh.leaseError());
                                 return;
                               }
 
@@ -318,10 +329,10 @@ class RSocketRequester implements RSocket {
       return Flux.error(new IllegalReferenceCountException());
     }
 
-    Throwable err = checkAvailable();
-    if (err != null) {
+    if (isDisposed()) {
       payload.release();
-      return Flux.error(err);
+      final Throwable t = terminationError;
+      return Flux.error(t);
     }
 
     if (!PayloadValidationUtils.isValid(this.mtu, payload)) {
@@ -352,6 +363,12 @@ class RSocketRequester implements RSocket {
                                 payload.release();
                                 final Throwable t = terminationError;
                                 receiver.onError(t);
+                                return;
+                              }
+
+                              RequesterLeaseHandler lh = leaseHandler;
+                              if (!lh.useLease()) {
+                                receiver.onError(lh.leaseError());
                                 return;
                               }
 
@@ -397,9 +414,9 @@ class RSocketRequester implements RSocket {
   }
 
   private Flux<Payload> handleChannel(Flux<Payload> request) {
-    Throwable err = checkAvailable();
-    if (err != null) {
-      return Flux.error(err);
+    if (isDisposed()) {
+      final Throwable t = terminationError;
+      return Flux.error(t);
     }
 
     return request
@@ -505,6 +522,12 @@ class RSocketRequester implements RSocket {
                           return;
                         }
 
+                        RequesterLeaseHandler lh = leaseHandler;
+                        if (!lh.useLease()) {
+                          receiver.onError(lh.leaseError());
+                          return;
+                        }
+
                         final int streamId = streamIdSupplier.nextStreamId(receivers);
                         this.streamId = streamId;
 
@@ -561,8 +584,8 @@ class RSocketRequester implements RSocket {
       return Mono.error(new IllegalReferenceCountException());
     }
 
-    Throwable err = this.terminationError;
-    if (err != null) {
+    if (isDisposed()) {
+      Throwable err = this.terminationError;
       payload.release();
       return Mono.error(err);
     }
@@ -594,19 +617,6 @@ class RSocketRequester implements RSocket {
 
           return Mono.empty();
         });
-  }
-
-  @Nullable
-  private Throwable checkAvailable() {
-    Throwable err = this.terminationError;
-    if (err != null) {
-      return err;
-    }
-    RequesterLeaseHandler lh = leaseHandler;
-    if (!lh.useLease()) {
-      return lh.leaseError();
-    }
-    return null;
   }
 
   private void handleIncomingFrames(ByteBuf frame) {
