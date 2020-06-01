@@ -1,6 +1,6 @@
 # RSocket
 
-[![Join the chat at https://gitter.im/RSocket/reactivesocket-java](https://badges.gitter.im/RSocket/reactivesocket-java.svg)](https://gitter.im/ReactiveSocket/reactivesocket-java)
+[![Join the chat at https://gitter.im/RSocket/RSocket-Java](https://badges.gitter.im/rsocket/rsocket-java.svg)](https://gitter.im/rsocket/rsocket-java)
 
 RSocket is a binary protocol for use on byte stream transports such as TCP, WebSockets, and Aeron.
 
