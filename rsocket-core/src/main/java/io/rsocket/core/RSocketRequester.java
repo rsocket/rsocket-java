@@ -581,6 +581,12 @@ class RSocketRequester implements RSocket {
                 new IllegalStateException("MetadataPushMono allows only a single subscriber"));
           }
 
+          if (isDisposed()) {
+            payload.release();
+            final Throwable t = terminationError;
+            return Mono.error(t);
+          }
+
           ByteBuf metadataPushFrame =
               MetadataPushFrameCodec.encodeReleasingPayload(allocator, payload);
 

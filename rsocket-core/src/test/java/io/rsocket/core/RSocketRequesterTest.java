@@ -18,11 +18,7 @@ package io.rsocket.core;
 
 import static io.rsocket.core.PayloadValidationUtils.INVALID_PAYLOAD_ERROR_MESSAGE;
 import static io.rsocket.frame.FrameHeaderCodec.frameType;
-import static io.rsocket.frame.FrameType.CANCEL;
-import static io.rsocket.frame.FrameType.REQUEST_CHANNEL;
-import static io.rsocket.frame.FrameType.REQUEST_FNF;
-import static io.rsocket.frame.FrameType.REQUEST_RESPONSE;
-import static io.rsocket.frame.FrameType.REQUEST_STREAM;
+import static io.rsocket.frame.FrameType.*;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -74,6 +70,7 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Stream;
 import org.assertj.core.api.Assertions;
+import org.assertj.core.api.Assumptions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
@@ -947,9 +944,13 @@ public class RSocketRequesterTest {
   @MethodSource("streamRacingCases")
   public void ensuresCorrectOrderOfStreamIdIssuingInCaseOfRacing(
       BiFunction<ClientSocketRule, Payload, Publisher<?>> interaction1,
-      BiFunction<ClientSocketRule, Payload, Publisher<?>> interaction2) {
+      BiFunction<ClientSocketRule, Payload, Publisher<?>> interaction2,
+      FrameType interactionType1,
+      FrameType interactionType2) {
+    Assumptions.assumeThat(interactionType1).isNotEqualTo(METADATA_PUSH);
+    Assumptions.assumeThat(interactionType2).isNotEqualTo(METADATA_PUSH);
     for (int i = 1; i < 10000; i += 4) {
-      Payload payload = DefaultPayload.create("test");
+      Payload payload = DefaultPayload.create("test", "test");
       Publisher<?> publisher1 = interaction1.apply(rule, payload);
       Publisher<?> publisher2 = interaction2.apply(rule, payload);
       RaceTestUtils.race(
@@ -1015,6 +1016,13 @@ public class RSocketRequesterTest {
             (BiFunction<ClientSocketRule, Payload, Publisher<?>>)
                 (r, p) -> r.socket.fireAndForget(p),
             REQUEST_CHANNEL,
+            REQUEST_FNF),
+        Arguments.of(
+            (BiFunction<ClientSocketRule, Payload, Publisher<?>>)
+                (r, p) -> r.socket.metadataPush(p),
+            (BiFunction<ClientSocketRule, Payload, Publisher<?>>)
+                (r, p) -> r.socket.fireAndForget(p),
+            METADATA_PUSH,
             REQUEST_FNF));
   }
 
@@ -1027,8 +1035,8 @@ public class RSocketRequesterTest {
       FrameType interactionType1,
       FrameType interactionType2) {
     for (int i = 1; i < 10000; i++) {
-      Payload payload1 = ByteBufPayload.create("test");
-      Payload payload2 = ByteBufPayload.create("test");
+      Payload payload1 = ByteBufPayload.create("test", "test");
+      Payload payload2 = ByteBufPayload.create("test", "test");
       AssertSubscriber assertSubscriber1 = AssertSubscriber.create();
       AssertSubscriber assertSubscriber2 = AssertSubscriber.create();
       Publisher<?> publisher1 = interaction1.apply(rule, payload1);
