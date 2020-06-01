@@ -627,9 +627,10 @@ public class RSocketConnector {
                             mtu);
 
                     return wrappedConnection
-                        .sendOne(setupFrame)
+                        .sendOne(setupFrame.retain())
                         .thenReturn(wrappedRSocketRequester);
-                  });
+                  })
+              .doFinally(signalType -> setup.release());
         });
   }
 }
