@@ -4,69 +4,79 @@ import org.reactivestreams.Publisher;
 import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.util.retry.Retry;
 
 /**
- * A client-side interface to simplify interactions with the {@link
- * io.rsocket.core.RSocketConnector}. This interface represents logical communication over {@link
- * RSocket}, hiding the complexity of {@code Mono<RSocket>} resolution. Also, in opposite to {@link
- * RSocket} , {@link RSocketClient} supports multi-subscription on the same {@link Publisher} from
- * the interaction in the way of accepting input as {@link Publisher} like {@link Mono} or {@link
- * Flux} Despite, {@link RSocket} interface, {@link RSocketClient} does not coupled with a single
- * connection, hence disposal of the {@link #source()} {@link RSocket} will affect the {@link
- * RSocketClient} it selves. In such a case, a new request will cause automatic reconnection if
- * necessary.
+ * Contract to perform RSocket requests from client to server, transparently connecting and ensuring
+ * a single, shared connection to make requests with.
+ *
+ * <p>{@code RSocketClient} contains a {@code Mono<RSocket>} {@link #source() source}. It uses it to
+ * obtain a live, shared {@link RSocket} connection on the first request and on subsequent requests
+ * if the connection is lost. This eliminates the need to obtain a connection first, and makes it
+ * easy to pass a single {@code RSocketClient} to use from multiple places.
+ *
+ * <p>Request methods of {@code RSocketClient} allow multiple subscriptions with each subscription
+ * performing a new request. Therefore request methods accept {@code Mono<Payload>} rather than
+ * {@code Payload} as on {@link RSocket}. By contrast, {@link RSocket} request methods cannot be
+ * subscribed to more than once.
+ *
+ * <p>Use {@link io.rsocket.core.RSocketConnector RSocketConnector} to create a client:
+ *
+ * <pre class="code">{@code
+ * RSocketClient client =
+ *         RSocketConnector.create()
+ *                 .metadataMimeType("message/x.rsocket.composite-metadata.v0")
+ *                 .dataMimeType("application/cbor")
+ *                 .toRSocketClient(TcpClientTransport.create("localhost", 7000));
+ * }</pre>
+ *
+ * <p>Use the {@link io.rsocket.core.RSocketConnector#reconnect(Retry) RSocketConnector#reconnect}
+ * method to configure the retry logic to use whenever a shared {@code RSocket} connection needs to
+ * be obtained:
+ *
+ * <pre class="code">{@code
+ * RSocketClient client =
+ *         RSocketConnector.create()
+ *                 .metadataMimeType("message/x.rsocket.composite-metadata.v0")
+ *                 .dataMimeType("application/cbor")
+ *                 .reconnect(Retry.fixedDelay(3, Duration.ofSeconds(1)))
+ *                 .toRSocketClient(TcpClientTransport.create("localhost", 7000));
+ * }</pre>
  *
  * @since 1.0.1
  */
 public interface RSocketClient extends Disposable {
 
-  /**
-   * Provides access to the source {@link RSocket} used by this {@link RSocketClient}
-   *
-   * @return returns a {@link Mono} which returns the source {@link RSocket}
-   */
+  /** Return the underlying source used to obtain a shared {@link RSocket} connection. */
   Mono<RSocket> source();
 
   /**
-   * Fire and Forget interaction model of {@link RSocketClient}.
-   *
-   * @param payloadMono Request payload as {@link Mono}.
-   * @return {@code Publisher} that completes when the passed {@code payload} is successfully
-   *     handled, otherwise errors.
+   * Perform a Fire-and-Forget interaction via {@link RSocket#fireAndForget(Payload)}. Allows
+   * multiple subscriptions and performs a request per subscriber.
    */
   Mono<Void> fireAndForget(Mono<Payload> payloadMono);
 
   /**
-   * Request-Response interaction model of {@link RSocketClient}.
-   *
-   * @param payloadMono Request payload as {@link Mono}.
-   * @return {@code Publisher} containing at most a single {@code Payload} representing the
-   *     response.
+   * Perform a Request-Response interaction via {@link RSocket#requestResponse(Payload)}. Allows
+   * multiple subscriptions and performs a request per subscriber.
    */
   Mono<Payload> requestResponse(Mono<Payload> payloadMono);
 
   /**
-   * Request-Stream interaction model of {@link RSocketClient}.
-   *
-   * @param payloadMono Request payload as {@link Mono}.
-   * @return {@code Publisher} containing the stream of {@code Payload}s representing the response.
+   * Perform a Request-Stream interaction via {@link RSocket#requestStream(Payload)}. Allows
+   * multiple subscriptions and performs a request per subscriber.
    */
   Flux<Payload> requestStream(Mono<Payload> payloadMono);
 
   /**
-   * Request-Channel interaction model of {@link RSocketClient}.
-   *
-   * @param payloads Stream of request payloads.
-   * @return Stream of response payloads.
+   * Perform a Request-Channel interaction via {@link RSocket#requestChannel(Publisher)}. Allows
+   * multiple subscriptions and performs a request per subscriber.
    */
   Flux<Payload> requestChannel(Publisher<Payload> payloads);
 
   /**
-   * Metadata-Push interaction model of {@link RSocketClient}.
-   *
-   * @param payloadMono Request payload as {@link Mono}.
-   * @return {@code Publisher} that completes when the passed {@code payload} is successfully
-   *     handled, otherwise errors.
+   * Perform a Metadata Push via {@link RSocket#metadataPush(Payload)}. Allows multiple
+   * subscriptions and performs a request per subscriber.
    */
   Mono<Void> metadataPush(Mono<Payload> payloadMono);
 }
