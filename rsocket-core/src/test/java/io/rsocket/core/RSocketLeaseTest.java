@@ -16,8 +16,7 @@
 
 package io.rsocket.core;
 
-import static io.rsocket.frame.FrameType.ERROR;
-import static io.rsocket.frame.FrameType.SETUP;
+import static io.rsocket.frame.FrameType.*;
 import static org.assertj.core.data.Offset.offset;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.mock;
@@ -26,6 +25,8 @@ import static org.mockito.Mockito.when;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
+import io.netty.util.CharsetUtil;
+import io.netty.util.ReferenceCounted;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.TestScheduler;
@@ -34,15 +35,18 @@ import io.rsocket.exceptions.Exceptions;
 import io.rsocket.frame.FrameHeaderCodec;
 import io.rsocket.frame.FrameType;
 import io.rsocket.frame.LeaseFrameCodec;
+import io.rsocket.frame.PayloadFrameCodec;
 import io.rsocket.frame.SetupFrameCodec;
 import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.internal.ClientServerInputMultiplexer;
+import io.rsocket.internal.subscriber.AssertSubscriber;
 import io.rsocket.lease.*;
 import io.rsocket.lease.MissingLeaseException;
 import io.rsocket.plugins.InitializingInterceptorRegistry;
 import io.rsocket.test.util.TestClientTransport;
 import io.rsocket.test.util.TestDuplexConnection;
 import io.rsocket.test.util.TestServerTransport;
+import io.rsocket.util.ByteBufPayload;
 import io.rsocket.util.DefaultPayload;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
@@ -50,13 +54,15 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Optional;
-import java.util.function.Function;
+import java.util.function.BiFunction;
 import java.util.stream.Stream;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.mockito.Mockito;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.EmitterProcessor;
 import reactor.core.publisher.Flux;
@@ -68,9 +74,10 @@ class RSocketLeaseTest {
 
   private RSocket rSocketRequester;
   private ResponderLeaseHandler responderLeaseHandler;
-  private ByteBufAllocator byteBufAllocator;
+  private LeaksTrackingByteBufAllocator byteBufAllocator;
   private TestDuplexConnection connection;
   private RSocketResponder rSocketResponder;
+  private RSocket mockRSocketHandler;
 
   private EmitterProcessor<Lease> leaseSender = EmitterProcessor.create();
   private Flux<Lease> leaseReceiver;
@@ -101,12 +108,43 @@ class RSocketLeaseTest {
             requesterLeaseHandler,
             TestScheduler.INSTANCE);
 
-    RSocket mockRSocketHandler = mock(RSocket.class);
-    when(mockRSocketHandler.metadataPush(any())).thenReturn(Mono.empty());
-    when(mockRSocketHandler.fireAndForget(any())).thenReturn(Mono.empty());
-    when(mockRSocketHandler.requestResponse(any())).thenReturn(Mono.empty());
-    when(mockRSocketHandler.requestStream(any())).thenReturn(Flux.empty());
-    when(mockRSocketHandler.requestChannel(any())).thenReturn(Flux.empty());
+    mockRSocketHandler = mock(RSocket.class);
+    when(mockRSocketHandler.metadataPush(any()))
+        .then(
+            a -> {
+              Payload payload = a.getArgument(0);
+              payload.release();
+              return Mono.empty();
+            });
+    when(mockRSocketHandler.fireAndForget(any()))
+        .then(
+            a -> {
+              Payload payload = a.getArgument(0);
+              payload.release();
+              return Mono.empty();
+            });
+    when(mockRSocketHandler.requestResponse(any()))
+        .then(
+            a -> {
+              Payload payload = a.getArgument(0);
+              payload.release();
+              return Mono.empty();
+            });
+    when(mockRSocketHandler.requestStream(any()))
+        .then(
+            a -> {
+              Payload payload = a.getArgument(0);
+              payload.release();
+              return Flux.empty();
+            });
+    when(mockRSocketHandler.requestChannel(any()))
+        .then(
+            a -> {
+              Publisher<Payload> payloadPublisher = a.getArgument(0);
+              return Flux.from(payloadPublisher)
+                  .doOnNext(ReferenceCounted::release)
+                  .thenMany(Flux.empty());
+            });
 
     rSocketResponder =
         new RSocketResponder(
@@ -158,54 +196,125 @@ class RSocketLeaseTest {
 
   @ParameterizedTest
   @MethodSource("interactions")
-  void requesterMissingLeaseRequestsAreRejected(Function<RSocket, Publisher<?>> interaction) {
+  void requesterMissingLeaseRequestsAreRejected(
+      BiFunction<RSocket, Payload, Publisher<?>> interaction) {
     Assertions.assertThat(rSocketRequester.availability()).isCloseTo(0.0, offset(1e-2));
-
-    StepVerifier.create(interaction.apply(rSocketRequester))
+    ByteBuf buffer = byteBufAllocator.buffer();
+    buffer.writeCharSequence("test", CharsetUtil.UTF_8);
+    Payload payload1 = ByteBufPayload.create(buffer);
+    StepVerifier.create(interaction.apply(rSocketRequester, payload1))
         .expectError(MissingLeaseException.class)
         .verify(Duration.ofSeconds(5));
+
+    byteBufAllocator.assertHasNoLeaks();
   }
 
   @ParameterizedTest
   @MethodSource("interactions")
-  void requesterPresentLeaseRequestsAreAccepted(Function<RSocket, Publisher<?>> interaction) {
-    requesterLeaseHandler.receive(leaseFrame(5_000, 2, Unpooled.EMPTY_BUFFER));
+  void requesterPresentLeaseRequestsAreAccepted(
+      BiFunction<RSocket, Payload, Publisher<?>> interaction, FrameType frameType) {
+    ByteBuf frame = leaseFrame(5_000, 2, Unpooled.EMPTY_BUFFER);
+    requesterLeaseHandler.receive(frame);
 
     Assertions.assertThat(rSocketRequester.availability()).isCloseTo(1.0, offset(1e-2));
-
-    Flux.from(interaction.apply(rSocketRequester))
-        .take(Duration.ofMillis(500))
+    ByteBuf buffer = byteBufAllocator.buffer();
+    buffer.writeCharSequence("test", CharsetUtil.UTF_8);
+    Payload payload1 = ByteBufPayload.create(buffer);
+    Flux.from(interaction.apply(rSocketRequester, payload1))
         .as(StepVerifier::create)
+        .then(
+            () -> {
+              if (frameType != REQUEST_FNF) {
+                connection.addToReceivedBuffer(
+                    PayloadFrameCodec.encodeComplete(byteBufAllocator, 1));
+              }
+            })
         .expectComplete()
         .verify(Duration.ofSeconds(5));
+
+    Assertions.assertThat(connection.getSent())
+        .hasSize(1)
+        .first()
+        .matches(ReferenceCounted::release);
+
     Assertions.assertThat(rSocketRequester.availability()).isCloseTo(0.5, offset(1e-2));
+
+    Assertions.assertThat(frame.release()).isTrue();
+
+    byteBufAllocator.assertHasNoLeaks();
   }
 
   @ParameterizedTest
   @MethodSource("interactions")
+  @SuppressWarnings({"rawtypes", "unchecked"})
   void requesterDepletedAllowedLeaseRequestsAreRejected(
-      Function<RSocket, Publisher<?>> interaction) {
-    requesterLeaseHandler.receive(leaseFrame(5_000, 1, Unpooled.EMPTY_BUFFER));
-    interaction.apply(rSocketRequester);
+      BiFunction<RSocket, Payload, Publisher<?>> interaction, FrameType interactionType) {
+    ByteBuf buffer = byteBufAllocator.buffer();
+    buffer.writeCharSequence("test", CharsetUtil.UTF_8);
+    Payload payload1 = ByteBufPayload.create(buffer);
+    ByteBuf leaseFrame = leaseFrame(5_000, 1, Unpooled.EMPTY_BUFFER);
+    requesterLeaseHandler.receive(leaseFrame);
 
-    Flux.from(interaction.apply(rSocketRequester))
+    double initialAvailability = requesterLeaseHandler.availability();
+    Publisher<?> request = interaction.apply(rSocketRequester, payload1);
+
+    // ensures that lease is not used until the frame is sent
+    Assertions.assertThat(initialAvailability).isEqualTo(requesterLeaseHandler.availability());
+    Assertions.assertThat(connection.getSent()).hasSize(0);
+
+    AssertSubscriber assertSubscriber = AssertSubscriber.create(0);
+    request.subscribe(assertSubscriber);
+
+    // if request is FNF, then request frame is sent on subscribe
+    // otherwise we need to make request(1)
+    if (interactionType != REQUEST_FNF) {
+      Assertions.assertThat(initialAvailability).isEqualTo(requesterLeaseHandler.availability());
+      Assertions.assertThat(connection.getSent()).hasSize(0);
+
+      assertSubscriber.request(1);
+    }
+
+    // ensures availability is changed and lease is used only up on frame sending
+    Assertions.assertThat(rSocketRequester.availability()).isCloseTo(0.0, offset(1e-2));
+    Assertions.assertThat(connection.getSent())
+        .hasSize(1)
+        .first()
+        .matches(bb -> FrameHeaderCodec.frameType(bb) == interactionType)
+        .matches(ReferenceCounted::release);
+
+    ByteBuf buffer2 = byteBufAllocator.buffer();
+    buffer2.writeCharSequence("test", CharsetUtil.UTF_8);
+    Payload payload2 = ByteBufPayload.create(buffer2);
+    Flux.from(interaction.apply(rSocketRequester, payload2))
         .as(StepVerifier::create)
         .expectError(MissingLeaseException.class)
         .verify(Duration.ofSeconds(5));
 
-    Assertions.assertThat(rSocketRequester.availability()).isCloseTo(0.0, offset(1e-2));
+    Assertions.assertThat(leaseFrame.release()).isTrue();
+
+    byteBufAllocator.assertHasNoLeaks();
   }
 
   @ParameterizedTest
   @MethodSource("interactions")
-  void requesterExpiredLeaseRequestsAreRejected(Function<RSocket, Publisher<?>> interaction) {
-    requesterLeaseHandler.receive(leaseFrame(50, 1, Unpooled.EMPTY_BUFFER));
+  void requesterExpiredLeaseRequestsAreRejected(
+      BiFunction<RSocket, Payload, Publisher<?>> interaction) {
+    ByteBuf frame = leaseFrame(50, 1, Unpooled.EMPTY_BUFFER);
+    requesterLeaseHandler.receive(frame);
 
-    Flux.defer(() -> interaction.apply(rSocketRequester))
+    ByteBuf buffer = byteBufAllocator.buffer();
+    buffer.writeCharSequence("test", CharsetUtil.UTF_8);
+    Payload payload1 = ByteBufPayload.create(buffer);
+
+    Flux.defer(() -> interaction.apply(rSocketRequester, payload1))
         .delaySubscription(Duration.ofMillis(200))
         .as(StepVerifier::create)
         .expectError(MissingLeaseException.class)
         .verify(Duration.ofSeconds(5));
+
+    Assertions.assertThat(frame.release()).isTrue();
+
+    byteBufAllocator.assertHasNoLeaks();
   }
 
   @Test
@@ -218,33 +327,80 @@ class RSocketLeaseTest {
 
   @ParameterizedTest
   @MethodSource("interactions")
-  void responderMissingLeaseRequestsAreRejected(Function<RSocket, Publisher<?>> interaction) {
-    StepVerifier.create(interaction.apply(rSocketResponder))
+  void responderMissingLeaseRequestsAreRejected(
+      BiFunction<RSocket, Payload, Publisher<?>> interaction) {
+    ByteBuf buffer = byteBufAllocator.buffer();
+    buffer.writeCharSequence("test", CharsetUtil.UTF_8);
+    Payload payload1 = ByteBufPayload.create(buffer);
+
+    StepVerifier.create(interaction.apply(rSocketResponder, payload1))
         .expectError(MissingLeaseException.class)
         .verify(Duration.ofSeconds(5));
   }
 
   @ParameterizedTest
   @MethodSource("interactions")
-  void responderPresentLeaseRequestsAreAccepted(Function<RSocket, Publisher<?>> interaction) {
+  void responderPresentLeaseRequestsAreAccepted(
+      BiFunction<RSocket, Payload, Publisher<?>> interaction, FrameType frameType) {
     leaseSender.onNext(Lease.create(5_000, 2));
 
-    Flux.from(interaction.apply(rSocketResponder))
-        .take(Duration.ofMillis(500))
+    ByteBuf buffer = byteBufAllocator.buffer();
+    buffer.writeCharSequence("test", CharsetUtil.UTF_8);
+    Payload payload1 = ByteBufPayload.create(buffer);
+
+    Flux.from(interaction.apply(rSocketResponder, payload1))
         .as(StepVerifier::create)
         .expectComplete()
         .verify(Duration.ofSeconds(5));
+
+    switch (frameType) {
+      case REQUEST_FNF:
+        Mockito.verify(mockRSocketHandler).fireAndForget(any());
+        break;
+      case REQUEST_RESPONSE:
+        Mockito.verify(mockRSocketHandler).requestResponse(any());
+        break;
+      case REQUEST_STREAM:
+        Mockito.verify(mockRSocketHandler).requestStream(any());
+        break;
+      case REQUEST_CHANNEL:
+        Mockito.verify(mockRSocketHandler).requestChannel(any());
+        break;
+    }
+
+    Assertions.assertThat(connection.getSent())
+        .hasSize(1)
+        .first()
+        .matches(bb -> FrameHeaderCodec.frameType(bb) == LEASE)
+        .matches(ReferenceCounted::release);
+
+    byteBufAllocator.assertHasNoLeaks();
   }
 
   @ParameterizedTest
   @MethodSource("interactions")
   void responderDepletedAllowedLeaseRequestsAreRejected(
-      Function<RSocket, Publisher<?>> interaction) {
+      BiFunction<RSocket, Payload, Publisher<?>> interaction) {
     leaseSender.onNext(Lease.create(5_000, 1));
 
-    Flux<?> responder = Flux.from(interaction.apply(rSocketResponder));
+    ByteBuf buffer = byteBufAllocator.buffer();
+    buffer.writeCharSequence("test", CharsetUtil.UTF_8);
+    Payload payload1 = ByteBufPayload.create(buffer);
+
+    Flux<?> responder = Flux.from(interaction.apply(rSocketResponder, payload1));
     responder.subscribe();
-    Flux.from(interaction.apply(rSocketResponder))
+
+    Assertions.assertThat(connection.getSent())
+        .hasSize(1)
+        .first()
+        .matches(bb -> FrameHeaderCodec.frameType(bb) == LEASE)
+        .matches(ReferenceCounted::release);
+
+    ByteBuf buffer2 = byteBufAllocator.buffer();
+    buffer2.writeCharSequence("test", CharsetUtil.UTF_8);
+    Payload payload2 = ByteBufPayload.create(buffer2);
+
+    Flux.from(interaction.apply(rSocketResponder, payload2))
         .as(StepVerifier::create)
         .expectError(MissingLeaseException.class)
         .verify(Duration.ofSeconds(5));
@@ -252,14 +408,26 @@ class RSocketLeaseTest {
 
   @ParameterizedTest
   @MethodSource("interactions")
-  void expiredLeaseRequestsAreRejected(Function<RSocket, Publisher<?>> interaction) {
+  void expiredLeaseRequestsAreRejected(BiFunction<RSocket, Payload, Publisher<?>> interaction) {
     leaseSender.onNext(Lease.create(50, 1));
 
-    Flux.from(interaction.apply(rSocketRequester))
+    ByteBuf buffer = byteBufAllocator.buffer();
+    buffer.writeCharSequence("test", CharsetUtil.UTF_8);
+    Payload payload1 = ByteBufPayload.create(buffer);
+
+    Flux.from(interaction.apply(rSocketRequester, payload1))
         .delaySubscription(Duration.ofMillis(100))
         .as(StepVerifier::create)
         .expectError(MissingLeaseException.class)
         .verify(Duration.ofSeconds(5));
+
+    Assertions.assertThat(connection.getSent())
+        .hasSize(1)
+        .first()
+        .matches(bb -> FrameHeaderCodec.frameType(bb) == LEASE)
+        .matches(ReferenceCounted::release);
+
+    byteBufAllocator.assertHasNoLeaks();
   }
 
   @Test
@@ -313,11 +481,20 @@ class RSocketLeaseTest {
     return LeaseFrameCodec.encode(byteBufAllocator, ttl, requests, metadata);
   }
 
-  static Stream<Function<RSocket, Publisher<?>>> interactions() {
+  static Stream<Arguments> interactions() {
     return Stream.of(
-        rSocket -> rSocket.fireAndForget(DefaultPayload.create("test")),
-        rSocket -> rSocket.requestResponse(DefaultPayload.create("test")),
-        rSocket -> rSocket.requestStream(DefaultPayload.create("test")),
-        rSocket -> rSocket.requestChannel(Mono.just(DefaultPayload.create("test"))));
+        Arguments.of(
+            (BiFunction<RSocket, Payload, Publisher<?>>) RSocket::fireAndForget,
+            FrameType.REQUEST_FNF),
+        Arguments.of(
+            (BiFunction<RSocket, Payload, Publisher<?>>) RSocket::requestResponse,
+            FrameType.REQUEST_RESPONSE),
+        Arguments.of(
+            (BiFunction<RSocket, Payload, Publisher<?>>) RSocket::requestStream,
+            FrameType.REQUEST_STREAM),
+        Arguments.of(
+            (BiFunction<RSocket, Payload, Publisher<?>>)
+                (rSocket, payload) -> rSocket.requestChannel(Mono.just(payload)),
+            FrameType.REQUEST_CHANNEL));
   }
 }
