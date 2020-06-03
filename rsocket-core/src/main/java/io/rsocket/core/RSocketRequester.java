@@ -230,6 +230,7 @@ class RSocketRequester implements RSocket {
 
               RequesterLeaseHandler lh = leaseHandler;
               if (!lh.useLease()) {
+                payload.release();
                 return Mono.error(lh.leaseError());
               }
 
@@ -290,6 +291,7 @@ class RSocketRequester implements RSocket {
 
                               RequesterLeaseHandler lh = leaseHandler;
                               if (!lh.useLease()) {
+                                payload.release();
                                 receiver.onError(lh.leaseError());
                                 return;
                               }
@@ -368,6 +370,7 @@ class RSocketRequester implements RSocket {
 
                               RequesterLeaseHandler lh = leaseHandler;
                               if (!lh.useLease()) {
+                                payload.release();
                                 receiver.onError(lh.leaseError());
                                 return;
                               }
@@ -524,6 +527,7 @@ class RSocketRequester implements RSocket {
 
                         RequesterLeaseHandler lh = leaseHandler;
                         if (!lh.useLease()) {
+                          initialPayload.release();
                           receiver.onError(lh.leaseError());
                           return;
                         }
