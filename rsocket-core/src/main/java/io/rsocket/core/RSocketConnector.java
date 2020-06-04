@@ -53,23 +53,23 @@ import reactor.util.retry.Retry;
 /**
  * The main class to use to establish a connection to an RSocket server.
  *
- * <p>For using TCP using default settings:
+ * <p>To connect over TCP using default settings:
  *
  * <pre>{@code
  * import io.rsocket.transport.netty.client.TcpClientTransport;
  *
- * RSocketClient client =
- *         RSocketConnector.createRSocketClient(TcpClientTransport.create("localhost", 7000));
+ * Mono<RSocket> rocketMono =
+ *         RSocketConnector.connectWith(TcpClientTransport.create("localhost", 7000));
  * }</pre>
  *
  * <p>To customize connection settings before connecting:
  *
  * <pre>{@code
- * RSocketClient client =
+ * Mono<RSocket> rocketMono =
  *         RSocketConnector.create()
  *                 .metadataMimeType("message/x.rsocket.composite-metadata.v0")
  *                 .dataMimeType("application/cbor")
- *                 .toRSocketClient(TcpClientTransport.create("localhost", 7000));
+ *                 .connect(TcpClientTransport.create("localhost", 7000));
  * }</pre>
  */
 public class RSocketConnector {
@@ -448,42 +448,11 @@ public class RSocketConnector {
   }
 
   /**
-   * Create {@link RSocketClient} that will use {@link #connect(ClientTransport)} as its source to
-   * obtain a live, shared {@code RSocket} when the first request is made, and also on subsequent
-   * requests after the connection is lost.
+   * The final step to connect with the transport to use as input and the resulting {@code
+   * Mono<RSocket>} as output. Each subscriber to the returned {@code Mono} starts a new connection
+   * if neither {@link #reconnect(Retry) reconnect} nor {@link #resume(Resume)} are enabled.
    *
-   * <p>The following transports are available through additional RSocket Java modules:
-   *
-   * <ul>
-   *   <li>{@link io.rsocket.transport.netty.client.TcpClientTransport TcpClientTransport} via
-   *       {@code rsocket-transport-netty}.
-   *   <li>{@link io.rsocket.transport.netty.client.WebsocketClientTransport
-   *       WebsocketClientTransport} via {@code rsocket-transport-netty}.
-   *   <li>{@link io.rsocket.transport.local.LocalClientTransport LocalClientTransport} via {@code
-   *       rsocket-transport-local}
-   * </ul>
-   *
-   * @param transport the transport of choice to connect with
-   * @return a {@code RSocketClient} with not established connection. Note, connection will be
-   *     established on the first request
-   * @since 1.0.1
-   */
-  public RSocketClient toRSocketClient(ClientTransport transport) {
-    Mono<RSocket> source = connect0(() -> transport);
-
-    if (retrySpec != null) {
-      source = source.retryWhen(retrySpec);
-    }
-
-    return new DefaultRSocketClient(source);
-  }
-
-  /**
-   * Connect with the given transport and obtain a live {@link RSocket} to use for making requests.
-   * Each subscriber to the returned {@code Mono} receives a new connection, if neither {@link
-   * #reconnect(Retry) reconnect} nor {@link #resume(Resume)} are enabled.
-   *
-   * <p>The following transports are available through additional RSocket Java modules:
+   * <p>The following transports are available (via additional RSocket Java modules):
    *
    * <ul>
    *   <li>{@link io.rsocket.transport.netty.client.TcpClientTransport TcpClientTransport} via
@@ -521,6 +490,40 @@ public class RSocketConnector {
                 return source;
               }
             });
+  }
+
+  /**
+   * The final step to connect with the transport to use as input and the resulting {@link
+   * RSocketClient} as output.
+   *
+   * <p>Please note, {@link RSocketClient} does not represent a single or wired connection and will
+   * do that depends on the demand (pending requests). Therefore, in order to ensure that connection
+   * will be established in a case of error, {@link #reconnect(Retry) reconnect} may be enabled.
+   *
+   * <p>The following transports are available (via additional RSocket Java modules):
+   *
+   * <ul>
+   *   <li>{@link io.rsocket.transport.netty.client.TcpClientTransport TcpClientTransport} via
+   *       {@code rsocket-transport-netty}.
+   *   <li>{@link io.rsocket.transport.netty.client.WebsocketClientTransport
+   *       WebsocketClientTransport} via {@code rsocket-transport-netty}.
+   *   <li>{@link io.rsocket.transport.local.LocalClientTransport LocalClientTransport} via {@code
+   *       rsocket-transport-local}
+   * </ul>
+   *
+   * @param transport the transport of choice to connect with
+   * @return a {@code RSocketClient} with not established connection. Note, connection will be
+   *     established on the first request
+   * @since 1.0.1
+   */
+  public RSocketClient toRSocketClient(ClientTransport transport) {
+    Mono<RSocket> source = connect0(() -> transport);
+
+    if (retrySpec != null) {
+      source = source.retryWhen(retrySpec);
+    }
+
+    return new DefaultRSocketClient(source);
   }
 
   private Mono<RSocket> connect0(Supplier<ClientTransport> transportSupplier) {
