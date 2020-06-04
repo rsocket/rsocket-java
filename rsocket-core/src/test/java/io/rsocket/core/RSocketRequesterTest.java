@@ -1089,8 +1089,8 @@ public class RSocketRequesterTest {
           PayloadDecoder.ZERO_COPY,
           StreamIdSupplier.clientSupplier(),
           0,
-          0,
-          0,
+          Integer.MAX_VALUE,
+          Integer.MAX_VALUE,
           null,
           RequesterLeaseHandler.None,
           TestScheduler.INSTANCE);
