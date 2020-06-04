@@ -506,8 +506,8 @@ public class DefaultRSocketClientTests {
           PayloadDecoder.ZERO_COPY,
           StreamIdSupplier.clientSupplier(),
           0,
-          Integer.MAX_VALUE,
-          Integer.MAX_VALUE,
+          0,
+          0,
           null,
           RequesterLeaseHandler.None,
           TestScheduler.INSTANCE);
