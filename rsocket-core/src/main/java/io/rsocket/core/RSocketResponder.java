@@ -412,19 +412,18 @@ class RSocketResponder implements RSocket {
 
           @Override
           protected void hookOnError(Throwable throwable) {
-            handleError(streamId, throwable);
+            if (sendingSubscriptions.remove(streamId, this)) {
+              handleError(streamId, throwable);
+            }
           }
 
           @Override
           protected void hookOnComplete() {
             if (isEmpty) {
-              sendProcessor.onNext(PayloadFrameCodec.encodeComplete(allocator, streamId));
+              if (sendingSubscriptions.remove(streamId, this)) {
+                sendProcessor.onNext(PayloadFrameCodec.encodeComplete(allocator, streamId));
+              }
             }
-          }
-
-          @Override
-          protected void hookFinally(SignalType type) {
-            sendingSubscriptions.remove(streamId, this);
           }
         };
 
@@ -491,35 +490,16 @@ class RSocketResponder implements RSocket {
 
           @Override
           protected void hookOnComplete() {
-            sendProcessor.onNext(PayloadFrameCodec.encodeComplete(allocator, streamId));
-          }
-
-          @Override
-          protected void hookOnError(Throwable throwable) {
-            handleError(streamId, throwable);
-          }
-
-          @Override
-          protected void hookOnCancel() {
-            // specifically for requestChannel case so when requester sends Cancel frame so the
-            // whole chain MUST be terminated
-            // Note: CancelFrame is redundant from the responder side due to spec
-            // (https://github.com/rsocket/rsocket/blob/master/Protocol.md#request-channel)
-            // Upon receiving a CANCEL, the stream is terminated on the Responder.
-            // Upon sending a CANCEL, the stream is terminated on the Requester.
-            if (requestChannel != null) {
-              channelProcessors.remove(streamId, requestChannel);
-              try {
-                requestChannel.dispose();
-              } catch (Exception e) {
-                // might be thrown back if stream is cancelled
-              }
+            if (sendingSubscriptions.remove(streamId, this)) {
+              sendProcessor.onNext(PayloadFrameCodec.encodeComplete(allocator, streamId));
             }
           }
 
           @Override
-          protected void hookFinally(SignalType type) {
-            sendingSubscriptions.remove(streamId);
+          protected void hookOnError(Throwable throwable) {
+            if (sendingSubscriptions.remove(streamId, this)) {
+              handleError(streamId, throwable);
+            }
           }
         };
 
@@ -588,7 +568,15 @@ class RSocketResponder implements RSocket {
 
   private void handleCancelFrame(int streamId) {
     Subscription subscription = sendingSubscriptions.remove(streamId);
-    channelProcessors.remove(streamId);
+    Processor<Payload, Payload> processor = channelProcessors.remove(streamId);
+
+    if (processor != null) {
+      try {
+        processor.onError(new CancellationException("Disposed"));
+      } catch (Exception e) {
+        // ignore
+      }
+    }
 
     if (subscription != null) {
       subscription.cancel();
