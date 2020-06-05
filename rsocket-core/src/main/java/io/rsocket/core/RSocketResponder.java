@@ -27,7 +27,6 @@ import io.netty.util.collection.IntObjectMap;
 import io.rsocket.DuplexConnection;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
-import io.rsocket.exceptions.ApplicationErrorException;
 import io.rsocket.frame.*;
 import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.internal.SynchronizedIntObjectHashMap;
@@ -339,7 +338,7 @@ class RSocketResponder implements RSocket {
         case ERROR:
           receiver = channelProcessors.get(streamId);
           if (receiver != null) {
-            receiver.onError(new ApplicationErrorException(ErrorFrameCodec.dataUtf8(frame)));
+            receiver.onError(io.rsocket.exceptions.Exceptions.from(streamId, frame));
           }
           break;
         case NEXT_COMPLETE:
