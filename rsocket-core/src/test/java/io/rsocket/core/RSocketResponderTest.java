@@ -59,6 +59,7 @@ import io.rsocket.util.ByteBufPayload;
 import io.rsocket.util.DefaultPayload;
 import io.rsocket.util.EmptyPayload;
 import java.util.Collection;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Stream;
@@ -428,6 +429,24 @@ public class RSocketResponderTest {
 
       ByteBuf requestNFrame = RequestNFrameCodec.encode(allocator, 1, Integer.MAX_VALUE);
 
+        ByteBuf m1 = allocator.buffer();
+        m1.writeCharSequence("m1", CharsetUtil.UTF_8);
+        ByteBuf d1 = allocator.buffer();
+        d1.writeCharSequence("d1", CharsetUtil.UTF_8);
+        Payload np1 = ByteBufPayload.create(d1, m1);
+
+        ByteBuf m2 = allocator.buffer();
+        m2.writeCharSequence("m2", CharsetUtil.UTF_8);
+        ByteBuf d2 = allocator.buffer();
+        d2.writeCharSequence("d2", CharsetUtil.UTF_8);
+        Payload np2 = ByteBufPayload.create(d2, m2);
+
+        ByteBuf m3 = allocator.buffer();
+        m3.writeCharSequence("m3", CharsetUtil.UTF_8);
+        ByteBuf d3 = allocator.buffer();
+        d3.writeCharSequence("d3", CharsetUtil.UTF_8);
+        Payload np3 = ByteBufPayload.create(d3, m3);
+
       FluxSink<Payload> sink = sinks[0];
       RaceTestUtils.race(
           () ->
@@ -436,14 +455,18 @@ public class RSocketResponderTest {
                   () -> rule.connection.addToReceivedBuffer(nextFrame1, nextFrame2, nextFrame3),
                   parallel),
           () -> {
-            sink.next(ByteBufPayload.create("d1", "m1"));
-            sink.next(ByteBufPayload.create("d2", "m2"));
-            sink.next(ByteBufPayload.create("d3", "m3"));
+            sink.next(np1);
+            sink.next(np2);
+            sink.next(np3);
             sink.error(new RuntimeException());
           },
           parallel);
 
       Assertions.assertThat(rule.connection.getSent()).allMatch(ReferenceCounted::release);
+
+      assertSubscriber.assertTerminated()
+                      .assertError(CancellationException.class)
+                      .assertErrorMessage("Disposed");
       Assertions.assertThat(assertSubscriber.values()).allMatch(ReferenceCounted::release);
       rule.assertHasNoLeaks();
     }
