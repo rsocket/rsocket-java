@@ -1081,6 +1081,28 @@ public class RSocketRequesterTest {
     }
   }
 
+  @Test
+  // see https://github.com/rsocket/rsocket-java/issues/858
+  public void testWorkaround858() {
+    ByteBuf buffer = rule.alloc().buffer();
+    buffer.writeCharSequence("test", CharsetUtil.UTF_8);
+
+    rule.socket.requestResponse(ByteBufPayload.create(buffer)).subscribe();
+
+    rule.connection.addToReceivedBuffer(
+        ErrorFrameCodec.encode(rule.alloc(), 1, new RuntimeException("test")));
+
+    Assertions.assertThat(rule.connection.getSent())
+        .hasSize(1)
+        .first()
+        .matches(bb -> FrameHeaderCodec.frameType(bb) == REQUEST_RESPONSE)
+        .matches(ByteBuf::release);
+
+    Assertions.assertThat(rule.socket.isDisposed()).isFalse();
+
+    rule.assertHasNoLeaks();
+  }
+
   public static class ClientSocketRule extends AbstractSocketRule<RSocketRequester> {
     @Override
     protected RSocketRequester newRSocket() {
