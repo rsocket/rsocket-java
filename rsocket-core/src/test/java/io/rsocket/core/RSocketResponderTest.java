@@ -429,23 +429,23 @@ public class RSocketResponderTest {
 
       ByteBuf requestNFrame = RequestNFrameCodec.encode(allocator, 1, Integer.MAX_VALUE);
 
-        ByteBuf m1 = allocator.buffer();
-        m1.writeCharSequence("m1", CharsetUtil.UTF_8);
-        ByteBuf d1 = allocator.buffer();
-        d1.writeCharSequence("d1", CharsetUtil.UTF_8);
-        Payload np1 = ByteBufPayload.create(d1, m1);
+      ByteBuf m1 = allocator.buffer();
+      m1.writeCharSequence("m1", CharsetUtil.UTF_8);
+      ByteBuf d1 = allocator.buffer();
+      d1.writeCharSequence("d1", CharsetUtil.UTF_8);
+      Payload np1 = ByteBufPayload.create(d1, m1);
 
-        ByteBuf m2 = allocator.buffer();
-        m2.writeCharSequence("m2", CharsetUtil.UTF_8);
-        ByteBuf d2 = allocator.buffer();
-        d2.writeCharSequence("d2", CharsetUtil.UTF_8);
-        Payload np2 = ByteBufPayload.create(d2, m2);
+      ByteBuf m2 = allocator.buffer();
+      m2.writeCharSequence("m2", CharsetUtil.UTF_8);
+      ByteBuf d2 = allocator.buffer();
+      d2.writeCharSequence("d2", CharsetUtil.UTF_8);
+      Payload np2 = ByteBufPayload.create(d2, m2);
 
-        ByteBuf m3 = allocator.buffer();
-        m3.writeCharSequence("m3", CharsetUtil.UTF_8);
-        ByteBuf d3 = allocator.buffer();
-        d3.writeCharSequence("d3", CharsetUtil.UTF_8);
-        Payload np3 = ByteBufPayload.create(d3, m3);
+      ByteBuf m3 = allocator.buffer();
+      m3.writeCharSequence("m3", CharsetUtil.UTF_8);
+      ByteBuf d3 = allocator.buffer();
+      d3.writeCharSequence("d3", CharsetUtil.UTF_8);
+      Payload np3 = ByteBufPayload.create(d3, m3);
 
       FluxSink<Payload> sink = sinks[0];
       RaceTestUtils.race(
@@ -464,9 +464,10 @@ public class RSocketResponderTest {
 
       Assertions.assertThat(rule.connection.getSent()).allMatch(ReferenceCounted::release);
 
-      assertSubscriber.assertTerminated()
-                      .assertError(CancellationException.class)
-                      .assertErrorMessage("Disposed");
+      assertSubscriber
+          .assertTerminated()
+          .assertError(CancellationException.class)
+          .assertErrorMessage("Disposed");
       Assertions.assertThat(assertSubscriber.values()).allMatch(ReferenceCounted::release);
       rule.assertHasNoLeaks();
     }
@@ -770,6 +771,42 @@ public class RSocketResponderTest {
 
   private static Stream<FrameType> refCntCases() {
     return Stream.of(REQUEST_RESPONSE, REQUEST_STREAM, REQUEST_CHANNEL);
+  }
+
+  @Test
+  // see https://github.com/rsocket/rsocket-java/issues/858
+  public void testWorkaround858() {
+    ByteBuf buffer = rule.alloc().buffer();
+    buffer.writeCharSequence("test", CharsetUtil.UTF_8);
+
+    TestPublisher<Payload> testPublisher = TestPublisher.create();
+
+    rule.setAcceptingSocket(
+        new RSocket() {
+          @Override
+          public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
+            Flux.from(payloads).doOnNext(ReferenceCounted::release).subscribe();
+
+            return testPublisher.flux();
+          }
+        });
+
+    rule.connection.addToReceivedBuffer(
+        RequestChannelFrameCodec.encodeReleasingPayload(
+            rule.alloc(), 1, false, 1, ByteBufPayload.create(buffer)));
+    rule.connection.addToReceivedBuffer(
+        ErrorFrameCodec.encode(rule.alloc(), 1, new RuntimeException("test")));
+
+    Assertions.assertThat(rule.connection.getSent())
+        .hasSize(1)
+        .first()
+        .matches(bb -> FrameHeaderCodec.frameType(bb) == REQUEST_N)
+        .matches(ReferenceCounted::release);
+
+    Assertions.assertThat(rule.socket.isDisposed()).isFalse();
+    testPublisher.assertWasCancelled();
+
+    rule.assertHasNoLeaks();
   }
 
   public static class ServerSocketRule extends AbstractSocketRule<RSocketResponder> {
