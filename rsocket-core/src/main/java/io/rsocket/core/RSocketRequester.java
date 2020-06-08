@@ -691,7 +691,22 @@ class RSocketRequester implements RSocket {
           handleMissingResponseProcessor(streamId, type, frame);
           return;
         }
-        receiver.onError(Exceptions.from(streamId, frame));
+
+        // FIXME: when https://github.com/reactor/reactor-core/issues/2176 is resolved
+        //        This is workaround to handle specific Reactor related case when
+        //        onError call may not return normally
+        try {
+          receiver.onError(Exceptions.from(streamId, frame));
+        } catch (RuntimeException e) {
+          if (reactor.core.Exceptions.isBubbling(e)
+              || reactor.core.Exceptions.isErrorCallbackNotImplemented(e)) {
+            if (LOGGER.isDebugEnabled()) {
+              Throwable unwrapped = reactor.core.Exceptions.unwrap(e);
+              LOGGER.debug("Unhandled dropped exception", unwrapped);
+            }
+          }
+        }
+
         receivers.remove(streamId);
         break;
       case CANCEL:
