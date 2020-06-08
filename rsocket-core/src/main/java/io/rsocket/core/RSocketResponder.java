@@ -497,6 +497,26 @@ class RSocketResponder implements RSocket {
           @Override
           protected void hookOnError(Throwable throwable) {
             if (sendingSubscriptions.remove(streamId, this)) {
+              // specifically for requestChannel case so when Payload is invalid we will not be
+              // sending CancelFrame and ErrorFrame
+              // Note: CancelFrame is redundant and due to spec
+              // (https://github.com/rsocket/rsocket/blob/master/Protocol.md#request-channel)
+              // Upon receiving an ERROR[APPLICATION_ERROR|REJECTED|CANCELED|INVALID], the stream
+              // is
+              // terminated on both Requester and Responder.
+              // Upon sending an ERROR[APPLICATION_ERROR|REJECTED|CANCELED|INVALID], the stream is
+              // terminated on both the Requester and Responder.
+              if (requestChannel != null && !requestChannel.isDisposed()) {
+                if (channelProcessors.remove(streamId, requestChannel)) {
+                  try {
+                    requestChannel.dispose();
+                  } catch (Throwable e) {
+                    // ignore to ensure it does not blows up if it racing with async
+                    // cancel
+                  }
+                }
+              }
+
               handleError(streamId, throwable);
             }
           }
@@ -535,6 +555,11 @@ class RSocketResponder implements RSocket {
                   if (channelProcessors.remove(streamId, frames)) {
                     if (signalType == SignalType.CANCEL) {
                       sendProcessor.onNext(CancelFrameCodec.encode(allocator, streamId));
+                    } else if (signalType == SignalType.ON_ERROR) {
+                      Subscription subscription = sendingSubscriptions.remove(streamId);
+                      if (subscription != null) {
+                        subscription.cancel();
+                      }
                     }
                   }
                 })

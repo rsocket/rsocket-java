@@ -33,6 +33,7 @@ import io.rsocket.util.DefaultPayload;
 import io.rsocket.util.EmptyPayload;
 import java.time.Duration;
 import java.util.List;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicReference;
 import org.assertj.core.api.Assertions;
 import org.junit.Rule;
@@ -287,6 +288,46 @@ public class RSocketTest {
         requesterPublisher, requesterSubscriber, responderPublisher, responderSubscriber);
   }
 
+  @Test
+  public void requestChannelCase_ErrorFromResponderShouldTerminatesStreamsOnBothSides() {
+    TestPublisher<Payload> requesterPublisher = TestPublisher.create();
+    AssertSubscriber<Payload> requesterSubscriber = new AssertSubscriber<>(0);
+
+    AssertSubscriber<Payload> responderSubscriber = new AssertSubscriber<>(0);
+    TestPublisher<Payload> responderPublisher = TestPublisher.create();
+
+    initRequestChannelCase(
+        requesterPublisher, requesterSubscriber, responderPublisher, responderSubscriber);
+
+    nextFromResponderPublisher(responderPublisher, requesterSubscriber);
+
+    nextFromRequesterPublisher(requesterPublisher, responderSubscriber);
+
+    // ensures both sides are terminated
+    errorFromResponderPublisher(
+        requesterPublisher, requesterSubscriber, responderPublisher, responderSubscriber);
+  }
+
+  @Test
+  public void requestChannelCase_ErrorFromRequesterShouldTerminatesStreamsOnBothSides() {
+    TestPublisher<Payload> requesterPublisher = TestPublisher.create();
+    AssertSubscriber<Payload> requesterSubscriber = new AssertSubscriber<>(0);
+
+    AssertSubscriber<Payload> responderSubscriber = new AssertSubscriber<>(0);
+    TestPublisher<Payload> responderPublisher = TestPublisher.create();
+
+    initRequestChannelCase(
+        requesterPublisher, requesterSubscriber, responderPublisher, responderSubscriber);
+
+    nextFromResponderPublisher(responderPublisher, requesterSubscriber);
+
+    nextFromRequesterPublisher(requesterPublisher, responderSubscriber);
+
+    // ensures both sides are terminated
+    errorFromRequesterPublisher(
+        requesterPublisher, requesterSubscriber, responderPublisher, responderSubscriber);
+  }
+
   void initRequestChannelCase(
       TestPublisher<Payload> requesterPublisher,
       AssertSubscriber<Payload> requesterSubscriber,
@@ -403,6 +444,48 @@ public class RSocketTest {
     // ensures that cancellation is propagated to the actual upstream
     requesterPublisher.assertWasCancelled();
     requesterPublisher.assertNoSubscribers();
+  }
+
+  static final CustomRSocketException EXCEPTION = new CustomRSocketException(123456, "test");
+
+  void errorFromResponderPublisher(
+      TestPublisher<Payload> requesterPublisher,
+      AssertSubscriber<Payload> requesterSubscriber,
+      TestPublisher<Payload> responderPublisher,
+      AssertSubscriber<Payload> responderSubscriber) {
+    // ensures that after sending cancel the whole requestChannel is terminated
+    responderPublisher.error(EXCEPTION);
+    // error should be propagated
+    responderSubscriber.assertTerminated().assertError(CancellationException.class);
+    requesterSubscriber
+        .assertTerminated()
+        .assertError(CustomRSocketException.class)
+        .assertErrorMessage("test");
+    // ensures that cancellation is propagated to the actual upstream
+    requesterPublisher.assertWasCancelled();
+    requesterPublisher.assertNoSubscribers();
+  }
+
+  void errorFromRequesterPublisher(
+      TestPublisher<Payload> requesterPublisher,
+      AssertSubscriber<Payload> requesterSubscriber,
+      TestPublisher<Payload> responderPublisher,
+      AssertSubscriber<Payload> responderSubscriber) {
+    // ensures that after sending cancel the whole requestChannel is terminated
+    requesterPublisher.error(EXCEPTION);
+    // error should be propagated
+    responderSubscriber
+        .assertTerminated()
+        .assertError(CustomRSocketException.class)
+        .assertErrorMessage("test");
+    requesterSubscriber
+        .assertTerminated()
+        .assertError(CustomRSocketException.class)
+        .assertErrorMessage("test");
+
+    // ensures that cancellation is propagated to the actual upstream
+    responderPublisher.assertWasCancelled();
+    responderPublisher.assertNoSubscribers();
   }
 
   public static class SocketRule extends ExternalResource {
