@@ -468,7 +468,12 @@ public class RSocketResponderTest {
           .assertTerminated()
           .assertError(CancellationException.class)
           .assertErrorMessage("Disposed");
-      Assertions.assertThat(assertSubscriber.values()).allMatch(ReferenceCounted::release);
+      Assertions.assertThat(assertSubscriber.values())
+          .allMatch(
+              msg -> {
+                ReferenceCountUtil.safeRelease(msg);
+                return msg.refCnt() == 0;
+              });
       rule.assertHasNoLeaks();
     }
   }

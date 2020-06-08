@@ -16,10 +16,10 @@
 
 plugins {
     id 'com.github.sherter.google-java-format' version '0.8' apply false
-    id 'com.jfrog.artifactory' version '4.11.0' apply false
-    id 'com.jfrog.bintray' version '1.8.4' apply false
+    id 'com.jfrog.artifactory' version '4.15.2' apply false
+    id 'com.jfrog.bintray' version '1.8.5' apply false
     id 'me.champeau.gradle.jmh' version '0.5.0' apply false
-    id 'io.spring.dependency-management' version '1.0.8.RELEASE' apply false
+    id 'io.spring.dependency-management' version '1.0.9.RELEASE' apply false
     id 'io.morethan.jmhreport' version '0.9.0' apply false
 }
 
@@ -27,10 +27,10 @@ subprojects {
     apply plugin: 'io.spring.dependency-management'
     apply plugin: 'com.github.sherter.google-java-format'
 
-    ext['reactor-bom.version'] = 'Dysprosium-SR7'
+    ext['reactor-bom.version'] = 'Dysprosium-SR8'
     ext['logback.version'] = '1.2.3'
     ext['findbugs.version'] = '3.0.2'
-    ext['netty-bom.version'] = '4.1.48.Final'
+    ext['netty-bom.version'] = '4.1.50.Final'
     ext['netty-boringssl.version'] = '2.0.30.Final'
     ext['hdrhistogram.version'] = '2.1.10'
     ext['mockito.version'] = '3.2.0'
