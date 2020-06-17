@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.rsocket.examples.transport.tcp.duplex;
+package io.rsocket.examples.transport.tcp.fnf;
 
 import io.rsocket.ConnectionSetupPayload;
 import io.rsocket.Payload;
