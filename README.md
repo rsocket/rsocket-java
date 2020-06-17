@@ -17,6 +17,8 @@ Learn more at http://rsocket.io
 
 [![Build Status](https://travis-ci.org/rsocket/rsocket-java.svg?branch=develop)](https://travis-ci.org/rsocket/rsocket-java)
 
+⚠️ The `master` branch is now dedicated to development of the `1.1.x` line.
+
 Releases are available via Maven Central.
 
 Example:
@@ -26,8 +28,8 @@ repositories {
 	mavenCentral()
 }
 dependencies {
-    implementation 'io.rsocket:rsocket-core:1.0.0'
-    implementation 'io.rsocket:rsocket-transport-netty:1.0.0'
+    implementation 'io.rsocket:rsocket-core:1.1.0-SNAPSHOT'
+    implementation 'io.rsocket:rsocket-transport-netty:1.1.0-SNAPSHOT'
 }
 ```
 
@@ -40,8 +42,8 @@ repositories {
 	maven { url 'https://oss.jfrog.org/oss-snapshot-local' }
 }
 dependencies {
-    implementation 'io.rsocket:rsocket-core:1.0.1-SNAPSHOT'
-    implementation 'io.rsocket:rsocket-transport-netty:1.0.1-SNAPSHOT'
+    implementation 'io.rsocket:rsocket-core:1.1.1-SNAPSHOT'
+    implementation 'io.rsocket:rsocket-transport-netty:1.1.1-SNAPSHOT'
 }
 ```
 
