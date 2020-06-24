@@ -66,6 +66,7 @@ public final class RSocketServer {
   private Supplier<Leases<?>> leasesSupplier = null;
 
   private int mtu = 0;
+  private int maxReassemblySize = Integer.MAX_VALUE;
   private PayloadDecoder payloadDecoder = PayloadDecoder.DEFAULT;
 
   private RSocketServer() {}
@@ -199,6 +200,23 @@ public final class RSocketServer {
   }
 
   /**
+   * When this is set, frames reassembler control maximum payload size which can be reassembled.
+   *
+   * <p>By default this is not set in which case maximum reassembled payloads size is not
+   * controlled.
+   *
+   * @param maxReassemblySize the threshold size for reassembly, must be no less than 16,777,215
+   * @return the same instance for method chaining
+   * @see <a
+   *     href="https://github.com/rsocket/rsocket/blob/master/Protocol.md#fragmentation-and-reassembly">Fragmentation
+   *     and Reassembly</a>
+   */
+  public RSocketServer reassemble(int maxReassemblySize) {
+    this.maxReassemblySize = ReassemblyDuplexConnection.assertMaxReassemblySize(maxReassemblySize);
+    return this;
+  }
+
+  /**
    * When this is set, frames larger than the given maximum transmission unit (mtu) size value are
    * fragmented.
    *
@@ -301,8 +319,8 @@ public final class RSocketServer {
   private Mono<Void> acceptor(ServerSetup serverSetup, DuplexConnection connection) {
     connection =
         mtu > 0
-            ? new FragmentationDuplexConnection(connection, mtu, "server")
-            : new ReassemblyDuplexConnection(connection);
+            ? new FragmentationDuplexConnection(connection, mtu, maxReassemblySize, "server")
+            : new ReassemblyDuplexConnection(connection, maxReassemblySize);
 
     ClientServerInputMultiplexer multiplexer =
         new ClientServerInputMultiplexer(connection, interceptors, false);

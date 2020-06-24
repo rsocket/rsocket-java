@@ -92,6 +92,7 @@ public class RSocketConnector {
   private Supplier<Leases<?>> leasesSupplier;
 
   private int mtu = 0;
+  private int maxReassemblySize = Integer.MAX_VALUE;
   private PayloadDecoder payloadDecoder = PayloadDecoder.DEFAULT;
 
   private RSocketConnector() {}
@@ -413,6 +414,23 @@ public class RSocketConnector {
   }
 
   /**
+   * When this is set, frames reassembler control maximum payload size which can be reassembled.
+   *
+   * <p>By default this is not set in which case maximum reassembled payloads size is not
+   * controlled.
+   *
+   * @param maxReassemblySize the threshold size for reassembly, must be no less than 16,777,215
+   * @return the same instance for method chaining
+   * @see <a
+   *     href="https://github.com/rsocket/rsocket/blob/master/Protocol.md#fragmentation-and-reassembly">Fragmentation
+   *     and Reassembly</a>
+   */
+  public RSocketConnector reassemble(int maxReassemblySize) {
+    this.maxReassemblySize = ReassemblyDuplexConnection.assertMaxReassemblySize(maxReassemblySize);
+    return this;
+  }
+
+  /**
    * When this is set, frames larger than the given maximum transmission unit (mtu) size value are
    * broken down into fragments to fit that size.
    *
@@ -494,9 +512,9 @@ public class RSocketConnector {
             .map(
                 connection ->
                     mtu > 0
-                        ? new FragmentationDuplexConnection(connection, mtu, "client")
-                        : new ReassemblyDuplexConnection(connection));
-
+                        ? new FragmentationDuplexConnection(
+                            connection, mtu, maxReassemblySize, "client")
+                        : new ReassemblyDuplexConnection(connection, maxReassemblySize));
     return connectionMono
         .flatMap(
             connection ->
