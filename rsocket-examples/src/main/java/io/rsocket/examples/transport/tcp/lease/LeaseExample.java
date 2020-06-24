@@ -20,7 +20,6 @@ import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.core.RSocketConnector;
 import io.rsocket.core.RSocketServer;
-import io.rsocket.examples.transport.tcp.stream.StreamingClient;
 import io.rsocket.lease.Lease;
 import io.rsocket.lease.LeaseStats;
 import io.rsocket.lease.Leases;
@@ -45,7 +44,7 @@ import reactor.util.retry.Retry;
 
 public class LeaseExample {
 
-  private static final Logger logger = LoggerFactory.getLogger(StreamingClient.class);
+  private static final Logger logger = LoggerFactory.getLogger(LeaseExample.class);
 
   private static final String SERVER_TAG = "server";
   private static final String CLIENT_TAG = "client";
