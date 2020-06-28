@@ -81,6 +81,7 @@ class RSocketResponder implements RSocket {
           RSocketResponder.class, Throwable.class, "terminationError");
 
   private final int mtu;
+  private final int maxFrameLength;
 
   private final IntObjectMap<Subscription> sendingSubscriptions;
   private final IntObjectMap<Processor<Payload, Payload>> channelProcessors;
@@ -93,10 +94,12 @@ class RSocketResponder implements RSocket {
       RSocket requestHandler,
       PayloadDecoder payloadDecoder,
       ResponderLeaseHandler leaseHandler,
-      int mtu) {
+      int mtu,
+      int maxFrameLength) {
     this.connection = connection;
     this.allocator = connection.alloc();
     this.mtu = mtu;
+    this.maxFrameLength = maxFrameLength;
 
     this.requestHandler = requestHandler;
     this.responderRSocket =
@@ -408,7 +411,7 @@ class RSocketResponder implements RSocket {
               isEmpty = false;
             }
 
-            if (!PayloadValidationUtils.isValid(mtu, payload)) {
+            if (!PayloadValidationUtils.isValid(mtu, payload, maxFrameLength)) {
               payload.release();
               cancel();
               final IllegalArgumentException t =
@@ -459,7 +462,7 @@ class RSocketResponder implements RSocket {
           @Override
           protected void hookOnNext(Payload payload) {
             try {
-              if (!PayloadValidationUtils.isValid(mtu, payload)) {
+              if (!PayloadValidationUtils.isValid(mtu, payload, maxFrameLength)) {
                 payload.release();
                 final IllegalArgumentException t =
                     new IllegalArgumentException(INVALID_PAYLOAD_ERROR_MESSAGE);

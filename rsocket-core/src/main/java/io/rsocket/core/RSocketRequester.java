@@ -106,6 +106,7 @@ class RSocketRequester implements RSocket {
   private final IntObjectMap<Processor<Payload, Payload>> receivers;
   private final UnboundedProcessor<ByteBuf> sendProcessor;
   private final int mtu;
+  private final int maxFrameLength;
   private final RequesterLeaseHandler leaseHandler;
   private final ByteBufAllocator allocator;
   private final KeepAliveFramesAcceptor keepAliveFramesAcceptor;
@@ -117,6 +118,7 @@ class RSocketRequester implements RSocket {
       PayloadDecoder payloadDecoder,
       StreamIdSupplier streamIdSupplier,
       int mtu,
+      int maxFrameLength,
       int keepAliveTickPeriod,
       int keepAliveAckTimeout,
       @Nullable KeepAliveHandler keepAliveHandler,
@@ -127,6 +129,7 @@ class RSocketRequester implements RSocket {
     this.payloadDecoder = payloadDecoder;
     this.streamIdSupplier = streamIdSupplier;
     this.mtu = mtu;
+    this.maxFrameLength = maxFrameLength;
     this.leaseHandler = leaseHandler;
     this.senders = new SynchronizedIntObjectHashMap<>();
     this.receivers = new SynchronizedIntObjectHashMap<>();
@@ -208,7 +211,7 @@ class RSocketRequester implements RSocket {
       return Mono.error(t);
     }
 
-    if (!PayloadValidationUtils.isValid(this.mtu, payload)) {
+    if (!PayloadValidationUtils.isValid(this.mtu, payload, maxFrameLength)) {
       payload.release();
       return Mono.error(new IllegalArgumentException(INVALID_PAYLOAD_ERROR_MESSAGE));
     }
@@ -257,7 +260,7 @@ class RSocketRequester implements RSocket {
       return Mono.error(t);
     }
 
-    if (!PayloadValidationUtils.isValid(this.mtu, payload)) {
+    if (!PayloadValidationUtils.isValid(this.mtu, payload, maxFrameLength)) {
       payload.release();
       return Mono.error(new IllegalArgumentException(INVALID_PAYLOAD_ERROR_MESSAGE));
     }
@@ -337,7 +340,7 @@ class RSocketRequester implements RSocket {
       return Flux.error(t);
     }
 
-    if (!PayloadValidationUtils.isValid(this.mtu, payload)) {
+    if (!PayloadValidationUtils.isValid(this.mtu, payload, maxFrameLength)) {
       payload.release();
       return Flux.error(new IllegalArgumentException(INVALID_PAYLOAD_ERROR_MESSAGE));
     }
@@ -431,7 +434,7 @@ class RSocketRequester implements RSocket {
                   return Mono.error(new IllegalReferenceCountException());
                 }
 
-                if (!PayloadValidationUtils.isValid(mtu, payload)) {
+                if (!PayloadValidationUtils.isValid(mtu, payload, maxFrameLength)) {
                   payload.release();
                   final IllegalArgumentException t =
                       new IllegalArgumentException(INVALID_PAYLOAD_ERROR_MESSAGE);
@@ -479,7 +482,7 @@ class RSocketRequester implements RSocket {
                                 request(1);
                                 return;
                               }
-                              if (!PayloadValidationUtils.isValid(mtu, payload)) {
+                              if (!PayloadValidationUtils.isValid(mtu, payload, maxFrameLength)) {
                                 payload.release();
                                 cancel();
                                 final IllegalArgumentException t =
@@ -594,7 +597,7 @@ class RSocketRequester implements RSocket {
       return Mono.error(err);
     }
 
-    if (!PayloadValidationUtils.isValid(this.mtu, payload)) {
+    if (!PayloadValidationUtils.isValid(this.mtu, payload, maxFrameLength)) {
       payload.release();
       return Mono.error(new IllegalArgumentException(INVALID_PAYLOAD_ERROR_MESSAGE));
     }

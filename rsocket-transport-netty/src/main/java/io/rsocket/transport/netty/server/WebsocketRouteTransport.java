@@ -16,8 +16,6 @@
 
 package io.rsocket.transport.netty.server;
 
-import static io.rsocket.frame.FrameLengthCodec.FRAME_LENGTH_MASK;
-
 import io.rsocket.Closeable;
 import io.rsocket.transport.ServerTransport;
 import io.rsocket.transport.netty.WebsocketDuplexConnection;
@@ -29,7 +27,6 @@ import reactor.core.publisher.Mono;
 import reactor.netty.Connection;
 import reactor.netty.http.server.HttpServer;
 import reactor.netty.http.server.HttpServerRoutes;
-import reactor.netty.http.server.WebsocketServerSpec;
 import reactor.netty.http.websocket.WebsocketInbound;
 import reactor.netty.http.websocket.WebsocketOutbound;
 
@@ -37,7 +34,8 @@ import reactor.netty.http.websocket.WebsocketOutbound;
  * An implementation of {@link ServerTransport} that connects via Websocket and listens on specified
  * routes.
  */
-public final class WebsocketRouteTransport extends BaseWebsocketServerTransport<Closeable> {
+public final class WebsocketRouteTransport
+    extends BaseWebsocketServerTransport<WebsocketRouteTransport, Closeable> {
 
   private final String path;
 
@@ -66,10 +64,7 @@ public final class WebsocketRouteTransport extends BaseWebsocketServerTransport<
         .route(
             routes -> {
               routesBuilder.accept(routes);
-              routes.ws(
-                  path,
-                  newHandler(acceptor),
-                  WebsocketServerSpec.builder().maxFramePayloadLength(FRAME_LENGTH_MASK).build());
+              routes.ws(path, newHandler(acceptor), specBuilder.build());
             })
         .bind()
         .map(CloseableChannel::new);
@@ -84,19 +79,6 @@ public final class WebsocketRouteTransport extends BaseWebsocketServerTransport<
    */
   public static BiFunction<WebsocketInbound, WebsocketOutbound, Publisher<Void>> newHandler(
       ConnectionAcceptor acceptor) {
-    return newHandler(acceptor, 0);
-  }
-
-  /**
-   * Creates a new Websocket handler
-   *
-   * @param acceptor the {@link ConnectionAcceptor} to use with the handler
-   * @param mtu the fragment size
-   * @return a new Websocket handler
-   * @throws NullPointerException if {@code acceptor} is {@code null}
-   */
-  public static BiFunction<WebsocketInbound, WebsocketOutbound, Publisher<Void>> newHandler(
-      ConnectionAcceptor acceptor, int mtu) {
     return (in, out) ->
         acceptor.apply(new WebsocketDuplexConnection((Connection) in)).then(out.neverComplete());
   }

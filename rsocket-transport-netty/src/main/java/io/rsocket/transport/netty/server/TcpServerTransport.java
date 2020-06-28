@@ -16,6 +16,8 @@
 
 package io.rsocket.transport.netty.server;
 
+import static io.rsocket.frame.FrameLengthCodec.FRAME_LENGTH_MASK;
+
 import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.ServerTransport;
 import io.rsocket.transport.netty.RSocketLengthCodec;
@@ -31,9 +33,11 @@ import reactor.netty.tcp.TcpServer;
 public final class TcpServerTransport implements ServerTransport<CloseableChannel> {
 
   private final TcpServer server;
+  private final int maxFrameLength;
 
-  private TcpServerTransport(TcpServer server) {
+  private TcpServerTransport(TcpServer server, int maxFrameLength) {
     this.server = server;
+    this.maxFrameLength = maxFrameLength;
   }
 
   /**
@@ -81,8 +85,25 @@ public final class TcpServerTransport implements ServerTransport<CloseableChanne
    * @throws NullPointerException if {@code server} is {@code null}
    */
   public static TcpServerTransport create(TcpServer server) {
+    return create(server, FRAME_LENGTH_MASK);
+  }
+
+  /**
+   * Creates a new instance
+   *
+   * @param server the {@link TcpServer} to use
+   * @param maxFrameLength max frame length being sent over the connection
+   * @return a new instance
+   * @throws NullPointerException if {@code server} is {@code null}
+   */
+  public static TcpServerTransport create(TcpServer server, int maxFrameLength) {
     Objects.requireNonNull(server, "server must not be null");
-    return new TcpServerTransport(server);
+    return new TcpServerTransport(server, maxFrameLength);
+  }
+
+  @Override
+  public int maxFrameLength() {
+    return maxFrameLength;
   }
 
   @Override
@@ -91,7 +112,7 @@ public final class TcpServerTransport implements ServerTransport<CloseableChanne
     return server
         .doOnConnection(
             c -> {
-              c.addHandlerLast(new RSocketLengthCodec());
+              c.addHandlerLast(new RSocketLengthCodec(maxFrameLength));
               acceptor
                   .apply(new TcpDuplexConnection(c))
                   .then(Mono.<Void>never())

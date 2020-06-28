@@ -16,5 +16,22 @@
 
 package io.rsocket.transport;
 
+import static io.rsocket.frame.FrameLengthCodec.FRAME_LENGTH_MASK;
+
+import io.rsocket.DuplexConnection;
+
 /** */
-public interface Transport {}
+public interface Transport {
+
+  /**
+   * Configurations that exposes the maximum frame size that a {@link DuplexConnection} can bring up
+   * to RSocket level.
+   *
+   * <p>This number should not exist the 16,777,215 (maximum frame size specified by RSocket spec)
+   *
+   * @return return maximum configured frame size limit
+   */
+  default int maxFrameLength() {
+    return FRAME_LENGTH_MASK;
+  }
+}

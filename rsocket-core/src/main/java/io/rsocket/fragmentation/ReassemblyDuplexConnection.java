@@ -37,23 +37,23 @@ public class ReassemblyDuplexConnection implements DuplexConnection {
   private final FrameReassembler frameReassembler;
 
   /** Constructor with the underlying delegate to receive frames from. */
-  public ReassemblyDuplexConnection(DuplexConnection delegate, int maxReassemblySize) {
+  public ReassemblyDuplexConnection(DuplexConnection delegate, int maxInboundPayloadSize) {
     Objects.requireNonNull(delegate, "delegate must not be null");
     this.delegate = delegate;
-    this.frameReassembler = new FrameReassembler(delegate.alloc(), maxReassemblySize);
+    this.frameReassembler = new FrameReassembler(delegate.alloc(), maxInboundPayloadSize);
 
     delegate.onClose().doFinally(s -> frameReassembler.dispose()).subscribe();
   }
 
-  public static int assertMaxReassemblySize(int maxReassemblySize) {
-    if (maxReassemblySize < FrameLengthCodec.FRAME_LENGTH_MASK) {
+  public static int assertInboundPayloadSize(int inboundPayloadSize) {
+    if (inboundPayloadSize < FragmentationDuplexConnection.MIN_MTU_SIZE) {
       String msg =
           String.format(
-              "The smallest allowed maxReassemblySize size is %d bytes, provided: %d",
-              FrameLengthCodec.FRAME_LENGTH_MASK, maxReassemblySize);
+              "The min allowed inboundPayloadSize size is %d bytes, provided: %d",
+              FrameLengthCodec.FRAME_LENGTH_MASK, inboundPayloadSize);
       throw new IllegalArgumentException(msg);
     } else {
-      return maxReassemblySize;
+      return inboundPayloadSize;
     }
   }
 

@@ -16,6 +16,8 @@
 
 package io.rsocket.transport.netty.client;
 
+import static io.rsocket.frame.FrameLengthCodec.FRAME_LENGTH_MASK;
+
 import io.rsocket.DuplexConnection;
 import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.ServerTransport;
@@ -32,9 +34,11 @@ import reactor.netty.tcp.TcpClient;
 public final class TcpClientTransport implements ClientTransport {
 
   private final TcpClient client;
+  private final int maxFrameLength;
 
-  private TcpClientTransport(TcpClient client) {
+  private TcpClientTransport(TcpClient client, int maxFrameLength) {
     this.client = client;
+    this.maxFrameLength = maxFrameLength;
   }
 
   /**
@@ -85,15 +89,32 @@ public final class TcpClientTransport implements ClientTransport {
    * @throws NullPointerException if {@code client} is {@code null}
    */
   public static TcpClientTransport create(TcpClient client) {
+    return create(client, FRAME_LENGTH_MASK);
+  }
+
+  /**
+   * Creates a new instance
+   *
+   * @param client the {@link TcpClient} to use
+   * @param maxFrameLength max frame length being sent over the connection
+   * @return a new instance
+   * @throws NullPointerException if {@code client} is {@code null}
+   */
+  public static TcpClientTransport create(TcpClient client, int maxFrameLength) {
     Objects.requireNonNull(client, "client must not be null");
 
-    return new TcpClientTransport(client);
+    return new TcpClientTransport(client, maxFrameLength);
+  }
+
+  @Override
+  public int maxFrameLength() {
+    return maxFrameLength;
   }
 
   @Override
   public Mono<DuplexConnection> connect() {
     return client
-        .doOnConnected(c -> c.addHandlerLast(new RSocketLengthCodec()))
+        .doOnConnected(c -> c.addHandlerLast(new RSocketLengthCodec(maxFrameLength)))
         .connect()
         .map(TcpDuplexConnection::new);
   }

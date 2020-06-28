@@ -31,7 +31,16 @@ public final class RSocketLengthCodec extends LengthFieldBasedFrameDecoder {
 
   /** Creates a new instance of the decoder, specifying the RSocket frame length header size. */
   public RSocketLengthCodec() {
-    super(FRAME_LENGTH_MASK, 0, FRAME_LENGTH_SIZE, 0, 0);
+    this(FRAME_LENGTH_MASK);
+  }
+
+  /**
+   * Creates a new instance of the decoder, specifying the RSocket frame length header size.
+   *
+   * @param maxFrameLength maximum allowed frame length for incoming rsocket frames
+   */
+  public RSocketLengthCodec(int maxFrameLength) {
+    super(maxFrameLength, 0, FRAME_LENGTH_SIZE, 0, 0);
   }
 
   /**

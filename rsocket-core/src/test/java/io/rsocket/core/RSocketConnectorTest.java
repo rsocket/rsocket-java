@@ -1,5 +1,7 @@
 package io.rsocket.core;
 
+import static io.rsocket.frame.FrameLengthCodec.FRAME_LENGTH_MASK;
+
 import io.netty.buffer.ByteBuf;
 import io.netty.util.CharsetUtil;
 import io.netty.util.ReferenceCounted;
@@ -146,5 +148,40 @@ public class RSocketConnectorTest {
                 payload.refCnt() == 1
                     && payload.data().refCnt() == 0
                     && payload.metadata().refCnt() == 0);
+  }
+
+  @Test
+  public void ensuresMaxFrameLengthCanNotBeLessThenMtu() {
+    RSocketConnector.create()
+        .fragment(128)
+        .connect(new TestClientTransport().withMaxFrameLength(64))
+        .as(StepVerifier::create)
+        .expectErrorMessage(
+            "Configured maximumTransmissionUnit[128] exceeds configured maxFrameLength[64]")
+        .verify();
+  }
+
+  @Test
+  public void ensuresMaxFrameLengthCanNotBeGreaterThenMaxPayloadSize() {
+    RSocketConnector.create()
+        .maxInboundPayloadSize(128)
+        .connect(new TestClientTransport().withMaxFrameLength(256))
+        .as(StepVerifier::create)
+        .expectErrorMessage("Configured maxFrameLength[256] exceeds maxPayloadSize[128]")
+        .verify();
+  }
+
+  @Test
+  public void ensuresMaxFrameLengthCanNotBeGreaterThenMaxPossibleFrameLength() {
+    RSocketConnector.create()
+        .connect(new TestClientTransport().withMaxFrameLength(Integer.MAX_VALUE))
+        .as(StepVerifier::create)
+        .expectErrorMessage(
+            "Configured maxFrameLength["
+                + Integer.MAX_VALUE
+                + "] "
+                + "exceeds maxFrameLength limit "
+                + FRAME_LENGTH_MASK)
+        .verify();
   }
 }

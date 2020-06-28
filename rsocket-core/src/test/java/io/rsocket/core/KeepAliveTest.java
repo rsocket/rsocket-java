@@ -16,6 +16,7 @@
 
 package io.rsocket.core;
 
+import static io.rsocket.frame.FrameLengthCodec.FRAME_LENGTH_MASK;
 import static io.rsocket.keepalive.KeepAliveHandler.DefaultKeepAliveHandler;
 import static io.rsocket.keepalive.KeepAliveHandler.ResumableKeepAliveHandler;
 
@@ -60,6 +61,7 @@ public class KeepAliveTest {
             DefaultPayload::create,
             StreamIdSupplier.clientSupplier(),
             0,
+            FRAME_LENGTH_MASK,
             tickPeriod,
             timeout,
             new DefaultKeepAliveHandler(connection),
@@ -86,6 +88,7 @@ public class KeepAliveTest {
             DefaultPayload::create,
             StreamIdSupplier.clientSupplier(),
             0,
+            FRAME_LENGTH_MASK,
             tickPeriod,
             timeout,
             new ResumableKeepAliveHandler(resumableConnection),

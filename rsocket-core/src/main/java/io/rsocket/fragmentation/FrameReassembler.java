@@ -49,11 +49,11 @@ final class FrameReassembler extends AtomicBoolean implements Disposable {
   final IntObjectMap<CompositeByteBuf> data;
 
   final ByteBufAllocator allocator;
-  final int maxReassemblySize;
+  final int maxInboundPayloadSize;
 
-  public FrameReassembler(ByteBufAllocator allocator, int maxReassemblySize) {
+  public FrameReassembler(ByteBufAllocator allocator, int maxInboundPayloadSize) {
     this.allocator = allocator;
-    this.maxReassemblySize = maxReassemblySize;
+    this.maxInboundPayloadSize = maxInboundPayloadSize;
     this.headers = new IntObjectHashMap<>();
     this.metadata = new IntObjectHashMap<>();
     this.data = new IntObjectHashMap<>();
@@ -174,14 +174,12 @@ final class FrameReassembler extends AtomicBoolean implements Disposable {
     ByteBuf header = removeHeader(streamId);
     if (header != null) {
 
-      int maxReassemblySize = this.maxReassemblySize;
+      int maxReassemblySize = this.maxInboundPayloadSize;
       if (maxReassemblySize != Integer.MAX_VALUE) {
         int currentPayloadSize = getMetadataSize(streamId) + getDataSize(streamId);
         if (currentPayloadSize + frame.readableBytes() - FrameHeaderCodec.size()
             > maxReassemblySize) {
-          header.release();
           frame.release();
-          cancelAssemble(streamId);
           throw new IllegalStateException("Reassembled payload went out of allowed size");
         }
       }
@@ -201,6 +199,17 @@ final class FrameReassembler extends AtomicBoolean implements Disposable {
   }
 
   void handleFollowsFlag(ByteBuf frame, int streamId, FrameType frameType) {
+
+    int maxReassemblySize = this.maxInboundPayloadSize;
+    if (maxReassemblySize != Integer.MAX_VALUE) {
+      int currentPayloadSize = getMetadataSize(streamId) + getDataSize(streamId);
+      if (currentPayloadSize + frame.readableBytes() - FrameHeaderCodec.size()
+          > maxReassemblySize) {
+        frame.release();
+        throw new IllegalStateException("Reassembled payload went out of allowed size");
+      }
+    }
+
     ByteBuf header = getHeader(streamId);
     if (header == null) {
       header = frame.copy(frame.readerIndex(), FrameHeaderCodec.size());
@@ -210,17 +219,6 @@ final class FrameReassembler extends AtomicBoolean implements Disposable {
         header.writeInt(i > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) i);
       }
       putHeader(streamId, header);
-    }
-
-    int maxReassemblySize = this.maxReassemblySize;
-    if (maxReassemblySize != Integer.MAX_VALUE) {
-      int currentPayloadSize = getMetadataSize(streamId) + getDataSize(streamId);
-      if (currentPayloadSize + frame.readableBytes() - FrameHeaderCodec.size()
-          > maxReassemblySize) {
-        cancelAssemble(streamId);
-        frame.release();
-        throw new IllegalStateException("Reassembled payload went out of allowed size");
-      }
     }
 
     if (FrameHeaderCodec.hasMetadata(frame)) {

@@ -53,11 +53,13 @@ public final class FragmentationDuplexConnection extends ReassemblyDuplexConnect
    *
    * @param delegate the underlying connection
    * @param mtu the fragment size, greater than {@link #MIN_MTU_SIZE}
+   * @param maxInboundPayloadSize the maximum payload size, which can be reassembled from multiple
+   *     fragments
    * @param type a label to use for logging purposes
    */
   public FragmentationDuplexConnection(
-      DuplexConnection delegate, int mtu, int maxReassemblySize, String type) {
-    super(delegate, maxReassemblySize);
+      DuplexConnection delegate, int mtu, int maxInboundPayloadSize, String type) {
+    super(delegate, maxInboundPayloadSize);
 
     Objects.requireNonNull(delegate, "delegate must not be null");
     this.delegate = delegate;

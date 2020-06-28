@@ -37,7 +37,7 @@ public class FragmentationIntegrationTest {
     Publisher<ByteBuf> fragments =
         FrameFragmenter.fragmentFrame(allocator, 64, frame, FrameHeaderCodec.frameType(frame));
 
-    FrameReassembler reassembler = new FrameReassembler(allocator);
+    FrameReassembler reassembler = new FrameReassembler(allocator, Integer.MAX_VALUE);
 
     ByteBuf assembled =
         Flux.from(fragments)

@@ -52,7 +52,7 @@ public final class WebsocketClientTransport
 
   private HttpHeaders headers = new DefaultHttpHeaders();
 
-  private WebsocketClientSpec.Builder specBuilder =
+  private final WebsocketClientSpec.Builder specBuilder =
       WebsocketClientSpec.builder().maxFramePayloadLength(FRAME_LENGTH_MASK);
 
   private WebsocketClientTransport(HttpClient client, String path) {
@@ -169,6 +169,11 @@ public final class WebsocketClientTransport
     if (transportHeaders != null) {
       transportHeaders.get().forEach((name, value) -> headers.add(name, value));
     }
+  }
+
+  @Override
+  public int maxFrameLength() {
+    return specBuilder.build().maxFramePayloadLength();
   }
 
   @Override
