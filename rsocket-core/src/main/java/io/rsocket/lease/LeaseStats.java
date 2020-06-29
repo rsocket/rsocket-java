@@ -16,7 +16,32 @@
 
 package io.rsocket.lease;
 
-public interface LeaseStats {
+import io.netty.buffer.ByteBuf;
+import io.rsocket.frame.FrameType;
+import reactor.core.publisher.SignalType;
+import reactor.util.annotation.Nullable;
+
+/** @deprecated in favor of the improved {@link LeaseTracker} class */
+@Deprecated
+public interface LeaseStats extends LeaseTracker {
+
+  @Override
+  default void onAccept(int streamId, FrameType requestType, @Nullable ByteBuf metadata) {
+    onEvent(EventType.ACCEPT);
+  }
+
+  @Override
+  default void onReject(int streamId, FrameType requestType, @Nullable ByteBuf metadata) {
+    onEvent(EventType.REJECT);
+  }
+
+  @Override
+  default void onRelease(int stream, SignalType terminalSignal) {}
+
+  @Override
+  default void onClose() {
+    onEvent(EventType.TERMINATE);
+  }
 
   void onEvent(EventType eventType);
 

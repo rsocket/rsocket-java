@@ -22,44 +22,86 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import reactor.core.publisher.Flux;
 
-public class Leases<T extends LeaseStats> {
-  private static final Function<?, Flux<Lease>> noopLeaseSender = leaseStats -> Flux.never();
-  private static final Consumer<Flux<Lease>> noopLeaseReceiver = leases -> {};
+public class Leases<T extends LeaseTracker> {
+  private static final LeaseSender<?> noopLeaseSender = leaseTracker -> Flux.never();
+  private static final LeaseReceiver noopLeaseReceiver = leases -> {};
 
-  private Function<?, Flux<Lease>> leaseSender = noopLeaseSender;
-  private Consumer<Flux<Lease>> leaseReceiver = noopLeaseReceiver;
-  private Optional<T> stats = Optional.empty();
+  @SuppressWarnings("unchecked")
+  private LeaseSender<T> leaseSender = (LeaseSender<T>) noopLeaseSender;
 
-  public static <T extends LeaseStats> Leases<T> create() {
+  private LeaseReceiver leaseReceiver = noopLeaseReceiver;
+  private T leaseTracker;
+
+  public static <T extends LeaseTracker> Leases<T> create() {
     return new Leases<>();
   }
 
-  public Leases<T> sender(Function<Optional<T>, Flux<Lease>> leaseSender) {
+  public Leases<T> sender(LeaseSender<T> leaseSender) {
     this.leaseSender = leaseSender;
     return this;
   }
 
-  public Leases<T> receiver(Consumer<Flux<Lease>> leaseReceiver) {
+  public Leases<T> receiver(LeaseReceiver leaseReceiver) {
     this.leaseReceiver = leaseReceiver;
     return this;
   }
 
-  public Leases<T> stats(T stats) {
-    this.stats = Optional.of(Objects.requireNonNull(stats));
+  public Leases<T> tracker(T tracker) {
+    this.leaseTracker = Objects.requireNonNull(tracker);
     return this;
   }
 
-  @SuppressWarnings("unchecked")
-  public Function<Optional<LeaseStats>, Flux<Lease>> sender() {
-    return (Function<Optional<LeaseStats>, Flux<Lease>>) leaseSender;
+  public T leaseTracker() {
+    return leaseTracker;
   }
 
-  public Consumer<Flux<Lease>> receiver() {
+  public LeaseReceiver leaseReceiver() {
     return leaseReceiver;
   }
 
+  public LeaseSender<T> leaseSender() {
+    return leaseSender;
+  }
+
+  /** @deprecated in favor of {@link #sender(LeaseSender)} */
+  @Deprecated
   @SuppressWarnings("unchecked")
+  public <K extends LeaseStats> Leases<K> sender(Function<Optional<K>, Flux<Lease>> leaseSender) {
+    this.leaseSender = leaseTracker -> leaseSender.apply(Optional.ofNullable((K) leaseTracker));
+    return (Leases<K>) this;
+  }
+
+  /** @deprecated in favor of the {@link #receiver(LeaseReceiver)} */
+  @Deprecated
+  public Leases<T> receiver(Consumer<Flux<Lease>> leaseReceiver) {
+    this.leaseReceiver = leaseReceiver::accept;
+    return this;
+  }
+
+  /** @deprecated in favor of the {@link #tracker(LeaseTracker)} method */
+  @Deprecated
+  public Leases<T> stats(T stats) {
+    this.leaseTracker = Objects.requireNonNull(stats);
+    return this;
+  }
+
+  /** @deprecated in favor of the {@link #leaseSender()} method */
+  @Deprecated
+  public Function<Optional<LeaseStats>, Flux<Lease>> sender() {
+    return __ -> Flux.never();
+  }
+
+  /** @deprecated in favor of the {@link #leaseReceiver()} method */
+  @Deprecated
+  public Consumer<Flux<Lease>> receiver() {
+    return (f) -> {};
+  }
+
+  /** @deprecated in favor of the {@link #leaseTracker()} method */
+  @Deprecated
   public Optional<LeaseStats> stats() {
-    return (Optional<LeaseStats>) stats;
+    return leaseTracker instanceof LeaseStats
+        ? Optional.of((LeaseStats) leaseTracker)
+        : Optional.empty();
   }
 }

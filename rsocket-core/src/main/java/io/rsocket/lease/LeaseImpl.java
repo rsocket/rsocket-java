@@ -18,15 +18,18 @@ package io.rsocket.lease;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import reactor.util.annotation.Nullable;
 
 public class LeaseImpl implements Lease {
   private final int timeToLiveMillis;
-  private final AtomicInteger allowedRequests;
   private final int startingAllowedRequests;
   private final ByteBuf metadata;
   private final long expiry;
+
+  private volatile int allowedRequests;
+  private static final AtomicIntegerFieldUpdater<LeaseImpl> ALLOWED_REQUESTS =
+      AtomicIntegerFieldUpdater.newUpdater(LeaseImpl.class, "allowedRequests");
 
   static LeaseImpl create(int timeToLiveMillis, int numberOfRequests, @Nullable ByteBuf metadata) {
     assertLease(timeToLiveMillis, numberOfRequests);
@@ -38,11 +41,12 @@ public class LeaseImpl implements Lease {
   }
 
   private LeaseImpl(int timeToLiveMillis, int allowedRequests, @Nullable ByteBuf metadata) {
-    this.allowedRequests = new AtomicInteger(allowedRequests);
     this.startingAllowedRequests = allowedRequests;
     this.timeToLiveMillis = timeToLiveMillis;
     this.metadata = metadata == null ? Unpooled.EMPTY_BUFFER : metadata;
     this.expiry = timeToLiveMillis == 0 ? 0 : now() + timeToLiveMillis;
+
+    ALLOWED_REQUESTS.lazySet(this, allowedRequests);
   }
 
   public int getTimeToLiveMillis() {
@@ -51,7 +55,7 @@ public class LeaseImpl implements Lease {
 
   @Override
   public int getAllowedRequests() {
-    return Math.max(0, allowedRequests.get());
+    return Math.max(0, allowedRequests);
   }
 
   @Override
@@ -83,9 +87,18 @@ public class LeaseImpl implements Lease {
     if (isExpired()) {
       return false;
     }
-    int remaining =
-        allowedRequests.accumulateAndGet(1, (cur, update) -> Math.max(-1, cur - update));
-    return remaining >= 0;
+
+    for (; ; ) {
+      int remaining = allowedRequests;
+
+      if (remaining == 0) {
+        return false;
+      }
+
+      if (ALLOWED_REQUESTS.compareAndSet(this, remaining, remaining - 1)) {
+        return true;
+      }
+    }
   }
 
   @Override

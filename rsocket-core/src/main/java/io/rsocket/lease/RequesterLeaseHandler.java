@@ -19,9 +19,7 @@ package io.rsocket.lease;
 import io.netty.buffer.ByteBuf;
 import io.rsocket.Availability;
 import io.rsocket.frame.LeaseFrameCodec;
-import java.util.function.Consumer;
 import reactor.core.Disposable;
-import reactor.core.publisher.Flux;
 import reactor.core.publisher.ReplayProcessor;
 
 public interface RequesterLeaseHandler extends Availability, Disposable {
@@ -39,10 +37,10 @@ public interface RequesterLeaseHandler extends Availability, Disposable {
     private final ReplayProcessor<Lease> receivedLease;
     private volatile LeaseImpl currentLease = LeaseImpl.empty();
 
-    public Impl(String tag, Consumer<Flux<Lease>> leaseReceiver) {
+    public Impl(String tag, LeaseReceiver leaseReceiver) {
       this.tag = tag;
       receivedLease = ReplayProcessor.create(1);
-      leaseReceiver.accept(receivedLease);
+      leaseReceiver.receive(receivedLease);
     }
 
     @Override
