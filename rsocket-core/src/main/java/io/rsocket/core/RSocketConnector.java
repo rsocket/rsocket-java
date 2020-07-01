@@ -44,10 +44,12 @@ import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+
 import reactor.core.Disposable;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 import reactor.util.annotation.Nullable;
+import reactor.util.function.Tuples;
 import reactor.util.retry.Retry;
 
 /**
@@ -78,7 +80,7 @@ public class RSocketConnector {
   private static final BiConsumer<RSocket, Invalidatable> INVALIDATE_FUNCTION =
       (r, i) -> r.onClose().subscribe(null, __ -> i.invalidate(), i::invalidate);
 
-  private Payload setupPayload = EmptyPayload.INSTANCE;
+  private Mono<Payload> setupPayloadMono = Mono.empty();
   private String metadataMimeType = "application/binary";
   private String dataMimeType = "application/binary";
   private Duration keepAliveInterval = Duration.ofSeconds(20);
@@ -128,22 +130,38 @@ public class RSocketConnector {
   }
 
   /**
-   * Provide a {@code Payload} with data and/or metadata for the initial {@code SETUP} frame. Data
-   * and metadata should be formatted according to the MIME types specified via {@link
+   * Provide a {@code Mono} from which to obtain the {@code Payload} for the initial SETUP frame.
+   * Data and metadata should be formatted according to the MIME types specified via {@link
    * #dataMimeType(String)} and {@link #metadataMimeType(String)}.
    *
-   * @param payload the payload containing data and/or metadata for the {@code SETUP} frame. Note,
-   *     if the instance of the given payload is not a {@link DefaultPayload}, its content will be
-   *     copied
+   * @param setupPayloadMono the payload with data and/or metadata for the {@code SETUP} frame.
+   * @return the same instance for method chaining
+   * @since 1.0.2
+   * @see <a href="https://github.com/rsocket/rsocket/blob/master/Protocol.md#frame-setup">SETUP
+   *     Frame</a>
+   */
+  public RSocketConnector setupPayload(Mono<Payload> setupPayloadMono) {
+    this.setupPayloadMono = setupPayloadMono;
+    return this;
+  }
+
+  /**
+   * Variant of {@link #setupPayload(Mono)} that accepts a {@code Payload} instance.
+   *
+   * <p>Note: if the given payload is {@link io.rsocket.util.ByteBufPayload}, it is copied to a
+   * {@link DefaultPayload} and released immediately. This ensures it can re-used to obtain a
+   * connection more than once.
+   *
+   * @param payload the payload with data and/or metadata for the {@code SETUP} frame.
    * @return the same instance for method chaining
    * @see <a href="https://github.com/rsocket/rsocket/blob/master/Protocol.md#frame-setup">SETUP
    *     Frame</a>
    */
   public RSocketConnector setupPayload(Payload payload) {
     if (payload instanceof DefaultPayload) {
-      this.setupPayload = payload;
+      this.setupPayloadMono = Mono.just(payload);
     } else {
-      this.setupPayload = DefaultPayload.create(Objects.requireNonNull(payload));
+      this.setupPayloadMono = Mono.just(DefaultPayload.create(Objects.requireNonNull(payload)));
       payload.release();
     }
     return this;
@@ -532,8 +550,19 @@ public class RSocketConnector {
                     mtu > 0
                         ? new FragmentationDuplexConnection(connection, mtu, "client")
                         : new ReassemblyDuplexConnection(connection));
-    return connectionMono.flatMap(
-        connection -> {
+    return connectionMono
+      .flatMap(
+        connection ->
+          setupPayloadMono
+            .defaultIfEmpty(EmptyPayload.INSTANCE)
+            .map(setupPayload -> Tuples.of(connection, setupPayload))
+            .doOnError(ex -> connection.dispose())
+            .doOnCancel(connection::dispose))
+      .flatMap(
+        tuple -> {
+          DuplexConnection connection = tuple.getT1();
+          Payload setupPayload = tuple.getT2();
+
           ByteBuf resumeToken;
           KeepAliveHandler keepAliveHandler;
           DuplexConnection wrappedConnection;
