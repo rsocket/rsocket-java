@@ -9,6 +9,8 @@ import io.rsocket.RSocket;
 import io.rsocket.test.util.TestClientTransport;
 import io.rsocket.util.ByteBufPayload;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 import reactor.core.publisher.Mono;
@@ -98,5 +100,51 @@ public class RSocketConnectorTest {
             })
         .allMatch(ReferenceCounted::release);
     Assertions.assertThat(setupPayload.refCnt()).isZero();
+  }
+
+  @Test
+  public void ensuresThatSetupPayloadProvidedAsMonoIsReleased() {
+    List<Payload> saved = new ArrayList<>();
+    Mono<Payload> setupPayloadMono =
+        Mono.create(
+            sink -> {
+              Payload payload = ByteBufPayload.create("TestData", "TestMetadata");
+              saved.add(payload);
+              sink.success(payload);
+            });
+
+    TestClientTransport testClientTransport = new TestClientTransport();
+    Mono<RSocket> connectionMono =
+        RSocketConnector.create().setupPayload(setupPayloadMono).connect(testClientTransport);
+
+    connectionMono
+        .as(StepVerifier::create)
+        .expectNextCount(1)
+        .expectComplete()
+        .verify(Duration.ofMillis(100));
+
+    connectionMono
+        .as(StepVerifier::create)
+        .expectNextCount(1)
+        .expectComplete()
+        .verify(Duration.ofMillis(100));
+
+    Assertions.assertThat(testClientTransport.testConnection().getSent())
+        .hasSize(2)
+        .allMatch(
+            bb -> {
+              DefaultConnectionSetupPayload payload = new DefaultConnectionSetupPayload(bb);
+              return payload.getDataUtf8().equals("TestData")
+                  && payload.getMetadataUtf8().equals("TestMetadata");
+            })
+        .allMatch(ReferenceCounted::release);
+
+    Assertions.assertThat(saved)
+        .as("Metadata and data were consumed and released as slices")
+        .allMatch(
+            payload ->
+                payload.refCnt() == 1
+                    && payload.data().refCnt() == 0
+                    && payload.metadata().refCnt() == 0);
   }
 }
