@@ -44,7 +44,6 @@ import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
-
 import reactor.core.Disposable;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
@@ -551,112 +550,112 @@ public class RSocketConnector {
                         ? new FragmentationDuplexConnection(connection, mtu, "client")
                         : new ReassemblyDuplexConnection(connection));
     return connectionMono
-      .flatMap(
-        connection ->
-          setupPayloadMono
-            .defaultIfEmpty(EmptyPayload.INSTANCE)
-            .map(setupPayload -> Tuples.of(connection, setupPayload))
-            .doOnError(ex -> connection.dispose())
-            .doOnCancel(connection::dispose))
-      .flatMap(
-        tuple -> {
-          DuplexConnection connection = tuple.getT1();
-          Payload setupPayload = tuple.getT2();
+        .flatMap(
+            connection ->
+                setupPayloadMono
+                    .defaultIfEmpty(EmptyPayload.INSTANCE)
+                    .map(setupPayload -> Tuples.of(connection, setupPayload))
+                    .doOnError(ex -> connection.dispose())
+                    .doOnCancel(connection::dispose))
+        .flatMap(
+            tuple -> {
+              DuplexConnection connection = tuple.getT1();
+              Payload setupPayload = tuple.getT2();
 
-          ByteBuf resumeToken;
-          KeepAliveHandler keepAliveHandler;
-          DuplexConnection wrappedConnection;
+              ByteBuf resumeToken;
+              KeepAliveHandler keepAliveHandler;
+              DuplexConnection wrappedConnection;
 
-          if (resume != null) {
-            resumeToken = resume.getTokenSupplier().get();
-            ClientRSocketSession session =
-                new ClientRSocketSession(
-                        connection,
-                        resume.getSessionDuration(),
-                        resume.getRetry(),
-                        resume.getStoreFactory(CLIENT_TAG).apply(resumeToken),
-                        resume.getStreamTimeout(),
-                        resume.isCleanupStoreOnKeepAlive())
-                    .continueWith(connectionMono)
-                    .resumeToken(resumeToken);
-            keepAliveHandler =
-                new KeepAliveHandler.ResumableKeepAliveHandler(session.resumableConnection());
-            wrappedConnection = session.resumableConnection();
-          } else {
-            resumeToken = Unpooled.EMPTY_BUFFER;
-            keepAliveHandler = new KeepAliveHandler.DefaultKeepAliveHandler(connection);
-            wrappedConnection = connection;
-          }
+              if (resume != null) {
+                resumeToken = resume.getTokenSupplier().get();
+                ClientRSocketSession session =
+                    new ClientRSocketSession(
+                            connection,
+                            resume.getSessionDuration(),
+                            resume.getRetry(),
+                            resume.getStoreFactory(CLIENT_TAG).apply(resumeToken),
+                            resume.getStreamTimeout(),
+                            resume.isCleanupStoreOnKeepAlive())
+                        .continueWith(connectionMono)
+                        .resumeToken(resumeToken);
+                keepAliveHandler =
+                    new KeepAliveHandler.ResumableKeepAliveHandler(session.resumableConnection());
+                wrappedConnection = session.resumableConnection();
+              } else {
+                resumeToken = Unpooled.EMPTY_BUFFER;
+                keepAliveHandler = new KeepAliveHandler.DefaultKeepAliveHandler(connection);
+                wrappedConnection = connection;
+              }
 
-          ClientServerInputMultiplexer multiplexer =
-              new ClientServerInputMultiplexer(wrappedConnection, interceptors, true);
+              ClientServerInputMultiplexer multiplexer =
+                  new ClientServerInputMultiplexer(wrappedConnection, interceptors, true);
 
-          boolean leaseEnabled = leasesSupplier != null;
-          Leases<?> leases = leaseEnabled ? leasesSupplier.get() : null;
-          RequesterLeaseHandler requesterLeaseHandler =
-              leaseEnabled
-                  ? new RequesterLeaseHandler.Impl(CLIENT_TAG, leases.receiver())
-                  : RequesterLeaseHandler.None;
+              boolean leaseEnabled = leasesSupplier != null;
+              Leases<?> leases = leaseEnabled ? leasesSupplier.get() : null;
+              RequesterLeaseHandler requesterLeaseHandler =
+                  leaseEnabled
+                      ? new RequesterLeaseHandler.Impl(CLIENT_TAG, leases.receiver())
+                      : RequesterLeaseHandler.None;
 
-          RSocket rSocketRequester =
-              new RSocketRequester(
-                  multiplexer.asClientConnection(),
-                  payloadDecoder,
-                  StreamIdSupplier.clientSupplier(),
-                  mtu,
-                  (int) keepAliveInterval.toMillis(),
-                  (int) keepAliveMaxLifeTime.toMillis(),
-                  keepAliveHandler,
-                  requesterLeaseHandler,
-                  Schedulers.single(Schedulers.parallel()));
+              RSocket rSocketRequester =
+                  new RSocketRequester(
+                      multiplexer.asClientConnection(),
+                      payloadDecoder,
+                      StreamIdSupplier.clientSupplier(),
+                      mtu,
+                      (int) keepAliveInterval.toMillis(),
+                      (int) keepAliveMaxLifeTime.toMillis(),
+                      keepAliveHandler,
+                      requesterLeaseHandler,
+                      Schedulers.single(Schedulers.parallel()));
 
-          RSocket wrappedRSocketRequester = interceptors.initRequester(rSocketRequester);
+              RSocket wrappedRSocketRequester = interceptors.initRequester(rSocketRequester);
 
-          ByteBuf setupFrame =
-              SetupFrameCodec.encode(
-                  wrappedConnection.alloc(),
-                  leaseEnabled,
-                  (int) keepAliveInterval.toMillis(),
-                  (int) keepAliveMaxLifeTime.toMillis(),
-                  resumeToken,
-                  metadataMimeType,
-                  dataMimeType,
-                  setupPayload);
+              ByteBuf setupFrame =
+                  SetupFrameCodec.encode(
+                      wrappedConnection.alloc(),
+                      leaseEnabled,
+                      (int) keepAliveInterval.toMillis(),
+                      (int) keepAliveMaxLifeTime.toMillis(),
+                      resumeToken,
+                      metadataMimeType,
+                      dataMimeType,
+                      setupPayload);
 
-          SocketAcceptor acceptor =
-              this.acceptor != null ? this.acceptor : SocketAcceptor.with(new RSocket() {});
+              SocketAcceptor acceptor =
+                  this.acceptor != null ? this.acceptor : SocketAcceptor.with(new RSocket() {});
 
-          ConnectionSetupPayload setup = new DefaultConnectionSetupPayload(setupFrame);
+              ConnectionSetupPayload setup = new DefaultConnectionSetupPayload(setupFrame);
 
-          return interceptors
-              .initSocketAcceptor(acceptor)
-              .accept(setup, wrappedRSocketRequester)
-              .flatMap(
-                  rSocketHandler -> {
-                    RSocket wrappedRSocketHandler = interceptors.initResponder(rSocketHandler);
+              return interceptors
+                  .initSocketAcceptor(acceptor)
+                  .accept(setup, wrappedRSocketRequester)
+                  .flatMap(
+                      rSocketHandler -> {
+                        RSocket wrappedRSocketHandler = interceptors.initResponder(rSocketHandler);
 
-                    ResponderLeaseHandler responderLeaseHandler =
-                        leaseEnabled
-                            ? new ResponderLeaseHandler.Impl<>(
-                                CLIENT_TAG,
-                                wrappedConnection.alloc(),
-                                leases.sender(),
-                                leases.stats())
-                            : ResponderLeaseHandler.None;
+                        ResponderLeaseHandler responderLeaseHandler =
+                            leaseEnabled
+                                ? new ResponderLeaseHandler.Impl<>(
+                                    CLIENT_TAG,
+                                    wrappedConnection.alloc(),
+                                    leases.sender(),
+                                    leases.stats())
+                                : ResponderLeaseHandler.None;
 
-                    RSocket rSocketResponder =
-                        new RSocketResponder(
-                            multiplexer.asServerConnection(),
-                            wrappedRSocketHandler,
-                            payloadDecoder,
-                            responderLeaseHandler,
-                            mtu);
+                        RSocket rSocketResponder =
+                            new RSocketResponder(
+                                multiplexer.asServerConnection(),
+                                wrappedRSocketHandler,
+                                payloadDecoder,
+                                responderLeaseHandler,
+                                mtu);
 
-                    return wrappedConnection
-                        .sendOne(setupFrame.retain())
-                        .thenReturn(wrappedRSocketRequester);
-                  })
-              .doFinally(signalType -> setup.release());
-        });
+                        return wrappedConnection
+                            .sendOne(setupFrame.retain())
+                            .thenReturn(wrappedRSocketRequester);
+                      })
+                  .doFinally(signalType -> setup.release());
+            });
   }
 }
