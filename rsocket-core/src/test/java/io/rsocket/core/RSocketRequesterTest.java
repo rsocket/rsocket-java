@@ -18,6 +18,7 @@ package io.rsocket.core;
 
 import static io.rsocket.core.PayloadValidationUtils.INVALID_PAYLOAD_ERROR_MESSAGE;
 import static io.rsocket.frame.FrameHeaderCodec.frameType;
+import static io.rsocket.frame.FrameLengthCodec.FRAME_LENGTH_MASK;
 import static io.rsocket.frame.FrameType.*;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -79,6 +80,7 @@ import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.runners.model.Statement;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
@@ -334,13 +336,16 @@ public class RSocketRequesterTest {
     rule.assertHasNoLeaks();
   }
 
-  @Test
-  public void shouldThrownExceptionIfGivenPayloadIsExitsSizeAllowanceWithNoFragmentation() {
+  @ParameterizedTest
+  @ValueSource(ints = {128, 256, FRAME_LENGTH_MASK})
+  public void shouldThrownExceptionIfGivenPayloadIsExitsSizeAllowanceWithNoFragmentation(
+      int maxFrameLength) {
+    rule.setMaxFrameLength(maxFrameLength);
     prepareCalls()
         .forEach(
             generator -> {
-              byte[] metadata = new byte[FrameLengthCodec.FRAME_LENGTH_MASK];
-              byte[] data = new byte[FrameLengthCodec.FRAME_LENGTH_MASK];
+              byte[] metadata = new byte[maxFrameLength];
+              byte[] data = new byte[maxFrameLength];
               ThreadLocalRandom.current().nextBytes(metadata);
               ThreadLocalRandom.current().nextBytes(data);
               StepVerifier.create(
@@ -1111,6 +1116,7 @@ public class RSocketRequesterTest {
           PayloadDecoder.ZERO_COPY,
           StreamIdSupplier.clientSupplier(),
           0,
+          maxFrameLength,
           Integer.MAX_VALUE,
           Integer.MAX_VALUE,
           null,

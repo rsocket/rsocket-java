@@ -69,7 +69,7 @@ final class TcpClientTransportTest {
   @Test
   void createNullBindAddress() {
     assertThatNullPointerException()
-        .isThrownBy(() -> TcpClientTransport.create(null, 8000))
+        .isThrownBy(() -> TcpClientTransport.create((String) null, 8000))
         .withMessage("bindAddress must not be null");
   }
 

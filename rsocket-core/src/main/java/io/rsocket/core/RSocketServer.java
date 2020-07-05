@@ -16,6 +16,9 @@
 
 package io.rsocket.core;
 
+import static io.rsocket.core.PayloadValidationUtils.assertValidateSetup;
+import static io.rsocket.frame.FrameLengthCodec.FRAME_LENGTH_MASK;
+
 import io.netty.buffer.ByteBuf;
 import io.rsocket.Closeable;
 import io.rsocket.ConnectionSetupPayload;
@@ -66,6 +69,7 @@ public final class RSocketServer {
   private Supplier<Leases<?>> leasesSupplier = null;
 
   private int mtu = 0;
+  private int maxInboundPayloadSize = Integer.MAX_VALUE;
   private PayloadDecoder payloadDecoder = PayloadDecoder.DEFAULT;
 
   private RSocketServer() {}
@@ -199,6 +203,27 @@ public final class RSocketServer {
   }
 
   /**
+   * When this is set, frames reassembler control maximum payload size which can be reassembled.
+   *
+   * <p>By default this is not set in which case maximum reassembled payloads size is not
+   * controlled.
+   *
+   * @param maxInboundPayloadSize the threshold size for reassembly, must no be less than 64 bytes.
+   *     Please note, {@code maxInboundPayloadSize} must always be greater or equal to {@link
+   *     io.rsocket.transport.Transport#maxFrameLength()}, otherwise inbound frame can exceed the
+   *     {@code maxInboundPayloadSize}
+   * @return the same instance for method chaining
+   * @see <a
+   *     href="https://github.com/rsocket/rsocket/blob/master/Protocol.md#fragmentation-and-reassembly">Fragmentation
+   *     and Reassembly</a>
+   */
+  public RSocketServer maxInboundPayloadSize(int maxInboundPayloadSize) {
+    this.maxInboundPayloadSize =
+        ReassemblyDuplexConnection.assertInboundPayloadSize(maxInboundPayloadSize);
+    return this;
+  }
+
+  /**
    * When this is set, frames larger than the given maximum transmission unit (mtu) size value are
    * fragmented.
    *
@@ -262,12 +287,14 @@ public final class RSocketServer {
   public <T extends Closeable> Mono<T> bind(ServerTransport<T> transport) {
     return Mono.defer(
         new Supplier<Mono<T>>() {
-          ServerSetup serverSetup = serverSetup();
+          final ServerSetup serverSetup = serverSetup();
 
           @Override
           public Mono<T> get() {
+            int maxFrameLength = transport.maxFrameLength();
+            assertValidateSetup(maxFrameLength, maxInboundPayloadSize, mtu);
             return transport
-                .start(duplexConnection -> acceptor(serverSetup, duplexConnection))
+                .start(duplexConnection -> acceptor(serverSetup, duplexConnection, maxFrameLength))
                 .doOnNext(c -> c.onClose().doFinally(v -> serverSetup.dispose()).subscribe());
           }
         });
@@ -280,7 +307,6 @@ public final class RSocketServer {
   public <T extends Closeable> T bindNow(ServerTransport<T> transport) {
     return bind(transport).block();
   }
-
   /**
    * An alternative to {@link #bind(ServerTransport)} that is useful for installing RSocket on a
    * server that is started independently.
@@ -288,21 +314,33 @@ public final class RSocketServer {
    * @see io.rsocket.examples.transport.ws.WebSocketHeadersSample
    */
   public ServerTransport.ConnectionAcceptor asConnectionAcceptor() {
+    return asConnectionAcceptor(FRAME_LENGTH_MASK);
+  }
+
+  /**
+   * An alternative to {@link #bind(ServerTransport)} that is useful for installing RSocket on a
+   * server that is started independently.
+   *
+   * @see io.rsocket.examples.transport.ws.WebSocketHeadersSample
+   */
+  public ServerTransport.ConnectionAcceptor asConnectionAcceptor(int maxFrameLength) {
+    assertValidateSetup(maxFrameLength, maxInboundPayloadSize, mtu);
     return new ServerTransport.ConnectionAcceptor() {
       private final ServerSetup serverSetup = serverSetup();
 
       @Override
       public Mono<Void> apply(DuplexConnection connection) {
-        return acceptor(serverSetup, connection);
+        return acceptor(serverSetup, connection, maxFrameLength);
       }
     };
   }
 
-  private Mono<Void> acceptor(ServerSetup serverSetup, DuplexConnection connection) {
+  private Mono<Void> acceptor(
+      ServerSetup serverSetup, DuplexConnection connection, int maxFrameLength) {
     connection =
         mtu > 0
-            ? new FragmentationDuplexConnection(connection, mtu, "server")
-            : new ReassemblyDuplexConnection(connection);
+            ? new FragmentationDuplexConnection(connection, mtu, maxInboundPayloadSize, "server")
+            : new ReassemblyDuplexConnection(connection, maxInboundPayloadSize);
 
     ClientServerInputMultiplexer multiplexer =
         new ClientServerInputMultiplexer(connection, interceptors, false);
@@ -311,7 +349,7 @@ public final class RSocketServer {
         .asSetupConnection()
         .receive()
         .next()
-        .flatMap(startFrame -> accept(serverSetup, startFrame, multiplexer));
+        .flatMap(startFrame -> accept(serverSetup, startFrame, multiplexer, maxFrameLength));
   }
 
   private Mono<Void> acceptResume(
@@ -320,10 +358,13 @@ public final class RSocketServer {
   }
 
   private Mono<Void> accept(
-      ServerSetup serverSetup, ByteBuf startFrame, ClientServerInputMultiplexer multiplexer) {
+      ServerSetup serverSetup,
+      ByteBuf startFrame,
+      ClientServerInputMultiplexer multiplexer,
+      int maxFrameLength) {
     switch (FrameHeaderCodec.frameType(startFrame)) {
       case SETUP:
-        return acceptSetup(serverSetup, startFrame, multiplexer);
+        return acceptSetup(serverSetup, startFrame, multiplexer, maxFrameLength);
       case RESUME:
         return acceptResume(serverSetup, startFrame, multiplexer);
       default:
@@ -341,7 +382,10 @@ public final class RSocketServer {
   }
 
   private Mono<Void> acceptSetup(
-      ServerSetup serverSetup, ByteBuf setupFrame, ClientServerInputMultiplexer multiplexer) {
+      ServerSetup serverSetup,
+      ByteBuf setupFrame,
+      ClientServerInputMultiplexer multiplexer,
+      int maxFrameLength) {
 
     if (!SetupFrameCodec.isSupportedVersion(setupFrame)) {
       return serverSetup
@@ -385,6 +429,7 @@ public final class RSocketServer {
                   payloadDecoder,
                   StreamIdSupplier.serverSupplier(),
                   mtu,
+                  maxFrameLength,
                   setupPayload.keepAliveInterval(),
                   setupPayload.keepAliveMaxLifetime(),
                   keepAliveHandler,
@@ -418,7 +463,8 @@ public final class RSocketServer {
                             wrappedRSocketHandler,
                             payloadDecoder,
                             responderLeaseHandler,
-                            mtu);
+                            mtu,
+                            maxFrameLength);
                   })
               .doFinally(signalType -> setupPayload.release())
               .then();

@@ -16,6 +16,8 @@
 
 package io.rsocket.core;
 
+import static io.rsocket.frame.FrameLengthCodec.FRAME_LENGTH_MASK;
+
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.Payload;
@@ -566,7 +568,8 @@ public class RSocketTest {
               requestAcceptor,
               PayloadDecoder.DEFAULT,
               ResponderLeaseHandler.None,
-              0);
+              0,
+              FRAME_LENGTH_MASK);
 
       crs =
           new RSocketRequester(
@@ -574,6 +577,7 @@ public class RSocketTest {
               PayloadDecoder.DEFAULT,
               StreamIdSupplier.clientSupplier(),
               0,
+              FRAME_LENGTH_MASK,
               0,
               0,
               null,

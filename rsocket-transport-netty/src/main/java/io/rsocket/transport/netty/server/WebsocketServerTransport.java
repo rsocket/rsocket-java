@@ -16,8 +16,6 @@
 
 package io.rsocket.transport.netty.server;
 
-import static io.rsocket.frame.FrameLengthCodec.FRAME_LENGTH_MASK;
-
 import io.netty.handler.codec.http.DefaultHttpHeaders;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.rsocket.transport.ClientTransport;
@@ -27,31 +25,23 @@ import java.net.InetSocketAddress;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Mono;
 import reactor.netty.Connection;
 import reactor.netty.http.server.HttpServer;
-import reactor.netty.http.server.WebsocketServerSpec;
 
 /**
  * An implementation of {@link ServerTransport} that connects to a {@link ClientTransport} via a
  * Websocket.
  */
 @SuppressWarnings("deprecation")
-public final class WebsocketServerTransport extends BaseWebsocketServerTransport<CloseableChannel>
+public final class WebsocketServerTransport
+    extends BaseWebsocketServerTransport<WebsocketServerTransport, CloseableChannel>
     implements io.rsocket.transport.TransportHeaderAware {
-
-  private static final Logger logger = LoggerFactory.getLogger(WebsocketServerTransport.class);
 
   private final HttpServer server;
 
   private HttpHeaders headers = new DefaultHttpHeaders();
-
-  private WebsocketServerSpec.Builder specBuilder =
-      WebsocketServerSpec.builder().maxFramePayloadLength(FRAME_LENGTH_MASK);
 
   private WebsocketServerTransport(HttpServer server) {
     this.server = serverConfigurer.apply(Objects.requireNonNull(server, "server must not be null"));
@@ -118,19 +108,6 @@ public final class WebsocketServerTransport extends BaseWebsocketServerTransport
     if (values != null) {
       Arrays.stream(values).forEach(value -> headers.add(name, value));
     }
-    return this;
-  }
-
-  /**
-   * Provide a consumer to customize properties of the {@link WebsocketServerSpec} to use for
-   * WebSocket upgrades. The consumer is invoked immediately.
-   *
-   * @param configurer the configurer to apply to the spec
-   * @return the same instance for method chaining
-   * @since 1.0.1
-   */
-  public WebsocketServerTransport webSocketSpec(Consumer<WebsocketServerSpec.Builder> configurer) {
-    configurer.accept(specBuilder);
     return this;
   }
 
