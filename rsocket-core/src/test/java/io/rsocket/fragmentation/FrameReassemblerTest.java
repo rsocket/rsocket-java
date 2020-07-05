@@ -25,9 +25,12 @@ import io.rsocket.frame.*;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import reactor.core.publisher.Flux;
 import reactor.test.StepVerifier;
 
@@ -58,7 +61,7 @@ final class FrameReassemblerTest {
             PayloadFrameCodec.encode(
                 allocator, 1, false, false, true, null, Unpooled.wrappedBuffer(data)));
 
-    FrameReassembler reassembler = new FrameReassembler(allocator);
+    FrameReassembler reassembler = new FrameReassembler(allocator, Integer.MAX_VALUE);
 
     Flux<ByteBuf> assembled = Flux.fromIterable(byteBufs).handle(reassembler::reassembleFrame);
 
@@ -91,7 +94,7 @@ final class FrameReassemblerTest {
             RequestResponseFrameCodec.encode(
                 allocator, 1, false, null, Unpooled.wrappedBuffer(data)));
 
-    FrameReassembler reassembler = new FrameReassembler(allocator);
+    FrameReassembler reassembler = new FrameReassembler(allocator, Integer.MAX_VALUE);
 
     Flux<ByteBuf> assembled = Flux.fromIterable(byteBufs).handle(reassembler::reassembleFrame);
 
@@ -150,7 +153,7 @@ final class FrameReassemblerTest {
                 Unpooled.wrappedBuffer(metadata),
                 Unpooled.EMPTY_BUFFER));
 
-    FrameReassembler reassembler = new FrameReassembler(allocator);
+    FrameReassembler reassembler = new FrameReassembler(allocator, Integer.MAX_VALUE);
 
     Flux<ByteBuf> assembled = Flux.fromIterable(byteBufs).handle(reassembler::reassembleFrame);
 
@@ -221,7 +224,7 @@ final class FrameReassemblerTest {
                 Unpooled.wrappedBuffer(metadata),
                 Unpooled.EMPTY_BUFFER));
 
-    FrameReassembler reassembler = new FrameReassembler(allocator);
+    FrameReassembler reassembler = new FrameReassembler(allocator, Integer.MAX_VALUE);
 
     Flux<ByteBuf> assembled = Flux.fromIterable(byteBufs).handle(reassembler::reassembleFrame);
 
@@ -290,7 +293,7 @@ final class FrameReassemblerTest {
                 Unpooled.wrappedBuffer(metadata),
                 Unpooled.EMPTY_BUFFER));
 
-    FrameReassembler reassembler = new FrameReassembler(allocator);
+    FrameReassembler reassembler = new FrameReassembler(allocator, Integer.MAX_VALUE);
 
     Flux<ByteBuf> assembled = Flux.fromIterable(byteBufs).handle(reassembler::reassembleFrame);
 
@@ -354,7 +357,7 @@ final class FrameReassemblerTest {
             PayloadFrameCodec.encode(
                 allocator, 1, false, false, true, null, Unpooled.wrappedBuffer(data)));
 
-    FrameReassembler reassembler = new FrameReassembler(allocator);
+    FrameReassembler reassembler = new FrameReassembler(allocator, Integer.MAX_VALUE);
 
     Flux<ByteBuf> assembled = Flux.fromIterable(byteBufs).handle(reassembler::reassembleFrame);
 
@@ -419,7 +422,7 @@ final class FrameReassemblerTest {
                 Unpooled.wrappedBuffer(metadata),
                 Unpooled.wrappedBuffer(data)));
 
-    FrameReassembler reassembler = new FrameReassembler(allocator);
+    FrameReassembler reassembler = new FrameReassembler(allocator, Integer.MAX_VALUE);
     Flux.fromIterable(byteBufs).handle(reassembler::reassembleFrame).blockLast();
 
     Assert.assertTrue(reassembler.headers.containsKey(1));
@@ -433,6 +436,46 @@ final class FrameReassemblerTest {
     Assert.assertFalse(reassembler.headers.containsKey(1));
     Assert.assertFalse(reassembler.metadata.containsKey(1));
     Assert.assertFalse(reassembler.data.containsKey(1));
+  }
+
+  @ParameterizedTest(name = "throws error if reassembling payload size exist {0}")
+  @ValueSource(ints = {64, 1024, 2048, 4096})
+  public void errorTooBigPayload(int maxFrameLength) {
+    List<ByteBuf> byteBufs =
+        Arrays.asList(
+            RequestResponseFrameCodec.encode(
+                allocator, 1, true, Unpooled.wrappedBuffer(metadata), Unpooled.EMPTY_BUFFER),
+            PayloadFrameCodec.encode(
+                allocator,
+                1,
+                true,
+                false,
+                true,
+                Unpooled.wrappedBuffer(metadata),
+                Unpooled.EMPTY_BUFFER),
+            PayloadFrameCodec.encode(
+                allocator,
+                1,
+                true,
+                false,
+                true,
+                Unpooled.wrappedBuffer(metadata),
+                Unpooled.EMPTY_BUFFER),
+            PayloadFrameCodec.encode(
+                allocator,
+                1,
+                true,
+                false,
+                true,
+                Unpooled.wrappedBuffer(metadata),
+                Unpooled.wrappedBuffer(data)));
+
+    FrameReassembler reassembler = new FrameReassembler(allocator, maxFrameLength);
+
+    Assertions.assertThatThrownBy(
+            Flux.fromIterable(byteBufs).handle(reassembler::reassembleFrame)::blockLast)
+        .hasMessage("Reassembled payload went out of allowed size")
+        .isExactlyInstanceOf(IllegalStateException.class);
   }
 
   @DisplayName("dispose should clean up maps")
@@ -467,7 +510,7 @@ final class FrameReassemblerTest {
                 Unpooled.wrappedBuffer(metadata),
                 Unpooled.wrappedBuffer(data)));
 
-    FrameReassembler reassembler = new FrameReassembler(allocator);
+    FrameReassembler reassembler = new FrameReassembler(allocator, Integer.MAX_VALUE);
     Flux.fromIterable(byteBufs).handle(reassembler::reassembleFrame).blockLast();
 
     Assert.assertTrue(reassembler.headers.containsKey(1));

@@ -48,10 +48,12 @@ final class FrameReassembler extends AtomicBoolean implements Disposable {
   final IntObjectMap<CompositeByteBuf> metadata;
   final IntObjectMap<CompositeByteBuf> data;
 
-  private final ByteBufAllocator allocator;
+  final ByteBufAllocator allocator;
+  final int maxInboundPayloadSize;
 
-  public FrameReassembler(ByteBufAllocator allocator) {
+  public FrameReassembler(ByteBufAllocator allocator, int maxInboundPayloadSize) {
     this.allocator = allocator;
+    this.maxInboundPayloadSize = maxInboundPayloadSize;
     this.headers = new IntObjectHashMap<>();
     this.metadata = new IntObjectHashMap<>();
     this.data = new IntObjectHashMap<>();
@@ -100,6 +102,16 @@ final class FrameReassembler extends AtomicBoolean implements Disposable {
     return byteBuf;
   }
 
+  synchronized int getMetadataSize(int streamId) {
+    CompositeByteBuf byteBuf = metadata.get(streamId);
+
+    if (byteBuf == null) {
+      return 0;
+    }
+
+    return byteBuf.readableBytes();
+  }
+
   synchronized CompositeByteBuf getData(int streamId) {
     CompositeByteBuf byteBuf = data.get(streamId);
 
@@ -109,6 +121,16 @@ final class FrameReassembler extends AtomicBoolean implements Disposable {
     }
 
     return byteBuf;
+  }
+
+  synchronized int getDataSize(int streamId) {
+    CompositeByteBuf byteBuf = data.get(streamId);
+
+    if (byteBuf == null) {
+      return 0;
+    }
+
+    return byteBuf.readableBytes();
   }
 
   @Nullable
@@ -151,6 +173,17 @@ final class FrameReassembler extends AtomicBoolean implements Disposable {
   void handleNoFollowsFlag(ByteBuf frame, SynchronousSink<ByteBuf> sink, int streamId) {
     ByteBuf header = removeHeader(streamId);
     if (header != null) {
+
+      int maxReassemblySize = this.maxInboundPayloadSize;
+      if (maxReassemblySize != Integer.MAX_VALUE) {
+        int currentPayloadSize = getMetadataSize(streamId) + getDataSize(streamId);
+        if (currentPayloadSize + frame.readableBytes() - FrameHeaderCodec.size()
+            > maxReassemblySize) {
+          frame.release();
+          throw new IllegalStateException("Reassembled payload went out of allowed size");
+        }
+      }
+
       if (FrameHeaderCodec.hasMetadata(header)) {
         ByteBuf assembledFrame = assembleFrameWithMetadata(frame, streamId, header);
         sink.next(assembledFrame);
@@ -166,6 +199,17 @@ final class FrameReassembler extends AtomicBoolean implements Disposable {
   }
 
   void handleFollowsFlag(ByteBuf frame, int streamId, FrameType frameType) {
+
+    int maxReassemblySize = this.maxInboundPayloadSize;
+    if (maxReassemblySize != Integer.MAX_VALUE) {
+      int currentPayloadSize = getMetadataSize(streamId) + getDataSize(streamId);
+      if (currentPayloadSize + frame.readableBytes() - FrameHeaderCodec.size()
+          > maxReassemblySize) {
+        frame.release();
+        throw new IllegalStateException("Reassembled payload went out of allowed size");
+      }
+    }
+
     ByteBuf header = getHeader(streamId);
     if (header == null) {
       header = frame.copy(frame.readerIndex(), FrameHeaderCodec.size());
@@ -226,6 +270,7 @@ final class FrameReassembler extends AtomicBoolean implements Disposable {
         data = PayloadFrameCodec.data(frame).retain();
         break;
       default:
+        frame.release();
         throw new IllegalStateException("unsupported fragment type");
     }
 

@@ -24,6 +24,8 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.Unpooled;
+import io.netty.util.ReferenceCountUtil;
+import io.netty.util.ReferenceCounted;
 import io.rsocket.DuplexConnection;
 import io.rsocket.buffer.LeaksTrackingByteBufAllocator;
 import io.rsocket.frame.CancelFrameCodec;
@@ -31,14 +33,19 @@ import io.rsocket.frame.FrameHeaderCodec;
 import io.rsocket.frame.FrameType;
 import io.rsocket.frame.PayloadFrameCodec;
 import io.rsocket.frame.RequestResponseFrameCodec;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.publisher.MonoProcessor;
 import reactor.test.StepVerifier;
 
 final class ReassembleDuplexConnectionTest {
@@ -86,7 +93,7 @@ final class ReassembleDuplexConnectionTest {
     when(delegate.onClose()).thenReturn(Mono.never());
     when(delegate.alloc()).thenReturn(allocator);
 
-    new ReassemblyDuplexConnection(delegate)
+    new ReassemblyDuplexConnection(delegate, Integer.MAX_VALUE)
         .receive()
         .as(StepVerifier::create)
         .assertNext(
@@ -151,7 +158,7 @@ final class ReassembleDuplexConnectionTest {
     when(delegate.onClose()).thenReturn(Mono.never());
     when(delegate.alloc()).thenReturn(allocator);
 
-    new ReassemblyDuplexConnection(delegate)
+    new ReassemblyDuplexConnection(delegate, Integer.MAX_VALUE)
         .receive()
         .as(StepVerifier::create)
         .assertNext(
@@ -219,7 +226,7 @@ final class ReassembleDuplexConnectionTest {
     when(delegate.onClose()).thenReturn(Mono.never());
     when(delegate.alloc()).thenReturn(allocator);
 
-    new ReassemblyDuplexConnection(delegate)
+    new ReassemblyDuplexConnection(delegate, Integer.MAX_VALUE)
         .receive()
         .as(StepVerifier::create)
         .assertNext(
@@ -240,7 +247,7 @@ final class ReassembleDuplexConnectionTest {
     when(delegate.onClose()).thenReturn(Mono.never());
     when(delegate.alloc()).thenReturn(allocator);
 
-    new ReassemblyDuplexConnection(delegate)
+    new ReassemblyDuplexConnection(delegate, Integer.MAX_VALUE)
         .receive()
         .as(StepVerifier::create)
         .assertNext(
@@ -260,7 +267,7 @@ final class ReassembleDuplexConnectionTest {
     when(delegate.onClose()).thenReturn(Mono.never());
     when(delegate.alloc()).thenReturn(allocator);
 
-    new ReassemblyDuplexConnection(delegate)
+    new ReassemblyDuplexConnection(delegate, Integer.MAX_VALUE)
         .receive()
         .as(StepVerifier::create)
         .assertNext(
@@ -268,5 +275,60 @@ final class ReassembleDuplexConnectionTest {
               Assert.assertEquals(FrameType.CANCEL, FrameHeaderCodec.frameType(byteBuf));
             })
         .verifyComplete();
+  }
+
+  @ParameterizedTest(name = "throws error if reassembling payload size exist {0}")
+  @ValueSource(ints = {64, 1024, 2048, 4096})
+  public void errorTooBigPayload(int maxFrameLength) {
+    List<ByteBuf> byteBufs =
+        Arrays.asList(
+            RequestResponseFrameCodec.encode(
+                allocator, 1, true, Unpooled.wrappedBuffer(metadata), Unpooled.EMPTY_BUFFER),
+            PayloadFrameCodec.encode(
+                allocator,
+                1,
+                true,
+                false,
+                true,
+                Unpooled.wrappedBuffer(metadata),
+                Unpooled.EMPTY_BUFFER),
+            PayloadFrameCodec.encode(
+                allocator,
+                1,
+                true,
+                false,
+                true,
+                Unpooled.wrappedBuffer(metadata),
+                Unpooled.EMPTY_BUFFER),
+            PayloadFrameCodec.encode(
+                allocator,
+                1,
+                true,
+                false,
+                true,
+                Unpooled.wrappedBuffer(metadata),
+                Unpooled.wrappedBuffer(data)));
+
+    MonoProcessor<Void> onClose = MonoProcessor.create();
+
+    when(delegate.receive())
+        .thenReturn(
+            Flux.fromIterable(byteBufs)
+                .doOnDiscard(ReferenceCounted.class, ReferenceCountUtil::release));
+    when(delegate.onClose()).thenReturn(onClose);
+    when(delegate.alloc()).thenReturn(allocator);
+
+    new ReassemblyDuplexConnection(delegate, maxFrameLength)
+        .receive()
+        .doFinally(__ -> onClose.onComplete())
+        .as(StepVerifier::create)
+        .expectErrorSatisfies(
+            t ->
+                Assertions.assertThat(t)
+                    .hasMessage("Reassembled payload went out of allowed size")
+                    .isExactlyInstanceOf(IllegalStateException.class))
+        .verify(Duration.ofSeconds(1));
+
+    allocator.assertHasNoLeaks();
   }
 }

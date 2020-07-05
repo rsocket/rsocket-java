@@ -16,6 +16,8 @@
 
 package io.rsocket.core;
 
+import static io.rsocket.frame.FrameLengthCodec.FRAME_LENGTH_MASK;
+
 import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.RSocket;
 import io.rsocket.buffer.LeaksTrackingByteBufAllocator;
@@ -32,6 +34,7 @@ public abstract class AbstractSocketRule<T extends RSocket> extends ExternalReso
   protected Subscriber<Void> connectSub;
   protected T socket;
   protected LeaksTrackingByteBufAllocator allocator;
+  protected int maxFrameLength = FRAME_LENGTH_MASK;
 
   @Override
   public Statement apply(final Statement base, Description description) {
@@ -49,6 +52,11 @@ public abstract class AbstractSocketRule<T extends RSocket> extends ExternalReso
 
   protected void init() {
     socket = newRSocket();
+  }
+
+  public void setMaxFrameLength(int maxFrameLength) {
+    this.maxFrameLength = maxFrameLength;
+    init();
   }
 
   protected abstract T newRSocket();

@@ -1,5 +1,6 @@
 package io.rsocket.core;
 
+import static io.rsocket.frame.FrameLengthCodec.FRAME_LENGTH_MASK;
 import static io.rsocket.transport.ServerTransport.ConnectionAcceptor;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -57,6 +58,7 @@ public class SetupRejectionTest {
             DefaultPayload::create,
             StreamIdSupplier.clientSupplier(),
             0,
+            FRAME_LENGTH_MASK,
             0,
             0,
             null,
@@ -93,6 +95,7 @@ public class SetupRejectionTest {
             DefaultPayload::create,
             StreamIdSupplier.clientSupplier(),
             0,
+            FRAME_LENGTH_MASK,
             0,
             0,
             null,

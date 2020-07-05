@@ -16,6 +16,7 @@
 
 package io.rsocket.core;
 
+import static io.rsocket.frame.FrameLengthCodec.FRAME_LENGTH_MASK;
 import static io.rsocket.frame.FrameType.*;
 import static org.assertj.core.data.Offset.offset;
 import static org.mockito.Mockito.any;
@@ -102,6 +103,7 @@ class RSocketLeaseTest {
             payloadDecoder,
             StreamIdSupplier.clientSupplier(),
             0,
+            FRAME_LENGTH_MASK,
             0,
             0,
             null,
@@ -152,7 +154,8 @@ class RSocketLeaseTest {
             mockRSocketHandler,
             payloadDecoder,
             responderLeaseHandler,
-            0);
+            0,
+            FRAME_LENGTH_MASK);
   }
 
   @Test

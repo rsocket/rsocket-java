@@ -39,30 +39,32 @@ import reactor.core.publisher.Mono;
  */
 public final class FragmentationDuplexConnection extends ReassemblyDuplexConnection
     implements DuplexConnection {
+
   public static final int MIN_MTU_SIZE = 64;
+
   private static final Logger logger = LoggerFactory.getLogger(FragmentationDuplexConnection.class);
-  private final DuplexConnection delegate;
-  private final int mtu;
-  private final FrameReassembler frameReassembler;
-  private final String type;
+
+  final DuplexConnection delegate;
+  final int mtu;
+  final String type;
 
   /**
    * Class constructor.
    *
    * @param delegate the underlying connection
    * @param mtu the fragment size, greater than {@link #MIN_MTU_SIZE}
+   * @param maxInboundPayloadSize the maximum payload size, which can be reassembled from multiple
+   *     fragments
    * @param type a label to use for logging purposes
    */
-  public FragmentationDuplexConnection(DuplexConnection delegate, int mtu, String type) {
-    super(delegate);
+  public FragmentationDuplexConnection(
+      DuplexConnection delegate, int mtu, int maxInboundPayloadSize, String type) {
+    super(delegate, maxInboundPayloadSize);
 
     Objects.requireNonNull(delegate, "delegate must not be null");
     this.delegate = delegate;
     this.mtu = assertMtu(mtu);
-    this.frameReassembler = new FrameReassembler(delegate.alloc());
     this.type = type;
-
-    delegate.onClose().doFinally(s -> frameReassembler.dispose()).subscribe();
   }
 
   private boolean shouldFragment(FrameType frameType, int readableBytes) {

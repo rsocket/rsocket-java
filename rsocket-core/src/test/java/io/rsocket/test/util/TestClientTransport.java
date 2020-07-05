@@ -1,5 +1,7 @@
 package io.rsocket.test.util;
 
+import static io.rsocket.frame.FrameLengthCodec.FRAME_LENGTH_MASK;
+
 import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.DuplexConnection;
 import io.rsocket.buffer.LeaksTrackingByteBufAllocator;
@@ -10,6 +12,8 @@ public class TestClientTransport implements ClientTransport {
   private final LeaksTrackingByteBufAllocator allocator =
       LeaksTrackingByteBufAllocator.instrument(ByteBufAllocator.DEFAULT);
   private final TestDuplexConnection testDuplexConnection = new TestDuplexConnection(allocator);
+
+  int maxFrameLength = FRAME_LENGTH_MASK;
 
   @Override
   public Mono<DuplexConnection> connect() {
@@ -22,5 +26,15 @@ public class TestClientTransport implements ClientTransport {
 
   public LeaksTrackingByteBufAllocator alloc() {
     return allocator;
+  }
+
+  public TestClientTransport withMaxFrameLength(int maxFrameLength) {
+    this.maxFrameLength = maxFrameLength;
+    return this;
+  }
+
+  @Override
+  public int maxFrameLength() {
+    return maxFrameLength;
   }
 }

@@ -19,6 +19,7 @@ package io.rsocket.fragmentation;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.DuplexConnection;
+import io.rsocket.frame.FrameLengthCodec;
 import java.util.Objects;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
@@ -36,12 +37,24 @@ public class ReassemblyDuplexConnection implements DuplexConnection {
   private final FrameReassembler frameReassembler;
 
   /** Constructor with the underlying delegate to receive frames from. */
-  public ReassemblyDuplexConnection(DuplexConnection delegate) {
+  public ReassemblyDuplexConnection(DuplexConnection delegate, int maxInboundPayloadSize) {
     Objects.requireNonNull(delegate, "delegate must not be null");
     this.delegate = delegate;
-    this.frameReassembler = new FrameReassembler(delegate.alloc());
+    this.frameReassembler = new FrameReassembler(delegate.alloc(), maxInboundPayloadSize);
 
     delegate.onClose().doFinally(s -> frameReassembler.dispose()).subscribe();
+  }
+
+  public static int assertInboundPayloadSize(int inboundPayloadSize) {
+    if (inboundPayloadSize < FragmentationDuplexConnection.MIN_MTU_SIZE) {
+      String msg =
+          String.format(
+              "The min allowed inboundPayloadSize size is %d bytes, provided: %d",
+              FrameLengthCodec.FRAME_LENGTH_MASK, inboundPayloadSize);
+      throw new IllegalArgumentException(msg);
+    } else {
+      return inboundPayloadSize;
+    }
   }
 
   @Override
