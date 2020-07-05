@@ -121,6 +121,21 @@ public abstract class KeepAliveSupport implements KeepAliveFramesAcceptor {
     return KeepAliveFrameCodec.lastPosition(keepAliveFrame);
   }
 
+  @Override
+  public void dispose() {
+    stop();
+  }
+
+  @Override
+  public boolean isDisposed() {
+    return ticksDisposable.isDisposed();
+  }
+
+  /**
+   * @deprecated since it should not be used anymore and will be completely removed in 1.1.
+   *     Keepalive is symmetric on both side and implemented as a part of RSocketRequester
+   */
+  @Deprecated
   public static final class ServerKeepAliveSupport extends KeepAliveSupport {
 
     public ServerKeepAliveSupport(
