@@ -792,6 +792,9 @@ class RSocketRequester implements RSocket {
   }
 
   private void terminate(Throwable e) {
+    if (keepAliveFramesAcceptor != null) {
+      keepAliveFramesAcceptor.dispose();
+    }
     connection.dispose();
     leaseHandler.dispose();
 
