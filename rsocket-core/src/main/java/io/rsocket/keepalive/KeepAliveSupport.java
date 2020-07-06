@@ -22,36 +22,45 @@ import io.netty.buffer.Unpooled;
 import io.rsocket.frame.KeepAliveFrameCodec;
 import io.rsocket.resume.ResumeStateHolder;
 import java.time.Duration;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
+import reactor.core.scheduler.Scheduler;
+import reactor.core.scheduler.Schedulers;
 
 public abstract class KeepAliveSupport implements KeepAliveFramesAcceptor {
-  final ByteBufAllocator allocator;
-  private final Duration keepAliveInterval;
-  private final Duration keepAliveTimeout;
-  private final long keepAliveTimeoutMillis;
-  private volatile Consumer<KeepAlive> onTimeout;
-  private volatile Consumer<ByteBuf> onFrameSent;
-  private volatile Disposable ticksDisposable;
-  private final AtomicBoolean started = new AtomicBoolean();
 
-  private volatile ResumeStateHolder resumeStateHolder;
-  private volatile long lastReceivedMillis;
+  final ByteBufAllocator allocator;
+  final Scheduler scheduler;
+  final Duration keepAliveInterval;
+  final Duration keepAliveTimeout;
+  final long keepAliveTimeoutMillis;
+
+  final AtomicBoolean started = new AtomicBoolean();
+
+  volatile Consumer<KeepAlive> onTimeout;
+  volatile Consumer<ByteBuf> onFrameSent;
+  volatile Disposable ticksDisposable;
+
+  volatile ResumeStateHolder resumeStateHolder;
+  volatile long lastReceivedMillis;
 
   private KeepAliveSupport(
       ByteBufAllocator allocator, int keepAliveInterval, int keepAliveTimeout) {
     this.allocator = allocator;
+    this.scheduler = Schedulers.parallel();
     this.keepAliveInterval = Duration.ofMillis(keepAliveInterval);
     this.keepAliveTimeout = Duration.ofMillis(keepAliveTimeout);
     this.keepAliveTimeoutMillis = keepAliveTimeout;
   }
 
   public KeepAliveSupport start() {
-    this.lastReceivedMillis = System.currentTimeMillis();
+    this.lastReceivedMillis = scheduler.now(TimeUnit.MILLISECONDS);
     if (started.compareAndSet(false, true)) {
-      ticksDisposable = Flux.interval(keepAliveInterval).subscribe(v -> onIntervalTick());
+      ticksDisposable =
+          Flux.interval(keepAliveInterval, scheduler).subscribe(v -> onIntervalTick());
     }
     return this;
   }
@@ -64,7 +73,7 @@ public abstract class KeepAliveSupport implements KeepAliveFramesAcceptor {
 
   @Override
   public void receive(ByteBuf keepAliveFrame) {
-    this.lastReceivedMillis = System.currentTimeMillis();
+    this.lastReceivedMillis = scheduler.now(TimeUnit.MILLISECONDS);
     if (resumeStateHolder != null) {
       long remoteLastReceivedPos = remoteLastReceivedPosition(keepAliveFrame);
       resumeStateHolder.onImpliedPosition(remoteLastReceivedPos);
@@ -104,7 +113,7 @@ public abstract class KeepAliveSupport implements KeepAliveFramesAcceptor {
   }
 
   void tryTimeout() {
-    long now = System.currentTimeMillis();
+    long now = scheduler.now(TimeUnit.MILLISECONDS);
     if (now - lastReceivedMillis >= keepAliveTimeoutMillis) {
       if (onTimeout != null) {
         onTimeout.accept(new KeepAlive(keepAliveInterval, keepAliveTimeout));
