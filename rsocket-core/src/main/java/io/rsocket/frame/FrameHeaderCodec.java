@@ -117,6 +117,13 @@ public final class FrameHeaderCodec {
       } else {
         throw new IllegalArgumentException("Payload must set either or both of NEXT and COMPLETE.");
       }
+    } else if (FrameType.REQUEST_CHANNEL == result) {
+      final int flags = typeAndFlags & FRAME_FLAGS_MASK;
+
+      boolean complete = FLAGS_C == (flags & FLAGS_C);
+      if (complete) {
+        result = FrameType.REQUEST_CHANNEL_COMPLETE;
+      }
     }
 
     byteBuf.resetReaderIndex();

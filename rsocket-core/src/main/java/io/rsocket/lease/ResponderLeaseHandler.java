@@ -19,64 +19,36 @@ package io.rsocket.lease;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.Availability;
-import io.rsocket.frame.FrameType;
 import io.rsocket.frame.LeaseFrameCodec;
 import java.util.function.Consumer;
 import reactor.core.Disposable;
 import reactor.core.Disposables;
-import reactor.core.publisher.SignalType;
 import reactor.util.annotation.Nullable;
 
 public interface ResponderLeaseHandler extends Availability {
 
-  boolean useLease(int streamId, FrameType requestType, @Nullable ByteBuf metadata);
-
-  void releaseLease(int streamId, SignalType releaseSignal);
+  boolean useLease();
 
   Exception leaseError();
 
-  Disposable send(Consumer<ByteBuf> leaseFrameSender);
+  Disposable send(Consumer<ByteBuf> leaseFrameSender, @Nullable RequestTracker requestTracker);
 
-  final class Impl<T extends LeaseTracker> implements ResponderLeaseHandler {
+  @SuppressWarnings("rawtypes")
+  final class Impl implements ResponderLeaseHandler {
     private volatile LeaseImpl currentLease = LeaseImpl.empty();
     private final String tag;
     private final ByteBufAllocator allocator;
-    private final LeaseSender<T> leaseSender;
-    private final T leaseTracker;
+    private final LeaseSender leaseSender;
 
-    public Impl(
-        String tag,
-        ByteBufAllocator allocator,
-        LeaseSender<T> leaseSender,
-        @Nullable T leaseTracker) {
+    public Impl(String tag, ByteBufAllocator allocator, LeaseSender leaseSender) {
       this.tag = tag;
       this.allocator = allocator;
       this.leaseSender = leaseSender;
-      this.leaseTracker = leaseTracker;
     }
 
     @Override
-    public boolean useLease(int streamId, FrameType requestType, @Nullable ByteBuf metadata) {
-      boolean success = currentLease.use();
-
-      T leaseStats = this.leaseTracker;
-      if (leaseStats != null) {
-        if (success) {
-          leaseStats.onAccept(streamId, requestType, metadata);
-        } else {
-          leaseStats.onReject(streamId, requestType, metadata);
-        }
-      }
-
-      return success;
-    }
-
-    @Override
-    public void releaseLease(int streamId, SignalType releaseSignal) {
-      T leaseStats = this.leaseTracker;
-      if (leaseStats != null) {
-        leaseStats.onRelease(streamId, releaseSignal);
-      }
+    public boolean useLease() {
+      return currentLease.use();
     }
 
     @Override
@@ -91,14 +63,17 @@ public interface ResponderLeaseHandler extends Availability {
     }
 
     @Override
-    public Disposable send(Consumer<ByteBuf> leaseFrameSender) {
+    @SuppressWarnings("unchecked")
+    public Disposable send(Consumer<ByteBuf> leaseFrameSender, RequestTracker requestTracker) {
       return leaseSender
-          .send(leaseTracker)
-          .doFinally(this::onTerminateEvent)
+          .send(requestTracker)
           .subscribe(
-              lease -> {
-                currentLease = create(lease);
-                leaseFrameSender.accept(createLeaseFrame(lease));
+              new Consumer<Lease>() {
+                @Override
+                public void accept(Lease lease) {
+                  currentLease = create(lease);
+                  leaseFrameSender.accept(Impl.this.createLeaseFrame(lease));
+                }
               });
     }
 
@@ -112,13 +87,6 @@ public interface ResponderLeaseHandler extends Availability {
           allocator, lease.getTimeToLiveMillis(), lease.getAllowedRequests(), lease.getMetadata());
     }
 
-    private void onTerminateEvent(SignalType signalType) {
-      T ls = leaseTracker;
-      if (ls != null) {
-        ls.onClose();
-      }
-    }
-
     private static LeaseImpl create(Lease lease) {
       if (lease instanceof LeaseImpl) {
         return (LeaseImpl) lease;
@@ -129,15 +97,13 @@ public interface ResponderLeaseHandler extends Availability {
     }
   }
 
+  @Deprecated
   ResponderLeaseHandler None =
       new ResponderLeaseHandler() {
         @Override
-        public boolean useLease(int streamId, FrameType frameType, @Nullable ByteBuf metadata) {
+        public boolean useLease() {
           return true;
         }
-
-        @Override
-        public void releaseLease(int streamId, SignalType releaseSignal) {}
 
         @Override
         public Exception leaseError() {
@@ -145,7 +111,7 @@ public interface ResponderLeaseHandler extends Availability {
         }
 
         @Override
-        public Disposable send(Consumer<ByteBuf> leaseFrameSender) {
+        public Disposable send(Consumer<ByteBuf> leaseFrameSender, RequestTracker requestTracker) {
           return Disposables.disposed();
         }
 

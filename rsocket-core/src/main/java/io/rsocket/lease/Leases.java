@@ -22,7 +22,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import reactor.core.publisher.Flux;
 
-public class Leases<T extends LeaseTracker> {
+public class Leases<T extends RequestTracker> {
   private static final LeaseSender<?> noopLeaseSender = leaseTracker -> Flux.never();
   private static final LeaseReceiver noopLeaseReceiver = leases -> {};
 
@@ -32,7 +32,7 @@ public class Leases<T extends LeaseTracker> {
   private LeaseReceiver leaseReceiver = noopLeaseReceiver;
   private T leaseTracker;
 
-  public static <T extends LeaseTracker> Leases<T> create() {
+  public static <T extends RequestTracker> Leases<T> create() {
     return new Leases<>();
   }
 
@@ -78,7 +78,7 @@ public class Leases<T extends LeaseTracker> {
     return this;
   }
 
-  /** @deprecated in favor of the {@link #tracker(LeaseTracker)} method */
+  /** @deprecated in favor of the {@link #tracker(RequestTracker)} method */
   @Deprecated
   public Leases<T> stats(T stats) {
     this.leaseTracker = Objects.requireNonNull(stats);

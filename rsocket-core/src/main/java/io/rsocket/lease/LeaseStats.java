@@ -21,12 +21,12 @@ import io.rsocket.frame.FrameType;
 import reactor.core.publisher.SignalType;
 import reactor.util.annotation.Nullable;
 
-/** @deprecated in favor of the improved {@link LeaseTracker} class */
+/** @deprecated in favor of the improved {@link RequestTracker} class */
 @Deprecated
-public interface LeaseStats extends LeaseTracker {
+public interface LeaseStats extends RequestTracker {
 
   @Override
-  default void onAccept(int streamId, FrameType requestType, @Nullable ByteBuf metadata) {
+  default void onStart(int streamId, FrameType requestType, @Nullable ByteBuf metadata) {
     onEvent(EventType.ACCEPT);
   }
 
@@ -36,10 +36,10 @@ public interface LeaseStats extends LeaseTracker {
   }
 
   @Override
-  default void onRelease(int stream, SignalType terminalSignal) {}
+  default void onEnd(int stream, SignalType terminalSignal) {}
 
   @Override
-  default void onClose() {
+  default void dispose() {
     onEvent(EventType.TERMINATE);
   }
 

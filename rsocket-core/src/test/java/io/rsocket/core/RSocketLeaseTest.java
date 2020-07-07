@@ -58,7 +58,6 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.stream.Stream;
 import org.assertj.core.api.Assertions;
@@ -99,8 +98,7 @@ class RSocketLeaseTest {
     connection = new TestDuplexConnection(byteBufAllocator);
     requesterLeaseHandler = new RequesterLeaseHandler.Impl(TAG, leases -> leaseReceiver = leases);
     responderLeaseHandler =
-        new ResponderLeaseHandler.Impl<>(
-            TAG, byteBufAllocator, stats -> leaseSender, Optional.empty());
+        new ResponderLeaseHandler.Impl(TAG, byteBufAllocator, stats -> leaseSender);
 
     ClientServerInputMultiplexer multiplexer =
         new ClientServerInputMultiplexer(connection, new InitializingInterceptorRegistry(), true);
@@ -175,11 +173,12 @@ class RSocketLeaseTest {
             });
 
     rSocketResponder =
-        new RSocketResponder(
+        new LeaseEnabledRSocketResponder(
             multiplexer.asServerConnection(),
             mockRSocketHandler,
             payloadDecoder,
             responderLeaseHandler,
+            null,
             0,
             FRAME_LENGTH_MASK,
             Integer.MAX_VALUE,
