@@ -27,7 +27,7 @@ subprojects {
     apply plugin: 'io.spring.dependency-management'
     apply plugin: 'com.github.sherter.google-java-format'
 
-    ext['reactor-bom.version'] = 'Dysprosium-BUILD-SNAPSHOT'
+    ext['reactor-bom.version'] = '2020.0.0-SNAPSHOT'
     ext['logback.version'] = '1.2.3'
     ext['findbugs.version'] = '3.0.2'
     ext['netty-bom.version'] = '4.1.50.Final'
