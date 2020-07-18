@@ -25,8 +25,8 @@ class SetupFrameCodecTest {
     assertEquals(0, SetupFrameCodec.resumeToken(frame).readableBytes());
     assertEquals("metadata_type", SetupFrameCodec.metadataMimeType(frame));
     assertEquals("data_type", SetupFrameCodec.dataMimeType(frame));
-    assertEquals(metadata, SetupFrameCodec.metadata(frame));
-    assertEquals(data, SetupFrameCodec.data(frame));
+    assertEquals(payload.metadata(), SetupFrameCodec.metadata(frame));
+    assertEquals(payload.data(), SetupFrameCodec.data(frame));
     assertEquals(SetupFrameCodec.CURRENT_VERSION, SetupFrameCodec.version(frame));
     frame.release();
   }
@@ -49,8 +49,8 @@ class SetupFrameCodecTest {
     assertEquals(token, SetupFrameCodec.resumeToken(frame));
     assertEquals("metadata_type", SetupFrameCodec.metadataMimeType(frame));
     assertEquals("data_type", SetupFrameCodec.dataMimeType(frame));
-    assertEquals(metadata, SetupFrameCodec.metadata(frame));
-    assertEquals(data, SetupFrameCodec.data(frame));
+    assertEquals(payload.metadata(), SetupFrameCodec.metadata(frame));
+    assertEquals(payload.data(), SetupFrameCodec.data(frame));
     assertEquals(SetupFrameCodec.CURRENT_VERSION, SetupFrameCodec.version(frame));
     frame.release();
   }

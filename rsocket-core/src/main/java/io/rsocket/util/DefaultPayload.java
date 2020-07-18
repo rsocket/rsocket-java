@@ -99,13 +99,18 @@ public final class DefaultPayload implements Payload {
   }
 
   public static Payload create(ByteBuf data, @Nullable ByteBuf metadata) {
-    return create(data.nioBuffer(), metadata == null ? null : metadata.nioBuffer());
+    try {
+      return create(data.nioBuffer(), metadata == null ? null : metadata.nioBuffer());
+    } finally {
+      data.release();
+      if (metadata != null) {
+        metadata.release();
+      }
+    }
   }
 
   public static Payload create(Payload payload) {
-    return create(
-        Unpooled.copiedBuffer(payload.sliceData()),
-        payload.hasMetadata() ? Unpooled.copiedBuffer(payload.sliceMetadata()) : null);
+    return create(payload.getData(), payload.hasMetadata() ? payload.getMetadata() : null);
   }
 
   @Override

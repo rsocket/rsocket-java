@@ -19,9 +19,13 @@ package io.rsocket.util;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
 import io.rsocket.Payload;
+import io.rsocket.buffer.LeaksTrackingByteBufAllocator;
 import java.nio.ByteBuffer;
+import java.util.concurrent.ThreadLocalRandom;
 import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
@@ -73,5 +77,33 @@ public class DefaultPayloadTest {
         DefaultPayload.create(ByteBuffer.wrap("data".getBytes()), ByteBuffer.allocate(0));
 
     Assertions.assertThat(payload.hasMetadata()).isTrue();
+  }
+
+  @Test
+  public void shouldReleaseGivenByteBufDataAndMetadataUpOnPayloadCreation() {
+    LeaksTrackingByteBufAllocator allocator =
+        LeaksTrackingByteBufAllocator.instrument(ByteBufAllocator.DEFAULT);
+    for (byte i = 0; i < 126; i++) {
+      ByteBuf data = allocator.buffer();
+      data.writeByte(i);
+
+      boolean metadataPresent = ThreadLocalRandom.current().nextBoolean();
+      ByteBuf metadata = null;
+      if (metadataPresent) {
+        metadata = allocator.buffer();
+        metadata.writeByte(i + 1);
+      }
+
+      Payload payload = DefaultPayload.create(data, metadata);
+
+      Assertions.assertThat(payload.getData()).isEqualTo(ByteBuffer.wrap(new byte[] {i}));
+
+      Assertions.assertThat(payload.getMetadata())
+          .isEqualTo(
+              metadataPresent
+                  ? ByteBuffer.wrap(new byte[] {(byte) (i + 1)})
+                  : DefaultPayload.EMPTY_BUFFER);
+      allocator.assertHasNoLeaks();
+    }
   }
 }
