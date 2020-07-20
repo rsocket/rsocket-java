@@ -19,6 +19,7 @@ package io.rsocket.transport.netty.server;
 import static io.rsocket.frame.FrameLengthCodec.FRAME_LENGTH_MASK;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
+import static org.mockito.ArgumentMatchers.any;
 
 import java.net.InetSocketAddress;
 import java.util.Collections;
@@ -31,29 +32,35 @@ import reactor.core.publisher.Mono;
 import reactor.netty.http.server.HttpServer;
 import reactor.netty.http.server.HttpServerRequest;
 import reactor.netty.http.server.HttpServerResponse;
+import reactor.netty.http.server.WebsocketServerSpec;
 import reactor.test.StepVerifier;
 
 final class WebsocketServerTransportTest {
 
-  // @Test
+  @Test
   public void testThatSetupWithUnSpecifiedFrameSizeShouldSetMaxFrameSize() {
-    ArgumentCaptor<BiFunction> captor = ArgumentCaptor.forClass(BiFunction.class);
-    HttpServer httpServer = Mockito.spy(HttpServer.create());
-    Mockito.doAnswer(a -> httpServer).when(httpServer).handle(captor.capture());
-    Mockito.doAnswer(a -> Mono.empty()).when(httpServer).bind();
+    ArgumentCaptor<BiFunction> httpHandlerCaptor = ArgumentCaptor.forClass(BiFunction.class);
+    HttpServer server = Mockito.spy(HttpServer.create());
+    Mockito.doAnswer(a -> server).when(server).handle(httpHandlerCaptor.capture());
+    Mockito.doAnswer(a -> server).when(server).tcpConfiguration(any());
+    Mockito.doAnswer(a -> Mono.empty()).when(server).bind();
 
-    WebsocketServerTransport serverTransport = WebsocketServerTransport.create(httpServer);
-
+    WebsocketServerTransport serverTransport = WebsocketServerTransport.create(server);
     serverTransport.start(c -> Mono.empty()).subscribe();
 
     HttpServerRequest httpServerRequest = Mockito.mock(HttpServerRequest.class);
     HttpServerResponse httpServerResponse = Mockito.mock(HttpServerResponse.class);
 
-    captor.getValue().apply(httpServerRequest, httpServerResponse);
+    httpHandlerCaptor.getValue().apply(httpServerRequest, httpServerResponse);
 
-    Mockito.verify(httpServerResponse)
-        .sendWebsocket(
-            Mockito.nullable(String.class), Mockito.eq(FRAME_LENGTH_MASK), Mockito.any());
+    ArgumentCaptor<BiFunction> handlerCaptor = ArgumentCaptor.forClass(BiFunction.class);
+    ArgumentCaptor<WebsocketServerSpec> specCaptor =
+        ArgumentCaptor.forClass(WebsocketServerSpec.class);
+
+    Mockito.verify(httpServerResponse).sendWebsocket(handlerCaptor.capture(), specCaptor.capture());
+
+    WebsocketServerSpec spec = specCaptor.getValue();
+    assertThat(spec.maxFramePayloadLength()).isEqualTo(FRAME_LENGTH_MASK);
   }
 
   @DisplayName("creates server with BindAddress")

@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2015-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,7 +28,6 @@ import java.time.Duration;
 import reactor.core.Exceptions;
 import reactor.netty.http.client.HttpClient;
 import reactor.netty.http.server.HttpServer;
-import reactor.netty.tcp.TcpServer;
 
 final class WebsocketSecureTransportTest implements TransportTest {
 
@@ -51,14 +50,13 @@ final class WebsocketSecureTransportTest implements TransportTest {
             try {
               SelfSignedCertificate ssc = new SelfSignedCertificate();
               HttpServer server =
-                  HttpServer.from(
-                      TcpServer.create()
-                          .bindAddress(() -> address)
-                          .secure(
-                              ssl ->
-                                  ssl.sslContext(
-                                      SslContextBuilder.forServer(
-                                          ssc.certificate(), ssc.privateKey()))));
+                  HttpServer.create()
+                      .bindAddress(() -> address)
+                      .secure(
+                          ssl ->
+                              ssl.sslContext(
+                                  SslContextBuilder.forServer(
+                                      ssc.certificate(), ssc.privateKey())));
               return WebsocketServerTransport.create(server);
             } catch (CertificateException e) {
               throw Exceptions.propagate(e);
