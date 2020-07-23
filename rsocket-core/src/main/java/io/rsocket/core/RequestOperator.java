@@ -76,11 +76,12 @@ abstract class RequestOperator
       }
       return;
     }
-    this.firstRequest = false;
 
     if (WIP.getAndIncrement(this) != 0) {
       return;
     }
+
+    this.firstRequest = false;
     int missed = 1;
 
     boolean firstLoop = true;
