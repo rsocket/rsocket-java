@@ -42,6 +42,7 @@ import reactor.core.CoreSubscriber;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
+import reactor.util.retry.Retry;
 
 /**
  * An implementation of {@link Mono} that load balances across a pool of RSockets and emits one when
@@ -589,7 +590,9 @@ public abstract class LoadBalancedRSocketMono extends Mono<RSocket>
 
       factory
           .get()
-          .retryBackoff(weightedSocketRetries, weightedSocketBackOff, weightedSocketMaxBackOff)
+          .retryWhen(
+              Retry.backoff(weightedSocketRetries, weightedSocketBackOff)
+                  .maxBackoff(weightedSocketMaxBackOff))
           .doOnError(
               throwable -> {
                 logger.error(
