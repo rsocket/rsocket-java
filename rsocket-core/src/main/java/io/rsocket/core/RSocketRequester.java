@@ -315,7 +315,9 @@ class RSocketRequester implements RSocket {
                               if (receivers.remove(streamId, receiver)) {
                                 sendProcessor.onNext(CancelFrameCodec.encode(allocator, streamId));
                               } else {
-                                payload.release();
+                                if (this.firstRequest) {
+                                  payload.release();
+                                }
                               }
                             }
 
@@ -405,7 +407,9 @@ class RSocketRequester implements RSocket {
                               if (receivers.remove(streamId, receiver)) {
                                 sendProcessor.onNext(CancelFrameCodec.encode(allocator, streamId));
                               } else {
-                                payload.release();
+                                if (this.firstRequest) {
+                                  payload.release();
+                                }
                               }
                             }
 
