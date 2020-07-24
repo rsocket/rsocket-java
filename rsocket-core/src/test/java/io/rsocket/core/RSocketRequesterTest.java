@@ -616,7 +616,15 @@ public class RSocketRequesterTest {
                 }),
         Arguments.of(
             (Function<ClientSocketRule, Publisher<Payload>>)
-                (rule) -> rule.socket.requestResponse(EmptyPayload.INSTANCE),
+                (rule) -> {
+                  ByteBuf data = rule.allocator.buffer();
+                  data.writeCharSequence("testData", CharsetUtil.UTF_8);
+
+                  ByteBuf metadata = rule.allocator.buffer();
+                  metadata.writeCharSequence("testMetadata", CharsetUtil.UTF_8);
+                  Payload requestPayload = ByteBufPayload.create(data, metadata);
+                  return rule.socket.requestResponse(requestPayload);
+                },
             (BiConsumer<AssertSubscriber<Payload>, ClientSocketRule>)
                 (as, rule) -> {
                   ByteBufAllocator allocator = rule.alloc();
@@ -629,6 +637,32 @@ public class RSocketRequesterTest {
                   ByteBuf frame =
                       PayloadFrameCodec.encode(
                           allocator, streamId, false, false, true, metadata, data);
+
+                  RaceTestUtils.race(as::cancel, () -> rule.connection.addToReceivedBuffer(frame));
+                }),
+        Arguments.of(
+            (Function<ClientSocketRule, Publisher<Payload>>)
+                (rule) -> {
+                  ByteBuf data = rule.allocator.buffer();
+                  data.writeCharSequence("testData", CharsetUtil.UTF_8);
+
+                  ByteBuf metadata = rule.allocator.buffer();
+                  metadata.writeCharSequence("testMetadata", CharsetUtil.UTF_8);
+                  Payload requestPayload = ByteBufPayload.create(data, metadata);
+                  return rule.socket.requestStream(requestPayload);
+                },
+            (BiConsumer<AssertSubscriber<Payload>, ClientSocketRule>)
+                (as, rule) -> {
+                  ByteBufAllocator allocator = rule.alloc();
+                  ByteBuf metadata = allocator.buffer();
+                  metadata.writeCharSequence("abc", CharsetUtil.UTF_8);
+                  ByteBuf data = allocator.buffer();
+                  data.writeCharSequence("def", CharsetUtil.UTF_8);
+                  as.request(Long.MAX_VALUE);
+                  int streamId = rule.getStreamIdForRequestType(REQUEST_STREAM);
+                  ByteBuf frame =
+                      PayloadFrameCodec.encode(
+                          allocator, streamId, false, true, true, metadata, data);
 
                   RaceTestUtils.race(as::cancel, () -> rule.connection.addToReceivedBuffer(frame));
                 }));
