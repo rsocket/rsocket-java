@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package io.rsocket.addons;
+package io.rsocket.core;
 
 import io.netty.util.AbstractReferenceCounted;
 import io.rsocket.Payload;

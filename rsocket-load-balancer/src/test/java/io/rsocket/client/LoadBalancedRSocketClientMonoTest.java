@@ -31,7 +31,7 @@ import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-public class LoadBalancedRSocketMonoTest {
+public class LoadBalancedRSocketClientMonoTest {
 
   @Test(timeout = 10_000L)
   public void testNeverSelectFailingFactories() throws InterruptedException {

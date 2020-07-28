@@ -1,4 +1,4 @@
-package io.rsocket.addons;
+package io.rsocket.core;
 
 import io.netty.util.ReferenceCountUtil;
 import io.rsocket.Payload;
@@ -9,6 +9,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
+import java.util.function.Supplier;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscription;
 import reactor.core.CoreSubscriber;
@@ -17,25 +18,34 @@ import reactor.core.publisher.Mono;
 import reactor.core.publisher.Operators;
 import reactor.util.annotation.Nullable;
 
-abstract class BaseRSocketPool extends ResolvingOperator<Void>
-    implements RSocketPool, CoreSubscriber<List<RSocket>> {
+class RSocketPool extends ResolvingOperator<Void> implements CoreSubscriber<List<RSocketSupplier>> {
 
   final DeferredResolutionRSocket deferredResolutionRSocket = new DeferredResolutionRSocket(this);
+  final LoadbalanceStrategy loadbalanceStrategy;
+  final Supplier<Stats> statsSupplier;
 
-  volatile RSocket[] activeSockets = EMPTY;
+  volatile PooledRSocket[] activeSockets;
 
-  static final AtomicReferenceFieldUpdater<BaseRSocketPool, RSocket[]> ACTIVE_SOCKETS =
+  static final AtomicReferenceFieldUpdater<RSocketPool, PooledRSocket[]> ACTIVE_SOCKETS =
       AtomicReferenceFieldUpdater.newUpdater(
-          BaseRSocketPool.class, RSocket[].class, "activeSockets");
+          RSocketPool.class, PooledRSocket[].class, "activeSockets");
 
-  static final RSocket[] EMPTY = new RSocket[0];
-  static final RSocket[] TERMINATED = new RSocket[0];
+  static final PooledRSocket[] EMPTY = new PooledRSocket[0];
+  static final PooledRSocket[] TERMINATED = new PooledRSocket[0];
 
   volatile Subscription s;
-  static final AtomicReferenceFieldUpdater<BaseRSocketPool, Subscription> S =
-      AtomicReferenceFieldUpdater.newUpdater(BaseRSocketPool.class, Subscription.class, "s");
+  static final AtomicReferenceFieldUpdater<RSocketPool, Subscription> S =
+      AtomicReferenceFieldUpdater.newUpdater(RSocketPool.class, Subscription.class, "s");
 
-  BaseRSocketPool(Publisher<List<RSocket>> source) {
+  RSocketPool(
+      Publisher<List<RSocketSupplier>> source,
+      LoadbalanceStrategy loadbalanceStrategy,
+      Supplier<Stats> statsSupplier) {
+    this.loadbalanceStrategy = loadbalanceStrategy;
+    this.statsSupplier = statsSupplier;
+
+    ACTIVE_SOCKETS.lazySet(this, EMPTY);
+
     source.subscribe(this);
   }
 
@@ -61,30 +71,33 @@ abstract class BaseRSocketPool extends ResolvingOperator<Void>
    * method invocations, therefore it is acceptable to have it algorithmically inefficient. The
    * algorithmic complexity of this method is
    *
-   * @param sockets set of newly received unresolved {@link RSocket}s
+   * @param rSocketSuppliers set of newly received unresolved {@link RSocket}s
    */
   @Override
-  public void onNext(List<RSocket> sockets) {
+  public void onNext(List<RSocketSupplier> rSocketSuppliers) {
     if (isDisposed()) {
       return;
     }
 
+    PooledRSocket[] previouslyActiveSockets;
+    PooledRSocket[] activeSockets;
     for (; ; ) {
-      HashMap<RSocket, Integer> socketsCopy = new HashMap<>();
+      HashMap<RSocketSupplier, Integer> rSocketSuppliersCopy = new HashMap<>();
 
       int j = 0;
-      for (RSocket rSocket : sockets) {
-        socketsCopy.put(rSocket, j++);
+      for (RSocketSupplier rSocketSupplier : rSocketSuppliers) {
+        rSocketSuppliersCopy.put(rSocketSupplier, j++);
       }
 
       // checking intersection of active RSocket with the newly received set
-      RSocket[] activeSockets = this.activeSockets;
-      RSocket[] nextActiveSockets = new RSocket[activeSockets.length + socketsCopy.size()];
+      previouslyActiveSockets = this.activeSockets;
+      PooledRSocket[] nextActiveSockets =
+          new PooledRSocket[previouslyActiveSockets.length + rSocketSuppliersCopy.size()];
       int position = 0;
-      for (int i = 0; i < activeSockets.length; i++) {
-        RSocket rSocket = activeSockets[i];
+      for (int i = 0; i < previouslyActiveSockets.length; i++) {
+        PooledRSocket rSocket = previouslyActiveSockets[i];
 
-        Integer index = socketsCopy.remove(rSocket);
+        Integer index = rSocketSuppliersCopy.remove(rSocket.supplier());
         if (index == null) {
           // if one of the active rSockets is not included, we remove it and put in the
           // pending removal
@@ -99,7 +112,8 @@ abstract class BaseRSocketPool extends ResolvingOperator<Void>
         } else {
           if (rSocket.isDisposed()) {
             // put newly create RSocket instance
-            nextActiveSockets[position++] = sockets.get(index);
+            nextActiveSockets[position++] =
+                new ResolvingPooledRSocket(rSocketSuppliers.get(index), this.statsSupplier.get());
           } else {
             // keep old RSocket instance
             nextActiveSockets[position++] = rSocket;
@@ -108,26 +122,29 @@ abstract class BaseRSocketPool extends ResolvingOperator<Void>
       }
 
       // going though brightly new rsocket
-      for (RSocket newRSocket : socketsCopy.keySet()) {
-        nextActiveSockets[position++] = newRSocket;
+      for (RSocketSupplier newRSocketSupplier : rSocketSuppliersCopy.keySet()) {
+        nextActiveSockets[position++] =
+            new ResolvingPooledRSocket(newRSocketSupplier, this.statsSupplier.get());
       }
 
       // shrank to actual length
-      RSocket[] shrankCopy;
       if (position == 0) {
-        shrankCopy = EMPTY;
+        activeSockets = EMPTY;
       } else {
-        shrankCopy = Arrays.copyOf(nextActiveSockets, position);
+        activeSockets = Arrays.copyOf(nextActiveSockets, position);
       }
 
-      if (ACTIVE_SOCKETS.compareAndSet(this, activeSockets, shrankCopy)) {
+      if (ACTIVE_SOCKETS.compareAndSet(this, previouslyActiveSockets, activeSockets)) {
         break;
       }
     }
 
     if (isPending()) {
       // notifies that upstream is resolved
-      complete();
+      if (activeSockets != EMPTY) {
+        //noinspection ConstantConditions
+        complete(null);
+      }
     }
   }
 
@@ -145,8 +162,7 @@ abstract class BaseRSocketPool extends ResolvingOperator<Void>
     S.set(this, Operators.cancelledSubscription());
   }
 
-  @Override
-  public RSocket select() {
+  RSocket select() {
     if (isDisposed()) {
       return this.deferredResolutionRSocket;
     }
@@ -166,59 +182,59 @@ abstract class BaseRSocketPool extends ResolvingOperator<Void>
   }
 
   @Nullable
-  abstract RSocket doSelect();
+  RSocket doSelect() {
+    PooledRSocket[] sockets = this.activeSockets;
+    if (sockets == EMPTY) {
+      return null;
+    }
+
+    return this.loadbalanceStrategy.select(sockets);
+  }
 
   static class DeferredResolutionRSocket implements RSocket {
 
-    final BaseRSocketPool parent;
+    final RSocketPool parent;
 
-    DeferredResolutionRSocket(BaseRSocketPool parent) {
+    DeferredResolutionRSocket(RSocketPool parent) {
       this.parent = parent;
     }
 
     @Override
     public Mono<Void> fireAndForget(Payload payload) {
-      return new PooledMonoInner<>(this.parent, payload, FrameType.REQUEST_FNF);
+      return new MonoInner<>(this.parent, payload, FrameType.REQUEST_FNF);
     }
 
     @Override
     public Mono<Payload> requestResponse(Payload payload) {
-      return new PooledMonoInner<>(this.parent, payload, FrameType.REQUEST_RESPONSE);
+      return new MonoInner<>(this.parent, payload, FrameType.REQUEST_RESPONSE);
     }
 
     @Override
     public Flux<Payload> requestStream(Payload payload) {
-      return new PooledFluxInner<>(this.parent, payload, FrameType.REQUEST_STREAM);
+      return new FluxInner<>(this.parent, payload, FrameType.REQUEST_STREAM);
     }
 
     @Override
     public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
-      return new PooledFluxInner<>(this.parent, payloads, FrameType.REQUEST_STREAM);
+      return new FluxInner<>(this.parent, payloads, FrameType.REQUEST_STREAM);
     }
 
     @Override
     public Mono<Void> metadataPush(Payload payload) {
-      return new PooledMonoInner<>(this.parent, payload, FrameType.METADATA_PUSH);
+      return new MonoInner<>(this.parent, payload, FrameType.METADATA_PUSH);
     }
   }
 
-  static class PooledMonoInner<T> extends ResolvingOperator.MonoDeferredResolution<T, Void> {
+  static final class MonoInner<T> extends MonoDeferredResolution<T, Void> {
 
-    final BaseRSocketPool parent;
-    final Payload payload;
-    final FrameType requestType;
-
-    PooledMonoInner(BaseRSocketPool parent, Payload payload, FrameType requestType) {
-      super(parent);
-      this.parent = parent;
-      this.payload = payload;
-      this.requestType = requestType;
+    MonoInner(RSocketPool parent, Payload payload, FrameType requestType) {
+      super(parent, payload, requestType);
     }
 
     @Override
     @SuppressWarnings({"unchecked", "rawtypes"})
     public void accept(Void aVoid, Throwable t) {
-      if (this.requested == STATE_CANCELLED) {
+      if (isTerminated()) {
         return;
       }
 
@@ -228,7 +244,7 @@ abstract class BaseRSocketPool extends ResolvingOperator<Void>
         return;
       }
 
-      BaseRSocketPool parent = this.parent;
+      RSocketPool parent = (RSocketPool) this.parent;
       RSocket rSocket = parent.doSelect();
       if (rSocket != null) {
         Mono<?> source;
@@ -252,49 +268,30 @@ abstract class BaseRSocketPool extends ResolvingOperator<Void>
         parent.add(this);
       }
     }
-
-    public void cancel() {
-      long state = REQUESTED.getAndSet(this, STATE_CANCELLED);
-      if (state == STATE_CANCELLED) {
-        return;
-      }
-
-      if (state == STATE_SUBSCRIBED) {
-        this.s.cancel();
-      } else {
-        this.parent.remove(this);
-        ReferenceCountUtil.safeRelease(this.payload);
-      }
-    }
   }
 
-  static class PooledFluxInner<T> extends ResolvingOperator.FluxDeferredResolution<Payload, Void> {
+  static final class FluxInner<INPUT> extends FluxDeferredResolution<INPUT, Void> {
 
-    final BaseRSocketPool parent;
-    final T fluxOrPayload;
-    final FrameType requestType;
-
-    PooledFluxInner(BaseRSocketPool parent, T fluxOrPayload, FrameType requestType) {
-      super(parent);
-      this.parent = parent;
-      this.fluxOrPayload = fluxOrPayload;
-      this.requestType = requestType;
+    FluxInner(RSocketPool parent, INPUT fluxOrPayload, FrameType requestType) {
+      super(parent, fluxOrPayload, requestType);
     }
 
     @Override
     @SuppressWarnings("unchecked")
     public void accept(Void aVoid, Throwable t) {
-      if (this.requested == STATE_CANCELLED) {
+      if (isTerminated()) {
         return;
       }
 
       if (t != null) {
-        ReferenceCountUtil.safeRelease(this.fluxOrPayload);
+        if (this.requestType == FrameType.REQUEST_STREAM) {
+          ReferenceCountUtil.safeRelease(this.fluxOrPayload);
+        }
         onError(t);
         return;
       }
 
-      BaseRSocketPool parent = this.parent;
+      RSocketPool parent = (RSocketPool) this.parent;
       RSocket rSocket = parent.doSelect();
       if (rSocket != null) {
         Flux<? extends Payload> source;
@@ -315,47 +312,5 @@ abstract class BaseRSocketPool extends ResolvingOperator<Void>
         parent.add(this);
       }
     }
-
-    public void cancel() {
-      long state = REQUESTED.getAndSet(this, STATE_CANCELLED);
-      if (state == STATE_CANCELLED) {
-        return;
-      }
-
-      if (state == STATE_SUBSCRIBED) {
-        this.s.cancel();
-      } else {
-        this.parent.remove(this);
-        ReferenceCountUtil.safeRelease(this.fluxOrPayload);
-      }
-    }
-  }
-
-  /** Specific interface for all RSocket store in {@link RSocketPool} */
-  public static interface PooledRSocket extends RSocket {
-
-    /**
-     * Indicates number of active requests
-     *
-     * @return number of requests in progress
-     */
-    int activeRequests();
-
-    /**
-     * Try to dispose this instance if possible. Otherwise, if there is ongoing requests, mark this
-     * as pending for removal and dispose once all the requests are terminated.<br>
-     * This operation may be cancelled if {@link #markActive()} is invoked prior this instance has
-     * been disposed
-     *
-     * @return {@code true} if this instance was disposed
-     */
-    boolean markForRemoval();
-
-    /**
-     * Try to restore state of this RSocket to be active after marking as pending removal again.
-     *
-     * @return {@code true} if marked as active. Otherwise, should be treated as it was disposed.
-     */
-    boolean markActive();
   }
 }

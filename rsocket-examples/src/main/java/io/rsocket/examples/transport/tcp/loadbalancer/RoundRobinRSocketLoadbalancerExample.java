@@ -1,18 +1,17 @@
 package io.rsocket.examples.transport.tcp.loadbalancer;
 
-import io.rsocket.RSocket;
+import io.rsocket.RSocketClient;
 import io.rsocket.SocketAcceptor;
-import io.rsocket.addons.LoadBalancedRSocket;
-import io.rsocket.addons.ResolvingRSocket;
-import io.rsocket.addons.RoundRobinRSocketPool;
-import io.rsocket.core.RSocketConnector;
-import io.rsocket.core.RSocketServer;
+import io.rsocket.core.*;
 import io.rsocket.transport.netty.client.TcpClientTransport;
 import io.rsocket.transport.netty.server.CloseableChannel;
 import io.rsocket.transport.netty.server.TcpServerTransport;
 import io.rsocket.util.DefaultPayload;
+
+import java.time.Duration;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -24,7 +23,7 @@ public class RoundRobinRSocketLoadbalancerExample {
                 SocketAcceptor.forRequestResponse(
                     p -> {
                       System.out.println("Server 1 got fnf " + p.getDataUtf8());
-                      return Mono.just(DefaultPayload.create("Server 1 response"));
+                      return Mono.just(DefaultPayload.create("Server 1 response")).delayElement(Duration.ofMillis(100));
                     }))
             .bindNow(TcpServerTransport.create(8080));
 
@@ -33,20 +32,71 @@ public class RoundRobinRSocketLoadbalancerExample {
                 SocketAcceptor.forRequestResponse(
                     p -> {
                       System.out.println("Server 2 got fnf " + p.getDataUtf8());
-                      return Mono.just(DefaultPayload.create("Server 2 response"));
+                      return Mono.just(DefaultPayload.create("Server 2 response")).delayElement(Duration.ofMillis(100));
                     }))
             .bindNow(TcpServerTransport.create(8081));
 
-    Mono<List<RSocket>> collect =
-        Flux.just(
-                new ResolvingRSocket(RSocketConnector.connectWith(TcpClientTransport.create(8080))),
-                new ResolvingRSocket(RSocketConnector.connectWith(TcpClientTransport.create(8081))))
-            .collect(Collectors.toList());
-    LoadBalancedRSocket loadBalancedRSocket =
-        new LoadBalancedRSocket(new RoundRobinRSocketPool(collect));
+      CloseableChannel server3 =
+              RSocketServer.create(
+                      SocketAcceptor.forRequestResponse(
+                              p -> {
+                                  System.out.println("Server 3 got fnf " + p.getDataUtf8());
+                                  return Mono.just(DefaultPayload.create("Server 3 response")).delayElement(Duration.ofMillis(100));
+                              }))
+                      .bindNow(TcpServerTransport.create(8082));
 
-    loadBalancedRSocket.requestResponse(DefaultPayload.create("test1")).block();
-    loadBalancedRSocket.requestResponse(DefaultPayload.create("test2")).block();
-    loadBalancedRSocket.requestResponse(DefaultPayload.create("test3")).block();
+    Flux<List<RSocketSupplier>> producer =
+        Flux.interval(Duration.ofSeconds(5))
+                .log()
+            .map(i -> {
+              int val = i.intValue();
+              switch (val) {
+                  case 0:
+                      return Collections.emptyList();
+                  case 1:
+                      return Collections.singletonList(new RSocketSupplier(RSocketConnector.connectWith(TcpClientTransport.create(8080)), "8080"));
+                  case 2:
+                      return Arrays.asList(
+                              new RSocketSupplier(RSocketConnector.connectWith(TcpClientTransport.create(8080)), "8080"),
+                              new RSocketSupplier(RSocketConnector.connectWith(TcpClientTransport.create(8081)), "8081")
+                      );
+                  case 3:
+                      return Arrays.asList(
+                              new RSocketSupplier(RSocketConnector.connectWith(TcpClientTransport.create(8080)), "8080"),
+                              new RSocketSupplier(RSocketConnector.connectWith(TcpClientTransport.create(8082)), "8082")
+                      );
+                  case 4:
+                      return Arrays.asList(
+                              new RSocketSupplier(RSocketConnector.connectWith(TcpClientTransport.create(8081)), "8081"),
+                              new RSocketSupplier(RSocketConnector.connectWith(TcpClientTransport.create(8082)), "8082")
+                      );
+                  case 5:
+                      return Arrays.asList(
+                              new RSocketSupplier(RSocketConnector.connectWith(TcpClientTransport.create(8080)), "8080"),
+                              new RSocketSupplier(RSocketConnector.connectWith(TcpClientTransport.create(8081)), "8081"),
+                              new RSocketSupplier(RSocketConnector.connectWith(TcpClientTransport.create(8082)), "8082")
+                      );
+                  case 6:
+                      return Collections.emptyList();
+                  case 7:
+                      return Collections.emptyList();
+                  default:
+                  case 8:
+                      return Arrays.asList(
+                          new RSocketSupplier(RSocketConnector.connectWith(TcpClientTransport.create(8080)), "8080"),
+                          new RSocketSupplier(RSocketConnector.connectWith(TcpClientTransport.create(8081)), "8081"),
+                          new RSocketSupplier(RSocketConnector.connectWith(TcpClientTransport.create(8082)), "8082")
+                  );
+              }
+            });
+
+    RSocketClient loadBalancedRSocketClient =
+        LoadbalancedRSocketConnector.builder()
+                .withStatsTracking()
+            .createClient(producer);
+
+      for (int i = 0; i < 10000; i++) {
+        loadBalancedRSocketClient.requestResponse(Mono.just(DefaultPayload.create("test" + i))).block();
+      }
   }
 }
