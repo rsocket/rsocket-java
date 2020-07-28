@@ -23,6 +23,11 @@ plugins {
     id 'io.morethan.jmhreport' version '0.9.0' apply false
 }
 
+boolean isCiServer = ["CI", "CONTINUOUS_INTEGRATION", "TRAVIS", "CIRCLECI", "bamboo_planKey", "GITHUB_ACTION"].with {
+    retainAll(System.getenv().keySet())
+    return !isEmpty()
+}
+
 subprojects {
     apply plugin: 'io.spring.dependency-management'
     apply plugin: 'com.github.sherter.google-java-format'
@@ -132,13 +137,6 @@ subprojects {
 
         test {
             useJUnitPlatform()
-
-            systemProperty "io.netty.leakDetection.level", "ADVANCED"
-        }
-
-        //all test tasks will show FAILED for each test method,
-        // common exclusions, no scanning
-        project.tasks.withType(Test).all {
             testLogging {
                 events "FAILED"
                 showExceptions true
@@ -147,17 +145,44 @@ subprojects {
                 maxGranularity 3
             }
 
+            //show progress by displaying test classes, avoiding test suite timeouts
+            TestDescriptor last
+            afterTest { TestDescriptor td, TestResult tr ->
+                if (last != td.getParent()) {
+                    last = td.getParent()
+                    println last
+                }
+            }
+
+            if (isCiServer) {
+                def stdout = new LinkedList<TestOutputEvent>()
+                beforeTest { TestDescriptor td ->
+                    stdout.clear()
+                }
+                onOutput { TestDescriptor td, TestOutputEvent toe ->
+                    stdout.add(toe)
+                }
+                afterTest { TestDescriptor td, TestResult tr ->
+                    if (tr.resultType == TestResult.ResultType.FAILURE && stdout.size() > 0) {
+                        def stdOutput = stdout.collect {
+                            it.getDestination().name() == "StdErr"
+                                    ? "STD_ERR: ${it.getMessage()}"
+                                    : "STD_OUT: ${it.getMessage()}"
+                        }
+                                .join()
+                        println "This is the console output of the failing test below:\n$stdOutput"
+                    }
+                }
+            }
+
             if (JavaVersion.current().isJava9Compatible()) {
                 println "Java 9+: lowering MaxGCPauseMillis to 20ms in ${project.name} ${name}"
-                jvmArgs = ["-XX:MaxGCPauseMillis=20"]
+                println "Java 9+: enabling leak detection [ADVANCED]"
+                jvmArgs = ["-XX:MaxGCPauseMillis=20", "-Dio.netty.leakDetection.level=ADVANCED"]
             }
 
             systemProperty("java.awt.headless", "true")
-            systemProperty("reactor.trace.cancel", "true")
-            systemProperty("reactor.trace.nocapacity", "true")
             systemProperty("testGroups", project.properties.get("testGroups"))
-            scanForTestClasses = false
-            exclude '**/*Abstract*.*'
 
             //allow re-run of failed tests only without special test tasks failing
             // because the filter is too restrictive

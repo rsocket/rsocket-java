@@ -119,7 +119,9 @@ class RSocketRequesterSubscribersTest {
       Assertions.assertThat(connection.getSent())
           .hasSize(1)
           .first()
-          .matches(bb -> REQUEST_TYPES.contains(FrameHeaderCodec.frameType(bb)));
+          .matches(bb -> REQUEST_TYPES.contains(FrameHeaderCodec.frameType(bb)))
+          .matches(ByteBuf::release);
+
       connection.clearSendReceiveBuffers();
     }
   }
