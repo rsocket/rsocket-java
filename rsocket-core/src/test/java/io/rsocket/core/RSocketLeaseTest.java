@@ -27,10 +27,10 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
 import io.netty.util.CharsetUtil;
+import io.netty.util.ReferenceCountUtil;
 import io.netty.util.ReferenceCounted;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
-import io.rsocket.TestScheduler;
 import io.rsocket.buffer.LeaksTrackingByteBufAllocator;
 import io.rsocket.exceptions.Exceptions;
 import io.rsocket.frame.FrameHeaderCodec;
@@ -104,11 +104,11 @@ class RSocketLeaseTest {
             StreamIdSupplier.clientSupplier(),
             0,
             FRAME_LENGTH_MASK,
+            Integer.MAX_VALUE,
             0,
             0,
             null,
-            requesterLeaseHandler,
-            TestScheduler.INSTANCE);
+            requesterLeaseHandler);
 
     mockRSocketHandler = mock(RSocket.class);
     when(mockRSocketHandler.metadataPush(any()))
@@ -155,7 +155,8 @@ class RSocketLeaseTest {
             payloadDecoder,
             responderLeaseHandler,
             0,
-            FRAME_LENGTH_MASK);
+            FRAME_LENGTH_MASK,
+            Integer.MAX_VALUE);
   }
 
   @Test
@@ -235,10 +236,23 @@ class RSocketLeaseTest {
         .expectComplete()
         .verify(Duration.ofSeconds(5));
 
-    Assertions.assertThat(connection.getSent())
-        .hasSize(1)
-        .first()
-        .matches(ReferenceCounted::release);
+    if (frameType == REQUEST_CHANNEL) {
+      Assertions.assertThat(connection.getSent())
+          .hasSize(2)
+          .first()
+          .matches(bb -> FrameHeaderCodec.frameType(bb) == frameType)
+          .matches(ReferenceCounted::release);
+      Assertions.assertThat(connection.getSent())
+          .element(1)
+          .matches(bb -> FrameHeaderCodec.frameType(bb) == COMPLETE)
+          .matches(ReferenceCounted::release);
+    } else {
+      Assertions.assertThat(connection.getSent())
+          .hasSize(1)
+          .first()
+          .matches(bb -> FrameHeaderCodec.frameType(bb) == frameType)
+          .matches(ReferenceCounted::release);
+    }
 
     Assertions.assertThat(rSocketRequester.availability()).isCloseTo(0.5, offset(1e-2));
 
@@ -279,11 +293,24 @@ class RSocketLeaseTest {
 
     // ensures availability is changed and lease is used only up on frame sending
     Assertions.assertThat(rSocketRequester.availability()).isCloseTo(0.0, offset(1e-2));
-    Assertions.assertThat(connection.getSent())
-        .hasSize(1)
-        .first()
-        .matches(bb -> FrameHeaderCodec.frameType(bb) == interactionType)
-        .matches(ReferenceCounted::release);
+
+    if (interactionType == REQUEST_CHANNEL) {
+      Assertions.assertThat(connection.getSent())
+          .hasSize(2)
+          .first()
+          .matches(bb -> FrameHeaderCodec.frameType(bb) == interactionType)
+          .matches(ReferenceCounted::release);
+      Assertions.assertThat(connection.getSent())
+          .element(1)
+          .matches(bb -> FrameHeaderCodec.frameType(bb) == COMPLETE)
+          .matches(ReferenceCounted::release);
+    } else {
+      Assertions.assertThat(connection.getSent())
+          .hasSize(1)
+          .first()
+          .matches(bb -> FrameHeaderCodec.frameType(bb) == interactionType)
+          .matches(ReferenceCounted::release);
+    }
 
     ByteBuf buffer2 = byteBufAllocator.buffer();
     buffer2.writeCharSequence("test", CharsetUtil.UTF_8);
@@ -478,6 +505,8 @@ class RSocketLeaseTest {
     Assertions.assertThat(receivedLease.getTimeToLiveMillis()).isEqualTo(ttl);
     Assertions.assertThat(receivedLease.getStartingAllowedRequests()).isEqualTo(numberOfRequests);
     Assertions.assertThat(receivedLease.getMetadata().toString(utf8)).isEqualTo(metadataContent);
+
+    ReferenceCountUtil.safeRelease(leaseFrame);
   }
 
   ByteBuf leaseFrame(int ttl, int requests, ByteBuf metadata) {

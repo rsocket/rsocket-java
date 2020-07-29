@@ -237,7 +237,10 @@ public class RSocketResponderTest {
           .hasSize(1)
           .first()
           .matches(bb -> FrameHeaderCodec.frameType(bb) == FrameType.ERROR)
-          .matches(bb -> ErrorFrameCodec.dataUtf8(bb).contains(INVALID_PAYLOAD_ERROR_MESSAGE))
+          .matches(
+              bb ->
+                  ErrorFrameCodec.dataUtf8(bb)
+                      .contains(String.format(INVALID_PAYLOAD_ERROR_MESSAGE, maxFrameLength)))
           .matches(ReferenceCounted::release);
 
       assertThat("Subscription not cancelled.", cancelled.get(), is(true));
@@ -471,7 +474,7 @@ public class RSocketResponderTest {
       assertSubscriber
           .assertTerminated()
           .assertError(CancellationException.class)
-          .assertErrorMessage("Disposed");
+          .assertErrorMessage("Outbound has terminated with an error");
       Assertions.assertThat(assertSubscriber.values())
           .allMatch(
               msg -> {
@@ -783,6 +786,7 @@ public class RSocketResponderTest {
   }
 
   @Test
+  @Disabled("Reactor 3.4.0 should fix that. No need to do anything on our side")
   // see https://github.com/rsocket/rsocket-java/issues/858
   public void testWorkaround858() {
     ByteBuf buffer = rule.alloc().buffer();
@@ -859,7 +863,8 @@ public class RSocketResponderTest {
           PayloadDecoder.ZERO_COPY,
           ResponderLeaseHandler.None,
           0,
-          maxFrameLength);
+          maxFrameLength,
+          Integer.MAX_VALUE);
     }
 
     private void sendRequest(int streamId, FrameType frameType) {

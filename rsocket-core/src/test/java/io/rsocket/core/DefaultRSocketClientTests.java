@@ -27,7 +27,6 @@ import io.netty.util.ReferenceCounted;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.RSocketClient;
-import io.rsocket.TestScheduler;
 import io.rsocket.frame.ErrorFrameCodec;
 import io.rsocket.frame.FrameHeaderCodec;
 import io.rsocket.frame.FrameType;
@@ -144,12 +143,26 @@ public class DefaultRSocketClientTests {
             })
         .then(testPublisher::complete)
         .then(
-            () ->
+            () -> {
+              if (requestType == FrameType.REQUEST_CHANNEL) {
+                Assertions.assertThat(rule.connection.getSent())
+                    .hasSize(2)
+                    .first()
+                    .matches(bb -> FrameHeaderCodec.frameType(bb).equals(requestType))
+                    .matches(ReferenceCounted::release);
+
+                Assertions.assertThat(rule.connection.getSent())
+                    .element(1)
+                    .matches(bb -> FrameHeaderCodec.frameType(bb).equals(FrameType.COMPLETE))
+                    .matches(ReferenceCounted::release);
+              } else {
                 Assertions.assertThat(rule.connection.getSent())
                     .hasSize(1)
                     .first()
                     .matches(bb -> FrameHeaderCodec.frameType(bb).equals(requestType))
-                    .matches(ReferenceCounted::release))
+                    .matches(ReferenceCounted::release);
+              }
+            })
         .then(
             () -> {
               if (requestType != FrameType.REQUEST_FNF && requestType != FrameType.METADATA_PUSH) {
@@ -395,10 +408,30 @@ public class DefaultRSocketClientTests {
 
     assertSubscriber.await(Duration.ofSeconds(10)).assertComplete();
 
-    Collection<ByteBuf> sent = rule.connection.getSent();
-    Assertions.assertThat(sent)
-        .allMatch(bb -> FrameHeaderCodec.frameType(bb).equals(requestType))
-        .allMatch(ReferenceCounted::release);
+    if (requestType == FrameType.REQUEST_CHANNEL) {
+      ArrayList<ByteBuf> sent = new ArrayList<>(rule.connection.getSent());
+      Assertions.assertThat(sent).hasSize(4);
+      for (int i = 0; i < sent.size(); i++) {
+        if (i % 2 == 0) {
+          Assertions.assertThat(sent.get(i))
+              .matches(bb -> FrameHeaderCodec.frameType(bb).equals(requestType))
+              .matches(ReferenceCounted::release);
+        } else {
+          Assertions.assertThat(sent.get(i))
+              .matches(bb -> FrameHeaderCodec.frameType(bb).equals(FrameType.COMPLETE))
+              .matches(ReferenceCounted::release);
+        }
+      }
+    } else {
+      Collection<ByteBuf> sent = rule.connection.getSent();
+      Assertions.assertThat(sent)
+          .hasSize(
+              requestType == FrameType.REQUEST_FNF || requestType == FrameType.METADATA_PUSH
+                  ? 1
+                  : 2)
+          .allMatch(bb -> FrameHeaderCodec.frameType(bb).equals(requestType))
+          .allMatch(ReferenceCounted::release);
+    }
 
     rule.allocator.assertHasNoLeaks();
   }
@@ -509,9 +542,9 @@ public class DefaultRSocketClientTests {
           maxFrameLength,
           Integer.MAX_VALUE,
           Integer.MAX_VALUE,
+          Integer.MAX_VALUE,
           null,
-          RequesterLeaseHandler.None,
-          TestScheduler.INSTANCE);
+          RequesterLeaseHandler.None);
     }
 
     public int getStreamIdForRequestType(FrameType expectedFrameType) {

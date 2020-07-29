@@ -13,15 +13,26 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package io.rsocket.core;
 
-/**
- * Support for frame fragmentation and reassembly.
- *
- * @see <a
- *     href="https://github.com/rsocket/rsocket/blob/master/Protocol.md#fragmentation-and-reassembly">Fragmentation
- *     and Reassembly</a>
- */
-@NonNullApi
-package io.rsocket.fragmentation;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import reactor.util.annotation.NonNullApi;
+interface ResponderFrameHandler extends FrameHandler {
+
+  Logger logger = LoggerFactory.getLogger(ResponderFrameHandler.class);
+
+  @Override
+  default void handleComplete() {}
+
+  @Override
+  default void handleError(Throwable t) {
+    logger.debug("Dropped error", t);
+    handleCancel();
+  }
+
+  @Override
+  default void handleRequestN(long n) {
+    // no ops
+  }
+}

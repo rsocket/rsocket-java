@@ -24,7 +24,6 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
 import io.rsocket.RSocket;
-import io.rsocket.TestScheduler;
 import io.rsocket.buffer.LeaksTrackingByteBufAllocator;
 import io.rsocket.exceptions.ConnectionErrorException;
 import io.rsocket.frame.FrameHeaderCodec;
@@ -74,11 +73,11 @@ public class KeepAliveTest {
             StreamIdSupplier.clientSupplier(),
             0,
             FRAME_LENGTH_MASK,
+            Integer.MAX_VALUE,
             tickPeriod,
             timeout,
             new DefaultKeepAliveHandler(connection),
-            RequesterLeaseHandler.None,
-            TestScheduler.INSTANCE);
+            RequesterLeaseHandler.None);
     return new RSocketState(rSocket, allocator, connection);
   }
 
@@ -101,11 +100,11 @@ public class KeepAliveTest {
             StreamIdSupplier.clientSupplier(),
             0,
             FRAME_LENGTH_MASK,
+            Integer.MAX_VALUE,
             tickPeriod,
             timeout,
             new ResumableKeepAliveHandler(resumableConnection),
-            RequesterLeaseHandler.None,
-            TestScheduler.INSTANCE);
+            RequesterLeaseHandler.None);
     return new ResumableRSocketState(rSocket, connection, resumableConnection, allocator);
   }
 

@@ -1,33 +1,48 @@
 package io.rsocket.core;
 
+import static io.rsocket.core.FragmentationUtils.FRAME_OFFSET;
+import static io.rsocket.core.FragmentationUtils.FRAME_OFFSET_WITH_INITIAL_REQUEST_N;
+import static io.rsocket.core.FragmentationUtils.FRAME_OFFSET_WITH_METADATA;
+import static io.rsocket.core.FragmentationUtils.FRAME_OFFSET_WITH_METADATA_AND_INITIAL_REQUEST_N;
 import static io.rsocket.frame.FrameLengthCodec.FRAME_LENGTH_MASK;
 
+import io.netty.buffer.ByteBuf;
 import io.rsocket.Payload;
-import io.rsocket.frame.FrameHeaderCodec;
-import io.rsocket.frame.FrameLengthCodec;
 
 final class PayloadValidationUtils {
   static final String INVALID_PAYLOAD_ERROR_MESSAGE =
-      "The payload is too big to send as a single frame with a 24-bit encoded length. Consider enabling fragmentation via RSocketFactory.";
+      "The payload is too big to be send as a single frame with a max frame length %s. Consider enabling fragmentation.";
 
-  static boolean isValid(int mtu, Payload payload, int maxFrameLength) {
+  static boolean isValid(int mtu, int maxFrameLength, Payload payload, boolean hasInitialRequestN) {
+
     if (mtu > 0) {
       return true;
     }
 
-    if (payload.hasMetadata()) {
-      return ((FrameHeaderCodec.size()
-              + FrameLengthCodec.FRAME_LENGTH_SIZE
-              + FrameHeaderCodec.size()
-              + payload.data().readableBytes()
-              + payload.metadata().readableBytes())
-          <= maxFrameLength);
+    final boolean hasMetadata = payload.hasMetadata();
+    final ByteBuf data = payload.data();
+
+    int unitSize;
+    if (hasMetadata) {
+      final ByteBuf metadata = payload.metadata();
+      unitSize =
+          (hasInitialRequestN
+                  ? FRAME_OFFSET_WITH_METADATA_AND_INITIAL_REQUEST_N
+                  : FRAME_OFFSET_WITH_METADATA)
+              + metadata.readableBytes()
+              + // metadata payload bytes
+              data.readableBytes(); // data payload bytes
     } else {
-      return ((FrameHeaderCodec.size()
-              + payload.data().readableBytes()
-              + FrameLengthCodec.FRAME_LENGTH_SIZE)
-          <= maxFrameLength);
+      unitSize =
+          (hasInitialRequestN ? FRAME_OFFSET_WITH_INITIAL_REQUEST_N : FRAME_OFFSET)
+              + data.readableBytes(); // data payload bytes
     }
+
+    return unitSize <= maxFrameLength;
+  }
+
+  static boolean isValidMetadata(int maxFrameLength, ByteBuf metadata) {
+    return FRAME_OFFSET + metadata.readableBytes() <= maxFrameLength;
   }
 
   static void assertValidateSetup(int maxFrameLength, int maxInboundPayloadSize, int mtu) {

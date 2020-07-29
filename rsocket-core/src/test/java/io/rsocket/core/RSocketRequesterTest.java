@@ -37,7 +37,6 @@ import io.netty.util.ReferenceCountUtil;
 import io.netty.util.ReferenceCounted;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
-import io.rsocket.TestScheduler;
 import io.rsocket.exceptions.ApplicationErrorException;
 import io.rsocket.exceptions.CustomRSocketException;
 import io.rsocket.exceptions.RejectedSetupException;
@@ -355,7 +354,8 @@ public class RSocketRequesterTest {
                       t ->
                           Assertions.assertThat(t)
                               .isInstanceOf(IllegalArgumentException.class)
-                              .hasMessage(INVALID_PAYLOAD_ERROR_MESSAGE))
+                              .hasMessage(
+                                  String.format(INVALID_PAYLOAD_ERROR_MESSAGE, maxFrameLength)))
                   .verify();
               rule.assertHasNoLeaks();
             });
@@ -370,27 +370,33 @@ public class RSocketRequesterTest {
         RSocket::metadataPush);
   }
 
-  @Test
+  @ParameterizedTest
+  @ValueSource(ints = {128, 256, FrameLengthCodec.FRAME_LENGTH_MASK})
   public void
-      shouldThrownExceptionIfGivenPayloadIsExitsSizeAllowanceWithNoFragmentationForRequestChannelCase() {
-    byte[] metadata = new byte[FrameLengthCodec.FRAME_LENGTH_MASK];
-    byte[] data = new byte[FrameLengthCodec.FRAME_LENGTH_MASK];
+      shouldThrownExceptionIfGivenPayloadIsExitsSizeAllowanceWithNoFragmentationForRequestChannelCase(
+          int maxFrameLength) {
+    rule.setMaxFrameLength(maxFrameLength);
+    byte[] metadata = new byte[maxFrameLength];
+    byte[] data = new byte[maxFrameLength];
     ThreadLocalRandom.current().nextBytes(metadata);
     ThreadLocalRandom.current().nextBytes(data);
     StepVerifier.create(
             rule.socket.requestChannel(
-                Flux.just(EmptyPayload.INSTANCE, DefaultPayload.create(data, metadata))))
+                Flux.just(EmptyPayload.INSTANCE, DefaultPayload.create(data, metadata))),
+            0)
         .expectSubscription()
+        .thenRequest(2)
         .then(
-            () ->
-                rule.connection.addToReceivedBuffer(
-                    RequestNFrameCodec.encode(
-                        rule.alloc(), rule.getStreamIdForRequestType(REQUEST_CHANNEL), 2)))
+            () -> {
+              rule.connection.addToReceivedBuffer(
+                  RequestNFrameCodec.encode(
+                      rule.alloc(), rule.getStreamIdForRequestType(REQUEST_CHANNEL), 2));
+            })
         .expectErrorSatisfies(
             t ->
                 Assertions.assertThat(t)
                     .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessage(INVALID_PAYLOAD_ERROR_MESSAGE))
+                    .hasMessage(String.format(INVALID_PAYLOAD_ERROR_MESSAGE, maxFrameLength)))
         .verify();
     Assertions.assertThat(rule.connection.getSent())
         // expect to be sent RequestChannelFrame
@@ -537,9 +543,10 @@ public class RSocketRequesterTest {
                 (as, rule) -> {
                   RaceTestUtils.race(() -> as.request(1), as::cancel);
                   // ensures proper frames order
-                  if (rule.connection.getSent().size() > 0) {
-                    //
-                    // Assertions.assertThat(rule.connection.getSent()).hasSize(2);
+                  int size = rule.connection.getSent().size();
+                  if (size > 0) {
+
+                    Assertions.assertThat(size).isLessThanOrEqualTo(3).isGreaterThanOrEqualTo(2);
                     Assertions.assertThat(rule.connection.getSent())
                         .element(0)
                         .matches(
@@ -549,16 +556,43 @@ public class RSocketRequesterTest {
                                 + "} but was {"
                                 + frameType(rule.connection.getSent().stream().findFirst().get())
                                 + "}");
-                    Assertions.assertThat(rule.connection.getSent())
-                        .element(1)
-                        .matches(
-                            bb -> frameType(bb) == CANCEL,
-                            "Expected first frame matches {"
-                                + CANCEL
-                                + "} but was {"
-                                + frameType(
-                                    rule.connection.getSent().stream().skip(1).findFirst().get())
-                                + "}");
+                    if (size == 2) {
+                      Assertions.assertThat(rule.connection.getSent())
+                          .element(1)
+                          .matches(
+                              bb -> frameType(bb) == CANCEL,
+                              "Expected second frame matches {"
+                                  + CANCEL
+                                  + "} but was {"
+                                  + frameType(
+                                      rule.connection.getSent().stream().skip(1).findFirst().get())
+                                  + "}");
+                    } else {
+                      Assertions.assertThat(rule.connection.getSent())
+                          .element(1)
+                          .matches(
+                              bb -> frameType(bb) == COMPLETE || frameType(bb) == CANCEL,
+                              "Expected second frame matches {"
+                                  + COMPLETE
+                                  + " or "
+                                  + CANCEL
+                                  + "} but was {"
+                                  + frameType(
+                                      rule.connection.getSent().stream().skip(1).findFirst().get())
+                                  + "}");
+                      Assertions.assertThat(rule.connection.getSent())
+                          .element(2)
+                          .matches(
+                              bb -> frameType(bb) == CANCEL || frameType(bb) == COMPLETE,
+                              "Expected third frame matches {"
+                                  + COMPLETE
+                                  + " or "
+                                  + CANCEL
+                                  + "} but was {"
+                                  + frameType(
+                                      rule.connection.getSent().stream().skip(2).findFirst().get())
+                                  + "}");
+                    }
                   }
                 }),
         Arguments.of(
@@ -813,25 +847,36 @@ public class RSocketRequesterTest {
   @ParameterizedTest
   @MethodSource("refCntCases")
   public void ensureSendsErrorOnIllegalRefCntPayload(
-      BiFunction<Payload, RSocket, Publisher<?>> sourceProducer) {
+      BiFunction<Payload, ClientSocketRule, Publisher<?>> sourceProducer) {
     Payload invalidPayload = ByteBufPayload.create("test", "test");
     invalidPayload.release();
 
-    Publisher<?> source = sourceProducer.apply(invalidPayload, rule.socket);
+    Publisher<?> source = sourceProducer.apply(invalidPayload, rule);
 
-    StepVerifier.create(source, 0)
+    StepVerifier.create(source, 1)
         .expectError(IllegalReferenceCountException.class)
-        .verify(Duration.ofMillis(100));
+        .verify(Duration.ofMillis(1000));
   }
 
-  private static Stream<BiFunction<Payload, RSocket, Publisher<?>>> refCntCases() {
+  private static Stream<BiFunction<Payload, ClientSocketRule, Publisher<?>>> refCntCases() {
     return Stream.of(
-        (p, r) -> r.fireAndForget(p),
-        (p, r) -> r.requestResponse(p),
-        (p, r) -> r.requestStream(p),
-        (p, r) -> r.requestChannel(Mono.just(p)),
-        (p, r) ->
-            r.requestChannel(Flux.just(EmptyPayload.INSTANCE, p).doOnSubscribe(s -> s.request(1))));
+        (p, clientSocketRule) -> clientSocketRule.socket.fireAndForget(p),
+        (p, clientSocketRule) -> clientSocketRule.socket.requestResponse(p),
+        (p, clientSocketRule) -> clientSocketRule.socket.requestStream(p),
+        (p, clientSocketRule) -> clientSocketRule.socket.requestChannel(Mono.just(p)),
+        (p, clientSocketRule) -> {
+          Flux.from(clientSocketRule.connection.getSentAsPublisher())
+              .filter(bb -> FrameHeaderCodec.frameType(bb) == REQUEST_CHANNEL)
+              .subscribe(
+                  bb -> {
+                    clientSocketRule.connection.addToReceivedBuffer(
+                        RequestNFrameCodec.encode(
+                            clientSocketRule.allocator, FrameHeaderCodec.streamId(bb), 1));
+                    bb.release();
+                  });
+
+          return clientSocketRule.socket.requestChannel(Flux.just(EmptyPayload.INSTANCE, p));
+        });
   }
 
   @Test
@@ -904,7 +949,7 @@ public class RSocketRequesterTest {
     assertSubscriber2.request(1);
 
     Assertions.assertThat(rule.connection.getSent())
-        .hasSize(1)
+        .hasSize(frameType == REQUEST_CHANNEL ? 2 : 1)
         .first()
         .matches(bb -> frameType(bb) == frameType)
         .matches(
@@ -931,11 +976,23 @@ public class RSocketRequesterTest {
             })
         .matches(ReferenceCounted::release);
 
+    if (frameType == REQUEST_CHANNEL) {
+      Assertions.assertThat(rule.connection.getSent())
+          .element(1)
+          .matches(bb -> frameType(bb) == COMPLETE)
+          .matches(
+              bb -> FrameHeaderCodec.streamId(bb) == 1,
+              "Expected to have stream ID {1} but got {"
+                  + FrameHeaderCodec.streamId(new ArrayList<>(rule.connection.getSent()).get(1))
+                  + "}")
+          .matches(ReferenceCounted::release);
+    }
+
     rule.connection.clearSendReceiveBuffers();
 
     assertSubscriber1.request(1);
     Assertions.assertThat(rule.connection.getSent())
-        .hasSize(1)
+        .hasSize(frameType == REQUEST_CHANNEL ? 2 : 1)
         .first()
         .matches(bb -> frameType(bb) == frameType)
         .matches(
@@ -961,6 +1018,18 @@ public class RSocketRequesterTest {
               return false;
             })
         .matches(ReferenceCounted::release);
+
+    if (frameType == REQUEST_CHANNEL) {
+      Assertions.assertThat(rule.connection.getSent())
+          .element(1)
+          .matches(bb -> frameType(bb) == COMPLETE)
+          .matches(
+              bb -> FrameHeaderCodec.streamId(bb) == 3,
+              "Expected to have stream ID {1} but got {"
+                  + FrameHeaderCodec.streamId(new ArrayList<>(rule.connection.getSent()).get(1))
+                  + "}")
+          .matches(ReferenceCounted::release);
+    }
   }
 
   private static Stream<Arguments> requestNInteractions() {
@@ -981,6 +1050,7 @@ public class RSocketRequesterTest {
 
   @ParameterizedTest
   @MethodSource("streamRacingCases")
+  @Disabled("Connection should take care of ordering if such is necessary")
   public void ensuresCorrectOrderOfStreamIdIssuingInCaseOfRacing(
       BiFunction<ClientSocketRule, Payload, Publisher<?>> interaction1,
       BiFunction<ClientSocketRule, Payload, Publisher<?>> interaction2,
@@ -1090,7 +1160,7 @@ public class RSocketRequesterTest {
           Schedulers.parallel());
 
       assertSubscriber1.await().assertTerminated();
-      if (interactionType1 != REQUEST_FNF) {
+      if (interactionType1 != REQUEST_FNF && interactionType1 != METADATA_PUSH) {
         assertSubscriber1.assertError(ClosedChannelException.class);
       } else {
         try {
@@ -1101,7 +1171,7 @@ public class RSocketRequesterTest {
         }
       }
       assertSubscriber2.await().assertTerminated();
-      if (interactionType2 != REQUEST_FNF) {
+      if (interactionType2 != REQUEST_FNF && interactionType2 != METADATA_PUSH) {
         assertSubscriber2.assertError(ClosedChannelException.class);
       } else {
         try {
@@ -1121,6 +1191,7 @@ public class RSocketRequesterTest {
   }
 
   @Test
+  @Disabled("Reactor 3.4.0 should fix that. No need to do anything on our side")
   // see https://github.com/rsocket/rsocket-java/issues/858
   public void testWorkaround858() {
     ByteBuf buffer = rule.alloc().buffer();
@@ -1153,9 +1224,9 @@ public class RSocketRequesterTest {
           maxFrameLength,
           Integer.MAX_VALUE,
           Integer.MAX_VALUE,
+          Integer.MAX_VALUE,
           null,
-          RequesterLeaseHandler.None,
-          TestScheduler.INSTANCE);
+          RequesterLeaseHandler.None);
     }
 
     public int getStreamIdForRequestType(FrameType expectedFrameType) {

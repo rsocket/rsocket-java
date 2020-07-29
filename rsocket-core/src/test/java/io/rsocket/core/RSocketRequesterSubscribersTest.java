@@ -20,8 +20,8 @@ import static io.rsocket.frame.FrameLengthCodec.FRAME_LENGTH_MASK;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
+import io.netty.util.CharsetUtil;
 import io.rsocket.RSocket;
-import io.rsocket.TestScheduler;
 import io.rsocket.buffer.LeaksTrackingByteBufAllocator;
 import io.rsocket.frame.FrameHeaderCodec;
 import io.rsocket.frame.FrameType;
@@ -40,9 +40,11 @@ import java.util.stream.Stream;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 import reactor.test.util.RaceTestUtils;
 
 class RSocketRequesterSubscribersTest {
@@ -71,11 +73,11 @@ class RSocketRequesterSubscribersTest {
             StreamIdSupplier.clientSupplier(),
             0,
             FRAME_LENGTH_MASK,
+            Integer.MAX_VALUE,
             0,
             0,
             null,
-            RequesterLeaseHandler.None,
-            TestScheduler.INSTANCE);
+            RequesterLeaseHandler.None);
   }
 
   @ParameterizedTest
@@ -99,7 +101,8 @@ class RSocketRequesterSubscribersTest {
 
   @ParameterizedTest
   @MethodSource("allInteractions")
-  void singleSubscriberInCaseOfRacing(Function<RSocket, Publisher<?>> interaction) {
+  void singleSubscriberInCaseOfRacing(
+      Function<RSocket, Publisher<?>> interaction, FrameType requestType) {
     for (int i = 1; i < 20000; i += 2) {
       Flux<?> response = Flux.from(interaction.apply(rSocketRequester));
       AssertSubscriber assertSubscriberA = AssertSubscriber.create();
@@ -116,12 +119,23 @@ class RSocketRequesterSubscribersTest {
       Assertions.assertThat(new AssertSubscriber[] {assertSubscriberA, assertSubscriberB})
           .anySatisfy(as -> as.assertError(IllegalStateException.class));
 
-      Assertions.assertThat(connection.getSent())
-          .hasSize(1)
-          .first()
-          .matches(bb -> REQUEST_TYPES.contains(FrameHeaderCodec.frameType(bb)))
-          .matches(ByteBuf::release);
-
+      if (requestType == FrameType.REQUEST_CHANNEL) {
+        Assertions.assertThat(connection.getSent())
+            .hasSize(2)
+            .first()
+            .matches(bb -> REQUEST_TYPES.contains(FrameHeaderCodec.frameType(bb)))
+            .matches(ByteBuf::release);
+        Assertions.assertThat(connection.getSent())
+            .element(1)
+            .matches(bb -> FrameHeaderCodec.frameType(bb) == FrameType.COMPLETE)
+            .matches(ByteBuf::release);
+      } else {
+        Assertions.assertThat(connection.getSent())
+            .hasSize(1)
+            .first()
+            .matches(bb -> REQUEST_TYPES.contains(FrameHeaderCodec.frameType(bb)))
+            .matches(ByteBuf::release);
+      }
       connection.clearSendReceiveBuffers();
     }
   }
@@ -141,12 +155,29 @@ class RSocketRequesterSubscribersTest {
         .count();
   }
 
-  static Stream<Function<RSocket, Publisher<?>>> allInteractions() {
+  static Stream<Arguments> allInteractions() {
     return Stream.of(
-        rSocket -> rSocket.fireAndForget(DefaultPayload.create("test")),
-        rSocket -> rSocket.requestResponse(DefaultPayload.create("test")),
-        rSocket -> rSocket.requestStream(DefaultPayload.create("test")),
-        //        rSocket -> rSocket.requestChannel(Mono.just(DefaultPayload.create("test"))),
-        rSocket -> rSocket.metadataPush(DefaultPayload.create("", "test")));
+        Arguments.of(
+            (Function<RSocket, Publisher<?>>)
+                rSocket -> rSocket.fireAndForget(DefaultPayload.create("test")),
+            FrameType.REQUEST_FNF),
+        Arguments.of(
+            (Function<RSocket, Publisher<?>>)
+                rSocket -> rSocket.requestResponse(DefaultPayload.create("test")),
+            FrameType.REQUEST_RESPONSE),
+        Arguments.of(
+            (Function<RSocket, Publisher<?>>)
+                rSocket -> rSocket.requestStream(DefaultPayload.create("test")),
+            FrameType.REQUEST_STREAM),
+        Arguments.of(
+            (Function<RSocket, Publisher<?>>)
+                rSocket -> rSocket.requestChannel(Mono.just(DefaultPayload.create("test"))),
+            FrameType.REQUEST_CHANNEL),
+        Arguments.of(
+            (Function<RSocket, Publisher<?>>)
+                rSocket ->
+                    rSocket.metadataPush(
+                        DefaultPayload.create(new byte[0], "test".getBytes(CharsetUtil.UTF_8))),
+            FrameType.METADATA_PUSH));
   }
 }

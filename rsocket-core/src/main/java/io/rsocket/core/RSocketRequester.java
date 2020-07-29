@@ -16,102 +16,57 @@
 
 package io.rsocket.core;
 
-import static io.rsocket.core.PayloadValidationUtils.INVALID_PAYLOAD_ERROR_MESSAGE;
 import static io.rsocket.keepalive.KeepAliveSupport.ClientKeepAliveSupport;
-import static io.rsocket.keepalive.KeepAliveSupport.KeepAlive;
 
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.ByteBufAllocator;
-import io.netty.util.IllegalReferenceCountException;
 import io.netty.util.ReferenceCountUtil;
-import io.netty.util.ReferenceCounted;
-import io.netty.util.collection.IntObjectMap;
 import io.rsocket.DuplexConnection;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.exceptions.ConnectionErrorException;
 import io.rsocket.exceptions.Exceptions;
-import io.rsocket.frame.CancelFrameCodec;
 import io.rsocket.frame.ErrorFrameCodec;
 import io.rsocket.frame.FrameHeaderCodec;
 import io.rsocket.frame.FrameType;
-import io.rsocket.frame.MetadataPushFrameCodec;
-import io.rsocket.frame.PayloadFrameCodec;
-import io.rsocket.frame.RequestChannelFrameCodec;
-import io.rsocket.frame.RequestFireAndForgetFrameCodec;
 import io.rsocket.frame.RequestNFrameCodec;
-import io.rsocket.frame.RequestResponseFrameCodec;
-import io.rsocket.frame.RequestStreamFrameCodec;
 import io.rsocket.frame.decoder.PayloadDecoder;
-import io.rsocket.internal.SynchronizedIntObjectHashMap;
 import io.rsocket.internal.UnboundedProcessor;
 import io.rsocket.keepalive.KeepAliveFramesAcceptor;
 import io.rsocket.keepalive.KeepAliveHandler;
 import io.rsocket.keepalive.KeepAliveSupport;
 import io.rsocket.lease.RequesterLeaseHandler;
 import java.nio.channels.ClosedChannelException;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
-import org.reactivestreams.Processor;
 import org.reactivestreams.Publisher;
-import org.reactivestreams.Subscriber;
-import org.reactivestreams.Subscription;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import reactor.core.publisher.BaseSubscriber;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
-import reactor.core.publisher.Operators;
-import reactor.core.publisher.SignalType;
-import reactor.core.publisher.UnicastProcessor;
-import reactor.core.scheduler.Scheduler;
 import reactor.util.annotation.Nullable;
-import reactor.util.concurrent.Queues;
 
 /**
  * Requester Side of a RSocket socket. Sends {@link ByteBuf}s to a {@link RSocketResponder} of peer
  */
-class RSocketRequester implements RSocket {
+class RSocketRequester extends RequesterResponderSupport implements RSocket {
   private static final Logger LOGGER = LoggerFactory.getLogger(RSocketRequester.class);
 
   private static final Exception CLOSED_CHANNEL_EXCEPTION = new ClosedChannelException();
-  private static final Consumer<ReferenceCounted> DROPPED_ELEMENTS_CONSUMER =
-      referenceCounted -> {
-        if (referenceCounted.refCnt() > 0) {
-          try {
-            referenceCounted.release();
-          } catch (IllegalReferenceCountException e) {
-            // ignored
-          }
-        }
-      };
 
   static {
     CLOSED_CHANNEL_EXCEPTION.setStackTrace(new StackTraceElement[0]);
   }
 
   private volatile Throwable terminationError;
-
   private static final AtomicReferenceFieldUpdater<RSocketRequester, Throwable> TERMINATION_ERROR =
       AtomicReferenceFieldUpdater.newUpdater(
           RSocketRequester.class, Throwable.class, "terminationError");
 
   private final DuplexConnection connection;
-  private final PayloadDecoder payloadDecoder;
-  private final StreamIdSupplier streamIdSupplier;
-  private final IntObjectMap<Subscription> senders;
-  private final IntObjectMap<Processor<Payload, Payload>> receivers;
-  private final UnboundedProcessor<ByteBuf> sendProcessor;
-  private final int mtu;
-  private final int maxFrameLength;
   private final RequesterLeaseHandler leaseHandler;
-  private final ByteBufAllocator allocator;
   private final KeepAliveFramesAcceptor keepAliveFramesAcceptor;
   private final MonoProcessor<Void> onClose;
-  private final Scheduler serialScheduler;
 
   RSocketRequester(
       DuplexConnection connection,
@@ -119,26 +74,26 @@ class RSocketRequester implements RSocket {
       StreamIdSupplier streamIdSupplier,
       int mtu,
       int maxFrameLength,
+      int maxInboundPayloadSize,
       int keepAliveTickPeriod,
       int keepAliveAckTimeout,
       @Nullable KeepAliveHandler keepAliveHandler,
-      RequesterLeaseHandler leaseHandler,
-      Scheduler serialScheduler) {
+      RequesterLeaseHandler leaseHandler) {
+    super(
+        mtu,
+        maxFrameLength,
+        maxInboundPayloadSize,
+        payloadDecoder,
+        connection.alloc(),
+        streamIdSupplier);
+
     this.connection = connection;
-    this.allocator = connection.alloc();
-    this.payloadDecoder = payloadDecoder;
-    this.streamIdSupplier = streamIdSupplier;
-    this.mtu = mtu;
-    this.maxFrameLength = maxFrameLength;
     this.leaseHandler = leaseHandler;
-    this.senders = new SynchronizedIntObjectHashMap<>();
-    this.receivers = new SynchronizedIntObjectHashMap<>();
     this.onClose = MonoProcessor.create();
-    this.serialScheduler = serialScheduler;
+
+    UnboundedProcessor<ByteBuf> sendProcessor = super.getSendProcessor();
 
     // DO NOT Change the order here. The Send processor must be subscribed to before receiving
-    this.sendProcessor = new UnboundedProcessor<>();
-
     connection.onClose().subscribe(null, this::tryTerminateOnConnectionError, this::tryShutdown);
     connection.send(sendProcessor).subscribe(null, this::handleSendProcessorError);
 
@@ -146,7 +101,7 @@ class RSocketRequester implements RSocket {
 
     if (keepAliveTickPeriod != 0 && keepAliveHandler != null) {
       KeepAliveSupport keepAliveSupport =
-          new ClientKeepAliveSupport(this.allocator, keepAliveTickPeriod, keepAliveAckTimeout);
+          new ClientKeepAliveSupport(this.getAllocator(), keepAliveTickPeriod, keepAliveAckTimeout);
       this.keepAliveFramesAcceptor =
           keepAliveHandler.start(
               keepAliveSupport, sendProcessor::onNextPrioritized, this::tryTerminateOnKeepAlive);
@@ -157,27 +112,68 @@ class RSocketRequester implements RSocket {
 
   @Override
   public Mono<Void> fireAndForget(Payload payload) {
-    return handleFireAndForget(payload);
+    return new FireAndForgetRequesterMono(payload, this);
   }
 
   @Override
   public Mono<Payload> requestResponse(Payload payload) {
-    return handleRequestResponse(payload);
+    return new RequestResponseRequesterMono(payload, this);
   }
 
   @Override
   public Flux<Payload> requestStream(Payload payload) {
-    return handleRequestStream(payload);
+    return new RequestStreamRequesterFlux(payload, this);
   }
 
   @Override
   public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
-    return handleChannel(Flux.from(payloads));
+    return new RequestChannelRequesterFlux(payloads, this);
   }
 
   @Override
   public Mono<Void> metadataPush(Payload payload) {
-    return handleMetadataPush(payload);
+    Throwable terminationError = this.terminationError;
+    if (terminationError != null) {
+      payload.release();
+      return Mono.error(terminationError);
+    }
+
+    return new MetadataPushRequesterMono(payload, this);
+  }
+
+  @Override
+  public int getNextStreamId() {
+    RequesterLeaseHandler leaseHandler = this.leaseHandler;
+    if (!leaseHandler.useLease()) {
+      throw reactor.core.Exceptions.propagate(leaseHandler.leaseError());
+    }
+
+    int nextStreamId = super.getNextStreamId();
+
+    Throwable terminationError = this.terminationError;
+    if (terminationError != null) {
+      throw reactor.core.Exceptions.propagate(terminationError);
+    }
+
+    return nextStreamId;
+  }
+
+  @Override
+  public int addAndGetNextStreamId(FrameHandler frameHandler) {
+    RequesterLeaseHandler leaseHandler = this.leaseHandler;
+    if (!leaseHandler.useLease()) {
+      throw reactor.core.Exceptions.propagate(leaseHandler.leaseError());
+    }
+
+    int nextStreamId = super.addAndGetNextStreamId(frameHandler);
+
+    Throwable terminationError = this.terminationError;
+    if (terminationError != null) {
+      super.remove(nextStreamId, frameHandler);
+      throw reactor.core.Exceptions.propagate(terminationError);
+    }
+
+    return nextStreamId;
   }
 
   @Override
@@ -198,436 +194,6 @@ class RSocketRequester implements RSocket {
   @Override
   public Mono<Void> onClose() {
     return onClose;
-  }
-
-  private Mono<Void> handleFireAndForget(Payload payload) {
-    if (payload.refCnt() <= 0) {
-      return Mono.error(new IllegalReferenceCountException());
-    }
-
-    if (isDisposed()) {
-      payload.release();
-      final Throwable t = terminationError;
-      return Mono.error(t);
-    }
-
-    if (!PayloadValidationUtils.isValid(this.mtu, payload, maxFrameLength)) {
-      payload.release();
-      return Mono.error(new IllegalArgumentException(INVALID_PAYLOAD_ERROR_MESSAGE));
-    }
-
-    final AtomicBoolean once = new AtomicBoolean();
-
-    return Mono.<Void>defer(
-            () -> {
-              if (once.getAndSet(true)) {
-                return Mono.error(
-                    new IllegalStateException("FireAndForgetMono allows only a single subscriber"));
-              }
-
-              if (isDisposed()) {
-                payload.release();
-                final Throwable t = terminationError;
-                return Mono.error(t);
-              }
-
-              RequesterLeaseHandler lh = leaseHandler;
-              if (!lh.useLease()) {
-                payload.release();
-                return Mono.error(lh.leaseError());
-              }
-
-              final int streamId = streamIdSupplier.nextStreamId(receivers);
-              final ByteBuf requestFrame =
-                  RequestFireAndForgetFrameCodec.encodeReleasingPayload(
-                      allocator, streamId, payload);
-
-              sendProcessor.onNext(requestFrame);
-
-              return Mono.empty();
-            })
-        .subscribeOn(serialScheduler);
-  }
-
-  private Mono<Payload> handleRequestResponse(final Payload payload) {
-    if (payload.refCnt() <= 0) {
-      return Mono.error(new IllegalReferenceCountException());
-    }
-
-    if (isDisposed()) {
-      payload.release();
-      final Throwable t = terminationError;
-      return Mono.error(t);
-    }
-
-    if (!PayloadValidationUtils.isValid(this.mtu, payload, maxFrameLength)) {
-      payload.release();
-      return Mono.error(new IllegalArgumentException(INVALID_PAYLOAD_ERROR_MESSAGE));
-    }
-
-    final UnboundedProcessor<ByteBuf> sendProcessor = this.sendProcessor;
-    final UnicastProcessor<Payload> receiver = UnicastProcessor.create(Queues.<Payload>one().get());
-    final AtomicBoolean once = new AtomicBoolean();
-
-    return Mono.defer(
-        () -> {
-          if (once.getAndSet(true)) {
-            return Mono.error(
-                new IllegalStateException("RequestResponseMono allows only a single subscriber"));
-          }
-
-          return receiver
-              .next()
-              .transform(
-                  Operators.<Payload, Payload>lift(
-                      (s, actual) ->
-                          new RequestOperator(actual) {
-
-                            @Override
-                            void hookOnFirstRequest(long n) {
-                              if (isDisposed()) {
-                                payload.release();
-                                final Throwable t = terminationError;
-                                receiver.onError(t);
-                                return;
-                              }
-
-                              RequesterLeaseHandler lh = leaseHandler;
-                              if (!lh.useLease()) {
-                                payload.release();
-                                receiver.onError(lh.leaseError());
-                                return;
-                              }
-
-                              int streamId = streamIdSupplier.nextStreamId(receivers);
-                              this.streamId = streamId;
-
-                              ByteBuf requestResponseFrame =
-                                  RequestResponseFrameCodec.encodeReleasingPayload(
-                                      allocator, streamId, payload);
-
-                              receivers.put(streamId, receiver);
-                              sendProcessor.onNext(requestResponseFrame);
-                            }
-
-                            @Override
-                            void hookOnCancel() {
-                              if (receivers.remove(streamId, receiver)) {
-                                sendProcessor.onNext(CancelFrameCodec.encode(allocator, streamId));
-                              } else {
-                                if (this.firstRequest) {
-                                  payload.release();
-                                }
-                              }
-                            }
-
-                            @Override
-                            public void hookOnTerminal(SignalType signalType) {
-                              receivers.remove(streamId, receiver);
-                            }
-                          }))
-              .subscribeOn(serialScheduler)
-              .doOnDiscard(ReferenceCounted.class, DROPPED_ELEMENTS_CONSUMER);
-        });
-  }
-
-  private Flux<Payload> handleRequestStream(final Payload payload) {
-    if (payload.refCnt() <= 0) {
-      return Flux.error(new IllegalReferenceCountException());
-    }
-
-    if (isDisposed()) {
-      payload.release();
-      final Throwable t = terminationError;
-      return Flux.error(t);
-    }
-
-    if (!PayloadValidationUtils.isValid(this.mtu, payload, maxFrameLength)) {
-      payload.release();
-      return Flux.error(new IllegalArgumentException(INVALID_PAYLOAD_ERROR_MESSAGE));
-    }
-
-    final UnboundedProcessor<ByteBuf> sendProcessor = this.sendProcessor;
-    final UnicastProcessor<Payload> receiver = UnicastProcessor.create();
-    final AtomicBoolean once = new AtomicBoolean();
-
-    return Flux.defer(
-        () -> {
-          if (once.getAndSet(true)) {
-            return Flux.error(
-                new IllegalStateException("RequestStreamFlux allows only a single subscriber"));
-          }
-
-          return receiver
-              .transform(
-                  Operators.<Payload, Payload>lift(
-                      (s, actual) ->
-                          new RequestOperator(actual) {
-
-                            @Override
-                            void hookOnFirstRequest(long n) {
-                              if (isDisposed()) {
-                                payload.release();
-                                final Throwable t = terminationError;
-                                receiver.onError(t);
-                                return;
-                              }
-
-                              RequesterLeaseHandler lh = leaseHandler;
-                              if (!lh.useLease()) {
-                                payload.release();
-                                receiver.onError(lh.leaseError());
-                                return;
-                              }
-
-                              int streamId = streamIdSupplier.nextStreamId(receivers);
-                              this.streamId = streamId;
-
-                              ByteBuf requestStreamFrame =
-                                  RequestStreamFrameCodec.encodeReleasingPayload(
-                                      allocator, streamId, n, payload);
-
-                              receivers.put(streamId, receiver);
-
-                              sendProcessor.onNext(requestStreamFrame);
-                            }
-
-                            @Override
-                            void hookOnRemainingRequests(long n) {
-                              if (receiver.isDisposed()) {
-                                return;
-                              }
-
-                              sendProcessor.onNext(
-                                  RequestNFrameCodec.encode(allocator, streamId, n));
-                            }
-
-                            @Override
-                            void hookOnCancel() {
-                              if (receivers.remove(streamId, receiver)) {
-                                sendProcessor.onNext(CancelFrameCodec.encode(allocator, streamId));
-                              } else {
-                                if (this.firstRequest) {
-                                  payload.release();
-                                }
-                              }
-                            }
-
-                            @Override
-                            void hookOnTerminal(SignalType signalType) {
-                              receivers.remove(streamId);
-                            }
-                          }))
-              .subscribeOn(serialScheduler, false)
-              .doOnDiscard(ReferenceCounted.class, DROPPED_ELEMENTS_CONSUMER);
-        });
-  }
-
-  private Flux<Payload> handleChannel(Flux<Payload> request) {
-    if (isDisposed()) {
-      final Throwable t = terminationError;
-      return Flux.error(t);
-    }
-
-    return request
-        .switchOnFirst(
-            (s, flux) -> {
-              Payload payload = s.get();
-              if (payload != null) {
-                if (payload.refCnt() <= 0) {
-                  return Mono.error(new IllegalReferenceCountException());
-                }
-
-                if (!PayloadValidationUtils.isValid(mtu, payload, maxFrameLength)) {
-                  payload.release();
-                  final IllegalArgumentException t =
-                      new IllegalArgumentException(INVALID_PAYLOAD_ERROR_MESSAGE);
-                  return Mono.error(t);
-                }
-                return handleChannel(payload, flux);
-              } else {
-                return flux;
-              }
-            },
-            false)
-        .doOnDiscard(ReferenceCounted.class, DROPPED_ELEMENTS_CONSUMER);
-  }
-
-  private Flux<? extends Payload> handleChannel(Payload initialPayload, Flux<Payload> inboundFlux) {
-    final UnboundedProcessor<ByteBuf> sendProcessor = this.sendProcessor;
-
-    final UnicastProcessor<Payload> receiver = UnicastProcessor.create();
-
-    return receiver
-        .transform(
-            Operators.<Payload, Payload>lift(
-                (s, actual) ->
-                    new RequestOperator(actual) {
-
-                      final BaseSubscriber<Payload> upstreamSubscriber =
-                          new BaseSubscriber<Payload>() {
-
-                            boolean first = true;
-
-                            @Override
-                            protected void hookOnSubscribe(Subscription subscription) {
-                              // noops
-                            }
-
-                            @Override
-                            protected void hookOnNext(Payload payload) {
-                              if (first) {
-                                // need to skip first since we have already sent it
-                                // no need to release it since it was released earlier on the
-                                // request
-                                // establishment
-                                // phase
-                                first = false;
-                                request(1);
-                                return;
-                              }
-                              if (!PayloadValidationUtils.isValid(mtu, payload, maxFrameLength)) {
-                                payload.release();
-                                cancel();
-                                final IllegalArgumentException t =
-                                    new IllegalArgumentException(INVALID_PAYLOAD_ERROR_MESSAGE);
-                                // no need to send any errors.
-                                sendProcessor.onNext(CancelFrameCodec.encode(allocator, streamId));
-                                receiver.onError(t);
-                                return;
-                              }
-                              final ByteBuf frame =
-                                  PayloadFrameCodec.encodeNextReleasingPayload(
-                                      allocator, streamId, payload);
-
-                              sendProcessor.onNext(frame);
-                            }
-
-                            @Override
-                            protected void hookOnComplete() {
-                              ByteBuf frame = PayloadFrameCodec.encodeComplete(allocator, streamId);
-                              sendProcessor.onNext(frame);
-                            }
-
-                            @Override
-                            protected void hookOnError(Throwable t) {
-                              ByteBuf frame = ErrorFrameCodec.encode(allocator, streamId, t);
-                              sendProcessor.onNext(frame);
-                              receiver.onError(t);
-                            }
-
-                            @Override
-                            protected void hookFinally(SignalType type) {
-                              senders.remove(streamId, this);
-                            }
-                          };
-
-                      @Override
-                      void hookOnFirstRequest(long n) {
-                        if (isDisposed()) {
-                          initialPayload.release();
-                          final Throwable t = terminationError;
-                          upstreamSubscriber.cancel();
-                          receiver.onError(t);
-                          return;
-                        }
-
-                        RequesterLeaseHandler lh = leaseHandler;
-                        if (!lh.useLease()) {
-                          initialPayload.release();
-                          receiver.onError(lh.leaseError());
-                          return;
-                        }
-
-                        final int streamId = streamIdSupplier.nextStreamId(receivers);
-                        this.streamId = streamId;
-
-                        final ByteBuf frame =
-                            RequestChannelFrameCodec.encodeReleasingPayload(
-                                allocator, streamId, false, n, initialPayload);
-
-                        senders.put(streamId, upstreamSubscriber);
-                        receivers.put(streamId, receiver);
-
-                        inboundFlux
-                            .doOnDiscard(ReferenceCounted.class, DROPPED_ELEMENTS_CONSUMER)
-                            .subscribe(upstreamSubscriber);
-
-                        sendProcessor.onNext(frame);
-                      }
-
-                      @Override
-                      void hookOnRemainingRequests(long n) {
-                        if (receiver.isDisposed()) {
-                          return;
-                        }
-
-                        sendProcessor.onNext(RequestNFrameCodec.encode(allocator, streamId, n));
-                      }
-
-                      @Override
-                      void hookOnCancel() {
-                        senders.remove(streamId, upstreamSubscriber);
-                        if (receivers.remove(streamId, receiver)) {
-                          sendProcessor.onNext(CancelFrameCodec.encode(allocator, streamId));
-                        }
-                      }
-
-                      @Override
-                      void hookOnTerminal(SignalType signalType) {
-                        if (signalType == SignalType.ON_ERROR) {
-                          upstreamSubscriber.cancel();
-                        }
-                        receivers.remove(streamId, receiver);
-                      }
-
-                      @Override
-                      public void cancel() {
-                        upstreamSubscriber.cancel();
-                        super.cancel();
-                      }
-                    }))
-        .subscribeOn(serialScheduler, false);
-  }
-
-  private Mono<Void> handleMetadataPush(Payload payload) {
-    if (payload.refCnt() <= 0) {
-      return Mono.error(new IllegalReferenceCountException());
-    }
-
-    if (isDisposed()) {
-      Throwable err = this.terminationError;
-      payload.release();
-      return Mono.error(err);
-    }
-
-    if (!PayloadValidationUtils.isValid(this.mtu, payload, maxFrameLength)) {
-      payload.release();
-      return Mono.error(new IllegalArgumentException(INVALID_PAYLOAD_ERROR_MESSAGE));
-    }
-
-    final AtomicBoolean once = new AtomicBoolean();
-
-    return Mono.defer(
-        () -> {
-          if (once.getAndSet(true)) {
-            return Mono.error(
-                new IllegalStateException("MetadataPushMono allows only a single subscriber"));
-          }
-
-          if (isDisposed()) {
-            payload.release();
-            final Throwable t = terminationError;
-            return Mono.error(t);
-          }
-
-          ByteBuf metadataPushFrame =
-              MetadataPushFrameCodec.encodeReleasingPayload(allocator, payload);
-
-          sendProcessor.onNextPrioritized(metadataPushFrame);
-
-          return Mono.empty();
-        });
   }
 
   private void handleIncomingFrames(ByteBuf frame) {
@@ -668,79 +234,42 @@ class RSocketRequester implements RSocket {
   }
 
   private void handleFrame(int streamId, FrameType type, ByteBuf frame) {
-    Subscriber<Payload> receiver = receivers.get(streamId);
+    FrameHandler receiver = this.get(streamId);
+    if (receiver == null) {
+      handleMissingResponseProcessor(streamId, type, frame);
+      return;
+    }
+
     switch (type) {
-      case NEXT:
-        if (receiver == null) {
-          handleMissingResponseProcessor(streamId, type, frame);
-          return;
-        }
-        receiver.onNext(payloadDecoder.apply(frame));
-        break;
       case NEXT_COMPLETE:
-        if (receiver == null) {
-          handleMissingResponseProcessor(streamId, type, frame);
-          return;
-        }
-        receiver.onNext(payloadDecoder.apply(frame));
-        receiver.onComplete();
+        receiver.handleNext(frame, false, true);
+        break;
+      case NEXT:
+        boolean hasFollows = FrameHeaderCodec.hasFollows(frame);
+        receiver.handleNext(frame, hasFollows, false);
         break;
       case COMPLETE:
-        if (receiver == null) {
-          handleMissingResponseProcessor(streamId, type, frame);
-          return;
-        }
-        receiver.onComplete();
-        receivers.remove(streamId);
+        receiver.handleComplete();
         break;
       case ERROR:
-        if (receiver == null) {
-          handleMissingResponseProcessor(streamId, type, frame);
-          return;
-        }
-
-        // FIXME: when https://github.com/reactor/reactor-core/issues/2176 is resolved
-        //        This is workaround to handle specific Reactor related case when
-        //        onError call may not return normally
-        try {
-          receiver.onError(Exceptions.from(streamId, frame));
-        } catch (RuntimeException e) {
-          if (reactor.core.Exceptions.isBubbling(e)
-              || reactor.core.Exceptions.isErrorCallbackNotImplemented(e)) {
-            if (LOGGER.isDebugEnabled()) {
-              Throwable unwrapped = reactor.core.Exceptions.unwrap(e);
-              LOGGER.debug("Unhandled dropped exception", unwrapped);
-            }
-          }
-        }
-
-        receivers.remove(streamId);
+        receiver.handleError(Exceptions.from(streamId, frame));
         break;
       case CANCEL:
-        {
-          Subscription sender = senders.remove(streamId);
-          if (sender != null) {
-            sender.cancel();
-          }
-          break;
-        }
+        receiver.handleCancel();
+        break;
       case REQUEST_N:
-        {
-          Subscription sender = senders.get(streamId);
-          if (sender != null) {
-            long n = RequestNFrameCodec.requestN(frame);
-            sender.request(n);
-          }
-          break;
-        }
+        long n = RequestNFrameCodec.requestN(frame);
+        receiver.handleRequestN(n);
+        break;
       default:
         throw new IllegalStateException(
             "Requester received unsupported frame on stream " + streamId + ": " + frame.toString());
     }
   }
 
+  @SuppressWarnings("ConstantConditions")
   private void handleMissingResponseProcessor(int streamId, FrameType type, ByteBuf frame) {
-    if (!streamIdSupplier.isBeforeOrCurrent(streamId)) {
+    if (!super.streamIdSupplier.isBeforeOrCurrent(streamId)) {
       if (type == FrameType.ERROR) {
         // message for stream that has never existed, we have a problem with
         // the overall connection and must tear down
@@ -763,7 +292,7 @@ class RSocketRequester implements RSocket {
     // so ignore (cancellation is async so there is a race condition)
   }
 
-  private void tryTerminateOnKeepAlive(KeepAlive keepAlive) {
+  private void tryTerminateOnKeepAlive(KeepAliveSupport.KeepAlive keepAlive) {
     tryTerminate(
         () ->
             new ConnectionErrorException(
@@ -782,7 +311,7 @@ class RSocketRequester implements RSocket {
     if (terminationError == null) {
       Throwable e = errorSupplier.get();
       if (TERMINATION_ERROR.compareAndSet(this, null, e)) {
-        serialScheduler.schedule(() -> terminate(e));
+        terminate(e);
       }
     }
   }
@@ -790,7 +319,7 @@ class RSocketRequester implements RSocket {
   private void tryShutdown() {
     if (terminationError == null) {
       if (TERMINATION_ERROR.compareAndSet(this, null, CLOSED_CHANNEL_EXCEPTION)) {
-        serialScheduler.schedule(() -> terminate(CLOSED_CHANNEL_EXCEPTION));
+        terminate(CLOSED_CHANNEL_EXCEPTION);
       }
     }
   }
@@ -802,33 +331,19 @@ class RSocketRequester implements RSocket {
     connection.dispose();
     leaseHandler.dispose();
 
-    receivers
-        .values()
-        .forEach(
-            receiver -> {
-              try {
-                receiver.onError(e);
-              } catch (Throwable t) {
-                if (LOGGER.isDebugEnabled()) {
-                  LOGGER.debug("Dropped exception", t);
+    synchronized (this) {
+      activeStreams
+          .values()
+          .forEach(
+              receiver -> {
+                try {
+                  receiver.handleError(e);
+                } catch (Throwable ignored) {
                 }
-              }
-            });
-    senders
-        .values()
-        .forEach(
-            sender -> {
-              try {
-                sender.cancel();
-              } catch (Throwable t) {
-                if (LOGGER.isDebugEnabled()) {
-                  LOGGER.debug("Dropped exception", t);
-                }
-              }
-            });
-    senders.clear();
-    receivers.clear();
-    sendProcessor.dispose();
+              });
+    }
+
+    this.getSendProcessor().dispose();
     if (e == CLOSED_CHANNEL_EXCEPTION) {
       onClose.onComplete();
     } else {

@@ -16,7 +16,9 @@
 
 package io.rsocket.core;
 
+import static io.rsocket.core.FragmentationUtils.assertMtu;
 import static io.rsocket.core.PayloadValidationUtils.assertValidateSetup;
+import static io.rsocket.core.ReassemblyUtils.assertInboundPayloadSize;
 import static io.rsocket.frame.FrameLengthCodec.FRAME_LENGTH_MASK;
 
 import io.netty.buffer.ByteBuf;
@@ -28,8 +30,6 @@ import io.rsocket.RSocket;
 import io.rsocket.SocketAcceptor;
 import io.rsocket.exceptions.InvalidSetupException;
 import io.rsocket.exceptions.RejectedSetupException;
-import io.rsocket.fragmentation.FragmentationDuplexConnection;
-import io.rsocket.fragmentation.ReassemblyDuplexConnection;
 import io.rsocket.frame.FrameHeaderCodec;
 import io.rsocket.frame.SetupFrameCodec;
 import io.rsocket.frame.decoder.PayloadDecoder;
@@ -45,7 +45,6 @@ import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Schedulers;
 
 /**
  * The main class for starting an RSocket server.
@@ -218,8 +217,7 @@ public final class RSocketServer {
    *     and Reassembly</a>
    */
   public RSocketServer maxInboundPayloadSize(int maxInboundPayloadSize) {
-    this.maxInboundPayloadSize =
-        ReassemblyDuplexConnection.assertInboundPayloadSize(maxInboundPayloadSize);
+    this.maxInboundPayloadSize = assertInboundPayloadSize(maxInboundPayloadSize);
     return this;
   }
 
@@ -237,7 +235,7 @@ public final class RSocketServer {
    *     and Reassembly</a>
    */
   public RSocketServer fragment(int mtu) {
-    this.mtu = FragmentationDuplexConnection.assertMtu(mtu);
+    this.mtu = assertMtu(mtu);
     return this;
   }
 
@@ -337,10 +335,6 @@ public final class RSocketServer {
 
   private Mono<Void> acceptor(
       ServerSetup serverSetup, DuplexConnection connection, int maxFrameLength) {
-    connection =
-        mtu > 0
-            ? new FragmentationDuplexConnection(connection, mtu, maxInboundPayloadSize, "server")
-            : new ReassemblyDuplexConnection(connection, maxInboundPayloadSize);
 
     ClientServerInputMultiplexer multiplexer =
         new ClientServerInputMultiplexer(connection, interceptors, false);
@@ -430,11 +424,11 @@ public final class RSocketServer {
                   StreamIdSupplier.serverSupplier(),
                   mtu,
                   maxFrameLength,
+                  maxInboundPayloadSize,
                   setupPayload.keepAliveInterval(),
                   setupPayload.keepAliveMaxLifetime(),
                   keepAliveHandler,
-                  requesterLeaseHandler,
-                  Schedulers.single(Schedulers.parallel()));
+                  requesterLeaseHandler);
 
           RSocket wrappedRSocketRequester = interceptors.initRequester(rSocketRequester);
 
@@ -464,7 +458,8 @@ public final class RSocketServer {
                             payloadDecoder,
                             responderLeaseHandler,
                             mtu,
-                            maxFrameLength);
+                            maxFrameLength,
+                            maxInboundPayloadSize);
                   })
               .doFinally(signalType -> setupPayload.release())
               .then();

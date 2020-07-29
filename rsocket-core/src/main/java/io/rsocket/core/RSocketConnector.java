@@ -15,7 +15,9 @@
  */
 package io.rsocket.core;
 
+import static io.rsocket.core.FragmentationUtils.assertMtu;
 import static io.rsocket.core.PayloadValidationUtils.assertValidateSetup;
+import static io.rsocket.core.ReassemblyUtils.assertInboundPayloadSize;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -25,8 +27,6 @@ import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.RSocketClient;
 import io.rsocket.SocketAcceptor;
-import io.rsocket.fragmentation.FragmentationDuplexConnection;
-import io.rsocket.fragmentation.ReassemblyDuplexConnection;
 import io.rsocket.frame.SetupFrameCodec;
 import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.internal.ClientServerInputMultiplexer;
@@ -48,7 +48,6 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 import reactor.core.Disposable;
 import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Schedulers;
 import reactor.util.annotation.Nullable;
 import reactor.util.function.Tuples;
 import reactor.util.retry.Retry;
@@ -441,8 +440,7 @@ public class RSocketConnector {
    *     and Reassembly</a>
    */
   public RSocketConnector maxInboundPayloadSize(int maxInboundPayloadSize) {
-    this.maxInboundPayloadSize =
-        ReassemblyDuplexConnection.assertInboundPayloadSize(maxInboundPayloadSize);
+    this.maxInboundPayloadSize = assertInboundPayloadSize(maxInboundPayloadSize);
     return this;
   }
 
@@ -460,7 +458,7 @@ public class RSocketConnector {
    *     and Reassembly</a>
    */
   public RSocketConnector fragment(int mtu) {
-    this.mtu = FragmentationDuplexConnection.assertMtu(mtu);
+    this.mtu = assertMtu(mtu);
     return this;
   }
 
@@ -576,14 +574,7 @@ public class RSocketConnector {
                             assertValidateSetup(maxFrameLength, maxInboundPayloadSize, mtu);
                             return ct;
                           })
-                      .flatMap(transport -> transport.connect())
-                      .map(
-                          connection ->
-                              mtu > 0
-                                  ? new FragmentationDuplexConnection(
-                                      connection, mtu, maxInboundPayloadSize, "client")
-                                  : new ReassemblyDuplexConnection(
-                                      connection, maxInboundPayloadSize));
+                      .flatMap(transport -> transport.connect());
 
               return connectionMono
                   .flatMap(
@@ -641,11 +632,11 @@ public class RSocketConnector {
                                 StreamIdSupplier.clientSupplier(),
                                 mtu,
                                 maxFrameLength,
+                                maxInboundPayloadSize,
                                 (int) keepAliveInterval.toMillis(),
                                 (int) keepAliveMaxLifeTime.toMillis(),
                                 keepAliveHandler,
-                                requesterLeaseHandler,
-                                Schedulers.single(Schedulers.parallel()));
+                                requesterLeaseHandler);
 
                         RSocket wrappedRSocketRequester =
                             interceptors.initRequester(rSocketRequester);
@@ -693,7 +684,8 @@ public class RSocketConnector {
                                           payloadDecoder,
                                           responderLeaseHandler,
                                           mtu,
-                                          maxFrameLength);
+                                          maxFrameLength,
+                                          maxInboundPayloadSize);
 
                                   return wrappedConnection
                                       .sendOne(setupFrame.retain())

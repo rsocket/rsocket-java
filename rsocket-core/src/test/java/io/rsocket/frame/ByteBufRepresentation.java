@@ -27,12 +27,17 @@ public final class ByteBufRepresentation extends StandardRepresentation {
     if (object instanceof ByteBuf) {
       try {
         String normalBufferString = object.toString();
-        String prettyHexDump = ByteBufUtil.prettyHexDump((ByteBuf) object);
-        return new StringBuilder()
-            .append(normalBufferString)
-            .append("\n")
-            .append(prettyHexDump)
-            .toString();
+        ByteBuf byteBuf = (ByteBuf) object;
+        if (byteBuf.readableBytes() <= 128) {
+          String prettyHexDump = ByteBufUtil.prettyHexDump(byteBuf);
+          return new StringBuilder()
+              .append(normalBufferString)
+              .append("\n")
+              .append(prettyHexDump)
+              .toString();
+        } else {
+          return normalBufferString;
+        }
       } catch (IllegalReferenceCountException e) {
         // noops
       }
