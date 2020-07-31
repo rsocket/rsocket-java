@@ -277,7 +277,7 @@ final class ReassembleDuplexConnectionTest {
         .verifyComplete();
   }
 
-  @ParameterizedTest(name = "throws error if reassembling payload size exist {0}")
+  @ParameterizedTest(name = "throws error if reassembling payload size exceeds {0}")
   @ValueSource(ints = {64, 1024, 2048, 4096})
   public void errorTooBigPayload(int maxFrameLength) {
     List<ByteBuf> byteBufs =
@@ -326,6 +326,39 @@ final class ReassembleDuplexConnectionTest {
             t ->
                 Assertions.assertThat(t)
                     .hasMessage("Reassembled payload went out of allowed size")
+                    .isExactlyInstanceOf(IllegalStateException.class))
+        .verify(Duration.ofSeconds(1));
+
+    allocator.assertHasNoLeaks();
+  }
+
+  @DisplayName("throws error on empty fragment")
+  @Test
+  public void errorEmptyFrame() {
+    List<ByteBuf> byteBufs =
+        Arrays.asList(
+            RequestResponseFrameCodec.encode(
+                allocator, 1, true, Unpooled.wrappedBuffer(metadata), Unpooled.EMPTY_BUFFER),
+            PayloadFrameCodec.encode(
+                allocator, 1, true, false, true, Unpooled.EMPTY_BUFFER, Unpooled.EMPTY_BUFFER));
+
+    MonoProcessor<Void> onClose = MonoProcessor.create();
+
+    when(delegate.receive())
+        .thenReturn(
+            Flux.fromIterable(byteBufs)
+                .doOnDiscard(ReferenceCounted.class, ReferenceCountUtil::release));
+    when(delegate.onClose()).thenReturn(onClose);
+    when(delegate.alloc()).thenReturn(allocator);
+
+    new ReassemblyDuplexConnection(delegate, Integer.MAX_VALUE)
+        .receive()
+        .doFinally(__ -> onClose.onComplete())
+        .as(StepVerifier::create)
+        .expectErrorSatisfies(
+            t ->
+                Assertions.assertThat(t)
+                    .hasMessage("Empty frame.")
                     .isExactlyInstanceOf(IllegalStateException.class))
         .verify(Duration.ofSeconds(1));
 

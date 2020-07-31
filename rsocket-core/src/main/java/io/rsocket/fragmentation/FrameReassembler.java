@@ -23,7 +23,14 @@ import io.netty.buffer.Unpooled;
 import io.netty.util.ReferenceCountUtil;
 import io.netty.util.collection.IntObjectHashMap;
 import io.netty.util.collection.IntObjectMap;
-import io.rsocket.frame.*;
+import io.rsocket.frame.FragmentationCodec;
+import io.rsocket.frame.FrameHeaderCodec;
+import io.rsocket.frame.FrameType;
+import io.rsocket.frame.PayloadFrameCodec;
+import io.rsocket.frame.RequestChannelFrameCodec;
+import io.rsocket.frame.RequestFireAndForgetFrameCodec;
+import io.rsocket.frame.RequestResponseFrameCodec;
+import io.rsocket.frame.RequestStreamFrameCodec;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -221,30 +228,33 @@ final class FrameReassembler extends AtomicBoolean implements Disposable {
       putHeader(streamId, header);
     }
 
+    ByteBuf metadata = null;
     if (FrameHeaderCodec.hasMetadata(frame)) {
-      CompositeByteBuf metadata = getMetadata(streamId);
       switch (frameType) {
         case REQUEST_FNF:
-          metadata.addComponents(true, RequestFireAndForgetFrameCodec.metadata(frame).retain());
+          metadata = RequestFireAndForgetFrameCodec.metadata(frame);
           break;
         case REQUEST_STREAM:
-          metadata.addComponents(true, RequestStreamFrameCodec.metadata(frame).retain());
+          metadata = RequestStreamFrameCodec.metadata(frame);
           break;
         case REQUEST_RESPONSE:
-          metadata.addComponents(true, RequestResponseFrameCodec.metadata(frame).retain());
+          metadata = RequestResponseFrameCodec.metadata(frame);
           break;
         case REQUEST_CHANNEL:
-          metadata.addComponents(true, RequestChannelFrameCodec.metadata(frame).retain());
+          metadata = RequestChannelFrameCodec.metadata(frame);
           break;
           // Payload and synthetic types
         case PAYLOAD:
         case NEXT:
         case NEXT_COMPLETE:
         case COMPLETE:
-          metadata.addComponents(true, PayloadFrameCodec.metadata(frame).retain());
+          metadata = PayloadFrameCodec.metadata(frame);
           break;
         default:
           throw new IllegalStateException("unsupported fragment type");
+      }
+      if (metadata != null) {
+        getMetadata(streamId).addComponents(true, metadata.retain());
       }
     }
 
@@ -276,6 +286,10 @@ final class FrameReassembler extends AtomicBoolean implements Disposable {
 
     getData(streamId).addComponents(true, data);
     frame.release();
+
+    if ((metadata != null && metadata.readableBytes() == 0) && data.readableBytes() == 0) {
+      throw new IllegalStateException("Empty frame.");
+    }
   }
 
   void reassembleFrame(ByteBuf frame, SynchronousSink<ByteBuf> sink) {

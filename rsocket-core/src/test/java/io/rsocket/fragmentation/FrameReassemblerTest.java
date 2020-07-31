@@ -438,7 +438,7 @@ final class FrameReassemblerTest {
     Assert.assertFalse(reassembler.data.containsKey(1));
   }
 
-  @ParameterizedTest(name = "throws error if reassembling payload size exist {0}")
+  @ParameterizedTest(name = "throws error if reassembling payload size exceeds {0}")
   @ValueSource(ints = {64, 1024, 2048, 4096})
   public void errorTooBigPayload(int maxFrameLength) {
     List<ByteBuf> byteBufs =
@@ -475,6 +475,24 @@ final class FrameReassemblerTest {
     Assertions.assertThatThrownBy(
             Flux.fromIterable(byteBufs).handle(reassembler::reassembleFrame)::blockLast)
         .hasMessage("Reassembled payload went out of allowed size")
+        .isExactlyInstanceOf(IllegalStateException.class);
+  }
+
+  @DisplayName("throws error on empty fragment")
+  @Test
+  public void errorEmptyFrame() {
+    List<ByteBuf> byteBufs =
+        Arrays.asList(
+            RequestResponseFrameCodec.encode(
+                allocator, 1, true, Unpooled.wrappedBuffer(metadata), Unpooled.EMPTY_BUFFER),
+            PayloadFrameCodec.encode(
+                allocator, 1, true, false, true, Unpooled.EMPTY_BUFFER, Unpooled.EMPTY_BUFFER));
+
+    FrameReassembler reassembler = new FrameReassembler(allocator, Integer.MAX_VALUE);
+
+    Assertions.assertThatThrownBy(
+            Flux.fromIterable(byteBufs).handle(reassembler::reassembleFrame)::blockLast)
+        .hasMessage("Empty frame.")
         .isExactlyInstanceOf(IllegalStateException.class);
   }
 
