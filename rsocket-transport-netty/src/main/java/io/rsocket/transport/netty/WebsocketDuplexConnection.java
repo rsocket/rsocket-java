@@ -68,7 +68,7 @@ public final class WebsocketDuplexConnection extends BaseDuplexConnection {
 
   @Override
   public Flux<ByteBuf> receive() {
-    return connection.inbound().receive().map(ByteBuf::retain);
+    return connection.inbound().receive();
   }
 
   @Override

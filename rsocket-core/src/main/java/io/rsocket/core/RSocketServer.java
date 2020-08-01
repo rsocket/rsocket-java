@@ -387,29 +387,22 @@ public final class RSocketServer {
               multiplexer,
               new InvalidSetupException(
                   "Unsupported version: " + SetupFrameCodec.humanReadableVersion(setupFrame)))
-          .doFinally(
-              signalType -> {
-                setupFrame.release();
-                multiplexer.dispose();
-              });
+          .doFinally(signalType -> multiplexer.dispose());
     }
 
     boolean leaseEnabled = leasesSupplier != null;
     if (SetupFrameCodec.honorLease(setupFrame) && !leaseEnabled) {
       return serverSetup
           .sendError(multiplexer, new InvalidSetupException("lease is not supported"))
-          .doFinally(
-              signalType -> {
-                setupFrame.release();
-                multiplexer.dispose();
-              });
+          .doFinally(signalType -> multiplexer.dispose());
     }
 
     return serverSetup.acceptRSocketSetup(
         setupFrame,
         multiplexer,
         (keepAliveHandler, wrappedMultiplexer) -> {
-          ConnectionSetupPayload setupPayload = new DefaultConnectionSetupPayload(setupFrame);
+          ConnectionSetupPayload setupPayload =
+              new DefaultConnectionSetupPayload(setupFrame.retain());
 
           Leases<?> leases = leaseEnabled ? leasesSupplier.get() : null;
           RequesterLeaseHandler requesterLeaseHandler =

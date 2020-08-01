@@ -16,11 +16,11 @@
 
 package io.rsocket.transport.local;
 
-import io.rsocket.test.TransportTest;
+import io.rsocket.test.FragmentationTransportTest;
 import java.time.Duration;
 import java.util.UUID;
 
-final class LocalTransportTest implements TransportTest {
+final class LocalTransportWithFragmentationTest implements FragmentationTransportTest {
 
   private final TransportPair transportPair =
       new TransportPair<>(

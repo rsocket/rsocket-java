@@ -31,7 +31,6 @@ import reactor.netty.Connection;
 public final class TcpDuplexConnection extends BaseDuplexConnection {
 
   private final Connection connection;
-  private final boolean encodeLength;
 
   /**
    * Creates a new instance
@@ -39,20 +38,6 @@ public final class TcpDuplexConnection extends BaseDuplexConnection {
    * @param connection the {@link Connection} for managing the server
    */
   public TcpDuplexConnection(Connection connection) {
-    this(connection, true);
-  }
-
-  /**
-   * Creates a new instance
-   *
-   * @param encodeLength indicates if this connection should encode the length or not.
-   * @param connection the {@link Connection} to for managing the server
-   * @deprecated as of 1.0.1 in favor of using {@link #TcpDuplexConnection(Connection)} and hence
-   *     {@code encodeLength} should always be true.
-   */
-  @Deprecated
-  public TcpDuplexConnection(Connection connection, boolean encodeLength) {
-    this.encodeLength = encodeLength;
     this.connection = Objects.requireNonNull(connection, "connection must not be null");
 
     connection
@@ -78,7 +63,7 @@ public final class TcpDuplexConnection extends BaseDuplexConnection {
 
   @Override
   public Flux<ByteBuf> receive() {
-    return connection.inbound().receive().map(this::decode);
+    return connection.inbound().receive().map(FrameLengthCodec::frame);
   }
 
   @Override
@@ -90,18 +75,6 @@ public final class TcpDuplexConnection extends BaseDuplexConnection {
   }
 
   private ByteBuf encode(ByteBuf frame) {
-    if (encodeLength) {
-      return FrameLengthCodec.encode(alloc(), frame.readableBytes(), frame);
-    } else {
-      return frame;
-    }
-  }
-
-  private ByteBuf decode(ByteBuf frame) {
-    if (encodeLength) {
-      return FrameLengthCodec.frame(frame).retain();
-    } else {
-      return frame;
-    }
+    return FrameLengthCodec.encode(alloc(), frame.readableBytes(), frame);
   }
 }

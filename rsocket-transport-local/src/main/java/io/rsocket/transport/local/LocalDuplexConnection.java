@@ -22,9 +22,13 @@ import io.rsocket.DuplexConnection;
 import java.util.Objects;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
+import org.reactivestreams.Subscription;
+import reactor.core.CoreSubscriber;
+import reactor.core.Fuseable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
+import reactor.core.publisher.Operators;
 
 /** An implementation of {@link DuplexConnection} that connects inside the same JVM. */
 final class LocalDuplexConnection implements DuplexConnection {
@@ -73,7 +77,8 @@ final class LocalDuplexConnection implements DuplexConnection {
 
   @Override
   public Flux<ByteBuf> receive() {
-    return in;
+    return in.transform(
+        Operators.<ByteBuf, ByteBuf>lift((__, actual) -> new ByteBufReleaserOperator(actual)));
   }
 
   @Override
@@ -93,5 +98,76 @@ final class LocalDuplexConnection implements DuplexConnection {
   @Override
   public ByteBufAllocator alloc() {
     return allocator;
+  }
+
+  static class ByteBufReleaserOperator
+      implements CoreSubscriber<ByteBuf>, Subscription, Fuseable.QueueSubscription<ByteBuf> {
+
+    final CoreSubscriber<? super ByteBuf> actual;
+
+    Subscription s;
+
+    public ByteBufReleaserOperator(CoreSubscriber<? super ByteBuf> actual) {
+      this.actual = actual;
+    }
+
+    @Override
+    public void onSubscribe(Subscription s) {
+      if (Operators.validate(this.s, s)) {
+        this.s = s;
+        actual.onSubscribe(this);
+      }
+    }
+
+    @Override
+    public void onNext(ByteBuf buf) {
+      actual.onNext(buf);
+      buf.release();
+    }
+
+    @Override
+    public void onError(Throwable t) {
+      actual.onError(t);
+    }
+
+    @Override
+    public void onComplete() {
+      actual.onComplete();
+    }
+
+    @Override
+    public void request(long n) {
+      s.request(n);
+    }
+
+    @Override
+    public void cancel() {
+      s.cancel();
+    }
+
+    @Override
+    public int requestFusion(int requestedMode) {
+      return Fuseable.NONE;
+    }
+
+    @Override
+    public ByteBuf poll() {
+      throw new UnsupportedOperationException(NOT_SUPPORTED_MESSAGE);
+    }
+
+    @Override
+    public int size() {
+      throw new UnsupportedOperationException(NOT_SUPPORTED_MESSAGE);
+    }
+
+    @Override
+    public boolean isEmpty() {
+      throw new UnsupportedOperationException(NOT_SUPPORTED_MESSAGE);
+    }
+
+    @Override
+    public void clear() {
+      throw new UnsupportedOperationException(NOT_SUPPORTED_MESSAGE);
+    }
   }
 }
