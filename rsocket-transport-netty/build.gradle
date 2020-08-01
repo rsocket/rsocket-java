@@ -29,7 +29,8 @@ if (osdetector.classifier in ["linux-x86_64"] || ["osx-x86_64"] || ["windows-x86
 
 dependencies {
     api project(':rsocket-core')
-    api 'io.projectreactor.netty:reactor-netty'
+    api "io.projectreactor.netty:reactor-netty-core"
+    api "io.projectreactor.netty:reactor-netty-http"
     api 'org.slf4j:slf4j-api'
 
     testImplementation project(':rsocket-test')
