@@ -16,17 +16,25 @@
 
 package io.rsocket.internal;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
 import io.rsocket.buffer.LeaksTrackingByteBufAllocator;
-import io.rsocket.frame.*;
+import io.rsocket.frame.ErrorFrameCodec;
+import io.rsocket.frame.KeepAliveFrameCodec;
+import io.rsocket.frame.LeaseFrameCodec;
+import io.rsocket.frame.MetadataPushFrameCodec;
+import io.rsocket.frame.ResumeFrameCodec;
+import io.rsocket.frame.ResumeOkFrameCodec;
+import io.rsocket.frame.SetupFrameCodec;
 import io.rsocket.plugins.InitializingInterceptorRegistry;
 import io.rsocket.test.util.TestDuplexConnection;
 import io.rsocket.util.DefaultPayload;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -68,42 +76,42 @@ public class ClientServerInputMultiplexerTest {
         .doOnNext(f -> setupFrames.incrementAndGet())
         .subscribe();
 
+    source.addToReceivedBuffer(setupFrame());
+    assertEquals(0, clientFrames.get());
+    assertEquals(0, serverFrames.get());
+    assertEquals(1, setupFrames.get());
+
     source.addToReceivedBuffer(errorFrame(1));
     assertEquals(1, clientFrames.get());
     assertEquals(0, serverFrames.get());
-    assertEquals(0, setupFrames.get());
+    assertEquals(1, setupFrames.get());
 
     source.addToReceivedBuffer(errorFrame(1));
     assertEquals(2, clientFrames.get());
     assertEquals(0, serverFrames.get());
-    assertEquals(0, setupFrames.get());
+    assertEquals(1, setupFrames.get());
 
     source.addToReceivedBuffer(leaseFrame());
     assertEquals(3, clientFrames.get());
     assertEquals(0, serverFrames.get());
-    assertEquals(0, setupFrames.get());
+    assertEquals(1, setupFrames.get());
 
     source.addToReceivedBuffer(keepAliveFrame());
     assertEquals(4, clientFrames.get());
     assertEquals(0, serverFrames.get());
-    assertEquals(0, setupFrames.get());
+    assertEquals(1, setupFrames.get());
 
     source.addToReceivedBuffer(errorFrame(2));
     assertEquals(4, clientFrames.get());
     assertEquals(1, serverFrames.get());
-    assertEquals(0, setupFrames.get());
+    assertEquals(1, setupFrames.get());
 
     source.addToReceivedBuffer(errorFrame(0));
     assertEquals(5, clientFrames.get());
     assertEquals(1, serverFrames.get());
-    assertEquals(0, setupFrames.get());
+    assertEquals(1, setupFrames.get());
 
     source.addToReceivedBuffer(metadataPushFrame());
-    assertEquals(5, clientFrames.get());
-    assertEquals(2, serverFrames.get());
-    assertEquals(0, setupFrames.get());
-
-    source.addToReceivedBuffer(setupFrame());
     assertEquals(5, clientFrames.get());
     assertEquals(2, serverFrames.get());
     assertEquals(1, setupFrames.get());
@@ -141,42 +149,42 @@ public class ClientServerInputMultiplexerTest {
         .doOnNext(f -> setupFrames.incrementAndGet())
         .subscribe();
 
+    source.addToReceivedBuffer(setupFrame());
+    assertEquals(0, clientFrames.get());
+    assertEquals(0, serverFrames.get());
+    assertEquals(1, setupFrames.get());
+
     source.addToReceivedBuffer(errorFrame(1));
     assertEquals(1, clientFrames.get());
     assertEquals(0, serverFrames.get());
-    assertEquals(0, setupFrames.get());
+    assertEquals(1, setupFrames.get());
 
     source.addToReceivedBuffer(errorFrame(1));
     assertEquals(2, clientFrames.get());
     assertEquals(0, serverFrames.get());
-    assertEquals(0, setupFrames.get());
+    assertEquals(1, setupFrames.get());
 
     source.addToReceivedBuffer(leaseFrame());
     assertEquals(2, clientFrames.get());
     assertEquals(1, serverFrames.get());
-    assertEquals(0, setupFrames.get());
+    assertEquals(1, setupFrames.get());
 
     source.addToReceivedBuffer(keepAliveFrame());
     assertEquals(2, clientFrames.get());
     assertEquals(2, serverFrames.get());
-    assertEquals(0, setupFrames.get());
+    assertEquals(1, setupFrames.get());
 
     source.addToReceivedBuffer(errorFrame(2));
     assertEquals(2, clientFrames.get());
     assertEquals(3, serverFrames.get());
-    assertEquals(0, setupFrames.get());
+    assertEquals(1, setupFrames.get());
 
     source.addToReceivedBuffer(errorFrame(0));
     assertEquals(2, clientFrames.get());
     assertEquals(4, serverFrames.get());
-    assertEquals(0, setupFrames.get());
+    assertEquals(1, setupFrames.get());
 
     source.addToReceivedBuffer(metadataPushFrame());
-    assertEquals(3, clientFrames.get());
-    assertEquals(4, serverFrames.get());
-    assertEquals(0, setupFrames.get());
-
-    source.addToReceivedBuffer(setupFrame());
     assertEquals(3, clientFrames.get());
     assertEquals(4, serverFrames.get());
     assertEquals(1, setupFrames.get());
@@ -190,6 +198,43 @@ public class ClientServerInputMultiplexerTest {
     assertEquals(3, clientFrames.get());
     assertEquals(4, serverFrames.get());
     assertEquals(3, setupFrames.get());
+  }
+
+  @Test
+  public void unexpectedFramesBeforeSetupFrame() {
+    AtomicInteger clientFrames = new AtomicInteger();
+    AtomicInteger serverFrames = new AtomicInteger();
+    AtomicInteger setupFrames = new AtomicInteger();
+
+    AtomicReference<Throwable> clientError = new AtomicReference<>();
+    AtomicReference<Throwable> serverError = new AtomicReference<>();
+    AtomicReference<Throwable> setupError = new AtomicReference<>();
+
+    serverMultiplexer
+        .asClientConnection()
+        .receive()
+        .subscribe(bb -> clientFrames.incrementAndGet(), clientError::set);
+    serverMultiplexer
+        .asServerConnection()
+        .receive()
+        .subscribe(bb -> serverFrames.incrementAndGet(), serverError::set);
+    serverMultiplexer
+        .asSetupConnection()
+        .receive()
+        .subscribe(bb -> setupFrames.incrementAndGet(), setupError::set);
+
+    source.addToReceivedBuffer(keepAliveFrame());
+
+    assertThat(clientError.get().getMessage())
+        .isEqualTo("SETUP or LEASE frame must be received before any others.");
+    assertThat(serverError.get().getMessage())
+        .isEqualTo("SETUP or LEASE frame must be received before any others.");
+    assertThat(setupError.get().getMessage())
+        .isEqualTo("SETUP or LEASE frame must be received before any others.");
+
+    assertEquals(0, clientFrames.get());
+    assertEquals(0, serverFrames.get());
+    assertEquals(0, setupFrames.get());
   }
 
   private ByteBuf resumeFrame() {

@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 the original author or authors.
+ * Copyright 2015-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -55,6 +55,8 @@ public class ClientServerInputMultiplexer implements Closeable {
   private final DuplexConnection source;
   private final DuplexConnection clientServerConnection;
 
+  private boolean setupReceived;
+
   public ClientServerInputMultiplexer(DuplexConnection source) {
     this(source, emptyInterceptorRegistry, false);
   }
@@ -87,6 +89,7 @@ public class ClientServerInputMultiplexer implements Closeable {
                   case RESUME:
                   case RESUME_OK:
                     type = Type.SETUP;
+                    setupReceived = true;
                     break;
                   case LEASE:
                   case KEEPALIVE:
@@ -100,6 +103,11 @@ public class ClientServerInputMultiplexer implements Closeable {
                 type = Type.SERVER;
               } else {
                 type = Type.CLIENT;
+              }
+              if (!isClient && type != Type.SETUP && !setupReceived) {
+                frame.release();
+                throw new IllegalStateException(
+                    "SETUP or LEASE frame must be received before any others.");
               }
               return type;
             })
@@ -119,7 +127,11 @@ public class ClientServerInputMultiplexer implements Closeable {
                   break;
               }
             },
-            t -> {});
+            ex -> {
+              setup.onError(ex);
+              server.onError(ex);
+              client.onError(ex);
+            });
   }
 
   public DuplexConnection asClientServerConnection() {
