@@ -58,6 +58,10 @@ subprojects {
         }
     }
 
+    configurations.all {
+        resolutionStrategy.cacheChangingModulesFor 60, "minutes"
+    }
+
     dependencyManagement {
         imports {
             mavenBom "io.projectreactor:reactor-bom:${ext['reactor-bom.version']}"
