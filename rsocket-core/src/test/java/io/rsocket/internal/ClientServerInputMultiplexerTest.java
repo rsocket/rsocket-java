@@ -68,52 +68,52 @@ public class ClientServerInputMultiplexerTest {
         .doOnNext(f -> setupFrames.incrementAndGet())
         .subscribe();
 
-    source.addToReceivedBuffer(errorFrame(1));
+    source.addToReceivedBuffer(errorFrame(1).retain());
     assertEquals(1, clientFrames.get());
     assertEquals(0, serverFrames.get());
     assertEquals(0, setupFrames.get());
 
-    source.addToReceivedBuffer(errorFrame(1));
+    source.addToReceivedBuffer(errorFrame(1).retain());
     assertEquals(2, clientFrames.get());
     assertEquals(0, serverFrames.get());
     assertEquals(0, setupFrames.get());
 
-    source.addToReceivedBuffer(leaseFrame());
+    source.addToReceivedBuffer(leaseFrame().retain());
     assertEquals(3, clientFrames.get());
     assertEquals(0, serverFrames.get());
     assertEquals(0, setupFrames.get());
 
-    source.addToReceivedBuffer(keepAliveFrame());
+    source.addToReceivedBuffer(keepAliveFrame().retain());
     assertEquals(4, clientFrames.get());
     assertEquals(0, serverFrames.get());
     assertEquals(0, setupFrames.get());
 
-    source.addToReceivedBuffer(errorFrame(2));
+    source.addToReceivedBuffer(errorFrame(2).retain());
     assertEquals(4, clientFrames.get());
     assertEquals(1, serverFrames.get());
     assertEquals(0, setupFrames.get());
 
-    source.addToReceivedBuffer(errorFrame(0));
+    source.addToReceivedBuffer(errorFrame(0).retain());
     assertEquals(5, clientFrames.get());
     assertEquals(1, serverFrames.get());
     assertEquals(0, setupFrames.get());
 
-    source.addToReceivedBuffer(metadataPushFrame());
+    source.addToReceivedBuffer(metadataPushFrame().retain());
     assertEquals(5, clientFrames.get());
     assertEquals(2, serverFrames.get());
     assertEquals(0, setupFrames.get());
 
-    source.addToReceivedBuffer(setupFrame());
+    source.addToReceivedBuffer(setupFrame().retain());
     assertEquals(5, clientFrames.get());
     assertEquals(2, serverFrames.get());
     assertEquals(1, setupFrames.get());
 
-    source.addToReceivedBuffer(resumeFrame());
+    source.addToReceivedBuffer(resumeFrame().retain());
     assertEquals(5, clientFrames.get());
     assertEquals(2, serverFrames.get());
     assertEquals(2, setupFrames.get());
 
-    source.addToReceivedBuffer(resumeOkFrame());
+    source.addToReceivedBuffer(resumeOkFrame().retain());
     assertEquals(5, clientFrames.get());
     assertEquals(2, serverFrames.get());
     assertEquals(3, setupFrames.get());
@@ -141,52 +141,52 @@ public class ClientServerInputMultiplexerTest {
         .doOnNext(f -> setupFrames.incrementAndGet())
         .subscribe();
 
-    source.addToReceivedBuffer(errorFrame(1));
+    source.addToReceivedBuffer(errorFrame(1).retain());
     assertEquals(1, clientFrames.get());
     assertEquals(0, serverFrames.get());
     assertEquals(0, setupFrames.get());
 
-    source.addToReceivedBuffer(errorFrame(1));
+    source.addToReceivedBuffer(errorFrame(1).retain());
     assertEquals(2, clientFrames.get());
     assertEquals(0, serverFrames.get());
     assertEquals(0, setupFrames.get());
 
-    source.addToReceivedBuffer(leaseFrame());
+    source.addToReceivedBuffer(leaseFrame().retain());
     assertEquals(2, clientFrames.get());
     assertEquals(1, serverFrames.get());
     assertEquals(0, setupFrames.get());
 
-    source.addToReceivedBuffer(keepAliveFrame());
+    source.addToReceivedBuffer(keepAliveFrame().retain());
     assertEquals(2, clientFrames.get());
     assertEquals(2, serverFrames.get());
     assertEquals(0, setupFrames.get());
 
-    source.addToReceivedBuffer(errorFrame(2));
+    source.addToReceivedBuffer(errorFrame(2).retain());
     assertEquals(2, clientFrames.get());
     assertEquals(3, serverFrames.get());
     assertEquals(0, setupFrames.get());
 
-    source.addToReceivedBuffer(errorFrame(0));
+    source.addToReceivedBuffer(errorFrame(0).retain());
     assertEquals(2, clientFrames.get());
     assertEquals(4, serverFrames.get());
     assertEquals(0, setupFrames.get());
 
-    source.addToReceivedBuffer(metadataPushFrame());
+    source.addToReceivedBuffer(metadataPushFrame().retain());
     assertEquals(3, clientFrames.get());
     assertEquals(4, serverFrames.get());
     assertEquals(0, setupFrames.get());
 
-    source.addToReceivedBuffer(setupFrame());
+    source.addToReceivedBuffer(setupFrame().retain());
     assertEquals(3, clientFrames.get());
     assertEquals(4, serverFrames.get());
     assertEquals(1, setupFrames.get());
 
-    source.addToReceivedBuffer(resumeFrame());
+    source.addToReceivedBuffer(resumeFrame().retain());
     assertEquals(3, clientFrames.get());
     assertEquals(4, serverFrames.get());
     assertEquals(2, setupFrames.get());
 
-    source.addToReceivedBuffer(resumeOkFrame());
+    source.addToReceivedBuffer(resumeOkFrame().retain());
     assertEquals(3, clientFrames.get());
     assertEquals(4, serverFrames.get());
     assertEquals(3, setupFrames.get());

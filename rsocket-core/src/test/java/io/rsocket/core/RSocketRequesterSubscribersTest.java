@@ -82,7 +82,7 @@ class RSocketRequesterSubscribersTest {
 
   @ParameterizedTest
   @MethodSource("allInteractions")
-  void singleSubscriber(Function<RSocket, Publisher<?>> interaction) {
+  void singleSubscriber(Function<RSocket, Publisher<?>> interaction, FrameType requestType) {
     Flux<?> response = Flux.from(interaction.apply(rSocketRequester));
 
     AssertSubscriber assertSubscriberA = AssertSubscriber.create();
@@ -91,7 +91,9 @@ class RSocketRequesterSubscribersTest {
     response.subscribe(assertSubscriberA);
     response.subscribe(assertSubscriberB);
 
-    connection.addToReceivedBuffer(PayloadFrameCodec.encodeComplete(connection.alloc(), 1));
+    if (requestType != FrameType.REQUEST_FNF && requestType != FrameType.METADATA_PUSH) {
+      connection.addToReceivedBuffer(PayloadFrameCodec.encodeComplete(connection.alloc(), 1));
+    }
 
     assertSubscriberA.assertTerminated();
     assertSubscriberB.assertTerminated();
@@ -111,7 +113,9 @@ class RSocketRequesterSubscribersTest {
       RaceTestUtils.race(
           () -> response.subscribe(assertSubscriberA), () -> response.subscribe(assertSubscriberB));
 
-      connection.addToReceivedBuffer(PayloadFrameCodec.encodeComplete(connection.alloc(), i));
+      if (requestType != FrameType.REQUEST_FNF && requestType != FrameType.METADATA_PUSH) {
+        connection.addToReceivedBuffer(PayloadFrameCodec.encodeComplete(connection.alloc(), i));
+      }
 
       assertSubscriberA.assertTerminated();
       assertSubscriberB.assertTerminated();

@@ -17,11 +17,11 @@
 package io.rsocket.core;
 
 import io.netty.buffer.ByteBuf;
-import io.netty.util.ReferenceCountUtil;
 import io.rsocket.DuplexConnection;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.ResponderRSocket;
+import io.rsocket.exceptions.ConnectionErrorException;
 import io.rsocket.frame.ErrorFrameCodec;
 import io.rsocket.frame.FrameHeaderCodec;
 import io.rsocket.frame.FrameType;
@@ -39,7 +39,6 @@ import org.reactivestreams.Publisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.Disposable;
-import reactor.core.Exceptions;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -314,10 +313,14 @@ class RSocketResponder extends RequesterResponderSupport implements RSocket {
                           "ServerRSocket: Unexpected frame type: " + frameType)));
           break;
       }
-      ReferenceCountUtil.safeRelease(frame);
     } catch (Throwable t) {
-      ReferenceCountUtil.safeRelease(frame);
-      throw Exceptions.propagate(t);
+      super.getSendProcessor()
+          .onNext(
+              ErrorFrameCodec.encode(
+                  super.getAllocator(),
+                  0,
+                  new ConnectionErrorException("Unexpected error during frame handling", t)));
+      this.tryTerminateOnConnectionError(t);
     }
   }
 

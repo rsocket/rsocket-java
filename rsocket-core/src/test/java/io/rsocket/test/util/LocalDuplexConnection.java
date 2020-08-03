@@ -20,10 +20,13 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.DuplexConnection;
 import org.reactivestreams.Publisher;
+import org.reactivestreams.Subscription;
+import reactor.core.CoreSubscriber;
 import reactor.core.publisher.DirectProcessor;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
+import reactor.core.publisher.Operators;
 
 public class LocalDuplexConnection implements DuplexConnection {
   private final ByteBufAllocator allocator;
@@ -55,7 +58,34 @@ public class LocalDuplexConnection implements DuplexConnection {
 
   @Override
   public Flux<ByteBuf> receive() {
-    return receive.doOnNext(f -> System.out.println(name + " - " + f.toString()));
+    return receive
+        .doOnNext(f -> System.out.println(name + " - " + f.toString()))
+        .transform(
+            Operators.<ByteBuf, ByteBuf>lift(
+                (__, actual) ->
+                    new CoreSubscriber<ByteBuf>() {
+
+                      @Override
+                      public void onSubscribe(Subscription s) {
+                        actual.onSubscribe(s);
+                      }
+
+                      @Override
+                      public void onNext(ByteBuf byteBuf) {
+                        actual.onNext(byteBuf);
+                        byteBuf.release();
+                      }
+
+                      @Override
+                      public void onError(Throwable t) {
+                        actual.onError(t);
+                      }
+
+                      @Override
+                      public void onComplete() {
+                        actual.onComplete();
+                      }
+                    }));
   }
 
   @Override

@@ -19,7 +19,6 @@ package io.rsocket.core;
 import static io.rsocket.keepalive.KeepAliveSupport.ClientKeepAliveSupport;
 
 import io.netty.buffer.ByteBuf;
-import io.netty.util.ReferenceCountUtil;
 import io.rsocket.DuplexConnection;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
@@ -205,10 +204,14 @@ class RSocketRequester extends RequesterResponderSupport implements RSocket {
       } else {
         handleFrame(streamId, type, frame);
       }
-      frame.release();
     } catch (Throwable t) {
-      ReferenceCountUtil.safeRelease(frame);
-      throw reactor.core.Exceptions.propagate(t);
+      super.getSendProcessor()
+          .onNext(
+              ErrorFrameCodec.encode(
+                  super.getAllocator(),
+                  0,
+                  new ConnectionErrorException("Unexpected error during frame handling", t)));
+      this.tryTerminateOnConnectionError(t);
     }
   }
 

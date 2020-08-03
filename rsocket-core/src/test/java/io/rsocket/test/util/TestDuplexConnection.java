@@ -24,13 +24,16 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
+import org.reactivestreams.Subscription;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import reactor.core.CoreSubscriber;
 import reactor.core.publisher.DirectProcessor;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.FluxSink;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoProcessor;
+import reactor.core.publisher.Operators;
 
 /**
  * An implementation of {@link DuplexConnection} that provides functionality to modify the behavior
@@ -83,7 +86,31 @@ public class TestDuplexConnection implements DuplexConnection {
 
   @Override
   public Flux<ByteBuf> receive() {
-    return received;
+    return received.transform(
+        Operators.<ByteBuf, ByteBuf>lift(
+            (__, actual) ->
+                new CoreSubscriber<ByteBuf>() {
+                  @Override
+                  public void onSubscribe(Subscription s) {
+                    actual.onSubscribe(s);
+                  }
+
+                  @Override
+                  public void onNext(ByteBuf byteBuf) {
+                    actual.onNext(byteBuf);
+                    byteBuf.release();
+                  }
+
+                  @Override
+                  public void onError(Throwable t) {
+                    actual.onError(t);
+                  }
+
+                  @Override
+                  public void onComplete() {
+                    actual.onComplete();
+                  }
+                }));
   }
 
   @Override
