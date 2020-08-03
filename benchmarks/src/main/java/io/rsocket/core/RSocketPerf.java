@@ -2,7 +2,6 @@ package io.rsocket.core;
 
 import io.rsocket.Closeable;
 import io.rsocket.Payload;
-import io.rsocket.PayloadsMaxPerfSubscriber;
 import io.rsocket.PayloadsPerfSubscriber;
 import io.rsocket.RSocket;
 import io.rsocket.frame.decoder.PayloadDecoder;
@@ -36,22 +35,24 @@ import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 import org.reactivestreams.Publisher;
-import reactor.core.CoreSubscriber;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 @BenchmarkMode({Mode.Throughput, Mode.SampleTime})
-@Fork(value = 2)
-@Warmup(iterations = 10)
+@Fork(value = 1)
+@Warmup(iterations = 5)
 @Measurement(iterations = 10, time = 10)
 @State(Scope.Benchmark)
 @OutputTimeUnit(TimeUnit.MICROSECONDS)
 public class RSocketPerf {
 
-  @Param({"tcp", "websocket", "local"})
+  @Param({"tcp", /*"websocket", "local", */ "shm"})
   String transportType;
 
-  @Param({"0", "64", "1024", "131072", "1048576", "15728640"})
+  @Param({
+    /*"0", "64", */
+    "14024" /*, "131072", "1048576", "15728640"*/
+  })
   String payloadSize;
 
   Payload payload;
@@ -165,15 +166,15 @@ public class RSocketPerf {
     }
   }
 
-  @Benchmark
-  @SuppressWarnings("unchecked")
-  public PayloadsPerfSubscriber fireAndForget(Blackhole blackhole) throws InterruptedException {
-    PayloadsPerfSubscriber subscriber = new PayloadsPerfSubscriber(blackhole);
-    client.fireAndForget(payload.retain()).subscribe((CoreSubscriber) subscriber);
-    subscriber.await();
-
-    return subscriber;
-  }
+  //  @Benchmark
+  //  @SuppressWarnings("unchecked")
+  //  public PayloadsPerfSubscriber fireAndForget(Blackhole blackhole) throws InterruptedException {
+  //    PayloadsPerfSubscriber subscriber = new PayloadsPerfSubscriber(blackhole);
+  //    client.fireAndForget(payload.retain()).subscribe((CoreSubscriber) subscriber);
+  //    subscriber.await();
+  //
+  //    return subscriber;
+  //  }
 
   @Benchmark
   public PayloadsPerfSubscriber requestResponse(Blackhole blackhole) throws InterruptedException {
@@ -183,44 +184,44 @@ public class RSocketPerf {
 
     return subscriber;
   }
-
-  @Benchmark
-  public PayloadsPerfSubscriber requestStreamWithRequestByOneStrategy(Blackhole blackhole)
-      throws InterruptedException {
-    PayloadsPerfSubscriber subscriber = new PayloadsPerfSubscriber(blackhole);
-    client.requestStream(payload.retain()).subscribe(subscriber);
-    subscriber.await();
-
-    return subscriber;
-  }
-
-  @Benchmark
-  public PayloadsMaxPerfSubscriber requestStreamWithRequestAllStrategy(Blackhole blackhole)
-      throws InterruptedException {
-    PayloadsMaxPerfSubscriber subscriber = new PayloadsMaxPerfSubscriber(blackhole);
-    client.requestStream(payload.retain()).subscribe(subscriber);
-    subscriber.await();
-
-    return subscriber;
-  }
-
-  @Benchmark
-  public PayloadsPerfSubscriber requestChannelWithRequestByOneStrategy(Blackhole blackhole)
-      throws InterruptedException {
-    PayloadsPerfSubscriber subscriber = new PayloadsPerfSubscriber(blackhole);
-    client.requestChannel(payloadsFlux).subscribe(subscriber);
-    subscriber.await();
-
-    return subscriber;
-  }
-
-  @Benchmark
-  public PayloadsMaxPerfSubscriber requestChannelWithRequestAllStrategy(Blackhole blackhole)
-      throws InterruptedException {
-    PayloadsMaxPerfSubscriber subscriber = new PayloadsMaxPerfSubscriber(blackhole);
-    client.requestChannel(payloadsFlux).subscribe(subscriber);
-    subscriber.await();
-
-    return subscriber;
-  }
+  //
+  //  @Benchmark
+  //  public PayloadsPerfSubscriber requestStreamWithRequestByOneStrategy(Blackhole blackhole)
+  //      throws InterruptedException {
+  //    PayloadsPerfSubscriber subscriber = new PayloadsPerfSubscriber(blackhole);
+  //    client.requestStream(payload.retain()).subscribe(subscriber);
+  //    subscriber.await();
+  //
+  //    return subscriber;
+  //  }
+  //
+  //  @Benchmark
+  //  public PayloadsMaxPerfSubscriber requestStreamWithRequestAllStrategy(Blackhole blackhole)
+  //      throws InterruptedException {
+  //    PayloadsMaxPerfSubscriber subscriber = new PayloadsMaxPerfSubscriber(blackhole);
+  //    client.requestStream(payload.retain()).subscribe(subscriber);
+  //    subscriber.await();
+  //
+  //    return subscriber;
+  //  }
+  //
+  //  @Benchmark
+  //  public PayloadsPerfSubscriber requestChannelWithRequestByOneStrategy(Blackhole blackhole)
+  //      throws InterruptedException {
+  //    PayloadsPerfSubscriber subscriber = new PayloadsPerfSubscriber(blackhole);
+  //    client.requestChannel(payloadsFlux).subscribe(subscriber);
+  //    subscriber.await();
+  //
+  //    return subscriber;
+  //  }
+  //
+  //  @Benchmark
+  //  public PayloadsMaxPerfSubscriber requestChannelWithRequestAllStrategy(Blackhole blackhole)
+  //      throws InterruptedException {
+  //    PayloadsMaxPerfSubscriber subscriber = new PayloadsMaxPerfSubscriber(blackhole);
+  //    client.requestChannel(payloadsFlux).subscribe(subscriber);
+  //    subscriber.await();
+  //
+  //    return subscriber;
+  //  }
 }

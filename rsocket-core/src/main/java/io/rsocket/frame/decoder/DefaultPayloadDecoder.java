@@ -53,12 +53,12 @@ class DefaultPayloadDecoder implements PayloadDecoder {
     }
 
     ByteBuffer data = ByteBuffer.allocateDirect(d.readableBytes());
-    data.put(d.nioBuffer());
+    d.getBytes(0, data);
     data.flip();
 
     if (m != null) {
       ByteBuffer metadata = ByteBuffer.allocateDirect(m.readableBytes());
-      metadata.put(m.nioBuffer());
+      m.getBytes(0, metadata);
       metadata.flip();
 
       return DefaultPayload.create(data, metadata);

@@ -444,8 +444,8 @@ public interface TransportTest {
 
       T address = addressSupplier.get();
 
-      final boolean runClientWithAsyncInterceptors = ThreadLocalRandom.current().nextBoolean();
-      final boolean runServerWithAsyncInterceptors = ThreadLocalRandom.current().nextBoolean();
+      final boolean runClientWithAsyncInterceptors = false;
+      final boolean runServerWithAsyncInterceptors = false;
 
       ByteBufAllocator allocatorToSupply;
       if (ResourceLeakDetector.getLevel() == ResourceLeakDetector.Level.ADVANCED
