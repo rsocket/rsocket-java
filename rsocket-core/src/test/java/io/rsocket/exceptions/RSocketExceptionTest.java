@@ -18,10 +18,11 @@ package io.rsocket.exceptions;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.rsocket.RSocketErrorException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-interface RSocketExceptionTest<T extends RSocketException> {
+interface RSocketExceptionTest<T extends RSocketErrorException> {
 
   @DisplayName("constructor does not throw NullPointerException with null message")
   @Test

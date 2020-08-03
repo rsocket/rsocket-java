@@ -108,11 +108,11 @@ class CompositeMetadataTest {
     metadata3.writeByte(88);
 
     CompositeByteBuf compositeMetadataBuffer = ByteBufAllocator.DEFAULT.compositeBuffer();
-    CompositeMetadataFlyweight.encodeAndAddMetadata(
+    CompositeMetadataCodec.encodeAndAddMetadata(
         compositeMetadataBuffer, ByteBufAllocator.DEFAULT, mimeType1, metadata1);
-    CompositeMetadataFlyweight.encodeAndAddMetadata(
+    CompositeMetadataCodec.encodeAndAddMetadata(
         compositeMetadataBuffer, ByteBufAllocator.DEFAULT, mimeType2, metadata2);
-    CompositeMetadataFlyweight.encodeAndAddMetadata(
+    CompositeMetadataCodec.encodeAndAddMetadata(
         compositeMetadataBuffer, ByteBufAllocator.DEFAULT, reserved, metadata3);
 
     Iterator<Entry> iterator = new CompositeMetadata(compositeMetadataBuffer, true).iterator();

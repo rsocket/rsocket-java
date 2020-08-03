@@ -1,6 +1,5 @@
 package io.rsocket.core;
 
-import io.rsocket.AbstractRSocket;
 import io.rsocket.Closeable;
 import io.rsocket.Payload;
 import io.rsocket.PayloadsMaxPerfSubscriber;
@@ -68,7 +67,7 @@ public class RSocketPerf {
         RSocketServer.create(
                 (setup, sendingSocket) ->
                     Mono.just(
-                        new AbstractRSocket() {
+                        new RSocket() {
 
                           @Override
                           public Mono<Void> fireAndForget(Payload payload) {
