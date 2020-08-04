@@ -23,11 +23,17 @@ import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-public class LoadBalancedRSocketClient implements RSocketClient {
+/**
+ * {@link RSocketClient} implementation that uses a pool and a {@link LoadbalanceStrategy} to select
+ * the {@code RSocket} to use for each request.
+ *
+ * @since 1.1
+ */
+public class LoadbalanceRSocketClient implements RSocketClient {
 
   private final RSocketPool rSocketPool;
 
-  LoadBalancedRSocketClient(RSocketPool rSocketPool) {
+  private LoadbalanceRSocketClient(RSocketPool rSocketPool) {
     this.rSocketPool = rSocketPool;
   }
 
@@ -66,14 +72,15 @@ public class LoadBalancedRSocketClient implements RSocketClient {
     rSocketPool.dispose();
   }
 
-  public static LoadBalancedRSocketClient create(
+  public static LoadbalanceRSocketClient create(
       LoadbalanceStrategy loadbalanceStrategy,
-      Publisher<List<LoadbalanceTarget>> rSocketSuppliersPublisher) {
-    return new LoadBalancedRSocketClient(
+      Publisher<List<LoadbalanceRSocketSource>> rSocketSuppliersPublisher) {
+    return new LoadbalanceRSocketClient(
         new RSocketPool(rSocketSuppliersPublisher, loadbalanceStrategy));
   }
 
-  public static RSocketClient create(Publisher<List<LoadbalanceTarget>> rSocketSuppliersPublisher) {
+  public static RSocketClient create(
+      Publisher<List<LoadbalanceRSocketSource>> rSocketSuppliersPublisher) {
     return create(new RoundRobinLoadbalanceStrategy(), rSocketSuppliersPublisher);
   }
 }

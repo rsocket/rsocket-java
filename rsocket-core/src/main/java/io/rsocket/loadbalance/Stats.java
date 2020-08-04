@@ -21,31 +21,33 @@ public class Stats implements Availability {
 
   private final Quantile lowerQuantile;
   private final Quantile higherQuantile;
-  private final long inactivityFactor;
-  private final long tau;
   private final Ewma errorPercentage;
+  private final Median median;
+  private final Ewma interArrivalTime;
+
+  private final long tau;
+  private final long inactivityFactor;
 
   private long errorStamp; // last we got an error
   private long stamp; // last timestamp we sent a request
   private long stamp0; // last timestamp we sent a request or receive a response
   private long duration; // instantaneous cumulative duration
-  private Median median;
-  private Ewma interArrivalTime;
-  private double availability = 0.0;
+
+  private double availability = 1.0;
 
   private volatile int pending; // instantaneous rate
   private volatile long pendingStreams; // number of active streams
   private static final AtomicLongFieldUpdater<Stats> PENDING_STREAMS =
       AtomicLongFieldUpdater.newUpdater(Stats.class, "pendingStreams");
 
-  public Stats() {
+  private Stats() {
     this(
         new FrugalQuantile(DEFAULT_LOWER_QUANTILE),
         new FrugalQuantile(DEFAULT_HIGHER_QUANTILE),
         INACTIVITY_FACTOR);
   }
 
-  public Stats(Quantile lowerQuantile, Quantile higherQuantile, long inactivityFactor) {
+  private Stats(Quantile lowerQuantile, Quantile higherQuantile, long inactivityFactor) {
     this.lowerQuantile = lowerQuantile;
     this.higherQuantile = higherQuantile;
     this.inactivityFactor = inactivityFactor;
@@ -173,6 +175,10 @@ public class Stats implements Availability {
     errorStamp = Clock.now();
   }
 
+  void setAvailability(double availability) {
+    this.availability = availability;
+  }
+
   @Override
   public String toString() {
     return "Stats{"
@@ -207,7 +213,7 @@ public class Stats implements Availability {
         + '}';
   }
 
-  static final class NoOpsStats extends Stats {
+  private static final class NoOpsStats extends Stats {
 
     static final Stats INSTANCE = new NoOpsStats();
 
@@ -289,5 +295,18 @@ public class Stats implements Availability {
     public String toString() {
       return "NoOpsStats{}";
     }
+  }
+
+  public static Stats noOps() {
+    return NoOpsStats.INSTANCE;
+  }
+
+  public static Stats create() {
+    return new Stats();
+  }
+
+  public static Stats create(
+      Quantile lowerQuantile, Quantile higherQuantile, long inactivityFactor) {
+    return new Stats(lowerQuantile, higherQuantile, inactivityFactor);
   }
 }

@@ -72,7 +72,7 @@ class ResolvingOperator<T> implements Disposable {
   }
 
   @Override
-  public final void dispose() {
+  public void dispose() {
     this.terminate(ON_DISPOSE);
   }
 

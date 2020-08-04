@@ -21,9 +21,5 @@ public interface PooledRSocket extends RSocket {
 
   Stats stats();
 
-  LoadbalanceTarget supplier();
-
-  boolean markForRemoval();
-
-  boolean markActive();
+  LoadbalanceRSocketSource source();
 }
