@@ -19,11 +19,9 @@ package io.rsocket.test.util;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.rsocket.DuplexConnection;
-import java.util.Collection;
-import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import org.reactivestreams.Publisher;
-import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -49,7 +47,6 @@ public class TestDuplexConnection implements DuplexConnection {
   private final DirectProcessor<ByteBuf> received;
   private final FluxSink<ByteBuf> receivedSink;
   private final MonoProcessor<Void> onClose;
-  private final ConcurrentLinkedQueue<Subscriber<ByteBuf>> sendSubscribers;
   private final ByteBufAllocator allocator;
   private volatile double availability = 1;
   private volatile int initialSendRequestN = Integer.MAX_VALUE;
@@ -61,7 +58,6 @@ public class TestDuplexConnection implements DuplexConnection {
     this.receivedSink = received.sink();
     this.sentPublisher = DirectProcessor.create();
     this.sendSink = sentPublisher.sink();
-    this.sendSubscribers = new ConcurrentLinkedQueue<>();
     this.onClose = MonoProcessor.create();
   }
 
@@ -71,17 +67,15 @@ public class TestDuplexConnection implements DuplexConnection {
       return Mono.error(
           new IllegalStateException("RSocket not available. Availability: " + availability));
     }
-    Subscriber<ByteBuf> subscriber = TestSubscriber.create(initialSendRequestN);
-    Flux.from(frames)
+    return Flux.from(frames)
         .doOnNext(
             frame -> {
-              sent.offer(frame);
               sendSink.next(frame);
+              sent.offer(frame);
+              System.out.println("here : " + sent.toString());
             })
         .doOnError(throwable -> logger.error("Error in send stream on test connection.", throwable))
-        .subscribe(subscriber);
-    sendSubscribers.add(subscriber);
-    return Mono.empty();
+        .then();
   }
 
   @Override
@@ -97,8 +91,11 @@ public class TestDuplexConnection implements DuplexConnection {
 
                   @Override
                   public void onNext(ByteBuf byteBuf) {
-                    actual.onNext(byteBuf);
-                    byteBuf.release();
+                    try {
+                      actual.onNext(byteBuf);
+                    } finally {
+                      byteBuf.release();
+                    }
                   }
 
                   @Override
@@ -146,7 +143,7 @@ public class TestDuplexConnection implements DuplexConnection {
     this.availability = availability;
   }
 
-  public Collection<ByteBuf> getSent() {
+  public BlockingQueue<ByteBuf> getSent() {
     return sent;
   }
 
@@ -162,14 +159,9 @@ public class TestDuplexConnection implements DuplexConnection {
 
   public void clearSendReceiveBuffers() {
     sent.clear();
-    sendSubscribers.clear();
   }
 
   public void setInitialSendRequestN(int initialSendRequestN) {
     this.initialSendRequestN = initialSendRequestN;
-  }
-
-  public Collection<Subscriber<ByteBuf>> getSendSubscribers() {
-    return sendSubscribers;
   }
 }

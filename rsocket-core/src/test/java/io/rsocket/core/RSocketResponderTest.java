@@ -17,9 +17,18 @@
 package io.rsocket.core;
 
 import static io.rsocket.core.PayloadValidationUtils.INVALID_PAYLOAD_ERROR_MESSAGE;
+import static io.rsocket.core.ReassemblyUtils.ILLEGAL_REASSEMBLED_PAYLOAD_SIZE;
+import static io.rsocket.core.TestRequesterResponderSupport.fixedSizePayload;
+import static io.rsocket.core.TestRequesterResponderSupport.genericPayload;
+import static io.rsocket.core.TestRequesterResponderSupport.prepareFragments;
+import static io.rsocket.core.TestRequesterResponderSupport.randomMetadataOnlyPayload;
+import static io.rsocket.core.TestRequesterResponderSupport.randomPayload;
 import static io.rsocket.frame.FrameHeaderCodec.frameType;
 import static io.rsocket.frame.FrameLengthCodec.FRAME_LENGTH_MASK;
+import static io.rsocket.frame.FrameType.COMPLETE;
 import static io.rsocket.frame.FrameType.ERROR;
+import static io.rsocket.frame.FrameType.NEXT;
+import static io.rsocket.frame.FrameType.NEXT_COMPLETE;
 import static io.rsocket.frame.FrameType.REQUEST_CHANNEL;
 import static io.rsocket.frame.FrameType.REQUEST_FNF;
 import static io.rsocket.frame.FrameType.REQUEST_N;
@@ -28,7 +37,6 @@ import static io.rsocket.frame.FrameType.REQUEST_STREAM;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 import io.netty.buffer.ByteBuf;
@@ -37,7 +45,9 @@ import io.netty.buffer.Unpooled;
 import io.netty.util.CharsetUtil;
 import io.netty.util.ReferenceCountUtil;
 import io.netty.util.ReferenceCounted;
+import io.rsocket.FrameAssert;
 import io.rsocket.Payload;
+import io.rsocket.PayloadAssert;
 import io.rsocket.RSocket;
 import io.rsocket.frame.CancelFrameCodec;
 import io.rsocket.frame.ErrorFrameCodec;
@@ -58,15 +68,17 @@ import io.rsocket.test.util.TestSubscriber;
 import io.rsocket.util.ByteBufPayload;
 import io.rsocket.util.DefaultPayload;
 import io.rsocket.util.EmptyPayload;
-import java.util.Collection;
+import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -75,7 +87,6 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.runners.model.Statement;
 import org.reactivestreams.Publisher;
-import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 import reactor.core.CoreSubscriber;
 import reactor.core.publisher.BaseSubscriber;
@@ -137,9 +148,6 @@ public class RSocketResponderTest {
 
     rule.sendRequest(streamId, FrameType.REQUEST_RESPONSE);
 
-    Collection<Subscriber<ByteBuf>> sendSubscribers = rule.connection.getSendSubscribers();
-    assertThat("Request not sent.", sendSubscribers, hasSize(1));
-    Subscriber<ByteBuf> sendSub = sendSubscribers.iterator().next();
     assertThat(
         "Unexpected frame sent.",
         frameType(rule.connection.awaitSend()),
@@ -822,6 +830,185 @@ public class RSocketResponderTest {
     rule.assertHasNoLeaks();
   }
 
+  static Stream<FrameType> fragmentationCases() {
+    return Stream.of(REQUEST_FNF, REQUEST_RESPONSE, REQUEST_STREAM, REQUEST_CHANNEL);
+  }
+
+  @DisplayName("reassembles payload")
+  @ParameterizedTest
+  @MethodSource("fragmentationCases")
+  void reassemblePayload(FrameType frameType) {
+    AtomicReference<Payload> receivedPayload = new AtomicReference<>();
+    rule.setAcceptingSocket(
+        new RSocket() {
+          @Override
+          public Mono<Void> fireAndForget(Payload payload) {
+            receivedPayload.set(payload);
+            return Mono.empty();
+          }
+
+          @Override
+          public Mono<Payload> requestResponse(Payload payload) {
+            receivedPayload.set(payload);
+            return Mono.just(genericPayload(rule.allocator));
+          }
+
+          @Override
+          public Flux<Payload> requestStream(Payload payload) {
+            receivedPayload.set(payload);
+            return Flux.just(genericPayload(rule.allocator));
+          }
+
+          @Override
+          public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
+            Flux.from(payloads).subscribe(receivedPayload::set, null, null, s -> s.request(1));
+            return Flux.just(genericPayload(rule.allocator));
+          }
+        });
+
+    final int mtu = ThreadLocalRandom.current().nextInt(64, 256);
+    final Payload randomPayload = randomPayload(rule.allocator);
+    List<ByteBuf> fragments = prepareFragments(rule.allocator, mtu, randomPayload, frameType);
+
+    rule.connection.addToReceivedBuffer(fragments.toArray(new ByteBuf[0]));
+
+    PayloadAssert.assertThat(receivedPayload.get()).isEqualTo(randomPayload).hasNoLeaks();
+    randomPayload.release();
+
+    if (frameType != REQUEST_FNF) {
+      FrameAssert.assertThat(rule.connection.getSent().poll())
+          .typeOf(frameType == REQUEST_RESPONSE ? NEXT_COMPLETE : NEXT)
+          .hasData(TestRequesterResponderSupport.DATA_CONTENT)
+          .hasMetadata(TestRequesterResponderSupport.METADATA_CONTENT)
+          .hasNoLeaks();
+      if (frameType != REQUEST_RESPONSE) {
+        FrameAssert.assertThat(rule.connection.getSent().poll()).typeOf(COMPLETE).hasNoLeaks();
+      }
+    }
+
+    rule.assertHasNoLeaks();
+  }
+
+  @DisplayName("reassembles metadata")
+  @ParameterizedTest
+  @MethodSource("fragmentationCases")
+  void reassembleMetadataOnly(FrameType frameType) {
+    AtomicReference<Payload> receivedPayload = new AtomicReference<>();
+    rule.setAcceptingSocket(
+        new RSocket() {
+          @Override
+          public Mono<Void> fireAndForget(Payload payload) {
+            receivedPayload.set(payload);
+            return Mono.empty();
+          }
+
+          @Override
+          public Mono<Payload> requestResponse(Payload payload) {
+            receivedPayload.set(payload);
+            return Mono.just(genericPayload(rule.allocator));
+          }
+
+          @Override
+          public Flux<Payload> requestStream(Payload payload) {
+            receivedPayload.set(payload);
+            return Flux.just(genericPayload(rule.allocator));
+          }
+
+          @Override
+          public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
+            Flux.from(payloads).subscribe(receivedPayload::set, null, null, s -> s.request(1));
+            return Flux.just(genericPayload(rule.allocator));
+          }
+        });
+
+    final int mtu = ThreadLocalRandom.current().nextInt(64, 256);
+    final Payload randomMetadataOnlyPayload = randomMetadataOnlyPayload(rule.allocator);
+    List<ByteBuf> fragments =
+        prepareFragments(rule.allocator, mtu, randomMetadataOnlyPayload, frameType);
+
+    rule.connection.addToReceivedBuffer(fragments.toArray(new ByteBuf[0]));
+
+    PayloadAssert.assertThat(receivedPayload.get())
+        .isEqualTo(randomMetadataOnlyPayload)
+        .hasNoLeaks();
+    randomMetadataOnlyPayload.release();
+
+    if (frameType != REQUEST_FNF) {
+      FrameAssert.assertThat(rule.connection.getSent().poll())
+          .typeOf(frameType == REQUEST_RESPONSE ? NEXT_COMPLETE : NEXT)
+          .hasData(TestRequesterResponderSupport.DATA_CONTENT)
+          .hasMetadata(TestRequesterResponderSupport.METADATA_CONTENT)
+          .hasNoLeaks();
+      if (frameType != REQUEST_RESPONSE) {
+        FrameAssert.assertThat(rule.connection.getSent().poll()).typeOf(COMPLETE).hasNoLeaks();
+      }
+    }
+
+    rule.assertHasNoLeaks();
+  }
+
+  @ParameterizedTest(name = "throws error if reassembling payload size exceeds {0}")
+  @MethodSource("fragmentationCases")
+  public void errorTooBigPayload(FrameType frameType) throws Throwable {
+    final int maxInboundPayloadSize = ThreadLocalRandom.current().nextInt(64, 4096);
+    AtomicReference<Payload> receivedPayload = new AtomicReference<>();
+    ServerSocketRule rule = new ServerSocketRule();
+    rule.setMaxInboundPayloadSize(maxInboundPayloadSize);
+    rule.setAcceptingSocket(
+        new RSocket() {
+          @Override
+          public Mono<Void> fireAndForget(Payload payload) {
+            receivedPayload.set(payload);
+            return Mono.empty();
+          }
+
+          @Override
+          public Mono<Payload> requestResponse(Payload payload) {
+            receivedPayload.set(payload);
+            return Mono.just(genericPayload(rule.allocator));
+          }
+
+          @Override
+          public Flux<Payload> requestStream(Payload payload) {
+            receivedPayload.set(payload);
+            return Flux.just(genericPayload(rule.allocator));
+          }
+
+          @Override
+          public Flux<Payload> requestChannel(Publisher<Payload> payloads) {
+            Flux.from(payloads).subscribe(receivedPayload::set, null, null, s -> s.request(1));
+            return Flux.just(genericPayload(rule.allocator));
+          }
+        });
+    rule.apply(
+            new Statement() {
+              @Override
+              public void evaluate() throws Throwable {}
+            },
+            null)
+        .evaluate();
+
+    final int mtu = ThreadLocalRandom.current().nextInt(64, 256);
+    final Payload randomPayload = fixedSizePayload(rule.allocator, maxInboundPayloadSize + 1);
+    List<ByteBuf> fragments = prepareFragments(rule.allocator, mtu, randomPayload, frameType);
+    randomPayload.release();
+
+    rule.connection.addToReceivedBuffer(fragments.toArray(new ByteBuf[0]));
+
+    PayloadAssert.assertThat(receivedPayload.get()).isNull();
+
+    if (frameType != REQUEST_FNF) {
+      FrameAssert.assertThat(rule.connection.getSent().poll())
+          .typeOf(ERROR)
+          .hasData(
+              "Failed to reassemble payload. Cause: "
+                  + String.format(ILLEGAL_REASSEMBLED_PAYLOAD_SIZE, maxInboundPayloadSize))
+          .hasNoLeaks();
+    }
+
+    rule.assertHasNoLeaks();
+  }
+
   public static class ServerSocketRule extends AbstractSocketRule<RSocketResponder> {
 
     private RSocket acceptingSocket;
@@ -864,7 +1051,7 @@ public class RSocketResponderTest {
           ResponderLeaseHandler.None,
           0,
           maxFrameLength,
-          Integer.MAX_VALUE);
+          maxInboundPayloadSize);
     }
 
     private void sendRequest(int streamId, FrameType frameType) {

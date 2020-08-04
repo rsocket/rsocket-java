@@ -19,6 +19,7 @@ import static io.rsocket.frame.FrameLengthCodec.FRAME_LENGTH_MASK;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
+import io.netty.buffer.Unpooled;
 import io.netty.util.CharsetUtil;
 import io.rsocket.Payload;
 import io.rsocket.buffer.LeaksTrackingByteBufAllocator;
@@ -64,6 +65,26 @@ final class TestRequesterResponderSupport extends RequesterResponderSupport {
     return ByteBufPayload.create(data, metadata);
   }
 
+  static Payload fixedSizePayload(LeaksTrackingByteBufAllocator allocator, int contentSize) {
+    final int dataSize = ThreadLocalRandom.current().nextInt(0, contentSize);
+    final byte[] dataBytes = new byte[dataSize];
+    ThreadLocalRandom.current().nextBytes(dataBytes);
+    ByteBuf data = allocator.buffer(dataSize);
+    data.writeBytes(dataBytes);
+
+    ByteBuf metadata;
+    int metadataSize = contentSize - dataSize;
+    if (metadataSize > 0) {
+      final byte[] metadataBytes = new byte[metadataSize];
+      metadata = allocator.buffer(metadataSize);
+      metadata.writeBytes(metadataBytes);
+    } else {
+      metadata = ThreadLocalRandom.current().nextBoolean() ? Unpooled.EMPTY_BUFFER : null;
+    }
+
+    return ByteBufPayload.create(data, metadata);
+  }
+
   static Payload randomPayload(LeaksTrackingByteBufAllocator allocator) {
     boolean hasMetadata = ThreadLocalRandom.current().nextBoolean();
     ByteBuf metadataByteBuf;
@@ -81,16 +102,34 @@ final class TestRequesterResponderSupport extends RequesterResponderSupport {
     return ByteBufPayload.create(dataByteBuf, metadataByteBuf);
   }
 
+  static Payload randomMetadataOnlyPayload(LeaksTrackingByteBufAllocator allocator) {
+    byte[] randomMetadata = new byte[ThreadLocalRandom.current().nextInt(512, 1024)];
+    ThreadLocalRandom.current().nextBytes(randomMetadata);
+    ByteBuf metadataByteBuf = allocator.buffer().writeBytes(randomMetadata);
+
+    return ByteBufPayload.create(Unpooled.EMPTY_BUFFER, metadataByteBuf);
+  }
+
   static ArrayList<ByteBuf> prepareFragments(
       LeaksTrackingByteBufAllocator allocator, int mtu, Payload payload) {
+
+    return prepareFragments(allocator, mtu, payload, FrameType.NEXT_COMPLETE);
+  }
+
+  static ArrayList<ByteBuf> prepareFragments(
+      LeaksTrackingByteBufAllocator allocator, int mtu, Payload payload, FrameType frameType) {
+
     boolean hasMetadata = payload.hasMetadata();
     ByteBuf data = payload.sliceData();
     ByteBuf metadata = payload.sliceMetadata();
     ArrayList<ByteBuf> fragments = new ArrayList<>();
 
     fragments.add(
-        FragmentationUtils.encodeFirstFragment(
-            allocator, mtu, FrameType.NEXT_COMPLETE, 1, hasMetadata, metadata, data));
+        frameType.hasInitialRequestN()
+            ? FragmentationUtils.encodeFirstFragment(
+                allocator, mtu, 1L, frameType, 1, hasMetadata, metadata, data)
+            : FragmentationUtils.encodeFirstFragment(
+                allocator, mtu, frameType, 1, hasMetadata, metadata, data));
 
     while (metadata.isReadable() || data.isReadable()) {
       fragments.add(

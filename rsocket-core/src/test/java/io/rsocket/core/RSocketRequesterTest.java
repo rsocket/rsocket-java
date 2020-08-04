@@ -17,6 +17,12 @@
 package io.rsocket.core;
 
 import static io.rsocket.core.PayloadValidationUtils.INVALID_PAYLOAD_ERROR_MESSAGE;
+import static io.rsocket.core.ReassemblyUtils.ILLEGAL_REASSEMBLED_PAYLOAD_SIZE;
+import static io.rsocket.core.TestRequesterResponderSupport.fixedSizePayload;
+import static io.rsocket.core.TestRequesterResponderSupport.genericPayload;
+import static io.rsocket.core.TestRequesterResponderSupport.prepareFragments;
+import static io.rsocket.core.TestRequesterResponderSupport.randomMetadataOnlyPayload;
+import static io.rsocket.core.TestRequesterResponderSupport.randomPayload;
 import static io.rsocket.frame.FrameHeaderCodec.frameType;
 import static io.rsocket.frame.FrameLengthCodec.FRAME_LENGTH_MASK;
 import static io.rsocket.frame.FrameType.*;
@@ -35,8 +41,11 @@ import io.netty.util.CharsetUtil;
 import io.netty.util.IllegalReferenceCountException;
 import io.netty.util.ReferenceCountUtil;
 import io.netty.util.ReferenceCounted;
+import io.rsocket.FrameAssert;
 import io.rsocket.Payload;
+import io.rsocket.PayloadAssert;
 import io.rsocket.RSocket;
+import io.rsocket.buffer.LeaksTrackingByteBufAllocator;
 import io.rsocket.exceptions.ApplicationErrorException;
 import io.rsocket.exceptions.CustomRSocketException;
 import io.rsocket.exceptions.RejectedSetupException;
@@ -74,6 +83,7 @@ import org.assertj.core.api.Assumptions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -1213,6 +1223,115 @@ public class RSocketRequesterTest {
     rule.assertHasNoLeaks();
   }
 
+  @DisplayName("reassembles data")
+  @ParameterizedTest
+  @MethodSource("requestNInteractions")
+  void reassembleData(
+      FrameType frameType,
+      BiFunction<ClientSocketRule, Payload, Publisher<Payload>> requestFunction) {
+    final int mtu = ThreadLocalRandom.current().nextInt(64, 256);
+    final LeaksTrackingByteBufAllocator leaksTrackingByteBufAllocator =
+        LeaksTrackingByteBufAllocator.instrument(ByteBufAllocator.DEFAULT);
+    final Payload requestPayload = genericPayload(leaksTrackingByteBufAllocator);
+    final Payload randomPayload = randomPayload(leaksTrackingByteBufAllocator);
+    List<ByteBuf> fragments = prepareFragments(leaksTrackingByteBufAllocator, mtu, randomPayload);
+
+    final Publisher<Payload> responsePublisher = requestFunction.apply(rule, requestPayload);
+    StepVerifier.create(responsePublisher)
+        .then(() -> rule.connection.addToReceivedBuffer(fragments.toArray(new ByteBuf[0])))
+        .assertNext(
+            p -> {
+              PayloadAssert.assertThat(p).isEqualTo(randomPayload).hasNoLeaks();
+              randomPayload.release();
+            })
+        .thenCancel()
+        .verify();
+
+    FrameAssert.assertThat(rule.connection.getSent().poll()).typeOf(frameType).hasNoLeaks();
+
+    if (frameType == REQUEST_CHANNEL) {
+      FrameAssert.assertThat(rule.connection.getSent().poll()).typeOf(COMPLETE).hasNoLeaks();
+    }
+
+    if (!rule.connection.getSent().isEmpty()) {
+      FrameAssert.assertThat(rule.connection.getSent().poll()).typeOf(CANCEL).hasNoLeaks();
+    }
+
+    leaksTrackingByteBufAllocator.assertHasNoLeaks();
+  }
+
+  @DisplayName("reassembles metadata")
+  @ParameterizedTest
+  @MethodSource("requestNInteractions")
+  void reassembleMetadata(
+      FrameType frameType,
+      BiFunction<ClientSocketRule, Payload, Publisher<Payload>> requestFunction) {
+    final int mtu = ThreadLocalRandom.current().nextInt(64, 256);
+    final LeaksTrackingByteBufAllocator leaksTrackingByteBufAllocator =
+        LeaksTrackingByteBufAllocator.instrument(ByteBufAllocator.DEFAULT);
+
+    final Payload requestPayload = genericPayload(leaksTrackingByteBufAllocator);
+    final Payload metadataOnlyPayload = randomMetadataOnlyPayload(leaksTrackingByteBufAllocator);
+    List<ByteBuf> fragments =
+        prepareFragments(leaksTrackingByteBufAllocator, mtu, metadataOnlyPayload);
+
+    StepVerifier.create(requestFunction.apply(rule, requestPayload))
+        .then(() -> rule.connection.addToReceivedBuffer(fragments.toArray(new ByteBuf[0])))
+        .assertNext(
+            responsePayload -> {
+              PayloadAssert.assertThat(requestPayload).isEqualTo(metadataOnlyPayload).hasNoLeaks();
+              metadataOnlyPayload.release();
+            })
+        .thenCancel()
+        .verify();
+
+    FrameAssert.assertThat(rule.connection.getSent().poll()).typeOf(frameType).hasNoLeaks();
+
+    if (frameType == REQUEST_CHANNEL) {
+      FrameAssert.assertThat(rule.connection.getSent().poll()).typeOf(COMPLETE).hasNoLeaks();
+    }
+
+    if (!rule.connection.getSent().isEmpty()) {
+      FrameAssert.assertThat(rule.connection.getSent().poll()).typeOf(CANCEL).hasNoLeaks();
+    }
+
+    leaksTrackingByteBufAllocator.assertHasNoLeaks();
+  }
+
+  @ParameterizedTest(name = "throws error if reassembling payload size exceeds {0}")
+  @MethodSource("requestNInteractions")
+  public void errorTooBigPayload(
+      FrameType frameType,
+      BiFunction<ClientSocketRule, Payload, Publisher<Payload>> requestFunction) {
+    final int maxInboundPayloadSize = ThreadLocalRandom.current().nextInt(64, 4096);
+    final int mtu = ThreadLocalRandom.current().nextInt(64, 256);
+    final LeaksTrackingByteBufAllocator leaksTrackingByteBufAllocator =
+        LeaksTrackingByteBufAllocator.instrument(ByteBufAllocator.DEFAULT);
+
+    final Payload requestPayload = genericPayload(leaksTrackingByteBufAllocator);
+    final Payload responsePayload =
+        fixedSizePayload(leaksTrackingByteBufAllocator, maxInboundPayloadSize + 1);
+    List<ByteBuf> fragments = prepareFragments(leaksTrackingByteBufAllocator, mtu, responsePayload);
+    responsePayload.release();
+
+    rule.setMaxInboundPayloadSize(maxInboundPayloadSize);
+
+    StepVerifier.create(requestFunction.apply(rule, requestPayload))
+        .then(() -> rule.connection.addToReceivedBuffer(fragments.toArray(new ByteBuf[0])))
+        .expectErrorMessage(String.format(ILLEGAL_REASSEMBLED_PAYLOAD_SIZE, maxInboundPayloadSize))
+        .verify();
+
+    FrameAssert.assertThat(rule.connection.getSent().poll()).typeOf(frameType).hasNoLeaks();
+
+    if (frameType == REQUEST_CHANNEL) {
+      FrameAssert.assertThat(rule.connection.getSent().poll()).typeOf(COMPLETE).hasNoLeaks();
+    }
+
+    FrameAssert.assertThat(rule.connection.getSent().poll()).typeOf(CANCEL).hasNoLeaks();
+
+    leaksTrackingByteBufAllocator.assertHasNoLeaks();
+  }
+
   public static class ClientSocketRule extends AbstractSocketRule<RSocketRequester> {
     @Override
     protected RSocketRequester newRSocket() {
@@ -1222,7 +1341,7 @@ public class RSocketRequesterTest {
           StreamIdSupplier.clientSupplier(),
           0,
           maxFrameLength,
-          Integer.MAX_VALUE,
+          maxInboundPayloadSize,
           Integer.MAX_VALUE,
           Integer.MAX_VALUE,
           null,

@@ -540,7 +540,7 @@ public class DefaultRSocketClientTests {
           StreamIdSupplier.clientSupplier(),
           0,
           maxFrameLength,
-          Integer.MAX_VALUE,
+          maxInboundPayloadSize,
           Integer.MAX_VALUE,
           Integer.MAX_VALUE,
           null,
