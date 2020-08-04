@@ -28,21 +28,24 @@ import reactor.core.publisher.Mono;
 import reactor.core.publisher.Operators;
 import reactor.util.context.Context;
 
-/** Specific interface for all RSocket store in {@link RSocketPool} */
-final class ResolvingPooledRSocket extends ResolvingOperator<RSocket>
+/** Default implementation of {@link PooledRSocket} stored in {@link RSocketPool} */
+final class DefaultPooledRSocket extends ResolvingOperator<RSocket>
     implements CoreSubscriber<RSocket>, PooledRSocket {
 
-  final LoadbalanceTarget loadbalanceTarget;
+  final RSocketPool parent;
+  final LoadbalanceRSocketSource loadbalanceRSocketSource;
   final Stats stats;
 
   volatile Subscription s;
 
-  static final AtomicReferenceFieldUpdater<ResolvingPooledRSocket, Subscription> S =
-      AtomicReferenceFieldUpdater.newUpdater(ResolvingPooledRSocket.class, Subscription.class, "s");
+  static final AtomicReferenceFieldUpdater<DefaultPooledRSocket, Subscription> S =
+      AtomicReferenceFieldUpdater.newUpdater(DefaultPooledRSocket.class, Subscription.class, "s");
 
-  ResolvingPooledRSocket(LoadbalanceTarget loadbalanceTarget, Stats stats) {
+  DefaultPooledRSocket(
+      RSocketPool parent, LoadbalanceRSocketSource loadbalanceRSocketSource, Stats stats) {
+    this.parent = parent;
     this.stats = stats;
-    this.loadbalanceTarget = loadbalanceTarget;
+    this.loadbalanceRSocketSource = loadbalanceRSocketSource;
   }
 
   @Override
@@ -100,21 +103,61 @@ final class ResolvingPooledRSocket extends ResolvingOperator<RSocket>
 
   @Override
   protected void doSubscribe() {
-    this.loadbalanceTarget.source().subscribe(this);
+    this.loadbalanceRSocketSource.source().subscribe(this);
   }
 
   @Override
   protected void doOnValueResolved(RSocket value) {
+    stats.setAvailability(1.0);
     value.onClose().subscribe(null, t -> this.invalidate(), this::invalidate);
   }
 
   @Override
   protected void doOnValueExpired(RSocket value) {
+    stats.setAvailability(0.0);
     value.dispose();
+    this.dispose();
+  }
+
+  @Override
+  public void dispose() {
+    super.dispose();
   }
 
   @Override
   protected void doOnDispose() {
+    final RSocketPool parent = this.parent;
+    for (; ; ) {
+      final PooledRSocket[] sockets = parent.activeSockets;
+      final int activeSocketsCount = sockets.length;
+
+      int index = -1;
+      for (int i = 0; i < activeSocketsCount; i++) {
+        if (sockets[i] == this) {
+          index = i;
+          break;
+        }
+      }
+
+      if (index == -1) {
+        break;
+      }
+
+      final int lastIndex = activeSocketsCount - 1;
+      final PooledRSocket[] newSockets = new PooledRSocket[lastIndex];
+      if (index != 0) {
+        System.arraycopy(sockets, 0, newSockets, 0, index);
+      }
+
+      if (index != lastIndex) {
+        System.arraycopy(sockets, index + 1, newSockets, index, lastIndex - index);
+      }
+
+      if (RSocketPool.ACTIVE_SOCKETS.compareAndSet(parent, sockets, newSockets)) {
+        break;
+      }
+    }
+    stats.setAvailability(0.0);
     Operators.terminate(S, this);
   }
 
@@ -154,8 +197,8 @@ final class ResolvingPooledRSocket extends ResolvingOperator<RSocket>
   }
 
   @Override
-  public LoadbalanceTarget supplier() {
-    return loadbalanceTarget;
+  public LoadbalanceRSocketSource source() {
+    return loadbalanceRSocketSource;
   }
 
   @Override
@@ -163,38 +206,12 @@ final class ResolvingPooledRSocket extends ResolvingOperator<RSocket>
     return stats.availability();
   }
 
-  /**
-   * Try to dispose this instance if possible. Otherwise, if there is ongoing requests, mark this as
-   * pending for removal and dispose once all the requests are terminated.<br>
-   * This operation may be cancelled if {@link #markActive()} is invoked prior this instance has
-   * been disposed
-   *
-   * @return {@code true} if this instance was disposed
-   */
-  @Override
-  public boolean markForRemoval() {
-    // FIXME: provide real logic here
-    this.dispose();
-    return true;
-  }
-
-  /**
-   * Try to restore state of this RSocket to be active after marking as pending removal again.
-   *
-   * @return {@code true} if marked as active. Otherwise, should be treated as it was disposed.
-   */
-  @Override
-  public boolean markActive() {
-    return false;
-  }
-
   static final class RequestTrackingMonoInner<RESULT>
       extends MonoDeferredResolution<RESULT, RSocket> {
 
     long startTime;
 
-    RequestTrackingMonoInner(
-        ResolvingPooledRSocket parent, Payload payload, FrameType requestType) {
+    RequestTrackingMonoInner(DefaultPooledRSocket parent, Payload payload, FrameType requestType) {
       super(parent, payload, requestType);
     }
 
@@ -228,7 +245,7 @@ final class ResolvingPooledRSocket extends ResolvingOperator<RSocket>
             return;
         }
 
-        startTime = ((ResolvingPooledRSocket) parent).stats.startRequest();
+        startTime = ((DefaultPooledRSocket) parent).stats.startRequest();
 
         source.subscribe((CoreSubscriber) this);
       } else {
@@ -240,7 +257,7 @@ final class ResolvingPooledRSocket extends ResolvingOperator<RSocket>
     public void onComplete() {
       final long state = this.requested;
       if (state != TERMINATED_STATE && REQUESTED.compareAndSet(this, state, TERMINATED_STATE)) {
-        final Stats stats = ((ResolvingPooledRSocket) parent).stats;
+        final Stats stats = ((DefaultPooledRSocket) parent).stats;
         final long now = stats.stopRequest(startTime);
         stats.record(now - startTime);
         super.onComplete();
@@ -251,7 +268,7 @@ final class ResolvingPooledRSocket extends ResolvingOperator<RSocket>
     public void onError(Throwable t) {
       final long state = this.requested;
       if (state != TERMINATED_STATE && REQUESTED.compareAndSet(this, state, TERMINATED_STATE)) {
-        Stats stats = ((ResolvingPooledRSocket) parent).stats;
+        Stats stats = ((DefaultPooledRSocket) parent).stats;
         stats.stopRequest(startTime);
         stats.recordError(0.0);
         super.onError(t);
@@ -267,7 +284,7 @@ final class ResolvingPooledRSocket extends ResolvingOperator<RSocket>
 
       if (state == STATE_SUBSCRIBED) {
         this.s.cancel();
-        ((ResolvingPooledRSocket) parent).stats.stopRequest(startTime);
+        ((DefaultPooledRSocket) parent).stats.stopRequest(startTime);
       } else {
         this.parent.remove(this);
         ReferenceCountUtil.safeRelease(this.payload);
@@ -279,7 +296,7 @@ final class ResolvingPooledRSocket extends ResolvingOperator<RSocket>
       extends FluxDeferredResolution<INPUT, RSocket> {
 
     RequestTrackingFluxInner(
-        ResolvingPooledRSocket parent, INPUT fluxOrPayload, FrameType requestType) {
+        DefaultPooledRSocket parent, INPUT fluxOrPayload, FrameType requestType) {
       super(parent, fluxOrPayload, requestType);
     }
 
@@ -312,7 +329,7 @@ final class ResolvingPooledRSocket extends ResolvingOperator<RSocket>
             return;
         }
 
-        ((ResolvingPooledRSocket) parent).stats.startStream();
+        ((DefaultPooledRSocket) parent).stats.startStream();
 
         source.subscribe(this);
       } else {
@@ -324,7 +341,7 @@ final class ResolvingPooledRSocket extends ResolvingOperator<RSocket>
     public void onComplete() {
       final long state = this.requested;
       if (state != TERMINATED_STATE && REQUESTED.compareAndSet(this, state, TERMINATED_STATE)) {
-        ((ResolvingPooledRSocket) parent).stats.stopStream();
+        ((DefaultPooledRSocket) parent).stats.stopStream();
         super.onComplete();
       }
     }
@@ -333,7 +350,7 @@ final class ResolvingPooledRSocket extends ResolvingOperator<RSocket>
     public void onError(Throwable t) {
       final long state = this.requested;
       if (state != TERMINATED_STATE && REQUESTED.compareAndSet(this, state, TERMINATED_STATE)) {
-        ((ResolvingPooledRSocket) parent).stats.stopStream();
+        ((DefaultPooledRSocket) parent).stats.stopStream();
         super.onError(t);
       }
     }
@@ -347,7 +364,7 @@ final class ResolvingPooledRSocket extends ResolvingOperator<RSocket>
 
       if (state == STATE_SUBSCRIBED) {
         this.s.cancel();
-        ((ResolvingPooledRSocket) parent).stats.stopStream();
+        ((DefaultPooledRSocket) parent).stats.stopStream();
       } else {
         this.parent.remove(this);
         if (requestType == FrameType.REQUEST_STREAM) {

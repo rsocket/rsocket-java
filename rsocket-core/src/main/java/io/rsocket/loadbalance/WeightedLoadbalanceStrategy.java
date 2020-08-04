@@ -18,9 +18,10 @@ package io.rsocket.loadbalance;
 
 import java.util.SplittableRandom;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.Supplier;
 import reactor.util.annotation.Nullable;
 
-public class WeightedLoadbalanceStrategy implements StatsBasedLoadbalanceStrategy {
+public class WeightedLoadbalanceStrategy implements LoadbalanceStrategy {
 
   private static final double EXP_FACTOR = 4.0;
 
@@ -28,6 +29,7 @@ public class WeightedLoadbalanceStrategy implements StatsBasedLoadbalanceStrateg
 
   final SplittableRandom splittableRandom;
   final int effort;
+  final Supplier<Stats> statsSupplier;
 
   public WeightedLoadbalanceStrategy() {
     this(EFFORT);
@@ -38,8 +40,19 @@ public class WeightedLoadbalanceStrategy implements StatsBasedLoadbalanceStrateg
   }
 
   public WeightedLoadbalanceStrategy(int effort, SplittableRandom splittableRandom) {
+    this(effort, splittableRandom, Stats::create);
+  }
+
+  public WeightedLoadbalanceStrategy(
+      int effort, SplittableRandom splittableRandom, Supplier<Stats> statsSupplier) {
     this.splittableRandom = splittableRandom;
     this.effort = effort;
+    this.statsSupplier = statsSupplier;
+  }
+
+  @Override
+  public Supplier<Stats> statsSupplier() {
+    return this.statsSupplier;
   }
 
   @Override

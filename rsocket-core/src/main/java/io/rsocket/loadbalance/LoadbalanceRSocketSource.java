@@ -19,12 +19,12 @@ package io.rsocket.loadbalance;
 import io.rsocket.RSocket;
 import reactor.core.publisher.Mono;
 
-public class LoadbalanceTarget {
+public class LoadbalanceRSocketSource {
 
   final String serverKey;
   final Mono<RSocket> source;
 
-  public LoadbalanceTarget(String serverKey, Mono<RSocket> source) {
+  private LoadbalanceRSocketSource(String serverKey, Mono<RSocket> source) {
     this.serverKey = serverKey;
     this.source = source;
   }
@@ -38,7 +38,7 @@ public class LoadbalanceTarget {
     if (this == o) return true;
     if (o == null || getClass() != o.getClass()) return false;
 
-    LoadbalanceTarget that = (LoadbalanceTarget) o;
+    LoadbalanceRSocketSource that = (LoadbalanceRSocketSource) o;
 
     return serverKey.equals(that.serverKey);
   }
@@ -46,5 +46,9 @@ public class LoadbalanceTarget {
   @Override
   public int hashCode() {
     return serverKey.hashCode();
+  }
+
+  public static LoadbalanceRSocketSource from(String serverKey, Mono<RSocket> source) {
+    return new LoadbalanceRSocketSource(serverKey, source);
   }
 }

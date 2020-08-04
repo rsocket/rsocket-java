@@ -4,9 +4,9 @@ import io.rsocket.RSocketClient;
 import io.rsocket.SocketAcceptor;
 import io.rsocket.core.RSocketConnector;
 import io.rsocket.core.RSocketServer;
-import io.rsocket.loadbalance.LoadBalancedRSocketClient;
-import io.rsocket.loadbalance.LoadbalanceTarget;
-import io.rsocket.loadbalance.WeightedLoadbalanceStrategy;
+import io.rsocket.loadbalance.LoadbalanceRSocketClient;
+import io.rsocket.loadbalance.LoadbalanceRSocketSource;
+import io.rsocket.loadbalance.RoundRobinLoadbalanceStrategy;
 import io.rsocket.transport.netty.client.TcpClientTransport;
 import io.rsocket.transport.netty.server.CloseableChannel;
 import io.rsocket.transport.netty.server.TcpServerTransport;
@@ -51,7 +51,7 @@ public class RoundRobinRSocketLoadbalancerExample {
                     }))
             .bindNow(TcpServerTransport.create(8082));
 
-    Flux<List<LoadbalanceTarget>> producer =
+    Flux<List<LoadbalanceRSocketSource>> producer =
         Flux.interval(Duration.ofSeconds(5))
             .log()
             .map(
@@ -62,42 +62,42 @@ public class RoundRobinRSocketLoadbalancerExample {
                       return Collections.emptyList();
                     case 1:
                       return Collections.singletonList(
-                          new LoadbalanceTarget(
+                          LoadbalanceRSocketSource.from(
                               "8080",
                               RSocketConnector.connectWith(TcpClientTransport.create(8080))));
                     case 2:
                       return Arrays.asList(
-                          new LoadbalanceTarget(
+                          LoadbalanceRSocketSource.from(
                               "8080",
                               RSocketConnector.connectWith(TcpClientTransport.create(8080))),
-                          new LoadbalanceTarget(
+                          LoadbalanceRSocketSource.from(
                               "8081",
                               RSocketConnector.connectWith(TcpClientTransport.create(8081))));
                     case 3:
                       return Arrays.asList(
-                          new LoadbalanceTarget(
+                          LoadbalanceRSocketSource.from(
                               "8080",
                               RSocketConnector.connectWith(TcpClientTransport.create(8080))),
-                          new LoadbalanceTarget(
+                          LoadbalanceRSocketSource.from(
                               "8082",
                               RSocketConnector.connectWith(TcpClientTransport.create(8082))));
                     case 4:
                       return Arrays.asList(
-                          new LoadbalanceTarget(
+                          LoadbalanceRSocketSource.from(
                               "8081",
                               RSocketConnector.connectWith(TcpClientTransport.create(8081))),
-                          new LoadbalanceTarget(
+                          LoadbalanceRSocketSource.from(
                               "8082",
                               RSocketConnector.connectWith(TcpClientTransport.create(8082))));
                     case 5:
                       return Arrays.asList(
-                          new LoadbalanceTarget(
+                          LoadbalanceRSocketSource.from(
                               "8080",
                               RSocketConnector.connectWith(TcpClientTransport.create(8080))),
-                          new LoadbalanceTarget(
+                          LoadbalanceRSocketSource.from(
                               "8081",
                               RSocketConnector.connectWith(TcpClientTransport.create(8081))),
-                          new LoadbalanceTarget(
+                          LoadbalanceRSocketSource.from(
                               "8082",
                               RSocketConnector.connectWith(TcpClientTransport.create(8082))));
                     case 6:
@@ -107,25 +107,30 @@ public class RoundRobinRSocketLoadbalancerExample {
                     default:
                     case 8:
                       return Arrays.asList(
-                          new LoadbalanceTarget(
+                          LoadbalanceRSocketSource.from(
                               "8080",
                               RSocketConnector.connectWith(TcpClientTransport.create(8080))),
-                          new LoadbalanceTarget(
+                          LoadbalanceRSocketSource.from(
                               "8081",
                               RSocketConnector.connectWith(TcpClientTransport.create(8081))),
-                          new LoadbalanceTarget(
+                          LoadbalanceRSocketSource.from(
                               "8082",
                               RSocketConnector.connectWith(TcpClientTransport.create(8082))));
                   }
                 });
 
     RSocketClient loadBalancedRSocketClient =
-        LoadBalancedRSocketClient.create(new WeightedLoadbalanceStrategy(), producer);
+        LoadbalanceRSocketClient.create(new RoundRobinLoadbalanceStrategy(), producer);
 
     for (int i = 0; i < 10000; i++) {
-      loadBalancedRSocketClient
-          .requestResponse(Mono.just(DefaultPayload.create("test" + i)))
-          .block();
+      try {
+
+        loadBalancedRSocketClient
+            .requestResponse(Mono.just(DefaultPayload.create("test" + i)))
+            .block();
+      } catch (Throwable t) {
+        // no ops
+      }
     }
   }
 }

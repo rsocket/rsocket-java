@@ -20,8 +20,8 @@ import io.rsocket.Availability;
 import io.rsocket.Closeable;
 import io.rsocket.RSocket;
 import io.rsocket.client.filter.RSocketSupplier;
-import io.rsocket.loadbalance.LoadBalancedRSocketClient;
-import io.rsocket.loadbalance.LoadbalanceTarget;
+import io.rsocket.loadbalance.LoadbalanceRSocketClient;
+import io.rsocket.loadbalance.LoadbalanceRSocketSource;
 import io.rsocket.loadbalance.WeightedLoadbalanceStrategy;
 import java.util.Collection;
 import java.util.stream.Collectors;
@@ -36,17 +36,19 @@ import reactor.core.publisher.MonoProcessor;
  * it is subscribed to
  *
  * <p>It estimates the load of each RSocket based on statistics collected.
+ *
+ * @deprecated as of 1.1. in favor of {@link LoadBalancedRSocketClient}.
  */
 @Deprecated
 public abstract class LoadBalancedRSocketMono extends Mono<RSocket>
     implements Availability, Closeable {
 
   private final MonoProcessor<Void> onClose = MonoProcessor.create();
-  private final LoadBalancedRSocketClient loadBalancedRSocketClient;
+  private final LoadbalanceRSocketClient loadBalancedRSocketClient;
 
   protected final Mono<RSocket> rSocketMono;
 
-  private LoadBalancedRSocketMono(LoadBalancedRSocketClient loadBalancedRSocketClient) {
+  private LoadBalancedRSocketMono(LoadbalanceRSocketClient loadBalancedRSocketClient) {
     this.rSocketMono = loadBalancedRSocketClient.source();
     this.loadBalancedRSocketClient = loadBalancedRSocketClient;
   }
@@ -75,12 +77,12 @@ public abstract class LoadBalancedRSocketMono extends Mono<RSocket>
             .map(
                 rsl ->
                     rsl.stream()
-                        .map(rs -> new LoadbalanceTarget(rs.toString(), rs.get()))
+                        .map(rs -> LoadbalanceRSocketSource.from(rs.toString(), rs.get()))
                         .collect(Collectors.toList()))
-            .as(f -> LoadBalancedRSocketClient.create(new WeightedLoadbalanceStrategy(), f)));
+            .as(f -> LoadbalanceRSocketClient.create(new WeightedLoadbalanceStrategy(), f)));
   }
 
-  public static LoadBalancedRSocketMono fromClient(LoadBalancedRSocketClient rSocketClient) {
+  public static LoadBalancedRSocketMono fromClient(LoadbalanceRSocketClient rSocketClient) {
     return new LoadBalancedRSocketMono(rSocketClient) {
       @Override
       public void subscribe(CoreSubscriber<? super RSocket> s) {
