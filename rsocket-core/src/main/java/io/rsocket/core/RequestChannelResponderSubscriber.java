@@ -340,7 +340,12 @@ final class RequestChannelResponderSubscriber extends Flux<Payload>
       }
     }
 
-    this.outboundSubscription.cancel();
+    final Subscription outboundSubscription = this.outboundSubscription;
+    if (outboundSubscription == null) {
+      return previousState;
+    }
+
+    outboundSubscription.cancel();
 
     if (!isSubscribed(previousState)) {
       final Payload firstPayload = this.firstPayload;
@@ -492,7 +497,7 @@ final class RequestChannelResponderSubscriber extends Flux<Payload>
     } else {
       try {
         frames = ReassemblyUtils.addFollowingFrame(frames, frame, this.maxInboundPayloadSize);
-      } catch (IllegalReferenceCountException e) {
+      } catch (IllegalStateException e) {
         if (isTerminated(this.state)) {
           return;
         }
@@ -502,8 +507,6 @@ final class RequestChannelResponderSubscriber extends Flux<Payload>
           Operators.onErrorDropped(e, this.inboundSubscriber.currentContext());
           return;
         }
-
-        this.frames = null;
 
         this.outboundDone = true;
         // send error to terminate interaction

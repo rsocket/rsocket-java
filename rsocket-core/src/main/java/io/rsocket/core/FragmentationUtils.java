@@ -117,12 +117,14 @@ class FragmentationUtils {
     int remaining = mtu - FRAME_OFFSET;
 
     ByteBuf metadataFragment = hasMetadata ? Unpooled.EMPTY_BUFFER : null;
-    if (metadata.isReadable()) {
+    if (hasMetadata) {
       // subtract the metadata frame length
       remaining -= FrameLengthCodec.FRAME_LENGTH_SIZE;
-      int r = Math.min(remaining, metadata.readableBytes());
-      remaining -= r;
-      metadataFragment = metadata.readRetainedSlice(r);
+      if (metadata.isReadable()) {
+        int r = Math.min(remaining, metadata.readableBytes());
+        remaining -= r;
+        metadataFragment = metadata.readRetainedSlice(r);
+      }
     }
 
     ByteBuf dataFragment = Unpooled.EMPTY_BUFFER;
@@ -166,18 +168,21 @@ class FragmentationUtils {
       long initialRequestN,
       FrameType frameType,
       int streamId,
+      boolean hasMetadata,
       ByteBuf metadata,
       ByteBuf data) {
     // subtract the header bytes + frame length bytes + initial requestN bytes
     int remaining = mtu - FRAME_OFFSET_WITH_INITIAL_REQUEST_N;
 
-    ByteBuf metadataFragment = null;
-    if (metadata.isReadable()) {
+    ByteBuf metadataFragment = hasMetadata ? Unpooled.EMPTY_BUFFER : null;
+    if (hasMetadata) {
       // subtract the metadata frame length
       remaining -= FrameLengthCodec.FRAME_LENGTH_SIZE;
-      int r = Math.min(remaining, metadata.readableBytes());
-      remaining -= r;
-      metadataFragment = metadata.readRetainedSlice(r);
+      if (metadata.isReadable()) {
+        int r = Math.min(remaining, metadata.readableBytes());
+        remaining -= r;
+        metadataFragment = metadata.readRetainedSlice(r);
+      }
     }
 
     ByteBuf dataFragment = Unpooled.EMPTY_BUFFER;

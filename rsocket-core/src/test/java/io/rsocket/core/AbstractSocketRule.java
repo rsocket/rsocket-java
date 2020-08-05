@@ -35,6 +35,7 @@ public abstract class AbstractSocketRule<T extends RSocket> extends ExternalReso
   protected T socket;
   protected LeaksTrackingByteBufAllocator allocator;
   protected int maxFrameLength = FRAME_LENGTH_MASK;
+  protected int maxInboundPayloadSize = Integer.MAX_VALUE;
 
   @Override
   public Statement apply(final Statement base, Description description) {
@@ -58,6 +59,11 @@ public abstract class AbstractSocketRule<T extends RSocket> extends ExternalReso
     }
     connection = new TestDuplexConnection(allocator);
     socket = newRSocket();
+  }
+
+  public void setMaxInboundPayloadSize(int maxInboundPayloadSize) {
+    this.maxInboundPayloadSize = maxInboundPayloadSize;
+    init();
   }
 
   public void setMaxFrameLength(int maxFrameLength) {

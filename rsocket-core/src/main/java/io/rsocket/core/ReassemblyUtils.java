@@ -30,6 +30,7 @@ import io.netty.util.ReferenceCountUtil;
 import io.rsocket.Payload;
 import io.rsocket.frame.FrameHeaderCodec;
 import io.rsocket.frame.FrameLengthCodec;
+import io.rsocket.frame.FrameType;
 import io.rsocket.frame.decoder.PayloadDecoder;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 import org.reactivestreams.Subscription;
@@ -118,8 +119,6 @@ class ReassemblyUtils {
           return;
         }
 
-        instance.setFrames(null);
-
         // sends cancel frame to prevent any further frames
         subscription.cancel();
         // terminates downstream
@@ -168,7 +167,6 @@ class ReassemblyUtils {
     } else if (maxInboundPayloadSize != Integer.MAX_VALUE
         && readableBytes + followingFrame.readableBytes() - FrameHeaderCodec.size()
             > maxInboundPayloadSize) {
-      frames.release();
       throw new IllegalStateException(
           String.format(ILLEGAL_REASSEMBLED_PAYLOAD_SIZE, maxInboundPayloadSize));
     }
@@ -181,14 +179,19 @@ class ReassemblyUtils {
     // if has metadata, then we have to increase metadata length in containing frames
     // CompositeByteBuf
     if (hasMetadata) {
-      frames.markReaderIndex().skipBytes(FrameHeaderCodec.size());
+      final FrameType frameType = FrameHeaderCodec.frameType(frames);
+      final int lengthFieldPosition =
+          FrameHeaderCodec.size() + (frameType.hasInitialRequestN() ? Integer.BYTES : 0);
+
+      frames.markReaderIndex();
+      frames.skipBytes(lengthFieldPosition);
 
       final int nextMetadataLength = decodeLength(frames) + decodeLength(followingFrame);
 
       frames.resetReaderIndex();
 
       frames.markWriterIndex();
-      frames.writerIndex(FrameHeaderCodec.size());
+      frames.writerIndex(lengthFieldPosition);
 
       encodeLength(frames, nextMetadataLength);
 

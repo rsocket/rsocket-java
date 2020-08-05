@@ -250,8 +250,33 @@ final class RequestStreamResponderSubscriber
 
   @Override
   public void handleNext(ByteBuf followingFrame, boolean hasFollows, boolean isLastPayload) {
-    final CompositeByteBuf frames =
-        ReassemblyUtils.addFollowingFrame(this.frames, followingFrame, this.maxInboundPayloadSize);
+    final CompositeByteBuf frames;
+    try {
+      frames =
+          ReassemblyUtils.addFollowingFrame(
+              this.frames, followingFrame, this.maxInboundPayloadSize);
+    } catch (IllegalStateException t) {
+      // if subscription is null, it means that streams has not yet reassembled all the fragments
+      // and fragmentation of the first frame was cancelled before
+      S.lazySet(this, Operators.cancelledSubscription());
+
+      this.requesterResponderSupport.remove(this.streamId, this);
+
+      CompositeByteBuf framesToRelease = this.frames;
+      this.frames = null;
+      framesToRelease.release();
+
+      logger.debug("Reassembly has failed", t);
+
+      // sends error frame from the responder side to tell that something went wrong
+      final ByteBuf errorFrame =
+          ErrorFrameCodec.encode(
+              this.allocator,
+              this.streamId,
+              new CanceledException("Failed to reassemble payload. Cause: " + t.getMessage()));
+      this.sendProcessor.onNext(errorFrame);
+      return;
+    }
 
     if (!hasFollows) {
       this.frames = null;
@@ -260,17 +285,21 @@ final class RequestStreamResponderSubscriber
         payload = this.payloadDecoder.apply(frames);
         frames.release();
       } catch (Throwable t) {
-        ReferenceCountUtil.safeRelease(frames);
-        logger.debug("Reassembly has failed", t);
-
         S.lazySet(this, Operators.cancelledSubscription());
         this.done = true;
+
+        this.requesterResponderSupport.remove(this.streamId, this);
+
+        ReferenceCountUtil.safeRelease(frames);
+
+        logger.debug("Reassembly has failed", t);
+
         // sends error frame from the responder side to tell that something went wrong
         final ByteBuf errorFrame =
             ErrorFrameCodec.encode(
                 this.allocator,
                 this.streamId,
-                new CanceledException("Failed to reassemble payload. Cause" + t.getMessage()));
+                new CanceledException("Failed to reassemble payload. Cause: " + t.getMessage()));
         this.sendProcessor.onNext(errorFrame);
         return;
       }

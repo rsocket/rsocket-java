@@ -195,7 +195,14 @@ final class SendUtils {
       try {
         first =
             FragmentationUtils.encodeFirstFragment(
-                allocator, mtu, initialRequestN, frameType, streamId, slicedMetadata, slicedData);
+                allocator,
+                mtu,
+                initialRequestN,
+                frameType,
+                streamId,
+                hasMetadata,
+                slicedMetadata,
+                slicedData);
       } catch (IllegalReferenceCountException e) {
         sendTerminalFrame(streamId, frameType, sendProcessor, allocator, true, false, e);
         throw e;
