@@ -1,6 +1,9 @@
 package io.rsocket.exceptions;
 
-public class TestRSocketException extends RSocketException {
+import io.rsocket.RSocketErrorException;
+import io.rsocket.frame.ErrorFrameCodec;
+
+public class TestRSocketException extends RSocketErrorException {
   private static final long serialVersionUID = 7873267740343446585L;
 
   private final int errorCode;
@@ -14,7 +17,7 @@ public class TestRSocketException extends RSocketException {
    * @throws IllegalArgumentException if {@code errorCode} is out of allowed range
    */
   public TestRSocketException(int errorCode, String message) {
-    super(message);
+    super(ErrorFrameCodec.APPLICATION_ERROR, message);
     this.errorCode = errorCode;
   }
 
@@ -28,7 +31,7 @@ public class TestRSocketException extends RSocketException {
    * @throws IllegalArgumentException if {@code errorCode} is out of allowed range
    */
   public TestRSocketException(int errorCode, String message, Throwable cause) {
-    super(message, cause);
+    super(ErrorFrameCodec.APPLICATION_ERROR, message, cause);
     this.errorCode = errorCode;
   }
 

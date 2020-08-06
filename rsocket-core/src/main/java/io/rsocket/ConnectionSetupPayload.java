@@ -18,7 +18,6 @@ package io.rsocket;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.util.AbstractReferenceCounted;
-import io.rsocket.core.DefaultConnectionSetupPayload;
 import reactor.util.annotation.Nullable;
 
 /**
@@ -57,16 +56,4 @@ public abstract class ConnectionSetupPayload extends AbstractReferenceCounted im
 
   @Override
   public abstract ConnectionSetupPayload touch();
-
-  /**
-   * Create a {@code ConnectionSetupPayload}.
-   *
-   * @deprecated as of 1.0 RC7. Please, use {@link
-   *     DefaultConnectionSetupPayload#DefaultConnectionSetupPayload(ByteBuf)
-   *     DefaultConnectionSetupPayload} constructor.
-   */
-  @Deprecated
-  public static ConnectionSetupPayload create(final ByteBuf setupFrame) {
-    return new DefaultConnectionSetupPayload(setupFrame);
-  }
 }

@@ -23,9 +23,7 @@ import io.rsocket.transport.ServerTransport;
 import io.rsocket.transport.netty.WebsocketDuplexConnection;
 import java.net.InetSocketAddress;
 import java.util.Arrays;
-import java.util.Map;
 import java.util.Objects;
-import java.util.function.Supplier;
 import reactor.core.publisher.Mono;
 import reactor.netty.Connection;
 import reactor.netty.http.server.HttpServer;
@@ -34,10 +32,8 @@ import reactor.netty.http.server.HttpServer;
  * An implementation of {@link ServerTransport} that connects to a {@link ClientTransport} via a
  * Websocket.
  */
-@SuppressWarnings("deprecation")
 public final class WebsocketServerTransport
-    extends BaseWebsocketServerTransport<WebsocketServerTransport, CloseableChannel>
-    implements io.rsocket.transport.TransportHeaderAware {
+    extends BaseWebsocketServerTransport<WebsocketServerTransport, CloseableChannel> {
 
   private final HttpServer server;
 
@@ -109,13 +105,6 @@ public final class WebsocketServerTransport
       Arrays.stream(values).forEach(value -> headers.add(name, value));
     }
     return this;
-  }
-
-  @Override
-  public void setTransportHeaders(Supplier<Map<String, String>> transportHeaders) {
-    if (transportHeaders != null) {
-      transportHeaders.get().forEach((name, value) -> headers.add(name, value));
-    }
   }
 
   @Override

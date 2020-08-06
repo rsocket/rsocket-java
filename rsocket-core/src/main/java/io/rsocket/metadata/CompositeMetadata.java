@@ -16,12 +16,12 @@
 
 package io.rsocket.metadata;
 
-import static io.rsocket.metadata.CompositeMetadataFlyweight.computeNextEntryIndex;
-import static io.rsocket.metadata.CompositeMetadataFlyweight.decodeMimeAndContentBuffersSlices;
-import static io.rsocket.metadata.CompositeMetadataFlyweight.decodeMimeIdFromMimeBuffer;
-import static io.rsocket.metadata.CompositeMetadataFlyweight.decodeMimeTypeFromMimeBuffer;
-import static io.rsocket.metadata.CompositeMetadataFlyweight.hasEntry;
-import static io.rsocket.metadata.CompositeMetadataFlyweight.isWellKnownMimeType;
+import static io.rsocket.metadata.CompositeMetadataCodec.computeNextEntryIndex;
+import static io.rsocket.metadata.CompositeMetadataCodec.decodeMimeAndContentBuffersSlices;
+import static io.rsocket.metadata.CompositeMetadataCodec.decodeMimeIdFromMimeBuffer;
+import static io.rsocket.metadata.CompositeMetadataCodec.decodeMimeTypeFromMimeBuffer;
+import static io.rsocket.metadata.CompositeMetadataCodec.hasEntry;
+import static io.rsocket.metadata.CompositeMetadataCodec.isWellKnownMimeType;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
@@ -52,8 +52,8 @@ import reactor.util.annotation.Nullable;
  * ReservedMimeTypeEntry}. In this case {@link Entry#getMimeType()} will return {@code null}. The
  * encoded id can be retrieved using {@link ReservedMimeTypeEntry#getType()}. The byte and content
  * buffer should be kept around and re-encoded using {@link
- * CompositeMetadataFlyweight#encodeAndAddMetadata(CompositeByteBuf, ByteBufAllocator, byte,
- * ByteBuf)} in case passing that entry through is required.
+ * CompositeMetadataCodec#encodeAndAddMetadata(CompositeByteBuf, ByteBufAllocator, byte, ByteBuf)}
+ * in case passing that entry through is required.
  */
 public final class CompositeMetadata implements Iterable<Entry> {
 

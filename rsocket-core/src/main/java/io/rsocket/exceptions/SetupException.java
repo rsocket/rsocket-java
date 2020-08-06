@@ -16,36 +16,13 @@
 
 package io.rsocket.exceptions;
 
-import io.rsocket.frame.ErrorFrameCodec;
+import io.rsocket.RSocketErrorException;
 import reactor.util.annotation.Nullable;
 
 /** The root of the setup exception hierarchy. */
-public abstract class SetupException extends RSocketException {
+public abstract class SetupException extends RSocketErrorException {
 
   private static final long serialVersionUID = -2928269501877732756L;
-
-  /**
-   * Constructs a new exception with the specified message.
-   *
-   * @param message the message
-   * @deprecated please use {@link #SetupException(int, String, Throwable)}
-   */
-  @Deprecated
-  public SetupException(String message) {
-    this(message, null);
-  }
-
-  /**
-   * Constructs a new exception with the specified message and cause.
-   *
-   * @param message the message
-   * @param cause the cause of this exception
-   * @deprecated please use {@link #SetupException(int, String, Throwable)}
-   */
-  @Deprecated
-  public SetupException(String message, @Nullable Throwable cause) {
-    this(ErrorFrameCodec.INVALID_SETUP, message, cause);
-  }
 
   /**
    * Constructs a new exception with the specified error code, message and cause.

@@ -1,4 +1,4 @@
-package io.rsocket.metadata.security;
+package io.rsocket.metadata;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
@@ -8,7 +8,7 @@ import io.netty.util.ReferenceCountUtil;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-class AuthMetadataFlyweightTest {
+public class AuthMetadataCodecTest {
 
   public static final int AUTH_TYPE_ID_LENGTH = 1;
   public static final int USER_NAME_BYTES_LENGTH = 1;
@@ -24,7 +24,7 @@ class AuthMetadataFlyweightTest {
     int passwordLength = password.length();
 
     ByteBuf byteBuf =
-        AuthMetadataFlyweight.encodeSimpleMetadata(
+        AuthMetadataCodec.encodeSimpleMetadata(
             ByteBufAllocator.DEFAULT, username.toCharArray(), password.toCharArray());
 
     byteBuf.markReaderIndex();
@@ -44,7 +44,7 @@ class AuthMetadataFlyweightTest {
     int passwordLength = password.length();
 
     ByteBuf byteBuf =
-        AuthMetadataFlyweight.encodeSimpleMetadata(
+        AuthMetadataCodec.encodeSimpleMetadata(
             ByteBufAllocator.DEFAULT, username.toCharArray(), password.toCharArray());
 
     byteBuf.markReaderIndex();
@@ -64,7 +64,7 @@ class AuthMetadataFlyweightTest {
     int passwordLength = password.length();
 
     ByteBuf byteBuf =
-        AuthMetadataFlyweight.encodeSimpleMetadata(
+        AuthMetadataCodec.encodeSimpleMetadata(
             ByteBufAllocator.DEFAULT, username.toCharArray(), password.toCharArray());
 
     byteBuf.markReaderIndex();
@@ -97,18 +97,18 @@ class AuthMetadataFlyweightTest {
     Assertions.assertThat(byteBuf.capacity())
         .isEqualTo(AUTH_TYPE_ID_LENGTH + USER_NAME_BYTES_LENGTH + usernameLength + passwordLength);
 
-    Assertions.assertThat(AuthMetadataFlyweight.decodeWellKnownAuthType(byteBuf))
+    Assertions.assertThat(AuthMetadataCodec.readWellKnownAuthType(byteBuf))
         .isEqualTo(WellKnownAuthType.SIMPLE);
     byteBuf.markReaderIndex();
-    Assertions.assertThat(AuthMetadataFlyweight.decodeUsername(byteBuf).toString(CharsetUtil.UTF_8))
+    Assertions.assertThat(AuthMetadataCodec.readUsername(byteBuf).toString(CharsetUtil.UTF_8))
         .isEqualTo(username);
-    Assertions.assertThat(AuthMetadataFlyweight.decodePassword(byteBuf).toString(CharsetUtil.UTF_8))
+    Assertions.assertThat(AuthMetadataCodec.readPassword(byteBuf).toString(CharsetUtil.UTF_8))
         .isEqualTo(password);
     byteBuf.resetReaderIndex();
 
-    Assertions.assertThat(new String(AuthMetadataFlyweight.decodeUsernameAsCharArray(byteBuf)))
+    Assertions.assertThat(new String(AuthMetadataCodec.readUsernameAsCharArray(byteBuf)))
         .isEqualTo(username);
-    Assertions.assertThat(new String(AuthMetadataFlyweight.decodePasswordAsCharArray(byteBuf)))
+    Assertions.assertThat(new String(AuthMetadataCodec.readPasswordAsCharArray(byteBuf)))
         .isEqualTo(password);
 
     ReferenceCountUtil.release(byteBuf);
@@ -122,7 +122,7 @@ class AuthMetadataFlyweightTest {
 
     Assertions.assertThatThrownBy(
             () ->
-                AuthMetadataFlyweight.encodeSimpleMetadata(
+                AuthMetadataCodec.encodeSimpleMetadata(
                     ByteBufAllocator.DEFAULT, username.toCharArray(), password.toCharArray()))
         .hasMessage(
             "Username should be shorter than or equal to 255 bytes length in UTF-8 encoding");
@@ -133,8 +133,7 @@ class AuthMetadataFlyweightTest {
     String testToken = TEST_BEARER_TOKEN;
 
     ByteBuf byteBuf =
-        AuthMetadataFlyweight.encodeBearerMetadata(
-            ByteBufAllocator.DEFAULT, testToken.toCharArray());
+        AuthMetadataCodec.encodeBearerMetadata(ByteBufAllocator.DEFAULT, testToken.toCharArray());
 
     byteBuf.markReaderIndex();
     checkBearerAuthMetadataEncoding(testToken, byteBuf);
@@ -146,7 +145,7 @@ class AuthMetadataFlyweightTest {
     Assertions.assertThat(byteBuf.capacity())
         .isEqualTo(testToken.getBytes(CharsetUtil.UTF_8).length + AUTH_TYPE_ID_LENGTH);
     Assertions.assertThat(
-            byteBuf.readUnsignedByte() & ~AuthMetadataFlyweight.STREAM_METADATA_KNOWN_MASK)
+            byteBuf.readUnsignedByte() & ~AuthMetadataCodec.STREAM_METADATA_KNOWN_MASK)
         .isEqualTo(WellKnownAuthType.BEARER.getIdentifier());
     Assertions.assertThat(byteBuf.readSlice(byteBuf.capacity() - 1).toString(CharsetUtil.UTF_8))
         .isEqualTo(testToken);
@@ -156,15 +155,15 @@ class AuthMetadataFlyweightTest {
       String testToken, ByteBuf byteBuf) {
     Assertions.assertThat(byteBuf.capacity())
         .isEqualTo(testToken.getBytes(CharsetUtil.UTF_8).length + AUTH_TYPE_ID_LENGTH);
-    Assertions.assertThat(AuthMetadataFlyweight.isWellKnownAuthType(byteBuf)).isTrue();
-    Assertions.assertThat(AuthMetadataFlyweight.decodeWellKnownAuthType(byteBuf))
+    Assertions.assertThat(AuthMetadataCodec.isWellKnownAuthType(byteBuf)).isTrue();
+    Assertions.assertThat(AuthMetadataCodec.readWellKnownAuthType(byteBuf))
         .isEqualTo(WellKnownAuthType.BEARER);
     byteBuf.markReaderIndex();
-    Assertions.assertThat(new String(AuthMetadataFlyweight.decodeBearerTokenAsCharArray(byteBuf)))
+    Assertions.assertThat(new String(AuthMetadataCodec.readBearerTokenAsCharArray(byteBuf)))
         .isEqualTo(testToken);
     byteBuf.resetReaderIndex();
     Assertions.assertThat(
-            AuthMetadataFlyweight.decodePayload(byteBuf).toString(CharsetUtil.UTF_8).toString())
+            AuthMetadataCodec.readPayload(byteBuf).toString(CharsetUtil.UTF_8).toString())
         .isEqualTo(testToken);
   }
 
@@ -176,7 +175,7 @@ class AuthMetadataFlyweightTest {
 
     String customAuthType = "myownauthtype";
     ByteBuf buffer =
-        AuthMetadataFlyweight.encodeMetadata(
+        AuthMetadataCodec.encodeMetadata(
             ByteBufAllocator.DEFAULT, customAuthType, testSecurityPayload);
 
     checkCustomAuthMetadataEncoding(testSecurityPayload, customAuthType, buffer);
@@ -204,7 +203,7 @@ class AuthMetadataFlyweightTest {
 
     Assertions.assertThatThrownBy(
             () ->
-                AuthMetadataFlyweight.encodeMetadata(
+                AuthMetadataCodec.encodeMetadata(
                     ByteBufAllocator.DEFAULT, customAuthType, testSecurityPayload))
         .hasMessage("custom auth type must be US_ASCII characters only");
   }
@@ -218,7 +217,7 @@ class AuthMetadataFlyweightTest {
 
     Assertions.assertThatThrownBy(
             () ->
-                AuthMetadataFlyweight.encodeMetadata(
+                AuthMetadataCodec.encodeMetadata(
                     ByteBufAllocator.DEFAULT, customAuthType, testSecurityPayload))
         .hasMessage(
             "custom auth type must have a strictly positive length that fits on 7 unsigned bits, ie 1-128");
@@ -231,7 +230,7 @@ class AuthMetadataFlyweightTest {
 
     Assertions.assertThatThrownBy(
             () ->
-                AuthMetadataFlyweight.encodeMetadata(
+                AuthMetadataCodec.encodeMetadata(
                     ByteBufAllocator.DEFAULT, customAuthType, testSecurityPayload))
         .hasMessage(
             "custom auth type must have a strictly positive length that fits on 7 unsigned bits, ie 1-128");
@@ -240,7 +239,7 @@ class AuthMetadataFlyweightTest {
   @Test
   void shouldEncodeUsingWellKnownAuthType() {
     ByteBuf byteBuf =
-        AuthMetadataFlyweight.encodeMetadata(
+        AuthMetadataCodec.encodeMetadata(
             ByteBufAllocator.DEFAULT,
             WellKnownAuthType.SIMPLE,
             ByteBufAllocator.DEFAULT.buffer(3, 3).writeByte(1).writeByte('u').writeByte('p'));
@@ -251,7 +250,7 @@ class AuthMetadataFlyweightTest {
   @Test
   void shouldEncodeUsingWellKnownAuthType1() {
     ByteBuf byteBuf =
-        AuthMetadataFlyweight.encodeMetadata(
+        AuthMetadataCodec.encodeMetadata(
             ByteBufAllocator.DEFAULT,
             WellKnownAuthType.SIMPLE,
             ByteBufAllocator.DEFAULT.buffer().writeByte(1).writeByte('u').writeByte('p'));
@@ -262,7 +261,7 @@ class AuthMetadataFlyweightTest {
   @Test
   void shouldEncodeUsingWellKnownAuthType2() {
     ByteBuf byteBuf =
-        AuthMetadataFlyweight.encodeMetadata(
+        AuthMetadataCodec.encodeMetadata(
             ByteBufAllocator.DEFAULT,
             WellKnownAuthType.BEARER,
             Unpooled.copiedBuffer(TEST_BEARER_TOKEN, CharsetUtil.UTF_8));
@@ -279,13 +278,13 @@ class AuthMetadataFlyweightTest {
 
     Assertions.assertThatThrownBy(
             () ->
-                AuthMetadataFlyweight.encodeMetadata(
+                AuthMetadataCodec.encodeMetadata(
                     ByteBufAllocator.DEFAULT, WellKnownAuthType.UNPARSEABLE_AUTH_TYPE, buffer))
         .hasMessage("only allowed AuthType should be used");
 
     Assertions.assertThatThrownBy(
             () ->
-                AuthMetadataFlyweight.encodeMetadata(
+                AuthMetadataCodec.encodeMetadata(
                     ByteBufAllocator.DEFAULT, WellKnownAuthType.UNPARSEABLE_AUTH_TYPE, buffer))
         .hasMessage("only allowed AuthType should be used");
 
@@ -295,7 +294,7 @@ class AuthMetadataFlyweightTest {
   @Test
   void shouldCompressMetadata() {
     ByteBuf byteBuf =
-        AuthMetadataFlyweight.encodeMetadataWithCompression(
+        AuthMetadataCodec.encodeMetadataWithCompression(
             ByteBufAllocator.DEFAULT,
             "simple",
             ByteBufAllocator.DEFAULT.buffer().writeByte(1).writeByte('u').writeByte('p'));
@@ -306,7 +305,7 @@ class AuthMetadataFlyweightTest {
   @Test
   void shouldCompressMetadata1() {
     ByteBuf byteBuf =
-        AuthMetadataFlyweight.encodeMetadataWithCompression(
+        AuthMetadataCodec.encodeMetadataWithCompression(
             ByteBufAllocator.DEFAULT,
             "bearer",
             Unpooled.copiedBuffer(TEST_BEARER_TOKEN, CharsetUtil.UTF_8));
@@ -323,7 +322,7 @@ class AuthMetadataFlyweightTest {
         Unpooled.wrappedBuffer(TEST_BEARER_TOKEN.getBytes(CharsetUtil.UTF_8));
     String customAuthType = "testauthtype";
     ByteBuf byteBuf =
-        AuthMetadataFlyweight.encodeMetadataWithCompression(
+        AuthMetadataCodec.encodeMetadataWithCompression(
             ByteBufAllocator.DEFAULT, customAuthType, testMetadataPayload);
 
     checkCustomAuthMetadataEncoding(testMetadataPayload, customAuthType, byteBuf);
@@ -332,12 +331,12 @@ class AuthMetadataFlyweightTest {
   @Test
   void shouldConfirmWellKnownAuthType() {
     ByteBuf metadata =
-        AuthMetadataFlyweight.encodeMetadataWithCompression(
+        AuthMetadataCodec.encodeMetadataWithCompression(
             ByteBufAllocator.DEFAULT, "simple", Unpooled.EMPTY_BUFFER);
 
     int initialReaderIndex = metadata.readerIndex();
 
-    Assertions.assertThat(AuthMetadataFlyweight.isWellKnownAuthType(metadata)).isTrue();
+    Assertions.assertThat(AuthMetadataCodec.isWellKnownAuthType(metadata)).isTrue();
     Assertions.assertThat(metadata.readerIndex()).isEqualTo(initialReaderIndex);
 
     ReferenceCountUtil.release(metadata);
@@ -346,12 +345,12 @@ class AuthMetadataFlyweightTest {
   @Test
   void shouldConfirmGivenMetadataIsNotAWellKnownAuthType() {
     ByteBuf metadata =
-        AuthMetadataFlyweight.encodeMetadataWithCompression(
+        AuthMetadataCodec.encodeMetadataWithCompression(
             ByteBufAllocator.DEFAULT, "simple/afafgafadf", Unpooled.EMPTY_BUFFER);
 
     int initialReaderIndex = metadata.readerIndex();
 
-    Assertions.assertThat(AuthMetadataFlyweight.isWellKnownAuthType(metadata)).isFalse();
+    Assertions.assertThat(AuthMetadataCodec.isWellKnownAuthType(metadata)).isFalse();
     Assertions.assertThat(metadata.readerIndex()).isEqualTo(initialReaderIndex);
 
     ReferenceCountUtil.release(metadata);
@@ -360,7 +359,7 @@ class AuthMetadataFlyweightTest {
   @Test
   void shouldReadSimpleWellKnownAuthType() {
     ByteBuf metadata =
-        AuthMetadataFlyweight.encodeMetadataWithCompression(
+        AuthMetadataCodec.encodeMetadataWithCompression(
             ByteBufAllocator.DEFAULT, "simple", Unpooled.EMPTY_BUFFER);
     WellKnownAuthType expectedType = WellKnownAuthType.SIMPLE;
     checkDecodeWellKnowAuthTypeCorrectly(metadata, expectedType);
@@ -369,7 +368,7 @@ class AuthMetadataFlyweightTest {
   @Test
   void shouldReadSimpleWellKnownAuthType1() {
     ByteBuf metadata =
-        AuthMetadataFlyweight.encodeMetadataWithCompression(
+        AuthMetadataCodec.encodeMetadataWithCompression(
             ByteBufAllocator.DEFAULT, "bearer", Unpooled.EMPTY_BUFFER);
     WellKnownAuthType expectedType = WellKnownAuthType.BEARER;
     checkDecodeWellKnowAuthTypeCorrectly(metadata, expectedType);
@@ -380,7 +379,7 @@ class AuthMetadataFlyweightTest {
     ByteBuf metadata =
         ByteBufAllocator.DEFAULT
             .buffer()
-            .writeByte(3 | AuthMetadataFlyweight.STREAM_METADATA_KNOWN_MASK);
+            .writeByte(3 | AuthMetadataCodec.STREAM_METADATA_KNOWN_MASK);
     WellKnownAuthType expectedType = WellKnownAuthType.UNKNOWN_RESERVED_AUTH_TYPE;
     checkDecodeWellKnowAuthTypeCorrectly(metadata, expectedType);
   }
@@ -395,7 +394,7 @@ class AuthMetadataFlyweightTest {
   @Test
   void shouldNotReadSimpleWellKnownAuthTypeIfEncodedLength1() {
     ByteBuf metadata =
-        AuthMetadataFlyweight.encodeMetadata(
+        AuthMetadataCodec.encodeMetadata(
             ByteBufAllocator.DEFAULT, "testmetadataauthtype", Unpooled.EMPTY_BUFFER);
     WellKnownAuthType expectedType = WellKnownAuthType.UNPARSEABLE_AUTH_TYPE;
     checkDecodeWellKnowAuthTypeCorrectly(metadata, expectedType);
@@ -404,7 +403,7 @@ class AuthMetadataFlyweightTest {
   @Test
   void shouldThrowExceptionIsNotEnoughReadableBytes() {
     Assertions.assertThatThrownBy(
-            () -> AuthMetadataFlyweight.decodeWellKnownAuthType(Unpooled.EMPTY_BUFFER))
+            () -> AuthMetadataCodec.readWellKnownAuthType(Unpooled.EMPTY_BUFFER))
         .hasMessage("Unable to decode Well Know Auth type. Not enough readable bytes");
   }
 
@@ -412,7 +411,7 @@ class AuthMetadataFlyweightTest {
       ByteBuf metadata, WellKnownAuthType expectedType) {
     int initialReaderIndex = metadata.readerIndex();
 
-    WellKnownAuthType wellKnownAuthType = AuthMetadataFlyweight.decodeWellKnownAuthType(metadata);
+    WellKnownAuthType wellKnownAuthType = AuthMetadataCodec.readWellKnownAuthType(metadata);
 
     Assertions.assertThat(wellKnownAuthType).isEqualTo(expectedType);
     Assertions.assertThat(metadata.readerIndex())
@@ -426,15 +425,14 @@ class AuthMetadataFlyweightTest {
   void shouldReadCustomEncodedAuthType() {
     String testAuthType = "TestAuthType";
     ByteBuf byteBuf =
-        AuthMetadataFlyweight.encodeMetadata(
+        AuthMetadataCodec.encodeMetadata(
             ByteBufAllocator.DEFAULT, testAuthType, Unpooled.EMPTY_BUFFER);
     checkDecodeCustomAuthTypeCorrectly(testAuthType, byteBuf);
   }
 
   @Test
   void shouldThrowExceptionOnEmptyMetadata() {
-    Assertions.assertThatThrownBy(
-            () -> AuthMetadataFlyweight.decodeCustomAuthType(Unpooled.EMPTY_BUFFER))
+    Assertions.assertThatThrownBy(() -> AuthMetadataCodec.readCustomAuthType(Unpooled.EMPTY_BUFFER))
         .hasMessage("Unable to decode custom Auth type. Not enough readable bytes");
   }
 
@@ -442,8 +440,8 @@ class AuthMetadataFlyweightTest {
   void shouldThrowExceptionOnMalformedMetadata_wellknowninstead() {
     Assertions.assertThatThrownBy(
             () ->
-                AuthMetadataFlyweight.decodeCustomAuthType(
-                    AuthMetadataFlyweight.encodeMetadata(
+                AuthMetadataCodec.readCustomAuthType(
+                    AuthMetadataCodec.encodeMetadata(
                         ByteBufAllocator.DEFAULT,
                         WellKnownAuthType.BEARER,
                         Unpooled.copiedBuffer(new byte[] {'a', 'b'}))))
@@ -454,7 +452,7 @@ class AuthMetadataFlyweightTest {
   void shouldThrowExceptionOnMalformedMetadata_length() {
     Assertions.assertThatThrownBy(
             () ->
-                AuthMetadataFlyweight.decodeCustomAuthType(
+                AuthMetadataCodec.readCustomAuthType(
                     ByteBufAllocator.DEFAULT.buffer().writeByte(127).writeChar('a').writeChar('b')))
         .hasMessage("Unable to decode custom Auth type. Malformed length or auth type string");
   }
@@ -462,7 +460,7 @@ class AuthMetadataFlyweightTest {
   private static void checkDecodeCustomAuthTypeCorrectly(String testAuthType, ByteBuf byteBuf) {
     int initialReaderIndex = byteBuf.readerIndex();
 
-    Assertions.assertThat(AuthMetadataFlyweight.decodeCustomAuthType(byteBuf).toString())
+    Assertions.assertThat(AuthMetadataCodec.readCustomAuthType(byteBuf).toString())
         .isEqualTo(testAuthType);
     Assertions.assertThat(byteBuf.readerIndex())
         .isEqualTo(initialReaderIndex + testAuthType.length() + 1);

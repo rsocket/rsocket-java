@@ -20,7 +20,6 @@ import io.netty.buffer.ByteBuf;
 import io.rsocket.DuplexConnection;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
-import io.rsocket.ResponderRSocket;
 import io.rsocket.exceptions.ConnectionErrorException;
 import io.rsocket.frame.ErrorFrameCodec;
 import io.rsocket.frame.FrameHeaderCodec;
@@ -52,9 +51,6 @@ class RSocketResponder extends RequesterResponderSupport implements RSocket {
   private final DuplexConnection connection;
   private final RSocket requestHandler;
 
-  @SuppressWarnings("deprecation")
-  private final io.rsocket.ResponderRSocket responderRSocket;
-
   private final ResponderLeaseHandler leaseHandler;
   private final Disposable leaseHandlerDisposable;
 
@@ -75,10 +71,6 @@ class RSocketResponder extends RequesterResponderSupport implements RSocket {
     this.connection = connection;
 
     this.requestHandler = requestHandler;
-    this.responderRSocket =
-        (requestHandler instanceof io.rsocket.ResponderRSocket)
-            ? (io.rsocket.ResponderRSocket) requestHandler
-            : null;
 
     this.leaseHandler = leaseHandler;
 
@@ -177,12 +169,7 @@ class RSocketResponder extends RequesterResponderSupport implements RSocket {
   private Flux<Payload> requestChannel(Payload payload, Publisher<Payload> payloads) {
     try {
       if (leaseHandler.useLease()) {
-        final ResponderRSocket responderRSocket = this.responderRSocket;
-        if (responderRSocket != null) {
-          return responderRSocket.requestChannel(payload, payloads);
-        } else {
-          return requestHandler.requestChannel(payloads);
-        }
+        return requestHandler.requestChannel(payloads);
       } else {
         payload.release();
         return Flux.error(leaseHandler.leaseError());

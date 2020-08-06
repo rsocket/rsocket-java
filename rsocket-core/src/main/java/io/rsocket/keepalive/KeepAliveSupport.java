@@ -140,24 +140,6 @@ public abstract class KeepAliveSupport implements KeepAliveFramesAcceptor {
     return ticksDisposable.isDisposed();
   }
 
-  /**
-   * @deprecated since it should not be used anymore and will be completely removed in 1.1.
-   *     Keepalive is symmetric on both side and implemented as a part of RSocketRequester
-   */
-  @Deprecated
-  public static final class ServerKeepAliveSupport extends KeepAliveSupport {
-
-    public ServerKeepAliveSupport(
-        ByteBufAllocator allocator, int keepAlivePeriod, int keepAliveTimeout) {
-      super(allocator, keepAlivePeriod, keepAliveTimeout);
-    }
-
-    @Override
-    void onIntervalTick() {
-      tryTimeout();
-    }
-  }
-
   public static final class ClientKeepAliveSupport extends KeepAliveSupport {
 
     public ClientKeepAliveSupport(

@@ -22,7 +22,6 @@ import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 import io.rsocket.transport.netty.server.WebsocketServerTransport;
 import java.net.InetSocketAddress;
 import java.net.URI;
-import java.util.Collections;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -149,11 +148,5 @@ final class WebsocketClientTransportTest {
     assertThat(WebsocketClientTransport.create(URI.create("ws://test-host/test")))
         .isNotNull()
         .hasFieldOrPropertyWithValue("path", "/test");
-  }
-
-  @DisplayName("sets transport headers")
-  @Test
-  void setTransportHeader() {
-    WebsocketClientTransport.create(8000).setTransportHeaders(Collections::emptyMap);
   }
 }

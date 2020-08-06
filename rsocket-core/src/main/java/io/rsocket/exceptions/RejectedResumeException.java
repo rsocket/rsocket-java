@@ -16,6 +16,7 @@
 
 package io.rsocket.exceptions;
 
+import io.rsocket.RSocketErrorException;
 import io.rsocket.frame.ErrorFrameCodec;
 import reactor.util.annotation.Nullable;
 
@@ -25,7 +26,7 @@ import reactor.util.annotation.Nullable;
  * @see <a href="https://github.com/rsocket/rsocket/blob/master/Protocol.md#error-codes">Error
  *     Codes</a>
  */
-public final class RejectedResumeException extends RSocketException {
+public final class RejectedResumeException extends RSocketErrorException {
 
   private static final long serialVersionUID = -873684362478544811L;
 

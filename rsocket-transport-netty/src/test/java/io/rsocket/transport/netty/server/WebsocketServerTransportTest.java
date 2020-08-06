@@ -22,7 +22,6 @@ import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 import static org.mockito.ArgumentMatchers.any;
 
 import java.net.InetSocketAddress;
-import java.util.Collections;
 import java.util.function.BiFunction;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -112,12 +111,6 @@ final class WebsocketServerTransportTest {
   @Test
   void createPort() {
     assertThat(WebsocketServerTransport.create(8000)).isNotNull();
-  }
-
-  @DisplayName("sets transport headers")
-  @Test
-  void setTransportHeader() {
-    WebsocketServerTransport.create(8000).setTransportHeaders(Collections::emptyMap);
   }
 
   @DisplayName("starts server")
