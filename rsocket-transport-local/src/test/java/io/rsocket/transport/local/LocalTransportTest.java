@@ -25,8 +25,8 @@ final class LocalTransportTest implements TransportTest {
   private final TransportPair transportPair =
       new TransportPair<>(
           () -> "test-" + UUID.randomUUID(),
-          (address, server) -> LocalClientTransport.create(address),
-          LocalServerTransport::create);
+          (address, server, allocator) -> LocalClientTransport.create(address, allocator),
+          (address, allocator) -> LocalServerTransport.create(address));
 
   @Override
   public Duration getTimeout() {

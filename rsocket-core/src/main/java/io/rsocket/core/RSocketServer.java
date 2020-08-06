@@ -33,7 +33,6 @@ import io.rsocket.exceptions.RejectedSetupException;
 import io.rsocket.frame.FrameHeaderCodec;
 import io.rsocket.frame.SetupFrameCodec;
 import io.rsocket.frame.decoder.PayloadDecoder;
-import io.rsocket.internal.ClientServerInputMultiplexer;
 import io.rsocket.lease.Leases;
 import io.rsocket.lease.RequesterLeaseHandler;
 import io.rsocket.lease.ResponderLeaseHandler;

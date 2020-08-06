@@ -29,7 +29,6 @@ import io.rsocket.RSocketClient;
 import io.rsocket.SocketAcceptor;
 import io.rsocket.frame.SetupFrameCodec;
 import io.rsocket.frame.decoder.PayloadDecoder;
-import io.rsocket.internal.ClientServerInputMultiplexer;
 import io.rsocket.keepalive.KeepAliveHandler;
 import io.rsocket.lease.LeaseStats;
 import io.rsocket.lease.Leases;

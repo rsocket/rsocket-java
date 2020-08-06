@@ -16,6 +16,7 @@
 
 package io.rsocket.transport.netty;
 
+import io.netty.channel.ChannelOption;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 import io.netty.handler.ssl.util.SelfSignedCertificate;
@@ -34,9 +35,10 @@ final class WebsocketSecureTransportTest implements TransportTest {
   private final TransportPair transportPair =
       new TransportPair<>(
           () -> new InetSocketAddress("localhost", 0),
-          (address, server) ->
+          (address, server, allocator) ->
               WebsocketClientTransport.create(
                   HttpClient.create()
+                      .option(ChannelOption.ALLOCATOR, allocator)
                       .remoteAddress(server::address)
                       .secure(
                           ssl ->
@@ -46,11 +48,12 @@ final class WebsocketSecureTransportTest implements TransportTest {
                   String.format(
                       "https://%s:%d/",
                       server.address().getHostName(), server.address().getPort())),
-          address -> {
+          (address, allocator) -> {
             try {
               SelfSignedCertificate ssc = new SelfSignedCertificate();
               HttpServer server =
                   HttpServer.create()
+                      .option(ChannelOption.ALLOCATOR, allocator)
                       .bindAddress(() -> address)
                       .secure(
                           ssl ->

@@ -16,21 +16,30 @@
 
 package io.rsocket.test;
 
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufAllocator;
+import io.netty.util.ReferenceCountUtil;
+import io.netty.util.ReferenceCounted;
+import io.netty.util.ResourceLeakDetector;
 import io.rsocket.Closeable;
+import io.rsocket.DuplexConnection;
 import io.rsocket.Payload;
 import io.rsocket.RSocket;
 import io.rsocket.core.RSocketConnector;
 import io.rsocket.core.RSocketServer;
+import io.rsocket.frame.decoder.PayloadDecoder;
 import io.rsocket.transport.ClientTransport;
 import io.rsocket.transport.ServerTransport;
+import io.rsocket.util.ByteBufPayload;
 import io.rsocket.util.DefaultPayload;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.time.Duration;
 import java.util.concurrent.CancellationException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.zip.GZIPInputStream;
@@ -39,14 +48,24 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.platform.commons.logging.Logger;
+import org.junit.platform.commons.logging.LoggerFactory;
+import org.reactivestreams.Publisher;
+import org.reactivestreams.Subscription;
+import reactor.core.CoreSubscriber;
 import reactor.core.Disposable;
+import reactor.core.Fuseable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Hooks;
 import reactor.core.publisher.Mono;
+import reactor.core.publisher.Operators;
+import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
 import reactor.test.StepVerifier;
 
 public interface TransportTest {
+
+  Logger logger = LoggerFactory.getLogger(TransportTest.class);
 
   String MOCK_DATA = "test-data";
   String MOCK_METADATA = "metadata";
@@ -74,7 +93,9 @@ public interface TransportTest {
 
   @AfterEach
   default void close() {
+    getTransportPair().responder.awaitAllInteractionTermination(getTimeout());
     getTransportPair().dispose();
+    getTransportPair().byteBufAllocator.assertHasNoLeaks();
     Hooks.resetOnOperatorDebug();
   }
 
@@ -94,7 +115,7 @@ public interface TransportTest {
     }
     String metadata = metadata1;
 
-    return DefaultPayload.create(MOCK_DATA, metadata);
+    return ByteBufPayload.create(MOCK_DATA, metadata);
   }
 
   @DisplayName("makes 10 fireAndForget requests")
@@ -103,9 +124,10 @@ public interface TransportTest {
     Flux.range(1, 10)
         .flatMap(i -> getClient().fireAndForget(createTestPayload(i)))
         .as(StepVerifier::create)
-        .expectNextCount(0)
         .expectComplete()
         .verify(getTimeout());
+
+    getTransportPair().responder.awaitUntilObserved(10, getTimeout());
   }
 
   @DisplayName("makes 10 fireAndForget with Large Payload in Requests")
@@ -114,9 +136,10 @@ public interface TransportTest {
     Flux.range(1, 10)
         .flatMap(i -> getClient().fireAndForget(LARGE_PAYLOAD))
         .as(StepVerifier::create)
-        .expectNextCount(0)
         .expectComplete()
         .verify(getTimeout());
+
+    getTransportPair().responder.awaitUntilObserved(10, getTimeout());
   }
 
   default RSocket getClient() {
@@ -131,22 +154,24 @@ public interface TransportTest {
   @Test
   default void metadataPush10() {
     Flux.range(1, 10)
-        .flatMap(i -> getClient().metadataPush(DefaultPayload.create("", "test-metadata")))
+        .flatMap(i -> getClient().metadataPush(ByteBufPayload.create("", "test-metadata")))
         .as(StepVerifier::create)
-        .expectNextCount(0)
         .expectComplete()
         .verify(getTimeout());
+
+    getTransportPair().responder.awaitUntilObserved(10, getTimeout());
   }
 
   @DisplayName("makes 10 metadataPush with Large Metadata in requests")
   @Test
   default void largePayloadMetadataPush10() {
     Flux.range(1, 10)
-        .flatMap(i -> getClient().metadataPush(DefaultPayload.create("", LARGE_DATA)))
+        .flatMap(i -> getClient().metadataPush(ByteBufPayload.create("", LARGE_DATA)))
         .as(StepVerifier::create)
-        .expectNextCount(0)
         .expectComplete()
         .verify(getTimeout());
+
+    getTransportPair().responder.awaitUntilObserved(10, getTimeout());
   }
 
   @DisplayName("makes 1 requestChannel request with 0 payloads")
@@ -155,7 +180,6 @@ public interface TransportTest {
     getClient()
         .requestChannel(Flux.empty())
         .as(StepVerifier::create)
-        .expectNextCount(0)
         .expectErrorSatisfies(
             t ->
                 Assertions.assertThat(t)
@@ -169,6 +193,7 @@ public interface TransportTest {
   default void requestChannel1() {
     getClient()
         .requestChannel(Mono.just(createTestPayload(0)))
+        .doOnNext(Payload::release)
         .as(StepVerifier::create)
         .expectNextCount(1)
         .expectComplete()
@@ -182,6 +207,7 @@ public interface TransportTest {
 
     getClient()
         .requestChannel(payloads)
+        .doOnNext(Payload::release)
         .as(StepVerifier::create)
         .expectNextCount(200_000)
         .expectComplete()
@@ -195,6 +221,7 @@ public interface TransportTest {
 
     getClient()
         .requestChannel(payloads)
+        .doOnNext(Payload::release)
         .as(StepVerifier::create)
         .expectNextCount(200)
         .expectComplete()
@@ -209,6 +236,7 @@ public interface TransportTest {
     getClient()
         .requestChannel(payloads)
         .doOnNext(this::assertChannelPayload)
+        .doOnNext(Payload::release)
         .as(StepVerifier::create)
         .expectNextCount(20_000)
         .expectComplete()
@@ -222,6 +250,7 @@ public interface TransportTest {
 
     getClient()
         .requestChannel(payloads)
+        .doOnNext(Payload::release)
         .as(StepVerifier::create)
         .expectNextCount(2_000_000)
         .expectComplete()
@@ -237,6 +266,7 @@ public interface TransportTest {
 
     getClient()
         .requestChannel(payloads)
+        .doOnNext(Payload::release)
         .as(publisher -> StepVerifier.create(publisher, 3))
         .expectNextCount(3)
         .expectComplete()
@@ -249,16 +279,17 @@ public interface TransportTest {
   @Test
   default void requestChannel512() {
     Flux<Payload> payloads = Flux.range(0, 512).map(this::createTestPayload);
+    final Scheduler scheduler = Schedulers.fromExecutorService(Executors.newFixedThreadPool(13));
 
     Flux.range(0, 1024)
-        .flatMap(
-            v -> Mono.fromRunnable(() -> check(payloads)).subscribeOn(Schedulers.elastic()), 12)
+        .flatMap(v -> Mono.fromRunnable(() -> check(payloads)).subscribeOn(scheduler), 12)
         .blockLast();
   }
 
   default void check(Flux<Payload> payloads) {
     getClient()
         .requestChannel(payloads)
+        .doOnNext(Payload::release)
         .as(StepVerifier::create)
         .expectNextCount(512)
         .as("expected 512 items")
@@ -272,6 +303,7 @@ public interface TransportTest {
     getClient()
         .requestResponse(createTestPayload(1))
         .doOnNext(this::assertPayload)
+        .doOnNext(Payload::release)
         .as(StepVerifier::create)
         .expectNextCount(1)
         .expectComplete()
@@ -284,6 +316,7 @@ public interface TransportTest {
     Flux.range(1, 10)
         .flatMap(
             i -> getClient().requestResponse(createTestPayload(i)).doOnNext(v -> assertPayload(v)))
+        .doOnNext(Payload::release)
         .as(StepVerifier::create)
         .expectNextCount(10)
         .expectComplete()
@@ -294,7 +327,8 @@ public interface TransportTest {
   @Test
   default void requestResponse100() {
     Flux.range(1, 100)
-        .flatMap(i -> getClient().requestResponse(createTestPayload(i)).map(Payload::getDataUtf8))
+        .flatMap(i -> getClient().requestResponse(createTestPayload(i)))
+        .doOnNext(Payload::release)
         .as(StepVerifier::create)
         .expectNextCount(100)
         .expectComplete()
@@ -305,7 +339,8 @@ public interface TransportTest {
   @Test
   default void largePayloadRequestResponse100() {
     Flux.range(1, 100)
-        .flatMap(i -> getClient().requestResponse(LARGE_PAYLOAD).map(Payload::getDataUtf8))
+        .flatMap(i -> getClient().requestResponse(LARGE_PAYLOAD))
+        .doOnNext(Payload::release)
         .as(StepVerifier::create)
         .expectNextCount(100)
         .expectComplete()
@@ -316,7 +351,8 @@ public interface TransportTest {
   @Test
   default void requestResponse10_000() {
     Flux.range(1, 10_000)
-        .flatMap(i -> getClient().requestResponse(createTestPayload(i)).map(Payload::getDataUtf8))
+        .flatMap(i -> getClient().requestResponse(createTestPayload(i)))
+        .doOnNext(Payload::release)
         .as(StepVerifier::create)
         .expectNextCount(10_000)
         .expectComplete()
@@ -329,6 +365,7 @@ public interface TransportTest {
     getClient()
         .requestStream(createTestPayload(3))
         .doOnNext(this::assertPayload)
+        .doOnNext(Payload::release)
         .as(StepVerifier::create)
         .expectNextCount(10_000)
         .expectComplete()
@@ -341,6 +378,7 @@ public interface TransportTest {
     getClient()
         .requestStream(createTestPayload(3))
         .doOnNext(this::assertPayload)
+        .doOnNext(Payload::release)
         .take(5)
         .as(StepVerifier::create)
         .expectNextCount(5)
@@ -354,6 +392,7 @@ public interface TransportTest {
     getClient()
         .requestStream(createTestPayload(3))
         .take(10)
+        .doOnNext(Payload::release)
         .as(StepVerifier::create)
         .thenRequest(5)
         .expectNextCount(5)
@@ -381,24 +420,81 @@ public interface TransportTest {
     private static final String data = "hello world";
     private static final String metadata = "metadata";
 
+    private final LeaksTrackingByteBufAllocator byteBufAllocator =
+        LeaksTrackingByteBufAllocator.instrument(ByteBufAllocator.DEFAULT, Duration.ofMinutes(1));
+
+    private final TestRSocket responder;
+
     private final RSocket client;
 
     private final S server;
 
     public TransportPair(
         Supplier<T> addressSupplier,
-        BiFunction<T, S, ClientTransport> clientTransportSupplier,
-        Function<T, ServerTransport<S>> serverTransportSupplier) {
+        TriFunction<T, S, ByteBufAllocator, ClientTransport> clientTransportSupplier,
+        BiFunction<T, ByteBufAllocator, ServerTransport<S>> serverTransportSupplier) {
 
       T address = addressSupplier.get();
 
+      final boolean runClientWithAsyncInterceptors = ThreadLocalRandom.current().nextBoolean();
+      final boolean runServerWithAsyncInterceptors = ThreadLocalRandom.current().nextBoolean();
+
+      ByteBufAllocator allocatorToSupply;
+      if (ResourceLeakDetector.getLevel() == ResourceLeakDetector.Level.ADVANCED
+          || ResourceLeakDetector.getLevel() == ResourceLeakDetector.Level.PARANOID) {
+        logger.info(() -> "Using LeakTrackingByteBufAllocator");
+        allocatorToSupply = byteBufAllocator;
+      } else {
+        allocatorToSupply = ByteBufAllocator.DEFAULT;
+      }
+      responder = new TestRSocket(TransportPair.data, metadata);
       server =
-          RSocketServer.create((setup, sendingSocket) -> Mono.just(new TestRSocket(data, metadata)))
-              .bind(serverTransportSupplier.apply(address))
+          RSocketServer.create((setup, sendingSocket) -> Mono.just(responder))
+              .payloadDecoder(PayloadDecoder.ZERO_COPY)
+              .interceptors(
+                  registry -> {
+                    if (runServerWithAsyncInterceptors) {
+                      logger.info(
+                          () ->
+                              "Perform Integration Test with Async Interceptors Enabled For Server");
+                      registry
+                          .forConnection(
+                              (type, duplexConnection) ->
+                                  new AsyncDuplexConnection(duplexConnection))
+                          .forSocketAcceptor(
+                              delegate ->
+                                  (connectionSetupPayload, sendingSocket) ->
+                                      delegate
+                                          .accept(connectionSetupPayload, sendingSocket)
+                                          .subscribeOn(Schedulers.parallel()));
+                    }
+                  })
+              .bind(serverTransportSupplier.apply(address, allocatorToSupply))
               .block();
 
       client =
-          RSocketConnector.connectWith(clientTransportSupplier.apply(address, server))
+          RSocketConnector.create()
+              .payloadDecoder(PayloadDecoder.ZERO_COPY)
+              .keepAlive(Duration.ofMillis(Integer.MAX_VALUE), Duration.ofMillis(Integer.MAX_VALUE))
+              .interceptors(
+                  registry -> {
+                    if (runClientWithAsyncInterceptors) {
+                      logger.info(
+                          () ->
+                              "Perform Integration Test with Async Interceptors Enabled For Client");
+                      registry
+                          .forConnection(
+                              (type, duplexConnection) ->
+                                  new AsyncDuplexConnection(duplexConnection))
+                          .forSocketAcceptor(
+                              delegate ->
+                                  (connectionSetupPayload, sendingSocket) ->
+                                      delegate
+                                          .accept(connectionSetupPayload, sendingSocket)
+                                          .subscribeOn(Schedulers.parallel()));
+                    }
+                  })
+              .connect(clientTransportSupplier.apply(address, server, allocatorToSupply))
               .doOnError(Throwable::printStackTrace)
               .block();
     }
@@ -406,6 +502,7 @@ public interface TransportTest {
     @Override
     public void dispose() {
       server.dispose();
+      client.dispose();
     }
 
     RSocket getClient() {
@@ -418,6 +515,119 @@ public interface TransportTest {
 
     public String expectedPayloadMetadata() {
       return metadata;
+    }
+
+    private static class AsyncDuplexConnection implements DuplexConnection {
+
+      private final DuplexConnection duplexConnection;
+
+      public AsyncDuplexConnection(DuplexConnection duplexConnection) {
+        this.duplexConnection = duplexConnection;
+      }
+
+      @Override
+      public Mono<Void> send(Publisher<ByteBuf> frames) {
+        return duplexConnection.send(frames);
+      }
+
+      @Override
+      public Flux<ByteBuf> receive() {
+        return duplexConnection
+            .receive()
+            .subscribeOn(Schedulers.parallel())
+            .doOnNext(ByteBuf::retain)
+            .publishOn(Schedulers.parallel(), Integer.MAX_VALUE)
+            .doOnDiscard(ReferenceCounted.class, ReferenceCountUtil::safeRelease)
+            .transform(
+                Operators.<ByteBuf, ByteBuf>lift(
+                    (__, actual) -> new ByteBufReleaserOperator(actual)));
+      }
+
+      @Override
+      public ByteBufAllocator alloc() {
+        return duplexConnection.alloc();
+      }
+
+      @Override
+      public Mono<Void> onClose() {
+        return duplexConnection.onClose();
+      }
+
+      @Override
+      public void dispose() {
+        duplexConnection.dispose();
+      }
+    }
+
+    private static class ByteBufReleaserOperator
+        implements CoreSubscriber<ByteBuf>, Subscription, Fuseable.QueueSubscription<ByteBuf> {
+
+      final CoreSubscriber<? super ByteBuf> actual;
+
+      Subscription s;
+
+      public ByteBufReleaserOperator(CoreSubscriber<? super ByteBuf> actual) {
+        this.actual = actual;
+      }
+
+      @Override
+      public void onSubscribe(Subscription s) {
+        if (Operators.validate(this.s, s)) {
+          this.s = s;
+          actual.onSubscribe(this);
+        }
+      }
+
+      @Override
+      public void onNext(ByteBuf buf) {
+        actual.onNext(buf);
+        buf.release();
+      }
+
+      @Override
+      public void onError(Throwable t) {
+        actual.onError(t);
+      }
+
+      @Override
+      public void onComplete() {
+        actual.onComplete();
+      }
+
+      @Override
+      public void request(long n) {
+        s.request(n);
+      }
+
+      @Override
+      public void cancel() {
+        s.cancel();
+      }
+
+      @Override
+      public int requestFusion(int requestedMode) {
+        return Fuseable.NONE;
+      }
+
+      @Override
+      public ByteBuf poll() {
+        throw new UnsupportedOperationException(NOT_SUPPORTED_MESSAGE);
+      }
+
+      @Override
+      public int size() {
+        throw new UnsupportedOperationException(NOT_SUPPORTED_MESSAGE);
+      }
+
+      @Override
+      public boolean isEmpty() {
+        throw new UnsupportedOperationException(NOT_SUPPORTED_MESSAGE);
+      }
+
+      @Override
+      public void clear() {
+        throw new UnsupportedOperationException(NOT_SUPPORTED_MESSAGE);
+      }
     }
   }
 }

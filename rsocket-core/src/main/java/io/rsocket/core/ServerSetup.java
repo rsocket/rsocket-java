@@ -25,7 +25,6 @@ import io.rsocket.exceptions.UnsupportedSetupException;
 import io.rsocket.frame.ErrorFrameCodec;
 import io.rsocket.frame.ResumeFrameCodec;
 import io.rsocket.frame.SetupFrameCodec;
-import io.rsocket.internal.ClientServerInputMultiplexer;
 import io.rsocket.keepalive.KeepAliveHandler;
 import io.rsocket.resume.*;
 import java.time.Duration;
