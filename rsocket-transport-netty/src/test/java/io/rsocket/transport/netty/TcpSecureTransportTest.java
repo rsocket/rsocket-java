@@ -1,5 +1,6 @@
 package io.rsocket.transport.netty;
 
+import io.netty.channel.ChannelOption;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 import io.netty.handler.ssl.util.SelfSignedCertificate;
@@ -17,20 +18,22 @@ public class TcpSecureTransportTest implements TransportTest {
   private final TransportPair transportPair =
       new TransportPair<>(
           () -> new InetSocketAddress("localhost", 0),
-          (address, server) ->
+          (address, server, allocator) ->
               TcpClientTransport.create(
                   TcpClient.create()
+                      .option(ChannelOption.ALLOCATOR, allocator)
                       .remoteAddress(server::address)
                       .secure(
                           ssl ->
                               ssl.sslContext(
                                   SslContextBuilder.forClient()
                                       .trustManager(InsecureTrustManagerFactory.INSTANCE)))),
-          address -> {
+          (address, allocator) -> {
             try {
               SelfSignedCertificate ssc = new SelfSignedCertificate();
               TcpServer server =
                   TcpServer.create()
+                      .option(ChannelOption.ALLOCATOR, allocator)
                       .bindAddress(() -> address)
                       .secure(
                           ssl ->

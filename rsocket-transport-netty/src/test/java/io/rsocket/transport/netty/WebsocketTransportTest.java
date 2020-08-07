@@ -16,19 +16,33 @@
 
 package io.rsocket.transport.netty;
 
+import io.netty.channel.ChannelOption;
 import io.rsocket.test.TransportTest;
 import io.rsocket.transport.netty.client.WebsocketClientTransport;
 import io.rsocket.transport.netty.server.WebsocketServerTransport;
 import java.net.InetSocketAddress;
 import java.time.Duration;
+import reactor.netty.http.client.HttpClient;
+import reactor.netty.http.server.HttpServer;
 
 final class WebsocketTransportTest implements TransportTest {
 
   private final TransportPair transportPair =
       new TransportPair<>(
           () -> InetSocketAddress.createUnresolved("localhost", 0),
-          (address, server) -> WebsocketClientTransport.create(server.address()),
-          address -> WebsocketServerTransport.create(address.getHostName(), address.getPort()));
+          (address, server, allocator) ->
+              WebsocketClientTransport.create(
+                  HttpClient.create()
+                      .host(server.address().getHostName())
+                      .port(server.address().getPort())
+                      .option(ChannelOption.ALLOCATOR, allocator),
+                  ""),
+          (address, allocator) ->
+              WebsocketServerTransport.create(
+                  HttpServer.create()
+                      .host(address.getHostName())
+                      .port(address.getPort())
+                      .option(ChannelOption.ALLOCATOR, allocator)));
 
   @Override
   public Duration getTimeout() {

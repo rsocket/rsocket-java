@@ -43,7 +43,11 @@ import reactor.core.publisher.MonoProcessor;
  * <p>The only way to differentiate these two frames is determining whether the stream Id is odd or
  * even. Even IDs are for the streams initiated by server and odds are for streams initiated by the
  * client.
+ *
+ * @deprecated since 1.1.0-M1 in favor of package-private {@link
+ *     io.rsocket.core.ClientServerInputMultiplexer}
  */
+@Deprecated
 public class ClientServerInputMultiplexer implements Closeable {
   private static final Logger LOGGER = LoggerFactory.getLogger("io.rsocket.FrameLogger");
   private static final InitializingInterceptorRegistry emptyInterceptorRegistry =

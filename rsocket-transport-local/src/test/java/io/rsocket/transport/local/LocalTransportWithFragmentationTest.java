@@ -16,17 +16,18 @@
 
 package io.rsocket.transport.local;
 
-import io.rsocket.test.FragmentationTransportTest;
+import io.rsocket.test.TransportTest;
 import java.time.Duration;
 import java.util.UUID;
 
-final class LocalTransportWithFragmentationTest implements FragmentationTransportTest {
+final class LocalTransportWithFragmentationTest implements TransportTest {
 
   private final TransportPair transportPair =
       new TransportPair<>(
           () -> "test-" + UUID.randomUUID(),
-          (address, server) -> LocalClientTransport.create(address),
-          LocalServerTransport::create);
+          (address, server, allocator) -> LocalClientTransport.create(address, allocator),
+          (address, allocator) -> LocalServerTransport.create(address),
+          true);
 
   @Override
   public Duration getTimeout() {
