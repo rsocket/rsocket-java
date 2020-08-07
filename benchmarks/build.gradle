@@ -12,12 +12,14 @@ dependencies {
   // Use the baseline to avoid using new APIs in the benchmarks
   compileOnly "io.rsocket:rsocket-core:${perfBaselineVersion}"
   compileOnly "io.rsocket:rsocket-transport-local:${perfBaselineVersion}"
+  compileOnly "io.rsocket:rsocket-transport-netty:${perfBaselineVersion}"
 
   implementation "org.openjdk.jmh:jmh-core:1.21"
   annotationProcessor "org.openjdk.jmh:jmh-generator-annprocess:1.21"
 
   current project(':rsocket-core')
   current project(':rsocket-transport-local')
+  current project(':rsocket-transport-netty')
   baseline "io.rsocket:rsocket-core:${perfBaselineVersion}", {
     changing = true
   }
@@ -33,10 +35,12 @@ task jmhProfilers(type: JavaExec, description:'Lists the available profilers for
 }
 
 task jmh(type: JmhExecTask, description: 'Executing JMH benchmarks') {
+  main = 'org.openjdk.jmh.Main'
   classpath = sourceSets.main.runtimeClasspath + configurations.current
 }
 
 task jmhBaseline(type: JmhExecTask, description: 'Executing JMH baseline benchmarks') {
+  main = 'org.openjdk.jmh.Main'
   classpath = sourceSets.main.runtimeClasspath + configurations.baseline
 }
 
@@ -123,7 +127,6 @@ class JmhExecTask extends JavaExec {
 
   @TaskAction
   public void exec() {
-    setMain("org.openjdk.jmh.Main");
     File resultFile = getProject().file("build/reports/" + getName() + "/result." + format);
 
     if (include != null) {

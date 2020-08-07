@@ -6,19 +6,29 @@ import io.rsocket.PayloadsMaxPerfSubscriber;
 import io.rsocket.PayloadsPerfSubscriber;
 import io.rsocket.RSocket;
 import io.rsocket.frame.decoder.PayloadDecoder;
+import io.rsocket.transport.ClientTransport;
+import io.rsocket.transport.ServerTransport;
 import io.rsocket.transport.local.LocalClientTransport;
 import io.rsocket.transport.local.LocalServerTransport;
+import io.rsocket.transport.netty.client.TcpClientTransport;
+import io.rsocket.transport.netty.client.WebsocketClientTransport;
+import io.rsocket.transport.netty.server.TcpServerTransport;
+import io.rsocket.transport.netty.server.WebsocketServerTransport;
+import io.rsocket.util.ByteBufPayload;
 import io.rsocket.util.EmptyPayload;
 import java.lang.reflect.Field;
 import java.util.Queue;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.LockSupport;
-import java.util.stream.IntStream;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
 import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Measurement;
 import org.openjdk.jmh.annotations.Mode;
+import org.openjdk.jmh.annotations.OutputTimeUnit;
+import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
@@ -30,19 +40,23 @@ import reactor.core.CoreSubscriber;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-@BenchmarkMode(Mode.Throughput)
-@Fork(
-    value = 1 // , jvmArgsAppend = {"-Dio.netty.leakDetection.level=advanced"}
-    )
+@BenchmarkMode({Mode.Throughput, Mode.SampleTime})
+@Fork(value = 2)
 @Warmup(iterations = 10)
-@Measurement(iterations = 10, time = 20)
+@Measurement(iterations = 10, time = 10)
 @State(Scope.Benchmark)
+@OutputTimeUnit(TimeUnit.MICROSECONDS)
 public class RSocketPerf {
 
-  static final Payload PAYLOAD = EmptyPayload.INSTANCE;
-  static final Mono<Payload> PAYLOAD_MONO = Mono.just(PAYLOAD);
-  static final Flux<Payload> PAYLOAD_FLUX =
-      Flux.fromArray(IntStream.range(0, 100000).mapToObj(__ -> PAYLOAD).toArray(Payload[]::new));
+  @Param({"tcp", "websocket", "local"})
+  String transportType;
+
+  @Param({"0", "64", "1024", "131072", "1048576", "15728640"})
+  String payloadSize;
+
+  Payload payload;
+  Mono<Payload> payloadMono;
+  Flux<Payload> payloadsFlux;
 
   RSocket client;
   Closeable server;
@@ -52,6 +66,7 @@ public class RSocketPerf {
   public void tearDown() {
     client.dispose();
     server.dispose();
+    payload.release();
   }
 
   @TearDown(Level.Iteration)
@@ -62,8 +77,41 @@ public class RSocketPerf {
   }
 
   @Setup
-  public void setUp() throws NoSuchFieldException, IllegalAccessException {
-    server =
+  public void setUp() throws NoSuchFieldException, IllegalAccessException, ClassNotFoundException {
+    ClientTransport clientTransport;
+    ServerTransport<?> serverTransport;
+    switch (transportType) {
+      case "tcp":
+        clientTransport = TcpClientTransport.create(8081);
+        serverTransport = TcpServerTransport.create(8081);
+        break;
+      case "websocket":
+        clientTransport = WebsocketClientTransport.create(8081);
+        serverTransport = WebsocketServerTransport.create(8081);
+        break;
+      case "local":
+      default:
+        clientTransport = LocalClientTransport.create("server");
+        serverTransport = LocalServerTransport.create("server");
+        break;
+    }
+    Payload payload;
+    int payloadSize = Integer.parseInt(this.payloadSize);
+    if (payloadSize == 0) {
+      payload = EmptyPayload.INSTANCE;
+    } else {
+      byte[] randomMetadata = new byte[payloadSize / 2];
+      byte[] randomData = new byte[payloadSize / 2];
+      ThreadLocalRandom.current().nextBytes(randomData);
+      ThreadLocalRandom.current().nextBytes(randomMetadata);
+
+      payload = ByteBufPayload.create(randomData, randomMetadata);
+    }
+
+    this.payload = payload;
+    this.payloadMono = Mono.fromSupplier(payload::retain);
+    this.payloadsFlux = Flux.range(0, 100000).map(__ -> payload.retain());
+    this.server =
         RSocketServer.create(
                 (setup, sendingSocket) ->
                     Mono.just(
@@ -78,13 +126,13 @@ public class RSocketPerf {
                           @Override
                           public Mono<Payload> requestResponse(Payload payload) {
                             payload.release();
-                            return PAYLOAD_MONO;
+                            return payloadMono;
                           }
 
                           @Override
                           public Flux<Payload> requestStream(Payload payload) {
                             payload.release();
-                            return PAYLOAD_FLUX;
+                            return payloadsFlux;
                           }
 
                           @Override
@@ -93,26 +141,35 @@ public class RSocketPerf {
                           }
                         }))
             .payloadDecoder(PayloadDecoder.ZERO_COPY)
-            .bind(LocalServerTransport.create("server"))
+            .bind(serverTransport)
             .block();
 
-    client =
+    this.client =
         RSocketConnector.create()
             .payloadDecoder(PayloadDecoder.ZERO_COPY)
-            .connect(LocalClientTransport.create("server"))
+            .connect(clientTransport)
             .block();
 
-    Field sendProcessorField = RSocketRequester.class.getDeclaredField("sendProcessor");
-    sendProcessorField.setAccessible(true);
+    try {
+      Field sendProcessorField = RSocketRequester.class.getDeclaredField("sendProcessor");
+      sendProcessorField.setAccessible(true);
 
-    clientsQueue = (Queue) sendProcessorField.get(client);
+      clientsQueue = (Queue) sendProcessorField.get(client);
+    } catch (Throwable t) {
+      Field sendProcessorField =
+          Class.forName("io.rsocket.core.RequesterResponderSupport")
+              .getDeclaredField("sendProcessor");
+      sendProcessorField.setAccessible(true);
+
+      clientsQueue = (Queue) sendProcessorField.get(client);
+    }
   }
 
   @Benchmark
   @SuppressWarnings("unchecked")
   public PayloadsPerfSubscriber fireAndForget(Blackhole blackhole) throws InterruptedException {
     PayloadsPerfSubscriber subscriber = new PayloadsPerfSubscriber(blackhole);
-    client.fireAndForget(PAYLOAD).subscribe((CoreSubscriber) subscriber);
+    client.fireAndForget(payload.retain()).subscribe((CoreSubscriber) subscriber);
     subscriber.await();
 
     return subscriber;
@@ -121,7 +178,7 @@ public class RSocketPerf {
   @Benchmark
   public PayloadsPerfSubscriber requestResponse(Blackhole blackhole) throws InterruptedException {
     PayloadsPerfSubscriber subscriber = new PayloadsPerfSubscriber(blackhole);
-    client.requestResponse(PAYLOAD).subscribe(subscriber);
+    client.requestResponse(payload.retain()).subscribe(subscriber);
     subscriber.await();
 
     return subscriber;
@@ -131,7 +188,7 @@ public class RSocketPerf {
   public PayloadsPerfSubscriber requestStreamWithRequestByOneStrategy(Blackhole blackhole)
       throws InterruptedException {
     PayloadsPerfSubscriber subscriber = new PayloadsPerfSubscriber(blackhole);
-    client.requestStream(PAYLOAD).subscribe(subscriber);
+    client.requestStream(payload.retain()).subscribe(subscriber);
     subscriber.await();
 
     return subscriber;
@@ -141,7 +198,7 @@ public class RSocketPerf {
   public PayloadsMaxPerfSubscriber requestStreamWithRequestAllStrategy(Blackhole blackhole)
       throws InterruptedException {
     PayloadsMaxPerfSubscriber subscriber = new PayloadsMaxPerfSubscriber(blackhole);
-    client.requestStream(PAYLOAD).subscribe(subscriber);
+    client.requestStream(payload.retain()).subscribe(subscriber);
     subscriber.await();
 
     return subscriber;
@@ -151,7 +208,7 @@ public class RSocketPerf {
   public PayloadsPerfSubscriber requestChannelWithRequestByOneStrategy(Blackhole blackhole)
       throws InterruptedException {
     PayloadsPerfSubscriber subscriber = new PayloadsPerfSubscriber(blackhole);
-    client.requestChannel(PAYLOAD_FLUX).subscribe(subscriber);
+    client.requestChannel(payloadsFlux).subscribe(subscriber);
     subscriber.await();
 
     return subscriber;
@@ -161,7 +218,7 @@ public class RSocketPerf {
   public PayloadsMaxPerfSubscriber requestChannelWithRequestAllStrategy(Blackhole blackhole)
       throws InterruptedException {
     PayloadsMaxPerfSubscriber subscriber = new PayloadsMaxPerfSubscriber(blackhole);
-    client.requestChannel(PAYLOAD_FLUX).subscribe(subscriber);
+    client.requestChannel(payloadsFlux).subscribe(subscriber);
     subscriber.await();
 
     return subscriber;

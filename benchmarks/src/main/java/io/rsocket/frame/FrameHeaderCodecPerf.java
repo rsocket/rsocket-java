@@ -12,7 +12,7 @@ import org.openjdk.jmh.infra.Blackhole;
 @Warmup(iterations = 10)
 @Measurement(iterations = 10)
 @State(Scope.Thread)
-public class FrameHeaderFlyweightPerf {
+public class FrameHeaderCodecPerf {
 
   @Benchmark
   public void encode(Input input) {
