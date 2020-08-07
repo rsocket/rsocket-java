@@ -131,9 +131,13 @@ final class RequestResponseRequesterMono extends Mono<Payload>
       this.streamId = streamId;
     } catch (Throwable t) {
       this.done = true;
-      lazyTerminate(STATE, this);
+      final long previousState = markTerminated(STATE, this);
+
       payload.release();
-      this.actual.onError(Exceptions.unwrap(t));
+
+      if (!isTerminated(previousState)) {
+        this.actual.onError(Exceptions.unwrap(t));
+      }
       return;
     }
 

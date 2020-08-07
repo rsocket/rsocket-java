@@ -190,13 +190,15 @@ final class RequestChannelRequesterFlux extends Flux<Payload>
       streamId = sm.addAndGetNextStreamId(this);
       this.streamId = streamId;
     } catch (Throwable t) {
-      lazyTerminate(STATE, this);
+      this.inboundDone = true;
+      final long previousState = markTerminated(STATE, this);
 
       firstPayload.release();
       this.outboundSubscription.cancel();
 
-      this.inboundDone = true;
-      this.inboundSubscriber.onError(Exceptions.unwrap(t));
+      if (!isTerminated(previousState)) {
+        this.inboundSubscriber.onError(Exceptions.unwrap(t));
+      }
       return;
     }
 

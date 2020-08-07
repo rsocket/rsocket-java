@@ -138,11 +138,13 @@ final class RequestStreamRequesterFlux extends Flux<Payload>
       this.streamId = streamId;
     } catch (Throwable t) {
       this.done = true;
-      lazyTerminate(STATE, this);
+      final long previousState = markTerminated(STATE, this);
 
       payload.release();
 
-      this.inboundSubscriber.onError(Exceptions.unwrap(t));
+      if (!isTerminated(previousState)) {
+        this.inboundSubscriber.onError(Exceptions.unwrap(t));
+      }
       return;
     }
 

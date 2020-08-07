@@ -377,7 +377,7 @@ public class AssertSubscriber<T> implements CoreSubscriber<T>, Subscription {
       }
     }
     if (s > 1) {
-      throw new AssertionError("Multiple errors: " + s, null);
+      throw new AssertionError("Multiple errors: " + errors, null);
     }
     return this;
   }
