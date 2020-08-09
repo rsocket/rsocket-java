@@ -193,8 +193,10 @@ final class RequestResponseResponderSubscriber
       this.requesterResponderSupport.remove(this.streamId, this);
 
       final CompositeByteBuf frames = this.frames;
-      this.frames = null;
-      frames.release();
+      if (frames != null) {
+        this.frames = null;
+        frames.release();
+      }
 
       return;
     }
@@ -210,17 +212,20 @@ final class RequestResponseResponderSubscriber
 
   @Override
   public void handleNext(ByteBuf frame, boolean hasFollows, boolean isLastPayload) {
-    final CompositeByteBuf frames;
+    final CompositeByteBuf frames = this.frames;
+    if (frames == null) {
+      return;
+    }
+
     try {
-      frames = ReassemblyUtils.addFollowingFrame(this.frames, frame, this.maxInboundPayloadSize);
+      ReassemblyUtils.addFollowingFrame(frames, frame, this.maxInboundPayloadSize);
     } catch (IllegalStateException t) {
       S.lazySet(this, Operators.cancelledSubscription());
 
       this.requesterResponderSupport.remove(this.streamId, this);
 
-      CompositeByteBuf framesToRelease = this.frames;
       this.frames = null;
-      framesToRelease.release();
+      frames.release();
 
       logger.debug("Reassembly has failed", t);
 

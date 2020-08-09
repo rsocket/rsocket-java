@@ -309,8 +309,14 @@ final class RequestChannelResponderSubscriber extends Flux<Payload>
       this.requesterResponderSupport.remove(this.streamId, this);
 
       final CompositeByteBuf frames = this.frames;
-      this.frames = null;
-      frames.release();
+      if (frames != null) {
+        this.frames = null;
+        frames.release();
+      } else {
+        final Payload firstPayload = this.firstPayload;
+        this.firstPayload = null;
+        firstPayload.release();
+      }
       return;
     }
 
