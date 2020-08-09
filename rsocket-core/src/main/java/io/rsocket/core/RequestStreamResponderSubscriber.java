@@ -233,8 +233,10 @@ final class RequestStreamResponderSubscriber
       this.requesterResponderSupport.remove(this.streamId, this);
 
       final CompositeByteBuf frames = this.frames;
-      this.frames = null;
-      frames.release();
+      if (frames != null) {
+        this.frames = null;
+        frames.release();
+      }
 
       return;
     }
@@ -250,11 +252,13 @@ final class RequestStreamResponderSubscriber
 
   @Override
   public void handleNext(ByteBuf followingFrame, boolean hasFollows, boolean isLastPayload) {
-    final CompositeByteBuf frames;
+    final CompositeByteBuf frames = this.frames;
+    if (frames == null) {
+      return;
+    }
+
     try {
-      frames =
-          ReassemblyUtils.addFollowingFrame(
-              this.frames, followingFrame, this.maxInboundPayloadSize);
+      ReassemblyUtils.addFollowingFrame(frames, followingFrame, this.maxInboundPayloadSize);
     } catch (IllegalStateException t) {
       // if subscription is null, it means that streams has not yet reassembled all the fragments
       // and fragmentation of the first frame was cancelled before
@@ -262,9 +266,8 @@ final class RequestStreamResponderSubscriber
 
       this.requesterResponderSupport.remove(this.streamId, this);
 
-      CompositeByteBuf framesToRelease = this.frames;
       this.frames = null;
-      framesToRelease.release();
+      frames.release();
 
       logger.debug("Reassembly has failed", t);
 

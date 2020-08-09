@@ -301,6 +301,7 @@ class RSocketResponder extends RequesterResponderSupport implements RSocket {
           break;
       }
     } catch (Throwable t) {
+      LOGGER.error("Unexpected error during frame handling", t);
       super.getSendProcessor()
           .onNext(
               ErrorFrameCodec.encode(

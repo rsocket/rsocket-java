@@ -89,17 +89,15 @@ final class FireAndForgetResponderSubscriber
 
   @Override
   public void handleNext(ByteBuf followingFrame, boolean hasFollows, boolean isLastPayload) {
-    final CompositeByteBuf frames;
+    final CompositeByteBuf frames = this.frames;
+
     try {
-      frames =
-          ReassemblyUtils.addFollowingFrame(
-              this.frames, followingFrame, this.maxInboundPayloadSize);
+      ReassemblyUtils.addFollowingFrame(frames, followingFrame, this.maxInboundPayloadSize);
     } catch (IllegalStateException t) {
       this.requesterResponderSupport.remove(this.streamId, this);
 
-      CompositeByteBuf framesToRelease = this.frames;
       this.frames = null;
-      framesToRelease.release();
+      frames.release();
 
       logger.debug("Reassembly has failed", t);
       return;
@@ -128,8 +126,8 @@ final class FireAndForgetResponderSubscriber
   public final void handleCancel() {
     final CompositeByteBuf frames = this.frames;
     if (frames != null) {
-      this.frames = null;
       this.requesterResponderSupport.remove(this.streamId, this);
+      this.frames = null;
       frames.release();
     }
   }
